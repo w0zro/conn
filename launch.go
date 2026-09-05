@@ -396,12 +396,3 @@ func runJump() error {
 func runBack() error {
 	return tell("BTab")
 }
-
-// runStep is `conn next` and `conn prev`: the shell after or before the one
-// shown, in the navigator's order, which is the navigator's J and K.
-func runStep(delta int) error {
-	if delta < 0 {
-		return tell("K")
-	}
-	return tell("J")
-}

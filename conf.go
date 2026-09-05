@@ -52,8 +52,6 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 		"unbind -a",
 		"bind C-Space "+run("back"),
 		"bind - "+run("home"),
-		"bind j "+run("next"),
-		"bind k "+run("prev"),
 		"bind Enter "+run("jump"),
 		"bind / "+run("home /"),
 		"bind ? "+run("keys '#{client_name}'"),

@@ -21,7 +21,6 @@ import (
 // first, then the chords.
 var keyList = [][2]string{
 	{"↑↓ j k", "move"},
-	{"J K", "next · previous shell"},
 	{"enter", "open"},
 	{"tab", "the next waiting agent"},
 	{"shift+tab", "back where the keys were"},
@@ -39,7 +38,6 @@ var keyList = [][2]string{
 	{"R", "end the server, shells and all"},
 	{"q", "leave; the shells keep running"},
 	{"^spc -", "here, from any shell"},
-	{"^spc j k", "next · previous shell"},
 	{"^spc ^spc", "back: the last shell, or the list"},
 	{"^spc enter", "the next waiting agent"},
 	{"^spc s a r A", "shell · agent · run, here · continue"},

@@ -13,10 +13,12 @@ import (
 // same list dressed up; scripts, prompts and grep get it plain.
 
 // runLS asks the tmux server what it holds and writes one shell per line:
-// pid, directory and name, tab-separated. A shell opened by hand has no
-// name, and its last field is empty. No server listening means nothing is
-// held, which is an empty list, not an error — and not a reason to start
-// one, which would be an odd side effect of asking a question.
+// pid, directory, name and exit, tab-separated. A shell opened by hand has
+// no name; the exit is how the command a shell was started with ended, and
+// is empty while it runs, or for a shell started with none. No server
+// listening means nothing is held, which is an empty list, not an error —
+// and not a reason to start one, which would be an odd side effect of
+// asking a question.
 func runLS(w io.Writer) error {
 	out, err := tmuxCommand("list-panes", "-a", "-F", listFormat)
 	if err != nil {
@@ -36,7 +38,7 @@ func runLS(w io.Writer) error {
 		return cmp.Or(cmp.Compare(a.Dir, b.Dir), cmp.Compare(a.Name, b.Name), cmp.Compare(a.PID, b.PID))
 	})
 	for _, s := range ss {
-		if _, err := fmt.Fprintf(w, "%d\t%s\t%s\n", s.PID, s.Dir, s.Name); err != nil {
+		if _, err := fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", s.PID, s.Dir, s.Name, s.Exit); err != nil {
 			return err
 		}
 	}

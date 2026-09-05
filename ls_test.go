@@ -21,7 +21,7 @@ func TestLsPrintsWhatTheServerHolds(t *testing.T) {
 	if err := runLS(&out); err != nil {
 		t.Fatal(err)
 	}
-	want := fmt.Sprintf("%d\t/tmp\tweb\n", pid)
+	want := fmt.Sprintf("%d\t/tmp\tweb\t\n", pid)
 	if out.String() != want {
 		t.Errorf("ls = %q, want %q", out.String(), want)
 	}

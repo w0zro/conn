@@ -77,8 +77,9 @@ enter it, and goes back to a window of its own when the keys come home.
 .PP
 .B conn ls
 is the same server's state for a reader that is not a person: the held
-shells, one per line on stdout \(em pid, directory and name,
-tab\-separated, the name empty for a shell opened by hand. No server
+shells, one per line on stdout \(em pid, directory, name and exit,
+tab\-separated, the name empty for a shell opened by hand and the exit how
+the command a shell was started with ended, empty while it runs. No server
 listening means nothing is held, which is an empty list, not an error.
 .PP
 .B conn restart

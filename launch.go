@@ -313,26 +313,9 @@ func announce(run runner, now time.Time, text string, failed bool) error {
 // runPlanAt is `conn run [dir]`: the plan of the place holding dir, started
 // where it is not already running, each entry in a window of its own.
 func runPlanAt(dir string) error {
-	if dir == "" {
-		dir, _ = os.Getwd()
-	}
-	cfg, err := loadConfig()
+	p, err := placeHolding(dir)
 	if err != nil {
 		return err
-	}
-	m := model{subs: map[string][]Project{}}
-	m.projects, m.groups, err = discoverAll(cfg.roots(), cfg.skipSet())
-	if err != nil {
-		return err
-	}
-	for _, p := range m.projects {
-		if under(dir, p.Path) {
-			m.subs[p.Path] = subProjects(p.Path)
-		}
-	}
-	p, ok := m.placeAt(dir)
-	if !ok {
-		return errors.New("no project holds " + dir)
 	}
 	plan := readPlan(p.Path)
 	if len(plan.Entries) == 0 {
@@ -362,6 +345,67 @@ func runPlanAt(dir string) error {
 		}
 	}
 	return nil
+}
+
+// runTestsAt is `conn test [dir]`: the tests of the place holding dir, the
+// way the place says they run, in a shell named test — the navigator's t,
+// from any shell. A run still going is left to finish; the last run's
+// shell at its prompt is closed for the new one.
+func runTestsAt(dir string) error {
+	p, err := placeHolding(dir)
+	if err != nil {
+		return err
+	}
+	run, _, ok := testCommand(p.Path)
+	if !ok {
+		return errors.New(p.Name + " does not say how its tests run")
+	}
+	out, err := tmuxCommand("list-panes", "-a", "-F", listFormat)
+	if err != nil && !errors.Is(err, errNoServer) {
+		return err
+	}
+	held, _ := parseListing(out)
+	for _, pane := range held {
+		if pane.name != testName || pane.dir != p.Path {
+			continue
+		}
+		if pane.exit == "" {
+			return errors.New("the tests are already running in " + p.Name)
+		}
+		if _, err := tmuxCommand("kill-pane", "-t", pane.id); err != nil {
+			return err
+		}
+	}
+	_, err = createWindow(tmuxCommand, p.Path, run, testName, false)
+	return err
+}
+
+// placeHolding is the place a directory is in — the innermost project or
+// sub-project — found the way the navigator finds it, for the commands
+// that act where the keys are.
+func placeHolding(dir string) (Project, error) {
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+	cfg, err := loadConfig()
+	if err != nil {
+		return Project{}, err
+	}
+	m := model{subs: map[string][]Project{}}
+	m.projects, m.groups, err = discoverAll(cfg.roots(), cfg.skipSet())
+	if err != nil {
+		return Project{}, err
+	}
+	for _, p := range m.projects {
+		if under(dir, p.Path) {
+			m.subs[p.Path] = subProjects(p.Path)
+		}
+	}
+	p, ok := m.placeAt(dir)
+	if !ok {
+		return Project{}, errors.New("no project holds " + dir)
+	}
+	return p, nil
 }
 
 // report says what a chord's command could not do, where the user is

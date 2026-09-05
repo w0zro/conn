@@ -160,6 +160,13 @@ run the plan's entries that are not already running, each in a window of
 its own, and put the cursor on the first of them; an entry whose command
 ended is not running, and starts again beside the shell it left
 .TP
+.B t
+run the place's tests, the way the place says they run (see
+.BR TESTS ),
+in a window named test; a later
+.B t
+closes that window for the new run, and leaves a run still going
+.TP
 .B enter
 the keys to the selected shell, beside the list
 .TP
@@ -284,9 +291,9 @@ the next thing that needs you; again continues around them
 .B /
 the navigator, looking
 .TP
-.B "s a r"
-a shell, an agent, the plan \(em where the keys are, by the current
-pane's directory
+.B "s a r t"
+a shell, an agent, the plan, the tests \(em where the keys are, by the
+current pane's directory
 .TP
 .B A
 the navigator, with the picker open
@@ -406,6 +413,35 @@ in red if the command ended badly and sits hollow if it ended well, the
 checklist shows the entry down with how it ended, and
 .B r
 starts it again beside the old shell.
+.SH TESTS
+.B t
+runs a place's tests the way the place already says, not the way a file
+of conn's own would have it. What the project wrote down for the purpose
+comes first: a
+.I Makefile
+target, a
+.I justfile
+recipe, a
+.I Taskfile
+task, or a
+.I package.json
+script, each named
+.BR test .
+Otherwise the ecosystem's own runner, by the file that marks the project
+as its own:
+.B go test ./...
+for a go.mod,
+.B cargo test
+for a Cargo.toml,
+.B pytest
+for a pyproject.toml,
+.B bundle exec rspec
+for a Gemfile with a spec directory, and the like. A project the guess is
+wrong for says so in its Makefile, which conn believes first. The run is
+a shell named test, wrapped like a plan entry's, so the row and the
+place's pane say how it went, and tab goes to a run that failed.
+.B conn test
+does the same from any shell.
 .SH CONFIGURATION
 One JSON file, entirely optional, at
 .IR ~/.config/conn/config.json .

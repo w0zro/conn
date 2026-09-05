@@ -43,7 +43,7 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 		"",
 		"# The keys. ctrl-space is the prefix, and each chord keeps its letter's",
 		"# meaning: - is the navigator, ctrl-space again is back where the keys",
-		"# were, j and k the next and previous shell, enter",
+		"# were, enter",
 		"# the next agent waiting on you, s a r a shell, an agent, the plan where",
 		"# the keys are, and , the next kind of agent for a to start. Every",
 		"# chord tmux would otherwise bind is unbound first;",

@@ -53,6 +53,12 @@ type Proc struct {
 	// it before signalling, so a row from an old scan cannot aim at whatever
 	// inherited its number.
 	Started string
+
+	// Ports is what the process is accepting TCP connections on, by number,
+	// lowest first. A port is worth carrying because it is the thing you
+	// were about to go and look up: a dev server's row says what it is,
+	// and this says where it is.
+	Ports []string
 }
 
 // ProcNode is a process together with the processes it started.
@@ -62,25 +68,43 @@ type ProcNode struct {
 }
 
 // runningProcs lists the processes visible to this user along with their
-// working directories.
+// working directories and the ports they are listening on.
 //
 // lsof is the only way to read another process's cwd on macOS; there is no
 // /proc to walk. Processes owned by other users are reported as permission
 // errors on stderr and simply do not appear, which is the behavior we want.
 func runningProcs() ([]Proc, error) {
-	out, err := listing(scanTimeout, "lsof", "-a", "-d", "cwd", "-F", "pcRn")
+	return procsBut(os.Getpid())
+}
+
+// procsBut is runningProcs for a conn of the given pid: neither that
+// process nor its children are work happening in a repository.
+func procsBut(self int) ([]Proc, error) {
+	// One call asks for every process's working directory and every
+	// listening TCP socket together — without -a the selections are
+	// unioned — which is a few milliseconds over asking for the
+	// directories alone, where a second call per row would be that much
+	// again for every row drawn. -nP keeps the addresses numeric: a lookup
+	// per socket is what makes lsof slow.
+	out, err := listing(scanTimeout, "lsof", "-nP", "-d", "cwd", "-iTCP", "-sTCP:LISTEN", "-F", "pcRfn")
 	if err != nil && len(out) == 0 {
 		return nil, err
 	}
 
-	self := os.Getpid()
-	var procs []Proc
-	var cur Proc
-
 	// What each process was run with and when it began, in one call. Asking
 	// per process is milliseconds each, which is fine for the one row being
 	// inspected and far too slow for a list being redrawn.
-	ps := psTable()
+	return parseScan(out, self, psTable())
+}
+
+// parseScan reads what lsof said in procsBut's format: per process, its
+// pid, command and parent, then per file its descriptor and name — the
+// working directory under cwd, an address under a numbered descriptor.
+func parseScan(out []byte, self int, ps map[int]psInfo) ([]Proc, error) {
+	var procs []Proc
+	ports := map[int][]string{}
+	var cur Proc
+	fd := ""
 
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -102,6 +126,8 @@ func runningProcs() ([]Proc, error) {
 			cur.PPID, _ = strconv.Atoi(value)
 		case 'c':
 			cur.Command = value
+		case 'f':
+			fd = value
 		case 'n':
 			// Neither conn nor anything it started for itself is work
 			// happening in a repository. Its own children — the lsof that ran
@@ -112,7 +138,16 @@ func runningProcs() ([]Proc, error) {
 			// conn has no children worth showing: the shells it opens belong
 			// to the tmux server, which is a different process and keeps its own
 			// working directory well away from any project.
-			if cur.PID == 0 || cur.PID == self || cur.PPID == self || !strings.HasPrefix(value, "/") {
+			if cur.PID == 0 || cur.PID == self || cur.PPID == self {
+				continue
+			}
+			if fd != "cwd" {
+				if port, ok := portOf(value); ok && !slices.Contains(ports[cur.PID], port) {
+					ports[cur.PID] = append(ports[cur.PID], port)
+				}
+				continue
+			}
+			if !strings.HasPrefix(value, "/") {
 				continue
 			}
 			cur.Dir = value
@@ -121,7 +156,24 @@ func runningProcs() ([]Proc, error) {
 			procs = append(procs, cur)
 		}
 	}
+	for i := range procs {
+		if ps := ports[procs[i].PID]; len(ps) > 0 {
+			sortPorts(ps)
+			procs[i].Ports = ps
+		}
+	}
 	return procs, sc.Err()
+}
+
+// portOf is the port in a socket's address as lsof names it. The address is
+// host:port, and the host may itself contain colons when it is an IPv6
+// address.
+func portOf(addr string) (string, bool) {
+	i := strings.LastIndex(addr, ":")
+	if i < 0 || i == len(addr)-1 {
+		return "", false
+	}
+	return addr[i+1:], true
 }
 
 // psInfo is what ps says about one process: when it began, and what it was
@@ -243,49 +295,6 @@ func indexNodes(n *ProcNode, into map[int]*ProcNode) {
 	for _, c := range n.Children {
 		indexNodes(c, into)
 	}
-}
-
-// listeningPorts is the TCP ports a process is accepting connections on.
-//
-// It is asked per process rather than for the whole machine, because it is
-// only ever wanted for the one row being looked at, and asking about one
-// process costs about as little as asking is ever going to.
-//
-// A port is worth showing because it is the thing you were about to go and
-// look up: a dev server's row says what it is, and this says where it is.
-func listeningPorts(pid int) []string {
-	out, err := listing(scanTimeout, "lsof", "-nP", "-a", "-p", strconv.Itoa(pid),
-		"-iTCP", "-sTCP:LISTEN", "-F", "n")
-	if err != nil && len(out) == 0 {
-		// No listeners is an error exit and not worth reporting. What was
-		// written before a failure still counts — the same lesson the
-		// process scan learned: lsof exits nonzero for reasons that say
-		// nothing about the sockets it did list, and Linux's is freer with
-		// those reasons than macOS's.
-		return nil
-	}
-
-	seen := map[string]bool{}
-	var ports []string
-	for line := range strings.SplitSeq(string(out), "\n") {
-		if !strings.HasPrefix(line, "n") {
-			continue
-		}
-		// The address is host:port, and the host may itself contain colons
-		// when it is an IPv6 address.
-		i := strings.LastIndex(line, ":")
-		if i < 0 {
-			continue
-		}
-		port := line[i+1:]
-		if port == "" || seen[port] {
-			continue
-		}
-		seen[port] = true
-		ports = append(ports, port)
-	}
-	sortPorts(ports)
-	return ports
 }
 
 // sortPorts orders ports by number, so 80 comes before 8080.

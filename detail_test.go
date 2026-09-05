@@ -1,12 +1,9 @@
 package main
 
 import (
-	"net"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 func fieldValue(fs []field, label string) (string, bool) {
@@ -258,31 +255,8 @@ func TestTheRunsPortsAreTheRowsPorts(t *testing.T) {
 	// A dev server is a shell running an npm running a node, and it is the
 	// node at the bottom that holds the port — the one the fold exists to
 	// hide. Asking only the process the row is named for found nothing.
-	c := exec.Command("python3", "-m", "http.server", "8932", "--bind", "127.0.0.1")
-	c.Dir = "/tmp"
-	if err := c.Start(); err != nil {
-		t.Skip(err)
-	}
-	defer func() { _ = c.Process.Kill() }()
-
-	// Until the port answers, not a hopeful sleep: a loaded runner can
-	// outwait any number chosen in advance.
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		conn, err := net.Dial("tcp", "127.0.0.1:8932")
-		if err == nil {
-			_ = conn.Close()
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("the listener never came up")
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	// The row is named for something above the listener, as a folded run is.
-	named := &ProcNode{Proc: Proc{PID: os.Getpid(), Command: "npm", Dir: "/tmp"}}
-	listener := &ProcNode{Proc: Proc{PID: c.Process.Pid, Command: "node", Dir: "/tmp"}}
+	named := &ProcNode{Proc: Proc{PID: 10, Command: "npm", Dir: "/tmp"}}
+	listener := &ProcNode{Proc: Proc{PID: 11, Command: "node", Dir: "/tmp", Ports: []string{"8932"}}}
 	run := []*ProcNode{named, listener}
 
 	got, ok := fieldValue(procFields(named, run, nil), "listening")
@@ -296,6 +270,16 @@ func TestTheRunsPortsAreTheRowsPorts(t *testing.T) {
 	// And with no run, the row still speaks for itself.
 	if _, ok := fieldValue(procFields(listener, nil, nil), "listening"); !ok {
 		t.Error("a row that folded nothing should still report its own port")
+	}
+
+	// A port two processes of the run hold — a server and its worker — is
+	// one port, and the run's ports read lowest first whichever held them.
+	twice := []*ProcNode{
+		{Proc: Proc{PID: 12, Ports: []string{"8080", "443"}}},
+		{Proc: Proc{PID: 13, Ports: []string{"8080", "80"}}},
+	}
+	if got := strings.Join(runPorts(twice, twice[0]), ","); got != "80,443,8080" {
+		t.Errorf("ports = %q, want each once, by number", got)
 	}
 }
 

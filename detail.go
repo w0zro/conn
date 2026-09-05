@@ -304,7 +304,8 @@ func procFields(n *ProcNode, run []*ProcNode, ag agent) []field {
 	return fs
 }
 
-// runPorts is everything the processes a row stands for are listening on.
+// runPorts is everything the processes a row stands for are listening on,
+// as the scan found them.
 func runPorts(run []*ProcNode, n *ProcNode) []string {
 	nodes := run
 	if len(nodes) == 0 {
@@ -314,7 +315,7 @@ func runPorts(run []*ProcNode, n *ProcNode) []string {
 	seen := map[string]bool{}
 	var ports []string
 	for _, node := range nodes {
-		for _, p := range listeningPorts(node.PID) {
+		for _, p := range node.Ports {
 			if !seen[p] {
 				seen[p] = true
 				ports = append(ports, p)

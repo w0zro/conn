@@ -1,7 +1,11 @@
 package main
 
 import (
+	"net"
 	"os"
+	"os/exec"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,6 +51,84 @@ func TestRunningProcsFindsThisTest(t *testing.T) {
 	if !sawCwd {
 		t.Errorf("no process reported %q as its cwd", cwd)
 	}
+}
+
+func TestTheScanReadsDirectoriesAndPortsFromOneListing(t *testing.T) {
+	// lsof lists every process's working directory and its listening
+	// sockets in one go, the files in whatever order it keeps them: the
+	// directory is the file under cwd, a port is the end of an address
+	// under any other descriptor — the host may hold colons of its own —
+	// and a port held on two addresses is one port.
+	out := []byte("p100\nR1\ncnode\nfcwd\nn/p/app\nf20\nn*:5173\nf21\nn[::1]:5173\nf22\nn127.0.0.1:24678\n" +
+		"p200\nR1\ncmongod\nf9\nn127.0.0.1:27017\nfcwd\nn/opt/db\n" +
+		"p300\nR1\nczsh\nfcwd\nn/p/app\n" +
+		"p400\nR100\ncsh\nfcwd\nn/p/app\n")
+	procs, err := parseScan(out, 100, map[int]psInfo{200: {argv: "mongod --config x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[int]string{200: "27017", 300: ""}
+	for _, p := range procs {
+		if p.PID == 100 || p.PID == 400 {
+			t.Errorf("the scan reported %+v, which is conn or a child of it", p)
+			continue
+		}
+		if got := strings.Join(p.Ports, ","); got != want[p.PID] {
+			t.Errorf("ports of %d = %q, want %q", p.PID, got, want[p.PID])
+		}
+		delete(want, p.PID)
+	}
+	for pid := range want {
+		t.Errorf("the scan did not report %d", pid)
+	}
+
+	// Ports before the directory, and the directory of a process that
+	// listens: the order of the files does not decide either.
+	out = []byte("p500\nR1\ncnode\nf20\nn*:8080\nf21\nn*:80\nfcwd\nn/p/web\n")
+	procs, _ = parseScan(out, -1, nil)
+	if len(procs) != 1 || procs[0].Dir != "/p/web" || strings.Join(procs[0].Ports, ",") != "80,8080" {
+		t.Errorf("procs = %+v, want one in /p/web on 80 and 8080", procs)
+	}
+}
+
+func TestTheScanFindsAListener(t *testing.T) {
+	c := exec.Command("python3", "-m", "http.server", "8932", "--bind", "127.0.0.1")
+	c.Dir = "/tmp"
+	if err := c.Start(); err != nil {
+		t.Skip(err)
+	}
+	defer func() { _ = c.Process.Kill() }()
+
+	// Until the port answers, not a hopeful sleep: a loaded runner can
+	// outwait any number chosen in advance.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		conn, err := net.Dial("tcp", "127.0.0.1:8932")
+		if err == nil {
+			_ = conn.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the listener never came up")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// The listener is this test's child, which the scan for this process
+	// would leave out; scanned as some other conn would see it.
+	procs, err := procsBut(-1)
+	if err != nil {
+		t.Skipf("lsof unavailable: %v", err)
+	}
+	for _, p := range procs {
+		if p.PID == c.Process.Pid {
+			if !slices.Contains(p.Ports, "8932") {
+				t.Errorf("ports = %v, want the port the server is on", p.Ports)
+			}
+			return
+		}
+	}
+	t.Error("the scan did not report the listener at all")
 }
 
 func TestProcForestNestsChildren(t *testing.T) {

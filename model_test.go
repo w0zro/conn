@@ -2915,7 +2915,7 @@ func TestARowSaysWhereItListens(t *testing.T) {
 	if !strings.Contains(rows, "npm run … · :5173 :24678") {
 		t.Errorf("rows = %q, want the run's ports beside the npm, the name giving way", rows)
 	}
-	if !strings.Contains(rows, "python3 -m some… · :8437") {
+	if !strings.Contains(rows, "some.very.long.… · :8437") {
 		t.Errorf("rows = %q, want the python cut and its port kept", rows)
 	}
 	if !strings.Contains(rows, "go test ./...\n") && !strings.HasSuffix(rows, "go test ./...") {

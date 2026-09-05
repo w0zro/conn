@@ -43,7 +43,10 @@ func TestACommandLineReadsAsWhatWasRun(t *testing.T) {
 		"node server.js --port 3000":                           "server.js --port 3000",
 		"go run .":                                             "go run .",
 		"caffeinate -i -t 300":                                 "caffeinate -i -t 300",
-		"/usr/bin/python3 -m http.server 8931":                 "python3 -m http.server 8931",
+		"/usr/bin/python3 -m http.server 8931":                 "http.server 8931",
+		"python3 -m uvicorn app:main --port 8000":              "uvicorn app:main --port 8000",
+		"python3 -m":                                           "python3 -m",
+		"python3 -u worker.py":                                 "python3 -u worker.py",
 		"/opt/homebrew/Caskroom/claude-code/2.1.231/claude":    "claude",
 	}
 	for argv, want := range cases {

@@ -350,10 +350,16 @@ func shortArgv(argv string) string {
 	}
 
 	// A command run through an interpreter names itself in its arguments, so
-	// the interpreter is worth dropping when something follows it.
+	// the interpreter is worth dropping when something follows it: the
+	// script, or the module python was asked to run as one — http.server
+	// is what "python3 -m http.server" is, and the -m says nothing on its
+	// own.
 	first := filepath.Base(fields[0])
 	if len(fields) > 1 && interpreters[strings.TrimSuffix(first, ".exe")] {
-		if next := fields[1]; !strings.HasPrefix(next, "-") {
+		switch next := fields[1]; {
+		case next == "-m" && len(fields) > 2:
+			fields, first = fields[2:], fields[2]
+		case !strings.HasPrefix(next, "-"):
 			fields, first = fields[1:], filepath.Base(fields[1])
 		}
 	}

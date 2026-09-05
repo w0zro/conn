@@ -51,6 +51,7 @@ the chords run these; they are not for typing:
   conn run [dir]   the plan of the place holding dir
   conn jump        the next thing that needs you: an agent waiting, a command that ended badly
   conn back        back where the keys were: the last shell, or the navigator
+  conn next, prev  the next and previous shell
 
 files:
   ~/.config/conn/config.json  configuration
@@ -160,6 +161,8 @@ var chords = map[string]func(arg string) error{
 	"run":   runPlanAt,
 	"jump":  func(string) error { return runJump() },
 	"back":  func(string) error { return runBack() },
+	"next":  func(string) error { return runStep(1) },
+	"prev":  func(string) error { return runStep(-1) },
 	"keys":  func(client string) error { return showKeys(tmuxCommand, connExe(), client) },
 }
 

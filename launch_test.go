@@ -174,7 +174,7 @@ func TestTheNavigatorGoesBackOnTheLeftOfAHomeWindowThatLostIt(t *testing.T) {
 }
 
 func TestAChordPressesItsKeyAtTheNavigator(t *testing.T) {
-	// The chords for what only the navigator knows — the picker, the
+	// The chords for what only the navigator knows — the next shell, the
 	// next waiting agent — press a key at it, making it first if the home
 	// window was closed. The key lands in the navigator's pane: an inert
 	// program there lets the terminal echo it.
@@ -186,7 +186,7 @@ func TestAChordPressesItsKeyAtTheNavigator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := runHome("A"); err != nil {
+	if err := runStep(1); err != nil {
 		t.Fatal(err)
 	}
 	h, err := ensureHome()
@@ -196,12 +196,12 @@ func TestAChordPressesItsKeyAtTheNavigator(t *testing.T) {
 	deadline := time.After(3 * time.Second)
 	for {
 		out, _ := tmuxCommand("capture-pane", "-p", "-t", h.pane)
-		if strings.Contains(out, "A") {
+		if strings.Contains(out, "J") {
 			return
 		}
 		select {
 		case <-deadline:
-			t.Fatalf("the navigator's pane shows %q, want the A the chord pressed", out)
+			t.Fatalf("the navigator's pane shows %q, want the J the chord pressed", out)
 		case <-time.After(20 * time.Millisecond):
 		}
 	}

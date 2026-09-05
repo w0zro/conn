@@ -3809,6 +3809,80 @@ func TestEnterOnAShownShellTakesTheKeysToIt(t *testing.T) {
 	}
 }
 
+func TestJAndKStepThroughTheHeldShellsInOrder(t *testing.T) {
+	// The chord ctrl-space j presses J here: the next held shell in the
+	// navigator's order from the one shown, wrapping, with the keys in it.
+	// The order is the places' order, whatever is folded or filtered.
+	m := withProcList(90, 14,
+		[]Project{{Name: "alpha", Path: "/p/alpha"}, {Name: "beta", Path: "/p/beta"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/beta"},
+			{PID: 701, PPID: 1, Command: "zsh", Dir: "/p/alpha"},
+		})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/beta"}, 701: {pid: 701, dir: "/p/alpha"}}
+	m, asked := pipeServer(t, m)
+
+	if got := m.heldOrder(); len(got) != 2 || got[0] != 701 || got[1] != 700 {
+		t.Fatalf("heldOrder = %v, want alpha's shell before beta's", got)
+	}
+	for i, want := range []int{701, 700, 701} {
+		m = press(m, "J")
+		if got := askedForKind(t, asked, kindFocus); got.PID != want {
+			t.Errorf("J %d took the keys to %d, want %d", i+1, got.PID, want)
+		}
+		if r, ok := m.selected(); !ok || !r.holds(want) {
+			t.Errorf("J %d left the cursor on %+v, want the shell %d", i+1, r, want)
+		}
+	}
+	m = press(m, "K")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
+		t.Errorf("K took the keys to %d, want back to 700", got.PID)
+	}
+}
+
+func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
+	// A place's rows are ordered by the name each wears, not by pid: three
+	// shells running b, a and c, in pid order, are listed a, b, c. J from
+	// the top of the list is the row below it, not the next pid.
+	m := withProcList(90, 20,
+		[]Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"},
+			{PID: 710, PPID: 700, Command: "b", Dir: "/tmp"},
+			{PID: 701, PPID: 1, Command: "zsh", Dir: "/tmp"},
+			{PID: 711, PPID: 701, Command: "a", Dir: "/tmp"},
+			{PID: 702, PPID: 1, Command: "zsh", Dir: "/tmp"},
+			{PID: 712, PPID: 702, Command: "c", Dir: "/tmp"},
+		})
+	m.terms = map[int]*remoteTerm{
+		700: {pid: 700, dir: "/tmp"}, 701: {pid: 701, dir: "/tmp"}, 702: {pid: 702, dir: "/tmp"},
+	}
+	m, asked := pipeServer(t, m)
+
+	if got := m.heldOrder(); !slices.Equal(got, []int{701, 700, 702}) {
+		t.Fatalf("heldOrder = %v, want the list's order a, b, c", got)
+	}
+	m.shown = 701
+	for i, want := range []int{700, 702, 701} {
+		m = press(m, "J")
+		if got := askedForKind(t, asked, kindFocus); got.PID != want {
+			t.Errorf("J %d took the keys to %d, want %d", i+1, got.PID, want)
+		}
+	}
+	m = press(m, "K")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 702 {
+		t.Errorf("K took the keys to %d, want back up to 702", got.PID)
+	}
+}
+
+func TestJWithNoShellOpenSaysSo(t *testing.T) {
+	m, _ := pipeServer(t, repoModel())
+	m = press(m, "J")
+	if f := footer(m); !strings.Contains(f, "no shell is open") {
+		t.Errorf("footer = %q, want it said that there is nothing to step to", f)
+	}
+}
+
 func TestAShellAChordOpenedIsShownWhenItIsListed(t *testing.T) {
 	// A chord opens a shell in a window named for wanting it shown; the
 	// navigator sees the name in the listing and shows the shell the way
@@ -4067,6 +4141,43 @@ func TestAPlannedShellIsNamedByItsPlanUntilItRunsSomething(t *testing.T) {
 	}
 }
 
+func TestJReachesAShellOutsideEveryPlace(t *testing.T) {
+	// A shell opened somewhere no project holds has no row, but it is held
+	// and shown like any other: J steps to it, and the keys go to it.
+	m := withProcList(90, 14,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/conn"},
+			{PID: 701, PPID: 1, Command: "zsh", Dir: "/tmp"},
+		})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/conn"}, 701: {pid: 701, dir: "/tmp"}}
+	m, asked := pipeServer(t, m)
+	m = press(m, "down") // the cursor on 700's row, the keys still here
+
+	m = press(m, "J") // from the row under the cursor
+	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
+		t.Errorf("J took the keys to %d, want the shell outside every place, 701", got.PID)
+	}
+
+	// The cursor is still on 700's row, having nowhere else to be. The
+	// world changing under it — a scan, the server's list — must not read
+	// that as the cursor asking for 700 back.
+	next, _ := m.Update(procsMsg{procs: m.procs})
+	m = next.(model)
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/p/conn"}, {PID: 701, Dir: "/tmp", Shown: true}}})
+	m = next.(model)
+	select {
+	case got := <-asked:
+		if got.Kind == kindShow || got.Kind == kindPark {
+			t.Errorf("a refresh under a cursor that had not moved rearranged the pane: %+v", got)
+		}
+	case <-time.After(50 * time.Millisecond):
+	}
+	if m.shown != 701 {
+		t.Errorf("shown = %d, want the shell J showed to stay shown", m.shown)
+	}
+}
+
 // --- back -----------------------------------------------------------------
 
 // twoShells is a navigator over two places with a held shell in each, wired
@@ -4083,9 +4194,33 @@ func twoShells(t *testing.T) (model, chan message) {
 	return pipeServer(t, m)
 }
 
+func TestBackReturnsToTheShellBeforeThisOne(t *testing.T) {
+	// The chord ctrl-space ctrl-space presses shift-tab here. From a shell
+	// reached from another shell, back is that other shell, and back again
+	// is this one: the last two, however the pane beside the list has been
+	// rearranged since.
+	m, asked := twoShells(t)
+	m = press(m, "J") // to alpha's shell, 701
+	askedForKind(t, asked, kindFocus)
+	m = press(m, "J") // on to beta's, 700
+	askedForKind(t, asked, kindFocus)
+	if m.focus != 700 || m.was != 701 {
+		t.Fatalf("focus %d, was %d; want the keys in 700 from 701", m.focus, m.was)
+	}
+
+	m = press(m, "shift+tab")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
+		t.Fatalf("back took the keys to %d, want the shell before, 701", got.PID)
+	}
+	m = press(m, "shift+tab")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
+		t.Fatalf("back again took the keys to %d, want 700", got.PID)
+	}
+}
+
 func TestBackFromAShellReachedFromTheListIsTheList(t *testing.T) {
 	m, asked := twoShells(t)
-	m = press(press(m, "down"), "enter") // into alpha's shell, 701
+	m = press(m, "J")
 	askedForKind(t, asked, kindFocus)
 
 	// The keys came from the list, so back is the list: its pane, which the
@@ -4110,11 +4245,11 @@ func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
 	// the second, not a place the keys stopped. Back from the second is
 	// the first, and back again the second — however many times.
 	m, asked := twoShells(t)
-	m = press(press(m, "down"), "enter") // into alpha's shell, 701
+	m = press(m, "J") // to alpha's shell, 701
 	askedForKind(t, asked, kindFocus)
 	m = press(m, "shift+tab") // to the list
 	askedForKind(t, asked, kindFocus)
-	m = press(press(press(m, "down"), "down"), "enter") // on to beta's, 700, by way of the list
+	m = press(m, "J") // on to beta's, 700, by way of the list
 	askedForKind(t, asked, kindFocus)
 	if m.focus != 700 || m.was != 701 {
 		t.Fatalf("focus %d, was %d; want the keys in 700 from 701, the list passed through", m.focus, m.was)
@@ -4185,9 +4320,9 @@ func TestBackWithNowhereToGoSaysSoOrTakesTheShellUnderTheCursor(t *testing.T) {
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
 		t.Fatalf("back took the keys to %d, want the shell under the cursor", got.PID)
 	}
-	// The shell the keys came from has gone: back from a shell falls to
-	// the list.
-	m = press(press(press(m, "down"), "down"), "enter") // 700, from 701
+	// The shell the keys came from has gone: back from the list falls to
+	// what is shown; back from a shell falls to the list.
+	m = press(m, "J") // 700, from 701
 	askedForKind(t, asked, kindFocus)
 	delete(m.terms, 701)
 	m = press(m, "shift+tab")

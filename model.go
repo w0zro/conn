@@ -803,6 +803,10 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.move(1)
 	case "up", "k":
 		return m, m.move(-1)
+	case "J":
+		return m, m.stepShell(1)
+	case "K":
+		return m, m.stepShell(-1)
 	case "tab":
 		// The next agent waiting on you, and again around them in
 		// turn: the summons the chord ctrl-space enter delivers from
@@ -1201,6 +1205,34 @@ func (m *model) showPID(pid int) {
 	m.server.show(pid)
 }
 
+// stepShell shows the next or previous held shell in the navigator's order
+// from the one the keys are in — or, from the list, the one under the
+// cursor — wrapping, and takes the keys to it: the chord ctrl-space j and
+// k, from any shell, and J and K at the list.
+func (m *model) stepShell(delta int) tea.Cmd {
+	order := m.heldOrder()
+	if len(order) == 0 {
+		m.status, m.statusErr = "no shell is open", false
+		return nil
+	}
+	m.letGo()
+	from := m.shown
+	if from == 0 {
+		if t := m.cursorTerm(); t != nil {
+			from = t.pid
+		}
+	}
+	at := -1
+	for i, pid := range order {
+		if pid == from {
+			at = i
+		}
+	}
+	next := order[(at+delta+len(order))%len(order)]
+	m.show(m.terms[next])
+	return nil
+}
+
 // isSelf reports whether a process is conn itself: this build, by its
 // path, or a tmux on conn's socket — the client the launcher becomes, the
 // server, the navigator. A `go run .` in this repository is not conn by
@@ -1229,6 +1261,39 @@ func (m model) selfRun(r navRow) bool {
 		}
 	}
 	return false
+}
+
+// heldOrder is every held shell in the order the navigator lists them. It
+// is the order J and K step through, and it does not depend on what is
+// folded or filtered — a shell is still there when its row is not — so it
+// is read off the list as it would be drawn with nothing filtered, folded
+// or collapsed: groups and repositories by name, a place's shells by the
+// name their rows wear. Sorting the shells any other way — by place and
+// pid, say — is a list that reads downward and a J that steps upward. A
+// shell the list has no row for, one the scan has not seen yet, follows,
+// by age.
+func (m model) heldOrder() []int {
+	whole := m
+	whole.typing, whole.filter, whole.showAll, whole.collapsed = false, "", true, nil
+	seen := map[int]bool{}
+	var pids []int
+	for _, r := range whole.flatten() {
+		if r.kind != rowProc {
+			continue
+		}
+		if t := m.owningTerm(r.node.PID); t != nil && !seen[t.pid] {
+			seen[t.pid] = true
+			pids = append(pids, t.pid)
+		}
+	}
+	var rest []int
+	for pid := range m.terms {
+		if !seen[pid] {
+			rest = append(rest, pid)
+		}
+	}
+	slices.Sort(rest)
+	return append(pids, rest...)
 }
 
 // openFilter starts typing a filter. The list becomes every project straight

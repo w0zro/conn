@@ -200,6 +200,18 @@ func (m model) renderRow(r navRow, selected bool) string {
 		me = " (me)"
 	}
 
+	// Where it listens, beside the name the way an agent's model is: a
+	// dev server's row says what it is, and this says where it is. It
+	// stands outside the name rather than in it, so a name cut to fit
+	// loses its tail and keeps its port — the port being the thing you
+	// were about to go and look up.
+	ports := ""
+	if r.kind == rowProc {
+		if ps := runPorts(r.run, r.node); len(ps) > 0 {
+			ports = " · :" + strings.Join(ps, " :")
+		}
+	}
+
 	// A group or a repository sits on indent alone, naming a place the rows
 	// beneath are inside. What hangs off a repository — its processes and its
 	// sub-projects — is one family of siblings, a step further in.
@@ -220,7 +232,8 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// A column of gutter, the indent, and the marker's two columns come
 	// before the name.
 	room := navWidth - 3 - lipgloss.Width(indent) - lipgloss.Width(fold) -
-		lipgloss.Width(spinner) - lipgloss.Width(mark) - lipgloss.Width(me)
+		lipgloss.Width(spinner) - lipgloss.Width(mark) - lipgloss.Width(me) -
+		lipgloss.Width(ports)
 
 	// While a query is at work the matched letters are lit, so the narrowed
 	// list always shows why it narrowed. The styled label is cut ansi-aware;
@@ -235,8 +248,9 @@ func (m model) renderRow(r navRow, selected bool) string {
 	}
 	// The marker stands beside the name it marks, in the indent, rather
 	// than at the edge of the column with the whole indent between them.
-	return " " + indent + style.Render(marker) + " " + seg + selfStyle.Render(me) +
-		markStyle.Render(mark) + errStyle.Render(spinner) + faintStyle.Render(fold)
+	return " " + indent + style.Render(marker) + " " + seg + style.Render(ports) +
+		selfStyle.Render(me) + markStyle.Render(mark) + errStyle.Render(spinner) +
+		faintStyle.Render(fold)
 }
 
 // rowLabel names a process row. A shell a project asked for by name is called

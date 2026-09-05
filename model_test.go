@@ -2896,6 +2896,33 @@ func TestTheQueryIsALineWithReadlinesKeys(t *testing.T) {
 	}
 }
 
+func TestARowSaysWhereItListens(t *testing.T) {
+	// A dev server's row says what it is; the port beside it says where
+	// it is, the way an agent's row carries its model. The port is the
+	// run's — the node under the npm holds it — and a name too long for
+	// the column is the part that gives, not the port.
+	m := withProcList(90, 14,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "npm", Argv: "npm run dev", Dir: "/p/conn"},
+			{PID: 701, PPID: 700, Command: "node", Argv: "node vite", Dir: "/p/conn", Ports: []string{"5173", "24678"}},
+			{PID: 702, PPID: 1, Command: "python3", Dir: "/p/conn",
+				Argv:  "python3 -m some.very.long.module.name --with --many --flags --to --spare 8437",
+				Ports: []string{"8437"}},
+			{PID: 703, PPID: 1, Command: "go", Argv: "go test ./...", Dir: "/p/conn"},
+		})
+	rows := strings.Join(navColumn(m), "\n")
+	if !strings.Contains(rows, "npm run … · :5173 :24678") {
+		t.Errorf("rows = %q, want the run's ports beside the npm, the name giving way", rows)
+	}
+	if !strings.Contains(rows, "python3 -m some… · :8437") {
+		t.Errorf("rows = %q, want the python cut and its port kept", rows)
+	}
+	if !strings.Contains(rows, "go test ./...\n") && !strings.HasSuffix(rows, "go test ./...") {
+		t.Errorf("rows = %q, want nothing said of ports the go test has none of", rows)
+	}
+}
+
 func TestAProcessThatIsConnSaysMe(t *testing.T) {
 	// The launcher becomes a tmux client on conn's socket; under `go run .`
 	// the row folds the go and the client together. Either way the row is

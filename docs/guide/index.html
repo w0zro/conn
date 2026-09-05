@@ -108,7 +108,7 @@
   <h3>Sub-projects</h3>
   <p>In a monorepo, a directory with a manifest is a project of its own and gets a row under its repository. Manifests, in the order they are trusted: <code>.conn</code>, <code>Procfile</code>, <code>package.json</code>, <code>deno.json</code>, <code>composer.json</code>, <code>go.mod</code>, <code>Cargo.toml</code>, <code>Gemfile</code>, <code>mix.exs</code>, <code>pyproject.toml</code>, <code>pom.xml</code>, <code>build.gradle</code>, <code>build.gradle.kts</code>. Ignored directories are skipped, and an untracked <code>.conn</code> still counts.</p>
   <h3>Processes</h3>
-  <p class="mb10">Each place lists the processes running in it, attributed to the innermost place they belong to, and named by what you would call them — <code>npm run dev</code>, not <code>node</code>. Keys that shape the list:</p>
+  <p class="mb10">Each place lists the processes running in it, attributed to the innermost place they belong to, and named by what you would call them — <code>npm run dev</code>, not <code>node</code> — with the port beside a row that listens, <code>npm run dev · :5173</code>, the way an agent's row carries its model. Keys that shape the list:</p>
   <div class="def">
     <div class="def-row"><span class="term w60">space</span><span class="desc">fold or unfold the selected node; a folded node shows +n for what it hides</span></div>
     <div class="def-row"><span class="term w60">-</span><span class="desc">fold or unfold everything; unfolded rows also show pids</span></div>

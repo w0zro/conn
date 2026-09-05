@@ -421,13 +421,13 @@ func TestTheTailIsTheLastLinesShownWithoutThePanesEmptyRows(t *testing.T) {
 	var asked []string
 	s.run = func(args ...string) (string, error) {
 		asked = args
-		return "one   \ntwo\nthree\nfour\n\n\n\n", nil
+		return "one   \ntwo\n\x1b[32mthree\x1b[0m\nfour\n\n\x1b[0m\n\n", nil
 	}
-	if got := strings.Join(s.tail(7, 3), "|"); got != "two|three|four" {
-		t.Errorf("tail = %q, want the last three lines shown", got)
+	if got := strings.Join(s.tail(7, 3), "|"); got != "two|\x1b[32mthree\x1b[0m|four" {
+		t.Errorf("tail = %q, want the last three lines shown, colors kept", got)
 	}
-	if !slices.Contains(asked, "capture-pane") || !slices.Contains(asked, "%7") {
-		t.Errorf("asked %v, want the pane captured", asked)
+	if !slices.Contains(asked, "capture-pane") || !slices.Contains(asked, "%7") || !slices.Contains(asked, "-e") {
+		t.Errorf("asked %v, want the pane captured with its escapes", asked)
 	}
 	if got := s.tail(8, 3); got != nil {
 		t.Errorf("tail of a shell not held = %v, want nothing", got)

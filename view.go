@@ -620,15 +620,16 @@ func renderBlock(block []field, width int) []string {
 	for _, f := range block {
 		switch f.kind {
 		case headingField:
-			lines = append(lines, paneGutter+headingStyle.Render(f.value))
+			lines = append(lines, paneGutter+titleStyle.Render(f.value))
 		case noteField:
 			for _, c := range wrapValue(f.value, width-len(paneGutter)-1) {
 				lines = append(lines, paneGutter+noteStyle.Render(c))
 			}
 		case textField:
-			// As the shell showed it, cut to the pane: a transcript
-			// wrapped would be a different transcript.
-			lines = append(lines, paneGutter+toneStyles[tonePlain].Render(truncate(f.value, width-len(paneGutter))))
+			// As the shell showed it, in the colors it drew, cut to the
+			// pane: a transcript wrapped would be a different transcript.
+			// Each line ends reset, so nothing the shell set outlives it.
+			lines = append(lines, paneGutter+truncateStyled(f.value, width-len(paneGutter), false)+ansi.ResetStyle)
 		default:
 			lines = append(lines, wrapField(f, labelW, width)...)
 		}
@@ -643,6 +644,17 @@ func wrapField(f field, labelW, width int) []string {
 	gutter := paneGutter
 	valueW := max(width-labelW-2*len(gutter), 8)
 
+	// The lead stands ahead of the value on its first line, in its own
+	// tone, and the value wraps in the room it leaves.
+	lead := ""
+	if f.lead != "" {
+		lead = toneStyles[f.leadTone].Render(f.lead)
+		if f.value != "" {
+			lead += "  "
+		}
+		valueW = max(valueW-lipgloss.Width(lead), 8)
+	}
+
 	chunks := wrapValue(f.value, valueW)
 	if len(chunks) == 0 {
 		chunks = []string{""}
@@ -652,7 +664,7 @@ func wrapField(f field, labelW, width int) []string {
 	lines := make([]string, 0, len(chunks))
 	for i, c := range chunks {
 		if i == 0 {
-			lines = append(lines, gutter+label+gutter+style.Render(c))
+			lines = append(lines, gutter+label+gutter+lead+style.Render(c))
 			continue
 		}
 		lines = append(lines, gutter+strings.Repeat(" ", labelW)+gutter+style.Render(c))

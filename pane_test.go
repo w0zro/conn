@@ -14,6 +14,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // insideShell puts a process under a shell the server holds, the way a claude
@@ -691,5 +692,44 @@ func TestATranscriptTooTallForThePaneShowsItsLastLines(t *testing.T) {
 	}
 	if !strings.HasSuffix(strings.TrimRight(got, " "), "line 30") {
 		t.Errorf("pane does not end on the last line shown:\n%s", got)
+	}
+}
+
+func TestALeadStandsAheadOfItsValueInItsOwnTone(t *testing.T) {
+	// A commit's hash before its subject, a plan entry's mark and name
+	// before its command: the lead is picked out in its tone, and the
+	// value follows in its own.
+	lines := wrapField(field{label: "last commit", lead: "abc1234", leadTone: toneAccent, value: "first commit"}, 11, 60)
+	if len(lines) != 1 || !strings.Contains(stripANSI(lines[0]), "abc1234  first commit") {
+		t.Errorf("lines = %q, want the lead ahead of the value", lines)
+	}
+	if !strings.Contains(lines[0], toneStyles[toneAccent].Render("abc1234")) {
+		t.Errorf("line = %q, want the lead in the accent", lines[0])
+	}
+	// A lead alone has no gap after it.
+	lines = wrapField(field{label: "needs", lead: glyphOn + " web", leadTone: toneGood}, 5, 60)
+	if got := strings.TrimRight(stripANSI(lines[0]), " "); !strings.HasSuffix(got, glyphOn+" web") {
+		t.Errorf("line = %q, want the lead and nothing after", got)
+	}
+}
+
+func TestATranscriptLineKeepsItsColorsAndIsCutToThePane(t *testing.T) {
+	// The shell drew the line in its colors; the pane keeps them, cuts
+	// the line at its width without cutting through an escape, and ends
+	// it reset so nothing the shell set leaks into the next line.
+	red := "\x1b[31m"
+	line := red + "error: something went badly wrong in a long line" + "\x1b[0m"
+	got := renderBlock([]field{heading("transcript"), text(line)}, 20)
+	if len(got) != 2 {
+		t.Fatalf("got %d lines, want the heading and the line", len(got))
+	}
+	if w := lipgloss.Width(got[1]); w > 20 {
+		t.Errorf("line is %d wide, want at most 20: %q", w, got[1])
+	}
+	if !strings.Contains(got[1], red) || !strings.HasSuffix(got[1], ansi.ResetStyle) {
+		t.Errorf("line = %q, want the shell's color kept and a reset at the end", got[1])
+	}
+	if !strings.Contains(got[0], titleStyle.Render("transcript")) {
+		t.Errorf("heading = %q, want the pane's title style", got[0])
 	}
 }

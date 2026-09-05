@@ -95,6 +95,11 @@ func TestRepoFieldsDescribeARealRepo(t *testing.T) {
 	if v, ok := fieldValue(fs, "last commit"); !ok || !strings.Contains(v, "first commit") {
 		t.Errorf("last commit = %q, want the subject", v)
 	}
+	for _, f := range fs {
+		if f.label == "last commit" && (len(f.lead) < 7 || f.leadTone != toneAccent) {
+			t.Errorf("last commit lead = %q in tone %v, want the hash in the accent", f.lead, f.leadTone)
+		}
+	}
 	if v, ok := fieldValue(fs, "running"); !ok || v != "2 processes" {
 		t.Errorf("running = %q, want %q", v, "2 processes")
 	}

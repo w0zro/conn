@@ -11,6 +11,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The navigator's side of the server. It never touches a pty and never draws
@@ -828,15 +830,16 @@ func (s *session) pane(pid int) *pane {
 }
 
 // tail is the last n lines a held shell has shown, the pane and what has
-// scrolled off above it together, with the pane's unused rows below the
-// last line left out. Wrapped lines are read joined, so the pane that
-// draws them wraps or cuts them at its own width rather than tmux's.
+// scrolled off above it together, in the colors the shell drew them, with
+// the pane's unused rows below the last line left out. Wrapped lines are
+// read joined, so the pane that draws them wraps or cuts them at its own
+// width rather than tmux's.
 func (s *session) tail(pid, n int) []string {
 	p := s.pane(pid)
 	if p == nil {
 		return nil
 	}
-	out, err := s.run("capture-pane", "-p", "-J", "-t", p.id, "-S", "-"+strconv.Itoa(n))
+	out, err := s.run("capture-pane", "-p", "-e", "-J", "-t", p.id, "-S", "-"+strconv.Itoa(n))
 	if err != nil {
 		return nil
 	}
@@ -844,7 +847,7 @@ func (s *session) tail(pid, n int) []string {
 	for i := range lines {
 		lines[i] = strings.TrimRight(lines[i], " \t\r")
 	}
-	for len(lines) > 0 && lines[len(lines)-1] == "" {
+	for len(lines) > 0 && strings.TrimSpace(ansi.Strip(lines[len(lines)-1])) == "" {
 		lines = lines[:len(lines)-1]
 	}
 	if len(lines) > n {

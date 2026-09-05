@@ -19,6 +19,11 @@ import (
 // and for dying — and on one thing more: where you are, in the slot the
 // terminal's own cursor wears, so conn's cursor and the terminal's are the
 // same color. When nothing needs you, the list is ink and the cursor.
+//
+// The pane beside the list is the exception: a page, colored to be read at
+// a glance. Its headings wear the place pastel, identities — a branch, a
+// port, a commit — the cyan, states their own colors, the secondary facts
+// the gray, and a shell's transcript whatever the shell drew it in.
 
 // The slots, by the job each does here. The terminal's theme says what
 // color a slot is; conn says what it means.
@@ -38,6 +43,7 @@ var (
 	hintStyle, ruleStyle, itemStyle, selStyle     lipgloss.Style
 	faintStyle, labelStyle, errStyle, busyStyle   lipgloss.Style
 	attnStyle, blockedStyle, headingStyle         lipgloss.Style
+	titleStyle                                    lipgloss.Style
 	offSelStyle, noteStyle, matchStyle, selfStyle lipgloss.Style
 	placeStyle                                    lipgloss.Style
 )
@@ -64,6 +70,9 @@ func applyStyles() {
 	placeStyle = slot(slotPlace)
 	itemStyle = ink
 	headingStyle = ink.Bold(true)
+	// titleStyle heads the pane: what the page is about, in the pastel
+	// the places wear in the list, so the page reads as the row's.
+	titleStyle = slot(slotPlace).Bold(true)
 
 	// One quiet gray, worn by content that is idle (faint), by the names of
 	// facts (label) and by conn's own asides (hint) alike; asides in italic,
@@ -92,16 +101,17 @@ func applyStyles() {
 
 	// matchStyle lights the letters a query matched, inside whatever style
 	// the row is otherwise wearing: a narrowed list always shows why it
-	// narrowed. Cyan is found, and nothing else.
+	// narrowed. In the list, cyan is found and nothing else; on the page
+	// it is the accent, worn by the facts that identify.
 	matchStyle = slot(slotCyan).Bold(true)
 
 	toneStyles = map[tone]lipgloss.Style{
 		tonePlain:  itemStyle,
 		toneGood:   slot(slotGreen),
 		toneAttn:   slot(slotAmber),
-		toneUrgent: slot(slotRed),
+		toneUrgent: slot(slotRed).Bold(true),
 		toneBad:    slot(slotRed),
-		toneAccent: ink.Bold(true),
+		toneAccent: slot(slotCyan).Bold(true),
 		toneQuiet:  faintStyle,
 	}
 }
@@ -121,8 +131,9 @@ const (
 	toneQuiet              // true but secondary: ids, urls, empty counts
 )
 
-// toneStyles is the color each tone reads in. Values stay unbolded whatever
-// their tone: the pane is a page, and color is enough of a voice on a page.
+// toneStyles is the color each tone reads in. The accent and the urgent
+// are bold as well — the two a reader is looking for — and the rest are
+// color alone: the pane is a page, and color is enough of a voice on it.
 var toneStyles map[tone]lipgloss.Style
 
 // tmuxPalette is what tmux draws with: the status line, the borders, the

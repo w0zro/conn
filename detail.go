@@ -19,6 +19,12 @@ type field struct {
 	value string
 	kind  fieldKind
 	tone  tone // how the value reads; the zero value is plain
+
+	// lead is the part of the value picked out ahead of it, in a tone of
+	// its own: a commit's hash before its subject, a plan entry's mark and
+	// name before its command. Empty for most fields.
+	lead     string
+	leadTone tone
 }
 
 type fieldKind int
@@ -133,25 +139,29 @@ func repoFields(p Project, procCount int, running map[string]bool) []field {
 	}
 
 	if status, err := git(p.Path, "status", "--porcelain"); err == nil {
-		// A clean tree recedes; changes are the fact worth a glance.
+		// A clean tree is well; changes are the fact worth a glance.
 		s := describeStatus(status)
 		t := toneAttn
 		if s == "clean" {
-			t = toneQuiet
+			t = toneGood
 		}
 		fs = append(fs, field{label: "status", value: s, tone: t})
 	}
 	if upstream, err := git(p.Path, "rev-parse", "--abbrev-ref", "@{upstream}"); err == nil {
+		// The branch's name is picked out; its standing against the
+		// upstream is well when even, and worth a glance when not.
 		divergence := describeAheadBehind(p.Path)
-		t := tonePlain
+		t := toneGood
 		if divergence != "" && divergence != "  (in sync)" {
 			t = toneAttn
 		}
-		fs = append(fs, field{label: "upstream", value: upstream + divergence, tone: t})
+		fs = append(fs, field{label: "upstream", lead: upstream, leadTone: toneAccent,
+			value: strings.TrimSpace(divergence), tone: t})
 	}
 	fs = append(fs, gap())
-	if last, e := git(p.Path, "log", "-1", "--format=%h  %s"); e == nil {
-		fs = append(fs, field{label: "last commit", value: last})
+	if last, e := git(p.Path, "log", "-1", "--format=%h%n%s"); e == nil {
+		sha, subject, _ := strings.Cut(last, "\n")
+		fs = append(fs, field{label: "last commit", lead: sha, leadTone: toneAccent, value: subject})
 		if when, e := git(p.Path, "log", "-1", "--format=%cr  by %an"); e == nil {
 			fs = append(fs, field{label: "", value: when, tone: toneQuiet})
 		}
@@ -182,12 +192,13 @@ func planFields(path string, running map[string]bool) []field {
 			label = "" // the rest line up under the first
 		}
 		// An entry that is up glows the way its mark does in the navigator;
-		// one that is down recedes with its hollow mark.
+		// one that is down recedes with its hollow mark. The command reads
+		// in ink either way: it is what r would run.
 		mark, t := glyphOff+" ", toneQuiet
 		if running[e.Name] {
 			mark, t = glyphOn+" ", toneGood
 		}
-		fs = append(fs, field{label: label, value: mark + e.Name + "  " + e.Run, tone: t})
+		fs = append(fs, field{label: label, lead: mark + e.Name, leadTone: t, value: e.Run})
 	}
 	return append(fs, field{label: "from", value: plan.Source, tone: toneQuiet})
 }
@@ -276,7 +287,7 @@ func procFields(n *ProcNode, run []*ProcNode, ag agent) []field {
 	// shell that started this and anything between them is not on screen
 	// anywhere else. This is where it is said.
 	if len(run) > 1 {
-		fs = append(fs, field{label: "run", value: describeRun(run)})
+		fs = append(fs, field{label: "run", value: describeRun(run), tone: toneAccent})
 	}
 	fs = append(fs, field{label: "parent", value: strconv.Itoa(n.PPID), tone: toneQuiet})
 
@@ -286,10 +297,12 @@ func procFields(n *ProcNode, run []*ProcNode, ag agent) []field {
 	fs = append(fs, gap())
 	if stats, err := ps(n.PID, "etime=,%cpu=,%mem="); err == nil {
 		if f := strings.Fields(stats); len(f) == 3 {
+			// Alive reads green; a share of the machine worth a glance
+			// reads amber, and an ordinary one in ink.
 			fs = append(fs,
-				field{label: "uptime", value: f[0]},
-				field{label: "cpu", value: f[1] + "%"},
-				field{label: "memory", value: f[2] + "%"},
+				field{label: "uptime", value: f[0], tone: toneGood},
+				field{label: "cpu", value: f[1] + "%", tone: shareTone(f[1], 50)},
+				field{label: "memory", value: f[2] + "%", tone: shareTone(f[2], 20)},
 			)
 		}
 	}
@@ -361,6 +374,16 @@ func describeRun(run []*ProcNode) string {
 		parts = append(parts, procLabel(n))
 	}
 	return strings.Join(parts, " "+glyphJoin+" ")
+}
+
+// shareTone is the color a share of the machine reads in: amber from the
+// threshold up, where it is the fact worth a glance, and ink below.
+func shareTone(pct string, threshold float64) tone {
+	v, err := strconv.ParseFloat(pct, 64)
+	if err == nil && v >= threshold {
+		return toneAttn
+	}
+	return tonePlain
 }
 
 // stateTone is the color a process state reads in: running is alive, a

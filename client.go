@@ -537,12 +537,15 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 // recordExit is the shell fragment that sets the pane's exit option to the
 // status of the command before it — nothing when tmux cannot be found by
 // path, and then the exit goes unrecorded rather than the shell failing.
+// The pane is named: a tmux run inside a pane knows its own pane by the
+// environment, but set -p without a target goes to the session's active
+// pane, not the one it was run in.
 func recordExit() string {
 	tmux, err := exec.LookPath("tmux")
 	if err != nil {
 		return ""
 	}
-	return "; " + shellQuote(tmux) + ` set -p @conn_exit "$?" 2>/dev/null`
+	return "; " + shellQuote(tmux) + ` set -p -t "$TMUX_PANE" @conn_exit "$?" 2>/dev/null`
 }
 
 // open starts a shell — or handed a command, that command with a shell

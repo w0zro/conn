@@ -80,8 +80,8 @@ func TestACommandsExitIsRecordedOnItsPaneBeforeTheShellTakesOver(t *testing.T) {
 	if !strings.HasPrefix(cmd, "npm run dev; ") || !strings.HasSuffix(cmd, `; exec "$SHELL"`) {
 		t.Fatalf("command = %q, want the entry first and the shell last", cmd)
 	}
-	if !strings.Contains(cmd, `set -p @conn_exit "$?"`) {
-		t.Errorf("command = %q, want the exit recorded on the pane between them", cmd)
+	if !strings.Contains(cmd, `set -p -t "$TMUX_PANE" @conn_exit "$?"`) {
+		t.Errorf("command = %q, want the exit recorded on this pane, named, between them", cmd)
 	}
 	// A shell for its own sake records nothing: there is no command to end.
 	if _, err := createWindow(run, "/tmp", "", "", false); err != nil {

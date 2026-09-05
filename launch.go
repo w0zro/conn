@@ -343,10 +343,12 @@ func runPlanAt(dir string) error {
 	if err != nil && !errors.Is(err, errNoServer) {
 		return err
 	}
+	// An entry's shell at its prompt after its command ended is not the
+	// entry running, here as in the navigator.
 	running := map[string]bool{}
 	held, _ := parseListing(out)
 	for _, pane := range held {
-		if pane.name != "" && pane.dir == p.Path {
+		if pane.name != "" && pane.dir == p.Path && pane.exit == "" {
 			running[pane.name] = true
 		}
 	}

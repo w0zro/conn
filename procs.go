@@ -54,6 +54,11 @@ type Proc struct {
 	// inherited its number.
 	Started string
 
+	// State is the process's state as ps reports it — "S+", "R", "Z" —
+	// read with the scan so a row can say when a process is stopped or a
+	// zombie without being looked at.
+	State string
+
 	// Ports is what the process is accepting TCP connections on, by number,
 	// lowest first. A port is worth carrying because it is the thing you
 	// were about to go and look up: a dev server's row says what it is,
@@ -153,6 +158,7 @@ func parseScan(out []byte, self int, ps map[int]psInfo) ([]Proc, error) {
 			cur.Dir = value
 			cur.Argv = ps[cur.PID].argv
 			cur.Started = ps[cur.PID].started
+			cur.State = ps[cur.PID].state
 			procs = append(procs, cur)
 		}
 	}
@@ -176,23 +182,29 @@ func portOf(addr string) (string, bool) {
 	return addr[i+1:], true
 }
 
-// psInfo is what ps says about one process: when it began, and what it was
-// run with.
+// psInfo is what ps says about one process: its state, when it began, and
+// what it was run with.
 type psInfo struct {
+	state   string
 	started string
 	argv    string
 }
 
-// psTable is every process's start time and command line, keyed by pid. A
-// failure leaves it empty; a process without an entry falls back to its name
-// and goes without the start-time check.
+// psTable is every process's state, start time and command line, keyed by
+// pid. A failure leaves it empty; a process without an entry falls back to
+// its name and goes without the start-time check.
 func psTable() map[int]psInfo {
-	out, err := listing(scanTimeout, "ps", "-axo", "pid=,lstart=,command=")
+	out, err := listing(scanTimeout, "ps", "-axo", "pid=,stat=,lstart=,command=")
 	if err != nil {
 		return nil
 	}
+	return parsePS(string(out))
+}
 
-	lines := strings.Split(string(out), "\n")
+// parsePS reads psTable's columns: the pid, the state, the five fields of
+// lstart, and the command line after them.
+func parsePS(out string) map[int]psInfo {
+	lines := strings.Split(out, "\n")
 	table := make(map[int]psInfo, len(lines))
 	for _, line := range lines {
 		pid, rest := cutField(line)
@@ -200,6 +212,7 @@ func psTable() map[int]psInfo {
 		if err != nil {
 			continue
 		}
+		state, rest := cutField(rest)
 		// lstart is five fields — "Fri Aug 29 10:00:00 2026" — and the
 		// command line is everything after them, its own spacing kept. The
 		// fields are rejoined rather than sliced out whole, so a padded
@@ -208,7 +221,7 @@ func psTable() map[int]psInfo {
 		for i := range fields {
 			fields[i], rest = cutField(rest)
 		}
-		table[n] = psInfo{started: strings.Join(fields, " "), argv: strings.TrimSpace(rest)}
+		table[n] = psInfo{state: state, started: strings.Join(fields, " "), argv: strings.TrimSpace(rest)}
 	}
 	return table
 }

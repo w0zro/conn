@@ -267,3 +267,18 @@ func TestAFreshShellDoesNotSortBetweenTwoAgents(t *testing.T) {
 		}
 	}
 }
+
+func TestThePsTableReadsStateStartAndCommandLine(t *testing.T) {
+	// The state is one field before lstart's five; the command line is
+	// everything after, its own spacing kept.
+	table := parsePS("  123 S+   Fri Aug  9 10:00:00 2026 npm run   dev\n 45 Z Sat Sep  4 01:02:03 2026 (node)\nbad line\n")
+	if got := table[123]; got.state != "S+" || got.started != "Fri Aug 9 10:00:00 2026" || got.argv != "npm run   dev" {
+		t.Errorf("123 = %+v, want the state, the start and the command line apart", got)
+	}
+	if got := table[45]; got.state != "Z" || got.argv != "(node)" {
+		t.Errorf("45 = %+v, want a zombie", got)
+	}
+	if len(table) != 2 {
+		t.Errorf("table has %d entries, want the two that parsed", len(table))
+	}
+}

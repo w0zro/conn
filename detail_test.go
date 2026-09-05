@@ -366,8 +366,8 @@ func TestTheChecklistSaysHowEachEntryStands(t *testing.T) {
 	if f := byName["job"]; !strings.HasPrefix(f.lead, glyphOff) || f.leadTone != toneQuiet || f.value != "make" {
 		t.Errorf("job = %+v, want down and hollow", f)
 	}
-	if f := byName["old"]; !strings.HasPrefix(f.lead, glyphOff) || !strings.HasSuffix(f.value, "exited 0") {
-		t.Errorf("old = %+v, want hollow, ended well", f)
+	if f := byName["old"]; !strings.HasPrefix(f.lead, glyphDone) || f.leadTone != toneGood || !strings.HasSuffix(f.value, "exited 0") {
+		t.Errorf("old = %+v, want the check, ended well", f)
 	}
 }
 
@@ -403,7 +403,7 @@ func TestThePaneSaysHowThePlacesTestsRunAndWent(t *testing.T) {
 	if f := get(map[string]string{testName: "up"}); !strings.HasSuffix(f.lead, "running") || f.leadTone != toneGood {
 		t.Errorf("running = %+v", f)
 	}
-	if f := get(map[string]string{testName: "0"}); !strings.HasSuffix(f.lead, "passed") || f.leadTone != toneGood {
+	if f := get(map[string]string{testName: "0"}); !strings.HasPrefix(f.lead, glyphDone) || !strings.HasSuffix(f.lead, "passed") || f.leadTone != toneGood {
 		t.Errorf("passed = %+v", f)
 	}
 	if f := get(map[string]string{testName: "2"}); !strings.HasPrefix(f.lead, glyphFailed) || !strings.HasSuffix(f.lead, "exit 2") || f.leadTone != toneBad {

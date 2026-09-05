@@ -2206,10 +2206,13 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 		if cmd := commandOf(r.node); label == "" || tellsMore(cmd, label) {
 			label = cmd
 		}
-		// A command that ended badly, or a process gone wrong, marks the
-		// window the way it marks the row.
-		if m.wrong(r) {
+		// A command that ended, well or badly, or a process gone wrong,
+		// marks the window the way it marks the row.
+		switch {
+		case m.wrong(r):
 			mark = glyphFailed
+		case m.ended(r) == "0":
+			mark = glyphDone
 		}
 		if a := m.agentFor(r); a != nil {
 			switch {

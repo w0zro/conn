@@ -189,7 +189,9 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// A row whose command ended badly, or whose process is stopped or a
 	// zombie, wears the cross in red — alive by the table and no use to
 	// anyone, which is the state that most wants noticing after an agent's
-	// ask. One whose command ended well sits hollow and quiet: done.
+	// ask. One whose command ended well wears the check in green: done,
+	// and as worth seeing as a failure, since a run's ending either way is
+	// what you were waiting on.
 	if mark == "" && r.kind == rowProc {
 		switch {
 		case m.wrong(r):
@@ -198,7 +200,7 @@ func (m model) renderRow(r navRow, selected bool) string {
 				style = errStyle
 			}
 		case m.ended(r) == "0":
-			mark, markStyle = " "+glyphOff, faintStyle
+			mark, markStyle = " "+glyphDone, toneStyles[toneGood]
 		}
 	}
 

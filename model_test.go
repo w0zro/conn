@@ -3071,7 +3071,7 @@ func TestARowSaysWhereItListens(t *testing.T) {
 
 func TestARowWearsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testing.T) {
 	// The shell at its prompt after its command ended badly wears the
-	// cross and reads red; after one that ended well it sits hollow. A
+	// cross and reads red; after one that ended well it wears the check. A
 	// process stopped or a zombie wears the cross too, shell or not. A
 	// shell running something wears neither, whatever its pane recorded
 	// of an earlier command.
@@ -3097,8 +3097,8 @@ func TestARowWearsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testin
 	if row := rows["web"]; !strings.Contains(row, glyphFailed) || !strings.Contains(row, errStyle.Render("web")) {
 		t.Errorf("web = %q, want the cross and the row in red", row)
 	}
-	if row := rows["job"]; !strings.Contains(row, glyphOff) || strings.Contains(row, glyphFailed) {
-		t.Errorf("job = %q, want hollow, ended well", row)
+	if row := rows["job"]; !strings.Contains(row, glyphDone) || strings.Contains(row, glyphFailed) {
+		t.Errorf("job = %q, want the check, ended well", row)
 	}
 	if row := rows["worker.js"]; !strings.Contains(row, glyphFailed) {
 		t.Errorf("stopped worker = %q, want the cross", row)
@@ -3109,6 +3109,9 @@ func TestARowWearsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testin
 	// The window's name carries the cross too.
 	if _, mark := m.shellLabel(700, m.terms[700]); mark != glyphFailed {
 		t.Errorf("window mark = %q, want the cross", mark)
+	}
+	if _, mark := m.shellLabel(701, m.terms[701]); mark != glyphDone {
+		t.Errorf("window mark = %q, want the check", mark)
 	}
 }
 

@@ -208,7 +208,7 @@ func testFields(path string, states map[string]string) []field {
 	case st == "up":
 		mark, word, t = glyphOn, "running", toneGood
 	case st == "0":
-		mark, word, t = glyphOn, "passed", toneGood
+		mark, word, t = glyphDone, "passed", toneGood
 	case st != "":
 		mark, word, t = glyphFailed, "failed  exit "+st, toneBad
 	}
@@ -235,13 +235,15 @@ func planFields(path string, states map[string]string) []field {
 		}
 		// An entry that is up glows the way its mark does in the navigator;
 		// one that is down recedes with its hollow mark; one whose command
-		// ended badly wears the cross, red through, with how it ended. The
-		// command reads in ink otherwise: it is what r would run.
+		// ended wears the check in green or the cross, red through, with
+		// how it ended. The command reads in ink otherwise: it is what r
+		// would run.
 		mark, t, vt, value := glyphOff+" ", toneQuiet, tonePlain, e.Run
 		switch st := states[e.Name]; {
 		case st == "up":
 			mark, t = glyphOn+" ", toneGood
 		case st == "0":
+			mark, t = glyphDone+" ", toneGood
 			value += "   exited 0"
 		case st != "":
 			mark, t, vt = glyphFailed+" ", toneBad, toneBad

@@ -49,7 +49,7 @@ the chords run these; they are not for typing:
   conn agent [dir] an agent in dir, shown beside the navigator
   conn kind        the next kind of agent, for a and the agent chord
   conn run [dir]   the plan of the place holding dir
-  conn jump        the next agent waiting on you
+  conn jump        the next thing that needs you: an agent waiting, a command that ended badly
   conn back        back where the keys were: the last shell, or the navigator
 
 files:

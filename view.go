@@ -191,13 +191,13 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// anyone, which is the state that most wants noticing after an agent's
 	// ask. One whose command ended well sits hollow and quiet: done.
 	if mark == "" && r.kind == rowProc {
-		switch exit := m.ended(r); {
-		case unwell(r.run) || (exit != "" && exit != "0"):
+		switch {
+		case m.wrong(r):
 			mark, markStyle = " "+glyphFailed, errStyle
 			if !selected {
 				style = errStyle
 			}
-		case exit == "0":
+		case m.ended(r) == "0":
 			mark, markStyle = " "+glyphOff, faintStyle
 		}
 	}

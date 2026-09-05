@@ -159,7 +159,8 @@ ended is not running, and starts again beside the shell it left
 the keys to the selected shell, beside the list
 .TP
 .B tab
-go to the next agent waiting on you; again continues around them
+go to the next thing that needs you \(em an agent waiting, a command that
+ended badly, a process stopped or a zombie; again continues around them
 .TP
 .B shift\-tab
 back where the keys were: the shell they were in before this one, or the
@@ -228,7 +229,7 @@ runs the plan there,
 .B ctrl\-a
 starts an agent,
 .B tab
-goes to the next waiting agent, and
+goes to the next thing that needs you, and
 .B ctrl\-x
 asks to kill \(em the filter holds, so the subject stays listed.
 .B esc
@@ -270,7 +271,7 @@ returns. Before the keys have been anywhere it is the list from a shell,
 and from the list the shell under the cursor
 .TP
 .B enter
-the next agent waiting on you; again continues around them
+the next thing that needs you; again continues around them
 .TP
 .B /
 the navigator, looking
@@ -330,8 +331,9 @@ finished its turn, a hollow dot (\[u25CB]) when it has been idle since it
 started. The diamond is the one worth crossing the room for: answering it
 resumes work already underway.
 .B ctrl\-space enter
-goes to the next agent waiting on you, from any shell; pressed again it
-continues around the waiting ones in turn.
+goes to the next thing that needs you, from any shell \(em an agent
+waiting, a command that ended badly, a process gone wrong; pressed again
+it continues around them in turn.
 .PP
 A conversation does not end when its instance exits; it is suspended,
 and the transcript Claude keeps is enough to pick it back up.

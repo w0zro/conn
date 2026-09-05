@@ -1625,7 +1625,7 @@ func TestABlockedInstanceHoldsTheBrightDiamond(t *testing.T) {
 
 	// The chord counts it among the waiting, unlike an instance merely idle
 	// since launch.
-	if got := press(m, "tab").status; got == "no agent is waiting" {
+	if got := press(m, "tab").status; got == "nothing needs you" {
 		t.Error("the chord passed over a blocked instance")
 	}
 }
@@ -1643,7 +1643,7 @@ func TestAnInstanceIdleSinceLaunchStaysQuiet(t *testing.T) {
 		t.Errorf("row = %q, want a hollow marker on an instance idle since launch", row)
 	}
 
-	if got := press(m, "tab").status; got != "no agent is waiting" {
+	if got := press(m, "tab").status; got != "nothing needs you" {
 		t.Errorf("status = %q, want the summons to find nothing owed", got)
 	}
 }
@@ -1950,7 +1950,7 @@ func TestPrefixEnterWithNothingWaitingSaysSo(t *testing.T) {
 		700: {PID: 700, Status: busyStatus},
 	})
 
-	if m = press(m, "tab"); m.status != "no agent is waiting" {
+	if m = press(m, "tab"); m.status != "nothing needs you" {
 		t.Errorf("status = %q, want it to say nothing is waiting", m.status)
 	}
 }
@@ -2888,7 +2888,7 @@ func TestTheKeysPageFitsItsPopup(t *testing.T) {
 			t.Errorf("page row %d is %d columns, wider than the popup's %d: %q", i, got, w, stripANSI(ln))
 		}
 	}
-	for _, key := range []string{"shell", "kill the tree", "the next waiting agent", "leave"} {
+	for _, key := range []string{"shell", "kill the tree", "the next thing that needs you", "leave"} {
 		if !strings.Contains(keysOf(), key) {
 			t.Errorf("the page does not list %q", key)
 		}
@@ -3054,6 +3054,47 @@ func TestARowWearsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testin
 
 // renderRow draws one row as the navigator would, unselected.
 func renderRow(m model, r navRow) string { return m.renderRow(r, false) }
+
+func TestTabGoesToACommandThatEndedBadlyAsToAWaitingAgent(t *testing.T) {
+	// What needs you is more than an agent's ask: a command that ended
+	// badly, a process stopped or a zombie. Tab goes to them in turn — to
+	// the row when conn only watches the process; into the shell when conn
+	// holds it, where the transcript is — and says when nothing does.
+	m := withProcList(90, 14,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/conn"},
+			{PID: 701, PPID: 1, Command: "node", Argv: "node worker.js", Dir: "/p/conn", State: "T"},
+			{PID: 702, PPID: 1, Command: "go", Argv: "go test ./...", Dir: "/p/conn"},
+		})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/conn", name: "web", exit: "1"}}
+	m, asked := pipeServer(t, m)
+
+	// In the list's order: the stopped worker's row first, which conn only
+	// watches, so the cursor goes there.
+	m = press(m, "tab")
+	if r, ok := m.selected(); !ok || r.kind != rowProc || r.node.PID != 701 {
+		t.Fatalf("cursor on %+v, want the stopped worker", r)
+	}
+	// Then the shell whose command ended badly: the keys go into it.
+	m = press(m, "tab")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
+		t.Fatalf("tab took the keys to %d, want the shell whose command ended badly", got.PID)
+	}
+	// Around again to the worker.
+	m = press(m, "tab")
+	if r, ok := m.selected(); !ok || r.kind != rowProc || r.node.PID != 701 {
+		t.Errorf("cursor on %+v, want the stopped worker again", r)
+	}
+
+	// Nothing wrong and no agent waiting: said.
+	m.terms[700].exit = "0"
+	m.procs[1].State = "S"
+	m.rebuild()
+	if m = press(m, "tab"); m.status != "nothing needs you" {
+		t.Errorf("status = %q, want the lack said", m.status)
+	}
+}
 
 func TestAProcessThatIsConnSaysMe(t *testing.T) {
 	// The launcher becomes a tmux client on conn's socket; under `go run .`
@@ -3865,7 +3906,7 @@ func TestTheJumpToAWaitingAgentLeavesTheFilter(t *testing.T) {
 	m = press(m, "/")
 
 	m = press(m, "tab")
-	if m.status == "no agent is waiting" {
+	if m.status == "nothing needs you" {
 		t.Error("the chord searched only the filter's answers")
 	}
 	if m.typing {

@@ -1060,14 +1060,16 @@ func (m *model) jump(i int) tea.Cmd {
 	return m.detailCmd()
 }
 
-// jumpWaiting goes to the next agent waiting on its user, in row order from
-// the cursor, wrapping. Going to an agent conn holds means taking the client
-// to its window; one it can only watch gets the cursor instead, which is as
-// far as enter could take it either.
+// jumpWaiting goes to the next row that needs you — an agent waiting on
+// its user, a command that ended badly, a process gone wrong — in row order
+// from the cursor, wrapping. Going to one conn holds means taking the
+// client to its window, where the ask or the transcript is; one it can
+// only watch gets the cursor instead, which is as far as enter could take
+// it either.
 func (m *model) jumpWaiting() tea.Cmd {
 	// From the filter, the jump is the end of looking: the rows while typing
-	// are the query's answers — places alone until a query lands — and the
-	// waiting agent lives in the whole list.
+	// are the query's answers — places alone until a query lands — and what
+	// needs you lives in the whole list.
 	if m.typing {
 		m.typing = false
 		m.setFilter("")
@@ -1076,7 +1078,7 @@ func (m *model) jumpWaiting() tea.Cmd {
 	for step := 1; step <= len(m.rows); step++ {
 		i := (m.cursor + step) % len(m.rows)
 		r := m.rows[i]
-		if m.awaiting(r) == nil {
+		if !m.needsYou(r) {
 			continue
 		}
 		if t := m.owningTerm(r.node.PID); t != nil {
@@ -1087,7 +1089,7 @@ func (m *model) jumpWaiting() tea.Cmd {
 		m.scrollToCursor()
 		return m.detailCmd()
 	}
-	m.status, m.statusErr = "no agent is waiting", false
+	m.status, m.statusErr = "nothing needs you", false
 	return nil
 }
 
@@ -1630,6 +1632,23 @@ func unwell(run []*ProcNode) bool {
 	return false
 }
 
+// wrong reports a row that wears the cross: its command ended badly, or a
+// process of its run is unwell. With an agent's ask, it is the state that
+// needs you.
+func (m model) wrong(r navRow) bool {
+	if r.kind != rowProc {
+		return false
+	}
+	exit := m.ended(r)
+	return unwell(r.run) || (exit != "" && exit != "0")
+}
+
+// needsYou reports a row that tab goes to: an agent waiting on you, or a
+// row gone wrong — the things that stop work until you look.
+func (m model) needsYou(r navRow) bool {
+	return m.awaiting(r) != nil || m.wrong(r)
+}
+
 // describeEntries names what was just started.
 func describeEntries(entries []entry) string {
 	names := make([]string, 0, len(entries))
@@ -2082,7 +2101,7 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 		}
 		// A command that ended badly, or a process gone wrong, marks the
 		// window the way it marks the row.
-		if exit := m.ended(r); unwell(run) || (exit != "" && exit != "0") {
+		if m.wrong(r) {
 			mark = glyphFailed
 		}
 		if a := m.agentFor(r); a != nil {

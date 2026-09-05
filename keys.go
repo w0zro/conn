@@ -22,7 +22,7 @@ import (
 var keyList = [][2]string{
 	{"↑↓ j k", "move"},
 	{"enter", "open"},
-	{"tab", "the next waiting agent"},
+	{"tab", "the next thing that needs you"},
 	{"shift+tab", "back where the keys were"},
 	{"s", "shell"},
 	{"a", "agent"},
@@ -39,7 +39,7 @@ var keyList = [][2]string{
 	{"q", "leave; the shells keep running"},
 	{"^spc -", "here, from any shell"},
 	{"^spc ^spc", "back: the last shell, or the list"},
-	{"^spc enter", "the next waiting agent"},
+	{"^spc enter", "the next thing that needs you"},
 	{"^spc s a r A", "shell · agent · run, here · continue"},
 	{"^spc ,", "the next kind of agent"},
 	{"^spc v", "read back; v marks, y copies"},

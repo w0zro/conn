@@ -306,6 +306,10 @@ type model struct {
 	// instant and moving quickly through the list does not queue up work.
 	details map[string][]field
 
+	// askedExit is the plan shells found at their prompt whose exit the
+	// server has been asked for, so the ask is made once per ending.
+	askedExit map[int]bool
+
 	// inspected is what each cached place was read as holding, by the same
 	// key: a place is read again when that has changed under it, rather
 	// than showing the count and checklist of before something started.
@@ -318,6 +322,7 @@ func newModel() model {
 		collapsed: map[string]bool{},
 		details:   map[string][]field{},
 		inspected: map[string]string{},
+		askedExit: map[int]bool{},
 		dying:     map[int]dyingProc{},
 		terms:     map[int]*remoteTerm{},
 		worked:    map[int]bool{},
@@ -495,7 +500,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case termOpenedMsg:
 		if t, ok := m.terms[msg.pid]; ok {
-			t.learn(msg.dir, msg.name)
+			t.learn(msg.dir, msg.name, "")
 		} else {
 			m.terms[msg.pid] = &remoteTerm{pid: msg.pid, dir: msg.dir, name: msg.name}
 		}
@@ -522,11 +527,11 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 				wanted = s.PID
 			}
 			if was, ok := m.terms[s.PID]; ok {
-				was.learn(s.Dir, s.Name)
+				was.learn(s.Dir, s.Name, s.Exit)
 				held[s.PID] = was
 				continue
 			}
-			held[s.PID] = &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name}
+			held[s.PID] = &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name, exit: s.Exit}
 		}
 		m.terms = held
 		// A navigator starting beside a shell already shown — the last
@@ -1268,6 +1273,28 @@ func (m model) placeAt(dir string) (Project, bool) {
 }
 
 // move steps the cursor, wrapping at both ends so the list cycles.
+// noticeEnded asks the server again about a plan's shell the scan finds at
+// its prompt with no exit recorded yet: its command has just ended, and
+// the pane carries how. tmux announces nothing when a pane's option is
+// set, so the scan that sees the shell alone is what prompts the ask —
+// once per ending, the command running again being the reset.
+func (m *model) noticeEnded() {
+	for pid, t := range m.terms {
+		n := m.nodes[pid]
+		if t.name == "" || !t.live() || n == nil {
+			continue
+		}
+		if len(n.Children) > 0 || !isShell(n.Command) {
+			delete(m.askedExit, pid)
+			continue
+		}
+		if !m.askedExit[pid] {
+			m.askedExit[pid] = true
+			m.server.list()
+		}
+	}
+}
+
 // letGo ends the hold a run puts on the cursor. The hold is for the scans
 // between the key and the processes landing, so the cursor is on the
 // project while they start and on the first of them when it does; a move
@@ -1547,11 +1574,16 @@ func (m model) planned(path string) []*remoteTerm {
 	return out
 }
 
-// namesIn is what a project already has running, by the names its plan uses.
+// namesIn is what a project already has running, by the names its plan
+// uses: the shells started for its entries whose commands have not ended.
+// One whose command has ended is at its prompt with its transcript, not
+// running the entry, and r starts the entry again beside it.
 func (m model) namesIn(path string) map[string]bool {
 	running := map[string]bool{}
 	for _, t := range m.planned(path) {
-		running[t.name] = true
+		if t.live() {
+			running[t.name] = true
+		}
 	}
 	return running
 }
@@ -1873,13 +1905,16 @@ func (m *model) rebuild() {
 	if m.wantProject != "" {
 		m.selectProject(m.wantProject)
 		for _, t := range m.planned(m.wantProject) {
-			if t.name == m.wantName {
+			// The one just started, not an earlier shell for the same
+			// entry left at its prompt after its command ended.
+			if t.name == m.wantName && t.live() {
 				m.wantCursor = t.pid
 				m.wantProject, m.wantName = "", ""
 				break
 			}
 		}
 	}
+	m.noticeEnded()
 
 	// A shell just opened takes the cursor as soon as it is in the tree, so
 	// that leaving it leaves the cursor somewhere that makes sense. One the

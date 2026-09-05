@@ -1811,6 +1811,9 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 			}
 			if last := args[len(args)-1]; strings.Contains(last, "; exec ") {
 				run, _, _ = strings.Cut(last, "; exec ")
+				// The exit's recording rides between the command and
+				// the shell, and is not the command.
+				run = strings.TrimSuffix(run, recordExit())
 			}
 			nextPID++
 			opening = &message{Kind: kindOpen, PID: nextPID, Dir: dir, Run: run}
@@ -2417,6 +2420,87 @@ func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 	m = next.(model)
 	if got := m.terms[901]; got == nil || got.name != "web" {
 		t.Errorf("terms[901] = %+v after an early list, want the name kept", got)
+	}
+}
+
+func TestAnEntryWhoseCommandEndedIsNotRunningAndRStartsItAgain(t *testing.T) {
+	// The shell keeps the entry's name after its command ends, at its
+	// prompt with the transcript; that is not the entry running. The
+	// checklist shows it down, r starts it again beside the old shell,
+	// and the cursor goes to the new one, not the old.
+	m, docs := runsDocsPlan(t, webPlan)
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs, Name: "web"}}})
+	m = next.(model)
+	if running := m.namesIn(docs); !running["web"] {
+		t.Fatalf("running = %v, want web while its command runs", running)
+	}
+
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs, Name: "web", Exit: "1"}}})
+	m = next.(model)
+	if running := m.namesIn(docs); running["web"] {
+		t.Fatalf("running = %v, want web down once its command ended", running)
+	}
+	m.letGo()
+	m = press(m, "r")
+	if m.status != "started web" {
+		t.Fatalf("status = %q, want web started again", m.status)
+	}
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{
+		{PID: 901, Dir: docs, Name: "web", Exit: "1"}, {PID: 902, Dir: docs, Name: "web"},
+	}})
+	m = next.(model)
+	if m.wantCursor != 902 {
+		t.Errorf("wantCursor = %d, want the shell just started, not the one at its prompt", m.wantCursor)
+	}
+}
+
+func TestAPlanShellFoundAtItsPromptHasTheServerAskedOnce(t *testing.T) {
+	// tmux announces nothing when the command ends and the pane's exit is
+	// set, so the scan that finds the entry's shell alone — no command
+	// under it — asks the server for the list, once; the command running
+	// again resets the ask.
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 701, PPID: 700, Command: "npm", Dir: "/tmp"}})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp", name: "web"}}
+	m, _ = pipeServer(t, m)
+	var mu sync.Mutex
+	lists := 0
+	inner := m.server.run
+	m.server.run = func(args ...string) (string, error) {
+		if args[0] == "list-panes" && !slices.Contains(args, "-t") {
+			mu.Lock()
+			lists++
+			mu.Unlock()
+		}
+		return inner(args...)
+	}
+	listed := func() int {
+		time.Sleep(50 * time.Millisecond) // the list is read on its own goroutine
+		mu.Lock()
+		defer mu.Unlock()
+		return lists
+	}
+	m.rebuild()
+	if got := listed(); got != 0 {
+		t.Fatalf("the server was listed %d times with the command running, want none", got)
+	}
+	// The command is gone: the shell alone, at its prompt.
+	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}}})
+	m = next.(model)
+	if got := listed(); got != 1 {
+		t.Fatalf("the server was listed %d times, want once for the ending", got)
+	}
+	next, _ = m.Update(procsMsg{procs: m.procs})
+	m = next.(model)
+	if got := listed(); got != 1 {
+		t.Errorf("the server was listed %d times after another scan, want still once", got)
+	}
+	// The command running again, then ending again: asked again.
+	next, _ = m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 702, PPID: 700, Command: "npm", Dir: "/tmp"}}})
+	next, _ = next.(model).Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}}})
+	m = next.(model)
+	if got := listed(); got != 2 {
+		t.Errorf("the server was listed %d times, want twice for two endings", got)
 	}
 }
 

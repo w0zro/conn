@@ -34,9 +34,9 @@ func TestTheListingTellsTheNavigatorAndTheShownShellApart(t *testing.T) {
 	// it is the shell shown there; a window named for wanting is a chord's
 	// ask to show the shell in it — unless it is shown already.
 	held, nav := parseListing(strings.Join([]string{
-		"%0\t100\t\t\t/\t1\t1\tconn",
-		"%1\t700\t/p/a\t\t/p/a\t\t1\tconn",
-		"%2\t701\t/p/b\tweb\t/p/b\t\t\tshell",
+		"%0\t100\t\t\t/\t1\t1\tconn\t",
+		"%1\t700\t/p/a\t\t/p/a\t\t1\tconn\t",
+		"%2\t701\t/p/b\tweb\t/p/b\t\t\tshell\t1",
 		"%3\t702\t/p/c\t\t/p/c\t\t\t" + wantName,
 	}, "\n"))
 	if nav != "%0" {
@@ -50,6 +50,45 @@ func TestTheListingTellsTheNavigatorAndTheShownShellApart(t *testing.T) {
 	}
 	if held[0].wanted || held[1].wanted || !held[2].wanted {
 		t.Errorf("wanted = %v %v %v, want only the window named for it", held[0].wanted, held[1].wanted, held[2].wanted)
+	}
+	// The exit is the last column, and a listing without it — an older
+	// server's — reads as no exit.
+	if held[0].exit != "" || held[1].exit != "1" || held[2].exit != "" {
+		t.Errorf("exit = %q %q %q, want only web's command ended, with 1", held[0].exit, held[1].exit, held[2].exit)
+	}
+}
+
+func TestACommandsExitIsRecordedOnItsPaneBeforeTheShellTakesOver(t *testing.T) {
+	// The command runs, its status is set on the pane, and only then does
+	// the shell take the pane: the navigator reads the status off the
+	// pane, since tmux says nothing of a command ending inside one.
+	var opened []string
+	run := func(args ...string) (string, error) {
+		switch args[0] {
+		case "show-environment":
+			return "TERM_PROGRAM=tmux", nil
+		case "new-window":
+			opened = args
+			return "%1 700", nil
+		}
+		return "", nil
+	}
+	if _, err := createWindow(run, "/tmp", "npm run dev", "web", false); err != nil {
+		t.Fatal(err)
+	}
+	cmd := opened[len(opened)-1]
+	if !strings.HasPrefix(cmd, "npm run dev; ") || !strings.HasSuffix(cmd, `; exec "$SHELL"`) {
+		t.Fatalf("command = %q, want the entry first and the shell last", cmd)
+	}
+	if !strings.Contains(cmd, `set -p @conn_exit "$?"`) {
+		t.Errorf("command = %q, want the exit recorded on the pane between them", cmd)
+	}
+	// A shell for its own sake records nothing: there is no command to end.
+	if _, err := createWindow(run, "/tmp", "", "", false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.Join(opened, " "), "@conn_exit") {
+		t.Errorf("new-window %v, want no exit recorded for a bare shell", opened)
 	}
 }
 

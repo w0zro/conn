@@ -44,6 +44,7 @@ type sessionInfo struct {
 	PID    int
 	Dir    string
 	Name   string
+	Exit   string // how the command the shell was started with ended, once it has
 	Shown  bool
 	Wanted bool
 }
@@ -53,20 +54,28 @@ type remoteTerm struct {
 	pid  int
 	dir  string
 	name string // what the project calls it, if a project asked for it
+	exit string // how the command it was started with ended, once it has: "0", "1"…
 }
 
+// live reports whether the shell is still running what it was started
+// with — or was started with nothing, and is a shell for its own sake.
+func (t *remoteTerm) live() bool { return t.exit == "" }
+
 // learn takes what a later report says of a shell already known: where it
-// was opened and what the project called it. The window is made and its
-// options set in two commands, and tmux announces the window between them,
-// so the first list of a new shell can carry neither; the report that
-// knows them comes after. A blank is a report that came early, not a shell
-// that lost its name, and is not taken.
-func (t *remoteTerm) learn(dir, name string) {
+// was opened, what the project called it, and how its command ended. The
+// window is made and its options set in two commands, and tmux announces
+// the window between them, so the first list of a new shell can carry
+// none of these; the reports that know come after. A blank is a report
+// that came early, not a shell that lost its name, and is not taken.
+func (t *remoteTerm) learn(dir, name, exit string) {
 	if dir != "" {
 		t.dir = dir
 	}
 	if name != "" {
 		t.name = name
+	}
+	if exit != "" {
+		t.exit = exit
 	}
 }
 
@@ -128,8 +137,9 @@ type pane struct {
 	pid    int
 	dir    string
 	name   string
-	shown  bool // in the home window, beside the navigator
-	wanted bool // opened by a chord that asked for it to be shown
+	exit   string // the command's exit status, recorded on the pane when it ended
+	shown  bool   // in the home window, beside the navigator
+	wanted bool   // opened by a chord that asked for it to be shown
 }
 
 // placement is one ask to arrange the home window: the shell to put beside
@@ -316,7 +326,7 @@ func (s *session) notify(n ctlNote) {
 // opened a shell to be shown says so in the window's name, the one mark
 // that is set in the same breath as the window is made — an option set
 // after would race the refresh the new window sets off.
-const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}"
+const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}"
 
 // wantName is the window name that asks the navigator to show the shell
 // in it; heldName is what the window is called once it has.
@@ -349,15 +359,19 @@ func parseListing(out string) (held []*pane, nav string) {
 		if dir == "" {
 			dir = f[4]
 		}
-		held = append(held, &pane{id: f[0], pid: pid, dir: dir, name: f[3],
-			shown: f[6] == "1", wanted: f[6] != "1" && f[7] == wantName})
+		p := &pane{id: f[0], pid: pid, dir: dir, name: f[3],
+			shown: f[6] == "1", wanted: f[6] != "1" && f[7] == wantName}
+		if len(f) > 8 {
+			p.exit = f[8]
+		}
+		held = append(held, p)
 	}
 	return held, nav
 }
 
 // info is the pane as the model hears about it.
 func (p *pane) info() sessionInfo {
-	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Shown: p.shown, Wanted: p.wanted}
+	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Exit: p.exit, Shown: p.shown, Wanted: p.wanted}
 }
 
 // refreshList reads what the server holds and tells the model, reporting
@@ -464,8 +478,11 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 		// and one that exits leaves the shell rather than the row
 		// vanishing. The shell is the pane's own $SHELL, which tmux sets
 		// to its default-shell whatever the asker's environment says: a
-		// chord runs under run-shell, where SHELL is /bin/sh.
-		cmd = command + `; exec "$SHELL"`
+		// chord runs under run-shell, where SHELL is /bin/sh. How the
+		// command ended is recorded on the pane as it does, for the
+		// navigator to read: inside the pane, tmux finds its server and
+		// the pane by the environment tmux gave it.
+		cmd = command + recordExit() + `; exec "$SHELL"`
 	}
 	winName := heldName
 	if wanted {
@@ -515,6 +532,17 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 	_, _ = run("set", "-p", "-t", f[0], "@conn_dir", dir, ";",
 		"set", "-p", "-t", f[0], "@conn_name", name)
 	return birth{pane: f[0], pid: pid}, nil
+}
+
+// recordExit is the shell fragment that sets the pane's exit option to the
+// status of the command before it — nothing when tmux cannot be found by
+// path, and then the exit goes unrecorded rather than the shell failing.
+func recordExit() string {
+	tmux, err := exec.LookPath("tmux")
+	if err != nil {
+		return ""
+	}
+	return "; " + shellQuote(tmux) + ` set -p @conn_exit "$?" 2>/dev/null`
 }
 
 // open starts a shell — or handed a command, that command with a shell

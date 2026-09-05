@@ -403,8 +403,8 @@ func (m model) rowStyle(r navRow, selected bool) lipgloss.Style {
 		return faintStyle
 	}
 	if selected {
-		// Lit whether or not the keys are here: the row is the shell shown
-		// beside the list, and dim reads as out of reach. Which pane has
+		// Lit whether or not the keys are here: the row is the one the
+		// keys went from, and dim reads as out of reach. Which pane has
 		// the keys is the status line's to say.
 		return selStyle
 	}
@@ -422,14 +422,15 @@ func (m model) paneLeft() int { return navWidth + 1 }
 func (m model) detailWidth() int { return m.width - m.paneLeft() }
 
 // showDetail reports whether the navigator has room to carry a pane of its
-// own beside the list. Beside a shown shell it has exactly its column and
-// does not; with the window to itself it does, unless the window is narrow.
+// own beside the list. Beside an entered shell it has exactly its column
+// and does not; with the window to itself it does, unless the window is
+// narrow.
 func (m model) showDetail() bool { return m.detailWidth() >= paneMin }
 
 // paneLines renders the navigator's own pane beside the list: the picker
-// while it is open, and otherwise what is known about the selected row. A
-// held shell's row has no pane here — its shell is the tmux pane beside
-// the navigator, drawn live.
+// while it is open, and otherwise what is known about the selected row —
+// a held shell's included. The shell itself is only beside the navigator
+// while the keys are in it, and then the navigator is its column alone.
 func (m model) paneLines(width, rows int) []string {
 	if m.resume != nil {
 		return m.resumeLines(width, rows)

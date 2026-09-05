@@ -616,10 +616,9 @@ func TestTheKeysListTheKindKey(t *testing.T) {
 }
 
 func TestAHeldShellsRowDrawsItsFactsNotItsScreen(t *testing.T) {
-	// The shell itself is tmux's pane beside the navigator, drawn live. When
-	// the navigator has the window — before the shell has joined it, or in
-	// a window too narrow to share — its own pane says what the row is,
-	// and never tries to draw what the shell is showing.
+	// The shell itself is tmux's pane beside the navigator only while the
+	// keys are in it. With the keys in the navigator its own pane says
+	// what the row is, and never tries to draw what the shell is showing.
 	m := withProcList(90, 24,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})

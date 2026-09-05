@@ -576,16 +576,14 @@ func (s *session) home() {
 	}()
 }
 
-// preview puts a shell in the pane beside the navigator without taking the
-// keys from wherever they are — the cursor has landed on its row. Zero puts
-// the shown shell back in a window of its own and leaves the navigator the
-// whole window: the cursor is on a row with no shell to show, or the
-// navigator has something of its own to draw there.
-func (s *session) preview(pid int) {
+// park puts the shell shown beside the navigator back in a window of its
+// own and leaves the navigator the whole window: the keys are in the
+// navigator, which has something of its own to draw there.
+func (s *session) park() {
 	if s == nil {
 		return
 	}
-	s.place(placement{pid: pid})
+	s.place(placement{})
 }
 
 // place asks for one arrangement of the home window, coalescing: one is made
@@ -735,8 +733,8 @@ func showPane(run runner, nav, target string, column int) error {
 		_, err = run(args...)
 	default:
 		// -d: the keys stay where they are. Without it the pane swapped in
-		// becomes the active one whatever was active before, and a glance
-		// from the list would hand the next keystroke to the shell.
+		// becomes the active one whatever was active before; where the
+		// keys go is the arrangement's focus to say, after the swap.
 		args := []string{"rename-window", "-t", target, heldName, ";",
 			"swap-pane", "-d", "-s", target, "-t", shown}
 		_, err = run(append(args, park(shown)...)...)

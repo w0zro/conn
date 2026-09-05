@@ -160,11 +160,11 @@ func TestArrangementsCoalesceToTheLastAsked(t *testing.T) {
 		return "", nil
 	}
 
-	s.preview(1)
+	s.place(placement{pid: 1})
 	<-started
-	s.preview(2)
-	s.preview(3)
-	s.preview(4)
+	s.place(placement{pid: 2})
+	s.place(placement{pid: 3})
+	s.place(placement{pid: 4})
 	close(release)
 	deadline := time.After(time.Second)
 	for !s.placing.idle() {

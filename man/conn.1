@@ -64,9 +64,10 @@ shell above them. All are listed and killable. One of them may be conn itself \(
 become a tmux client, in the terminal it was started from \(em and that
 row says
 .B (me)
-in a color of its own. The pane beside the list is the shell under the
-cursor, live; on a row with no shell the navigator has the window, and
-the pane says what is known about the row.
+in a color of its own. Beside the list, while the keys are in it, is the
+navigator's own pane: what is known about the row under the cursor, a held
+shell's included. A shell is placed beside the navigator only when you
+enter it, and goes back to a window of its own when the keys come home.
 .PP
 .B conn ls
 is the same server's state for a reader that is not a person: the held
@@ -265,8 +266,8 @@ the next and previous shell, in the navigator's order
 .B ctrl\-space
 again \(em back where the keys were: the shell before this one, by way of
 the navigator or not, or the navigator when they came from there, and again
-returns. Before the keys have been anywhere it is the other pane of the home
-window
+returns. Before the keys have been anywhere it is the list from a shell,
+and from the list the shell under the cursor
 .TP
 .B enter
 the next agent waiting on you; again continues around them
@@ -460,11 +461,11 @@ status line, the transcript cap, the rest \(em into the state directory,
 brings the server up under it or sources it into one already running, and
 attaches. The session's first window is the home window: the navigator,
 .BR "conn nav" ,
-in the pane down its left, and the shell under the navigator's cursor in
-the pane beside it. Moving the cursor to another shell's row moves that
-shell in and the last one out to a window of its own, so the shells not
-shown wait in windows; on a row with no shell the navigator has the whole
-window. The navigator's pane is as wide as the config's
+in the pane down its left, and the shell the keys are in beside it.
+Entering a shell moves it in; the keys coming home move it out to a
+window of its own, so every shell waits in a window and the navigator has
+the whole window while the keys are in it. The navigator's pane is as wide
+as the config's
 .BR navWidth ,
 through every resize. Closing the navigator is fine, and
 .B ctrl\-space \-

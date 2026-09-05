@@ -2844,7 +2844,7 @@ func TestTheNavigatorHoldsItsColumnWhileAShellIsShown(t *testing.T) {
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
 	m.terms = map[int]*remoteTerm{700: {pid: 700}}
 	m, _ = pipeServer(t, m)
-	m = press(m, "down") // the shell's row: shown beside the list
+	m = press(press(m, "down"), "enter") // into the shell: shown beside the list
 
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 254, Height: 62})
 	m = next.(model)
@@ -2852,19 +2852,21 @@ func TestTheNavigatorHoldsItsColumnWhileAShellIsShown(t *testing.T) {
 		t.Errorf("width = %d with a shell shown, want the column, %d", m.width, navWidth)
 	}
 
-	m = press(m, "up") // a row with no shell: the navigator has the window
+	// The keys home: the shell is parked, and the navigator has the window.
+	next, _ = m.Update(tea.FocusMsg{})
+	m = next.(model)
 	next, _ = m.Update(tea.WindowSizeMsg{Width: 254, Height: 62})
 	m = next.(model)
 	if m.width != 254 {
 		t.Errorf("width = %d with nothing shown, want the window's 254", m.width)
 	}
 
-	// Landing on the shell's row narrows the navigator at once, before
-	// the join it asked for can happen, so no frame is drawn wide into
-	// a pane about to be a column.
-	m = press(m, "down")
+	// Entering the shell narrows the navigator at once, before the join
+	// it asked for can happen, so no frame is drawn wide into a pane
+	// about to be a column.
+	m = press(m, "enter")
 	if m.width != navWidth {
-		t.Errorf("width = %d on landing on a shell's row, want the column at once", m.width)
+		t.Errorf("width = %d on entering a shell, want the column at once", m.width)
 	}
 }
 
@@ -3592,10 +3594,11 @@ func TestAShellOnAGroupRowStartsAtTheGroup(t *testing.T) {
 	}
 }
 
-func TestLandingOnAShellShowsItAndLeavingParksIt(t *testing.T) {
-	// The pane beside the navigator is the shell under the cursor: landing
-	// on its row moves it there, without taking the keys from the list, and
-	// moving off to a row with no shell gives it back a window of its own.
+func TestLandingOnAShellLeavesItWhereItIsAndSaysWhatItIs(t *testing.T) {
+	// With the keys in the navigator the pane beside it is the navigator's
+	// own: landing on a held shell's row says what is known about the row,
+	// the way any row does, and asks nothing of the shell. A shell is only
+	// placed beside the navigator to be entered.
 	m := withProcList(90, 14,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
@@ -3604,27 +3607,21 @@ func TestLandingOnAShellShowsItAndLeavingParksIt(t *testing.T) {
 
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown}) // onto the shell's row
 	m = next.(model)
-	if got := askedForKind(t, asked, kindShow); got.PID != 700 {
-		t.Fatalf("asked %+v, want the shell 700 shown beside the navigator", got)
-	}
-	if m.previewing != 700 {
-		t.Errorf("previewing = %d, want 700", m.previewing)
-	}
 	select {
 	case got := <-asked:
-		if got.Kind == kindFocus {
-			t.Error("a glance took the keys to the shell")
+		if got.Kind == kindShow || got.Kind == kindFocus || got.Kind == kindPark {
+			t.Errorf("a glance at the shell's row arranged the pane: %+v", got)
 		}
 	case <-time.After(50 * time.Millisecond):
 	}
-
-	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp}) // back to the repo row
-	m = next.(model)
-	if got := askedForKind(t, asked, kindPark); got.PID != 700 {
-		t.Fatalf("asked %+v, want the shell 700 parked", got)
+	if m.shown != 0 {
+		t.Errorf("shown = %d, want nothing beside the navigator", m.shown)
 	}
-	if m.previewing != 0 {
-		t.Errorf("previewing = %d, want nothing", m.previewing)
+	if !m.showDetail() {
+		t.Error("the navigator should have the window, and its pane in it")
+	}
+	if pane := strings.Join(detailColumn(m), "\n"); !strings.Contains(pane, "loading") && !strings.Contains(pane, "zsh") {
+		t.Errorf("pane = %q, want the shell's row described", pane)
 	}
 }
 
@@ -3694,7 +3691,7 @@ func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
 	if got := m.heldOrder(); !slices.Equal(got, []int{701, 700, 702}) {
 		t.Fatalf("heldOrder = %v, want the list's order a, b, c", got)
 	}
-	m.previewing = 701
+	m.shown = 701
 	for i, want := range []int{700, 702, 701} {
 		m = press(m, "J")
 		if got := askedForKind(t, asked, kindFocus); got.PID != want {
@@ -3729,55 +3726,55 @@ func TestAShellAChordOpenedIsShownWhenItIsListed(t *testing.T) {
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
 		t.Fatalf("asked %+v, want the keys taken to the wanted shell", got)
 	}
-	if m.wantCursor != 700 || m.previewing != 700 {
-		t.Errorf("wantCursor = %d, previewing = %d, want both on 700", m.wantCursor, m.previewing)
+	if m.wantCursor != 700 || m.shown != 700 {
+		t.Errorf("wantCursor = %d, shown = %d, want both on 700", m.wantCursor, m.shown)
 	}
 }
 
-func TestANavigatorStartingBesideAShownShellBeginsOnIt(t *testing.T) {
-	// The last navigator went with a shell shown; the next one finds it in
-	// the listing and takes that as where the cursor is, rather than parking
-	// the shell for whatever row the cursor happened to start on.
+func TestANavigatorStartingBesideAShownShellBeginsOnItAndParksIt(t *testing.T) {
+	// The last navigator went with a shell shown beside it; the next one
+	// has the keys, so the shell goes back to a window of its own, and the
+	// cursor begins on its row — where it was left — rather than wherever
+	// the list happens to start.
 	m := withProcList(90, 14,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
 	m, asked := pipeServer(t, m)
+	m.server.panes[700] = &pane{id: "%700", pid: 700, dir: "/tmp", shown: true}
+	m.server.byPane["%700"] = 700
 
 	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Shown: true}}})
 	m = next.(model)
-	if m.previewing != 700 {
-		t.Errorf("previewing = %d, want the shell found shown", m.previewing)
+	if m.shown != 0 {
+		t.Errorf("shown = %d, want nothing beside the navigator", m.shown)
 	}
 	if r, ok := m.selected(); !ok || !r.holds(700) {
-		t.Errorf("cursor on %+v, want the shown shell's row", r)
+		t.Errorf("cursor on %+v, want the shell's row", r)
 	}
 	select {
 	case got := <-asked:
-		if got.Kind == kindPark || got.Kind == kindShow {
-			t.Errorf("the shell found shown was moved: %+v", got)
+		if got.Kind == kindShow || got.Kind == kindFocus {
+			t.Errorf("the shell found shown was entered: %+v", got)
 		}
 	case <-time.After(50 * time.Millisecond):
 	}
 }
 
-func TestThePickerTakesThePaneAndGivesItBack(t *testing.T) {
-	// The picker draws where the shell was shown, so opening it parks the
-	// shell; closing it shows the shell again.
+func TestThePickerDrawsInTheNavigatorsOwnPane(t *testing.T) {
+	// The picker draws where the details do, in the navigator's own pane:
+	// opening and closing it moves no shell.
 	m := withProcList(90, 14,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
 	m.terms = map[int]*remoteTerm{700: {pid: 700}}
 	m, asked := pipeServer(t, m)
-	m = press(m, "down")
-	askedForKind(t, asked, kindShow)
-
-	m = press(m, "A")
-	if got := askedForKind(t, asked, kindPark); got.PID != 700 {
-		t.Fatalf("asked %+v, want the shell parked for the picker", got)
-	}
-	m = press(m, "esc")
-	if got := askedForKind(t, asked, kindShow); got.PID != 700 {
-		t.Fatalf("asked %+v, want the shell shown again", got)
+	m = press(press(press(m, "down"), "A"), "esc")
+	select {
+	case got := <-asked:
+		if got.Kind == kindShow || got.Kind == kindPark || got.Kind == kindFocus {
+			t.Errorf("the picker moved a shell: %+v", got)
+		}
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 
@@ -3984,13 +3981,9 @@ func TestJReachesAShellOutsideEveryPlace(t *testing.T) {
 		})
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/conn"}, 701: {pid: 701, dir: "/tmp"}}
 	m, asked := pipeServer(t, m)
-	m = press(m, "down")
-	askedForKind(t, asked, kindShow)
-	if m.previewing != 700 {
-		t.Fatalf("previewing = %d, want 700", m.previewing)
-	}
+	m = press(m, "down") // the cursor on 700's row, the keys still here
 
-	m = press(m, "J")
+	m = press(m, "J") // from the row under the cursor
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
 		t.Errorf("J took the keys to %d, want the shell outside every place, 701", got.PID)
 	}
@@ -4009,8 +4002,8 @@ func TestJReachesAShellOutsideEveryPlace(t *testing.T) {
 		}
 	case <-time.After(50 * time.Millisecond):
 	}
-	if m.previewing != 701 {
-		t.Errorf("previewing = %d, want the shell J showed to stay shown", m.previewing)
+	if m.shown != 701 {
+		t.Errorf("shown = %d, want the shell J showed to stay shown", m.shown)
 	}
 }
 
@@ -4113,49 +4106,48 @@ func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
 }
 
 func TestTheMouseMovingTheKeysCountsAsAMove(t *testing.T) {
-	// A click on the shell beside the list blurs the navigator; a click
-	// back focuses it. Neither goes through a key, and both are moves
-	// back should know about.
+	// A click back into the navigator from the shell beside it focuses
+	// the navigator without going through a key: a move back should know
+	// about, and the keys being here again, the shell is parked.
 	m, asked := twoShells(t)
-	m = press(m, "down") // the cursor on alpha, whose shell is shown beside the list
-	askedForKind(t, asked, kindShow)
-	if m.previewing != 701 {
-		t.Fatalf("previewing %d, want alpha's shell shown", m.previewing)
+	m = press(press(m, "down"), "enter") // into alpha's shell, 701
+	askedForKind(t, asked, kindFocus)
+	if m.shown != 701 || m.focus != 701 {
+		t.Fatalf("shown %d, focus %d; want alpha's shell entered", m.shown, m.focus)
 	}
-	next, _ := m.Update(tea.BlurMsg{})
-	m = next.(model)
-	if m.focus != 701 {
-		t.Fatalf("focus %d after a blur, want the shown shell", m.focus)
-	}
-	next, _ = m.Update(tea.FocusMsg{})
+	next, _ := m.Update(tea.FocusMsg{})
 	m = next.(model)
 	if m.focus != 0 || m.was != 701 {
 		t.Fatalf("focus %d, was %d after focus; want the list, from 701", m.focus, m.was)
 	}
-	// Blurring again, into the same shell, is not a second move: back
-	// would otherwise think the shell came from itself.
+	if got := askedForKind(t, asked, kindPark); got.PID != 701 {
+		t.Fatalf("asked %+v, want the shell parked now the keys are here", got)
+	}
+	if m.shown != 0 {
+		t.Errorf("shown = %d, want nothing beside the navigator", m.shown)
+	}
+	// The navigator blurring with nothing beside it — the mouse on another
+	// window — is not a move into anything.
 	next, _ = m.Update(tea.BlurMsg{})
 	next, _ = next.(model).Update(tea.FocusMsg{})
 	m = next.(model)
-	if m.was != 701 {
-		t.Errorf("was %d, want 701 still", m.was)
+	if m.focus != 0 || m.was != 701 {
+		t.Errorf("focus %d, was %d; want the list, from 701 still", m.focus, m.was)
 	}
 }
 
-func TestBackWithNowhereToGoSaysSoOrTakesTheOtherPane(t *testing.T) {
+func TestBackWithNowhereToGoSaysSoOrTakesTheShellUnderTheCursor(t *testing.T) {
 	m, asked := twoShells(t)
-	// The keys have been nowhere and no shell is shown: nothing to do.
+	// The keys have been nowhere and the cursor is on a place: nothing to do.
 	m = press(m, "shift+tab")
 	if m.status != "no shell to go back to" {
 		t.Errorf("status = %q, want the lack said", m.status)
 	}
-	// A shell shown beside the list is the other pane, and back goes there
-	// even with no history.
+	// On a shell's row, back with no history is enter.
 	m = press(m, "down")
-	askedForKind(t, asked, kindShow)
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
-		t.Fatalf("back took the keys to %d, want the shown shell", got.PID)
+		t.Fatalf("back took the keys to %d, want the shell under the cursor", got.PID)
 	}
 	// The shell the keys came from has gone: back from the list falls to
 	// what is shown; back from a shell falls to the list.

@@ -130,14 +130,14 @@ func TestTheShellIsShownBesideTheNavigatorAndParkedAgain(t *testing.T) {
 			other = p
 		}
 	}
-	m.server.preview(other)
+	m.server.place(placement{pid: other})
 	m = pump(t, m, func(m model) bool { p := m.server.pane(other); return p != nil && p.shown }, 10*time.Second)
 	out, _ = tmuxCommand("display", "-p", "-t", f[0], "#{pane_id}")
 	if out != f[1] {
-		t.Errorf("active pane after a glance's swap = %s, want the navigator %s", out, f[1])
+		t.Errorf("active pane after an unfocused arrangement = %s, want the navigator %s", out, f[1])
 	}
 
-	m.server.preview(0)
+	m.server.park()
 	m = pump(t, m, func(m model) bool {
 		for p := range m.terms {
 			if q := m.server.pane(p); q != nil && q.shown {

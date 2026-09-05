@@ -273,11 +273,12 @@ type model struct {
 	// leaves the cursor on the row that shell belongs to.
 	wantCursor int
 
-	// previewing is the shell the pane beside the navigator was last asked
-	// to hold — the held shell under the cursor — and zero when the
-	// navigator was asked for the window to itself. The pane is only asked
-	// again when this changes.
-	previewing int
+	// shown is the shell in the pane beside the navigator — the one the
+	// keys are in — and zero when the navigator has the window to itself.
+	// A shell is only placed beside the navigator to be entered; with the
+	// keys in the navigator, the pane is the navigator's own, saying what
+	// is known about the row under the cursor, whatever that row is.
+	shown int
 
 	// focus is where the keys are, as far as the navigator knows: zero for
 	// the navigator itself, else the pid of the shell holding them. was is
@@ -286,14 +287,6 @@ type model struct {
 	// and the mouse can only move them between it and the shell beside
 	// it, which its own focus coming and going says.
 	focus, was int
-
-	// previewKey is the row the pane was last arranged for. The pane
-	// follows the cursor, so it is only rearranged when the cursor is on a
-	// different row than it was — the world changing under a cursor that
-	// has not moved leaves the pane alone. That is what lets a shell with
-	// no row of its own, shown by J or a chord, stay shown until the cursor
-	// moves on.
-	previewKey string
 
 	// synced says the first list from this connection has been read: the
 	// one that tells a navigator starting beside a shell already shown
@@ -424,12 +417,15 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		m.pendingKill, m.pendingReplace, m.pendingG = nil, false, false
 		// To the shell beside the list, when there is one: the navigator
 		// took them to any other itself, and said so then.
-		if m.previewing != 0 {
-			m.keysTo(m.previewing)
+		if m.shown != 0 {
+			m.keysTo(m.shown)
 		}
 
 	case tea.FocusMsg:
+		// The keys are here, and the pane is the navigator's own again:
+		// the shell they were in goes back to a window of its own.
 		m.keysTo(0)
+		m.park()
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -474,7 +470,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		// A fresh connection knows nothing of the arrangement the last one
 		// made; the server says what it holds, and the pane follows from
 		// there.
-		m.previewing, m.synced = 0, false
+		m.shown, m.synced = 0, false
 		m.said = statusText{}
 		// Ask what is already running: shells from a window that has since
 		// been closed are still there, and this is where they come back.
@@ -517,10 +513,10 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		// The server is the authority on what it holds, so the client takes
 		// the list rather than merging into what it thought it knew.
 		held := make(map[int]*remoteTerm, len(msg.sessions))
-		shown, wanted := 0, 0
+		beside, wanted := 0, 0
 		for _, s := range msg.sessions {
 			if s.Shown {
-				shown = s.PID
+				beside = s.PID
 			}
 			if s.Wanted {
 				wanted = s.PID
@@ -534,14 +530,20 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 		m.terms = held
 		// A navigator starting beside a shell already shown — the last
-		// navigator closed, or the server was found holding shells —
-		// begins on that shell's row rather than moving it aside for
-		// whatever row the cursor happened to start on.
+		// navigator closed, or the server was found holding shells — has
+		// the keys, so the shell goes back to a window of its own; the
+		// cursor begins on its row, which is where it was left. A shell
+		// found beside because this navigator sent the keys there is where
+		// they are, and stays.
 		if !m.synced {
 			m.synced = true
-			if shown != 0 {
-				m.previewing, m.wantCursor = shown, shown
+			if beside != 0 {
+				m.shown = beside
 				m.keepColumn()
+				if m.focus == 0 {
+					m.wantCursor = beside
+					m.park()
+				}
 			}
 		}
 		m.rebuild()
@@ -550,21 +552,16 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		if wanted != 0 {
 			m.showPID(wanted)
 		}
-		// The server may have just said what it holds while the cursor was
-		// already standing on one of those shells; the pane should not wait
-		// for the cursor to move before showing it.
-		m.syncPreview()
 		return m, tea.Batch(nextEvent(m.server), m.scanNow())
 
 	case termGoneMsg:
 		delete(m.terms, msg.pid)
 		delete(m.dressed, msg.pid)
-		if m.previewing == msg.pid {
+		if m.shown == msg.pid {
 			// Its pane went with it, and the navigator has the window.
-			m.previewing = 0
+			m.shown = 0
 		}
 		m.rebuild()
-		m.syncPreview()
 		// Asking again is what notices a server that has just become
 		// replaceable: the shell keeping an out-of-date one alive was this.
 		m.server.list()
@@ -1107,10 +1104,22 @@ func (m *model) show(t *remoteTerm) {
 			break
 		}
 	}
-	m.previewing, m.previewKey = t.pid, m.cursorKey()
+	m.shown = t.pid
 	m.keepColumn()
 	m.keysTo(t.pid)
 	m.server.show(t.pid)
+}
+
+// park gives the shell beside the navigator a window of its own and the
+// navigator the whole window: the keys are in the navigator, and what it
+// has to say about the row under the cursor draws where the shell was.
+func (m *model) park() {
+	if m.shown == 0 {
+		return
+	}
+	m.shown = 0
+	m.server.park()
+	m.dressWindows()
 }
 
 // keysTo records that the keys have gone to pid — zero for the navigator
@@ -1135,16 +1144,18 @@ func (m *model) keysTo(pid int) {
 // back takes the keys back where they were: the shell they were in before
 // this one, or the navigator, whichever it was — the chord ctrl-space
 // ctrl-space, from anywhere. A shell that has gone since is no place to
-// go; then, and before the keys have been anywhere, back is the other
-// pane of the home window: the shell beside the list, or the list. From
-// the list with no shell shown there is nowhere, which is said.
+// go; then, back from a shell is the list, and back from the list is
+// enter: the shell under the cursor, when the row has one. From the list
+// with none there is nowhere, which is said.
 func (m *model) back() tea.Cmd {
 	target := m.was
 	if target != 0 && m.terms[target] == nil {
 		target = 0
 	}
 	if target == 0 && m.focus == 0 {
-		target = m.previewing
+		if t := m.cursorTerm(); t != nil {
+			target = t.pid
+		}
 	}
 	if target == 0 {
 		if m.focus == 0 {
@@ -1153,6 +1164,7 @@ func (m *model) back() tea.Cmd {
 		}
 		m.keysTo(0)
 		m.server.home()
+		m.park()
 		return nil
 	}
 	m.letGo()
@@ -1170,7 +1182,7 @@ func (m *model) back() tea.Cmd {
 // narrow: it narrows itself as it asks for the shell, and a size wider
 // than its column while one is shown is a size from before the join.
 func (m *model) keepColumn() {
-	if m.previewing != 0 {
+	if m.shown != 0 {
 		m.width = min(m.width, navWidth)
 	}
 }
@@ -1179,29 +1191,17 @@ func (m *model) keepColumn() {
 // before the process scan has seen it. The keys go to it now; the cursor
 // follows as soon as its row lands.
 func (m *model) showPID(pid int) {
-	m.previewing, m.previewKey = pid, m.cursorKey()
+	m.shown = pid
 	m.keepColumn()
 	m.wantCursor = pid
 	m.keysTo(pid)
 	m.server.show(pid)
 }
 
-// cursorKey names what the pane beside the navigator is arranged for: the
-// row under the cursor, and whether the picker is over it.
-func (m model) cursorKey() string {
-	key := ""
-	if r, ok := m.selected(); ok {
-		key = detailKey(r)
-	}
-	if m.resume != nil {
-		key = "picker:" + key
-	}
-	return key
-}
-
 // stepShell shows the next or previous held shell in the navigator's order
-// from the one shown, wrapping, and takes the keys to it: the chord
-// ctrl-space j and k, from any shell.
+// from the one the keys are in — or, from the list, the one under the
+// cursor — wrapping, and takes the keys to it: the chord ctrl-space j and
+// k, from any shell, and J and K at the list.
 func (m *model) stepShell(delta int) tea.Cmd {
 	order := m.heldOrder()
 	if len(order) == 0 {
@@ -1209,9 +1209,15 @@ func (m *model) stepShell(delta int) tea.Cmd {
 		return nil
 	}
 	m.letGo()
+	from := m.shown
+	if from == 0 {
+		if t := m.cursorTerm(); t != nil {
+			from = t.pid
+		}
+	}
 	at := -1
 	for i, pid := range order {
-		if pid == m.previewing {
+		if pid == from {
 			at = i
 		}
 	}
@@ -1346,13 +1352,13 @@ func (m *model) move(delta int) tea.Cmd {
 	return m.detailCmd()
 }
 
-// paneTerm is the shell the pane should be previewing: the one belonging to
-// the row under the cursor.
+// cursorTerm is the shell belonging to the row under the cursor: the one
+// enter takes the keys to.
 //
 // A folded run is rarely a shell itself — the row is named for what the shell
 // started — so the run is walked for the shell conn holds in it. That shell's
 // pane is where the thing the row is named for is drawing.
-func (m model) paneTerm() *remoteTerm {
+func (m model) cursorTerm() *remoteTerm {
 	r, ok := m.selected()
 	if !ok || r.kind != rowProc {
 		return nil
@@ -2603,43 +2609,9 @@ func (m model) awaiting(r navRow) agent {
 	return a
 }
 
-// syncPreview keeps the pane beside the navigator holding the shell under
-// the cursor: the cursor has moved, or the world has changed under it. A
-// row with no held shell — a place, a process conn only watches — and the
-// picker both ask for the window whole, so the shown shell goes back to a
-// window of its own.
-func (m *model) syncPreview() {
-	// A shell just opened is shown before its row exists; until the row
-	// lands and the cursor is on it, the cursor stands somewhere else and
-	// says nothing about what the pane should hold.
-	if m.wantCursor != 0 || m.server == nil {
-		return
-	}
-	key := m.cursorKey()
-	if key == m.previewKey {
-		return
-	}
-	m.previewKey = key
-	want := 0
-	if m.resume == nil {
-		if t := m.paneTerm(); t != nil {
-			want = t.pid
-		}
-	}
-	if want == m.previewing {
-		return
-	}
-	m.previewing = want
-	m.keepColumn()
-	m.server.preview(want)
-	m.dressWindows()
-}
-
-// detailCmd inspects the selected row unless it has been inspected already.
-// The cursor has just moved or the world just changed under it, so this is
-// also where the pane's preview follows the selection.
+// detailCmd inspects the selected row unless it has been inspected already:
+// the cursor has just moved, or the world just changed under it.
 func (m *model) detailCmd() tea.Cmd {
-	m.syncPreview()
 	r, ok := m.selected()
 	if !ok {
 		return nil

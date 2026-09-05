@@ -53,6 +53,21 @@ type remoteTerm struct {
 	name string // what the project calls it, if a project asked for it
 }
 
+// learn takes what a later report says of a shell already known: where it
+// was opened and what the project called it. The window is made and its
+// options set in two commands, and tmux announces the window between them,
+// so the first list of a new shell can carry neither; the report that
+// knows them comes after. A blank is a report that came early, not a shell
+// that lost its name, and is not taken.
+func (t *remoteTerm) learn(dir, name string) {
+	if dir != "" {
+		t.dir = dir
+	}
+	if name != "" {
+		t.name = name
+	}
+}
+
 // Messages the session raises for the model.
 type (
 	// serverReadyMsg says the session is up, or explains why it is not.

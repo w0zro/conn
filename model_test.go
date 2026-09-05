@@ -2287,6 +2287,70 @@ func TestAMoveEndsTheHoldARunPutsOnTheCursor(t *testing.T) {
 	}
 }
 
+// runsDocsPlan is a narrowed navigator over a repository conn with a
+// sub-project docs whose plan is one web server, wired to the recording
+// server, with the filter typed to docs and the plan started from there.
+func runsDocsPlan(t *testing.T) (m model, docs string) {
+	t.Helper()
+	root := t.TempDir()
+	repo := filepath.Join(root, "conn")
+	docs = filepath.Join(repo, "docs")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(docs, ".conn"), []byte("web: python3 -m http.server\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m = withProcList(90, 14, []Project{{Name: "conn", Path: repo}},
+		[]Proc{{PID: 500, PPID: 1, Command: "go run .", Dir: repo}})
+	m.subs = map[string][]Project{repo: {{Name: "docs", Path: docs}}}
+	m = narrowed(m)
+	m, _ = pipeServer(t, m)
+
+	m = typeFilter(press(m, "/"), "doc")
+	m = press(m, "down") // conn answers for its sub-project; the cursor to docs itself
+	if r, ok := m.selected(); !ok || r.kind != rowSub {
+		t.Fatalf("setup: cursor on %+v, want docs", r)
+	}
+	next, _ := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	m = next.(model)
+	if m.status != "started web" {
+		t.Fatalf("status = %q, want the plan started", m.status)
+	}
+	return m, docs
+}
+
+func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
+	// tmux announces the new window before conn has set its directory and
+	// name on it, and the list that announcement sets off reaches the
+	// navigator first, knowing neither. The reports that follow — the
+	// open itself, the list read after the options were set — do know,
+	// and the shell must learn them: otherwise the navigator never sees
+	// the plan's shell as the plan's, the filter that found the project
+	// never lets go, and the hold on the project row never ends.
+	m, docs := runsDocsPlan(t)
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs}}})
+	m = next.(model)
+	next, _ = m.Update(termOpenedMsg{pid: 901, dir: docs, name: "web"})
+	m = next.(model)
+	if got := m.terms[901]; got == nil || got.name != "web" {
+		t.Fatalf("terms[901] = %+v, want the name the open carried", got)
+	}
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs, Name: "web"}}})
+	m = next.(model)
+	if m.filter != "" {
+		t.Errorf("filter = %q, want it let go once the plan's shell is held", m.filter)
+	}
+
+	// The other order: the open first, then the early list. A blank in
+	// the list does not take the name away.
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs}}})
+	m = next.(model)
+	if got := m.terms[901]; got == nil || got.name != "web" {
+		t.Errorf("terms[901] = %+v after an early list, want the name kept", got)
+	}
+}
+
 func TestOnceAcceptedTheOrdinaryKeysWorkAgain(t *testing.T) {
 	m := typeFilter(press(narrowed(manyProjects(90, 14)), "/"), "brand")
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})

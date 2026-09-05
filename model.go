@@ -490,7 +490,9 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		return m, nextEvent(m.server)
 
 	case termOpenedMsg:
-		if _, ok := m.terms[msg.pid]; !ok {
+		if t, ok := m.terms[msg.pid]; ok {
+			t.learn(msg.dir, msg.name)
+		} else {
 			m.terms[msg.pid] = &remoteTerm{pid: msg.pid, dir: msg.dir, name: msg.name}
 		}
 		// A shell asked for by name is one of several a project needed, and
@@ -516,6 +518,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 				wanted = s.PID
 			}
 			if was, ok := m.terms[s.PID]; ok {
+				was.learn(s.Dir, s.Name)
 				held[s.PID] = was
 				continue
 			}

@@ -113,6 +113,9 @@ func applyStyles() {
 		toneBad:    slot(slotRed),
 		toneAccent: slot(slotCyan).Bold(true),
 		toneQuiet:  faintStyle,
+		toneName:   slot(slotPlace),
+		toneCount:  slot(slotCyan),
+		toneSelf:   slot(slotSelf),
 	}
 }
 
@@ -129,6 +132,9 @@ const (
 	toneBad                // wrong: a zombie, a failure
 	toneAccent             // identity worth picking out: a branch, a port
 	toneQuiet              // true but secondary: ids, urls, empty counts
+	toneName               // what a thing is called: a model, a command, a state
+	toneCount              // a measure: tokens, a share of the machine, a count
+	toneSelf               // your own words, in the color conn wears for itself
 )
 
 // toneStyles is the color each tone reads in. The accent and the urgent

@@ -712,7 +712,7 @@ func claudeFields(s claudeSession) []field {
 		*fs = append(*fs, f)
 	}
 
-	add(&what, "session", s.Name)
+	add(&what, "session", s.Name, toneAccent)
 	if s.Status != "" {
 		status := s.Status
 		// The status reads in the color its mark wears in the navigator:
@@ -737,19 +737,21 @@ func claudeFields(s claudeSession) []field {
 	}
 	add(&what, "branch", s.Branch, toneAccent)
 
-	add(&doing, "summary", s.Summary)
-	add(&doing, "asked", s.Prompt)
+	// The summary is the conversation's name; the ask is your own words,
+	// in your color; the agents are work alive under it.
+	add(&doing, "summary", s.Summary, toneName)
+	add(&doing, "asked", s.Prompt, toneSelf)
 	for i, a := range s.Agents {
 		label := "agents"
 		if i > 0 {
 			label = "" // the rest line up under the first
 		}
-		add(&doing, label, a.String())
+		add(&doing, label, a.String(), toneGood)
 	}
 
-	add(&with, "model", s.Model)
+	add(&with, "model", s.Model, toneName)
 	if s.Context > 0 {
-		add(&with, "context", shortTokens(s.Context)+" tokens")
+		add(&with, "context", shortTokens(s.Context)+" tokens", toneCount)
 	}
 	add(&with, "session id", s.SessionID, toneQuiet)
 

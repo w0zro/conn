@@ -99,7 +99,7 @@ func groupFields(p Project, repoCount, procCount int, running map[string]bool) [
 		heading(p.Name),
 		note(p.Path),
 		gap(),
-		{label: "holds", value: plural(repoCount, "repository", "repositories")},
+		{label: "holds", value: plural(repoCount, "repository", "repositories"), tone: toneCount},
 		runningField(procCount),
 	}
 	return append(fs, planFields(p.Path, running)...)
@@ -292,13 +292,13 @@ func procFields(n *ProcNode, run []*ProcNode, ag agent) []field {
 	fs = append(fs, field{label: "parent", value: strconv.Itoa(n.PPID), tone: toneQuiet})
 
 	if argv, err := ps(n.PID, "command="); err == nil && argv != "" {
-		fs = append(fs, field{label: "argv", value: argv})
+		fs = append(fs, field{label: "argv", value: argv, tone: toneName})
 	}
 	fs = append(fs, gap())
 	if stats, err := ps(n.PID, "etime=,%cpu=,%mem="); err == nil {
 		if f := strings.Fields(stats); len(f) == 3 {
 			// Alive reads green; a share of the machine worth a glance
-			// reads amber, and an ordinary one in ink.
+			// reads amber, and an ordinary one as the measure it is.
 			fs = append(fs,
 				field{label: "uptime", value: f[0], tone: toneGood},
 				field{label: "cpu", value: f[1] + "%", tone: shareTone(f[1], 50)},
@@ -325,7 +325,7 @@ func procFields(n *ProcNode, run []*ProcNode, ag agent) []field {
 	}
 
 	if kids := countTree(n) - 1; kids > 0 {
-		fs = append(fs, field{label: "children", value: plural(kids, "process", "processes")})
+		fs = append(fs, field{label: "children", value: plural(kids, "process", "processes"), tone: toneCount})
 	}
 	return fs
 }
@@ -377,18 +377,18 @@ func describeRun(run []*ProcNode) string {
 }
 
 // shareTone is the color a share of the machine reads in: amber from the
-// threshold up, where it is the fact worth a glance, and ink below.
+// threshold up, where it is the fact worth a glance, and a measure below.
 func shareTone(pct string, threshold float64) tone {
 	v, err := strconv.ParseFloat(pct, 64)
 	if err == nil && v >= threshold {
 		return toneAttn
 	}
-	return tonePlain
+	return toneCount
 }
 
 // stateTone is the color a process state reads in: running is alive, a
 // zombie or a stop is wrong, and sleeping — most processes, most of the
-// time — is nothing to color.
+// time — is the name of a state, and nothing more.
 func stateTone(stat string) tone {
 	if stat == "" {
 		return tonePlain
@@ -399,7 +399,7 @@ func stateTone(stat string) tone {
 	case 'T', 'U', 'Z':
 		return toneBad
 	}
-	return tonePlain
+	return toneName
 }
 
 // describeState expands the leading character of a ps state code, which is the

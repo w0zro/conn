@@ -303,8 +303,8 @@ func TestTonesFollowTheFacts(t *testing.T) {
 	if got := stateTone("Z"); got != toneBad {
 		t.Errorf("zombie state tone = %v, want bad", got)
 	}
-	if got := stateTone("Ss"); got != tonePlain {
-		t.Errorf("sleeping state tone = %v, want plain", got)
+	if got := stateTone("Ss"); got != toneName {
+		t.Errorf("sleeping state tone = %v, want the name of a state", got)
 	}
 }
 

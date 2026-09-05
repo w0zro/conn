@@ -114,7 +114,7 @@
     <div class="def-row"><span class="term w60">-</span><span class="desc">fold or unfold everything; unfolded rows also show pids</span></div>
     <div class="def-row"><span class="term w60">.</span><span class="desc">toggle between everything and only what's running</span></div>
   </div>
-  <p>Dim rows are processes with no shell of their own to go to: those started outside conn, and those a process in a shell started in turn — a claude's tools, say — which <b>enter</b> reaches only as far as the shell above them. All are listed and killable. Beside the list, while the keys are in it, is the navigator's own pane: what is known about the row under the cursor, a held shell's included, with the last of what that shell has shown beneath the facts, so what a process is doing can be read without entering it. A shell is placed beside the navigator only when you enter it, and goes back to a window of its own when the keys come home.</p>
+  <p>Dim rows are processes with no shell of their own to go to: those started outside conn, and those a process in a shell started in turn — a claude's tools, say — which <b>enter</b> reaches only as far as the shell above them. All are listed and killable. A row whose process is stopped or a zombie wears <b>✗</b> in red, the way a command that ended badly does. Beside the list, while the keys are in it, is the navigator's own pane: what is known about the row under the cursor, a held shell's included, with the last of what that shell has shown beneath the facts, so what a process is doing can be read without entering it. A shell is placed beside the navigator only when you enter it, and goes back to a window of its own when the keys come home.</p>
   <p><b>/</b> finds places and processes: a query lists the processes whose command answers it, under the places they run, pruned to the branches that answer. <b>enter</b> steps into a found shell, and <b>ctrl-x</b> asks to kill what the cursor is on, without leaving the look. An empty query lists places alone.</p>
   <p>Matching is fuzzy: each word of the query appears in order, not contiguously — <code class="chip">tsl</code> finds tressle-api, <code class="chip">mono api</code> finds the api inside mono — and the letters that matched are lit in the rows.</p>
 </section>
@@ -157,7 +157,7 @@
 <span class="t-key">agent:</span> claude</pre>
   </div>
   <p>Without one, conn reads the conventions in this order: a <code>Procfile</code> means every line is a process; a <code>package.json</code> contributes only its <code>dev</code> or <code>start</code> script, whichever exists first.</p>
-  <p><b>r</b> starts the plan's entries that aren't running, each in its own window named for its entry, and puts the cursor on the first of them. It is a list to run, not a supervisor: nothing restarts on its own. A process that has exited leaves the list, and the pane's checklist shows its entry as down until you press <b>r</b> again.</p>
+  <p><b>r</b> starts the plan's entries that aren't running, each in its own window named for its entry, and puts the cursor on the first of them. It is a list to run, not a supervisor: nothing restarts on its own. When an entry's command ends, its shell stays at the prompt with the transcript: the row wears <b>✗</b> in red if the command ended badly and sits hollow if it ended well, the checklist shows the entry down with how it ended, and <b>r</b> starts it again beside the old shell.</p>
 </section>
 
 <section id="kills">

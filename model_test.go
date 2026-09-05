@@ -3009,6 +3009,52 @@ func TestARowSaysWhereItListens(t *testing.T) {
 	}
 }
 
+func TestARowWearsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testing.T) {
+	// The shell at its prompt after its command ended badly wears the
+	// cross and reads red; after one that ended well it sits hollow. A
+	// process stopped or a zombie wears the cross too, shell or not. A
+	// shell running something wears neither, whatever its pane recorded
+	// of an earlier command.
+	m := withProcList(90, 14,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/conn"},
+			{PID: 701, PPID: 1, Command: "zsh", Dir: "/p/conn"},
+			{PID: 702, PPID: 1, Command: "node", Argv: "node worker.js", Dir: "/p/conn", State: "T"},
+			{PID: 703, PPID: 1, Command: "zsh", Dir: "/p/conn"},
+			{PID: 704, PPID: 703, Command: "npm", Argv: "npm test", Dir: "/p/conn"},
+		})
+	m.terms = map[int]*remoteTerm{
+		700: {pid: 700, dir: "/p/conn", name: "web", exit: "1"},
+		701: {pid: 701, dir: "/p/conn", name: "job", exit: "0"},
+		703: {pid: 703, dir: "/p/conn", name: "test", exit: "1"},
+	}
+	m.rebuild()
+	rows := map[string]string{}
+	for _, r := range m.rows[1:] {
+		rows[m.rowLabel(r)] = renderRow(m, r)
+	}
+	if row := rows["web"]; !strings.Contains(row, glyphFailed) || !strings.Contains(row, errStyle.Render("web")) {
+		t.Errorf("web = %q, want the cross and the row in red", row)
+	}
+	if row := rows["job"]; !strings.Contains(row, glyphOff) || strings.Contains(row, glyphFailed) {
+		t.Errorf("job = %q, want hollow, ended well", row)
+	}
+	if row := rows["worker.js"]; !strings.Contains(row, glyphFailed) {
+		t.Errorf("stopped worker = %q, want the cross", row)
+	}
+	if row := rows["npm test"]; strings.Contains(row, glyphFailed) || strings.Contains(row, glyphOff) {
+		t.Errorf("a shell running something = %q, want no mark for an earlier ending", row)
+	}
+	// The window's name carries the cross too.
+	if _, mark := m.shellLabel(700, m.terms[700]); mark != glyphFailed {
+		t.Errorf("window mark = %q, want the cross", mark)
+	}
+}
+
+// renderRow draws one row as the navigator would, unselected.
+func renderRow(m model, r navRow) string { return m.renderRow(r, false) }
+
 func TestAProcessThatIsConnSaysMe(t *testing.T) {
 	// The launcher becomes a tmux client on conn's socket; under `go run .`
 	// the row folds the go and the client together. Either way the row is

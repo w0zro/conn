@@ -60,7 +60,11 @@ the way an agent's row carries its model.
 Dim rows are processes with no shell of their own to go to: those
 started outside conn, and those a process in a shell started in turn
 \(em a claude's tools, say \(em which enter reaches only as far as the
-shell above them. All are listed and killable. One of them may be conn itself \(em the launcher
+shell above them. All are listed and killable. A row whose process is
+stopped or a zombie wears
+.B \(mu
+in red, the way a command that ended badly does. One of them may be conn
+itself \(em the launcher
 become a tmux client, in the terminal it was started from \(em and that
 row says
 .B (me)
@@ -148,7 +152,8 @@ goes
 .TP
 .B r
 run the plan's entries that are not already running, each in a window of
-its own, and put the cursor on the first of them
+its own, and put the cursor on the first of them; an entry whose command
+ended is not running, and starts again beside the shell it left
 .TP
 .B enter
 the keys to the selected shell, beside the list
@@ -384,7 +389,13 @@ script, whichever exists first.
 .B r
 starts the entries that are not running, each in its own window named for
 its entry, and puts the cursor on the first of them. It is a list to run,
-not a supervisor: nothing restarts on its own.
+not a supervisor: nothing restarts on its own. When an entry's command
+ends, its shell stays at the prompt with the transcript: the row wears
+.B \(mu
+in red if the command ended badly and sits hollow if it ended well, the
+checklist shows the entry down with how it ended, and
+.B r
+starts it again beside the old shell.
 .SH CONFIGURATION
 One JSON file, entirely optional, at
 .IR ~/.config/conn/config.json .

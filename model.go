@@ -1588,6 +1588,48 @@ func (m model) namesIn(path string) map[string]bool {
 	return running
 }
 
+// entryStates is what a place's plan entries are doing, by name: up for
+// one whose shell is running its command, the exit status for one whose
+// command ended, and nothing for one with no shell. An entry started
+// again beside a shell left at its prompt is up.
+func (m model) entryStates(path string) map[string]string {
+	states := map[string]string{}
+	for _, t := range m.planned(path) {
+		if t.live() {
+			states[t.name] = "up"
+		} else if _, ok := states[t.name]; !ok {
+			states[t.name] = t.exit
+		}
+	}
+	return states
+}
+
+// ended is how the command a row's shell was started with ended, when the
+// row is that shell at its prompt: the exit its pane recorded. Nothing
+// while something runs in the shell — the command, or whatever was run
+// by hand after it — and nothing for a shell started with no command.
+func (m model) ended(r navRow) string {
+	if r.kind != rowProc || len(r.run) != 1 || !isShell(r.node.Command) {
+		return ""
+	}
+	if t := m.terms[r.node.PID]; t != nil {
+		return t.exit
+	}
+	return ""
+}
+
+// unwell reports a process in a row's run that is stopped, in an
+// uninterruptible wait, or a zombie: alive by the process table and no
+// use to anyone.
+func unwell(run []*ProcNode) bool {
+	for _, n := range run {
+		if n.State != "" && strings.ContainsRune("TUZ", rune(n.State[0])) {
+			return true
+		}
+	}
+	return false
+}
+
 // describeEntries names what was just started.
 func describeEntries(entries []entry) string {
 	names := make([]string, 0, len(entries))
@@ -2037,6 +2079,11 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 		r := navRow{kind: rowProc, run: run, node: nameOf(run)}
 		if cmd := commandOf(r.node); label == "" || tellsMore(cmd, label) {
 			label = cmd
+		}
+		// A command that ended badly, or a process gone wrong, marks the
+		// window the way it marks the row.
+		if exit := m.ended(r); unwell(run) || (exit != "" && exit != "0") {
+			mark = glyphFailed
 		}
 		if a := m.agentFor(r); a != nil {
 			switch {
@@ -2598,7 +2645,7 @@ func (m *model) detailCmd() tea.Cmd {
 func (m *model) inspect(r navRow) tea.Cmd {
 	m.inspected[detailKey(r)] = m.holdings(r)
 	return loadDetail(r, len(m.placeTrees(r)), len(m.grouped[r.project.Path]),
-		m.agentFor(r), m.namesIn(r.project.Path), m.tailOf(r))
+		m.agentFor(r), m.entryStates(r.project.Path), m.tailOf(r), m.ended(r))
 }
 
 // tailOf reads the transcript of the shell a process row is in — the one
@@ -2628,7 +2675,7 @@ func (m model) holdings(r navRow) string {
 		b.WriteString(strconv.Itoa(t.PID) + " ")
 	}
 	for _, t := range m.planned(r.project.Path) {
-		b.WriteString(t.name + " ")
+		b.WriteString(t.name + "=" + t.exit + " ")
 	}
 	return b.String()
 }

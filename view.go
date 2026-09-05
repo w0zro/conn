@@ -186,6 +186,22 @@ func (m model) renderRow(r navRow, selected bool) string {
 		}
 	}
 
+	// A row whose command ended badly, or whose process is stopped or a
+	// zombie, wears the cross in red — alive by the table and no use to
+	// anyone, which is the state that most wants noticing after an agent's
+	// ask. One whose command ended well sits hollow and quiet: done.
+	if mark == "" && r.kind == rowProc {
+		switch exit := m.ended(r); {
+		case unwell(r.run) || (exit != "" && exit != "0"):
+			mark, markStyle = " "+glyphFailed, errStyle
+			if !selected {
+				style = errStyle
+			}
+		case exit == "0":
+			mark, markStyle = " "+glyphOff, faintStyle
+		}
+	}
+
 	spinner := ""
 	if r.kind == rowProc {
 		if _, dying := m.dying[r.node.PID]; dying {

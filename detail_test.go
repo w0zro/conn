@@ -2,6 +2,7 @@ package main
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -314,7 +315,7 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 	// A row with no held shell around it has no transcript to carry.
 	r := navRow{kind: rowProc, project: Project{Name: "tmp", Path: "/tmp"},
 		node: &ProcNode{Proc: Proc{PID: 10, Command: "npm", Dir: "/tmp"}}}
-	msg := loadDetail(r, 0, 0, nil, nil, func() []string { return []string{"$ npm run dev", "ready on :5173"} })().(detailMsg)
+	msg := loadDetail(r, 0, 0, nil, nil, func() []string { return []string{"$ npm run dev", "ready on :5173"} }, "")().(detailMsg)
 	var got []string
 	seen := false
 	for _, f := range msg.fields {
@@ -330,7 +331,7 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 		t.Errorf("fields = %+v, want the transcript under its heading", msg.fields)
 	}
 
-	msg = loadDetail(r, 0, 0, nil, nil, nil)().(detailMsg)
+	msg = loadDetail(r, 0, 0, nil, nil, nil, "")().(detailMsg)
 	for _, f := range msg.fields {
 		if f.kind == textField || f.value == "transcript" {
 			t.Errorf("a row with no held shell carries a transcript: %+v", f)
@@ -339,5 +340,45 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 	// And a shell that has shown nothing yet is no block at all.
 	if fs := transcript(nil); fs != nil {
 		t.Errorf("transcript(nil) = %+v, want nothing", fs)
+	}
+}
+
+func TestTheChecklistSaysHowEachEntryStands(t *testing.T) {
+	// Up glows, down sits hollow, and an entry whose command ended badly
+	// wears the cross, red through, with how it ended.
+	dir := t.TempDir()
+	if err := writeFile(filepath.Join(dir, ".conn"), "web: npm run dev\napi: go run .\njob: make\nold: sleep 1\n"); err != nil {
+		t.Fatal(err)
+	}
+	fs := planFields(dir, map[string]string{"web": "up", "api": "1", "old": "0"})
+	byName := map[string]field{}
+	for _, f := range fs {
+		if f.lead != "" {
+			byName[f.lead[len(f.lead)-3:]] = f
+		}
+	}
+	if f := byName["web"]; !strings.HasPrefix(f.lead, glyphOn) || f.leadTone != toneGood || f.value != "npm run dev" {
+		t.Errorf("web = %+v, want up, lit, its command in ink", f)
+	}
+	if f := byName["api"]; !strings.HasPrefix(f.lead, glyphFailed) || f.leadTone != toneBad || f.tone != toneBad || !strings.HasSuffix(f.value, "exited 1") {
+		t.Errorf("api = %+v, want the cross, red through, with how it ended", f)
+	}
+	if f := byName["job"]; !strings.HasPrefix(f.lead, glyphOff) || f.leadTone != toneQuiet || f.value != "make" {
+		t.Errorf("job = %+v, want down and hollow", f)
+	}
+	if f := byName["old"]; !strings.HasPrefix(f.lead, glyphOff) || !strings.HasSuffix(f.value, "exited 0") {
+		t.Errorf("old = %+v, want hollow, ended well", f)
+	}
+}
+
+func TestARowAtItsPromptAfterItsCommandSaysHowItEnded(t *testing.T) {
+	r := navRow{kind: rowProc, project: Project{Name: "tmp", Path: "/tmp"},
+		node: &ProcNode{Proc: Proc{PID: 10, Command: "zsh", Dir: "/tmp"}}}
+	msg := loadDetail(r, 0, 0, nil, nil, nil, "1")().(detailMsg)
+	if v, ok := fieldValue(msg.fields, "exited"); !ok || v != "1" {
+		t.Errorf("fields = %+v, want how the command ended", msg.fields)
+	}
+	if exitField("0").tone != toneGood || exitField("2").tone != toneBad {
+		t.Error("ended well should read green, badly red")
 	}
 }

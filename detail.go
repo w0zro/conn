@@ -66,9 +66,11 @@ func detailKey(r navRow) string {
 
 // loadDetail inspects the selected row off the render path. Git and ps are
 // fast, but they are still processes, and the UI should not wait on them.
-// tail reads the transcript of the shell a process row is in, when conn
-// holds one; nil when it does not.
-func loadDetail(r navRow, procCount, repoCount int, ag agent, running map[string]bool, tail func() []string) tea.Cmd {
+// states is what the place's plan entries are doing, by name; tail reads
+// the transcript of the shell a process row is in, when conn holds one,
+// nil when it does not; exit is how that shell's command ended, when it
+// has and the row is the shell at its prompt.
+func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]string, tail func() []string, exit string) tea.Cmd {
 	key := detailKey(r)
 	p := r.project
 	switch r.kind {
@@ -76,6 +78,9 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, running map[string
 		node, run := r.node, r.run
 		return func() tea.Msg {
 			fs := procFields(node, run, ag)
+			if exit != "" {
+				fs = append(fs, exitField(exit))
+			}
 			if tail != nil {
 				fs = append(fs, transcript(tail())...)
 			}
@@ -83,18 +88,28 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, running map[string
 		}
 	case rowGroup:
 		return func() tea.Msg {
-			return detailMsg{key: key, fields: groupFields(p, repoCount, procCount, running)}
+			return detailMsg{key: key, fields: groupFields(p, repoCount, procCount, states)}
 		}
 	}
 	return func() tea.Msg {
-		return detailMsg{key: key, fields: repoFields(p, procCount, running)}
+		return detailMsg{key: key, fields: repoFields(p, procCount, states)}
 	}
+}
+
+// exitField says how the command a shell was started with ended: well in
+// green, and any other way in red, with the status.
+func exitField(exit string) field {
+	t := toneBad
+	if exit == "0" {
+		t = toneGood
+	}
+	return field{label: "exited", value: exit, tone: t}
 }
 
 // groupFields describes a group of repositories: where it is, what it holds,
 // and the plan its folder carries, if it carries one. Git has nothing to say
 // here — the folder is not a repository, which is the point of it.
-func groupFields(p Project, repoCount, procCount int, running map[string]bool) []field {
+func groupFields(p Project, repoCount, procCount int, states map[string]string) []field {
 	fs := []field{
 		heading(p.Name),
 		note(p.Path),
@@ -102,7 +117,7 @@ func groupFields(p Project, repoCount, procCount int, running map[string]bool) [
 		{label: "holds", value: plural(repoCount, "repository", "repositories"), tone: toneCount},
 		runningField(procCount),
 	}
-	return append(fs, planFields(p.Path, running)...)
+	return append(fs, planFields(p.Path, states)...)
 }
 
 // runningField counts what is alive in a place: green when something is,
@@ -117,7 +132,7 @@ func runningField(procCount int) field {
 
 // repoFields describes a repository: where it is, what state its checkout is
 // in, and what is running in it.
-func repoFields(p Project, procCount int, running map[string]bool) []field {
+func repoFields(p Project, procCount int, states map[string]string) []field {
 	fs := []field{
 		heading(p.Name),
 		note(p.Path),
@@ -174,13 +189,13 @@ func repoFields(p Project, procCount int, running map[string]bool) []field {
 	}
 
 	fs = append(fs, gap(), runningField(procCount))
-	return append(fs, planFields(p.Path, running)...)
+	return append(fs, planFields(p.Path, states)...)
 }
 
 // planFields is the checklist of what a place says it needs, and which of
-// those are up. It is the list r works from, so showing it is showing what
-// r would do.
-func planFields(path string, running map[string]bool) []field {
+// those are up, down, or ended — and how. It is the list r works from, so
+// showing it is showing what r would do.
+func planFields(path string, states map[string]string) []field {
 	plan := readPlan(path)
 	if len(plan.Entries) == 0 {
 		return nil
@@ -192,13 +207,20 @@ func planFields(path string, running map[string]bool) []field {
 			label = "" // the rest line up under the first
 		}
 		// An entry that is up glows the way its mark does in the navigator;
-		// one that is down recedes with its hollow mark. The command reads
-		// in ink either way: it is what r would run.
-		mark, t := glyphOff+" ", toneQuiet
-		if running[e.Name] {
+		// one that is down recedes with its hollow mark; one whose command
+		// ended badly wears the cross, red through, with how it ended. The
+		// command reads in ink otherwise: it is what r would run.
+		mark, t, vt, value := glyphOff+" ", toneQuiet, tonePlain, e.Run
+		switch st := states[e.Name]; {
+		case st == "up":
 			mark, t = glyphOn+" ", toneGood
+		case st == "0":
+			value += "   exited 0"
+		case st != "":
+			mark, t, vt = glyphFailed+" ", toneBad, toneBad
+			value += "   exited " + st
 		}
-		fs = append(fs, field{label: label, lead: mark + e.Name, leadTone: t, value: e.Run})
+		fs = append(fs, field{label: label, lead: mark + e.Name, leadTone: t, value: value, tone: vt})
 	}
 	return append(fs, field{label: "from", value: plan.Source, tone: toneQuiet})
 }

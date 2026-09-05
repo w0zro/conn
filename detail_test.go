@@ -382,3 +382,34 @@ func TestARowAtItsPromptAfterItsCommandSaysHowItEnded(t *testing.T) {
 		t.Error("ended well should read green, badly red")
 	}
 }
+
+func TestThePaneSaysHowThePlacesTestsRunAndWent(t *testing.T) {
+	dir := t.TempDir()
+	if err := writeFile(filepath.Join(dir, "Cargo.toml"), ""); err != nil {
+		t.Fatal(err)
+	}
+	get := func(states map[string]string) field {
+		for _, f := range testFields(dir, states) {
+			if f.label == "tests" {
+				return f
+			}
+		}
+		t.Fatal("no tests line")
+		return field{}
+	}
+	if f := get(nil); f.value != "cargo test" || !strings.HasSuffix(f.lead, "not run") || f.leadTone != toneQuiet {
+		t.Errorf("never run = %+v, want the command and not run, quiet", f)
+	}
+	if f := get(map[string]string{testName: "up"}); !strings.HasSuffix(f.lead, "running") || f.leadTone != toneGood {
+		t.Errorf("running = %+v", f)
+	}
+	if f := get(map[string]string{testName: "0"}); !strings.HasSuffix(f.lead, "passed") || f.leadTone != toneGood {
+		t.Errorf("passed = %+v", f)
+	}
+	if f := get(map[string]string{testName: "2"}); !strings.HasPrefix(f.lead, glyphFailed) || !strings.HasSuffix(f.lead, "exit 2") || f.leadTone != toneBad {
+		t.Errorf("failed = %+v", f)
+	}
+	if fs := testFields(t.TempDir(), nil); fs != nil {
+		t.Errorf("a place that says nothing of its tests has a line: %+v", fs)
+	}
+}

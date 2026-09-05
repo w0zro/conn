@@ -803,6 +803,8 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.move(1)
 	case "up", "k":
 		return m, m.move(-1)
+	case "t":
+		return m, m.runTests()
 	case "J":
 		return m, m.stepShell(1)
 	case "K":
@@ -1625,6 +1627,46 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	// Started rather than entered: this is several things at once, and none of
 	// them is more the one you meant than the others.
 	m.status, m.statusErr = "started "+describeEntries(missing), false
+	return m.scanNow()
+}
+
+// runTests runs the tests of the place the cursor is in, the way the place
+// says they run: the key t.
+func (m *model) runTests() tea.Cmd {
+	r, ok := m.selected()
+	if !ok {
+		return nil
+	}
+	return m.testPlace(r.project)
+}
+
+// testPlace runs one place's tests in a shell named for it, wrapped like a
+// plan entry's so how they end is recorded. A task is redone, not kept
+// beside itself: the last run's shell, at its prompt, is closed for the
+// new one. A run still going is left to finish.
+func (m *model) testPlace(p Project) tea.Cmd {
+	if m.server == nil {
+		m.status, m.statusErr = "no server to hold them: "+m.serverErr, true
+		return nil
+	}
+	run, _, ok := testCommand(p.Path)
+	if !ok {
+		m.status, m.statusErr = p.Name+" does not say how its tests run", true
+		return nil
+	}
+	for _, t := range m.planned(p.Path) {
+		if t.name != testName {
+			continue
+		}
+		if t.live() {
+			m.status, m.statusErr = "the tests are already running in "+p.Name, false
+			return nil
+		}
+		m.server.closeTerm(t.pid)
+	}
+	m.server.open(p.Path, run, testName)
+	m.wantCursor, m.wantProject, m.wantName = 0, p.Path, testName
+	m.status, m.statusErr = "testing "+p.Name+": "+run, false
 	return m.scanNow()
 }
 

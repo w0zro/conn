@@ -117,7 +117,8 @@ func groupFields(p Project, repoCount, procCount int, states map[string]string) 
 		{label: "holds", value: plural(repoCount, "repository", "repositories"), tone: toneCount},
 		runningField(procCount),
 	}
-	return append(fs, planFields(p.Path, states)...)
+	fs = append(fs, planFields(p.Path, states)...)
+	return append(fs, testFields(p.Path, states)...)
 }
 
 // runningField counts what is alive in a place: green when something is,
@@ -189,7 +190,33 @@ func repoFields(p Project, procCount int, states map[string]string) []field {
 	}
 
 	fs = append(fs, gap(), runningField(procCount))
-	return append(fs, planFields(p.Path, states)...)
+	fs = append(fs, planFields(p.Path, states)...)
+	return append(fs, testFields(p.Path, states)...)
+}
+
+// testFields is how a place runs its tests, as t would run them, and how
+// the last run went: running, passed, or failed and how — read off the
+// test shell's state like a plan entry's. A place that says nothing of
+// its tests has no line.
+func testFields(path string, states map[string]string) []field {
+	run, source, ok := testCommand(path)
+	if !ok {
+		return nil
+	}
+	mark, word, t := glyphOff, "not run", toneQuiet
+	switch st := states[testName]; {
+	case st == "up":
+		mark, word, t = glyphOn, "running", toneGood
+	case st == "0":
+		mark, word, t = glyphOn, "passed", toneGood
+	case st != "":
+		mark, word, t = glyphFailed, "failed  exit "+st, toneBad
+	}
+	return []field{
+		gap(),
+		{label: "tests", lead: mark + " " + word, leadTone: t, value: run},
+		{label: "from", value: source, tone: toneQuiet},
+	}
 }
 
 // planFields is the checklist of what a place says it needs, and which of

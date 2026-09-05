@@ -1713,6 +1713,7 @@ const (
 	kindPark  = "park"  // the shown shell moved back to a window of its own
 	kindFocus = "focus" // the keys taken to a pane
 	kindLeave = "leave"
+	kindClose = "close" // a held shell's pane killed
 	kindDress = "dress" // a pane named for the title
 	kindHelp  = "help"  // the keys popup asked for
 	kindMode  = "mode"  // the status line's mode chip said
@@ -1865,6 +1866,9 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 			return "", nil
 		case "detach-client":
 			asked <- message{Kind: kindLeave}
+			return "", nil
+		case "kill-pane":
+			asked <- message{Kind: kindClose, PID: target(args)}
 			return "", nil
 		case "show":
 			if has(args, agentOption) {
@@ -2420,6 +2424,62 @@ func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 	m = next.(model)
 	if got := m.terms[901]; got == nil || got.name != "web" {
 		t.Errorf("terms[901] = %+v after an early list, want the name kept", got)
+	}
+}
+
+func TestTRunsThePlacesTestsAndRedoesRatherThanStacks(t *testing.T) {
+	// t runs the tests the way the place says, in a shell named test that
+	// is wrapped like a plan entry's, and the cursor goes to it. A second
+	// t while they run leaves them to finish; once they have ended, t
+	// closes that shell and runs them again in a new one.
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}}, nil)
+	m, asked := pipeServer(t, m)
+
+	m = press(m, "t")
+	got := askedForKind(t, asked, kindOpen)
+	if got.Dir != repo || got.Run != "go test ./..." || got.Name != testName {
+		t.Fatalf("asked %+v, want go test run at the place in a shell named test", got)
+	}
+	if m.status != "testing conn: go test ./..." || m.wantName != testName {
+		t.Errorf("status %q, wantName %q; want the run said and the cursor headed for it", m.status, m.wantName)
+	}
+
+	// Running: left alone.
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: repo, Name: testName}}})
+	m = next.(model)
+	m = press(m, "t")
+	if m.status != "the tests are already running in conn" {
+		t.Errorf("status = %q, want the run left to finish", m.status)
+	}
+	select {
+	case got := <-asked:
+		if got.Kind == kindOpen || got.Kind == kindClose {
+			t.Errorf("a second t while running asked %+v", got)
+		}
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	// Ended: replaced.
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: repo, Name: testName, Exit: "1"}}})
+	m = next.(model)
+	m = press(m, "t")
+	if got := askedForKind(t, asked, kindClose); got.PID != 901 {
+		t.Errorf("asked %+v, want the ended test shell closed", got)
+	}
+	if got := askedForKind(t, asked, kindOpen); got.Run != "go test ./..." {
+		t.Errorf("asked %+v, want the tests run again", got)
+	}
+
+	// A place that says nothing of its tests: said.
+	bare := t.TempDir()
+	m = withProcList(90, 14, []Project{{Name: "bare", Path: bare}}, nil)
+	m, _ = pipeServer(t, m)
+	if m = press(m, "t"); m.status != "bare does not say how its tests run" {
+		t.Errorf("status = %q, want the lack said", m.status)
 	}
 }
 

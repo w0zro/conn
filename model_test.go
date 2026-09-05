@@ -1052,6 +1052,64 @@ func TestStaleDetailsArePruned(t *testing.T) {
 	}
 }
 
+func TestAPlaceIsReadAgainWhenWhatItHoldsChanges(t *testing.T) {
+	// A place's details — how many processes, which plan entries are up —
+	// are cached against the row, and a process arriving would otherwise
+	// leave "0 processes" on screen until the slow refresh came round.
+	root := t.TempDir()
+	repo := filepath.Join(root, "conn")
+	docs := filepath.Join(repo, "docs")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}}, nil)
+	m.subs = map[string][]Project{repo: {{Name: "docs", Path: docs}}}
+	m.rebuild()
+	m = press(m, "down")
+	r, ok := m.selected()
+	if !ok || r.kind != rowSub {
+		t.Fatalf("setup: cursor on %+v, want docs", r)
+	}
+	key := detailKey(r)
+	m.details[key] = []field{{label: "running", value: "0 processes"}}
+	m.inspected[key] = m.holdings(r)
+	if m.detailCmd() != nil {
+		t.Fatal("setup: a place read as holding what it holds is not read again")
+	}
+
+	next, cmd := m.Update(procsMsg{procs: []Proc{{PID: 901, PPID: 1, Command: "zsh", Dir: docs}}})
+	m = next.(model)
+	if m.cursor != 1 {
+		t.Fatalf("cursor = %d, want still on docs", m.cursor)
+	}
+	if !readsAgain(cmd, key) {
+		t.Error("a process arriving in the place should have it read again")
+	}
+	// And the stale reading stays on screen until the new one lands.
+	if strings.Contains(strings.Join(detailColumn(m), "\n"), "loading") {
+		t.Error("the old reading should stay up rather than blink through loading")
+	}
+}
+
+// readsAgain reports whether a command, or a batch of them, reads the
+// details of the given subject.
+func readsAgain(cmd tea.Cmd, key string) bool {
+	if cmd == nil {
+		return false
+	}
+	switch msg := cmd().(type) {
+	case detailMsg:
+		return msg.key == key
+	case tea.BatchMsg:
+		for _, c := range msg {
+			if readsAgain(c, key) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func TestRefreshPreservesCollapsedNodes(t *testing.T) {
 	m := press(nestedTree(12), " ") // repo folded
 	next, _ := m.Update(tickMsg{})

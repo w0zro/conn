@@ -312,6 +312,11 @@ type model struct {
 	// details caches inspections by subject key, so revisiting a row is
 	// instant and moving quickly through the list does not queue up work.
 	details map[string][]field
+
+	// inspected is what each cached place was read as holding, by the same
+	// key: a place is read again when that has changed under it, rather
+	// than showing the count and checklist of before something started.
+	inspected map[string]string
 }
 
 func newModel() model {
@@ -319,6 +324,7 @@ func newModel() model {
 		query:     newLine(),
 		collapsed: map[string]bool{},
 		details:   map[string][]field{},
+		inspected: map[string]string{},
 		dying:     map[int]dyingProc{},
 		terms:     map[int]*remoteTerm{},
 		worked:    map[int]bool{},
@@ -2104,6 +2110,7 @@ func (m *model) pruneDetails() {
 	for k := range m.details {
 		if !live[k] {
 			delete(m.details, k)
+			delete(m.inspected, k)
 		}
 	}
 }
@@ -2548,8 +2555,7 @@ func (m model) refreshDetailCmd() tea.Cmd {
 	if r.kind != rowProc && m.ticks%repoDetailEvery != 0 {
 		return nil
 	}
-	return loadDetail(r, m.placeCount(r), len(m.grouped[r.project.Path]),
-		m.agentFor(r), m.namesIn(r.project.Path))
+	return m.inspect(r)
 }
 
 // holds reports whether a pid is anywhere in the run this row stands for.
@@ -2638,21 +2644,46 @@ func (m *model) detailCmd() tea.Cmd {
 	if !ok {
 		return nil
 	}
-	if _, cached := m.details[detailKey(r)]; cached {
+	key := detailKey(r)
+	if _, cached := m.details[key]; cached && m.inspected[key] == m.holdings(r) {
 		return nil
 	}
-	return loadDetail(r, m.placeCount(r), len(m.grouped[r.project.Path]),
+	return m.inspect(r)
+}
+
+// inspect reads a row, noting what its place held at the time so the
+// reading can be told stale.
+func (m *model) inspect(r navRow) tea.Cmd {
+	m.inspected[detailKey(r)] = m.holdings(r)
+	return loadDetail(r, len(m.placeTrees(r)), len(m.grouped[r.project.Path]),
 		m.agentFor(r), m.namesIn(r.project.Path))
 }
 
-// placeCount is how many process trees a row's place holds — for a
-// repository or a group, everything in it.
-func (m model) placeCount(r navRow) int {
+// holdings is what a place's details are read from, in a word: the
+// process trees it holds and the plan's entries running in it. It is
+// empty for a process, whose details are its own.
+func (m model) holdings(r navRow) string {
+	if r.kind == rowProc {
+		return ""
+	}
+	var b strings.Builder
+	for _, t := range m.placeTrees(r) {
+		b.WriteString(strconv.Itoa(t.PID) + " ")
+	}
+	for _, t := range m.planned(r.project.Path) {
+		b.WriteString(t.name + " ")
+	}
+	return b.String()
+}
+
+// placeTrees is the process trees a row's place holds — for a repository
+// or a group, everything in it.
+func (m model) placeTrees(r navRow) []*ProcNode {
 	switch r.kind {
 	case rowGroup:
-		return len(m.groupTrees(r.project.Path))
+		return m.groupTrees(r.project.Path)
 	case rowProject:
-		return len(m.repoTrees(r.project.Path))
+		return m.repoTrees(r.project.Path)
 	}
-	return len(m.byPlace[r.project.Path])
+	return m.byPlace[r.project.Path]
 }

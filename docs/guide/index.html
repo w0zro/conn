@@ -157,7 +157,7 @@
 <span class="t-key">agent:</span> claude</pre>
   </div>
   <p>Without one, conn reads the conventions in this order: a <code>Procfile</code> means every line is a process; a <code>package.json</code> contributes only its <code>dev</code> or <code>start</code> script, whichever exists first.</p>
-  <p><b>r</b> starts the plan's entries that aren't running, each in its own window named for its entry. It is a list to run, not a supervisor: nothing restarts on its own. A process that has exited leaves the list, and the pane's checklist shows its entry as down until you press <b>r</b> again.</p>
+  <p><b>r</b> starts the plan's entries that aren't running, each in its own window named for its entry, and puts the cursor on the first of them. It is a list to run, not a supervisor: nothing restarts on its own. A process that has exited leaves the list, and the pane's checklist shows its entry as down until you press <b>r</b> again.</p>
 </section>
 
 <section id="kills">

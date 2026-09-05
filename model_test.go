@@ -2271,7 +2271,7 @@ func TestAMoveEndsTheHoldARunPutsOnTheCursor(t *testing.T) {
 	m = next.(model)
 	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs, Name: "web"}}})
 	m = next.(model)
-	if m.wantProject == "" {
+	if m.wantProject == "" && m.wantCursor == 0 {
 		t.Fatal("setup: the hold should still be on before the process lands")
 	}
 
@@ -2282,15 +2282,24 @@ func TestAMoveEndsTheHoldARunPutsOnTheCursor(t *testing.T) {
 	if m.cursor != moved {
 		t.Errorf("cursor = %d after the re-list, want it left at %d where k put it", m.cursor, moved)
 	}
-	if m.wantProject != "" {
+	if m.wantProject != "" || m.wantCursor != 0 {
 		t.Error("the move should have ended the hold")
+	}
+	// Nor does the process landing carry the cursor off to it.
+	next, _ = m.Update(procsMsg{procs: []Proc{
+		{PID: 901, PPID: 1, Command: "zsh", Dir: docs},
+		{PID: 902, PPID: 901, Command: "python3 -m http.server", Dir: docs},
+	}})
+	m = next.(model)
+	if m.cursor != moved {
+		t.Errorf("cursor = %d after the scan, want it left at %d", m.cursor, moved)
 	}
 }
 
 // runsDocsPlan is a narrowed navigator over a repository conn with a
-// sub-project docs whose plan is one web server, wired to the recording
-// server, with the filter typed to docs and the plan started from there.
-func runsDocsPlan(t *testing.T) (m model, docs string) {
+// sub-project docs carrying the given plan, wired to the recording server,
+// with the filter typed to docs and the plan started from there.
+func runsDocsPlan(t *testing.T, plan string) (m model, docs string) {
 	t.Helper()
 	root := t.TempDir()
 	repo := filepath.Join(root, "conn")
@@ -2298,7 +2307,7 @@ func runsDocsPlan(t *testing.T) (m model, docs string) {
 	if err := os.MkdirAll(docs, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(docs, ".conn"), []byte("web: python3 -m http.server\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(docs, ".conn"), []byte(plan), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	m = withProcList(90, 14, []Project{{Name: "conn", Path: repo}},
@@ -2314,11 +2323,13 @@ func runsDocsPlan(t *testing.T) (m model, docs string) {
 	}
 	next, _ := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	m = next.(model)
-	if m.status != "started web" {
+	if !strings.HasPrefix(m.status, "started ") {
 		t.Fatalf("status = %q, want the plan started", m.status)
 	}
 	return m, docs
 }
+
+const webPlan = "web: python3 -m http.server\n"
 
 func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 	// tmux announces the new window before conn has set its directory and
@@ -2328,7 +2339,7 @@ func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 	// and the shell must learn them: otherwise the navigator never sees
 	// the plan's shell as the plan's, the filter that found the project
 	// never lets go, and the hold on the project row never ends.
-	m, docs := runsDocsPlan(t)
+	m, docs := runsDocsPlan(t, webPlan)
 	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs}}})
 	m = next.(model)
 	next, _ = m.Update(termOpenedMsg{pid: 901, dir: docs, name: "web"})
@@ -2348,6 +2359,54 @@ func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 	m = next.(model)
 	if got := m.terms[901]; got == nil || got.name != "web" {
 		t.Errorf("terms[901] = %+v after an early list, want the name kept", got)
+	}
+}
+
+func TestRunLandsTheCursorOnTheFirstThingItStarted(t *testing.T) {
+	// Running a plan from a filtered list: the project keeps the cursor
+	// while its shell starts, and once the server holds the shell and the
+	// scan sees what it runs, the cursor is on that row with the filter
+	// gone — the plan was run, and here is what it started.
+	m, docs := runsDocsPlan(t, webPlan)
+	next, _ := m.Update(termOpenedMsg{pid: 901, dir: docs, name: "web"})
+	m = next.(model)
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs, Name: "web"}}})
+	m = next.(model)
+	if r, ok := m.selected(); !ok || r.kind != rowSub {
+		t.Fatalf("cursor on %+v before the scan, want still on docs", r)
+	}
+	if m.wantCursor != 901 || m.wantProject != "" {
+		t.Fatalf("wantCursor %d, wantProject %q; want the hold handed to the shell", m.wantCursor, m.wantProject)
+	}
+
+	next, _ = m.Update(procsMsg{procs: []Proc{
+		{PID: 500, PPID: 1, Command: "go run .", Dir: filepath.Dir(docs)},
+		{PID: 901, PPID: 1, Command: "zsh", Dir: docs},
+		{PID: 902, PPID: 901, Command: "python3 -m http.server", Dir: docs},
+	}})
+	m = next.(model)
+	r, ok := m.selected()
+	if !ok || r.kind != rowProc || !r.holds(901) {
+		t.Fatalf("cursor on %+v, want the row of the shell the plan started", r)
+	}
+	if m.filter != "" {
+		t.Errorf("filter = %q, want it gone", m.filter)
+	}
+	if m.wantCursor != 0 {
+		t.Errorf("wantCursor = %d, want the landing to have ended the wait", m.wantCursor)
+	}
+}
+
+func TestRunLandsOnThePlansFirstEntryWhicheverShellCameFirst(t *testing.T) {
+	// Several entries start at once and the server may hold them in any
+	// order; the cursor goes to the one the plan lists first.
+	m, docs := runsDocsPlan(t, "web: python3 -m http.server\nwatch: go test ./...\n")
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{
+		{PID: 902, Dir: docs, Name: "watch"}, {PID: 901, Dir: docs, Name: "web"},
+	}})
+	m = next.(model)
+	if m.wantCursor != 901 {
+		t.Fatalf("wantCursor = %d, want web's shell, the plan's first entry", m.wantCursor)
 	}
 }
 

@@ -146,7 +146,7 @@ goes
 .TP
 .B r
 run the plan's entries that are not already running, each in a window of
-its own
+its own, and put the cursor on the first of them
 .TP
 .B enter
 the keys to the selected shell, beside the list
@@ -384,8 +384,8 @@ or
 script, whichever exists first.
 .B r
 starts the entries that are not running, each in its own window named for
-its entry. It is a list to run, not a supervisor: nothing restarts on its
-own.
+its entry, and puts the cursor on the first of them. It is a list to run,
+not a supervisor: nothing restarts on its own.
 .SH CONFIGURATION
 One JSON file, entirely optional, at
 .IR ~/.config/conn/config.json .

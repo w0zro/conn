@@ -263,8 +263,10 @@ type model struct {
 	pendingReplace bool
 
 	// wantProject is a project whose processes were just started, holding the
-	// cursor until they are in the tree.
-	wantProject string
+	// cursor until the server holds them; wantName is the entry the cursor
+	// goes on to then — the first one started — landing on its row once
+	// the scan has it.
+	wantProject, wantName string
 
 	// wantCursor is a shell just opened, waiting for the scan that will put it
 	// in the tree. The cursor moves to it when it lands, so leaving the shell
@@ -887,9 +889,9 @@ func (m *model) filterKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.back()
 
 	// The chords mean what their letters mean. Starting what a project needs
-	// is the end of looking for it, so the search closes and leaves the cursor
-	// on the project — which is where you would want to be watching it come
-	// up, and where the keys mean what they usually mean again.
+	// is the end of looking for it, so the search closes and the cursor goes
+	// to the first thing started — which is what you would want to be
+	// watching come up, and where the keys mean what they usually mean again.
 	case "ctrl+r":
 		// Starting what a project needs is the end of looking for it, so the
 		// typing stops. The filter itself is held until the processes land,
@@ -1320,12 +1322,12 @@ func (m model) placeAt(dir string) (Project, bool) {
 
 // move steps the cursor, wrapping at both ends so the list cycles.
 // letGo ends the hold a run puts on the cursor. The hold is for the scans
-// between the key and the processes landing, so the cursor is still on the
-// project when they do; a move in that gap is the cursor being wanted
-// somewhere else, and a hold that snapped it back on the next rebuild read
-// as the keys not working.
+// between the key and the processes landing, so the cursor is on the
+// project while they start and on the first of them when it does; a move
+// in that gap is the cursor being wanted somewhere else, and a hold that
+// snapped it back on the next rebuild read as the keys not working.
 func (m *model) letGo() {
-	m.wantProject = ""
+	m.wantProject, m.wantName, m.wantCursor = "", "", 0
 }
 
 func (m *model) move(delta int) tea.Cmd {
@@ -1575,9 +1577,10 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	for _, e := range missing {
 		m.server.open(p.Path, e.Run, e.Name)
 	}
-	// Several things are starting and none of them is the one you meant, so
-	// the cursor stays on the project rather than following any of them.
-	m.wantCursor, m.wantProject = 0, p.Path
+	// The cursor stays on the project while they start, then goes to the
+	// first of them: what was started is what there is to watch come up,
+	// and the first is the one the plan put first.
+	m.wantCursor, m.wantProject, m.wantName = 0, p.Path, missing[0].Name
 	// Started rather than entered: this is several things at once, and none of
 	// them is more the one you meant than the others.
 	m.status, m.statusErr = "started "+describeEntries(missing), false
@@ -1917,13 +1920,17 @@ func (m *model) rebuild() {
 		m.cursor = 0
 	}
 
-	// A project whose processes were just started keeps the cursor, rather
-	// than following any one of the several things that started. It holds
-	// until the rows settle, then lets go.
+	// A project whose processes were just started keeps the cursor until
+	// the server holds the first of them; then the cursor is that shell's,
+	// to land on its row the way a shell opened on its own does.
 	if m.wantProject != "" {
 		m.selectProject(m.wantProject)
-		if m.filter == "" && len(m.byPlace[m.wantProject]) > 0 {
-			m.wantProject = ""
+		for _, t := range m.planned(m.wantProject) {
+			if t.name == m.wantName {
+				m.wantCursor = t.pid
+				m.wantProject, m.wantName = "", ""
+				break
+			}
 		}
 	}
 

@@ -1105,9 +1105,18 @@ func (m *model) show(t *remoteTerm) {
 // keysTo records that the keys have gone to pid — zero for the navigator
 // — keeping where they were, when that is somewhere else. Where they
 // already are is not a move: the navigator's own blur after it sent the
-// keys somewhere says the same thing twice.
+// keys somewhere says the same thing twice. And the navigator on the way
+// from one shell to another is not a place they were: choosing a second
+// shell from the list leaves the first as where they were, so back from
+// the second is the first, not the list they chose it from. Back to the
+// same shell from the list is a round trip, and the list is where they
+// were.
 func (m *model) keysTo(pid int) {
-	if pid != m.focus {
+	switch {
+	case pid == m.focus:
+	case m.focus == 0 && m.was != 0 && m.was != pid:
+		m.focus = pid
+	default:
 		m.was, m.focus = m.focus, pid
 	}
 }

@@ -3867,6 +3867,43 @@ func TestBackFromAShellReachedFromTheListIsTheList(t *testing.T) {
 	}
 }
 
+func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
+	// To one shell from the list, back to the list, and on to another
+	// shell from there: the navigator was the way from the first shell to
+	// the second, not a place the keys stopped. Back from the second is
+	// the first, and back again the second — however many times.
+	m, asked := twoShells(t)
+	m = press(m, "J") // to alpha's shell, 701
+	askedForKind(t, asked, kindFocus)
+	m = press(m, "shift+tab") // to the list
+	askedForKind(t, asked, kindFocus)
+	m = press(m, "J") // on to beta's, 700, by way of the list
+	askedForKind(t, asked, kindFocus)
+	if m.focus != 700 || m.was != 701 {
+		t.Fatalf("focus %d, was %d; want the keys in 700 from 701, the list passed through", m.focus, m.was)
+	}
+
+	m = press(m, "shift+tab")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
+		t.Fatalf("back took the keys to %d, want the shell before the list, 701", got.PID)
+	}
+	m = press(m, "shift+tab")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
+		t.Fatalf("back again took the keys to %d, want 700", got.PID)
+	}
+	// Whereas to the list and back to the same shell is a round trip: back
+	// from there is still the list.
+	m = press(m, "shift+tab") // to 701
+	askedForKind(t, asked, kindFocus)
+	m = press(m, "shift+tab") // to 700
+	askedForKind(t, asked, kindFocus)
+	m = press(m, "shift+tab") // to 701
+	askedForKind(t, asked, kindFocus)
+	if m.focus != 701 || m.was != 700 {
+		t.Fatalf("focus %d, was %d; want the keys in 701 from 700", m.focus, m.was)
+	}
+}
+
 func TestTheMouseMovingTheKeysCountsAsAMove(t *testing.T) {
 	// A click on the shell beside the list blurs the navigator; a click
 	// back focuses it. Neither goes through a key, and both are moves

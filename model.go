@@ -2563,7 +2563,22 @@ func (m *model) detailCmd() tea.Cmd {
 func (m *model) inspect(r navRow) tea.Cmd {
 	m.inspected[detailKey(r)] = m.holdings(r)
 	return loadDetail(r, len(m.placeTrees(r)), len(m.grouped[r.project.Path]),
-		m.agentFor(r), m.namesIn(r.project.Path))
+		m.agentFor(r), m.namesIn(r.project.Path), m.tailOf(r))
+}
+
+// tailOf reads the transcript of the shell a process row is in — the one
+// conn holds around it, which is where what the row is named for is
+// drawing — or is nothing for a row with no such shell.
+func (m model) tailOf(r navRow) func() []string {
+	if r.kind != rowProc || m.server == nil {
+		return nil
+	}
+	t := m.owningTerm(r.node.PID)
+	if t == nil {
+		return nil
+	}
+	srv, pid := m.server, t.pid
+	return func() []string { return srv.tail(pid, transcriptLines) }
 }
 
 // holdings is what a place's details are read from, in a word: the

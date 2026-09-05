@@ -302,3 +302,37 @@ func TestTonesFollowTheFacts(t *testing.T) {
 		t.Errorf("sleeping state tone = %v, want plain", got)
 	}
 }
+
+func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
+	// What the process is doing, read without entering it: the last of
+	// what the shell has shown, under its own heading, after the facts.
+	// A row with no held shell around it has no transcript to carry.
+	r := navRow{kind: rowProc, project: Project{Name: "tmp", Path: "/tmp"},
+		node: &ProcNode{Proc: Proc{PID: 10, Command: "npm", Dir: "/tmp"}}}
+	msg := loadDetail(r, 0, 0, nil, nil, func() []string { return []string{"$ npm run dev", "ready on :5173"} })().(detailMsg)
+	var got []string
+	seen := false
+	for _, f := range msg.fields {
+		if f.kind == headingField && f.value == "transcript" {
+			seen = true
+			continue
+		}
+		if f.kind == textField {
+			got = append(got, f.value)
+		}
+	}
+	if !seen || strings.Join(got, "|") != "$ npm run dev|ready on :5173" {
+		t.Errorf("fields = %+v, want the transcript under its heading", msg.fields)
+	}
+
+	msg = loadDetail(r, 0, 0, nil, nil, nil)().(detailMsg)
+	for _, f := range msg.fields {
+		if f.kind == textField || f.value == "transcript" {
+			t.Errorf("a row with no held shell carries a transcript: %+v", f)
+		}
+	}
+	// And a shell that has shown nothing yet is no block at all.
+	if fs := transcript(nil); fs != nil {
+		t.Errorf("transcript(nil) = %+v, want nothing", fs)
+	}
+}

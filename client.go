@@ -827,6 +827,32 @@ func (s *session) pane(pid int) *pane {
 	return s.panes[pid]
 }
 
+// tail is the last n lines a held shell has shown, the pane and what has
+// scrolled off above it together, with the pane's unused rows below the
+// last line left out. Wrapped lines are read joined, so the pane that
+// draws them wraps or cuts them at its own width rather than tmux's.
+func (s *session) tail(pid, n int) []string {
+	p := s.pane(pid)
+	if p == nil {
+		return nil
+	}
+	out, err := s.run("capture-pane", "-p", "-J", "-t", p.id, "-S", "-"+strconv.Itoa(n))
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(out, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimRight(lines[i], " \t\r")
+	}
+	for len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return lines
+}
+
 // scrollbackLines is how many lines of transcript each shell keeps once they
 // scroll off its pane. It is written into the server's configuration at
 // launch, so raising it takes R — a fresh server — to reach anything.

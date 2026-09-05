@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -409,5 +410,26 @@ func TestAGoneSessionIsRemadeAroundAPlaceholderThatGoes(t *testing.T) {
 	}
 	if got := strings.Join(order, " "); got != "new-session show-environment new-window kill-window" {
 		t.Errorf("order = %q, want the session, the terminal asked of it, the shell, then the placeholder gone", got)
+	}
+}
+
+func TestTheTailIsTheLastLinesShownWithoutThePanesEmptyRows(t *testing.T) {
+	// capture-pane prints the pane and what scrolled off above it, the
+	// pane's unused rows as blanks at the end. The tail is the last n
+	// lines with something on them, trailing space cut.
+	s := &session{panes: map[int]*pane{7: {id: "%7", pid: 7}}}
+	var asked []string
+	s.run = func(args ...string) (string, error) {
+		asked = args
+		return "one   \ntwo\nthree\nfour\n\n\n\n", nil
+	}
+	if got := strings.Join(s.tail(7, 3), "|"); got != "two|three|four" {
+		t.Errorf("tail = %q, want the last three lines shown", got)
+	}
+	if !slices.Contains(asked, "capture-pane") || !slices.Contains(asked, "%7") {
+		t.Errorf("asked %v, want the pane captured", asked)
+	}
+	if got := s.tail(8, 3); got != nil {
+		t.Errorf("tail of a shell not held = %v, want nothing", got)
 	}
 }

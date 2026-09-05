@@ -28,11 +28,18 @@ const (
 	headingField                  // what the pane is about
 	noteField                     // a quieter line under the heading
 	gapField                      // a break between groups
+	textField                     // a line of a transcript, as it was shown
 )
 
 func heading(s string) field { return field{value: s, kind: headingField} }
 func note(s string) field    { return field{value: s, kind: noteField} }
 func gap() field             { return field{kind: gapField} }
+func text(s string) field    { return field{value: s, kind: textField} }
+
+// transcriptLines is how much of a held shell's transcript an inspection reads:
+// more than a pane shows, so a tall pane has lines to fill itself with; the
+// pane draws the last of them that fit.
+const transcriptLines = 60
 
 // detailMsg carries the inspection of whatever the cursor was on when it was
 // requested. The key identifies the subject so a slow lookup that lands after
@@ -53,14 +60,20 @@ func detailKey(r navRow) string {
 
 // loadDetail inspects the selected row off the render path. Git and ps are
 // fast, but they are still processes, and the UI should not wait on them.
-func loadDetail(r navRow, procCount, repoCount int, ag agent, running map[string]bool) tea.Cmd {
+// tail reads the transcript of the shell a process row is in, when conn
+// holds one; nil when it does not.
+func loadDetail(r navRow, procCount, repoCount int, ag agent, running map[string]bool, tail func() []string) tea.Cmd {
 	key := detailKey(r)
 	p := r.project
 	switch r.kind {
 	case rowProc:
 		node, run := r.node, r.run
 		return func() tea.Msg {
-			return detailMsg{key: key, fields: procFields(node, run, ag)}
+			fs := procFields(node, run, ag)
+			if tail != nil {
+				fs = append(fs, transcript(tail())...)
+			}
+			return detailMsg{key: key, fields: fs}
 		}
 	case rowGroup:
 		return func() tea.Msg {
@@ -300,6 +313,20 @@ func procFields(n *ProcNode, run []*ProcNode, ag agent) []field {
 
 	if kids := countTree(n) - 1; kids > 0 {
 		fs = append(fs, field{label: "children", value: plural(kids, "process", "processes")})
+	}
+	return fs
+}
+
+// transcript is the last of what a held shell has shown, as a block of the
+// pane: what the process is doing, read without entering it. A shell that
+// has shown nothing yet is not a block.
+func transcript(lines []string) []field {
+	if len(lines) == 0 {
+		return nil
+	}
+	fs := []field{gap(), heading("transcript")}
+	for _, l := range lines {
+		fs = append(fs, text(l))
 	}
 	return fs
 }

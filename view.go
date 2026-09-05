@@ -548,7 +548,12 @@ func (m model) detailLines(width, rows int) []string {
 		return []string{paneGutter + noteStyle.Render("loading…")}
 	}
 
+	// A transcript is read from its end: it is the last block, and when
+	// the pane is too short for all of it, the lines that go are its
+	// oldest, under its heading, so what the shell showed last is what
+	// the pane shows.
 	var lines []string
+	tailAt := -1 // the first transcript line, when there is one
 	for _, block := range blocks(fields) {
 		drawn := renderBlock(block, width)
 		if len(drawn) == 0 {
@@ -557,12 +562,25 @@ func (m model) detailLines(width, rows int) []string {
 		if len(lines) > 0 {
 			lines = append(lines, "")
 		}
+		if isTranscript(block) {
+			tailAt = len(lines) + 1
+		}
 		lines = append(lines, drawn...)
 	}
-	if len(lines) > rows {
-		lines = lines[:rows]
+	if over := len(lines) - rows; over > 0 {
+		if tailAt >= 0 && tailAt+over <= len(lines) {
+			lines = append(lines[:tailAt:tailAt], lines[tailAt+over:]...)
+		} else {
+			lines = lines[:rows]
+		}
 	}
 	return lines
+}
+
+// isTranscript reports whether a block is a shell's transcript: a heading
+// over lines of text.
+func isTranscript(block []field) bool {
+	return len(block) > 1 && block[0].kind == headingField && block[1].kind == textField
 }
 
 // blocks splits the fields at the breaks between groups. A group sets its own
@@ -607,6 +625,10 @@ func renderBlock(block []field, width int) []string {
 			for _, c := range wrapValue(f.value, width-len(paneGutter)-1) {
 				lines = append(lines, paneGutter+noteStyle.Render(c))
 			}
+		case textField:
+			// As the shell showed it, cut to the pane: a transcript
+			// wrapped would be a different transcript.
+			lines = append(lines, paneGutter+toneStyles[tonePlain].Render(truncate(f.value, width-len(paneGutter))))
 		default:
 			lines = append(lines, wrapField(f, labelW, width)...)
 		}

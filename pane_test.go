@@ -5,6 +5,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -656,5 +657,39 @@ func TestAPasteAtTheNavigatorSaysWhereItWent(t *testing.T) {
 	next, _ := m.Update(tea.PasteMsg{Content: "some text"})
 	if f := footer(next.(model)); !strings.Contains(f, "nothing here to paste") {
 		t.Errorf("footer = %q, want the paste explained", f)
+	}
+}
+
+func TestATranscriptTooTallForThePaneShowsItsLastLines(t *testing.T) {
+	// The pane keeps the facts above and the heading, and drops the
+	// transcript's oldest lines to fit: what the shell showed last is
+	// what there is to read.
+	m := withProcList(90, 24,
+		[]Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
+	m.cursor = 1
+	fs := []field{heading("zsh 700"), note("/tmp"), gap(), {label: "parent", value: "1"}}
+	var lines []string
+	for i := 1; i <= 30; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	fs = append(fs, transcript(lines)...)
+	m.details[detailKey(m.rows[1])] = fs
+
+	got := stripANSI(strings.Join(m.detailLines(60, 12), "\n"))
+	rows := strings.Split(got, "\n")
+	if len(rows) != 12 {
+		t.Fatalf("pane is %d rows, want 12:\n%s", len(rows), got)
+	}
+	for _, want := range []string{"zsh 700", "parent", "transcript", "line 30"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("pane lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "line 1\n") || strings.Contains(got, "line 22") {
+		t.Errorf("pane shows the transcript's oldest lines rather than its last:\n%s", got)
+	}
+	if !strings.HasSuffix(strings.TrimRight(got, " "), "line 30") {
+		t.Errorf("pane does not end on the last line shown:\n%s", got)
 	}
 }

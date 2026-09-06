@@ -91,18 +91,62 @@ func TestANewProjectGoesWhereTheCursorIs(t *testing.T) {
 	}
 }
 
-func TestANameThatIsAPathIsRefused(t *testing.T) {
-	// The line said where the project goes; a name with a slash in it
-	// would put it somewhere else. The line stays for a better name.
+func TestTheLineIsPrefilledWithTheCursorsFolder(t *testing.T) {
+	// From a repository in w0zro, the line reads w0zro/ and the name goes
+	// after it; backspaced away, the project goes at the root, which no
+	// row leads to once every repository is in a folder.
+	m := withProcList(90, 14, []Project{{Name: "conn", Path: "/p/w0zro/conn", Group: "/p/w0zro"}}, nil)
+	m.groups = []Project{{Name: "w0zro", Path: "/p/w0zro"}}
+	m.grouped = map[string][]Project{"/p/w0zro": {m.projects[0]}}
+	m.roots = []string{"/p"}
+	m.rebuild()
+	m.cursor = len(m.rows) - 1 // the repository
+
+	m = press(m, "n")
+	if m.newIn != "/p" || m.newName.Value() != "w0zro/" {
+		t.Fatalf("line = %q in %q, want w0zro/ under the root", m.newName.Value(), m.newIn)
+	}
+	if got, err := newProjectPath(m.newIn, m.newName.Value()+"site"); err != nil || got != "/p/w0zro/site" {
+		t.Errorf("path = %q (%v), want the name after the prefix", got, err)
+	}
+	if got, err := newProjectPath(m.newIn, "site"); err != nil || got != "/p/site" {
+		t.Errorf("path = %q (%v), want the root with the prefix gone", got, err)
+	}
+	if got, err := newProjectPath(m.newIn, "other/site"); err != nil || got != "/p/other/site" {
+		t.Errorf("path = %q (%v), want a folder typed in the prefix's place", got, err)
+	}
+	if got, err := newProjectPath(m.newIn, "~/elsewhere/site"); err != nil || !strings.HasSuffix(got, "/elsewhere/site") || strings.HasPrefix(got, "/p") {
+		t.Errorf("path = %q (%v), want a path from ~ taken as it is", got, err)
+	}
+}
+
+func TestALineThatClimbsOutIsRefused(t *testing.T) {
+	// The line said the project goes under the root; a line that climbs
+	// out, or names the root itself, would put it somewhere else. The
+	// line stays for a better one.
 	m := withProcList(90, 14, []Project{{Name: "brand", Path: "/p/brand"}}, nil)
-	for _, bad := range []string{"", "..", "a/b"} {
-		m = typeFilter(press(m, "n"), bad)
+	for _, bad := range []string{"", ".", "..", "../x", "w0zro/../../x"} {
+		m = press(m, "n")
+		m.newName.SetValue(bad)
 		var cmd tea.Cmd
 		m, cmd = enter(m)
 		if cmd != nil || !m.creating || !m.statusErr {
 			t.Errorf("%q: cmd = %v, creating = %v, err = %v; want refused with the line kept", bad, cmd != nil, m.creating, m.statusErr)
 		}
 		m = press(m, "esc")
+	}
+}
+
+func TestAFolderOnTheWayIsMade(t *testing.T) {
+	// A folder typed before the name that is not there yet is made: a new
+	// group, with its first repository in it.
+	root := t.TempDir()
+	msg := createProject(filepath.Join(root, "new", "site"))().(createdMsg)
+	if msg.err != nil {
+		t.Fatal(msg.err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "new", "site", ".git")); err != nil {
+		t.Errorf("no repository at new/site: %v", err)
 	}
 }
 
@@ -162,7 +206,7 @@ func TestAProjectAlreadyThereIsNotMadeOver(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, "site"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	msg := createProject(root, "site")().(createdMsg)
+	msg := createProject(filepath.Join(root, "site"))().(createdMsg)
 	if msg.err == nil || !strings.Contains(msg.err.Error(), "already there") {
 		t.Errorf("err = %v, want the directory left alone", msg.err)
 	}

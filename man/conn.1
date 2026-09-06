@@ -158,10 +158,11 @@ to start \(em claude, ollama, claude \(em for the whole server, until it
 goes
 .TP
 .B n
-make a new project: a name, typed on the status line, becomes a
-directory with a repository in it \(em in the group the cursor is on,
-beside the repository it is on or in, or in the first root \(em and a
-shell opens there
+make a new project: a line, prefilled with the folder the cursor is in
+relative to its root, takes the name on its end \(em the folder
+backspaced away is the root itself, another typed is that folder, made
+if need be \(em and the directory is made with a repository in it and a
+shell open there
 .TP
 .B r
 run the plan's entries that are not already running, each in a window of

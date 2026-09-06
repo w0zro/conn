@@ -12,39 +12,64 @@ import (
 )
 
 // A new project is a directory with a repository in it, made where the
-// others are. n asks for a name, makes the directory under the place the
-// cursor is in — inside a group, beside a repository — runs git init in
-// it, and opens a shell there: the thing you would do next, and what lists
-// the project while nothing else is running in it.
+// others are. n asks where, on a line prefilled with the place the cursor
+// is in, relative to the root it was found under — w0zro/ for a cursor on
+// a repository in that folder — and the name goes on the end of it; the
+// prefix backspaced away is the root itself, and another folder typed in
+// its place is that folder, made if it has to be. enter makes the
+// directory, runs git init in it, and opens a shell there: the thing you
+// would do next, and what lists the project while nothing else is
+// running in it.
 
-// openCreate starts typing the name of a new project. Where it will go is
-// settled now, from the row the cursor is on, and said beside the name as
-// it is typed.
+// openCreate starts typing where the new project goes. The line is
+// prefilled with the folder the cursor is in, relative to its root, so
+// the name goes beside the neighbors it has and the folder is there to be
+// changed.
 func (m *model) openCreate() tea.Cmd {
 	dir := m.newProjectDir()
 	if dir == "" {
 		m.status, m.statusErr = "no projects directory to make it in", true
 		return nil
 	}
-	m.creating, m.newIn = true, dir
+	root, prefix := m.rootOf(dir)
+	m.creating, m.newIn = true, root
 	m.newName = newLine()
+	m.newName.SetValue(prefix)
 	m.resume = nil // one thing at a time; the name is it now
 	return nil
 }
 
-// newProjectDir is where a project made now goes: into the group the
-// cursor is on; beside the repository it is on or in — in its group, or
-// the directory it was found in; and, with nothing under the cursor, the
-// first of the roots. Nothing when there is not even a root.
+// rootOf is the root a directory is under, and the directory's path
+// inside it, with a slash on the end to type a name after — nothing for
+// the root itself. A directory under no root is its own root.
+func (m model) rootOf(dir string) (root, prefix string) {
+	for _, r := range m.roots {
+		// Resolved the way the scan resolved the places under it, so a
+		// root reached through a symlink still holds them.
+		if real, err := filepath.EvalSymlinks(r); err == nil {
+			r = real
+		}
+		if under(dir, r) {
+			rel, err := filepath.Rel(r, dir)
+			if err != nil || rel == "." {
+				return r, ""
+			}
+			return r, filepath.ToSlash(rel) + "/"
+		}
+	}
+	return dir, ""
+}
+
+// newProjectDir is the folder a project made now goes in: the group the
+// cursor is on; the folder the repository it is on or in was found in;
+// and, with nothing under the cursor, the first of the roots. Nothing
+// when there is not even a root.
 func (m model) newProjectDir() string {
 	if r, ok := m.selected(); ok {
 		if r.kind == rowGroup {
 			return r.project.Path
 		}
 		if repo, ok := m.repoHolding(r.project.Path); ok {
-			if repo.Group != "" {
-				return repo.Group
-			}
 			return filepath.Dir(repo.Path)
 		}
 	}
@@ -67,20 +92,20 @@ func (m model) repoHolding(path string) (Project, bool) {
 	return found, ok
 }
 
-// createKey handles a keystroke while the name is being typed: enter makes
+// createKey handles a keystroke while the line is being typed: enter makes
 // the project, esc thinks better of it, and everything else is the line's.
-// A name that will not do is said, and the line stays for a better one.
+// A line that will not do is said, and stays for a better one.
 func (m *model) createKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case "enter":
-		name := strings.TrimSpace(m.newName.Value())
-		if err := checkName(name); err != nil {
+		dir, err := newProjectPath(m.newIn, m.newName.Value())
+		if err != nil {
 			m.status, m.statusErr = err.Error(), true
 			return nil
 		}
 		m.creating = false
-		m.status, m.statusErr = "making "+name, false
-		return createProject(m.newIn, name)
+		m.status, m.statusErr = "making "+filepath.Base(dir), false
+		return createProject(dir)
 	case "esc":
 		m.creating = false
 		m.status = ""
@@ -90,16 +115,24 @@ func (m *model) createKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// checkName is what a project can be called: one directory's name. A path
-// would make it somewhere other than where the line said it would go.
-func checkName(name string) error {
-	switch {
-	case name == "":
-		return errors.New("a name is needed")
-	case name == "." || name == ".." || strings.ContainsAny(name, `/\`):
-		return errors.New("a name, not a path: " + name)
+// newProjectPath is where the line says the project goes: a name, or a
+// path with the name on the end, under the root; an absolute path, or one
+// from ~, is where it says. A path that climbs out of the root would put
+// the project somewhere the line did not say.
+func newProjectPath(root, typed string) (string, error) {
+	typed = strings.TrimSpace(typed)
+	if typed == "" {
+		return "", errors.New("a name is needed")
 	}
-	return nil
+	dir := expandPath(typed)
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(root, dir)
+	}
+	dir = filepath.Clean(dir)
+	if dir == filepath.Clean(root) || strings.Contains(typed, "..") {
+		return "", errors.New("a name, or a path to one: " + typed)
+	}
+	return dir, nil
 }
 
 // createdMsg says a project was made, or why not.
@@ -109,13 +142,14 @@ type createdMsg struct {
 	err  error
 }
 
-// createProject makes the directory and the repository in it, off the
-// render path: git init is quick, but not on a network mount. A directory
-// already there is not made over — it may well be a project, and this is
-// no way to find out — and a git that fails leaves nothing behind.
-func createProject(in, name string) tea.Cmd {
+// createProject makes the directory — and the folders on the way to it,
+// a new group being one — and the repository in it, off the render path:
+// git init is quick, but not on a network mount. A directory already
+// there is not made over — it may well be a project, and this is no way
+// to find out — and a git that fails leaves nothing behind.
+func createProject(dir string) tea.Cmd {
 	return func() tea.Msg {
-		dir := filepath.Join(in, name)
+		name := filepath.Base(dir)
 		if _, err := os.Lstat(dir); err == nil {
 			return createdMsg{dir: dir, name: name, err: errors.New(dir + " is already there")}
 		}

@@ -2549,14 +2549,14 @@ func TestTheChecklistReportsTheLatestEnding(t *testing.T) {
 		{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}, {PID: 701, Dir: "/tmp", Name: "web"},
 	}})
 	m = next.(model)
-	if got := m.entryStates("/tmp")["web"]; got != "up" {
+	if got := m.entryStates("/tmp")["web"].State; got != "up" {
 		t.Fatalf("web = %q, want up while one runs", got)
 	}
 	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{
 		{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}, {PID: 701, Dir: "/tmp", Name: "web", Exit: "0"},
 	}})
 	m = next.(model)
-	if got := m.entryStates("/tmp")["web"]; got != "0" {
+	if got := m.entryStates("/tmp")["web"].State; got != "0" {
 		t.Errorf("web = %q, want the later ending, 0", got)
 	}
 }

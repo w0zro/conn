@@ -532,12 +532,12 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			}
 			if was, ok := m.terms[s.PID]; ok {
 				was.learn(s.Dir, s.Name)
-				m.learnExit(was, s.Exit)
+				m.learnExit(was, s.Exit, s.Ended)
 				held[s.PID] = was
 				continue
 			}
 			t := &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name}
-			m.learnExit(t, s.Exit)
+			m.learnExit(t, s.Exit, s.Ended)
 			held[s.PID] = t
 		}
 		m.terms = held
@@ -1349,16 +1349,20 @@ func (m model) placeAt(dir string) (Project, bool) {
 }
 
 // move steps the cursor, wrapping at both ends so the list cycles.
-// learnExit takes how a shell's command ended from a report, once: a
-// recorded ending never changes, and one the shell has since been used
-// past is not taken back from a list that still carries it. Each ending
-// is numbered as it is learned, so the latest of several is known.
-func (m *model) learnExit(t *remoteTerm, exit string) {
+// learnExit takes how and when a shell's command ended from a report,
+// once: a recorded ending never changes, and one the shell has since been
+// used past is not taken back from a list that still carries it. Each
+// ending is numbered as it is learned, so the latest of several is known
+// even from a pane that recorded no time.
+func (m *model) learnExit(t *remoteTerm, exit, ended string) {
 	if exit == "" || t.exit != "" || t.forgot {
 		return
 	}
 	m.endings++
 	t.exit, t.ended = exit, m.endings
+	if secs, err := strconv.ParseInt(ended, 10, 64); err == nil && secs > 0 {
+		t.at = time.Unix(secs, 0)
+	}
 }
 
 // noticeEnded asks the server again about a plan's shell the scan finds at
@@ -1382,7 +1386,7 @@ func (m *model) noticeEnded() {
 		if !t.live() {
 			switch {
 			case busy && t.settled:
-				t.exit, t.settled, t.forgot = "", false, true
+				t.exit, t.at, t.settled, t.forgot = "", time.Time{}, false, true
 				m.server.forgetExit(pid)
 			case !busy:
 				t.settled = true
@@ -1737,19 +1741,19 @@ func (m model) namesIn(path string) map[string]bool {
 }
 
 // entryStates is what a place's plan entries are doing, by name: up for
-// one whose shell is running its command, the exit status for one whose
-// command ended, and nothing for one with no shell. An entry started
-// again beside a shell left at its prompt is up; of several shells that
-// ended, the latest ending speaks for the entry.
-func (m model) entryStates(path string) map[string]string {
-	states := map[string]string{}
+// one whose shell is running its command, the exit status and moment for
+// one whose command ended, and nothing for one with no shell. An entry
+// started again beside a shell left at its prompt is up; of several
+// shells that ended, the latest ending speaks for the entry.
+func (m model) entryStates(path string) map[string]entryState {
+	states := map[string]entryState{}
 	latest := map[string]int{}
 	for _, t := range m.planned(path) {
 		switch {
 		case t.live():
-			states[t.name] = "up"
-		case states[t.name] != "up" && t.ended >= latest[t.name]:
-			states[t.name], latest[t.name] = t.exit, t.ended
+			states[t.name] = entryState{State: "up"}
+		case states[t.name].State != "up" && t.ended >= latest[t.name]:
+			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at}, t.ended
 		}
 	}
 	return states
@@ -1760,13 +1764,19 @@ func (m model) entryStates(path string) map[string]string {
 // while something runs in the shell — the command, or whatever was run
 // by hand after it — and nothing for a shell started with no command.
 func (m model) ended(r navRow) string {
+	return m.ending(r).State
+}
+
+// ending is ended with the moment: how and when the row's shell's command
+// ended, on the same terms.
+func (m model) ending(r navRow) entryState {
 	if r.kind != rowProc || len(r.run) != 1 || !isShell(r.node.Command) {
-		return ""
+		return entryState{}
 	}
 	if t := m.terms[r.node.PID]; t != nil {
-		return t.exit
+		return entryState{State: t.exit, At: t.at}
 	}
-	return ""
+	return entryState{}
 }
 
 // unwell reports a process in a row's run that is stopped, in an
@@ -2816,7 +2826,7 @@ func (m *model) detailCmd() tea.Cmd {
 func (m *model) inspect(r navRow) tea.Cmd {
 	m.inspected[detailKey(r)] = m.holdings(r)
 	return loadDetail(r, len(m.placeTrees(r)), len(m.grouped[r.project.Path]),
-		m.agentFor(r), m.entryStates(r.project.Path), m.tailOf(r), m.ended(r))
+		m.agentFor(r), m.entryStates(r.project.Path), m.tailOf(r), m.ending(r))
 }
 
 // tailOf reads the transcript of the shell a process row is in — the one

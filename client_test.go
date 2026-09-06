@@ -36,7 +36,7 @@ func TestTheListingTellsTheNavigatorAndTheShownShellApart(t *testing.T) {
 	held, nav := parseListing(strings.Join([]string{
 		"%0\t100\t\t\t/\t1\t1\tconn\t",
 		"%1\t700\t/p/a\t\t/p/a\t\t1\tconn\t",
-		"%2\t701\t/p/b\tweb\t/p/b\t\t\tshell\t1",
+		"%2\t701\t/p/b\tweb\t/p/b\t\t\tshell\t1\t1760000000",
 		"%3\t702\t/p/c\t\t/p/c\t\t\t" + wantName,
 	}, "\n"))
 	if nav != "%0" {
@@ -55,6 +55,9 @@ func TestTheListingTellsTheNavigatorAndTheShownShellApart(t *testing.T) {
 	// server's — reads as no exit.
 	if held[0].exit != "" || held[1].exit != "1" || held[2].exit != "" {
 		t.Errorf("exit = %q %q %q, want only web's command ended, with 1", held[0].exit, held[1].exit, held[2].exit)
+	}
+	if held[1].ended != "1760000000" || held[0].ended != "" {
+		t.Errorf("ended = %q %q, want the moment web's ended, and none for the rest", held[1].ended, held[0].ended)
 	}
 }
 
@@ -80,8 +83,8 @@ func TestACommandsExitIsRecordedOnItsPaneBeforeTheShellTakesOver(t *testing.T) {
 	if !strings.HasPrefix(cmd, "npm run dev; ") || !strings.HasSuffix(cmd, `; exec "$SHELL"`) {
 		t.Fatalf("command = %q, want the entry first and the shell last", cmd)
 	}
-	if !strings.Contains(cmd, `set -p -t "$TMUX_PANE" @conn_exit "$?"`) {
-		t.Errorf("command = %q, want the exit recorded on this pane, named, between them", cmd)
+	if !strings.Contains(cmd, `set -p -t "$TMUX_PANE" @conn_exit "$?" \; set -p -t "$TMUX_PANE" @conn_ended "$(date +%s)"`) {
+		t.Errorf("command = %q, want the exit and the moment recorded on this pane, named, between them", cmd)
 	}
 	// A shell for its own sake records nothing: there is no command to end.
 	if _, err := createWindow(run, "/tmp", "", "", false); err != nil {

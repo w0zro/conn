@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func fieldValue(fs []field, label string) (string, bool) {
@@ -315,7 +316,7 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 	// A row with no held shell around it has no transcript to carry.
 	r := navRow{kind: rowProc, project: Project{Name: "tmp", Path: "/tmp"},
 		node: &ProcNode{Proc: Proc{PID: 10, Command: "npm", Dir: "/tmp"}}}
-	msg := loadDetail(r, 0, 0, nil, nil, func() []string { return []string{"$ npm run dev", "ready on :5173"} }, "")().(detailMsg)
+	msg := loadDetail(r, 0, 0, nil, nil, func() []string { return []string{"$ npm run dev", "ready on :5173"} }, entryState{})().(detailMsg)
 	var got []string
 	seen := false
 	for _, f := range msg.fields {
@@ -331,7 +332,7 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 		t.Errorf("fields = %+v, want the transcript under its heading", msg.fields)
 	}
 
-	msg = loadDetail(r, 0, 0, nil, nil, nil, "")().(detailMsg)
+	msg = loadDetail(r, 0, 0, nil, nil, nil, entryState{})().(detailMsg)
 	for _, f := range msg.fields {
 		if f.kind == textField || f.value == "transcript" {
 			t.Errorf("a row with no held shell carries a transcript: %+v", f)
@@ -350,7 +351,7 @@ func TestTheChecklistSaysHowEachEntryStands(t *testing.T) {
 	if err := writeFile(filepath.Join(dir, ".conn"), "web: npm run dev\napi: go run .\njob: make\nold: sleep 1\n"); err != nil {
 		t.Fatal(err)
 	}
-	fs := planFields(dir, map[string]string{"web": "up", "api": "1", "old": "0"})
+	fs := planFields(dir, map[string]entryState{"web": {State: "up"}, "api": {State: "1", At: time.Now().Add(-3 * time.Minute)}, "old": {State: "0"}})
 	byName := map[string]field{}
 	for _, f := range fs {
 		if f.lead != "" {
@@ -360,8 +361,8 @@ func TestTheChecklistSaysHowEachEntryStands(t *testing.T) {
 	if f := byName["web"]; !strings.HasPrefix(f.lead, glyphOn) || f.leadTone != toneGood || f.value != "npm run dev" {
 		t.Errorf("web = %+v, want up, lit, its command in ink", f)
 	}
-	if f := byName["api"]; !strings.HasPrefix(f.lead, glyphFailed) || f.leadTone != toneBad || f.tone != toneBad || !strings.HasSuffix(f.value, "exited 1") {
-		t.Errorf("api = %+v, want the cross, red through, with how it ended", f)
+	if f := byName["api"]; !strings.HasPrefix(f.lead, glyphFailed) || f.leadTone != toneBad || f.tone != toneBad || !strings.HasSuffix(f.value, "exited 1, 3m ago") {
+		t.Errorf("api = %+v, want the cross, red through, with how and when it ended", f)
 	}
 	if f := byName["job"]; !strings.HasPrefix(f.lead, glyphOff) || f.leadTone != toneQuiet || f.value != "make" {
 		t.Errorf("job = %+v, want down and hollow", f)
@@ -374,12 +375,18 @@ func TestTheChecklistSaysHowEachEntryStands(t *testing.T) {
 func TestARowAtItsPromptAfterItsCommandSaysHowItEnded(t *testing.T) {
 	r := navRow{kind: rowProc, project: Project{Name: "tmp", Path: "/tmp"},
 		node: &ProcNode{Proc: Proc{PID: 10, Command: "zsh", Dir: "/tmp"}}}
-	msg := loadDetail(r, 0, 0, nil, nil, nil, "1")().(detailMsg)
-	if v, ok := fieldValue(msg.fields, "exited"); !ok || v != "1" {
-		t.Errorf("fields = %+v, want how the command ended", msg.fields)
+	msg := loadDetail(r, 0, 0, nil, nil, nil, entryState{State: "1", At: time.Now().Add(-90 * time.Second)})().(detailMsg)
+	var got field
+	for _, f := range msg.fields {
+		if f.label == "exited" {
+			got = f
+		}
 	}
-	if exitField("0").tone != toneGood || exitField("2").tone != toneBad {
-		t.Error("ended well should read green, badly red")
+	if got.lead != "1" || got.leadTone != toneBad || got.value != "1m ago" {
+		t.Errorf("exited = %+v, want the status in red and how long ago", got)
+	}
+	if exitField(entryState{State: "0"}).leadTone != toneGood || exitField(entryState{State: "0"}).value != "" {
+		t.Error("ended well should read green, and a moment unknown say nothing")
 	}
 }
 
@@ -388,7 +395,7 @@ func TestThePaneSaysHowThePlacesTestsRunAndWent(t *testing.T) {
 	if err := writeFile(filepath.Join(dir, "Cargo.toml"), ""); err != nil {
 		t.Fatal(err)
 	}
-	get := func(states map[string]string) field {
+	get := func(states map[string]entryState) field {
 		for _, f := range testFields(dir, states) {
 			if f.label == "tests" {
 				return f
@@ -400,13 +407,13 @@ func TestThePaneSaysHowThePlacesTestsRunAndWent(t *testing.T) {
 	if f := get(nil); f.value != "cargo test" || !strings.HasSuffix(f.lead, "not run") || f.leadTone != toneQuiet {
 		t.Errorf("never run = %+v, want the command and not run, quiet", f)
 	}
-	if f := get(map[string]string{testName: "up"}); !strings.HasSuffix(f.lead, "running") || f.leadTone != toneGood {
+	if f := get(map[string]entryState{testName: {State: "up"}}); !strings.HasSuffix(f.lead, "running") || f.leadTone != toneGood {
 		t.Errorf("running = %+v", f)
 	}
-	if f := get(map[string]string{testName: "0"}); !strings.HasPrefix(f.lead, glyphDone) || !strings.HasSuffix(f.lead, "passed") || f.leadTone != toneGood {
-		t.Errorf("passed = %+v", f)
+	if f := get(map[string]entryState{testName: {State: "0", At: time.Now().Add(-2 * time.Hour)}}); !strings.HasPrefix(f.lead, glyphDone) || !strings.HasSuffix(f.lead, "passed  2h ago") || f.leadTone != toneGood {
+		t.Errorf("passed = %+v, want the check and how long ago", f)
 	}
-	if f := get(map[string]string{testName: "2"}); !strings.HasPrefix(f.lead, glyphFailed) || !strings.HasSuffix(f.lead, "exit 2") || f.leadTone != toneBad {
+	if f := get(map[string]entryState{testName: {State: "2"}}); !strings.HasPrefix(f.lead, glyphFailed) || !strings.HasSuffix(f.lead, "exit 2") || f.leadTone != toneBad {
 		t.Errorf("failed = %+v", f)
 	}
 	if fs := testFields(t.TempDir(), nil); fs != nil {

@@ -45,6 +45,7 @@ type sessionInfo struct {
 	Dir    string
 	Name   string
 	Exit   string // how the command the shell was started with ended, once it has
+	Ended  string // when, as seconds since the epoch
 	Shown  bool
 	Wanted bool
 }
@@ -53,8 +54,9 @@ type sessionInfo struct {
 type remoteTerm struct {
 	pid  int
 	dir  string
-	name string // what the project calls it, if a project asked for it
-	exit string // how the command it was started with ended, once it has: "0", "1"…
+	name string    // what the project calls it, if a project asked for it
+	exit string    // how the command it was started with ended, once it has: "0", "1"…
+	at   time.Time // when it ended, when the pane recorded that too
 
 	// ended orders the endings the navigator has learned of, so the latest
 	// of several shells for one entry is the one that speaks for it.
@@ -145,6 +147,7 @@ type pane struct {
 	dir    string
 	name   string
 	exit   string // the command's exit status, recorded on the pane when it ended
+	ended  string // when it ended, as seconds since the epoch, recorded with it
 	shown  bool   // in the home window, beside the navigator
 	wanted bool   // opened by a chord that asked for it to be shown
 }
@@ -333,7 +336,7 @@ func (s *session) notify(n ctlNote) {
 // opened a shell to be shown says so in the window's name, the one mark
 // that is set in the same breath as the window is made — an option set
 // after would race the refresh the new window sets off.
-const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}"
+const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}"
 
 // wantName is the window name that asks the navigator to show the shell
 // in it; heldName is what the window is called once it has.
@@ -371,6 +374,9 @@ func parseListing(out string) (held []*pane, nav string) {
 		if len(f) > 8 {
 			p.exit = f[8]
 		}
+		if len(f) > 9 {
+			p.ended = f[9]
+		}
 		held = append(held, p)
 	}
 	return held, nav
@@ -378,7 +384,7 @@ func parseListing(out string) (held []*pane, nav string) {
 
 // info is the pane as the model hears about it.
 func (p *pane) info() sessionInfo {
-	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Exit: p.exit, Shown: p.shown, Wanted: p.wanted}
+	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Exit: p.exit, Ended: p.ended, Shown: p.shown, Wanted: p.wanted}
 }
 
 // refreshList reads what the server holds and tells the model, reporting
@@ -542,17 +548,19 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 }
 
 // recordExit is the shell fragment that sets the pane's exit option to the
-// status of the command before it — nothing when tmux cannot be found by
-// path, and then the exit goes unrecorded rather than the shell failing.
-// The pane is named: a tmux run inside a pane knows its own pane by the
-// environment, but set -p without a target goes to the session's active
-// pane, not the one it was run in.
+// status of the command before it, and the ended option to the moment —
+// nothing when tmux cannot be found by path, and then the ending goes
+// unrecorded rather than the shell failing. The pane is named: a tmux run
+// inside a pane knows its own pane by the environment, but set -p without
+// a target goes to the session's active pane, not the one it was run in.
+// The status is the first word expanded, before the date's substitution
+// could run anything.
 func recordExit() string {
 	tmux, err := exec.LookPath("tmux")
 	if err != nil {
 		return ""
 	}
-	return "; " + shellQuote(tmux) + ` set -p -t "$TMUX_PANE" @conn_exit "$?" 2>/dev/null`
+	return "; " + shellQuote(tmux) + ` set -p -t "$TMUX_PANE" @conn_exit "$?" \; set -p -t "$TMUX_PANE" @conn_ended "$(date +%s)" 2>/dev/null`
 }
 
 // open starts a shell — or handed a command, that command with a shell
@@ -901,7 +909,9 @@ func (s *session) forgetExit(pid int) {
 	if p == nil {
 		return
 	}
-	go func() { _, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit") }()
+	go func() {
+		_, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit", ";", "set", "-pu", "-t", p.id, "@conn_ended")
+	}()
 }
 
 // scrollbackLines is how many lines of transcript each shell keeps once they

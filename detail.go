@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -64,13 +65,22 @@ func detailKey(r navRow) string {
 	return "repo:" + r.project.Path
 }
 
+// entryState is what a plan entry — or the test run, or a row's own
+// shell — is doing: "up" while its command runs, the exit status once it
+// ended, and empty for one with no shell. At is when it ended, when the
+// pane recorded that; zero otherwise.
+type entryState struct {
+	State string
+	At    time.Time
+}
+
 // loadDetail inspects the selected row off the render path. Git and ps are
 // fast, but they are still processes, and the UI should not wait on them.
 // states is what the place's plan entries are doing, by name; tail reads
 // the transcript of the shell a process row is in, when conn holds one,
-// nil when it does not; exit is how that shell's command ended, when it
-// has and the row is the shell at its prompt.
-func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]string, tail func() []string, exit string) tea.Cmd {
+// nil when it does not; ended is how and when that shell's command ended,
+// when it has and the row is the shell at its prompt.
+func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]entryState, tail func() []string, ended entryState) tea.Cmd {
 	key := detailKey(r)
 	p := r.project
 	switch r.kind {
@@ -78,8 +88,8 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]
 		node, run := r.node, r.run
 		return func() tea.Msg {
 			fs := procFields(node, run, ag)
-			if exit != "" {
-				fs = append(fs, exitField(exit))
+			if ended.State != "" {
+				fs = append(fs, exitField(ended))
 			}
 			if tail != nil {
 				fs = append(fs, transcript(tail())...)
@@ -97,19 +107,28 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]
 }
 
 // exitField says how the command a shell was started with ended: well in
-// green, and any other way in red, with the status.
-func exitField(exit string) field {
+// green, and any other way in red, with the status — and how long ago,
+// when that was recorded.
+func exitField(e entryState) field {
 	t := toneBad
-	if exit == "0" {
+	if e.State == "0" {
 		t = toneGood
 	}
-	return field{label: "exited", value: exit, tone: t}
+	return field{label: "exited", lead: e.State, leadTone: t, value: ago(e.At), tone: toneQuiet}
+}
+
+// ago says how long ago a moment was, or nothing for a moment unknown.
+func ago(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return shortAge(at) + " ago"
 }
 
 // groupFields describes a group of repositories: where it is, what it holds,
 // and the plan its folder carries, if it carries one. Git has nothing to say
 // here — the folder is not a repository, which is the point of it.
-func groupFields(p Project, repoCount, procCount int, states map[string]string) []field {
+func groupFields(p Project, repoCount, procCount int, states map[string]entryState) []field {
 	fs := []field{
 		heading(p.Name),
 		note(p.Path),
@@ -133,7 +152,7 @@ func runningField(procCount int) field {
 
 // repoFields describes a repository: where it is, what state its checkout is
 // in, and what is running in it.
-func repoFields(p Project, procCount int, states map[string]string) []field {
+func repoFields(p Project, procCount int, states map[string]entryState) []field {
 	fs := []field{
 		heading(p.Name),
 		note(p.Path),
@@ -198,19 +217,22 @@ func repoFields(p Project, procCount int, states map[string]string) []field {
 // the last run went: running, passed, or failed and how — read off the
 // test shell's state like a plan entry's. A place that says nothing of
 // its tests has no line.
-func testFields(path string, states map[string]string) []field {
+func testFields(path string, states map[string]entryState) []field {
 	run, source, ok := testCommand(path)
 	if !ok {
 		return nil
 	}
 	mark, word, t := glyphOff, "not run", toneQuiet
 	switch st := states[testName]; {
-	case st == "up":
+	case st.State == "up":
 		mark, word, t = glyphOn, "running", toneGood
-	case st == "0":
+	case st.State == "0":
 		mark, word, t = glyphDone, "passed", toneGood
-	case st != "":
-		mark, word, t = glyphFailed, "failed  exit "+st, toneBad
+	case st.State != "":
+		mark, word, t = glyphFailed, "failed  exit "+st.State, toneBad
+	}
+	if when := ago(states[testName].At); when != "" {
+		word += "  " + when
 	}
 	return []field{
 		gap(),
@@ -222,7 +244,7 @@ func testFields(path string, states map[string]string) []field {
 // planFields is the checklist of what a place says it needs, and which of
 // those are up, down, or ended — and how. It is the list r works from, so
 // showing it is showing what r would do.
-func planFields(path string, states map[string]string) []field {
+func planFields(path string, states map[string]entryState) []field {
 	plan := readPlan(path)
 	if len(plan.Entries) == 0 {
 		return nil
@@ -240,14 +262,17 @@ func planFields(path string, states map[string]string) []field {
 		// would run.
 		mark, t, vt, value := glyphOff+" ", toneQuiet, tonePlain, e.Run
 		switch st := states[e.Name]; {
-		case st == "up":
+		case st.State == "up":
 			mark, t = glyphOn+" ", toneGood
-		case st == "0":
+		case st.State == "0":
 			mark, t = glyphDone+" ", toneGood
 			value += "   exited 0"
-		case st != "":
+		case st.State != "":
 			mark, t, vt = glyphFailed+" ", toneBad, toneBad
-			value += "   exited " + st
+			value += "   exited " + st.State
+		}
+		if when := ago(states[e.Name].At); when != "" && states[e.Name].State != "up" {
+			value += ", " + when
 		}
 		fs = append(fs, field{label: label, lead: mark + e.Name, leadTone: t, value: value, tone: vt})
 	}

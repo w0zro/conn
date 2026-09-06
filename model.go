@@ -810,8 +810,8 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.move(1)
 	case "up", "k":
 		return m, m.move(-1)
-	case "t":
-		return m, m.runTests()
+	case "t", "b", "l":
+		return m, m.runVerb(msg.String())
 	case "J":
 		return m, m.stepShell(1)
 	case "K":
@@ -1673,43 +1673,48 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	return m.scanNow()
 }
 
-// runTests runs the tests of the place the cursor is in, the way the place
-// says they run: the key t.
-func (m *model) runTests() tea.Cmd {
+// runVerb runs a task of the place the cursor is in, the way the place
+// says it runs: the keys t, b and l, each the key of its verb.
+func (m *model) runVerb(key string) tea.Cmd {
 	r, ok := m.selected()
 	if !ok {
 		return nil
 	}
-	return m.testPlace(r.project)
+	for _, v := range verbs {
+		if v.key == key {
+			return m.doVerb(r.project, v)
+		}
+	}
+	return nil
 }
 
-// testPlace runs one place's tests in a shell named for it, wrapped like a
-// plan entry's so how they end is recorded. A task is redone, not kept
+// doVerb runs one place's task in a shell named for it, wrapped like a
+// plan entry's so how it ends is recorded. A task is redone, not kept
 // beside itself: the last run's shell, at its prompt, is closed for the
 // new one. A run still going is left to finish.
-func (m *model) testPlace(p Project) tea.Cmd {
+func (m *model) doVerb(p Project, v *verb) tea.Cmd {
 	if m.server == nil {
-		m.status, m.statusErr = "no server to hold them: "+m.serverErr, true
+		m.status, m.statusErr = "no server to hold it: "+m.serverErr, true
 		return nil
 	}
-	run, _, ok := testCommand(p.Path)
+	run, _, ok := v.command(p.Path)
 	if !ok {
-		m.status, m.statusErr = p.Name+" does not say how its tests run", true
+		m.status, m.statusErr = p.Name+" does not say "+v.unknown, true
 		return nil
 	}
 	for _, t := range m.planned(p.Path) {
-		if t.name != testName {
+		if t.name != v.name {
 			continue
 		}
 		if t.live() {
-			m.status, m.statusErr = "the tests are already running in "+p.Name, false
+			m.status, m.statusErr = "already "+v.doing+" "+p.Name, false
 			return nil
 		}
 		m.server.closeTerm(t.pid)
 	}
-	m.server.open(p.Path, run, testName)
-	m.wantCursor, m.wantProject, m.wantName = 0, p.Path, testName
-	m.status, m.statusErr = "testing "+p.Name+": "+run, false
+	m.server.open(p.Path, run, v.name)
+	m.wantCursor, m.wantProject, m.wantName = 0, p.Path, v.name
+	m.status, m.statusErr = v.doing+" "+p.Name+": "+run, false
 	return m.scanNow()
 }
 

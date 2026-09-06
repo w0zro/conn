@@ -137,7 +137,7 @@ func groupFields(p Project, repoCount, procCount int, states map[string]entrySta
 		runningField(procCount),
 	}
 	fs = append(fs, planFields(p.Path, states)...)
-	return append(fs, testFields(p.Path, states)...)
+	return append(fs, verbFields(p.Path, states)...)
 }
 
 // runningField counts what is alive in a place: green when something is,
@@ -210,35 +210,39 @@ func repoFields(p Project, procCount int, states map[string]entryState) []field 
 
 	fs = append(fs, gap(), runningField(procCount))
 	fs = append(fs, planFields(p.Path, states)...)
-	return append(fs, testFields(p.Path, states)...)
+	return append(fs, verbFields(p.Path, states)...)
 }
 
-// testFields is how a place runs its tests, as t would run them, and how
-// the last run went: running, passed, or failed and how — read off the
-// test shell's state like a plan entry's. A place that says nothing of
-// its tests has no line.
-func testFields(path string, states map[string]entryState) []field {
-	run, source, ok := testCommand(path)
-	if !ok {
-		return nil
+// verbFields is how a place runs each task it says how to run — its
+// tests, its build, its lint, as t, b and l would run them — and how the
+// last run went: running, ended well, or failed and how, and how long
+// ago — read off the task's shell like a plan entry's. A place that says
+// nothing of a task has no line for it.
+func verbFields(path string, states map[string]entryState) []field {
+	var fs []field
+	for _, v := range verbs {
+		run, _, ok := v.command(path)
+		if !ok {
+			continue
+		}
+		mark, word, t := glyphOff, v.idle, toneQuiet
+		switch st := states[v.name]; {
+		case st.State == "up":
+			mark, word, t = glyphOn, "running", toneGood
+		case st.State == "0":
+			mark, word, t = glyphDone, v.done, toneGood
+		case st.State != "":
+			mark, word, t = glyphFailed, "failed  exit "+st.State, toneBad
+		}
+		if when := ago(states[v.name].At); when != "" {
+			word += "  " + when
+		}
+		if len(fs) == 0 {
+			fs = append(fs, gap())
+		}
+		fs = append(fs, field{label: v.label, lead: mark + " " + word, leadTone: t, value: run})
 	}
-	mark, word, t := glyphOff, "not run", toneQuiet
-	switch st := states[testName]; {
-	case st.State == "up":
-		mark, word, t = glyphOn, "running", toneGood
-	case st.State == "0":
-		mark, word, t = glyphDone, "passed", toneGood
-	case st.State != "":
-		mark, word, t = glyphFailed, "failed  exit "+st.State, toneBad
-	}
-	if when := ago(states[testName].At); when != "" {
-		word += "  " + when
-	}
-	return []field{
-		gap(),
-		{label: "tests", lead: mark + " " + word, leadTone: t, value: run},
-		{label: "from", value: source, tone: toneQuiet},
-	}
+	return fs
 }
 
 // planFields is the checklist of what a place says it needs, and which of

@@ -2452,7 +2452,7 @@ func TestTRunsThePlacesTestsAndRedoesRatherThanStacks(t *testing.T) {
 	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: repo, Name: testName}}})
 	m = next.(model)
 	m = press(m, "t")
-	if m.status != "the tests are already running in conn" {
+	if m.status != "already testing conn" {
 		t.Errorf("status = %q, want the run left to finish", m.status)
 	}
 	select {
@@ -2480,6 +2480,26 @@ func TestTRunsThePlacesTestsAndRedoesRatherThanStacks(t *testing.T) {
 	m, _ = pipeServer(t, m)
 	if m = press(m, "t"); m.status != "bare does not say how its tests run" {
 		t.Errorf("status = %q, want the lack said", m.status)
+	}
+}
+
+func TestBAndLRunTheBuildAndTheLintTheSameWay(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}}, nil)
+	m, asked := pipeServer(t, m)
+	m = press(m, "b")
+	if got := askedForKind(t, asked, kindOpen); got.Run != "go build ./..." || got.Name != "build" {
+		t.Errorf("b asked %+v, want the build in a shell named build", got)
+	}
+	if m.status != "building conn: go build ./..." {
+		t.Errorf("status = %q", m.status)
+	}
+	m = press(m, "l")
+	if got := askedForKind(t, asked, kindOpen); got.Run != "go vet ./..." || got.Name != "lint" {
+		t.Errorf("l asked %+v, want the lint in a shell named lint", got)
 	}
 }
 

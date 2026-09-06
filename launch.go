@@ -347,37 +347,40 @@ func runPlanAt(dir string) error {
 	return nil
 }
 
-// runTestsAt is `conn test [dir]`: the tests of the place holding dir, the
-// way the place says they run, in a shell named test — the navigator's t,
-// from any shell. A run still going is left to finish; the last run's
-// shell at its prompt is closed for the new one.
-func runTestsAt(dir string) error {
-	p, err := placeHolding(dir)
-	if err != nil {
-		return err
-	}
-	run, _, ok := testCommand(p.Path)
-	if !ok {
-		return errors.New(p.Name + " does not say how its tests run")
-	}
-	out, err := tmuxCommand("list-panes", "-a", "-F", listFormat)
-	if err != nil && !errors.Is(err, errNoServer) {
-		return err
-	}
-	held, _ := parseListing(out)
-	for _, pane := range held {
-		if pane.name != testName || pane.dir != p.Path {
-			continue
-		}
-		if pane.exit == "" {
-			return errors.New("the tests are already running in " + p.Name)
-		}
-		if _, err := tmuxCommand("kill-pane", "-t", pane.id); err != nil {
+// runVerbAt is `conn test [dir]`, `conn build [dir]` and `conn lint
+// [dir]`: the task of the place holding dir, the way the place says it
+// runs, in a shell named for it — the navigator's t, b and l, from any
+// shell. A run still going is left to finish; the last run's shell at
+// its prompt is closed for the new one.
+func runVerbAt(v *verb) func(dir string) error {
+	return func(dir string) error {
+		p, err := placeHolding(dir)
+		if err != nil {
 			return err
 		}
+		run, _, ok := v.command(p.Path)
+		if !ok {
+			return errors.New(p.Name + " does not say " + v.unknown)
+		}
+		out, err := tmuxCommand("list-panes", "-a", "-F", listFormat)
+		if err != nil && !errors.Is(err, errNoServer) {
+			return err
+		}
+		held, _ := parseListing(out)
+		for _, pane := range held {
+			if pane.name != v.name || pane.dir != p.Path {
+				continue
+			}
+			if pane.exit == "" {
+				return errors.New("already " + v.doing + " " + p.Name)
+			}
+			if _, err := tmuxCommand("kill-pane", "-t", pane.id); err != nil {
+				return err
+			}
+		}
+		_, err = createWindow(tmuxCommand, p.Path, run, v.name, false)
+		return err
 	}
-	_, err = createWindow(tmuxCommand, p.Path, run, testName, false)
-	return err
 }
 
 // placeHolding is the place a directory is in — the innermost project or

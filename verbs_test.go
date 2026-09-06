@@ -7,6 +7,7 @@ import (
 )
 
 func TestThePlacesTestsRunTheWayThePlaceSays(t *testing.T) {
+	testCommand := verbNamed(testName).command
 	// What the project wrote down for the purpose comes before what its
 	// ecosystem does by default, and a Makefile's test target over
 	// everything: it is where a project says the guess is wrong.
@@ -51,5 +52,43 @@ func TestThePlacesTestsRunTheWayThePlaceSays(t *testing.T) {
 		if ok != (tc.run != "") || run != tc.run || from != tc.from {
 			t.Errorf("%s: testCommand = %q from %q (%v), want %q from %q", tc.name, run, from, ok, tc.run, tc.from)
 		}
+	}
+}
+
+func TestBuildAndLintRunTheWayThePlaceSaysToo(t *testing.T) {
+	// The same order for every verb: a recipe named for it first, then
+	// the ecosystem's own command — and only a linter the ecosystem ships
+	// with, since a guess that is not installed fails for nothing.
+	cases := []struct {
+		verb  string
+		files map[string]string
+		run   string
+	}{
+		{"build", map[string]string{"Makefile": "build:\n\tgo build ./cmd/x\n", "go.mod": ""}, "make build"},
+		{"build", map[string]string{"package.json": `{"scripts":{"build":"vite build"}}`}, "npm run build"},
+		{"build", map[string]string{"go.mod": ""}, "go build ./..."},
+		{"build", map[string]string{"Cargo.toml": ""}, "cargo build"},
+		{"build", map[string]string{"pyproject.toml": ""}, ""},
+		{"lint", map[string]string{"justfile": "lint:\n  ruff check .\n", "pyproject.toml": ""}, "just lint"},
+		{"lint", map[string]string{"package.json": `{"scripts":{"lint":"eslint ."}}`}, "npm run lint"},
+		{"lint", map[string]string{"go.mod": ""}, "go vet ./..."},
+		{"lint", map[string]string{"Cargo.toml": ""}, "cargo clippy"},
+		{"lint", map[string]string{"pyproject.toml": ""}, ""},
+		{"lint", map[string]string{"package.json": `{"scripts":{"test":"vitest"}}`}, ""},
+	}
+	for _, tc := range cases {
+		dir := t.TempDir()
+		for name, body := range tc.files {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run, _, ok := verbNamed(tc.verb).command(dir)
+		if ok != (tc.run != "") || run != tc.run {
+			t.Errorf("%s of %v = %q (%v), want %q", tc.verb, tc.files, run, ok, tc.run)
+		}
+	}
+	if verbNamed("deploy") != nil {
+		t.Error("a verb conn does not know should be nil")
 	}
 }

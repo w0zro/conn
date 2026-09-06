@@ -396,7 +396,7 @@ func TestThePaneSaysHowThePlacesTestsRunAndWent(t *testing.T) {
 		t.Fatal(err)
 	}
 	get := func(states map[string]entryState) field {
-		for _, f := range testFields(dir, states) {
+		for _, f := range verbFields(dir, states) {
 			if f.label == "tests" {
 				return f
 			}
@@ -416,7 +416,18 @@ func TestThePaneSaysHowThePlacesTestsRunAndWent(t *testing.T) {
 	if f := get(map[string]entryState{testName: {State: "2"}}); !strings.HasPrefix(f.lead, glyphFailed) || !strings.HasSuffix(f.lead, "exit 2") || f.leadTone != toneBad {
 		t.Errorf("failed = %+v", f)
 	}
-	if fs := testFields(t.TempDir(), nil); fs != nil {
-		t.Errorf("a place that says nothing of its tests has a line: %+v", fs)
+	if fs := verbFields(t.TempDir(), nil); fs != nil {
+		t.Errorf("a place that says nothing of its tasks has a line: %+v", fs)
+	}
+	// Every task the place says how to run has a line, in the verbs'
+	// order: a cargo project tests, builds and lints.
+	var labels []string
+	for _, f := range verbFields(dir, map[string]entryState{"build": {State: "0"}}) {
+		if f.kind == pairField {
+			labels = append(labels, f.label+":"+f.lead)
+		}
+	}
+	if got := strings.Join(labels, " "); got != "tests:○ not run build:✓ built lint:○ not linted" {
+		t.Errorf("lines = %q, want each task's line in order", got)
 	}
 }

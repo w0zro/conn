@@ -53,6 +53,12 @@ func matchSpans(query, s string) []int {
 // there to take, so "api" lights the api in services/api rather than the
 // stray letters before it. Greedy otherwise, which is enough to be right
 // nearly always and cheap enough to run on every keystroke.
+//
+// Preferring a word start can also walk past the match: "docs" against
+// "docs · opus" takes docs's d, then opus's o for starting a word, and finds
+// no c after it. So a walk that comes up empty is tried again taking the
+// first letter every time, which finds a subsequence whenever there is one
+// — the answer has to be right; only the lighting is a preference.
 func subseq(token, s string) ([]int, bool) {
 	runes := []rune(s)
 	folded := make([]rune, len(runes))
@@ -63,16 +69,26 @@ func subseq(token, s string) ([]int, bool) {
 	if len(want) == 0 {
 		return nil, true
 	}
+	if positions, ok := walk(want, folded, true); ok {
+		return positions, true
+	}
+	return walk(want, folded, false)
+}
 
+// walk finds want in folded, letter by letter, left to right. With
+// wordStarts each letter takes the next position that starts a word when
+// there is one, else the next position at all; without, always the next.
+func walk(want, folded []rune, wordStarts bool) ([]int, bool) {
 	positions := make([]int, 0, len(want))
 	at := 0
 	for _, w := range want {
 		found := -1
-		// First choice: the letter starting a word.
-		for i := at; i < len(folded); i++ {
-			if folded[i] == w && (i == 0 || isSep(folded[i-1])) {
-				found = i
-				break
+		if wordStarts {
+			for i := at; i < len(folded); i++ {
+				if folded[i] == w && (i == 0 || isSep(folded[i-1])) {
+					found = i
+					break
+				}
 			}
 		}
 		if found < 0 {

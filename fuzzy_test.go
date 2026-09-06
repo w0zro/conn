@@ -16,6 +16,7 @@ func TestAQueryFindsSubsequences(t *testing.T) {
 		{"mono api", "mono/services/api", true}, // tokens, each in order
 		{"api mono", "mono/services/api", true}, // whatever order they come
 		{"npmdev", "npm run dev", true},
+		{"docs", "claude docs · opus-4-8", true}, // a word start the o could take, and no c after it
 		{"xyz", "tressle-api", false},
 		{"", "anything", true},
 	}

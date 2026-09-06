@@ -304,7 +304,7 @@ func (m model) rowLabel(r navRow) string {
 	// plan's name — an agent is named for its kind, not the entry that
 	// happened to start it.
 	if k, ok := agentKindOf(r.node); ok {
-		name = agentLabel(k, m.agentModelOf(r.node))
+		name = agentLabel(k, m.agentNameOf(r.node), m.agentModelOf(r.node))
 	} else if planned := m.plannedName(r); planned != "" {
 		// A shell a project asked for is called what the project calls it,
 		// whatever is running in it: web, not the http.server that is web
@@ -318,6 +318,15 @@ func (m model) rowLabel(r navRow) string {
 		return name + " " + strconv.Itoa(r.node.PID)
 	}
 	return name
+}
+
+// agentNameOf is what an agent's user called it, when the live instance
+// says it was called anything.
+func (m model) agentNameOf(n *ProcNode) string {
+	if a, ok := m.agents[n.PID].(named); ok {
+		return a.name()
+	}
+	return ""
 }
 
 // agentModelOf is the model an agent row shows: the one its invocation

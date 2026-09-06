@@ -76,6 +76,27 @@ func TestSessionsAreKeyedByPID(t *testing.T) {
 	}
 }
 
+func TestOnlyANameTheUserGaveIsOne(t *testing.T) {
+	// Claude Code names every session — "conn-1f" from the directory — and
+	// says which kind of name it is. A derived one is no name anyone chose,
+	// so the instance keeps it to itself; a /rename is the name.
+	dir := claudeHome(t)
+	writeSession(t, dir, "1.json", `{"pid":1,"name":"conn-1f","nameSource":"derived"}`)
+	writeSession(t, dir, "2.json", `{"pid":2,"name":"docs redesign","nameSource":"user"}`)
+	writeSession(t, dir, "3.json", `{"pid":3,"name":"conn-2a"}`)
+
+	got := claudeSessions()
+	if name := got[1].name(); name != "" {
+		t.Errorf("derived name = %q, want none", name)
+	}
+	if name := got[2].name(); name != "docs redesign" {
+		t.Errorf("user's name = %q, want it as given", name)
+	}
+	if name := got[3].name(); name != "" {
+		t.Errorf("name with no source = %q, want none: an unsaid source is not the user", name)
+	}
+}
+
 func TestKeyFilesAreNotSessions(t *testing.T) {
 	// The sessions directory also holds per-session key files.
 	dir := claudeHome(t)

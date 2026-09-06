@@ -101,16 +101,26 @@ func agentKindOf(n *ProcNode) (agentKind, bool) {
 // rather than by the agent interface every kind fills.
 type modeled interface{ model() string }
 
-// agentLabel names an agent row: the kind, and the model beside it when one
-// is known. "claude --resume <id>" is just claude; a claude running opus is
-// "claude · opus-4-8"; "ollama run mistral" is "ollama · mistral". The
-// invocation in full — the resume id, the flags — and the model's exact id
-// are the detail pane's to keep, not the row's.
-func agentLabel(k agentKind, model string) string {
-	if model == "" {
-		return k.name
+// named is an agent whose user has called it something — a Claude session
+// after /rename. A name a kind made up for itself is not one: it answers
+// nothing, so an instance only reports the name its user chose.
+type named interface{ name() string }
+
+// agentLabel names an agent row: what it is called, and the model beside
+// it when one is known. What it is called is the name its user gave it,
+// else its kind — "docs redesign" is what you would say, and "claude" is
+// only what it is. "claude --resume <id>" is just claude; a claude running
+// opus is "claude · opus-4-8"; "ollama run mistral" is "ollama · mistral".
+// The invocation in full — the resume id, the flags — and the model's exact
+// id are the detail pane's to keep, not the row's.
+func agentLabel(k agentKind, name, model string) string {
+	if name == "" {
+		name = k.name
 	}
-	return k.name + " · " + shortModel(model)
+	if model == "" {
+		return name
+	}
+	return name + " · " + shortModel(model)
 }
 
 // snapshotDate is the -YYYYMMDD a pinned model id carries at its end.

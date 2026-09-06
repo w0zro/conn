@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -118,5 +119,24 @@ func TestAValueIsWrappedByColumnsNotBytes(t *testing.T) {
 					tc.value, tc.width, got)
 			}
 		}
+	}
+}
+
+func TestAClaudeRowWearsTheNameItsUserGaveIt(t *testing.T) {
+	// A /rename is the point of the row: "docs" is what you would say, and
+	// the model stays beside it. The name Claude derived from the directory
+	// is not one, so that session still reads as its kind.
+	named := withClaude("claude", map[int]claudeSession{
+		700: {PID: 700, Name: "docs", NameSource: userNamedSource, Model: "claude-opus-4-8"},
+	})
+	if row := navColumn(named)[1]; !strings.Contains(row, "docs · opus-4-8") {
+		t.Errorf("row = %q, want the user's name with the model beside", row)
+	}
+
+	derived := withClaude("claude", map[int]claudeSession{
+		700: {PID: 700, Name: "conn-1f", NameSource: "derived", Model: "claude-opus-4-8"},
+	})
+	if row := navColumn(derived)[1]; !strings.Contains(row, "claude · opus-4-8") {
+		t.Errorf("row = %q, want the kind when the name was only derived", row)
 	}
 }

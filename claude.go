@@ -28,8 +28,14 @@ import (
 
 // claudeSession is what conn knows about one running Claude Code instance.
 type claudeSession struct {
-	PID        int
-	Name       string
+	PID  int
+	Name string
+
+	// NameSource is where the name came from: "user" when the session was
+	// named at its keyboard — /rename — and "derived" when Claude Code made
+	// one up from the directory. Only the first is a name anyone chose.
+	NameSource string
+
 	Status     string
 	StatusFor  time.Duration
 	WaitingFor string
@@ -88,6 +94,18 @@ func (s claudeSession) id() string { return s.SessionID }
 
 func (s claudeSession) model() string { return s.Model }
 
+// userNamedSource is what Claude Code writes for a name its user gave it.
+const userNamedSource = "user"
+
+// name is what the session's user called it, or nothing: a derived name is
+// the directory with a suffix, which the row already says better.
+func (s claudeSession) name() string {
+	if s.NameSource != userNamedSource {
+		return ""
+	}
+	return s.Name
+}
+
 func (s claudeSession) working() bool { return s.Status == busyStatus }
 
 func (s claudeSession) blocked() (string, bool) {
@@ -135,6 +153,7 @@ type sessionFile struct {
 	SessionID       string `json:"sessionId"`
 	Cwd             string `json:"cwd"`
 	Name            string `json:"name"`
+	NameSource      string `json:"nameSource"`
 	Status          string `json:"status"`
 	StatusUpdatedAt int64  `json:"statusUpdatedAt"`
 	WaitingFor      string `json:"waitingFor"`
@@ -186,6 +205,7 @@ func readSessionFile(path string) (claudeSession, bool) {
 	s := claudeSession{
 		PID:        f.PID,
 		Name:       f.Name,
+		NameSource: f.NameSource,
 		Status:     f.Status,
 		WaitingFor: f.WaitingFor,
 		SessionID:  f.SessionID,

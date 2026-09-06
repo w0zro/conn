@@ -2642,6 +2642,11 @@ func TestASettledEndingHasItsTranscriptReadForWhatTheRunSaid(t *testing.T) {
 	if row := renderRow(m, m.rows[1]); !strings.Contains(stripANSI(row), "test · 3 failed") {
 		t.Errorf("row = %q, want the run's word beside the name", stripANSI(row))
 	}
+	// And how long ago it ended, when the pane recorded that.
+	m.terms[700].at = time.Now().Add(-3 * time.Minute)
+	if row := renderRow(m, m.rows[1]); !strings.Contains(stripANSI(row), "test · 3 failed · 3m") {
+		t.Errorf("row = %q, want the run's word and its age beside the name", stripANSI(row))
+	}
 	if st := m.ending(m.rows[1]); st.Summary != "3 failed" {
 		t.Errorf("ending = %+v, want the summary carried", st)
 	}
@@ -4407,7 +4412,7 @@ func TestTheKeysLeavingForAShellDisarmsTheKillAndKeepsTheCursorLit(t *testing.T)
 	}
 }
 
-func TestAPlannedShellIsNamedByItsPlanUntilItRunsSomething(t *testing.T) {
+func TestAPlannedShellIsNamedByItsPlanWhateverItRuns(t *testing.T) {
 	m := withProcList(96, 14,
 		[]Project{{Name: "web", Path: "/p/web"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/web"}})
@@ -4419,8 +4424,8 @@ func TestAPlannedShellIsNamedByItsPlanUntilItRunsSomething(t *testing.T) {
 
 	m.procs = append(m.procs, Proc{PID: 701, PPID: 700, Command: "node", Argv: "npm run dev", Dir: "/p/web"})
 	m.rebuild()
-	if name, _ := m.shellLabel(700, m.terms[700]); name != "web: npm run dev" {
-		t.Errorf("label = %q, want what is running once it says more than the plan", name)
+	if name, _ := m.shellLabel(700, m.terms[700]); name != "web: dev" {
+		t.Errorf("label = %q, want the plan's name still, whatever runs in it", name)
 	}
 }
 

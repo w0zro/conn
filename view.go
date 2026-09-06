@@ -305,13 +305,12 @@ func (m model) rowLabel(r navRow) string {
 	// happened to start it.
 	if k, ok := agentKindOf(r.node); ok {
 		name = agentLabel(k, m.agentModelOf(r.node))
-	} else if planned := m.plannedName(r); planned != "" && !tellsMore(name, planned) {
+	} else if planned := m.plannedName(r); planned != "" {
 		// A shell a project asked for is called what the project calls it,
-		// unless what is running in it says more. "dev" is a fine name for a
-		// plan entry and a poor one for a row: "npm run dev" is the same thing
-		// said usefully, and it is what a shell started by hand would show. A
-		// shell sitting at a prompt has nothing better to offer, so there the
-		// name stands.
+		// whatever is running in it: web, not the http.server that is web
+		// this time. The name is the service's, the command is how it is
+		// run today, and the row is about the service. The command is the
+		// pane's to say.
 		name = planned
 	}
 
@@ -343,17 +342,6 @@ func (m model) plannedName(r navRow) string {
 		}
 	}
 	return ""
-}
-
-// tellsMore reports whether a command line says more than the name a plan gave
-// it. It does when it is more than the name over again: "npm run dev" against
-// "dev" is worth the width, "dev" against "dev" is not, and a bare shell is
-// the plan's entry doing nothing in particular.
-func tellsMore(command, planned string) bool {
-	if command == "" || command == planned {
-		return false
-	}
-	return !shells[strings.TrimPrefix(command, "-")]
 }
 
 // commandOf is what a process was run with, cut down to what identifies it.

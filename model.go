@@ -2316,8 +2316,8 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 			run = append(run, n)
 		}
 		r := navRow{kind: rowProc, run: run, node: nameOf(run)}
-		if cmd := commandOf(r.node); label == "" || tellsMore(cmd, label) {
-			label = cmd
+		if label == "" {
+			label = commandOf(r.node)
 		}
 		// A command that ended, well or badly, or a process gone wrong,
 		// marks the window the way it marks the row.

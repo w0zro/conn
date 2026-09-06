@@ -412,21 +412,20 @@ func TestAShellSittingAtAPromptIsCalledWhatTheProjectCallsIt(t *testing.T) {
 	}
 }
 
-func TestWhatIsRunningWinsOverThePlansNameForIt(t *testing.T) {
-	// "dev" is a fine name for a plan entry and a poor one for a row: "npm run
-	// dev" is the same thing said usefully, and it is what the row would show
-	// had the shell been started by hand.
+func TestThePlansNameStandsWhateverRunsInItsShell(t *testing.T) {
+	// The row is about the service: web, not the http.server that is web
+	// this time. The command is the pane's to say.
 	m := withProcList(90, 14,
 		[]Project{{Name: "proj", Path: "/p/proj"}},
 		[]Proc{
 			{PID: 700, PPID: 1, Command: "zsh", Argv: "/bin/zsh", Dir: "/p/proj"},
-			{PID: 701, PPID: 700, Command: "node", Argv: "node /opt/npm run dev", Dir: "/p/proj"},
+			{PID: 701, PPID: 700, Command: "python3", Argv: "python3 -m http.server 8437", Dir: "/p/proj", Ports: []string{"8437"}},
 		})
-	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/proj", name: "dev"}}
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/proj", name: "web"}}
 	m.rebuild()
 
-	if got := navColumn(m)[1]; !strings.Contains(got, "npm run dev") {
-		t.Errorf("row = %q, want what is actually running", got)
+	if got := navColumn(m)[1]; !strings.Contains(got, "web · :8437") || strings.Contains(got, "http.server") {
+		t.Errorf("row = %q, want the service's name and its port, not its command", got)
 	}
 }
 

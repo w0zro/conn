@@ -310,6 +310,10 @@ type model struct {
 	// server has been asked for, so the ask is made once per ending.
 	askedExit map[int]bool
 
+	// endings counts the endings learned of, to order them: the latest of
+	// several shells for one entry is the one that speaks for it.
+	endings int
+
 	// inspected is what each cached place was read as holding, by the same
 	// key: a place is read again when that has changed under it, rather
 	// than showing the count and checklist of before something started.
@@ -500,7 +504,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case termOpenedMsg:
 		if t, ok := m.terms[msg.pid]; ok {
-			t.learn(msg.dir, msg.name, "")
+			t.learn(msg.dir, msg.name)
 		} else {
 			m.terms[msg.pid] = &remoteTerm{pid: msg.pid, dir: msg.dir, name: msg.name}
 		}
@@ -527,11 +531,14 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 				wanted = s.PID
 			}
 			if was, ok := m.terms[s.PID]; ok {
-				was.learn(s.Dir, s.Name, s.Exit)
+				was.learn(s.Dir, s.Name)
+				m.learnExit(was, s.Exit)
 				held[s.PID] = was
 				continue
 			}
-			held[s.PID] = &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name, exit: s.Exit}
+			t := &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name}
+			m.learnExit(t, s.Exit)
+			held[s.PID] = t
 		}
 		m.terms = held
 		// A navigator starting beside a shell already shown — the last
@@ -1342,18 +1349,50 @@ func (m model) placeAt(dir string) (Project, bool) {
 }
 
 // move steps the cursor, wrapping at both ends so the list cycles.
+// learnExit takes how a shell's command ended from a report, once: a
+// recorded ending never changes, and one the shell has since been used
+// past is not taken back from a list that still carries it. Each ending
+// is numbered as it is learned, so the latest of several is known.
+func (m *model) learnExit(t *remoteTerm, exit string) {
+	if exit == "" || t.exit != "" || t.forgot {
+		return
+	}
+	m.endings++
+	t.exit, t.ended = exit, m.endings
+}
+
 // noticeEnded asks the server again about a plan's shell the scan finds at
 // its prompt with no exit recorded yet: its command has just ended, and
 // the pane carries how. tmux announces nothing when a pane's option is
 // set, so the scan that sees the shell alone is what prompts the ask —
 // once per ending, the command running again being the reset.
+//
+// It also notices a shell used again by hand after its command ended: an
+// ending seen with the shell at its prompt, and then something running in
+// the shell. The ending is history then — whatever was run by hand was the
+// answer to it — and is forgotten, here and on the pane, so the row is a
+// shell again and not a failure that will never clear.
 func (m *model) noticeEnded() {
 	for pid, t := range m.terms {
 		n := m.nodes[pid]
-		if t.name == "" || !t.live() || n == nil {
+		if n == nil {
 			continue
 		}
-		if len(n.Children) > 0 || !isShell(n.Command) {
+		busy := len(n.Children) > 0 || !isShell(n.Command)
+		if !t.live() {
+			switch {
+			case busy && t.settled:
+				t.exit, t.settled, t.forgot = "", false, true
+				m.server.forgetExit(pid)
+			case !busy:
+				t.settled = true
+			}
+			continue
+		}
+		if t.name == "" {
+			continue
+		}
+		if busy {
 			delete(m.askedExit, pid)
 			continue
 		}
@@ -1700,14 +1739,17 @@ func (m model) namesIn(path string) map[string]bool {
 // entryStates is what a place's plan entries are doing, by name: up for
 // one whose shell is running its command, the exit status for one whose
 // command ended, and nothing for one with no shell. An entry started
-// again beside a shell left at its prompt is up.
+// again beside a shell left at its prompt is up; of several shells that
+// ended, the latest ending speaks for the entry.
 func (m model) entryStates(path string) map[string]string {
 	states := map[string]string{}
+	latest := map[string]int{}
 	for _, t := range m.planned(path) {
-		if t.live() {
+		switch {
+		case t.live():
 			states[t.name] = "up"
-		} else if _, ok := states[t.name]; !ok {
-			states[t.name] = t.exit
+		case states[t.name] != "up" && t.ended >= latest[t.name]:
+			states[t.name], latest[t.name] = t.exit, t.ended
 		}
 	}
 	return states

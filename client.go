@@ -55,6 +55,15 @@ type remoteTerm struct {
 	dir  string
 	name string // what the project calls it, if a project asked for it
 	exit string // how the command it was started with ended, once it has: "0", "1"…
+
+	// ended orders the endings the navigator has learned of, so the latest
+	// of several shells for one entry is the one that speaks for it.
+	// settled says the ending has been seen with the shell at its prompt;
+	// forgot that the shell was used by hand after, and its ending is
+	// history — not to be learned again from a list that still carries it.
+	ended   int
+	settled bool
+	forgot  bool
 }
 
 // live reports whether the shell is still running what it was started
@@ -62,20 +71,18 @@ type remoteTerm struct {
 func (t *remoteTerm) live() bool { return t.exit == "" }
 
 // learn takes what a later report says of a shell already known: where it
-// was opened, what the project called it, and how its command ended. The
-// window is made and its options set in two commands, and tmux announces
-// the window between them, so the first list of a new shell can carry
-// none of these; the reports that know come after. A blank is a report
-// that came early, not a shell that lost its name, and is not taken.
-func (t *remoteTerm) learn(dir, name, exit string) {
+// was opened and what the project called it. The window is made and its
+// options set in two commands, and tmux announces the window between them,
+// so the first list of a new shell can carry neither; the reports that
+// know come after. A blank is a report that came early, not a shell that
+// lost its name, and is not taken. How the command ended is the model's
+// to learn, since it orders the endings.
+func (t *remoteTerm) learn(dir, name string) {
 	if dir != "" {
 		t.dir = dir
 	}
 	if name != "" {
 		t.name = name
-	}
-	if exit != "" {
-		t.exit = exit
 	}
 }
 
@@ -885,6 +892,16 @@ func (s *session) tail(pid, n int) []string {
 		lines = lines[len(lines)-n:]
 	}
 	return lines
+}
+
+// forgetExit takes the recorded ending off a shell's pane: the shell has
+// been used by hand since, and the ending is history.
+func (s *session) forgetExit(pid int) {
+	p := s.pane(pid)
+	if p == nil {
+		return
+	}
+	go func() { _, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit") }()
 }
 
 // scrollbackLines is how many lines of transcript each shell keeps once they

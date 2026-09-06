@@ -2483,6 +2483,84 @@ func TestTRunsThePlacesTestsAndRedoesRatherThanStacks(t *testing.T) {
 	}
 }
 
+func TestAFailedShellUsedAgainByHandForgetsItsEnding(t *testing.T) {
+	// The shell at its prompt after its command ended badly wears the
+	// cross. Running something in it by hand is acting on the failure:
+	// the ending is forgotten, here and on the pane, and a list still
+	// carrying it does not bring it back. The command's own recording —
+	// the tmux that sets the option, a child of the shell for a moment
+	// before the prompt — is not a reuse.
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 701, PPID: 700, Command: "tmux", Dir: "/tmp"}})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp", name: "web"}}
+	m, _ = pipeServer(t, m)
+	var mu sync.Mutex
+	forgot := 0
+	inner := m.server.run
+	m.server.run = func(args ...string) (string, error) {
+		if args[0] == "set" && slices.Contains(args, "-pu") {
+			mu.Lock()
+			forgot++
+			mu.Unlock()
+		}
+		return inner(args...)
+	}
+	forgotten := func() int {
+		time.Sleep(30 * time.Millisecond)
+		mu.Lock()
+		defer mu.Unlock()
+		return forgot
+	}
+
+	// The ending learned while the recording is still the shell's child.
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}}})
+	m = next.(model)
+	if m.terms[700].exit != "1" || forgotten() != 0 {
+		t.Fatalf("exit = %q, forgotten %d; want the ending kept through its own recording", m.terms[700].exit, forgotten())
+	}
+	// At its prompt: the row wears the cross.
+	next, _ = m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}}})
+	m = next.(model)
+	if row := renderRow(m, m.rows[1]); !strings.Contains(row, glyphFailed) {
+		t.Fatalf("row = %q, want the cross", row)
+	}
+	// Used by hand: the ending goes, and the pane is told.
+	next, _ = m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 702, PPID: 700, Command: "ls", Dir: "/tmp"}}})
+	m = next.(model)
+	if m.terms[700].exit != "" || forgotten() != 1 {
+		t.Fatalf("exit = %q, forgotten %d; want the ending forgotten, once", m.terms[700].exit, forgotten())
+	}
+	// A list read before the pane was told still carries it: not taken.
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}}})
+	m = next.(model)
+	next, _ = m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}}})
+	m = next.(model)
+	if row := renderRow(m, m.rows[1]); strings.Contains(row, glyphFailed) || m.terms[700].exit != "" {
+		t.Errorf("row = %q, exit %q; want a plain shell, its ending history", row, m.terms[700].exit)
+	}
+}
+
+func TestTheChecklistReportsTheLatestEnding(t *testing.T) {
+	// Two shells for one entry, both ended: the one that ended last
+	// speaks for the entry, whichever the map hands over first.
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}}, nil)
+	m, _ = pipeServer(t, m)
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{
+		{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}, {PID: 701, Dir: "/tmp", Name: "web"},
+	}})
+	m = next.(model)
+	if got := m.entryStates("/tmp")["web"]; got != "up" {
+		t.Fatalf("web = %q, want up while one runs", got)
+	}
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{
+		{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}, {PID: 701, Dir: "/tmp", Name: "web", Exit: "0"},
+	}})
+	m = next.(model)
+	if got := m.entryStates("/tmp")["web"]; got != "0" {
+		t.Errorf("web = %q, want the later ending, 0", got)
+	}
+}
+
 func TestAnEntryWhoseCommandEndedIsNotRunningAndRStartsItAgain(t *testing.T) {
 	// The shell keeps the entry's name after its command ends, at its
 	// prompt with the transcript; that is not the entry running. The

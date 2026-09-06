@@ -229,10 +229,17 @@ func (m model) renderRow(r navRow, selected bool) string {
 			ports = " · :" + strings.Join(ps, " :")
 		}
 		// A shell at its prompt after its run says what the run said of
-		// itself, where a running one says its ports: 3 failed, 12
-		// passed — the row reading as the transcript's last word.
-		if said := m.ending(r).Summary; said != "" {
-			ports = " · " + said
+		// itself and how long ago it ended, where a running one says its
+		// ports: 3 failed · 3m — the row reading as the transcript's last
+		// word, and how stale it is.
+		if e := m.ending(r); e.State != "" {
+			ports = ""
+			if e.Summary != "" {
+				ports += " · " + e.Summary
+			}
+			if !e.At.IsZero() {
+				ports += " · " + shortAge(e.At)
+			}
 		}
 	}
 

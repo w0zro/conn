@@ -116,7 +116,9 @@ while a chord hangs,
 in copy mode, the query while one is typed and the filter while one
 stands,
 .B CONTINUE
-with the picker open, and
+with the picker open,
+.B NEW
+with a project's name being typed, and
 .B CONFIRM
 while a kill waits on its second key. Then anything conn has to say \(em
 a report, an error, a confirmation \(em until the next key; what a chord
@@ -154,6 +156,12 @@ the next kind of agent for
 .B a
 to start \(em claude, ollama, claude \(em for the whole server, until it
 goes
+.TP
+.B n
+make a new project: a name, typed on the status line, becomes a
+directory with a repository in it \(em in the group the cursor is on,
+beside the repository it is on or in, or in the first root \(em and a
+shell opens there
 .TP
 .B r
 run the plan's entries that are not already running, each in a window of

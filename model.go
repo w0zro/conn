@@ -70,12 +70,13 @@ func tick(d time.Duration) tea.Cmd {
 }
 
 // projectsMsg carries the result of the startup scan: the repositories, the
-// groups that hold them, and the sub-projects found inside each repository,
-// keyed by the repository's path.
+// groups that hold them, the sub-projects found inside each repository,
+// keyed by the repository's path, and the roots they were all found under.
 type projectsMsg struct {
 	projects []Project
 	groups   []Project
 	subs     map[string][]Project
+	roots    []string
 	err      error
 }
 
@@ -178,6 +179,21 @@ type model struct {
 	// Abandoning the filter with esc puts it back — acting on a result does
 	// not, because acting is the point of having looked.
 	filterFrom string
+
+	// creating says the keys are going into the name of a new project,
+	// typed on newName. newIn is the directory it will be made in, settled
+	// from the row the cursor was on when the line opened.
+	creating bool
+	newName  textinput.Model
+	newIn    string
+
+	// landOn is the path of a repository just made, for the cursor to land
+	// on once the scan that finds it lands.
+	landOn string
+
+	// roots are the config's project directories, as the last scan read
+	// them: where a new project goes when nothing under the cursor says.
+	roots []string
 
 	// showAll toggles the navigator between every repository and only those
 	// with a process running in them. It starts off: the repositories with
@@ -375,7 +391,7 @@ func scanProjects() tea.Msg {
 		})
 	}
 	wg.Wait()
-	return projectsMsg{projects: projects, groups: groups, subs: subs}
+	return projectsMsg{projects: projects, groups: groups, subs: subs, roots: cfg.roots()}
 }
 
 // scanProcs reads the working directory of every visible process.
@@ -452,8 +468,15 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case projectsMsg:
 		m.projects, m.groups, m.subs, m.err = msg.projects, msg.groups, msg.subs, msg.err
+		if msg.roots != nil {
+			m.roots = msg.roots
+		}
 		m.rebuild()
+		m.landIfFound()
 		return m, m.detailCmd()
+
+	case createdMsg:
+		return m, m.created(msg)
 
 	case procsMsg:
 		m.scanning = false
@@ -751,6 +774,11 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.filterKey(msg)
 	}
 
+	// So does the name of a new project.
+	if m.creating {
+		return m, m.createKey(msg)
+	}
+
 	// Ending the server ends the work it is holding, so it takes a
 	// second key like any other kill.
 	if m.pendingReplace {
@@ -807,6 +835,8 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		// The same verb, reaching back: a starts a fresh conversation,
 		// A picks a suspended one back up.
 		return m, m.openResume()
+	case "n":
+		return m, m.openCreate()
 	case ",":
 		// The next kind for a to start — claude, ollama, claude — for
 		// the whole server: the chords start the same kind, and the
@@ -2254,6 +2284,13 @@ func (m model) statusLine() statusText {
 	case m.pendingKill != nil:
 		t.mode = statusChip(tp.amber, "CONFIRM")
 		t.msg = tmuxStyled(tp.amber, true, " kill "+m.pendingKill.subject+"? · x confirms")
+		return t
+
+	case m.creating:
+		// The name being typed, and where the project it names will go:
+		// the one thing worth knowing before enter.
+		t.mode = statusChip(tp.fg, "NEW "+lineText(m.newName))
+		t.msg = tmuxStyled(tp.fg, false, " in "+m.newIn)
 		return t
 
 	case m.resume != nil:

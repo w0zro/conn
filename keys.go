@@ -29,6 +29,7 @@ var keyList = [][2]string{
 	{"a", "agent"},
 	{"A", "continue a conversation"},
 	{",", "the next kind of agent"},
+	{"n", "new project"},
 	{"r", "run"},
 	{"t · b · l", "test · build · lint"},
 	{"x · X", "kill · kill the tree"},

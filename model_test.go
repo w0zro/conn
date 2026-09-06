@@ -3709,7 +3709,7 @@ func TestASpaceInTheSearchDoesNotMoveTheCursor(t *testing.T) {
 func TestALostServerClearsTheShells(t *testing.T) {
 	// The server hanging up is the ordinary end of holding nothing: the last
 	// shell closed and the session went with it. The window only stops
-	// showing what is no longer held; the bridge watches for a new server on
+	// showing what is no longer held; the session watches for a new server on
 	// its own.
 	m := sized(90, 14)
 	m.terms = map[int]*remoteTerm{700: {pid: 700}}

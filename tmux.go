@@ -17,7 +17,7 @@ import (
 // private tmux server, on conn's own socket where no .tmux.conf reaches,
 // owns the ptys, the emulation, and the transcripts.
 //
-// The bridge speaks to it two ways, on purpose:
+// The session speaks to it two ways, on purpose:
 //
 //   - One-shot commands (tmuxCommand) for anything whose answer is read —
 //     list-panes, display — and for everything that moves a pane. Their
@@ -81,7 +81,7 @@ var errNoServer = errors.New("no server is running")
 // asking after it and making it: someone else's making is as good as ours.
 var errDuplicateSession = errors.New("duplicate session")
 
-// ctlNote is one thing the control-mode stream said, reduced to what the bridge
+// ctlNote is one thing the control-mode stream said, reduced to what the session
 // acts on.
 type ctlNote struct {
 	kind noteKind
@@ -91,7 +91,7 @@ type ctlNote struct {
 type noteKind int
 
 const (
-	noteNothing noteKind = iota // a line the bridge has no use for
+	noteNothing noteKind = iota // a line the session has no use for
 	noteWindows                 // the set of windows, or what they hold, changed
 	noteError                   // a command was refused
 	noteExit                    // the server hung up this client

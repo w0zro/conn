@@ -535,7 +535,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	case serverLostMsg:
 		// The server hung this window up — the last shell closed and the
 		// session went with it, or something ended the server outright. The
-		// bridge keeps watching for a new one on its own; here the window
+		// session keeps watching for a new one on its own; here the window
 		// only stops showing shells that are no longer held.
 		m.terms = map[int]*remoteTerm{}
 		m.dressed = map[int]string{}
@@ -796,7 +796,7 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		m.pendingReplace = false
 		switch msg.String() {
 		case "R", "y", "enter":
-			// The bridge notices the server going and says so; clearing
+			// The session notices the server going and says so; clearing
 			// here as well just spares the window a beat of stale rows.
 			m.server.replace()
 			m.terms = map[int]*remoteTerm{}

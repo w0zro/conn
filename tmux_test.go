@@ -55,7 +55,7 @@ func tmuxOnSocket(t *testing.T) {
 	t.Cleanup(func() { _, _ = tmuxCommand("kill-server") })
 }
 
-func TestTheBridgeSpeaksToARealServer(t *testing.T) {
+func TestTheSessionSpeaksToARealServer(t *testing.T) {
 	tmuxOnSocket(t)
 
 	// A session with one window running an inert command, so the test does

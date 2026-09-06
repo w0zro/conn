@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -96,9 +97,7 @@ func parseTags(listing string) []tag {
 			t.rev += "." + m[3]
 		}
 		if d := strings.Split(f[1], "-"); len(d) == 3 {
-			var mo int
-			fmt.Sscanf(d[1], "%d", &mo)
-			if mo >= 1 && mo <= 12 {
+			if mo, err := strconv.Atoi(d[1]); err == nil && mo >= 1 && mo <= 12 {
 				t.date = months[mo-1] + " " + d[0]
 			}
 		}

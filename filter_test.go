@@ -93,3 +93,20 @@ func TestTheFilterStillPrunesWhatDoesNotAnswer(t *testing.T) {
 		t.Fatalf("rows = %q, want brand and its web shell alone", rows)
 	}
 }
+
+func TestAPlaceAnswersByItsNameAndItsGroupNotTheRootsPath(t *testing.T) {
+	// The path within the root is a name — hsg/brand — and the root's is
+	// not: the letters of /Users/anyone/projects would let nearly any
+	// query find every repository by its absolute path.
+	brand := Project{Name: "brand", Path: "/Users/me/projects/hsg/brand"}
+	if !matchesFilter(brand, "hsg") || !matchesFilter(brand, "brand") || !matchesFilter(brand, "hsg brand") {
+		t.Error("a repository should answer by its name and its parent's")
+	}
+	if matchesFilter(brand, "users") || matchesFilter(brand, "projects") {
+		t.Error("a repository should not answer by the root's path")
+	}
+	alone := Project{Name: "conn", Path: "/var/folders/T/TestAMoveEndsTheHoldARunPutsOnTheCursor/001/conn"}
+	if matchesFilter(alone, "docs") {
+		t.Error("a repository should not answer by letters scattered through the path above it")
+	}
+}

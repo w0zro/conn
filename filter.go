@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // What the filter reaches. A query is a name, and anything the navigator
 // draws a name for is a thing that can be looked for by it: a place by what
@@ -11,10 +14,13 @@ import "strings"
 // run dev is a node; typing what you see has to find what you see.
 
 // matchesFilter reports whether a repository answers to what has been typed.
-// The path is searched as well as the name, so a directory that is only in the
-// name of a repository's parent still finds it.
+// Where it is is searched as well as its name, so a directory that is only
+// in the name of a repository's parent still finds it — the path within the
+// root, group/repo, not from /: a query is a name, and the letters of
+// /Users/anyone/projects are in the way of every name.
 func matchesFilter(p Project, filter string) bool {
-	return answers(filter, p.Name) || answers(filter, p.Path)
+	return answers(filter, p.Name) ||
+		answers(filter, filepath.Base(filepath.Dir(p.Path))+"/"+filepath.Base(p.Path))
 }
 
 // rowAnswers reports whether a row itself answers the filter: a process

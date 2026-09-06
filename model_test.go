@@ -2382,7 +2382,11 @@ func runsDocsPlan(t *testing.T, plan string) (m model, docs string) {
 	m, _ = pipeServer(t, m)
 
 	m = typeFilter(press(m, "/"), "doc")
-	m = press(m, "down") // conn answers for its sub-project; the cursor to docs itself
+	for i, r := range m.rows {
+		if r.kind == rowSub {
+			m.cursor = i
+		}
+	}
 	if r, ok := m.selected(); !ok || r.kind != rowSub {
 		t.Fatalf("setup: cursor on %+v, want docs", r)
 	}

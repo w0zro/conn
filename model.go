@@ -1050,25 +1050,11 @@ func (m model) firstAnswer() int {
 		return 0
 	}
 	for i, r := range m.rows {
-		if rowAnswers(r, f) {
+		if m.rowAnswers(r, f) {
 			return i
 		}
 	}
 	return 0
-}
-
-// rowAnswers reports whether a row itself answers the filter: a process by
-// any command in its run, a place by its name or path.
-func rowAnswers(r navRow, f string) bool {
-	if r.kind == rowProc {
-		for _, n := range r.run {
-			if answers(f, n.Command) {
-				return true
-			}
-		}
-		return false
-	}
-	return matchesFilter(r.project, f)
 }
 
 // jump puts the cursor on a row and brings it into view. Out of range means
@@ -2520,7 +2506,7 @@ func (m model) flatten() []navRow {
 			// Work at the group's own level answers a query the same way it
 			// is listed without one: before the repositories it sits beside.
 			if f := strings.ToLower(strings.TrimSpace(m.filter)); f != "" {
-				for _, n := range matchingProcs(m.byPlace[top.project.Path], f) {
+				for _, n := range m.matchingProcs(m.byPlace[top.project.Path], f) {
 					rows = append(rows, m.flattenProc(top.project, n, glyphIndent)...)
 				}
 			}
@@ -2581,38 +2567,6 @@ func (m model) repoVisible(p Project) bool {
 	return m.showAll || m.workIn(p.Path)
 }
 
-// procAnswers reports whether something running at place answers the filter
-// by its command. The whole tree is asked: a shell running a claude answers
-// for claude, whichever of them the row happens to be named after.
-func (m model) procAnswers(place, filter string) bool {
-	f := strings.ToLower(strings.TrimSpace(filter))
-	if f == "" {
-		return false
-	}
-	return len(matchingProcs(m.byPlace[place], f)) > 0
-}
-
-// matchingProcs prunes process trees to what answers the filter, folded and
-// lowered already: a process whose own command answers stays with its whole
-// subtree, and a parent whose child answers stays as the trimmed copy that
-// leads there. The copies carry the original pids, which is all a step-in or
-// a kill reads.
-func matchingProcs(ns []*ProcNode, f string) []*ProcNode {
-	var out []*ProcNode
-	for _, n := range ns {
-		if answers(f, n.Command) {
-			out = append(out, n)
-			continue
-		}
-		if kept := matchingProcs(n.Children, f); len(kept) > 0 {
-			c := *n
-			c.Children = kept
-			out = append(out, &c)
-		}
-	}
-	return out
-}
-
 // groupVisible is the same rule at the group's altitude: its own name or a
 // process running at its folder answering the filter, or any of its
 // repositories answering; its own directory holding work, or any of its
@@ -2661,7 +2615,7 @@ func (m model) flattenRepo(p Project, indent string) []navRow {
 		f := strings.ToLower(strings.TrimSpace(m.filter))
 		var roots []*ProcNode
 		if f != "" {
-			roots = matchingProcs(m.byPlace[p.Path], f)
+			roots = m.matchingProcs(m.byPlace[p.Path], f)
 		}
 		for _, n := range roots {
 			rows = append(rows, m.flattenProc(p, n, indent)...)
@@ -2672,7 +2626,7 @@ func (m model) flattenRepo(p Project, indent string) []navRow {
 			if f == "" {
 				continue
 			}
-			for _, n := range matchingProcs(m.byPlace[sp.Path], f) {
+			for _, n := range m.matchingProcs(m.byPlace[sp.Path], f) {
 				rows = append(rows, m.flattenProc(sp, n, indent+glyphIndent)...)
 			}
 		}
@@ -2789,13 +2743,6 @@ var shells = map[string]bool{
 }
 
 func isShell(command string) bool { return shells[strings.TrimPrefix(command, "-")] }
-
-// matchesFilter reports whether a repository answers to what has been typed.
-// The path is searched as well as the name, so a directory that is only in the
-// name of a repository's parent still finds it.
-func matchesFilter(p Project, filter string) bool {
-	return answers(filter, p.Name) || answers(filter, p.Path)
-}
 
 // selected returns the row under the cursor.
 func (m model) selected() (navRow, bool) {

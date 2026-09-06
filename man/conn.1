@@ -217,8 +217,10 @@ confirms, anything else cancels. Processes get SIGTERM, and the list
 never claims an exit it has not observed.
 .SS In the filter
 Letters type, and the list narrows \(em each word of the query has to
-appear in order inside a name, a path or a command, not contiguously,
-so
+appear in order inside what a row says, not contiguously: a place's name
+or path, and anything a process's row could say of it \(em its command,
+what it was run with, the name its plan gave it, an agent's name and
+model, its ports, what its run said when it ended \(em so
 .B tsl
 finds tressle\-api and
 .B mono api
@@ -231,9 +233,8 @@ and
 .B ctrl\-p
 and
 .BR ctrl\-n )
-move. A query lists the processes whose commands answer it as well as the
-places, pruned to the branches that answer; an empty query lists places
-alone. Acting on what the cursor is on ends the looking:
+move. A query lists the processes that answer it as well as the places,
+pruned to the branches that answer; an empty query lists places alone. Acting on what the cursor is on ends the looking:
 .B enter
 opens a shell on a place and goes to a found process's window,
 .B ctrl\-r

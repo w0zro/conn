@@ -80,7 +80,7 @@ func runLaunch() error {
 			return err
 		}
 		if f := strings.Split(out, "\t"); len(f) == 2 {
-			markHome(f[0], f[1])
+			markHome(f[0], f[1], buildVersion())
 		}
 	} else {
 		// A server already running learns this build's bindings, the home
@@ -136,10 +136,14 @@ type home struct {
 
 // markHome pins the options that tell the home window and the navigator's
 // pane apart from the rest: the window's reaches every pane in it, which is
-// how a shell shown beside the navigator is known to be shown.
-func markHome(win, pane string) {
+// how a shell shown beside the navigator is known to be shown. The pane
+// also records which build its navigator is, for the next launch to
+// compare against its own; build is "" for a navigator found running
+// that nothing recorded, which the next launch replaces to be sure.
+func markHome(win, pane, build string) {
 	_, _ = tmuxCommand("set", "-w", "-t", win, "@conn_home", "1", ";",
-		"set", "-p", "-t", pane, "@conn_nav", "1")
+		"set", "-p", "-t", pane, "@conn_nav", "1", ";",
+		"set", "-p", "-t", pane, "@conn_build", build)
 }
 
 // isNavCommand reports whether a pane's start command is the navigator's:
@@ -186,7 +190,7 @@ func ensureHome() (home, error) {
 			}
 		}
 		if marked < 0 {
-			markHome(navs[keep].win, navs[keep].pane)
+			markHome(navs[keep].win, navs[keep].pane, "")
 		}
 		return navs[keep], nil
 	}
@@ -200,7 +204,7 @@ func ensureHome() (home, error) {
 			return home{}, err
 		}
 		pane := strings.TrimSpace(out)
-		markHome(homeWin, pane)
+		markHome(homeWin, pane, buildVersion())
 		return home{win: homeWin, pane: pane}, nil
 	}
 	out, err = tmuxCommand("new-window", "-d", "-P", "-t", tmuxSession+":", "-F", "#{window_id}\t#{pane_id}",
@@ -212,7 +216,7 @@ func ensureHome() (home, error) {
 	if len(f) != 2 {
 		return home{}, errors.New("tmux said " + out)
 	}
-	markHome(f[0], f[1])
+	markHome(f[0], f[1], buildVersion())
 	return home{win: f[0], pane: f[1]}, nil
 }
 
@@ -223,15 +227,24 @@ func ensureHome() (home, error) {
 // its place in the layout, its id — and the program in it is replaced.
 // Only the launcher does this: a chord that restarted the navigator under
 // the keys would be a surprise.
+//
+// The navigator is this build's when it runs this build's command and its
+// pane records this build's version: a release installed over the last
+// one runs from the same path, and the command alone would say nothing
+// had changed.
 func refreshHome(h home) error {
-	out, err := tmuxCommand("display", "-p", "-t", h.pane, "#{pane_start_command}")
+	out, err := tmuxCommand("display", "-p", "-t", h.pane, "#{pane_start_command}\t#{@conn_build}")
 	if err != nil {
 		return err
 	}
-	if strings.Trim(strings.TrimSpace(out), `"`) == homeCommand() {
+	cmd, build, _ := strings.Cut(out, "\t")
+	if strings.Trim(strings.TrimSpace(cmd), `"`) == homeCommand() && build == buildVersion() {
 		return nil
 	}
-	_, err = tmuxCommand("respawn-pane", "-k", "-t", h.pane, homeCommand())
+	if _, err := tmuxCommand("respawn-pane", "-k", "-t", h.pane, homeCommand()); err != nil {
+		return err
+	}
+	_, err = tmuxCommand("set", "-p", "-t", h.pane, "@conn_build", buildVersion())
 	return err
 }
 

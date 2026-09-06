@@ -38,6 +38,7 @@ var keyList = [][2]string{
 	{"space · -", "fold · unfold all"},
 	{".", "all · running"},
 	{"gg · G", "top · bottom"},
+	{"U", "update conn"},
 	{"R", "end the server, shells and all"},
 	{"q", "leave; the shells keep running"},
 	{"^spc -", "here, from any shell"},
@@ -76,29 +77,25 @@ func keysPage() []string {
 // that pressed it; the navigator, given none, takes the one that spoke
 // last. exe is this build, quoted for the shell tmux runs the page under.
 func showKeys(run runner, exe, client string) error {
-	if client == "" {
-		out, err := run("list-clients", "-t", tmuxSession, "-F", "#{client_activity}\t#{client_name}")
-		if err != nil {
-			return err
-		}
-		latest := -1
-		for line := range strings.SplitSeq(out, "\n") {
-			when, name, ok := strings.Cut(line, "\t")
-			if t, err := strconv.Atoi(when); ok && err == nil && t > latest {
-				latest, client = t, name
-			}
-		}
-		if client == "" {
-			return errors.New("no client to show the keys on")
-		}
-	}
-
 	page := keysPage()
 	width := 0
 	for _, l := range page {
 		width = max(width, lipgloss.Width(l))
 	}
-	width, height := width+2, len(page)+2
+	return popup(run, client, " keys ", width+2, len(page)+2, shellQuote(exe)+" page")
+}
+
+// popup runs a command in a popup over the client, sized as asked or to
+// the client when the client is smaller — tmux refuses a popup it cannot
+// fit rather than cutting it — titled, and closing when the command
+// does. A client of "" is the one that spoke last.
+func popup(run runner, client, title string, width, height int, command string) error {
+	if client == "" {
+		var err error
+		if client, err = latestClient(run); err != nil {
+			return err
+		}
+	}
 	if out, err := run("display-message", "-p", "-c", client, "#{client_width} #{client_height}"); err == nil {
 		if f := strings.Fields(out); len(f) == 2 {
 			if cw, err := strconv.Atoi(f[0]); err == nil && cw > 0 {
@@ -109,10 +106,29 @@ func showKeys(run runner, exe, client string) error {
 			}
 		}
 	}
-	_, err := run("display-popup", "-E", "-c", client, "-T", " keys ",
-		"-w", strconv.Itoa(width), "-h", strconv.Itoa(height),
-		shellQuote(exe)+" page")
+	_, err := run("display-popup", "-E", "-c", client, "-T", title,
+		"-w", strconv.Itoa(width), "-h", strconv.Itoa(height), command)
 	return err
+}
+
+// latestClient is the client that spoke last: the one a popup goes over
+// when nothing named one.
+func latestClient(run runner) (string, error) {
+	out, err := run("list-clients", "-t", tmuxSession, "-F", "#{client_activity}\t#{client_name}")
+	if err != nil {
+		return "", err
+	}
+	latest, client := -1, ""
+	for line := range strings.SplitSeq(out, "\n") {
+		when, name, ok := strings.Cut(line, "\t")
+		if t, err := strconv.Atoi(when); ok && err == nil && t > latest {
+			latest, client = t, name
+		}
+	}
+	if client == "" {
+		return "", errors.New("no client to show it on")
+	}
+	return client, nil
 }
 
 // keysModel is the page as a program: drawn once, gone on the first key.

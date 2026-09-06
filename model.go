@@ -195,6 +195,10 @@ type model struct {
 	// them: where a new project goes when nothing under the cursor says.
 	roots []string
 
+	// release is the one newer than this build, when one is known: the
+	// status line says so whenever nothing else is said, and U takes it.
+	release string
+
 	// showAll toggles the navigator between every repository and only those
 	// with a process running in them. It starts off: the repositories with
 	// something running in them are the ones worth opening conn to see.
@@ -360,7 +364,7 @@ func newModel() model {
 
 func (m model) Init() tea.Cmd {
 	return tea.Batch(scanProjects, scanProcs, scanAgents, connectServer(),
-		tick(procPoll), agentTick())
+		tick(procPoll), agentTick(), checkUpdate(false, time.Now()))
 }
 
 // scanProjects loads the config and walks the projects directory off the
@@ -477,6 +481,10 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case createdMsg:
 		return m, m.created(msg)
+
+	case updateMsg:
+		m.learnUpdate(msg)
+		return m, nil
 
 	case procsMsg:
 		m.scanning = false
@@ -663,6 +671,9 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		if m.ticks%projectEvery == 0 {
 			cmds = append(cmds, scanProjects)
 		}
+		if m.ticks%updateTicks == 0 {
+			cmds = append(cmds, checkUpdate(false, time.Now()))
+		}
 		// Keep the pane the user is looking at current too; the rest of the
 		// cache is refreshed lazily when the cursor reaches it.
 		if c := m.refreshDetailCmd(); c != nil {
@@ -817,6 +828,8 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, nil
 	case "R":
 		return m, m.askReplace()
+	case "U":
+		return m, m.updateConn()
 	case "/":
 		return m, m.openFilter()
 	case "enter":
@@ -2315,6 +2328,10 @@ func (m model) statusLine() statusText {
 			color = tp.red
 		}
 		t.msg = tmuxStyled(color, false, " "+m.status)
+	} else if m.release != "" {
+		// A newer conn, said whenever nothing else is: it gives way to
+		// any report and is back after, until it is taken.
+		t.msg = tmuxStyled(tp.gray, false, " "+updateNotice(m.release))
 	}
 	return t
 }

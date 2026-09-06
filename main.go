@@ -17,6 +17,13 @@ import (
 var version string
 
 func versionString() string {
+	return "conn " + buildVersion()
+}
+
+// buildVersion is the version this build reports, bare: 0.4.0 for a
+// release; (devel), or a tag with commits and a dirty mark after it, for
+// a build that is not one.
+func buildVersion() string {
 	v := version
 	if v == "" {
 		if info, ok := debug.ReadBuildInfo(); ok {
@@ -26,7 +33,7 @@ func versionString() string {
 	if v == "" {
 		v = "unknown"
 	}
-	return "conn " + strings.TrimPrefix(v, "v")
+	return strings.TrimPrefix(v, "v")
 }
 
 // usage is the whole of conn's command line. The detail — keys, config,

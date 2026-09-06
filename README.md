@@ -17,7 +17,9 @@ That fetches the build for this machine, checks it against the release's
 checksums, and puts it in `~/.local/bin`, with the manpage under
 `~/.local/share/man` — `man conn` is the reference. `CONN_INSTALL_DIR`
 says where else to put the binary, `CONN_MAN_DIR` the manpage, and
-`CONN_VERSION` names a release other than the latest.
+`CONN_VERSION` names a release other than the latest. Once conn is
+running it keeps itself current: a newer release is offered on the status
+line, and `U` installs it from inside the window.
 
 Builds are published for macOS and Linux, on both arm64 and amd64, and the
 test suite runs on both. conn needs two neighbors installed: `tmux`, which

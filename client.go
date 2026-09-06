@@ -834,6 +834,23 @@ func (s *session) help() {
 	}()
 }
 
+// popupSize is the room a popup running a command gets: enough for the
+// installer's lines, cut to the client when the client is smaller.
+const popupWidth, popupHeight = 72, 16
+
+// popup runs a command in a popup over the client that spoke last, titled,
+// closing when the command does.
+func (s *session) popup(title, command string) {
+	if s == nil {
+		return
+	}
+	go func() {
+		if err := popup(s.run, "", title, popupWidth, popupHeight, command); err != nil {
+			s.events <- serverErrorMsg{err: err}
+		}
+	}()
+}
+
 // leave detaches the client this navigator is drawn in. The shells keep
 // running; `conn` attaches again.
 func (s *session) leave() {

@@ -208,6 +208,10 @@ in it
 .B X
 kill the selected process and everything under it
 .TP
+.B U
+install the newer release the status line offers, in a popup over the
+window, and bring the navigator back as it; with none offered, ask now
+.TP
 .B R
 end the server outright, and every shell it holds with it
 .TP
@@ -587,7 +591,15 @@ The server lives exactly as long as it holds something: the home window
 brings it up, the last window closing takes it down. Upgrading conn never
 disturbs it \(em the server is not conn's binary, and the next
 .B conn
-sources the new build's configuration into the same server. A fresh
+sources the new build's configuration into the same server and replaces
+the navigator when the build changed. The navigator asks github which
+release is latest, on its first paint and once a day after, and a release
+newer than the build is offered on the status line whenever nothing else
+is said;
+.B U
+takes it: the installer in a popup, aimed where this build runs from, and
+.B conn
+after it. A fresh
 server, when one is wanted, is
 .B R
 and then
@@ -613,6 +625,9 @@ the socket of the tmux server holding the shells
 .TP
 .I ~/.local/state/conn/tmux.conf
 the server's configuration, written by conn at every launch
+.TP
+.I ~/.local/state/conn/latest-release
+the latest release as github last said it, and when it was asked
 .TP
 .I .conn
 a project's plan; see

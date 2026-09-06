@@ -87,7 +87,7 @@ func TestASecondNavigatorIsALeftoverAndGoes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	markHome(f[0], out)
+	markHome(f[0], out, buildVersion())
 
 	h, err := ensureHome()
 	if err != nil {
@@ -115,7 +115,7 @@ func TestALaunchRestartsANavigatorFromAnOlderBuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := strings.Split(out, "\t")
-	markHome(f[0], f[1])
+	markHome(f[0], f[1], buildVersion())
 	h, err := ensureHome()
 	if err != nil {
 		t.Fatal(err)
@@ -241,5 +241,48 @@ func TestAChordsNoteTakesTheNavigatorsSlotForAFewSeconds(t *testing.T) {
 	// The note is not the navigator's message: that stays under it.
 	if strings.Contains(asked[0], "@conn_msg") {
 		t.Error("a note overwrote the navigator's own message")
+	}
+}
+
+func TestTheNavigatorIsReplacedWhenTheBuildChanged(t *testing.T) {
+	// A release installed over the last one runs from the same path, so
+	// the command says nothing changed; the build recorded on the pane
+	// does, and the navigator is respawned as the new build.
+	tmuxOnSocket(t)
+	old := homeCommand
+	homeCommand = func() string { return "sh -c 'sleep 30' nav" }
+	t.Cleanup(func() { homeCommand = old })
+	out, err := tmuxCommand("new-session", "-d", "-s", tmuxSession, "-n", homeName,
+		"-P", "-F", "#{window_id}\t#{pane_id}", homeCommand())
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := strings.Split(out, "\t")
+	h := home{win: f[0], pane: f[1]}
+	markHome(h.win, h.pane, buildVersion())
+
+	pidOf := func() string {
+		out, _ := tmuxCommand("display", "-p", "-t", h.pane, "#{pane_pid}")
+		return out
+	}
+	before := pidOf()
+	if err := refreshHome(h); err != nil {
+		t.Fatal(err)
+	}
+	if pidOf() != before {
+		t.Error("this build's navigator was respawned for nothing")
+	}
+
+	if _, err := tmuxCommand("set", "-p", "-t", h.pane, "@conn_build", "older"); err != nil {
+		t.Fatal(err)
+	}
+	if err := refreshHome(h); err != nil {
+		t.Fatal(err)
+	}
+	if pidOf() == before {
+		t.Error("an older build's navigator was left running")
+	}
+	if out, _ := tmuxCommand("display", "-p", "-t", h.pane, "#{@conn_build}"); out != buildVersion() {
+		t.Errorf("@conn_build = %q after the respawn, want this build recorded", out)
 	}
 }

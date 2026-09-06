@@ -94,7 +94,7 @@ func TestTheShellIsShownBesideTheNavigatorAndParkedAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := strings.Split(out, "\t")
-	markHome(f[0], f[1])
+	markHome(f[0], f[1], buildVersion())
 	if _, err := tmuxCommand("set", "-g", "main-pane-width", "28"); err != nil {
 		t.Fatal(err)
 	}

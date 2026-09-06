@@ -1882,7 +1882,7 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 		case "display-message":
 			return "120 30", nil
 		case "display-popup":
-			asked <- message{Kind: kindHelp}
+			asked <- message{Kind: kindHelp, Run: args[len(args)-1]}
 			return "", nil
 		}
 		return "", nil

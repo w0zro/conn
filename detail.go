@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -70,8 +71,9 @@ func detailKey(r navRow) string {
 // ended, and empty for one with no shell. At is when it ended, when the
 // pane recorded that; zero otherwise.
 type entryState struct {
-	State string
-	At    time.Time
+	State   string
+	At      time.Time
+	Summary string // what the run's transcript said of it, when conn read a shape it knows
 }
 
 // loadDetail inspects the selected row off the render path. Git and ps are
@@ -107,14 +109,25 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]
 }
 
 // exitField says how the command a shell was started with ended: well in
-// green, and any other way in red, with the status — and how long ago,
-// when that was recorded.
+// green, and any other way in red, with the status — what the transcript
+// said of it, and how long ago, when those are known.
 func exitField(e entryState) field {
 	t := toneBad
 	if e.State == "0" {
 		t = toneGood
 	}
-	return field{label: "exited", lead: e.State, leadTone: t, value: ago(e.At), tone: toneQuiet}
+	return field{label: "exited", lead: e.State, leadTone: t, value: joinWords(e.Summary, ago(e.At)), tone: toneQuiet}
+}
+
+// joinWords is the words that are there, comma-separated.
+func joinWords(words ...string) string {
+	var out []string
+	for _, w := range words {
+		if w != "" {
+			out = append(out, w)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 // ago says how long ago a moment was, or nothing for a moment unknown.
@@ -225,14 +238,17 @@ func verbFields(path string, states map[string]entryState) []field {
 		if !ok {
 			continue
 		}
+		// What the transcript said stands in for the word, when conn
+		// read it: 3 failed rather than failed, 12 passed rather than
+		// passed.
 		mark, word, t := glyphOff, v.idle, toneQuiet
 		switch st := states[v.name]; {
 		case st.State == "up":
 			mark, word, t = glyphOn, "running", toneGood
 		case st.State == "0":
-			mark, word, t = glyphDone, v.done, toneGood
+			mark, word, t = glyphDone, cmp.Or(st.Summary, v.done), toneGood
 		case st.State != "":
-			mark, word, t = glyphFailed, "failed  exit "+st.State, toneBad
+			mark, word, t = glyphFailed, cmp.Or(st.Summary, "failed  exit "+st.State), toneBad
 		}
 		if when := ago(states[v.name].At); when != "" {
 			word += "  " + when
@@ -275,8 +291,10 @@ func planFields(path string, states map[string]entryState) []field {
 			mark, t, vt = glyphFailed+" ", toneBad, toneBad
 			value += "   exited " + st.State
 		}
-		if when := ago(states[e.Name].At); when != "" && states[e.Name].State != "up" {
-			value += ", " + when
+		if st := states[e.Name]; st.State != "up" && st.State != "" {
+			if rest := joinWords(st.Summary, ago(st.At)); rest != "" {
+				value += ", " + rest
+			}
 		}
 		fs = append(fs, field{label: label, lead: mark + e.Name, leadTone: t, value: value, tone: vt})
 	}

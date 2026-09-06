@@ -228,6 +228,12 @@ func (m model) renderRow(r navRow, selected bool) string {
 		if ps := runPorts(r.run, r.node); len(ps) > 0 {
 			ports = " · :" + strings.Join(ps, " :")
 		}
+		// A shell at its prompt after its run says what the run said of
+		// itself, where a running one says its ports: 3 failed, 12
+		// passed — the row reading as the transcript's last word.
+		if said := m.ending(r).Summary; said != "" {
+			ports = " · " + said
+		}
 	}
 
 	// A group or a repository sits on indent alone, naming a place the rows

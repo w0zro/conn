@@ -310,6 +310,11 @@ type model struct {
 	// server has been asked for, so the ask is made once per ending.
 	askedExit map[int]bool
 
+	// unread is the shells whose ending has settled and whose transcript
+	// has not been read for what it says of the run: read once, off the
+	// render path, by the next Update.
+	unread map[int]bool
+
 	// endings counts the endings learned of, to order them: the latest of
 	// several shells for one entry is the one that speaks for it.
 	endings int
@@ -327,6 +332,7 @@ func newModel() model {
 		details:   map[string][]field{},
 		inspected: map[string]string{},
 		askedExit: map[int]bool{},
+		unread:    map[int]bool{},
 		dying:     map[int]dyingProc{},
 		terms:     map[int]*remoteTerm{},
 		worked:    map[int]bool{},
@@ -409,6 +415,9 @@ func (m *model) scanPoll() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	next.dressStatus()
+	if read := next.readEndings(); read != nil {
+		cmd = tea.Batch(cmd, read)
+	}
 	return next, cmd
 }
 
@@ -609,6 +618,13 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case detailMsg:
 		m.details[msg.key] = msg.fields
+
+	case outcomeMsg:
+		// What the run's transcript said, for a shell whose ending still
+		// stands: one used by hand since has nothing to say of it.
+		if t := m.terms[msg.pid]; t != nil && !t.live() {
+			t.summary = msg.summary
+		}
 
 	case convosMsg:
 		// Only the picker that asked wants this; one opened on another place
@@ -1386,10 +1402,14 @@ func (m *model) noticeEnded() {
 		if !t.live() {
 			switch {
 			case busy && t.settled:
-				t.exit, t.at, t.settled, t.forgot = "", time.Time{}, false, true
+				t.exit, t.at, t.summary, t.settled, t.forgot = "", time.Time{}, "", false, true
+				delete(m.unread, pid)
 				m.server.forgetExit(pid)
-			case !busy:
+			case !busy && !t.settled:
+				// Settled: the ending stands, and the transcript has
+				// its last word on the run.
 				t.settled = true
+				m.unread[pid] = true
 			}
 			continue
 		}
@@ -1405,6 +1425,30 @@ func (m *model) noticeEnded() {
 			m.server.list()
 		}
 	}
+}
+
+// outcomeMsg is what a settled shell's transcript said of its run.
+type outcomeMsg struct {
+	pid     int
+	summary string
+}
+
+// readEndings reads, once each, the transcripts of the shells whose
+// endings have settled since the last time: what the run said of itself,
+// by the shape of its last lines, for the row and the pane to carry.
+func (m *model) readEndings() tea.Cmd {
+	if len(m.unread) == 0 || m.server == nil {
+		return nil
+	}
+	var cmds []tea.Cmd
+	for pid := range m.unread {
+		srv := m.server
+		cmds = append(cmds, func() tea.Msg {
+			return outcomeMsg{pid: pid, summary: summarize(srv.tail(pid, transcriptLines))}
+		})
+	}
+	m.unread = map[int]bool{}
+	return tea.Batch(cmds...)
 }
 
 // letGo ends the hold a run puts on the cursor. The hold is for the scans
@@ -1770,7 +1814,7 @@ func (m model) entryStates(path string) map[string]entryState {
 		case m.busy(t):
 			states[t.name] = entryState{State: "up"}
 		case states[t.name].State != "up" && t.ended >= latest[t.name]:
-			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at}, t.ended
+			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at, Summary: t.summary}, t.ended
 		}
 	}
 	return states
@@ -1791,7 +1835,7 @@ func (m model) ending(r navRow) entryState {
 		return entryState{}
 	}
 	if t := m.terms[r.node.PID]; t != nil {
-		return entryState{State: t.exit, At: t.at}
+		return entryState{State: t.exit, At: t.at, Summary: t.summary}
 	}
 	return entryState{}
 }
@@ -2873,7 +2917,7 @@ func (m model) holdings(r navRow) string {
 		b.WriteString(strconv.Itoa(t.PID) + " ")
 	}
 	for _, t := range m.planned(r.project.Path) {
-		b.WriteString(t.name + "=" + t.exit + " ")
+		b.WriteString(t.name + "=" + t.exit + "/" + t.summary + " ")
 	}
 	return b.String()
 }

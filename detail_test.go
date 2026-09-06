@@ -431,3 +431,34 @@ func TestThePaneSaysHowThePlacesTestsRunAndWent(t *testing.T) {
 		t.Errorf("lines = %q, want each task's line in order", got)
 	}
 }
+
+func TestWhatTheRunSaidStandsInForTheWord(t *testing.T) {
+	// 3 failed rather than failed, 12 passed rather than passed, on the
+	// tasks line; and on the exited line and the checklist beside how
+	// long ago.
+	dir := t.TempDir()
+	if err := writeFile(filepath.Join(dir, "go.mod"), "module x\n"); err != nil {
+		t.Fatal(err)
+	}
+	var tests field
+	for _, f := range verbFields(dir, map[string]entryState{testName: {State: "1", Summary: "3 failed"}}) {
+		if f.label == "tests" {
+			tests = f
+		}
+	}
+	if !strings.HasSuffix(tests.lead, "3 failed") || strings.Contains(tests.lead, "exit") {
+		t.Errorf("tests = %+v, want the run's word in place of the status", tests)
+	}
+	f := exitField(entryState{State: "1", Summary: "3 failed", At: time.Now().Add(-time.Minute)})
+	if f.value != "3 failed, 1m ago" {
+		t.Errorf("exited = %+v, want the word and the moment", f)
+	}
+	if err := writeFile(filepath.Join(dir, ".conn"), "web: npm run dev\n"); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range planFields(dir, map[string]entryState{"web": {State: "1", Summary: "2 errors"}}) {
+		if f.lead != "" && !strings.HasSuffix(f.value, "exited 1, 2 errors") {
+			t.Errorf("web = %+v, want how it ended and what it said", f)
+		}
+	}
+}

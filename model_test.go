@@ -2601,6 +2601,87 @@ func TestAFailedShellUsedAgainByHandForgetsItsEnding(t *testing.T) {
 	}
 }
 
+func TestASettledEndingHasItsTranscriptReadForWhatTheRunSaid(t *testing.T) {
+	// The shell at its prompt with its ending: the transcript is read
+	// once, off the render path, and the row says what the run said of
+	// itself — 3 failed — where a running row says its ports; the pane's
+	// exited line carries it too. A shell used by hand after says nothing
+	// of it any more.
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp", name: "test"}}
+	m, _ = pipeServer(t, m)
+	var mu sync.Mutex
+	reads := 0
+	inner := m.server.run
+	m.server.run = func(args ...string) (string, error) {
+		if args[0] == "capture-pane" {
+			mu.Lock()
+			reads++
+			mu.Unlock()
+			return "--- FAIL: TestA (0.00s)\n--- FAIL: TestB (0.00s)\n--- FAIL: TestC (0.00s)\nFAIL\n\n", nil
+		}
+		return inner(args...)
+	}
+	// Learn the ending, then settle: the scan finds the shell at its
+	// prompt, and the read is what Update batches after the update.
+	m, _ = m.update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "test", Exit: "1"}}})
+	var outcome *outcomeMsg
+	for _, msg := range deliver(m.readEndings()) {
+		if o, ok := msg.(outcomeMsg); ok {
+			outcome = &o
+		}
+	}
+	if outcome == nil {
+		t.Fatal("settling should have had the transcript read")
+	}
+	if outcome.summary != "3 failed" {
+		t.Errorf("summary = %q, want what the run said", outcome.summary)
+	}
+	m, _ = m.update(*outcome)
+	if row := renderRow(m, m.rows[1]); !strings.Contains(stripANSI(row), "test · 3 failed") {
+		t.Errorf("row = %q, want the run's word beside the name", stripANSI(row))
+	}
+	if st := m.ending(m.rows[1]); st.Summary != "3 failed" {
+		t.Errorf("ending = %+v, want the summary carried", st)
+	}
+	// Read once: another scan reads nothing more.
+	m, _ = m.update(procsMsg{procs: m.procs})
+	if m.readEndings() != nil {
+		t.Error("a settled ending should be read once")
+	}
+	mu.Lock()
+	if reads != 1 {
+		t.Errorf("the transcript was read %d times, want once", reads)
+	}
+	mu.Unlock()
+
+	// Used by hand: the ending and its word go together.
+	m, _ = m.update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 701, PPID: 700, Command: "ls", Dir: "/tmp"}}})
+	if m.terms[700].summary != "" {
+		t.Errorf("summary = %q after the shell was used by hand, want nothing", m.terms[700].summary)
+	}
+}
+
+// deliver runs a command and everything it batches, collecting the messages.
+func deliver(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	switch msg := cmd().(type) {
+	case tea.BatchMsg:
+		var out []tea.Msg
+		for _, c := range msg {
+			out = append(out, deliver(c)...)
+		}
+		return out
+	case nil:
+		return nil
+	default:
+		return []tea.Msg{msg}
+	}
+}
+
 func TestTheChecklistReportsTheLatestEnding(t *testing.T) {
 	// Two shells for one entry, both ended: the one that ended last
 	// speaks for the entry, whichever the map hands over first.

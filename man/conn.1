@@ -454,7 +454,15 @@ ecosystem ships with is guessed at: a project on ruff or eslint names it
 in a script or a Makefile. A project the guess is wrong for says so in its
 Makefile, which conn believes first. Each run is a shell named for its
 task, wrapped like a plan entry's, so the row and the place's pane say how
-it went and how long ago, and tab goes to a run that failed.
+it went and how long ago, and tab goes to a run that failed. The end of
+the transcript is read the way a reader would read it, by the shape of the
+tool's summary line \(em go test, pytest, jest, vitest, mocha, cargo,
+rspec, ExUnit, golangci\-lint, tsc, ruff, eslint \(em so a failed run's
+row says
+.B "test \(bu 3 failed"
+and a passed one
+.BR "12 passed" ;
+a shape conn does not know leaves the status alone.
 .BR "conn test" ,
 .B conn build
 and

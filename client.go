@@ -57,6 +57,9 @@ type remoteTerm struct {
 	name string    // what the project calls it, if a project asked for it
 	exit string    // how the command it was started with ended, once it has: "0", "1"…
 	at   time.Time // when it ended, when the pane recorded that too
+	// summary is what its transcript said of the run, read once it ended
+	// and the shell was at its prompt: 3 failed, 12 passed.
+	summary string
 
 	// ended orders the endings the navigator has learned of, so the latest
 	// of several shells for one entry is the one that speaks for it.

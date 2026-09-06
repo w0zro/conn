@@ -148,6 +148,7 @@ type pane struct {
 	name   string
 	exit   string // the command's exit status, recorded on the pane when it ended
 	ended  string // when it ended, as seconds since the epoch, recorded with it
+	cmd    string // what is in the pane's foreground: the command, or the shell at its prompt
 	shown  bool   // in the home window, beside the navigator
 	wanted bool   // opened by a chord that asked for it to be shown
 }
@@ -336,7 +337,7 @@ func (s *session) notify(n ctlNote) {
 // opened a shell to be shown says so in the window's name, the one mark
 // that is set in the same breath as the window is made — an option set
 // after would race the refresh the new window sets off.
-const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}"
+const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}\t#{pane_current_command}"
 
 // wantName is the window name that asks the navigator to show the shell
 // in it; heldName is what the window is called once it has.
@@ -376,6 +377,9 @@ func parseListing(out string) (held []*pane, nav string) {
 		}
 		if len(f) > 9 {
 			p.ended = f[9]
+		}
+		if len(f) > 10 {
+			p.cmd = f[10]
 		}
 		held = append(held, p)
 	}
@@ -900,6 +904,18 @@ func (s *session) tail(pid, n int) []string {
 		lines = lines[len(lines)-n:]
 	}
 	return lines
+}
+
+// running reports a pane still running the command it was started with:
+// no ending recorded, and something other than the shell in the
+// foreground. A shell at its prompt with no ending recorded — the
+// recording missed, or a shell started with nothing — is not running an
+// entry, and is not in the way of running it again.
+func (p *pane) running() bool {
+	if p.exit != "" {
+		return false
+	}
+	return p.cmd == "" || !isShell(p.cmd)
 }
 
 // forgetExit takes the recorded ending off a shell's pane: the shell has

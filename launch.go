@@ -331,7 +331,7 @@ func runPlanAt(dir string) error {
 	running := map[string]bool{}
 	held, _ := parseListing(out)
 	for _, pane := range held {
-		if pane.name != "" && pane.dir == p.Path && pane.exit == "" {
+		if pane.name != "" && pane.dir == p.Path && pane.running() {
 			running[pane.name] = true
 		}
 	}
@@ -371,7 +371,7 @@ func runVerbAt(v *verb) func(dir string) error {
 			if pane.name != v.name || pane.dir != p.Path {
 				continue
 			}
-			if pane.exit == "" {
+			if pane.running() {
 				return errors.New("already " + v.doing + " " + p.Name)
 			}
 			if _, err := tmuxCommand("kill-pane", "-t", pane.id); err != nil {

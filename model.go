@@ -1706,7 +1706,7 @@ func (m *model) doVerb(p Project, v *verb) tea.Cmd {
 		if t.name != v.name {
 			continue
 		}
-		if t.live() {
+		if m.busy(t) {
 			m.status, m.statusErr = "already "+v.doing+" "+p.Name, false
 			return nil
 		}
@@ -1738,11 +1738,23 @@ func (m model) planned(path string) []*remoteTerm {
 func (m model) namesIn(path string) map[string]bool {
 	running := map[string]bool{}
 	for _, t := range m.planned(path) {
-		if t.live() {
+		if m.busy(t) {
 			running[t.name] = true
 		}
 	}
 	return running
+}
+
+// busy reports a held shell still running the command it was started
+// with: no ending learned, and not seen at its prompt by the scan. A shell
+// at its prompt with no ending — the recording missed, or an older server's
+// shell — is not running an entry, whatever it has not said.
+func (m model) busy(t *remoteTerm) bool {
+	if !t.live() {
+		return false
+	}
+	n := m.nodes[t.pid]
+	return n == nil || len(n.Children) > 0 || !isShell(n.Command)
 }
 
 // entryStates is what a place's plan entries are doing, by name: up for
@@ -1755,7 +1767,7 @@ func (m model) entryStates(path string) map[string]entryState {
 	latest := map[string]int{}
 	for _, t := range m.planned(path) {
 		switch {
-		case t.live():
+		case m.busy(t):
 			states[t.name] = entryState{State: "up"}
 		case states[t.name].State != "up" && t.ended >= latest[t.name]:
 			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at}, t.ended

@@ -36,7 +36,7 @@ func TestTheListingTellsTheNavigatorAndTheShownShellApart(t *testing.T) {
 	held, nav := parseListing(strings.Join([]string{
 		"%0\t100\t\t\t/\t1\t1\tconn\t",
 		"%1\t700\t/p/a\t\t/p/a\t\t1\tconn\t",
-		"%2\t701\t/p/b\tweb\t/p/b\t\t\tshell\t1\t1760000000",
+		"%2\t701\t/p/b\tweb\t/p/b\t\t\tshell\t1\t1760000000\tzsh",
 		"%3\t702\t/p/c\t\t/p/c\t\t\t" + wantName,
 	}, "\n"))
 	if nav != "%0" {
@@ -58,6 +58,15 @@ func TestTheListingTellsTheNavigatorAndTheShownShellApart(t *testing.T) {
 	}
 	if held[1].ended != "1760000000" || held[0].ended != "" {
 		t.Errorf("ended = %q %q, want the moment web's ended, and none for the rest", held[1].ended, held[0].ended)
+	}
+	if held[1].cmd != "zsh" || held[1].running() {
+		t.Errorf("web = %+v, want its shell at the prompt, not running", held[1])
+	}
+	// Running is the command in the foreground with no ending; a shell at
+	// its prompt with none recorded is not, and an older listing that says
+	// nothing of the foreground is taken as running.
+	if !(&pane{cmd: "npm"}).running() || (&pane{cmd: "bash"}).running() || (&pane{cmd: "npm", exit: "0"}).running() || !(&pane{}).running() {
+		t.Error("running should be a command in the foreground with no ending recorded")
 	}
 }
 

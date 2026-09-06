@@ -2427,6 +2427,47 @@ func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 	}
 }
 
+func TestAShellAtItsPromptWithNoEndingRecordedIsNotRunning(t *testing.T) {
+	// The recording can miss, and an older server's shells recorded
+	// nothing: a plan shell the scan finds at its prompt with no ending is
+	// not running its entry — r starts the entry again, and the key runs
+	// a task again — rather than standing in the way for good.
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: repo}, {PID: 701, PPID: 700, Command: "go", Dir: repo}})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: repo, name: "build"}}
+	m, asked := pipeServer(t, m)
+	m.rebuild()
+	if !m.namesIn(repo)["build"] {
+		t.Fatal("setup: the build should count as running while go runs under its shell")
+	}
+	m = press(m, "b")
+	if m.status != "already building conn" {
+		t.Fatalf("status = %q, want the run left to finish", m.status)
+	}
+
+	// The go is gone and the shell is at its prompt, but nothing was
+	// recorded: not running.
+	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: repo}}})
+	m = next.(model)
+	if m.namesIn(repo)["build"] {
+		t.Error("a shell at its prompt with no ending should not count as running")
+	}
+	if st := m.entryStates(repo)["build"]; st.State == "up" {
+		t.Error("the checklist should not show it up either")
+	}
+	m = press(m, "b")
+	if got := askedForKind(t, asked, kindClose); got.PID != 700 {
+		t.Errorf("asked %+v, want the shell at its prompt closed for the new run", got)
+	}
+	if got := askedForKind(t, asked, kindOpen); got.Run != "go build ./..." {
+		t.Errorf("asked %+v, want the build run again", got)
+	}
+}
+
 func TestTRunsThePlacesTestsAndRedoesRatherThanStacks(t *testing.T) {
 	// t runs the tests the way the place says, in a shell named test that
 	// is wrapped like a plan entry's, and the cursor goes to it. A second

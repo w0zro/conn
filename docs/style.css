@@ -22,7 +22,13 @@
   --display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
 }
 
-html { background: var(--desk); }
+html {
+  background: var(--desk);
+  /* A phone's browser inflates text it takes for a desktop page; the
+     page is set at its size and stays there. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
   background: var(--desk);
@@ -52,15 +58,18 @@ b, strong { font-weight: 700; }
 
 /* A page: letter paper, a shadow onto the desk, and a scan's grain over
    everything on it. Each page in the stack lies a fraction of a degree
-   off the last, the way a scanned stack does. */
+   off the last, the way a scanned stack does. The page is letter size,
+   and grows rather than clips when a browser sets its text larger than
+   the one it was paginated in — a font that has not loaded yet, a
+   phone's idea of a readable size: a page a little long is a page; a
+   paragraph cut off is a missing page. */
 .page {
   position: relative;
   flex: none;
   width: 816px;
-  height: 1056px;
+  min-height: 1056px;
   background: var(--paper);
   box-shadow: 0 30px 70px -25px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.5);
-  overflow: hidden;
   box-sizing: border-box;
 }
 .page:nth-child(3n+1) { transform: rotate(-0.25deg); }
@@ -133,7 +142,7 @@ b, strong { font-weight: 700; }
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 1056px;
   padding: 42px 64px 38px 96px;
   box-sizing: border-box;
 }
@@ -341,7 +350,7 @@ b, strong { font-weight: 700; }
 }
 
 /* The cover: a column too, its foot pinned to the page's foot. */
-.cover { display: flex; flex-direction: column; }
+.cover { display: flex; flex-direction: column; min-height: 1056px; }
 .cover .top {
   position: relative;
   padding: 46px 64px 0 96px;

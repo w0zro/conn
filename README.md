@@ -35,12 +35,17 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests on macOS,
 cross-compiles the four builds, and publishes them with a `checksums.txt` that
 `install.sh` reads. The script is served from `docs/`, with the site, which
 GitHub Pages rebuilds on a push to main — but not on a push that carries a
-tag along with it, so main goes first, and the tag on its own.
+tag along with it, so main goes first, and the tag on its own. The tag is
+annotated, and its message is what the manual's record of revisions says
+of the release: once the release is out, the workflow writes the row and
+pushes it to main.
 
 ```sh
 git push origin main
-git tag v0.2.0 && git push origin v0.2.0
+git tag -a v0.4.0 -m "Endings, tasks and the transcript" && git push origin v0.4.0
 ```
+
+`go run ./tools/revisions` writes the same row by hand, from the tags.
 
 ## License
 

@@ -8,6 +8,12 @@
 # workflow has already run them on Linux by the time any tag is cut. They
 # hold their shells in a real tmux, which the runner does not carry, and
 # under CI a missing tmux is a failure rather than a skip.
+#
+# Once the release is out, the manual records it: tools/revisions writes
+# the record of revisions on the site's cover from the tags, and the row
+# is pushed to main — a push without a tag, which is the one Pages
+# rebuilds on. The tag's message is the row's description, so the tag is
+# cut with one: git tag -a v0.4.0 -m "Endings, tasks and the transcript".
 name: release
 
 on:
@@ -40,3 +46,28 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  record:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Record the revision
+        run: go run ./tools/revisions
+
+      - name: Commit it
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "The manual records ${GITHUB_REF_NAME}"
+          git push origin main

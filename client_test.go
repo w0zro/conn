@@ -484,3 +484,36 @@ func TestTheTailIsTheLastLinesShownWithoutThePanesEmptyRows(t *testing.T) {
 		t.Errorf("tail of a shell not held = %v, want nothing", got)
 	}
 }
+
+func TestAnAnnouncedWindowIsListedAgainOnceItsMakerHasDressedIt(t *testing.T) {
+	// The list read on the announcement can come before the maker set the
+	// window's name; nothing announces the name. A second read, a moment
+	// later, is what learns it.
+	s := newSession()
+	s.settle = 20 * time.Millisecond
+	var mu sync.Mutex
+	lists := 0
+	s.run = func(args ...string) (string, error) {
+		if args[0] == "list-panes" {
+			mu.Lock()
+			lists++
+			mu.Unlock()
+		}
+		return "", nil
+	}
+	s.notify(ctlNote{kind: noteWindows})
+	deadline := time.After(time.Second)
+	for {
+		mu.Lock()
+		n := lists
+		mu.Unlock()
+		if n == 2 {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("the list was read %d times after a window was announced, want twice", n)
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}

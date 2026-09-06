@@ -189,6 +189,12 @@ type session struct {
 	// probe is how long the watch waits between looks for a server; the
 	// tests set a pace that suits a test.
 	probe time.Duration
+
+	// settle is how long after a window is announced the list is read a
+	// second time: the client that made the window dresses it — its
+	// directory, its name — right after, and tmux announces an option to
+	// nobody. The tests set a pace that suits a test.
+	settle time.Duration
 }
 
 func newSession() *session {
@@ -199,9 +205,15 @@ func newSession() *session {
 		byPane:  map[string]int{},
 		column:  navWidth,
 		probe:   probeEvery,
+		settle:  windowSettle,
 		stopped: make(chan struct{}),
 	}
 }
+
+// windowSettle is how long a window's maker gets to dress it before the
+// list is read again: the options are set in the command after the
+// window's making, milliseconds later on a machine that is not busy.
+const windowSettle = time.Second
 
 // connectServer builds the session and has it find whatever is already held.
 // The one unrecoverable failure is tmux not being installed: everything else
@@ -316,7 +328,19 @@ func (s *session) ensureCtl() {
 func (s *session) notify(n ctlNote) {
 	switch n.kind {
 	case noteWindows:
+		// Now, and again once the window's maker has dressed it: a window
+		// made by another client — a chord, conn test from a shell — is
+		// announced before its directory and name are set, and nothing is
+		// announced when they are. A navigator that read the first list
+		// alone saw a bare shell for good.
 		go s.refreshList()
+		go func() {
+			select {
+			case <-time.After(s.settle):
+				s.refreshList()
+			case <-s.stopped:
+			}
+		}()
 	case noteError:
 		s.events <- serverErrorMsg{err: errors.New(n.err)}
 	case noteExit:

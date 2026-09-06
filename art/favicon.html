@@ -1,0 +1,34 @@
+<!-- The design source of the favicons in docs/: the paper, the C, the orange bar, at 16, 32, 180 and 512. A reference, not shipped:
+     the PNGs are the assets, and are rendered from this. -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@900&display=swap">
+<style>
+body { margin: 0; background: #191b1f; }
+a { color: inherit; text-decoration: none; }
+a:hover { opacity: 0.8; }
+</style>
+</helmet>
+<div style="display: flex; align-items: center; gap: 40px; padding: 60px;">
+  <div data-screen-label="Favicon" style="position: relative; width: 128px; height: 128px; background: linear-gradient(115deg, #f1ebde 0%, #ece5d6 55%, #e6dfcf 100%); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+    <span style="font: 900 92px/1 'Archivo', sans-serif; color: #1a1611; margin-top: -8px;">C</span>
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 18px; background: #bd3a1d;"></div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+    <div style="width: 32px; height: 32px; position: relative; background: linear-gradient(115deg, #f1ebde 0%, #ece5d6 55%, #e6dfcf 100%); overflow: hidden; display: flex; align-items: center; justify-content: center;"><span style="font: 900 23px/1 'Archivo', sans-serif; color: #1a1611; margin-top: -2px;">C</span><div style="position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #bd3a1d;"></div></div>
+    <div style="width: 16px; height: 16px; position: relative; background: #efe9db; overflow: hidden; display: flex; align-items: center; justify-content: center;"><span style="font: 900 12px/1 'Archivo', sans-serif; color: #1a1611; margin-top: -1px;">C</span><div style="position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: #bd3a1d;"></div></div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

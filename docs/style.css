@@ -1,816 +1,477 @@
-/* conn.w0zro.com — the bridge
-
-   The page is the forward viewport of a ship. Space is drawn behind
-   everything: a canvas of stars, streaming slowly, with a planet's limb
-   on the hero's horizon. The hull is the panels — bulkhead seams between
-   sections, bezels with bolts and plates around the screens — and the
-   readouts are in the sixteen colors the navigator draws with, so the
-   screen in the hero and the bridge around it are one instrument. */
+/* conn's site is an operating manual: US-letter pages on a dark desk,
+   scanned paper, binder holes, typewriter body and a grotesque for the
+   display, with international orange as the one spot ink. The landing
+   page is the manual's cover; the guide is its interior pages, in one
+   scroll. Every page is a fixed artifact, 816 by 1056, and never
+   reflows: below the desk's width it is scaled, not rewrapped. */
 
 :root {
-  --space: #03050a;
-  --hull: #090d16;
-  --panel: #0d1220;
-  --raised: #121a2c;
-  --steel: #161f33;
-  --line: #1c2536;
-  --line-strong: #2a3650;
-  --seam: #33405c;
-
-  --text: #dfe5f0;
-  --text-2: #a9b3c6;
-  --muted: #6b778e;
-  --faint: #3c465c;
-
-  --brand: #b9a7ff;
-  --brand-deep: #5a3fd9;
-  --nav: #79c0ff;
-  --good: #3fb950;
-  --attn: #d29922;
-  --urgent: #f778ba;
-
-  --term: #0a0e15;
-  --term-text: #d8dde6;
-  --term-line: #2b3441;
-
-  --radius: 3px;
-  --display: 'Space Grotesk', 'IBM Plex Sans', system-ui, sans-serif;
-  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --desk: #191b1f;
+  --ink: #1a1611;
+  --ink-2: #2b2620;
+  --ink-3: #4a4335;
+  --muted: #6f6656;
+  --faint: #8d8474;
+  --orange: #bd3a1d;
+  --paper: linear-gradient(115deg, #f1ebde 0%, #ece5d6 45%, #e6dfcf 100%);
+  --paper-top: #f1ebde;
+  --box: rgba(255,255,255,0.35);
+  --dash: rgba(43,38,32,0.35);
+  --dots: rgba(43,38,32,0.45);
+  --mono: 'Courier Prime', 'Courier New', Courier, monospace;
+  --display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
 }
 
-* { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { background: var(--desk); }
 body {
   margin: 0;
-  background: var(--space);
-  color: var(--text);
-  font-family: var(--sans);
+  background: var(--desk);
+  color: var(--ink-2);
+  font: 400 14px/1.75 var(--mono);
   -webkit-font-smoothing: antialiased;
-  background-image:
-    radial-gradient(1100px 700px at 15% -20%, rgba(90, 63, 217, 0.20), transparent 60%),
-    radial-gradient(900px 600px at 95% 10%, rgba(121, 192, 255, 0.10), transparent 60%),
-    radial-gradient(800px 500px at 50% 110%, rgba(63, 185, 80, 0.06), transparent 60%);
-  background-attachment: fixed;
 }
 a { color: inherit; text-decoration: none; }
-a:hover { color: var(--brand); }
-.accent { color: var(--brand); }
-::selection { background: var(--brand-deep); color: #fff; }
+a:hover { opacity: 0.8; }
+b, strong { font-weight: 700; }
 
-/* Space, behind everything: a canvas the script fills with stars. */
-#space {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* The ship: a hull between two rails, running the page's height. Its
-   sections are the plating; the hero is the one place the plating opens
-   and the viewport looks out. */
-.sheet {
-  position: relative;
-  z-index: 1;
-  max-width: 1120px;
-  margin: 0 auto;
-  border-left: 1px solid var(--line-strong);
-  border-right: 1px solid var(--line-strong);
-  min-height: 100vh;
+/* The desk, and the stack of pages on it. */
+.desk {
   display: flex;
   flex-direction: column;
-}
-.sheet > * { background: var(--hull); }
-/* The viewport: the stars come through, held back behind the copy so the
-   words stay legible against them. */
-.sheet > .hero {
-  background: linear-gradient(90deg, rgba(3, 5, 10, 0.78), rgba(3, 5, 10, 0.45) 48%, rgba(3, 5, 10, 0.12));
-}
-
-/* ── seams, plates, bezels ───────────────────────────── */
-
-/* A section's seam: an index, a name, and a bulkhead line running to the
-   edge with a rivet at its end. */
-.rail {
-  display: flex;
   align-items: center;
-  gap: 12px;
-  font: 500 11px var(--mono);
-  letter-spacing: 0.16em;
-  color: var(--muted);
-  text-transform: uppercase;
+  gap: 42px;
+  padding: 56px 24px 80px;
 }
-.rail .rail-id {
-  color: var(--brand);
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-.rail .rail-id::before {
-  content: '';
-  width: 7px; height: 7px;
-  background: var(--brand);
-  transform: rotate(45deg);
-  box-shadow: 0 0 10px rgba(185, 167, 255, 0.6);
-}
-.rail .rail-line {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, var(--seam), var(--line) 30%, var(--line) 70%, var(--seam));
-  position: relative;
-}
-.rail .rail-line::after {
-  content: '';
-  position: absolute;
-  right: 0; top: -2px;
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: var(--seam);
-}
-.rail .rail-tag { color: var(--faint); letter-spacing: 0.1em; }
-.rail .rail-tag.warn { color: var(--attn); }
-
-/* A bezel: the frame a screen is set into. Steel, four bolts, and a plate
-   with the screen's designation at the foot. */
-.bezel {
-  position: relative;
-  padding: 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: linear-gradient(180deg, var(--steel), var(--panel));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
-    0 30px 60px -30px rgba(0, 0, 0, 0.9);
-}
-.bezel::before, .bezel::after,
-.bezel > .tick::before, .bezel > .tick::after {
-  content: '';
-  position: absolute;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #6b788f, #222b3d 70%);
-  box-shadow: inset 0 0 1px rgba(0,0,0,0.8);
-  pointer-events: none;
-}
-.bezel::before { top: 5px; left: 5px; }
-.bezel::after { top: 5px; right: 5px; }
-.bezel > .tick::before { bottom: 5px; left: 5px; }
-.bezel > .tick::after { bottom: 5px; right: 5px; }
-.plate {
-  position: absolute;
-  left: 50%;
-  bottom: -9px;
-  transform: translateX(-50%);
-  font: 500 9.5px var(--mono);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-  background: var(--raised);
-  border: 1px solid var(--line-strong);
-  border-radius: 2px;
-  padding: 2px 10px;
-  white-space: nowrap;
-}
-.plate b { color: var(--brand); font-weight: 500; }
-
-/* A screen wears scanlines, faint, and a glass reflection at its top. */
-.glass { position: relative; }
-.glass::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.035), transparent 18%),
-    repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.13) 2px 3px);
-}
-
-/* ── nav ─────────────────────────────────────────────── */
-
-.nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 48px;
-  height: 54px;
-  border-bottom: 1px solid var(--line-strong);
-  background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent), var(--hull);
-}
-.nav.sticky {
-  position: sticky; top: 0; z-index: 5;
-  background: rgba(9, 13, 22, 0.9);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font: 600 14px var(--mono);
-  letter-spacing: 0.02em;
-}
-.brand .mark {
-  width: 8px; height: 8px;
-  background: var(--brand);
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
-  filter: drop-shadow(0 0 4px rgba(185,167,255,0.8));
-}
-.brand .ident {
-  font: 500 10.5px var(--mono);
-  letter-spacing: 0.18em;
-  color: var(--muted);
-  padding-left: 12px;
-  border-left: 1px solid var(--line-strong);
-}
-.nav-right { display: flex; align-items: center; gap: 26px; }
-.nav-links {
-  display: flex;
-  gap: 26px;
-  font: 500 12px var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-2);
-}
-.nav-links [aria-current] { color: var(--brand); }
-
-/* The bridge's readouts: ship time, and the state of the systems. */
-.telemetry {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font: 500 10.5px var(--mono);
-  letter-spacing: 0.14em;
-  color: var(--muted);
-  padding-left: 22px;
-  border-left: 1px solid var(--line-strong);
-}
-.telemetry .clock { color: var(--text-2); font-variant-numeric: tabular-nums; }
-.telemetry .sys { display: inline-flex; align-items: center; gap: 7px; color: var(--good); }
-.telemetry .sys::before {
-  content: '';
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--good);
-  box-shadow: 0 0 8px var(--good);
-  animation: beacon 2.4s ease-in-out infinite;
-}
-@keyframes beacon {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-/* ── command row ─────────────────────────────────────── */
-
-.cmd {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  background: var(--term);
-  color: var(--term-text);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  font: 400 12.5px var(--mono);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4), 0 0 0 1px rgba(185,167,255,0.04);
-}
-.cmd .prompt { color: var(--brand); }
-.cmd .dim { color: var(--muted); }
-.cmd code {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font: inherit;
-  background: none;
-  padding: 0;
-}
-.copy {
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: var(--brand);
-  cursor: pointer;
-  letter-spacing: 0.04em;
-}
-.copy:hover { color: #fff; }
-
-/* ── landing: hero, the viewport ─────────────────────── */
-
-.hero {
-  position: relative;
-  padding: 56px 48px 44px;
-  border-bottom: 1px solid var(--line-strong);
-  overflow: hidden;
-  isolation: isolate;
-}
-/* A planet's limb on the horizon: its night side, a thin lit rim, and the
-   haze of an atmosphere above it. */
-.planet {
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  width: 2400px;
-  height: 2400px;
-  margin-left: -1200px;
-  margin-top: -80px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 30%, #101a33 0, #070b16 18%, #03050a 40%);
-  box-shadow:
-    0 0 0 1px rgba(121, 192, 255, 0.25),
-    0 -2px 24px 2px rgba(121, 192, 255, 0.35),
-    0 -20px 120px 20px rgba(90, 63, 217, 0.25),
-    0 -60px 240px 60px rgba(121, 192, 255, 0.08);
-  z-index: -1;
-  pointer-events: none;
-}
-/* An orbit, drawn thin across the viewport, with something on it. */
-.orbit {
-  position: absolute;
-  z-index: -1;
-  pointer-events: none;
-  left: -10%;
-  top: 34%;
-  width: 120%;
-  height: 90%;
-  border: 1px solid rgba(121, 192, 255, 0.10);
-  border-radius: 50%;
-  transform: rotate(-9deg);
-}
-.orbit::after {
-  content: '';
-  position: absolute;
-  top: -3px; left: 22%;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--nav);
-  box-shadow: 0 0 10px var(--nav);
-  animation: beacon 3.1s ease-in-out infinite;
-}
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font: 500 11px var(--mono);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--brand);
-  margin: 0 0 18px;
-}
-.eyebrow::before {
-  content: '';
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--good);
-  box-shadow: 0 0 8px var(--good);
-  animation: beacon 2.4s ease-in-out infinite;
-}
-.hero h1 {
-  font: 700 40px/1.1 var(--display);
-  letter-spacing: -0.02em;
-  max-width: 560px;
+.end {
+  font: 400 10.5px var(--mono);
+  letter-spacing: 0.24em;
+  color: #565c68;
   margin: 0;
-  color: #fff;
-  text-wrap: balance;
-  text-shadow: 0 0 40px rgba(185, 167, 255, 0.25);
-}
-.hero .sub {
-  font-size: 15.5px;
-  line-height: 1.65;
-  color: var(--text-2);
-  max-width: 520px;
-  margin: 16px 0 0;
-}
-.hero .cmd { max-width: 720px; margin-top: 30px; }
-
-/* The datasheet under the viewport: what the instrument is rated for. */
-.spec {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid var(--line-strong);
-  margin: 34px 0 0;
-  font-family: var(--mono);
-}
-.spec > div { padding: 14px 0 0; }
-.spec > div + div { padding-left: 20px; border-left: 1px solid var(--line); }
-.spec dt, .spec dd { margin: 0; }
-.spec .k {
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 5px;
-}
-.spec .v { font-size: 12.5px; color: var(--text); }
-.spec .v .dim { color: var(--muted); }
-
-/* ── landing: annotated figure ───────────────────────── */
-
-.figure { border-bottom: 1px solid var(--line-strong); }
-.figure .rail { padding: 22px 48px 0; }
-.figure-grid {
-  display: grid;
-  grid-template-columns: 600px 1fr;
-}
-.figure-left { padding: 32px 48px 44px; border-right: 1px solid var(--line); }
-.tui {
-  background: var(--term);
-  padding: 20px 22px;
-  border-radius: 4px;
-  border: 1px solid var(--term-line);
-  overflow-x: auto;
-}
-.tui pre { margin: 0; font: 400 13.5px/1.65 var(--mono); color: var(--term-text); }
-.t-num { color: var(--brand); }
-.t-sel { color: var(--urgent); font-weight: 600; }
-.t-run { color: var(--attn); }
-.t-dim { color: #5c6570; }
-.t-hint { color: #6b778e; }
-.fig-cap {
-  font: 500 11px var(--mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 22px;
   text-align: center;
 }
-.figure-notes {
-  padding: 32px 40px 40px;
+
+/* A page: letter paper, a shadow onto the desk, and a scan's grain over
+   everything on it. Each page in the stack lies a fraction of a degree
+   off the last, the way a scanned stack does. */
+.page {
+  position: relative;
+  flex: none;
+  width: 816px;
+  height: 1056px;
+  background: var(--paper);
+  box-shadow: 0 30px 70px -25px rgba(0,0,0,0.9), 0 2px 6px rgba(0,0,0,0.5);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.page:nth-child(3n+1) { transform: rotate(-0.25deg); }
+.page:nth-child(3n+2) { transform: rotate(0.2deg); }
+.page:nth-child(3n) { transform: rotate(-0.15deg); }
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  background:
+    radial-gradient(620px 300px at 18% 8%, rgba(120,100,60,0.06), transparent 70%),
+    radial-gradient(520px 420px at 88% 94%, rgba(105,85,50,0.08), transparent 70%),
+    radial-gradient(140px 90px at 72% 30%, rgba(110,90,55,0.05), transparent 70%),
+    radial-gradient(closest-side at 50% 50%, transparent 55%, rgba(90,72,42,0.09) 100%),
+    repeating-linear-gradient(0deg, rgba(110,90,60,0.02) 0 1px, transparent 1px 3px);
+}
+.page:nth-child(3n+2)::before {
+  background:
+    radial-gradient(620px 300px at 82% 6%, rgba(120,100,60,0.06), transparent 70%),
+    radial-gradient(520px 420px at 12% 96%, rgba(105,85,50,0.08), transparent 70%),
+    radial-gradient(120px 80px at 30% 55%, rgba(110,90,55,0.05), transparent 70%),
+    radial-gradient(closest-side at 50% 50%, transparent 55%, rgba(90,72,42,0.09) 100%),
+    repeating-linear-gradient(0deg, rgba(110,90,60,0.02) 0 1px, transparent 1px 3px);
+}
+.page:nth-child(3n)::before {
+  background:
+    radial-gradient(620px 300px at 22% 4%, rgba(120,100,60,0.06), transparent 70%),
+    radial-gradient(520px 420px at 90% 92%, rgba(105,85,50,0.08), transparent 70%),
+    radial-gradient(120px 80px at 66% 40%, rgba(110,90,55,0.05), transparent 70%),
+    radial-gradient(closest-side at 50% 50%, transparent 55%, rgba(90,72,42,0.09) 100%),
+    repeating-linear-gradient(0deg, rgba(110,90,60,0.02) 0 1px, transparent 1px 3px);
+}
+
+/* Binder holes, three down the left. */
+.hole {
+  position: absolute;
+  left: 24px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--desk);
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.4);
+}
+.hole:nth-of-type(1) { top: 10%; }
+.hole:nth-of-type(2) { top: 49.5%; }
+.hole:nth-of-type(3) { top: 89%; }
+.cover .hole:nth-of-type(1) { top: 14%; }
+.cover .hole:nth-of-type(3) { top: 85%; }
+
+/* The interior page's content: a column with the footer pinned to the
+   foot, and the binder margin on the left. */
+.sheet {
+  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 18px;
+  height: 100%;
+  padding: 42px 64px 38px 96px;
+  box-sizing: border-box;
 }
-.note { display: flex; gap: 13px; }
-.note .marker {
-  color: var(--brand);
-  font: 400 14px var(--mono);
-  flex: none;
-  padding-top: 1px;
-}
-.note p { font-size: 14.5px; color: var(--text-2); line-height: 1.6; margin: 0; }
-
-/* ── landing: keys, the helm ─────────────────────────── */
-
-.keys { padding: 22px 48px 48px; border-bottom: 1px solid var(--line-strong); }
-.keys .rail { margin-bottom: 24px; }
-.key-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 18px;
-  font: 400 13px var(--mono);
-}
-.cluster {
-  background: linear-gradient(180deg, var(--raised), var(--panel));
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  padding: 14px 16px 8px;
-  position: relative;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-}
-.cluster::before {
-  content: '';
-  position: absolute;
-  top: -1px; left: 16px; right: 16px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--brand), transparent);
-  opacity: 0.7;
-}
-.keyhead {
+.running {
   display: flex;
   justify-content: space-between;
-  color: var(--brand);
-  letter-spacing: 0.18em;
-  font-size: 10.5px;
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-.keyhead .sub { color: var(--faint); letter-spacing: 0.12em; }
-.keyrow {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 14px;
-  padding: 7px 0;
-  border-bottom: 1px dashed var(--line);
-}
-.keyrow:last-child { border-bottom: 0; }
-.keyrow span:first-child { color: var(--text); white-space: nowrap; }
-.keyrow span:last-child { color: var(--text-2); font-family: var(--sans); font-size: 13.5px; text-align: right; }
-.keyrow.warn span:first-child { color: var(--attn); }
-
-/* ── footer ──────────────────────────────────────────── */
-
-.footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 48px;
-  margin-top: auto;
   font: 400 11px var(--mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.12em;
   color: var(--muted);
 }
-.footer.rule-top { border-top: 1px solid var(--line-strong); }
-.footer .brand { font-size: 12px; text-transform: none; letter-spacing: 0.02em; }
-.footer .brand .ident { text-transform: uppercase; }
-.foot-links { display: flex; gap: 22px; }
-
-/* ── guide: shell ────────────────────────────────────── */
-
-.guide {
-  display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  align-items: start;
-}
-.toc {
-  position: sticky;
-  top: 54px;
-  align-self: start;
-  padding: 36px 20px 40px 48px;
-  font: 400 13px/1.5 var(--mono);
-  border-right: 1px solid var(--line);
-  max-height: calc(100vh - 54px);
-  overflow-y: auto;
-}
-.toc-head {
-  color: var(--brand);
-  letter-spacing: 0.18em;
-  font-size: 10.5px;
-  font-weight: 500;
-  margin-bottom: 16px;
-}
-.toc-list { display: flex; flex-direction: column; gap: 2px; }
-.toc-list a {
-  display: flex;
-  gap: 12px;
-  padding: 6px 10px 6px 12px;
-  margin-left: -12px;
-  border-left: 1px solid transparent;
-  color: var(--text-2);
-  border-radius: 0 var(--radius) var(--radius) 0;
-}
-.toc-list a:hover { color: var(--text); background: var(--panel); }
-.toc-list a.on { color: var(--text); border-left-color: var(--brand); background: var(--panel); }
-.toc .sec { color: var(--faint); font-size: 11px; letter-spacing: 0.08em; padding-top: 1px; }
-.toc-list a.on .sec { color: var(--brand); }
-
-/* ── guide: content ──────────────────────────────────── */
-
-.doc { padding: 44px 56px 64px; max-width: 760px; min-width: 0; }
-.doc h1 { font: 700 40px/1.1 var(--display); letter-spacing: -0.025em; margin: 0 0 8px; color: #fff; }
-.doc .intro { font-size: 16px; color: var(--text-2); margin: 0 0 8px; }
-.doc section { margin-top: 44px; }
-.doc section:first-of-type { margin-top: 40px; }
-.doc section .rail { margin-bottom: 14px; }
-.doc h2 { font: 700 24px/1.2 var(--display); letter-spacing: -0.015em; margin: 0 0 14px; color: #fff; }
-.doc h3 {
-  font: 600 12px var(--mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--nav);
-  margin: 22px 0 8px;
-}
-.doc p { font-size: 15px; line-height: 1.72; color: var(--text-2); margin: 0 0 12px; }
-.doc p b { color: var(--text); font-weight: 600; }
-.doc section > :last-child { margin-bottom: 0; }
-.doc code { font-family: var(--mono); font-size: 13px; color: var(--text); }
-.doc code.chip {
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 12.5px;
-}
-.doc .cmd { margin: 14px 0; }
-.doc .cmd.lead { margin: 0 0 14px; }
-.doc .cmd.flush { margin: 0; }
-.doc .cmd code { font: inherit; color: inherit; }
-
-/* code blocks */
-.code-cap {
-  display: inline-block;
-  font: 500 10.5px var(--mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--term-line);
-  border-bottom: 0;
-  border-radius: var(--radius) var(--radius) 0 0;
-  padding: 5px 10px 4px;
-}
-.codeblock {
-  background: var(--term);
-  border: 1px solid var(--term-line);
-  padding: 14px 18px;
-  margin-bottom: 14px;
-  border-radius: 0 var(--radius) var(--radius) var(--radius);
-  overflow-x: auto;
-}
-.codeblock pre { margin: 0; font: 400 13px/1.7 var(--mono); color: var(--term-text); }
-.t-key { color: var(--brand); }
-.t-str { color: #a3c9a8; }
-
-/* definition tables */
-.def { font: 400 13px var(--mono); margin: 0 0 12px; }
-.def-row {
-  display: flex;
-  gap: 18px;
-  padding: 7px 0;
-  border-bottom: 1px dashed var(--line);
-}
-.def-row:last-child { border-bottom: 0; }
-.def .term { flex: none; color: var(--text); }
-.def .term.w60 { width: 60px; }
-.def .term.w170 { width: 170px; }
-.def .desc { color: var(--text-2); font-family: var(--sans); font-size: 14px; }
-.warn { color: var(--attn); }
-.muted { color: var(--muted); }
-
-/* config field table */
-.fields {
-  font-size: 14px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0 16px;
-}
-.fields-head, .fields-row {
-  display: grid;
-  grid-template-columns: 150px 130px 1fr;
-  gap: 14px;
-}
-.fields-head {
-  padding: 10px 0 8px;
-  border-bottom: 1px solid var(--line-strong);
-  font: 500 10.5px var(--mono);
-  color: var(--muted);
-  letter-spacing: 0.14em;
-}
-.fields-row { padding: 9px 0; border-bottom: 1px dashed var(--line); }
-.fields-row:last-child { border-bottom: 0; }
-.fields-row .f-name { font: 400 13px var(--mono); color: var(--nav); }
-.fields-row .f-default { font: 400 12.5px var(--mono); color: var(--muted); }
-.fields-row .f-desc { color: var(--text-2); line-height: 1.55; }
-.fields-row .f-desc b { color: var(--text); }
-
-/* spacing overrides */
-.doc .mb0 { margin-bottom: 0; }
-.doc .mb8 { margin-bottom: 8px; }
-.doc .mb10 { margin-bottom: 10px; }
-.doc .mb14 { margin-bottom: 14px; }
-.doc .mb16 { margin-bottom: 16px; }
-
-/* ── landing: hero demo ──────────────────────────────── */
-
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 540px);
-  gap: 48px;
-  align-items: center;
-}
-.hero-grid h1 { max-width: none; }
-.hero-grid .sub { max-width: none; }
-.hero-copy > :first-child { margin-top: 0; }
-
-/* the window: conn's two columns, drawn the way conn draws them */
-.scr {
-  background: var(--term);
-  color: #E6E6E6;
-  padding: 16px 18px;
-  display: grid;
-  grid-template-columns: 28ch 1ch minmax(0, 1fr);
-  font: 400 11px/1.62 var(--mono);
-  border-radius: 4px;
-  border: 1px solid var(--term-line);
-  overflow: hidden;
-  box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
-}
-.scr pre {
-  margin: 0;
-  font: inherit;
-  white-space: pre;
-  overflow: hidden;
-}
-.scr .cell { display: inline-block; overflow: hidden; vertical-align: bottom; }
-.scr .scr-div { width: 1px; justify-self: center; background: #30363D; }
-.scr .scr-status { grid-column: 1 / -1; margin-top: 4px; white-space: pre; overflow: hidden; }
-.scr .b { font-weight: 600; }
-
-.c-fg     { color: #E6E6E6; }
-.c-dim    { color: #5C6570; }
-.c-label  { color: #8B949E; }
-.c-rule   { color: #30363D; }
-.c-sel    { color: #F778BA; font-weight: 600; }
-.c-accent { color: #79C0FF; }
-.c-good   { color: #3FB950; }
-.c-attn   { color: #D29922; }
-.c-urgent { color: #F778BA; font-weight: 600; }
-.c-note   { color: #5C6570; font-style: italic; }
-.c-place  { color: #B2DAFB; }
-/* The status line: conn's name on a purple ground, then a mode chip in
-   its color on a ground two steps off the terminal's, butted against it,
-   the rest of the line washed one step off — one wash for every mode,
-   the chips alone carrying the color, the way tmux draws it. The
-   navigator is in ink: home is not a state. */
-.chip-brand { color: #1A1E24; background: #B9A7FF; font-weight: 600; }
-.chip-navigate { color: var(--term-text); background: #2B2F35; font-weight: 600; }
-.chip-proc { color: #3FB950; background: #2B2F35; font-weight: 600; }
-.chip-prefix { color: #D29922; background: #2B2F35; font-weight: 600; }
-.wash-navigate, .wash-proc, .wash-prefix { background: #1A1E24; }
-
-.c-cur    { background: #E6E6E6; color: var(--term); }
-
-.demo-foot {
+.running b { color: var(--ink-2); }
+.running + .rule { margin-top: 10px; }
+.rule { border-top: 1px solid var(--ink-2); }
+.rule-heavy { border-top: 2px solid var(--ink-2); }
+.body { margin-top: 30px; }
+.foot { margin-top: auto; }
+.foot .rule { margin-top: 18px; }
+.folio {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 18px;
-  margin-top: 22px;
+  margin-top: 10px;
+  font: 400 11px var(--mono);
+  letter-spacing: 0.12em;
+  color: var(--muted);
 }
-.demo-cap {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-2);
+.folio b { color: var(--ink-2); }
+
+/* Contents: two columns of dot-leader rows. */
+.contents {
+  display: flex;
+  gap: 28px;
+  margin-top: 24px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid rgba(43,38,32,0.3);
+}
+.contents > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
+.contents .label {
+  font: 700 10.5px var(--mono);
+  letter-spacing: 0.24em;
+  color: var(--faint);
+  margin: 0 0 10px;
+}
+.contents ol {
+  list-style: none;
   margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 400 12.5px var(--mono);
+  color: var(--ink-3);
 }
-.demo-cap kbd {
-  font: 500 11px var(--mono);
-  background: var(--raised);
-  color: var(--text);
-  padding: 1px 6px;
-  border: 1px solid var(--line-strong);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  animation: keyflash 620ms ease-out;
+.contents li a { display: flex; align-items: baseline; gap: 8px; }
+.contents li .n { color: var(--orange); font-weight: 700; }
+.contents li .dots { flex: 1; border-bottom: 1px dotted var(--dots); transform: translateY(-3px); }
+.contents + .body { margin-top: 34px; }
+
+/* A section: kicker, title, the short orange rule. */
+.section + .section { margin-top: 34px; }
+.kicker {
+  font: 700 12px var(--mono);
+  letter-spacing: 0.3em;
+  color: var(--orange);
+  margin: 0 0 4px;
 }
-@keyframes keyflash {
-  from { background: var(--brand); color: var(--space); border-color: var(--brand); }
-  to   { background: var(--raised); color: var(--text); border-color: var(--line-strong); }
+.section h2 {
+  font: 800 30px/1.1 var(--display);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  margin: 0 0 6px;
+  text-transform: uppercase;
 }
-.demo-toggle {
-  flex: none;
+.section h2::after {
+  content: "";
+  display: block;
+  width: 72px;
+  border-top: 3px solid var(--orange);
+  margin: 6px 0 20px;
+}
+.section h3 {
+  font: 700 12px var(--mono);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 4px 0 10px;
+}
+
+/* Paragraphs, each opening with its number. */
+.para {
+  font: 400 14px/1.75 var(--mono);
+  color: var(--ink-2);
+  margin: 0 0 14px;
+}
+.para .n { font-weight: 700; color: var(--ink); }
+.para .n::after { content: "\00a0\00a0"; }
+.para code, .table code, .note code { font: inherit; font-weight: 700; color: var(--ink-2); }
+.para .mark { color: var(--orange); font-weight: 700; }
+
+/* A command box, and a figure of code. */
+.cmd {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border: 1px solid var(--ink-2);
+  background: var(--box);
+  padding: 11px 18px;
+  font: 400 13px var(--mono);
+  color: var(--ink-2);
+  box-shadow: 2px 2px 0 rgba(43,38,32,0.18);
+  margin: 0 0 16px;
+}
+.cmd .prompt { color: var(--orange); font-weight: 700; }
+.cmd code { flex: 1; font: inherit; }
+.cmd .dim { color: var(--faint); }
+.copy {
+  font: inherit;
+  color: var(--faint);
   background: none;
   border: 0;
   padding: 0;
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
-  color: var(--muted);
   cursor: pointer;
 }
-.demo-toggle:hover { color: var(--brand); }
+.copy:hover { color: var(--ink-2); }
+.copy.done { color: var(--orange); }
+.figure {
+  max-width: 420px;
+  margin: 0 auto 6px;
+  border: 1px solid var(--ink-2);
+  background: var(--box);
+  box-shadow: 2px 2px 0 rgba(43,38,32,0.18);
+  padding: 14px 20px;
+}
+.figure.wide { max-width: 540px; }
+.figure pre {
+  margin: 0;
+  font: 400 13px/1.7 var(--mono);
+  color: var(--ink-2);
+}
+.figure .k { color: var(--orange); font-weight: 700; }
+.figure .c { color: var(--faint); }
+.caption {
+  text-align: center;
+  font: italic 400 12.5px var(--mono);
+  color: var(--ink-3);
+  margin: 0 0 6px;
+}
+.figure + .caption { margin-bottom: 20px; }
 
+/* A ruled table: heavy rules top and bottom, a light rule under the
+   header, dashed rules between rows. */
+.table {
+  border-top: 2px solid var(--ink-2);
+  border-bottom: 2px solid var(--ink-2);
+  font: 400 12.5px var(--mono);
+  color: var(--ink-3);
+  margin: 0 0 16px;
+}
+.table .row {
+  display: flex;
+  gap: 18px;
+  padding: 6px 6px;
+  border-bottom: 1px dashed var(--dash);
+}
+.table .row:last-child { border-bottom: 0; }
+.table .head {
+  border-bottom: 1px solid var(--ink-2);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.table .row > span:first-child { flex: none; width: 190px; font-weight: 700; }
+.table .row > span:last-child { flex: 1; }
+.table.keys .row > span:first-child { width: 150px; }
+.table.keys .row { padding: 3px 6px; }
+.table.narrow .row > span:first-child { width: 120px; }
+.table.marks .row > span:first-child { width: 44px; color: var(--orange); font-weight: 700; }
+.table.marks .row > span.good { color: #2e7d4f; }
+.table.three .row > span:nth-child(2) { flex: none; width: 110px; }
+.table .row .dim { color: var(--faint); }
+
+/* A note, centered. */
+.note {
+  max-width: 540px;
+  margin: 4px auto 16px;
+}
+.note .label {
+  text-align: center;
+  font: 700 12px var(--mono);
+  letter-spacing: 0.34em;
+  color: var(--ink-2);
+  margin: 0 0 8px;
+}
+.note p {
+  font: 400 13px/1.7 var(--mono);
+  color: var(--ink-3);
+  margin: 0;
+  padding: 0 24px;
+}
+.note p b { color: var(--ink-2); }
+.extract {
+  text-align: center;
+  font: 400 10.5px var(--mono);
+  letter-spacing: 0.24em;
+  color: var(--faint);
+  margin: 0 0 16px;
+}
+
+/* The cover: a column too, its foot pinned to the page's foot. */
+.cover { display: flex; flex-direction: column; }
+.cover .top {
+  position: relative;
+  padding: 46px 64px 0 96px;
+}
+.cover .nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font: 700 11px var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--ink-2);
+}
+.cover .nav .links { display: flex; gap: 22px; font-weight: 400; color: var(--muted); }
+.cover .nav .links .accent { color: var(--orange); }
+.cover .nav + .rule-heavy { margin-top: 12px; }
+.cover .rule-heavy + .rule { margin-top: 2px; }
+.cover .title {
+  position: relative;
+  text-align: center;
+  padding: 54px 64px 0 96px;
+}
+.cover .docline {
+  font: 400 12px var(--mono);
+  letter-spacing: 0.42em;
+  color: var(--muted);
+  margin: 0;
+}
+.cover h1 {
+  font: 900 104px/0.94 var(--display);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 24px 0 0;
+  text-transform: uppercase;
+}
+.cover .banner {
+  margin: 24px auto 0;
+  background: var(--orange);
+  color: var(--paper-top);
+  font: 800 21px/1 var(--display);
+  letter-spacing: 0.3em;
+  padding: 13px 0 12px;
+  text-indent: 0.3em;
+}
+.cover .tagline {
+  font: 700 15px/1.6 var(--mono);
+  color: var(--ink-2);
+  max-width: 520px;
+  margin: 28px auto 0;
+}
+.cover .sub {
+  font: 400 13.5px/1.75 var(--mono);
+  color: var(--ink-3);
+  max-width: 540px;
+  margin: 14px auto 0;
+}
+.cover .install {
+  position: relative;
+  text-align: center;
+  padding: 30px 64px 0 96px;
+}
+.cover .install .label {
+  font: 400 10.5px var(--mono);
+  letter-spacing: 0.26em;
+  color: var(--faint);
+  margin: 0 0 8px;
+}
+.cover .install .cmd {
+  display: inline-flex;
+  padding: 12px 22px;
+  font-size: 13.5px;
+  margin: 0;
+}
+.cover .install .cmd code { flex: none; }
+.cover .revisions {
+  position: relative;
+  padding: 38px 64px 0 96px;
+  display: flex;
+  align-items: flex-end;
+  gap: 36px;
+}
+.cover .revisions > div:first-child { flex: 1; }
+.cover .revisions .label {
+  font: 700 10.5px var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--ink-2);
+  margin: 0 0 6px;
+}
+.cover .revisions .table { margin: 0; }
+.cover .revisions .table .row { gap: 16px; padding: 6px 4px; }
+.cover .revisions .table .row > span:first-child { width: 44px; font-weight: 400; }
+.cover .revisions .table .row > span:nth-child(2) { flex: none; width: 92px; }
+.cover .revisions .table .head span { font-weight: 700; }
+.cover .stamp {
+  flex: none;
+  transform: rotate(-7deg);
+  border: 2.5px solid rgba(189,58,29,0.6);
+  color: rgba(189,58,29,0.78);
+  padding: 9px 16px 8px;
+  font: 700 12px var(--mono);
+  letter-spacing: 0.22em;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.cover .stamp small {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+}
+.cover .foot {
+  position: relative;
+  margin-top: auto;
+  padding: 30px 64px 38px 96px;
+}
+.cover .distribution {
+  text-align: center;
+  font: 400 10.5px/1.8 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--faint);
+  margin: 0 0 16px;
+}
+.cover .foot .rule { margin-bottom: 2px; }
+.cover .spec {
+  display: flex;
+  margin: 13px 0 0;
+  font: 400 11.5px var(--mono);
+  color: var(--ink-3);
+}
+.cover .spec > div { flex: 1; }
+.cover .spec dt {
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
+  color: var(--faint);
+  margin: 0 0 3px;
+}
+.cover .spec dd { margin: 0; }
+
+/* Below the desk's width the page is zoomed, not rewrapped: a fixed
+   artifact, read smaller, its layout box shrinking with it so the stack
+   stays centered. The script sets --scale from the viewport. */
+@media (max-width: 880px) {
+  body { overflow-x: hidden; }
+  .desk { padding: 24px 0 48px; gap: 24px; }
+  .page { zoom: var(--scale, 1); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .demo-cap kbd { animation: none; }
-  .eyebrow::before, .telemetry .sys::before, .orbit::after { animation: none; }
-}
-
-/* ── responsive ──────────────────────────────────────── */
-
-/* The window sits beside the copy only where both have room; under that it
-   takes the hull's full width, which is where the pane reads best anyway. */
-@media (max-width: 1099px) {
-  .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 34px; }
-  .figure-grid { grid-template-columns: minmax(0, 1fr); }
-  .figure-left { border-right: 0; border-bottom: 1px solid var(--line); }
-  .figure-notes { padding-top: 28px; }
-  .telemetry { display: none; }
-}
-@media (max-width: 860px) {
-  .guide { grid-template-columns: minmax(0, 1fr); }
-  .toc {
-    position: static;
-    max-height: none;
-    padding: 20px 24px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .toc-list { flex-direction: row; flex-wrap: wrap; gap: 4px 6px; }
-  .toc-list a { margin-left: 0; border-left: 0; border: 1px solid var(--line); padding: 5px 10px; border-radius: var(--radius); }
-  .toc-list a.on { border-color: var(--brand); }
-  .doc { padding: 32px 24px 48px; }
-  .key-grid { grid-template-columns: 1fr; }
-  .spec { grid-template-columns: 1fr 1fr; }
-  .spec > div:nth-child(odd) { padding-left: 0; border-left: 0; }
-  .fields { padding: 0 12px; }
-  .fields-head, .fields-row { grid-template-columns: 120px 90px 1fr; gap: 10px; }
-  .nav, .hero, .figure .rail, .figure-left, .keys, .footer { padding-left: 24px; padding-right: 24px; }
-  .figure-notes { padding-left: 24px; padding-right: 24px; }
-}
-@media (max-width: 700px) {
-  .scr { grid-template-columns: 28ch; font-size: 12px; }
-  .scr-div, .scr-pane { display: none; }
-  .hero h1 { font-size: 30px; }
-  .brand .ident { display: none; }
-  .nav-links { gap: 16px; }
-  .fields-head { display: none; }
-  .fields-row { grid-template-columns: 1fr; gap: 3px; }
-  .plate { display: none; }
+  .page { transition: none; }
 }

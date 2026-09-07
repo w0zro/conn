@@ -439,11 +439,13 @@ b, strong { font-weight: 700; }
 }
 .cover .install .cmd code { flex: none; }
 /* The declassification stamp: blue ink, a different pad from the REV
-   stamp's orange, to the right of the title block. */
+   stamp's orange, beside the title block's first line and clear of the
+   wordmark. It is placed against the title, not the page, so the cover's
+   top can move without the stamp landing on the rules. */
 .cover .declassified {
   position: absolute;
   right: 50px;
-  top: 122px;
+  top: 38px;
   transform: rotate(-4deg);
   border: 2px solid rgba(70,80,140,0.55);
   color: rgba(70,80,140,0.72);

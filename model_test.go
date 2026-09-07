@@ -4979,3 +4979,46 @@ func TestARowEndedByASignalSaysSo(t *testing.T) {
 		t.Errorf("row = %q, want the kill said beside the name", row)
 	}
 }
+
+func TestASettledEndingGoesOnTheRecord(t *testing.T) {
+	// The outcome is the ending complete — how, what it said, when — and
+	// it is written once, with how long the shell had run, for the pane
+	// to list after the shell is gone. A shell opened by hand records
+	// nothing.
+	stateDir(t)
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp", Started: time.Now().Add(-42 * time.Second).Format(startLayout)},
+			{PID: 800, PPID: 1, Command: "zsh", Dir: "/tmp"},
+		})
+	at := time.Now().Add(-time.Second)
+	m.terms = map[int]*remoteTerm{
+		700: {pid: 700, dir: "/tmp", name: "test", exit: "1", at: at},
+		800: {pid: 800, dir: "/tmp", exit: "1", at: at},
+	}
+	m.rebuild()
+	m, cmd := m.update(outcomeMsg{pid: 700, summary: "3 failed"})
+	for _, msg := range deliver(cmd) {
+		if r, ok := msg.(recordedMsg); ok && r.err != nil {
+			t.Fatal(r.err)
+		}
+	}
+	got := pastRuns("/tmp", "test", 5)
+	if len(got) != 1 || got[0].Exit != "1" || got[0].Summary != "3 failed" || !got[0].At.Equal(at) {
+		t.Fatalf("runs = %+v, want the ending on the record", got)
+	}
+	if got[0].Took < 40 || got[0].Took > 45 {
+		t.Errorf("took = %v, want the run's length from when its shell began", got[0].Took)
+	}
+	// Once: the same outcome again adds nothing.
+	m, cmd = m.update(outcomeMsg{pid: 700, summary: "3 failed"})
+	deliver(cmd)
+	if got := pastRuns("/tmp", "test", 5); len(got) != 1 {
+		t.Errorf("runs = %d, want the ending recorded once", len(got))
+	}
+	_, cmd = m.update(outcomeMsg{pid: 800, summary: ""})
+	deliver(cmd)
+	if got := pastRuns("/tmp", "", 5); len(got) != 0 {
+		t.Errorf("a shell opened by hand recorded %+v, want nothing", got)
+	}
+}

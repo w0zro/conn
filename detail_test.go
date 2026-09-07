@@ -498,3 +498,49 @@ func TestTheExitedLineAndTheChecklistDecodeASignal(t *testing.T) {
 		t.Errorf("api = %q, want the kill decoded", got)
 	}
 }
+
+func TestTheChecklistListsPastRunsAndAnUpEntrysPorts(t *testing.T) {
+	stateDir(t)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".conn"), []byte("web: npm run dev\napi: go run .\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Makefile"), []byte("test:\n\tgo test ./...\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []run{
+		{Dir: dir, Name: "api", Exit: "1", At: time.Now().Add(-time.Hour), Took: 3},
+		{Dir: dir, Name: "api", Exit: "0", At: time.Now(), Took: 4},
+		{Dir: dir, Name: "test", Exit: "0", Summary: "12 passed", At: time.Now(), Took: 12},
+	} {
+		if err := recordRun(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	states := map[string]entryState{"web": {State: "up", Ports: []string{"5173", "24678"}}, "api": {State: "0"}, "test": {State: "0", Summary: "12 passed"}}
+	fs := append(planFields(dir, states), verbFields(dir, states)...)
+	var web, api, apiRuns, test, testRuns string
+	for i, f := range fs {
+		switch {
+		case strings.HasSuffix(f.lead, "web"):
+			web = f.value
+		case strings.HasSuffix(f.lead, "api"):
+			api, apiRuns = f.value, fs[i+1].value
+		case f.label == "tests":
+			test, testRuns = f.lead, fs[i+1].value
+		}
+	}
+	if web != "npm run dev   :5173 :24678" {
+		t.Errorf("web = %q, want the ports it listens on beside the command", web)
+	}
+	if !strings.HasSuffix(api, "exited 0") || apiRuns != "runs  "+glyphDone+" 4s · "+glyphFailed+" 3s" {
+		t.Errorf("api = %q, runs = %q; want the last runs under the entry, newest first", api, apiRuns)
+	}
+	if !strings.Contains(test, "12 passed") || testRuns != "runs  "+glyphDone+" 12s" {
+		t.Errorf("test = %q, runs = %q; want the task's runs under it", test, testRuns)
+	}
+	// An entry that never ran has no runs line.
+	if _, ok := fieldValue(planFields(dir, nil), "runs"); ok {
+		t.Error("an entry that never ran should have no runs line")
+	}
+}

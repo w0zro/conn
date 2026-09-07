@@ -73,7 +73,8 @@ func detailKey(r navRow) string {
 type entryState struct {
 	State   string
 	At      time.Time
-	Summary string // what the run's transcript said of it, when conn read a shape it knows
+	Summary string   // what the run's transcript said of it, when conn read a shape it knows
+	Ports   []string // what an entry that is up is listening on: up, and reachable
 }
 
 // loadDetail inspects the selected row off the render path. Git and ps are
@@ -266,6 +267,7 @@ func verbFields(path string, states map[string]entryState) []field {
 			fs = append(fs, gap())
 		}
 		fs = append(fs, field{label: v.label, lead: mark + " " + word, leadTone: t, value: run})
+		fs = append(fs, runsField(path, v.name)...)
 	}
 	return fs
 }
@@ -292,7 +294,13 @@ func planFields(path string, states map[string]entryState) []field {
 		mark, t, vt, value := glyphOff+" ", toneQuiet, tonePlain, e.Run
 		switch st := states[e.Name]; {
 		case st.State == "up":
+			// Up, and where: an entry listening says its ports, and a
+			// server that is up and listening nowhere is a server that
+			// is not ready yet, or never will be.
 			mark, t = glyphOn+" ", toneGood
+			if len(st.Ports) > 0 {
+				value += "   :" + strings.Join(st.Ports, " :")
+			}
 		case st.State == "0":
 			mark, t = glyphDone+" ", toneGood
 			value += "   exited 0"
@@ -306,8 +314,23 @@ func planFields(path string, states map[string]entryState) []field {
 			}
 		}
 		fs = append(fs, field{label: label, lead: mark + e.Name, leadTone: t, value: value, tone: vt})
+		fs = append(fs, runsField(path, e.Name)...)
 	}
 	return append(fs, field{label: "from", value: plan.Source, tone: toneQuiet})
+}
+
+// runsShown is how many past runs a line under an entry or a task lists.
+const runsShown = 5
+
+// runsField is the line under an entry or a task saying how its last runs
+// went and how long each took, newest first, for one that has run
+// before; nothing for one that has not.
+func runsField(path, name string) []field {
+	runs := pastRuns(path, name, runsShown)
+	if len(runs) == 0 {
+		return nil
+	}
+	return []field{{label: "", value: "runs  " + describeRuns(runs), tone: toneQuiet}}
 }
 
 // describeStatus turns porcelain output into a count of what changed.

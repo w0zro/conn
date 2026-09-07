@@ -70,6 +70,9 @@ type remoteTerm struct {
 	ended   int
 	settled bool
 	dropped bool
+	// recorded says the ending has been written to the runs file, which
+	// happens once, when the transcript has been read for what it said.
+	recorded bool
 }
 
 // live reports whether the shell is still running what it was started

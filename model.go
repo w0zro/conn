@@ -563,6 +563,14 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		m.server.list()
 		return m, nextEvent(m.server)
 
+	case recordedMsg:
+		// A run that could not be written is a pane a little poorer,
+		// and worth a word; the ending itself stands regardless.
+		if msg.err != nil {
+			m.status, m.statusErr = "could not record the run: "+msg.err.Error(), true
+		}
+		return m, nil
+
 	case serverErrorMsg:
 		// One ask failed; the server and its shells are fine. Say what it said
 		// and carry on listening.
@@ -701,9 +709,11 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case outcomeMsg:
 		// What the run's transcript said, for a shell whose ending still
-		// stands: one used by hand since has nothing to say of it.
+		// stands: one used by hand since has nothing to say of it. The
+		// ending is complete now, and goes on the record.
 		if t := m.terms[msg.pid]; t != nil && !t.live() {
 			t.summary = msg.summary
+			return m, m.record(t)
 		}
 
 	case convosMsg:
@@ -1991,6 +2001,32 @@ func (m model) busy(t *remoteTerm) bool {
 	return n == nil || len(n.Children) > 0 || !isShell(n.Command)
 }
 
+// record writes a named shell's ending to the runs file, once: how it
+// ended, what it said, when, and how long it ran, from when its shell
+// began. A shell opened by hand is nobody's run.
+func (m *model) record(t *remoteTerm) tea.Cmd {
+	if t.name == "" || t.exit == "" || t.recorded {
+		return nil
+	}
+	t.recorded = true
+	r := run{Dir: t.dir, Name: t.name, Exit: t.exit, Summary: t.summary, At: t.at}
+	if r.At.IsZero() {
+		r.At = time.Now()
+	}
+	if began := m.startedAt(t.pid); !began.IsZero() && r.At.After(began) {
+		r.Took = r.At.Sub(began).Seconds()
+	}
+	return func() tea.Msg {
+		if err := recordRun(r); err != nil {
+			return recordedMsg{err: err}
+		}
+		return recordedMsg{}
+	}
+}
+
+// recordedMsg says a run went on the record, or why it did not.
+type recordedMsg struct{ err error }
+
 // entryStates is what a place's plan entries are doing, by name: up for
 // one whose shell is running its command, the exit status and moment for
 // one whose command ended, and nothing for one with no shell. An entry
@@ -2002,12 +2038,22 @@ func (m model) entryStates(path string) map[string]entryState {
 	for _, t := range m.planned(path) {
 		switch {
 		case m.busy(t):
-			states[t.name] = entryState{State: "up"}
+			states[t.name] = entryState{State: "up", Ports: m.portsUnder(t.pid)}
 		case states[t.name].State != "up" && t.ended >= latest[t.name]:
 			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at, Summary: t.summary}, t.ended
 		}
 	}
 	return states
+}
+
+// portsUnder is every port listened on beneath a held shell: the entry's
+// command and what it started, which is where a dev server's port is.
+func (m model) portsUnder(pid int) []string {
+	n := m.nodes[pid]
+	if n == nil {
+		return nil
+	}
+	return runPorts(subtree(n), n)
 }
 
 // ended is how the command a row's shell was started with ended, when the

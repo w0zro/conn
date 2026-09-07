@@ -436,6 +436,23 @@ func procFields(n *ProcNode, name string, run []*ProcNode, ag agent) []field {
 	if argv, err := ps(n.PID, "command="); err == nil && argv != "" {
 		fs = append(fs, field{label: "argv", value: argv, tone: toneName})
 	}
+	// Which node, which python: the binary behind the name, where the
+	// name alone is the usual confusion. And the environment it was
+	// started with, the part that says which environment that is and
+	// what it talks to (tellingEnv).
+	if bin := binaryOf(n.PID); bin != "" {
+		fs = append(fs, field{label: "binary", value: homely(bin), tone: toneQuiet})
+	}
+	if env := tellingEnv(environOf(n.PID)); len(env) > 0 {
+		fs = append(fs, gap())
+		for i, kv := range env {
+			label := "env"
+			if i > 0 {
+				label = ""
+			}
+			fs = append(fs, field{label: label, value: kv, tone: tonePlain})
+		}
+	}
 	fs = append(fs, gap())
 	if stats, err := ps(n.PID, "etime=,%cpu=,%mem="); err == nil {
 		if f := strings.Fields(stats); len(f) == 3 {

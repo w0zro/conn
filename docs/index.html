@@ -182,7 +182,7 @@
         <div class="cmd" role="group" aria-label="build from source"><span class="prompt">$</span><code>go install github.com/w0zro/conn@latest</code><button class="copy" type="button" data-copy="go install github.com/w0zro/conn@latest">[copy]</button></div>
         <div class="note">
           <p class="label">NOTE</p>
-          <p>conn runs on <b>tmux</b> and reads the process list with <b>lsof</b>. Both must be installed; neither needs to be configured or understood. macOS ships lsof; <b>brew install tmux</b>. On Linux, install both from the package manager. <b>docker</b> is optional: with it, a project's containers are listed too (Section 6).</p>
+          <p>conn needs <b>tmux</b> and <b>lsof</b> installed. macOS ships lsof; <b>brew install tmux</b>. On Linux, install both from the package manager. <b>docker</b> is optional: with it, a project's containers are listed too (Section 6).</p>
         </div>
         <div class="cmd" role="group" aria-label="first run"><span class="prompt">$</span><code>conn</code><button class="copy" type="button" data-copy="conn">[copy]</button></div>
         <p class="para"><span class="n">1-6.</span>There is nothing to set up. The list opens showing what is running, so on a quiet machine it says <b>nothing running</b>. Press <b>.</b> to show every repository, <b>/</b> to find one by name. conn looks under <b>~/projects</b>; Section 9 points it elsewhere.</p>
@@ -234,7 +234,7 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">2-6.</span>While the navigator has focus, the pane beside the list shows what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how, an entry that is up saying the ports it listens on; its tasks and how their last run went; and under each entry and task that has run before, its last five runs, newest first, how each ended and how long it took: <b>runs ✓ 12s &middot; ✗ 2m</b>. The runs are kept after their shells are gone (Appendix B). For a process: its arguments, uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
+        <p class="para"><span class="n">2-6.</span>While the navigator has focus, the pane beside the list shows what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how; its tasks and how their last run went. For a process: its arguments, the binary behind its name, which node and which python, the environment it was started with where that says which environment it runs in and what it talks to (the *_ENV family, port and host, log level, every URL; a secret by its name is left out and a password in a URL is masked), uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
         <p class="para"><span class="n">2-7.</span>The status line at the foot begins with <b>CONN</b>, then the mode (Table 2-2), then anything conn has to say until the next key: a report, an error, a confirmation, or that a newer release is out. What a chord says from a shell shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
         <p class="caption">Table 2-2.&nbsp; Modes on the status line</p>
         <div class="table narrow">
@@ -332,10 +332,6 @@
           <div class="row"><span>esc</span><span>cancel the search</span></div>
         </div>
         <p class="para"><span class="n">3-4.</span><b>enter</b> on a shell's row, or <b>s</b> on a place, focuses a shell beside the navigator. From then on the shell receives every keystroke but one: <b>ctrl-space</b>, which reaches conn from any shell. <b>ctrl-space -</b> focuses the navigator again. <b>?</b>, in the navigator or after ctrl-space, lists every key in a popup over the window; Appendix A lists them here.</p>
-        <div class="note">
-          <p class="label">NOTE</p>
-          <p>The window is tmux underneath. Its usual prefix and key bindings are off, <b>ctrl-space</b> is the only prefix, and your own .tmux.conf is not read. Started inside another tmux, conn stops with a message rather than nest.</p>
-        </div>
       </div>
     </div>
     <div class="foot">
@@ -752,7 +748,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. B-1</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX B</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="files">
@@ -761,13 +757,11 @@
         <p class="caption">Table B-1.&nbsp; What conn reads and writes</p>
         <div class="table paths">
           <div class="row"><span>~/.config/conn/config.json</span><span>the configuration; Section 9</span></div>
-          <div class="row"><span>~/.local/state/conn/tmux-&lt;uid&gt;.sock</span><span>the socket of the tmux server that holds the shells</span></div>
-          <div class="row"><span>~/.local/state/conn/tmux.conf</span><span>the tmux configuration conn writes at every launch; your own .tmux.conf is not read</span></div>
+          <div class="row"><span>~/.local/state/conn/tmux-&lt;uid&gt;.sock</span><span>the socket the shells are held on</span></div>
+          <div class="row"><span>~/.local/state/conn/tmux.conf</span><span>configuration conn writes for itself at every launch</span></div>
           <div class="row"><span>~/.local/state/conn/latest-release</span><span>the latest release as last checked, and when</span></div>
-          <div class="row"><span>~/.local/state/conn/runs.jsonl</span><span>how each entry and task ended, one run per line; cut back to the last two thousand as it grows</span></div>
           <div class="row"><span>.conn</span><span>a project's plan; Section 6</span></div>
         </div>
-        <p class="para"><span class="n">B-1.</span>The shells are held by a tmux server of conn's own, one per user, on the socket above. It is never something you have to reach; <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does when it opens the window.</p>
       </div>
     </div>
     <div class="foot">
@@ -790,9 +784,9 @@
         <h2>Environment</h2>
         <p class="caption">Table C-1.&nbsp; Variables conn reads</p>
         <div class="table">
-          <div class="row"><span>CONN_SOCKET</span><span>where the tmux server listens, instead of the state directory</span></div>
+          <div class="row"><span>CONN_SOCKET</span><span>where the shells are held, instead of the state directory</span></div>
           <div class="row"><span>XDG_CONFIG_HOME</span><span>where the configuration lives, instead of ~/.config</span></div>
-          <div class="row"><span>XDG_STATE_HOME</span><span>where the socket and the tmux configuration live, instead of ~/.local/state</span></div>
+          <div class="row"><span>XDG_STATE_HOME</span><span>where the state directory is, instead of ~/.local/state</span></div>
           <div class="row"><span>SHELL</span><span>the shell <b>s</b> opens, and the one behind <b>a</b>, <b>A</b>, <b>r</b> and the tasks</span></div>
           <div class="row"><span>NO_COLOR</span><span>set, the navigator draws without color, as no-color.org asks; CLICOLOR_FORCE and TERM=dumb are honored too</span></div>
           <div class="row"><span>CLAUDE_CONFIG_DIR</span><span>where Claude Code's session files are read from, instead of ~/.claude</span></div>

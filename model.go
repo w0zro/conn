@@ -131,7 +131,11 @@ func (r navRow) leaf() *ProcNode {
 }
 
 type model struct {
-	width  int
+	width int
+	// window is the width the terminal last reported, which is the
+	// navigator's whole pane; width is what it draws in — the column
+	// alone while a shell is shown beside it (keepColumn).
+	window int
 	height int
 
 	projects []Project
@@ -474,7 +478,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		m.park()
 
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
+		m.window, m.height = msg.Width, msg.Height
 		m.keepColumn()
 		m.scrollToCursor()
 
@@ -619,8 +623,12 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		delete(m.terms, msg.pid)
 		delete(m.dressed, msg.pid)
 		if m.shown == msg.pid {
-			// Its pane went with it, and the navigator has the window.
+			// Its pane went with it, and the navigator has the window —
+			// which tmux said first, widening the pane before the shell
+			// was known to be gone, when the width was held to the column;
+			// the width it said is the window's now.
 			m.shown = 0
+			m.keepColumn()
 		}
 		m.rebuild()
 		// Asking again is what notices a server that has just become
@@ -1260,6 +1268,7 @@ func (m *model) back() tea.Cmd {
 // narrow: it narrows itself as it asks for the shell, and a size wider
 // than its column while one is shown is a size from before the join.
 func (m *model) keepColumn() {
+	m.width = m.window
 	if m.shown != 0 {
 		m.width = min(m.width, navWidth)
 	}

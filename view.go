@@ -199,6 +199,10 @@ func (m model) renderRow(r navRow, selected bool) string {
 			if !selected {
 				style = errStyle
 			}
+		case m.stopped(r):
+			// Ended by x: neither the failure nor the success, and no
+			// color, since it is what you asked for.
+			mark, markStyle = " "+glyphStopped, faintStyle
 		case m.ended(r) == "0":
 			mark, markStyle = " "+glyphDone, toneStyles[toneGood]
 		}
@@ -296,6 +300,17 @@ func (m model) renderRow(r navRow, selected bool) string {
 // that never helps you read it; unfolded, it is what tells two nvim apart and
 // what you would type at another window.
 func (m model) rowLabel(r navRow) string {
+	name := m.rowName(r)
+	if m.unfolded {
+		return name + " " + nodeID(r.node)
+	}
+	return name
+}
+
+// rowName is what a row is called, without the number the unfolded list
+// adds: the pane's heading uses it too, so the pane is about what the row
+// says it is about.
+func (m model) rowName(r navRow) string {
 	name := commandOf(r.node)
 
 	// An agent reads as what it is, not how it was invoked: the kind, and
@@ -312,10 +327,6 @@ func (m model) rowLabel(r navRow) string {
 		// run today, and the row is about the service. The command is the
 		// pane's to say.
 		name = planned
-	}
-
-	if m.unfolded {
-		return name + " " + nodeID(r.node)
 	}
 	return name
 }

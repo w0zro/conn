@@ -41,13 +41,14 @@ func socketPath() string {
 // says it is the shell in the pane beside the navigator; Wanted that a chord
 // opened it and asked for it to be shown.
 type sessionInfo struct {
-	PID    int
-	Dir    string
-	Name   string
-	Exit   string // how the command the shell was started with ended, once it has
-	Ended  string // when, as seconds since the epoch
-	Shown  bool
-	Wanted bool
+	PID     int
+	Dir     string
+	Name    string
+	Exit    string // how the command the shell was started with ended, once it has
+	Ended   string // when, as seconds since the epoch
+	Stopped bool   // x ended it: the ending is neither good nor bad
+	Shown   bool
+	Wanted  bool
 }
 
 // remoteTerm is a shell the server is holding, as the navigator sees it.
@@ -57,6 +58,9 @@ type remoteTerm struct {
 	name string    // what the project calls it, if a project asked for it
 	exit string    // how the command it was started with ended, once it has: "0", "1"…
 	at   time.Time // when it ended, when the pane recorded that too
+	// stopped says x ended the command: an ending asked for, which is
+	// neither a failure nor a success, and nothing tab goes to.
+	stopped bool
 	// summary is what its transcript said of the run, read once it ended
 	// and the shell was at its prompt: 3 failed, 12 passed.
 	summary string
@@ -145,15 +149,16 @@ const probeEvery = 2 * time.Second
 // pane is one held shell as the session tracks it: which tmux pane it is,
 // and what it is called.
 type pane struct {
-	id     string // "%3"
-	pid    int
-	dir    string
-	name   string
-	exit   string // the command's exit status, recorded on the pane when it ended
-	ended  string // when it ended, as seconds since the epoch, recorded with it
-	cmd    string // what is in the pane's foreground: the command, or the shell at its prompt
-	shown  bool   // in the home window, beside the navigator
-	wanted bool   // opened by a chord that asked for it to be shown
+	id      string // "%3"
+	pid     int
+	dir     string
+	name    string
+	exit    string // the command's exit status, recorded on the pane when it ended
+	ended   string // when it ended, as seconds since the epoch, recorded with it
+	cmd     string // what is in the pane's foreground: the command, or the shell at its prompt
+	stopped bool   // the command was ended by x, so its ending is neither good nor bad
+	shown   bool   // in the home window, beside the navigator
+	wanted  bool   // opened by a chord that asked for it to be shown
 }
 
 // placement is one ask to arrange the home window: the shell to put beside
@@ -364,7 +369,7 @@ func (s *session) notify(n ctlNote) {
 // opened a shell to be shown says so in the window's name, the one mark
 // that is set in the same breath as the window is made — an option set
 // after would race the refresh the new window sets off.
-const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}\t#{pane_current_command}"
+const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}\t#{pane_current_command}\t#{@conn_stopped}"
 
 // wantName is the window name that asks the navigator to show the shell
 // in it; heldName is what the window is called once it has.
@@ -408,6 +413,9 @@ func parseListing(out string) (held []*pane, nav string) {
 		if len(f) > 10 {
 			p.cmd = f[10]
 		}
+		if len(f) > 11 {
+			p.stopped = f[11] == "1"
+		}
 		held = append(held, p)
 	}
 	return held, nav
@@ -415,7 +423,7 @@ func parseListing(out string) (held []*pane, nav string) {
 
 // info is the pane as the model hears about it.
 func (p *pane) info() sessionInfo {
-	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Exit: p.exit, Ended: p.ended, Shown: p.shown, Wanted: p.wanted}
+	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Exit: p.exit, Ended: p.ended, Stopped: p.stopped, Shown: p.shown, Wanted: p.wanted}
 }
 
 // refreshList reads what the server holds and tells the model, reporting
@@ -970,8 +978,23 @@ func (s *session) forgetExit(pid int) {
 		return
 	}
 	go func() {
-		_, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit", ";", "set", "-pu", "-t", p.id, "@conn_ended")
+		_, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit", ";", "set", "-pu", "-t", p.id, "@conn_ended", ";",
+			"set", "-pu", "-t", p.id, "@conn_stopped")
 	}()
+}
+
+// markStopped records on a shell's pane that x is ending its command, so
+// the ending the wrapper records after reads as asked for: on the pane,
+// where the navigator reads endings from, and so through a restart.
+func (s *session) markStopped(pid int) {
+	if s == nil {
+		return
+	}
+	p := s.pane(pid)
+	if p == nil {
+		return
+	}
+	go func() { _, _ = s.run("set", "-p", "-t", p.id, "@conn_stopped", "1") }()
 }
 
 // scrollbackLines is how many lines of transcript each shell keeps once they

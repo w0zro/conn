@@ -120,7 +120,7 @@ func TestRepoFieldsSurviveANonRepo(t *testing.T) {
 
 func TestProcFieldsDescribeThisProcess(t *testing.T) {
 	self := &ProcNode{Proc: Proc{PID: pidOfSelf(), PPID: 1, Command: "test", Dir: "/tmp"}}
-	fs := procFields(self, nil, nil)
+	fs := procFields(self, "test", nil, nil)
 
 	// What it is and where it runs head the pane rather than sitting in the
 	// list, because they are what the pane is about.
@@ -266,7 +266,7 @@ func TestTheRunsPortsAreTheRowsPorts(t *testing.T) {
 	listener := &ProcNode{Proc: Proc{PID: 11, Command: "node", Dir: "/tmp", Ports: []string{"8932"}}}
 	run := []*ProcNode{named, listener}
 
-	got, ok := fieldValue(procFields(named, run, nil), "listening")
+	got, ok := fieldValue(procFields(named, named.Command, run, nil), "listening")
 	if !ok {
 		t.Fatalf("nothing reported, want the port the run is listening on")
 	}
@@ -275,7 +275,7 @@ func TestTheRunsPortsAreTheRowsPorts(t *testing.T) {
 	}
 
 	// And with no run, the row still speaks for itself.
-	if _, ok := fieldValue(procFields(listener, nil, nil), "listening"); !ok {
+	if _, ok := fieldValue(procFields(listener, listener.Command, nil, nil), "listening"); !ok {
 		t.Error("a row that folded nothing should still report its own port")
 	}
 
@@ -316,7 +316,7 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 	// A row with no held shell around it has no transcript to carry.
 	r := navRow{kind: rowProc, project: Project{Name: "tmp", Path: "/tmp"},
 		node: &ProcNode{Proc: Proc{PID: 10, Command: "npm", Dir: "/tmp"}}}
-	msg := loadDetail(r, 0, 0, nil, nil, func() []string { return []string{"$ npm run dev", "ready on :5173"} }, entryState{})().(detailMsg)
+	msg := loadDetail(r, r.node.Command, 0, 0, nil, nil, func() []string { return []string{"$ npm run dev", "ready on :5173"} }, entryState{})().(detailMsg)
 	var got []string
 	seen := false
 	for _, f := range msg.fields {
@@ -332,7 +332,7 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 		t.Errorf("fields = %+v, want the transcript under its heading", msg.fields)
 	}
 
-	msg = loadDetail(r, 0, 0, nil, nil, nil, entryState{})().(detailMsg)
+	msg = loadDetail(r, r.node.Command, 0, 0, nil, nil, nil, entryState{})().(detailMsg)
 	for _, f := range msg.fields {
 		if f.kind == textField || f.value == "transcript" {
 			t.Errorf("a row with no held shell carries a transcript: %+v", f)
@@ -375,7 +375,7 @@ func TestTheChecklistSaysHowEachEntryStands(t *testing.T) {
 func TestARowAtItsPromptAfterItsCommandSaysHowItEnded(t *testing.T) {
 	r := navRow{kind: rowProc, project: Project{Name: "tmp", Path: "/tmp"},
 		node: &ProcNode{Proc: Proc{PID: 10, Command: "zsh", Dir: "/tmp"}}}
-	msg := loadDetail(r, 0, 0, nil, nil, nil, entryState{State: "1", At: time.Now().Add(-90 * time.Second)})().(detailMsg)
+	msg := loadDetail(r, r.node.Command, 0, 0, nil, nil, nil, entryState{State: "1", At: time.Now().Add(-90 * time.Second)})().(detailMsg)
 	var got field
 	for _, f := range msg.fields {
 		if f.label == "exited" {

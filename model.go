@@ -581,12 +581,12 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			}
 			if was, ok := m.terms[s.PID]; ok {
 				was.learn(s.Dir, s.Name)
-				m.learnExit(was, s.Exit, s.Ended)
+				m.learnExit(was, s.Exit, s.Ended, s.Stopped)
 				held[s.PID] = was
 				continue
 			}
 			t := &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name}
-			m.learnExit(t, s.Exit, s.Ended)
+			m.learnExit(t, s.Exit, s.Ended, s.Stopped)
 			held[s.PID] = t
 		}
 		m.terms = held
@@ -1416,12 +1416,12 @@ func (m model) placeAt(dir string) (Project, bool) {
 // used past is not taken back from a list that still carries it. Each
 // ending is numbered as it is learned, so the latest of several is known
 // even from a pane that recorded no time.
-func (m *model) learnExit(t *remoteTerm, exit, ended string) {
+func (m *model) learnExit(t *remoteTerm, exit, ended string, stopped bool) {
 	if exit == "" || t.exit != "" || t.forgot {
 		return
 	}
 	m.endings++
-	t.exit, t.ended = exit, m.endings
+	t.exit, t.ended, t.stopped = exit, m.endings, stopped
 	if secs, err := strconv.ParseInt(ended, 10, 64); err == nil && secs > 0 {
 		t.at = time.Unix(secs, 0)
 	}
@@ -1448,7 +1448,7 @@ func (m *model) noticeEnded() {
 		if !t.live() {
 			switch {
 			case busy && t.settled:
-				t.exit, t.at, t.summary, t.settled, t.forgot = "", time.Time{}, "", false, true
+				t.exit, t.at, t.summary, t.settled, t.forgot, t.stopped = "", time.Time{}, "", false, true, false
 				delete(m.unread, pid)
 				m.server.forgetExit(pid)
 			case !busy && !t.settled:
@@ -1675,6 +1675,10 @@ func (m *model) openShell() tea.Cmd {
 // it anyway, and a signal is the chance the hangup did not give — and the
 // shell is hung up when a scan finds it back at its prompt (closeSettled).
 func (m *model) runKill(req *killRequest) tea.Cmd {
+	if req.entry != nil {
+		// The ending the shell records in a moment was asked for.
+		m.server.markStopped(req.entry.pid)
+	}
 	hungUp, signalled := m.splitKill(req.nodes)
 	return killTree(&killRequest{subject: req.subject, nodes: signalled}, hungUp)
 }
@@ -1938,7 +1942,7 @@ func (m model) entryStates(path string) map[string]entryState {
 		case m.busy(t):
 			states[t.name] = entryState{State: "up"}
 		case states[t.name].State != "up" && t.ended >= latest[t.name]:
-			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at, Summary: t.summary}, t.ended
+			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at, Summary: t.summary, Stopped: t.stopped}, t.ended
 		}
 	}
 	return states
@@ -1959,9 +1963,15 @@ func (m model) ending(r navRow) entryState {
 		return entryState{}
 	}
 	if t := m.terms[r.node.PID]; t != nil {
-		return entryState{State: t.exit, At: t.at, Summary: t.summary}
+		return entryState{State: t.exit, At: t.at, Summary: t.summary, Stopped: t.stopped}
 	}
 	return entryState{}
+}
+
+// stopped reports a row whose shell's command x ended: an ending asked
+// for, which the row wears in its own mark, quietly.
+func (m model) stopped(r navRow) bool {
+	return m.ending(r).Stopped
 }
 
 // unwell reports a process in a row's run that is stopped, in an
@@ -1983,8 +1993,8 @@ func (m model) wrong(r navRow) bool {
 	if r.kind != rowProc {
 		return false
 	}
-	exit := m.ended(r)
-	return unwell(r.run) || (exit != "" && exit != "0")
+	e := m.ending(r)
+	return unwell(r.run) || (e.State != "" && e.State != "0" && !e.Stopped)
 }
 
 // needsYou reports a row that tab goes to: an agent waiting on you, or a
@@ -2045,7 +2055,7 @@ func (m *model) askKill(tree bool) tea.Cmd {
 		// the question names it.
 		if t := m.entryOf(r); t != nil {
 			if shell := m.nodes[t.pid]; shell != nil && t.live() && len(shell.Children) > 0 {
-				m.pendingKill = &killRequest{subject: t.name, nodes: subtree(shell)[1:]}
+				m.pendingKill = &killRequest{subject: t.name, nodes: subtree(shell)[1:], entry: t}
 				return nil
 			}
 			subject = t.name + " " + strconv.Itoa(t.pid)
@@ -2471,6 +2481,8 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 		switch {
 		case m.wrong(r):
 			mark = glyphFailed
+		case m.stopped(r):
+			mark = glyphStopped
 		case m.ended(r) == "0":
 			mark = glyphDone
 		}
@@ -2993,7 +3005,11 @@ func (m *model) detailCmd() tea.Cmd {
 // reading can be told stale.
 func (m *model) inspect(r navRow) tea.Cmd {
 	m.inspected[detailKey(r)] = m.holdings(r)
-	return loadDetail(r, len(m.placeTrees(r)), len(m.grouped[r.project.Path]),
+	name := ""
+	if r.kind == rowProc {
+		name = m.rowName(r)
+	}
+	return loadDetail(r, name, len(m.placeTrees(r)), len(m.grouped[r.project.Path]),
 		m.agentFor(r), m.entryStates(r.project.Path), m.tailOf(r), m.ending(r))
 }
 

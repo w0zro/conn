@@ -74,6 +74,7 @@ type entryState struct {
 	State   string
 	At      time.Time
 	Summary string // what the run's transcript said of it, when conn read a shape it knows
+	Stopped bool   // x ended it: neither well nor badly, whatever the status says
 }
 
 // loadDetail inspects the selected row off the render path. Git and ps are
@@ -82,7 +83,7 @@ type entryState struct {
 // the transcript of the shell a process row is in, when conn holds one,
 // nil when it does not; ended is how and when that shell's command ended,
 // when it has and the row is the shell at its prompt.
-func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]entryState, tail func() []string, ended entryState) tea.Cmd {
+func loadDetail(r navRow, name string, procCount, repoCount int, ag agent, states map[string]entryState, tail func() []string, ended entryState) tea.Cmd {
 	key := detailKey(r)
 	p := r.project
 	switch r.kind {
@@ -92,7 +93,7 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]
 			return func() tea.Msg { return detailMsg{key: key, fields: containerFields(node)} }
 		}
 		return func() tea.Msg {
-			fs := procFields(node, run, ag)
+			fs := procFields(node, name, run, ag)
 			if ended.State != "" {
 				fs = append(fs, exitField(ended))
 			}
@@ -115,6 +116,10 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]
 // green, and any other way in red, with the status — what the transcript
 // said of it, and how long ago, when those are known.
 func exitField(e entryState) field {
+	if e.Stopped {
+		// Asked for: no status to weigh, and nothing to color.
+		return field{label: "stopped", lead: glyphStopped, leadTone: toneQuiet, value: joinWords(e.Summary, ago(e.At)), tone: toneQuiet}
+	}
 	t := toneBad
 	if e.State == "0" {
 		t = toneGood
@@ -138,7 +143,10 @@ func ago(at time.Time) string {
 	if at.IsZero() {
 		return ""
 	}
-	return shortAge(at) + " ago"
+	if age := shortAge(at); age != "now" {
+		return age + " ago"
+	}
+	return "just now"
 }
 
 // groupFields describes a group of repositories: where it is, what it holds,
@@ -248,6 +256,8 @@ func verbFields(path string, states map[string]entryState) []field {
 		switch st := states[v.name]; {
 		case st.State == "up":
 			mark, word, t = glyphOn, "running", toneGood
+		case st.Stopped:
+			mark, word, t = glyphStopped, "stopped", toneQuiet
 		case st.State == "0":
 			mark, word, t = glyphDone, cmp.Or(st.Summary, v.done), toneGood
 		case st.State != "":
@@ -287,6 +297,9 @@ func planFields(path string, states map[string]entryState) []field {
 		switch st := states[e.Name]; {
 		case st.State == "up":
 			mark, t = glyphOn+" ", toneGood
+		case st.Stopped:
+			mark = glyphStopped + " "
+			value += "   stopped"
 		case st.State == "0":
 			mark, t = glyphDone+" ", toneGood
 			value += "   exited 0"
@@ -371,9 +384,11 @@ func describeAheadBehind(path string) string {
 
 // procFields describes a running process: what it is, where it runs, and how
 // long it has been going.
-func procFields(n *ProcNode, run []*ProcNode, ag agent) []field {
+func procFields(n *ProcNode, name string, run []*ProcNode, ag agent) []field {
+	// Headed the way the row reads — app, npm run dev, claude · opus — with
+	// the number after: the pane is about what the row says it is.
 	fs := []field{
-		heading(procLabel(n)),
+		heading(name + " " + nodeID(n)),
 		note(n.Dir),
 	}
 

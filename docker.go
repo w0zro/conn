@@ -47,6 +47,16 @@ type Container struct {
 // no mark for.
 func (c *Container) running() bool { return c.State == "running" }
 
+// dockerPlace is the place of the containers that belong to no project:
+// a docker run's, and compose's from a directory outside every root. It
+// is a group at the top of the navigator, named docker, there while such
+// a container is, and nowhere on disk — no shell opens in it, no project
+// is made in it, and it says what it needs of nothing.
+const dockerPlace = "docker://"
+
+// dockerGroup is that place as the navigator lists it.
+var dockerGroup = Project{Name: "docker", Path: dockerPlace}
+
 // dockerPath is where the docker client is, or "" where there is none: a
 // machine without docker is asked nothing, every scan.
 var dockerPath = func() string {
@@ -71,13 +81,12 @@ const (
 // list behind it, so the wait is short and the last answer stands meanwhile.
 const dockerWait = 3 * time.Second
 
-// containers lists the containers as rows for the tree: only the ones
-// compose started for a directory, since a container without one belongs
-// to no place, the way a process working outside every project belongs to
-// none — and docker is asked for those alone, by the label compose writes,
-// rather than for every container the machine has ever kept. The exited
-// are asked for too: a service that died is the thing most worth a row,
-// and attachContainers keeps the ones whose project is still going.
+// containers lists the containers as rows for the tree: the ones compose
+// started for a directory, filed under it, and the rest under docker's
+// own place. The exited are asked for too: a service that died is the
+// thing most worth a row, and attachContainers keeps the ones whose
+// project is still going, and drops the rest of what the machine has ever
+// kept.
 //
 // A daemon that is not up, or no docker at all, is an empty list — nothing
 // is running in a container, which is true. A daemon that does not answer
@@ -87,8 +96,7 @@ func containers() []Proc {
 	if dockerPath == "" {
 		return nil
 	}
-	out, err := listing(dockerWait, dockerPath, "ps", "-a",
-		"--filter", "label="+labelWorkingDir, "--format", "{{json .}}")
+	out, err := listing(dockerWait, dockerPath, "ps", "-a", "--format", "{{json .}}")
 	docker.Lock()
 	defer docker.Unlock()
 	if err != nil {
@@ -151,9 +159,11 @@ func parseContainers(out []byte) []Proc {
 			continue
 		}
 		labels := parseLabels(row.Labels)
+		// A container compose did not start has no directory, and its
+		// place is docker's own.
 		dir := labels[labelWorkingDir]
 		if dir == "" {
-			continue
+			dir = dockerPlace
 		}
 		service := labels[labelService]
 		if service == "" {
@@ -310,13 +320,15 @@ func attachContainers(procs, cs []Proc) []Proc {
 	// are not a list of failures to read every day after.
 	live := map[string]bool{}
 	for _, c := range cs {
-		if c.Container.running() {
+		if c.Container.running() && c.Container.Project != "" {
 			live[c.Container.Project] = true
 		}
 	}
 	kept := cs[:0]
 	for _, c := range cs {
 		c.PPID = composeFor(procs, c.Dir, c.Container.Service)
+		// A container of no project has no siblings to be listed beside:
+		// it is listed while it runs.
 		if c.Container.running() || live[c.Container.Project] || c.PPID != 0 {
 			kept = append(kept, c)
 		}
@@ -375,9 +387,13 @@ func containerNote(n *ProcNode) string {
 }
 
 // containerShell is the command that opens a shell inside a running
-// container: compose's exec, in the place, for the service.
-func containerShell(c *Container) string {
-	return "docker compose exec " + c.Service + " sh"
+// container: compose's exec, in the place, for the service — or docker's
+// own, by name, for a container with no place to run compose in.
+func containerShell(n *ProcNode) string {
+	if n.Dir == dockerPlace {
+		return "docker exec -it " + n.Container.Name + " sh"
+	}
+	return "docker compose exec " + n.Container.Service + " sh"
 }
 
 // composeFor is the pid of the deepest process of the compose run working
@@ -499,9 +515,13 @@ func containerFields(n *ProcNode) []field {
 	} else if !c.running() {
 		statusTone = toneQuiet
 	}
+	where := n.Dir
+	if where == dockerPlace {
+		where = "started outside every project"
+	}
 	fs := []field{
 		heading(procLabel(n)),
-		note(n.Dir),
+		note(where),
 		gap(),
 		field{label: "container", value: c.Name, tone: toneName},
 		field{label: "image", value: c.Image, tone: toneQuiet},
@@ -511,6 +531,16 @@ func containerFields(n *ProcNode) []field {
 		fs = append(fs, field{label: "publishes", value: strings.Join(n.Ports, ", "), tone: toneAccent})
 	}
 	return append(fs, transcript(containerLogs(c.ID, transcriptLines))...)
+}
+
+// dockerFields describes the docker place: what it is, and what is in it.
+func dockerFields(procCount int) []field {
+	return []field{
+		heading(dockerGroup.Name),
+		note("containers outside every project"),
+		gap(),
+		runningField(procCount),
+	}
 }
 
 // A service x stopped is a service r brings back, where it was: the

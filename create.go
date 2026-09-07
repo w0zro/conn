@@ -66,7 +66,7 @@ func (m model) rootOf(dir string) (root, prefix string) {
 // when there is not even a root.
 func (m model) newProjectDir() string {
 	if r, ok := m.selected(); ok {
-		if r.kind == rowGroup {
+		if r.kind == rowGroup && r.project.Path != dockerPlace {
 			return r.project.Path
 		}
 		if repo, ok := m.repoHolding(r.project.Path); ok {

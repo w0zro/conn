@@ -20,8 +20,8 @@ const dockerPSExited = `{"ID":"c0ffee000001","Names":"compose-demo-worker-1","Im
 
 func TestParseContainersReadsServiceDirectoryAndPorts(t *testing.T) {
 	cs := parseContainers([]byte(dockerPS))
-	if len(cs) != 2 {
-		t.Fatalf("containers = %d, want the two compose started; one without a directory belongs nowhere", len(cs))
+	if len(cs) != 3 || cs[2].Dir != dockerPlace {
+		t.Fatalf("containers = %d, want the two compose started and one of docker's own place", len(cs))
 	}
 	web, cache := cs[0], cs[1]
 	if web.Command != "web" || web.Dir != "/p/demo" || web.Container.Image != "nginx:alpine" {
@@ -313,7 +313,7 @@ func TestDockersWordsForStateAreRead(t *testing.T) {
 func TestAnExitedContainerIsListedWhileItsProjectRuns(t *testing.T) {
 	// Beside running siblings: listed, as the thing that needs a look.
 	cs := attachContainers(nil, parseContainers([]byte(dockerPS+dockerPSExited)))
-	if len(cs) != 3 || cs[2].Container.Service != "worker" || cs[2].Container.Exit != "3" {
+	if len(cs) != 4 || cs[3].Container.Service != "worker" || cs[3].Container.Exit != "3" {
 		t.Errorf("containers = %v, want the dead worker beside the two running", cs)
 	}
 	// Alone, its project over: not a failure to read every day after.
@@ -404,5 +404,66 @@ func TestDockerNotAnsweringIsSaidOnce(t *testing.T) {
 	m = next.(model)
 	if !strings.Contains(m.status, "not answering") || !m.dockerStalled {
 		t.Errorf("status = %q, stalled %v", m.status, m.dockerStalled)
+	}
+}
+
+func TestAContainerOfNoProjectIsDockers(t *testing.T) {
+	cs := parseContainers([]byte(dockerPS))
+	if len(cs) != 3 || cs[2].Dir != dockerPlace || cs[2].Command != "skelly-postgres" {
+		t.Fatalf("containers = %v, want the docker run's, named for itself, in docker's place", cs)
+	}
+	// Those of a compose project from a directory no root holds, and the
+	// docker run's: all under docker, the compose ones named for their
+	// project too where it is known.
+	elsewhere := strings.ReplaceAll(dockerPS, "/p/demo", "/elsewhere")
+	procs := attachContainers(nil, parseContainers([]byte(elsewhere)))
+	m := withProcList(80, 12, []Project{{Name: "conn", Path: "/p/conn"}}, procs)
+	rows := navColumn(m)
+	if len(rows) != 5 || strings.TrimSpace(rows[1]) != "docker" || !strings.Contains(rows[3], "compose-demo/") || !strings.Contains(rows[4], "skelly-postgres") {
+		t.Fatalf("rows = %q, want docker among the places with the three under it", rows)
+	}
+
+	// enter opens a shell inside it by docker's own exec; s has nowhere
+	// to open one; n makes nothing there; x on the place stops them all.
+	m, asked := pipeServer(t, m)
+	for range 4 {
+		m = press(m, "down") // onto skelly-postgres
+	}
+	m = press(m, "enter")
+	if got := askedForKind(t, asked, kindOpen); got.Run != "docker exec -it skelly-postgres sh" {
+		t.Errorf("asked %+v, want docker's exec for a container of no place", got)
+	}
+	m = press(m, "s")
+	if !strings.Contains(m.status, "not a place to open a shell in") {
+		t.Errorf("status = %q, want s refused on a container of no directory", m.status)
+	}
+	for range 3 {
+		m = press(m, "up") // onto docker
+	}
+	m = press(m, "s")
+	if !strings.Contains(m.status, "not a place to open a shell in") {
+		t.Errorf("status = %q, want s refused on docker's row", m.status)
+	}
+	if got := m.newProjectDir(); got == dockerPlace {
+		t.Error("n should not make a project in docker's place")
+	}
+	m = press(m, "x")
+	if got := len(targets(m.pendingKill)); got != 3 {
+		t.Errorf("x on docker asks for %d, want every container in it", got)
+	}
+
+	// The place is gone with its last container.
+	m = withProcList(80, 12, []Project{{Name: "conn", Path: "/p/conn"}}, nil)
+	if rows := navColumn(m); len(rows) != 1 {
+		t.Errorf("rows = %q, want no docker row with nothing in it", rows)
+	}
+}
+
+func TestAnExitedContainerOfNoProjectIsNotListed(t *testing.T) {
+	exited := strings.Replace(dockerPS, `"Image":"postgres:16","State":"running","Status":"Up 2 hours"`, `"Image":"postgres:16","State":"exited","Status":"Exited (0) 5 months ago"`, 1)
+	for _, c := range attachContainers(nil, parseContainers([]byte(exited))) {
+		if c.Dir == dockerPlace {
+			t.Errorf("listed %v, want a stopped container of no project left out", c)
+		}
 	}
 }

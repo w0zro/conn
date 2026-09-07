@@ -1619,7 +1619,12 @@ func (m *model) start(command string) tea.Cmd {
 		m.status, m.statusErr = "no server to hold it: "+m.serverErr, true
 		return nil
 	}
-	m.server.open(m.shellDir(r), command, "")
+	dir := m.shellDir(r)
+	if dir == dockerPlace {
+		m.status, m.statusErr = "docker is not a place to open a shell in", false
+		return nil
+	}
+	m.server.open(dir, command, "")
 	return nil
 }
 
@@ -1648,6 +1653,22 @@ func (m *model) cycleKind() {
 		return
 	}
 	m.status, m.statusErr = "a starts "+k.name, false
+}
+
+// holdsDir reports a directory inside some project, group or root the
+// navigator lists.
+func (m model) holdsDir(dir string) bool {
+	for _, p := range m.projects {
+		if under(dir, p.Path) {
+			return true
+		}
+	}
+	for _, g := range m.groups {
+		if under(dir, g.Path) {
+			return true
+		}
+	}
+	return false
 }
 
 // shellDir is where a new shell on this row should start: the repository, or
@@ -1682,7 +1703,7 @@ func (m *model) openShell() tea.Cmd {
 				m.status, m.statusErr = "no server to hold it: "+m.serverErr, true
 				return nil
 			}
-			m.server.open(r.node.Dir, containerShell(c), "")
+			m.server.open(r.node.Dir, containerShell(r.node), "")
 			return nil
 		}
 		t := m.owningTerm(r.node.PID)
@@ -2585,6 +2606,15 @@ func (m *model) groupProcs() {
 
 	owner := make(map[string][]Proc, len(m.projects))
 	for _, pr := range m.procs {
+		// A container of no project, or of a directory no root holds,
+		// is docker's; one of a project elsewhere is named for both.
+		if pr.Container != nil && (pr.Dir == dockerPlace || !m.holdsDir(pr.Dir)) {
+			if pr.Container.Project != "" {
+				pr.Command = pr.Container.Project + "/" + pr.Container.Service
+			}
+			owner[dockerPlace] = append(owner[dockerPlace], pr)
+			continue
+		}
 		best := ""
 		for _, p := range m.projects {
 			if under(pr.Dir, p.Path) && len(p.Path) > len(best) {
@@ -2732,13 +2762,17 @@ func (m model) flatten() []navRow {
 
 // topPlaces is the top of the navigator: the groups and the repositories
 // standing alone, in one alphabetical order, each listed when its own rule
-// says so.
+// says so — and docker's place among the groups while a container is in
+// it.
 func (m model) topPlaces() []navRow {
 	var out []navRow
 	for _, g := range m.groups {
 		if m.groupVisible(g) {
 			out = append(out, navRow{kind: rowGroup, project: g})
 		}
+	}
+	if len(m.byPlace[dockerPlace]) > 0 && m.groupVisible(dockerGroup) {
+		out = append(out, navRow{kind: rowGroup, project: dockerGroup})
 	}
 	for _, p := range m.projects {
 		if p.Group == "" && m.repoVisible(p) {

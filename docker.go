@@ -97,8 +97,15 @@ const dockerWait = 3 * time.Second
 // in time is another thing: what it last said stands, and the scan says so
 // (dockerNote), once, until it answers again.
 func containers() []Proc {
+	cs, _ := listContainers()
+	return cs
+}
+
+// listContainers is containers with the word on whether docker answered:
+// stalled says it did not in time, and the list is what it last said.
+func listContainers() ([]Proc, bool) {
 	if dockerPath == "" {
-		return nil
+		return nil, false
 	}
 	out, err := listing(dockerWait, dockerPath, "ps", "-a", "--format", "{{json .}}")
 	docker.Lock()
@@ -109,34 +116,19 @@ func containers() []Proc {
 			// Refused, in its own time: the daemon is down, or the
 			// client could not reach it. Nothing is running in a
 			// container that conn can see.
-			docker.stalled, docker.last = false, nil
-			return nil
+			docker.last = nil
+			return nil, false
 		}
-		docker.stalled = true
-		return docker.last
+		return docker.last, true
 	}
-	docker.stalled = false
 	docker.last = parseContainers(out)
-	return docker.last
+	return docker.last, false
 }
 
-// docker is what the last question to docker came to: whether it answered
-// in time, and what it last said, for the scans while it does not.
+// docker is what docker last said, for the lists while it does not answer.
 var docker struct {
 	sync.Mutex
-	stalled bool
-	last    []Proc
-}
-
-// dockerNote is what the scan has to say about docker: that it has stopped
-// answering, the once it stops, or nothing.
-func dockerNote(was bool) (note string, stalled bool) {
-	docker.Lock()
-	defer docker.Unlock()
-	if docker.stalled && !was {
-		note = "docker is not answering; its containers are as last seen"
-	}
-	return note, docker.stalled
+	last []Proc
 }
 
 // dockerRow is the shape of one line of docker ps --format '{{json .}}':

@@ -87,11 +87,6 @@ type projectsMsg struct {
 type procsMsg struct {
 	procs []Proc
 	err   error
-	// docker is what the scan has to say of docker, when it has anything:
-	// that it has stopped answering. stalled says whether it is, for the
-	// next scan to know whether that is news.
-	docker  string
-	stalled bool
 }
 
 // rowKind distinguishes the two things the navigator lists.
@@ -143,10 +138,15 @@ type model struct {
 	// alone while a shell is shown beside it (keepColumn).
 	window int
 
-	// dockerStalled says the last scan found docker not answering, so
-	// the next can tell whether that is still news.
-	dockerStalled bool
-	height        int
+	// host is what the last process scan read, and containers what docker
+	// last said (dockerfeed.go); procs is the two merged, the tree's
+	// input, remade when either arrives. docker is the feed, and
+	// dockerStalled says its last word was that docker is not answering,
+	// so the next can tell whether that is still news.
+	host, containers []Proc
+	docker           *dockerFeed
+	dockerStalled    bool
+	height           int
 
 	projects []Project
 	err      error
@@ -392,7 +392,7 @@ func newModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(scanProjects, scanProcs(false), scanAgents, connectServer(),
+	return tea.Batch(scanProjects, scanProcs, scanAgents, connectServer(), startDocker,
 		tick(procPoll), agentTick(), checkUpdate(false, time.Now()))
 }
 
@@ -428,15 +428,21 @@ func scanProjects() tea.Msg {
 }
 
 // scanProcs reads the working directory of every visible process.
-func scanProcs(dockerWasStalled bool) tea.Cmd {
-	return func() tea.Msg {
-		procs, err := runningProcs()
-		if err != nil {
-			return procsMsg{err: fmt.Errorf("processes: %w", err)}
-		}
-		note, stalled := dockerNote(dockerWasStalled)
-		return procsMsg{procs: procs, docker: note, stalled: stalled}
+func scanProcs() tea.Msg {
+	procs, err := runningProcs()
+	if err != nil {
+		return procsMsg{err: fmt.Errorf("processes: %w", err)}
 	}
+	return procsMsg{procs: procs}
+}
+
+// merge remakes the tree's input from the last process scan and the last
+// word from docker: the containers filed under the compose that runs
+// them, or under the place. Copies, since filing writes the parent.
+func (m *model) merge() {
+	host := append([]Proc{}, m.host...)
+	cs := append([]Proc{}, m.containers...)
+	m.procs = attachContainers(host, cs)
 }
 
 // scanNow asks for a process scan on behalf of something that just happened —
@@ -448,7 +454,7 @@ func (m *model) scanNow() tea.Cmd {
 		return nil
 	}
 	m.scanning = true
-	return scanProcs(m.dockerStalled)
+	return scanProcs
 }
 
 // scanPoll is the tick's ask: freshness only, so a scan already out is answer
@@ -532,15 +538,29 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			// failure is reported rather than shown as an empty machine.
 			m.status, m.statusErr = msg.err.Error(), true
 		} else {
-			m.procs = msg.procs
-			m.dockerStalled = msg.stalled
-			if msg.docker != "" {
-				m.status, m.statusErr = msg.docker, true
-			}
+			m.host = msg.procs
+			m.merge()
 		}
 		m.rebuild()
 		m.closeSettled()
 		return m, tea.Batch(m.detailCmd(), owed)
+
+	case dockerReadyMsg:
+		m.docker = msg.feed
+		return m, nextDocker(m.docker)
+
+	case dockerMsg:
+		// Docker's word, merged into the tree with the last process scan;
+		// that it has stopped answering is said once, until it answers.
+		m.containers = msg.containers
+		if msg.stalled && !m.dockerStalled {
+			m.status, m.statusErr = "docker is not answering; its containers are as last seen", true
+		}
+		m.dockerStalled = msg.stalled
+		m.merge()
+		m.rebuild()
+		m.closeSettled()
+		return m, tea.Batch(m.detailCmd(), nextDocker(m.docker))
 
 	case reconnectMsg:
 		return m, connectServer()
@@ -702,6 +722,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		if msg.err != nil {
 			m.status, m.statusErr = "could not start "+strings.Join(msg.services, ", ")+" in "+msg.place.Name+": "+msg.err.Error(), true
 		}
+		m.docker.ask()
 		return m, m.scanNow()
 
 	case detailMsg:
@@ -1752,6 +1773,13 @@ func (m *model) openShell() tea.Cmd {
 // shell is hung up when a scan finds it back at its prompt (closeSettled).
 func (m *model) runKill(req *killRequest) tea.Cmd {
 	hungUp, signalled := m.splitKill(req.nodes)
+	// A container stopped is docker's to say; the feed is asked to ask.
+	for _, n := range signalled {
+		if n.Container != nil {
+			m.docker.ask()
+			break
+		}
+	}
 	return killTree(&killRequest{subject: req.subject, nodes: signalled}, hungUp)
 }
 

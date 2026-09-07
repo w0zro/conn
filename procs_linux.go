@@ -14,9 +14,7 @@ func procsBut(self int) ([]Proc, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The containers docker runs for a place, filed under the compose
-	// that runs them where one is in the list.
-	return attachContainers(procs, containers()), nil
+	return procs, nil
 }
 
 // startedOf is when each of the given processes began, asked freshly of

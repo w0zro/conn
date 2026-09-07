@@ -192,6 +192,7 @@ func runNav() {
 		// The control client is hung up rather than left to the pane's
 		// end: the server holds the shells, and they stay.
 		m.server.close()
+		m.docker.close()
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)

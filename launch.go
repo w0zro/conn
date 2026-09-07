@@ -351,7 +351,7 @@ func runPlanAt(dir string) error {
 		}
 	}
 	// The plan's entries, and the place's services where it runs compose.
-	missing, services := needs(p.Path, plan, running, procs)
+	missing, services := needs(p.Path, plan, running, containers())
 	if len(missing) == 0 && len(services) == 0 {
 		return errors.New("everything " + p.Name + " needs is running")
 	}

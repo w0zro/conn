@@ -486,6 +486,17 @@ func dockerStop(c *Container) error {
 	return err
 }
 
+// dockerKill is dockerStop without the grace: docker kill, which is
+// SIGKILL to the process inside, for a container whose stop has not
+// ended it. One not running is removed, as dockerStop removes it.
+func dockerKill(c *Container) error {
+	if !c.running() {
+		return dockerStop(c)
+	}
+	_, err := listing(scanTimeout, dockerPath, "kill", c.ID)
+	return err
+}
+
 // containerLogs is the last of what a container has written, both
 // streams, for the pane.
 func containerLogs(id string, lines int) []string {

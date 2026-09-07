@@ -276,7 +276,7 @@ func TestTheReportSaysWhatWasActuallyDone(t *testing.T) {
 		}, "closed "},
 	}
 	for _, c := range cases {
-		if got := ended(c.results); got != c.want {
+		if got := ended(c.results, 0); got != c.want {
 			t.Errorf("%s: ended = %q, want %q", c.name, got, c.want)
 		}
 	}

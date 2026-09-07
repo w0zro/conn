@@ -506,15 +506,23 @@ stop the container, docker's way
 \fBx on a place\fR
 kill everything running in it
 .TP
+\fBx on a signalled row\fR
+kill outright: SIGKILL to what has not gone
+.TP
 \fBR\fR
 end the server and every shell it holds
 .RE
 .TP
 8-1.
 Every kill asks first: \fBx\fR, \fBy\fR or \fBenter\fR confirms, anything else
-cancels. Processes get SIGTERM. A signalled row shows a red marker until a scan
-observes the exit; the list never claims an exit it has not seen. Kills work on
-any listed process, including ones conn did not start.
+cancels. Processes get SIGTERM. The question offers the other signals: \fB9\fR
+confirms with SIGKILL, \fBi\fR with SIGINT, for a server that only tears down on
+ctrl-c, and \fBh\fR with SIGHUP, for a daemon that reloads on it. A signalled
+row shows a red marker until a scan observes the exit; the list never claims an
+exit it has not seen. A process that has not gone in five seconds is given up
+on, and the status line says so; \fBx\fR on it then, or on a row still on its
+way out, asks to kill it outright, with SIGKILL, which nothing refuses. Kills
+work on any listed process, including ones conn did not start.
 .TP
 8-2.
 A held shell is closed through the server. One still running its command is

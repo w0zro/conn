@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -4831,5 +4832,111 @@ func TestAgoSaysJustNowForAMomentAgo(t *testing.T) {
 	}
 	if got := ago(time.Now().Add(-3 * time.Minute)); got != "3m ago" {
 		t.Errorf("ago = %q", got)
+	}
+}
+
+// --- choosing the signal ---------------------------------------------------
+
+func TestTheConfirmationOffersTheOtherSignals(t *testing.T) {
+	// The plain prompt names the keys that send something other than
+	// SIGTERM: a dev server that only tears down on ctrl-c wants SIGINT.
+	m := press(press(nestedTree(12), "down"), "x")
+	f := footer(m)
+	for _, want := range []string{"9 kills outright", "i interrupts", "h hangs up"} {
+		if !strings.Contains(f, want) {
+			t.Errorf("footer = %q, want it to offer %q", f, want)
+		}
+	}
+}
+
+func TestAKeyAtTheConfirmationChoosesTheSignal(t *testing.T) {
+	for key, want := range map[string]syscall.Signal{
+		"x": syscall.SIGTERM, "y": syscall.SIGTERM,
+		"9": syscall.SIGKILL, "i": syscall.SIGINT, "h": syscall.SIGHUP,
+	} {
+		armed := press(press(nestedTree(12), "down"), "x")
+		req := armed.pendingKill
+		next, cmd := armed.Update(typed(key))
+		if cmd == nil {
+			t.Errorf("%q should confirm the kill", key)
+		}
+		if next.(model).pendingKill != nil {
+			t.Errorf("%q should clear the pending kill", key)
+		}
+		if got := req.signalOf(); got != want {
+			t.Errorf("%q chose %s, want %s", key, signalName(got), signalName(want))
+		}
+	}
+}
+
+func TestTheReportNamesTheSignalSent(t *testing.T) {
+	msg := killed("zsh", 10)
+	msg.sig = syscall.SIGKILL
+	next, _ := nestedTree(12).Update(msg)
+	if f := footer(next.(model)); !strings.Contains(f, "sent SIGKILL to zsh 10") {
+		t.Errorf("footer = %q, want the signal that went named", f)
+	}
+}
+
+func TestXOnAProcessOnItsWayOutOffersSIGKILL(t *testing.T) {
+	// The process was signalled a moment ago and is still listed. Asking
+	// again with SIGTERM would ask it again to do what it has not done.
+	m := press(nestedTree(12), "down") // onto zsh 10
+	next, _ := m.Update(killed("zsh", 10))
+	m = press(next.(model), "x")
+
+	if m.pendingKill == nil || m.pendingKill.signalOf() != syscall.SIGKILL {
+		t.Fatalf("pendingKill = %+v, want SIGKILL armed", m.pendingKill)
+	}
+	if f := footer(m); !strings.Contains(f, "kill zsh 10 outright?") || strings.Contains(f, "9 kills") {
+		t.Errorf("footer = %q, want the escalation said, and nothing past it offered", f)
+	}
+}
+
+func TestXOnAProcessThatRefusedOffersSIGKILL(t *testing.T) {
+	// The marker gave up on it; the process is still there, and refusing.
+	m := nestedTree(12)
+	for range 4 {
+		m = press(m, "down") // onto lint 50
+	}
+	next, _ := m.Update(killed("lint", 50))
+	m = next.(model)
+	for range killLinger + 1 {
+		m.ageDying()
+	}
+	if f := footer(m); !strings.Contains(f, "x again kills outright") {
+		t.Errorf("footer = %q, want the way past a refusal said", f)
+	}
+
+	m = press(m, "x")
+	if m.pendingKill == nil || m.pendingKill.signalOf() != syscall.SIGKILL {
+		t.Fatalf("pendingKill = %+v, want SIGKILL armed for a process that refused", m.pendingKill)
+	}
+
+	// One that has since gone is nothing to escalate on.
+	var left []Proc
+	for _, p := range m.procs {
+		if p.PID != 50 {
+			left = append(left, p)
+		}
+	}
+	m.pendingKill = nil
+	next, _ = m.Update(procsMsg{procs: left})
+	if _, still := next.(model).refused[50]; still {
+		t.Error("a process a scan found gone is still held as refusing")
+	}
+}
+
+func TestXOnAnEntryWhoseCommandRefusedOffersSIGKILL(t *testing.T) {
+	// The entry's row is its shell; the signal went to the command under
+	// it, and the row is what x is pressed on.
+	m, _ := pipeServer(t, composeTree())
+	m = press(m, "down")
+	r, _ := m.selected()
+	command := r.leaf().PID
+	next, _ := m.Update(killed("docker", command))
+	m = press(next.(model), "x")
+	if m.pendingKill == nil || m.pendingKill.signalOf() != syscall.SIGKILL {
+		t.Fatalf("pendingKill = %+v, want SIGKILL armed on the entry", m.pendingKill)
 	}
 }

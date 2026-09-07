@@ -161,7 +161,62 @@ func TestAProcessAlreadyGoneIsNotAFailure(t *testing.T) {
 	if got := describeFailures(results); got != "" {
 		t.Errorf("failures = %q, want a process that is already gone not counted", got)
 	}
-	if got := ended(results); got != "closed " {
+	if got := ended(results, 0); got != "closed " {
 		t.Errorf("ended = %q, want the outcome read as done", got)
+	}
+}
+
+func TestAKillCanSendTheChosenSignal(t *testing.T) {
+	// SIGKILL is the one no process refuses; a request that chose it
+	// sends it, and the report says so.
+	cmd := exec.Command("sleep", "60")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	pid := cmd.Process.Pid
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+
+	req := &killRequest{subject: "sleep", sig: syscall.SIGKILL, nodes: []*ProcNode{
+		{Proc: Proc{PID: pid, Command: "sleep", Started: psTable()[pid].started}},
+	}}
+	msg := killTree(req, nil)().(killedMsg)
+	if len(msg.results) != 1 || msg.results[0].err != nil || msg.sig != syscall.SIGKILL {
+		t.Fatalf("results = %+v, sig = %v, want SIGKILL to have landed", msg.results, msg.sig)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		var ee *exec.ExitError
+		if !asExitError(err, &ee) {
+			t.Fatalf("wait returned %v", err)
+		}
+		if ws := ee.Sys().(syscall.WaitStatus); !ws.Signaled() || ws.Signal() != syscall.SIGKILL {
+			t.Errorf("exit status = %v, want termination by SIGKILL", ws)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("process did not exit after SIGKILL")
+	}
+}
+
+func TestTheSignalKeys(t *testing.T) {
+	for _, tc := range []struct {
+		key  string
+		want syscall.Signal
+		ok   bool
+	}{
+		{"x", syscall.SIGTERM, true}, {"enter", syscall.SIGTERM, true},
+		{"9", syscall.SIGKILL, true}, {"i", syscall.SIGINT, true}, {"h", syscall.SIGHUP, true},
+		{"j", 0, false}, {"esc", 0, false},
+	} {
+		got, ok := chooseSignal(tc.key, syscall.SIGTERM)
+		if ok != tc.ok || got != tc.want {
+			t.Errorf("chooseSignal(%q) = %s, %v; want %s, %v", tc.key, signalName(got), ok, signalName(tc.want), tc.ok)
+		}
+	}
+	// x confirms what the request already carries, escalation included.
+	if got, _ := chooseSignal("x", syscall.SIGKILL); got != syscall.SIGKILL {
+		t.Errorf("x on an escalated kill chose %s, want SIGKILL kept", signalName(got))
 	}
 }

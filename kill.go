@@ -11,11 +11,58 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// killRequest is a kill waiting on confirmation: the processes to signal, and
-// what to call them while asking.
+// killRequest is a kill waiting on confirmation: the processes to signal,
+// what to call them while asking, and the signal to send. The zero signal
+// is SIGTERM, the one every kill sends unless the confirmation chose
+// another (chooseSignal) or the process has already refused it.
 type killRequest struct {
 	subject string
 	nodes   []*ProcNode
+	sig     syscall.Signal
+}
+
+// signalOf is the signal a request sends: what was chosen, else SIGTERM.
+func (req *killRequest) signalOf() syscall.Signal {
+	if req.sig == 0 {
+		return syscall.SIGTERM
+	}
+	return req.sig
+}
+
+// chooseSignal is the signal a key at the confirmation picks, and whether
+// the key picked one: x, y and enter confirm the signal the request
+// carries; 9 confirms with SIGKILL, i with SIGINT and h with SIGHUP. A
+// process that ignores SIGTERM is not always refusing: a dev server that
+// only tears down on ctrl-c wants SIGINT, a daemon that reloads wants
+// SIGHUP, and one that has stopped answering wants SIGKILL, which no
+// process refuses.
+func chooseSignal(key string, carried syscall.Signal) (syscall.Signal, bool) {
+	switch key {
+	case "x", "X", "y", "enter":
+		return carried, true
+	case "9":
+		return syscall.SIGKILL, true
+	case "i":
+		return syscall.SIGINT, true
+	case "h":
+		return syscall.SIGHUP, true
+	}
+	return 0, false
+}
+
+// signalName is a signal as the status line says it: SIGTERM, SIGKILL.
+func signalName(sig syscall.Signal) string {
+	switch sig {
+	case 0, syscall.SIGTERM:
+		return "SIGTERM"
+	case syscall.SIGKILL:
+		return "SIGKILL"
+	case syscall.SIGINT:
+		return "SIGINT"
+	case syscall.SIGHUP:
+		return "SIGHUP"
+	}
+	return "signal " + strconv.Itoa(int(sig))
 }
 
 // killResult is what became of one process a kill was aimed at. hungUp marks
@@ -35,6 +82,7 @@ type killResult struct {
 type killedMsg struct {
 	subject string
 	results []killResult
+	sig     syscall.Signal // what was sent; zero is SIGTERM
 }
 
 // spinRate is how often the marker beside a signalled process advances. It is
@@ -69,9 +117,10 @@ func spin() tea.Cmd {
 	return tea.Tick(spinRate, func(time.Time) tea.Msg { return spinMsg{} })
 }
 
-// killTree sends SIGTERM to every process in the request. SIGTERM rather than
-// SIGKILL: these are editors, shells and build tools, and they should get the
-// chance to save, flush and tear down their own children.
+// killTree sends the request's signal to every process in it. SIGTERM
+// unless another was chosen: these are editors, shells and build tools, and
+// they should get the chance to save, flush and tear down their own
+// children. SIGKILL is for the one that had that chance and did not take it.
 //
 // Parents are signalled before their children. A supervising process outliving
 // the children it started will start them again — that is what a watcher is
@@ -85,9 +134,9 @@ func spin() tea.Cmd {
 // matches means the process the user aimed at is not the one holding the
 // number. It is reported already gone — which, for the one aimed at, it is.
 func killTree(req *killRequest, done []killResult) tea.Cmd {
-	subject, nodes := req.subject, req.nodes
+	subject, nodes, sig := req.subject, req.nodes, req.signalOf()
 	return func() tea.Msg {
-		msg := killedMsg{subject: subject, results: append([]killResult{}, done...)}
+		msg := killedMsg{subject: subject, sig: sig, results: append([]killResult{}, done...)}
 		started := startTimes(nodes)
 		for _, n := range nodes {
 			res := killResult{command: n.Command, pid: n.PID}
@@ -95,12 +144,17 @@ func killTree(req *killRequest, done []killResult) tea.Cmd {
 			case n.Container != nil:
 				// A container is stopped by docker, which signals the
 				// process inside it; the id names it for good, so there
-				// is no reuse to check for.
-				res.err = dockerStop(n.Container)
+				// is no reuse to check for. SIGKILL is docker's kill,
+				// which skips the grace stop gives.
+				if sig == syscall.SIGKILL {
+					res.err = dockerKill(n.Container)
+				} else {
+					res.err = dockerStop(n.Container)
+				}
 			case reused(n, started):
 				res.err = errGone
 			default:
-				res.err = signal(n.PID)
+				res.err = signalWith(n.PID, sig)
 			}
 			msg.results = append(msg.results, res)
 		}
@@ -185,6 +239,11 @@ var errGone = errors.New("already gone")
 
 // signal sends SIGTERM, translating the failures worth explaining.
 func signal(pid int) error {
+	return signalWith(pid, syscall.SIGTERM)
+}
+
+// signalWith sends the signal, translating the failures worth explaining.
+func signalWith(pid int, sig syscall.Signal) error {
 	switch {
 	case pid <= 1:
 		return errors.New("refusing to signal pid " + strconv.Itoa(pid))
@@ -192,7 +251,7 @@ func signal(pid int) error {
 		return errors.New("refusing to signal conn itself")
 	}
 
-	err := syscall.Kill(pid, syscall.SIGTERM)
+	err := syscall.Kill(pid, sig)
 	switch {
 	case errors.Is(err, syscall.ESRCH):
 		return errGone

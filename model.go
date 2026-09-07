@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"charm.land/bubbles/v2/textinput"
@@ -246,6 +247,12 @@ type model struct {
 	spinning bool
 	frame    int
 
+	// refused holds the processes that were signalled and did not go in
+	// the time the marker gives them, by pid, named: x on one of them
+	// offers SIGKILL rather than the signal it has already ignored. A
+	// process is off the list once a scan finds it gone.
+	refused map[int]string
+
 	// closing holds the shells conn holds that a kill is ending while they
 	// run a command, by pid, with how many frames each has waited: the
 	// command is signalled first, and the shell is hung up once it is back
@@ -374,6 +381,7 @@ func newModel() model {
 		askedExit: map[int]bool{},
 		unread:    map[int]bool{},
 		dying:     map[int]dyingProc{},
+		refused:   map[int]string{},
 		closing:   map[int]int{},
 		terms:     map[int]*remoteTerm{},
 		worked:    map[int]bool{},
@@ -737,13 +745,14 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			}
 			signalled++
 			m.dying[r.pid] = dyingProc{command: r.command}
+			delete(m.refused, r.pid)
 		}
 		if signalled == 0 {
 			m.status, m.statusErr = "could not kill "+msg.subject+": "+describeFailures(msg.results), true
 			return m, nil
 		}
 
-		m.status, m.statusErr = ended(msg.results)+msg.subject, false
+		m.status, m.statusErr = ended(msg.results, msg.sig)+msg.subject, false
 		if failed := len(msg.results) - signalled; failed > 0 {
 			// Part of a subtree going unsignalled is worth saying: the rest
 			// spins down and the survivors just sit there unexplained.
@@ -805,13 +814,12 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	if m.pendingKill != nil {
 		req := m.pendingKill
 		m.pendingKill = nil
-		switch msg.String() {
-		case "x", "X", "y", "enter":
+		if sig, ok := chooseSignal(msg.String(), req.sig); ok {
+			req.sig = sig
 			return m, m.runKill(req)
-		default:
-			m.status, m.statusErr = "kill cancelled", false
-			return m, nil
 		}
+		m.status, m.statusErr = "kill cancelled", false
+		return m, nil
 	}
 
 	// The resume picker takes every key while it is open: it is a look
@@ -2103,7 +2111,7 @@ func (m *model) askKill(tree bool) tea.Cmd {
 		// way it would be had nothing been running, and r starts it again.
 		if t := m.entryOf(r); t != nil {
 			if shell := m.nodes[t.pid]; shell != nil && t.live() && len(shell.Children) > 0 {
-				m.pendingKill = &killRequest{subject: t.name, nodes: subtree(shell)}
+				m.pendingKill = m.escalated(r, &killRequest{subject: t.name, nodes: subtree(shell)})
 				return nil
 			}
 			subject = t.name + " " + strconv.Itoa(t.pid)
@@ -2118,7 +2126,7 @@ func (m *model) askKill(tree bool) tea.Cmd {
 			nodes = append(nodes, shell)
 			subject += " and its shell"
 		}
-		m.pendingKill = &killRequest{subject: subject, nodes: nodes}
+		m.pendingKill = m.escalated(r, &killRequest{subject: subject, nodes: nodes})
 		return nil
 	}
 
@@ -2129,14 +2137,35 @@ func (m *model) askKill(tree bool) tea.Cmd {
 	if len(nodes) > 1 {
 		subject += " and " + strconv.Itoa(len(nodes)-1) + " under it"
 	}
-	m.pendingKill = &killRequest{subject: subject, nodes: nodes}
+	m.pendingKill = m.escalated(r, &killRequest{subject: subject, nodes: nodes})
 	return nil
+}
+
+// escalated is a kill armed with SIGKILL when the row it is aimed at has
+// already had a signal and not gone: asking a second time with the same
+// signal would be asking the process again to do what it has declined to
+// do. A kill aimed elsewhere is left as it was asked.
+func (m model) escalated(r navRow, req *killRequest) *killRequest {
+	if m.signalled(r) {
+		req.sig = syscall.SIGKILL
+	}
+	return req
+}
+
+// killPrompt is the question a kill waits on. The plain one offers the
+// other signals; one already escalated to SIGKILL says so, and offers only
+// the confirmation, since there is nothing past SIGKILL to offer.
+func killPrompt(req *killRequest) string {
+	if req.signalOf() == syscall.SIGKILL {
+		return " kill " + req.subject + " outright? · x confirms"
+	}
+	return " kill " + req.subject + "? · x confirms · 9 kills outright · i interrupts · h hangs up"
 }
 
 // ended names what was actually done, because a kill is not one thing: a shell
 // conn holds is hung up and everything else is signalled, and a subtree can be
 // both at once.
-func ended(results []killResult) string {
+func ended(results []killResult, sig syscall.Signal) string {
 	var hungUp, signalled int
 	for _, r := range results {
 		// A process already gone was not signalled and was not hung up;
@@ -2154,7 +2183,7 @@ func ended(results []killResult) string {
 	case signalled == 0:
 		return "closed "
 	case hungUp == 0:
-		return "sent SIGTERM to "
+		return "sent " + signalName(sig) + " to "
 	default:
 		return "ended "
 	}
@@ -2262,16 +2291,17 @@ func (m *model) ageDying() {
 	names := make([]string, 0, len(stuck))
 	for _, pid := range stuck {
 		names = append(names, m.dying[pid].command+" "+strconv.Itoa(pid))
+		m.refused[pid] = m.dying[pid].command
 		delete(m.dying, pid)
 	}
-	m.status, m.statusErr = strings.Join(names, ", ")+" did not exit", true
+	m.status, m.statusErr = strings.Join(names, ", ")+" did not exit · x again kills outright", true
 }
 
 // pruneDying drops the processes that have gone. It reads the process list
 // rather than the rows, because a dying process inside a folded subtree has no
 // row and is not therefore gone.
 func (m *model) pruneDying() {
-	if len(m.dying) == 0 {
+	if len(m.dying) == 0 && len(m.refused) == 0 {
 		return
 	}
 	live := make(map[int]bool, len(m.procs))
@@ -2283,6 +2313,27 @@ func (m *model) pruneDying() {
 			delete(m.dying, pid)
 		}
 	}
+	for pid := range m.refused {
+		if !live[pid] {
+			delete(m.refused, pid)
+		}
+	}
+}
+
+// signalled reports whether a row's process has had a signal it has not
+// acted on: on its way out still, or given up on. The row's whole run is
+// asked, since the row is the run — an entry's row is its shell, and the
+// signal went to the command under it.
+func (m model) signalled(r navRow) bool {
+	for _, n := range append([]*ProcNode{r.node}, r.run...) {
+		if _, dying := m.dying[n.PID]; dying {
+			return true
+		}
+		if _, refused := m.refused[n.PID]; refused {
+			return true
+		}
+	}
+	return false
 }
 
 // bodyHeight is the number of navigator rows that fit in the column, which
@@ -2465,7 +2516,7 @@ func (m model) statusLine() statusText {
 
 	case m.pendingKill != nil:
 		t.mode = statusChip(tp.amber, "CONFIRM")
-		t.msg = tmuxStyled(tp.amber, true, " kill "+m.pendingKill.subject+"? · x confirms")
+		t.msg = tmuxStyled(tp.amber, true, killPrompt(m.pendingKill))
 		return t
 
 	case m.creating:

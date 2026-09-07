@@ -6,9 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // A project on docker runs its services in containers, and a container is
@@ -267,4 +270,100 @@ func containerFields(n *ProcNode) []field {
 		fs = append(fs, field{label: "publishes", value: strings.Join(n.Ports, ", "), tone: toneAccent})
 	}
 	return append(fs, transcript(containerLogs(c.ID, transcriptLines))...)
+}
+
+// A service x stopped is a service r brings back. The plan's entries are
+// what a place says it needs; where the place runs compose, the services
+// compose declares are what compose says it needs, and r starts the ones
+// that are down — docker compose up -d, which starts a stopped container
+// and makes again one that was removed — unless an entry r is starting runs
+// compose itself, which brings up everything at once. A service brought
+// back this way is not attached to the compose up in a shell, and its logs
+// are on its own row's pane.
+
+// composeFiles are the names compose reads a project from, in the order
+// compose looks for them.
+var composeFiles = []string{"compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"}
+
+// hasCompose reports a directory compose would find a project in.
+func hasCompose(dir string) bool {
+	for _, f := range composeFiles {
+		if exists(filepath.Join(dir, f)) {
+			return true
+		}
+	}
+	return false
+}
+
+// composeServices is every service the place's compose declares, in the
+// file's order, asked of compose itself: it is the one reader that knows
+// what its file means. Nothing without docker, or for a file compose
+// refuses.
+func composeServices(dir string) []string {
+	if dockerPath == "" {
+		return nil
+	}
+	out, err := listingIn(dir, scanTimeout, dockerPath, "compose", "config", "--services")
+	if err != nil {
+		return nil
+	}
+	return strings.Fields(string(out))
+}
+
+// servicesDown is the declared services with no container of theirs
+// running in dir, by the scan's containers, in the declared order.
+func servicesDown(declared []string, dir string, procs []Proc) []string {
+	running := map[string]bool{}
+	for _, p := range procs {
+		if p.Container != nil && p.Dir == dir {
+			running[p.Container.Service] = true
+		}
+	}
+	var down []string
+	for _, s := range declared {
+		if !running[s] {
+			down = append(down, s)
+		}
+	}
+	return down
+}
+
+// startsCompose reports a plan entry among those about to start that runs
+// compose, and so brings every service up itself.
+func startsCompose(entries []entry) bool {
+	for _, e := range entries {
+		if runsCompose(Proc{Argv: e.Run}) {
+			return true
+		}
+	}
+	return false
+}
+
+// composeUp brings services back, detached.
+func composeUp(dir string, services []string) error {
+	args := append([]string{"compose", "up", "-d", "--"}, services...)
+	_, err := listingIn(dir, scanTimeout, dockerPath, args...)
+	return err
+}
+
+// bringBack is what r does for a place's services beside its plan: the
+// ones that are down are started, and the outcome is reported. alone says
+// nothing else was started, so nothing down is the whole answer.
+func bringBack(p Project, alone bool) tea.Cmd {
+	return func() tea.Msg {
+		down := servicesDown(composeServices(p.Path), p.Path, containers())
+		if len(down) == 0 {
+			return composeMsg{place: p, alone: alone}
+		}
+		return composeMsg{place: p, services: down, alone: alone, err: composeUp(p.Path, down)}
+	}
+}
+
+// composeMsg says which of a place's services r brought back, or that
+// none were down.
+type composeMsg struct {
+	place    Project
+	services []string
+	alone    bool
+	err      error
 }

@@ -389,7 +389,13 @@ publishes on the host: \fBweb · :8438\fR. It sits under the \fBdocker compose
 up\fR that runs it when one runs in a shell, and under the place itself when
 compose was left detached. The row has no shell to enter; its pane says the
 container's name, image and status, with the last of its logs, and \fBx\fR asks
-docker to stop it. A container without a directory — started by hand, or by
+docker to stop it. What \fBx\fR stopped, \fBr\fR brings back: the services the
+place's compose declares are what compose says it needs, and \fBr\fR starts the
+ones that are down — \fBdocker compose up \-d\fR, which starts a stopped
+container and makes again one that was removed — unless an entry \fBr\fR is
+starting runs compose itself, which brings up everything at once. A service
+brought back this way is not attached to the compose in a shell; its logs are on
+its own row's pane. A container without a directory — started by hand, or by
 something other than compose — belongs to no place and is not listed, the way
 a process working outside every project is not. Without docker, or with its
 daemon down, nothing is asked.

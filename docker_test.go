@@ -1,6 +1,9 @@
 package main
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -170,4 +173,71 @@ func TestALoneContainerKeepsARowOfItsOwn(t *testing.T) {
 	m.terms[10] = &remoteTerm{pid: 10, dir: "/p/demo", name: "app"}
 	m.rebuild()
 	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        web · :8438"})
+}
+
+func TestServicesDownAreTheDeclaredOnesWithNoContainerRunning(t *testing.T) {
+	procs := attachContainers(nil, parseContainers([]byte(dockerPS))) // web and cache, in /p/demo
+	if got := servicesDown([]string{"web", "cache", "worker"}, "/p/demo", procs); !slices.Equal(got, []string{"worker"}) {
+		t.Errorf("down = %v, want the declared service with nothing running", got)
+	}
+	if got := servicesDown([]string{"web"}, "/p/elsewhere", procs); !slices.Equal(got, []string{"web"}) {
+		t.Errorf("down = %v, want another place's containers not to count", got)
+	}
+}
+
+func TestAnEntryThatRunsComposeBringsTheServicesUpItself(t *testing.T) {
+	if !startsCompose([]entry{{Name: "app", Run: "docker compose up"}}) {
+		t.Error("docker compose up brings the services up itself")
+	}
+	if startsCompose([]entry{{Name: "agent", Run: "claude"}}) {
+		t.Error("an entry that is not compose leaves the services to r")
+	}
+}
+
+func TestRBringsAPlacesServicesBackBesideItsPlan(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte("services:\n  web:\n    image: nginx\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !hasCompose(dir) {
+		t.Fatal("a compose.yaml is a compose project")
+	}
+
+	// No plan of its own: the services are what it says it needs.
+	m := withProcs(80, 12, []Project{{Name: "demo", Path: dir}}, nil)
+	m, _ = pipeServer(t, m)
+	next, cmd := m.Update(typed("r"))
+	m = next.(model)
+	if cmd == nil || !strings.Contains(m.status, "compose has down") {
+		t.Errorf("status = %q, cmd %v; want the services asked after", m.status, cmd != nil)
+	}
+
+	// What compose said back, each way.
+	for _, tc := range []struct {
+		msg  composeMsg
+		want string
+	}{
+		{composeMsg{place: m.projects[0], services: []string{"web"}, alone: true}, "started web"},
+		{composeMsg{place: m.projects[0], alone: true}, "everything demo needs is running"},
+		{composeMsg{place: m.projects[0], services: []string{"web"}, err: errors.New("no daemon")}, "could not start web: no daemon"},
+	} {
+		next, _ := m.Update(tc.msg)
+		if got := next.(model).status; got != tc.want {
+			t.Errorf("status = %q, want %q", got, tc.want)
+		}
+	}
+	// Beside an entry the plan still needs, nothing down is not news.
+	next, _ = m.Update(composeMsg{place: m.projects[0]})
+	if got := next.(model).status; strings.Contains(got, "everything") {
+		t.Errorf("status = %q, want the plan's own report left standing", got)
+	}
+}
+
+func TestAPlaceWithNeitherPlanNorComposeSaysSo(t *testing.T) {
+	m := withProcs(80, 12, []Project{{Name: "demo", Path: t.TempDir()}}, nil)
+	m, _ = pipeServer(t, m)
+	m = press(m, "r")
+	if m.status != "demo does not say what it needs" {
+		t.Errorf("status = %q", m.status)
+	}
 }

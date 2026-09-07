@@ -27,10 +27,17 @@ const scanTimeout = 15 * time.Second
 // stuck in uninterruptible disk wait cannot be killed, and the scan has to
 // come back even when the process never will.
 func listing(timeout time.Duration, name string, args ...string) ([]byte, error) {
+	return listingIn("", timeout, name, args...)
+}
+
+// listingIn is listing run in a directory, for a command that reads the
+// directory it is run in — compose, which finds its project there.
+func listingIn(dir string, timeout time.Duration, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
 	cmd.WaitDelay = 2 * time.Second
 	return cmd.Output()
 }

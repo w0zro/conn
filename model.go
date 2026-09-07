@@ -656,6 +656,17 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			return m, spin()
 		}
 
+	case composeMsg:
+		switch {
+		case msg.err != nil:
+			m.status, m.statusErr = "could not start "+strings.Join(msg.services, ", ")+": "+msg.err.Error(), true
+		case len(msg.services) > 0:
+			m.status, m.statusErr = "started "+strings.Join(msg.services, ", "), false
+		case msg.alone:
+			m.status, m.statusErr = "everything "+msg.place.Name+" needs is running", false
+		}
+		return m, m.scanNow()
+
 	case detailMsg:
 		m.details[msg.key] = msg.fields
 
@@ -1782,13 +1793,15 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	}
 
 	plan := readPlan(p.Path)
-	if len(plan.Entries) == 0 {
+	missing := plan.missing(m.namesIn(p.Path))
+	// The place's services are its to bring back too, unless an entry
+	// starting now runs compose and brings them all up itself.
+	services := hasCompose(p.Path) && !startsCompose(missing)
+	if len(plan.Entries) == 0 && !services {
 		m.status, m.statusErr = p.Name+" does not say what it needs", true
 		return nil
 	}
-
-	missing := plan.missing(m.namesIn(p.Path))
-	if len(missing) == 0 {
+	if len(missing) == 0 && !services {
 		m.status, m.statusErr = "everything "+p.Name+" needs is running", false
 		return nil
 	}
@@ -1796,14 +1809,22 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	for _, e := range missing {
 		m.server.open(p.Path, e.Run, e.Name)
 	}
-	// The cursor stays on the project while they start, then goes to the
-	// first of them: what was started is what there is to watch come up,
-	// and the first is the one the plan put first.
-	m.wantCursor, m.wantProject, m.wantName = 0, p.Path, missing[0].Name
-	// Started rather than entered: this is several things at once, and none of
-	// them is more the one you meant than the others.
-	m.status, m.statusErr = "started "+describeEntries(missing), false
-	return m.scanNow()
+	if len(missing) > 0 {
+		// The cursor stays on the project while they start, then goes to the
+		// first of them: what was started is what there is to watch come up,
+		// and the first is the one the plan put first.
+		m.wantCursor, m.wantProject, m.wantName = 0, p.Path, missing[0].Name
+		// Started rather than entered: this is several things at once, and none of
+		// them is more the one you meant than the others.
+		m.status, m.statusErr = "started "+describeEntries(missing), false
+	} else {
+		m.status, m.statusErr = "starting what "+p.Name+"'s compose has down", false
+	}
+	cmds := []tea.Cmd{m.scanNow()}
+	if services {
+		cmds = append(cmds, bringBack(p, len(missing) == 0))
+	}
+	return tea.Batch(cmds...)
 }
 
 // runVerb runs a task of the place the cursor is in, the way the place

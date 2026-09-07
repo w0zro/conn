@@ -14,16 +14,17 @@ import (
 // server ended with every shell it holds, and brought up again under this
 // build's configuration with this terminal attached. It is the way to a
 // fresh server from outside the window — for a raised scrollback, or on
-// the day something wedges and the keys are not reaching anyone.
+// the day something wedges and keystrokes are not reaching anyone.
 
 // errKept says the user answered the question with anything but yes, and
 // the server stands as it was.
 var errKept = errors.New("the server is kept")
 
-// runRestart is `conn restart`. The refusals come before anything is ended:
+// runRestart is `conn restart`. The checks come before anything is ended:
 // from inside conn's own window the pane running this would go with the
 // server, taking the command with it, and R is there for that; from inside
-// another tmux the launch that follows would refuse to nest.
+// another tmux the launch that follows would return an error rather than
+// nest.
 func runRestart() error {
 	inside, err := attachable()
 	if err != nil {

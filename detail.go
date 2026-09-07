@@ -146,7 +146,7 @@ func ago(at time.Time) string {
 
 // groupFields describes a group of repositories: where it is, what it holds,
 // and the plan its folder carries, if it carries one. Git has nothing to say
-// here — the folder is not a repository, which is the point of it.
+// here — a group's folder is not a repository.
 func groupFields(p Project, repoCount, procCount int, states map[string]entryState) []field {
 	if p.Path == dockerPlace {
 		return dockerFields(procCount)
@@ -284,11 +284,11 @@ func planFields(path string, states map[string]entryState) []field {
 		if i > 0 {
 			label = "" // the rest line up under the first
 		}
-		// An entry that is up glows the way its mark does in the navigator;
-		// one that is down recedes with its hollow mark; one whose command
-		// ended wears the check in green or the cross, red through, with
-		// how it ended. The command reads in ink otherwise: it is what r
-		// would run.
+		// An entry that is up glows in the color of its mark in the
+		// navigator; one that is down recedes with its hollow mark; one
+		// whose command ended shows the check in green or the cross, red
+		// through, with how it ended. The command reads in ink otherwise:
+		// it is what r would run.
 		mark, t, vt, value := glyphOff+" ", toneQuiet, tonePlain, e.Run
 		switch st := states[e.Name]; {
 		case st.State == "up":
@@ -378,8 +378,8 @@ func describeAheadBehind(path string) string {
 // procFields describes a running process: what it is, where it runs, and how
 // long it has been going.
 func procFields(n *ProcNode, name string, run []*ProcNode, ag agent) []field {
-	// Headed the way the row reads — app, npm run dev, claude · opus — with
-	// the number after: the pane is about what the row says it is.
+	// Headed with the row's own name — app, npm run dev, claude · opus —
+	// and the number after: the pane is about what the row says it is.
 	fs := []field{
 		heading(name + " " + nodeID(n)),
 		note(n.Dir),

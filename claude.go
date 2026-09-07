@@ -20,8 +20,8 @@ import (
 //
 //   - <claude>/sessions/<pid>.json, a small file keyed by process id, holding
 //     the session's name and whether it is working right now. Small enough to
-//     re-read on every process scan, which is what lets the navigator mark the
-//     busy instances without the cursor having to visit them.
+//     re-read on every process scan, so the navigator can mark the busy
+//     instances without the cursor having to visit them.
 //   - <claude>/projects/<encoded cwd>/<session id>.jsonl, the transcript. It
 //     is megabytes, so only its tail is read, and only for the row the cursor
 //     is on.
@@ -60,8 +60,8 @@ type claudeSession struct {
 const busyStatus = "busy"
 
 // waitingStatus is what Claude Code calls a session stopped mid-turn on a
-// specific ask. It comes with waitingFor, a few words naming the ask — a
-// permission prompt, a question, a dialog.
+// specific prompt. It comes with waitingFor, a few words naming what it is
+// waiting on — a permission prompt, a question, a dialog.
 const waitingStatus = "waiting"
 
 // claudeCommand starts a Claude Code instance. It is run through a shell, so
@@ -735,7 +735,7 @@ func claudeFields(s claudeSession) []field {
 	add(&what, "session", s.Name, toneAccent)
 	if s.Status != "" {
 		status := s.Status
-		// The status reads in the color its mark wears in the navigator:
+		// The status reads in the color of its mark in the navigator:
 		// working is alive, blocked is the answer holding up work, and idle
 		// recedes. A blocked session says what it is blocked on, which is
 		// the part worth reading: "waiting" alone would send you to the pane
@@ -757,7 +757,7 @@ func claudeFields(s claudeSession) []field {
 	}
 	add(&what, "branch", s.Branch, toneAccent)
 
-	// The summary is the conversation's name; the ask is your own words,
+	// The summary is the conversation's name; the prompt is your own words,
 	// in your color; the agents are work alive under it.
 	add(&doing, "summary", s.Summary, toneName)
 	add(&doing, "asked", s.Prompt, toneSelf)

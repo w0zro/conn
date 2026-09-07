@@ -28,7 +28,7 @@ var ollamaKind = agentKind{
 // nothing, in case the models live somewhere conn did not think to look.
 //
 // With no model anywhere, ollama list runs in the shell instead: bare
-// ollama run refuses with a message about arguments, and ollama list says
+// ollama run stops with a message about arguments, and ollama list says
 // the true thing — that the daemon is not running, or that nothing has
 // been pulled — in a shell that survives it, per the wrapper every run
 // gets. The config's agentRuns names an exact model when the newest is
@@ -65,7 +65,7 @@ const (
 )
 
 // ollamaModelsOnDisk lists the models pulled under dir, newest first, named
-// the way ollama run wants them. A pulled model is a manifest file at
+// in the form ollama run accepts. A pulled model is a manifest file at
 // manifests/<registry>/<namespace>/<model>/<tag>; its name is model:tag,
 // with the namespace in front of it when it is not the library's and the
 // registry in front of that when it is not the default one — the same

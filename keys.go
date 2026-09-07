@@ -13,7 +13,7 @@ import (
 
 // The keys, spelled out. They are asked for with ? — at the navigator, or
 // with the prefix from any shell — and answer in a tmux popup over the
-// whole window, whichever pane the keys were in: the navigator's own pane
+// whole window, whichever pane had focus: the navigator's own pane
 // is a column, and a page needs the width. The popup runs this build as
 // `conn page`, which draws the page, waits for a keystroke and goes.
 
@@ -69,7 +69,7 @@ func keysPage() []string {
 }
 
 // showKeys shows the page in a popup over the client: sized to the page,
-// or to the client when the client is smaller — tmux refuses a popup it
+// or to the client when the client is smaller — tmux rejects a popup it
 // cannot fit rather than cutting it — titled, and closing when the page
 // does. The client has to be named: a command from outside tmux has none,
 // and a popup with no client has no size to fit. A chord names the client
@@ -85,7 +85,7 @@ func showKeys(run runner, exe, client string) error {
 }
 
 // popup runs a command in a popup over the client, sized as asked or to
-// the client when the client is smaller — tmux refuses a popup it cannot
+// the client when the client is smaller — tmux rejects a popup it cannot
 // fit rather than cutting it — titled, and closing when the command
 // does. A client of "" is the one that spoke last.
 func popup(run runner, client, title string, width, height int, command string) error {

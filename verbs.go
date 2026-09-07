@@ -12,15 +12,14 @@ import (
 // project already says, not the way a file of conn's own would have it:
 // conn reads the tool the project has — a Makefile target, a package.json
 // script, the ecosystem's own runner — and runs that. A project the guess
-// is wrong for says so in its Makefile, which conn believes first. "Run
+// is wrong for says so in its Makefile, which conn checks first. "Run
 // the tests" is an intent, and the point of conn knowing what it means
 // here is that conn starts the run, and so sees how it ends.
 
 // verb is one task a place can be asked for by name: how it is spoken of,
 // and what its ecosystems run for it. The name is what the shell running
-// it is called — the name its window wears and its row reads, the way a
-// plan entry's does — and the recipe a project's own files would name it
-// by.
+// it is called — the name its window shows and its row reads — and the
+// recipe a project's own files would name it by.
 type verb struct {
 	name    string // the task, and the shell's name: test, build, lint
 	key     string // the navigator's key for it

@@ -21,7 +21,7 @@ const scanTimeout = 15 * time.Second
 
 // listing runs one of the commands the scans read, bounded by timeout. What
 // was written before a failure is still returned: lsof exits nonzero when any
-// process refuses it, which says nothing about the ones that answered.
+// process denies it access, which says nothing about the ones that answered.
 //
 // WaitDelay is for the process the timeout's kill does not take on — an lsof
 // stuck in uninterruptible disk wait cannot be killed, and the scan has to
@@ -44,7 +44,7 @@ func listingIn(dir string, timeout time.Duration, name string, args ...string) (
 
 // Proc is a running process, identified by the directory it is working in.
 //
-// Command is the name of the program, which is what lsof knows. Argv is what
+// Command is the name of the program, as lsof reports it. Argv is what
 // was actually run, which lsof does not know and ps does: "npm run dev" is a
 // node, and being told it is a node is no help at all.
 type Proc struct {
@@ -55,8 +55,8 @@ type Proc struct {
 	Dir     string
 
 	// Started is when the process began, as ps prints it — an opaque token
-	// that, together with the pid, identifies the process the way a pid
-	// alone cannot: pids are recycled, start times are not. A kill compares
+	// that, together with the pid, identifies the process where a pid alone
+	// does not: pids are recycled, start times are not. A kill compares
 	// it before signalling, so a row from an old scan cannot aim at whatever
 	// inherited its number.
 	Started string
@@ -290,7 +290,7 @@ func descends(a, b *ProcNode, byPID map[int]*ProcNode) bool {
 	return false
 }
 
-// sortNodes orders each level by the name its row will wear, ties broken by
+// sortNodes orders each level by the name its row will show, ties broken by
 // PID. The raw command is the wrong key: every shell conn holds is a zsh
 // underneath, whatever runs inside it, and sorting on that put a fresh shell
 // between two agents — three zsh ties, settled by pid. A name keeps its slot

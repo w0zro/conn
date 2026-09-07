@@ -10,8 +10,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// agedTranscript files a transcript the way claude_test's helper does, then
-// ages it to when — the recency the picker orders by.
+// agedTranscript files a transcript through writeTranscript, then ages it
+// to when — the recency the picker orders by.
 func agedTranscript(t *testing.T, claude, dir, id string, when time.Time, records ...string) {
 	t.Helper()
 	path := writeTranscript(t, claude, dir, id, records...)
@@ -303,7 +303,7 @@ func TestPickerSaysWhenNothingAnswers(t *testing.T) {
 	}
 }
 
-func TestPickerFootWearsTheQuery(t *testing.T) {
+func TestPickerFootShowsTheQuery(t *testing.T) {
 	m := pickerOn(conversation{ID: "aaaa-1111", Prompt: "one thing"})
 	m = press(m, "o")
 	if f := footer(m); !strings.Contains(f, "/o█") {

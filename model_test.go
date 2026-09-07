@@ -1206,7 +1206,7 @@ func TestTheMarkerGoesWhenTheProcessDoes(t *testing.T) {
 		t.Errorf("an exited process should leave the tree:\n%s", col)
 	}
 	if len(got.dying) != 0 {
-		t.Errorf("dying = %v, want it forgotten once the process is gone", got.dying)
+		t.Errorf("dying = %v, want it dropped once the process is gone", got.dying)
 	}
 }
 
@@ -1224,7 +1224,7 @@ func TestAProcessDyingInAFoldedSubtreeIsNotForgotten(t *testing.T) {
 
 func TestTheFrameChainRescansButNotEveryFrame(t *testing.T) {
 	// The chain always schedules the next frame; on a rescanning frame it also
-	// asks for a scan, which is what eventually finds the process gone. A batch
+	// asks for a scan, and the scan eventually finds the process gone. A batch
 	// of two is that second command; a lone command is the next frame alone.
 	m := nestedTree(12)
 	next, _ := m.Update(killed("fmt", 40))
@@ -1601,10 +1601,10 @@ func TestAFinishedTurnLightsItsRow(t *testing.T) {
 }
 
 func TestABlockedInstanceHoldsTheBrightDiamond(t *testing.T) {
-	// Stopped mid-turn on a specific ask is brighter than done-and-waiting:
-	// that answer resumes work already in flight. It is owed even from an
-	// instance this window never saw working — the ask exists either way —
-	// so no working turn precedes it here.
+	// Stopped mid-turn on a specific prompt is brighter than
+	// done-and-waiting: that answer resumes work already in flight. It is
+	// owed even from an instance this window never saw working — the prompt
+	// exists either way — so no working turn precedes it here.
 	m := withClaude("claude", map[int]claudeSession{
 		700: {PID: 700, Name: "conn-1f", Status: waitingStatus, WaitingFor: "permission prompt"},
 	})
@@ -1644,12 +1644,12 @@ func TestAnInstanceIdleSinceLaunchStaysQuiet(t *testing.T) {
 	}
 
 	if got := press(m, "tab").status; got != "nothing needs you" {
-		t.Errorf("status = %q, want the summons to find nothing owed", got)
+		t.Errorf("status = %q, want the jump to find nothing owed", got)
 	}
 }
 
 func TestARecycledPidDoesNotInheritAFinishedTurn(t *testing.T) {
-	// The pid leaving the table forgets its history, so whatever takes the
+	// The pid leaving the table drops its history, so whatever takes the
 	// number next does not light up on someone else's turn.
 	m := withClaude("claude", nil)
 	next, _ := m.Update(agentsMsg{agents: asAgents(map[int]claudeSession{
@@ -1667,7 +1667,7 @@ func TestARecycledPidDoesNotInheritAFinishedTurn(t *testing.T) {
 }
 
 func TestPrefixEnterCyclesTheWaitingAgents(t *testing.T) {
-	// tab is the summons at the list: it goes to the next agent waiting on
+	// tab is the jump at the list: it goes to the next agent waiting on
 	// its user, and pressing it again continues around them in turn.
 	m := withProcList(96, 14,
 		[]Project{{Name: "a", Path: "/p/a"}, {Name: "b", Path: "/p/b"}},
@@ -1711,7 +1711,7 @@ const (
 	kindOpen  = "open"
 	kindShow  = "show"  // a shell moved beside the navigator
 	kindPark  = "park"  // the shown shell moved back to a window of its own
-	kindFocus = "focus" // the keys taken to a pane
+	kindFocus = "focus" // focus taken to a pane
 	kindLeave = "leave"
 	kindClose = "close" // a held shell's pane killed
 	kindDress = "dress" // a pane named for the title
@@ -1803,7 +1803,7 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 			return "", nil
 		case "new-window":
 			// An open: the directory rides behind -c, the command — when
-			// there is one — is the last argument, wearing the shell wrapper.
+			// there is one — is the last argument, in the shell wrapper.
 			dir, run := "", ""
 			for i, a := range args {
 				if a == "-c" && i+1 < len(args) {
@@ -1833,8 +1833,8 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 				agent = args[len(args)-1]
 				asked <- message{Kind: kindAgent, Name: agent}
 			case has(args, "@conn_name") && opening != nil:
-				// A pane's name lands right after its open, making the ask
-				// whole.
+				// A pane's name lands right after its open, making the
+				// recorded request whole.
 				opening.Name = args[len(args)-1]
 				asked <- *opening
 				opening = nil
@@ -2171,7 +2171,7 @@ func TestTypingListsTheProcessesThatAnswer(t *testing.T) {
 	// A query is a name, and a process that answers to it is as much the
 	// thing being looked for as a project is: it is listed under its place,
 	// pruned to the branches that answer, so it can be acted on straight
-	// from the look.
+	// from the search.
 	m := withProcList(90, 14, []Project{{Name: "brand", Path: "/p/brand"}},
 		[]Proc{
 			{PID: 100, PPID: 1, Command: "zsh", Dir: "/p/brand"},
@@ -2431,7 +2431,7 @@ func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 	}
 }
 
-func TestAShellAtItsPromptWithNoEndingRecordedIsNotRunning(t *testing.T) {
+func TestAShellAtItsPromptWithNoExitRecordedIsNotRunning(t *testing.T) {
 	// The recording can miss, and an older server's shells recorded
 	// nothing: a plan shell the scan finds at its prompt with no ending is
 	// not running its entry — r starts the entry again, and the key runs
@@ -2548,10 +2548,10 @@ func TestBAndLRunTheBuildAndTheLintTheSameWay(t *testing.T) {
 	}
 }
 
-func TestAFailedShellUsedAgainByHandForgetsItsEnding(t *testing.T) {
-	// The shell at its prompt after its command ended badly wears the
+func TestAFailedShellUsedAgainByHandDropsItsExit(t *testing.T) {
+	// The shell at its prompt after its command ended badly shows the
 	// cross. Running something in it by hand is acting on the failure:
-	// the ending is forgotten, here and on the pane, and a list still
+	// the exit is dropped, here and on the pane, and a list still
 	// carrying it does not bring it back. The command's own recording —
 	// the tmux that sets the option, a child of the shell for a moment
 	// before the prompt — is not a reuse.
@@ -2560,40 +2560,40 @@ func TestAFailedShellUsedAgainByHandForgetsItsEnding(t *testing.T) {
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp", name: "web"}}
 	m, _ = pipeServer(t, m)
 	var mu sync.Mutex
-	forgot := 0
+	drops := 0
 	inner := m.server.run
 	m.server.run = func(args ...string) (string, error) {
 		if args[0] == "set" && slices.Contains(args, "-pu") {
 			mu.Lock()
-			forgot++
+			drops++
 			mu.Unlock()
 		}
 		return inner(args...)
 	}
-	forgotten := func() int {
+	dropped := func() int {
 		time.Sleep(30 * time.Millisecond)
 		mu.Lock()
 		defer mu.Unlock()
-		return forgot
+		return drops
 	}
 
 	// The ending learned while the recording is still the shell's child.
 	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}}})
 	m = next.(model)
-	if m.terms[700].exit != "1" || forgotten() != 0 {
-		t.Fatalf("exit = %q, forgotten %d; want the ending kept through its own recording", m.terms[700].exit, forgotten())
+	if m.terms[700].exit != "1" || dropped() != 0 {
+		t.Fatalf("exit = %q, dropped %d; want the exit kept through its own recording", m.terms[700].exit, dropped())
 	}
-	// At its prompt: the row wears the cross.
+	// At its prompt: the row shows the cross.
 	next, _ = m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}}})
 	m = next.(model)
 	if row := renderRow(m, m.rows[1]); !strings.Contains(row, glyphFailed) {
 		t.Fatalf("row = %q, want the cross", row)
 	}
-	// Used by hand: the ending goes, and the pane is told.
+	// Used by hand: the exit goes, and the pane is told.
 	next, _ = m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 702, PPID: 700, Command: "ls", Dir: "/tmp"}}})
 	m = next.(model)
-	if m.terms[700].exit != "" || forgotten() != 1 {
-		t.Fatalf("exit = %q, forgotten %d; want the ending forgotten, once", m.terms[700].exit, forgotten())
+	if m.terms[700].exit != "" || dropped() != 1 {
+		t.Fatalf("exit = %q, dropped %d; want the exit dropped, once", m.terms[700].exit, dropped())
 	}
 	// A list read before the pane was told still carries it: not taken.
 	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "web", Exit: "1"}}})
@@ -2605,7 +2605,7 @@ func TestAFailedShellUsedAgainByHandForgetsItsEnding(t *testing.T) {
 	}
 }
 
-func TestASettledEndingHasItsTranscriptReadForWhatTheRunSaid(t *testing.T) {
+func TestASettledExitHasItsTranscriptReadForWhatTheRunSaid(t *testing.T) {
 	// The shell at its prompt with its ending: the transcript is read
 	// once, off the render path, and the row says what the run said of
 	// itself — 3 failed — where a running row says its ports; the pane's
@@ -2627,7 +2627,7 @@ func TestASettledEndingHasItsTranscriptReadForWhatTheRunSaid(t *testing.T) {
 		}
 		return inner(args...)
 	}
-	// Learn the ending, then settle: the scan finds the shell at its
+	// Learn the exit, then settle: the scan finds the shell at its
 	// prompt, and the read is what Update batches after the update.
 	m, _ = m.update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "test", Exit: "1"}}})
 	var outcome *outcomeMsg
@@ -2665,7 +2665,7 @@ func TestASettledEndingHasItsTranscriptReadForWhatTheRunSaid(t *testing.T) {
 	}
 	mu.Unlock()
 
-	// Used by hand: the ending and its word go together.
+	// Used by hand: the exit and its word go together.
 	m, _ = m.update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 701, PPID: 700, Command: "ls", Dir: "/tmp"}}})
 	if m.terms[700].summary != "" {
 		t.Errorf("summary = %q after the shell was used by hand, want nothing", m.terms[700].summary)
@@ -2691,7 +2691,7 @@ func deliver(cmd tea.Cmd) []tea.Msg {
 	}
 }
 
-func TestTheChecklistReportsTheLatestEnding(t *testing.T) {
+func TestTheChecklistReportsTheLatestExit(t *testing.T) {
 	// Two shells for one entry, both ended: the one that ended last
 	// speaks for the entry, whichever the map hands over first.
 	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}}, nil)
@@ -2747,7 +2747,7 @@ func TestAPlanShellFoundAtItsPromptHasTheServerAskedOnce(t *testing.T) {
 	// tmux announces nothing when the command ends and the pane's exit is
 	// set, so the scan that finds the entry's shell alone — no command
 	// under it — asks the server for the list, once; the command running
-	// again resets the ask.
+	// again clears that, so the next such scan asks again.
 	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}, {PID: 701, PPID: 700, Command: "npm", Dir: "/tmp"}})
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp", name: "web"}}
@@ -2777,7 +2777,7 @@ func TestAPlanShellFoundAtItsPromptHasTheServerAskedOnce(t *testing.T) {
 	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}}})
 	m = next.(model)
 	if got := listed(); got != 1 {
-		t.Fatalf("the server was listed %d times, want once for the ending", got)
+		t.Fatalf("the server was listed %d times, want once for the exit", got)
 	}
 	next, _ = m.Update(procsMsg{procs: m.procs})
 	m = next.(model)
@@ -2893,7 +2893,7 @@ func TestEscapeWhileTypingAbandonsTheFilter(t *testing.T) {
 }
 
 func TestEscWhileTypingPutsTheCursorBack(t *testing.T) {
-	// Abandoning the look is not acting on anything, so it puts the cursor
+	// Abandoning the search is not acting on anything, so it puts the cursor
 	// back on the row it left when / was pressed.
 	m := manyProjects(90, 14)
 	m = press(press(m, "down"), "down")
@@ -3185,8 +3185,8 @@ func TestTheKeysPageFitsItsPopup(t *testing.T) {
 }
 
 func TestThePopupIsCutToAShortClient(t *testing.T) {
-	// tmux refuses a popup taller than the client rather than cutting it,
-	// so the ask is cut first: a short client gets what fits.
+	// tmux rejects a popup taller than the client rather than cutting it,
+	// so the request is cut first: a short client gets what fits.
 	var popup []string
 	run := func(args ...string) (string, error) {
 		switch args[0] {
@@ -3273,9 +3273,9 @@ func TestTheQueryIsALineWithReadlinesKeys(t *testing.T) {
 
 func TestARowSaysWhereItListens(t *testing.T) {
 	// A dev server's row says what it is; the port beside it says where
-	// it is, the way an agent's row carries its model. The port is the
-	// run's — the node under the npm holds it — and a name too long for
-	// the column is the part that gives, not the port.
+	// it is. The port is the run's — the node under the npm holds it —
+	// and a name too long for the column is the part that gives, not the
+	// port.
 	m := withProcList(90, 14,
 		[]Project{{Name: "conn", Path: "/p/conn"}},
 		[]Proc{
@@ -3298,11 +3298,11 @@ func TestARowSaysWhereItListens(t *testing.T) {
 	}
 }
 
-func TestARowWearsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testing.T) {
-	// The shell at its prompt after its command ended badly wears the
-	// cross and reads red; after one that ended well it wears the check. A
-	// process stopped or a zombie wears the cross too, shell or not. A
-	// shell running something wears neither, whatever its pane recorded
+func TestARowShowsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testing.T) {
+	// The shell at its prompt after its command ended badly shows the
+	// cross and reads red; after one that ended well it shows the check. A
+	// process stopped or a zombie shows the cross too, shell or not. A
+	// shell running something shows neither, whatever its pane recorded
 	// of an earlier command.
 	m := withProcList(90, 14,
 		[]Project{{Name: "conn", Path: "/p/conn"}},
@@ -3368,10 +3368,10 @@ func TestTabGoesToACommandThatEndedBadlyAsToAWaitingAgent(t *testing.T) {
 	if r, ok := m.selected(); !ok || r.kind != rowProc || r.node.PID != 701 {
 		t.Fatalf("cursor on %+v, want the stopped worker", r)
 	}
-	// Then the shell whose command ended badly: the keys go into it.
+	// Then the shell whose command ended badly: focus goes into it.
 	m = press(m, "tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
-		t.Fatalf("tab took the keys to %d, want the shell whose command ended badly", got.PID)
+		t.Fatalf("tab took focus to %d, want the shell whose command ended badly", got.PID)
 	}
 	// Around again to the worker.
 	m = press(m, "tab")
@@ -3749,7 +3749,7 @@ func TestAServerTalkingResetsTheChase(t *testing.T) {
 	m.backoff = reconnectMax
 	next, _ := m.Update(sessionsMsg{})
 	if got := next.(model).backoff; got != 0 {
-		t.Errorf("backoff = %v after the server spoke, want the chase forgotten", got)
+		t.Errorf("backoff = %v after the server spoke, want the chase dropped", got)
 	}
 }
 
@@ -4058,10 +4058,10 @@ func TestAShellOnAGroupRowStartsAtTheGroup(t *testing.T) {
 }
 
 func TestLandingOnAShellLeavesItWhereItIsAndSaysWhatItIs(t *testing.T) {
-	// With the keys in the navigator, the navigator draws the pane beside
-	// it: landing on a held shell's row says what is known about the row,
-	// the way any row does, and asks nothing of the shell. A shell is only
-	// placed beside the navigator to be entered.
+	// With the navigator focused, the navigator draws the pane beside it:
+	// landing on a held shell's row says what is known about the row and
+	// asks nothing of the shell. A shell is only placed beside the
+	// navigator to be entered.
 	m := withProcList(90, 14,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
@@ -4088,7 +4088,7 @@ func TestLandingOnAShellLeavesItWhereItIsAndSaysWhatItIs(t *testing.T) {
 	}
 }
 
-func TestEnterOnAShownShellTakesTheKeysToIt(t *testing.T) {
+func TestEnterOnAShownShellFocusesIt(t *testing.T) {
 	m := withProcList(90, 14,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
@@ -4097,13 +4097,13 @@ func TestEnterOnAShownShellTakesTheKeysToIt(t *testing.T) {
 
 	m = press(press(m, "down"), "enter")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
-		t.Fatalf("asked %+v, want the keys taken to shell 700", got)
+		t.Fatalf("asked %+v, want focus taken to shell 700", got)
 	}
 }
 
 func TestJAndKStepThroughTheHeldShellsInOrder(t *testing.T) {
 	// The chord ctrl-space j presses J here: the next held shell in the
-	// navigator's order from the one shown, wrapping, with the keys in it.
+	// navigator's order from the one shown, wrapping, focused.
 	// The order is the places' order, whatever is folded or filtered.
 	m := withProcList(90, 14,
 		[]Project{{Name: "alpha", Path: "/p/alpha"}, {Name: "beta", Path: "/p/beta"}},
@@ -4120,7 +4120,7 @@ func TestJAndKStepThroughTheHeldShellsInOrder(t *testing.T) {
 	for i, want := range []int{701, 700, 701} {
 		m = press(m, "J")
 		if got := askedForKind(t, asked, kindFocus); got.PID != want {
-			t.Errorf("J %d took the keys to %d, want %d", i+1, got.PID, want)
+			t.Errorf("J %d took focus to %d, want %d", i+1, got.PID, want)
 		}
 		if r, ok := m.selected(); !ok || !r.holds(want) {
 			t.Errorf("J %d left the cursor on %+v, want the shell %d", i+1, r, want)
@@ -4128,12 +4128,12 @@ func TestJAndKStepThroughTheHeldShellsInOrder(t *testing.T) {
 	}
 	m = press(m, "K")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
-		t.Errorf("K took the keys to %d, want back to 700", got.PID)
+		t.Errorf("K took focus to %d, want back to 700", got.PID)
 	}
 }
 
 func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
-	// A place's rows are ordered by the name each wears, not by pid: three
+	// A place's rows are ordered by the name each shows, not by pid: three
 	// shells running b, a and c, in pid order, are listed a, b, c. J from
 	// the top of the list is the row below it, not the next pid.
 	m := withProcList(90, 20,
@@ -4158,12 +4158,12 @@ func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
 	for i, want := range []int{700, 702, 701} {
 		m = press(m, "J")
 		if got := askedForKind(t, asked, kindFocus); got.PID != want {
-			t.Errorf("J %d took the keys to %d, want %d", i+1, got.PID, want)
+			t.Errorf("J %d took focus to %d, want %d", i+1, got.PID, want)
 		}
 	}
 	m = press(m, "K")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 702 {
-		t.Errorf("K took the keys to %d, want back up to 702", got.PID)
+		t.Errorf("K took focus to %d, want back up to 702", got.PID)
 	}
 }
 
@@ -4187,7 +4187,7 @@ func TestAShellAChordOpenedIsShownWhenItIsListed(t *testing.T) {
 	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Wanted: true}}})
 	m = next.(model)
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
-		t.Fatalf("asked %+v, want the keys taken to the wanted shell", got)
+		t.Fatalf("asked %+v, want focus taken to the wanted shell", got)
 	}
 	if m.wantCursor != 700 || m.shown != 700 {
 		t.Errorf("wantCursor = %d, shown = %d, want both on 700", m.wantCursor, m.shown)
@@ -4196,7 +4196,7 @@ func TestAShellAChordOpenedIsShownWhenItIsListed(t *testing.T) {
 
 func TestANavigatorStartingBesideAShownShellBeginsOnItAndParksIt(t *testing.T) {
 	// The last navigator went with a shell shown beside it; the next one
-	// has the keys, so the shell goes back to a window of its own, and the
+	// has focus, so the shell goes back to a window of its own, and the
 	// cursor begins on its row — where it was left — rather than wherever
 	// the list happens to start.
 	m := withProcList(90, 14,
@@ -4315,11 +4315,11 @@ func TestTheCursorRidesOutATransientChild(t *testing.T) {
 	}
 }
 
-func TestAShellsWindowWearsItsPlaceAndItsAgentsMark(t *testing.T) {
+func TestAShellsWindowShowsItsPlaceAndItsAgentsMark(t *testing.T) {
 	// tmux draws the status line, and it shows window names; the navigator
 	// names each shell's window for the place and what is running there,
-	// and marks it the way its row is marked, so the line reads as the
-	// list's leaves from any shell.
+	// and gives it its row's mark, so the line reads as the list's leaves
+	// from any shell.
 	m := withProcList(96, 14,
 		[]Project{{Name: "conn", Path: "/p/conn"}},
 		[]Proc{
@@ -4385,7 +4385,7 @@ func TestTheStatusLineIsToldTheModeOnceWhenItChanges(t *testing.T) {
 	}
 }
 
-func TestTheKeysLeavingForAShellDisarmsTheKillAndKeepsTheCursorLit(t *testing.T) {
+func TestFocusLeavingForAShellDisarmsTheKillAndKeepsTheCursorLit(t *testing.T) {
 	m := withProcList(90, 14,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
@@ -4397,7 +4397,7 @@ func TestTheKeysLeavingForAShellDisarmsTheKillAndKeepsTheCursorLit(t *testing.T)
 	}
 	row, _ := m.selected()
 	if got := m.rowStyle(row, true); got.GetForeground() != selStyle.GetForeground() {
-		t.Error("with the keys here the cursor row should be lit")
+		t.Error("with focus here the cursor row should be lit")
 	}
 
 	// The keys go to a shell: the kill's second key is not coming, so the
@@ -4412,7 +4412,7 @@ func TestTheKeysLeavingForAShellDisarmsTheKillAndKeepsTheCursorLit(t *testing.T)
 		t.Errorf("footer = %q, want the prompt gone with the kill", f)
 	}
 	if got := m.rowStyle(row, true); got.GetForeground() != selStyle.GetForeground() {
-		t.Error("with the keys in a shell the cursor row should stay lit")
+		t.Error("with focus in a shell the cursor row should stay lit")
 	}
 }
 
@@ -4435,7 +4435,7 @@ func TestAPlannedShellIsNamedByItsPlanWhateverItRuns(t *testing.T) {
 
 func TestJReachesAShellOutsideEveryPlace(t *testing.T) {
 	// A shell opened somewhere no project holds has no row, but it is held
-	// and shown like any other: J steps to it, and the keys go to it.
+	// and shown like any other: J steps to it, and focus goes to it.
 	m := withProcList(90, 14,
 		[]Project{{Name: "conn", Path: "/p/conn"}},
 		[]Proc{
@@ -4444,11 +4444,11 @@ func TestJReachesAShellOutsideEveryPlace(t *testing.T) {
 		})
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/conn"}, 701: {pid: 701, dir: "/tmp"}}
 	m, asked := pipeServer(t, m)
-	m = press(m, "down") // the cursor on 700's row, the keys still here
+	m = press(m, "down") // the cursor on 700's row, focus still here
 
 	m = press(m, "J") // from the row under the cursor
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
-		t.Errorf("J took the keys to %d, want the shell outside every place, 701", got.PID)
+		t.Errorf("J took focus to %d, want the shell outside every place, 701", got.PID)
 	}
 
 	// The cursor is still on 700's row, having nowhere else to be. The
@@ -4497,16 +4497,16 @@ func TestBackReturnsToTheShellBeforeThisOne(t *testing.T) {
 	m = press(m, "J") // on to beta's, 700
 	askedForKind(t, asked, kindFocus)
 	if m.focus != 700 || m.was != 701 {
-		t.Fatalf("focus %d, was %d; want the keys in 700 from 701", m.focus, m.was)
+		t.Fatalf("focus %d, was %d; want focus in 700 from 701", m.focus, m.was)
 	}
 
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
-		t.Fatalf("back took the keys to %d, want the shell before, 701", got.PID)
+		t.Fatalf("back took focus to %d, want the shell before, 701", got.PID)
 	}
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
-		t.Fatalf("back again took the keys to %d, want 700", got.PID)
+		t.Fatalf("back again took focus to %d, want 700", got.PID)
 	}
 }
 
@@ -4519,22 +4519,22 @@ func TestBackFromAShellReachedFromTheListIsTheList(t *testing.T) {
 	// fake numbers zero.
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 0 {
-		t.Fatalf("back took the keys to %d, want the navigator", got.PID)
+		t.Fatalf("back took focus to %d, want the navigator", got.PID)
 	}
 	if m.focus != 0 || m.was != 701 {
-		t.Errorf("focus %d, was %d; want the keys at the list, from 701", m.focus, m.was)
+		t.Errorf("focus %d, was %d; want focus at the list, from 701", m.focus, m.was)
 	}
 	// And from the list, back is the shell again.
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
-		t.Fatalf("back took the keys to %d, want the shell 701", got.PID)
+		t.Fatalf("back took focus to %d, want the shell 701", got.PID)
 	}
 }
 
 func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
 	// To one shell from the list, back to the list, and on to another
 	// shell from there: the navigator was the way from the first shell to
-	// the second, not a place the keys stopped. Back from the second is
+	// the second, not a place focus stopped. Back from the second is
 	// the first, and back again the second — however many times.
 	m, asked := twoShells(t)
 	m = press(m, "J") // to alpha's shell, 701
@@ -4544,16 +4544,16 @@ func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
 	m = press(m, "J") // on to beta's, 700, by way of the list
 	askedForKind(t, asked, kindFocus)
 	if m.focus != 700 || m.was != 701 {
-		t.Fatalf("focus %d, was %d; want the keys in 700 from 701, the list passed through", m.focus, m.was)
+		t.Fatalf("focus %d, was %d; want focus in 700 from 701, the list passed through", m.focus, m.was)
 	}
 
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
-		t.Fatalf("back took the keys to %d, want the shell before the list, 701", got.PID)
+		t.Fatalf("back took focus to %d, want the shell before the list, 701", got.PID)
 	}
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
-		t.Fatalf("back again took the keys to %d, want 700", got.PID)
+		t.Fatalf("back again took focus to %d, want 700", got.PID)
 	}
 	// Whereas to the list and back to the same shell is a round trip: back
 	// from there is still the list.
@@ -4564,14 +4564,14 @@ func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
 	m = press(m, "shift+tab") // to 701
 	askedForKind(t, asked, kindFocus)
 	if m.focus != 701 || m.was != 700 {
-		t.Fatalf("focus %d, was %d; want the keys in 701 from 700", m.focus, m.was)
+		t.Fatalf("focus %d, was %d; want focus in 701 from 700", m.focus, m.was)
 	}
 }
 
-func TestTheMouseMovingTheKeysCountsAsAMove(t *testing.T) {
+func TestTheMouseMovingFocusCountsAsAMove(t *testing.T) {
 	// A click back into the navigator from the shell beside it focuses
 	// the navigator without going through a key: a move back should know
-	// about, and the keys being here again, the shell is parked.
+	// about, and with focus here again, the shell is parked.
 	m, asked := twoShells(t)
 	m = press(press(m, "down"), "enter") // into alpha's shell, 701
 	askedForKind(t, asked, kindFocus)
@@ -4584,7 +4584,7 @@ func TestTheMouseMovingTheKeysCountsAsAMove(t *testing.T) {
 		t.Fatalf("focus %d, was %d after focus; want the list, from 701", m.focus, m.was)
 	}
 	if got := askedForKind(t, asked, kindPark); got.PID != 701 {
-		t.Fatalf("asked %+v, want the shell parked now the keys are here", got)
+		t.Fatalf("asked %+v, want the shell parked now focus is here", got)
 	}
 	if m.shown != 0 {
 		t.Errorf("shown = %d, want nothing beside the navigator", m.shown)
@@ -4610,16 +4610,16 @@ func TestBackWithNowhereToGoSaysSoOrTakesTheShellUnderTheCursor(t *testing.T) {
 	m = press(m, "down")
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
-		t.Fatalf("back took the keys to %d, want the shell under the cursor", got.PID)
+		t.Fatalf("back took focus to %d, want the shell under the cursor", got.PID)
 	}
-	// The shell the keys came from has gone: back from the list falls to
+	// The shell focus came from has gone: back from the list falls to
 	// what is shown; back from a shell falls to the list.
 	m = press(m, "J") // 700, from 701
 	askedForKind(t, asked, kindFocus)
 	delete(m.terms, 701)
 	m = press(m, "shift+tab")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 0 {
-		t.Fatalf("back took the keys to %d, want the navigator when the last shell is gone", got.PID)
+		t.Fatalf("back took focus to %d, want the navigator when the last shell is gone", got.PID)
 	}
 }
 
@@ -4744,7 +4744,7 @@ func TestAShellAtItsPromptIsHungUpAtOnce(t *testing.T) {
 	}
 }
 
-func TestAShellWhoseCommandRefusesToGoStaysOpen(t *testing.T) {
+func TestAShellWhoseCommandDoesNotExitStaysOpen(t *testing.T) {
 	m, asked := pipeServer(t, composeTree())
 	m = press(press(m, "down"), "x")
 	m.splitKill(m.pendingKill.nodes)

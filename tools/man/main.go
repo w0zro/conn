@@ -300,10 +300,10 @@ func inline(s string) string {
 	return b.String()
 }
 
-// wrap breaks filled text into lines of at most 80 bytes at its spaces,
-// the way a man page's source is written; roff fills them again. A line
-// that would begin with a period or an apostrophe is roff's request, and
-// is marked as text.
+// wrap breaks filled text into lines of at most 80 bytes at its spaces: a
+// man page's source is written in short lines, and roff fills them again.
+// A line that would begin with a period or an apostrophe is roff's request,
+// and is marked as text.
 func wrap(s string) string {
 	var lines []string
 	line := ""

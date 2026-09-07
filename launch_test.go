@@ -13,8 +13,8 @@ func TestTheHomeWindowIsMadeOnceAndFoundAfter(t *testing.T) {
 	homeCommand = func() string { return "sleep 30" }
 	t.Cleanup(func() { homeCommand = old })
 
-	// A session with a shell window and no home, the way one looks after
-	// the navigator was closed.
+	// A session with a shell window and no home: what remains once the
+	// navigator is closed.
 	if _, err := tmuxCommand("new-session", "-d", "-s", tmuxSession, "sleep 30"); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestTheHomeWindowIsMadeOnceAndFoundAfter(t *testing.T) {
 
 func TestAnOlderBuildsNavigatorIsAdoptedNotDoubled(t *testing.T) {
 	// A server an older build started has a home window whose navigator
-	// pane wears only the window's mark. It is known by what it runs, and
+	// pane has only the window's mark. It is known by what it runs, and
 	// marked, rather than a second navigator being split in beside it.
 	tmuxOnSocket(t)
 	old := homeCommand

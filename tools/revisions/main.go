@@ -2,12 +2,12 @@
 // release tags: one row per v* tag, oldest first — its revision, the month
 // it was cut, and what it did — and the stamp and the change number on
 // every page brought up to the latest. The release workflow runs it after
-// a release and commits what changed, so the manual records a release the
-// way a technical manual does, without anyone typing the row.
+// a release and commits what changed, so the manual records each release
+// in its record of revisions without anyone typing the row.
 //
 // The cover carries the latest few rows beside the stamp; the whole record
-// is a page of its own after the cover, the way a manual's front matter
-// keeps it, paginating as it grows.
+// is a page of its own after the cover, in the front matter, paginating as
+// it grows.
 //
 // A row's description is the tag's message when the message says more than
 // the version — git tag -a v0.4.0 -m "Endings, tasks and the transcript" —

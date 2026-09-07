@@ -43,14 +43,14 @@ var skipDirs = map[string]bool{
 // home should not blank the home projects. Only every root failing is an
 // error, so a lone mistyped root still says so.
 //
-// Names are assigned within each root, the way they always were; a name that
+// Names are assigned within each root, as with a single root; a name that
 // collides across roots is qualified by its root's own name, which is the
 // only thing that tells an api here from an api there.
 //
 // The second list is the groups: the folders holding two or more of the
-// repositories, which is what a project often is — several repositories in
-// one directory, worked on at that level. Repositories in a group carry its
-// path in their Group field.
+// repositories. A project is often several repositories in one directory,
+// worked on at that level. Repositories in a group carry its path in their
+// Group field.
 func discoverAll(roots []string, skip map[string]bool) ([]Project, []Project, error) {
 	var found []Project
 	rootOf := map[string]string{} // repo path → the root it was found under

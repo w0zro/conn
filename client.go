@@ -19,11 +19,12 @@ import (
 // a shell: tmux does both, in the pane beside the navigator. This file is
 // the session that talks to the server: asking what it holds, moving the
 // shell under the cursor into the pane on the right and the last one back
-// out, taking the keys to a shell, and hearing when shells come and go.
+// out, moving focus to a shell, and hearing when shells come and go.
 
 // socketPath is where conn's tmux server listens. It is per user and outside
 // any project, because one server holds the shells for every repository. It
-// honors XDG_STATE_HOME the way the config honors XDG_CONFIG_HOME.
+// honors XDG_STATE_HOME, and falls back to ~/.local/state; the config
+// honors XDG_CONFIG_HOME.
 func socketPath() string {
 	if p := os.Getenv("CONN_SOCKET"); p != "" {
 		return p
@@ -61,14 +62,14 @@ type remoteTerm struct {
 	// and the shell was at its prompt: 3 failed, 12 passed.
 	summary string
 
-	// ended orders the endings the navigator has learned of, so the latest
+	// ended orders the exits the navigator has learned of, so the latest
 	// of several shells for one entry is the one that speaks for it.
-	// settled says the ending has been seen with the shell at its prompt;
-	// forgot that the shell was used by hand after, and its ending is
+	// settled says the exit has been seen with the shell at its prompt;
+	// dropped says the shell was used by hand after, and its exit is
 	// history — not to be learned again from a list that still carries it.
 	ended   int
 	settled bool
-	forgot  bool
+	dropped bool
 }
 
 // live reports whether the shell is still running what it was started
@@ -156,9 +157,9 @@ type pane struct {
 	wanted bool   // opened by a chord that asked for it to be shown
 }
 
-// placement is one ask to arrange the home window: the shell to put beside
-// the navigator — none, to leave the navigator the whole window — and
-// whether the keys should go to it.
+// placement is one request to arrange the home window: the shell to put
+// beside the navigator — none, to leave the navigator the whole window —
+// and whether focus should go to it.
 type placement struct {
 	pid   int
 	focus bool
@@ -537,8 +538,8 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 		"-F", paneBirth, "-n", winName, "-c", dir}
 	if _, err := run("has-session", "-t", tmuxSession); err != nil {
 		// The session is made again around a placeholder, and the shell
-		// opens in it the way every shell does: a session's first window
-		// cannot carry the terminal's name, and a new window can. The
+		// opens in a new window of it, not the first: a session's first
+		// window cannot carry the terminal's name, and a new window can. The
 		// placeholder is a sleep, not a shell, and goes once the shell is
 		// there. Two askers finding no session in the same instant make
 		// one between them, and the other's shell still opens in it.
@@ -580,7 +581,7 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 
 // recordExit is the shell fragment that sets the pane's exit option to the
 // status of the command before it, and the ended option to the moment —
-// nothing when tmux cannot be found by path, and then the ending goes
+// nothing when tmux cannot be found by path, and then the exit goes
 // unrecorded rather than the shell failing. The pane is named: a tmux run
 // inside a pane knows its own pane by the environment, but set -p without
 // a target goes to the session's active pane, not the one it was run in.
@@ -627,7 +628,7 @@ func (s *session) list() {
 	go s.refreshList()
 }
 
-// show puts a shell in the pane beside the navigator and takes the keys to
+// show puts a shell in the pane beside the navigator and moves focus to
 // it. tmux draws it there; the navigator keeps its column.
 func (s *session) show(pid int) {
 	if s == nil {
@@ -636,8 +637,8 @@ func (s *session) show(pid int) {
 	s.place(placement{pid: pid, focus: true})
 }
 
-// home takes the keys to the navigator, from wherever they are: its
-// window, and its pane in it.
+// home moves focus to the navigator, from wherever it is: its window,
+// and its pane in it.
 func (s *session) home() {
 	if s == nil {
 		return
@@ -656,8 +657,8 @@ func (s *session) home() {
 }
 
 // park puts the shell shown beside the navigator back in a window of its
-// own and leaves the navigator the whole window: the keys are in the
-// navigator, which has something of its own to draw there.
+// own and leaves the navigator the whole window: the navigator has focus,
+// and has something of its own to draw there.
 func (s *session) park() {
 	if s == nil {
 		return
@@ -679,13 +680,13 @@ func (s *session) place(p placement) {
 	})
 }
 
-// latest holds the asks for one kind of work that is done one at a time
-// and only ever needs its newest ask: one is done at a time, and an ask
-// arriving while one is being done replaces any ask still waiting.
+// latest holds the requests for one kind of work that is done one at a
+// time and only ever needs its newest: one is done at a time, and a
+// request arriving while one is being done replaces any still waiting.
 type latest[T any] struct {
 	mu   sync.Mutex
-	want *T   // the ask not yet done
-	busy bool // an ask is being done
+	want *T   // the request not yet done
+	busy bool // a request is being done
 }
 
 // ask queues v, superseding any ask still waiting, and sees to it that do
@@ -752,8 +753,8 @@ func (s *session) arrange(p placement) error {
 // no target, puts whatever is there back in a window of its own. It reads
 // the home window first, so it is right about what is there whoever last
 // changed it. The layout is main-vertical with the navigator as the main
-// pane, which is what holds the navigator's width when the window is
-// resized: the configuration re-applies it on every resize.
+// pane, and that holds the navigator's width when the window is resized:
+// the configuration re-applies it on every resize.
 //
 // A shell keeps its size as it moves. It joins at the slot's width in one
 // step rather than at half the window and then the slot, and the window it
@@ -811,9 +812,9 @@ func showPane(run runner, nav, target string, column int) error {
 			"select-layout", "-t", nav, "main-vertical")
 		_, err = run(args...)
 	default:
-		// -d: the keys stay where they are. Without it the pane swapped in
-		// becomes the active one whatever was active before; where the
-		// keys go is the arrangement's focus to say, after the swap.
+		// -d: focus stays where it is. Without it the pane swapped in
+		// becomes the active one whatever was active before; where focus
+		// goes is the arrangement's focus to say, after the swap.
 		args := []string{"rename-window", "-t", target, heldName, ";",
 			"swap-pane", "-d", "-s", target, "-t", shown}
 		_, err = run(append(args, park(shown)...)...)
@@ -883,7 +884,7 @@ func (s *session) replace() {
 }
 
 // dress names a shell's pane — its place, what runs there, and its mark —
-// for the terminal's title while the keys are in it.
+// for the terminal's title while it has focus.
 func (s *session) dress(pid int, name string) {
 	if s == nil {
 		return
@@ -951,10 +952,10 @@ func (s *session) tail(pid, n int) []string {
 }
 
 // running reports a pane still running the command it was started with:
-// no ending recorded, and something other than the shell in the
-// foreground. A shell at its prompt with no ending recorded — the
-// recording missed, or a shell started with nothing — is not running an
-// entry, and is not in the way of running it again.
+// no exit recorded, and something other than the shell in the foreground.
+// A shell at its prompt with no exit recorded — the recording missed, or a
+// shell started with nothing — is not running an entry, and is not in the
+// way of running it again.
 func (p *pane) running() bool {
 	if p.exit != "" {
 		return false
@@ -962,8 +963,8 @@ func (p *pane) running() bool {
 	return p.cmd == "" || !isShell(p.cmd)
 }
 
-// forgetExit takes the recorded ending off a shell's pane: the shell has
-// been used by hand since, and the ending is history.
+// forgetExit takes the recorded exit off a shell's pane: the shell has
+// been used by hand since, and the exit is history.
 func (s *session) forgetExit(pid int) {
 	p := s.pane(pid)
 	if p == nil {

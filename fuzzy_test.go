@@ -92,7 +92,7 @@ func TestTheMatchedLettersAreLit(t *testing.T) {
 		t.Fatal("setup: no tressle-api row rendered")
 	}
 	if !strings.Contains(row, matchStyle.Render("t")) {
-		t.Errorf("row = %q, want the matched letters wearing matchStyle", row)
+		t.Errorf("row = %q, want the matched letters in matchStyle", row)
 	}
 	if stripANSI(row) == row {
 		t.Error("a highlighted row should carry styling")

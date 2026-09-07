@@ -122,7 +122,7 @@ func TestAValueIsWrappedByColumnsNotBytes(t *testing.T) {
 	}
 }
 
-func TestAClaudeRowWearsTheNameItsUserGaveIt(t *testing.T) {
+func TestAClaudeRowShowsTheNameItsUserGaveIt(t *testing.T) {
 	// A /rename is the point of the row: "docs" is what you would say, and
 	// the model stays beside it. The name Claude derived from the directory
 	// is not one, so that session still reads as its kind.

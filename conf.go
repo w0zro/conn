@@ -42,13 +42,12 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 	w("# Written by conn at every launch; edits do not survive one.",
 		"",
 		"# The keys. ctrl-space is the prefix, and each chord keeps its letter's",
-		"# meaning: - is the navigator, ctrl-space again is back where the keys",
-		"# were, enter",
-		"# the next thing that needs you, s a r t b l a shell, an agent, the plan, the",
-		"# tests, the build, the lint where",
-		"# the keys are, and , the next kind of agent for a to start. Every",
-		"# chord tmux would otherwise bind is unbound first;",
-		"# the root table is left as tmux has it, which is the mouse.",
+		"# meaning: - is the navigator, ctrl-space again is back to the previous",
+		"# pane, enter the next thing that needs you, s a r t b l a shell, an",
+		"# agent, the plan, the tests, the build, the lint in the focused pane's",
+		"# directory, and , the next kind of agent for a to start. Every chord",
+		"# tmux would otherwise bind is unbound first; the root table is left as",
+		"# tmux has it, which is the mouse.",
 		"set -g prefix C-Space",
 		"unbind -a",
 		"bind C-Space "+run("back"),
@@ -71,10 +70,10 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 		"",
 		"# The server. The config sets the transcript cap; windows follow the",
 		"# client that last spoke; a program's copy reaches the clipboard; the",
-		"# terminal's title is the pane the keys are in. tmux handles the mouse,",
-		"# with its own bindings: the wheel scrolls a pane's transcript, a",
-		"# drag selects and copies, a click takes the keys to the pane under",
-		"# it, and a program that speaks mouse gets its own events.",
+		"# terminal's title is the focused pane. tmux handles the mouse, with",
+		"# its own bindings: the wheel scrolls a pane's transcript, a drag",
+		"# selects and copies, a click focuses the pane under it, and a program",
+		"# that speaks mouse gets its own events.",
 		"set -g mouse on",
 		"set -g history-limit "+strconv.Itoa(scrollback),
 		"set -g window-size latest",
@@ -117,10 +116,10 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 		"set -g popup-border-lines rounded",
 		`set -g popup-border-style "fg=`+tp.bg2+`"`,
 		"",
-		"# The status line: conn's name, then the mode the keys are in — the",
-		"# prefix while a chord hangs, copy mode, the navigator's own when it",
-		"# has one to name, else which pane the keys are in — then what the",
-		"# navigator says, or — for a few seconds, over it — what a chord said.",
+		"# The status line: conn's name, then the mode — the prefix while a",
+		"# chord hangs, copy mode, the navigator's own when it has one to name,",
+		"# else which pane has focus — then what the navigator says, or — for a",
+		"# few seconds, over it — what a chord said.",
 		"# The right corner names the kind of agent a starts:",
 		"# the one the window chose, else the config's. The window list tmux",
 		"# would draw is turned off: the windows are where shells wait, and",
@@ -177,10 +176,11 @@ func statusRight() string {
 
 // statusLeft is the status line's format: conn's name, the mode, then the
 // message. The name is first and always there — the line is where conn
-// says its own, now that the column is the list alone. tmux knows most of the modes itself — the prefix, copy mode, which pane
-// the keys are in — and the navigator names its own in @conn_mode, which
-// counts only while the keys are with it: a filter half-typed is not the
-// mode of a shell. What the navigator has to say is in @conn_msg. Each
+// says its own, now that the column is the list alone. tmux knows most of
+// the modes itself — the prefix, copy mode, which pane has focus — and the
+// navigator names its own in @conn_mode, which counts only while the
+// navigator has focus: a filter half-typed is not the mode of a shell.
+// What the navigator has to say is in @conn_msg. Each
 // mode is a chip in its color with the line washed one tone after it:
 // amber for the prefix, green for a process, cyan for copy mode, and the
 // navigator in ink — home is not a state. The message after the mode is

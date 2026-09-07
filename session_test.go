@@ -112,10 +112,10 @@ func TestTheShellIsShownBesideTheNavigatorAndParkedAgain(t *testing.T) {
 	}
 
 	// A second shell, previewed from the list: it trades places with the
-	// first, and the keys stay at the navigator. tmux's swap makes the
+	// first, and focus stays at the navigator. tmux's swap makes the
 	// pane swapped in the active one unless told not to.
 	// Opened straight through tmux: a shell the navigator opens itself
-	// is one it hands the keys to, and this one must not be.
+	// is one it focuses, and this one must not be.
 	if _, err := createWindow(tmuxCommand, "/tmp", "", "", false); err != nil {
 		t.Fatal(err)
 	}

@@ -42,7 +42,7 @@ func TestRestartKeepsTheServerWhenToldNo(t *testing.T) {
 
 func TestRestartWithoutAServerAsksNothing(t *testing.T) {
 	// Nothing held is nothing to ask about, and nothing to end: the launch
-	// that follows starts the server the way any first launch does.
+	// that follows is a first launch, and starts the server.
 	tmuxOnSocket(t)
 
 	err := endServer(func(int) bool { t.Fatal("asked with no server to end"); return false })

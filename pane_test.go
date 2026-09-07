@@ -17,7 +17,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// insideShell puts a process under a shell the server holds, the way a claude
+// insideShell puts a process under a shell the server holds: a claude
 // started with a sits under the shell that ran it.
 func insideShell(t *testing.T, shellPID int) model {
 	t.Helper()
@@ -282,8 +282,8 @@ func TestTheReportSaysWhatWasActuallyDone(t *testing.T) {
 	}
 }
 
-// replaceableServer is a model holding one shell over a recording session,
-// which is what R is for ending.
+// replaceableServer is a model holding one shell over a recording session
+// — the server R ends.
 func replaceableServer(t *testing.T) model {
 	t.Helper()
 	m := repoModel()
@@ -528,7 +528,7 @@ func TestTypingOnClearsWhatWasSaidAboutTheLastProject(t *testing.T) {
 
 func TestStartingAnAgentFromTheFilterEndsTheTyping(t *testing.T) {
 	// ctrl+r and ctrl+x end the looking; ctrl+a used to leave it on. The
-	// shell it opened took the keys — and handed them back to the filter the
+	// shell it opened took focus — and handed it back to the filter the
 	// moment it was gone, with q typing rather than quitting.
 	m := lookingUp(t, "alpha")
 
@@ -617,9 +617,9 @@ func TestTheKeysListTheKindKey(t *testing.T) {
 }
 
 func TestAHeldShellsRowDrawsItsFactsNotItsScreen(t *testing.T) {
-	// The shell itself is tmux's pane beside the navigator only while the
-	// keys are in it. With the keys in the navigator its own pane says
-	// what the row is, and never tries to draw what the shell is showing.
+	// The shell itself is tmux's pane beside the navigator only while it
+	// has focus. With the navigator focused its own pane says what the
+	// row is, and never tries to draw what the shell is showing.
 	m := withProcList(90, 24,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})

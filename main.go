@@ -144,7 +144,7 @@ func main() {
 	}
 }
 
-// needHome refuses to run without a home directory to put the config and
+// needHome returns an error without a home directory to put the config and
 // the socket under, unless the environment has placed both elsewhere.
 // Without it the paths would be relative, and a socket made in whatever
 // directory conn was started from would look like it worked.

@@ -164,8 +164,8 @@ func subtree(n *ProcNode) []*ProcNode {
 	return out
 }
 
-// procLabel names a process the way the navigator does: its command and
-// its pid, or a container's service and id.
+// procLabel names a process by its command and its pid, or a container by
+// its service and id — the name the navigator shows.
 func procLabel(n *ProcNode) string {
 	return n.Command + " " + nodeID(n)
 }

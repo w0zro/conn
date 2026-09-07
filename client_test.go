@@ -316,7 +316,7 @@ func TestAClientThatHangsUpAtOnceIsProbedForAgain(t *testing.T) {
 
 func TestTheSecondFirstShellJoinsTheSessionTheFirstMade(t *testing.T) {
 	// Two windows open their first shells at once: both find no session,
-	// both try to make one, and tmux refuses the second as a duplicate. The
+	// both try to make one, and tmux rejects the second as a duplicate. The
 	// second's shell opens in the session the first made.
 	s := newSession()
 	s.closed = true

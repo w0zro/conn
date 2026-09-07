@@ -44,7 +44,7 @@ func (m model) agentMark(r navRow, a agent) (string, lipgloss.Style) {
 func (m model) View() tea.View {
 	v := tea.NewView(m.layout())
 	v.AltScreen = true
-	// Told when the keys leave for a shell and come back, so the cursor
+	// Told when focus leaves for a shell and comes back, so the cursor
 	// can say whose the next letter is.
 	v.ReportFocus = true
 	return v
@@ -187,10 +187,10 @@ func (m model) renderRow(r navRow, selected bool) string {
 	}
 
 	// A row whose command ended badly, or whose process is stopped or a
-	// zombie, wears the cross in red — alive by the table and no use to
+	// zombie, shows the cross in red — alive by the table and no use to
 	// anyone, which is the state that most wants noticing after an agent's
-	// ask. One whose command ended well wears the check in green: done,
-	// and as worth seeing as a failure, since a run's ending either way is
+	// ask. One whose command ended well shows the check in green: done,
+	// and as worth seeing as a failure, since a run's exit either way is
 	// what you were waiting on.
 	if mark == "" && r.kind == rowProc {
 		switch {
@@ -214,16 +214,16 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// A process that is conn itself is (me), and only that, in a color of
 	// its own: the launcher become a tmux client would read as a go or a
 	// tmux, and neither is what the row is. Ports it has none of, and a
-	// mark it does not wear.
+	// mark it does not show.
 	if m.selfRun(r) && !selected {
 		style = selfStyle
 	}
 
-	// Where it listens, beside the name the way an agent's model is: a
-	// dev server's row says what it is, and this says where it is. It
-	// stands outside the name rather than in it, so a name cut to fit
-	// loses its tail and keeps its port — the port being the thing you
-	// were about to go and look up.
+	// Where it listens, beside the name, in the slot that holds an agent's
+	// model on its row: a dev server's row says what it is, and this says
+	// where it is. It stands outside the name rather than in it, so a name
+	// cut to fit loses its tail and keeps its port — the port being the
+	// thing you were about to go and look up.
 	ports := ""
 	if r.kind == rowProc && r.node.Container != nil {
 		ports = containerNote(r.node)
@@ -443,9 +443,9 @@ func (m model) rowStyle(r navRow, selected bool) lipgloss.Style {
 		return faintStyle
 	}
 	if selected {
-		// Lit whether or not the keys are here: the row is the one the
-		// keys went from, and dim reads as out of reach. Which pane has
-		// the keys is the status line's to say.
+		// Lit whether or not the navigator has focus: the row is the one
+		// focus went from, and dim reads as out of reach. Which pane has
+		// focus is the status line's to say.
 		return selStyle
 	}
 	if r.kind != rowProc {
@@ -470,7 +470,7 @@ func (m model) showDetail() bool { return m.detailWidth() >= paneMin }
 // paneLines renders the navigator's own pane beside the list: the picker
 // while it is open, and otherwise what is known about the selected row —
 // a held shell's included. The shell itself is only beside the navigator
-// while the keys are in it, and then the navigator is its column alone.
+// while it has focus, and then the navigator is its column alone.
 func (m model) paneLines(width, rows int) []string {
 	if m.resume != nil {
 		return m.resumeLines(width, rows)
@@ -481,7 +481,7 @@ func (m model) paneLines(width, rows int) []string {
 // resumeLines is the picker: a place's suspended conversations, newest
 // first. Each row is when the conversation last moved, the branch it was on,
 // and the last thing asked of it — the things a reader recognizes one by.
-// The cursor's row is lit the way the navigator's is.
+// The cursor's row is lit in the navigator's selection style.
 func (m model) resumeLines(width, rows int) []string {
 	v := m.resume
 	lines := []string{
@@ -715,8 +715,8 @@ func wrapField(f field, labelW, width int) []string {
 // wrapValue breaks a value at spaces where it can, and mid-token when a single
 // token is longer than the pane — paths and command lines usually are.
 //
-// Everything is measured in the columns a terminal will give it, the way the
-// rest of this file measures. Counting bytes instead wraps a line of accented
+// Everything is measured in the columns a terminal will give it, the unit
+// used throughout this file. Counting bytes instead wraps a line of accented
 // text a third of the way early, and cutting at a byte offset lands inside a
 // character, leaving half of it on each of two lines where it draws as neither
 // — which the ellipsis on a truncated prompt and the › between the processes

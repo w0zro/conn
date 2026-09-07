@@ -12,16 +12,17 @@ import (
 // change here; the render code asks for roles, not colors.
 //
 // conn carries no colors of its own. It draws with the terminal's sixteen
-// slots, so the list wears whatever the terminal wears — datum, in light or
-// dark — and the claude in the pane beside it, the tmux around both and the
-// list are one palette by construction. Hue is spent on state: amber for
-// working, green for finished and waiting on you, the orange-red for blocked
-// and for dying — and on one thing more: where you are, in the slot the
-// terminal's own cursor wears, so conn's cursor and the terminal's are the
-// same color. When nothing needs you, the list is ink and the cursor.
+// slots, so the list uses whatever palette the terminal has — datum, in
+// light or dark — and the claude in the pane beside it, the tmux around
+// both and the list are one palette by construction. Hue is spent on state:
+// amber for working, green for finished and waiting on you, the orange-red
+// for blocked and for dying — and on one thing more: where you are, in the
+// slot the terminal's own cursor is drawn in, so conn's cursor and the
+// terminal's are the same color. When nothing needs you, the list is ink
+// and the cursor.
 //
 // The pane beside the list is the exception: a page, colored to be read at
-// a glance. Its headings wear the place pastel, identities — a branch, a
+// a glance. Its headings are in the place pastel, identities — a branch, a
 // port, a commit — the cyan, states their own colors, the secondary facts
 // the gray, and a shell's transcript whatever the shell drew it in.
 
@@ -60,7 +61,7 @@ func applyStyles() {
 	// it is on the status line, in tmux's colors.
 	selStyle = slot(slotCursor).Bold(true)
 	// selfStyle tags a process that is conn itself, in a color nothing
-	// else wears: not the cursor's, not a state's.
+	// else uses: not the cursor's, not a state's.
 	selfStyle = slot(slotSelf)
 
 	// placeStyle names the places — the groups, repositories and
@@ -70,13 +71,13 @@ func applyStyles() {
 	placeStyle = slot(slotPlace)
 	itemStyle = ink
 	headingStyle = ink.Bold(true)
-	// titleStyle heads the pane: what the page is about, in the pastel
-	// the places wear in the list, so the page reads as the row's.
+	// titleStyle heads the pane: what the page is about, in the list's
+	// pastel for places, so the page reads as the row's.
 	titleStyle = slot(slotPlace).Bold(true)
 
-	// One quiet gray, worn by content that is idle (faint), by the names of
-	// facts (label) and by conn's own asides (hint) alike; asides in italic,
-	// the way an editor's aside is set apart from the text.
+	// One quiet gray, for content that is idle (faint), for the names of
+	// facts (label) and for conn's own asides (hint) alike; asides in
+	// italic, so they are set apart from the text.
 	faintStyle = slot(slotGray)
 	labelStyle = slot(slotGray)
 	hintStyle = slot(slotGray)
@@ -100,9 +101,9 @@ func applyStyles() {
 	errStyle = slot(slotRed)
 
 	// matchStyle lights the letters a query matched, inside whatever style
-	// the row is otherwise wearing: a narrowed list always shows why it
-	// narrowed. In the list, cyan is found and nothing else; on the page
-	// it is the accent, worn by the facts that identify.
+	// the row otherwise has: a narrowed list always shows why it narrowed.
+	// In the list, cyan is found and nothing else; on the page it is the
+	// accent, on the facts that identify.
 	matchStyle = slot(slotCyan).Bold(true)
 
 	toneStyles = map[tone]lipgloss.Style{
@@ -120,8 +121,8 @@ func applyStyles() {
 }
 
 // tone is how a value in the detail pane reads. Most facts are plain; the
-// few that carry a state carry it in the same colors the navigator's marks
-// wear, and the ones that are true but secondary recede.
+// few that carry a state carry it in the same colors as the navigator's
+// marks, and the ones that are true but secondary recede.
 type tone int
 
 const (
@@ -134,7 +135,7 @@ const (
 	toneQuiet              // true but secondary: ids, urls, empty counts
 	toneName               // what a thing is called: a model, a command, a state
 	toneCount              // a measure: tokens, a share of the machine, a count
-	toneSelf               // your own words, in the color conn wears for itself
+	toneSelf               // your own words, in the color conn uses for itself
 )
 
 // toneStyles is the color each tone reads in. The accent and the urgent
@@ -146,7 +147,7 @@ var toneStyles map[tone]lipgloss.Style
 // popups. tmux takes hex, and is configured once for every terminal rather
 // than asked which ground it found, so the config names the side and the
 // values are datum's for it — the same colors the slots resolve to in a
-// terminal wearing datum.
+// terminal set to datum.
 type tmuxPalette struct {
 	bg1, bg2                string // one and two steps off the ground: the wash, the chip
 	fg, gray                string

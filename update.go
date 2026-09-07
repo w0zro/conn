@@ -19,9 +19,9 @@ import (
 // again, as every launch does, is not another ask — and a release newer
 // than this build is said on the status line whenever nothing else is
 // being said. U takes it: the installer runs in a popup over the window,
-// puts the release where this build is, and runs conn, which is what
-// gives the server the new build's configuration and the navigator back
-// as the new build. The shells stay; only the navigator is replaced.
+// puts the release where this build is, and runs conn, which gives the
+// server the new build's configuration and brings the navigator back as
+// the new build. The shells stay; only the navigator is replaced.
 
 const (
 	// releasesURL answers with a redirect to the latest release, which

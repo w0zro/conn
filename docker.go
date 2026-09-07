@@ -88,8 +88,8 @@ const dockerWait = 3 * time.Second
 // project is still going, and drops the rest of what the machine has ever
 // kept.
 //
-// A daemon that is not up, or no docker at all, is an empty list — nothing
-// is running in a container, which is true. A daemon that does not answer
+// A daemon that is not up, or no docker at all, is an empty list: nothing
+// is running in a container. A daemon that does not answer
 // in time is another thing: what it last said stands, and the scan says so
 // (dockerNote), once, until it answers again.
 func containers() []Proc {
@@ -295,8 +295,7 @@ func hostPorts(s string) []string {
 // containerPID is the number a container goes by in the tree, where every
 // node has one: below zero, where no process is, and the same for the
 // container from one scan to the next, so the cursor holds its row. It is
-// read off the id, whose first digits tell containers apart the way the
-// whole id does.
+// read off the id, whose first digits are enough to tell containers apart.
 func containerPID(id string) int {
 	v, err := strconv.ParseInt(id[:min(6, len(id))], 16, 64)
 	if err != nil {
@@ -476,9 +475,8 @@ func fieldBase(s string) string {
 // dockerStop asks docker to stop a container: the container's own
 // process gets SIGTERM, and docker follows with SIGKILL after its grace,
 // which is the kill a process gets, done docker's way. A container not
-// running is removed instead — its row closed, the way an ended entry's
-// shell is closed — and compose makes it again when the service is next
-// brought up.
+// running is removed instead — its row closed — and compose makes it again
+// when the service is next brought up.
 func dockerStop(c *Container) error {
 	if !c.running() {
 		_, err := listing(scanTimeout, dockerPath, "rm", c.ID)
@@ -504,9 +502,8 @@ func containerLogs(id string, lines int) []string {
 	return strings.Split(said, "\n")
 }
 
-// containerFields describes a container the way procFields describes a
-// process: what it is, where it belongs, and what docker says of it,
-// then the last of its logs.
+// containerFields describes a container: what it is, where it belongs,
+// and what docker says of it, then the last of its logs.
 func containerFields(n *ProcNode) []field {
 	c := n.Container
 	statusTone := toneGood
@@ -571,7 +568,7 @@ func composeFile(dir string) string {
 // composeServices is every service the place's compose declares, in the
 // file's order, asked of compose itself: it is the one reader that knows
 // what its file means. Nothing without docker, or for a file compose
-// refuses. It is a process — tens of milliseconds — asked once, on r.
+// rejects. It is a process — tens of milliseconds — asked once, on r.
 func composeServices(dir string) []string {
 	if dockerPath == "" {
 		return nil

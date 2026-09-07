@@ -11,12 +11,12 @@ import (
 // A conversation an agent was having does not end when its instance exits;
 // it is suspended, and the transcript on disk is enough to pick it back up.
 // The picker lists a place's suspended conversations in the pane — newest
-// first, searchable the way the filter searches — and enter continues the
-// one under the cursor, in a shell like any other. A on a place opens it;
-// as a chord it reaches back from wherever the keys are.
+// first, narrowed by typing — and enter continues the one under the
+// cursor, in a shell like any other. A on a place opens it; as a chord it
+// reaches back from whichever pane has focus.
 
 // resumeView is the picker while it is open: whose conversations, the
-// listing once it lands, and the look narrowing it.
+// listing once it lands, and the search narrowing it.
 type resumeView struct {
 	place  Project
 	loaded bool           // the listing takes a beat; "empty" waits for it
@@ -27,8 +27,8 @@ type resumeView struct {
 }
 
 // convosMsg carries the listing for the place the picker was opened on. The
-// path identifies the ask, so a listing that lands after the picker moved on
-// is dropped.
+// path identifies the request, so a listing that lands after the picker
+// moved on is dropped.
 type convosMsg struct {
 	place  string
 	convos []conversation
@@ -72,9 +72,9 @@ func (m model) convoDirs(p Project) []string {
 }
 
 // liveConversations is the id of every conversation a running instance is
-// carrying — vetted against the process table the way agentFor vets, so a
-// session file outliving its process does not hide the conversation it
-// left behind.
+// carrying — vetted against the process table, an agent counting only while
+// its process is there and still running it, so a session file outliving
+// its process does not hide the conversation it left behind.
 func (m model) liveConversations() map[string]bool {
 	live := map[string]bool{}
 	for pid, a := range m.agents {
@@ -91,7 +91,7 @@ func (m model) liveConversations() map[string]bool {
 
 // resumeKey handles a keystroke while the picker is open. It keeps the
 // filter's grammar: letters type, the list narrows under a movable cursor,
-// enter acts on what the cursor is on, and esc abandons the look.
+// enter acts on what the cursor is on, and esc abandons the search.
 func (m *model) resumeKey(msg tea.KeyPressMsg) tea.Cmd {
 	v := m.resume
 	switch msg.String() {
@@ -138,8 +138,7 @@ func (m *model) setResumeQuery(s string) {
 	}
 }
 
-// resumeMove steps the cursor through what answers, wrapping at both ends
-// the way the navigator's cursor does.
+// resumeMove steps the cursor through what answers, wrapping at both ends.
 func (m *model) resumeMove(delta int) {
 	v := m.resume
 	n := len(v.matches())

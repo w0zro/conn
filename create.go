@@ -44,8 +44,8 @@ func (m *model) openCreate() tea.Cmd {
 // the root itself. A directory under no root is its own root.
 func (m model) rootOf(dir string) (root, prefix string) {
 	for _, r := range m.roots {
-		// Resolved the way the scan resolved the places under it, so a
-		// root reached through a symlink still holds them.
+		// Symlinks resolved, to match how the scan resolved the places
+		// under it, so a root reached through a symlink still holds them.
 		if real, err := filepath.EvalSymlinks(r); err == nil {
 			r = real
 		}
@@ -93,7 +93,7 @@ func (m model) repoHolding(path string) (Project, bool) {
 }
 
 // createKey handles a keystroke while the line is being typed: enter makes
-// the project, esc thinks better of it, and every other key edits the line.
+// the project, esc cancels, and every other key edits the line.
 // A line that will not do is said, and stays for a better one.
 func (m *model) createKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
@@ -171,8 +171,8 @@ func createProject(dir string) tea.Cmd {
 }
 
 // created takes the answer: the cursor is owed the new project once the
-// scan finds it, and a shell opens there meanwhile, which is what lists
-// it before then and where the work in it starts.
+// scan finds it, and a shell opens there meanwhile — it lists the project
+// before then, and is where the work in it starts.
 func (m *model) created(msg createdMsg) tea.Cmd {
 	if msg.err != nil {
 		m.status, m.statusErr = msg.err.Error(), true

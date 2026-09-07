@@ -286,7 +286,7 @@ func TestClaudeFieldsNameWhatBlocksASession(t *testing.T) {
 		StatusFor: 2 * time.Minute,
 	})
 	if v, _ := fieldValue(fs, "status"); v != "waiting on permission prompt  (2m)" {
-		t.Errorf("status = %q, want the ask named", v)
+		t.Errorf("status = %q, want the prompt named", v)
 	}
 }
 
@@ -511,7 +511,7 @@ func TestTheAgentsAreListedUnderOneLabel(t *testing.T) {
 }
 
 func TestAStatusReadsInItsMarksColor(t *testing.T) {
-	// The pane's status field wears the same meaning the navigator's marks
+	// The pane's status field shows the same meaning the navigator's marks
 	// do: working is alive, blocked is urgent, idle recedes.
 	toneOf := func(s claudeSession) tone {
 		for _, f := range claudeFields(s) {

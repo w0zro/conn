@@ -8,13 +8,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// A task's ending is an exit status; what the task said is in its
+// How a task ended is an exit status; what the task said is in its
 // transcript, and the tools say it in a line at the end that a reader
-// looks for: 3 failed, 12 passed, 5 issues. conn reads that line the way
-// the reader would, by its shape rather than by the tool that printed it,
-// so a Makefile target that wraps the tool reads the same as the tool
-// run bare. A shape conn does not know leaves the ending as the status
-// alone.
+// looks for: 3 failed, 12 passed, 5 issues. conn reads that line by its
+// shape rather than by the tool that printed it, so a Makefile target that
+// wraps the tool reads the same as the tool run bare. When no line has a
+// shape conn knows, the exit status stands alone.
 
 // summarize is what a transcript's end says of the run, in a few words,
 // or nothing when no line of it has a shape conn knows. The last line

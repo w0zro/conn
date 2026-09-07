@@ -110,7 +110,7 @@ func runLaunch() error {
 // anything is started: a server brought up for a terminal that is not
 // there would be left running behind a message from tmux, which does
 // not say conn. Inside a tmux that is not conn's, attaching is nesting,
-// which tmux refuses. Inside conn's own, the terminal is attached
+// which tmux rejects. Inside conn's own, the terminal is attached
 // already, and what is left to do is what every launch does first: give
 // the server this build's configuration and navigator. That is the way to
 // take an upgrade from a shell in the window.
@@ -156,7 +156,7 @@ func isNavCommand(cmd string) bool {
 // ensureHome finds the navigator, or makes it when it has gone: a new pane
 // down the left of a home window that lost it, or a new home window. A
 // navigator is known by its pane's mark, or — a server an older build
-// started, whose navigator wears only the window's mark — by what the pane
+// started, whose navigator has only the window's mark — by what the pane
 // runs, and is marked then. A second navigator is conn's own leftover,
 // holding no work, and goes.
 func ensureHome() (home, error) {
@@ -225,8 +225,8 @@ func ensureHome() (home, error) {
 // are always the build's, and the navigator should be too, or a fix in
 // it waits, unseen, behind a process started days ago. The pane stays —
 // its place in the layout, its id — and the program in it is replaced.
-// Only the launcher does this: a chord that restarted the navigator under
-// the keys would be a surprise.
+// Only the launcher does this: a chord that restarted a focused navigator
+// would be a surprise.
 //
 // The navigator is from this build when it runs this build's command and its
 // pane records this build's version: a release installed over the last
@@ -265,10 +265,10 @@ func runHome(key string) error {
 }
 
 // tell presses a key at the navigator without going to it: the navigator
-// acts on the key — showing a shell, taking the keys there — and the keys
-// stay where they were unless that is where the navigator sends them. It
-// is how a chord reaches what only the navigator knows: the order of the
-// shells, and which agents are waiting.
+// acts on the key — showing a shell, moving focus there — and focus stays
+// where it was unless that is where the navigator sends it. It is how a
+// chord reaches what only the navigator knows: the order of the shells,
+// and which agents are waiting.
 func tell(key string) error {
 	h, err := ensureHome()
 	if err != nil {
@@ -281,7 +281,7 @@ func tell(key string) error {
 // runShellAt is `conn shell [dir]` and `conn agent [dir]`: a shell — or a
 // command with a shell waiting behind it — in dir, opened in a window of
 // its own and wanted, which the navigator answers by showing it beside
-// itself and taking the keys there. The navigator is made sure of after,
+// itself and moving focus there. The navigator is made sure of after,
 // so a home window that was closed is back to answer.
 func runShellAt(dir, command string) error {
 	if dir == "" {
@@ -295,9 +295,9 @@ func runShellAt(dir, command string) error {
 }
 
 // runKind is `conn kind`: the next kind of agent, for the a key and the
-// agent chord alike, said on the status line the way the navigator's ,
-// says it — the corner names the kind from here on, but the change
-// deserves a word where the keys are.
+// agent chord alike, said on the status line — the corner names the kind
+// from here on, but the change deserves a word where focus is. The
+// navigator's , says it there too.
 func runKind() error {
 	k := nextKind(currentKind(tmuxCommand))
 	if err := chooseKind(tmuxCommand, k); err != nil {
@@ -405,8 +405,8 @@ func runVerbAt(v *verb) func(dir string) error {
 }
 
 // busyHeld is which of the held shells are still running the command they
-// were started with, by pid, read the way the navigator reads it: no
-// ending recorded, and something under the shell in the process table.
+// were started with, by pid: no exit recorded, and something under the
+// shell in the process table — the same reading the navigator makes.
 // tmux's own word for a pane's command is the shell's whenever the command
 // was run under one — a command under zsh -c shares its process group, and
 // the group is what tmux names — so the table is asked instead, and the
@@ -434,8 +434,8 @@ func busyHeld(held []*pane, procs []Proc, err error) map[int]bool {
 }
 
 // placeHolding is the place a directory is in — the innermost project or
-// sub-project — found the way the navigator finds it, for the commands
-// that act where the keys are.
+// sub-project — found by the navigator's own rule, for the commands that
+// act where focus is.
 func placeHolding(dir string) (Project, error) {
 	if dir == "" {
 		dir, _ = os.Getwd()
@@ -479,19 +479,20 @@ func report(err error) bool {
 }
 
 // runJump is `conn jump`: the next agent waiting on you, which is the
-// navigator's tab — it knows the marks, and it shows the shell and takes
-// the keys there. With nothing waiting the navigator says so at its foot,
+// navigator's tab — it knows the marks, and it shows the shell and moves
+// focus there. With nothing waiting the navigator says so at its foot,
 // which is in view from every shell.
 func runJump() error {
 	return tell("Tab")
 }
 
-// runBack is `conn back`: the keys back where they were — the shell before
-// this one, or the navigator — which is the navigator's shift-tab: it is
-// the one that sent them everywhere they have been, so it is the one that
-// knows. tmux's own last-pane cannot: it remembers a pane within a window,
-// and a shell shown beside the navigator is a pane moved into the home
-// window, whose predecessor was moved out — tmux forgets a pane that left.
+// runBack is `conn back`: focus back to the previous pane — the shell
+// before this one, or the navigator — which is the navigator's shift-tab:
+// it is the one that sent focus everywhere it has been, so it is the one
+// that knows. tmux's own last-pane cannot: it keeps a pane within a
+// window, and a shell shown beside the navigator is a pane moved into the
+// home window, whose predecessor was moved out — tmux drops a pane that
+// left.
 func runBack() error {
 	return tell("BTab")
 }

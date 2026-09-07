@@ -185,9 +185,9 @@ func TestTheFirstOllamaModelIsRead(t *testing.T) {
 
 func TestOllamasModelsAreReadOffTheDiskNewestFirst(t *testing.T) {
 	// A pulled model is a manifest file under manifests/<registry>/
-	// <namespace>/<model>/<tag>; the names are shortened the way ollama
-	// list shortens them, and the newest manifest comes first, which is
-	// the model most recently pulled or run.
+	// <namespace>/<model>/<tag>; the names take ollama list's shortening,
+	// and the newest manifest comes first, which is the model most recently
+	// pulled or run.
 	dir := t.TempDir()
 	manifests := filepath.Join(dir, "manifests")
 	write := func(rel string, when time.Time) {

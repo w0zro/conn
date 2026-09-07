@@ -34,7 +34,7 @@ func TestTheManualsAppendixListsThePopupsKeys(t *testing.T) {
 
 // Every page of the manual carries the classification marking top and
 // bottom, the ones added after the handoff included: the original
-// CONFIDENTIAL, struck through, the way a declassified document keeps it.
+// CONFIDENTIAL, struck through rather than removed.
 func TestEveryPageOfTheManualIsMarked(t *testing.T) {
 	b, err := os.ReadFile("docs/index.html")
 	if err != nil {

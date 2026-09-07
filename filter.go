@@ -94,7 +94,7 @@ func (m model) runText(run []*ProcNode) string {
 // gave it, what it advertises as an agent — the name its user gave it, its
 // model — the ports it listens on, and what its run said of itself when it
 // ended. The facets are joined rather than tried one at a time so a query
-// can span them the way the row does.
+// can span more than one of them.
 //
 // It is what the filter reads, not what the row draws: a run folded into a
 // row draws one name, and each process in it answers for itself, so the

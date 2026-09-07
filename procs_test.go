@@ -246,7 +246,7 @@ func TestTheScanDoesNotReportItself(t *testing.T) {
 func TestAFreshShellDoesNotSortBetweenTwoAgents(t *testing.T) {
 	// Every shell conn holds is a zsh underneath. Sorted by raw command they
 	// are three ties settled by pid — claude, zsh, claude — while the rows
-	// wear the names of what runs inside. The order must follow the names.
+	// show the names of what runs inside. The order must follow the names.
 	agent := func(pid int) *ProcNode {
 		return &ProcNode{
 			Proc: Proc{PID: pid, Command: "zsh"},

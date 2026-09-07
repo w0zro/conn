@@ -346,7 +346,7 @@ func TestARowInAHeldShellCarriesTheShellsTranscript(t *testing.T) {
 
 func TestTheChecklistSaysHowEachEntryStands(t *testing.T) {
 	// Up glows, down sits hollow, and an entry whose command ended badly
-	// wears the cross, red through, with how it ended.
+	// shows the cross, red through, with how it ended.
 	dir := t.TempDir()
 	if err := writeFile(filepath.Join(dir, ".conn"), "web: npm run dev\napi: go run .\njob: make\nold: sleep 1\n"); err != nil {
 		t.Fatal(err)

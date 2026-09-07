@@ -182,7 +182,7 @@ type agentKind struct {
 
 	// suspended lists the kind's conversations at rest in the given
 	// directories — had there once, with no live instance carrying them.
-	// live is the ids of the conversations the model believes are running.
+	// live is the ids of the conversations the model lists as running.
 	// nil: conversations do not survive their instances.
 	suspended func(dirs []string, live map[string]bool) []conversation
 
@@ -330,11 +330,11 @@ func resumeCommand(c conversation) string {
 }
 
 // agentPoll is how often the agents' own state is re-read. It is file reads,
-// not process scans, which is what lets it run this much faster than lsof —
-// and every poll reads the sessions directory and each file in it, so it is
-// not free either. Half a second is under what a glance notices and a third
-// of the reads the old rate spent, most of them on a laptop finding nothing
-// had changed.
+// not process scans, so it runs this much faster than lsof — and every poll
+// reads the sessions directory and each file in it, so it is not free
+// either. Half a second is under what a glance notices and a third of the
+// reads the old rate spent, most of them on a laptop finding nothing had
+// changed.
 const agentPoll = 500 * time.Millisecond
 
 // agentTickMsg says it is time to re-read what the agents advertise.

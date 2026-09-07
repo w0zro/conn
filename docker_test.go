@@ -344,7 +344,7 @@ func troubledModel() model {
 	return m
 }
 
-func TestADeadServiceWearsTheCrossAndTabGoesToIt(t *testing.T) {
+func TestADeadServiceShowsTheCrossAndTabGoesToIt(t *testing.T) {
 	m := troubledModel()
 	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        cache · :6390", "        web · unhealthy ✗", "        worker · 3m ✗"})
 	var web, worker navRow

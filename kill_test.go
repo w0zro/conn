@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestSignalRefusesDangerousTargets(t *testing.T) {
+func TestSignalRejectsDangerousTargets(t *testing.T) {
 	for _, tc := range []struct {
 		pid  int
 		want string

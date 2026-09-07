@@ -80,7 +80,7 @@ func TestTheAnswerIsKeptForADay(t *testing.T) {
 	}
 }
 
-func TestAFailedLookIsSilentUnlessAsked(t *testing.T) {
+func TestAFailedCheckIsSilentUnlessAsked(t *testing.T) {
 	stateDir(t)
 	answering(t, "", errors.New("no network"))
 	m := withProcList(90, 14, []Project{{Name: "brand", Path: "/p/brand"}}, nil)

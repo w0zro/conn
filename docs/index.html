@@ -217,7 +217,7 @@
           <div class="row"><span>-</span><span>fold or unfold everything; unfolded rows also show pids</span></div>
           <div class="row"><span>.</span><span>toggle between everything and only what is running</span></div>
         </div>
-        <p class="para"><span class="n">3-5.</span>Dim rows are processes with no shell of their own to go to: those started outside conn, and those a process in a shell started in turn &mdash; a claude's tools, say &mdash; which <b>enter</b> reaches only as far as the shell above them. All are listed and killable. A row's mark says how its command ended, or that its process is unwell:</p>
+        <p class="para"><span class="n">3-5.</span>Dim rows are processes with no shell of their own to go to: those started outside conn, and those a process in a shell started in turn &mdash; a claude's tools, say &mdash; which <b>enter</b> reaches only as far as the shell above them. All are listed and killable. One of them may be conn itself &mdash; the launcher become a tmux client, in the terminal it was started from &mdash; and that row says <b>(me)</b> in a color of its own. A row's mark says how its command ended, or that its process is unwell:</p>
         <p class="caption">Table 3-2.&nbsp; Row marks</p>
         <div class="table marks">
           <div class="row"><span>&#10007;</span><span>in red: the command ended badly, or the process is stopped, in an uninterruptible wait, or a zombie. Beside the name, what the run said of itself and how long ago: <b>test &middot; 3 failed &middot; 3m</b></span></div>

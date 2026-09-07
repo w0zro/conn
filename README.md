@@ -31,6 +31,14 @@ holds and draws the shells, and `lsof`, which is how the process list is read.
 go install github.com/w0zro/conn@latest
 ```
 
+## The manual
+
+The site is the manual, one page of HTML at `docs/index.html`, and the
+manpage is that text in roff: `go run ./tools/man` writes `man/conn.1`
+from it, and a test holds the two together. Edit the manual, run the
+tool, commit both. The appendix of keys is held to the `?` popup the same
+way, and table 9-1 to the words the chords run.
+
 ## Releasing
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`, which tests on macOS,
@@ -39,8 +47,8 @@ cross-compiles the four builds, and publishes them with a `checksums.txt` that
 GitHub Pages rebuilds on a push to main — but not on a push that carries a
 tag along with it, so main goes first, and the tag on its own. The tag is
 annotated, and its message is what the manual's record of revisions says
-of the release: once the release is out, the workflow writes the row and
-pushes it to main.
+of the release: once the release is out, the workflow writes the row,
+rewrites the manpage under the new stamp, and pushes both to main.
 
 ```sh
 git push origin main

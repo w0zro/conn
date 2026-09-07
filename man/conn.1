@@ -1,9 +1,7 @@
-.\" conn(1) is written by hand in man(7) troff. The guide at
-.\" https://conn.w0zro.com/guide tells the same story in walking order;
-.\" this page is the reference. Keep the two agreeing.
-.TH CONN 1 2026-09-02 conn "User Commands"
+.\" Written from docs/index.html by go run ./tools/man; edit the manual, not this.
+.TH CONN 1 "September 2026" "conn 0.5" "User Commands"
 .SH NAME
-conn \- a terminal UI for working on projects at the command line
+conn \- every open project and its processes, in one window
 .SH SYNOPSIS
 .B conn
 .br
@@ -11,663 +9,701 @@ conn \- a terminal UI for working on projects at the command line
 .br
 .B conn restart
 .br
-.B conn
-.RB [ \-h | \-\-help | \-\-version ]
-.br
-.B conn
-.RB [ help | version ]
+.B conn \-h | \-\-help | \-\-version
 .SH DESCRIPTION
-.B conn
-shows every git repository under your project roots, what is running in
-each, and the shells you open there. The shells are panes in a
-.BR tmux (1)
-server of conn's own, and
-.B conn
-is a tmux client: it brings that server up under its own configuration,
-attaches the terminal to it, and runs the navigator down the left of the
-session's home window. The shell under the navigator's cursor is the pane
-beside it, drawn by tmux, which takes the keys to it; the rest wait in
-windows of their own. The navigator is where the shells are listed,
-found, started and killed. Close the terminal, come back, and everything
-is where it was.
+A terminal UI. It lists each open project's shells, dev servers and agents, and
+marks the ones waiting for input. macOS and Linux. Processes keep running when
+the window is closed.
+.SH INSTALLATION
+.TP
+1-1.
+conn requires \fBtmux\fR (holds the shells) and \fBlsof\fR (reads the process
+list). macOS ships lsof; install tmux with \fBbrew install tmux\fR. On Linux,
+install both from the package manager.
 .PP
-There is nothing to set up beyond having tmux and
-.BR lsof (8)
-installed \(em the process list is read through lsof. The
-configuration is conn's, written at every launch into the state directory
-and sourced into a server already running, so no .tmux.conf reaches the
-server and every window has this build's keys. By default conn looks for
-repositories under
-.IR ~/projects ;
-the config points it elsewhere.
+.RS
+.nf
+$ curl -fsSL https://conn.w0zro.com/install.sh | sh
+.fi
+.RE
+.TP
+1-2.
+The script downloads the release for this machine, verifies it against
+\fBchecksums.txt\fR, and installs the binary to \fB~/.local/bin\fR and the
+manpage under \fB~/.local/share/man\fR. \fBman conn\fR is the full reference.
+Three variables override the script:
 .PP
-The navigator's left column is a tree, at most four levels deep: group,
-repository, sub\-project, process. A folder holding two or more
-repositories groups them. In a monorepo, a directory with a manifest
-.RI ( .conn ,
-.IR Procfile ,
-.IR package.json ,
-.IR go.mod ,
-.IR Cargo.toml ,
-and the like) is a project of its own. Processes are attributed to the
-innermost place they belong to and named by what you would call them \(em
-.BR "npm run dev" ,
-not
-.BR node
-\(em with the port beside a row that listens,
-.BR "npm run dev \(bu :5173" ,
-the way an agent's row carries its model.
-Dim rows are processes with no shell of their own to go to: those
-started outside conn, and those a process in a shell started in turn
-\(em a claude's tools, say \(em which enter reaches only as far as the
-shell above them. All are listed and killable. A row whose process is
-stopped or a zombie wears
-.B \(mu
-in red, the way a command that ended badly does. One of them may be conn
-itself \(em the launcher
-become a tmux client, in the terminal it was started from \(em and that
-row says
-.B (me)
-in a color of its own. Beside the list, while the keys are in it, is the
-navigator's own pane: what is known about the row under the cursor, a held
-shell's included, with the last of what that shell has shown beneath the
-facts, so what a process is doing can be read without entering it. A shell
-is placed beside the navigator only when you
-enter it, and goes back to a window of its own when the keys come home.
+.I "Table 1-1. Install script overrides"
+.RS
+.TP
+\fBCONN_INSTALL_DIR\fR
+alternate install directory
+.TP
+\fBCONN_MAN_DIR\fR
+alternate manpage directory
+.TP
+\fBCONN_VERSION\fR
+install a specific release
+.RE
+.TP
+1-3.
+Building from source requires Go 1.25 or later:
 .PP
-.B conn ls
-is the same server's state for a reader that is not a person: the held
-shells, one per line on stdout \(em pid, directory, name and exit,
-tab\-separated, the name empty for a shell opened by hand and the exit how
-the command a shell was started with ended, empty while it runs. No server
-listening means nothing is held, which is an empty list, not an error.
+.RS
+.nf
+$ go install github.com/w0zro/conn@latest
+.fi
+.RE
+.SH FIRST RUN
+.RS
+.nf
+$ conn
+.fi
+.RE
+.TP
+2-1.
+There is nothing to set up. \fBconn\fR brings up a tmux server of its own,
+attaches the terminal to it, and opens the navigator down the left of the
+session's first window. The status line at the foot is tmux's, and names the
+mode the keys are in. conn looks for repositories under \fB~/projects\fR; the
+configuration (Section 8) points it elsewhere.
+.TP
+2-2.
+The list opens showing what is running, so on a quiet machine it may say
+\fBnothing running\fR. Two keys from there:
 .PP
-.B conn restart
-is
-.B R
-and then
-.BR conn ,
-typed at a terminal outside the window: the server ended with every
-shell it holds \(em after asking, when it holds any \(em and brought up
-again under this build's configuration, with the terminal attached. It
-is the way to a fresh server for a raised
-.BR scrollback ,
-or on the day something wedges. From inside the window it refuses,
-since the pane running it would go with the server; that is what
-.B R
-is for. No server running is nothing to end, and the window opens the
-way it does on a first launch.
-.SH KEYS
-.B ?
-shows this list inside conn, in a popup over the whole window \(em from
-the navigator, or with the prefix from any shell; the next key puts it
-away. The status line at the foot of the terminal is tmux's. It begins
-with conn's own name,
-.BR CONN ,
-in purple, which stays; to its right is the mode the keys are in:
-.B NAV
-or
-.B PROC
-for the pane that has them, each a chip in its own color with the line
-washed one tone after it,
-.B PREFIX
-while a chord hangs,
-.B COPY
-in copy mode, the query while one is typed and the filter while one
-stands,
-.B CONTINUE
-with the picker open,
-.B NEW
-with a project's name being typed, and
-.B CONFIRM
-while a kill waits on its second key. Then anything conn has to say \(em
-a report, an error, a confirmation \(em until the next key; what a chord
-says, from any shell, shows there too, for a few seconds. The right
-corner names the kind of agent
-.B a
-starts.
-.SS In the navigator
+.I "Table 2-1. First keys"
+.RS
 .TP
-.B "j k"
-move; the arrows move too
+\fB.\fR
+show every repository, running or not
 .TP
-.B "gg G"
-jump to the top and the bottom
+\fB/\fR
+find one by name
+.RE
+.SH THE NAVIGATOR
 .TP
-.B "J K"
-show the next and previous shell, in the list's order, with the keys in
-it
+3-1.
+The left column is a tree, at most four levels deep: \fBgroup\fR →
+\fBrepository\fR → \fBsub\-project\fR → \fBprocess\fR. A repository is every
+git repository under the project roots. The scan skips \fBnode_modules\fR,
+\fBvendor\fR, \fBtarget\fR, \fB.build\fR, \fBPods\fR, \fB.venv\fR and
+\fBvenv\fR, every directory whose name begins with a dot, and anything named in
+\fBskipDirs\fR.
 .TP
-.B s
-open a shell at the selected place, beside the navigator, with the keys
-in it
+3-2.
+A folder inside a root that holds two or more repositories groups them. The
+group is a place of its own: \fBs\fR opens a shell at the folder, \fBr\fR runs
+the folder's plan, \fBx\fR covers everything beneath it.
 .TP
-.B a
-start an agent there \(em Claude Code, unless the config's
-.B agent
-says otherwise
+3-3.
+In a monorepo, a directory with a manifest is a project of its own and gets a
+row under its repository. Manifests, in the order they are trusted: \fB.conn\fR,
+\fBProcfile\fR, \fBpackage.json\fR, \fBdeno.json\fR, \fBcomposer.json\fR,
+\fBgo.mod\fR, \fBCargo.toml\fR, \fBGemfile\fR, \fBmix.exs\fR,
+\fBpyproject.toml\fR, \fBpom.xml\fR, \fBbuild.gradle\fR, \fBbuild.gradle.kts\fR.
+Ignored directories are skipped, and an untracked \fB.conn\fR still counts.
 .TP
-.B A
-continue a suspended conversation there: the place's past agent sessions,
-newest first and searchable
+3-4.
+Each place lists the processes running in it, attributed to the innermost place
+they belong to, and named by what you would call them — \fBnpm run dev\fR, not
+\fBnode\fR — with the port beside a row that listens, \fBnpm run dev ·
+:5173\fR, the way an agent's row carries its model. A shell a plan or a task
+started is named for its entry, whatever runs in it: \fBweb\fR, not the
+http.server that is web this time. Keys that shape the list:
+.PP
+.I "Table 3-1. Shaping the list"
+.RS
 .TP
-.B ,
-the next kind of agent for
-.B a
-to start \(em claude, ollama, claude \(em for the whole server, until it
-goes
+\fBspace\fR
+fold or unfold the selected node; a folded node shows +n for what it hides
 .TP
-.B n
-make a new project: a line, prefilled with the folder the cursor is in
-relative to its root, takes the name on its end \(em the folder
-backspaced away is the root itself, another typed is that folder, made
-if need be \(em and the directory is made with a repository in it and a
-shell open there
-.TP
-.B r
-run the plan's entries that are not already running, each in a window of
-its own, and put the cursor on the first of them; an entry whose command
-ended is not running, and starts again beside the shell it left
-.TP
-.B "t b l"
-run the place's tests, its build, its lint, the way the place says they
-run (see
-.BR TASKS ),
-each in a window named for it; the key again closes that window for the
-new run, and leaves a run still going
-.TP
-.B enter
-the keys to the selected shell, beside the list
-.TP
-.B tab
-go to the next thing that needs you \(em an agent waiting, a command that
-ended badly, a process stopped or a zombie; again continues around them
-.TP
-.B shift\-tab
-back where the keys were: the shell they were in before this one, or the
-navigator
-.TP
-.B space
-fold or unfold the selected node
-.TP
-.B \-
+\fB\-\fR
 fold or unfold everything; unfolded rows also show pids
 .TP
-.B .
+\fB.\fR
 toggle between everything and only what is running
+.RE
 .TP
-.B /
-find by name: repositories, and the processes whose commands answer
-.TP
-.B esc
-clear a standing filter
-.TP
-.B x
-kill the selected process; on a repository or group, everything running
-in it
-.TP
-.B X
-kill the selected process and everything under it
-.TP
-.B U
-install the newer release the status line offers, in a popup over the
-window, and bring the navigator back as it; with none offered, ask now
-.TP
-.B R
-end the server outright, and every shell it holds with it
-.TP
-.B q
-leave: detach the terminal. The shells keep running, and the navigator
-keeps its place for the next
-.B conn
+3-5.
+Dim rows are processes with no shell of their own to go to: those started
+outside conn, and those a process in a shell started in turn — a claude's
+tools, say — which \fBenter\fR reaches only as far as the shell above them.
+All are listed and killable. One of them may be conn itself — the launcher
+become a tmux client, in the terminal it was started from — and that row says
+\fB(me)\fR in a color of its own. A row's mark says how its command ended, or
+that its process is unwell:
 .PP
-Every kill asks first \(em
-.BR x ,
-.B y
-or
-.B enter
-confirms, anything else cancels. Processes get SIGTERM, and the list
-never claims an exit it has not observed. A shell conn holds is hung up
-through the server, an interactive shell paying SIGTERM no mind \(em but
-one still running the command it was started with is hung up only once
-that command has gone: what runs in the shell gets SIGTERM first, and
-the shell goes when a scan finds it back at its prompt. A command ends
-its own work on a signal, not on losing its terminal: a
-.B docker compose up
-hung up leaves its containers running, and given SIGTERM stops them
-before it goes.
-.SS In the filter
-Letters type, and the list narrows \(em each word of the query has to
-appear in order inside what a row says, not contiguously: a place's name
-or path, and anything a process's row could say of it \(em its command,
-what it was run with, the name its plan gave it, an agent's name and
-model, its ports, what its run said when it ended \(em so
-.B tsl
-finds tressle\-api and
-.B mono api
-finds the api inside mono, with the letters that matched lit in the
-rows \(em under a cursor that
-.B up
-and
-.B down
-(or
-.B ctrl\-p
-and
-.BR ctrl\-n )
-move. A query lists the processes that answer it as well as the places,
-pruned to the branches that answer; an empty query lists places alone. Acting on what the cursor is on ends the looking:
-.B enter
-opens a shell on a place and goes to a found process's window,
-.B ctrl\-r
-runs the plan there,
-.B ctrl\-a
-starts an agent,
-.B tab
-goes to the next thing that needs you, and
-.B ctrl\-x
-asks to kill \(em the filter holds, so the subject stays listed.
-.B esc
-abandons the look, putting the cursor back on the row it left. The query
-is a line like any other: it takes readline's editing keys \(em
-.BR ctrl\-w ,
-.BR ctrl\-u ,
-.BR ctrl\-h ,
-.B ctrl\-e
-and the rest \(em except the chords above, which are conn's.
-.SS In a shell
-Every keystroke is the shell's; the pane is tmux's, and it behaves the
-way a tmux pane behaves, with the navigator beside it. conn keeps one key:
+.I "Table 3-2. Row marks"
+.RS
 .TP
-.B ctrl\-space
-the prefix \(em tmux's own, bound by conn's configuration; it reaches conn
-from any shell
-.PP
-The mouse is tmux's, with tmux's own bindings and nothing of conn's: the
-wheel scrolls back through a pane's transcript, a drag selects and copies
-to the clipboard on release, a click takes the keys to the pane under it,
-and a program that speaks mouse gets its own clicks and wheel. Hold shift
-to drag a selection the terminal's own way. A program that copies for
-itself \(em vim's clipboard yank, anything speaking OSC 52 \(em reaches
-the system clipboard through tmux.
-.SS The chords
-Each hangs off
-.B ctrl\-space
-and keeps its letter's meaning; every key tmux would otherwise bind is
-unbound.
+\fB✗\fR
+in red: the command ended badly, or the process is stopped, in an
+uninterruptible wait, or a zombie. Beside the name, what the run said of itself
+and how long ago: \fBtest · 3 failed · 3m\fR
 .TP
-.B \-
-to the navigator, from any shell
+\fB✓\fR
+in green: the command ended well — \fBtest · 12 passed · 2h\fR
+.RE
 .TP
-.B "j k"
-the next and previous shell, in the navigator's order
+3-6.
+Beside the list, while the keys are in it, is the navigator's own pane: what is
+known about the row under the cursor, a held shell's included, with the last of
+what that shell has shown beneath the facts, in the colors the shell drew it in.
+What a process is doing can be read without entering it. A shell is placed
+beside the navigator only when you enter it, and goes back to a window of its
+own when the keys come home.
 .TP
-.B ctrl\-space
-again \(em back where the keys were: the shell before this one, by way of
-the navigator or not, or the navigator when they came from there, and again
-returns. Before the keys have been anywhere it is the list from a shell,
-and from the list the shell under the cursor
+3-7.
+\fB/\fR finds places and processes: a query lists the processes that answer it
+— by anything their row says: the command, what it was run with, the plan's
+name for it, an agent's name and model, a port — under the places they run,
+pruned to the branches that answer. An empty query lists places alone. Up and
+down, or \fBctrl\-p\fR and \fBctrl\-n\fR, move the cursor through what is left,
+and acting on what it is on ends the looking: \fBenter\fR opens a shell on a
+place and steps into a found process's shell, \fBctrl\-r\fR runs the plan there,
+\fBctrl\-a\fR starts an agent, \fBtab\fR goes to the next thing that needs you,
+\fBshift+tab\fR back where the keys were, and \fBctrl\-x\fR asks to kill what
+the cursor is on — the filter holds, so the subject stays listed. \fBesc\fR
+abandons the look and puts the cursor back on the row it left. The query takes
+readline's editing keys — \fBctrl\-w\fR, \fBctrl\-u\fR, \fBctrl\-h\fR,
+\fBctrl\-e\fR and the rest.
 .TP
-.B enter
-the next thing that needs you; again continues around them
+3-8.
+Matching is fuzzy: each word of the query appears in order, not contiguously —
+\fBtsl\fR finds tressle-api, \fBmono api\fR finds the api inside mono — and
+the letters that matched are lit in the rows.
 .TP
-.B /
-the navigator, looking
+3-9.
+\fBn\fR makes a new project. It asks where on the status line, on a line
+prefilled with the folder the cursor is in relative to its root — \fBw0zro/\fR
+for a cursor on a repository in that folder, nothing for one at the root — and
+the name goes on the end: backspace the folder away for the root itself, or type
+another folder, which is made if it is not there. A path from \fB~\fR or \fB/\fR
+is taken as it is. \fBenter\fR makes the directory, runs \fBgit init\fR in it,
+and opens a shell there; the cursor lands on the project once the scan lists it.
+A directory already there is left alone, and \fBesc\fR thinks better of it.
+.SH SHELLS
 .TP
-.B "s a r t b l"
-a shell, an agent, the plan, the tests, the build, the lint \(em where
-the keys are, by the current pane's directory
+4-1.
+\fBs\fR opens a shell at the selected place, beside the navigator, and puts the
+keys in it. \fBenter\fR on a shell's row does the same for that shell. From then
+on every keystroke is the shell's: the pane is tmux's, and it behaves the way a
+tmux pane behaves, with the navigator still down the left. conn keeps one key:
+\fBctrl\-space\fR, the prefix — tmux's own, bound by conn's configuration —
+which reaches conn from any shell. \fBctrl\-space \-\fR is back to the
+navigator; \fBctrl\-space j\fR and \fBk\fR are the next and previous shell;
+\fBctrl\-space ctrl\-space\fR is back where the keys were — the shell before
+this one, whether or not the navigator was the way there, or the navigator when
+they came from there; again returns. \fBctrl\-space q\fR leaves, and \fB?\fR —
+in the navigator, or after the prefix from any shell — lists the rest in a
+popup over the whole window. Every key tmux would otherwise bind is unbound.
 .TP
-.B A
-the navigator, with the picker open
+4-2.
+A shell you enter moves in beside the navigator; when the keys come home it
+moves out again, to a tmux window of its own, where it keeps running, and the
+navigator has the whole window. \fBJ\fR and \fBK\fR step through the shells in
+the list's order, keys and all.
 .TP
-.B ,
-the next kind of agent, from any shell
+4-3.
+The status line at the foot is tmux's. It begins with conn's own name,
+\fBCONN\fR, in purple, which stays. To its right is the mode the keys are in —
+\fBNAV\fR or \fBPROC\fR for the pane that has them, each a chip in its own color
+with the line washed one tone after it; \fBPREFIX\fR while a chord hangs;
+\fBCOPY\fR in copy mode; the query while one is typed and the filter while one
+stands; \fBCONTINUE\fR with the picker open; \fBNEW\fR with a project's name
+being typed; \fBCONFIRM\fR while a kill waits on its second key — and then
+anything the navigator has to say: a report, an error, a confirmation, until the
+next key, or that a newer conn is out, whenever nothing else is said. What a
+chord says, from any shell, shows there too, for a few seconds. The right corner
+names the kind of agent \fBa\fR starts.
 .TP
-.B q
-leave, from anywhere
+4-4.
+Shells keep running when the terminal closes. \fBq\fR in the navigator, or
+\fBctrl\-space q\fR anywhere, detaches; quit the terminal, come back, run
+\fBconn\fR, and everything is where it was.
 .TP
-.B R
-end the server and every shell it holds, after asking
+4-5.
+The mouse is tmux's, with tmux's own bindings and nothing of conn's: the wheel
+scrolls back through a pane's transcript — each shell keeps 10,000 lines of it
+by default, and \fBscrollback\fR in the configuration raises that — a drag
+selects and copies to the clipboard on release, a click takes the keys to the
+pane under it, and a program that speaks mouse gets its own clicks and wheel.
+Hold shift to drag a selection the terminal's own way. A program that copies for
+itself — vim's clipboard yank, anything speaking OSC 52 — reaches the system
+clipboard through tmux.
 .TP
-.B ?
-the keys, over everything
-.PP
-Each shell keeps 10,000 lines of transcript unless the config says
-otherwise.
+\fBNOTE\fR
+A click into the navigator brings the keys home the way \fBctrl\-space \-\fR
+does: the shell beside it goes back to its own window, and the navigator's pane
+returns.
 .SH AGENTS
-.B a
-starts an agent in a shell like any other. conn knows agents as kinds
-\(em claude and ollama today \(em and starts the config's,
-.B claude
-unless it says otherwise;
-.B ,
-at the navigator, or
-.B ctrl\-space ,
-from any shell, moves
-.B a
-on to the next kind, around the end. The choice is the server's rather
-than one window's: every
-.BR a ,
-.B ctrl\-a
-and agent chord starts it, the status line's right corner names it, and
-it holds until the server goes, when the config's kind is back. Each
-kind shows only what its tool advertises. Claude Code advertises everything; conn reads the session
-files it leaves behind, and marks each instance in the navigator: a
-spinner while it works, a diamond (\[u25C6]) when it is blocked mid\-turn on
-a permission prompt or a question, a filled dot (\[u25CF]) when it has
-finished its turn, a hollow dot (\[u25CB]) when it has been idle since it
-started. The diamond is the one worth crossing the room for: answering it
-resumes work already underway.
-.B ctrl\-space enter
-goes to the next thing that needs you, from any shell \(em an agent
-waiting, a command that ended badly, a process gone wrong; pressed again
-it continues around them in turn.
+.TP
+5-1.
+\fBa\fR starts an agent in the selected place, in a shell like any other —
+Claude Code by default; the configuration's \fBagent\fR setting selects another.
+Claude Code reports its state, shown as a mark in the navigator:
 .PP
-A conversation does not end when its instance exits; it is suspended,
-and the transcript Claude keeps is enough to pick it back up.
-.B A
-on a place lists what is suspended there \(em including its
-sub\-projects, and for a group its repositories \(em newest first: when
-each conversation last moved, the branch it was on, and the last thing
-asked of it. Letters narrow the list the way the filter narrows,
-.B up
-and
-.B down
-move,
-.B enter
-continues the one under the cursor \(em a shell opens where the
-conversation was had, running
-.BR "claude --resume" ,
-and from there it is a live instance like any other \(em and
-.B esc
-closes the list. A conversation an instance is still carrying is not
-offered.
+.I "Table 5-1. Agent marks"
+.RS
+.TP
+\fB⠇\fR
+turning: the instance is working
+.TP
+\fB◆\fR
+blocked mid-turn on something specific: a permission prompt, a question
+.TP
+\fB●\fR
+finished its turn; waiting for what you ask next
+.TP
+\fB○\fR
+idle since it started
+.RE
+.TP
+5-2.
+The mark tells you, from across the list, which projects need attention — the
+◆ most of all, since answering it resumes work already underway. The pane for
+a Claude row names what a blocked instance is waiting on, the last thing asked
+of it, and what it says it is doing.
+.TP
+5-3.
+\fBctrl\-space enter\fR goes to the next thing that needs you, from any shell:
+an agent waiting, a command that ended badly, a process stopped or a zombie.
+Pressing it again continues around them in turn; \fBtab\fR does the same at the
+list. A held shell is entered, where the ask or the transcript is; a process
+conn only watches gets the cursor.
+.TP
+5-4.
+A conversation does not end when its instance exits; it is suspended, and the
+transcript is enough to pick it back up. \fBA\fR on a place lists what is
+suspended there — sub-projects included — newest first: when each
+conversation last moved, its branch, and the last thing you asked of it. Letters
+narrow the list the way the filter does, \fBenter\fR continues the one under the
+cursor in a shell opened where the conversation was had, and \fBesc\fR closes
+the list. A conversation an instance is still carrying is not offered. Every
+kind that keeps conversations answers the picker, and each is continued by the
+kind that had it.
+.TP
+5-5.
+Other kinds show as plain processes, unmarked. Ollama runs the model most
+recently pulled or run — read from the manifests under \fB~/.ollama/models\fR,
+or \fB$OLLAMA_MODELS\fR, so the pick needs no daemon, though the REPL does and
+says so when it is not up — unless \fBagentRuns\fR names one. \fB,\fR at the
+navigator, or \fBctrl\-space ,\fR from any shell, moves \fBa\fR on to the next
+kind — claude, ollama, claude — for the whole server: every \fBa\fR,
+\fBctrl\-a\fR and agent chord starts it, the status line's right corner names
+it, and it holds until the server goes, when the configuration's kind is back.
+.SH PLANS AND TASKS
+.TP
+6-1.
+Working on a project usually means the same processes every time: the dev
+server, the test watcher, an agent. A project lists them in \fB.conn\fR —
+Procfile format, one name and command per line:
 .PP
-A kind that advertises nothing \(em an ollama REPL \(em is still an
-agent to start: its rows are plain processes, unmarked. Ollama runs the
-model most recently pulled or run, read from the manifests it keeps
-under
-.I ~/.ollama/models
-(or
-.BR $OLLAMA_MODELS ),
-so the pick needs no daemon; the REPL itself does, and says so in the
-shell when it is not up. With nothing pulled,
-.B a
-runs
-.B ollama list
-there instead, which says the true thing.
-.SH PLANS
-A project writes down its usual processes in
-.IR .conn ,
-Procfile format, a name and a command per line:
-.PP
-.EX
+.RS
+.nf
 dev:   npm run dev
 api:   go run ./cmd/api
 agent: claude
-.EE
+.fi
+.RE
 .PP
-Without one, a
-.I Procfile
-means every line is a process, and a
-.I package.json
-contributes its
-.B dev
-or
-.B start
-script, whichever exists first.
-.B r
-starts the entries that are not running, each in its own window named for
-its entry, and puts the cursor on the first of them. It is a list to run,
-not a supervisor: nothing restarts on its own. When an entry's command
-ends, its shell stays at the prompt with the transcript: the row wears
-.B \(mu
-in red if the command ended badly and a check (\[u2713]) in green if it
-ended well, the
-checklist shows the entry down with how and when it ended, and
-.B r
-starts it again beside the old shell.
-.SH TASKS
-.BR t ,
-.B b
-and
-.B l
-run a place's tests, its build and its lint the way the place already
-says, not the way a file of conn's own would have it. What the project
-wrote down for the purpose comes first: a
-.I Makefile
-target, a
-.I justfile
-recipe, a
-.I Taskfile
-task, or a
-.I package.json
-script, each named for the task \(em
-.BR test ,
-.B build
-or
-.BR lint .
-Otherwise the ecosystem's own command, by the file that marks the project
-as its own:
-.BR "go test ./..." ,
-.B go build ./...
-and
-.B go vet ./...
-for a go.mod;
-.BR "cargo test" ,
-.B cargo build
-and
-.B cargo clippy
-for a Cargo.toml;
-.B pytest
-for a pyproject.toml,
-.B bundle exec rspec
-for a Gemfile with a spec directory, and the like. Only a linter the
-ecosystem ships with is guessed at: a project on ruff or eslint names it
-in a script or a Makefile. A project the guess is wrong for says so in its
-Makefile, which conn believes first. Each run is a shell named for its
-task, wrapped like a plan entry's, so the row and the place's pane say how
-it went and how long ago, and tab goes to a run that failed. The end of
-the transcript is read the way a reader would read it, by the shape of the
-tool's summary line \(em go test, pytest, jest, vitest, mocha, cargo,
-rspec, ExUnit, golangci\-lint, tsc, ruff, eslint \(em so a failed run's
-row says
-.B "test \(bu 3 failed"
-and a passed one
-.BR "12 passed" ;
-a shape conn does not know leaves the status alone.
-.BR "conn test" ,
-.B conn build
-and
-.B conn lint
-do the same from any shell.
+.I "Figure 6-1. A plan, in Procfile format"
+.TP
+6-2.
+Without one, conn reads the conventions in this order: a \fBProcfile\fR means
+every line is a process; a \fBpackage.json\fR contributes only its \fBdev\fR or
+\fBstart\fR script, whichever exists first.
+.TP
+6-3.
+\fBr\fR starts the plan's entries that are not running, each in its own window
+named for its entry, and puts the cursor on the first of them. It is a list to
+run, not a supervisor: nothing restarts on its own. When an entry's command
+ends, its shell stays at the prompt with the transcript: the row wears ✗ in
+red if the command ended badly and ✓ in green if it ended well, the checklist
+in the place's pane shows the entry down with how and when it ended, and \fBr\fR
+starts it again beside the old shell. Running anything in that shell by hand
+clears its mark: the ending was acted on.
+.TP
+6-4.
+\fBt\fR, \fBb\fR and \fBl\fR run the place's tests, its build and its lint, the
+way the place already says they run. What the project wrote down for the purpose
+comes first; otherwise the ecosystem's own command, by the file that marks the
+project. Only a linter the ecosystem ships with is guessed at; a project on ruff
+or eslint names it in a script. A project the guess is wrong for says so in its
+Makefile, which conn believes first.
+.PP
+.I "Table 6-1. How a task's command is found"
+.RS
+.TP
+\fBMakefile, justfile, Taskfile\fR
+the target, recipe or task named \fBtest\fR, \fBbuild\fR or \fBlint\fR
+.TP
+\fBpackage.json\fR
+the script named for the task, run with npm
+.TP
+\fBgo.mod\fR
+\fBgo test ./...\fR, \fBgo build ./...\fR, \fBgo vet ./...\fR
+.TP
+\fBCargo.toml\fR
+\fBcargo test\fR, \fBcargo build\fR, \fBcargo clippy\fR
+.TP
+\fBpyproject.toml\fR
+\fBpytest\fR; \fBpython3 manage.py test\fR for a Django project
+.TP
+\fBGemfile\fR
+\fBrspec\fR with a spec directory, else \fBrake test\fR
+.TP
+\fBmix.exs and the rest\fR
+the ecosystem's own commands: mix, gradle, mvn, deno, swift, dune
+.RE
+.TP
+6-5.
+Each run is a shell named for its task, so its row wears the check when it ends
+well and the cross when it fails, \fBtab\fR goes to a failure, and the place's
+pane says how each task's last run went and how long ago. The key again replaces
+a finished run rather than stacking another beside it; a run still going is left
+to finish. \fBconn test\fR, \fBconn build\fR, \fBconn lint\fR and \fBctrl\-space
+t\fR, \fBb\fR, \fBl\fR do the same from any shell.
+.TP
+6-6.
+conn reads the end of the transcript the way you would, by the shape of the
+tool's summary line — go test, pytest, jest, vitest, mocha, cargo, rspec,
+ExUnit, golangci-lint, tsc, ruff, eslint — so a failed run's row says \fBtest
+· 3 failed\fR and a passed one \fB12 passed\fR. A shape it does not know leaves
+the status alone.
+.TP
+\fBNOTE\fR
+A plan is not a supervisor; nothing restarts automatically. An ended entry's
+shell stays at its prompt, with its transcript, until \fBx\fR closes it or
+\fBr\fR starts the entry again beside it.
+.SH KILLING
+.I "Table 7-1. Kill keys"
+.RS
+.TP
+\fBx\fR
+kill the selected process
+.TP
+\fBX\fR
+kill it and everything under it
+.TP
+\fBx on a repository or group\fR
+kill everything running in it
+.RE
+.TP
+7-1.
+Every kill asks first — \fBx\fR, \fBy\fR or \fBenter\fR confirms; anything
+else cancels. Processes get SIGTERM, and a signalled row wears a red marker
+until a rescan actually observes the exit; the list never claims an exit it has
+not seen. Kills work on any listed process, including ones conn did not start. A
+shell conn holds is closed through the server — but one still running its
+command is closed only once the command has gone: what runs in the shell gets
+SIGTERM first, and the shell goes when a scan finds it back at its prompt, so a
+\fBdocker compose up\fR stops its containers on the way out, which hung up it
+would not.
 .SH CONFIGURATION
-One JSON file, entirely optional, at
-.IR ~/.config/conn/config.json .
 .TP
-.B projectsDir
-the directory searched for repositories (default
-.IR $HOME/projects );
-.B ~
-and
-.B $VARS
-expand
+8-1.
+One JSON file, entirely optional, at \fB~/.config/conn/config.json\fR;
+\fBXDG_CONFIG_HOME\fR is honored.
+.PP
+.RS
+.nf
+{
+  \(dqprojectsDirs\(dq: [\(dq~/projects\(dq, \(dq~/work/mono\(dq],
+  \(dqscrollback\(dq: 50000,
+  \(dqnavWidth\(dq: 34,
+  \(dqskipDirs\(dq: [\(dqbazel-out\(dq, \(dqdist\(dq]
+}
+.fi
+.RE
+.PP
+.I "Figure 8-1. A configuration"
 .TP
-.B projectsDirs
-several roots; when set,
-.B projectsDir
-is ignored. A root that only exists on another machine is fine.
+8-2.
+Every field has a default, and a file that names none is the same as no file.
+Table 8-1 lists them.
+.PP
+.I "Table 8-1. Configuration fields"
+.RS
 .TP
-.B scrollback
-transcript lines each shell keeps (default 10000). Written into the
-server's configuration at launch, so raising it takes a fresh server
-\(em
-.B R
-and then
-.BR conn ,
-or
-.B conn restart
-\(em to reach anything.
+\fBprojectsDir\fR
+the directory searched for repositories; ~ and $VARS expand (default
+$HOME/projects)
 .TP
-.B navWidth
-the navigator column's width, 16\(en60 (default 30)
+\fBprojectsDirs\fR
+several roots; when set, projectsDir is ignored. A root that only exists on
+another machine is fine
 .TP
-.B theme
-the side tmux draws for: "dark" (the default) or "light". The navigator
-draws with the terminal's own sixteen colors and needs no telling; the
-status line, the borders and the popups are tmux's, which takes colors
-rather than slots, so the config says which side.
+\fBscrollback\fR
+transcript lines each shell keeps. Written into the server's configuration at
+launch, so raising it takes a fresh server: \fBR\fR, then \fBconn\fR again, or
+\fBconn restart\fR (default 10000)
 .TP
-.B agent
-the kind of agent
-.B a
-starts, until
-.B ,
-says otherwise:
-.B claude
-(the default) or
-.BR ollama .
-A name conn does not know falls back to the default
+\fBnavWidth\fR
+the navigator column's width, 16–60 (default 30)
 .TP
-.B agentRuns
-what starting a kind runs, by name, when its own answer is not the
-wanted one \(em
-.B {"ollama": "ollama run mistral"}
-picks the model ollama would otherwise guess at (the one most recently
-pulled or run)
+\fBtheme\fR
+the side tmux draws for, dark or light; the navigator draws with the terminal's
+own sixteen colors (default dark)
 .TP
-.B skipDirs
-directory names the repository scan never enters, on top of the built\-in
-list
-.RI ( node_modules ,
-.IR vendor ,
-.IR target ,
-and the like)
+\fBagent\fR
+the kind of agent \fBa\fR starts, until \fB,\fR says otherwise: claude or ollama
+(default claude)
+.TP
+\fBagentRuns\fR
+what starting a kind runs, by name: {\(dqollama\(dq: \(dqollama run mistral\(dq}
+.TP
+\fBskipDirs\fR
+directory names the scan never enters, on top of the built-in list
+.RE
 .SH THE SERVER
-The shells live in a tmux server of conn's own: one server per user, for
-all projects, on a socket private to conn. Every
-.B conn
-writes the server's configuration \(em the prefix and its chords, the
-status line, the transcript cap, the rest \(em into the state directory,
-brings the server up under it or sources it into one already running, and
-attaches. The session's first window is the home window: the navigator,
-.BR "conn nav" ,
-in the pane down its left, and the shell the keys are in beside it.
-Entering a shell moves it in; the keys coming home move it out to a
-window of its own, so every shell waits in a window and the navigator has
-the whole window while the keys are in it. The navigator's pane is as wide
-as the config's
-.BR navWidth ,
-through every resize. Closing the navigator is fine, and
-.B ctrl\-space \-
-makes it again, on the left. A
-.B conn
-from a newer build than the navigator's restarts the navigator in its
-pane, the way it re\-reads the configuration: the server keeps the
-shells, and everything else is the build's. Run from a shell inside the
-window, it does that and no more, the terminal being attached already.
-Inside any other tmux it refuses: attaching would be nesting.
+.TP
+9-1.
+The shells live in a tmux server of conn's own, one per user for all projects,
+on a socket at \fB~/.local/state/conn/tmux\-<uid>.sock\fR; \fBCONN_SOCKET\fR
+overrides, and \fBXDG_STATE_HOME\fR moves the directory. Every \fBconn\fR writes
+the server's configuration — the prefix and its chords, the status line, the
+transcript cap — to \fB~/.local/state/conn/tmux.conf\fR, brings the server up
+under it or sources it into one already running, and attaches. No .tmux.conf
+reaches it. The session's first window is the home window: the navigator in the
+pane down its left, at the configuration's \fBnavWidth\fR through every resize,
+and the shell the keys are in beside it; with the keys in the navigator, the
+pane is its own, and every shell waits in a window of its own.
+.TP
+9-2.
+Close the navigator and \fBctrl\-space \-\fR makes it again, on the left. A
+\fBconn\fR from a newer build than the navigator's restarts the navigator in its
+pane, the way it re-reads the configuration: the server keeps the shells, and
+everything else is the build's. Run from a shell inside the window, it does that
+and no more, the terminal being attached already; inside any other tmux it
+refuses, since attaching would be nesting.
+.TP
+9-3.
+The chords run \fBconn\fR itself with a word, each a short command against the
+server. None of them are for typing, but all of them can be:
 .PP
-The chords run
-.B conn
-itself with a word \(em
-.BR home ,
-.BR shell ,
-.BR agent ,
-.BR kind ,
-.BR run ,
-.BR jump ,
-.BR back ,
-.BR next ,
-.BR prev ,
-.B keys
-\(em each a short command against the server; the navigator's pane runs
-.B conn nav
-and the keys popup
-.BR "conn page" .
-None of them are for typing.
+.I "Table 9-1. Commands against the server"
+.RS
+.TP
+\fBconn home [key]\fR
+to the navigator, pressing key there
+.TP
+\fBconn shell [dir]\fR
+a shell in dir, shown beside the navigator
+.TP
+\fBconn agent [dir]\fR
+an agent in dir, shown beside the navigator
+.TP
+\fBconn kind\fR
+the next kind of agent, for \fBa\fR and the agent chord
+.TP
+\fBconn run [dir]\fR
+the plan of the place holding dir
+.TP
+\fBconn test [dir]\fR
+its tests; \fBbuild\fR and \fBlint\fR the same way
+.TP
+\fBconn jump\fR
+the next thing that needs you
+.TP
+\fBconn back\fR
+back where the keys were: the last shell, or the navigator
+.TP
+\fBconn next, prev\fR
+the next and previous shell
+.TP
+\fBconn keys [client]\fR
+the keys, in a popup over the client; \fBconn page\fR is the page inside it
+.TP
+\fBconn ls\fR
+the held shells: pid, directory, name, exit; one per line
+.TP
+\fBconn restart\fR
+the server ended, after asking, and brought up again under this build
+.RE
+.TP
+9-4.
+conn keeps itself current. The navigator asks github which release is latest —
+on its first paint and once a day after, a plain request for the release page's
+redirect, the answer kept in \fB~/.local/state/conn/latest\-release\fR so a
+navigator started again is not another ask — and a release newer than the
+build says so on the status line whenever nothing else is being said: \fBconn
+0.5.0 is out · U installs it\fR. \fBU\fR runs the installer in a popup over the
+window, aimed at the directory this build runs from, and then \fBconn\fR, which
+gives the server the new configuration and brings the navigator back as the new
+build; the shells stay. With nothing newer known, \fBU\fR asks now and says what
+it finds. A build that is no release — a tree past a tag, a plain go build —
+is never behind one. Upgrading by hand does not touch the server either: install
+the new binary, and the next \fBconn\fR sources the new configuration into the
+same server and replaces the navigator when the build changed. \fBR\fR ends the
+server and every shell it holds, after asking; it is the way to a fresh server
+when one is wanted. \fBconn restart\fR, typed at a terminal outside the window,
+is \fBR\fR and then \fBconn\fR as one command; inside the window it refuses,
+since the pane running it would go with the server. \fBtmux \-S
+~/.local/state/conn/tmux\-<uid>.sock attach\fR is what \fBconn\fR does.
+.TP
+9-5.
+\fBconn ls\fR is the same state for scripts. The exit is how the command a shell
+was started with ended, and is empty while it runs. No server listening is an
+empty list, not an error.
+.SH KEYS
+.I "Table A-1. In the navigator"
+.RS
+.TP
+\fB↑↓ j k\fR
+move
+.TP
+\fBJ K\fR
+next · previous shell
+.TP
+\fBenter\fR
+open
+.TP
+\fBtab\fR
+the next thing that needs you
+.TP
+\fBshift+tab\fR
+back where the keys were
+.TP
+\fBs\fR
+shell
+.TP
+\fBa\fR
+agent
+.TP
+\fBA\fR
+continue a conversation
+.TP
+\fB,\fR
+the next kind of agent
+.TP
+\fBn\fR
+new project
+.TP
+\fBr\fR
+run
+.TP
+\fBt · b · l\fR
+test · build · lint
+.TP
+\fBx · X\fR
+kill · kill the tree
+.TP
+\fB/\fR
+find a project · a process
+.TP
+\fBesc\fR
+clear the filter
+.TP
+\fBspace · \-\fR
+fold · unfold all
+.TP
+\fB.\fR
+all · running
+.TP
+\fBgg · G\fR
+top · bottom
+.TP
+\fBU\fR
+update conn
+.TP
+\fBR\fR
+end the server, shells and all
+.TP
+\fBq\fR
+leave; the shells keep running
+.RE
 .PP
-The server lives exactly as long as it holds something: the home window
-brings it up, the last window closing takes it down. Upgrading conn never
-disturbs it \(em the server is not conn's binary, and the next
-.B conn
-sources the new build's configuration into the same server and replaces
-the navigator when the build changed. The navigator asks github which
-release is latest, on its first paint and once a day after, and a release
-newer than the build is offered on the status line whenever nothing else
-is said;
-.B U
-takes it: the installer in a popup, aimed where this build runs from, and
-.B conn
-after it. A fresh
-server, when one is wanted, is
-.B R
-and then
-.BR conn ,
-or
-.B conn restart
-from a terminal outside the window. Anything tmux
-can do to the server, you can do to it:
-.EX
-tmux -S ~/.local/state/conn/tmux-<uid>.sock attach
-.EE
-is what
-.B conn
-does.
+.I "Table A-2. From any shell, after ctrl-space"
+.RS
+.TP
+\fB^spc \-\fR
+here, from any shell
+.TP
+\fB^spc j k\fR
+next · previous shell
+.TP
+\fB^spc ^spc\fR
+back: the last shell, or the list
+.TP
+\fB^spc enter\fR
+the next thing that needs you
+.TP
+\fB^spc s a r t b l A\fR
+shell · agent · run · test · build · lint, here · continue
+.TP
+\fB^spc ,\fR
+the next kind of agent
+.TP
+\fB^spc /\fR
+find from anywhere
+.TP
+\fB^spc q\fR
+leave from anywhere
+.TP
+\fB^spc R\fR
+end the server from anywhere
+.TP
+\fB^spc ?\fR
+these keys, in a popup over the window
+.RE
 .SH FILES
+.I "Table B-1. What conn reads and writes"
+.RS
 .TP
-.I ~/.config/conn/config.json
-configuration; see
-.B CONFIGURATION
+\fB~/.config/conn/config.json\fR
+the configuration; see Section 8
 .TP
-.I ~/.local/state/conn/tmux\-<uid>.sock
+\fB~/.local/state/conn/tmux\-<uid>.sock\fR
 the socket of the tmux server holding the shells
 .TP
-.I ~/.local/state/conn/tmux.conf
+\fB~/.local/state/conn/tmux.conf\fR
 the server's configuration, written by conn at every launch
 .TP
-.I ~/.local/state/conn/latest-release
+\fB~/.local/state/conn/latest\-release\fR
 the latest release as github last said it, and when it was asked
 .TP
-.I .conn
-a project's plan; see
-.B PLANS
+\fB.conn\fR
+a project's plan; see Section 6
+.RE
 .SH ENVIRONMENT
+.I "Table C-1. Variables conn reads"
+.RS
 .TP
-.B CONN_SOCKET
+\fBCONN_SOCKET\fR
 where the server listens, instead of the state directory
 .TP
-.B XDG_CONFIG_HOME
-where the config lives, instead of
-.I ~/.config
+\fBXDG_CONFIG_HOME\fR
+where the configuration lives, instead of ~/.config
 .TP
-.B XDG_STATE_HOME
-where the server's socket and configuration live, instead of
-.I ~/.local/state
+\fBXDG_STATE_HOME\fR
+where the server's socket and configuration live, instead of ~/.local/state
 .TP
-.B SHELL
-the shell opened for
-.BR s ,
-and the one waiting behind
-.BR a ,
-.B A
-and
-.B r
+\fBSHELL\fR
+the shell opened for \fBs\fR, and the one waiting behind \fBa\fR, \fBA\fR,
+\fBr\fR and the tasks
 .TP
-.B NO_COLOR
-set, the navigator draws without color, as
-.UR https://no\-color.org
-the convention
-.UE
-asks.
-.B CLICOLOR_FORCE
-and
-.B TERM=dumb
-are honored too.
+\fBNO_COLOR\fR
+set, the navigator draws without color, as no-color.org asks; CLICOLOR_FORCE and
+TERM=dumb are honored too
 .TP
-.B CLAUDE_CONFIG_DIR
-where Claude Code's session files are read from, instead of
-.I ~/.claude
+\fBCLAUDE_CONFIG_DIR\fR
+where Claude Code's session files are read from, instead of ~/.claude
+.TP
+\fBOLLAMA_MODELS\fR
+where ollama's manifests are read from, instead of ~/.ollama/models
+.RE
 .SH EXIT STATUS
-0 on a clean exit, 1 when conn or its server fails, 2 for an argument it
-does not understand.
+.I "Table D-1. How conn ends"
+.RS
+.TP
+\fB0\fR
+a clean exit
+.TP
+\fB1\fR
+conn or its server failed
+.TP
+\fB2\fR
+an argument conn does not understand
+.RE

@@ -10,10 +10,11 @@
 # under CI a missing tmux is a failure rather than a skip.
 #
 # Once the release is out, the manual records it: tools/revisions writes
-# the record of revisions on the site's cover from the tags, and the row
-# is pushed to main — a push without a tag, which is the one Pages
-# rebuilds on. The tag's message is the row's description, so the tag is
-# cut with one: git tag -a v0.4.0 -m "Endings, tasks and the transcript".
+# the record of revisions on the site's cover from the tags, tools/man
+# writes the man page from the manual so its stamp follows, and both are
+# pushed to main — a push without a tag, which is the one Pages rebuilds
+# on. The tag's message is the row's description, so the tag is cut with
+# one: git tag -a v0.4.0 -m "Endings, tasks and the transcript".
 name: release
 
 on:
@@ -61,13 +62,13 @@ jobs:
           go-version-file: go.mod
 
       - name: Record the revision
-        run: go run ./tools/revisions
+        run: go run ./tools/revisions && go run ./tools/man
 
       - name: Commit it
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html
+          git add docs/index.html man/conn.1
           git diff --cached --quiet && exit 0
           git commit -m "The manual records ${GITHUB_REF_NAME}"
           git push origin main

@@ -186,7 +186,7 @@
       <div class="section" id="navigator">
         <p class="kicker">SECTION 3</p>
         <h2>The navigator</h2>
-        <p class="para"><span class="n">3-1.</span>The left column is a tree, at most four levels deep: <b>group</b> &rarr; <b>repository</b> &rarr; <b>sub-project</b> &rarr; <b>process</b>. A repository is every git repository under the project roots. The scan skips <b>node_modules</b>, <b>vendor</b>, <b>target</b>, <b>.build</b>, <b>Pods</b>, <b>.venv</b> and <b>venv</b>, plus anything named in <b>skipDirs</b>.</p>
+        <p class="para"><span class="n">3-1.</span>The left column is a tree, at most four levels deep: <b>group</b> &rarr; <b>repository</b> &rarr; <b>sub-project</b> &rarr; <b>process</b>. A repository is every git repository under the project roots. The scan skips <b>node_modules</b>, <b>vendor</b>, <b>target</b>, <b>.build</b>, <b>Pods</b>, <b>.venv</b> and <b>venv</b>, every directory whose name begins with a dot, and anything named in <b>skipDirs</b>.</p>
         <p class="para"><span class="n">3-2.</span>A folder inside a root that holds two or more repositories groups them. The group is a place of its own: <b>s</b> opens a shell at the folder, <b>r</b> runs the folder's plan, <b>x</b> covers everything beneath it.</p>
       </div>
     </div>
@@ -239,7 +239,7 @@
     <div class="body">
       <div class="section">
         <p class="para"><span class="n">3-6.</span>Beside the list, while the keys are in it, is the navigator's own pane: what is known about the row under the cursor, a held shell's included, with the last of what that shell has shown beneath the facts, in the colors the shell drew it in. What a process is doing can be read without entering it. A shell is placed beside the navigator only when you enter it, and goes back to a window of its own when the keys come home.</p>
-        <p class="para"><span class="n">3-7.</span><b>/</b> finds places and processes: a query lists the processes that answer it &mdash; by anything their row says: the command, what it was run with, the plan's name for it, an agent's name and model, a port &mdash; under the places they run, pruned to the branches that answer. <b>enter</b> steps into a found shell, and <b>ctrl-x</b> asks to kill what the cursor is on, without leaving the look. An empty query lists places alone.</p>
+        <p class="para"><span class="n">3-7.</span><b>/</b> finds places and processes: a query lists the processes that answer it &mdash; by anything their row says: the command, what it was run with, the plan's name for it, an agent's name and model, a port &mdash; under the places they run, pruned to the branches that answer. An empty query lists places alone. Up and down, or <b>ctrl-p</b> and <b>ctrl-n</b>, move the cursor through what is left, and acting on what it is on ends the looking: <b>enter</b> opens a shell on a place and steps into a found process's shell, <b>ctrl-r</b> runs the plan there, <b>ctrl-a</b> starts an agent, <b>tab</b> goes to the next thing that needs you, <b>shift+tab</b> back where the keys were, and <b>ctrl-x</b> asks to kill what the cursor is on &mdash; the filter holds, so the subject stays listed. <b>esc</b> abandons the look and puts the cursor back on the row it left. The query takes readline's editing keys &mdash; <b>ctrl-w</b>, <b>ctrl-u</b>, <b>ctrl-h</b>, <b>ctrl-e</b> and the rest.</p>
         <p class="para"><span class="n">3-8.</span>Matching is fuzzy: each word of the query appears in order, not contiguously &mdash; <b>tsl</b> finds tressle-api, <b>mono api</b> finds the api inside mono &mdash; and the letters that matched are lit in the rows.</p>
         <p class="para"><span class="n">3-9.</span><b>n</b> makes a new project. It asks where on the status line, on a line prefilled with the folder the cursor is in relative to its root &mdash; <b>w0zro/</b> for a cursor on a repository in that folder, nothing for one at the root &mdash; and the name goes on the end: backspace the folder away for the root itself, or type another folder, which is made if it is not there. A path from <b>~</b> or <b>/</b> is taken as it is. <b>enter</b> makes the directory, runs <b>git init</b> in it, and opens a shell there; the cursor lands on the project once the scan lists it. A directory already there is left alone, and <b>esc</b> thinks better of it.</p>
       </div>
@@ -337,7 +337,7 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">5-5.</span>Other kinds show as plain processes, unmarked. Ollama runs the model most recently pulled or run &mdash; read from the manifests under <b>~/.ollama/models</b>, so the pick needs no daemon, though the REPL does and says so when it is not up &mdash; unless <b>agentRuns</b> names one. <b>,</b> at the navigator, or <b>ctrl-space ,</b> from any shell, moves <b>a</b> on to the next kind &mdash; claude, ollama, claude &mdash; for the whole server: every <b>a</b>, <b>ctrl-a</b> and agent chord starts it, the status line's right corner names it, and it holds until the server goes, when the configuration's kind is back.</p>
+        <p class="para"><span class="n">5-5.</span>Other kinds show as plain processes, unmarked. Ollama runs the model most recently pulled or run &mdash; read from the manifests under <b>~/.ollama/models</b>, or <b>$OLLAMA_MODELS</b>, so the pick needs no daemon, though the REPL does and says so when it is not up &mdash; unless <b>agentRuns</b> names one. <b>,</b> at the navigator, or <b>ctrl-space ,</b> from any shell, moves <b>a</b> on to the next kind &mdash; claude, ollama, claude &mdash; for the whole server: every <b>a</b>, <b>ctrl-a</b> and agent chord starts it, the status line's right corner names it, and it holds until the server goes, when the configuration's kind is back.</p>
       </div>
       <div class="section" id="plans">
         <p class="kicker">SECTION 6</p>
@@ -495,6 +495,7 @@
           <div class="row"><span>conn jump</span><span>the next thing that needs you</span></div>
           <div class="row"><span>conn back</span><span>back where the keys were: the last shell, or the navigator</span></div>
           <div class="row"><span>conn next, prev</span><span>the next and previous shell</span></div>
+          <div class="row"><span>conn keys [client]</span><span>the keys, in a popup over the client; <b>conn page</b> is the page inside it</span></div>
           <div class="row"><span>conn ls</span><span>the held shells: pid, directory, name, exit; one per line</span></div>
           <div class="row"><span>conn restart</span><span>the server ended, after asking, and brought up again under this build</span></div>
         </div>

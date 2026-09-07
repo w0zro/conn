@@ -341,30 +341,24 @@ func runPlanAt(dir string) error {
 	}
 	// An entry's shell at its prompt after its command ended is not the
 	// entry running, here as in the navigator.
-	running := map[string]bool{}
 	held, _ := parseListing(out)
+	procs, perr := runningProcs()
+	busy := busyHeld(held, procs, perr)
+	running := map[string]bool{}
 	for _, pane := range held {
-		if pane.name != "" && pane.dir == p.Path && pane.running() {
+		if pane.name != "" && pane.dir == p.Path && busy[pane.pid] {
 			running[pane.name] = true
 		}
 	}
-	missing := plan.missing(running)
-	// The place's services that are down come back too, unless an entry
-	// starting now runs compose and brings them all up itself.
-	var down []string
-	if hasCompose(p.Path) && !startsCompose(missing) {
-		down = servicesDown(composeServices(p.Path), p.Path, containers())
-	}
-	if len(missing) == 0 && len(down) == 0 {
+	// The plan's entries, and the place's services where it runs compose.
+	missing := needs(p.Path, plan, running, containers())
+	if len(missing) == 0 {
 		return errors.New("everything " + p.Name + " needs is running")
 	}
 	for _, e := range missing {
 		if _, err := createWindow(tmuxCommand, p.Path, e.Run, e.Name, false); err != nil {
 			return err
 		}
-	}
-	if len(down) > 0 {
-		return composeUp(p.Path, down)
 	}
 	return nil
 }
@@ -389,11 +383,13 @@ func runVerbAt(v *verb) func(dir string) error {
 			return err
 		}
 		held, _ := parseListing(out)
+		procs, perr := runningProcs()
+		busy := busyHeld(held, procs, perr)
 		for _, pane := range held {
 			if pane.name != v.name || pane.dir != p.Path {
 				continue
 			}
-			if pane.running() {
+			if busy[pane.pid] {
 				return errors.New("already " + v.doing + " " + p.Name)
 			}
 			if _, err := tmuxCommand("kill-pane", "-t", pane.id); err != nil {
@@ -403,6 +399,35 @@ func runVerbAt(v *verb) func(dir string) error {
 		_, err = createWindow(tmuxCommand, p.Path, run, v.name, false)
 		return err
 	}
+}
+
+// busyHeld is which of the held shells are still running the command they
+// were started with, by pid, read the way the navigator reads it: no
+// ending recorded, and something under the shell in the process table.
+// tmux's own word for a pane's command is the shell's whenever the command
+// was run under one — a command under zsh -c shares its process group, and
+// the group is what tmux names — so the table is asked instead, and the
+// pane's word stands in only when the table could not be read.
+func busyHeld(held []*pane, procs []Proc, err error) map[int]bool {
+	busy := map[int]bool{}
+	if err != nil {
+		for _, p := range held {
+			if p.running() {
+				busy[p.pid] = true
+			}
+		}
+		return busy
+	}
+	children := map[int]int{}
+	for _, p := range procs {
+		children[p.PPID]++
+	}
+	for _, p := range held {
+		if p.exit == "" && children[p.pid] > 0 {
+			busy[p.pid] = true
+		}
+	}
+	return busy
 }
 
 // placeHolding is the place a directory is in — the innermost project or

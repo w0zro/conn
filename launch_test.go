@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -284,5 +285,26 @@ func TestTheNavigatorIsReplacedWhenTheBuildChanged(t *testing.T) {
 	}
 	if out, _ := tmuxCommand("display", "-p", "-t", h.pane, "#{@conn_build}"); out != buildVersion() {
 		t.Errorf("@conn_build = %q after the respawn, want this build recorded", out)
+	}
+}
+
+func TestAHeldShellIsBusyByTheProcessTableNotTmuxsWord(t *testing.T) {
+	// tmux names both panes' command zsh: the wrapper shares its group
+	// with the command it runs. The table tells them apart.
+	held := []*pane{
+		{pid: 10, name: "app", cmd: "zsh"},
+		{pid: 20, name: "web", cmd: "zsh"},
+		{pid: 30, name: "test", cmd: "zsh", exit: "1"},
+	}
+	procs := []Proc{{PID: 10, PPID: 1, Command: "zsh"}, {PID: 11, PPID: 10, Command: "docker"}, {PID: 20, PPID: 1, Command: "zsh"}, {PID: 30, PPID: 1, Command: "zsh"}, {PID: 31, PPID: 30, Command: "less"}}
+	busy := busyHeld(held, procs, nil)
+	if !busy[10] || busy[20] || busy[30] {
+		t.Errorf("busy = %v, want the shell with a command under it and no ending, alone", busy)
+	}
+	// Without the table, tmux's word is what there is.
+	held[1].cmd = "node"
+	busy = busyHeld(held, nil, errors.New("no lsof"))
+	if busy[10] || !busy[20] {
+		t.Errorf("busy = %v, want tmux's word standing in", busy)
 	}
 }

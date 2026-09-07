@@ -119,7 +119,7 @@ func exitField(e entryState) field {
 	if e.State == "0" {
 		t = toneGood
 	}
-	return field{label: "exited", lead: e.State, leadTone: t, value: joinWords(e.Summary, ago(e.At)), tone: toneQuiet}
+	return field{label: "exited", lead: e.State, leadTone: t, value: joinWords(exitWord(e.State), e.Summary, ago(e.At)), tone: toneQuiet}
 }
 
 // joinWords is the words that are there, comma-separated.
@@ -257,7 +257,7 @@ func verbFields(path string, states map[string]entryState) []field {
 		case st.State == "0":
 			mark, word, t = glyphDone, cmp.Or(st.Summary, v.done), toneGood
 		case st.State != "":
-			mark, word, t = glyphFailed, cmp.Or(st.Summary, "failed  exit "+st.State), toneBad
+			mark, word, t = glyphFailed, cmp.Or(st.Summary, joinWords("failed  exit "+st.State, exitWord(st.State))), toneBad
 		}
 		if when := ago(states[v.name].At); when != "" {
 			word += "  " + when
@@ -301,7 +301,7 @@ func planFields(path string, states map[string]entryState) []field {
 			value += "   exited " + st.State
 		}
 		if st := states[e.Name]; st.State != "up" && st.State != "" {
-			if rest := joinWords(st.Summary, ago(st.At)); rest != "" {
+			if rest := joinWords(exitWord(st.State), st.Summary, ago(st.At)); rest != "" {
 				value += ", " + rest
 			}
 		}

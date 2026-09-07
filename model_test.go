@@ -4967,3 +4967,15 @@ func TestATreeKillCoversTheProcessGroup(t *testing.T) {
 		t.Errorf("x targets = %v, want the row's process alone", got)
 	}
 }
+
+func TestARowEndedByASignalSaysSo(t *testing.T) {
+	// The run said nothing of itself; the exit says it was killed, and
+	// the row says that where the summary would go.
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp", name: "worker", exit: "137", at: time.Now().Add(-3 * time.Minute)}}
+	m.rebuild()
+	if row := stripANSI(renderRow(m, m.rows[1])); !strings.Contains(row, "worker · killed · 3m") {
+		t.Errorf("row = %q, want the kill said beside the name", row)
+	}
+}

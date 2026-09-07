@@ -15,6 +15,59 @@ import (
 // wraps the tool reads the same as the tool run bare. When no line has a
 // shape conn knows, the exit status stands alone.
 
+// exitWord is what an exit status says beyond its number, for the ones
+// that say anything: a shell reports a command a signal ended as 128 and
+// the signal, and 137 read as killed, 143 as terminated and 130 as
+// interrupted is the difference between a crash, a kill and a ctrl-c. 127
+// and 126 are the shell's own: the command was not found, or could not be
+// run. An ordinary failure is its number alone.
+func exitWord(state string) string {
+	n, err := strconv.Atoi(state)
+	if err != nil {
+		return ""
+	}
+	switch {
+	case n == 126:
+		return "not executable"
+	case n == 127:
+		return "not found"
+	case n > 128 && n < 160:
+		return signalWord(n - 128)
+	}
+	return ""
+}
+
+// signalWord names a signal by what it did, in the words a reader uses:
+// killed, not SIGKILL.
+func signalWord(sig int) string {
+	switch sig {
+	case 1:
+		return "hung up"
+	case 2:
+		return "interrupted"
+	case 3:
+		return "quit"
+	case 6:
+		return "aborted"
+	case 8:
+		return "floating point error"
+	case 9:
+		return "killed"
+	case 11:
+		return "segfault"
+	case 13:
+		return "broken pipe"
+	case 14:
+		return "alarm"
+	case 15:
+		return "terminated"
+	}
+	if sig == 7 || sig == 10 {
+		return "bus error"
+	}
+	return "signal " + strconv.Itoa(sig)
+}
+
 // summarize is what a transcript's end says of the run, in a few words,
 // or nothing when no line of it has a shape conn knows. The last line
 // that has one speaks: a tool's summary comes last, after the details.

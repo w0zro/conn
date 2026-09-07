@@ -124,7 +124,10 @@ agent's marks are in Section 5.
 \fB✗\fR
 in red: the command ended badly, or the process is stopped, in an
 uninterruptible wait, or a zombie. Beside the name, what the run said of itself
-and how long ago: \fBtest · 3 failed · 3m\fR
+and how long ago: \fBtest · 3 failed · 3m\fR; or, when it said nothing and a
+signal ended it, what ended it: \fBworker · killed · 3m\fR. The pane and the
+checklist decode the status the same way: 137 is killed, 143 terminated, 130
+interrupted, 127 not found
 .TP
 \fB✓\fR
 in green: the command ended well. \fBtest · 12 passed · 2h\fR

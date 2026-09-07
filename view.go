@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -235,10 +236,13 @@ func (m model) renderRow(r navRow, selected bool) string {
 		// itself and how long ago it ended, where a running one says its
 		// ports: 3 failed · 3m — the row reading as the transcript's last
 		// word, and how stale it is.
+		// A run that said nothing of itself and was ended by a signal
+		// says that: killed, where a crash and a kill would otherwise
+		// read the same.
 		if e := m.ending(r); e.State != "" {
 			ports = ""
-			if e.Summary != "" {
-				ports += " · " + e.Summary
+			if said := cmp.Or(e.Summary, exitWord(e.State)); said != "" {
+				ports += " · " + said
 			}
 			if !e.At.IsZero() {
 				ports += " · " + shortAge(e.At)

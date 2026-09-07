@@ -57,3 +57,16 @@ func TestATranscriptsEndIsReadByItsShape(t *testing.T) {
 		t.Errorf("summarize(colored) = %q, want the failure counted through the color", got)
 	}
 }
+
+func TestAnExitStatusSaysWhatEndedIt(t *testing.T) {
+	for state, want := range map[string]string{
+		"0": "", "1": "", "2": "", "": "", "x": "",
+		"126": "not executable", "127": "not found",
+		"129": "hung up", "130": "interrupted", "137": "killed", "139": "segfault", "143": "terminated",
+		"158": "signal 30", "160": "",
+	} {
+		if got := exitWord(state); got != want {
+			t.Errorf("exitWord(%q) = %q, want %q", state, got, want)
+		}
+	}
+}

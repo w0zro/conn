@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -472,5 +473,28 @@ func TestProcFieldsSayTheGroupAndAnOrphan(t *testing.T) {
 	n.PPID, n.PGID = 500, 500
 	if got, _ = fieldValue(procFields(n, "test", nil, nil), "parent"); got != "500 · group 500" {
 		t.Errorf("parent = %q, want the group alone", got)
+	}
+}
+
+func TestTheExitedLineAndTheChecklistDecodeASignal(t *testing.T) {
+	// 137 is a kill, and the pane says so beside the number: a crash and
+	// a kill read the same otherwise.
+	f := exitField(entryState{State: "137", At: time.Now().Add(-time.Minute)})
+	if f.lead != "137" || f.value != "killed, 1m ago" {
+		t.Errorf("exited = %+v, want the word beside the number", f)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".conn"), []byte("api: go run .\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fs := planFields(dir, map[string]entryState{"api": {State: "137"}})
+	var got string
+	for _, f := range fs {
+		if strings.HasSuffix(f.lead, "api") {
+			got = f.value
+		}
+	}
+	if got != "go run .   exited 137, killed" {
+		t.Errorf("api = %q, want the kill decoded", got)
 	}
 }

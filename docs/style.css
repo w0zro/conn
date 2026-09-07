@@ -318,6 +318,7 @@ b, strong { font-weight: 700; }
 .table.marks .row > span:first-child { width: 44px; color: var(--orange); font-weight: 700; }
 .table.marks .row > span.good { color: #2e7d4f; }
 .table.three .row > span:nth-child(2) { flex: none; width: 110px; }
+.table.paths .row > span:first-child { width: 250px; }
 .table.record .row > span:first-child { width: 60px; font-weight: 400; }
 .table.record .row > span:nth-child(2) { flex: none; width: 100px; }
 .table.record .row.head span { font-weight: 700; }

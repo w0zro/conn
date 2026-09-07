@@ -138,7 +138,7 @@
           <li><a href="#keys"><span class="n">A</span><span>Keys</span><span class="dots"></span><span>A-1</span></a></li>
           <li><a href="#files"><span class="n">B</span><span>Files</span><span class="dots"></span><span>B-1</span></a></li>
           <li><a href="#environment"><span class="n">C</span><span>Environment</span><span class="dots"></span><span>B-1</span></a></li>
-          <li><a href="#exit"><span class="n">D</span><span>Exit status</span><span class="dots"></span><span>B-1</span></a></li>
+          <li><a href="#exit"><span class="n">D</span><span>Exit status</span><span class="dots"></span><span>B-2</span></a></li>
         </ol>
       </div>
     </div>
@@ -151,14 +151,6 @@
         <p class="para"><span class="n">1-3.</span>conn needs <b>tmux</b>, which holds and draws the shells, and <b>lsof</b>, which reads the process list. macOS ships lsof; <b>brew install tmux</b>. On Linux, install both from the package manager. <b>docker</b> is optional: with it, a project's containers are listed too (Section 6).</p>
         <p class="para"><span class="n">1-4.</span>Install the release built for this machine:</p>
         <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
-        <p class="para"><span class="n">1-5.</span>The script verifies the download against <b>checksums.txt</b>, puts the binary in <b>~/.local/bin</b> and the manpage under <b>~/.local/share/man</b>. <b>man conn</b> is this manual.</p>
-        <p class="caption">Table 1-1.&nbsp; Install script overrides</p>
-        <div class="table">
-          <div class="row head"><span>VARIABLE</span><span>FUNCTION</span></div>
-          <div class="row"><span>CONN_INSTALL_DIR</span><span>where the binary goes</span></div>
-          <div class="row"><span>CONN_MAN_DIR</span><span>where the manpage goes</span></div>
-          <div class="row"><span>CONN_VERSION</span><span>a release other than the latest</span></div>
-        </div>
       </div>
     </div>
     <div class="foot">
@@ -173,10 +165,18 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-6 &mdash; 2-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-5 &mdash; 2-2</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
+        <p class="para"><span class="n">1-5.</span>The script verifies the download against <b>checksums.txt</b>, puts the binary in <b>~/.local/bin</b> and the manpage under <b>~/.local/share/man</b>. <b>man conn</b> is this manual.</p>
+        <p class="caption">Table 1-1.&nbsp; Install script overrides</p>
+        <div class="table">
+          <div class="row head"><span>VARIABLE</span><span>FUNCTION</span></div>
+          <div class="row"><span>CONN_INSTALL_DIR</span><span>where the binary goes</span></div>
+          <div class="row"><span>CONN_MAN_DIR</span><span>where the manpage goes</span></div>
+          <div class="row"><span>CONN_VERSION</span><span>a release other than the latest</span></div>
+        </div>
         <p class="para"><span class="n">1-6.</span>From source, with Go 1.25 or later:</p>
         <div class="cmd" role="group" aria-label="build from source"><span class="prompt">$</span><code>go install github.com/w0zro/conn@latest</code><button class="copy" type="button" data-copy="go install github.com/w0zro/conn@latest">[copy]</button></div>
         <div class="cmd" role="group" aria-label="first run"><span class="prompt">$</span><code>conn</code><button class="copy" type="button" data-copy="conn">[copy]</button></div>
@@ -187,7 +187,6 @@
         <h2>The navigator</h2>
         <p class="para"><span class="n">2-1.</span>The left column is a tree, at most four levels deep: <b>group</b> &rarr; <b>repository</b> &rarr; <b>sub-project</b> &rarr; <b>process</b>. A repository is any git repository under a root. The scan skips <b>node_modules</b>, <b>vendor</b>, <b>target</b>, <b>.build</b>, <b>Pods</b>, <b>.venv</b>, <b>venv</b>, every directory whose name begins with a dot, and whatever <b>skipDirs</b> names.</p>
         <p class="para"><span class="n">2-2.</span>A folder inside a root that holds two or more repositories is a group. It is a place of its own: <b>s</b> opens a shell there, <b>r</b> runs its plan, <b>x</b> covers everything beneath it.</p>
-        <p class="para"><span class="n">2-3.</span>In a monorepo, a directory with a manifest is a sub-project and gets a row under its repository. Manifests, in the order they are trusted: <b>.conn</b>, <b>Procfile</b>, <b>package.json</b>, <b>deno.json</b>, <b>composer.json</b>, <b>go.mod</b>, <b>Cargo.toml</b>, <b>Gemfile</b>, <b>mix.exs</b>, <b>pyproject.toml</b>, <b>pom.xml</b>, <b>build.gradle</b>, <b>build.gradle.kts</b>. Ignored directories are skipped; an untracked <b>.conn</b> still counts.</p>
       </div>
     </div>
     <div class="foot">
@@ -202,10 +201,11 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-4 &mdash; 2-5</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-3 &mdash; 2-5</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
+        <p class="para"><span class="n">2-3.</span>In a monorepo, a directory with a manifest is a sub-project and gets a row under its repository. Manifests, in the order they are trusted: <b>.conn</b>, <b>Procfile</b>, <b>package.json</b>, <b>deno.json</b>, <b>composer.json</b>, <b>go.mod</b>, <b>Cargo.toml</b>, <b>Gemfile</b>, <b>mix.exs</b>, <b>pyproject.toml</b>, <b>pom.xml</b>, <b>build.gradle</b>, <b>build.gradle.kts</b>. Ignored directories are skipped; an untracked <b>.conn</b> still counts.</p>
         <p class="para"><span class="n">2-4.</span>Each place lists the processes running in it, attributed to the innermost place they belong to and named by what you would call them: <b>npm run dev</b>, not <b>node</b>. A row that listens carries its port, <b>npm run dev &middot; :5173</b>; an agent's row carries its model; a shell a plan or a task started is named for its entry. Dim rows have no shell of their own to go to: processes started outside conn, and processes a shell's command started in turn, a claude's tools, say. <b>enter</b> reaches as far as the shell above them. All are listed and killable. The row that is conn itself says <b>(me)</b>.</p>
         <p class="para"><span class="n">2-5.</span>A row's mark says how its command ended, or that its process is unwell. An agent's marks are in Section 5.</p>
         <p class="caption">Table 2-1.&nbsp; Row marks</p>
@@ -573,7 +573,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 9-2 &mdash; 10-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 9-2 &mdash; 10-1</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
@@ -594,7 +594,6 @@
         <p class="kicker">SECTION 10</p>
         <h2>The server</h2>
         <p class="para"><span class="n">10-1.</span>The shells live in a tmux server of conn's own: one per user, for all projects, on a socket at <b>~/.local/state/conn/tmux-&lt;uid&gt;.sock</b>. <b>CONN_SOCKET</b> moves the socket; <b>XDG_STATE_HOME</b> moves the directory. Every <b>conn</b> writes the server's configuration, the prefix and its chords, the status line, the transcript cap, to <b>~/.local/state/conn/tmux.conf</b>, brings the server up under it or sources it into one already running, and attaches. No .tmux.conf reaches it.</p>
-        <p class="para"><span class="n">10-2.</span>The session's first window is the home window: the navigator in the pane down its left, at <b>navWidth</b> through every resize, and the shell the keys are in beside it. Close the navigator and <b>ctrl-space -</b> makes it again. A <b>conn</b> from a newer build restarts the navigator in its pane and re-reads the configuration; the server keeps the shells. Run from a shell inside the window, it does that and no more. Inside any other tmux it refuses: attaching would be nesting.</p>
       </div>
     </div>
     <div class="foot">
@@ -609,10 +608,11 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-3 &mdash; 10-4</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-2 &mdash; 10-4</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
+        <p class="para"><span class="n">10-2.</span>The session's first window is the home window: the navigator in the pane down its left, at <b>navWidth</b> through every resize, and the shell the keys are in beside it. Close the navigator and <b>ctrl-space -</b> makes it again. A <b>conn</b> from a newer build restarts the navigator in its pane and re-reads the configuration; the server keeps the shells. Run from a shell inside the window, it does that and no more. Inside any other tmux it refuses: attaching would be nesting.</p>
         <p class="para"><span class="n">10-3.</span>The server lives exactly as long as it holds something: the home window brings it up, the last window closing takes it down. <b>R</b>, or <b>ctrl-space R</b> from any shell, ends it and every shell it holds, after asking; it is the way to a fresh server. <b>conn restart</b>, typed outside the window, is <b>R</b> and then <b>conn</b> as one command; inside the window it refuses, since the pane running it would go with the server. <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does.</p>
         <p class="para"><span class="n">10-4.</span>The chords run <b>conn</b> itself with a word, each a short command against the server. None of them are for typing, but all of them can be:</p>
         <p class="caption">Table 10-1.&nbsp; Commands against the server</p>
@@ -721,14 +721,14 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX B &mdash; D</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX B &mdash; C</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="files">
         <p class="kicker">APPENDIX B</p>
         <h2>Files</h2>
         <p class="caption">Table B-1.&nbsp; What conn reads and writes</p>
-        <div class="table">
+        <div class="table paths">
           <div class="row"><span>~/.config/conn/config.json</span><span>the configuration; Section 9</span></div>
           <div class="row"><span>~/.local/state/conn/tmux-&lt;uid&gt;.sock</span><span>the socket of the tmux server holding the shells</span></div>
           <div class="row"><span>~/.local/state/conn/tmux.conf</span><span>the server's configuration, written at every launch</span></div>
@@ -750,6 +750,22 @@
           <div class="row"><span>OLLAMA_MODELS</span><span>where ollama's manifests are read from, instead of ~/.ollama/models</span></div>
         </div>
       </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>B-1</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE B-2 -->
+<section class="page" aria-label="Page B-2">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX D</span></div>
+    <div class="rule"></div>
+    <div class="body">
       <div class="section" id="exit">
         <p class="kicker">APPENDIX D</p>
         <h2>Exit status</h2>
@@ -763,7 +779,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>B-1</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>B-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>

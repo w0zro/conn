@@ -66,6 +66,11 @@ func runs(a agent, n *ProcNode) bool {
 // it. It is what a kind is spotted by too, where no live instance is in hand
 // — the row's name — so it stands on its own.
 func commandRuns(name string, n *ProcNode) bool {
+	if n.Container != nil {
+		// A container is named for its service, and a service called
+		// claude is not an instance conn can read.
+		return false
+	}
 	if n.Command == name {
 		return true
 	}

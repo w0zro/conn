@@ -91,9 +91,15 @@ func killTree(req *killRequest, done []killResult) tea.Cmd {
 		started := startTimes(nodes)
 		for _, n := range nodes {
 			res := killResult{command: n.Command, pid: n.PID}
-			if reused(n, started) {
+			switch {
+			case n.Container != nil:
+				// A container is stopped by docker, which signals the
+				// process inside it; the id names it for good, so there
+				// is no reuse to check for.
+				res.err = dockerStop(n.Container.ID)
+			case reused(n, started):
 				res.err = errGone
-			} else {
+			default:
 				res.err = signal(n.PID)
 			}
 			msg.results = append(msg.results, res)
@@ -106,12 +112,14 @@ func killTree(req *killRequest, done []killResult) tea.Cmd {
 // nil when ps could not answer at all, which callers read as the check being
 // unavailable rather than every process being gone.
 func startTimes(nodes []*ProcNode) map[int]string {
-	if len(nodes) == 0 {
-		return nil
-	}
 	args := []string{"-o", "pid=,lstart="}
 	for _, n := range nodes {
-		args = append(args, "-p", strconv.Itoa(n.PID))
+		if n.Container == nil {
+			args = append(args, "-p", strconv.Itoa(n.PID))
+		}
+	}
+	if len(args) == 2 {
+		return nil
 	}
 	// ps exits nonzero when any asked-for pid is gone, while still listing
 	// the rest; only nothing printed at all means it could not answer.
@@ -156,9 +164,19 @@ func subtree(n *ProcNode) []*ProcNode {
 	return out
 }
 
-// procLabel names a process the way the navigator does.
+// procLabel names a process the way the navigator does: its command and
+// its pid, or a container's service and id.
 func procLabel(n *ProcNode) string {
-	return n.Command + " " + strconv.Itoa(n.PID)
+	return n.Command + " " + nodeID(n)
+}
+
+// nodeID is the number a row shows for its process — the pid, or for a
+// container the id docker knows it by.
+func nodeID(n *ProcNode) string {
+	if n.Container != nil {
+		return n.Container.ID
+	}
+	return strconv.Itoa(n.PID)
 }
 
 // errGone says the process was not there to signal. It is not a failure: a

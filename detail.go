@@ -88,6 +88,9 @@ func loadDetail(r navRow, procCount, repoCount int, ag agent, states map[string]
 	switch r.kind {
 	case rowProc:
 		node, run := r.node, r.run
+		if node.Container != nil {
+			return func() tea.Msg { return detailMsg{key: key, fields: containerFields(node)} }
+		}
 		return func() tea.Msg {
 			fs := procFields(node, run, ag)
 			if ended.State != "" {

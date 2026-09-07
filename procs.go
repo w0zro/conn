@@ -64,6 +64,11 @@ type Proc struct {
 	// were about to go and look up: a dev server's row says what it is,
 	// and this says where it is.
 	Ports []string
+
+	// Container is set on a row that is a container rather than a process:
+	// what docker said of it. Its PID is then a number of conn's own,
+	// below zero, and Ports are what it publishes on the host (docker.go).
+	Container *Container
 }
 
 // ProcNode is a process together with the processes it started.
@@ -99,7 +104,13 @@ func procsBut(self int) ([]Proc, error) {
 	// What each process was run with and when it began, in one call. Asking
 	// per process is milliseconds each, which is fine for the one row being
 	// inspected and far too slow for a list being redrawn.
-	return parseScan(out, self, psTable())
+	procs, err := parseScan(out, self, psTable())
+	if err != nil {
+		return nil, err
+	}
+	// The containers docker runs for a place, filed under the compose
+	// that runs them where one is in the list.
+	return attachContainers(procs, containers()), nil
 }
 
 // parseScan reads what lsof said in procsBut's format: per process, its

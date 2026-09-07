@@ -315,7 +315,7 @@ func (m model) rowLabel(r navRow) string {
 	}
 
 	if m.unfolded {
-		return name + " " + strconv.Itoa(r.node.PID)
+		return name + " " + nodeID(r.node)
 	}
 	return name
 }

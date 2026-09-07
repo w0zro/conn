@@ -399,6 +399,32 @@
   </div>
 </section>
 
+<!-- PAGE 6-2 · SECTION 6, CONTINUED -->
+<section class="page" aria-label="Page 6-2">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-7</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section">
+        <p class="para"><span class="n">6-7.</span>A project on docker runs its services in containers, and a container is not a process the scan can see: on macOS it runs in docker's own machine, and on Linux it is root's, working in a directory of its own. docker knows, and compose writes on every container it starts the directory it was started for &mdash; the same fact lsof reports of a process &mdash; so a container is filed under its place by the rule everything else is, in a row named for its service with the ports it publishes on the host: <b>web · :8438</b>. It sits under the <b>docker compose up</b> that runs it when one runs in a shell, and under the place itself when compose was left detached. The row has no shell to enter; its pane says the container's name, image and status, with the last of its logs, and <b>x</b> asks docker to stop it. A container without a directory &mdash; started by hand, or by something other than compose &mdash; belongs to no place and is not listed, the way a process working outside every project is not. Without docker, or with its daemon down, nothing is asked.</p>
+        <div class="figure">
+<pre>compose-demo
+   app
+     cache · :6390
+     web · :8438</pre>
+        </div>
+        <p class="caption">Figure 6-2.&nbsp; A compose project's containers, under the compose that runs them</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-2</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
 <!-- PAGE 7-1 · SECTION 7 + SECTION 8 -->
 <section class="page" aria-label="Page 7-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>

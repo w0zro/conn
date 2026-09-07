@@ -377,6 +377,33 @@ the status alone.
 A plan is not a supervisor; nothing restarts automatically. An ended entry's
 shell stays at its prompt, with its transcript, until \fBx\fR closes it or
 \fBr\fR starts the entry again beside it.
+.TP
+6-7.
+A project on docker runs its services in containers, and a container is not a
+process the scan can see: on macOS it runs in docker's own machine, and on Linux
+it is root's, working in a directory of its own. docker knows, and compose
+writes on every container it starts the directory it was started for — the
+same fact lsof reports of a process — so a container is filed under its place
+by the rule everything else is, in a row named for its service with the ports it
+publishes on the host: \fBweb · :8438\fR. It sits under the \fBdocker compose
+up\fR that runs it when one runs in a shell, and under the place itself when
+compose was left detached. The row has no shell to enter; its pane says the
+container's name, image and status, with the last of its logs, and \fBx\fR asks
+docker to stop it. A container without a directory — started by hand, or by
+something other than compose — belongs to no place and is not listed, the way
+a process working outside every project is not. Without docker, or with its
+daemon down, nothing is asked.
+.PP
+.RS
+.nf
+compose-demo
+   app
+     cache · :6390
+     web · :8438
+.fi
+.RE
+.PP
+.I "Figure 6-2. A compose project's containers, under the compose that runs them"
 .SH KILLING
 .I "Table 7-1. Kill keys"
 .RS

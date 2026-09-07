@@ -455,14 +455,16 @@ b, strong { font-weight: 700; }
   text-align: left;
 }
 .cover .declassified small { font-weight: 400; font-size: 8.5px; }
+/* The table runs the width of the page, so a release's description has
+   the room a line needs; the stamp goes under it, at the right, the way a
+   stamp lands after the table is typed. */
 .cover .revisions {
   position: relative;
   padding: 38px 64px 0 96px;
   display: flex;
-  align-items: flex-end;
-  gap: 36px;
+  flex-direction: column;
+  align-items: stretch;
 }
-.cover .revisions > div:first-child { flex: 1; }
 .cover .revisions .label {
   font: 700 10.5px var(--mono);
   letter-spacing: 0.2em;
@@ -483,7 +485,8 @@ b, strong { font-weight: 700; }
   font: 700 12px var(--mono);
   letter-spacing: 0.22em;
   text-align: center;
-  margin-bottom: 6px;
+  align-self: flex-end;
+  margin: 18px 22px 0 0;
 }
 .cover .stamp small {
   display: block;

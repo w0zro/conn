@@ -227,7 +227,15 @@ Every kill asks first \(em
 or
 .B enter
 confirms, anything else cancels. Processes get SIGTERM, and the list
-never claims an exit it has not observed.
+never claims an exit it has not observed. A shell conn holds is hung up
+through the server, an interactive shell paying SIGTERM no mind \(em but
+one still running the command it was started with is hung up only once
+that command has gone: what runs in the shell gets SIGTERM first, and
+the shell goes when a scan finds it back at its prompt. A command ends
+its own work on a signal, not on losing its terminal: a
+.B docker compose up
+hung up leaves its containers running, and given SIGTERM stops them
+before it goes.
 .SS In the filter
 Letters type, and the list narrows \(em each word of the query has to
 appear in order inside what a row says, not contiguously: a place's name

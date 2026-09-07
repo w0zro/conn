@@ -233,6 +233,13 @@ type model struct {
 	spinning bool
 	frame    int
 
+	// closing holds the shells conn holds that a kill is ending while they
+	// run a command, by pid, with how many frames each has waited: the
+	// command is signalled first, and the shell is hung up once it is back
+	// at its prompt. A hangup that came first would take the command's
+	// terminal before it had ended its own work.
+	closing map[int]int
+
 	// status is a one-line report of the last action, cleared as soon as the
 	// cursor moves on.
 	status    string
@@ -354,6 +361,7 @@ func newModel() model {
 		askedExit: map[int]bool{},
 		unread:    map[int]bool{},
 		dying:     map[int]dyingProc{},
+		closing:   map[int]int{},
 		terms:     map[int]*remoteTerm{},
 		worked:    map[int]bool{},
 		dressed:   map[int]string{},
@@ -503,6 +511,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			m.procs = msg.procs
 		}
 		m.rebuild()
+		m.closeSettled()
 		return m, tea.Batch(m.detailCmd(), owed)
 
 	case reconnectMsg:
@@ -1648,19 +1657,70 @@ func (m *model) openShell() tea.Cmd {
 // interactive shell ignores SIGTERM, so signalling one leaves it sitting there
 // and conn reporting that it would not go. Everything else is somebody else's
 // process, and a signal is all conn has.
+//
+// A held shell running a command — a plan's entry, a task, an agent — is
+// hung up only once the command has gone. Hanging it up first takes the
+// command's terminal away, and a command ends its own work on a signal, not
+// on losing its terminal: docker compose up hung up leaves its containers
+// running, and given SIGTERM stops them before it goes. So everything under
+// the shell is signalled, parents first — the hangup would have taken all of
+// it anyway, and a signal is the chance the hangup did not give — and the
+// shell is hung up when a scan finds it back at its prompt (closeSettled).
 func (m *model) runKill(req *killRequest) tea.Cmd {
-	var hungUp []killResult
-	var signalled []*ProcNode
+	hungUp, signalled := m.splitKill(req.nodes)
+	return killTree(&killRequest{subject: req.subject, nodes: signalled}, hungUp)
+}
 
-	for _, n := range req.nodes {
-		if _, mine := m.terms[n.PID]; mine {
-			m.server.closeTerm(n.PID)
-			hungUp = append(hungUp, killResult{command: n.Command, pid: n.PID, hungUp: true})
+// splitKill sorts a kill's targets into the shells the server hangs up —
+// now, or once what they run has gone — and the processes to signal, which
+// take in what runs under a held shell. A process is signalled once,
+// whichever way it was reached.
+func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*ProcNode) {
+	seen := map[int]bool{}
+	for _, n := range nodes {
+		if _, mine := m.terms[n.PID]; !mine {
+			if !seen[n.PID] {
+				seen[n.PID] = true
+				signalled = append(signalled, n)
+			}
 			continue
 		}
-		signalled = append(signalled, n)
+		hungUp = append(hungUp, killResult{command: n.Command, pid: n.PID, hungUp: true})
+		shell := m.nodes[n.PID]
+		if shell == nil || len(shell.Children) == 0 {
+			m.server.closeTerm(n.PID)
+			continue
+		}
+		if m.closing == nil {
+			m.closing = map[int]int{}
+		}
+		m.closing[n.PID] = 0
+		for _, under := range subtree(shell)[1:] {
+			if _, held := m.terms[under.PID]; held || seen[under.PID] {
+				continue
+			}
+			seen[under.PID] = true
+			signalled = append(signalled, under)
+		}
 	}
-	return killTree(&killRequest{subject: req.subject, nodes: signalled}, hungUp)
+	return hungUp, signalled
+}
+
+// closeSettled hangs up the shells a kill is waiting on, where a scan has
+// found the command gone and the shell back at its prompt. A shell no
+// longer held — closed by hand meanwhile — is nothing to wait on.
+func (m *model) closeSettled() {
+	for pid := range m.closing {
+		shell := m.nodes[pid]
+		if _, held := m.terms[pid]; !held || shell == nil {
+			delete(m.closing, pid)
+			continue
+		}
+		if len(shell.Children) == 0 {
+			m.server.closeTerm(pid)
+			delete(m.closing, pid)
+		}
+	}
 }
 
 // shellAround is the shell conn holds that a process is running inside, if it
@@ -2061,7 +2121,7 @@ func (m model) childCount(r navRow) int {
 // spinNeeded reports whether anything on screen is moving: a process on its
 // way out, or an agent at work.
 func (m model) spinNeeded() bool {
-	if len(m.dying) > 0 {
+	if len(m.dying) > 0 || len(m.closing) > 0 {
 		return true
 	}
 	for _, r := range m.rows {
@@ -2076,6 +2136,17 @@ func (m model) spinNeeded() bool {
 // the ones that are not going. Marking a process forever would both misreport
 // it and keep rescanning on its behalf for the rest of the session.
 func (m *model) ageDying() {
+	// A shell waiting on a command that has not gone in that long stops
+	// waiting, and stays: its command is among the ones reported below,
+	// and hanging the shell up now would be the very thing the wait was
+	// for not doing.
+	for pid, frames := range m.closing {
+		if frames++; frames > killLinger {
+			delete(m.closing, pid)
+			continue
+		}
+		m.closing[pid] = frames
+	}
 	var stuck []int
 	for pid, d := range m.dying {
 		d.frames++

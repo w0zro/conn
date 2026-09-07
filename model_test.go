@@ -4622,3 +4622,154 @@ func TestBackWithNowhereToGoSaysSoOrTakesTheShellUnderTheCursor(t *testing.T) {
 		t.Fatalf("back took the keys to %d, want the navigator when the last shell is gone", got.PID)
 	}
 }
+
+// composeTree is a plan's shell — zsh 10, held as app — running docker
+// compose up (20), which runs its compose plugin (30).
+func composeTree() model {
+	m := withProcList(80, 12,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn", Argv: "zsh"},
+			{PID: 20, PPID: 10, Command: "docker", Dir: "/p/conn", Argv: "docker compose up"},
+			{PID: 30, PPID: 20, Command: "docker-compose", Dir: "/p/conn", Argv: "docker-compose compose up"},
+		},
+	)
+	m.terms[10] = &remoteTerm{pid: 10, dir: "/p/conn", name: "app"}
+	m.rebuild()
+	return m
+}
+
+// notAsked fails the test if the server is asked for kind within a moment.
+func notAsked(t *testing.T, asked chan message, kind string) {
+	t.Helper()
+	deadline := time.After(50 * time.Millisecond)
+	for {
+		select {
+		case got := <-asked:
+			if got.Kind == kind {
+				t.Fatalf("the server was asked to %s: %+v", kind, got)
+			}
+		case <-deadline:
+			return
+		}
+	}
+}
+
+func TestKillingAShellRunningACommandSignalsTheCommandFirst(t *testing.T) {
+	m, asked := pipeServer(t, composeTree())
+	m = press(m, "down") // onto the run, named for docker compose up
+	m = press(m, "x")
+	if f := footer(m); !strings.Contains(f, "kill docker 20 and its shell?") {
+		t.Fatalf("footer = %q, want the command and its shell asked about", f)
+	}
+
+	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
+	if len(hungUp) != 1 || hungUp[0].pid != 10 || !hungUp[0].hungUp {
+		t.Errorf("hung up %+v, want the shell alone", hungUp)
+	}
+	if got := pids(signalled); !slices.Equal(got, []int{20, 30}) {
+		t.Errorf("signalled %v, want what runs in the shell, parents first", got)
+	}
+	// The shell is hung up once the command has gone, not now: hung up
+	// first, docker compose up leaves its containers running.
+	notAsked(t, asked, kindClose)
+	if _, waiting := m.closing[10]; !waiting {
+		t.Fatal("the shell should be waiting to be hung up")
+	}
+	if !m.spinNeeded() {
+		t.Error("the wait should keep the scans coming")
+	}
+
+	// The scan that finds the command gone hangs the shell up.
+	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}}})
+	m = next.(model)
+	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
+		t.Errorf("asked %+v, want the shell hung up", got)
+	}
+	if len(m.closing) != 0 {
+		t.Errorf("closing = %v, want nothing left waiting", m.closing)
+	}
+}
+
+func TestATreeKillOfARunningShellSignalsEachProcessOnce(t *testing.T) {
+	m, _ := pipeServer(t, composeTree())
+	m = press(press(m, "down"), "X")
+
+	_, signalled := m.splitKill(m.pendingKill.nodes)
+	if got := pids(signalled); !slices.Equal(got, []int{20, 30}) {
+		t.Errorf("signalled %v, want each process under the shell once", got)
+	}
+}
+
+func TestKillingTheShellRowItselfSignalsWhatRunsInIt(t *testing.T) {
+	m, asked := pipeServer(t, composeTree())
+	m = press(press(m, "-"), "down") // unfolded, the shell has a row of its own
+	m = press(m, "x")
+	if f := footer(m); !strings.Contains(f, "kill zsh 10?") {
+		t.Fatalf("footer = %q, want the shell asked about", f)
+	}
+
+	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
+	if len(hungUp) != 1 || hungUp[0].pid != 10 {
+		t.Errorf("hung up %+v, want the shell", hungUp)
+	}
+	if got := pids(signalled); !slices.Equal(got, []int{20, 30}) {
+		t.Errorf("signalled %v, want what runs in the shell, parents first", got)
+	}
+	notAsked(t, asked, kindClose)
+}
+
+func TestAShellAtItsPromptIsHungUpAtOnce(t *testing.T) {
+	m := withProcList(80, 12,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}},
+	)
+	m.terms[10] = &remoteTerm{pid: 10, dir: "/p/conn"}
+	m.rebuild()
+	m, asked := pipeServer(t, m)
+	m = press(press(m, "down"), "x")
+
+	m.splitKill(m.pendingKill.nodes)
+	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
+		t.Errorf("asked %+v, want the idle shell hung up now", got)
+	}
+	if len(m.closing) != 0 {
+		t.Errorf("closing = %v, want nothing waiting", m.closing)
+	}
+}
+
+func TestAShellWhoseCommandRefusesToGoStaysOpen(t *testing.T) {
+	m, asked := pipeServer(t, composeTree())
+	m = press(press(m, "down"), "x")
+	m.splitKill(m.pendingKill.nodes)
+	m.pendingKill = nil
+
+	// The frames pass with the command still listed.
+	for range killLinger + 1 {
+		m.ageDying()
+	}
+	if len(m.closing) != 0 {
+		t.Errorf("closing = %v, want the wait given up", m.closing)
+	}
+	next, _ := m.Update(procsMsg{procs: m.procs})
+	m = next.(model)
+	notAsked(t, asked, kindClose)
+	if _, held := m.terms[10]; !held {
+		t.Error("the shell should still be held")
+	}
+}
+
+func TestAShellClosedByHandIsNotWaitedOn(t *testing.T) {
+	m, asked := pipeServer(t, composeTree())
+	m = press(press(m, "down"), "x")
+	m.splitKill(m.pendingKill.nodes)
+
+	next, _ := m.Update(termGoneMsg{pid: 10})
+	m = next.(model)
+	next, _ = m.Update(procsMsg{procs: nil})
+	m = next.(model)
+	notAsked(t, asked, kindClose)
+	if len(m.closing) != 0 {
+		t.Errorf("closing = %v, want nothing waiting on a shell that went", m.closing)
+	}
+}

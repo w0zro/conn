@@ -47,7 +47,6 @@ var keyList = [][2]string{
 	{"^spc enter", "the next thing that needs you"},
 	{"^spc s a r t b l A", "shell · agent · run · test · build · lint, here · continue"},
 	{"^spc ,", "the next kind of agent"},
-	{"^spc v", "read back; v marks, y copies"},
 	{"^spc /", "find from anywhere"},
 	{"^spc q", "leave from anywhere"},
 	{"^spc R", "end the server from anywhere"},

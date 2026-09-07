@@ -66,7 +66,6 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 		"bind t "+run("test '#{pane_current_path}'"),
 		"bind b "+run("build '#{pane_current_path}'"),
 		"bind l "+run("lint '#{pane_current_path}'"),
-		"bind v copy-mode",
 		"bind q detach-client",
 		`bind R confirm-before -p "end the server, and every shell it holds? (y/n)" kill-server`,
 		"",

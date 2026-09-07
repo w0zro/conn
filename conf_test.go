@@ -19,7 +19,6 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		`bind j run-shell "'/opt/my tools/it'\''s/conn' next"`,
 		`bind C-Space run-shell "'/opt/my tools/it'\''s/conn' back"`,
 		`bind ? run-shell "'/opt/my tools/it'\''s/conn' keys '#{client_name}'"`,
-		"bind v copy-mode",
 		"bind q detach-client",
 		"set -g history-limit 4242",
 		"set -g automatic-rename off",

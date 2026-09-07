@@ -81,6 +81,9 @@
   </div>
 </section>
 
+<!-- RECORD OF REVISIONS · written by tools/revisions from the tags -->
+<!-- record -->
+<!-- /record -->
 <!-- PAGE 1-1 · CONTENTS + SECTION 1 -->
 <section class="page" id="contents" aria-label="Page 1-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
@@ -248,14 +251,13 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-3 &mdash; 4-6</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-3 &mdash; 4-5</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
         <p class="para"><span class="n">4-3.</span>The status line at the foot is tmux's. It begins with conn's own name, <b>CONN</b>, in purple, which stays. To its right is the mode the keys are in &mdash; <b>NAV</b> or <b>PROC</b> for the pane that has them, each a chip in its own color with the line washed one tone after it; <b>PREFIX</b> while a chord hangs; <b>COPY</b> in copy mode; the query while one is typed and the filter while one stands; <b>CONTINUE</b> with the picker open; <b>NEW</b> with a project's name being typed; <b>CONFIRM</b> while a kill waits on its second key &mdash; and then anything the navigator has to say: a report, an error, a confirmation, until the next key, or that a newer conn is out, whenever nothing else is said. What a chord says, from any shell, shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
         <p class="para"><span class="n">4-4.</span>Shells keep running when the terminal closes. <b>q</b> in the navigator, or <b>ctrl-space q</b> anywhere, detaches; quit the terminal, come back, run <b>conn</b>, and everything is where it was.</p>
-        <p class="para"><span class="n">4-5.</span><b>ctrl-space v</b> reads back through what has scrolled away: tmux's copy mode, with vi keys. <b>v</b> marks, <b>y</b> copies the marked text to the system clipboard, <b>q</b> leaves. Each shell keeps 10,000 lines of transcript by default; <b>scrollback</b> in the configuration raises it.</p>
-        <p class="para"><span class="n">4-6.</span>The mouse is tmux's, with tmux's own bindings and nothing of conn's: the wheel scrolls back through a pane's transcript, a drag selects and copies to the clipboard on release, a click takes the keys to the pane under it, and a program that speaks mouse gets its own clicks and wheel. Hold shift to drag a selection the terminal's own way. A program that copies for itself &mdash; vim's clipboard yank, anything speaking OSC 52 &mdash; reaches the system clipboard through tmux.</p>
+        <p class="para"><span class="n">4-5.</span>The mouse is tmux's, with tmux's own bindings and nothing of conn's: the wheel scrolls back through a pane's transcript &mdash; each shell keeps 10,000 lines of it by default, and <b>scrollback</b> in the configuration raises that &mdash; a drag selects and copies to the clipboard on release, a click takes the keys to the pane under it, and a program that speaks mouse gets its own clicks and wheel. Hold shift to drag a selection the terminal's own way. A program that copies for itself &mdash; vim's clipboard yank, anything speaking OSC 52 &mdash; reaches the system clipboard through tmux.</p>
         <div class="note">
           <p class="label">NOTE</p>
           <p>A click into the navigator brings the keys home the way <b>ctrl-space -</b> does: the shell beside it goes back to its own window, and the navigator's pane returns.</p>
@@ -541,7 +543,6 @@
           <div class="row"><span>^spc enter</span><span>the next thing that needs you</span></div>
           <div class="row"><span>^spc s a r t b l A</span><span>shell &middot; agent &middot; run &middot; test &middot; build &middot; lint, here &middot; continue</span></div>
           <div class="row"><span>^spc ,</span><span>the next kind of agent</span></div>
-          <div class="row"><span>^spc v</span><span>read back; v marks, y copies</span></div>
           <div class="row"><span>^spc /</span><span>find from anywhere</span></div>
           <div class="row"><span>^spc q</span><span>leave from anywhere</span></div>
           <div class="row"><span>^spc R</span><span>end the server from anywhere</span></div>

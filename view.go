@@ -199,10 +199,6 @@ func (m model) renderRow(r navRow, selected bool) string {
 			if !selected {
 				style = errStyle
 			}
-		case m.stopped(r):
-			// Ended by x: neither the failure nor the success, and no
-			// color, since it is what you asked for.
-			mark, markStyle = " "+glyphStopped, faintStyle
 		case m.ended(r) == "0":
 			mark, markStyle = " "+glyphDone, toneStyles[toneGood]
 		}

@@ -74,7 +74,6 @@ type entryState struct {
 	State   string
 	At      time.Time
 	Summary string // what the run's transcript said of it, when conn read a shape it knows
-	Stopped bool   // x ended it: neither well nor badly, whatever the status says
 }
 
 // loadDetail inspects the selected row off the render path. Git and ps are
@@ -116,10 +115,6 @@ func loadDetail(r navRow, name string, procCount, repoCount int, ag agent, state
 // green, and any other way in red, with the status — what the transcript
 // said of it, and how long ago, when those are known.
 func exitField(e entryState) field {
-	if e.Stopped {
-		// Asked for: no status to weigh, and nothing to color.
-		return field{label: "stopped", lead: glyphStopped, leadTone: toneQuiet, value: joinWords(e.Summary, ago(e.At)), tone: toneQuiet}
-	}
 	t := toneBad
 	if e.State == "0" {
 		t = toneGood
@@ -256,8 +251,6 @@ func verbFields(path string, states map[string]entryState) []field {
 		switch st := states[v.name]; {
 		case st.State == "up":
 			mark, word, t = glyphOn, "running", toneGood
-		case st.Stopped:
-			mark, word, t = glyphStopped, "stopped", toneQuiet
 		case st.State == "0":
 			mark, word, t = glyphDone, cmp.Or(st.Summary, v.done), toneGood
 		case st.State != "":
@@ -297,9 +290,6 @@ func planFields(path string, states map[string]entryState) []field {
 		switch st := states[e.Name]; {
 		case st.State == "up":
 			mark, t = glyphOn+" ", toneGood
-		case st.Stopped:
-			mark = glyphStopped + " "
-			value += "   stopped"
 		case st.State == "0":
 			mark, t = glyphDone+" ", toneGood
 			value += "   exited 0"

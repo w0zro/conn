@@ -16,9 +16,6 @@ import (
 type killRequest struct {
 	subject string
 	nodes   []*ProcNode
-	// entry is the named shell whose command the kill ends, leaving the
-	// shell — an entry x stops, rather than a process x kills — or nil.
-	entry *remoteTerm
 }
 
 // killResult is what became of one process a kill was aimed at. hungUp marks

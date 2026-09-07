@@ -1708,18 +1708,17 @@ type message struct {
 }
 
 const (
-	kindOpen    = "open"
-	kindShow    = "show"  // a shell moved beside the navigator
-	kindPark    = "park"  // the shown shell moved back to a window of its own
-	kindFocus   = "focus" // the keys taken to a pane
-	kindLeave   = "leave"
-	kindClose   = "close"   // a held shell's pane killed
-	kindStopped = "stopped" // a held shell's pane marked as ended by x
-	kindDress   = "dress"   // a pane named for the title
-	kindHelp    = "help"    // the keys popup asked for
-	kindMode    = "mode"    // the status line's mode chip said
-	kindMsg     = "msg"     // the status line's message said
-	kindAgent   = "agent"   // the kind of agent a starts, told to the server
+	kindOpen  = "open"
+	kindShow  = "show"  // a shell moved beside the navigator
+	kindPark  = "park"  // the shown shell moved back to a window of its own
+	kindFocus = "focus" // the keys taken to a pane
+	kindLeave = "leave"
+	kindClose = "close" // a held shell's pane killed
+	kindDress = "dress" // a pane named for the title
+	kindHelp  = "help"  // the keys popup asked for
+	kindMode  = "mode"  // the status line's mode chip said
+	kindMsg   = "msg"   // the status line's message said
+	kindAgent = "agent" // the kind of agent a starts, told to the server
 )
 
 // pipeServer gives a model a session whose asks land on the returned
@@ -1828,8 +1827,6 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 				asked <- message{Kind: kindDress, PID: target(args), Name: args[len(args)-1]}
 			case has(args, "@conn_mode"):
 				asked <- message{Kind: kindMode, Name: args[len(args)-1]}
-			case has(args, "@conn_stopped"):
-				asked <- message{Kind: kindStopped, PID: target(args)}
 			case has(args, "@conn_msg"):
 				asked <- message{Kind: kindMsg, Name: args[len(args)-1]}
 			case has(args, agentOption):
@@ -4783,20 +4780,25 @@ func TestAShellClosedByHandIsNotWaitedOn(t *testing.T) {
 	}
 }
 
-func TestXOnAnEntryEndsItsCommandAndKeepsItsShell(t *testing.T) {
+func TestXOnAnEntryIsNamedForItAndTakesItsShell(t *testing.T) {
 	m, asked := pipeServer(t, composeTree()) // app: zsh 10 running docker compose up
 	m = press(press(m, "down"), "x")
 	if f := footer(m); !strings.Contains(f, "kill app?") {
 		t.Fatalf("footer = %q, want the entry named", f)
 	}
-	if got := targets(m.pendingKill); !slices.Equal(got, []int{20, 30}) {
-		t.Errorf("targets = %v, want what runs in the shell, and not the shell", got)
+	if got := targets(m.pendingKill); !slices.Equal(got, []int{10, 20, 30}) {
+		t.Errorf("targets = %v, want the shell and what runs in it", got)
 	}
 	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
-	if len(hungUp) != 0 || len(signalled) != 2 {
-		t.Errorf("hung up %v, signalled %v; want the shell left at its prompt", hungUp, signalled)
+	if len(hungUp) != 1 || hungUp[0].pid != 10 || len(signalled) != 2 {
+		t.Errorf("hung up %v, signalled %v; want the command signalled and the shell to follow", hungUp, signalled)
 	}
+	// The shell goes once the command has: the entry is then gone
+	// altogether, as an entry nothing runs in is.
 	notAsked(t, asked, kindClose)
+	if _, waiting := m.closing[10]; !waiting {
+		t.Error("the shell should be waiting to be hung up")
+	}
 
 	// Unfolded, on the shell's own row, the same.
 	m = press(press(press(m, "esc"), "-"), "x")
@@ -4820,37 +4822,6 @@ func TestXOnAnEndedEntryClosesItsShellByName(t *testing.T) {
 	m.splitKill(m.pendingKill.nodes)
 	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
 		t.Errorf("asked %+v, want the shell hung up", got)
-	}
-}
-
-func TestAnEndingXAskedForIsNeitherGoodNorBad(t *testing.T) {
-	m, asked := pipeServer(t, composeTree())
-	m = press(press(press(m, "down"), "x"), "y")
-	if got := askedForKind(t, asked, kindStopped); got.PID != 10 {
-		t.Errorf("asked %+v, want the entry's pane marked as stopped", got)
-	}
-
-	// The shell back at its prompt, its ending recorded as asked for.
-	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}}})
-	m = next.(model)
-	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 10, Dir: "/p/conn", Name: "app", Exit: "130", Ended: strconv.FormatInt(time.Now().Unix(), 10), Stopped: true}}})
-	m = next.(model)
-	row := renderRow(m, m.rows[1])
-	if !strings.Contains(row, glyphStopped) || strings.Contains(row, glyphFailed) {
-		t.Errorf("row = %q, want the stopped mark and not the cross", row)
-	}
-	if m.wrong(m.rows[1]) || m.needsYou(m.rows[1]) {
-		t.Error("an ending asked for is nothing tab goes to")
-	}
-	st := m.entryStates("/p/conn")["app"]
-	if !st.Stopped || st.State != "130" {
-		t.Errorf("state = %+v, want stopped, with the status kept", st)
-	}
-	if f := exitField(st); f.label != "stopped" || f.leadTone != toneQuiet {
-		t.Errorf("field = %+v, want it said as stopped, quietly", f)
-	}
-	if v := planFields("/p/conn", map[string]entryState{"app": st}); len(v) > 0 && !strings.Contains(v[len(v)-1].value, "stopped") {
-		t.Errorf("checklist = %+v, want the entry down as stopped", v)
 	}
 }
 

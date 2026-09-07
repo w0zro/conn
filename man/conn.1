@@ -436,12 +436,9 @@ shell conn holds is closed through the server — but one still running its
 command is closed only once the command has gone: what runs in the shell gets
 SIGTERM first, and the shell goes when a scan finds it back at its prompt, so a
 \fBdocker compose up\fR stops its containers on the way out, which hung up it
-would not. An entry's shell — a plan's, a task's — is not closed at all by
-\fBx\fR while it runs its command: the command goes, and the shell stays at its
-prompt with the transcript and the ending, as it would had the command ended on
-its own, for \fBr\fR to start the entry again beside it — wearing \fB■\fR
-rather than the cross, an ending asked for being neither good nor bad, and
-nothing \fBtab\fR goes to. \fBx\fR again closes it.
+would not. An entry's shell — a plan's, a task's — goes with its command the
+same way, and the question names the entry: \fBkill app?\fR The entry is then
+gone, as an entry nothing runs in is, and \fBr\fR starts it again.
 .SH CONFIGURATION
 .TP
 8-1.

@@ -220,7 +220,6 @@ const (
 	glyphAsk      = "◆"
 	glyphFailed   = "✗" // a command that ended badly; a process stopped, or a zombie
 	glyphDone     = "✓" // a command that ended well
-	glyphStopped  = "■" // a command x stopped: ended, and neither well nor badly
 	glyphBusy     = "⋯" // the spinner, standing still: for a status line that is not redrawn per frame
 	glyphJoin     = "›" // between the processes of a run
 )

@@ -136,7 +136,7 @@
         <ol>
           <li><a href="#stopping"><span class="n">8</span><span>Stopping</span><span class="dots"></span><span>8-1</span></a></li>
           <li><a href="#configuration"><span class="n">9</span><span>Configuration</span><span class="dots"></span><span>9-1</span></a></li>
-          <li><a href="#server"><span class="n">10</span><span>The server</span><span class="dots"></span><span>10-1</span></a></li>
+          <li><a href="#server"><span class="n">10</span><span>Leaving, restarting, updating</span><span class="dots"></span><span>10-1</span></a></li>
           <li><a href="#keys"><span class="n">A</span><span>Keys</span><span class="dots"></span><span>A-1</span></a></li>
           <li><a href="#files"><span class="n">B</span><span>Files</span><span class="dots"></span><span>B-1</span></a></li>
           <li><a href="#environment"><span class="n">C</span><span>Environment</span><span class="dots"></span><span>C-1</span></a></li>
@@ -148,16 +148,23 @@
       <div class="section" id="general">
         <p class="kicker">SECTION 1</p>
         <h2>General</h2>
-        <p class="para"><span class="n">1-1.</span><b>conn</b> is a terminal UI for working on many projects at once. It lists every git repository under your project roots, what runs in each, and the shells you open there, and marks the rows that need you.</p>
-        <p class="para"><span class="n">1-2.</span>conn is a tmux client. It brings up a tmux server of its own, attaches the terminal, and runs the navigator down the left of the home window. Every shell is a tmux pane: the focused one is drawn beside the navigator, the rest wait in windows of their own. Close the terminal and everything keeps running; run <b>conn</b> again and it is where it was.</p>
-        <p class="para"><span class="n">1-3.</span>conn needs <b>tmux</b>, which holds and draws the shells, and <b>lsof</b>, which reads the process list. macOS ships lsof; <b>brew install tmux</b>. On Linux, install both from the package manager. <b>docker</b> is optional: with it, a project's containers are listed too (Section 6).</p>
-        <p class="para"><span class="n">1-4.</span>Install the release built for this machine:</p>
+        <p class="para"><span class="n">1-1.</span><b>conn</b> is a terminal UI for working on many projects at once. It lists every git repository under your project roots, what is running in each, and the shells you have open there, and marks the rows that need you.</p>
+        <p class="para"><span class="n">1-2.</span>conn is one window. The navigator runs down the left; the shell you are working in fills the right. Other shells keep running out of view until you return to them. Close the terminal and everything keeps running; run <b>conn</b> again and it is where you left it.</p>
+        <p class="para"><span class="n">1-3.</span>Install the release built for this machine:</p>
         <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
+        <p class="para"><span class="n">1-4.</span>The script checks the download against the release's checksums, puts the binary in <b>~/.local/bin</b> and the manpage under <b>~/.local/share/man</b>. <b>man conn</b> is this manual.</p>
+        <p class="caption">Table 1-1.&nbsp; Install script overrides</p>
+        <div class="table">
+          <div class="row head"><span>VARIABLE</span><span>FUNCTION</span></div>
+          <div class="row"><span>CONN_INSTALL_DIR</span><span>where the binary goes</span></div>
+          <div class="row"><span>CONN_MAN_DIR</span><span>where the manpage goes</span></div>
+          <div class="row"><span>CONN_VERSION</span><span>a release other than the latest</span></div>
+        </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>1-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>1-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -167,27 +174,23 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-5 &mdash; 1-7</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-5 &mdash; 1-6</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">1-5.</span>The script verifies the download against <b>checksums.txt</b>, puts the binary in <b>~/.local/bin</b> and the manpage under <b>~/.local/share/man</b>. <b>man conn</b> is this manual.</p>
-        <p class="caption">Table 1-1.&nbsp; Install script overrides</p>
-        <div class="table">
-          <div class="row head"><span>VARIABLE</span><span>FUNCTION</span></div>
-          <div class="row"><span>CONN_INSTALL_DIR</span><span>where the binary goes</span></div>
-          <div class="row"><span>CONN_MAN_DIR</span><span>where the manpage goes</span></div>
-          <div class="row"><span>CONN_VERSION</span><span>a release other than the latest</span></div>
-        </div>
-        <p class="para"><span class="n">1-6.</span>From source, with Go 1.25 or later:</p>
+        <p class="para"><span class="n">1-5.</span>From source, with Go 1.25 or later:</p>
         <div class="cmd" role="group" aria-label="build from source"><span class="prompt">$</span><code>go install github.com/w0zro/conn@latest</code><button class="copy" type="button" data-copy="go install github.com/w0zro/conn@latest">[copy]</button></div>
+        <div class="note">
+          <p class="label">NOTE</p>
+          <p>conn runs on <b>tmux</b> and reads the process list with <b>lsof</b>. Both must be installed; neither needs to be configured or understood. macOS ships lsof; <b>brew install tmux</b>. On Linux, install both from the package manager. <b>docker</b> is optional: with it, a project's containers are listed too (Section 6).</p>
+        </div>
         <div class="cmd" role="group" aria-label="first run"><span class="prompt">$</span><code>conn</code><button class="copy" type="button" data-copy="conn">[copy]</button></div>
-        <p class="para"><span class="n">1-7.</span>There is nothing to set up. The list opens showing what is running, so on a quiet machine it says <b>nothing running</b>. Press <b>.</b> to show every repository, <b>/</b> to find one by name. conn looks under <b>~/projects</b>; Section 9 points it elsewhere.</p>
+        <p class="para"><span class="n">1-6.</span>There is nothing to set up. The list opens showing what is running, so on a quiet machine it says <b>nothing running</b>. Press <b>.</b> to show every repository, <b>/</b> to find one by name. conn looks under <b>~/projects</b>; Section 9 points it elsewhere.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>1-2</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>1-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -203,21 +206,21 @@
       <div class="section" id="navigator">
         <p class="kicker">SECTION 2</p>
         <h2>The navigator</h2>
-        <p class="para"><span class="n">2-1.</span>The left column is a tree, at most four levels deep: <b>group</b> &rarr; <b>repository</b> &rarr; <b>sub-project</b> &rarr; <b>process</b>. A group, a repository and a sub-project are each a place: a row a shell can open at. A repository is any git repository under a root. The scan skips <b>node_modules</b>, <b>vendor</b>, <b>target</b>, <b>.build</b>, <b>Pods</b>, <b>.venv</b>, <b>venv</b>, every directory whose name begins with a dot, and whatever <b>skipDirs</b> names.</p>
+        <p class="para"><span class="n">2-1.</span>The left column is a tree, at most four levels deep: <b>group</b> &rarr; <b>repository</b> &rarr; <b>sub-project</b> &rarr; <b>process</b>. A group, a repository and a sub-project are each a place: a row you can open a shell at. A repository is any git repository under a root. conn skips <b>node_modules</b>, <b>vendor</b>, <b>target</b>, <b>.build</b>, <b>Pods</b>, <b>.venv</b>, <b>venv</b>, every directory whose name begins with a dot, and whatever <b>skipDirs</b> names.</p>
         <p class="para"><span class="n">2-2.</span>A folder inside a root that holds two or more repositories is a group. It is a place of its own: <b>s</b> opens a shell there, <b>r</b> runs its plan, <b>x</b> covers everything beneath it.</p>
-        <p class="para"><span class="n">2-3.</span>In a monorepo, a directory with a manifest is a sub-project and gets a row under its repository. Manifests, in the order they are trusted: <b>.conn</b>, <b>Procfile</b>, <b>package.json</b>, <b>deno.json</b>, <b>composer.json</b>, <b>go.mod</b>, <b>Cargo.toml</b>, <b>Gemfile</b>, <b>mix.exs</b>, <b>pyproject.toml</b>, <b>pom.xml</b>, <b>build.gradle</b>, <b>build.gradle.kts</b>. Ignored directories are skipped; an untracked <b>.conn</b> still counts.</p>
-        <p class="para"><span class="n">2-4.</span>Each place lists the processes running in it, attributed to the innermost place they belong to and named by what you would call them: <b>npm run dev</b>, not <b>node</b>. A row that listens carries its port, <b>npm run dev &middot; :5173</b>; an agent's row carries its model; a shell a plan or a task started is named for its entry. Dim rows have no shell of their own to go to: processes started outside conn, and processes a shell's command started in turn, a claude's tools, say. <b>enter</b> reaches as far as the shell above them. All are listed and killable. The row that is conn itself says <b>(me)</b>.</p>
-        <p class="para"><span class="n">2-5.</span>A row's mark says how its command ended, or that its process is unwell. An agent's marks are in Section 5.</p>
+        <p class="para"><span class="n">2-3.</span>In a monorepo, a directory with a manifest is a sub-project and gets a row under its repository. A manifest is any of <b>.conn</b>, <b>Procfile</b>, <b>package.json</b>, <b>deno.json</b>, <b>composer.json</b>, <b>go.mod</b>, <b>Cargo.toml</b>, <b>Gemfile</b>, <b>mix.exs</b>, <b>pyproject.toml</b>, <b>pom.xml</b>, <b>build.gradle</b> or <b>build.gradle.kts</b>. Directories git ignores are skipped; an untracked <b>.conn</b> still counts.</p>
+        <p class="para"><span class="n">2-4.</span>Each place lists what is running in it, named by what you would call it: <b>npm run dev</b>, not <b>node</b>. A row that listens carries its port, <b>npm run dev &middot; :5173</b>; an agent's row carries its model; a shell a plan or a task started is named for its entry. Dim rows have no shell of their own to go to: processes started outside conn, and processes a shell's command started in turn, a claude's tools, say. <b>enter</b> reaches as far as the shell above them. All are listed and killable. The row that is conn itself says <b>(me)</b>.</p>
+        <p class="para"><span class="n">2-5.</span>A row's mark says how its command ended, or that its process is stuck. An agent's marks are in Section 5.</p>
         <p class="caption">Table 2-1.&nbsp; Row marks</p>
         <div class="table marks">
-          <div class="row"><span>&#10007;</span><span>in red: the command ended badly, or the process is stopped, in an uninterruptible wait, or a zombie. Beside the name, what the run said of itself and how long ago: <b>test &middot; 3 failed &middot; 3m</b>; or, when it said nothing and a signal ended it, what ended it: <b>worker &middot; killed &middot; 3m</b>. The pane and the checklist decode the status the same way: 137 is killed, 143 terminated, 130 interrupted, 127 not found</span></div>
+          <div class="row"><span>&#10007;</span><span>in red: the command ended badly, or the process is stopped or hung. Beside the name, what the run said of itself and how long ago: <b>test &middot; 3 failed &middot; 3m</b></span></div>
           <div class="row"><span>&#10003;</span><span>in green: the command ended well. <b>test &middot; 12 passed &middot; 2h</b></span></div>
         </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>2-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>2-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -231,14 +234,24 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">2-6.</span>While the navigator has focus, it fills the pane beside the list with what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how; its tasks and how their last run went. For a process: its run, arguments, uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown, in the shell's own colors. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
-        <p class="para"><span class="n">2-7.</span>tmux draws the status line at the foot. It begins with <b>CONN</b> in purple, then the mode (Table 2-2), then anything conn has to say until the next key: a report, an error, a confirmation, or that a newer release is out. What a chord says from a shell shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
+        <p class="para"><span class="n">2-6.</span>While the navigator has focus, the pane beside the list shows what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how; its tasks and how their last run went. For a process: its arguments, uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
+        <p class="para"><span class="n">2-7.</span>The status line at the foot begins with <b>CONN</b>, then the mode (Table 2-2), then anything conn has to say until the next key: a report, an error, a confirmation, or that a newer release is out. What a chord says from a shell shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
         <p class="caption">Table 2-2.&nbsp; Modes on the status line</p>
+        <div class="table narrow">
+          <div class="row"><span>NAV</span><span>the navigator has focus</span></div>
+          <div class="row"><span>PROC</span><span>a shell has focus</span></div>
+          <div class="row"><span>PREFIX</span><span>ctrl-space pressed, waiting for the next key</span></div>
+          <div class="row"><span>COPY</span><span>scrolling back through a pane</span></div>
+          <div class="row"><span>/query</span><span>a query being typed, or the filter standing</span></div>
+          <div class="row"><span>CONTINUE</span><span>the picker of conversations is open</span></div>
+          <div class="row"><span>NEW</span><span>a project's path is being typed</span></div>
+          <div class="row"><span>CONFIRM</span><span>a kill waits on its second key</span></div>
+        </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>2-2</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>2-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -252,26 +265,16 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <div class="table narrow">
-          <div class="row"><span>NAV</span><span>the navigator has focus</span></div>
-          <div class="row"><span>PROC</span><span>a shell has focus</span></div>
-          <div class="row"><span>PREFIX</span><span>a chord hangs after ctrl-space</span></div>
-          <div class="row"><span>COPY</span><span>tmux copy mode</span></div>
-          <div class="row"><span>/query</span><span>a query being typed, or the filter standing</span></div>
-          <div class="row"><span>CONTINUE</span><span>the picker of conversations is open</span></div>
-          <div class="row"><span>NEW</span><span>a project's path is being typed</span></div>
-          <div class="row"><span>CONFIRM</span><span>a kill waits on its second key</span></div>
-        </div>
-        <p class="para"><span class="n">2-8.</span>tmux handles the mouse, and conn adds no bindings of its own: the wheel scrolls a pane's transcript, a drag selects and copies on release, a click focuses the pane under it, and a program that speaks mouse gets its own clicks and wheel. Hold shift to select the terminal's own way. A program that copies for itself, vim's clipboard yank or anything speaking OSC 52, reaches the system clipboard through tmux.</p>
+        <p class="para"><span class="n">2-8.</span>The mouse works throughout: the wheel scrolls back through a pane, a drag selects and copies on release, a click focuses the pane under it, and a program that uses the mouse gets its own clicks and wheel. Hold shift to select with the terminal's own selection. A program that copies for itself, vim's clipboard yank for one, reaches the system clipboard.</p>
         <div class="note">
           <p class="label">NOTE</p>
-          <p>A click into the navigator focuses it, as <b>ctrl-space -</b> does: the shell beside it returns to its own window.</p>
+          <p>A click into the navigator focuses it, as <b>ctrl-space -</b> does: the shell beside it moves out of view.</p>
         </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>2-3</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>2-3</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -302,7 +305,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>3-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>3-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -312,7 +315,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-3 &mdash; 3-4</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
@@ -328,11 +331,16 @@
           <div class="row"><span>ctrl-x</span><span>ask to kill what the cursor is on</span></div>
           <div class="row"><span>esc</span><span>cancel the search</span></div>
         </div>
+        <p class="para"><span class="n">3-4.</span><b>enter</b> on a shell's row, or <b>s</b> on a place, focuses a shell beside the navigator. From then on the shell receives every keystroke but one: <b>ctrl-space</b>, which reaches conn from any shell. <b>ctrl-space -</b> focuses the navigator again. <b>?</b>, in the navigator or after ctrl-space, lists every key in a popup over the window; Appendix A lists them here.</p>
+        <div class="note">
+          <p class="label">NOTE</p>
+          <p>The window is tmux underneath. Its usual prefix and key bindings are off, <b>ctrl-space</b> is the only prefix, and your own .tmux.conf is not read. Started inside another tmux, conn stops with a message rather than nest.</p>
+        </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>3-2</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>3-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -342,18 +350,17 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-4 &mdash; 3-6</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-5 &mdash; 3-6</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">3-4.</span><b>enter</b> on a shell's row, or <b>s</b> on a place, focuses a shell beside the navigator. From then on the shell receives every keystroke but one: <b>ctrl-space</b>, the prefix, tmux's own under conn's configuration, which reaches conn from any shell. <b>ctrl-space -</b> focuses the navigator again. <b>?</b>, in the navigator or after the prefix, lists every key in a popup over the window; Appendix A lists them here. Every key tmux would otherwise bind is unbound.</p>
-        <p class="para"><span class="n">3-5.</span><b>tab</b> at the list, or <b>ctrl-space enter</b> anywhere, goes to the next thing that needs you: an agent waiting, a command that ended badly, a process stopped or a zombie. Again continues around them. A held shell is entered, at its prompt or transcript; a process conn only watches gets the cursor.</p>
-        <p class="para"><span class="n">3-6.</span><b>shift+tab</b> at the list, or <b>ctrl-space ctrl-space</b> anywhere, returns focus to where it was: the shell before this one, whether or not focus passed through the navigator on the way, or the navigator when focus came from it. Again returns. Before focus has moved at all, it is the list from a shell and the cursor's shell from the list.</p>
+        <p class="para"><span class="n">3-5.</span><b>tab</b> at the list, or <b>ctrl-space enter</b> anywhere, goes to the next thing that needs you: an agent waiting, a command that ended badly, a process stopped or hung. Again continues around them. A held shell is entered, at its prompt or transcript; a process conn only watches gets the cursor.</p>
+        <p class="para"><span class="n">3-6.</span><b>shift+tab</b> at the list, or <b>ctrl-space ctrl-space</b> anywhere, returns focus to where it was: the shell before this one, or the navigator when focus came from it. Again returns. Before focus has moved at all, it is the list from a shell and the cursor's shell from the list.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>3-3</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>3-3</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -363,20 +370,19 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1 &mdash; 4-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1 &mdash; 4-2</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="shells">
         <p class="kicker">SECTION 4</p>
         <h2>Shells</h2>
-        <p class="para"><span class="n">4-1.</span><b>s</b> opens <b>$SHELL</b> at the selected place, beside the navigator, focused. A shell you enter moves in beside the navigator; when the navigator takes focus again it moves out to a tmux window of its own, where it keeps running, and the navigator has the whole window. Each shell keeps 10,000 lines of transcript; <b>scrollback</b> in the configuration raises that.</p>
-        <p class="para"><span class="n">4-2.</span><b>n</b> makes a new project. The status line asks where, on a line prefilled with the cursor's folder relative to its root, <b>w0zro/</b> for a cursor on a repository in that folder, and the name goes on the end. Backspace the folder away for the root itself; type another and it is made. A path from <b>~</b> or <b>/</b> is taken as it is. <b>enter</b> makes the directory, runs <b>git init</b> in it and opens a shell there; the cursor lands on the project once the scan lists it. A directory already there is left alone. <b>esc</b> cancels.</p>
-        <p class="para"><span class="n">4-3.</span><b>q</b> in the navigator, or <b>ctrl-space q</b> anywhere, detaches the terminal. The shells keep running. Quit the terminal, come back, run <b>conn</b>: everything is where it was.</p>
+        <p class="para"><span class="n">4-1.</span><b>s</b> opens your shell at the selected place, beside the navigator, focused. A shell you enter moves in beside the navigator; when the navigator takes focus again it moves out of view, where it keeps running, and the navigator has the whole window. Each shell keeps 10,000 lines of scrollback; <b>scrollback</b> in the configuration raises that.</p>
+        <p class="para"><span class="n">4-2.</span><b>n</b> makes a new project. The status line asks where, on a line prefilled with the cursor's folder relative to its root, <b>w0zro/</b> for a cursor on a repository in that folder, and the name goes on the end. Backspace the folder away for the root itself; type another and it is made. A path from <b>~</b> or <b>/</b> is taken as it is. <b>enter</b> makes the directory, runs <b>git init</b> in it and opens a shell there; the cursor lands on the project once it is listed. A directory already there is left alone. <b>esc</b> cancels.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>4-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>4-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -401,12 +407,12 @@
           <div class="row"><span>&#9675;</span><span>idle since it started</span></div>
         </div>
         <p class="para"><span class="n">5-2.</span>The &#9670; is the one to answer first: answering it resumes work already underway. The pane for a claude row names what it is waiting on, the last thing asked of it, and what it says it is doing. <b>tab</b>, or <b>ctrl-space enter</b> from any shell, goes to it (3-5).</p>
-        <p class="para"><span class="n">5-3.</span>A conversation does not end when its instance exits; it is suspended, and the transcript is enough to pick it back up. <b>A</b> on a place lists what is suspended there, sub-projects included and, for a group, its repositories, newest first: when each last moved, its branch, and the last thing asked of it. Typing narrows the list, <b>enter</b> continues the one under the cursor in a shell opened where it was had, <b>esc</b> closes the list. A conversation an instance still carries is not offered. Every kind that keeps conversations answers the picker, and each is continued by the kind that had it.</p>
+        <p class="para"><span class="n">5-3.</span>A conversation does not end when its instance exits; it is suspended, and can be picked back up. <b>A</b> on a place lists what is suspended there, sub-projects included and, for a group, its repositories, newest first: when each last moved, its branch, and the last thing asked of it. Typing narrows the list, <b>enter</b> continues the one under the cursor in a shell opened where it was had, <b>esc</b> closes the list. A conversation an instance still carries is not offered.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>5-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>5-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -420,12 +426,12 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">5-4.</span>conn knows agents as kinds: <b>claude</b> and <b>ollama</b>. <b>,</b> at the navigator, or <b>ctrl-space ,</b> from any shell, moves <b>a</b> on to the next kind, around the end, for the whole server until it goes; the status line's right corner names it. Ollama's rows are plain processes, unmarked. It runs the model most recently pulled or run, read from the manifests under <b>~/.ollama/models</b> or <b>$OLLAMA_MODELS</b>, so the pick needs no daemon; the REPL does, and says so when it is down. With nothing pulled, <b>a</b> runs <b>ollama list</b> instead. <b>agentRuns</b> in the configuration names what a kind runs when its own answer is not the wanted one.</p>
+        <p class="para"><span class="n">5-4.</span>conn knows two kinds of agent: <b>claude</b> and <b>ollama</b>. <b>,</b> at the navigator, or <b>ctrl-space ,</b> from any shell, moves <b>a</b> on to the next kind, around the end, for every window until conn is restarted; the status line's right corner names it. Ollama's rows are plain processes, unmarked. It runs the model most recently pulled or run; with nothing pulled, <b>a</b> runs <b>ollama list</b> instead, and with the ollama server down the REPL says so. <b>agentRuns</b> in the configuration names what a kind runs when its own choice is not the wanted one.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>5-2</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>5-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -460,7 +466,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>6-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -474,20 +480,20 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">6-3.</span><b>r</b> starts the entries that are not running, each in a window named for it, and puts the cursor on the first. It is a list to run, not a supervisor: nothing restarts on its own. When an entry's command ends, its shell stays at the prompt with the transcript, the row shows &#10007; or &#10003;, the pane's checklist says how and when it ended, and <b>r</b> starts it again beside the old shell. Running anything by hand in that shell clears the mark: the exit has been seen.</p>
-        <p class="para"><span class="n">6-4.</span>A project on docker runs its services in containers, which the process scan cannot see. compose writes on every container the directory it was started for, the same fact lsof reports of a process, so a container is filed under its place by the rule everything else is: a row named for its service, with the ports it publishes on the host, <b>web &middot; :8438</b>. It sits under the <b>docker compose up</b> that runs it when one runs in a shell, and under the place itself when compose was left detached. <b>enter</b> on it opens a shell inside it &mdash; compose's <b>exec</b>, in the place &mdash; held like any shell; its pane says the container's name, image and status, with the last of its logs. A service that died beside the others stays listed while the project runs, showing the cross and how long ago &mdash; <b>worker · 3m ✗</b> &mdash; and <b>tab</b> goes to it; one that exited well shows the check. A health check's word stands where the ports would while it says anything but healthy: <b>api · unhealthy ✗</b>, or starting. What the machine runs for you outside every project is listed under <b>global</b>, at the foot of the list, there while anything is in it: containers of no project &mdash; a <b>docker run</b>, or compose from elsewhere &mdash; and processes listening on a port they chose from no project&rsquo;s directory, an <b>ollama serve</b>, a brew postgres. The desktop&rsquo;s own listeners stay out, and docker&rsquo;s proxy, which the containers already say. <b>x</b>, <b>enter</b> and the pane work as under a project; the place is nowhere on disk, so no shell opens in it and no project is made there.</p>
+        <p class="para"><span class="n">6-3.</span><b>r</b> starts the entries that are not running, each in a window named for it, and puts the cursor on the first. It is a list to run, not a supervisor: nothing restarts on its own. When an entry's command ends, its shell stays at the prompt with the transcript, the row shows &#10007; or &#10003;, the pane's checklist says how and when it ended, and <b>r</b> starts it again beside the old shell. Running anything by hand in that shell clears the mark.</p>
+        <p class="para"><span class="n">6-4.</span>A project that runs its services with docker compose shows each service as a row: named for the service, with the ports it publishes, <b>web &middot; :8438</b>, under the <b>docker compose up</b> that runs it when one is running in a shell, and under the place itself when compose runs detached. <b>enter</b> on a service opens a shell inside its container. Its pane shows the container's name, image, status and the last of its logs. A service that died stays listed while the project runs, with the cross and how long ago, <b>worker · 3m ✗</b>, and <b>tab</b> goes to it; one that exited well shows the check. A service whose health check is not passing shows that in place of its ports: <b>api · unhealthy ✗</b>, or starting.</p>
         <div class="figure">
 <pre>compose-demo
    app
      cache · :6390
      web · :8438</pre>
         </div>
-        <p class="caption">Figure 6-2.&nbsp; A compose project's containers, under the compose that runs them</p>
+        <p class="caption">Figure 6-2.&nbsp; A compose project's services, under the compose that runs them</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>6-2</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -497,11 +503,12 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-5</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-5 &mdash; 6-6</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">6-5.</span>What <b>x</b> stopped, <b>r</b> brings back where it was. The services the place's compose file declares are what it needs: <b>r</b> starts the ones that are down with <b>docker compose up -d</b> for them, which starts a stopped container and makes again one that was removed, and a compose up running in a shell there takes the service's logs up again, so the shape holds. An entry <b>r</b> is starting that runs compose itself brings everything up instead. A service that a plan entry is named for is left to the entry.</p>
+        <p class="para"><span class="n">6-5.</span>What runs outside every project is listed under <b>global</b>, at the foot of the list, while there is anything to list: containers started by hand or from elsewhere, and processes listening on a port from outside your projects, an <b>ollama serve</b> or a <b>brew</b> postgres. The system's own listeners are left out. <b>x</b>, <b>enter</b> and the pane work there as under a project; there is no directory, so no shell opens there and no project is made.</p>
+        <p class="para"><span class="n">6-6.</span>What <b>x</b> stopped, <b>r</b> brings back where it was: the services the compose file declares that are down are started with <b>docker compose up -d</b>, and a compose up running in a shell picks up their logs again. An entry <b>r</b> is starting that runs compose itself brings everything up instead. A service that a plan entry is named for is left to the entry.</p>
         <div class="note">
           <p class="label">NOTE</p>
           <p>A plan is not a supervisor. An ended entry's shell stays at its prompt, with its transcript, until <b>x</b> closes it or <b>r</b> starts the entry again beside it.</p>
@@ -510,7 +517,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>6-3</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-3</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -526,7 +533,7 @@
       <div class="section" id="tasks">
         <p class="kicker">SECTION 7</p>
         <h2>Tasks</h2>
-        <p class="para"><span class="n">7-1.</span><b>t</b>, <b>b</b> and <b>l</b> run the place's tests, build and lint as the project itself defines them. What the project wrote down comes first: a Makefile target, a justfile recipe, a Taskfile task or a package.json script named <b>test</b>, <b>build</b> or <b>lint</b>. Otherwise the ecosystem's own command, by the file that marks the project. Only a linter the ecosystem ships with is guessed at; a project on ruff or eslint names it in a script. A project the guess is wrong for says so in its Makefile, which conn checks first.</p>
+        <p class="para"><span class="n">7-1.</span><b>t</b>, <b>b</b> and <b>l</b> run the place's tests, build and lint as the project itself defines them. What the project wrote down comes first: a Makefile target, a justfile recipe, a Taskfile task or a package.json script named <b>test</b>, <b>build</b> or <b>lint</b>. Otherwise the ecosystem's own command. Only a linter the ecosystem ships with is guessed at; a project on ruff or eslint names it in a script. A project the guess is wrong for says so in its Makefile, which conn checks first.</p>
         <p class="caption">Table 7-1.&nbsp; How a task's command is found</p>
         <div class="table">
           <div class="row head"><span>THE PROJECT HAS</span><span>THE TASK RUNS</span></div>
@@ -539,12 +546,12 @@
           <div class="row"><span>mix.exs and the rest</span><span>the ecosystem's own: mix, gradle, mvn, deno, swift, dune</span></div>
         </div>
         <p class="para"><span class="n">7-2.</span>Each run is a shell named for its task, so its row shows &#10003; or &#10007;, <b>tab</b> goes to a failure, and the place's pane says how each task's last run went and how long ago. The key again replaces a finished run rather than stacking another beside it; a run still going is left to finish. <b>conn test</b>, <b>conn build</b>, <b>conn lint</b> and <b>ctrl-space t</b>, <b>b</b>, <b>l</b> do the same from any shell.</p>
-        <p class="para"><span class="n">7-3.</span>conn reads the end of the transcript by the shape of the tool's summary line: go test, pytest, jest, vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc, ruff, eslint. A failed run's row says <b>test &middot; 3 failed</b>, a passed one <b>12 passed</b>. A shape it does not know leaves the status alone.</p>
+        <p class="para"><span class="n">7-3.</span>conn reads the run's summary line as the tool prints it: go test, pytest, jest, vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc, ruff, eslint. A failed run's row says <b>test &middot; 3 failed</b>, a passed one <b>12 passed</b>. Output conn does not recognize leaves the row with pass or fail alone.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>7-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>7-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -563,21 +570,21 @@
         <p class="caption">Table 8-1.&nbsp; Kill keys</p>
         <div class="table">
           <div class="row"><span>x</span><span>kill the selected process</span></div>
-          <div class="row"><span>X</span><span>kill it, everything under it, and what shares its process group</span></div>
+          <div class="row"><span>X</span><span>kill it, everything under it, and what it started that has since detached</span></div>
           <div class="row"><span>x on an entry</span><span>end the entry's command and its shell; <b>r</b> starts it again</span></div>
-          <div class="row"><span>x on a container</span><span>stop the container, docker's way</span></div>
+          <div class="row"><span>x on a container</span><span>stop the container</span></div>
           <div class="row"><span>x on a place</span><span>kill everything running in it</span></div>
           <div class="row"><span>x on a signalled row</span><span>kill outright: SIGKILL to what has not gone</span></div>
-          <div class="row"><span>R</span><span>end the server and every shell it holds</span></div>
+          <div class="row"><span>R</span><span>end conn and every shell it holds</span></div>
         </div>
-        <p class="para"><span class="n">8-1.</span>Every kill asks first: <b>x</b>, <b>y</b> or <b>enter</b> confirms, anything else cancels. Processes get SIGTERM. The question offers the other signals: <b>9</b> confirms with SIGKILL, <b>i</b> with SIGINT, for a server that only tears down on ctrl-c, and <b>h</b> with SIGHUP, for a daemon that reloads on it. A signalled row shows a red marker until a scan observes the exit; the list never claims an exit it has not seen. A process that has not gone in five seconds is given up on, and the status line says so; <b>x</b> on it then, or on a row still on its way out, asks to kill it outright, with SIGKILL, which nothing refuses. Kills work on any listed process, including ones conn did not start.</p>
-        <p class="para"><span class="n">8-2.</span>A held shell is closed through the server. One still running its command is closed only once the command has gone: the command gets SIGTERM, and the shell is hung up when a scan finds it back at its prompt, so a <b>docker compose up</b> stops its containers on the way out; hung up first, it would leave them running. An entry's row is the entry, and the question names it: <b>kill app?</b> The entry is then gone, as an entry nothing runs in is, and <b>r</b> starts it again. An exit that <b>x</b> asked for shows no mark. A tree kill, or an entry's, covers the process group as well as the tree: a parent that exits leaves its children to init and the tree loses them, but the job keeps them. Such a process is listed under its job's leader while the leader runs, and the pane says <b>orphaned</b> of it.</p>
-        <p class="para"><span class="n">8-3.</span>A container is stopped by docker, which signals the process inside it and follows with SIGKILL after its grace. <b>r</b> brings the service back (6-5).</p>
+        <p class="para"><span class="n">8-1.</span>Every kill asks first: <b>x</b>, <b>y</b> or <b>enter</b> confirms, anything else cancels. Processes get SIGTERM. The question offers the other signals: <b>9</b> confirms with SIGKILL, <b>i</b> with SIGINT, for a server that only tears down on ctrl-c, and <b>h</b> with SIGHUP, for a daemon that reloads on it. A signalled row shows a red marker until the process is seen to have gone; the list never claims an exit it has not seen. A process that has not gone in five seconds is given up on, and the status line says so; <b>x</b> on it then, or on a row still on its way out, asks to kill it outright with SIGKILL. Kills work on any listed process, including ones conn did not start.</p>
+        <p class="para"><span class="n">8-2.</span>Killing a shell that is still running a command signals the command first and closes the shell once the command has gone, so a <b>docker compose up</b> stops its containers on the way out. <b>x</b> on an entry's row kills the entry, and the question names it: <b>kill app?</b> The entry is then gone, and <b>r</b> starts it again. An exit that <b>x</b> asked for shows no mark. <b>X</b>, and <b>x</b> on an entry, also kill processes the command started that have since detached from it; such a process is listed under the command while it runs, and the pane says <b>orphaned</b> of it.</p>
+        <p class="para"><span class="n">8-3.</span>A container is stopped by docker, which signals the process inside it and, after a grace period, kills it. <b>r</b> brings the service back (6-6).</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>8-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>8-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -609,18 +616,18 @@
           <div class="row head"><span>FIELD</span><span>DEFAULT</span><span>FUNCTION</span></div>
           <div class="row"><span>projectsDir</span><span>$HOME/projects</span><span>the directory searched for repositories; ~ and $VARS expand</span></div>
           <div class="row"><span>projectsDirs</span><span>&mdash;</span><span>several roots; when set, projectsDir is ignored. A root that only exists on another machine is fine</span></div>
-          <div class="row"><span>scrollback</span><span>10000</span><span>transcript lines each shell keeps. Written into the server's configuration at launch, so raising it takes a fresh server (10-3)</span></div>
+          <div class="row"><span>scrollback</span><span>10000</span><span>lines of scrollback each shell keeps. Raising it takes a restart: <b>R</b>, then <b>conn</b> again, or <b>conn restart</b> (10-2)</span></div>
           <div class="row"><span>navWidth</span><span>30</span><span>the navigator column's width, 16&ndash;60</span></div>
-          <div class="row"><span>theme</span><span>dark</span><span>the side tmux draws for, dark or light; the navigator uses the terminal's own sixteen colors</span></div>
+          <div class="row"><span>theme</span><span>dark</span><span>dark or light, to match the terminal; the navigator itself uses the terminal's own colors</span></div>
           <div class="row"><span>agent</span><span>claude</span><span>the kind of agent <b>a</b> starts, until <b>,</b> says otherwise: claude or ollama</span></div>
           <div class="row"><span>agentRuns</span><span>&mdash;</span><span>what starting a kind runs, by name: {"ollama": "ollama run mistral"}</span></div>
-          <div class="row"><span>skipDirs</span><span>&mdash;</span><span>directory names the scan never enters, on top of the built-in list</span></div>
+          <div class="row"><span>skipDirs</span><span>&mdash;</span><span>directory names never searched, on top of the built-in list</span></div>
         </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>9-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>9-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -635,15 +642,15 @@
     <div class="body">
       <div class="section" id="server">
         <p class="kicker">SECTION 10</p>
-        <h2>The server</h2>
-        <p class="para"><span class="n">10-1.</span>The shells live in a tmux server of conn's own: one per user, for all projects, on a socket at <b>~/.local/state/conn/tmux-&lt;uid&gt;.sock</b>. <b>CONN_SOCKET</b> moves the socket; <b>XDG_STATE_HOME</b> moves the directory. Every <b>conn</b> writes the server's configuration, the prefix and its chords, the status line, the transcript cap, to <b>~/.local/state/conn/tmux.conf</b>, brings the server up under it or sources it into one already running, and attaches. No .tmux.conf reaches it.</p>
-        <p class="para"><span class="n">10-2.</span>The session's first window is the home window: the navigator in the pane down its left, at <b>navWidth</b> through every resize, and the focused shell beside it. Close the navigator and <b>ctrl-space -</b> makes it again. A <b>conn</b> from a newer build restarts the navigator in its pane and re-reads the configuration; the server keeps the shells. Run from a shell inside the window, it does only that. Inside any other tmux it stops with a message, since attaching would nest one tmux in another.</p>
-        <p class="para"><span class="n">10-3.</span>The server lives exactly as long as it holds something: the home window brings it up, the last window closing takes it down. <b>R</b>, or <b>ctrl-space R</b> from any shell, ends it and every shell it holds, after asking; it is the way to a fresh server. <b>conn restart</b>, typed outside the window, is <b>R</b> and then <b>conn</b> as one command; inside the window it stops with a message, since the pane running it would go with the server. <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does.</p>
+        <h2>Leaving, restarting, updating</h2>
+        <p class="para"><span class="n">10-1.</span><b>q</b> in the navigator, or <b>ctrl-space q</b> anywhere, leaves conn and returns you to the terminal. Everything keeps running: the shells, the plans, the agents. Run <b>conn</b> again, from any terminal, and it is where you left it. If the navigator's pane was closed, <b>ctrl-space -</b> brings it back.</p>
+        <p class="para"><span class="n">10-2.</span><b>R</b>, or <b>ctrl-space R</b> from any shell, ends conn and every shell it holds, after asking. <b>conn restart</b>, typed in a terminal outside conn, does the same and then starts conn again; inside conn it stops with a message, since the shell running it would go too. A restart is the way to a fresh start, and what a raised <b>scrollback</b> needs to take effect.</p>
+        <p class="para"><span class="n">10-3.</span>conn checks for a newer release once a day. When one is out, the status line says so whenever nothing else is being said: <b>conn 0.6.0 is out &middot; U installs it</b>. <b>U</b> installs it and restarts the navigator as the new build; the shells stay. With nothing newer known, <b>U</b> checks now and says what it finds. Installing a new binary by hand works the same: the next <b>conn</b> picks it up. A build from source is never told it is behind.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>10-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>10-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -653,12 +660,12 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-4</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-4 &mdash; 10-5</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">10-4.</span>The chords run <b>conn</b> itself with a word, each a short command against the server. None of them are for typing, but all of them can be:</p>
-        <p class="caption">Table 10-1.&nbsp; Commands against the server</p>
+        <p class="para"><span class="n">10-4.</span>conn also answers on the command line. From a shell inside conn, these act on the directory the shell is in:</p>
+        <p class="caption">Table 10-1.&nbsp; Commands</p>
         <div class="table narrow" id="commands">
           <div class="row"><span>conn home [key]</span><span>to the navigator, pressing key there</span></div>
           <div class="row"><span>conn shell [dir]</span><span>a shell in dir, beside the navigator</span></div>
@@ -669,35 +676,16 @@
           <div class="row"><span>conn jump</span><span>the next thing that needs you</span></div>
           <div class="row"><span>conn back</span><span>back: the previous shell, or the navigator</span></div>
           <div class="row"><span>conn next, prev</span><span>the next and previous shell</span></div>
-          <div class="row"><span>conn keys [client]</span><span>the key list, in a popup over the client; <b>conn page</b> is the page inside it</span></div>
+          <div class="row"><span>conn keys [client]</span><span>the key list, in a popup; <b>conn page</b> is the page inside it</span></div>
           <div class="row"><span>conn ls</span><span>the held shells: pid, directory, name, exit; one per line</span></div>
-          <div class="row"><span>conn restart</span><span>the server ended, after asking, and brought up again under this build</span></div>
+          <div class="row"><span>conn restart</span><span>end conn, after asking, and start it again</span></div>
         </div>
+        <p class="para"><span class="n">10-5.</span><b>conn ls</b> is for scripts: the held shells, one per line, pid, directory, name and exit, tab-separated. The name is empty for a shell opened by hand; the exit is how the shell's command ended, empty while it runs. With conn not running it prints nothing, which is not an error.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>10-2</b><span>CHANGE 6</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 10-3 -->
-<section class="page" aria-label="Page 10-3">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-5 &mdash; 10-6</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
-        <p class="para"><span class="n">10-5.</span>conn keeps itself current. The navigator asks github which release is latest, on its first paint and once a day after, a plain request for the release page's redirect, kept in <b>~/.local/state/conn/latest-release</b>. A release newer than the build is said on the status line whenever nothing else is: <b>conn 0.5.0 is out &middot; U installs it</b>. <b>U</b> runs the installer in a popup, aimed at the directory this build runs from, and then <b>conn</b>, which gives the server the new configuration and brings the navigator back as the new build; the shells stay. With nothing newer known, <b>U</b> asks now and says what it finds. A build that is no release, a tree past a tag or a plain go build, is never behind one. Upgrading by hand is the same: install the binary, and the next <b>conn</b> does the rest.</p>
-        <p class="para"><span class="n">10-6.</span><b>conn ls</b> is the server's state for scripts: the held shells, one per line, pid, directory, name and exit, tab-separated. The name is empty for a shell opened by hand; the exit is how the shell's command ended, empty while it runs. No server listening is an empty list, not an error.</p>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>10-3</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>10-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -754,7 +742,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>A-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>A-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -764,7 +752,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX B</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. B-1</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="files">
@@ -773,16 +761,17 @@
         <p class="caption">Table B-1.&nbsp; What conn reads and writes</p>
         <div class="table paths">
           <div class="row"><span>~/.config/conn/config.json</span><span>the configuration; Section 9</span></div>
-          <div class="row"><span>~/.local/state/conn/tmux-&lt;uid&gt;.sock</span><span>the socket of the tmux server holding the shells</span></div>
-          <div class="row"><span>~/.local/state/conn/tmux.conf</span><span>the server's configuration, written at every launch</span></div>
-          <div class="row"><span>~/.local/state/conn/latest-release</span><span>the latest release as github last said it, and when it was asked</span></div>
+          <div class="row"><span>~/.local/state/conn/tmux-&lt;uid&gt;.sock</span><span>the socket of the tmux server that holds the shells</span></div>
+          <div class="row"><span>~/.local/state/conn/tmux.conf</span><span>the tmux configuration conn writes at every launch; your own .tmux.conf is not read</span></div>
+          <div class="row"><span>~/.local/state/conn/latest-release</span><span>the latest release as last checked, and when</span></div>
           <div class="row"><span>.conn</span><span>a project's plan; Section 6</span></div>
         </div>
+        <p class="para"><span class="n">B-1.</span>The shells are held by a tmux server of conn's own, one per user, on the socket above. It is never something you have to reach; <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does when it opens the window.</p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>B-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>B-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -800,19 +789,19 @@
         <h2>Environment</h2>
         <p class="caption">Table C-1.&nbsp; Variables conn reads</p>
         <div class="table">
-          <div class="row"><span>CONN_SOCKET</span><span>where the server listens, instead of the state directory</span></div>
+          <div class="row"><span>CONN_SOCKET</span><span>where the tmux server listens, instead of the state directory</span></div>
           <div class="row"><span>XDG_CONFIG_HOME</span><span>where the configuration lives, instead of ~/.config</span></div>
-          <div class="row"><span>XDG_STATE_HOME</span><span>where the socket and the server's configuration live, instead of ~/.local/state</span></div>
+          <div class="row"><span>XDG_STATE_HOME</span><span>where the socket and the tmux configuration live, instead of ~/.local/state</span></div>
           <div class="row"><span>SHELL</span><span>the shell <b>s</b> opens, and the one behind <b>a</b>, <b>A</b>, <b>r</b> and the tasks</span></div>
           <div class="row"><span>NO_COLOR</span><span>set, the navigator draws without color, as no-color.org asks; CLICOLOR_FORCE and TERM=dumb are honored too</span></div>
           <div class="row"><span>CLAUDE_CONFIG_DIR</span><span>where Claude Code's session files are read from, instead of ~/.claude</span></div>
-          <div class="row"><span>OLLAMA_MODELS</span><span>where ollama's manifests are read from, instead of ~/.ollama/models</span></div>
+          <div class="row"><span>OLLAMA_MODELS</span><span>where ollama's models are read from, instead of ~/.ollama/models</span></div>
         </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>C-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>C-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -838,7 +827,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>D-1</b><span>CHANGE 6</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>D-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>

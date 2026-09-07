@@ -155,3 +155,19 @@ func TestContainersListsWhatDockerRuns(t *testing.T) {
 		}
 	}
 }
+
+func TestALoneContainerKeepsARowOfItsOwn(t *testing.T) {
+	// One service left running: the run is still compose, and the
+	// service is under it, not folded into it as though it had gone.
+	one := strings.SplitN(dockerPS, "\n", 2)[0] + "\n"
+	procs := []Proc{
+		{PID: 10, PPID: 1, Command: "zsh", Argv: "zsh", Dir: "/p/demo"},
+		{PID: 20, PPID: 10, Command: "docker", Argv: "docker compose up", Dir: "/p/demo"},
+		{PID: 30, PPID: 20, Command: "docker-compose", Argv: "docker-compose compose up", Dir: "/p/demo"},
+	}
+	procs = attachContainers(procs, parseContainers([]byte(one)))
+	m := withProcList(80, 12, []Project{{Name: "demo", Path: "/p/demo"}}, procs)
+	m.terms[10] = &remoteTerm{pid: 10, dir: "/p/demo", name: "app"}
+	m.rebuild()
+	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        web · :8438"})
+}

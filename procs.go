@@ -301,15 +301,25 @@ func sortNodes(ns []*ProcNode) {
 
 // sortName is the name a node's row answers to: the navigator collapses a
 // chain with nothing to choose between and names it for the first non-shell
-// in it, so the sort walks the same chain the same way. The bound is for a
-// process table that says a process started itself.
+// in it, so the sort walks the same chain the same way.
 func sortName(n *ProcNode) string {
+	return strings.ToLower(commandOf(nameOf(runFrom(n, 1024))))
+}
+
+// runFrom is the run a node heads: the node, then each step down while
+// there is nothing to choose between — one child, and that child a step of
+// how the command runs rather than a thing of its own. A container is a
+// thing of its own: compose running one service is still compose and the
+// service, and a service's row folded into the compose's would read as the
+// service gone. The bound is for a process table that says a process
+// started itself.
+func runFrom(n *ProcNode, bound int) []*ProcNode {
 	run := []*ProcNode{n}
-	for i := 0; len(n.Children) == 1 && i < 1024; i++ {
+	for i := 0; len(n.Children) == 1 && n.Children[0].Container == nil && i < bound; i++ {
 		n = n.Children[0]
 		run = append(run, n)
 	}
-	return strings.ToLower(commandOf(nameOf(run)))
+	return run
 }
 
 // indexNodes files a tree by pid, so a process can be reached from anywhere

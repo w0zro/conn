@@ -2421,11 +2421,7 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 	label := t.name
 	mark := ""
 	if n := m.nodes[pid]; n != nil {
-		run := []*ProcNode{n}
-		for i := 0; len(n.Children) == 1 && i < len(m.procs); i++ {
-			n = n.Children[0]
-			run = append(run, n)
-		}
+		run := runFrom(n, len(m.procs))
 		r := navRow{kind: rowProc, run: run, node: nameOf(run)}
 		if label == "" {
 			label = commandOf(r.node)
@@ -2820,12 +2816,11 @@ func (m model) matchingSubs(p Project) []Project {
 }
 
 func (m model) flattenProc(p Project, n *ProcNode, prefix string) []navRow {
-	// Walk down while there is nothing to choose between. The bound is for a
-	// process table that says a process started itself.
+	// Walk down while there is nothing to choose between (runFrom); unfolded,
+	// every process has a row.
 	run := []*ProcNode{n}
-	for i := 0; !m.unfolded && len(n.Children) == 1 && i < len(m.procs); i++ {
-		n = n.Children[0]
-		run = append(run, n)
+	if !m.unfolded {
+		run = runFrom(n, len(m.procs))
 	}
 
 	row := navRow{kind: rowProc, project: p, run: run, node: nameOf(run), prefix: prefix}

@@ -91,39 +91,12 @@ type ProcNode struct {
 }
 
 // runningProcs lists the processes visible to this user along with their
-// working directories and the ports they are listening on.
-//
-// lsof is the only way to read another process's cwd on macOS; there is no
-// /proc to walk. Processes owned by other users are reported as permission
-// errors on stderr and simply do not appear, which is the behavior we want.
+// working directories and the ports they are listening on — read off
+// /proc on Linux, and through lsof and ps everywhere else (procs_linux.go,
+// procs_lsof.go). Processes owned by other users refuse their directories
+// and simply do not appear, which is the behavior we want.
 func runningProcs() ([]Proc, error) {
 	return procsBut(os.Getpid())
-}
-
-// procsBut is runningProcs for a conn of the given pid: neither that
-// process nor its children are work happening in a repository.
-func procsBut(self int) ([]Proc, error) {
-	// One call asks for every process's working directory and every
-	// listening TCP socket together — without -a the selections are
-	// unioned — which is a few milliseconds over asking for the
-	// directories alone, where a second call per row would be that much
-	// again for every row drawn. -nP keeps the addresses numeric: a lookup
-	// per socket is what makes lsof slow.
-	out, err := listing(scanTimeout, "lsof", "-nP", "-d", "cwd", "-iTCP", "-sTCP:LISTEN", "-F", "pcRfn")
-	if err != nil && len(out) == 0 {
-		return nil, err
-	}
-
-	// What each process was run with and when it began, in one call. Asking
-	// per process is milliseconds each, which is fine for the one row being
-	// inspected and far too slow for a list being redrawn.
-	procs, err := parseScan(out, self, psTable())
-	if err != nil {
-		return nil, err
-	}
-	// The containers docker runs for a place, filed under the compose
-	// that runs them where one is in the list.
-	return attachContainers(procs, containers()), nil
 }
 
 // parseScan reads what lsof said in procsBut's format: per process, its

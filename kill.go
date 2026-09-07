@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -162,36 +161,21 @@ func killTree(req *killRequest, done []killResult) tea.Cmd {
 	}
 }
 
-// startTimes is when each of the given processes began, asked freshly of ps.
+// startTimes is when each of the given processes began, asked freshly of
+// the table the scan reads (startedOf).
 // nil when ps could not answer at all, which callers read as the check being
 // unavailable rather than every process being gone.
 func startTimes(nodes []*ProcNode) map[int]string {
-	args := []string{"-o", "pid=,lstart="}
+	var pids []int
 	for _, n := range nodes {
 		if n.Container == nil {
-			args = append(args, "-p", strconv.Itoa(n.PID))
+			pids = append(pids, n.PID)
 		}
 	}
-	if len(args) == 2 {
+	if len(pids) == 0 {
 		return nil
 	}
-	// ps exits nonzero when any asked-for pid is gone, while still listing
-	// the rest; only nothing printed at all means it could not answer.
-	out, err := listing(scanTimeout, "ps", args...)
-	if err != nil && len(strings.TrimSpace(string(out))) == 0 {
-		return nil
-	}
-
-	table := map[int]string{}
-	for line := range strings.SplitSeq(string(out), "\n") {
-		pid, rest := cutField(line)
-		n, err := strconv.Atoi(pid)
-		if err != nil {
-			continue
-		}
-		table[n] = strings.Join(strings.Fields(rest), " ")
-	}
-	return table
+	return startedOf(pids)
 }
 
 // reused reports whether a pid now belongs to some other process than the

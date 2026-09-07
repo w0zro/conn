@@ -22,8 +22,9 @@ running it keeps itself current: a newer release is offered on the status
 line, and `U` installs it from inside the window.
 
 Builds are published for macOS and Linux, on both arm64 and amd64, and the
-test suite runs on both. conn needs two neighbors installed: `tmux`, which
-holds and draws the shells, and `lsof`, which is how the process list is read.
+test suite runs on both. conn needs `tmux` installed, which holds and draws
+the shells — and on macOS `lsof`, which is how the process list is read
+there; Linux keeps its processes on `/proc`, and conn reads them off it.
 
 ## Build it yourself
 

@@ -84,10 +84,10 @@ func TestScanAndKillAgreeOnAStartTime(t *testing.T) {
 	pid := cmd.Process.Pid
 	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
 
-	scanned := psTable()[pid].started
-	if len(strings.Fields(scanned)) != 5 {
-		t.Fatalf("psTable started = %q, want the five fields of lstart", scanned)
-	}
+	// Read the way the scan reads on this platform — ps's lstart through
+	// lsof's listing, or /proc's start ticks — so the two sides are the
+	// two the navigator actually compares.
+	scanned := scannedStart(t, pid)
 	fresh := startTimes([]*ProcNode{{Proc: Proc{PID: pid}}})[pid]
 	if scanned != fresh {
 		t.Errorf("scan says %q, kill check says %q; the same process must read the same", scanned, fresh)
@@ -127,7 +127,7 @@ func TestKillSignalsAPidStillItself(t *testing.T) {
 	t.Cleanup(func() { _ = cmd.Process.Kill() })
 
 	req := &killRequest{subject: "sleep", nodes: []*ProcNode{
-		{Proc: Proc{PID: pid, Command: "sleep", Started: psTable()[pid].started}},
+		{Proc: Proc{PID: pid, Command: "sleep", Started: scannedStart(t, pid)}},
 	}}
 	msg := killTree(req, nil)().(killedMsg)
 	if len(msg.results) != 1 || msg.results[0].err != nil {
@@ -177,7 +177,7 @@ func TestAKillCanSendTheChosenSignal(t *testing.T) {
 	t.Cleanup(func() { _ = cmd.Process.Kill() })
 
 	req := &killRequest{subject: "sleep", sig: syscall.SIGKILL, nodes: []*ProcNode{
-		{Proc: Proc{PID: pid, Command: "sleep", Started: psTable()[pid].started}},
+		{Proc: Proc{PID: pid, Command: "sleep", Started: scannedStart(t, pid)}},
 	}}
 	msg := killTree(req, nil)().(killedMsg)
 	if len(msg.results) != 1 || msg.results[0].err != nil || msg.sig != syscall.SIGKILL {
@@ -219,4 +219,23 @@ func TestTheSignalKeys(t *testing.T) {
 	if got, _ := chooseSignal("x", syscall.SIGKILL); got != syscall.SIGKILL {
 		t.Errorf("x on an escalated kill chose %s, want SIGKILL kept", signalName(got))
 	}
+}
+
+// scannedStart is a process's start time as the scan on this platform
+// reads it — ps's lstart, or /proc's ticks — which is what a kill
+// compares against. The scan is asked as though for another conn: the
+// process is this test's child, which the scan of conn's own leaves out.
+func scannedStart(t *testing.T, pid int) string {
+	t.Helper()
+	procs, err := procsBut(-1)
+	if err != nil {
+		t.Skipf("the scan is unavailable: %v", err)
+	}
+	for _, p := range procs {
+		if p.PID == pid {
+			return p.Started
+		}
+	}
+	t.Fatalf("the scan did not list pid %d", pid)
+	return ""
 }

@@ -5,9 +5,9 @@
 # the same check, run while it is still cheap to act on.
 #
 # macOS is where conn is developed; Linux is where the cross-compiled builds
-# were shipped untested until this leg existed. Both read the process list
-# through lsof and hold their shells in a real tmux, so both runs mean what
-# they say.
+# were shipped untested until this leg existed. macOS reads the process list
+# through lsof and Linux off /proc, and both hold their shells in a real
+# tmux, so both runs mean what they say.
 name: test
 
 on:
@@ -31,7 +31,7 @@ jobs:
 
       - name: Neighbors (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y -q tmux lsof
+        run: sudo apt-get update -q && sudo apt-get install -y -q tmux
 
       - name: Neighbors (macOS)
         if: runner.os == 'macOS'

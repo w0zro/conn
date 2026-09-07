@@ -73,7 +73,7 @@
     <div class="rule-heavy"></div>
     <dl class="spec">
       <div><dt>PLATFORM</dt><dd>macOS &middot; Linux</dd></div>
-      <div><dt>RUNS ON</dt><dd>tmux &middot; lsof</dd></div>
+      <div><dt>RUNS ON</dt><dd>tmux &middot; lsof on macOS</dd></div>
       <div><dt>BUILT IN</dt><dd>Go &middot; one binary</dd></div>
       <div><dt>LICENSE</dt><dd>MIT</dd></div>
     </dl>
@@ -182,7 +182,7 @@
         <div class="cmd" role="group" aria-label="build from source"><span class="prompt">$</span><code>go install github.com/w0zro/conn@latest</code><button class="copy" type="button" data-copy="go install github.com/w0zro/conn@latest">[copy]</button></div>
         <div class="note">
           <p class="label">NOTE</p>
-          <p>conn needs <b>tmux</b> and <b>lsof</b> installed. macOS ships lsof; <b>brew install tmux</b>. On Linux, install both from the package manager. <b>docker</b> is optional: with it, a project's containers are listed too (Section 6).</p>
+          <p>conn needs <b>tmux</b> installed &mdash; <b>brew install tmux</b>, or the package manager&rsquo;s &mdash; and on macOS <b>lsof</b>, which macOS ships: it is how the process list is read there. Linux keeps its processes on <b>/proc</b>, and conn reads them off it, so a container image with tmux alone will do. <b>docker</b> is optional: with it, a project&rsquo;s containers are listed too (Section 6).</p>
         </div>
         <div class="cmd" role="group" aria-label="first run"><span class="prompt">$</span><code>conn</code><button class="copy" type="button" data-copy="conn">[copy]</button></div>
         <p class="para"><span class="n">1-6.</span>There is nothing to set up. The list opens showing what is running, so on a quiet machine it says <b>nothing running</b>. Press <b>.</b> to show every repository, <b>/</b> to find one by name. conn looks under <b>~/projects</b>; Section 9 points it elsewhere.</p>

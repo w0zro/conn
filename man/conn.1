@@ -64,9 +64,11 @@ $ go install github.com/w0zro/conn@latest
 .RE
 .TP
 \fBNOTE\fR
-conn needs \fBtmux\fR and \fBlsof\fR installed. macOS ships lsof; \fBbrew
-install tmux\fR. On Linux, install both from the package manager. \fBdocker\fR
-is optional: with it, a project's containers are listed too (Section 6).
+conn needs \fBtmux\fR installed — \fBbrew install tmux\fR, or the package
+manager’s — and on macOS \fBlsof\fR, which macOS ships: it is how the
+process list is read there. Linux keeps its processes on \fB/proc\fR, and conn
+reads them off it, so a container image with tmux alone will do. \fBdocker\fR is
+optional: with it, a project’s containers are listed too (Section 6).
 .PP
 .RS
 .nf

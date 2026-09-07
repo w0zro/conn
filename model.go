@@ -86,6 +86,11 @@ type projectsMsg struct {
 type procsMsg struct {
 	procs []Proc
 	err   error
+	// docker is what the scan has to say of docker, when it has anything:
+	// that it has stopped answering. stalled says whether it is, for the
+	// next scan to know whether that is news.
+	docker  string
+	stalled bool
 }
 
 // rowKind distinguishes the two things the navigator lists.
@@ -136,7 +141,11 @@ type model struct {
 	// navigator's whole pane; width is what it draws in — the column
 	// alone while a shell is shown beside it (keepColumn).
 	window int
-	height int
+
+	// dockerStalled says the last scan found docker not answering, so
+	// the next can tell whether that is still news.
+	dockerStalled bool
+	height        int
 
 	projects []Project
 	err      error
@@ -375,7 +384,7 @@ func newModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(scanProjects, scanProcs, scanAgents, connectServer(),
+	return tea.Batch(scanProjects, scanProcs(false), scanAgents, connectServer(),
 		tick(procPoll), agentTick(), checkUpdate(false, time.Now()))
 }
 
@@ -411,12 +420,15 @@ func scanProjects() tea.Msg {
 }
 
 // scanProcs reads the working directory of every visible process.
-func scanProcs() tea.Msg {
-	procs, err := runningProcs()
-	if err != nil {
-		return procsMsg{err: fmt.Errorf("processes: %w", err)}
+func scanProcs(dockerWasStalled bool) tea.Cmd {
+	return func() tea.Msg {
+		procs, err := runningProcs()
+		if err != nil {
+			return procsMsg{err: fmt.Errorf("processes: %w", err)}
+		}
+		note, stalled := dockerNote(dockerWasStalled)
+		return procsMsg{procs: procs, docker: note, stalled: stalled}
 	}
-	return procsMsg{procs: procs}
 }
 
 // scanNow asks for a process scan on behalf of something that just happened —
@@ -428,7 +440,7 @@ func (m *model) scanNow() tea.Cmd {
 		return nil
 	}
 	m.scanning = true
-	return scanProcs
+	return scanProcs(m.dockerStalled)
 }
 
 // scanPoll is the tick's ask: freshness only, so a scan already out is answer
@@ -513,6 +525,10 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			m.status, m.statusErr = msg.err.Error(), true
 		} else {
 			m.procs = msg.procs
+			m.dockerStalled = msg.stalled
+			if msg.docker != "" {
+				m.status, m.statusErr = msg.docker, true
+			}
 		}
 		m.rebuild()
 		m.closeSettled()

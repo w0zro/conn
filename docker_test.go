@@ -384,3 +384,25 @@ func TestEnterOnAContainerOpensAShellInsideIt(t *testing.T) {
 		t.Errorf("status = %q, want a dead service refused", m.status)
 	}
 }
+
+func TestDockerNotAnsweringIsSaidOnce(t *testing.T) {
+	docker.Lock()
+	docker.stalled, docker.last = true, nil
+	docker.Unlock()
+	defer func() { docker.Lock(); docker.stalled = false; docker.Unlock() }()
+
+	note, stalled := dockerNote(false)
+	if note == "" || !stalled {
+		t.Errorf("note = %q, stalled %v; want it said the first time", note, stalled)
+	}
+	if note, _ := dockerNote(true); note != "" {
+		t.Errorf("note = %q, want nothing said again while it stays so", note)
+	}
+
+	m := withProcs(80, 12, []Project{{Name: "demo", Path: "/p/demo"}}, nil)
+	next, _ := m.Update(procsMsg{docker: "docker is not answering; its containers are as last seen", stalled: true})
+	m = next.(model)
+	if !strings.Contains(m.status, "not answering") || !m.dockerStalled {
+		t.Errorf("status = %q, stalled %v", m.status, m.dockerStalled)
+	}
+}

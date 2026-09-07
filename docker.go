@@ -5,11 +5,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -62,23 +65,66 @@ const (
 	labelProject    = "com.docker.compose.project"
 )
 
+// dockerWait bounds the scan's question to docker. The daemon answers in
+// tens of milliseconds when it is up, and not at all for a while when it is
+// starting, or wedged; a scan that waited on it would hold up the process
+// list behind it, so the wait is short and the last answer stands meanwhile.
+const dockerWait = 3 * time.Second
+
 // containers lists the containers as rows for the tree: only the ones
 // compose started for a directory, since a container without one belongs
 // to no place, the way a process working outside every project belongs to
-// none. Every container is asked for, the exited included: a service that
-// died is the thing most worth a row, and attachContainers keeps the ones
-// whose project is still going. A daemon that is not up, or no docker at
-// all, is an empty list — nothing is running in a container, which is
-// true.
+// none — and docker is asked for those alone, by the label compose writes,
+// rather than for every container the machine has ever kept. The exited
+// are asked for too: a service that died is the thing most worth a row,
+// and attachContainers keeps the ones whose project is still going.
+//
+// A daemon that is not up, or no docker at all, is an empty list — nothing
+// is running in a container, which is true. A daemon that does not answer
+// in time is another thing: what it last said stands, and the scan says so
+// (dockerNote), once, until it answers again.
 func containers() []Proc {
 	if dockerPath == "" {
 		return nil
 	}
-	out, err := listing(scanTimeout, dockerPath, "ps", "-a", "--format", "{{json .}}")
+	out, err := listing(dockerWait, dockerPath, "ps", "-a",
+		"--filter", "label="+labelWorkingDir, "--format", "{{json .}}")
+	docker.Lock()
+	defer docker.Unlock()
 	if err != nil {
-		return nil
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			// Refused, in its own time: the daemon is down, or the
+			// client could not reach it. Nothing is running in a
+			// container that conn can see.
+			docker.stalled, docker.last = false, nil
+			return nil
+		}
+		docker.stalled = true
+		return docker.last
 	}
-	return parseContainers(out)
+	docker.stalled = false
+	docker.last = parseContainers(out)
+	return docker.last
+}
+
+// docker is what the last question to docker came to: whether it answered
+// in time, and what it last said, for the scans while it does not.
+var docker struct {
+	sync.Mutex
+	stalled bool
+	last    []Proc
+}
+
+// dockerNote is what the scan has to say about docker: that it has stopped
+// answering, the once it stops, or nothing.
+func dockerNote(was bool) (note string, stalled bool) {
+	docker.Lock()
+	defer docker.Unlock()
+	if docker.stalled && !was {
+		note = "docker is not answering; its containers are as last seen"
+	}
+	return note, docker.stalled
 }
 
 // dockerRow is the shape of one line of docker ps --format '{{json .}}':

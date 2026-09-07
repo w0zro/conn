@@ -1909,6 +1909,37 @@ func askedForKind(t *testing.T, asked chan message, kind string) message {
 	}
 }
 
+// askedForKinds waits until the server has been asked for one of each
+// kind, in any order, and returns them by kind — for a key that asks two
+// things at once, a close and an open, each on a goroutine of its own, so
+// the fake records them in whichever order the scheduler runs them.
+func askedForKinds(t *testing.T, asked chan message, kinds ...string) map[string]message {
+	t.Helper()
+	want := map[string]bool{}
+	for _, k := range kinds {
+		want[k] = true
+	}
+	got := map[string]message{}
+	deadline := time.After(time.Second)
+	for len(got) < len(want) {
+		select {
+		case m := <-asked:
+			if want[m.Kind] {
+				if _, seen := got[m.Kind]; !seen {
+					got[m.Kind] = m
+				}
+			}
+		case <-deadline:
+			for k := range want {
+				if _, seen := got[k]; !seen {
+					t.Fatalf("the server was never asked to %s", k)
+				}
+			}
+		}
+	}
+	return got
+}
+
 // askedFor waits for the next ask that is about the shells, or fails the
 // test. The status line's
 // asks — the mode, the message — ride along with any update and are not
@@ -2465,11 +2496,12 @@ func TestAShellAtItsPromptWithNoExitRecordedIsNotRunning(t *testing.T) {
 		t.Error("the checklist should not show it up either")
 	}
 	m = press(m, "b")
-	if got := askedForKind(t, asked, kindClose); got.PID != 700 {
-		t.Errorf("asked %+v, want the shell at its prompt closed for the new run", got)
+	got := askedForKinds(t, asked, kindClose, kindOpen)
+	if got[kindClose].PID != 700 {
+		t.Errorf("asked %+v, want the shell at its prompt closed for the new run", got[kindClose])
 	}
-	if got := askedForKind(t, asked, kindOpen); got.Run != "go build ./..." {
-		t.Errorf("asked %+v, want the build run again", got)
+	if got[kindOpen].Run != "go build ./..." {
+		t.Errorf("asked %+v, want the build run again", got[kindOpen])
 	}
 }
 
@@ -2513,11 +2545,12 @@ func TestTRunsThePlacesTestsAndRedoesRatherThanStacks(t *testing.T) {
 	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: repo, Name: testName, Exit: "1"}}})
 	m = next.(model)
 	m = press(m, "t")
-	if got := askedForKind(t, asked, kindClose); got.PID != 901 {
-		t.Errorf("asked %+v, want the ended test shell closed", got)
+	both := askedForKinds(t, asked, kindClose, kindOpen)
+	if both[kindClose].PID != 901 {
+		t.Errorf("asked %+v, want the ended test shell closed", both[kindClose])
 	}
-	if got := askedForKind(t, asked, kindOpen); got.Run != "go test ./..." {
-		t.Errorf("asked %+v, want the tests run again", got)
+	if both[kindOpen].Run != "go test ./..." {
+		t.Errorf("asked %+v, want the tests run again", both[kindOpen])
 	}
 
 	// A place that says nothing of its tests: said.

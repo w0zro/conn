@@ -331,7 +331,7 @@ func runPlanAt(dir string) error {
 		return err
 	}
 	plan := readPlan(p.Path)
-	if len(plan.Entries) == 0 && !hasCompose(p.Path) {
+	if len(plan.Entries) == 0 {
 		return errors.New(p.Name + " does not say what it needs")
 	}
 
@@ -351,14 +351,17 @@ func runPlanAt(dir string) error {
 		}
 	}
 	// The plan's entries, and the place's services where it runs compose.
-	missing := needs(p.Path, plan, running, containers())
-	if len(missing) == 0 {
+	missing, services := needs(p.Path, plan, running, procs)
+	if len(missing) == 0 && len(services) == 0 {
 		return errors.New("everything " + p.Name + " needs is running")
 	}
 	for _, e := range missing {
 		if _, err := createWindow(tmuxCommand, p.Path, e.Run, e.Name, false); err != nil {
 			return err
 		}
+	}
+	if len(services) > 0 {
+		return composeUp(p.Path, services)
 	}
 	return nil
 }

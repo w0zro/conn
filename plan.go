@@ -37,7 +37,9 @@ type plan struct {
 // read in the order they are trustworthy: a Procfile means every line is a
 // process, whereas a package.json means only that one of its scripts probably
 // is — so the scripts are taken from a short list of names that are long
-// running by convention, rather than every script it happens to define.
+// running by convention, rather than every script it happens to define. A
+// compose file means its services are processes, and compose up is how they
+// run: one entry, since compose runs them all, and attaches to each.
 func readPlan(dir string) plan {
 	if entries := readProcfile(filepath.Join(dir, planFile)); len(entries) > 0 {
 		return plan{Entries: entries, Source: planFile}
@@ -48,8 +50,14 @@ func readPlan(dir string) plan {
 	if entries := readPackageScripts(filepath.Join(dir, "package.json")); len(entries) > 0 {
 		return plan{Entries: entries, Source: "package.json"}
 	}
+	if f := composeFile(dir); f != "" {
+		return plan{Entries: []entry{{Name: composeEntry, Run: "docker compose up"}}, Source: f}
+	}
 	return plan{}
 }
+
+// composeEntry is what the entry a compose file contributes is called.
+const composeEntry = "compose"
 
 // readProcfile reads "name: command" lines, which is all a Procfile is.
 func readProcfile(path string) []entry {

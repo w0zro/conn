@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // A project on docker runs its services in containers, and a container is
@@ -297,33 +299,35 @@ func containerFields(n *ProcNode) []field {
 	return append(fs, transcript(containerLogs(c.ID, transcriptLines))...)
 }
 
-// A service x stopped is a service r brings back. The plan's entries are
-// what a place says it needs; where the place runs compose, the services
-// compose declares are what compose says it needs, and each is an entry
-// of the plan's — docker compose up for it, named for it — started the
-// way the plan's are, in a window of its own: compose up again, for the
-// one service, attaches to it the way the first did, so its logs are in
-// its pane and its container is under it. Unless an entry r is starting
-// runs compose itself, which brings up everything at once.
+// A service x stopped is a service r brings back, where it was: the
+// services a place's compose declares are what compose says it needs, and
+// r starts the ones that are down with docker compose up -d for them —
+// which starts a stopped container and makes again one that was removed —
+// and the compose up running in a shell there takes the service's logs up
+// again, so the shape holds: the service under the entry, as it was. Unless
+// an entry r is starting runs compose itself, which brings up everything at
+// once. With no compose up in a shell, the service runs detached, and its
+// logs are on its own row's pane.
 
 // composeFiles are the names compose reads a project from, in the order
 // compose looks for them.
 var composeFiles = []string{"compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"}
 
-// hasCompose reports a directory compose would find a project in.
-func hasCompose(dir string) bool {
+// composeFile is the file compose would read a project in dir from, or
+// nothing.
+func composeFile(dir string) string {
 	for _, f := range composeFiles {
 		if exists(filepath.Join(dir, f)) {
-			return true
+			return f
 		}
 	}
-	return false
+	return ""
 }
 
 // composeServices is every service the place's compose declares, in the
 // file's order, asked of compose itself: it is the one reader that knows
 // what its file means. Nothing without docker, or for a file compose
-// refuses.
+// refuses. It is a process — tens of milliseconds — asked once, on r.
 func composeServices(dir string) []string {
 	if dockerPath == "" {
 		return nil
@@ -333,11 +337,6 @@ func composeServices(dir string) []string {
 		return nil
 	}
 	return strings.Fields(string(out))
-}
-
-// serviceEntry is the plan entry a service amounts to.
-func serviceEntry(service string) entry {
-	return entry{Name: service, Run: "docker compose up " + service}
 }
 
 // servicesUp is the services with a container running in dir, by the
@@ -364,15 +363,14 @@ func startsCompose(entries []entry) bool {
 }
 
 // needs is what a place needs and is not running: the plan's entries not
-// running, then — where the place runs compose and no entry starting now
-// runs it — the services that are down, each as the entry it amounts to.
-// running is the entries running by name, which covers a service's own
-// window still coming up; procs is the scan, for the containers. An
-// entry the plan names for a service is the plan's, and said once.
-func needs(dir string, plan plan, running map[string]bool, procs []Proc) []entry {
-	missing := plan.missing(running)
-	if !hasCompose(dir) || startsCompose(missing) {
-		return missing
+// running, and — where the place runs compose and no entry starting now
+// runs it — the services that are down, for compose to bring back. running
+// is the entries running by name; procs is the scan, for the containers.
+// A service a plan entry is named for is the entry's to run.
+func needs(dir string, plan plan, running map[string]bool, procs []Proc) (entries []entry, services []string) {
+	entries = plan.missing(running)
+	if composeFile(dir) == "" || startsCompose(entries) {
+		return entries, nil
 	}
 	named := map[string]bool{}
 	for _, e := range plan.Entries {
@@ -380,9 +378,32 @@ func needs(dir string, plan plan, running map[string]bool, procs []Proc) []entry
 	}
 	up := servicesUp(dir, procs)
 	for _, s := range composeServices(dir) {
-		if !named[s] && !up[s] && !running[s] {
-			missing = append(missing, serviceEntry(s))
+		if !named[s] && !up[s] {
+			services = append(services, s)
 		}
 	}
-	return missing
+	return entries, services
+}
+
+// composeUp brings services back, detached; the compose up in a shell
+// there, if any, takes their logs up again on its own.
+func composeUp(dir string, services []string) error {
+	args := append([]string{"compose", "up", "-d", "--"}, services...)
+	_, err := listingIn(dir, scanTimeout, dockerPath, args...)
+	return err
+}
+
+// bringBack is r's word to compose for a place's services, off the render
+// path, and what came of it.
+func bringBack(p Project, services []string) tea.Cmd {
+	return func() tea.Msg {
+		return composeMsg{place: p, services: services, err: composeUp(p.Path, services)}
+	}
+}
+
+// composeMsg says how bringing a place's services back went.
+type composeMsg struct {
+	place    Project
+	services []string
+	err      error
 }

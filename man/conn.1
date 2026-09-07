@@ -313,7 +313,9 @@ agent: claude
 6-2.
 Without one, conn reads the conventions in this order: a \fBProcfile\fR means
 every line is a process; a \fBpackage.json\fR contributes only its \fBdev\fR or
-\fBstart\fR script, whichever exists first.
+\fBstart\fR script, whichever exists first; a compose file contributes
+\fBcompose: docker compose up\fR, one entry, since compose runs every service
+and attaches to each.
 .TP
 6-3.
 \fBr\fR starts the plan's entries that are not running, each in its own window
@@ -389,16 +391,17 @@ publishes on the host: \fBweb · :8438\fR. It sits under the \fBdocker compose
 up\fR that runs it when one runs in a shell, and under the place itself when
 compose was left detached. The row has no shell to enter; its pane says the
 container's name, image and status, with the last of its logs, and \fBx\fR asks
-docker to stop it. What \fBx\fR stopped, \fBr\fR brings back: the services the
-place's compose declares are what compose says it needs, each an entry of the
-plan's — \fBdocker compose up\fR for it, named for it — and \fBr\fR starts
-the ones that are down the way it starts the plan's, in a window of its own:
-compose up again, for the one service, attaches to it the way the first did, so
-its logs are in its pane and its container is under it. Unless an entry \fBr\fR
-is starting runs compose itself, which brings up everything at once. A container
-without a directory — started by hand, or by something other than compose —
-belongs to no place and is not listed, the way a process working outside every
-project is not. Without docker, or with its daemon down, nothing is asked.
+docker to stop it. What \fBx\fR stopped, \fBr\fR brings back, where it was: the
+services the place's compose declares are what compose says it needs, and
+\fBr\fR starts the ones that are down with \fBdocker compose up \-d\fR for them
+— which starts a stopped container and makes again one that was removed —
+and the compose up running in a shell there takes the service's logs up again,
+so the shape holds: the service under its entry, as it was. Unless an entry
+\fBr\fR is starting runs compose itself, which brings up everything at once. A
+container without a directory — started by hand, or by something other than
+compose — belongs to no place and is not listed, the way a process working
+outside every project is not. Without docker, or with its daemon down, nothing
+is asked.
 .PP
 .RS
 .nf

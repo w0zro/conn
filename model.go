@@ -656,6 +656,14 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			return m, spin()
 		}
 
+	case composeMsg:
+		// Only a refusal is news: what was started was said when it was
+		// asked for, and the rows say when it is up.
+		if msg.err != nil {
+			m.status, m.statusErr = "could not start "+strings.Join(msg.services, ", ")+" in "+msg.place.Name+": "+msg.err.Error(), true
+		}
+		return m, m.scanNow()
+
 	case detailMsg:
 		m.details[msg.key] = msg.fields
 
@@ -1782,14 +1790,14 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	}
 
 	plan := readPlan(p.Path)
-	if len(plan.Entries) == 0 && !hasCompose(p.Path) {
+	if len(plan.Entries) == 0 {
 		m.status, m.statusErr = p.Name+" does not say what it needs", true
 		return nil
 	}
 
 	// The plan's entries, and the place's services where it runs compose.
-	missing := needs(p.Path, plan, m.namesIn(p.Path), m.procs)
-	if len(missing) == 0 {
+	missing, services := needs(p.Path, plan, m.namesIn(p.Path), m.procs)
+	if len(missing) == 0 && len(services) == 0 {
 		m.status, m.statusErr = "everything "+p.Name+" needs is running", false
 		return nil
 	}
@@ -1797,14 +1805,30 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	for _, e := range missing {
 		m.server.open(p.Path, e.Run, e.Name)
 	}
-	// The cursor stays on the project while they start, then goes to the
-	// first of them: what was started is what there is to watch come up,
-	// and the first is the one the plan put first.
-	m.wantCursor, m.wantProject, m.wantName = 0, p.Path, missing[0].Name
+	if len(missing) > 0 {
+		// The cursor stays on the project while they start, then goes to the
+		// first of them: what was started is what there is to watch come up,
+		// and the first is the one the plan put first.
+		m.wantCursor, m.wantProject, m.wantName = 0, p.Path, missing[0].Name
+	}
 	// Started rather than entered: this is several things at once, and none of
 	// them is more the one you meant than the others.
-	m.status, m.statusErr = "started "+describeEntries(missing), false
-	return m.scanNow()
+	m.status, m.statusErr = "started "+describeStarted(missing, services), false
+	cmds := []tea.Cmd{m.scanNow()}
+	if len(services) > 0 {
+		cmds = append(cmds, bringBack(p, services))
+	}
+	return tea.Batch(cmds...)
+}
+
+// describeStarted names what r started: the entries, then the services
+// compose was asked for.
+func describeStarted(entries []entry, services []string) string {
+	names := make([]string, 0, len(entries)+len(services))
+	for _, e := range entries {
+		names = append(names, e.Name)
+	}
+	return strings.Join(append(names, services...), ", ")
 }
 
 // runVerb runs a task of the place the cursor is in, the way the place
@@ -1957,15 +1981,6 @@ func (m model) wrong(r navRow) bool {
 // row gone wrong — the things that stop work until you look.
 func (m model) needsYou(r navRow) bool {
 	return m.awaiting(r) != nil || m.wrong(r)
-}
-
-// describeEntries names what was just started.
-func describeEntries(entries []entry) string {
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		names = append(names, e.Name)
-	}
-	return strings.Join(names, ", ")
 }
 
 // askKill arms a kill for whatever the cursor is on. A plain kill takes the

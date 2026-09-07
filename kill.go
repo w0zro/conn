@@ -31,10 +31,10 @@ func (req *killRequest) signalOf() syscall.Signal {
 // chooseSignal is the signal a key at the confirmation picks, and whether
 // the key picked one: x, y and enter confirm the signal the request
 // carries; 9 confirms with SIGKILL, i with SIGINT and h with SIGHUP. A
-// process that ignores SIGTERM is not always refusing: a dev server that
+// process that ignores SIGTERM is not always stuck: a dev server that
 // only tears down on ctrl-c wants SIGINT, a daemon that reloads wants
 // SIGHUP, and one that has stopped answering wants SIGKILL, which no
-// process refuses.
+// process can ignore.
 func chooseSignal(key string, carried syscall.Signal) (syscall.Signal, bool) {
 	switch key {
 	case "x", "X", "y", "enter":

@@ -93,8 +93,8 @@ type ProcNode struct {
 // runningProcs lists the processes visible to this user along with their
 // working directories and the ports they are listening on — read off
 // /proc on Linux, and through lsof and ps everywhere else (procs_linux.go,
-// procs_lsof.go). Processes owned by other users refuse their directories
-// and simply do not appear, which is the behavior we want.
+// procs_lsof.go). Processes owned by other users deny access to their
+// directories and do not appear.
 func runningProcs() ([]Proc, error) {
 	return procsBut(os.Getpid())
 }

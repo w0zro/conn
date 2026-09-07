@@ -585,7 +585,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case recordedMsg:
 		// A run that could not be written is a pane a little poorer,
-		// and worth a word; the ending itself stands regardless.
+		// and worth a word; the exit itself stands regardless.
 		if msg.err != nil {
 			m.status, m.statusErr = "could not record the run: "+msg.err.Error(), true
 		}
@@ -1773,7 +1773,7 @@ func (m *model) openShell() tea.Cmd {
 // shell is hung up when a scan finds it back at its prompt (closeSettled).
 func (m *model) runKill(req *killRequest) tea.Cmd {
 	hungUp, signalled := m.splitKill(req.nodes)
-	// A container stopped is docker's to say; the feed is asked to ask.
+	// docker says when a container has stopped; the feed is asked to ask.
 	for _, n := range signalled {
 		if n.Container != nil {
 			m.docker.ask()
@@ -2912,8 +2912,8 @@ func (m model) flatten() []navRow {
 // topPlaces is the top of the navigator: the groups and the repositories
 // standing alone, in one alphabetical order, each listed when its own rule
 // says so — and the global place last, below every project, while
-// anything is in it: the blank line above it is the line between what
-// is yours and what is the machine's.
+// anything is in it: the blank line above it divides your work from
+// the machine's own.
 func (m model) topPlaces() []navRow {
 	var out []navRow
 	for _, g := range m.groups {

@@ -11,11 +11,11 @@ import (
 )
 
 // What a process is, past its name: the binary it runs, which node and
-// which python, and the environment it was started with, which is what
-// says whether the server is in development or production and which
-// database it is talking to. Both are read once, for the one process
-// being inspected; both are the process's own business, so only the
-// user's own processes answer.
+// which python, and the environment it was started with, which says
+// whether the server is in development or production and which database
+// it is talking to. Both are read once, for the one process being
+// inspected; both are private to the process, so only the user's own
+// processes answer.
 
 // binaryOf is the executable a process runs, or nothing when it cannot be
 // read: the exe link under /proc on Linux, and elsewhere what lsof lists

@@ -16,10 +16,10 @@ import (
 // ps may be busybox's, with no start-time column to ask for. The scan is
 // written against a root so a test can lay out a /proc of its own.
 
-// procfsScan reads the processes under root that are the user's to read
-// — a process another user owns refuses its cwd, and is not work in a
-// repository conn could reach — but for self and its children, which are
-// the scan's own.
+// procfsScan reads the processes under root that the user may read — a
+// process another user owns denies access to its cwd, and is not work in
+// a repository conn could reach — but for self and its children, which
+// the scan leaves out.
 func procfsScan(root string, self int) ([]Proc, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {

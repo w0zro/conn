@@ -9,8 +9,8 @@ import (
 
 // On macOS there is no /proc to walk, and lsof is the only way to read
 // another process's working directory; ps says the rest. Processes owned
-// by other users are reported as permission errors on stderr and simply do
-// not appear, which is the behavior we want.
+// by other users come back as permission errors on stderr and do not
+// appear.
 
 // procsBut is runningProcs for a conn of the given pid: neither that
 // process nor its children are work happening in a repository.

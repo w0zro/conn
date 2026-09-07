@@ -10,9 +10,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Docker is a source of its own, the way the tmux server is: the containers
-// are not read with the process list but beside it, and merged into the
-// tree as they arrive. What docker last said stands in every scan for
+// Docker is a source of its own, like the tmux server: the containers are
+// not read with the process list but beside it, and merged into the tree
+// as they arrive. What docker last said stands in every scan for
 // nothing, so a docker that is slow — a desktop's machine resuming from
 // its pause — costs the first paint nothing, and a docker that is down
 // costs the scan nothing either. And docker is asked when something has

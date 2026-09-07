@@ -155,8 +155,8 @@ func parseContainers(out []byte) []Proc {
 			continue
 		}
 		labels := parseLabels(row.Labels)
-		// A container compose did not start has no directory, and its
-		// place is docker's own.
+		// A container compose did not start has no directory, and is
+		// filed under docker's place.
 		dir := labels[labelWorkingDir]
 		if dir == "" {
 			dir = globalPlace

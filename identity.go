@@ -128,9 +128,16 @@ func tellingName(name string) bool {
 	return false
 }
 
-// secretName reports a variable whose value is a secret by its name.
+// secretName reports a variable whose value is a secret by its name. A
+// name that says where a thing is — a socket, a directory, a file — holds
+// a path, whatever else it says: SSH_AUTH_SOCK is not a secret.
 func secretName(name string) bool {
 	upper := strings.ToUpper(name)
+	for _, suffix := range []string{"_SOCK", "_SOCKET", "_DIR", "_PATH", "_FILE"} {
+		if strings.HasSuffix(upper, suffix) {
+			return false
+		}
+	}
 	for _, word := range []string{"SECRET", "TOKEN", "KEY", "PASSWORD", "PASSWD", "PASS", "CREDENTIAL", "AUTH"} {
 		if strings.Contains(upper, word) {
 			return true

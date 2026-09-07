@@ -838,6 +838,19 @@ func (s *session) help() {
 	}()
 }
 
+// environment shows the environment of the run pid heads — the server's,
+// for 0 — in a popup over the client that spoke last, the way help does.
+func (s *session) environment(pid int) {
+	if s == nil {
+		return
+	}
+	go func() {
+		if err := showEnv(s.run, connExe(), "", pid); err != nil {
+			s.events <- serverErrorMsg{err: err}
+		}
+	}()
+}
+
 // popupSize is the room a popup running a command gets: enough for the
 // installer's lines, cut to the client when the client is smaller.
 const popupWidth, popupHeight = 72, 16

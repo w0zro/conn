@@ -367,7 +367,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1 &mdash; 4-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1 &mdash; 4-3</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="shells">
@@ -375,6 +375,7 @@
         <h2>Shells</h2>
         <p class="para"><span class="n">4-1.</span><b>s</b> opens your shell at the selected place, beside the navigator, focused. A shell you enter moves in beside the navigator; when the navigator takes focus again it moves out of view, where it keeps running, and the navigator has the whole window. Each shell keeps 10,000 lines of scrollback; <b>scrollback</b> in the configuration raises that.</p>
         <p class="para"><span class="n">4-2.</span><b>n</b> makes a new project. The status line asks where, on a line prefilled with the cursor's folder relative to its root, <b>w0zro/</b> for a cursor on a repository in that folder, and the name goes on the end. Backspace the folder away for the root itself; type another and it is made. A path from <b>~</b> or <b>/</b> is taken as it is. <b>enter</b> makes the directory, runs <b>git init</b> in it and opens a shell there; the cursor lands on the project once it is listed. A directory already there is left alone. <b>esc</b> cancels.</p>
+        <p class="para"><span class="n">4-3.</span><b>e</b> is env, annotated: the environment of the process under the cursor, in a popup over the window. The process is the one the pane is running &mdash; the dev server, not the shell that started it &mdash; and the variables are the ones it was started with; a shell at its prompt shows what it started with, and an export typed since is not there. Each is read for what it is. A path says whether it is there; PATH is counted, its missing and repeated entries marked, and the place's tools found along it. A URL or a port that points at this machine says who is listening there, or that nothing is. A secret says only that it is set. The project's variables come first &mdash; the ones its <b>.env</b> sets, and the ones that name the environment and what it talks to &mdash; and a variable the file names that the process lacks is a line of its own; then the runtime's; the rest are grouped by who set them, npm, the shell's rc files, the terminal conn was started in, and folded. <b>space</b> folds and unfolds, <b>-</b> unfolds all, <b>/</b> finds, <b>q</b> leaves. On a place the page is the server's environment, which every shell starts from. <b>ctrl-space e</b> does the same from any shell. <b>conn env</b> typed at a prompt shows that shell's environment as it is now, exports and all, since the command inherited it. On macOS a system shell at its prompt keeps its environment to itself; the page says so and shows what the shell started from, and <b>conn env</b> typed there shows its own.</p>
       </div>
     </div>
     <div class="foot">
@@ -674,6 +675,7 @@
           <div class="row"><span>conn back</span><span>back: the previous shell, or the navigator</span></div>
           <div class="row"><span>conn next, prev</span><span>the next and previous shell</span></div>
           <div class="row"><span>conn keys [client]</span><span>the key list, in a popup; <b>conn page</b> is the page inside it</span></div>
+          <div class="row"><span>conn env [pid client]</span><span>the environment of the pane whose shell is pid, annotated, in a popup; <b>conn page env</b> is the page inside it</span></div>
           <div class="row"><span>conn ls</span><span>the held shells: pid, directory, name, exit; one per line</span></div>
           <div class="row"><span>conn restart</span><span>end conn, after asking, and start it again</span></div>
         </div>
@@ -713,6 +715,7 @@
           <div class="row"><span>r</span><span>run</span></div>
           <div class="row"><span>t &middot; b &middot; l</span><span>test &middot; build &middot; lint</span></div>
           <div class="row"><span>x &middot; X</span><span>kill &middot; kill the tree</span></div>
+          <div class="row"><span>e</span><span>the environment, annotated</span></div>
           <div class="row"><span>/</span><span>find a project &middot; a process</span></div>
           <div class="row"><span>esc</span><span>clear the filter</span></div>
           <div class="row"><span>space &middot; -</span><span>fold &middot; unfold all</span></div>
@@ -730,6 +733,7 @@
           <div class="row"><span>^spc enter</span><span>the next thing that needs you</span></div>
           <div class="row"><span>^spc s a r t b l A</span><span>shell &middot; agent &middot; run &middot; test &middot; build &middot; lint, here &middot; continue</span></div>
           <div class="row"><span>^spc ,</span><span>the next kind of agent</span></div>
+          <div class="row"><span>^spc e</span><span>the environment of the pane's process, annotated</span></div>
           <div class="row"><span>^spc /</span><span>find from anywhere</span></div>
           <div class="row"><span>^spc q</span><span>leave from anywhere</span></div>
           <div class="row"><span>^spc R</span><span>end the server from anywhere</span></div>

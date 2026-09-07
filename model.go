@@ -936,6 +936,8 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		// status line's corner names it.
 		m.cycleKind()
 		return m, nil
+	case "e":
+		return m, m.showEnvironment()
 	case "x":
 		return m, m.askKill(false)
 	case "X":

@@ -33,6 +33,7 @@ var keyList = [][2]string{
 	{"r", "run"},
 	{"t · b · l", "test · build · lint"},
 	{"x · X", "kill · kill the tree"},
+	{"e", "the environment, annotated"},
 	{"/", "find a project · a process"},
 	{"esc", "clear the filter"},
 	{"space · -", "fold · unfold all"},
@@ -47,6 +48,7 @@ var keyList = [][2]string{
 	{"^spc enter", "the next thing that needs you"},
 	{"^spc s a r t b l A", "shell · agent · run · test · build · lint, here · continue"},
 	{"^spc ,", "the next kind of agent"},
+	{"^spc e", "the environment of the pane's process, annotated"},
 	{"^spc /", "find from anywhere"},
 	{"^spc q", "leave from anywhere"},
 	{"^spc R", "end the server from anywhere"},
@@ -87,8 +89,9 @@ func showKeys(run runner, exe, client string) error {
 // popup runs a command in a popup over the client, sized as asked or to
 // the client when the client is smaller — tmux rejects a popup it cannot
 // fit rather than cutting it — titled, and closing when the command
-// does. A client of "" is the one that spoke last.
-func popup(run runner, client, title string, width, height int, command string) error {
+// does. A client of "" is the one that spoke last. env is variables for
+// the command, name=value each, over what the server would give it.
+func popup(run runner, client, title string, width, height int, command string, env ...string) error {
 	if client == "" {
 		var err error
 		if client, err = latestClient(run); err != nil {
@@ -105,8 +108,12 @@ func popup(run runner, client, title string, width, height int, command string) 
 			}
 		}
 	}
-	_, err := run("display-popup", "-E", "-c", client, "-T", title,
-		"-w", strconv.Itoa(width), "-h", strconv.Itoa(height), command)
+	args := []string{"display-popup", "-E", "-c", client, "-T", title,
+		"-w", strconv.Itoa(width), "-h", strconv.Itoa(height)}
+	for _, kv := range env {
+		args = append(args, "-e", kv)
+	}
+	_, err := run(append(args, command)...)
 	return err
 }
 

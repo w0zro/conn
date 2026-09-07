@@ -50,7 +50,9 @@ usage:
 the chords run these; they are not for typing:
   conn nav         the navigator, in the home window's left pane
   conn keys [c]    the keys, in a popup over the client c
-  conn page        the page inside that popup
+  conn env [p c]   the environment of the pane whose shell is pid p, annotated, over c;
+                   typed at a shell, that shell's own, as it is now
+  conn page [env p] the page inside those popups
   conn home [key]  to the navigator, pressing key there
   conn shell [dir] a shell in dir, shown beside the navigator
   conn agent [dir] an agent in dir, shown beside the navigator
@@ -103,6 +105,12 @@ func main() {
 			runNav()
 			return
 		case "page":
+			// The page inside a popup: the keys, or the environment of
+			// the run a pid heads.
+			if len(os.Args) > 2 && os.Args[2] == "env" {
+				runEnvPage(os.Args[3:])
+				return
+			}
 			runKeys()
 			return
 		// Anything else is refused rather than shrugged off: a mistyped
@@ -176,6 +184,7 @@ var chords = map[string]func(arg string) error{
 	"next":  func(string) error { return runStep(1) },
 	"prev":  func(string) error { return runStep(-1) },
 	"keys":  func(client string) error { return showKeys(tmuxCommand, connExe(), client) },
+	"env":   runEnvChord,
 }
 
 // runNav is the navigator: the program in the home window. The navigator's

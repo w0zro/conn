@@ -118,7 +118,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-1 &mdash; 1-4</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-1 &mdash; 1-5</span></div>
     <div class="rule"></div>
     <div class="contents">
       <div>
@@ -161,6 +161,7 @@
           <div class="row"><span>CONN_MAN_DIR</span><span>where the manpage goes</span></div>
           <div class="row"><span>CONN_VERSION</span><span>a release other than the latest</span></div>
         </div>
+        <p class="para"><span class="n">1-5.</span>From source, with Go 1.25 or later:</p>
       </div>
     </div>
     <div class="foot">
@@ -175,11 +176,10 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-5 &mdash; 1-6</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-6</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">1-5.</span>From source, with Go 1.25 or later:</p>
         <div class="cmd" role="group" aria-label="build from source"><span class="prompt">$</span><code>go install github.com/w0zro/conn@latest</code><button class="copy" type="button" data-copy="go install github.com/w0zro/conn@latest">[copy]</button></div>
         <div class="note">
           <p class="label">NOTE</p>
@@ -285,7 +285,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-1 &mdash; 3-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-1 &mdash; 3-3</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="moving">
@@ -302,6 +302,7 @@
           <div class="row"><span>J K</span><span>focus the next and previous shell, in the list's order</span></div>
         </div>
         <p class="para"><span class="n">3-2.</span><b>/</b> finds. Each word of the query must appear in order inside what a row says, not contiguously: <b>tsl</b> finds tressle-api, <b>mono api</b> finds the api inside mono, and the letters that matched are lit. A place answers by its name; a process by anything its row says: the command, its arguments, the plan's name for it, an agent's name and model, a port. Processes that answer are listed under their places, pruned to the branches that answer. An empty query lists places alone.</p>
+        <p class="para"><span class="n">3-3.</span>A search is a way of getting somewhere, so the keys that go somewhere work while the query is still being typed. Acting ends the search; the filter holds, so the subject stays listed. <b>esc</b> cancels the search and puts the cursor back where it was. The query takes readline's editing keys: <b>ctrl-w</b>, <b>ctrl-u</b>, <b>ctrl-h</b>, <b>ctrl-e</b> and the rest.</p>
       </div>
     </div>
     <div class="foot">
@@ -316,11 +317,10 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-3 &mdash; 3-4</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-4 &mdash; 3-6</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">3-3.</span>A search is a way of getting somewhere, so the keys that go somewhere work while the query is still being typed. Acting ends the search; the filter holds, so the subject stays listed. <b>esc</b> cancels the search and puts the cursor back where it was. The query takes readline's editing keys: <b>ctrl-w</b>, <b>ctrl-u</b>, <b>ctrl-h</b>, <b>ctrl-e</b> and the rest.</p>
         <p class="caption">Table 3-2.&nbsp; Keys while a query is typed</p>
         <div class="table">
           <div class="row"><span>&#8593;&#8595; ctrl-p ctrl-n</span><span>move through what is left</span></div>
@@ -333,6 +333,8 @@
           <div class="row"><span>esc</span><span>cancel the search</span></div>
         </div>
         <p class="para"><span class="n">3-4.</span><b>enter</b> on a shell's row, or <b>s</b> on a place, focuses a shell beside the navigator. From then on the shell receives every keystroke but one: <b>ctrl-space</b>, which reaches conn from any shell. <b>ctrl-space -</b> focuses the navigator again. <b>?</b>, in the navigator or after ctrl-space, lists every key in a popup over the window; Appendix A lists them here.</p>
+        <p class="para"><span class="n">3-5.</span><b>tab</b> at the list, or <b>ctrl-space enter</b> anywhere, goes to the next thing that needs you: an agent waiting, a command that ended badly, a process stopped or hung. Again continues around them. A held shell is entered, at its prompt or transcript; a process conn only watches gets the cursor.</p>
+        <p class="para"><span class="n">3-6.</span><b>shift+tab</b> at the list, or <b>ctrl-space ctrl-space</b> anywhere, returns focus to where it was: the shell before this one, or the navigator when focus came from it. Again returns. Before focus has moved at all, it is the list from a shell and the cursor's shell from the list.</p>
       </div>
     </div>
     <div class="foot">
@@ -342,32 +344,12 @@
   </div>
 </section>
 
-<!-- PAGE 3-3 -->
-<section class="page" aria-label="Page 3-3">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-5 &mdash; 3-6</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
-        <p class="para"><span class="n">3-5.</span><b>tab</b> at the list, or <b>ctrl-space enter</b> anywhere, goes to the next thing that needs you: an agent waiting, a command that ended badly, a process stopped or hung. Again continues around them. A held shell is entered, at its prompt or transcript; a process conn only watches gets the cursor.</p>
-        <p class="para"><span class="n">3-6.</span><b>shift+tab</b> at the list, or <b>ctrl-space ctrl-space</b> anywhere, returns focus to where it was: the shell before this one, or the navigator when focus came from it. Again returns. Before focus has moved at all, it is the list from a shell and the cursor's shell from the list.</p>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>3-3</b><span>CHANGE v0.7.0</span></div>
-    </div>
-  </div>
-</section>
-
 <!-- PAGE 4-1 -->
 <section class="page" aria-label="Page 4-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1 &mdash; 4-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1 &mdash; 4-2</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="shells">
@@ -375,7 +357,6 @@
         <h2>Shells</h2>
         <p class="para"><span class="n">4-1.</span><b>s</b> opens your shell at the selected place, beside the navigator, focused. A shell you enter moves in beside the navigator; when the navigator takes focus again it moves out of view, where it keeps running, and the navigator has the whole window. Each shell keeps 10,000 lines of scrollback; <b>scrollback</b> in the configuration raises that.</p>
         <p class="para"><span class="n">4-2.</span><b>n</b> makes a new project. The status line asks where, on a line prefilled with the cursor's folder relative to its root, <b>w0zro/</b> for a cursor on a repository in that folder, and the name goes on the end. Backspace the folder away for the root itself; type another and it is made. A path from <b>~</b> or <b>/</b> is taken as it is. <b>enter</b> makes the directory, runs <b>git init</b> in it and opens a shell there; the cursor lands on the project once it is listed. A directory already there is left alone. <b>esc</b> cancels.</p>
-        <p class="para"><span class="n">4-3.</span><b>e</b> is env, annotated: the environment of the process under the cursor, in a popup over the window. The process is the one the pane is running &mdash; the dev server, not the shell that started it &mdash; and the variables are the ones it was started with; a shell at its prompt shows what it started with, and an export typed since is not there. Each is read for what it is. A path says whether it is there; PATH is counted, its missing and repeated entries marked, and the place's tools found along it. A URL or a port that points at this machine says who is listening there, or that nothing is. A secret says only that it is set. The project's variables come first &mdash; the ones its <b>.env</b> sets, and the ones that name the environment and what it talks to &mdash; and a variable the file names that the process lacks is a line of its own; then the runtime's; the rest are grouped by who set them, npm, the shell's rc files, the terminal conn was started in, and folded. For a variable a startup file set, the page says which file and line: it starts the shell once more, traced, after its first paint, and reads the assignment off the trace; a variable the trace did not see set is looked for in the startup files by name, and said to be named there. An entry of PATH that <b>/etc/paths</b> put there says so. <b>space</b> folds and unfolds, <b>-</b> unfolds all, <b>/</b> finds, <b>q</b> leaves. On a place the page is the server's environment, which every shell starts from. <b>ctrl-space e</b> does the same from any shell. <b>conn env</b> typed at a prompt shows that shell's environment as it is now, exports and all, since the command inherited it. On macOS a system shell at its prompt keeps its environment to itself; the page says so and shows what the shell started from, and <b>conn env</b> typed there shows its own.</p>
       </div>
     </div>
     <div class="foot">
@@ -385,12 +366,31 @@
   </div>
 </section>
 
+<!-- PAGE 4-2 -->
+<section class="page" aria-label="Page 4-2">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-3</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section">
+        <p class="para"><span class="n">4-3.</span><b>e</b> is env, annotated: the environment of the process under the cursor, in a popup over the window. The process is the one the pane is running &mdash; the dev server, not the shell that started it &mdash; and the variables are the ones it was started with; a shell at its prompt shows what it started with, and an export typed since is not there. Each is read for what it is. A path says whether it is there; PATH is counted, its missing and repeated entries marked, and the place's tools found along it. A URL or a port that points at this machine says who is listening there, or that nothing is. A secret says only that it is set. The project's variables come first &mdash; the ones its <b>.env</b> sets, and the ones that name the environment and what it talks to &mdash; and a variable the file names that the process lacks is a line of its own; then the runtime's; the rest are grouped by who set them, npm, the shell's rc files, the terminal conn was started in, and folded. For a variable a startup file set, the page says which file and line: it starts the shell once more, traced, after its first paint, and reads the assignment off the trace; a variable the trace did not see set is looked for in the startup files by name, and said to be named there. An entry of PATH that <b>/etc/paths</b> put there says so. <b>space</b> folds and unfolds, <b>-</b> unfolds all, <b>/</b> finds, <b>q</b> leaves. On a place the page is the server's environment, which every shell starts from. <b>ctrl-space e</b> does the same from any shell. <b>conn env</b> typed at a prompt shows that shell's environment as it is now, exports and all, since the command inherited it. On macOS a system shell at its prompt keeps its environment to itself; the page says so and shows what the shell started from, and <b>conn env</b> typed there shows its own.</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>4-2</b><span>CHANGE v0.7.0</span></div>
+    </div>
+  </div>
+</section>
+
 <!-- PAGE 5-1 -->
 <section class="page" aria-label="Page 5-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 5-1 &mdash; 5-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 5-1 &mdash; 5-4</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="agents">
@@ -406,6 +406,7 @@
         </div>
         <p class="para"><span class="n">5-2.</span>The &#9670; is the one to answer first: answering it resumes work already underway. The pane for a claude row names what it is waiting on, the last thing asked of it, and what it says it is doing. <b>tab</b>, or <b>ctrl-space enter</b> from any shell, goes to it (3-5).</p>
         <p class="para"><span class="n">5-3.</span>A conversation does not end when its instance exits; it is suspended, and can be picked back up. <b>A</b> on a place lists what is suspended there, sub-projects included and, for a group, its repositories, newest first: when each last moved, its branch, and the last thing asked of it. Typing narrows the list, <b>enter</b> continues the one under the cursor in a shell opened where it was had, <b>esc</b> closes the list. A conversation an instance still carries is not offered.</p>
+        <p class="para"><span class="n">5-4.</span>conn knows two kinds of agent: <b>claude</b> and <b>ollama</b>. <b>,</b> at the navigator, or <b>ctrl-space ,</b> from any shell, moves <b>a</b> on to the next kind, around the end, for every window until conn is restarted; the status line's right corner names it. Ollama's rows are plain processes, unmarked. It runs the model most recently pulled or run; with nothing pulled, <b>a</b> runs <b>ollama list</b> instead, and with the ollama server down the REPL says so. <b>agentRuns</b> in the configuration names what a kind runs when its own choice is not the wanted one.</p>
       </div>
     </div>
     <div class="foot">
@@ -415,31 +416,12 @@
   </div>
 </section>
 
-<!-- PAGE 5-2 -->
-<section class="page" aria-label="Page 5-2">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 5-4</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
-        <p class="para"><span class="n">5-4.</span>conn knows two kinds of agent: <b>claude</b> and <b>ollama</b>. <b>,</b> at the navigator, or <b>ctrl-space ,</b> from any shell, moves <b>a</b> on to the next kind, around the end, for every window until conn is restarted; the status line's right corner names it. Ollama's rows are plain processes, unmarked. It runs the model most recently pulled or run; with nothing pulled, <b>a</b> runs <b>ollama list</b> instead, and with the ollama server down the REPL says so. <b>agentRuns</b> in the configuration names what a kind runs when its own choice is not the wanted one.</p>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>5-2</b><span>CHANGE v0.7.0</span></div>
-    </div>
-  </div>
-</section>
-
 <!-- PAGE 6-1 -->
 <section class="page" aria-label="Page 6-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-1 &mdash; 6-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-1 &mdash; 6-3</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="plans">
@@ -460,6 +442,7 @@
           <div class="row"><span>package.json</span><span>one entry: its <b>dev</b> script, else its <b>start</b> script</span></div>
           <div class="row"><span>compose.yaml</span><span>one entry, <b>compose: docker compose up</b>, since compose runs every service and attaches to each; <b>compose.yml</b>, <b>docker-compose.yml</b> and <b>docker-compose.yaml</b> the same</span></div>
         </div>
+        <p class="para"><span class="n">6-3.</span><b>r</b> starts the entries that are not running, each in a window named for it, and puts the cursor on the first. It is a list to run, not a supervisor: nothing restarts on its own. When an entry's command ends, its shell stays at the prompt with the transcript, the row shows &#10007; or &#10003;, the pane's checklist says how and when it ended, and <b>r</b> starts it again beside the old shell. Running anything by hand in that shell clears the mark.</p>
       </div>
     </div>
     <div class="foot">
@@ -474,11 +457,10 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-3 &mdash; 6-4</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-4 &mdash; 6-6</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">6-3.</span><b>r</b> starts the entries that are not running, each in a window named for it, and puts the cursor on the first. It is a list to run, not a supervisor: nothing restarts on its own. When an entry's command ends, its shell stays at the prompt with the transcript, the row shows &#10007; or &#10003;, the pane's checklist says how and when it ended, and <b>r</b> starts it again beside the old shell. Running anything by hand in that shell clears the mark.</p>
         <p class="para"><span class="n">6-4.</span>A project that runs its services with docker compose shows each service as a row: named for the service, with the ports it publishes, <b>web &middot; :8438</b>, under the <b>docker compose up</b> that runs it when one is running in a shell, and under the place itself when compose runs detached. <b>enter</b> on a service opens a shell inside its container. Its pane shows the container's name, image, status and the last of its logs. A service that died stays listed while the project runs, with the cross and how long ago, <b>worker · 3m ✗</b>, and <b>tab</b> goes to it; one that exited well shows the check. A service whose health check is not passing shows that in place of its ports: <b>api · unhealthy ✗</b>, or starting.</p>
         <div class="figure">
 <pre>compose-demo
@@ -487,24 +469,6 @@
      web · :8438</pre>
         </div>
         <p class="caption">Figure 6-2.&nbsp; A compose project's services, under the compose that runs them</p>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>6-2</b><span>CHANGE v0.7.0</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 6-3 -->
-<section class="page" aria-label="Page 6-3">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-5 &mdash; 6-6</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
         <p class="para"><span class="n">6-5.</span>What runs outside every project is listed under <b>global</b>, at the foot of the list, while there is anything to list: containers started by hand or from elsewhere, and processes listening on a port from outside your projects, an <b>ollama serve</b> or a <b>brew</b> postgres. The system's own listeners are left out. <b>x</b>, <b>enter</b> and the pane work there as under a project; there is no directory, so no shell opens there and no project is made.</p>
         <p class="para"><span class="n">6-6.</span>What <b>x</b> stopped, <b>r</b> brings back where it was: the services the compose file declares that are down are started with <b>docker compose up -d</b>, and a compose up running in a shell picks up their logs again. An entry <b>r</b> is starting that runs compose itself brings everything up instead. A service that a plan entry is named for is left to the entry.</p>
         <div class="note">
@@ -515,7 +479,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>6-3</b><span>CHANGE v0.7.0</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-2</b><span>CHANGE v0.7.0</span></div>
     </div>
   </div>
 </section>
@@ -635,7 +599,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-1 &mdash; 10-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-1 &mdash; 10-4</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="server">
@@ -644,6 +608,7 @@
         <p class="para"><span class="n">10-1.</span><b>q</b> in the navigator, or <b>ctrl-space q</b> anywhere, leaves conn and returns you to the terminal. Everything keeps running: the shells, the plans, the agents. Run <b>conn</b> again, from any terminal, and it is where you left it. If the navigator's pane was closed, <b>ctrl-space -</b> brings it back.</p>
         <p class="para"><span class="n">10-2.</span><b>R</b>, or <b>ctrl-space R</b> from any shell, ends conn and every shell it holds, after asking. <b>conn restart</b>, typed in a terminal outside conn, does the same and then starts conn again; inside conn it stops with a message, since the shell running it would go too. A restart is the way to a fresh start, and what a raised <b>scrollback</b> needs to take effect.</p>
         <p class="para"><span class="n">10-3.</span>conn checks for a newer release once a day. When one is out, the status line says so whenever nothing else is being said: <b>conn 0.6.0 is out &middot; U installs it</b>. <b>U</b> installs it and restarts the navigator as the new build; the shells stay. With nothing newer known, <b>U</b> checks now and says what it finds. Installing a new binary by hand works the same: the next <b>conn</b> picks it up. A build from source is never told it is behind.</p>
+        <p class="para"><span class="n">10-4.</span>conn also answers on the command line. From a shell inside conn, these act on the directory the shell is in:</p>
       </div>
     </div>
     <div class="foot">
@@ -658,11 +623,10 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-4 &mdash; 10-5</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-5</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">10-4.</span>conn also answers on the command line. From a shell inside conn, these act on the directory the shell is in:</p>
         <p class="caption">Table 10-1.&nbsp; Commands</p>
         <div class="table narrow" id="commands">
           <div class="row"><span>conn home [key]</span><span>to the navigator, pressing key there</span></div>

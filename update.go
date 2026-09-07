@@ -54,7 +54,7 @@ var fetchLatest = func() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	tag := path.Base(resp.Header.Get("Location"))
 	if resp.StatusCode/100 != 3 || tag == "" || tag == "." {
 		return "", errors.New("github did not say which release is latest")

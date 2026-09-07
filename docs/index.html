@@ -94,7 +94,7 @@
           <li><a href="#install"><span class="n">1</span><span>Installation</span><span class="dots"></span><span>1-1</span></a></li>
           <li><a href="#first-run"><span class="n">2</span><span>First run</span><span class="dots"></span><span>2-1</span></a></li>
           <li><a href="#navigator"><span class="n">3</span><span>The navigator</span><span class="dots"></span><span>2-1</span></a></li>
-          <li><a href="#shells"><span class="n">4</span><span>Shells</span><span class="dots"></span><span>3-2</span></a></li>
+          <li><a href="#shells"><span class="n">4</span><span>Shells</span><span class="dots"></span><span>4-1</span></a></li>
           <li><a href="#agents"><span class="n">5</span><span>Agents</span><span class="dots"></span><span>5-1</span></a></li>
         </ol>
       </div>
@@ -204,7 +204,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-6 &mdash; 4-1</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-6 &mdash; 3-9</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
@@ -212,11 +212,6 @@
         <p class="para"><span class="n">3-7.</span><b>/</b> finds places and processes: a query lists the processes that answer it &mdash; by anything their row says: the command, what it was run with, the plan's name for it, an agent's name and model, a port &mdash; under the places they run, pruned to the branches that answer. <b>enter</b> steps into a found shell, and <b>ctrl-x</b> asks to kill what the cursor is on, without leaving the look. An empty query lists places alone.</p>
         <p class="para"><span class="n">3-8.</span>Matching is fuzzy: each word of the query appears in order, not contiguously &mdash; <b>tsl</b> finds tressle-api, <b>mono api</b> finds the api inside mono &mdash; and the letters that matched are lit in the rows.</p>
         <p class="para"><span class="n">3-9.</span><b>n</b> makes a new project. It asks where on the status line, on a line prefilled with the folder the cursor is in relative to its root &mdash; <b>w0zro/</b> for a cursor on a repository in that folder, nothing for one at the root &mdash; and the name goes on the end: backspace the folder away for the root itself, or type another folder, which is made if it is not there. A path from <b>~</b> or <b>/</b> is taken as it is. <b>enter</b> makes the directory, runs <b>git init</b> in it, and opens a shell there; the cursor lands on the project once the scan lists it. A directory already there is left alone, and <b>esc</b> thinks better of it.</p>
-      </div>
-      <div class="section" id="shells">
-        <p class="kicker">SECTION 4</p>
-        <h2>Shells</h2>
-        <p class="para"><span class="n">4-1.</span><b>s</b> opens a shell at the selected place, beside the navigator, and puts the keys in it. <b>enter</b> on a shell's row does the same for that shell. From then on every keystroke is the shell's: the pane is tmux's, and it behaves the way a tmux pane behaves, with the navigator still down the left. conn keeps one key: <b>ctrl-space</b>, the prefix &mdash; tmux's own, bound by conn's configuration &mdash; which reaches conn from any shell. <b>ctrl-space -</b> is back to the navigator; <b>ctrl-space j</b> and <b>k</b> are the next and previous shell; <b>ctrl-space ctrl-space</b> is back where the keys were &mdash; the shell before this one, whether or not the navigator was the way there, or the navigator when they came from there; again returns. <b>ctrl-space q</b> leaves, and <b>?</b> &mdash; in the navigator, or after the prefix from any shell &mdash; lists the rest in a popup over the whole window. Every key tmux would otherwise bind is unbound.</p>
       </div>
     </div>
     <div class="foot">
@@ -231,11 +226,31 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-2 &mdash; 4-6</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1 &mdash; 4-2</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section" id="shells">
+        <p class="kicker">SECTION 4</p>
+        <h2>Shells</h2>
+        <p class="para"><span class="n">4-1.</span><b>s</b> opens a shell at the selected place, beside the navigator, and puts the keys in it. <b>enter</b> on a shell's row does the same for that shell. From then on every keystroke is the shell's: the pane is tmux's, and it behaves the way a tmux pane behaves, with the navigator still down the left. conn keeps one key: <b>ctrl-space</b>, the prefix &mdash; tmux's own, bound by conn's configuration &mdash; which reaches conn from any shell. <b>ctrl-space -</b> is back to the navigator; <b>ctrl-space j</b> and <b>k</b> are the next and previous shell; <b>ctrl-space ctrl-space</b> is back where the keys were &mdash; the shell before this one, whether or not the navigator was the way there, or the navigator when they came from there; again returns. <b>ctrl-space q</b> leaves, and <b>?</b> &mdash; in the navigator, or after the prefix from any shell &mdash; lists the rest in a popup over the whole window. Every key tmux would otherwise bind is unbound.</p>
+        <p class="para"><span class="n">4-2.</span>A shell you enter moves in beside the navigator; when the keys come home it moves out again, to a tmux window of its own, where it keeps running, and the navigator has the whole window. <b>J</b> and <b>K</b> step through the shells in the list's order, keys and all.</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>4-1</b><span>CHANGE 4</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="page" aria-label="Page 4-2">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-3 &mdash; 4-6</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">4-2.</span>A shell you enter moves in beside the navigator; when the keys come home it moves out again, to a tmux window of its own, where it keeps running, and the navigator has the whole window. <b>J</b> and <b>K</b> step through the shells in the list's order, keys and all.</p>
         <p class="para"><span class="n">4-3.</span>The status line at the foot is tmux's. It begins with conn's own name, <b>CONN</b>, in purple, which stays. To its right is the mode the keys are in &mdash; <b>NAV</b> or <b>PROC</b> for the pane that has them, each a chip in its own color with the line washed one tone after it; <b>PREFIX</b> while a chord hangs; <b>COPY</b> in copy mode; the query while one is typed and the filter while one stands; <b>CONTINUE</b> with the picker open; <b>NEW</b> with a project's name being typed; <b>CONFIRM</b> while a kill waits on its second key &mdash; and then anything the navigator has to say: a report, an error, a confirmation, until the next key, or that a newer conn is out, whenever nothing else is said. What a chord says, from any shell, shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
         <p class="para"><span class="n">4-4.</span>Shells keep running when the terminal closes. <b>q</b> in the navigator, or <b>ctrl-space q</b> anywhere, detaches; quit the terminal, come back, run <b>conn</b>, and everything is where it was.</p>
         <p class="para"><span class="n">4-5.</span><b>ctrl-space v</b> reads back through what has scrolled away: tmux's copy mode, with vi keys. <b>v</b> marks, <b>y</b> copies the marked text to the system clipboard, <b>q</b> leaves. Each shell keeps 10,000 lines of transcript by default; <b>scrollback</b> in the configuration raises it.</p>
@@ -248,7 +263,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>4-1</b><span>CHANGE 4</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>4-2</b><span>CHANGE 4</span></div>
     </div>
   </div>
 </section>
@@ -434,7 +449,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 9-2 &mdash; 9-5</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 9-2 &mdash; 9-3</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
@@ -454,8 +469,6 @@
           <div class="row"><span>conn ls</span><span>the held shells: pid, directory, name, exit; one per line</span></div>
           <div class="row"><span>conn restart</span><span>the server ended, after asking, and brought up again under this build</span></div>
         </div>
-        <p class="para"><span class="n">9-4.</span>conn keeps itself current. The navigator asks github which release is latest &mdash; on its first paint and once a day after, a plain request for the release page's redirect, the answer kept in <b>~/.local/state/conn/latest-release</b> so a navigator started again is not another ask &mdash; and a release newer than the build says so on the status line whenever nothing else is being said: <b>conn 0.5.0 is out &middot; U installs it</b>. <b>U</b> runs the installer in a popup over the window, aimed at the directory this build runs from, and then <b>conn</b>, which gives the server the new configuration and brings the navigator back as the new build; the shells stay. With nothing newer known, <b>U</b> asks now and says what it finds. A build that is no release &mdash; a tree past a tag, a plain go build &mdash; is never behind one. Upgrading by hand does not touch the server either: install the new binary, and the next <b>conn</b> sources the new configuration into the same server and replaces the navigator when the build changed. <b>R</b> ends the server and every shell it holds, after asking; it is the way to a fresh server when one is wanted. <b>conn restart</b>, typed at a terminal outside the window, is <b>R</b> and then <b>conn</b> as one command; inside the window it refuses, since the pane running it would go with the server. <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does.</p>
-        <p class="para"><span class="n">9-5.</span><b>conn ls</b> is the same state for scripts. The exit is how the command a shell was started with ended, and is empty while it runs. No server listening is an empty list, not an error.</p>
       </div>
     </div>
     <div class="foot">
@@ -466,6 +479,25 @@
 </section>
 
 <!-- PAGE A-1 · APPENDIX A -->
+<section class="page" aria-label="Page 9-2">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 9-4 &mdash; 9-5</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section">
+        <p class="para"><span class="n">9-4.</span>conn keeps itself current. The navigator asks github which release is latest &mdash; on its first paint and once a day after, a plain request for the release page's redirect, the answer kept in <b>~/.local/state/conn/latest-release</b> so a navigator started again is not another ask &mdash; and a release newer than the build says so on the status line whenever nothing else is being said: <b>conn 0.5.0 is out &middot; U installs it</b>. <b>U</b> runs the installer in a popup over the window, aimed at the directory this build runs from, and then <b>conn</b>, which gives the server the new configuration and brings the navigator back as the new build; the shells stay. With nothing newer known, <b>U</b> asks now and says what it finds. A build that is no release &mdash; a tree past a tag, a plain go build &mdash; is never behind one. Upgrading by hand does not touch the server either: install the new binary, and the next <b>conn</b> sources the new configuration into the same server and replaces the navigator when the build changed. <b>R</b> ends the server and every shell it holds, after asking; it is the way to a fresh server when one is wanted. <b>conn restart</b>, typed at a terminal outside the window, is <b>R</b> and then <b>conn</b> as one command; inside the window it refuses, since the pane running it would go with the server. <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does.</p>
+        <p class="para"><span class="n">9-5.</span><b>conn ls</b> is the same state for scripts. The exit is how the command a shell was started with ended, and is empty while it runs. No server listening is an empty list, not an error.</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>9-2</b><span>CHANGE 4</span></div>
+    </div>
+  </div>
+</section>
+
 <section class="page" id="keys" aria-label="Page A-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>

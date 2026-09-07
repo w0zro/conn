@@ -4656,7 +4656,10 @@ func notAsked(t *testing.T, asked chan message, kind string) {
 }
 
 func TestKillingAShellRunningACommandSignalsTheCommandFirst(t *testing.T) {
-	m, asked := pipeServer(t, composeTree())
+	m := composeTree()
+	m.terms[10].name = "" // a shell opened by hand, running compose
+	m.rebuild()
+	m, asked := pipeServer(t, m)
 	m = press(m, "down") // onto the run, named for docker compose up
 	m = press(m, "x")
 	if f := footer(m); !strings.Contains(f, "kill docker 20 and its shell?") {
@@ -4702,7 +4705,10 @@ func TestATreeKillOfARunningShellSignalsEachProcessOnce(t *testing.T) {
 }
 
 func TestKillingTheShellRowItselfSignalsWhatRunsInIt(t *testing.T) {
-	m, asked := pipeServer(t, composeTree())
+	m := composeTree()
+	m.terms[10].name = ""
+	m.rebuild()
+	m, asked := pipeServer(t, m)
 	m = press(press(m, "-"), "down") // unfolded, the shell has a row of its own
 	m = press(m, "x")
 	if f := footer(m); !strings.Contains(f, "kill zsh 10?") {
@@ -4771,5 +4777,45 @@ func TestAShellClosedByHandIsNotWaitedOn(t *testing.T) {
 	notAsked(t, asked, kindClose)
 	if len(m.closing) != 0 {
 		t.Errorf("closing = %v, want nothing waiting on a shell that went", m.closing)
+	}
+}
+
+func TestXOnAnEntryEndsItsCommandAndKeepsItsShell(t *testing.T) {
+	m, asked := pipeServer(t, composeTree()) // app: zsh 10 running docker compose up
+	m = press(press(m, "down"), "x")
+	if f := footer(m); !strings.Contains(f, "kill app?") {
+		t.Fatalf("footer = %q, want the entry named", f)
+	}
+	if got := targets(m.pendingKill); !slices.Equal(got, []int{20, 30}) {
+		t.Errorf("targets = %v, want what runs in the shell, and not the shell", got)
+	}
+	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
+	if len(hungUp) != 0 || len(signalled) != 2 {
+		t.Errorf("hung up %v, signalled %v; want the shell left at its prompt", hungUp, signalled)
+	}
+	notAsked(t, asked, kindClose)
+
+	// Unfolded, on the shell's own row, the same.
+	m = press(press(press(m, "esc"), "-"), "x")
+	if f := footer(m); !strings.Contains(f, "kill app?") {
+		t.Errorf("footer = %q, want the entry named on its shell's row too", f)
+	}
+}
+
+func TestXOnAnEndedEntryClosesItsShellByName(t *testing.T) {
+	m := withProcList(80, 12,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}},
+	)
+	m.terms[10] = &remoteTerm{pid: 10, dir: "/p/conn", name: "app", exit: "1"}
+	m.rebuild()
+	m, asked := pipeServer(t, m)
+	m = press(press(m, "down"), "x")
+	if f := footer(m); !strings.Contains(f, "kill app 10?") {
+		t.Fatalf("footer = %q, want the ended entry's shell asked about by name", f)
+	}
+	m.splitKill(m.pendingKill.nodes)
+	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
+		t.Errorf("asked %+v, want the shell hung up", got)
 	}
 }

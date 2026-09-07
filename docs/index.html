@@ -425,12 +425,12 @@
   </div>
 </section>
 
-<!-- PAGE 7-1 · SECTION 7 + SECTION 8 -->
+<!-- PAGE 7-1 · SECTION 7 -->
 <section class="page" aria-label="Page 7-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 7-1 &mdash; 8-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 7-1</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="kills">
@@ -442,8 +442,23 @@
           <div class="row"><span>X</span><span>kill it and everything under it</span></div>
           <div class="row"><span>x on a repository or group</span><span>kill everything running in it</span></div>
         </div>
-        <p class="para"><span class="n">7-1.</span>Every kill asks first &mdash; <b>x</b>, <b>y</b> or <b>enter</b> confirms; anything else cancels. Processes get SIGTERM, and a signalled row wears a red marker until a rescan actually observes the exit; the list never claims an exit it has not seen. Kills work on any listed process, including ones conn did not start. A shell conn holds is closed through the server &mdash; but one still running its command is closed only once the command has gone: what runs in the shell gets SIGTERM first, and the shell goes when a scan finds it back at its prompt, so a <code>docker compose up</code> stops its containers on the way out, which hung up it would not.</p>
+        <p class="para"><span class="n">7-1.</span>Every kill asks first &mdash; <b>x</b>, <b>y</b> or <b>enter</b> confirms; anything else cancels. Processes get SIGTERM, and a signalled row wears a red marker until a rescan actually observes the exit; the list never claims an exit it has not seen. Kills work on any listed process, including ones conn did not start. A shell conn holds is closed through the server &mdash; but one still running its command is closed only once the command has gone: what runs in the shell gets SIGTERM first, and the shell goes when a scan finds it back at its prompt, so a <code>docker compose up</code> stops its containers on the way out, which hung up it would not. An entry's shell &mdash; a plan's, a task's &mdash; is not closed at all by <b>x</b> while it runs its command: the command goes, and the shell stays at its prompt with the transcript and the ending, as it would had the command ended on its own, for <b>r</b> to start the entry again beside it. <b>x</b> again closes it.</p>
       </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>7-1</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 8-1 · SECTION 8 -->
+<section class="page" aria-label="Page 8-1">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 8-1 &mdash; 8-2</span></div>
+    <div class="rule"></div>
+    <div class="body">
       <div class="section" id="configuration">
         <p class="kicker">SECTION 8</p>
         <h2>Configuration</h2>
@@ -462,13 +477,13 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>7-1</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>8-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
 
-<!-- PAGE 8-1 · SECTION 8, CONTINUED + SECTION 9 -->
-<section class="page" aria-label="Page 8-1">
+<!-- PAGE 8-2 · SECTION 8, CONTINUED + SECTION 9 -->
+<section class="page" aria-label="Page 8-2">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
   <div class="sheet">
@@ -497,7 +512,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>8-1</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>8-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>

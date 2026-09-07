@@ -1731,6 +1731,16 @@ func (m *model) closeSettled() {
 	}
 }
 
+// entryOf is the named shell a row is, or is running in — a plan's
+// entry, a task — or nil for a row that is neither.
+func (m model) entryOf(r navRow) *remoteTerm {
+	t := m.owningTerm(r.node.PID)
+	if t == nil || t.name == "" {
+		return nil
+	}
+	return t
+}
+
 // shellAround is the shell conn holds that a process is running inside, if it
 // is not that shell itself.
 func (m model) shellAround(n *ProcNode) *ProcNode {
@@ -2026,6 +2036,20 @@ func (m *model) askKill(tree bool) tea.Cmd {
 	if !tree {
 		nodes := []*ProcNode{r.node}
 		subject := procLabel(r.node)
+
+		// An entry's shell — a plan's, a task's — running its command is
+		// ended the way the command ending on its own would end it: what
+		// runs in the shell goes, and the shell stays at its prompt with
+		// the transcript and the ending, for r to start the entry again
+		// beside it. x again closes the shell. The row is the entry, and
+		// the question names it.
+		if t := m.entryOf(r); t != nil {
+			if shell := m.nodes[t.pid]; shell != nil && t.live() && len(shell.Children) > 0 {
+				m.pendingKill = &killRequest{subject: t.name, nodes: subtree(shell)[1:]}
+				return nil
+			}
+			subject = t.name + " " + strconv.Itoa(t.pid)
+		}
 
 		// A process running in a shell conn holds takes the shell with it.
 		// Quitting a Claude instance yourself leaves you at the prompt, which

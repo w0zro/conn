@@ -201,7 +201,7 @@ func recordPages(tags []tag, minor string) string {
 		rest = remaining
 		fmt.Fprintf(&b, `<section class="page" aria-label="Page R-%d">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top">UNCLASSIFIED</span><span class="classified bottom">UNCLASSIFIED</span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
     <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>RECORD OF REVISIONS</span></div>
     <div class="rule"></div>

@@ -133,6 +133,18 @@ b, strong { font-weight: 700; }
 }
 .classified.top { top: 13px; }
 .classified.bottom { bottom: 12px; }
+/* A declassified document keeps its original marking, struck through by
+   hand: the strike is a rule over the word, tilted the way a pen would. */
+.classified s { position: relative; display: inline-block; text-decoration: none; text-indent: 0; }
+.classified s::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  right: 0;
+  top: 46%;
+  border-top: 2px solid rgba(43,38,32,0.65);
+  transform: rotate(-1.2deg);
+}
 
 /* The interior page's content: a column with the footer pinned to the
    foot, and the binder margin on the left. */
@@ -426,6 +438,21 @@ b, strong { font-weight: 700; }
   margin: 0;
 }
 .cover .install .cmd code { flex: none; }
+/* The declassification stamp: blue ink, a different pad from the REV
+   stamp's orange, to the right of the title block. */
+.cover .declassified {
+  position: absolute;
+  right: 50px;
+  top: 122px;
+  transform: rotate(-4deg);
+  border: 2px solid rgba(70,80,140,0.55);
+  color: rgba(70,80,140,0.72);
+  padding: 8px 10px 7px;
+  font: 700 9px/1.65 var(--mono);
+  letter-spacing: 0.12em;
+  text-align: left;
+}
+.cover .declassified small { font-weight: 400; font-size: 8.5px; }
 .cover .revisions {
   position: relative;
   padding: 38px 64px 0 96px;

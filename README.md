@@ -37,7 +37,7 @@ The site is the manual, one page of HTML at `docs/index.html`, and the
 manpage is that text in roff: `go run ./tools/man` writes `man/conn.1`
 from it, and a test holds the two together. Edit the manual, run the
 tool, commit both. The appendix of keys is held to the `?` popup the same
-way, and table 9-1 to the words the chords run.
+way, and the table of commands to the words the chords run.
 
 ## Releasing
 

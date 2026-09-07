@@ -425,7 +425,7 @@ func procFields(n *ProcNode, name string, run []*ProcNode, ag agent) []field {
 	// The whole run is asked, not just the process the row is named for. A
 	// dev server is a shell running an npm running a node, and it is the node
 	// at the bottom that holds the port — the one the fold exists to hide. The
-	// row stands for the run, so the run's ports are the row's.
+	// row stands for the run, so the row lists the run's ports.
 	if ports := runPorts(run, n); len(ports) > 0 {
 		fs = append(fs, field{label: "listening", value: strings.Join(ports, ", "), tone: toneAccent})
 	}

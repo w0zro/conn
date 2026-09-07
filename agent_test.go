@@ -310,7 +310,7 @@ func TestAnAgentRowIsNamedForItsKindAndModel(t *testing.T) {
 
 func TestAnAgentItsUserNamedIsCalledThat(t *testing.T) {
 	// The name stands where the kind would, and the model stays beside it:
-	// "docs redesign" is what you would say, and what it is is the pane's.
+	// "docs redesign" is what you would say; the pane says what it is.
 	k := agentKind{name: "claude"}
 	if got := agentLabel(k, "docs redesign", ""); got != "docs redesign" {
 		t.Errorf("agentLabel = %q, want the user's name for it", got)

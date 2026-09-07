@@ -30,7 +30,7 @@ func TestNAsksForANameAndSaysWhereTheProjectGoes(t *testing.T) {
 	if !strings.Contains(st.mode, "NEW site") || !strings.Contains(st.msg, "in /p") {
 		t.Errorf("status = %+v, want the name being typed and where it goes", st)
 	}
-	// The letters are the name's, not the list's: s did not open a shell.
+	// The letters went into the name, not to the list: s did not open a shell.
 	if len(m.terms) != 0 {
 		t.Errorf("terms = %v, want none opened by the s in site", m.terms)
 	}

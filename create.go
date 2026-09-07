@@ -93,7 +93,7 @@ func (m model) repoHolding(path string) (Project, bool) {
 }
 
 // createKey handles a keystroke while the line is being typed: enter makes
-// the project, esc thinks better of it, and everything else is the line's.
+// the project, esc thinks better of it, and every other key edits the line.
 // A line that will not do is said, and stays for a better one.
 func (m *model) createKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {

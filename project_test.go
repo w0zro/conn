@@ -79,8 +79,8 @@ func TestDiscoverSkipsTaggedCacheDirs(t *testing.T) {
 }
 
 func TestDiscoverHonorsConfiguredSkips(t *testing.T) {
-	// The config's skipDirs join the built-ins: the big generated directories
-	// one machine grows are its own to name.
+	// The config's skipDirs join the built-ins: only the machine that grows
+	// a big generated directory can name it.
 	root := tree(t, "app/.git", "dist/pkg/stray/.git", "site/node_modules/dep/.git")
 
 	cfg := Config{SkipDirs: []string{"dist", " ", ""}}

@@ -107,7 +107,7 @@ func (m *model) resumeKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.resume = nil
 		return m.detailCmd()
 	}
-	// Everything else is the line's, editing keys and all. A picker made
+	// Every other key edits the line. A picker made
 	// without a line — the tests build one by hand — gets one here, with
 	// the query it already has.
 	if !v.input.Focused() {

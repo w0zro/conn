@@ -50,7 +50,7 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 			t.Errorf("the configuration lacks %q", want)
 		}
 	}
-	// The root table is tmux's: that is where its mouse bindings live.
+	// tmux keeps the root table: that is where its mouse bindings live.
 	if strings.Contains(conf, "-T root") {
 		t.Error("the configuration touches the root table")
 	}

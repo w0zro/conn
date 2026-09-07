@@ -50,7 +50,7 @@ func connExe() string {
 
 // runLaunch is `conn`: the server under its configuration, the home window,
 // and this terminal attached. It returns only when it could not attach;
-// attached, the process is tmux's.
+// attached, this process is running tmux.
 func runLaunch() error {
 	inside, err := attachable()
 	if err != nil {
@@ -60,7 +60,7 @@ func runLaunch() error {
 	if err != nil {
 		return errors.New("tmux is not installed")
 	}
-	// The socket's directory is conn's to make: tmux creates the socket but
+	// conn makes the socket's directory: tmux creates the socket but
 	// not the directory around it, and a machine that has never run conn
 	// has no ~/.local/state/conn to put it in.
 	if err := os.MkdirAll(filepath.Dir(socketPath()), 0o700); err != nil {
@@ -108,7 +108,7 @@ func runLaunch() error {
 // attachable says whether this terminal can be handed to the server, and
 // whether it is inside conn's own window already. Both are settled before
 // anything is started: a server brought up for a terminal that is not
-// there would be left running behind a message that is tmux's, and does
+// there would be left running behind a message from tmux, which does
 // not say conn. Inside a tmux that is not conn's, attaching is nesting,
 // which tmux refuses. Inside conn's own, the terminal is attached
 // already, and what is left to do is what every launch does first: give
@@ -146,8 +146,8 @@ func markHome(win, pane, build string) {
 		"set", "-p", "-t", pane, "@conn_build", build)
 }
 
-// isNavCommand reports whether a pane's start command is the navigator's:
-// this build's, or an older build's, which ran the same word. tmux reports
+// isNavCommand reports whether a pane's start command runs the navigator:
+// this build's command, or an older build's, which ran the same word. tmux reports
 // a command with spaces in it quoted.
 func isNavCommand(cmd string) bool {
 	return strings.HasSuffix(strings.Trim(strings.TrimSpace(cmd), `"`), " nav")
@@ -228,7 +228,7 @@ func ensureHome() (home, error) {
 // Only the launcher does this: a chord that restarted the navigator under
 // the keys would be a surprise.
 //
-// The navigator is this build's when it runs this build's command and its
+// The navigator is from this build when it runs this build's command and its
 // pane records this build's version: a release installed over the last
 // one runs from the same path, and the command alone would say nothing
 // had changed.

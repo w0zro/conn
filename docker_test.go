@@ -82,7 +82,7 @@ func TestRunsComposeSpotsTheCommandAndThePlugin(t *testing.T) {
 		{"docker compose up", true},
 		{"/usr/local/bin/docker compose -f x.yaml up -d", true},
 		{"/Users/x/.docker/cli-plugins/docker-compose compose up", true},
-		{"docker-compose up", false}, // v1 said no "compose"; the row is its own
+		{"docker-compose up", false}, // v1 said no "compose"; the row stands alone
 		{"docker ps", false},
 		{"zsh", false},
 	} {

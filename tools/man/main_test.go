@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// The man page in the tree is the manual's, as this tool writes it; a
+// The man page in the tree is what this tool writes from the manual; a
 // manual edited without the page rewritten fails here, with the command
 // that mends it.
 func TestTheManPageIsWrittenFromTheManual(t *testing.T) {

@@ -324,9 +324,9 @@ func (m model) rowName(r navRow) string {
 	} else if planned := m.plannedName(r); planned != "" {
 		// A shell a project asked for is called what the project calls it,
 		// whatever is running in it: web, not the http.server that is web
-		// this time. The name is the service's, the command is how it is
-		// run today, and the row is about the service. The command is the
-		// pane's to say.
+		// this time. The name comes from the service, the command is how it is
+		// run today, and the row is about the service. The pane says the
+		// command.
 		name = planned
 	}
 	return name

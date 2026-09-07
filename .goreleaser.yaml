@@ -7,7 +7,7 @@ version: 2
 
 project_name: conn
 
-# The man page in the archive is the manual's, stamped with the release
+# The man page in the archive is written from the manual, stamped with the release
 # being cut rather than the one the manual last recorded.
 before:
   hooks:

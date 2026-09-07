@@ -199,8 +199,8 @@ func statusChip(color, word string) string {
 }
 
 // tmuxStyled wraps text for tmux's status line: its color and weight in
-// tmux's own style syntax, reset after. A # is tmux's to expand in a
-// format, so the text's are doubled.
+// tmux's own style syntax, reset after. tmux expands a # in a format,
+// so the ones in the text are doubled.
 func tmuxStyled(fg string, bold bool, text string) string {
 	style := "#[fg=" + fg
 	if bold {

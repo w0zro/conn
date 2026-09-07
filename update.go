@@ -124,8 +124,8 @@ func readStamp() (at time.Time, tag string, ok bool) {
 	return time.Unix(unix, 0), tag, true
 }
 
-// writeStamp keeps an answer. The directory is the socket's, and may not
-// be there yet on a machine that has never run the server.
+// writeStamp keeps an answer. The directory is the one the socket is
+// in, and may not be there yet on a machine that has never run the server.
 func writeStamp(at time.Time, tag string) error {
 	if err := os.MkdirAll(filepath.Dir(stampPath()), 0o700); err != nil {
 		return err

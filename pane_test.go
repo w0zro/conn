@@ -414,7 +414,7 @@ func TestAShellSittingAtAPromptIsCalledWhatTheProjectCallsIt(t *testing.T) {
 
 func TestThePlansNameStandsWhateverRunsInItsShell(t *testing.T) {
 	// The row is about the service: web, not the http.server that is web
-	// this time. The command is the pane's to say.
+	// this time. The pane says the command.
 	m := withProcList(90, 14,
 		[]Project{{Name: "proj", Path: "/p/proj"}},
 		[]Proc{
@@ -635,8 +635,8 @@ func TestAHeldShellsRowDrawsItsFactsNotItsScreen(t *testing.T) {
 
 func TestBesideAShownShellTheNavigatorIsOnlyItsColumn(t *testing.T) {
 	// With a shell shown, the navigator's pane is exactly its column wide,
-	// and it draws no pane of its own: the border and everything right of
-	// it are tmux's.
+	// and it draws no pane of its own: tmux draws the border and everything
+	// right of it.
 	m := withProcList(navWidth, 24,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})

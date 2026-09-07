@@ -24,7 +24,7 @@ import (
 //     output crosses as a plain subprocess's stdout.
 //   - A control-mode client (ctlClient) for the stream of notifications:
 //     windows coming and going, panes moving, the server going. Nothing is
-//     ever written down it; the keys are tmux's own.
+//     ever written down it; tmux delivers the keys itself.
 
 // tmuxSession is the name of the one session conn keeps its windows in.
 const tmuxSession = "conn"

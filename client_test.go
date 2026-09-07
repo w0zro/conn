@@ -31,8 +31,8 @@ func TestTheListFallsBackToWhereThePaneWorks(t *testing.T) {
 
 func TestTheListingTellsTheNavigatorAndTheShownShellApart(t *testing.T) {
 	// The navigator's pane is not a shell; a pane in the home window beside
-	// it is the shell shown there; a window named for wanting is a chord's
-	// ask to show the shell in it — unless it is shown already.
+	// it is the shell shown there; a window named for wanting is a chord
+	// asking to show the shell in it — unless it is shown already.
 	held, nav := parseListing(strings.Join([]string{
 		"%0\t100\t\t\t/\t1\t1\tconn\t",
 		"%1\t700\t/p/a\t\t/p/a\t\t1\tconn\t",
@@ -411,7 +411,7 @@ func TestAServerInsideAnotherTmuxHasNoTerminalToPassOn(t *testing.T) {
 	}
 	for _, a := range opened {
 		if a == "-e" {
-			t.Errorf("new-window %v carries an environment, but the terminal around is tmux's own", opened)
+			t.Errorf("new-window %v carries an environment, but tmux provides the terminal around it", opened)
 		}
 	}
 }

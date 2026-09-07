@@ -67,7 +67,7 @@ func TestTheTagsBecomeRowsAndTheStampFollows(t *testing.T) {
 		t.Errorf("the change number did not follow the latest tag on every page:\n%s", got)
 	}
 	if strings.Contains(got, "MAR 2026") {
-		t.Error("a row's date should be the tag's, not what the table said")
+		t.Error("a row's date should come from the tag, not from what the table said")
 	}
 	// Run again on its own output: nothing changes.
 	again, err := record(got, tags)

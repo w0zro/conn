@@ -130,21 +130,21 @@ in green: the command ended well. \fBtest · 12 passed · 2h\fR
 .RE
 .TP
 2-6.
-Beside the list, while the keys are in it, is the navigator's own pane: what is
-known about the row under the cursor. For a place: its branch, status, upstream
-and last commit; its plan as a checklist, each entry up, down or ended and how;
-its tasks and how their last run went. For a process: its run, arguments,
-uptime, cpu, memory, state, ports and children, and beneath the facts the last
-of what its shell has shown, in the shell's own colors. For a container: its
-name, image, status and the last of its logs. What a thing is doing can be read
-without entering it.
+While the keys are in the list, the navigator fills the pane beside it with what
+is known about the row under the cursor. For a place: its branch, status,
+upstream and last commit; its plan as a checklist, each entry up, down or ended
+and how; its tasks and how their last run went. For a process: its run,
+arguments, uptime, cpu, memory, state, ports and children, and beneath the facts
+the last of what its shell has shown, in the shell's own colors. For a
+container: its name, image, status and the last of its logs. What a thing is
+doing can be read without entering it.
 .TP
 2-7.
-The status line at the foot is tmux's. It begins with \fBCONN\fR in purple, then
-the mode the keys are in (Table 2-2), then anything conn has to say until the
-next key: a report, an error, a confirmation, or that a newer release is out.
-What a chord says from a shell shows there too, for a few seconds. The right
-corner names the kind of agent \fBa\fR starts.
+tmux draws the status line at the foot. It begins with \fBCONN\fR in purple,
+then the mode the keys are in (Table 2-2), then anything conn has to say until
+the next key: a report, an error, a confirmation, or that a newer release is
+out. What a chord says from a shell shows there too, for a few seconds. The
+right corner names the kind of agent \fBa\fR starts.
 .PP
 .I "Table 2-2. Modes on the status line"
 .RS
@@ -175,12 +175,12 @@ a kill waits on its second key
 .RE
 .TP
 2-8.
-The mouse is tmux's, with nothing of conn's: the wheel scrolls a pane's
-transcript, a drag selects and copies on release, a click puts the keys in the
-pane under it, and a program that speaks mouse gets its own clicks and wheel.
-Hold shift to select the terminal's own way. A program that copies for itself,
-vim's clipboard yank or anything speaking OSC 52, reaches the system clipboard
-through tmux.
+tmux handles the mouse, and conn adds no bindings of its own: the wheel scrolls
+a pane's transcript, a drag selects and copies on release, a click puts the keys
+in the pane under it, and a program that speaks mouse gets its own clicks and
+wheel. Hold shift to select the terminal's own way. A program that copies for
+itself, vim's clipboard yank or anything speaking OSC 52, reaches the system
+clipboard through tmux.
 .TP
 \fBNOTE\fR
 A click into the navigator brings the keys home the way \fBctrl\-space \-\fR
@@ -258,7 +258,7 @@ abandon the look
 .TP
 3-4.
 \fBenter\fR on a shell's row, or \fBs\fR on a place, puts the keys in a shell
-beside the navigator. From then on every keystroke is the shell's but one:
+beside the navigator. From then on the shell receives every keystroke but one:
 \fBctrl\-space\fR, the prefix, tmux's own under conn's configuration, which
 reaches conn from any shell. \fBctrl\-space \-\fR brings the keys home. \fB?\fR,
 in the navigator or after the prefix, lists every key in a popup over the
@@ -430,8 +430,8 @@ compose file declares are what it needs: \fBr\fR starts the ones that are down
 with \fBdocker compose up \-d\fR for them, which starts a stopped container and
 makes again one that was removed, and a compose up running in a shell there
 takes the service's logs up again, so the shape holds. An entry \fBr\fR is
-starting that runs compose itself brings everything up instead. A service a plan
-entry is named for is the entry's to run.
+starting that runs compose itself brings everything up instead. A service that a
+plan entry is named for is left to the entry.
 .TP
 \fBNOTE\fR
 A plan is not a supervisor. An ended entry's shell stays at its prompt, with its

@@ -114,7 +114,7 @@ func TestAnAbsentServerIsAnEmptyAnswer(t *testing.T) {
 func TestARefusedCommandIsReportedByItsReason(t *testing.T) {
 	// A reply is framed %begin, body, %end or %error — the reason a command
 	// was refused comes before the %error that says it was. What follows the
-	// frame is the ordinary stream again, and none of it is the error's.
+	// frame is the ordinary stream again, and none of it belongs to the error.
 	stream := strings.Join([]string{
 		"%begin 1788307014 309 0",
 		"%end 1788307014 309 0",

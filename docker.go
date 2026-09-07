@@ -19,7 +19,7 @@ import (
 
 // A project on docker runs its services in containers, and a container is
 // not a process the scan can see: on macOS it runs in docker's own machine,
-// and on Linux it is root's, working in a directory of its own. docker
+// and on Linux it runs as root, working in a directory of its own. docker
 // knows, and compose writes on every container it starts the directory
 // it was started for — the same fact lsof reports of a process — so a
 // container is filed under a place by the rule everything else is. It is
@@ -265,8 +265,8 @@ func parseLabels(s string) map[string]string {
 
 // hostPorts is the ports a container publishes on the host, as docker ps
 // prints them — 0.0.0.0:8438->80/tcp, [::]:8438->80/tcp — each once,
-// lowest first. A port with no host side is the container's own and is
-// nowhere to go.
+// lowest first. A port with no host side stays inside the container and
+// is nowhere to go.
 func hostPorts(s string) []string {
 	var ports []string
 	for piece := range strings.SplitSeq(s, ",") {
@@ -364,7 +364,7 @@ func containerNote(n *ProcNode) string {
 	}
 	// The health check's word stands where the ports would: a row is
 	// narrow, and a service that is unhealthy is not one to go and open.
-	// The ports are the pane's.
+	// The pane lists the ports.
 	if c.Health == "unhealthy" || c.Health == "starting" {
 		return " · " + c.Health
 	}
@@ -422,7 +422,7 @@ func composeFor(procs []Proc, dir, service string) int {
 
 // composeNames is the services a compose up names after its up, the
 // words there that are not flags; none is every service. The words before
-// up are compose's own — a file, a project name — and not services.
+// up belong to compose — a file, a project name — and are not services.
 func composeNames(p Proc) []string {
 	fields := strings.Fields(p.Argv)
 	i := slices.Index(fields, "up")
@@ -580,7 +580,7 @@ func startsCompose(entries []entry) bool {
 // running, and — where the place runs compose and no entry starting now
 // runs it — the services that are down, for compose to bring back. running
 // is the entries running by name; procs is the scan, for the containers.
-// A service a plan entry is named for is the entry's to run.
+// A service that a plan entry is named for is left to the entry.
 func needs(dir string, plan plan, running map[string]bool, procs []Proc) (entries []entry, services []string) {
 	entries = plan.missing(running)
 	if composeFile(dir) == "" || startsCompose(entries) {

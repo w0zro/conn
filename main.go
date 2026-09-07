@@ -190,7 +190,7 @@ func runNav() {
 	final, err := p.Run()
 	if m, ok := final.(model); ok && m.server != nil {
 		// The control client is hung up rather than left to the pane's
-		// end: the shells are the server's and stay.
+		// end: the server holds the shells, and they stay.
 		m.server.close()
 	}
 	if err != nil {

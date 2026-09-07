@@ -80,8 +80,8 @@ func (t *remoteTerm) live() bool { return t.exit == "" }
 // options set in two commands, and tmux announces the window between them,
 // so the first list of a new shell can carry neither; the reports that
 // know come after. A blank is a report that came early, not a shell that
-// lost its name, and is not taken. How the command ended is the model's
-// to learn, since it orders the endings.
+// lost its name, and is not taken. The model learns how the command
+// ended, since it orders the endings.
 func (t *remoteTerm) learn(dir, name string) {
 	if dir != "" {
 		t.dir = dir

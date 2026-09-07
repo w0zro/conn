@@ -1775,7 +1775,7 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 	}
 
 	// One call can carry several commands, ; between them, and each is
-	// answered on its own; the last one's answer is the call's.
+	// answered on its own; the call returns the last one's answer.
 	var one func(args []string) (string, error)
 	s.run = func(args ...string) (string, error) {
 		mu.Lock()
@@ -4058,8 +4058,8 @@ func TestAShellOnAGroupRowStartsAtTheGroup(t *testing.T) {
 }
 
 func TestLandingOnAShellLeavesItWhereItIsAndSaysWhatItIs(t *testing.T) {
-	// With the keys in the navigator the pane beside it is the navigator's
-	// own: landing on a held shell's row says what is known about the row,
+	// With the keys in the navigator, the navigator draws the pane beside
+	// it: landing on a held shell's row says what is known about the row,
 	// the way any row does, and asks nothing of the shell. A shell is only
 	// placed beside the navigator to be entered.
 	m := withProcList(90, 14,
@@ -4242,8 +4242,8 @@ func TestThePickerDrawsInTheNavigatorsOwnPane(t *testing.T) {
 }
 
 func TestAWideNavigatorInANarrowWindowDoesNotPanic(t *testing.T) {
-	// navWidth is the user's to set, up to 60 — and the window is the
-	// terminal's to size. At 60 columns each, the pane came out a column
+	// The user sets navWidth, up to 60 — and the terminal sizes the
+	// window. At 60 columns each, the pane came out a column
 	// short of nothing, and the negative width walked into the renderer.
 	old := navWidth
 	t.Cleanup(func() { navWidth = old })
@@ -4316,7 +4316,7 @@ func TestTheCursorRidesOutATransientChild(t *testing.T) {
 }
 
 func TestAShellsWindowWearsItsPlaceAndItsAgentsMark(t *testing.T) {
-	// The status line is tmux's, and it shows window names; the navigator
+	// tmux draws the status line, and it shows window names; the navigator
 	// names each shell's window for the place and what is running there,
 	// and marks it the way its row is marked, so the line reads as the
 	// list's leaves from any shell.

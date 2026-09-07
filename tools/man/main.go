@@ -109,7 +109,7 @@ func render(page, version string) (string, error) {
 }
 
 // sections is the body of every div.section on the page, in order — the
-// record of revisions left out, being the tags' and not the text's.
+// record of revisions left out, since it comes from the tags, not the text.
 func sections(page string) []string {
 	var out []string
 	for at := 0; ; {
@@ -275,7 +275,7 @@ func block(b *strings.Builder, s string) {
 
 // inline is a run of the manual's text in roff: what it sets in bold,
 // bold; the rest plain; the entities read; roff's own characters escaped.
-// A hyphen in bold is a command's or an option's and is set as a minus,
+// A hyphen in bold belongs to a command or an option and is set as a minus,
 // so it copies out as one.
 func inline(s string) string {
 	s = strings.NewReplacer("<b>", "\x01", "</b>", "\x02", "<code>", "\x01", "</code>", "\x02").Replace(s)
@@ -327,7 +327,7 @@ func wrap(s string) string {
 	return strings.Join(lines, "\n")
 }
 
-// escape makes text safe to set: a backslash is roff's, and a quote would
+// escape makes text safe to set: roff reads a backslash, and a quote would
 // end a quoted argument.
 func escape(s string) string {
 	return strings.NewReplacer(`\`, `\e`, `"`, `\(dq`).Replace(s)

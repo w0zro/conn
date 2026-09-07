@@ -316,7 +316,7 @@ type model struct {
 	// shown is the shell in the pane beside the navigator — the one the
 	// keys are in — and zero when the navigator has the window to itself.
 	// A shell is only placed beside the navigator to be entered; with the
-	// keys in the navigator, the pane is the navigator's own, saying what
+	// keys in the navigator, the navigator draws the pane, saying what
 	// is known about the row under the cursor, whatever that row is.
 	shown int
 
@@ -484,7 +484,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 
 	case tea.FocusMsg:
-		// The keys are here, and the pane is the navigator's own again:
+		// The keys are here, and the navigator draws the pane again:
 		// the shell they were in goes back to a window of its own.
 		m.keysTo(0)
 		m.park()
@@ -642,7 +642,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			// Its pane went with it, and the navigator has the window —
 			// which tmux said first, widening the pane before the shell
 			// was known to be gone, when the width was held to the column;
-			// the width it said is the window's now.
+			// the width it said is now the whole window.
 			m.shown = 0
 			m.keepColumn()
 		}
@@ -815,7 +815,7 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	}
 
 	// The resume picker takes every key while it is open: it is a look
-	// through what could be continued, and its keys are the filter's.
+	// through what could be continued, and it takes the filter's keys.
 	if m.resume != nil {
 		return m, m.resumeKey(msg)
 	}
@@ -1031,7 +1031,7 @@ func (m *model) filterKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.askKill(false)
 	}
 
-	// Everything else is the line's: a letter is a letter — a project called
+	// Every other key edits the line: a letter is a letter — a project called
 	// "scratch" has to be typeable without s doing something; the actions are
 	// on the chords, which no name contains — and the editing keys are the
 	// ones every line has.
@@ -1635,7 +1635,7 @@ func (m model) agentCommand() string {
 }
 
 // cycleKind moves a on to the next kind of agent, and says which. The
-// choice is the server's, not this navigator's: a chord from any shell
+// server holds the choice, not this navigator: a chord from any shell
 // starts the same kind, and it holds until the server goes.
 func (m *model) cycleKind() {
 	if m.server == nil {
@@ -2360,8 +2360,8 @@ func (m *model) rebuild() {
 	}
 
 	// A project whose processes were just started keeps the cursor until
-	// the server holds the first of them; then the cursor is that shell's,
-	// to land on its row the way a shell opened on its own does.
+	// the server holds the first of them; then the cursor follows that
+	// shell, to land on its row the way a shell opened on its own does.
 	if m.wantProject != "" {
 		m.selectProject(m.wantProject)
 		for _, t := range m.planned(m.wantProject) {
@@ -3057,7 +3057,7 @@ func (m model) tailOf(r navRow) func() []string {
 
 // holdings is what a place's details are read from, in a word: the
 // process trees it holds and the plan's entries running in it. It is
-// empty for a process, whose details are its own.
+// empty for a process, whose details come from the process alone.
 func (m model) holdings(r navRow) string {
 	if r.kind == rowProc {
 		return ""

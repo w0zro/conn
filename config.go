@@ -39,8 +39,8 @@ type Config struct {
 
 	// Theme is the side tmux draws for — "dark" unless it says "light". The
 	// navigator needs no telling: it draws with the terminal's own sixteen
-	// colors. The status line, the borders and the popups are tmux's, and
-	// tmux takes colors, not slots, so the config says which side.
+	// colors. tmux draws the status line, the borders and the popups, and
+	// takes colors, not slots, so the config says which side.
 	Theme string `json:"theme,omitempty"`
 
 	// Agent names the kind of agent the a key starts — "claude" unless said
@@ -69,8 +69,8 @@ func (c Config) apply() {
 }
 
 // roots is every directory to search, expanded. A root that is only on the
-// other machine is still listed here: whether it exists is the scan's
-// business, not the config's.
+// other machine is still listed here: the scan decides whether it
+// exists, not the config.
 func (c Config) roots() []string {
 	dirs := c.ProjectsDirs
 	if len(dirs) == 0 {

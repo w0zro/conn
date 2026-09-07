@@ -231,8 +231,8 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">2-6.</span>Beside the list, while the keys are in it, is the navigator's own pane: what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how; its tasks and how their last run went. For a process: its run, arguments, uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown, in the shell's own colors. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
-        <p class="para"><span class="n">2-7.</span>The status line at the foot is tmux's. It begins with <b>CONN</b> in purple, then the mode the keys are in (Table 2-2), then anything conn has to say until the next key: a report, an error, a confirmation, or that a newer release is out. What a chord says from a shell shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
+        <p class="para"><span class="n">2-6.</span>While the keys are in the list, the navigator fills the pane beside it with what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how; its tasks and how their last run went. For a process: its run, arguments, uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown, in the shell's own colors. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
+        <p class="para"><span class="n">2-7.</span>tmux draws the status line at the foot. It begins with <b>CONN</b> in purple, then the mode the keys are in (Table 2-2), then anything conn has to say until the next key: a report, an error, a confirmation, or that a newer release is out. What a chord says from a shell shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
         <p class="caption">Table 2-2.&nbsp; Modes on the status line</p>
       </div>
     </div>
@@ -262,7 +262,7 @@
           <div class="row"><span>NEW</span><span>a project's path is being typed</span></div>
           <div class="row"><span>CONFIRM</span><span>a kill waits on its second key</span></div>
         </div>
-        <p class="para"><span class="n">2-8.</span>The mouse is tmux's, with nothing of conn's: the wheel scrolls a pane's transcript, a drag selects and copies on release, a click puts the keys in the pane under it, and a program that speaks mouse gets its own clicks and wheel. Hold shift to select the terminal's own way. A program that copies for itself, vim's clipboard yank or anything speaking OSC 52, reaches the system clipboard through tmux.</p>
+        <p class="para"><span class="n">2-8.</span>tmux handles the mouse, and conn adds no bindings of its own: the wheel scrolls a pane's transcript, a drag selects and copies on release, a click puts the keys in the pane under it, and a program that speaks mouse gets its own clicks and wheel. Hold shift to select the terminal's own way. A program that copies for itself, vim's clipboard yank or anything speaking OSC 52, reaches the system clipboard through tmux.</p>
         <div class="note">
           <p class="label">NOTE</p>
           <p>A click into the navigator brings the keys home the way <b>ctrl-space -</b> does: the shell beside it goes back to its own window.</p>
@@ -346,7 +346,7 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">3-4.</span><b>enter</b> on a shell's row, or <b>s</b> on a place, puts the keys in a shell beside the navigator. From then on every keystroke is the shell's but one: <b>ctrl-space</b>, the prefix, tmux's own under conn's configuration, which reaches conn from any shell. <b>ctrl-space -</b> brings the keys home. <b>?</b>, in the navigator or after the prefix, lists every key in a popup over the window; Appendix A lists them here. Every key tmux would otherwise bind is unbound.</p>
+        <p class="para"><span class="n">3-4.</span><b>enter</b> on a shell's row, or <b>s</b> on a place, puts the keys in a shell beside the navigator. From then on the shell receives every keystroke but one: <b>ctrl-space</b>, the prefix, tmux's own under conn's configuration, which reaches conn from any shell. <b>ctrl-space -</b> brings the keys home. <b>?</b>, in the navigator or after the prefix, lists every key in a popup over the window; Appendix A lists them here. Every key tmux would otherwise bind is unbound.</p>
         <p class="para"><span class="n">3-5.</span><b>tab</b> at the list, or <b>ctrl-space enter</b> anywhere, goes to the next thing that needs you: an agent waiting, a command that ended badly, a process stopped or a zombie. Again continues around them. A held shell is entered, where the ask or the transcript is; a process conn only watches gets the cursor.</p>
         <p class="para"><span class="n">3-6.</span><b>shift+tab</b> at the list, or <b>ctrl-space ctrl-space</b> anywhere, goes back where the keys were: the shell before this one, whether or not the navigator was the way there, or the navigator when they came from it. Again returns. Before the keys have been anywhere, it is the list from a shell and the cursor's shell from the list.</p>
       </div>
@@ -501,7 +501,7 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">6-5.</span>What <b>x</b> stopped, <b>r</b> brings back where it was. The services the place's compose file declares are what it needs: <b>r</b> starts the ones that are down with <b>docker compose up -d</b> for them, which starts a stopped container and makes again one that was removed, and a compose up running in a shell there takes the service's logs up again, so the shape holds. An entry <b>r</b> is starting that runs compose itself brings everything up instead. A service a plan entry is named for is the entry's to run.</p>
+        <p class="para"><span class="n">6-5.</span>What <b>x</b> stopped, <b>r</b> brings back where it was. The services the place's compose file declares are what it needs: <b>r</b> starts the ones that are down with <b>docker compose up -d</b> for them, which starts a stopped container and makes again one that was removed, and a compose up running in a shell there takes the service's logs up again, so the shape holds. An entry <b>r</b> is starting that runs compose itself brings everything up instead. A service that a plan entry is named for is left to the entry.</p>
         <div class="note">
           <p class="label">NOTE</p>
           <p>A plan is not a supervisor. An ended entry's shell stays at its prompt, with its transcript, until <b>x</b> closes it or <b>r</b> starts the entry again beside it.</p>

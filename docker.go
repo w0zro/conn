@@ -10,8 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // A project on docker runs its services in containers, and a container is
@@ -174,40 +172,67 @@ func containerPID(id string) int {
 // it belongs.
 func attachContainers(procs, cs []Proc) []Proc {
 	for i := range cs {
-		cs[i].PPID = composeFor(procs, cs[i].Dir)
+		cs[i].PPID = composeFor(procs, cs[i].Dir, cs[i].Container.Service)
 	}
 	return append(procs, cs...)
 }
 
-// composeFor is the pid of the deepest compose process working in dir, or
-// zero.
-func composeFor(procs []Proc, dir string) int {
+// composeFor is the pid of the deepest process of the compose run working
+// in dir that runs the service — a compose up naming it, else one naming
+// no service, which runs them all — or zero.
+func composeFor(procs []Proc, dir, service string) int {
 	isCompose := map[int]bool{}
 	for _, p := range procs {
 		if p.Dir == dir && p.Container == nil && runsCompose(p) {
 			isCompose[p.PID] = true
 		}
 	}
-	for _, p := range procs {
-		if isCompose[p.PID] && !isCompose[p.PPID] {
-			// The top of a compose run; walk to its bottom.
-			pid := p.PID
-			for {
-				next := 0
-				for _, c := range procs {
-					if c.PPID == pid && isCompose[c.PID] {
-						next = c.PID
-						break
-					}
+	bottom := func(pid int) int {
+		for {
+			next := 0
+			for _, c := range procs {
+				if c.PPID == pid && isCompose[c.PID] {
+					next = c.PID
+					break
 				}
-				if next == 0 {
-					return pid
-				}
-				pid = next
 			}
+			if next == 0 {
+				return pid
+			}
+			pid = next
 		}
 	}
-	return 0
+	all := 0
+	for _, p := range procs {
+		if !isCompose[p.PID] || isCompose[p.PPID] {
+			continue // not the top of a compose run
+		}
+		switch named := composeNames(p); {
+		case slices.Contains(named, service):
+			return bottom(p.PID)
+		case len(named) == 0 && all == 0:
+			all = bottom(p.PID)
+		}
+	}
+	return all
+}
+
+// composeNames is the services a compose up names after its up, the
+// words there that are not flags; none is every service. The words before
+// up are compose's own — a file, a project name — and not services.
+func composeNames(p Proc) []string {
+	fields := strings.Fields(p.Argv)
+	i := slices.Index(fields, "up")
+	if i < 0 {
+		return nil
+	}
+	var names []string
+	for _, f := range fields[i+1:] {
+		if !strings.HasPrefix(f, "-") {
+			names = append(names, f)
+		}
+	}
+	return names
 }
 
 // runsCompose reports a process that is compose: docker running its
@@ -274,12 +299,12 @@ func containerFields(n *ProcNode) []field {
 
 // A service x stopped is a service r brings back. The plan's entries are
 // what a place says it needs; where the place runs compose, the services
-// compose declares are what compose says it needs, and r starts the ones
-// that are down — docker compose up -d, which starts a stopped container
-// and makes again one that was removed — unless an entry r is starting runs
-// compose itself, which brings up everything at once. A service brought
-// back this way is not attached to the compose up in a shell, and its logs
-// are on its own row's pane.
+// compose declares are what compose says it needs, and each is an entry
+// of the plan's — docker compose up for it, named for it — started the
+// way the plan's are, in a window of its own: compose up again, for the
+// one service, attaches to it the way the first did, so its logs are in
+// its pane and its container is under it. Unless an entry r is starting
+// runs compose itself, which brings up everything at once.
 
 // composeFiles are the names compose reads a project from, in the order
 // compose looks for them.
@@ -310,22 +335,21 @@ func composeServices(dir string) []string {
 	return strings.Fields(string(out))
 }
 
-// servicesDown is the declared services with no container of theirs
-// running in dir, by the scan's containers, in the declared order.
-func servicesDown(declared []string, dir string, procs []Proc) []string {
-	running := map[string]bool{}
+// serviceEntry is the plan entry a service amounts to.
+func serviceEntry(service string) entry {
+	return entry{Name: service, Run: "docker compose up " + service}
+}
+
+// servicesUp is the services with a container running in dir, by the
+// scan's containers.
+func servicesUp(dir string, procs []Proc) map[string]bool {
+	up := map[string]bool{}
 	for _, p := range procs {
 		if p.Container != nil && p.Dir == dir {
-			running[p.Container.Service] = true
+			up[p.Container.Service] = true
 		}
 	}
-	var down []string
-	for _, s := range declared {
-		if !running[s] {
-			down = append(down, s)
-		}
-	}
-	return down
+	return up
 }
 
 // startsCompose reports a plan entry among those about to start that runs
@@ -339,31 +363,26 @@ func startsCompose(entries []entry) bool {
 	return false
 }
 
-// composeUp brings services back, detached.
-func composeUp(dir string, services []string) error {
-	args := append([]string{"compose", "up", "-d", "--"}, services...)
-	_, err := listingIn(dir, scanTimeout, dockerPath, args...)
-	return err
-}
-
-// bringBack is what r does for a place's services beside its plan: the
-// ones that are down are started, and the outcome is reported. alone says
-// nothing else was started, so nothing down is the whole answer.
-func bringBack(p Project, alone bool) tea.Cmd {
-	return func() tea.Msg {
-		down := servicesDown(composeServices(p.Path), p.Path, containers())
-		if len(down) == 0 {
-			return composeMsg{place: p, alone: alone}
-		}
-		return composeMsg{place: p, services: down, alone: alone, err: composeUp(p.Path, down)}
+// needs is what a place needs and is not running: the plan's entries not
+// running, then — where the place runs compose and no entry starting now
+// runs it — the services that are down, each as the entry it amounts to.
+// running is the entries running by name, which covers a service's own
+// window still coming up; procs is the scan, for the containers. An
+// entry the plan names for a service is the plan's, and said once.
+func needs(dir string, plan plan, running map[string]bool, procs []Proc) []entry {
+	missing := plan.missing(running)
+	if !hasCompose(dir) || startsCompose(missing) {
+		return missing
 	}
-}
-
-// composeMsg says which of a place's services r brought back, or that
-// none were down.
-type composeMsg struct {
-	place    Project
-	services []string
-	alone    bool
-	err      error
+	named := map[string]bool{}
+	for _, e := range plan.Entries {
+		named[e.Name] = true
+	}
+	up := servicesUp(dir, procs)
+	for _, s := range composeServices(dir) {
+		if !named[s] && !up[s] && !running[s] {
+			missing = append(missing, serviceEntry(s))
+		}
+	}
+	return missing
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -175,13 +174,42 @@ func TestALoneContainerKeepsARowOfItsOwn(t *testing.T) {
 	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        web · :8438"})
 }
 
-func TestServicesDownAreTheDeclaredOnesWithNoContainerRunning(t *testing.T) {
-	procs := attachContainers(nil, parseContainers([]byte(dockerPS))) // web and cache, in /p/demo
-	if got := servicesDown([]string{"web", "cache", "worker"}, "/p/demo", procs); !slices.Equal(got, []string{"worker"}) {
-		t.Errorf("down = %v, want the declared service with nothing running", got)
+func TestNeedsIsThePlansEntriesThenTheServicesDown(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte("services:\n  web:\n    image: nginx\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if got := servicesDown([]string{"web"}, "/p/elsewhere", procs); !slices.Equal(got, []string{"web"}) {
-		t.Errorf("down = %v, want another place's containers not to count", got)
+	if !hasCompose(dir) {
+		t.Fatal("a compose.yaml is a compose project")
+	}
+	// The scan's containers say cache is up, and were started here.
+	cs := parseContainers([]byte(dockerPS))
+	for i := range cs {
+		cs[i].Dir = dir
+	}
+	procs := attachContainers(nil, cs[1:]) // cache alone
+
+	// An entry starting now that runs compose brings the services up itself.
+	plan := plan{Entries: []entry{{Name: "app", Run: "docker compose up"}}}
+	if got := needs(dir, plan, nil, procs); len(got) != 1 || got[0].Name != "app" {
+		t.Errorf("needs = %v, want the compose entry alone", got)
+	}
+	// The compose entry running: what is left is the services down, as
+	// entries that run compose up for each — asked of compose, which
+	// these tests may not have.
+	got := needs(dir, plan, map[string]bool{"app": true}, procs)
+	if dockerPath == "" {
+		if len(got) != 0 {
+			t.Errorf("needs = %v, want nothing without docker to ask", got)
+		}
+		return
+	}
+	if len(got) != 1 || got[0].Name != "web" || got[0].Run != "docker compose up web" {
+		t.Errorf("needs = %v, want the service down as an entry", got)
+	}
+	// A service's window still coming up is running by name.
+	if got := needs(dir, plan, map[string]bool{"app": true, "web": true}, procs); len(got) != 0 {
+		t.Errorf("needs = %v, want a service starting in its window left alone", got)
 	}
 }
 
@@ -194,42 +222,21 @@ func TestAnEntryThatRunsComposeBringsTheServicesUpItself(t *testing.T) {
 	}
 }
 
-func TestRBringsAPlacesServicesBackBesideItsPlan(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "compose.yaml"), []byte("services:\n  web:\n    image: nginx\n"), 0o644); err != nil {
-		t.Fatal(err)
+func TestAContainerFilesUnderTheComposeThatNamesItsService(t *testing.T) {
+	procs := []Proc{
+		{PID: 20, PPID: 1, Command: "docker", Argv: "docker compose up", Dir: "/p/demo"},
+		{PID: 30, PPID: 20, Command: "docker-compose", Argv: "docker-compose compose up", Dir: "/p/demo"},
+		{PID: 40, PPID: 1, Command: "docker", Argv: "docker compose up web", Dir: "/p/demo"},
+		{PID: 50, PPID: 40, Command: "docker-compose", Argv: "docker-compose compose up web", Dir: "/p/demo"},
 	}
-	if !hasCompose(dir) {
-		t.Fatal("a compose.yaml is a compose project")
+	if got := composeFor(procs, "/p/demo", "web"); got != 50 {
+		t.Errorf("web under %d, want the compose up that names it", got)
 	}
-
-	// No plan of its own: the services are what it says it needs.
-	m := withProcs(80, 12, []Project{{Name: "demo", Path: dir}}, nil)
-	m, _ = pipeServer(t, m)
-	next, cmd := m.Update(typed("r"))
-	m = next.(model)
-	if cmd == nil || !strings.Contains(m.status, "compose has down") {
-		t.Errorf("status = %q, cmd %v; want the services asked after", m.status, cmd != nil)
+	if got := composeFor(procs, "/p/demo", "cache"); got != 30 {
+		t.Errorf("cache under %d, want the compose up that names no service", got)
 	}
-
-	// What compose said back, each way.
-	for _, tc := range []struct {
-		msg  composeMsg
-		want string
-	}{
-		{composeMsg{place: m.projects[0], services: []string{"web"}, alone: true}, "started web"},
-		{composeMsg{place: m.projects[0], alone: true}, "everything demo needs is running"},
-		{composeMsg{place: m.projects[0], services: []string{"web"}, err: errors.New("no daemon")}, "could not start web: no daemon"},
-	} {
-		next, _ := m.Update(tc.msg)
-		if got := next.(model).status; got != tc.want {
-			t.Errorf("status = %q, want %q", got, tc.want)
-		}
-	}
-	// Beside an entry the plan still needs, nothing down is not news.
-	next, _ = m.Update(composeMsg{place: m.projects[0]})
-	if got := next.(model).status; strings.Contains(got, "everything") {
-		t.Errorf("status = %q, want the plan's own report left standing", got)
+	if got := composeNames(Proc{Argv: "docker compose -f x.yaml up -d web cache"}); !slices.Equal(got, []string{"web", "cache"}) {
+		t.Errorf("names = %v", got)
 	}
 }
 

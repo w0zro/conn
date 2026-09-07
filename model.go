@@ -2111,7 +2111,7 @@ func (m *model) askKill(tree bool) tea.Cmd {
 		// way it would be had nothing been running, and r starts it again.
 		if t := m.entryOf(r); t != nil {
 			if shell := m.nodes[t.pid]; shell != nil && t.live() && len(shell.Children) > 0 {
-				m.pendingKill = m.escalated(r, &killRequest{subject: t.name, nodes: subtree(shell)})
+				m.pendingKill = m.escalated(r, &killRequest{subject: t.name, nodes: m.withGroup(subtree(shell))})
 				return nil
 			}
 			subject = t.name + " " + strconv.Itoa(t.pid)
@@ -2132,13 +2132,21 @@ func (m *model) askKill(tree bool) tea.Cmd {
 
 	// A tree kill covers the whole run the row stands for, not just the part
 	// it is named after: the shell above an editor is part of that editor.
-	nodes := subtree(r.chain())
+	nodes := m.withGroup(subtree(r.chain()))
 	subject := procLabel(r.node)
 	if len(nodes) > 1 {
 		subject += " and " + strconv.Itoa(len(nodes)-1) + " under it"
 	}
 	m.pendingKill = m.escalated(r, &killRequest{subject: subject, nodes: nodes})
 	return nil
+}
+
+// withGroup is a kill's targets and what shares a process group with them:
+// a tree kill, or an entry's, is a kill of the job, and the job includes
+// what a parent that exited left to init. They come after the tree, since
+// nothing in the tree is supervising them.
+func (m model) withGroup(nodes []*ProcNode) []*ProcNode {
+	return append(nodes, groupMates(nodes, m.procs, m.nodes)...)
 }
 
 // escalated is a kill armed with SIGKILL when the row it is aimed at has

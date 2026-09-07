@@ -462,3 +462,15 @@ func TestWhatTheRunSaidStandsInForTheWord(t *testing.T) {
 		}
 	}
 }
+
+func TestProcFieldsSayTheGroupAndAnOrphan(t *testing.T) {
+	n := &ProcNode{Proc: Proc{PID: pidOfSelf(), PPID: 1, PGID: 77, Command: "test", Dir: "/tmp"}}
+	got, _ := fieldValue(procFields(n, "test", nil, nil), "parent")
+	if got != "1 · group 77 · orphaned" {
+		t.Errorf("parent = %q, want the group said and the orphan noted", got)
+	}
+	n.PPID, n.PGID = 500, 500
+	if got, _ = fieldValue(procFields(n, "test", nil, nil), "parent"); got != "500 · group 500" {
+		t.Errorf("parent = %q, want the group alone", got)
+	}
+}

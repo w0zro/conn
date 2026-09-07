@@ -187,6 +187,56 @@ func TestProcForestRootsProcessesWhoseParentIsAbsent(t *testing.T) {
 	}
 }
 
+func TestProcForestFilesAnOrphanUnderItsGroupsLeader(t *testing.T) {
+	// npm exited and left its node to init: the node's parent is gone from
+	// the set, but its group is the shell's job, and the shell is here.
+	roots := procForest([]Proc{
+		{PID: 10, PPID: 1, PGID: 10, Command: "zsh"},
+		{PID: 30, PPID: 1, PGID: 10, Command: "node"},
+		{PID: 40, PPID: 1, PGID: 40, Command: "postgres"}, // a job of its own
+		{PID: 50, PPID: 1, PGID: 999, Command: "ruby"},    // a leader elsewhere
+	})
+	// The shell's row is named for the node under it, so it sorts first.
+	if got := pids(roots); len(got) != 3 || got[0] != 10 || got[1] != 40 || got[2] != 50 {
+		t.Fatalf("roots = %v, want zsh, postgres and ruby rooted, in name order", got)
+	}
+	if got := pids(roots[0].Children); len(got) != 1 || got[0] != 30 {
+		t.Errorf("children of zsh = %v, want the orphaned node filed under it", got)
+	}
+}
+
+func TestOrphanedIsAProcessInitTookIn(t *testing.T) {
+	for _, tc := range []struct {
+		p    Proc
+		want bool
+	}{
+		{Proc{PID: 30, PPID: 1, PGID: 10}, true},
+		{Proc{PID: 40, PPID: 1, PGID: 40}, false}, // a daemon, leading its own group
+		{Proc{PID: 30, PPID: 10, PGID: 10}, false},
+		{Proc{PID: 30, PPID: 1, PGID: 0}, false}, // ps said nothing of a group
+	} {
+		if got := orphaned(tc.p); got != tc.want {
+			t.Errorf("orphaned(%+v) = %v, want %v", tc.p, got, tc.want)
+		}
+	}
+}
+
+func TestGroupMatesAreTheJobsStragglers(t *testing.T) {
+	procs := []Proc{
+		{PID: 10, PPID: 1, PGID: 10, Command: "zsh", Dir: "/p/app"},
+		{PID: 20, PPID: 10, PGID: 20, Command: "npm", Dir: "/p/app"},
+		{PID: 30, PPID: 1, PGID: 20, Command: "node", Dir: "/tmp"}, // npm's, working elsewhere
+		{PID: 40, PPID: 1, PGID: 40, Command: "postgres", Dir: "/p/app"},
+		{PID: -1, PGID: 20, Command: "web", Container: &Container{ID: "abc"}},
+	}
+	known := map[int]*ProcNode{}
+	nodes := []*ProcNode{{Proc: procs[0]}, {Proc: procs[1]}}
+	got := pids(groupMates(nodes, procs, known))
+	if len(got) != 1 || got[0] != 30 {
+		t.Errorf("mates = %v, want the node in npm's group alone: not the tree, not a job of its own, not a container", got)
+	}
+}
+
 func TestProcForestSurvivesCycles(t *testing.T) {
 	done := make(chan []*ProcNode, 1)
 	go func() {
@@ -271,11 +321,11 @@ func TestAFreshShellDoesNotSortBetweenTwoAgents(t *testing.T) {
 func TestThePsTableReadsStateStartAndCommandLine(t *testing.T) {
 	// The state is one field before lstart's five; the command line is
 	// everything after, its own spacing kept.
-	table := parsePS("  123 S+   Fri Aug  9 10:00:00 2026 npm run   dev\n 45 Z Sat Sep  4 01:02:03 2026 (node)\nbad line\n")
-	if got := table[123]; got.state != "S+" || got.started != "Fri Aug 9 10:00:00 2026" || got.argv != "npm run   dev" {
-		t.Errorf("123 = %+v, want the state, the start and the command line apart", got)
+	table := parsePS("  123 120 S+   Fri Aug  9 10:00:00 2026 npm run   dev\n 45 45 Z Sat Sep  4 01:02:03 2026 (node)\nbad line\n")
+	if got := table[123]; got.pgid != 120 || got.state != "S+" || got.started != "Fri Aug 9 10:00:00 2026" || got.argv != "npm run   dev" {
+		t.Errorf("123 = %+v, want the group, the state, the start and the command line apart", got)
 	}
-	if got := table[45]; got.state != "Z" || got.argv != "(node)" {
+	if got := table[45]; got.pgid != 45 || got.state != "Z" || got.argv != "(node)" {
 		t.Errorf("45 = %+v, want a zombie", got)
 	}
 	if len(table) != 2 {

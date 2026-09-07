@@ -4940,3 +4940,30 @@ func TestXOnAnEntryWhoseCommandRefusedOffersSIGKILL(t *testing.T) {
 		t.Fatalf("pendingKill = %+v, want SIGKILL armed on the entry", m.pendingKill)
 	}
 }
+
+func TestATreeKillCoversTheProcessGroup(t *testing.T) {
+	// vim's group has a member init took in, working in another
+	// directory: no tree under conn holds it, and the job does.
+	m := withProcList(80, 12,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 10, PPID: 1, PGID: 10, Command: "zsh", Dir: "/p/conn"},
+			{PID: 20, PPID: 10, PGID: 20, Command: "vim", Dir: "/p/conn"},
+			{PID: 60, PPID: 1, PGID: 20, Command: "fmt", Dir: "/tmp"},
+		},
+	)
+	m = press(press(m, "down"), "X") // onto the row zsh and vim fold into; kill the tree
+	if got, want := targets(m.pendingKill), []int{10, 20, 60}; !slices.Equal(got, want) {
+		t.Errorf("targets = %v, want %v: the tree, then the group's straggler", got, want)
+	}
+	if f := footer(m); !strings.Contains(f, "and 2 under it") {
+		t.Errorf("footer = %q, want the straggler counted", f)
+	}
+
+	// A plain x takes the one process, as ever.
+	m.pendingKill = nil
+	m = press(m, "x")
+	if got := targets(m.pendingKill); !slices.Equal(got, []int{20}) {
+		t.Errorf("x targets = %v, want the row's process alone", got)
+	}
+}

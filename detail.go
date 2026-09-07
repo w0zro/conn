@@ -398,7 +398,17 @@ func procFields(n *ProcNode, name string, run []*ProcNode, ag agent) []field {
 	if len(run) > 1 {
 		fs = append(fs, field{label: "run", value: describeRun(run), tone: toneAccent})
 	}
-	fs = append(fs, field{label: "parent", value: strconv.Itoa(n.PPID), tone: toneQuiet})
+	// The parent, and the group the process was started in — the job, which
+	// is what a tree kill covers. One init took in when its parent died
+	// is said to be orphaned: it is running on with nothing above it.
+	parent, t := strconv.Itoa(n.PPID), toneQuiet
+	if n.PGID != 0 {
+		parent += " · group " + strconv.Itoa(n.PGID)
+	}
+	if orphaned(n.Proc) {
+		parent, t = parent+" · orphaned", toneAttn
+	}
+	fs = append(fs, field{label: "parent", value: parent, tone: t})
 
 	if argv, err := ps(n.PID, "command="); err == nil && argv != "" {
 		fs = append(fs, field{label: "argv", value: argv, tone: toneName})

@@ -54,6 +54,12 @@ type Proc struct {
 	Argv    string
 	Dir     string
 
+	// PGID is the process group, the job the process was started as. A
+	// parent that dies leaves its children to init, and the parent tree
+	// loses them; the group keeps them, so a tree kill can cover them and
+	// the forest can file them under the job's leader while it lives.
+	PGID int
+
 	// Started is when the process began, as ps prints it — an opaque token
 	// that, together with the pid, identifies the process where a pid alone
 	// does not: pids are recycled, start times are not. A kill compares
@@ -177,6 +183,7 @@ func parseScan(out []byte, self int, ps map[int]psInfo) ([]Proc, error) {
 			cur.Argv = ps[cur.PID].argv
 			cur.Started = ps[cur.PID].started
 			cur.State = ps[cur.PID].state
+			cur.PGID = ps[cur.PID].pgid
 			procs = append(procs, cur)
 		}
 	}
@@ -200,27 +207,28 @@ func portOf(addr string) (string, bool) {
 	return addr[i+1:], true
 }
 
-// psInfo is what ps says about one process: its state, when it began, and
-// what it was run with.
+// psInfo is what ps says about one process: its group, its state, when it
+// began, and what it was run with.
 type psInfo struct {
+	pgid    int
 	state   string
 	started string
 	argv    string
 }
 
-// psTable is every process's state, start time and command line, keyed by
-// pid. A failure leaves it empty; a process without an entry falls back to
-// its name and goes without the start-time check.
+// psTable is every process's group, state, start time and command line,
+// keyed by pid. A failure leaves it empty; a process without an entry falls
+// back to its name and goes without the start-time check.
 func psTable() map[int]psInfo {
-	out, err := listing(scanTimeout, "ps", "-axo", "pid=,stat=,lstart=,command=")
+	out, err := listing(scanTimeout, "ps", "-axo", "pid=,pgid=,stat=,lstart=,command=")
 	if err != nil {
 		return nil
 	}
 	return parsePS(string(out))
 }
 
-// parsePS reads psTable's columns: the pid, the state, the five fields of
-// lstart, and the command line after them.
+// parsePS reads psTable's columns: the pid, the group, the state, the five
+// fields of lstart, and the command line after them.
 func parsePS(out string) map[int]psInfo {
 	lines := strings.Split(out, "\n")
 	table := make(map[int]psInfo, len(lines))
@@ -230,6 +238,7 @@ func parsePS(out string) map[int]psInfo {
 		if err != nil {
 			continue
 		}
+		pgid, rest := cutField(rest)
 		state, rest := cutField(rest)
 		// lstart is five fields — "Fri Aug 29 10:00:00 2026" — and the
 		// command line is everything after them, its own spacing kept. The
@@ -239,7 +248,8 @@ func parsePS(out string) map[int]psInfo {
 		for i := range fields {
 			fields[i], rest = cutField(rest)
 		}
-		table[n] = psInfo{state: state, started: strings.Join(fields, " "), argv: strings.TrimSpace(rest)}
+		group, _ := strconv.Atoi(pgid)
+		table[n] = psInfo{pgid: group, state: state, started: strings.Join(fields, " "), argv: strings.TrimSpace(rest)}
 	}
 	return table
 }
@@ -256,6 +266,12 @@ func cutField(s string) (string, string) {
 // procForest arranges processes into parent/child trees. A process whose parent
 // is not in the set becomes a root, so a repo's trees start at the outermost
 // process actually working in it rather than at some ancestor outside it.
+//
+// A process whose parent is gone — handed to init when the one that
+// started it exited, a double fork's grandchild — still belongs to the job
+// it was started as, and goes under the job's leader while the leader is in
+// the set: the node a dev server left behind is the dev server's, not a
+// stranger at the root.
 func procForest(procs []Proc) []*ProcNode {
 	byPID := make(map[int]*ProcNode, len(procs))
 	for _, p := range procs {
@@ -266,6 +282,9 @@ func procForest(procs []Proc) []*ProcNode {
 	for _, p := range procs {
 		n := byPID[p.PID]
 		parent, ok := byPID[p.PPID]
+		if !ok && p.PGID != 0 && p.PGID != p.PID {
+			parent, ok = byPID[p.PGID]
+		}
 		if ok && parent != n && !descends(parent, n, byPID) {
 			parent.Children = append(parent.Children, n)
 			continue
@@ -327,6 +346,42 @@ func runFrom(n *ProcNode, bound int) []*ProcNode {
 		run = append(run, n)
 	}
 	return run
+}
+
+// orphaned reports a process whose parent has died: init has it, and it
+// is not a job of its own — a daemon that set itself up under init leads
+// its own group, and a process left behind by a parent that exited keeps
+// the group it was started in.
+func orphaned(p Proc) bool {
+	return p.PPID == 1 && p.PGID != 0 && p.PGID != p.PID
+}
+
+// groupMates is every listed process in the group of any of the given
+// nodes that is not among them, as nodes: the parts of a job the parent
+// tree lost when a parent in it exited. Containers are no group, and a
+// group of 0 is nothing ps said.
+func groupMates(nodes []*ProcNode, procs []Proc, known map[int]*ProcNode) []*ProcNode {
+	groups := map[int]bool{}
+	in := map[int]bool{}
+	for _, n := range nodes {
+		in[n.PID] = true
+		if n.Container == nil && n.PGID != 0 {
+			groups[n.PGID] = true
+		}
+	}
+	var mates []*ProcNode
+	for _, p := range procs {
+		if in[p.PID] || p.Container != nil || !groups[p.PGID] {
+			continue
+		}
+		in[p.PID] = true
+		if n := known[p.PID]; n != nil {
+			mates = append(mates, n)
+			continue
+		}
+		mates = append(mates, &ProcNode{Proc: p})
+	}
+	return mates
 }
 
 // indexNodes files a tree by pid, so a process can be reached from anywhere

@@ -42,7 +42,7 @@ const usage = `conn is a terminal UI for working on projects at the command line
 
 usage:
   conn             open the window: conn's tmux server, with the navigator
-  conn ls          list the held shells: pid, directory, name
+  conn ls          list the held shells: pid, directory, name, exit
   conn restart     end the server and every shell it holds, then open the window
   conn -h, --help  show this; help is the same word bare
   conn --version   report the version; version, bare, too

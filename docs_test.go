@@ -46,3 +46,25 @@ func TestEveryPageOfTheManualIsMarked(t *testing.T) {
 		t.Errorf("%d pages, %d marked at the top and %d at the bottom; want every page marked twice", pages, top, bottom)
 	}
 }
+
+// Table 9-1 is the chords as commands, written by hand; every word the
+// configuration binds is a row of it, so a chord added to the binary is
+// added to the manual.
+func TestTheManualsTableOfCommandsListsEveryChordWord(t *testing.T) {
+	b, err := os.ReadFile("docs/index.html")
+	if err != nil {
+		t.Skip(err)
+	}
+	page := html.UnescapeString(string(b))
+	_, table, ok := strings.Cut(page, "Table 9-1.")
+	if !ok {
+		t.Fatal("the manual has no table 9-1")
+	}
+	table, _, _ = strings.Cut(table, "</section>")
+	for word := range chords {
+		if !strings.Contains(table, "conn "+word) && !strings.Contains(table, ", "+word+"<") &&
+			!strings.Contains(table, "<b>"+word+"</b>") {
+			t.Errorf("table 9-1 has no row for conn %s", word)
+		}
+	}
+}

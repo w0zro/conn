@@ -36,6 +36,17 @@ func procsBut(self int) ([]Proc, error) {
 	return procs, nil
 }
 
+// psTable is every process's group, state, start time and command line,
+// keyed by pid. A failure leaves it empty; a process without an entry falls
+// back to its name and goes without the start-time check.
+func psTable() map[int]psInfo {
+	out, err := listing(scanTimeout, "ps", "-axo", "pid=,pgid=,stat=,lstart=,command=")
+	if err != nil {
+		return nil
+	}
+	return parsePS(string(out))
+}
+
 // startedOf is when each of the given processes began, asked freshly of
 // ps, in the scan's own terms. nil when ps could not answer at all, which
 // callers read as the check being unavailable rather than every process

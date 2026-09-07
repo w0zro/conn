@@ -189,17 +189,6 @@ type psInfo struct {
 	argv    string
 }
 
-// psTable is every process's group, state, start time and command line,
-// keyed by pid. A failure leaves it empty; a process without an entry falls
-// back to its name and goes without the start-time check.
-func psTable() map[int]psInfo {
-	out, err := listing(scanTimeout, "ps", "-axo", "pid=,pgid=,stat=,lstart=,command=")
-	if err != nil {
-		return nil
-	}
-	return parsePS(string(out))
-}
-
 // parsePS reads psTable's columns: the pid, the group, the state, the five
 // fields of lstart, and the command line after them.
 func parsePS(out string) map[int]psInfo {

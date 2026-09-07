@@ -59,7 +59,7 @@ the chords run these; they are not for typing:
   conn test [dir]  the tests of the place holding dir, the way it says they run
   conn build [dir] its build, and conn lint [dir] its lint, the same way
   conn jump        the next thing that needs you: an agent waiting, a command that ended badly
-  conn back        back where the keys were: the last shell, or the navigator
+  conn back        back: the previous shell, or the navigator
   conn next, prev  the next and previous shell
 
 files:

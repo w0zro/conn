@@ -24,9 +24,9 @@ open there, and marks the rows that need you.
 1-2.
 conn is a tmux client. It brings up a tmux server of its own, attaches the
 terminal, and runs the navigator down the left of the home window. Every shell
-is a tmux pane: the one the keys are in is drawn beside the navigator, the rest
-wait in windows of their own. Close the terminal and everything keeps running;
-run \fBconn\fR again and it is where it was.
+is a tmux pane: the focused one is drawn beside the navigator, the rest wait in
+windows of their own. Close the terminal and everything keeps running; run
+\fBconn\fR again and it is where it was.
 .TP
 1-3.
 conn needs \fBtmux\fR, which holds and draws the shells, and \fBlsof\fR, which
@@ -85,10 +85,11 @@ Section 9 points it elsewhere.
 .TP
 2-1.
 The left column is a tree, at most four levels deep: \fBgroup\fR →
-\fBrepository\fR → \fBsub\-project\fR → \fBprocess\fR. A repository is any
-git repository under a root. The scan skips \fBnode_modules\fR, \fBvendor\fR,
-\fBtarget\fR, \fB.build\fR, \fBPods\fR, \fB.venv\fR, \fBvenv\fR, every directory
-whose name begins with a dot, and whatever \fBskipDirs\fR names.
+\fBrepository\fR → \fBsub\-project\fR → \fBprocess\fR. A group, a repository
+and a sub-project are each a place: a row a shell can open at. A repository is
+any git repository under a root. The scan skips \fBnode_modules\fR,
+\fBvendor\fR, \fBtarget\fR, \fB.build\fR, \fBPods\fR, \fB.venv\fR, \fBvenv\fR,
+every directory whose name begins with a dot, and whatever \fBskipDirs\fR names.
 .TP
 2-2.
 A folder inside a root that holds two or more repositories is a group. It is a
@@ -130,30 +131,30 @@ in green: the command ended well. \fBtest · 12 passed · 2h\fR
 .RE
 .TP
 2-6.
-While the keys are in the list, the navigator fills the pane beside it with what
-is known about the row under the cursor. For a place: its branch, status,
-upstream and last commit; its plan as a checklist, each entry up, down or ended
-and how; its tasks and how their last run went. For a process: its run,
-arguments, uptime, cpu, memory, state, ports and children, and beneath the facts
-the last of what its shell has shown, in the shell's own colors. For a
-container: its name, image, status and the last of its logs. What a thing is
-doing can be read without entering it.
+While the navigator has focus, it fills the pane beside the list with what is
+known about the row under the cursor. For a place: its branch, status, upstream
+and last commit; its plan as a checklist, each entry up, down or ended and how;
+its tasks and how their last run went. For a process: its run, arguments,
+uptime, cpu, memory, state, ports and children, and beneath the facts the last
+of what its shell has shown, in the shell's own colors. For a container: its
+name, image, status and the last of its logs. What a thing is doing can be read
+without entering it.
 .TP
 2-7.
 tmux draws the status line at the foot. It begins with \fBCONN\fR in purple,
-then the mode the keys are in (Table 2-2), then anything conn has to say until
-the next key: a report, an error, a confirmation, or that a newer release is
-out. What a chord says from a shell shows there too, for a few seconds. The
-right corner names the kind of agent \fBa\fR starts.
+then the mode (Table 2-2), then anything conn has to say until the next key: a
+report, an error, a confirmation, or that a newer release is out. What a chord
+says from a shell shows there too, for a few seconds. The right corner names the
+kind of agent \fBa\fR starts.
 .PP
 .I "Table 2-2. Modes on the status line"
 .RS
 .TP
 \fBNAV\fR
-the keys are in the navigator
+the navigator has focus
 .TP
 \fBPROC\fR
-the keys are in a shell
+a shell has focus
 .TP
 \fBPREFIX\fR
 a chord hangs after ctrl-space
@@ -176,15 +177,15 @@ a kill waits on its second key
 .TP
 2-8.
 tmux handles the mouse, and conn adds no bindings of its own: the wheel scrolls
-a pane's transcript, a drag selects and copies on release, a click puts the keys
-in the pane under it, and a program that speaks mouse gets its own clicks and
-wheel. Hold shift to select the terminal's own way. A program that copies for
-itself, vim's clipboard yank or anything speaking OSC 52, reaches the system
-clipboard through tmux.
+a pane's transcript, a drag selects and copies on release, a click focuses the
+pane under it, and a program that speaks mouse gets its own clicks and wheel.
+Hold shift to select the terminal's own way. A program that copies for itself,
+vim's clipboard yank or anything speaking OSC 52, reaches the system clipboard
+through tmux.
 .TP
 \fBNOTE\fR
-A click into the navigator brings the keys home the way \fBctrl\-space \-\fR
-does: the shell beside it goes back to its own window.
+A click into the navigator focuses it, as \fBctrl\-space \-\fR does: the shell
+beside it returns to its own window.
 .SH MOVING
 .TP
 3-1.
@@ -209,7 +210,7 @@ fold or unfold everything; unfolded rows also show pids, and a container's id
 everything, or only what is running
 .TP
 \fBJ K\fR
-the next and previous shell, in the list's order, with the keys in it
+focus the next and previous shell, in the list's order
 .RE
 .TP
 3-2.
@@ -222,11 +223,11 @@ under their places, pruned to the branches that answer. An empty query lists
 places alone.
 .TP
 3-3.
-Looking is a way of getting somewhere, so the keys that get you somewhere work
-while the query is still typed. Acting ends the look; the filter holds, so the
-subject stays listed. \fBesc\fR abandons it and puts the cursor back where it
-was. The query takes readline's editing keys: \fBctrl\-w\fR, \fBctrl\-u\fR,
-\fBctrl\-h\fR, \fBctrl\-e\fR and the rest.
+A search is a way of getting somewhere, so the keys that go somewhere work while
+the query is still being typed. Acting ends the search; the filter holds, so the
+subject stays listed. \fBesc\fR cancels the search and puts the cursor back
+where it was. The query takes readline's editing keys: \fBctrl\-w\fR,
+\fBctrl\-u\fR, \fBctrl\-h\fR, \fBctrl\-e\fR and the rest.
 .PP
 .I "Table 3-2. Keys while a query is typed"
 .RS
@@ -247,42 +248,42 @@ start an agent there
 the next thing that needs you
 .TP
 \fBshift+tab\fR
-back where the keys were
+back: the previous shell, or the list
 .TP
 \fBctrl\-x\fR
 ask to kill what the cursor is on
 .TP
 \fBesc\fR
-abandon the look
+cancel the search
 .RE
 .TP
 3-4.
-\fBenter\fR on a shell's row, or \fBs\fR on a place, puts the keys in a shell
-beside the navigator. From then on the shell receives every keystroke but one:
+\fBenter\fR on a shell's row, or \fBs\fR on a place, focuses a shell beside the
+navigator. From then on the shell receives every keystroke but one:
 \fBctrl\-space\fR, the prefix, tmux's own under conn's configuration, which
-reaches conn from any shell. \fBctrl\-space \-\fR brings the keys home. \fB?\fR,
-in the navigator or after the prefix, lists every key in a popup over the
-window; Appendix A lists them here. Every key tmux would otherwise bind is
+reaches conn from any shell. \fBctrl\-space \-\fR focuses the navigator again.
+\fB?\fR, in the navigator or after the prefix, lists every key in a popup over
+the window; Appendix A lists them here. Every key tmux would otherwise bind is
 unbound.
 .TP
 3-5.
 \fBtab\fR at the list, or \fBctrl\-space enter\fR anywhere, goes to the next
 thing that needs you: an agent waiting, a command that ended badly, a process
-stopped or a zombie. Again continues around them. A held shell is entered, where
-the ask or the transcript is; a process conn only watches gets the cursor.
+stopped or a zombie. Again continues around them. A held shell is entered, at
+its prompt or transcript; a process conn only watches gets the cursor.
 .TP
 3-6.
-\fBshift+tab\fR at the list, or \fBctrl\-space ctrl\-space\fR anywhere, goes
-back where the keys were: the shell before this one, whether or not the
-navigator was the way there, or the navigator when they came from it. Again
-returns. Before the keys have been anywhere, it is the list from a shell and the
-cursor's shell from the list.
+\fBshift+tab\fR at the list, or \fBctrl\-space ctrl\-space\fR anywhere, returns
+focus to where it was: the shell before this one, whether or not focus passed
+through the navigator on the way, or the navigator when focus came from it.
+Again returns. Before focus has moved at all, it is the list from a shell and
+the cursor's shell from the list.
 .SH SHELLS
 .TP
 4-1.
-\fBs\fR opens \fB$SHELL\fR at the selected place, beside the navigator, with the
-keys in it. A shell you enter moves in beside the navigator; when the keys come
-home it moves out to a tmux window of its own, where it keeps running, and the
+\fBs\fR opens \fB$SHELL\fR at the selected place, beside the navigator, focused.
+A shell you enter moves in beside the navigator; when the navigator takes focus
+again it moves out to a tmux window of its own, where it keeps running, and the
 navigator has the whole window. Each shell keeps 10,000 lines of transcript;
 \fBscrollback\fR in the configuration raises that.
 .TP
@@ -293,8 +294,7 @@ repository in that folder, and the name goes on the end. Backspace the folder
 away for the root itself; type another and it is made. A path from \fB~\fR or
 \fB/\fR is taken as it is. \fBenter\fR makes the directory, runs \fBgit init\fR
 in it and opens a shell there; the cursor lands on the project once the scan
-lists it. A directory already there is left alone. \fBesc\fR thinks better of
-it.
+lists it. A directory already there is left alone. \fBesc\fR cancels.
 .TP
 4-3.
 \fBq\fR in the navigator, or \fBctrl\-space q\fR anywhere, detaches the
@@ -324,20 +324,20 @@ idle since it started
 .RE
 .TP
 5-2.
-The ◆ is the one worth crossing the room for: answering it resumes work
-already underway. The pane for a claude row names what it is waiting on, the
-last thing asked of it, and what it says it is doing. \fBtab\fR, or
-\fBctrl\-space enter\fR from any shell, goes to it (3-5).
+The ◆ is the one to answer first: answering it resumes work already underway.
+The pane for a claude row names what it is waiting on, the last thing asked of
+it, and what it says it is doing. \fBtab\fR, or \fBctrl\-space enter\fR from any
+shell, goes to it (3-5).
 .TP
 5-3.
 A conversation does not end when its instance exits; it is suspended, and the
 transcript is enough to pick it back up. \fBA\fR on a place lists what is
 suspended there, sub-projects included and, for a group, its repositories,
 newest first: when each last moved, its branch, and the last thing asked of it.
-Letters narrow the list the way the filter does, \fBenter\fR continues the one
-under the cursor in a shell opened where it was had, \fBesc\fR closes the list.
-A conversation an instance still carries is not offered. Every kind that keeps
-conversations answers the picker, and each is continued by the kind that had it.
+Typing narrows the list, \fBenter\fR continues the one under the cursor in a
+shell opened where it was had, \fBesc\fR closes the list. A conversation an
+instance still carries is not offered. Every kind that keeps conversations
+answers the picker, and each is continued by the kind that had it.
 .TP
 5-4.
 conn knows agents as kinds: \fBclaude\fR and \fBollama\fR. \fB,\fR at the
@@ -390,9 +390,9 @@ and attaches to each; \fBcompose.yml\fR, \fBdocker\-compose.yml\fR and
 \fBr\fR starts the entries that are not running, each in a window named for it,
 and puts the cursor on the first. It is a list to run, not a supervisor: nothing
 restarts on its own. When an entry's command ends, its shell stays at the prompt
-with the transcript, the row wears ✗ or ✓, the pane's checklist says how and
+with the transcript, the row shows ✗ or ✓, the pane's checklist says how and
 when it ended, and \fBr\fR starts it again beside the old shell. Running
-anything by hand in that shell clears the mark: the ending was acted on.
+anything by hand in that shell clears the mark: the exit has been seen.
 .TP
 6-4.
 A project on docker runs its services in containers, which the process scan
@@ -404,16 +404,16 @@ up\fR that runs it when one runs in a shell, and under the place itself when
 compose was left detached. \fBenter\fR on it opens a shell inside it —
 compose's \fBexec\fR, in the place — held like any shell; its pane says the
 container's name, image and status, with the last of its logs. A service that
-died beside the others stays listed while the project runs, wearing the cross
-with how long ago — \fBworker · 3m ✗\fR — and \fBtab\fR goes to it, the
-way it goes to an entry that ended badly; one that exited well wears the check.
-A health check's word stands where the ports would while it says anything but
-healthy: \fBapi · unhealthy ✗\fR, or starting. A container of no project —
-a \fBdocker run\fR, or compose from a directory outside every root — is listed
-under \fBdocker\fR, a place of its own at the top, there while such a container
-runs: named for itself, or for its project and service, with \fBx\fR,
-\fBenter\fR and the pane as under a project, and nowhere on disk to open a shell
-or make a project in. Without docker, or with its daemon down, nothing is asked.
+died beside the others stays listed while the project runs, showing the cross
+and how long ago — \fBworker · 3m ✗\fR — and \fBtab\fR goes to it; one
+that exited well shows the check. A health check's word stands where the ports
+would while it says anything but healthy: \fBapi · unhealthy ✗\fR, or
+starting. A container of no project — a \fBdocker run\fR, or compose from a
+directory outside every root — is listed under \fBdocker\fR, a place of its
+own at the top, there while such a container runs: named for itself, or for its
+project and service, with \fBx\fR, \fBenter\fR and the pane as under a project,
+and nowhere on disk to open a shell or make a project in. Without docker, or
+with its daemon down, nothing is asked.
 .PP
 .RS
 .nf
@@ -441,13 +441,13 @@ transcript, until \fBx\fR closes it or \fBr\fR starts the entry again beside it.
 .SH TASKS
 .TP
 7-1.
-\fBt\fR, \fBb\fR and \fBl\fR run the place's tests, build and lint the way the
-place already says. What the project wrote down comes first: a Makefile target,
-a justfile recipe, a Taskfile task or a package.json script named \fBtest\fR,
-\fBbuild\fR or \fBlint\fR. Otherwise the ecosystem's own command, by the file
-that marks the project. Only a linter the ecosystem ships with is guessed at; a
-project on ruff or eslint names it in a script. A project the guess is wrong for
-says so in its Makefile, which conn believes first.
+\fBt\fR, \fBb\fR and \fBl\fR run the place's tests, build and lint as the
+project itself defines them. What the project wrote down comes first: a Makefile
+target, a justfile recipe, a Taskfile task or a package.json script named
+\fBtest\fR, \fBbuild\fR or \fBlint\fR. Otherwise the ecosystem's own command, by
+the file that marks the project. Only a linter the ecosystem ships with is
+guessed at; a project on ruff or eslint names it in a script. A project the
+guess is wrong for says so in its Makefile, which conn checks first.
 .PP
 .I "Table 7-1. How a task's command is found"
 .RS
@@ -475,7 +475,7 @@ the ecosystem's own: mix, gradle, mvn, deno, swift, dune
 .RE
 .TP
 7-2.
-Each run is a shell named for its task, so its row wears ✓ or ✗, \fBtab\fR
+Each run is a shell named for its task, so its row shows ✓ or ✗, \fBtab\fR
 goes to a failure, and the place's pane says how each task's last run went and
 how long ago. The key again replaces a finished run rather than stacking another
 beside it; a run still going is left to finish. \fBconn test\fR, \fBconn
@@ -483,11 +483,10 @@ build\fR, \fBconn lint\fR and \fBctrl\-space t\fR, \fBb\fR, \fBl\fR do the same
 from any shell.
 .TP
 7-3.
-conn reads the end of the transcript the way you would, by the shape of the
-tool's summary line: go test, pytest, jest, vitest, mocha, cargo, rspec, ExUnit,
-golangci-lint, tsc, ruff, eslint. A failed run's row says \fBtest · 3
-failed\fR, a passed one \fB12 passed\fR. A shape it does not know leaves the
-status alone.
+conn reads the end of the transcript by the shape of the tool's summary line: go
+test, pytest, jest, vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc,
+ruff, eslint. A failed run's row says \fBtest · 3 failed\fR, a passed one \fB12
+passed\fR. A shape it does not know leaves the status alone.
 .SH STOPPING
 .I "Table 8-1. Kill keys"
 .RS
@@ -513,7 +512,7 @@ end the server and every shell it holds
 .TP
 8-1.
 Every kill asks first: \fBx\fR, \fBy\fR or \fBenter\fR confirms, anything else
-cancels. Processes get SIGTERM. A signalled row wears a red marker until a scan
+cancels. Processes get SIGTERM. A signalled row shows a red marker until a scan
 observes the exit; the list never claims an exit it has not seen. Kills work on
 any listed process, including ones conn did not start.
 .TP
@@ -521,10 +520,10 @@ any listed process, including ones conn did not start.
 A held shell is closed through the server. One still running its command is
 closed only once the command has gone: the command gets SIGTERM, and the shell
 is hung up when a scan finds it back at its prompt, so a \fBdocker compose up\fR
-stops its containers on the way out, which hung up it would not. An entry's row
-is the entry, and the question names it: \fBkill app?\fR The entry is then gone,
-as an entry nothing runs in is, and \fBr\fR starts it again. An ending \fBx\fR
-asked for wears no mark.
+stops its containers on the way out; hung up first, it would leave them running.
+An entry's row is the entry, and the question names it: \fBkill app?\fR The
+entry is then gone, as an entry nothing runs in is, and \fBr\fR starts it again.
+An exit that \fBx\fR asked for shows no mark.
 .TP
 8-3.
 A container is stopped by docker, which signals the process inside it and
@@ -596,20 +595,20 @@ reaches it.
 .TP
 10-2.
 The session's first window is the home window: the navigator in the pane down
-its left, at \fBnavWidth\fR through every resize, and the shell the keys are in
-beside it. Close the navigator and \fBctrl\-space \-\fR makes it again. A
-\fBconn\fR from a newer build restarts the navigator in its pane and re-reads
-the configuration; the server keeps the shells. Run from a shell inside the
-window, it does that and no more. Inside any other tmux it refuses: attaching
-would be nesting.
+its left, at \fBnavWidth\fR through every resize, and the focused shell beside
+it. Close the navigator and \fBctrl\-space \-\fR makes it again. A \fBconn\fR
+from a newer build restarts the navigator in its pane and re-reads the
+configuration; the server keeps the shells. Run from a shell inside the window,
+it does only that. Inside any other tmux it stops with a message, since
+attaching would nest one tmux in another.
 .TP
 10-3.
 The server lives exactly as long as it holds something: the home window brings
 it up, the last window closing takes it down. \fBR\fR, or \fBctrl\-space R\fR
 from any shell, ends it and every shell it holds, after asking; it is the way to
 a fresh server. \fBconn restart\fR, typed outside the window, is \fBR\fR and
-then \fBconn\fR as one command; inside the window it refuses, since the pane
-running it would go with the server. \fBtmux \-S
+then \fBconn\fR as one command; inside the window it stops with a message, since
+the pane running it would go with the server. \fBtmux \-S
 ~/.local/state/conn/tmux\-<uid>.sock attach\fR is what \fBconn\fR does.
 .TP
 10-4.
@@ -641,13 +640,13 @@ its tests; \fBbuild\fR and \fBlint\fR the same way
 the next thing that needs you
 .TP
 \fBconn back\fR
-back where the keys were: the last shell, or the navigator
+back: the previous shell, or the navigator
 .TP
 \fBconn next, prev\fR
 the next and previous shell
 .TP
 \fBconn keys [client]\fR
-the keys, in a popup over the client; \fBconn page\fR is the page inside it
+the key list, in a popup over the client; \fBconn page\fR is the page inside it
 .TP
 \fBconn ls\fR
 the held shells: pid, directory, name, exit; one per line
@@ -691,7 +690,7 @@ open
 the next thing that needs you
 .TP
 \fBshift+tab\fR
-back where the keys were
+back: the previous shell, or the list
 .TP
 \fBs\fR
 shell
@@ -746,13 +745,13 @@ leave; the shells keep running
 .RS
 .TP
 \fB^spc \-\fR
-here, from any shell
+the navigator, from any shell
 .TP
 \fB^spc j k\fR
 next · previous shell
 .TP
 \fB^spc ^spc\fR
-back: the last shell, or the list
+back: the previous shell, or the list
 .TP
 \fB^spc enter\fR
 the next thing that needs you

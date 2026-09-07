@@ -1,7 +1,8 @@
 // revisions writes the manual's record of revisions from the repository's
 // release tags: one row per v* tag, oldest first — its revision, the month
-// it was cut, and what it did — and the stamp and the change number on
-// every page brought up to the latest. The release workflow runs it after
+// it was cut, and what it did — and the stamp and the change on every
+// page brought up to the latest, the change being the tag itself: CHANGE
+// v0.7.0. The release workflow runs it after
 // a release and commits what changed, so the manual records each release
 // in its record of revisions without anyone typing the row.
 //
@@ -67,10 +68,10 @@ func main() {
 
 // tag is one release as the table records it.
 type tag struct {
-	rev   string // 0.3, or 0.3.1 for a patch
-	minor string // the change number: 3
-	date  string // SEP 2026
-	desc  string // the tag's message, when it says more than the version
+	rev  string // 0.3, or 0.3.1 for a patch
+	tag  string // the tag as cut, and the change every page wears: v0.3.0
+	date string // SEP 2026
+	desc string // the tag's message, when it says more than the version
 }
 
 var (
@@ -81,7 +82,7 @@ var (
 	recordBlock = regexp.MustCompile(`(?s)(<!-- record -->\n)(.*?)(<!-- /record -->)`)
 	rowShape    = regexp.MustCompile(`<div class="row"><span>([\d.]+)</span><span>[^<]*</span><span>([^<]*)</span></div>`)
 	stamp       = regexp.MustCompile(`REV \d[\d.]*<small>`)
-	change      = regexp.MustCompile(`<span>CHANGE \d+</span>`)
+	change      = regexp.MustCompile(`<span>CHANGE v?[\d.]+</span>`)
 )
 
 // The cover's share of the record, and a record page's: the cover has
@@ -106,7 +107,7 @@ func parseTags(listing string) []tag {
 		if m == nil {
 			continue
 		}
-		t := tag{rev: m[1] + "." + m[2], minor: m[2]}
+		t := tag{rev: m[1] + "." + m[2], tag: "v" + m[1] + "." + m[2] + "." + m[3]}
 		if m[3] != "0" {
 			t.rev += "." + m[3]
 		}
@@ -133,7 +134,7 @@ func parseTags(listing string) []tag {
 // record rewrites the page's record of revisions from the tags — the
 // latest few on the cover, all of them on the record pages after it —
 // keeping a row's description where the tag has none, and brings the
-// stamp and the change number on every page up to the latest tag.
+// stamp and the change on every page up to the latest tag.
 func record(page string, tags []tag) (string, error) {
 	m := rowsBlock.FindStringSubmatchIndex(page)
 	if m == nil {
@@ -161,7 +162,7 @@ func record(page string, tags []tag) (string, error) {
 
 	// The record pages go in first, so the cover's block is not moved by
 	// the write below it.
-	page = page[:rm[4]] + recordPages(tags, latest.minor) + page[rm[5]:]
+	page = page[:rm[4]] + recordPages(tags, latest.tag) + page[rm[5]:]
 	m = rowsBlock.FindStringSubmatchIndex(page)
 	cover := tags
 	if len(cover) > coverRows {
@@ -170,7 +171,7 @@ func record(page string, tags []tag) (string, error) {
 	page = page[:m[4]] + rows(cover, "        ") + page[m[5]:]
 
 	page = stamp.ReplaceAllString(page, "REV "+latest.rev+"<small>")
-	page = change.ReplaceAllString(page, "<span>CHANGE "+latest.minor+"</span>")
+	page = change.ReplaceAllString(page, "<span>CHANGE "+latest.tag+"</span>")
 	return page, nil
 }
 
@@ -186,7 +187,7 @@ func rows(tags []tag, indent string) string {
 // recordPages is the record of revisions as pages of the manual: the first
 // under its heading, the rest continuing it, each with the table's head
 // and as many rows as a page holds, folioed R-1, R-2… as front matter.
-func recordPages(tags []tag, minor string) string {
+func recordPages(tags []tag, change string) string {
 	var b bytes.Buffer
 	rest := tags
 	for n := 1; len(rest) > 0 || n == 1; n++ {
@@ -229,7 +230,7 @@ func recordPages(tags []tag, minor string) string {
   </div>
 </section>
 
-`, n, minor)
+`, n, change)
 	}
 	return b.String()
 }

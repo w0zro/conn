@@ -61,10 +61,11 @@ func TestTheTagsBecomeRowsAndTheStampFollows(t *testing.T) {
 	if strings.Count(got, "<span>0.1</span>") != 1 || strings.Count(got, "<span>0.4.1</span>") != 2 {
 		t.Errorf("the record should carry every row, the cover the latest:\n%s", got)
 	}
-	// The change number follows the latest tag on every page, the record's
-	// included.
-	if strings.Count(got, "<span>CHANGE 4</span>") != 3 || strings.Contains(got, "CHANGE 3") {
-		t.Errorf("the change number did not follow the latest tag on every page:\n%s", got)
+	// The change follows the latest tag on every page, the record's
+	// included, and is the tag itself; a page marked the old way, by the
+	// minor alone, is brought along.
+	if strings.Count(got, "<span>CHANGE v0.4.1</span>") != 3 || strings.Contains(got, "CHANGE 3") {
+		t.Errorf("the change did not follow the latest tag on every page:\n%s", got)
 	}
 	if strings.Contains(got, "MAR 2026") {
 		t.Error("a row's date should come from the tag, not from what the table said")

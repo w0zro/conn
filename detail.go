@@ -148,8 +148,8 @@ func ago(at time.Time) string {
 // and the plan its folder carries, if it carries one. Git has nothing to say
 // here — a group's folder is not a repository.
 func groupFields(p Project, repoCount, procCount int, states map[string]entryState) []field {
-	if p.Path == dockerPlace {
-		return dockerFields(procCount)
+	if p.Path == globalPlace {
+		return globalFields(procCount)
 	}
 	fs := []field{
 		heading(p.Name),

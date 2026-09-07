@@ -20,7 +20,7 @@ const dockerPSExited = `{"ID":"c0ffee000001","Names":"compose-demo-worker-1","Im
 
 func TestParseContainersReadsServiceDirectoryAndPorts(t *testing.T) {
 	cs := parseContainers([]byte(dockerPS))
-	if len(cs) != 3 || cs[2].Dir != dockerPlace {
+	if len(cs) != 3 || cs[2].Dir != globalPlace {
 		t.Fatalf("containers = %d, want the two compose started and one of docker's own place", len(cs))
 	}
 	web, cache := cs[0], cs[1]
@@ -407,10 +407,10 @@ func TestDockerNotAnsweringIsSaidOnce(t *testing.T) {
 	}
 }
 
-func TestAContainerOfNoProjectIsDockers(t *testing.T) {
+func TestAContainerOfNoProjectIsGlobal(t *testing.T) {
 	cs := parseContainers([]byte(dockerPS))
-	if len(cs) != 3 || cs[2].Dir != dockerPlace || cs[2].Command != "skelly-postgres" {
-		t.Fatalf("containers = %v, want the docker run's, named for itself, in docker's place", cs)
+	if len(cs) != 3 || cs[2].Dir != globalPlace || cs[2].Command != "skelly-postgres" {
+		t.Fatalf("containers = %v, want the docker run's, named for itself, in global's place", cs)
 	}
 	// Those of a compose project from a directory no root holds, and the
 	// docker run's: all under docker, the compose ones named for their
@@ -419,8 +419,8 @@ func TestAContainerOfNoProjectIsDockers(t *testing.T) {
 	procs := attachContainers(nil, parseContainers([]byte(elsewhere)))
 	m := withProcList(80, 12, []Project{{Name: "conn", Path: "/p/conn"}}, procs)
 	rows := navColumn(m)
-	if len(rows) != 5 || strings.TrimSpace(rows[1]) != "docker" || !strings.Contains(rows[3], "compose-demo/") || !strings.Contains(rows[4], "skelly-postgres") {
-		t.Fatalf("rows = %q, want docker among the places with the three under it", rows)
+	if len(rows) != 5 || strings.TrimSpace(rows[1]) != "global" || !strings.Contains(rows[3], "compose-demo/") || !strings.Contains(rows[4], "skelly-postgres") {
+		t.Fatalf("rows = %q, want global below the places with the three under it", rows)
 	}
 
 	// enter opens a shell inside it by docker's own exec; s has nowhere
@@ -444,8 +444,8 @@ func TestAContainerOfNoProjectIsDockers(t *testing.T) {
 	if !strings.Contains(m.status, "not a place to open a shell in") {
 		t.Errorf("status = %q, want s refused on docker's row", m.status)
 	}
-	if got := m.newProjectDir(); got == dockerPlace {
-		t.Error("n should not make a project in docker's place")
+	if got := m.newProjectDir(); got == globalPlace {
+		t.Error("n should not make a project in global's place")
 	}
 	m = press(m, "x")
 	if got := len(targets(m.pendingKill)); got != 3 {
@@ -462,8 +462,31 @@ func TestAContainerOfNoProjectIsDockers(t *testing.T) {
 func TestAnExitedContainerOfNoProjectIsNotListed(t *testing.T) {
 	exited := strings.Replace(dockerPS, `"Image":"postgres:16","State":"running","Status":"Up 2 hours"`, `"Image":"postgres:16","State":"exited","Status":"Exited (0) 5 months ago"`, 1)
 	for _, c := range attachContainers(nil, parseContainers([]byte(exited))) {
-		if c.Dir == dockerPlace {
+		if c.Dir == globalPlace {
 			t.Errorf("listed %v, want a stopped container of no project left out", c)
+		}
+	}
+}
+
+func TestAServiceIsWhatListensOnAPortItChoseFromNoBundle(t *testing.T) {
+	for _, tc := range []struct {
+		argv  string
+		ports []string
+		want  bool
+	}{
+		{"/opt/homebrew/opt/ollama/bin/ollama serve", []string{"11434"}, true},
+		{"/opt/homebrew/opt/postgresql@14/bin/postgres -D /opt/homebrew/var/postgresql@14", []string{"5432"}, true},
+		{"node server.js", []string{"3000"}, true},
+		{"/opt/homebrew/bin/mongod", nil, false},
+		{"/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter", []string{"5000", "7000"}, false},
+		{"/usr/libexec/rapportd", []string{"50885"}, false},
+		{"/Applications/Roland Cloud Manager.app/Contents/MacOS/Roland Cloud Manager", []string{"49166"}, false},
+		{"/Library/Application Support/Universal Audio/Apollo/UA Mixer Engine.app/Contents/MacOS/UA Mixer Engine", []string{"4720"}, false},
+		{"/Users/w/bin/helper", []string{"49175", "51000"}, false}, // dynamic ports alone: nobody's address
+		{"/Users/w/bin/helper", []string{"49175", "8080"}, true},
+	} {
+		if got := service(Proc{Argv: tc.argv, Ports: tc.ports}); got != tc.want {
+			t.Errorf("service(%q %v) = %v, want %v", tc.argv, tc.ports, got, tc.want)
 		}
 	}
 }

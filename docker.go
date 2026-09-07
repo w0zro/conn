@@ -47,15 +47,19 @@ type Container struct {
 // no mark for.
 func (c *Container) running() bool { return c.State == "running" }
 
-// dockerPlace is the place of the containers that belong to no project:
-// a docker run's, and compose's from a directory outside every root. It
-// is a group at the top of the navigator, named docker, there while such
-// a container is, and nowhere on disk — no shell opens in it, no project
-// is made in it, and it says what it needs of nothing.
-const dockerPlace = "docker://"
+// globalPlace is the place of what the machine runs for you outside every
+// project: the containers that belong to no project — a docker run's, and
+// compose's from a directory outside every root — and the processes
+// listening on a port from no project's directory, an ollama serve, a
+// postgres brew keeps up. A port is what makes a process outside every
+// project a service rather than noise; the rest of what runs there stays
+// out. It is a group at the foot of the navigator, named global, there
+// while such a thing runs, and nowhere on disk — no shell opens in it, no
+// project is made in it, and it says what it needs of nothing.
+const globalPlace = "global://"
 
-// dockerGroup is that place as the navigator lists it.
-var dockerGroup = Project{Name: "docker", Path: dockerPlace}
+// globalGroup is that place as the navigator lists it.
+var globalGroup = Project{Name: "global", Path: globalPlace}
 
 // dockerPath is where the docker client is, or "" where there is none: a
 // machine without docker is asked nothing, every scan.
@@ -163,7 +167,7 @@ func parseContainers(out []byte) []Proc {
 		// place is docker's own.
 		dir := labels[labelWorkingDir]
 		if dir == "" {
-			dir = dockerPlace
+			dir = globalPlace
 		}
 		service := labels[labelService]
 		if service == "" {
@@ -389,7 +393,7 @@ func containerNote(n *ProcNode) string {
 // container: compose's exec, in the place, for the service — or docker's
 // own, by name, for a container with no place to run compose in.
 func containerShell(n *ProcNode) string {
-	if n.Dir == dockerPlace {
+	if n.Dir == globalPlace {
 		return "docker exec -it " + n.Container.Name + " sh"
 	}
 	return "docker compose exec " + n.Container.Service + " sh"
@@ -524,7 +528,7 @@ func containerFields(n *ProcNode) []field {
 		statusTone = toneQuiet
 	}
 	where := n.Dir
-	if where == dockerPlace {
+	if where == globalPlace {
 		where = "started outside every project"
 	}
 	fs := []field{
@@ -541,14 +545,63 @@ func containerFields(n *ProcNode) []field {
 	return append(fs, transcript(containerLogs(c.ID, transcriptLines))...)
 }
 
-// dockerFields describes the docker place: what it is, and what is in it.
-func dockerFields(procCount int) []field {
+// globalFields describes the global place: what it is, and what is in it.
+func globalFields(procCount int) []field {
 	return []field{
-		heading(dockerGroup.Name),
-		note("containers outside every project"),
+		heading(globalGroup.Name),
+		note("what the machine runs outside every project: containers, and what listens"),
 		gap(),
 		runningField(procCount),
 	}
+}
+
+// service reports a process outside every project worth a row in global:
+// one listening on a port it chose. What listens from an app bundle, or
+// from the system's own directories — the desktop's helpers, the
+// machine's daemons — is the machine's business, not a service run for
+// you; and a process whose every port is in the dynamic range took what
+// it was given, which is nobody's address. The path is the command's
+// first word as ps prints it, which for anything launchd started is the
+// whole of it.
+func service(p Proc) bool {
+	if len(p.Ports) == 0 {
+		return false
+	}
+	for _, prefix := range []string{"/System/", "/usr/libexec/", "/Library/", "/Applications/"} {
+		if strings.HasPrefix(p.Argv, prefix) {
+			return false
+		}
+	}
+	if strings.Contains(p.Argv, ".app/") {
+		return false
+	}
+	for _, port := range p.Ports {
+		if n, err := strconv.Atoi(port); err == nil && n < dynamicPorts {
+			return true
+		}
+	}
+	return false
+}
+
+// dynamicPorts is the first of the ports handed out to whoever asks for
+// any: a service that listens there alone chose nothing.
+const dynamicPorts = 49152
+
+// proxied reports a process outside every project whose every port a
+// listed container publishes: docker's own proxy, holding the host side
+// of the containers' ports — com.docker.backend on macOS, docker-proxy
+// on Linux — which would list beside the containers as a second copy of
+// what they say.
+func proxied(p Proc, published map[string]bool) bool {
+	if len(p.Ports) == 0 {
+		return false
+	}
+	for _, port := range p.Ports {
+		if !published[port] {
+			return false
+		}
+	}
+	return true
 }
 
 // A service x stopped is a service r brings back, where it was: the

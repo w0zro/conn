@@ -408,12 +408,14 @@ died beside the others stays listed while the project runs, showing the cross
 and how long ago — \fBworker · 3m ✗\fR — and \fBtab\fR goes to it; one
 that exited well shows the check. A health check's word stands where the ports
 would while it says anything but healthy: \fBapi · unhealthy ✗\fR, or
-starting. A container of no project — a \fBdocker run\fR, or compose from a
-directory outside every root — is listed under \fBdocker\fR, a place of its
-own at the top, there while such a container runs: named for itself, or for its
-project and service, with \fBx\fR, \fBenter\fR and the pane as under a project,
-and nowhere on disk to open a shell or make a project in. Without docker, or
-with its daemon down, nothing is asked.
+starting. What the machine runs for you outside every project is listed under
+\fBglobal\fR, at the foot of the list, there while anything is in it: containers
+of no project — a \fBdocker run\fR, or compose from elsewhere — and
+processes listening on a port they chose from no project’s directory, an
+\fBollama serve\fR, a brew postgres. The desktop’s own listeners stay out, and
+docker’s proxy, which the containers already say. \fBx\fR, \fBenter\fR and the
+pane work as under a project; the place is nowhere on disk, so no shell opens in
+it and no project is made there.
 .PP
 .RS
 .nf
@@ -495,7 +497,7 @@ passed\fR. A shape it does not know leaves the status alone.
 kill the selected process
 .TP
 \fBX\fR
-kill it and everything under it
+kill it, everything under it, and what shares its process group
 .TP
 \fBx on an entry\fR
 end the entry's command and its shell; \fBr\fR starts it again
@@ -531,7 +533,11 @@ is hung up when a scan finds it back at its prompt, so a \fBdocker compose up\fR
 stops its containers on the way out; hung up first, it would leave them running.
 An entry's row is the entry, and the question names it: \fBkill app?\fR The
 entry is then gone, as an entry nothing runs in is, and \fBr\fR starts it again.
-An exit that \fBx\fR asked for shows no mark.
+An exit that \fBx\fR asked for shows no mark. A tree kill, or an entry's, covers
+the process group as well as the tree: a parent that exits leaves its children
+to init and the tree loses them, but the job keeps them. Such a process is
+listed under its job's leader while the leader runs, and the pane says
+\fBorphaned\fR of it.
 .TP
 8-3.
 A container is stopped by docker, which signals the process inside it and

@@ -1626,8 +1626,8 @@ func (m *model) start(command string) tea.Cmd {
 		return nil
 	}
 	dir := m.shellDir(r)
-	if dir == dockerPlace {
-		m.status, m.statusErr = "docker is not a place to open a shell in", false
+	if dir == globalPlace {
+		m.status, m.statusErr = "global is not a place to open a shell in", false
 		return nil
 	}
 	m.server.open(dir, command, "")
@@ -2653,15 +2653,33 @@ func (m *model) groupProcs() {
 		m.parent[pr.PID] = pr.PPID
 	}
 
+	// What the containers publish, for telling docker's proxy from a
+	// service of the machine's own.
+	published := map[string]bool{}
+	for _, pr := range m.procs {
+		if pr.Container != nil {
+			for _, port := range pr.Ports {
+				published[port] = true
+			}
+		}
+	}
+
 	owner := make(map[string][]Proc, len(m.projects))
 	for _, pr := range m.procs {
 		// A container of no project, or of a directory no root holds,
-		// is docker's; one of a project elsewhere is named for both.
-		if pr.Container != nil && (pr.Dir == dockerPlace || !m.holdsDir(pr.Dir)) {
-			if pr.Container.Project != "" {
-				pr.Command = pr.Container.Project + "/" + pr.Container.Service
+		// is global; one of a project elsewhere is named for both. So is
+		// a service listening from no project's directory (service) —
+		// unless it is docker's proxy, which the containers already say.
+		if pr.Dir == globalPlace || !m.holdsDir(pr.Dir) {
+			switch {
+			case pr.Container != nil:
+				if pr.Container.Project != "" {
+					pr.Command = pr.Container.Project + "/" + pr.Container.Service
+				}
+			case !service(pr) || proxied(pr, published):
+				continue
 			}
-			owner[dockerPlace] = append(owner[dockerPlace], pr)
+			owner[globalPlace] = append(owner[globalPlace], pr)
 			continue
 		}
 		best := ""
@@ -2811,8 +2829,9 @@ func (m model) flatten() []navRow {
 
 // topPlaces is the top of the navigator: the groups and the repositories
 // standing alone, in one alphabetical order, each listed when its own rule
-// says so — and docker's place among the groups while a container is in
-// it.
+// says so — and the global place last, below every project, while
+// anything is in it: the blank line above it is the line between what
+// is yours and what is the machine's.
 func (m model) topPlaces() []navRow {
 	var out []navRow
 	for _, g := range m.groups {
@@ -2820,15 +2839,15 @@ func (m model) topPlaces() []navRow {
 			out = append(out, navRow{kind: rowGroup, project: g})
 		}
 	}
-	if len(m.byPlace[dockerPlace]) > 0 && m.groupVisible(dockerGroup) {
-		out = append(out, navRow{kind: rowGroup, project: dockerGroup})
-	}
 	for _, p := range m.projects {
 		if p.Group == "" && m.repoVisible(p) {
 			out = append(out, navRow{kind: rowProject, project: p})
 		}
 	}
 	slices.SortStableFunc(out, func(a, b navRow) int { return byName(a.project, b.project) })
+	if len(m.byPlace[globalPlace]) > 0 && m.groupVisible(globalGroup) {
+		out = append(out, navRow{kind: rowGroup, project: globalGroup})
+	}
 	return out
 }
 

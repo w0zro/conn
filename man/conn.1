@@ -129,15 +129,18 @@ in green: the command ended well. \fBtest · 12 passed · 2h\fR
 2-6.
 While the navigator has focus, the pane beside the list shows what is known
 about the row under the cursor. For a place: its branch, status, upstream and
-last commit; its plan as a checklist, each entry up, down or ended and how; its
-tasks and how their last run went. For a process: its arguments, the binary
-behind its name, which node and which python, the environment it was started
-with where that says which environment it runs in and what it talks to (the
-*_ENV family, port and host, log level, every URL; a secret by its name is left
-out and a password in a URL is masked), uptime, cpu, memory, state, ports and
-children, and beneath the facts the last of what its shell has shown. For a
-container: its name, image, status and the last of its logs. What a thing is
-doing can be read without entering it.
+last commit; its plan as a checklist, each entry up, down or ended and how, an
+entry that is up saying the ports it listens on; its tasks and how their last
+run went; and under each entry and task that has run before, its last five runs,
+newest first, how each ended and how long it took: \fBruns ✓ 12s · ✗ 2m\fR.
+The runs are kept after their shells are gone (Appendix B). For a process: its
+arguments, the binary behind its name, which node and which python, the
+environment it was started with where that says which environment it runs in and
+what it talks to (the *_ENV family, port and host, log level, every URL; a
+secret by its name is left out and a password in a URL is masked), uptime, cpu,
+memory, state, ports and children, and beneath the facts the last of what its
+shell has shown. For a container: its name, image, status and the last of its
+logs. What a thing is doing can be read without entering it.
 .TP
 2-7.
 The status line at the foot begins with \fBCONN\fR, then the mode (Table 2-2),
@@ -763,6 +766,10 @@ configuration conn writes for itself at every launch
 .TP
 \fB~/.local/state/conn/latest\-release\fR
 the latest release as last checked, and when
+.TP
+\fB~/.local/state/conn/runs.jsonl\fR
+how each entry and task ended, one run per line; cut back to the last two
+thousand as it grows
 .TP
 \fB.conn\fR
 a project's plan; Section 6

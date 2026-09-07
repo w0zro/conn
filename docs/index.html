@@ -234,7 +234,7 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">2-6.</span>While the navigator has focus, the pane beside the list shows what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how; its tasks and how their last run went. For a process: its arguments, the binary behind its name, which node and which python, the environment it was started with where that says which environment it runs in and what it talks to (the *_ENV family, port and host, log level, every URL; a secret by its name is left out and a password in a URL is masked), uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
+        <p class="para"><span class="n">2-6.</span>While the navigator has focus, the pane beside the list shows what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how, an entry that is up saying the ports it listens on; its tasks and how their last run went; and under each entry and task that has run before, its last five runs, newest first, how each ended and how long it took: <b>runs ✓ 12s &middot; ✗ 2m</b>. The runs are kept after their shells are gone (Appendix B). For a process: its arguments, the binary behind its name, which node and which python, the environment it was started with where that says which environment it runs in and what it talks to (the *_ENV family, port and host, log level, every URL; a secret by its name is left out and a password in a URL is masked), uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
         <p class="para"><span class="n">2-7.</span>The status line at the foot begins with <b>CONN</b>, then the mode (Table 2-2), then anything conn has to say until the next key: a report, an error, a confirmation, or that a newer release is out. What a chord says from a shell shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
         <p class="caption">Table 2-2.&nbsp; Modes on the status line</p>
         <div class="table narrow">
@@ -760,6 +760,7 @@
           <div class="row"><span>~/.local/state/conn/tmux-&lt;uid&gt;.sock</span><span>the socket the shells are held on</span></div>
           <div class="row"><span>~/.local/state/conn/tmux.conf</span><span>configuration conn writes for itself at every launch</span></div>
           <div class="row"><span>~/.local/state/conn/latest-release</span><span>the latest release as last checked, and when</span></div>
+          <div class="row"><span>~/.local/state/conn/runs.jsonl</span><span>how each entry and task ended, one run per line; cut back to the last two thousand as it grows</span></div>
           <div class="row"><span>.conn</span><span>a project's plan; Section 6</span></div>
         </div>
       </div>

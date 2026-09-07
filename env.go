@@ -144,6 +144,16 @@ func (s *envSubject) describe(procs []Proc, pid int, read func(int) []string, li
 	return nil
 }
 
+// shell is the shell whose startup files set the subject's environment:
+// the one its SHELL names, which is what the pane runs, else the
+// launcher's.
+func (s envSubject) shell() string {
+	if sh := envMap(s.env)["SHELL"]; sh != "" {
+		return sh
+	}
+	return os.Getenv("SHELL")
+}
+
 // serverEnv is the server's global environment, as show-environment lists
 // it: a variable a line, and a line beginning with - for one unset, which
 // is not a variable.
@@ -813,6 +823,11 @@ func (m envModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.foldedV[r.name] = true
 			}
 		}
+		if msg.err == nil {
+			return m, traceStartup(m.subj.shell())
+		}
+	case envTraceMsg:
+		m.rows = withOrigins(m.rows, msg)
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case tea.MouseWheelMsg:
@@ -1004,14 +1019,14 @@ func (m envModel) render() string {
 type envColumns struct{ name, value, note, source int }
 
 // columns sizes the columns to the rows in view: the name and the source
-// as wide as their widest — the source goes when every row's is the
-// same, as the server's are — the note as wide as its widest up to a
-// cap, and the value the rest, no narrower than a few words; when even
-// that is short the note gives way, since the value is what the page is
-// for.
+// as wide as their widest — the source goes when every row of the page
+// has the same, as the server's do; a filter down to one row keeps it,
+// since the row's source may be what was asked — the note as wide as its
+// widest up to a cap, and the value the rest, no narrower than a few
+// words; when even that is short the note gives way, since the value is
+// what the page is for.
 func (m envModel) columns(rows []envRow) envColumns {
 	var c envColumns
-	sources := map[string]bool{}
 	for _, r := range rows {
 		if r.kind == envGroupRow {
 			continue
@@ -1019,6 +1034,9 @@ func (m envModel) columns(rows []envRow) envColumns {
 		c.name = max(c.name, lipgloss.Width(r.name)+2*btoi(r.kind == envEntryRow))
 		c.note = max(c.note, lipgloss.Width(r.note))
 		c.source = max(c.source, lipgloss.Width(r.source))
+	}
+	sources := map[string]bool{}
+	for _, r := range m.rows {
 		if r.kind == envVarRow {
 			sources[r.source] = true
 		}
@@ -1028,6 +1046,7 @@ func (m envModel) columns(rows []envRow) envColumns {
 	}
 	c.name = min(c.name, 28)
 	c.note = min(c.note, 36)
+	c.source = min(c.source, 30)
 	rest := func() int { return m.width - 1 - c.name - 2 - c.note - 2 - c.source - 2*btoi(c.source > 0) }
 	if rest() < 40 {
 		c.note = max(12, c.note+rest()-40)
@@ -1083,7 +1102,7 @@ func (m envModel) line(r envRow, selected bool, c envColumns) string {
 		pad(toneStyles[r.valueTone].Render(value), c.value) + "  " +
 		pad(toneStyles[r.noteTone].Render(truncateTail(r.note, c.note)), c.note)
 	if c.source > 0 {
-		out += "  " + faintStyle.Render(r.source)
+		out += "  " + faintStyle.Render(truncate(r.source, c.source))
 	}
 	return truncateTail(out, m.width)
 }

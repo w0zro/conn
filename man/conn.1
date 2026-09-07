@@ -307,13 +307,18 @@ project's variables come first — the ones its \fB.env\fR sets, and the ones
 that name the environment and what it talks to — and a variable the file names
 that the process lacks is a line of its own; then the runtime's; the rest are
 grouped by who set them, npm, the shell's rc files, the terminal conn was
-started in, and folded. \fBspace\fR folds and unfolds, \fB\-\fR unfolds all,
-\fB/\fR finds, \fBq\fR leaves. On a place the page is the server's environment,
-which every shell starts from. \fBctrl\-space e\fR does the same from any shell.
-\fBconn env\fR typed at a prompt shows that shell's environment as it is now,
-exports and all, since the command inherited it. On macOS a system shell at its
-prompt keeps its environment to itself; the page says so and shows what the
-shell started from, and \fBconn env\fR typed there shows its own.
+started in, and folded. For a variable a startup file set, the page says which
+file and line: it starts the shell once more, traced, after its first paint, and
+reads the assignment off the trace; a variable the trace did not see set is
+looked for in the startup files by name, and said to be named there. An entry of
+PATH that \fB/etc/paths\fR put there says so. \fBspace\fR folds and unfolds,
+\fB\-\fR unfolds all, \fB/\fR finds, \fBq\fR leaves. On a place the page is the
+server's environment, which every shell starts from. \fBctrl\-space e\fR does
+the same from any shell. \fBconn env\fR typed at a prompt shows that shell's
+environment as it is now, exports and all, since the command inherited it. On
+macOS a system shell at its prompt keeps its environment to itself; the page
+says so and shows what the shell started from, and \fBconn env\fR typed there
+shows its own.
 .SH AGENTS
 .TP
 5-1.

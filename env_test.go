@@ -340,6 +340,11 @@ func TestThePageDrawsFoldsAndFinds(t *testing.T) {
 	if !strings.Contains(page, "EDITOR") || strings.Contains(page, "DATABASE_URL") || !strings.Contains(page, "/edit") {
 		t.Errorf("the filter did not narrow the page:\n%s", page)
 	}
+	// The one row keeps its source: where a variable came from is what
+	// a filter down to it is usually asking.
+	if !strings.Contains(page, "the shell") {
+		t.Errorf("the filtered row lost its source:\n%s", page)
+	}
 	m = envPress(envPress(m, "enter"), "esc")
 	if m.filter != "" || !strings.Contains(stripANSI(m.render()), "DATABASE_URL") {
 		t.Errorf("esc did not clear the filter")

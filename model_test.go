@@ -3401,8 +3401,8 @@ func TestAProcessThatIsConnSaysMe(t *testing.T) {
 			{PID: 702, PPID: 1, Command: "go", Argv: "go test ./...", Dir: "/p/conn"},
 		})
 	rows := navColumn(m)
-	if len(rows) < 3 || !strings.Contains(rows[1], "go run .") || !strings.Contains(rows[1], "(me)") {
-		t.Errorf("rows = %q, want the go run row tagged (me)", rows)
+	if len(rows) < 3 || strings.TrimSpace(rows[1]) != "(me)" {
+		t.Errorf("rows = %q, want the go run row to read (me), and only that", rows)
 	}
 	if strings.Contains(rows[2], "(me)") {
 		t.Errorf("rows = %q, want the go test row untagged", rows)

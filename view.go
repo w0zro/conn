@@ -211,11 +211,12 @@ func (m model) renderRow(r navRow, selected bool) string {
 		}
 	}
 
-	// A process that is conn itself says so, in a color of its own: the
-	// launcher become a tmux client reads as a go or a tmux otherwise.
-	me := ""
-	if m.selfRun(r) {
-		me = " (me)"
+	// A process that is conn itself is (me), and only that, in a color of
+	// its own: the launcher become a tmux client would read as a go or a
+	// tmux, and neither is what the row is. Ports it has none of, and a
+	// mark it does not wear.
+	if m.selfRun(r) && !selected {
+		style = selfStyle
 	}
 
 	// Where it listens, beside the name the way an agent's model is: a
@@ -265,8 +266,7 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// A column of gutter, the indent, and the marker's two columns come
 	// before the name.
 	room := navWidth - 3 - lipgloss.Width(indent) - lipgloss.Width(fold) -
-		lipgloss.Width(spinner) - lipgloss.Width(mark) - lipgloss.Width(me) -
-		lipgloss.Width(ports)
+		lipgloss.Width(spinner) - lipgloss.Width(mark) - lipgloss.Width(ports)
 
 	// While a query is at work the matched letters are lit, so the narrowed
 	// list always shows why it narrowed. The styled label is cut ansi-aware;
@@ -282,7 +282,7 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// The marker stands beside the name it marks, in the indent, rather
 	// than at the edge of the column with the whole indent between them.
 	return " " + indent + style.Render(marker) + " " + seg + style.Render(ports) +
-		selfStyle.Render(me) + markStyle.Render(mark) + errStyle.Render(spinner) +
+		markStyle.Render(mark) + errStyle.Render(spinner) +
 		faintStyle.Render(fold)
 }
 
@@ -309,6 +309,9 @@ func (m model) rowLabel(r navRow) string {
 // adds: the pane's heading uses it too, so the pane is about what the row
 // says it is about.
 func (m model) rowName(r navRow) string {
+	if m.selfRun(r) {
+		return "(me)"
+	}
 	name := commandOf(r.node)
 
 	// An agent reads as what it is, not how it was invoked: the kind, and

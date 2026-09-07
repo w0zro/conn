@@ -31,9 +31,18 @@ type Container struct {
 	ID      string // the short id, twelve hex digits
 	Name    string // the container's name: compose-demo-web-1
 	Service string // the compose service, or the name when compose did not start it
+	Project string // the compose project, which its siblings share
 	Image   string
-	Status  string // Up 3 minutes
+	Status  string // Up 3 minutes (healthy); Exited (1) 3 minutes ago
+	State   string // running, exited, paused, created, restarting, dead
+	Exit    string // the status it exited with, when it has: "0", "1"…
+	Health  string // healthy, unhealthy or starting, for a service with a health check; else ""
+	Ago     string // how long ago the status changed, in the navigator's terms: now, 3m, 2h
 }
+
+// running reports the container's process alive: the state a row wants
+// no mark for.
+func (c *Container) running() bool { return c.State == "running" }
 
 // dockerPath is where the docker client is, or "" where there is none: a
 // machine without docker is asked nothing, every scan.
@@ -50,18 +59,22 @@ var dockerPath = func() string {
 const (
 	labelWorkingDir = "com.docker.compose.project.working_dir"
 	labelService    = "com.docker.compose.service"
+	labelProject    = "com.docker.compose.project"
 )
 
-// containers lists the running containers as rows for the tree: only the
-// ones compose started for a directory, since a container without one
-// belongs to no place, the way a process working outside every project
-// belongs to none. A daemon that is not up, or no docker at all, is an
-// empty list — nothing is running in a container, which is true.
+// containers lists the containers as rows for the tree: only the ones
+// compose started for a directory, since a container without one belongs
+// to no place, the way a process working outside every project belongs to
+// none. Every container is asked for, the exited included: a service that
+// died is the thing most worth a row, and attachContainers keeps the ones
+// whose project is still going. A daemon that is not up, or no docker at
+// all, is an empty list — nothing is running in a container, which is
+// true.
 func containers() []Proc {
 	if dockerPath == "" {
 		return nil
 	}
-	out, err := listing(scanTimeout, dockerPath, "ps", "--format", "{{json .}}")
+	out, err := listing(scanTimeout, dockerPath, "ps", "-a", "--format", "{{json .}}")
 	if err != nil {
 		return nil
 	}
@@ -76,6 +89,7 @@ type dockerRow struct {
 	Names  string `json:"Names"`
 	Image  string `json:"Image"`
 	Status string `json:"Status"`
+	State  string `json:"State"`
 	Labels string `json:"Labels"`
 	Ports  string `json:"Ports"`
 }
@@ -105,12 +119,82 @@ func parseContainers(out []byte) []Proc {
 			Dir:     dir,
 			Ports:   hostPorts(row.Ports),
 			Container: &Container{
-				ID: row.ID, Name: row.Names, Service: service,
-				Image: row.Image, Status: row.Status,
+				ID: row.ID, Name: row.Names, Service: service, Project: labels[labelProject],
+				Image: row.Image, Status: row.Status, State: row.State,
+				Exit: exitOf(row.Status), Health: healthOf(row.Status), Ago: agoOf(row.Status),
 			},
 		})
 	}
 	return procs
+}
+
+// exitOf is the status a container exited with, read off docker's word
+// for it — Exited (1) 3 minutes ago — or nothing for one that has not.
+func exitOf(status string) string {
+	_, rest, ok := strings.Cut(status, "Exited (")
+	if !ok {
+		return ""
+	}
+	code, _, ok := strings.Cut(rest, ")")
+	if !ok {
+		return ""
+	}
+	return code
+}
+
+// healthOf is what a health check says, read off the status — Up 3
+// minutes (healthy), (unhealthy), (health: starting) — or nothing for a
+// service with no check.
+func healthOf(status string) string {
+	_, rest, ok := strings.Cut(status, "(")
+	if !ok {
+		return ""
+	}
+	word, _, _ := strings.Cut(rest, ")")
+	switch word {
+	case "healthy", "unhealthy":
+		return word
+	case "health: starting":
+		return "starting"
+	}
+	return ""
+}
+
+// agoOf is how long ago the status changed, as the navigator says ages:
+// docker says Up 3 minutes, Exited (1) About an hour ago, Less than a
+// second ago, and the row has room for 3m. The health in parentheses,
+// when there is one, comes after the age and is not part of it.
+func agoOf(status string) string {
+	if i := strings.Index(status, " ("); i >= 0 && !strings.HasPrefix(status, "Exited") {
+		status = status[:i]
+	}
+	fields := strings.Fields(strings.TrimSuffix(status, " ago"))
+	n := len(fields)
+	if n < 2 {
+		return ""
+	}
+	unit := strings.TrimSuffix(fields[n-1], "s")
+	count := 1
+	if v, err := strconv.Atoi(fields[n-2]); err == nil {
+		count = v
+	}
+	switch unit {
+	case "second":
+		return "now"
+	case "minute":
+		return strconv.Itoa(count) + "m"
+	case "hour":
+		return strconv.Itoa(count) + "h"
+	case "day":
+		return strconv.Itoa(count) + "d"
+	case "week":
+		return strconv.Itoa(count) + "w"
+	case "month":
+		return strconv.Itoa(count*4) + "w"
+	case "year":
+		return strconv.Itoa(count*52) + "w"
+	}
+	return ""
 }
 
 // parseLabels reads labels as docker ps prints them: key=value, comma
@@ -173,10 +257,81 @@ func containerPID(id string) int {
 // is a root of its own under the place, which is where its directory says
 // it belongs.
 func attachContainers(procs, cs []Proc) []Proc {
-	for i := range cs {
-		cs[i].PPID = composeFor(procs, cs[i].Dir, cs[i].Container.Service)
+	// A container that is not running is listed while its project is:
+	// a sibling running, or a compose up working in its directory. A
+	// service that died beside the others is what needs noticing, and
+	// tab goes to it; a project stopped whole is over, and its containers
+	// are not a list of failures to read every day after.
+	live := map[string]bool{}
+	for _, c := range cs {
+		if c.Container.running() {
+			live[c.Container.Project] = true
+		}
 	}
-	return append(procs, cs...)
+	kept := cs[:0]
+	for _, c := range cs {
+		c.PPID = composeFor(procs, c.Dir, c.Container.Service)
+		if c.Container.running() || live[c.Container.Project] || c.PPID != 0 {
+			kept = append(kept, c)
+		}
+	}
+	return append(procs, kept...)
+}
+
+// containerWrong reports a container in a row's run that needs a look: one
+// that is not running and did not exit well, or one its health check calls
+// unhealthy.
+func containerWrong(run []*ProcNode) bool {
+	for _, n := range run {
+		c := n.Container
+		if c == nil {
+			continue
+		}
+		if !c.running() && c.Exit != "0" {
+			return true
+		}
+		if c.Health == "unhealthy" {
+			return true
+		}
+	}
+	return false
+}
+
+// containerDone reports a row that is a container that exited well: a
+// one-shot service that did its job.
+func containerDone(r navRow) bool {
+	c := r.node.Container
+	return c != nil && !c.running() && c.Exit == "0"
+}
+
+// containerNote is what a container's row says after its name, where a
+// process's says its ports: the ports, and what its health check says
+// when it says anything but healthy; for one that is not running, how
+// long ago it stopped, beside the mark.
+func containerNote(n *ProcNode) string {
+	c := n.Container
+	if !c.running() {
+		if c.Ago != "" {
+			return " · " + c.Ago
+		}
+		return ""
+	}
+	// The health check's word stands where the ports would: a row is
+	// narrow, and a service that is unhealthy is not one to go and open.
+	// The ports are the pane's.
+	if c.Health == "unhealthy" || c.Health == "starting" {
+		return " · " + c.Health
+	}
+	if len(n.Ports) > 0 {
+		return " · :" + strings.Join(n.Ports, " :")
+	}
+	return ""
+}
+
+// containerShell is the command that opens a shell inside a running
+// container: compose's exec, in the place, for the service.
+func containerShell(c *Container) string {
+	return "docker compose exec " + c.Service + " sh"
 }
 
 // composeFor is the pid of the deepest process of the compose run working
@@ -258,9 +413,16 @@ func fieldBase(s string) string {
 
 // dockerStop asks docker to stop a container: the container's own
 // process gets SIGTERM, and docker follows with SIGKILL after its grace,
-// which is the kill a process gets, done docker's way.
-func dockerStop(id string) error {
-	_, err := listing(scanTimeout, dockerPath, "stop", id)
+// which is the kill a process gets, done docker's way. A container not
+// running is removed instead — its row closed, the way an ended entry's
+// shell is closed — and compose makes it again when the service is next
+// brought up.
+func dockerStop(c *Container) error {
+	if !c.running() {
+		_, err := listing(scanTimeout, dockerPath, "rm", c.ID)
+		return err
+	}
+	_, err := listing(scanTimeout, dockerPath, "stop", c.ID)
 	return err
 }
 
@@ -285,13 +447,19 @@ func containerLogs(id string, lines int) []string {
 // then the last of its logs.
 func containerFields(n *ProcNode) []field {
 	c := n.Container
+	statusTone := toneGood
+	if containerWrong([]*ProcNode{n}) {
+		statusTone = toneBad
+	} else if !c.running() {
+		statusTone = toneQuiet
+	}
 	fs := []field{
 		heading(procLabel(n)),
 		note(n.Dir),
 		gap(),
 		field{label: "container", value: c.Name, tone: toneName},
 		field{label: "image", value: c.Image, tone: toneQuiet},
-		field{label: "status", value: c.Status, tone: toneGood},
+		field{label: "status", value: c.Status, tone: statusTone},
 	}
 	if len(n.Ports) > 0 {
 		fs = append(fs, field{label: "publishes", value: strings.Join(n.Ports, ", "), tone: toneAccent})

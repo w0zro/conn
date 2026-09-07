@@ -1646,6 +1646,20 @@ func (m *model) openShell() tea.Cmd {
 	}
 
 	if r.kind == rowProc {
+		// A container is a place of its own to step into: a shell inside
+		// it, opened by compose in the place, held like any shell.
+		if c := r.node.Container; c != nil {
+			if !c.running() {
+				m.status, m.statusErr = c.Service+" is not running", false
+				return nil
+			}
+			if m.server == nil {
+				m.status, m.statusErr = "no server to hold it: "+m.serverErr, true
+				return nil
+			}
+			m.server.open(r.node.Dir, containerShell(c), "")
+			return nil
+		}
 		t := m.owningTerm(r.node.PID)
 		if t == nil {
 			// The row is already drawn dim to say so; this is the reminder for
@@ -1984,7 +1998,7 @@ func (m model) wrong(r navRow) bool {
 		return false
 	}
 	exit := m.ended(r)
-	return unwell(r.run) || (exit != "" && exit != "0")
+	return unwell(r.run) || containerWrong(r.run) || (exit != "" && exit != "0")
 }
 
 // needsYou reports a row that tab goes to: an agent waiting on you, or a
@@ -2471,7 +2485,7 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 		switch {
 		case m.wrong(r):
 			mark = glyphFailed
-		case m.ended(r) == "0":
+		case m.ended(r) == "0" || containerDone(r):
 			mark = glyphDone
 		}
 		if a := m.agentFor(r); a != nil {

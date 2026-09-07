@@ -96,7 +96,7 @@ func killTree(req *killRequest, done []killResult) tea.Cmd {
 				// A container is stopped by docker, which signals the
 				// process inside it; the id names it for good, so there
 				// is no reuse to check for.
-				res.err = dockerStop(n.Container.ID)
+				res.err = dockerStop(n.Container)
 			case reused(n, started):
 				res.err = errGone
 			default:

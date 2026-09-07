@@ -199,7 +199,7 @@ func (m model) renderRow(r navRow, selected bool) string {
 			if !selected {
 				style = errStyle
 			}
-		case m.ended(r) == "0":
+		case m.ended(r) == "0" || containerDone(r):
 			mark, markStyle = " "+glyphDone, toneStyles[toneGood]
 		}
 	}
@@ -224,7 +224,9 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// loses its tail and keeps its port — the port being the thing you
 	// were about to go and look up.
 	ports := ""
-	if r.kind == rowProc {
+	if r.kind == rowProc && r.node.Container != nil {
+		ports = containerNote(r.node)
+	} else if r.kind == rowProc {
 		if ps := runPorts(r.run, r.node); len(ps) > 0 {
 			ports = " · :" + strings.Join(ps, " :")
 		}

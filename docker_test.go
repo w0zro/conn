@@ -9,9 +9,13 @@ import (
 	"testing"
 )
 
-const dockerPS = `{"ID":"40de2f820e61","Names":"compose-demo-web-1","Image":"nginx:alpine","Status":"Up 3 minutes","Labels":"com.docker.compose.project.working_dir=/p/demo,com.docker.compose.project=compose-demo,com.docker.compose.service=web,maintainer=NGINX Docker Maintainers <docker-maint@nginx.com>","Ports":"0.0.0.0:8438->80/tcp, [::]:8438->80/tcp"}
-{"ID":"ed2d5cf6ab38","Names":"compose-demo-cache-1","Image":"redis:alpine","Status":"Up 3 minutes","Labels":"com.docker.compose.project.working_dir=/p/demo,com.docker.compose.service=cache","Ports":"0.0.0.0:6390->6379/tcp, 6379/tcp"}
-{"ID":"9a1b2c3d4e5f","Names":"skelly-postgres","Image":"postgres:16","Status":"Up 2 hours","Labels":"","Ports":"5432/tcp"}
+const dockerPS = `{"ID":"40de2f820e61","Names":"compose-demo-web-1","Image":"nginx:alpine","State":"running","Status":"Up 3 minutes","Labels":"com.docker.compose.project.working_dir=/p/demo,com.docker.compose.project=compose-demo,com.docker.compose.service=web,maintainer=NGINX Docker Maintainers <docker-maint@nginx.com>","Ports":"0.0.0.0:8438->80/tcp, [::]:8438->80/tcp"}
+{"ID":"ed2d5cf6ab38","Names":"compose-demo-cache-1","Image":"redis:alpine","State":"running","Status":"Up 3 minutes","Labels":"com.docker.compose.project.working_dir=/p/demo,com.docker.compose.service=cache","Ports":"0.0.0.0:6390->6379/tcp, 6379/tcp"}
+{"ID":"9a1b2c3d4e5f","Names":"skelly-postgres","Image":"postgres:16","State":"running","Status":"Up 2 hours","Labels":"","Ports":"5432/tcp"}
+`
+
+// dockerPSExited is a service of the same project that died.
+const dockerPSExited = `{"ID":"c0ffee000001","Names":"compose-demo-worker-1","Image":"alpine","State":"exited","Status":"Exited (3) 3 minutes ago","Labels":"com.docker.compose.project.working_dir=/p/demo,com.docker.compose.project=compose-demo,com.docker.compose.service=worker","Ports":""}
 `
 
 func TestParseContainersReadsServiceDirectoryAndPorts(t *testing.T) {
@@ -280,5 +284,103 @@ func TestAPlaceWithNeitherPlanNorComposeSaysSo(t *testing.T) {
 	m = press(m, "r")
 	if m.status != "demo does not say what it needs" {
 		t.Errorf("status = %q", m.status)
+	}
+}
+
+func TestDockersWordsForStateAreRead(t *testing.T) {
+	for _, tc := range []struct{ status, exit, health, ago string }{
+		{"Up 3 minutes", "", "", "3m"},
+		{"Up 3 minutes (healthy)", "", "healthy", "3m"},
+		{"Up About an hour (unhealthy)", "", "unhealthy", "1h"},
+		{"Up 2 seconds (health: starting)", "", "starting", "now"},
+		{"Exited (3) 3 minutes ago", "3", "", "3m"},
+		{"Exited (0) 11 months ago", "0", "", "44w"},
+		{"Exited (137) Less than a second ago", "137", "", "now"},
+		{"Created", "", "", ""},
+	} {
+		if got := exitOf(tc.status); got != tc.exit {
+			t.Errorf("exitOf(%q) = %q, want %q", tc.status, got, tc.exit)
+		}
+		if got := healthOf(tc.status); got != tc.health {
+			t.Errorf("healthOf(%q) = %q, want %q", tc.status, got, tc.health)
+		}
+		if got := agoOf(tc.status); got != tc.ago {
+			t.Errorf("agoOf(%q) = %q, want %q", tc.status, got, tc.ago)
+		}
+	}
+}
+
+func TestAnExitedContainerIsListedWhileItsProjectRuns(t *testing.T) {
+	// Beside running siblings: listed, as the thing that needs a look.
+	cs := attachContainers(nil, parseContainers([]byte(dockerPS+dockerPSExited)))
+	if len(cs) != 3 || cs[2].Container.Service != "worker" || cs[2].Container.Exit != "3" {
+		t.Errorf("containers = %v, want the dead worker beside the two running", cs)
+	}
+	// Alone, its project over: not a failure to read every day after.
+	if cs := attachContainers(nil, parseContainers([]byte(dockerPSExited))); len(cs) != 0 {
+		t.Errorf("containers = %v, want an exited container of a stopped project left out", cs)
+	}
+	// Alone, but compose up still running in its directory: listed under it.
+	compose := []Proc{{PID: 20, PPID: 1, Command: "docker", Argv: "docker compose up", Dir: "/p/demo"}}
+	if cs := attachContainers(compose, parseContainers([]byte(dockerPSExited))); len(cs) != 2 || cs[1].PPID != 20 {
+		t.Errorf("containers = %v, want the exited container under the compose still up", cs)
+	}
+}
+
+// troubledModel is composeModel with a worker that died and a web whose
+// health check is failing.
+func troubledModel() model {
+	rows := strings.Replace(dockerPS, `"Status":"Up 3 minutes","Labels":"com.docker.compose.project.working_dir=/p/demo,com.docker.compose.project=compose-demo,com.docker.compose.service=web`,
+		`"Status":"Up 3 minutes (unhealthy)","Labels":"com.docker.compose.project.working_dir=/p/demo,com.docker.compose.project=compose-demo,com.docker.compose.service=web`, 1)
+	procs := []Proc{
+		{PID: 10, PPID: 1, Command: "zsh", Argv: "zsh", Dir: "/p/demo"},
+		{PID: 20, PPID: 10, Command: "docker", Argv: "docker compose up", Dir: "/p/demo"},
+		{PID: 30, PPID: 20, Command: "docker-compose", Argv: "docker-compose compose up", Dir: "/p/demo"},
+	}
+	procs = attachContainers(procs, parseContainers([]byte(rows+dockerPSExited)))
+	m := withProcList(80, 12, []Project{{Name: "demo", Path: "/p/demo"}}, procs)
+	m.terms[10] = &remoteTerm{pid: 10, dir: "/p/demo", name: "app"}
+	m.rebuild()
+	return m
+}
+
+func TestADeadServiceWearsTheCrossAndTabGoesToIt(t *testing.T) {
+	m := troubledModel()
+	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        cache · :6390", "        web · unhealthy ✗", "        worker · 3m ✗"})
+	var web, worker navRow
+	for _, r := range m.rows {
+		if r.kind == rowProc && r.node.Command == "web" {
+			web = r
+		}
+		if r.kind == rowProc && r.node.Command == "worker" {
+			worker = r
+		}
+	}
+	if !m.needsYou(worker) || !m.needsYou(web) {
+		t.Error("a service that died, and one its check calls unhealthy, need you")
+	}
+	m = press(m, "tab")
+	if r, _ := m.selected(); r.node == nil || r.node.Container == nil || r.node.Command != "web" {
+		t.Errorf("tab landed on %+v, want the first service in trouble", r.node)
+	}
+}
+
+func TestEnterOnAContainerOpensAShellInsideIt(t *testing.T) {
+	m, asked := pipeServer(t, troubledModel())
+	for range 2 {
+		m = press(m, "down") // onto cache
+	}
+	m = press(m, "enter")
+	got := askedForKind(t, asked, kindOpen)
+	if got.Run != "docker compose exec cache sh" || got.Dir != "/p/demo" {
+		t.Errorf("asked %+v, want a shell inside cache, opened by compose in the place", got)
+	}
+
+	for range 2 {
+		m = press(m, "down") // onto worker, which died
+	}
+	m = press(m, "enter")
+	if m.status != "worker is not running" {
+		t.Errorf("status = %q, want a dead service refused", m.status)
 	}
 }

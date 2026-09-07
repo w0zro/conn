@@ -123,23 +123,23 @@
         <p class="label">CONTENTS</p>
         <ol>
           <li><a href="#general"><span class="n">1</span><span>General</span><span class="dots"></span><span>1-1</span></a></li>
-          <li><a href="#navigator"><span class="n">2</span><span>The navigator</span><span class="dots"></span><span>1-2</span></a></li>
-          <li><a href="#moving"><span class="n">3</span><span>Moving</span><span class="dots"></span><span>2-3</span></a></li>
+          <li><a href="#navigator"><span class="n">2</span><span>The navigator</span><span class="dots"></span><span>2-1</span></a></li>
+          <li><a href="#moving"><span class="n">3</span><span>Moving</span><span class="dots"></span><span>3-1</span></a></li>
           <li><a href="#shells"><span class="n">4</span><span>Shells</span><span class="dots"></span><span>4-1</span></a></li>
           <li><a href="#agents"><span class="n">5</span><span>Agents</span><span class="dots"></span><span>5-1</span></a></li>
-          <li><a href="#plans"><span class="n">6</span><span>Plans</span><span class="dots"></span><span>5-2</span></a></li>
-          <li><a href="#tasks"><span class="n">7</span><span>Tasks</span><span class="dots"></span><span>6-2</span></a></li>
+          <li><a href="#plans"><span class="n">6</span><span>Plans</span><span class="dots"></span><span>6-1</span></a></li>
+          <li><a href="#tasks"><span class="n">7</span><span>Tasks</span><span class="dots"></span><span>7-1</span></a></li>
         </ol>
       </div>
       <div>
         <ol>
-          <li><a href="#stopping"><span class="n">8</span><span>Stopping</span><span class="dots"></span><span>7-1</span></a></li>
-          <li><a href="#configuration"><span class="n">9</span><span>Configuration</span><span class="dots"></span><span>8-1</span></a></li>
-          <li><a href="#server"><span class="n">10</span><span>The server</span><span class="dots"></span><span>9-1</span></a></li>
+          <li><a href="#stopping"><span class="n">8</span><span>Stopping</span><span class="dots"></span><span>8-1</span></a></li>
+          <li><a href="#configuration"><span class="n">9</span><span>Configuration</span><span class="dots"></span><span>9-1</span></a></li>
+          <li><a href="#server"><span class="n">10</span><span>The server</span><span class="dots"></span><span>10-1</span></a></li>
           <li><a href="#keys"><span class="n">A</span><span>Keys</span><span class="dots"></span><span>A-1</span></a></li>
           <li><a href="#files"><span class="n">B</span><span>Files</span><span class="dots"></span><span>B-1</span></a></li>
-          <li><a href="#environment"><span class="n">C</span><span>Environment</span><span class="dots"></span><span>B-1</span></a></li>
-          <li><a href="#exit"><span class="n">D</span><span>Exit status</span><span class="dots"></span><span>B-2</span></a></li>
+          <li><a href="#environment"><span class="n">C</span><span>Environment</span><span class="dots"></span><span>C-1</span></a></li>
+          <li><a href="#exit"><span class="n">D</span><span>Exit status</span><span class="dots"></span><span>D-1</span></a></li>
         </ol>
       </div>
     </div>
@@ -166,7 +166,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-5 &mdash; 2-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 1-5 &mdash; 1-7</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
@@ -183,12 +183,6 @@
         <div class="cmd" role="group" aria-label="first run"><span class="prompt">$</span><code>conn</code><button class="copy" type="button" data-copy="conn">[copy]</button></div>
         <p class="para"><span class="n">1-7.</span>There is nothing to set up. The list opens showing what is running, so on a quiet machine it says <b>nothing running</b>. Press <b>.</b> to show every repository, <b>/</b> to find one by name. conn looks under <b>~/projects</b>; Section 9 points it elsewhere.</p>
       </div>
-      <div class="section" id="navigator">
-        <p class="kicker">SECTION 2</p>
-        <h2>The navigator</h2>
-        <p class="para"><span class="n">2-1.</span>The left column is a tree, at most four levels deep: <b>group</b> &rarr; <b>repository</b> &rarr; <b>sub-project</b> &rarr; <b>process</b>. A repository is any git repository under a root. The scan skips <b>node_modules</b>, <b>vendor</b>, <b>target</b>, <b>.build</b>, <b>Pods</b>, <b>.venv</b>, <b>venv</b>, every directory whose name begins with a dot, and whatever <b>skipDirs</b> names.</p>
-        <p class="para"><span class="n">2-2.</span>A folder inside a root that holds two or more repositories is a group. It is a place of its own: <b>s</b> opens a shell there, <b>r</b> runs its plan, <b>x</b> covers everything beneath it.</p>
-      </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
@@ -202,10 +196,14 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-3 &mdash; 2-5</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-1 &mdash; 2-5</span></div>
     <div class="rule"></div>
     <div class="body">
-      <div class="section">
+      <div class="section" id="navigator">
+        <p class="kicker">SECTION 2</p>
+        <h2>The navigator</h2>
+        <p class="para"><span class="n">2-1.</span>The left column is a tree, at most four levels deep: <b>group</b> &rarr; <b>repository</b> &rarr; <b>sub-project</b> &rarr; <b>process</b>. A repository is any git repository under a root. The scan skips <b>node_modules</b>, <b>vendor</b>, <b>target</b>, <b>.build</b>, <b>Pods</b>, <b>.venv</b>, <b>venv</b>, every directory whose name begins with a dot, and whatever <b>skipDirs</b> names.</p>
+        <p class="para"><span class="n">2-2.</span>A folder inside a root that holds two or more repositories is a group. It is a place of its own: <b>s</b> opens a shell there, <b>r</b> runs its plan, <b>x</b> covers everything beneath it.</p>
         <p class="para"><span class="n">2-3.</span>In a monorepo, a directory with a manifest is a sub-project and gets a row under its repository. Manifests, in the order they are trusted: <b>.conn</b>, <b>Procfile</b>, <b>package.json</b>, <b>deno.json</b>, <b>composer.json</b>, <b>go.mod</b>, <b>Cargo.toml</b>, <b>Gemfile</b>, <b>mix.exs</b>, <b>pyproject.toml</b>, <b>pom.xml</b>, <b>build.gradle</b>, <b>build.gradle.kts</b>. Ignored directories are skipped; an untracked <b>.conn</b> still counts.</p>
         <p class="para"><span class="n">2-4.</span>Each place lists the processes running in it, attributed to the innermost place they belong to and named by what you would call them: <b>npm run dev</b>, not <b>node</b>. A row that listens carries its port, <b>npm run dev &middot; :5173</b>; an agent's row carries its model; a shell a plan or a task started is named for its entry. Dim rows have no shell of their own to go to: processes started outside conn, and processes a shell's command started in turn, a claude's tools, say. <b>enter</b> reaches as far as the shell above them. All are listed and killable. The row that is conn itself says <b>(me)</b>.</p>
         <p class="para"><span class="n">2-5.</span>A row's mark says how its command ended, or that its process is unwell. An agent's marks are in Section 5.</p>
@@ -235,16 +233,6 @@
         <p class="para"><span class="n">2-6.</span>Beside the list, while the keys are in it, is the navigator's own pane: what is known about the row under the cursor. For a place: its branch, status, upstream and last commit; its plan as a checklist, each entry up, down or ended and how; its tasks and how their last run went. For a process: its run, arguments, uptime, cpu, memory, state, ports and children, and beneath the facts the last of what its shell has shown, in the shell's own colors. For a container: its name, image, status and the last of its logs. What a thing is doing can be read without entering it.</p>
         <p class="para"><span class="n">2-7.</span>The status line at the foot is tmux's. It begins with <b>CONN</b> in purple, then the mode the keys are in (Table 2-2), then anything conn has to say until the next key: a report, an error, a confirmation, or that a newer release is out. What a chord says from a shell shows there too, for a few seconds. The right corner names the kind of agent <b>a</b> starts.</p>
         <p class="caption">Table 2-2.&nbsp; Modes on the status line</p>
-        <div class="table narrow">
-          <div class="row"><span>NAV</span><span>the keys are in the navigator</span></div>
-          <div class="row"><span>PROC</span><span>the keys are in a shell</span></div>
-          <div class="row"><span>PREFIX</span><span>a chord hangs after ctrl-space</span></div>
-          <div class="row"><span>COPY</span><span>tmux copy mode</span></div>
-          <div class="row"><span>/query</span><span>a query being typed, or the filter standing</span></div>
-          <div class="row"><span>CONTINUE</span><span>the picker of conversations is open</span></div>
-          <div class="row"><span>NEW</span><span>a project's path is being typed</span></div>
-          <div class="row"><span>CONFIRM</span><span>a kill waits on its second key</span></div>
-        </div>
       </div>
     </div>
     <div class="foot">
@@ -259,28 +247,24 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-8 &mdash; 3-1</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-8</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
+        <div class="table narrow">
+          <div class="row"><span>NAV</span><span>the keys are in the navigator</span></div>
+          <div class="row"><span>PROC</span><span>the keys are in a shell</span></div>
+          <div class="row"><span>PREFIX</span><span>a chord hangs after ctrl-space</span></div>
+          <div class="row"><span>COPY</span><span>tmux copy mode</span></div>
+          <div class="row"><span>/query</span><span>a query being typed, or the filter standing</span></div>
+          <div class="row"><span>CONTINUE</span><span>the picker of conversations is open</span></div>
+          <div class="row"><span>NEW</span><span>a project's path is being typed</span></div>
+          <div class="row"><span>CONFIRM</span><span>a kill waits on its second key</span></div>
+        </div>
         <p class="para"><span class="n">2-8.</span>The mouse is tmux's, with nothing of conn's: the wheel scrolls a pane's transcript, a drag selects and copies on release, a click puts the keys in the pane under it, and a program that speaks mouse gets its own clicks and wheel. Hold shift to select the terminal's own way. A program that copies for itself, vim's clipboard yank or anything speaking OSC 52, reaches the system clipboard through tmux.</p>
         <div class="note">
           <p class="label">NOTE</p>
           <p>A click into the navigator brings the keys home the way <b>ctrl-space -</b> does: the shell beside it goes back to its own window.</p>
-        </div>
-      </div>
-      <div class="section" id="moving">
-        <p class="kicker">SECTION 3</p>
-        <h2>Moving</h2>
-        <p class="para"><span class="n">3-1.</span>In the list:</p>
-        <p class="caption">Table 3-1.&nbsp; Moving in the list</p>
-        <div class="table narrow">
-          <div class="row"><span>j k</span><span>move; the arrows move too</span></div>
-          <div class="row"><span>gg G</span><span>top and bottom</span></div>
-          <div class="row"><span>space</span><span>fold or unfold the selected node; a folded node shows +n for what it hides</span></div>
-          <div class="row"><span>-</span><span>fold or unfold everything; unfolded rows also show pids, and a container's id</span></div>
-          <div class="row"><span>.</span><span>everything, or only what is running</span></div>
-          <div class="row"><span>J K</span><span>the next and previous shell, in the list's order, with the keys in it</span></div>
         </div>
       </div>
     </div>
@@ -296,11 +280,41 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-2 &mdash; 3-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-1 &mdash; 3-2</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section" id="moving">
+        <p class="kicker">SECTION 3</p>
+        <h2>Moving</h2>
+        <p class="para"><span class="n">3-1.</span>In the list:</p>
+        <p class="caption">Table 3-1.&nbsp; Moving in the list</p>
+        <div class="table narrow">
+          <div class="row"><span>j k</span><span>move; the arrows move too</span></div>
+          <div class="row"><span>gg G</span><span>top and bottom</span></div>
+          <div class="row"><span>space</span><span>fold or unfold the selected node; a folded node shows +n for what it hides</span></div>
+          <div class="row"><span>-</span><span>fold or unfold everything; unfolded rows also show pids, and a container's id</span></div>
+          <div class="row"><span>.</span><span>everything, or only what is running</span></div>
+          <div class="row"><span>J K</span><span>the next and previous shell, in the list's order, with the keys in it</span></div>
+        </div>
+        <p class="para"><span class="n">3-2.</span><b>/</b> finds. Each word of the query must appear in order inside what a row says, not contiguously: <b>tsl</b> finds tressle-api, <b>mono api</b> finds the api inside mono, and the letters that matched are lit. A place answers by its name; a process by anything its row says: the command, its arguments, the plan's name for it, an agent's name and model, a port. Processes that answer are listed under their places, pruned to the branches that answer. An empty query lists places alone.</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>3-1</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 3-2 -->
+<section class="page" aria-label="Page 3-2">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-3</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">3-2.</span><b>/</b> finds. Each word of the query must appear in order inside what a row says, not contiguously: <b>tsl</b> finds tressle-api, <b>mono api</b> finds the api inside mono, and the letters that matched are lit. A place answers by its name; a process by anything its row says: the command, its arguments, the plan's name for it, an agent's name and model, a port. Processes that answer are listed under their places, pruned to the branches that answer. An empty query lists places alone.</p>
         <p class="para"><span class="n">3-3.</span>Looking is a way of getting somewhere, so the keys that get you somewhere work while the query is still typed. Acting ends the look; the filter holds, so the subject stays listed. <b>esc</b> abandons it and puts the cursor back where it was. The query takes readline's editing keys: <b>ctrl-w</b>, <b>ctrl-u</b>, <b>ctrl-h</b>, <b>ctrl-e</b> and the rest.</p>
         <p class="caption">Table 3-2.&nbsp; Keys while a query is typed</p>
         <div class="table">
@@ -317,13 +331,13 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>3-1</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>3-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
 
-<!-- PAGE 3-2 -->
-<section class="page" aria-label="Page 3-2">
+<!-- PAGE 3-3 -->
+<section class="page" aria-label="Page 3-3">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
@@ -338,7 +352,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>3-2</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>3-3</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -401,12 +415,28 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 5-4 &mdash; 6-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 5-4</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
         <p class="para"><span class="n">5-4.</span>conn knows agents as kinds: <b>claude</b> and <b>ollama</b>. <b>,</b> at the navigator, or <b>ctrl-space ,</b> from any shell, moves <b>a</b> on to the next kind, around the end, for the whole server until it goes; the status line's right corner names it. Ollama's rows are plain processes, unmarked. It runs the model most recently pulled or run, read from the manifests under <b>~/.ollama/models</b> or <b>$OLLAMA_MODELS</b>, so the pick needs no daemon; the REPL does, and says so when it is down. With nothing pulled, <b>a</b> runs <b>ollama list</b> instead. <b>agentRuns</b> in the configuration names what a kind runs when its own answer is not the wanted one.</p>
       </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>5-2</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 6-1 -->
+<section class="page" aria-label="Page 6-1">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-1 &mdash; 6-2</span></div>
+    <div class="rule"></div>
+    <div class="body">
       <div class="section" id="plans">
         <p class="kicker">SECTION 6</p>
         <h2>Plans</h2>
@@ -429,13 +459,13 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>5-2</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
 
-<!-- PAGE 6-1 -->
-<section class="page" aria-label="Page 6-1">
+<!-- PAGE 6-2 -->
+<section class="page" aria-label="Page 6-2">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
@@ -456,17 +486,17 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>6-1</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
 
-<!-- PAGE 6-2 -->
-<section class="page" aria-label="Page 6-2">
+<!-- PAGE 6-3 -->
+<section class="page" aria-label="Page 6-3">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-5 &mdash; 7-1</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 6-5</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
@@ -476,6 +506,22 @@
           <p>A plan is not a supervisor. An ended entry's shell stays at its prompt, with its transcript, until <b>x</b> closes it or <b>r</b> starts the entry again beside it.</p>
         </div>
       </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>6-3</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 7-1 -->
+<section class="page" aria-label="Page 7-1">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 7-1 &mdash; 7-3</span></div>
+    <div class="rule"></div>
+    <div class="body">
       <div class="section" id="tasks">
         <p class="kicker">SECTION 7</p>
         <h2>Tasks</h2>
@@ -491,40 +537,8 @@
           <div class="row"><span>Gemfile</span><span><b>rspec</b> with a spec directory, else <b>rake test</b></span></div>
           <div class="row"><span>mix.exs and the rest</span><span>the ecosystem's own: mix, gradle, mvn, deno, swift, dune</span></div>
         </div>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>6-2</b><span>CHANGE 5</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 7-1 -->
-<section class="page" aria-label="Page 7-1">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 7-2 &mdash; 8-1</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
         <p class="para"><span class="n">7-2.</span>Each run is a shell named for its task, so its row wears &#10003; or &#10007;, <b>tab</b> goes to a failure, and the place's pane says how each task's last run went and how long ago. The key again replaces a finished run rather than stacking another beside it; a run still going is left to finish. <b>conn test</b>, <b>conn build</b>, <b>conn lint</b> and <b>ctrl-space t</b>, <b>b</b>, <b>l</b> do the same from any shell.</p>
         <p class="para"><span class="n">7-3.</span>conn reads the end of the transcript the way you would, by the shape of the tool's summary line: go test, pytest, jest, vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc, ruff, eslint. A failed run's row says <b>test &middot; 3 failed</b>, a passed one <b>12 passed</b>. A shape it does not know leaves the status alone.</p>
-      </div>
-      <div class="section" id="stopping">
-        <p class="kicker">SECTION 8</p>
-        <h2>Stopping</h2>
-        <p class="caption">Table 8-1.&nbsp; Kill keys</p>
-        <div class="table">
-          <div class="row"><span>x</span><span>kill the selected process</span></div>
-          <div class="row"><span>X</span><span>kill it and everything under it</span></div>
-          <div class="row"><span>x on an entry</span><span>end the entry's command and its shell; <b>r</b> starts it again</span></div>
-          <div class="row"><span>x on a container</span><span>stop the container, docker's way</span></div>
-          <div class="row"><span>x on a place</span><span>kill everything running in it</span></div>
-          <div class="row"><span>R</span><span>end the server and every shell it holds</span></div>
-        </div>
-        <p class="para"><span class="n">8-1.</span>Every kill asks first: <b>x</b>, <b>y</b> or <b>enter</b> confirms, anything else cancels. Processes get SIGTERM. A signalled row wears a red marker until a scan observes the exit; the list never claims an exit it has not seen. Kills work on any listed process, including ones conn did not start.</p>
       </div>
     </div>
     <div class="foot">
@@ -539,13 +553,41 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 8-2 &mdash; 9-2</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 8-1 &mdash; 8-3</span></div>
     <div class="rule"></div>
     <div class="body">
-      <div class="section">
+      <div class="section" id="stopping">
+        <p class="kicker">SECTION 8</p>
+        <h2>Stopping</h2>
+        <p class="caption">Table 8-1.&nbsp; Kill keys</p>
+        <div class="table">
+          <div class="row"><span>x</span><span>kill the selected process</span></div>
+          <div class="row"><span>X</span><span>kill it and everything under it</span></div>
+          <div class="row"><span>x on an entry</span><span>end the entry's command and its shell; <b>r</b> starts it again</span></div>
+          <div class="row"><span>x on a container</span><span>stop the container, docker's way</span></div>
+          <div class="row"><span>x on a place</span><span>kill everything running in it</span></div>
+          <div class="row"><span>R</span><span>end the server and every shell it holds</span></div>
+        </div>
+        <p class="para"><span class="n">8-1.</span>Every kill asks first: <b>x</b>, <b>y</b> or <b>enter</b> confirms, anything else cancels. Processes get SIGTERM. A signalled row wears a red marker until a scan observes the exit; the list never claims an exit it has not seen. Kills work on any listed process, including ones conn did not start.</p>
         <p class="para"><span class="n">8-2.</span>A held shell is closed through the server. One still running its command is closed only once the command has gone: the command gets SIGTERM, and the shell is hung up when a scan finds it back at its prompt, so a <b>docker compose up</b> stops its containers on the way out, which hung up it would not. An entry's row is the entry, and the question names it: <b>kill app?</b> The entry is then gone, as an entry nothing runs in is, and <b>r</b> starts it again. An ending <b>x</b> asked for wears no mark.</p>
         <p class="para"><span class="n">8-3.</span>A container is stopped by docker, which signals the process inside it and follows with SIGKILL after its grace. <b>r</b> brings the service back (6-5).</p>
       </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>8-1</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 9-1 -->
+<section class="page" aria-label="Page 9-1">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 9-1 &mdash; 9-2</span></div>
+    <div class="rule"></div>
+    <div class="body">
       <div class="section" id="configuration">
         <p class="kicker">SECTION 9</p>
         <h2>Configuration</h2>
@@ -560,24 +602,6 @@
         </div>
         <p class="caption">Figure 9-1.&nbsp; A configuration</p>
         <p class="para"><span class="n">9-2.</span>Every field has a default; a file that names none is the same as no file.</p>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>8-1</b><span>CHANGE 5</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 8-2 -->
-<section class="page" aria-label="Page 8-2">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 9-2 &mdash; 10-1</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
         <p class="caption">Table 9-1.&nbsp; Configuration fields</p>
         <div class="table three">
           <div class="row head"><span>FIELD</span><span>DEFAULT</span><span>FUNCTION</span></div>
@@ -591,30 +615,46 @@
           <div class="row"><span>skipDirs</span><span>&mdash;</span><span>directory names the scan never enters, on top of the built-in list</span></div>
         </div>
       </div>
-      <div class="section" id="server">
-        <p class="kicker">SECTION 10</p>
-        <h2>The server</h2>
-        <p class="para"><span class="n">10-1.</span>The shells live in a tmux server of conn's own: one per user, for all projects, on a socket at <b>~/.local/state/conn/tmux-&lt;uid&gt;.sock</b>. <b>CONN_SOCKET</b> moves the socket; <b>XDG_STATE_HOME</b> moves the directory. Every <b>conn</b> writes the server's configuration, the prefix and its chords, the status line, the transcript cap, to <b>~/.local/state/conn/tmux.conf</b>, brings the server up under it or sources it into one already running, and attaches. No .tmux.conf reaches it.</p>
-      </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>8-2</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>9-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
 
-<!-- PAGE 9-1 -->
-<section class="page" aria-label="Page 9-1">
+<!-- PAGE 10-1 -->
+<section class="page" aria-label="Page 10-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-2 &mdash; 10-4</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-1 &mdash; 10-3</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section" id="server">
+        <p class="kicker">SECTION 10</p>
+        <h2>The server</h2>
+        <p class="para"><span class="n">10-1.</span>The shells live in a tmux server of conn's own: one per user, for all projects, on a socket at <b>~/.local/state/conn/tmux-&lt;uid&gt;.sock</b>. <b>CONN_SOCKET</b> moves the socket; <b>XDG_STATE_HOME</b> moves the directory. Every <b>conn</b> writes the server's configuration, the prefix and its chords, the status line, the transcript cap, to <b>~/.local/state/conn/tmux.conf</b>, brings the server up under it or sources it into one already running, and attaches. No .tmux.conf reaches it.</p>
+        <p class="para"><span class="n">10-2.</span>The session's first window is the home window: the navigator in the pane down its left, at <b>navWidth</b> through every resize, and the shell the keys are in beside it. Close the navigator and <b>ctrl-space -</b> makes it again. A <b>conn</b> from a newer build restarts the navigator in its pane and re-reads the configuration; the server keeps the shells. Run from a shell inside the window, it does that and no more. Inside any other tmux it refuses: attaching would be nesting.</p>
+        <p class="para"><span class="n">10-3.</span>The server lives exactly as long as it holds something: the home window brings it up, the last window closing takes it down. <b>R</b>, or <b>ctrl-space R</b> from any shell, ends it and every shell it holds, after asking; it is the way to a fresh server. <b>conn restart</b>, typed outside the window, is <b>R</b> and then <b>conn</b> as one command; inside the window it refuses, since the pane running it would go with the server. <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does.</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>10-1</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 10-2 -->
+<section class="page" aria-label="Page 10-2">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 10-4</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">10-2.</span>The session's first window is the home window: the navigator in the pane down its left, at <b>navWidth</b> through every resize, and the shell the keys are in beside it. Close the navigator and <b>ctrl-space -</b> makes it again. A <b>conn</b> from a newer build restarts the navigator in its pane and re-reads the configuration; the server keeps the shells. Run from a shell inside the window, it does that and no more. Inside any other tmux it refuses: attaching would be nesting.</p>
-        <p class="para"><span class="n">10-3.</span>The server lives exactly as long as it holds something: the home window brings it up, the last window closing takes it down. <b>R</b>, or <b>ctrl-space R</b> from any shell, ends it and every shell it holds, after asking; it is the way to a fresh server. <b>conn restart</b>, typed outside the window, is <b>R</b> and then <b>conn</b> as one command; inside the window it refuses, since the pane running it would go with the server. <b>tmux -S ~/.local/state/conn/tmux-&lt;uid&gt;.sock attach</b> is what <b>conn</b> does.</p>
         <p class="para"><span class="n">10-4.</span>The chords run <b>conn</b> itself with a word, each a short command against the server. None of them are for typing, but all of them can be:</p>
         <p class="caption">Table 10-1.&nbsp; Commands against the server</p>
         <div class="table narrow" id="commands">
@@ -635,13 +675,13 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>9-1</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>10-2</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
 
-<!-- PAGE 9-2 -->
-<section class="page" aria-label="Page 9-2">
+<!-- PAGE 10-3 -->
+<section class="page" aria-label="Page 10-3">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
@@ -655,7 +695,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>9-2</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>10-3</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
@@ -722,7 +762,7 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX B &mdash; C</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX B</span></div>
     <div class="rule"></div>
     <div class="body">
       <div class="section" id="files">
@@ -737,6 +777,22 @@
           <div class="row"><span>.conn</span><span>a project's plan; Section 6</span></div>
         </div>
       </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>B-1</b><span>CHANGE 5</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE C-1 -->
+<section class="page" aria-label="Page C-1">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>APPENDIX C</span></div>
+    <div class="rule"></div>
+    <div class="body">
       <div class="section" id="environment">
         <p class="kicker">APPENDIX C</p>
         <h2>Environment</h2>
@@ -754,13 +810,13 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>B-1</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>C-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>
 
-<!-- PAGE B-2 -->
-<section class="page" aria-label="Page B-2">
+<!-- PAGE D-1 -->
+<section class="page" aria-label="Page D-1">
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
@@ -780,7 +836,7 @@
     </div>
     <div class="foot">
       <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>B-2</b><span>CHANGE 5</span></div>
+      <div class="folio"><span>TM-CONN-01</span><b>D-1</b><span>CHANGE 5</span></div>
     </div>
   </div>
 </section>

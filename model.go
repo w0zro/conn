@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -282,6 +283,11 @@ type model struct {
 	// having to visit them.
 	agents map[int]agent
 
+	// manifestDirs is, by a process's directory, the sub-project a manifest
+	// on the way up to its repository makes of it, or "" for none — kept
+	// between scans of the places, which reset it.
+	manifestDirs map[string]string
+
 	// terms are the shells the server is holding, keyed by the pid running
 	// each one. A repository can hold as many as you open; they tell themselves
 	// apart in the navigator because each is its own process in that
@@ -504,6 +510,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case projectsMsg:
 		m.projects, m.groups, m.subs, m.err = msg.projects, msg.groups, msg.subs, msg.err
+		m.manifestDirs = nil
 		if msg.roots != nil {
 			m.roots = msg.roots
 		}
@@ -2811,18 +2818,34 @@ func (m *model) groupProcs() {
 		}
 	}
 
+	// An agent is yours wherever it runs: one started outside every root
+	// — in a scratch directory, in a checkout the config does not list —
+	// is listed under global with what it runs, since it is the process
+	// that most needs you and the place is a label, not a gate.
+	agents := map[int]bool{}
+	for _, pr := range m.procs {
+		if pr.Dir != globalPlace && m.holdsDir(pr.Dir) {
+			continue
+		}
+		if _, ok := agentKindOf(&ProcNode{Proc: pr}); ok {
+			agents[pr.PID] = true
+		}
+	}
+
 	owner := make(map[string][]Proc, len(m.projects))
 	for _, pr := range m.procs {
 		// A container of no project, or of a directory no root holds,
 		// is global; one of a project elsewhere is named for both. So is
 		// a service listening from no project's directory (service) —
-		// unless it is docker's proxy, which the containers already say.
+		// unless it is docker's proxy, which the containers already say
+		// — and an agent, with what it runs.
 		if pr.Dir == globalPlace || !m.holdsDir(pr.Dir) {
 			switch {
 			case pr.Container != nil:
 				if pr.Container.Project != "" {
 					pr.Command = pr.Container.Project + "/" + pr.Container.Service
 				}
+			case m.underAgent(pr.PID, agents):
 			case !service(pr) || proxied(pr, published):
 				continue
 			}
@@ -2849,11 +2872,21 @@ func (m *model) groupProcs() {
 			continue
 		}
 		// Within the repository, the innermost sub-project containing the
-		// process is its place; a process in none of them works at the root.
+		// process is its place; a process in none of them works at the root
+		// — unless the directory it works in, or one between it and the
+		// root, carries a manifest the index did not list: an ignored
+		// directory, one made since the scan. The process makes the
+		// sub-project, and the manifest names it.
 		place := best
 		for _, sp := range m.subs[best] {
 			if under(pr.Dir, sp.Path) && len(sp.Path) > len(place) {
 				place = sp.Path
+			}
+		}
+		if place == best {
+			if found := m.manifestDirUp(pr.Dir, best); found != "" {
+				place = found
+				m.addSub(best, found)
 			}
 		}
 		owner[place] = append(owner[place], pr)
@@ -2867,6 +2900,67 @@ func (m *model) groupProcs() {
 			indexNodes(root, m.nodes)
 		}
 	}
+}
+
+// underAgent reports a process that is one of the agents, or runs beneath
+// one: what an agent started is listed with it.
+func (m model) underAgent(pid int, agents map[int]bool) bool {
+	for step := 0; step < 64 && pid > 1; step++ {
+		if agents[pid] {
+			return true
+		}
+		next, ok := m.parent[pid]
+		if !ok || next == pid {
+			return false
+		}
+		pid = next
+	}
+	return false
+}
+
+// manifestDirUp is the nearest directory from dir up to, and not
+// including, root that carries a manifest — or "". The answer is kept by
+// directory until the places are scanned again, since the processes are
+// filed twice a second and the directories change slowly.
+func (m *model) manifestDirUp(dir, root string) string {
+	if dir == "" || dir == root || !under(dir, root) {
+		return ""
+	}
+	if found, ok := m.manifestDirs[dir]; ok {
+		return found
+	}
+	found := ""
+	for d := dir; d != root && under(d, root); d = filepath.Dir(d) {
+		if hasManifest(d) {
+			found = d
+			break
+		}
+	}
+	if m.manifestDirs == nil {
+		m.manifestDirs = map[string]string{}
+	}
+	m.manifestDirs[dir] = found
+	return found
+}
+
+// addSub lists a sub-project found by a process working in it, beside the
+// ones the repository's index listed, in their order.
+func (m *model) addSub(repo, path string) {
+	for _, sp := range m.subs[repo] {
+		if sp.Path == path {
+			return
+		}
+	}
+	rel, err := filepath.Rel(repo, path)
+	if err != nil {
+		return
+	}
+	if m.subs == nil {
+		m.subs = map[string][]Project{}
+	}
+	subs := append(m.subs[repo], Project{Name: filepath.ToSlash(rel), Path: path})
+	slices.SortFunc(subs, func(a, b Project) int { return cmp.Compare(a.Name, b.Name) })
+	m.subs[repo] = subs
 }
 
 // repoTrees is every process tree in a repository: the ones at its root and

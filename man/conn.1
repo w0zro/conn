@@ -100,7 +100,9 @@ its repository. A manifest is any of \fB.conn\fR, \fBProcfile\fR,
 \fBpackage.json\fR, \fBdeno.json\fR, \fBcomposer.json\fR, \fBgo.mod\fR,
 \fBCargo.toml\fR, \fBGemfile\fR, \fBmix.exs\fR, \fBpyproject.toml\fR,
 \fBpom.xml\fR, \fBbuild.gradle\fR or \fBbuild.gradle.kts\fR. Directories git
-ignores are skipped; an untracked \fB.conn\fR still counts.
+ignores are skipped; an untracked \fB.conn\fR still counts. A process working in
+a directory with a manifest is listed under it either way: the process makes the
+sub-project, and the manifest names it.
 .TP
 2-4.
 Each place lists what is running in it, named by what you would call it: \fBnpm
@@ -451,10 +453,12 @@ compose-demo
 6-5.
 What runs outside every project is listed under \fBglobal\fR, at the foot of the
 list, while there is anything to list: containers started by hand or from
-elsewhere, and processes listening on a port from outside your projects, an
-\fBollama serve\fR or a \fBbrew\fR postgres. The system's own listeners are left
-out. \fBx\fR, \fBenter\fR and the pane work there as under a project; there is
-no directory, so no shell opens there and no project is made.
+elsewhere, processes listening on a port from outside your projects, an
+\fBollama serve\fR or a \fBbrew\fR postgres, and agents started outside your
+projects, with what they run: an agent is yours wherever it runs, and the place
+is a label on it, not a gate. The system's own listeners are left out. \fBx\fR,
+\fBenter\fR and the pane work there as under a project; there is no directory,
+so no shell opens there and no project is made.
 .TP
 6-6.
 What \fBx\fR stopped, \fBr\fR brings back where it was: the services the compose

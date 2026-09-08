@@ -393,6 +393,16 @@ var manifests = []string{
 	"pyproject.toml", "pom.xml", "build.gradle", "build.gradle.kts",
 }
 
+// hasManifest reports a directory that carries one of the manifests.
+func hasManifest(dir string) bool {
+	for _, f := range manifests {
+		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // subProjects finds the sub-projects of a repository, sorted by their path
 // within it. The repository's own index answers instead of a walk of the
 // tree: git ls-files reads what a work-sized checkout would take seconds to

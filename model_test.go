@@ -5273,3 +5273,57 @@ func TestTheOutcomeAndTheRecordAreKeptOnThePane(t *testing.T) {
 		t.Errorf("runs = %+v, want the one run, with its command", got)
 	}
 }
+
+func TestAnAgentOutsideEveryRootIsListedUnderGlobal(t *testing.T) {
+	// An agent is yours wherever it runs: a claude started in a scratch
+	// directory no root holds is listed under global, with the tool it is
+	// running beneath it, where an editor there stays out — the place is
+	// a label on the process, not a gate it must pass.
+	m := withProcList(90, 14,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "claude", Dir: "/scratch"},
+			{PID: 701, PPID: 700, Command: "go", Argv: "go test ./...", Dir: "/scratch"},
+			{PID: 702, PPID: 1, Command: "vim", Dir: "/scratch"},
+		})
+	var rows []navRow
+	for _, r := range m.rows {
+		if r.kind == rowProc {
+			rows = append(rows, r)
+		}
+	}
+	if len(rows) != 1 || rows[0].project.Name != "global" || rows[0].node.PID != 700 || !rows[0].holds(701) {
+		t.Errorf("rows = %+v, want one run under global: the agent with its tool folded beneath, and not the editor", rows)
+	}
+}
+
+func TestAProcessMakesTheSubProjectItWorksIn(t *testing.T) {
+	// The index did not list services/api — ignored, or made since the
+	// scan — but a process works there and the directory carries a
+	// manifest: the process makes the sub-project, and the manifest names
+	// it. A process in a directory with no manifest on the way up works
+	// at the root.
+	repo := t.TempDir()
+	api := filepath.Join(repo, "services", "api")
+	if err := os.MkdirAll(api, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeFile(filepath.Join(api, "package.json"), "{}"); err != nil {
+		t.Fatal(err)
+	}
+	m := withProcList(90, 14,
+		[]Project{{Name: "mono", Path: repo}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "node", Dir: filepath.Join(api, "src")},
+			{PID: 701, PPID: 1, Command: "make", Dir: filepath.Join(repo, "docs")},
+		})
+	wantRows(t, navColumn(m), []string{
+		" ▸ mono",
+		"      make",
+		"      services/api",
+		"        node",
+	})
+	if subs := m.subs[repo]; len(subs) != 1 || subs[0].Name != "services/api" {
+		t.Errorf("subs = %+v, want the one the process made", subs)
+	}
+}

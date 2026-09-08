@@ -248,6 +248,14 @@ func (m model) renderRow(r navRow, selected bool) string {
 				ports += " · " + shortAge(e.At)
 			}
 		}
+		// An agent waiting on you says how long it has, when its kind
+		// can say: the age of the ask is what decides which to answer
+		// first, and the row is where that is decided.
+		if a := m.awaiting(r); a != nil {
+			if w, ok := a.(waited); ok && w.since() > 0 {
+				ports += " · " + shortFor(w.since())
+			}
+		}
 	}
 
 	// A group or a repository sits on indent alone, naming a place the rows

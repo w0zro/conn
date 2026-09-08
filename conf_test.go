@@ -42,9 +42,10 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		"#[fg=" + tp.green + "#,bg=" + tp.bg2 + "#,bold] PROC #[fg=default#,bg=" + tp.bg1 + "#,fill=" + tp.bg1 + "]",
 		"#[fg=" + tp.fg + "#,bg=" + tp.bg2 + "#,bold] NAV ",
 		"#[fg=" + tp.amber + "#,bg=" + tp.bg2 + "#,bold] PREFIX ",
-		// The right corner names the kind a starts: the server's choice
-		// when the window made one, else the config's, known at launch.
-		`set -g status-right "#[fg=` + tp.gray + `]#{?@conn_agent,#{@conn_agent},claude} "`,
+		// The right corner counts what needs you while anything does, then
+		// names the kind a starts: the server's choice when the window
+		// made one, else the config's, known at launch.
+		`set -g status-right "#{?@conn_need,#[fg=` + tp.green + `#,bold]#{@conn_need}  #[default],}#[fg=` + tp.gray + `]#{?@conn_agent,#{@conn_agent},claude} "`,
 	} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("the configuration lacks %q", want)

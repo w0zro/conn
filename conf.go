@@ -152,6 +152,7 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 // navigator's message is back under it when it goes.
 const (
 	msgOption   = "@conn_msg"
+	needOption  = "@conn_need"
 	noteOption  = "@conn_note"
 	untilOption = "@conn_until"
 	nowOption   = "@conn_now" // holds %s, so #{T:@conn_now} is the time
@@ -168,12 +169,19 @@ func messageSlot() string {
 	return "#{?#{e|<:#{T:" + nowOption + "},#{" + untilOption + "}},#{" + noteOption + "},#{" + msgOption + "}}"
 }
 
-// statusRight is the status line's corner: the kind of agent a starts,
-// dim. The server's option when the window has chosen one — the format
-// reads it live, so a choice shows the moment it is made — else the
-// config's kind, which the launcher knows when it writes this.
+// statusRight is the status line's corner: how many rows need you, in
+// the color of an agent done and waiting, while any does — the navigator
+// says the words in @conn_need — then the kind of agent a starts, dim.
+// The kind is the server's option when the window has chosen one — the
+// format reads it live, so a choice shows the moment it is made — else
+// the config's, which the launcher knows when it writes this.
 func statusRight() string {
-	return "#[fg=" + tp.gray + "]#{?" + agentOption + ",#{" + agentOption + "}," + defaultKind().name + "} "
+	// The count is a format, not text, so it is styled by hand: tmuxStyled
+	// would double its # as a literal's; and the style's comma is escaped
+	// for the conditional it stands in.
+	need := "#[fg=" + tp.green + "#,bold]#{" + needOption + "}  #[default]"
+	return "#{?" + needOption + "," + need + ",}" +
+		"#[fg=" + tp.gray + "]#{?" + agentOption + ",#{" + agentOption + "}," + defaultKind().name + "} "
 }
 
 // statusLeft is the status line's format: conn's name, the mode, then the

@@ -1719,6 +1719,7 @@ const (
 	kindHelp  = "help"  // the keys popup asked for
 	kindMode  = "mode"  // the status line's mode chip said
 	kindMsg   = "msg"   // the status line's message said
+	kindNeed  = "need"  // the status line's count of what needs you said
 	kindAgent = "agent" // the kind of agent a starts, told to the server
 )
 
@@ -1830,6 +1831,13 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 				asked <- message{Kind: kindMode, Name: args[len(args)-1]}
 			case has(args, "@conn_msg"):
 				asked <- message{Kind: kindMsg, Name: args[len(args)-1]}
+			case has(args, "@conn_need"):
+				// Said with every mode and message; the fake passes on
+				// only a count, or a test typing a query would fill
+				// the channel with nothing.
+				if need := args[len(args)-1]; need != "" {
+					asked <- message{Kind: kindNeed, Name: need}
+				}
 			case has(args, agentOption):
 				agent = args[len(args)-1]
 				asked <- message{Kind: kindAgent, Name: agent}
@@ -1950,7 +1958,7 @@ func askedFor(t *testing.T, asked chan message) message {
 	for {
 		select {
 		case got := <-asked:
-			if got.Kind != kindMode && got.Kind != kindMsg {
+			if got.Kind != kindMode && got.Kind != kindMsg && got.Kind != kindNeed {
 				return got
 			}
 		case <-deadline:
@@ -4405,7 +4413,7 @@ func TestTheStatusLineIsToldTheModeOnceWhenItChanges(t *testing.T) {
 	m = next.(model)
 	select {
 	case again := <-asked:
-		if again.Kind == kindMode || again.Kind == kindMsg {
+		if again.Kind == kindMode || again.Kind == kindMsg || again.Kind == kindNeed {
 			t.Errorf("the status line was told again with nothing changed: %+v", again)
 		}
 	case <-time.After(50 * time.Millisecond):
@@ -5053,5 +5061,105 @@ func TestASettledEndingGoesOnTheRecord(t *testing.T) {
 	deliver(cmd)
 	if got := pastRuns("/tmp", "", 5); len(got) != 0 {
 		t.Errorf("a shell opened by hand recorded %+v, want nothing", got)
+	}
+}
+
+func TestAPlaceWithSomethingThatNeedsYouRisesAboveTheQuietOnes(t *testing.T) {
+	// The list reads from the top, so the top is where what needs you
+	// goes: beta's failed run lifts beta above alpha, and when the failure
+	// is cleared the places fall back into their alphabetical slots.
+	m := withProcList(90, 14,
+		[]Project{{Name: "alpha", Path: "/p/alpha"}, {Name: "beta", Path: "/p/beta"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/alpha"},
+			{PID: 701, PPID: 1, Command: "zsh", Dir: "/p/beta"},
+		})
+	m.terms = map[int]*remoteTerm{
+		700: {pid: 700, dir: "/p/alpha"},
+		701: {pid: 701, dir: "/p/beta", name: "test", exit: "1"},
+	}
+	m.rebuild()
+	if names := placeNames(m); len(names) != 2 || names[0] != "beta" {
+		t.Errorf("places = %v, want beta, whose run failed, above alpha", names)
+	}
+	m.terms[701].exit = "0"
+	m.rebuild()
+	if names := placeNames(m); len(names) != 2 || names[0] != "alpha" {
+		t.Errorf("places = %v, want the alphabetical order back once nothing needs you", names)
+	}
+}
+
+func TestARowThatNeedsYouStandsFirstAmongItsSiblings(t *testing.T) {
+	// Within a place the rows are by name, except that one needing you
+	// steps ahead of the rest: the stopped worker, w by name, is listed
+	// before the go test that is fine.
+	m := withProcList(90, 14,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "go", Argv: "go test ./...", Dir: "/p/conn"},
+			{PID: 701, PPID: 1, Command: "node", Argv: "node worker.js", Dir: "/p/conn", State: "T"},
+		})
+	if r := m.rows[1]; r.kind != rowProc || r.node.PID != 701 {
+		t.Errorf("first row under the place is %+v, want the stopped worker", r)
+	}
+	m.procs[1].State = "S"
+	m.rebuild()
+	if r := m.rows[1]; r.kind != rowProc || r.node.PID != 700 {
+		t.Errorf("first row under the place is %+v, want go test, by name, once nothing needs you", r)
+	}
+}
+
+// placeNames is the top-level places in the order the list shows them.
+func placeNames(m model) []string {
+	var names []string
+	for _, r := range m.rows {
+		if r.kind == rowProject && r.prefix == "" {
+			names = append(names, r.project.Name)
+		}
+	}
+	return names
+}
+
+func TestTheCornerCountsWhatNeedsYou(t *testing.T) {
+	// The status line's corner says how many rows need you, in words, and
+	// nothing when none does — the number is there before the list says
+	// where, folded or not.
+	m := withClaude("claude", map[int]claudeSession{
+		700: {PID: 700, Name: "conn-1f", Status: waitingStatus, WaitingFor: "permission prompt"},
+	})
+	if got := m.statusLine().need; got != "1 needs you" {
+		t.Errorf("need = %q, want the one blocked instance counted", got)
+	}
+	// The words reach the server's option, for the corner to read.
+	m, asked := pipeServer(t, m)
+	m.dressStatus()
+	if got := askedForKind(t, asked, kindNeed); got.Name != "1 needs you" {
+		t.Errorf("the server was told %q, want the count in words", got.Name)
+	}
+	m.collapsed[detailKey(m.rows[0])] = true
+	m.rebuild()
+	if got := m.statusLine().need; got != "1 needs you" {
+		t.Errorf("need = %q after folding the place, want the count to stand", got)
+	}
+	m.agents = asAgents(map[int]claudeSession{700: {PID: 700, Status: "idle"}})
+	if got := m.statusLine().need; got != "" {
+		t.Errorf("need = %q, want nothing said when nothing needs you", got)
+	}
+}
+
+func TestAWaitingInstanceSaysHowLongItHasWaited(t *testing.T) {
+	// A blocked instance's row carries the age of its ask, the way a
+	// failed run's carries how long ago it ended: three minutes waiting
+	// reads 3m. An instance idle since it started, owed nothing, says
+	// no age.
+	m := withClaude("claude", map[int]claudeSession{
+		700: {PID: 700, Name: "conn-1f", Status: waitingStatus, WaitingFor: "permission prompt", StatusFor: 3 * time.Minute},
+	})
+	if row := navColumn(m)[1]; !strings.Contains(row, "· 3m") {
+		t.Errorf("row = %q, want the ask's age on it", row)
+	}
+	m.agents = asAgents(map[int]claudeSession{700: {PID: 700, Status: "idle", StatusFor: 3 * time.Minute}})
+	if row := navColumn(m)[1]; strings.Contains(row, "3m") {
+		t.Errorf("row = %q, want no age on an instance owed nothing", row)
 	}
 }

@@ -111,6 +111,12 @@ type modeled interface{ model() string }
 // nothing, so an instance only reports the name its user chose.
 type named interface{ name() string }
 
+// waited is an agent that says how long it has been in the state it is
+// in. For one waiting on its user that is the age of the ask, which the
+// row shows the way a run's row shows how long ago it ended: the number
+// that decides which to answer first.
+type waited interface{ since() time.Duration }
+
 // agentLabel names an agent row: what it is called, and the model beside
 // it when one is known. What it is called is the name its user gave it,
 // else its kind — "docs redesign" is what you would say, and "claude" is

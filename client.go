@@ -913,9 +913,10 @@ func (s *session) dress(pid int, name string) {
 }
 
 // statusText is what the navigator has the status line read: the mode
-// its keys are in, when it has one to name, and what it has to say.
+// its keys are in, when it has one to name, what it has to say, and how
+// many rows need you, in words, for the corner.
 type statusText struct {
-	mode, msg string
+	mode, msg, need string
 }
 
 // say hands tmux the navigator's part of the status line. Said one at a
@@ -930,6 +931,7 @@ func (s *session) say(t statusText) {
 	s.saying.ask(t, func(t statusText) {
 		_, _ = s.run("set", "-g", "@conn_mode", t.mode, ";",
 			"set", "-g", msgOption, t.msg, ";",
+			"set", "-g", needOption, t.need, ";",
 			"refresh-client", "-S")
 	})
 }

@@ -2591,6 +2591,10 @@ func (m *model) dressStatus() {
 // about. Most of the time both are empty, and the line is the strip.
 func (m model) statusLine() statusText {
 	var t statusText
+	// The corner counts what needs you, whatever else the line says: the
+	// number is there before the list says where, and a confirmation
+	// does not hide it.
+	t.need = needWords(m.needCount())
 	switch {
 	case m.pendingReplace:
 		t.mode = statusChip(tp.amber, "CONFIRM")
@@ -2638,6 +2642,19 @@ func (m model) statusLine() statusText {
 		t.msg = tmuxStyled(tp.gray, false, " "+updateNotice(m.release))
 	}
 	return t
+}
+
+// needWords is the corner's count in words: how many rows need you,
+// and nothing when none does — a zero would be the corner saying
+// nothing at length.
+func needWords(n int) string {
+	switch n {
+	case 0:
+		return ""
+	case 1:
+		return "1 needs you"
+	}
+	return strconv.Itoa(n) + " need you"
 }
 
 // windowLabelWidth is as much of a shell's label as its title gets: a
@@ -2901,7 +2918,7 @@ func (m model) flatten() []navRow {
 		}
 		// Work at the group's own level — a shell opened on the group row —
 		// comes before the repositories it sits beside.
-		for _, n := range m.byPlace[top.project.Path] {
+		for _, n := range m.treesByNeed(m.byPlace[top.project.Path]) {
 			rows = append(rows, m.flattenProc(top.project, n, glyphIndent)...)
 		}
 		for _, p := range repos {
@@ -2912,8 +2929,9 @@ func (m model) flatten() []navRow {
 }
 
 // topPlaces is the top of the navigator: the groups and the repositories
-// standing alone, in one alphabetical order, each listed when its own rule
-// says so — and the global place last, below every project, while
+// standing alone, in one order — the places with something that needs
+// you above the rest, each side alphabetical — each listed when its own
+// rule says so; and the global place last, below every project, while
 // anything is in it: the blank line above it divides your work from
 // the machine's own.
 func (m model) topPlaces() []navRow {
@@ -2928,7 +2946,7 @@ func (m model) topPlaces() []navRow {
 			out = append(out, navRow{kind: rowProject, project: p})
 		}
 	}
-	slices.SortStableFunc(out, func(a, b navRow) int { return byName(a.project, b.project) })
+	slices.SortStableFunc(out, func(a, b navRow) int { return m.byNeed(a.project, b.project) })
 	if len(m.byPlace[globalPlace]) > 0 && m.groupVisible(globalGroup) {
 		out = append(out, navRow{kind: rowGroup, project: globalGroup})
 	}
@@ -2982,6 +3000,82 @@ func (m model) visibleRepos(g Project) []Project {
 			out = append(out, p)
 		}
 	}
+	slices.SortStableFunc(out, m.byNeed)
+	return out
+}
+
+// byNeed orders two places: the one with something that needs you first,
+// then by name. The list reads from the top, and a place whose agent is
+// waiting or whose run failed is the place to read first; the rest keep
+// their alphabetical slots, so a quiet list is the same list every time.
+func (m model) byNeed(a, b Project) int {
+	return cmp.Or(cmp.Compare(btoi(!m.placeNeeds(a)), btoi(!m.placeNeeds(b))), byName(a, b))
+}
+
+// placeNeeds reports a place with a row in it that needs you: among its
+// own process trees, its sub-projects', or, for a group, its
+// repositories'.
+func (m model) placeNeeds(p Project) bool {
+	for _, n := range m.byPlace[p.Path] {
+		if m.needIn(n) {
+			return true
+		}
+	}
+	for _, sp := range m.subs[p.Path] {
+		if m.placeNeeds(sp) {
+			return true
+		}
+	}
+	for _, rp := range m.grouped[p.Path] {
+		if m.placeNeeds(rp) {
+			return true
+		}
+	}
+	return false
+}
+
+// needIn reports a process tree with a row in it that needs you: the run
+// the root heads, or any run beneath it, folded or not — what is folded
+// away still needs you.
+func (m model) needIn(n *ProcNode) bool {
+	return m.needUnder(n) > 0
+}
+
+// needUnder counts the rows in a process tree that need you.
+func (m model) needUnder(n *ProcNode) int {
+	run := []*ProcNode{n}
+	if !m.unfolded {
+		run = runFrom(n, len(m.procs))
+	}
+	r := navRow{kind: rowProc, run: run, node: nameOf(run)}
+	count := btoi(m.needsYou(r))
+	for _, c := range r.leaf().Children {
+		count += m.needUnder(c)
+	}
+	return count
+}
+
+// needCount is how many rows need you, in the whole list, folded or
+// filtered or not: the status line's number, which says there is
+// something to tab to before the list says where.
+func (m model) needCount() int {
+	count := 0
+	for _, roots := range m.byPlace {
+		for _, n := range roots {
+			count += m.needUnder(n)
+		}
+	}
+	return count
+}
+
+// treesByNeed is a place's process trees with the ones that need you
+// first, each side in its listed order: a name keeps its slot among its
+// neighbors, and a tree that needs you steps ahead of them all.
+func (m model) treesByNeed(roots []*ProcNode) []*ProcNode {
+	out := slices.Clone(roots)
+	slices.SortStableFunc(out, func(a, b *ProcNode) int {
+		return cmp.Compare(btoi(!m.needIn(a)), btoi(!m.needIn(b)))
+	})
 	return out
 }
 
@@ -3022,17 +3116,19 @@ func (m model) flattenRepo(p Project, indent string) []navRow {
 		return rows
 	}
 	// Processes and sub-projects hang off the repository as one family of
-	// siblings: sub-projects and processes share one indent.
-	for _, n := range m.byPlace[p.Path] {
+	// siblings: sub-projects and processes share one indent. The trees
+	// that need you come first, then the sub-projects that do.
+	for _, n := range m.treesByNeed(m.byPlace[p.Path]) {
 		rows = append(rows, m.flattenProc(p, n, indent)...)
 	}
+	slices.SortStableFunc(subs, m.byNeed)
 	for _, sp := range subs {
 		srow := navRow{kind: rowSub, project: sp, prefix: indent}
 		rows = append(rows, srow)
 		if m.collapsed[detailKey(srow)] {
 			continue
 		}
-		for _, n := range m.byPlace[sp.Path] {
+		for _, n := range m.treesByNeed(m.byPlace[sp.Path]) {
 			rows = append(rows, m.flattenProc(sp, n, indent+glyphIndent)...)
 		}
 	}

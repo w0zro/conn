@@ -108,6 +108,8 @@ func (s claudeSession) name() string {
 
 func (s claudeSession) working() bool { return s.Status == busyStatus }
 
+func (s claudeSession) since() time.Duration { return s.StatusFor }
+
 func (s claudeSession) blocked() (string, bool) {
 	return s.WaitingFor, s.Status == waitingStatus
 }
@@ -413,7 +415,11 @@ func readConvoMeta(path string, c *conversation) {
 // shortAge is how long ago at a glance: one unit, none of them finer than the
 // question "which conversation was that" needs.
 func shortAge(when time.Time) string {
-	d := time.Since(when)
+	return shortFor(time.Since(when))
+}
+
+// shortFor is a duration at the row's width: now, 3m, 2h, 5d, 3w.
+func shortFor(d time.Duration) string {
 	switch {
 	case d < time.Minute:
 		return "now"

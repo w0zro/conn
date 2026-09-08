@@ -20,6 +20,12 @@
   --dots: rgba(43,38,32,0.45);
   --mono: 'Courier Prime', 'Courier New', Courier, monospace;
   --display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  /* The paper's fibre, drawn once as noise. The ink mask is solid over
+     most of the noise, thins a little where it runs high, and only at
+     its peaks lets the paper through: the ink that missed a fibre. The fibre overlay is the same noise as a faint warm
+     tone, laid over paper and ink alike. */
+  --ink-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='4' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0'/><feComponentTransfer><feFuncA type='table' tableValues='1 1 1 0.97 0.88 0.6 0.25'/></feComponentTransfer></filter><rect width='240' height='240' filter='url(%23f)'/></svg>");
+  --fibre: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='5' seed='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.55  0 0 0 0 0.45  0 0 0 0 0.3  0.3 0 0 0 -0.08'/></filter><rect width='320' height='320' filter='url(%23f)'/></svg>");
 }
 
 html {
@@ -105,6 +111,25 @@ b, strong { font-weight: 700; }
     repeating-linear-gradient(0deg, rgba(110,90,60,0.02) 0 1px, transparent 1px 3px);
 }
 
+/* The fibre lies over the ink as well as the paper: the ::after is the
+   last thing painted on a page, and the mouse goes through it. */
+.page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  background: var(--fibre);
+}
+/* Everything printed is masked by the same fibre, so the ink breaks up
+   where the paper's surface did not take it. The holes are punched, not
+   printed, and stay out of it. */
+.sheet, .cover > *, .classified {
+  -webkit-mask-image: var(--ink-mask);
+  mask-image: var(--ink-mask);
+}
+
 /* Binder holes, three down the left. */
 .hole {
   position: absolute;
@@ -112,6 +137,7 @@ b, strong { font-weight: 700; }
   width: 17px;
   height: 17px;
   border-radius: 50%;
+  z-index: 2;
   background: var(--desk);
   box-shadow: inset 0 2px 3px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.4);
 }
@@ -402,7 +428,11 @@ b, strong { font-weight: 700; }
 .cover .banner {
   margin: 24px auto 0;
   background: var(--orange);
-  color: var(--paper-top);
+  /* The plate is ink, so the paper's tone and fibre show through it,
+     and the wordmark is not a lighter ink but the paper left bare: white
+     under multiply is whatever lies beneath. */
+  mix-blend-mode: multiply;
+  color: #fff;
   font: 800 21px/1 var(--display);
   letter-spacing: 0.3em;
   padding: 13px 0 12px;
@@ -447,6 +477,7 @@ b, strong { font-weight: 700; }
   right: 50px;
   top: 38px;
   transform: rotate(-4deg);
+  mix-blend-mode: multiply;
   border: 2px solid rgba(70,80,140,0.55);
   color: rgba(70,80,140,0.72);
   padding: 8px 10px 7px;
@@ -479,6 +510,7 @@ b, strong { font-weight: 700; }
 .cover .stamp {
   flex: none;
   transform: rotate(-7deg);
+  mix-blend-mode: multiply;
   border: 2.5px solid rgba(189,58,29,0.6);
   color: rgba(189,58,29,0.78);
   padding: 9px 16px 8px;

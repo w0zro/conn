@@ -196,3 +196,20 @@ func TestTheFirstShellMakesTheSocketsDirectory(t *testing.T) {
 		t.Errorf("the socket should be where conn said: %v", err)
 	}
 }
+
+func TestAnEndingIsAnnouncedNotFound(t *testing.T) {
+	// The dying command says on the endings channel that it has ended, and
+	// the session, waiting there, reads the list at once: the navigator
+	// hears the exit without a scan finding the shell at its prompt. No
+	// scan runs here — only the server's own events reach the model — so
+	// the exit can arrive no other way.
+	m := connected(t, repoModel())
+	m.server.open("/tmp", "sleep 2; sh -c 'exit 3'", "job")
+	m = pump(t, m, func(m model) bool { return len(m.terms) == 1 }, 10*time.Second)
+	m = pump(t, m, func(m model) bool {
+		for _, term := range m.terms {
+			return term.exit == "3"
+		}
+		return false
+	}, 10*time.Second)
+}

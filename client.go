@@ -42,14 +42,20 @@ func socketPath() string {
 // says it is the shell in the pane beside the navigator; Wanted that a chord
 // opened it and asked for it to be shown.
 type sessionInfo struct {
-	PID    int
-	Dir    string
-	Name   string
-	Run    string // the command the shell was started with; empty for a shell opened by hand
-	Exit   string // how the command the shell was started with ended, once it has
-	Ended  string // when, as seconds since the epoch
-	Shown  bool
-	Wanted bool
+	PID   int
+	Dir   string
+	Name  string
+	Run   string // the command the shell was started with; empty for a shell opened by hand
+	Exit  string // how the command the shell was started with ended, once it has
+	Ended string // when, as seconds since the epoch
+	// Summary is what the transcript said of the run, and Recorded that the
+	// ending is on the record: both kept on the pane once known, so a
+	// navigator starting beside the shell neither reads nor records the
+	// ending again.
+	Summary  string
+	Recorded bool
+	Shown    bool
+	Wanted   bool
 }
 
 // remoteTerm is a shell the server is holding, as the navigator sees it.
@@ -155,16 +161,18 @@ const probeEvery = 2 * time.Second
 // pane is one held shell as the session tracks it: which tmux pane it is,
 // and what it is called.
 type pane struct {
-	id     string // "%3"
-	pid    int
-	dir    string
-	name   string
-	run    string // the command the shell was started with, recorded on the pane at open
-	exit   string // the command's exit status, recorded on the pane when it ended
-	ended  string // when it ended, as seconds since the epoch, recorded with it
-	cmd    string // what is in the pane's foreground: the command, or the shell at its prompt
-	shown  bool   // in the home window, beside the navigator
-	wanted bool   // opened by a chord that asked for it to be shown
+	id       string // "%3"
+	pid      int
+	dir      string
+	name     string
+	run      string // the command the shell was started with, recorded on the pane at open
+	exit     string // the command's exit status, recorded on the pane when it ended
+	ended    string // when it ended, as seconds since the epoch, recorded with it
+	summary  string // what the transcript said of the run, once the navigator read it
+	recorded string // "1" once the ending is on the record
+	cmd      string // what is in the pane's foreground: the command, or the shell at its prompt
+	shown    bool   // in the home window, beside the navigator
+	wanted   bool   // opened by a chord that asked for it to be shown
 }
 
 // placement is one request to arrange the home window: the shell to put
@@ -195,6 +203,7 @@ type session struct {
 	listing sync.Mutex         // one list is read and told at a time, so the newer is heard last
 	probing bool
 	closed  bool
+	waiting bool          // a waiter is listening for endings on the server
 	stopped chan struct{} // closed by close, so a watcher stops in its tracks
 
 	// probe is how long the watch waits between looks for a server; the
@@ -332,7 +341,9 @@ func (s *session) ensureCtl() {
 	s.mu.Unlock()
 	if closed {
 		ctl.close()
+		return
 	}
+	s.watchEndings()
 }
 
 // notify is what the control stream tells the session.
@@ -375,7 +386,7 @@ func (s *session) notify(n ctlNote) {
 // opened a shell to be shown says so in the window's name, the one mark
 // that is set in the same breath as the window is made — an option set
 // after would race the refresh the new window sets off.
-const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}\t#{pane_current_command}\t#{@conn_run}"
+const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}\t#{pane_current_command}\t#{@conn_run}\t#{@conn_summary}\t#{@conn_recorded}"
 
 // wantName is the window name that asks the navigator to show the shell
 // in it; heldName is what the window is called once it has.
@@ -422,6 +433,9 @@ func parseListing(out string) (held []*pane, nav string) {
 		if len(f) > 11 {
 			p.run = f[11]
 		}
+		if len(f) > 13 {
+			p.summary, p.recorded = f[12], f[13]
+		}
 		held = append(held, p)
 	}
 	return held, nav
@@ -429,7 +443,8 @@ func parseListing(out string) (held []*pane, nav string) {
 
 // info is the pane as the model hears about it.
 func (p *pane) info() sessionInfo {
-	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Run: p.run, Exit: p.exit, Ended: p.ended, Shown: p.shown, Wanted: p.wanted}
+	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Run: p.run, Exit: p.exit, Ended: p.ended,
+		Summary: p.summary, Recorded: p.recorded == "1", Shown: p.shown, Wanted: p.wanted}
 }
 
 // refreshList reads what the server holds and tells the model, reporting
@@ -599,19 +614,101 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 }
 
 // recordExit is the shell fragment that sets the pane's exit option to the
-// status of the command before it, and the ended option to the moment —
-// nothing when tmux cannot be found by path, and then the exit goes
-// unrecorded rather than the shell failing. The pane is named: a tmux run
-// inside a pane knows its own pane by the environment, but set -p without
-// a target goes to the session's active pane, not the one it was run in.
-// The status is the first word expanded, before the date's substitution
-// could run anything.
+// status of the command before it, and the ended option to the moment,
+// then says so on the endings channel — nothing when tmux cannot be found
+// by path, and then the exit goes unrecorded rather than the shell
+// failing. The pane is named: a tmux run inside a pane knows its own pane
+// by the environment, but set -p without a target goes to the session's
+// active pane, not the one it was run in. The status is the first word
+// expanded, before the date's substitution could run anything.
 func recordExit() string {
 	tmux, err := exec.LookPath("tmux")
 	if err != nil {
 		return ""
 	}
-	return "; " + shellQuote(tmux) + ` set -p -t "$TMUX_PANE" @conn_exit "$?" \; set -p -t "$TMUX_PANE" @conn_ended "$(date +%s)" 2>/dev/null`
+	return "; " + shellQuote(tmux) + ` set -p -t "$TMUX_PANE" @conn_exit "$?" \; set -p -t "$TMUX_PANE" @conn_ended "$(date +%s)" \; wait-for -S ` + endedChannel + ` 2>/dev/null`
+}
+
+// endedChannel is the wait-for channel a command's ending is announced
+// on. tmux announces nothing when a pane's option is set, so the dying
+// command says it itself, from inside the pane, at the moment: the one
+// moment conn is in the process at its death, and the event most worth
+// hearing at once.
+const endedChannel = "conn-ended"
+
+// watchEndings listens for endings on the server, one waiter at a time,
+// and reads the list each time one is announced: the navigator hears a
+// command end rather than finding the shell at its prompt on a later
+// scan. The waiter is a tmux client blocked on the channel, without the
+// timeout the one-shot commands carry; it is let go when the session
+// closes, and a server that goes ends it, for the next ensureCtl to start
+// another.
+func (s *session) watchEndings() {
+	s.mu.Lock()
+	if s.waiting || s.closed {
+		s.mu.Unlock()
+		return
+	}
+	s.waiting = true
+	s.mu.Unlock()
+	go func() {
+		defer func() {
+			s.mu.Lock()
+			s.waiting = false
+			s.mu.Unlock()
+		}()
+		for {
+			if !s.awaitEnding() {
+				return
+			}
+			s.refreshList()
+		}
+	}()
+}
+
+// awaitEnding blocks until an ending is announced, and reports whether one
+// was: false when the server went, or the session closed.
+func (s *session) awaitEnding() bool {
+	cmd := exec.Command("tmux", "-S", socketPath(), "wait-for", endedChannel)
+	cmd.Dir = "/"
+	if err := cmd.Start(); err != nil {
+		return false
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		return err == nil
+	case <-s.stopped:
+		_ = cmd.Process.Kill()
+		<-done
+		return false
+	}
+}
+
+// noteOutcome keeps what the transcript said of a run on its pane, and
+// noteRecorded that the ending is on the record: the next navigator to
+// read the list has both, and reads and records nothing again.
+func (s *session) noteOutcome(pid int, summary string) {
+	if s == nil || summary == "" {
+		return
+	}
+	p := s.pane(pid)
+	if p == nil {
+		return
+	}
+	go func() { _, _ = s.run("set", "-p", "-t", p.id, "@conn_summary", summary) }()
+}
+
+func (s *session) noteRecorded(pid int) {
+	if s == nil {
+		return
+	}
+	p := s.pane(pid)
+	if p == nil {
+		return
+	}
+	go func() { _, _ = s.run("set", "-p", "-t", p.id, "@conn_recorded", "1") }()
 }
 
 // open starts a shell — or handed a command, that command with a shell
@@ -1005,7 +1102,8 @@ func (s *session) forgetExit(pid int) {
 		return
 	}
 	go func() {
-		_, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit", ";", "set", "-pu", "-t", p.id, "@conn_ended")
+		_, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit", ";", "set", "-pu", "-t", p.id, "@conn_ended", ";",
+			"set", "-pu", "-t", p.id, "@conn_summary", ";", "set", "-pu", "-t", p.id, "@conn_recorded")
 	}()
 }
 

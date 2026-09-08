@@ -1706,18 +1706,20 @@ type message struct {
 }
 
 const (
-	kindOpen  = "open"
-	kindShow  = "show"  // a shell moved beside the navigator
-	kindPark  = "park"  // the shown shell moved back to a window of its own
-	kindFocus = "focus" // focus taken to a pane
-	kindLeave = "leave"
-	kindClose = "close" // a held shell's pane killed
-	kindDress = "dress" // a pane named for the title
-	kindHelp  = "help"  // the keys popup asked for
-	kindMode  = "mode"  // the status line's mode chip said
-	kindMsg   = "msg"   // the status line's message said
-	kindNeed  = "need"  // the status line's count of what needs you said
-	kindAgent = "agent" // the kind of agent a starts, told to the server
+	kindOpen     = "open"
+	kindShow     = "show"  // a shell moved beside the navigator
+	kindPark     = "park"  // the shown shell moved back to a window of its own
+	kindFocus    = "focus" // focus taken to a pane
+	kindLeave    = "leave"
+	kindClose    = "close"    // a held shell's pane killed
+	kindDress    = "dress"    // a pane named for the title
+	kindHelp     = "help"     // the keys popup asked for
+	kindMode     = "mode"     // the status line's mode chip said
+	kindMsg      = "msg"      // the status line's message said
+	kindNeed     = "need"     // the status line's count of what needs you said
+	kindSummary  = "summary"  // a run's word kept on its pane
+	kindRecorded = "recorded" // an ending marked as on the record on its pane
+	kindAgent    = "agent"    // the kind of agent a starts, told to the server
 )
 
 // pipeServer gives a model a session whose asks land on the returned
@@ -1828,6 +1830,10 @@ func recordingSession(terms map[int]*remoteTerm) (*session, chan message) {
 				asked <- message{Kind: kindMode, Name: args[len(args)-1]}
 			case has(args, "@conn_msg"):
 				asked <- message{Kind: kindMsg, Name: args[len(args)-1]}
+			case has(args, "@conn_summary"):
+				asked <- message{Kind: kindSummary, PID: target(args), Name: args[len(args)-1]}
+			case has(args, "@conn_recorded"):
+				asked <- message{Kind: kindRecorded, PID: target(args)}
 			case has(args, "@conn_need"):
 				// Said with every mode and message; the fake passes on
 				// only a count, or a test typing a query would fill
@@ -5203,5 +5209,67 @@ func TestAHeldShellKnowsWhatItWasStartedWith(t *testing.T) {
 	m = next.(model)
 	if t0 := m.terms[700]; t0 == nil || t0.run != "npm run dev" {
 		t.Errorf("term = %+v, want the command kept on the shell", t0)
+	}
+}
+
+func TestAnEndingAlreadyOnTheRecordIsNeitherReadNorRecordedAgain(t *testing.T) {
+	// The transcript's word and the fact of the record live on the pane
+	// beside the exit, so a navigator starting beside a settled shell
+	// takes them with the listing: the row says 3 failed at once, the
+	// transcript is not read again, and the runs file is not appended a
+	// second time.
+	stateDir(t)
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
+	m, asked := pipeServer(t, m)
+	m, _ = m.update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "test", Run: "go test ./...", Exit: "1", Summary: "3 failed", Recorded: true}}})
+	term := m.terms[700]
+	if term.summary != "3 failed" || !term.recorded {
+		t.Fatalf("term = %+v, want the summary and the record taken from the pane", term)
+	}
+	if row := renderRow(m, m.rows[1]); !strings.Contains(stripANSI(row), "test · 3 failed") {
+		t.Errorf("row = %q, want the run's word from the pane", stripANSI(row))
+	}
+	m, _ = m.update(procsMsg{procs: m.procs})
+	if !term.settled || m.readEndings() != nil {
+		t.Error("a settled ending on the record should be read again by nobody")
+	}
+	if m.record(term) != nil {
+		t.Error("an ending on the record should not be recorded again")
+	}
+	if got := pastRuns("/tmp", "test", "go test ./...", 5); len(got) != 0 {
+		t.Errorf("runs = %+v, want nothing appended", got)
+	}
+	select {
+	case got := <-asked:
+		if got.Kind == kindSummary || got.Kind == kindRecorded {
+			t.Errorf("the pane was told again what it already carries: %+v", got)
+		}
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestTheOutcomeAndTheRecordAreKeptOnThePane(t *testing.T) {
+	// Once the transcript is read for what the run said, the pane is told;
+	// once the ending is written, the pane is told that too — the state of
+	// the ending lives with the shell that holds it, not in this window.
+	stateDir(t)
+	m := withProcList(90, 14, []Project{{Name: "tmp", Path: "/tmp"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp", name: "test", run: "go test ./..."}}
+	m, asked := pipeServer(t, m)
+	m, _ = m.update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Name: "test", Exit: "1"}}})
+	m, cmd := m.update(outcomeMsg{pid: 700, summary: "3 failed"})
+	if got := askedForKind(t, asked, kindSummary); got.PID != 700 || got.Name != "3 failed" {
+		t.Errorf("the pane was told %+v, want the summary on pane 700", got)
+	}
+	for _, msg := range deliver(cmd) {
+		m, _ = m.update(msg)
+	}
+	if got := askedForKind(t, asked, kindRecorded); got.PID != 700 {
+		t.Errorf("the pane was told %+v, want the record marked on pane 700", got)
+	}
+	if got := pastRuns("/tmp", "test", "go test ./...", 5); len(got) != 1 || got[0].Command != "go test ./..." {
+		t.Errorf("runs = %+v, want the one run, with its command", got)
 	}
 }

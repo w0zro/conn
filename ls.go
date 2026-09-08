@@ -78,7 +78,7 @@ func readList() (model, error) {
 	}
 	for _, p := range held {
 		t := &remoteTerm{pid: p.pid, dir: p.dir, name: p.name, run: p.run}
-		m.learnExit(t, p.exit, p.ended)
+		m.learnExit(t, p.exit, p.ended, p.summary, p.recorded == "1")
 		m.terms[p.pid] = t
 	}
 	if agents, ok := scanAgents().(agentsMsg); ok {

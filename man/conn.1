@@ -417,10 +417,13 @@ running in the place, whoever started it: the shell \fBr\fR opened for it, a
 shell opened by hand, or a terminal outside conn. The command a shell was
 started with is kept on it, so what a shell ran is what it ran whatever the plan
 says since. It is a list to run, not a supervisor: nothing restarts on its own.
-When an entry's command ends, its shell stays at the prompt with the transcript,
-the row shows ✗ or ✓, the pane's checklist says how and when it ended, and
-\fBr\fR starts it again beside the old shell. Running anything by hand in that
-shell clears the mark.
+When an entry's command ends, it says so itself as it goes, and the navigator
+hears it rather than finding the shell at its prompt on a later look; the shell
+stays at the prompt with the transcript, the row shows ✗ or ✓, the pane's
+checklist says how and when it ended, and \fBr\fR starts it again beside the old
+shell. What the run said of itself, and that its ending is on the record, are
+kept on the shell, so a navigator started later says the same and records
+nothing twice. Running anything by hand in that shell clears the mark.
 .TP
 6-4.
 A project that runs its services with docker compose shows each service as a

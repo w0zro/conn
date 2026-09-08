@@ -579,9 +579,12 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case recordedMsg:
 		// A run that could not be written is a pane a little poorer,
-		// and worth a word; the exit itself stands regardless.
+		// and worth a word; the exit itself stands regardless. One
+		// written is marked so on its pane, for the next navigator.
 		if msg.err != nil {
 			m.status, m.statusErr = "could not record the run: "+msg.err.Error(), true
+		} else {
+			m.server.noteRecorded(msg.pid)
 		}
 		return m, nil
 
@@ -631,12 +634,12 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			}
 			if was, ok := m.terms[s.PID]; ok {
 				was.learn(s.Dir, s.Name, s.Run)
-				m.learnExit(was, s.Exit, s.Ended)
+				m.learnExit(was, s.Exit, s.Ended, s.Summary, s.Recorded)
 				held[s.PID] = was
 				continue
 			}
 			t := &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name, run: s.Run}
-			m.learnExit(t, s.Exit, s.Ended)
+			m.learnExit(t, s.Exit, s.Ended, s.Summary, s.Recorded)
 			held[s.PID] = t
 		}
 		m.terms = held
@@ -714,6 +717,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		// ending is complete now, and goes on the record.
 		if t := m.terms[msg.pid]; t != nil && !t.live() {
 			t.summary = msg.summary
+			m.server.noteOutcome(msg.pid, msg.summary)
 			return m, m.record(t)
 		}
 
@@ -1460,7 +1464,7 @@ func (m model) placeAt(dir string) (Project, bool) {
 // used past is not taken back from a list that still carries it. Each
 // ending is numbered as it is learned, so the latest of several is known
 // even from a pane that recorded no time.
-func (m *model) learnExit(t *remoteTerm, exit, ended string) {
+func (m *model) learnExit(t *remoteTerm, exit, ended, summary string, recorded bool) {
 	if exit == "" || t.exit != "" || t.dropped {
 		return
 	}
@@ -1469,6 +1473,10 @@ func (m *model) learnExit(t *remoteTerm, exit, ended string) {
 	if secs, err := strconv.ParseInt(ended, 10, 64); err == nil && secs > 0 {
 		t.at = time.Unix(secs, 0)
 	}
+	// What the pane already knows of the ending — the transcript's word,
+	// and that it is on the record — is taken with it: a navigator
+	// starting beside a settled shell is not the first to see it end.
+	t.summary, t.recorded = summary, recorded
 }
 
 // noticeEnded asks the server again about a plan's shell the scan finds at
@@ -1497,9 +1505,12 @@ func (m *model) noticeEnded() {
 				m.server.forgetExit(pid)
 			case !busy && !t.settled:
 				// Settled: the exit stands, and the transcript has
-				// its last word on the run.
+				// its last word on the run — unless the pane already
+				// carries it, on the record, from a navigator before.
 				t.settled = true
-				m.unread[pid] = true
+				if !t.recorded {
+					m.unread[pid] = true
+				}
 			}
 			continue
 		}
@@ -2036,16 +2047,20 @@ func (m *model) record(t *remoteTerm) tea.Cmd {
 	if began := m.startedAt(t.pid); !began.IsZero() && r.At.After(began) {
 		r.Took = r.At.Sub(began).Seconds()
 	}
+	pid := t.pid
 	return func() tea.Msg {
 		if err := recordRun(r); err != nil {
-			return recordedMsg{err: err}
+			return recordedMsg{pid: pid, err: err}
 		}
-		return recordedMsg{}
+		return recordedMsg{pid: pid}
 	}
 }
 
 // recordedMsg says a run went on the record, or why it did not.
-type recordedMsg struct{ err error }
+type recordedMsg struct {
+	pid int
+	err error
+}
 
 // entryStates is what a place's plan entries are doing, by name: up for
 // one whose shell is running its command, the exit status and moment for

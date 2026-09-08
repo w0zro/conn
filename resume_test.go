@@ -331,3 +331,25 @@ func TestThePickerShowsTheSelectedConversationWhole(t *testing.T) {
 		t.Errorf("a short pane should not spend rows on the detail:\n%s", short)
 	}
 }
+
+func TestTheNewestAtRestIsReadAloneAndNotALiveOne(t *testing.T) {
+	// The row under a place reads one transcript, the newest at rest by
+	// its file's time — never one a running instance carries.
+	dir := claudeHome(t)
+	old := writeTranscript(t, dir, "/p/conn", "aaaa-1111", userRec, asstRec)
+	newer := writeTranscript(t, dir, "/p/conn", "bbbb-2222", `{"type":"user","message":{"content":"polish the site"}}`, asstRec)
+	live := writeTranscript(t, dir, "/p/conn", "cccc-3333", userRec, asstRec)
+	now := time.Now()
+	for path, at := range map[string]time.Time{old: now.Add(-2 * time.Hour), newer: now.Add(-time.Hour), live: now} {
+		if err := os.Chtimes(path, at, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, ok := newestSuspended([]string{"/p/conn"}, map[string]bool{"cccc-3333": true})
+	if !ok || c.ID != "bbbb-2222" || c.Kind != "claude" || c.Prompt != "polish the site" {
+		t.Errorf("newest = %+v, want the newer conversation at rest, read for its prompt", c)
+	}
+	if _, ok := newestSuspended([]string{"/p/none"}, nil); ok {
+		t.Error("a place with no transcripts has nothing at rest")
+	}
+}

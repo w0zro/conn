@@ -364,7 +364,13 @@ picked back up. \fBA\fR on a place lists what is suspended there, sub-projects
 included and, for a group, its repositories, newest first: when each last moved,
 its branch, and the last thing asked of it. Typing narrows the list, \fBenter\fR
 continues the one under the cursor in a shell opened where it was had, \fBesc\fR
-closes the list. A conversation an instance still carries is not offered.
+closes the list. A conversation an instance still carries is not offered. The
+newest conversation at rest under a place with work is a row of its own, dimmed,
+at the end of the place's family, with how long it has rested; \fBenter\fR on it
+continues it, and the pane says what was last asked of it — the one you would
+most often pick back up, without the picker; \fBA\fR lists the rest. A place
+with no work shows none: it is kept the way an exited container is kept beside
+its running siblings.
 .TP
 5-4.
 conn knows two kinds of agent: \fBclaude\fR and \fBollama\fR. \fB,\fR at the

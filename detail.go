@@ -60,8 +60,11 @@ type detailMsg struct {
 // detailKey identifies the subject of a row, so details can be cached and
 // stale results dropped.
 func detailKey(r navRow) string {
-	if r.kind == rowProc {
+	switch r.kind {
+	case rowProc:
 		return "proc:" + strconv.Itoa(r.node.PID)
+	case rowRest:
+		return "rest:" + r.rest.ID
 	}
 	return "repo:" + r.project.Path
 }
@@ -106,10 +109,37 @@ func loadDetail(r navRow, name string, procCount, repoCount int, ag agent, state
 		return func() tea.Msg {
 			return detailMsg{key: key, fields: groupFields(p, repoCount, procCount, states)}
 		}
+	case rowRest:
+		c := r.rest
+		return func() tea.Msg { return detailMsg{key: key, fields: restFields(c)} }
 	}
 	return func() tea.Msg {
 		return detailMsg{key: key, fields: repoFields(p, procCount, states)}
 	}
+}
+
+// restFields is the pane for a conversation at rest: the kind that had
+// it and how long ago it last moved, the branch, the last thing asked of
+// it and what it said it was doing, where it was had, and what enter
+// runs to pick it back up.
+func restFields(c conversation) []field {
+	fs := []field{
+		{label: "suspended", lead: c.Kind, leadTone: toneQuiet, value: ago(c.When), tone: toneQuiet},
+	}
+	if c.Branch != "" {
+		fs = append(fs, field{label: "branch", value: c.Branch})
+	}
+	if c.Prompt != "" {
+		fs = append(fs, field{label: "asked", value: c.Prompt})
+	}
+	if c.Summary != "" {
+		fs = append(fs, field{label: "said", value: c.Summary})
+	}
+	fs = append(fs, field{label: "where", value: c.Dir, tone: toneQuiet})
+	if run := resumeCommand(c); run != "" {
+		fs = append(fs, field{label: "enter", value: "continues it: " + run, tone: toneQuiet})
+	}
+	return fs
 }
 
 // exitField says how the command a shell was started with ended: well in

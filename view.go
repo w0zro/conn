@@ -219,6 +219,11 @@ func (m model) renderRow(r navRow, selected bool) string {
 	if m.selfRun(r) && !selected {
 		style = selfStyle
 	}
+	// A conversation at rest is dim: not running, and owed nothing until
+	// it is picked back up.
+	if r.kind == rowRest && !selected {
+		style = faintStyle
+	}
 
 	// Where it listens, beside the name, in the slot that holds an agent's
 	// model on its row: a dev server's row says what it is, and this says
@@ -226,7 +231,11 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// cut to fit loses its tail and keeps its port — the port being the
 	// thing you were about to go and look up.
 	ports := ""
-	if r.kind == rowProc && r.node.Container != nil {
+	if r.kind == rowRest {
+		// At rest, and for how long: the age says how far back the
+		// conversation is, which is what picking it back up costs.
+		ports = " · suspended · " + shortAge(r.rest.When)
+	} else if r.kind == rowProc && r.node.Container != nil {
 		ports = containerNote(r.node)
 	} else if r.kind == rowProc {
 		if ps := runPorts(r.run, r.node); len(ps) > 0 {
@@ -262,7 +271,7 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// beneath are inside. What hangs off a repository — its processes and its
 	// sub-projects — is one family of siblings, a step further in.
 	indent := r.prefix
-	if r.kind == rowProc || r.kind == rowSub {
+	if r.kind == rowProc || r.kind == rowSub || r.kind == rowRest {
 		indent += glyphIndent + " "
 	}
 	// A repository is cut from the left and a command from the right, because
@@ -270,8 +279,13 @@ func (m model) renderRow(r navRow, selected bool) string {
 	// and the program before its arguments.
 	label := r.project.Name
 	fromLeft := strings.Contains(label, "/")
-	if r.kind == rowProc {
+	switch r.kind {
+	case rowProc:
 		label = m.rowLabel(r)
+		fromLeft = false
+	case rowRest:
+		// Named for the kind that had it, as its live row would be.
+		label = r.rest.Kind
 		fromLeft = false
 	}
 

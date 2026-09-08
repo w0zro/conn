@@ -5327,3 +5327,79 @@ func TestAProcessMakesTheSubProjectItWorksIn(t *testing.T) {
 		t.Errorf("subs = %+v, want the one the process made", subs)
 	}
 }
+
+func TestTheNewestConversationAtRestIsARowUnderAPlaceWithWork(t *testing.T) {
+	// An agent that exited left its conversation, and the conversation is
+	// a process that is not running: the newest at rest under a place with
+	// work is a dimmed row at the end of the place's family, aged, and
+	// enter picks it back up where it was had. A place with no work shows
+	// none — the row is kept the way an exited container is kept beside
+	// its running siblings, not as a list of what once ran.
+	m := withProcList(90, 14,
+		[]Project{{Name: "conn", Path: "/p/conn"}},
+		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/conn"}})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/conn"}}
+	m.rests = map[string]conversation{"/p/conn": {Kind: "claude", ID: "aaaa-1111", Dir: "/p/conn",
+		When: time.Now().Add(-2 * time.Hour), Prompt: "fix the resize race"}}
+	m.rebuild()
+	last := m.rows[len(m.rows)-1]
+	if last.kind != rowRest || last.rest.ID != "aaaa-1111" {
+		t.Fatalf("last row = %+v, want the conversation at rest", last)
+	}
+	if row := stripANSI(renderRow(m, last)); !strings.Contains(row, "claude · suspended · 2h") {
+		t.Errorf("row = %q, want the kind, that it is suspended, and its age", row)
+	}
+
+	m.cursor = len(m.rows) - 1
+	m, asked := pipeServer(t, m)
+	m = press(m, "enter")
+	if got := askedForKind(t, asked, kindOpen); got.Dir != "/p/conn" || got.Run != "claude --resume aaaa-1111" {
+		t.Errorf("asked %+v, want the conversation continued where it was had", got)
+	}
+
+	// No work in the place: no row at rest.
+	m.procs, m.terms = nil, map[int]*remoteTerm{}
+	m = narrowed(m)
+	for _, r := range m.rows {
+		if r.kind == rowRest {
+			t.Errorf("row %+v shown under a place with no work", r)
+		}
+	}
+}
+
+func TestAnInstanceLeavingHasTheRestsListedAgain(t *testing.T) {
+	// The live conversations changing — an instance gone, or one come —
+	// is what makes a conversation at rest or not, and is when the rests
+	// are listed again; the same instances again are not.
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), "absent"))
+	m := withClaude("claude", nil)
+	next, cmd := m.Update(agentsMsg{agents: asAgents(map[int]claudeSession{
+		700: {PID: 700, SessionID: "aaaa-1111", Status: busyStatus},
+	})})
+	m = next.(model)
+	if !asksForRests(cmd) {
+		t.Error("a new live conversation should have the rests listed again")
+	}
+	next, cmd = m.Update(agentsMsg{agents: asAgents(map[int]claudeSession{
+		700: {PID: 700, SessionID: "aaaa-1111", Status: "idle"},
+	})})
+	m = next.(model)
+	if asksForRests(cmd) {
+		t.Error("the same live conversation should not have the rests listed again")
+	}
+	next, cmd = m.Update(agentsMsg{agents: map[int]agent{}})
+	if !asksForRests(cmd) {
+		t.Error("an instance gone should have the rests listed again")
+	}
+	_ = next
+}
+
+// asksForRests reports a command among cmd's that lists the rests.
+func asksForRests(cmd tea.Cmd) bool {
+	for _, msg := range deliver(cmd) {
+		if _, ok := msg.(restsMsg); ok {
+			return true
+		}
+	}
+	return false
+}

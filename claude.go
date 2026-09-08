@@ -85,6 +85,7 @@ var claudeKind = agentKind{
 	run:       func() string { return claudeCommand },
 	scan:      func() map[int]agent { return asAgents(claudeSessions()) },
 	suspended: claudeSuspended,
+	newest:    claudeNewest,
 	resume:    claudeResume,
 }
 
@@ -447,6 +448,42 @@ func claudeSuspended(dirs []string, live map[string]bool) []conversation {
 	}
 	slices.SortFunc(out, byRecency)
 	return out
+}
+
+// claudeNewest is the newest conversation at rest under the given
+// directories, by its transcript's time, with only that one read for what
+// a reader recognizes it by: the light listing, for a row rather than a
+// picker.
+func claudeNewest(dirs []string, live map[string]bool) (conversation, bool) {
+	root := filepath.Join(claudeDir(), "projects")
+	seen := map[string]bool{}
+	var best conversation
+	path, found := "", false
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(filepath.Join(root, encodePath(dir)))
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			id := strings.TrimSuffix(e.Name(), ".jsonl")
+			if e.IsDir() || id == e.Name() || !isSessionID(id) || live[id] || seen[id] {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			seen[id] = true
+			c := conversation{ID: id, Dir: dir, When: info.ModTime()}
+			if !found || byRecency(c, best) < 0 {
+				best, path, found = c, filepath.Join(root, encodePath(dir), e.Name()), true
+			}
+		}
+	}
+	if found {
+		readConvoMeta(path, &best)
+	}
+	return best, found
 }
 
 // isSessionID reports whether a transcript's stem is shaped like the ids

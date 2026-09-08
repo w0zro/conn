@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -98,6 +99,7 @@ const (
 	rowProject                // a repository
 	rowSub                    // a sub-project: a directory inside a repository with a manifest
 	rowProc                   // a process
+	rowRest                   // a conversation at rest: an agent that exited and can be picked back up
 )
 
 // navRow is one selectable line: a repository, or a process inside one.
@@ -110,9 +112,10 @@ const (
 type navRow struct {
 	kind    rowKind
 	project Project
-	run     []*ProcNode // the whole folded run, oldest first
-	node    *ProcNode   // the one in it the row is named for
-	prefix  string      // tree rules of the ancestors already drawn
+	run     []*ProcNode  // the whole folded run, oldest first
+	node    *ProcNode    // the one in it the row is named for
+	prefix  string       // tree rules of the ancestors already drawn
+	rest    conversation // for a row at rest, the conversation it stands for
 }
 
 // chain is the top of the run, which a tree kill has to cover.
@@ -282,6 +285,15 @@ type model struct {
 	// navigator can mark the working and the waiting without the cursor
 	// having to visit them.
 	agents map[int]agent
+
+	// rests is, by place, the newest conversation at rest there — an agent
+	// that exited, with its transcript to pick it back up — listed as a
+	// dimmed row under the place while the place has work, the way an
+	// exited container is kept beside its running siblings. restLive is
+	// the live conversations the listing was made against; a change in
+	// them is an instance gone or come, and a fresh listing.
+	rests    map[string]conversation
+	restLive string
 
 	// manifestDirs is, by a process's directory, the sub-project a manifest
 	// on the way up to its repository makes of it, or "" for none — kept
@@ -516,6 +528,11 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 		m.rebuild()
 		m.landIfFound()
+		return m, tea.Batch(m.detailCmd(), m.restsCmd())
+
+	case restsMsg:
+		m.rests = msg.rests
+		m.rebuild()
 		return m, m.detailCmd()
 
 	case createdMsg:
@@ -700,11 +717,19 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		// The marks changed without the tree changing; the windows show
 		// the new ones.
 		m.dressWindows()
+		var cmds []tea.Cmd
+		// An instance gone is a conversation at rest, and one come is a
+		// conversation no longer at rest: the rests are listed again.
+		if live := m.liveFingerprint(); live != m.restLive {
+			m.restLive = live
+			cmds = append(cmds, m.restsCmd())
+		}
 		// An instance that has started working sets the markers turning.
 		if !m.spinning && m.spinNeeded() {
 			m.spinning = true
-			return m, spin()
+			cmds = append(cmds, spin())
 		}
+		return m, tea.Batch(cmds...)
 
 	case composeMsg:
 		// Only a refusal is news: what was started was said when it was
@@ -1727,6 +1752,9 @@ func (m *model) openShell() tea.Cmd {
 	if !ok {
 		return nil
 	}
+	if r.kind == rowRest {
+		return m.continueRest(r.rest)
+	}
 
 	if r.kind == rowProc {
 		// A container is a place of its own to step into: a shell inside
@@ -2198,6 +2226,11 @@ func (m *model) askKill(tree bool) tea.Cmd {
 	if !ok {
 		return nil
 	}
+	if r.kind == rowRest {
+		// Nothing is running: there is nothing to stop.
+		m.status, m.statusErr = "a conversation at rest is not running; enter continues it", false
+		return nil
+	}
 
 	if r.kind != rowProc {
 		// A place's kill covers everything beneath it: the sub-projects of a
@@ -2374,6 +2407,8 @@ func (m model) childCount(r navRow) int {
 		roots = m.repoTrees(r.project.Path)
 	case rowProc:
 		return countTree(r.leaf()) - 1
+	case rowRest:
+		return 0
 	}
 	total := 0
 	for _, n := range roots {
@@ -3272,6 +3307,12 @@ func (m model) flattenRepo(p Project, indent string) []navRow {
 			rows = append(rows, m.flattenProc(sp, n, indent+glyphIndent)...)
 		}
 	}
+	// The newest conversation at rest, last in the family, while the place
+	// has work: a process that is not running, kept in view the way an
+	// exited container is beside its siblings, for enter to pick back up.
+	if c, ok := m.rests[p.Path]; ok && m.workIn(p.Path) {
+		rows = append(rows, navRow{kind: rowRest, project: p, rest: c, prefix: indent})
+	}
 	return rows
 }
 
@@ -3462,6 +3503,57 @@ func (m *model) inspect(r navRow) tea.Cmd {
 		m.agentFor(r), m.entryStates(r.project.Path), m.tailOf(r), m.ending(r))
 }
 
+// restsMsg carries the newest conversation at rest under each place with
+// work.
+type restsMsg struct{ rests map[string]conversation }
+
+// restsCmd lists, off the render path, the newest conversation at rest
+// under each place with work — the places listed, which are the ones a
+// row at rest can sit under — vetted against the conversations running
+// instances carry.
+func (m model) restsCmd() tea.Cmd {
+	dirs := map[string][]string{}
+	for _, p := range m.projects {
+		if m.workIn(p.Path) {
+			dirs[p.Path] = m.convoDirs(p)
+		}
+	}
+	live := m.liveConversations()
+	return func() tea.Msg {
+		rests := map[string]conversation{}
+		for path, ds := range dirs {
+			if c, ok := newestSuspended(ds, live); ok {
+				rests[path] = c
+			}
+		}
+		return restsMsg{rests: rests}
+	}
+}
+
+// liveFingerprint is the live conversations in a word, for telling a
+// change in them.
+func (m model) liveFingerprint() string {
+	ids := slices.Sorted(maps.Keys(m.liveConversations()))
+	return strings.Join(ids, " ")
+}
+
+// continueRest picks a conversation at rest back up: a shell opens where
+// it was had, running the command that continues it, and from there it is
+// a live instance like any other.
+func (m *model) continueRest(c conversation) tea.Cmd {
+	if m.server == nil {
+		m.status, m.statusErr = "no server to hold it: "+m.serverErr, true
+		return nil
+	}
+	run := resumeCommand(c)
+	if run == "" {
+		m.status, m.statusErr = "no way to continue a "+c.Kind+" conversation", true
+		return nil
+	}
+	m.server.open(c.Dir, run, "")
+	return nil
+}
+
 // tailOf reads the transcript of the shell a process row is in — the one
 // conn holds around it, which is where what the row is named for is
 // drawing — or is nothing for a row with no such shell.
@@ -3484,6 +3576,9 @@ func (m model) holdings(r navRow) string {
 	if r.kind == rowProc {
 		return ""
 	}
+	if r.kind == rowRest {
+		return r.rest.ID
+	}
 	var b strings.Builder
 	for _, t := range m.placeTrees(r) {
 		b.WriteString(strconv.Itoa(t.PID) + " ")
@@ -3502,6 +3597,8 @@ func (m model) placeTrees(r navRow) []*ProcNode {
 		return m.groupTrees(r.project.Path)
 	case rowProject:
 		return m.repoTrees(r.project.Path)
+	case rowRest:
+		return nil
 	}
 	return m.byPlace[r.project.Path]
 }

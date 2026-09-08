@@ -200,6 +200,10 @@ type agentKind struct {
 	// nil: conversations do not survive their instances.
 	suspended func(dirs []string, live map[string]bool) []conversation
 
+	// newest is the newest of those alone, read lightly — the one a row
+	// under the place stands for. nil: suspended's first answers.
+	newest func(dirs []string, live map[string]bool) (conversation, bool)
+
 	// resume is the command that picks one of them back up. nil when
 	// suspended is.
 	resume func(id string) string
@@ -324,6 +328,34 @@ func suspendedConversations(dirs []string, live map[string]bool) []conversation 
 	}
 	slices.SortStableFunc(out, byRecency)
 	return out
+}
+
+// newestSuspended is the newest conversation at rest under the given
+// directories across every kind, or none: the row a place shows for what
+// could be picked back up there.
+func newestSuspended(dirs []string, live map[string]bool) (conversation, bool) {
+	var best conversation
+	found := false
+	for _, k := range agentKinds {
+		var c conversation
+		ok := false
+		switch {
+		case k.newest != nil:
+			c, ok = k.newest(dirs, live)
+		case k.suspended != nil:
+			if all := k.suspended(dirs, live); len(all) > 0 {
+				c, ok = all[0], true
+			}
+		}
+		if !ok {
+			continue
+		}
+		c.Kind = k.name
+		if !found || byRecency(c, best) < 0 {
+			best, found = c, true
+		}
+	}
+	return best, found
 }
 
 // byRecency orders conversations newest first, with the id to break a tie

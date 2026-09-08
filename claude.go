@@ -42,6 +42,15 @@ type claudeSession struct {
 	SessionID  string
 	Cwd        string
 
+	// StartedAt is when this instance began, by its own account. Finished
+	// says it has answered since: its transcript's last word is its own,
+	// dated after it started. A finished turn is read from the instance
+	// rather than remembered by whichever window saw it working, so the
+	// mark stands across a restart of conn, and an instance picked back
+	// up is idle since it started until it answers again.
+	StartedAt time.Time
+	Finished  bool
+
 	// Agents are the subagents this session has started and not yet heard back
 	// from. A subagent is not a process — it runs inside the instance that
 	// started it — so the transcript is the only place it shows at all.
@@ -159,6 +168,7 @@ type sessionFile struct {
 	Status          string `json:"status"`
 	StatusUpdatedAt int64  `json:"statusUpdatedAt"`
 	WaitingFor      string `json:"waitingFor"`
+	StartedAt       int64  `json:"startedAt"`
 }
 
 // claudeSessions reads every live session Claude Code has advertised, keyed by
@@ -188,6 +198,11 @@ func claudeSessions() map[int]claudeSession {
 			// scan takes from the transcript, and only because a session's
 			// model holds steady enough to read once and keep.
 			s.Model = sessionModel(s)
+			// Whether it has answered, read from the transcript when
+			// the instance is not busy writing to it.
+			if s.Status != busyStatus {
+				s.Finished = sessionFinished(s)
+			}
 			out[s.PID] = s
 		}
 	}
@@ -216,7 +231,82 @@ func readSessionFile(path string) (claudeSession, bool) {
 	if f.StatusUpdatedAt > 0 {
 		s.StatusFor = max(time.Since(time.UnixMilli(f.StatusUpdatedAt)), 0)
 	}
+	if f.StartedAt > 0 {
+		s.StartedAt = time.UnixMilli(f.StartedAt)
+	}
 	return s, true
+}
+
+func (s claudeSession) finished() bool { return s.Finished }
+
+// turnCache keeps whether each session has answered, by id, with the size
+// and time of the transcript the answer was read from: an idle instance's
+// transcript does not change, so the file is read once per turn and then
+// only looked at.
+var (
+	turnCacheMu sync.Mutex
+	turnCache   = map[string]turnRead{}
+)
+
+type turnRead struct {
+	size     int64
+	modified time.Time
+	finished bool
+}
+
+// sessionFinished reports an instance that has answered since it started:
+// the last record of its own conversation — a prompt or an answer, not a
+// sidechain's and not a note — is an answer, dated after the instance
+// began. An answer older than the instance is a previous life's, which a
+// resumed conversation carries; a prompt last is an ask interrupted, or
+// one still being answered.
+func sessionFinished(s claudeSession) bool {
+	path := transcriptPath(s)
+	if path == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	turnCacheMu.Lock()
+	cached, ok := turnCache[s.SessionID]
+	turnCacheMu.Unlock()
+	if ok && cached.size == info.Size() && cached.modified.Equal(info.ModTime()) {
+		return cached.finished
+	}
+	finished := lastWordIsAnswer(path, s.StartedAt)
+	turnCacheMu.Lock()
+	turnCache[s.SessionID] = turnRead{size: info.Size(), modified: info.ModTime(), finished: finished}
+	turnCacheMu.Unlock()
+	return finished
+}
+
+// lastWordIsAnswer reads a transcript's tail for its last prompt or answer
+// and reports an answer dated after since. A transcript without a date on
+// the answer, or an instance without a start, is taken at its word.
+func lastWordIsAnswer(path string, since time.Time) bool {
+	lines, err := tailLines(path, convoTail)
+	if err != nil {
+		return false
+	}
+	for _, line := range slices.Backward(lines) {
+		var rec transcriptLine
+		if err := json.Unmarshal(line, &rec); err != nil || rec.IsSidechain || rec.IsMeta {
+			continue
+		}
+		switch rec.Type {
+		case "user":
+			return false
+		case "assistant":
+			at, err := time.Parse(time.RFC3339Nano, rec.Timestamp)
+			if err != nil || since.IsZero() {
+				return true
+			}
+			return at.After(since)
+		}
+	}
+	return false
 }
 
 // modelCache keeps each session's model by id. The model a running instance
@@ -514,6 +604,7 @@ const agentStale = 10 * time.Minute
 type transcriptLine struct {
 	Type        string `json:"type"`
 	Subtype     string `json:"subtype"`
+	Timestamp   string `json:"timestamp"`
 	IsSidechain bool   `json:"isSidechain"`
 	IsMeta      bool   `json:"isMeta"`
 	GitBranch   string `json:"gitBranch"`

@@ -111,6 +111,14 @@ type modeled interface{ model() string }
 // nothing, so an instance only reports the name its user chose.
 type named interface{ name() string }
 
+// turned is an agent that says whether it has finished a turn in its
+// life: answered since it started. Not working and turned is done and
+// waiting on its user, owed the next ask; not working and not turned is
+// idle since it started, owed nothing. The instance says it, from its
+// own record, so the mark does not depend on which window watched the
+// work and stands across a restart of conn.
+type turned interface{ finished() bool }
+
 // waited is an agent that says how long it has been in the state it is
 // in. For one waiting on its user that is the age of the ask, which the
 // row shows the way a run's row shows how long ago it ended: the number

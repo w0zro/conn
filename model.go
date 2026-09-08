@@ -282,11 +282,6 @@ type model struct {
 	// having to visit them.
 	agents map[int]agent
 
-	// worked is every agent pid that has been seen working. Waiting means a
-	// finished turn — busy once, idle now — and an instance idle since it
-	// was started has not finished anything and is not owed an answer.
-	worked map[int]bool
-
 	// terms are the shells the server is holding, keyed by the pid running
 	// each one. A repository can hold as many as you open; they tell themselves
 	// apart in the navigator because each is its own process in that
@@ -384,7 +379,6 @@ func newModel() model {
 		refused:   map[int]string{},
 		closing:   map[int]int{},
 		terms:     map[int]*remoteTerm{},
-		worked:    map[int]bool{},
 		dressed:   map[int]string{},
 		// Init sends the first scan, and Init cannot write here to say so.
 		scanning: true,
@@ -693,20 +687,6 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case agentsMsg:
 		m.agents = msg.agents
-		// The transitions are remembered here, because the scan is a snapshot
-		// and cannot know them: an agent seen working that is idle now has
-		// finished a turn. A pid that has left the table is dropped, so a
-		// recycled number does not inherit the old process's history.
-		for pid, a := range msg.agents {
-			if a.working() {
-				m.worked[pid] = true
-			}
-		}
-		for pid := range m.worked {
-			if _, ok := msg.agents[pid]; !ok {
-				delete(m.worked, pid)
-			}
-		}
 		// The marks changed without the tree changing; the windows show
 		// the new ones.
 		m.dressWindows()
@@ -3277,11 +3257,11 @@ func (m model) agentFor(r navRow) agent {
 }
 
 // awaiting returns the agent a row is running when it is waiting on its user:
-// done with a turn it was seen working, or blocked mid-turn on a specific
+// done with a turn, by its own account, or blocked mid-turn on a specific
 // ask. An instance idle since it was started has not finished a turn and is
-// not owed an answer — but a blocked one is owed its answer regardless of
-// history, because the prompt exists whether or not this window watched the
-// work that raised it.
+// not owed an answer; a blocked one is owed its answer regardless. Both
+// are read from the instance, not remembered by this window: the mark is
+// the same from every window and after a restart.
 func (m model) awaiting(r navRow) agent {
 	a := m.agentFor(r)
 	if a == nil || a.working() {
@@ -3290,7 +3270,7 @@ func (m model) awaiting(r navRow) agent {
 	if _, ok := a.blocked(); ok {
 		return a
 	}
-	if !m.worked[r.node.PID] {
+	if t, ok := a.(turned); !ok || !t.finished() {
 		return nil
 	}
 	return a

@@ -329,7 +329,9 @@ what the shell started from, and \fBconn env\fR typed there shows its own.
 5-1.
 \fBa\fR starts an agent at the selected place, in a shell like any other: Claude
 Code, unless the configuration's \fBagent\fR says otherwise. Claude Code reports
-its state, and the navigator marks each instance:
+its state, and its transcript says whether it has answered since it started, so
+a finished turn is read from the instance rather than remembered by the window,
+and stands across a restart of conn; the navigator marks each instance:
 .PP
 .I "Table 5-1. Agent marks"
 .RS

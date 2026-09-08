@@ -1573,18 +1573,15 @@ func TestATurningMarkerDoesNotChaseTheProcessList(t *testing.T) {
 }
 
 func TestAFinishedTurnLightsItsRow(t *testing.T) {
-	// Done-and-waiting is the state that most wants to be seen: once an
-	// instance seen working goes idle, the marker fills and the row itself
-	// takes the attention color rather than leaving a stopped spinner to
-	// whisper it.
-	m := withClaude("claude", nil)
-	next, _ := m.Update(agentsMsg{agents: asAgents(map[int]claudeSession{
-		700: {PID: 700, Name: "conn-1f", Status: busyStatus},
-	})})
-	next, _ = next.(model).Update(agentsMsg{agents: asAgents(map[int]claudeSession{
-		700: {PID: 700, Name: "conn-1f", Status: "idle"},
-	})})
-	m = next.(model)
+	// Done-and-waiting is the state that most wants to be seen: an idle
+	// instance whose own record says it has answered since it started
+	// gets the filled marker, and the row itself takes the attention
+	// color rather than leaving a stopped spinner to whisper it. The
+	// instance says so, not this window's memory of seeing it busy: a
+	// navigator started after the turn marks it the same.
+	m := withClaude("claude", map[int]claudeSession{
+		700: {PID: 700, Name: "conn-1f", Status: "idle", Finished: true},
+	})
 
 	row := navColumn(m)[1]
 	if !strings.Contains(row, "claude ●") {
@@ -1650,8 +1647,9 @@ func TestAnInstanceIdleSinceLaunchStaysQuiet(t *testing.T) {
 }
 
 func TestARecycledPidDoesNotInheritAFinishedTurn(t *testing.T) {
-	// The pid leaving the table drops its history, so whatever takes the
-	// number next does not light up on someone else's turn.
+	// A finished turn is the instance's own account, so whatever takes the
+	// number next — idle, and by its own record having answered nothing —
+	// does not light up on someone else's turn.
 	m := withClaude("claude", nil)
 	next, _ := m.Update(agentsMsg{agents: asAgents(map[int]claudeSession{
 		700: {PID: 700, Status: busyStatus},
@@ -1677,10 +1675,9 @@ func TestPrefixEnterCyclesTheWaitingAgents(t *testing.T) {
 			{PID: 701, PPID: 1, Command: "claude", Dir: "/p/b"},
 		})
 	m.agents = asAgents(map[int]claudeSession{
-		700: {PID: 700, Status: "idle", StatusFor: time.Minute},
-		701: {PID: 701, Status: "idle", StatusFor: time.Hour},
+		700: {PID: 700, Status: "idle", StatusFor: time.Minute, Finished: true},
+		701: {PID: 701, Status: "idle", StatusFor: time.Hour, Finished: true},
 	})
-	m.worked = map[int]bool{700: true, 701: true}
 
 	m = press(m, "tab")
 	if r, ok := m.selected(); !ok || r.kind != rowProc || r.node.PID != 700 {

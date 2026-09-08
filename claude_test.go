@@ -532,3 +532,37 @@ func TestAStatusReadsInItsMarksColor(t *testing.T) {
 		t.Errorf("idle status tone = %v, want quiet", got)
 	}
 }
+
+func TestAFinishedTurnIsReadFromTheTranscript(t *testing.T) {
+	// Whether an idle instance is owed an answer is its own account: the
+	// last word of its conversation is an answer dated after it started.
+	// An answer older than the instance is a previous life's — a resumed
+	// conversation — and a prompt last is an ask interrupted; neither is a
+	// finished turn.
+	dir := claudeHome(t)
+	started := time.Now().Add(-10 * time.Minute)
+	writeSession(t, dir, "4242.json", `{"pid":4242,"sessionId":"abc","cwd":"/p/conn",
+		"status":"idle","startedAt":`+strconv.FormatInt(started.UnixMilli(), 10)+`}`)
+	answer := func(at time.Time) string {
+		return `{"type":"assistant","timestamp":"` + at.UTC().Format(time.RFC3339Nano) + `","message":{"content":[]}}`
+	}
+	path := writeTranscript(t, dir, "/p/conn", "abc", userRec, answer(started.Add(time.Minute)))
+	if s := claudeSessions()[4242]; !s.Finished {
+		t.Errorf("session = %+v, want an answer since the start read as a finished turn", s)
+	}
+
+	// The transcript changes: an interrupted ask leaves the prompt last.
+	if err := writeFile(path, userRec+"\n"+answer(started.Add(time.Minute))+"\n"+userRec+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	if s := claudeSessions()[4242]; s.Finished {
+		t.Errorf("session = %+v, want a prompt last read as no finished turn", s)
+	}
+
+	// A resumed conversation: the only answer predates this instance.
+	writeTranscript(t, dir, "/p/conn", "abc", userRec, answer(started.Add(-time.Hour)))
+	turnCache = map[string]turnRead{}
+	if s := claudeSessions()[4242]; s.Finished {
+		t.Errorf("session = %+v, want an answer from a previous life read as no finished turn", s)
+	}
+}

@@ -3,9 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -83,9 +85,17 @@ func runLaunch() error {
 			markHome(f[0], f[1], buildVersion())
 		}
 	} else {
-		// A server already running learns this build's bindings, the home
-		// window comes back if it was closed, and a navigator from an
-		// older build gives way to this one.
+		// A server already running is brought to this terminal's
+		// environment, learns this build's bindings, the home window
+		// comes back if it was closed, and a navigator from an older
+		// build gives way to this one. A shell inside the window has no
+		// terminal to speak for: its environment is the server's and
+		// its rc files' own.
+		if !inside {
+			if err := syncServerEnv(tmuxCommand, os.Environ()); err != nil {
+				return err
+			}
+		}
 		if _, err := tmuxCommand("source-file", conf); err != nil {
 			return err
 		}
@@ -104,6 +114,39 @@ func runLaunch() error {
 	}
 	return syscall.Exec(tmux, []string{"tmux", "-S", socketPath(), "attach", "-t", tmuxSession}, os.Environ())
 }
+
+// syncServerEnv brings the server's global environment to the terminal
+// attaching: what the server would hold had it been started from this
+// terminal. tmux takes the whole environment when the server starts and,
+// on attach, refreshes a fixed few — DISPLAY, SSH_AUTH_SOCK — so a variable
+// the terminal's rc files stopped exporting would stay set in every shell
+// opened after, inherited from the server before the rc files ran, for as
+// long as the server stood. A variable that differs is set, one the
+// terminal lacks is unset, in name order; the ones tmux gives each pane
+// itself, TMUX and TMUX_PANE, are not the terminal's to say.
+func syncServerEnv(run runner, env []string) error {
+	have, want := envMap(serverEnv(run)), envMap(env)
+	for _, name := range slices.Sorted(maps.Keys(want)) {
+		if v, ok := have[name]; tmuxOwn(name) || ok && v == want[name] {
+			continue
+		}
+		if _, err := run("set-environment", "-g", name, want[name]); err != nil {
+			return err
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(have)) {
+		if _, ok := want[name]; ok || tmuxOwn(name) {
+			continue
+		}
+		if _, err := run("set-environment", "-gu", name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// tmuxOwn is a variable tmux sets in each pane for itself.
+func tmuxOwn(name string) bool { return name == "TMUX" || name == "TMUX_PANE" }
 
 // attachable says whether this terminal can be handed to the server, and
 // whether it is inside conn's own window already. Both are settled before

@@ -233,7 +233,7 @@ func TestThePageGroupsTheProjectsFirstAndTheSettersAfter(t *testing.T) {
 	for _, g := range groups {
 		titles = append(titles, g.title)
 	}
-	if got := strings.Join(titles, " | "); got != "the project's | the runtime | npm run dev's | conn's | the shell's | the terminal conn started in" {
+	if got := strings.Join(titles, " | "); got != "the project's | the runtime | npm run dev's | conn's | the shell's | the terminal conn attached from" {
 		t.Errorf("groups = %q", got)
 	}
 	for _, g := range groups {

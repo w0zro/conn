@@ -74,7 +74,7 @@ func readEnvSubject(run runner, pid int, live []string) (envSubject, error) {
 	s.listeners = listenersOf(append(procs, containers()...))
 	if pid == 0 {
 		s.title = "the server"
-		s.notes = []string{"what a shell opened anywhere starts from, before its rc files"}
+		s.notes = []string{"what a shell opened anywhere starts from, before its rc files: the terminal's, as of the last attach"}
 		s.env = mapEnv(s.server)
 		return s, nil
 	}
@@ -333,7 +333,7 @@ const (
 	groupRuntime = "the runtime"
 	groupConn    = "conn's"
 	groupShell   = "the shell's"
-	groupTerm    = "the terminal conn started in"
+	groupTerm    = "the terminal conn attached from"
 )
 
 // envRows is the page: the subject's variables annotated and grouped.
@@ -407,7 +407,7 @@ func fixedGroup(title string) bool {
 
 // sourceOf is where a variable came from: the ancestor below the nearest
 // one that did not have it with this value — npm, say — else, when every
-// ancestor had it, the terminal conn was started in when the server's
+// ancestor had it, the terminal conn was attached from when the server's
 // environment agrees, and the shell's own rc files when it does not. A
 // variable conn or tmux set says so by its name. A process that had it
 // alone set it for itself. When the shell could not be read and the

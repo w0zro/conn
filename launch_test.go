@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -306,5 +307,40 @@ func TestAHeldShellIsBusyByTheProcessTableNotTmuxsWord(t *testing.T) {
 	busy = busyHeld(held, nil, errors.New("no lsof"))
 	if busy[10] || !busy[20] {
 		t.Errorf("busy = %v, want tmux's word standing in", busy)
+	}
+}
+
+func TestAnAttachBringsTheTerminalsEnvironmentToTheServer(t *testing.T) {
+	tmuxOnSocket(t)
+	// The server starts with the environment of the terminal that started
+	// it — this process's — GITHUB_TOKEN among the rest.
+	t.Setenv("GITHUB_TOKEN", "ghp_old")
+	t.Setenv("EDITOR", "vi")
+	if _, err := tmuxCommand("new-session", "-d", "-s", tmuxSession, "sleep 30"); err != nil {
+		t.Fatal(err)
+	}
+
+	// The next terminal to attach has dropped the token from its rc
+	// files, changed its editor, and gained a variable; it is inside no
+	// tmux, though a TMUX_PANE that leaked would not be the server's.
+	env := []string{"EDITOR=nvim", "NEW_THING=1", "TMUX_PANE=%9"}
+	if err := syncServerEnv(tmuxCommand, env); err != nil {
+		t.Fatal(err)
+	}
+	got := envMap(serverEnv(tmuxCommand))
+	if _, ok := got["GITHUB_TOKEN"]; ok {
+		t.Error("GITHUB_TOKEN is still in the server's environment after a terminal without it attached")
+	}
+	if got["EDITOR"] != "nvim" || got["NEW_THING"] != "1" {
+		t.Errorf("server environment = %v, want EDITOR=nvim and NEW_THING=1", got)
+	}
+	if got["TMUX_PANE"] == "%9" {
+		t.Error("the terminal's TMUX_PANE was handed to the server")
+	}
+	// A test run inside conn starts the server with a TMUX of its own,
+	// which is tmux's to keep, not the terminal's to drop.
+	maps.DeleteFunc(got, func(name, _ string) bool { return tmuxOwn(name) })
+	if len(got) != 2 {
+		t.Errorf("server environment = %v, want the terminal's two and nothing the server started with", got)
 	}
 }

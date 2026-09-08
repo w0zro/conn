@@ -477,7 +477,6 @@ b, strong { font-weight: 700; }
   right: 50px;
   top: 38px;
   transform: rotate(-4deg);
-  mix-blend-mode: multiply;
   border: 2px solid rgba(70,80,140,0.55);
   color: rgba(70,80,140,0.72);
   padding: 8px 10px 7px;
@@ -488,10 +487,12 @@ b, strong { font-weight: 700; }
 .cover .declassified small { font-weight: 400; font-size: 8.5px; }
 /* The table runs the width of the page, so a release's description has
    the room a line needs; the stamp goes under it, at the right, the way a
-   stamp lands after the table is typed. */
+   stamp lands after the table is typed. The block ends below the stamp's
+   low corner: the ink mask stops at the block's edge, and would cut the
+   corner off. */
 .cover .revisions {
   position: relative;
-  padding: 38px 64px 0 96px;
+  padding: 38px 64px 16px 96px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -510,7 +511,6 @@ b, strong { font-weight: 700; }
 .cover .stamp {
   flex: none;
   transform: rotate(-7deg);
-  mix-blend-mode: multiply;
   border: 2.5px solid rgba(189,58,29,0.6);
   color: rgba(189,58,29,0.78);
   padding: 9px 16px 8px;

@@ -643,7 +643,7 @@
           <div class="row"><span>conn ls</span><span>the held shells: pid, directory, name, exit; one per line</span></div>
           <div class="row"><span>conn restart</span><span>end conn, after asking, and start it again</span></div>
         </div>
-        <p class="para"><span class="n">10-5.</span><b>conn ls</b> is for scripts: the held shells, one per line, pid, directory, name and exit, tab-separated. The name is empty for a shell opened by hand; the exit is how the shell's command ended, empty while it runs. With conn not running it prints nothing, which is not an error.</p>
+        <p class="para"><span class="n">10-5.</span><b>conn ls</b> is for scripts: what the navigator lists, in its order, one run per line, tab-separated: the pid of the run's head, the place, the name the row shows, its state (<b>working</b>, <b>blocked</b> or <b>waiting</b> for an agent; <b>failed</b>, <b>done</b>, or <b>running</b>), the exit of a held shell's command once it has ended, and the ports the run listens on. It is built from the same places, processes and held shells as the window, so the two never disagree. With conn not running no shells are held, and the list is the processes of the places, which is not an error.</p>
       </div>
     </div>
     <div class="foot">

@@ -688,10 +688,14 @@ end conn, after asking, and start it again
 .RE
 .TP
 10-5.
-\fBconn ls\fR is for scripts: the held shells, one per line, pid, directory,
-name and exit, tab-separated. The name is empty for a shell opened by hand; the
-exit is how the shell's command ended, empty while it runs. With conn not
-running it prints nothing, which is not an error.
+\fBconn ls\fR is for scripts: what the navigator lists, in its order, one run
+per line, tab-separated: the pid of the run's head, the place, the name the row
+shows, its state (\fBworking\fR, \fBblocked\fR or \fBwaiting\fR for an agent;
+\fBfailed\fR, \fBdone\fR, or \fBrunning\fR), the exit of a held shell's command
+once it has ended, and the ports the run listens on. It is built from the same
+places, processes and held shells as the window, so the two never disagree. With
+conn not running no shells are held, and the list is the processes of the
+places, which is not an error.
 .SH KEYS
 .I "Table A-1. In the navigator"
 .RS

@@ -131,13 +131,13 @@ While the navigator has focus, the pane beside the list shows what is known
 about the row under the cursor. For a place: its branch, status, upstream and
 last commit; its plan as a checklist, each entry up, down or ended and how, an
 entry that is up saying the ports it listens on; its tasks and how their last
-run went; and under each entry and task that has run before, its last five runs,
-newest first, how each ended and how long it took: \fBruns ✓ 12s · ✗ 2m\fR.
-The runs are kept after their shells are gone (Appendix B). For a process: its
-arguments; the binary behind its name, which node or which python; the
-environment variables that say where it runs and what it talks to, the
-\fB*_ENV\fR family, port and host, log level and URLs, with secrets left out by
-name and passwords in URLs masked; uptime, cpu, memory, state, ports and
+run went; and under each entry and task that has run before, the last five runs
+of its command, newest first, how each ended and how long it took: \fBruns ✓
+12s · ✗ 2m\fR. The runs are kept after their shells are gone (Appendix B).
+For a process: its arguments; the binary behind its name, which node or which
+python; the environment variables that say where it runs and what it talks to,
+the \fB*_ENV\fR family, port and host, log level and URLs, with secrets left out
+by name and passwords in URLs masked; uptime, cpu, memory, state, ports and
 children; and beneath the facts the last of what its shell has shown. For a
 container: its name, image, status and the last of its logs. What a thing is
 doing can be read without entering it.
@@ -412,11 +412,15 @@ and attaches to each; \fBcompose.yml\fR, \fBdocker\-compose.yml\fR and
 .TP
 6-3.
 \fBr\fR starts the entries that are not running, each in a window named for it,
-and puts the cursor on the first. It is a list to run, not a supervisor: nothing
-restarts on its own. When an entry's command ends, its shell stays at the prompt
-with the transcript, the row shows ✗ or ✓, the pane's checklist says how and
-when it ended, and \fBr\fR starts it again beside the old shell. Running
-anything by hand in that shell clears the mark.
+and puts the cursor on the first. An entry is running when its command is
+running in the place, whoever started it: the shell \fBr\fR opened for it, a
+shell opened by hand, or a terminal outside conn. The command a shell was
+started with is kept on it, so what a shell ran is what it ran whatever the plan
+says since. It is a list to run, not a supervisor: nothing restarts on its own.
+When an entry's command ends, its shell stays at the prompt with the transcript,
+the row shows ✗ or ✓, the pane's checklist says how and when it ended, and
+\fBr\fR starts it again beside the old shell. Running anything by hand in that
+shell clears the mark.
 .TP
 6-4.
 A project that runs its services with docker compose shows each service as a
@@ -812,7 +816,8 @@ configuration conn writes for itself at every launch
 the latest release as last checked, and when
 .TP
 \fB~/.local/state/conn/runs.jsonl\fR
-how each entry and task ended, one run per line; cut back to the last two
+each run of an entry's or a task's command, one per line — the command, its
+name, how it ended, when, and how long it took; cut back to the last two
 thousand as it grows
 .TP
 \fB.conn\fR

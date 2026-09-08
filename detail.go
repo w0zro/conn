@@ -267,7 +267,7 @@ func verbFields(path string, states map[string]entryState) []field {
 			fs = append(fs, gap())
 		}
 		fs = append(fs, field{label: v.label, lead: mark + " " + word, leadTone: t, value: run})
-		fs = append(fs, runsField(path, v.name)...)
+		fs = append(fs, runsField(path, v.name, run)...)
 	}
 	return fs
 }
@@ -314,7 +314,7 @@ func planFields(path string, states map[string]entryState) []field {
 			}
 		}
 		fs = append(fs, field{label: label, lead: mark + e.Name, leadTone: t, value: value, tone: vt})
-		fs = append(fs, runsField(path, e.Name)...)
+		fs = append(fs, runsField(path, e.Name, e.Run)...)
 	}
 	return append(fs, field{label: "from", value: plan.Source, tone: toneQuiet})
 }
@@ -322,11 +322,11 @@ func planFields(path string, states map[string]entryState) []field {
 // runsShown is how many past runs a line under an entry or a task lists.
 const runsShown = 5
 
-// runsField is the line under an entry or a task saying how its last runs
-// went and how long each took, newest first, for one that has run
-// before; nothing for one that has not.
-func runsField(path, name string) []field {
-	runs := pastRuns(path, name, runsShown)
+// runsField is the line under an entry or a task saying how the last runs
+// of its command went and how long each took, newest first, for one that
+// has run before; nothing for one that has not.
+func runsField(path, name, command string) []field {
+	runs := pastRuns(path, name, command, runsShown)
 	if len(runs) == 0 {
 		return nil
 	}

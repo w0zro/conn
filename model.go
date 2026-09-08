@@ -603,9 +603,9 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case termOpenedMsg:
 		if t, ok := m.terms[msg.pid]; ok {
-			t.learn(msg.dir, msg.name)
+			t.learn(msg.dir, msg.name, msg.run)
 		} else {
-			m.terms[msg.pid] = &remoteTerm{pid: msg.pid, dir: msg.dir, name: msg.name}
+			m.terms[msg.pid] = &remoteTerm{pid: msg.pid, dir: msg.dir, name: msg.name, run: msg.run}
 		}
 		// A shell asked for by name is one of several a project needed, and
 		// none of them is more the one you meant than the others. Only a shell
@@ -630,12 +630,12 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 				wanted = s.PID
 			}
 			if was, ok := m.terms[s.PID]; ok {
-				was.learn(s.Dir, s.Name)
+				was.learn(s.Dir, s.Name, s.Run)
 				m.learnExit(was, s.Exit, s.Ended)
 				held[s.PID] = was
 				continue
 			}
-			t := &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name}
+			t := &remoteTerm{pid: s.PID, dir: s.Dir, name: s.Name, run: s.Run}
 			m.learnExit(t, s.Exit, s.Ended)
 			held[s.PID] = t
 		}
@@ -1892,7 +1892,7 @@ func (m *model) runPlace(p Project) tea.Cmd {
 	}
 
 	// The plan's entries, and the place's services where it runs compose.
-	missing, services := needs(p.Path, plan, m.namesIn(p.Path), m.procs)
+	missing, services := needs(p.Path, plan, m.namesIn(p.Path, plan), m.procs)
 	if len(missing) == 0 && len(services) == 0 {
 		m.status, m.statusErr = "everything "+p.Name+" needs is running", false
 		return nil
@@ -1986,14 +1986,23 @@ func (m model) planned(path string) []*remoteTerm {
 }
 
 // namesIn is what a project already has running, by the names its plan
-// uses: the shells started for its entries whose commands have not ended.
-// One whose command has ended is at its prompt with its transcript, not
-// running the entry, and r starts the entry again beside it.
-func (m model) namesIn(path string) map[string]bool {
+// uses: the shells started for its entries whose commands have not ended,
+// and the entries whose command some process here is running, whoever
+// started it. A shell whose command has ended is at its prompt with its
+// transcript, not running the entry, and r starts the entry again beside
+// it.
+func (m model) namesIn(path string, plan plan) map[string]bool {
 	running := map[string]bool{}
 	for _, t := range m.planned(path) {
 		if m.busy(t) {
 			running[t.name] = true
+		}
+	}
+	// And the entries whose command is running here by any other hand:
+	// r does not start a second dev beside one already up.
+	for _, e := range plan.Entries {
+		if !running[e.Name] && m.entryRunning(path, e.Run) != nil {
+			running[e.Name] = true
 		}
 	}
 	return running
@@ -2011,15 +2020,16 @@ func (m model) busy(t *remoteTerm) bool {
 	return n == nil || len(n.Children) > 0 || !isShell(n.Command)
 }
 
-// record writes a named shell's ending to the runs file, once: how it
-// ended, what it said, when, and how long it ran, from when its shell
-// began. A shell opened by hand is nobody's run.
+// record writes a named shell's ending to the runs file, once: what it
+// ran, what the plan called it, how it ended, what it said, when, and how
+// long it ran, from when its shell began. A shell opened by hand is
+// nobody's run.
 func (m *model) record(t *remoteTerm) tea.Cmd {
 	if t.name == "" || t.exit == "" || t.recorded {
 		return nil
 	}
 	t.recorded = true
-	r := run{Dir: t.dir, Name: t.name, Exit: t.exit, Summary: t.summary, At: t.at}
+	r := run{Dir: t.dir, Name: t.name, Command: t.run, Exit: t.exit, Summary: t.summary, At: t.at}
 	if r.At.IsZero() {
 		r.At = time.Now()
 	}
@@ -2053,7 +2063,48 @@ func (m model) entryStates(path string) map[string]entryState {
 			states[t.name], latest[t.name] = entryState{State: t.exit, At: t.at, Summary: t.summary}, t.ended
 		}
 	}
+	// An entry is up when its command is running here, whoever started it:
+	// the shell conn opened for it, or a shell opened by hand, or a
+	// terminal outside conn. Whether dev is up is a fact about the
+	// processes in the place, not about the labels on conn's shells.
+	for _, e := range readPlan(path).Entries {
+		if states[e.Name].State == "up" {
+			continue
+		}
+		if n := m.entryRunning(path, e.Run); n != nil {
+			states[e.Name] = entryState{State: "up", Ports: runPorts(subtree(n), n)}
+		}
+	}
 	return states
+}
+
+// entryRunning finds a process in a place running an entry's command —
+// by the name its row would show, or by its command line whole — or nil.
+// A shell at its prompt is not running anything, whatever it was opened
+// to run.
+func (m model) entryRunning(path, command string) *ProcNode {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return nil
+	}
+	var found *ProcNode
+	var walk func(n *ProcNode)
+	walk = func(n *ProcNode) {
+		if found != nil {
+			return
+		}
+		if !isShell(n.Command) && (commandOf(n) == command || strings.TrimSpace(n.Argv) == command) {
+			found = n
+			return
+		}
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	for _, root := range m.byPlace[path] {
+		walk(root)
+	}
+	return found
 }
 
 // portsUnder is every port listened on beneath a held shell: the entry's

@@ -16,11 +16,16 @@ import (
 // each took is what the pane says beside the tasks, and a run that ended
 // an hour ago has no shell to read it from.
 
-// run is one ending: what it was called, where, how it ended, what its
-// transcript said of it, when, and how long it took.
+// run is one ending: what ran, what it was called, where, how it ended,
+// what its transcript said of it, when, and how long it took. The command
+// is the run's identity and the name its label: a history is the runs of
+// one command, so make test and go test ./... under the same name are two
+// histories, and dev renamed web keeps its own. A run written before the
+// command was kept has only its name to go by.
 type run struct {
 	Dir     string    `json:"dir"`
 	Name    string    `json:"name"`
+	Command string    `json:"command,omitempty"`
 	Exit    string    `json:"exit"`
 	Summary string    `json:"summary,omitempty"`
 	At      time.Time `json:"at"`
@@ -100,10 +105,13 @@ func readLines(path string) ([][]byte, error) {
 	return lines, sc.Err()
 }
 
-// pastRuns is the last n endings of a name at a place, newest first. A
-// line that does not parse is skipped: the file is conn's own, and a
-// half-written last line is the only way one gets in.
-func pastRuns(dir, name string, n int) []run {
+// pastRuns is the last n endings of a command at a place, newest first:
+// the runs that ran it, by the command when both sides know it, and by
+// the name for a run written before the command was kept, or asked for
+// with no command to compare. A line that does not parse is skipped: the
+// file is conn's own, and a half-written last line is the only way one
+// gets in.
+func pastRuns(dir, name, command string, n int) []run {
 	lines, err := readLines(runsPath())
 	if err != nil {
 		return nil
@@ -111,12 +119,21 @@ func pastRuns(dir, name string, n int) []run {
 	var out []run
 	for i := len(lines) - 1; i >= 0 && len(out) < n; i-- {
 		var r run
-		if json.Unmarshal(lines[i], &r) != nil || r.Dir != dir || r.Name != name {
+		if json.Unmarshal(lines[i], &r) != nil || r.Dir != dir || !r.ranAs(name, command) {
 			continue
 		}
 		out = append(out, r)
 	}
 	return out
+}
+
+// ranAs reports a recorded run of the given command, or, where either
+// side has no command to compare, of the given name.
+func (r run) ranAs(name, command string) bool {
+	if r.Command != "" && command != "" {
+		return r.Command == command
+	}
+	return r.Name == name
 }
 
 // describeRuns is the runs in a line, newest first: each its mark and how

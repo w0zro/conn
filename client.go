@@ -45,6 +45,7 @@ type sessionInfo struct {
 	PID    int
 	Dir    string
 	Name   string
+	Run    string // the command the shell was started with; empty for a shell opened by hand
 	Exit   string // how the command the shell was started with ended, once it has
 	Ended  string // when, as seconds since the epoch
 	Shown  bool
@@ -56,6 +57,7 @@ type remoteTerm struct {
 	pid  int
 	dir  string
 	name string    // what the project calls it, if a project asked for it
+	run  string    // the command it was started with, which is the run's identity; the name is its label
 	exit string    // how the command it was started with ended, once it has: "0", "1"…
 	at   time.Time // when it ended, when the pane recorded that too
 	// summary is what its transcript said of the run, read once it ended
@@ -86,12 +88,15 @@ func (t *remoteTerm) live() bool { return t.exit == "" }
 // know come after. A blank is a report that came early, not a shell that
 // lost its name, and is not taken. The model learns how the command
 // ended, since it orders the endings.
-func (t *remoteTerm) learn(dir, name string) {
+func (t *remoteTerm) learn(dir, name, run string) {
 	if dir != "" {
 		t.dir = dir
 	}
 	if name != "" {
 		t.name = name
+	}
+	if run != "" {
+		t.run = run
 	}
 }
 
@@ -108,6 +113,7 @@ type (
 		pid  int
 		dir  string
 		name string
+		run  string
 	}
 
 	// sessionsMsg is the shells the server is holding.
@@ -153,6 +159,7 @@ type pane struct {
 	pid    int
 	dir    string
 	name   string
+	run    string // the command the shell was started with, recorded on the pane at open
 	exit   string // the command's exit status, recorded on the pane when it ended
 	ended  string // when it ended, as seconds since the epoch, recorded with it
 	cmd    string // what is in the pane's foreground: the command, or the shell at its prompt
@@ -368,7 +375,7 @@ func (s *session) notify(n ctlNote) {
 // opened a shell to be shown says so in the window's name, the one mark
 // that is set in the same breath as the window is made — an option set
 // after would race the refresh the new window sets off.
-const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}\t#{pane_current_command}"
+const listFormat = "#{pane_id}\t#{pane_pid}\t#{@conn_dir}\t#{@conn_name}\t#{pane_current_path}\t#{@conn_nav}\t#{@conn_home}\t#{window_name}\t#{@conn_exit}\t#{@conn_ended}\t#{pane_current_command}\t#{@conn_run}"
 
 // wantName is the window name that asks the navigator to show the shell
 // in it; heldName is what the window is called once it has.
@@ -412,6 +419,9 @@ func parseListing(out string) (held []*pane, nav string) {
 		if len(f) > 10 {
 			p.cmd = f[10]
 		}
+		if len(f) > 11 {
+			p.run = f[11]
+		}
 		held = append(held, p)
 	}
 	return held, nav
@@ -419,7 +429,7 @@ func parseListing(out string) (held []*pane, nav string) {
 
 // info is the pane as the model hears about it.
 func (p *pane) info() sessionInfo {
-	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Exit: p.exit, Ended: p.ended, Shown: p.shown, Wanted: p.wanted}
+	return sessionInfo{PID: p.pid, Dir: p.dir, Name: p.name, Run: p.run, Exit: p.exit, Ended: p.ended, Shown: p.shown, Wanted: p.wanted}
 }
 
 // refreshList reads what the server holds and tells the model, reporting
@@ -577,8 +587,14 @@ func createWindow(run runner, dir, command, name string, wanted bool) (birth, er
 	if err != nil {
 		return birth{}, errors.New("tmux said " + out)
 	}
+	// The pane is told where it was opened, what the plan calls it, and
+	// what it was started with: the command is the run's identity, kept on
+	// the pane so every reader — the navigator, conn ls, the runs file —
+	// says the same, and a plan that renames or changes the entry does
+	// not change what this shell ran.
 	_, _ = run("set", "-p", "-t", f[0], "@conn_dir", dir, ";",
-		"set", "-p", "-t", f[0], "@conn_name", name)
+		"set", "-p", "-t", f[0], "@conn_name", name, ";",
+		"set", "-p", "-t", f[0], "@conn_run", command)
 	return birth{pane: f[0], pid: pid}, nil
 }
 
@@ -613,13 +629,13 @@ func (s *session) open(dir, run, name string) {
 		}
 
 		s.mu.Lock()
-		s.panes[b.pid] = &pane{id: b.pane, pid: b.pid, dir: dir, name: name}
+		s.panes[b.pid] = &pane{id: b.pane, pid: b.pid, dir: dir, name: name, run: run}
 		s.byPane[b.pane] = b.pid
 		s.mu.Unlock()
 
 		s.refreshList()
 		s.ensureCtl()
-		s.events <- termOpenedMsg{pid: b.pid, dir: dir, name: name}
+		s.events <- termOpenedMsg{pid: b.pid, dir: dir, name: name, run: run}
 	}()
 }
 

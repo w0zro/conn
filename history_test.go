@@ -21,7 +21,7 @@ func TestARecordedRunIsReadBackNewestFirst(t *testing.T) {
 			t.Fatalf("run %d: %v", i, err)
 		}
 	}
-	got := pastRuns("/p/app", "test", 5)
+	got := pastRuns("/p/app", "test", "", 5)
 	if len(got) != 2 || got[0].Summary != "12 passed" || got[1].Summary != "3 failed" {
 		t.Fatalf("runs = %+v, want the two test runs of /p/app, newest first", got)
 	}
@@ -31,10 +31,10 @@ func TestARecordedRunIsReadBackNewestFirst(t *testing.T) {
 	if got := describeRuns(got); got != glyphDone+" 1m · "+glyphFailed+" 12s" {
 		t.Errorf("described = %q, want each run's mark and length", got)
 	}
-	if got := pastRuns("/p/app", "test", 1); len(got) != 1 {
+	if got := pastRuns("/p/app", "test", "", 1); len(got) != 1 {
 		t.Errorf("asked for one, got %d", len(got))
 	}
-	if got := pastRuns("/p/none", "test", 5); got != nil {
+	if got := pastRuns("/p/none", "test", "", 5); got != nil {
 		t.Errorf("a place that never ran = %+v, want nothing", got)
 	}
 }
@@ -54,7 +54,7 @@ func TestTheRunsFileIsCutBackOnceLong(t *testing.T) {
 		t.Errorf("file holds %d lines, want it cut back to %d", len(lines), runsKeep)
 	}
 	// The latest survive the cut.
-	if got := pastRuns("/p", "t", 1); len(got) != 1 || got[0].At.Before(time.Now().Add(time.Duration(runsCap-1)*time.Second)) {
+	if got := pastRuns("/p", "t", "", 1); len(got) != 1 || got[0].At.Before(time.Now().Add(time.Duration(runsCap-1)*time.Second)) {
 		t.Errorf("latest = %+v, want the newest run kept", got)
 	}
 }
@@ -68,7 +68,7 @@ func TestAHalfWrittenLineIsSkipped(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"dir":"/p","name":"t","exit":"0","at":"2026-09-07T12:00:00Z"}`+"\n"+`{"dir":"/p","na`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := pastRuns("/p", "t", 5); len(got) != 1 {
+	if got := pastRuns("/p", "t", "", 5); len(got) != 1 {
 		t.Errorf("runs = %+v, want the whole line and not the half", got)
 	}
 }
@@ -91,5 +91,33 @@ func TestAStartTokenReadsAsAMoment(t *testing.T) {
 	}
 	if !strings.Contains(runsPath(), "conn") {
 		t.Errorf("runsPath = %q, want it under conn's state", runsPath())
+	}
+}
+
+func TestAHistoryIsTheRunsOfOneCommand(t *testing.T) {
+	// The command is the run's identity and the name its label: test
+	// backed by make test and then by go test ./... are two histories, dev
+	// renamed web keeps its own, and a run written before the command was
+	// kept is found by its name alone.
+	stateDir(t)
+	at := time.Date(2026, 9, 7, 12, 0, 0, 0, time.Local)
+	for i, r := range []run{
+		{Dir: "/p/app", Name: "test", Command: "make test", Exit: "1", At: at},
+		{Dir: "/p/app", Name: "test", Command: "go test ./...", Exit: "0", At: at.Add(time.Minute)},
+		{Dir: "/p/app", Name: "dev", Command: "npm run dev", Exit: "0", At: at.Add(2 * time.Minute)},
+		{Dir: "/p/app", Name: "build", Exit: "0", At: at.Add(3 * time.Minute)},
+	} {
+		if err := recordRun(r); err != nil {
+			t.Fatalf("run %d: %v", i, err)
+		}
+	}
+	if got := pastRuns("/p/app", "test", "go test ./...", 5); len(got) != 1 || got[0].Exit != "0" {
+		t.Errorf("runs of go test = %+v, want the one run of that command, not make test's", got)
+	}
+	if got := pastRuns("/p/app", "web", "npm run dev", 5); len(got) != 1 || got[0].Name != "dev" {
+		t.Errorf("runs of npm run dev under a new name = %+v, want the run recorded as dev", got)
+	}
+	if got := pastRuns("/p/app", "build", "make build", 5); len(got) != 1 {
+		t.Errorf("runs of build = %+v, want the run recorded without a command found by name", got)
 	}
 }

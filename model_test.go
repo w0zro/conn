@@ -2482,7 +2482,7 @@ func TestAShellAtItsPromptWithNoExitRecordedIsNotRunning(t *testing.T) {
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: repo, name: "build"}}
 	m, asked := pipeServer(t, m)
 	m.rebuild()
-	if !m.namesIn(repo)["build"] {
+	if !m.namesIn(repo, readPlan(repo))["build"] {
 		t.Fatal("setup: the build should count as running while go runs under its shell")
 	}
 	m = press(m, "b")
@@ -2494,7 +2494,7 @@ func TestAShellAtItsPromptWithNoExitRecordedIsNotRunning(t *testing.T) {
 	// recorded: not running.
 	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: repo}}})
 	m = next.(model)
-	if m.namesIn(repo)["build"] {
+	if m.namesIn(repo, readPlan(repo))["build"] {
 		t.Error("a shell at its prompt with no ending should not count as running")
 	}
 	if st := m.entryStates(repo)["build"]; st.State == "up" {
@@ -2759,13 +2759,13 @@ func TestAnEntryWhoseCommandEndedIsNotRunningAndRStartsItAgain(t *testing.T) {
 	m, docs := runsDocsPlan(t, webPlan)
 	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs, Name: "web"}}})
 	m = next.(model)
-	if running := m.namesIn(docs); !running["web"] {
+	if running := m.namesIn(docs, readPlan(docs)); !running["web"] {
 		t.Fatalf("running = %v, want web while its command runs", running)
 	}
 
 	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: docs, Name: "web", Exit: "1"}}})
 	m = next.(model)
-	if running := m.namesIn(docs); running["web"] {
+	if running := m.namesIn(docs, readPlan(docs)); running["web"] {
 		t.Fatalf("running = %v, want web down once its command ended", running)
 	}
 	m.letGo()
@@ -5041,7 +5041,7 @@ func TestASettledEndingGoesOnTheRecord(t *testing.T) {
 			t.Fatal(r.err)
 		}
 	}
-	got := pastRuns("/tmp", "test", 5)
+	got := pastRuns("/tmp", "test", "", 5)
 	if len(got) != 1 || got[0].Exit != "1" || got[0].Summary != "3 failed" || !got[0].At.Equal(at) {
 		t.Fatalf("runs = %+v, want the ending on the record", got)
 	}
@@ -5051,12 +5051,12 @@ func TestASettledEndingGoesOnTheRecord(t *testing.T) {
 	// Once: the same outcome again adds nothing.
 	m, cmd = m.update(outcomeMsg{pid: 700, summary: "3 failed"})
 	deliver(cmd)
-	if got := pastRuns("/tmp", "test", 5); len(got) != 1 {
+	if got := pastRuns("/tmp", "test", "", 5); len(got) != 1 {
 		t.Errorf("runs = %d, want the ending recorded once", len(got))
 	}
 	_, cmd = m.update(outcomeMsg{pid: 800, summary: ""})
 	deliver(cmd)
-	if got := pastRuns("/tmp", "", 5); len(got) != 0 {
+	if got := pastRuns("/tmp", "", "", 5); len(got) != 0 {
 		t.Errorf("a shell opened by hand recorded %+v, want nothing", got)
 	}
 }
@@ -5158,5 +5158,50 @@ func TestAWaitingInstanceSaysHowLongItHasWaited(t *testing.T) {
 	m.agents = asAgents(map[int]claudeSession{700: {PID: 700, Status: "idle", StatusFor: 3 * time.Minute}})
 	if row := navColumn(m)[1]; strings.Contains(row, "3m") {
 		t.Errorf("row = %q, want no age on an instance owed nothing", row)
+	}
+}
+
+func TestAnEntryIsUpWhenItsCommandRunsWhoeverStartedIt(t *testing.T) {
+	// Whether dev is up is a fact about the processes in the place, not
+	// about the labels on conn's shells: an npm run dev started by hand in
+	// a plain shell makes the entry up, with its ports, and r does not
+	// start a second beside it.
+	dir := t.TempDir()
+	if err := writeFile(filepath.Join(dir, ".conn"), "dev: npm run dev\napi: go run .\n"); err != nil {
+		t.Fatal(err)
+	}
+	m := withProcList(90, 14,
+		[]Project{{Name: "app", Path: dir}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: dir},
+			{PID: 701, PPID: 700, Command: "node", Argv: "node /usr/local/bin/npm run dev", Dir: dir, Ports: []string{"5173"}},
+		})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: dir}}
+
+	states := m.entryStates(dir)
+	if st := states["dev"]; st.State != "up" || len(st.Ports) != 1 || st.Ports[0] != "5173" {
+		t.Errorf("dev = %+v, want up on the process running its command, with its port", st)
+	}
+	if st := states["api"]; st.State != "" {
+		t.Errorf("api = %+v, want nothing for an entry nothing runs", st)
+	}
+	if running := m.namesIn(dir, readPlan(dir)); !running["dev"] || running["api"] {
+		t.Errorf("running = %v, want dev counted as running and api not", running)
+	}
+}
+
+func TestAHeldShellKnowsWhatItWasStartedWith(t *testing.T) {
+	// The command a shell was started with is recorded on its pane and
+	// comes back with the listing: the run's identity, beside the label
+	// the plan gave it.
+	held, _ := parseListing("%3\t700\t/p/app\tdev\t/p/app\t\t\tshell\t\t\tnode\tnpm run dev\n")
+	if len(held) != 1 || held[0].run != "npm run dev" || held[0].info().Run != "npm run dev" {
+		t.Errorf("held = %+v, want the command read off the pane", held)
+	}
+	m := withProcList(90, 14, []Project{{Name: "app", Path: "/p/app"}}, nil)
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/p/app", Name: "dev", Run: "npm run dev"}}})
+	m = next.(model)
+	if t0 := m.terms[700]; t0 == nil || t0.run != "npm run dev" {
+		t.Errorf("term = %+v, want the command kept on the shell", t0)
 	}
 }

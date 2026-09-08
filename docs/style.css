@@ -124,8 +124,10 @@ b, strong { font-weight: 700; }
 }
 /* Everything printed is masked by the same fibre, so the ink breaks up
    where the paper's surface did not take it. The holes are punched, not
-   printed, and stay out of it. */
-.sheet, .cover > *, .classified {
+   printed, and stay out of it. The title block is masked piece by piece
+   rather than as a whole: a mask isolates what is under it, and the
+   plate inside needs the page for a backdrop to blend with. */
+.sheet, .cover > :not(.title), .cover .title > *, .classified {
   -webkit-mask-image: var(--ink-mask);
   mask-image: var(--ink-mask);
 }

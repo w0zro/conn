@@ -23,5 +23,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-const greeting = "hello from the conn"

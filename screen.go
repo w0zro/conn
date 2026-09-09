@@ -11,8 +11,8 @@ import (
 // it: the wordmark with the station's identification beside it; under a
 // rule, the readout — the system on the left, the session on the right;
 // the start-up checks, one status column against the right edge; and
-// under a second rule the verdict band, pulled tight — the count of
-// faults as a chip, then the greeting. Uppercase throughout, by design.
+// under a second rule the verdict, pulled tight — the count of faults as
+// a chip, or the word that all is well. Uppercase throughout, by design.
 
 // The palette is the handoff's tokens. Off a terminal every sequence is
 // empty and the console is plain text.
@@ -88,7 +88,7 @@ func lastStage(r report) int {
 // rowsNeeded is how many rows the console takes for a report: the header,
 // the readout, the checks and the verdict, with their rules and air.
 func rowsNeeded(r report) int {
-	return 1 + len(wordmark) + 1 + 1 + max(len(r.system), len(r.session)) + 1 + 1 + 1 + len(r.checks) + 1 + 1 + 2
+	return 1 + len(wordmark) + 1 + 1 + max(len(r.system), len(r.session)) + 1 + 1 + 1 + len(r.checks) + 1 + 1 + 1
 }
 
 // screen renders the console for a terminal of the given size: rows the
@@ -229,25 +229,21 @@ func screen(r report, width, height int) []row {
 		emit(&l, stageChecks+i, false)
 	}
 
-	// The verdict band: a rule, the count of faults, and the greeting.
-	// All nominal, it is the greeting alone.
+	// The verdict: a rule, then the count of faults as a chip, or the
+	// word that all is well.
 	last := lastStage(r)
 	blank(last)
 	rule(last)
-	if faults > 0 {
-		var l line
-		count := "1 SYSTEM NOT NOMINAL"
-		if faults > 1 {
-			count = strconv.Itoa(faults) + " SYSTEMS NOT NOMINAL"
-		}
-		add(&l, p.chip, " "+count+" ")
-		emit(&l, last, true)
-	}
 	{
 		var l line
-		add(&l, p.orange, "***")
-		add(&l, p.gray, "  "+strings.ToUpper(greeting)+"  ")
-		add(&l, p.orange, "***")
+		switch {
+		case faults > 1:
+			add(&l, p.chip, " "+strconv.Itoa(faults)+" SYSTEMS NOT NOMINAL ")
+		case faults == 1:
+			add(&l, p.chip, " 1 SYSTEM NOT NOMINAL ")
+		default:
+			add(&l, p.gray, "ALL SYSTEMS NOMINAL")
+		}
 		emit(&l, last, true)
 	}
 	for len(rows) < height {

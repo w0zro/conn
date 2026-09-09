@@ -47,7 +47,7 @@ func texts(rows []row) string {
 
 // The console lays out as briefed: the station block beside the mark,
 // the system and the session side by side, the checks to one status
-// column flush right, and the greeting alone when all is nominal.
+// column flush right, and the verdict that all is nominal.
 func TestConsoleLaysOut(t *testing.T) {
 	rows := screen(testReport, 120, 40)
 	measure, rightCol, _ := columns(120)
@@ -56,7 +56,7 @@ func TestConsoleLaysOut(t *testing.T) {
 		"CONN 0.7.1 (devel)", "STATION  W0ZRO@STATION", "08-SEP-2026  23:58:41 Z", "4af550d · 09-SEP-2026 · MODIFIED",
 		"SYSTEM", "SESSION", "HOST ...... STATION", "USER ...... W0ZRO · UID 501 · ADMIN", "TIME ZONE . AMERICA/LOS_ANGELES",
 		"START-UP CHECKS", "SCREEN .... 120×40 · XTERM-256COLOR · TRUECOLOR", "STATE ..... ~/.LOCAL/STATE/CONN",
-		"CLOCK ..... 19:28:41 PDT", "NOMINAL", "***  HELLO FROM THE CONN  ***",
+		"CLOCK ..... 19:28:41 PDT", "NOMINAL", "ALL SYSTEMS NOMINAL",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("console lacks %q:\n%s", s, text)
@@ -71,7 +71,7 @@ func TestConsoleLaysOut(t *testing.T) {
 		t.Errorf("120x40 has %d rows", len(rows))
 	}
 	for _, r := range rows {
-		if i := strings.Index(r.text, "NOMINAL"); i >= 0 && utf8.RuneCountInString(r.text) != margin+measure {
+		if strings.HasSuffix(r.text, "NOMINAL") && strings.Contains(r.text, "...") && utf8.RuneCountInString(r.text) != margin+measure {
 			t.Errorf("status is not flush with column %d: %q", margin+measure, r.text)
 		}
 		if i := strings.Index(r.text, "USER ..."); i >= 0 && utf8.RuneCountInString(r.text[:i]) != margin+rightCol {
@@ -114,7 +114,7 @@ func TestFaultsLightTheConsole(t *testing.T) {
 	if !strings.Contains(piped, "SCREEN .... NO TERMINAL") || !strings.Contains(piped, " UNCHECKED") || !strings.Contains(piped, "1 SYSTEM NOT NOMINAL") {
 		t.Errorf("no terminal should be unchecked, not a fault:\n%s", piped)
 	}
-	if rowsNeeded(testReport) != 28 {
+	if rowsNeeded(testReport) != 27 {
 		t.Errorf("the test report needs %d rows", rowsNeeded(testReport))
 	}
 }
@@ -134,7 +134,7 @@ func TestColoredConsolePaintsEveryRow(t *testing.T) {
 		}
 	}
 	text := stripEscapes(texts(rows))
-	for _, s := range []string{"CONN 0.7.1 (devel)", "SHELL ..... ZSH 5.9", "NOMINAL", "***  HELLO FROM THE CONN  ***"} {
+	for _, s := range []string{"CONN 0.7.1 (devel)", "SHELL ..... ZSH 5.9", "NOMINAL", "ALL SYSTEMS NOMINAL"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("colored console lacks %q:\n%s", s, text)
 		}
@@ -163,7 +163,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	m.report = testReport
 	m.width, m.height = 120, 40
 	has := func(s string) bool { return strings.Contains(m.View().Content, s) }
-	if !has("STATION  W0ZRO@STATION") || has("SYSTEM") || has("HELLO") {
+	if !has("STATION  W0ZRO@STATION") || has("SYSTEM") || has("ALL SYSTEMS") {
 		t.Errorf("the header alone should be up at the start:\n%s", m.View().Content)
 	}
 	if got := strings.Count(m.View().Content, "\n") + 1; got != 40 {
@@ -183,7 +183,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 		next, _ = m.Update(stageMsg{})
 		m = next.(model)
 	}
-	if !has("CLOCK") || !has("HELLO FROM THE CONN") {
+	if !has("CLOCK") || !has("ALL SYSTEMS NOMINAL") {
 		t.Errorf("the console did not finish:\n%s", m.View().Content)
 	}
 	if lastStage(m.report) != stageChecks+8 {

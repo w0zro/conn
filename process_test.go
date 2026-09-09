@@ -100,6 +100,7 @@ func TestKindsAndCommands(t *testing.T) {
 		{process{command: "conn", args: []string{"/Users/w0zro/.local/bin/conn"}}, kindConn, "conn"},
 		{process{command: "go", args: []string{"go", "test", "./..."}}, kindRun, "go test ./..."},
 		{process{command: "python3.12"}, kindRun, "python3.12"},
+		{process{command: "conn", args: []string{"/usr/local/bin/conn", "hold"}}, kindHold, "conn hold"},
 	} {
 		if kind, cmd := kindOf(c.p), commandLine(c.p); kind != c.kind || cmd != c.command {
 			t.Errorf("%+v: %s %q, want %s %q", c.p, kind, cmd, c.kind, c.command)

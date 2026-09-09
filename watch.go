@@ -13,7 +13,9 @@ import (
 // was started as, its terminal, how long it has been at it, and the
 // word for how it stands. The newest work is at the top. A cursor
 // marks one row, and the rows scroll to keep it in view. The bottom
-// row says which keys the watch answers to.
+// row says which keys the watch answers to. In the rail, which is
+// narrower than the console, the terminal column is left off and the
+// rest close up; the row on the right, in the slot, is in orange.
 
 // The watch's words, composed from the places as of a moment.
 type watchReport struct {
@@ -35,11 +37,12 @@ type watchRow struct {
 	fault                           bool
 	here                            bool
 	reach                           string // the pane that holds it, in conn's server
+	shown                           bool   // it is in the slot, on the right
 }
 
 // composeWatch words the places; panes says which terminals are the
-// server's.
-func composeWatch(places []place, panes map[string]string, home string, now time.Time, station, clock, err string) watchReport {
+// server's, and slot which of them is on the right.
+func composeWatch(places []place, panes map[string]pane, slot string, home string, now time.Time, station, clock, err string) watchReport {
 	b := watchReport{station: station, clock: clock, err: err}
 	for _, pl := range places {
 		bp := watchPlace{path: tilde(pl.path, home)}
@@ -49,7 +52,8 @@ func composeWatch(places []place, panes map[string]string, home string, now time
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, watchRow{
 				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
-				status: e.status, fault: e.fault, here: e.status == statusHere, reach: panes[e.tty],
+				status: e.status, fault: e.fault, here: e.status == statusHere, reach: panes[e.tty].id,
+				shown: slot != "" && e.tty == slot,
 			})
 		}
 		b.places = append(b.places, bp)
@@ -59,25 +63,38 @@ func composeWatch(places []place, panes map[string]string, home string, now time
 
 // The watch's columns, from the right: the status flush with the
 // measure, the age and the terminal before it, and the command taking
-// what is left after the kind.
+// what is left after the kind. Under minCols the watch is a rail: the
+// terminal column goes, the kind and the age close up.
 const (
 	kindW          = 8
 	ttyW           = 10
 	ageW           = 9
+	railKindW      = 7
+	railAgeW       = 7
+	railMinCols    = 40
 	watchKey       = "J K MOVE · Q CLOSES · C CONSOLE"
 	watchKeyInside = "J K MOVE · ENTER REACHES · S OPENS A SHELL · Q DETACHES · C CONSOLE"
+	railKeyInside  = "J K MOVE · ENTER REACHES · S OPENS · Q DETACHES"
 )
 
 // drawWatch renders the watch for a terminal of the given size, with
 // the cursor on the row of the given pid.
 func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
-	width = max(width, minCols)
+	rail := width < minCols
+	width = max(width, railMinCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
 	statusCol := measure - statusW
 	ageCol := statusCol - 1 - ageW
 	ttyCol := ageCol - 1 - ttyW
 	commandW := ttyCol - 1 - kindW
+	kindCol := kindW
+	if rail {
+		ageCol = statusCol - 1 - railAgeW
+		ttyCol = -1
+		kindCol = railKindW
+		commandW = ageCol - 1 - kindCol
+	}
 
 	// The header: the name, the view, and the station and clock against
 	// the right; a rule; the column heads.
@@ -86,16 +103,21 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	l.add(p.orange+p.bold, "CONN")
 	l.add(p.parchment+p.bold, "  WATCH")
 	right := strings.ToUpper(join("  ·  ", b.station, b.clock))
+	if rail {
+		_, right, _ = strings.Cut(strings.ToUpper(b.clock), "  ")
+	}
 	l.to(measure - utf8.RuneCountInString(right))
 	l.add(p.gray, right)
 	c.emit(l, 0, false)
 	c.rule(0, measure)
 	l = c.line()
 	l.add(p.gray, "KIND")
-	l.to(kindW)
+	l.to(kindCol)
 	l.add(p.gray, "COMMAND")
-	l.to(ttyCol)
-	l.add(p.gray, "TTY")
+	if !rail {
+		l.to(ttyCol)
+		l.add(p.gray, "TTY")
+	}
 	l.to(ageCol)
 	l.add(p.gray, "AGE")
 	l.to(statusCol + statusW - len("STATUS"))
@@ -113,45 +135,46 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		d := canvas{p: p, width: width}
 		d.blank(0)
 		l := d.line()
-		l.add(p.parchment+p.bold, bp.path)
 		count := strconv.Itoa(len(bp.rows)) + " PROCESS"
 		if len(bp.rows) != 1 {
 			count += "ES"
 		}
+		l.add(p.parchment+p.bold, fit(bp.path, measure-utf8.RuneCountInString(count)-2, true))
 		l.to(measure - utf8.RuneCountInString(count))
 		l.add(p.gray, count)
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()
-			command := p.ink
+			command, kind, word := p.ink, p.gray, p.gray
+			if r.shown || r.here {
+				kind, word = p.orange+p.bold, p.orange+p.bold
+			}
 			if r.pid == cursor {
 				l.mark = "▸"
 				command += p.bold
 				cursorRow = len(body) + len(d.rows)
 			}
-			l.add(p.gray, r.kind)
-			l.to(kindW)
+			l.add(kind, fit(r.kind, kindCol-1, false))
+			l.to(kindCol)
 			l.add(command, fit(r.command, commandW, false))
-			l.to(ttyCol)
-			// A terminal the server holds is in gray; one it does not, and
-			// so cannot be reached, is faint.
-			ttyColor := p.gray
-			if b.inside && r.reach == "" {
-				ttyColor = p.faint
+			if !rail {
+				l.to(ttyCol)
+				// A terminal the server holds is in gray; one it does not,
+				// and so cannot be reached, is faint.
+				ttyColor := p.gray
+				if b.inside && r.reach == "" {
+					ttyColor = p.faint
+				}
+				l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
 			}
-			l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
 			l.to(ageCol)
 			l.add(p.gray, r.age)
-			switch {
-			case r.fault:
+			if r.fault {
 				l.to(measure - utf8.RuneCountInString(r.status) - 2)
 				l.add(p.chip, " "+r.status+" ")
-			case r.here:
+			} else {
 				l.to(measure - utf8.RuneCountInString(r.status))
-				l.add(p.orange+p.bold, r.status)
-			default:
-				l.to(measure - utf8.RuneCountInString(r.status))
-				l.add(p.gray, r.status)
+				l.add(word, r.status)
 			}
 			d.emit(l, 0, false)
 		}
@@ -210,7 +233,9 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		l := c.line()
 		switch {
 		case b.note != "":
-			l.add(p.owed, b.note)
+			l.add(p.owed, fit(b.note, measure, false))
+		case b.inside && rail:
+			l.add(p.gray, railKeyInside)
 		case b.inside:
 			l.add(p.gray, watchKeyInside)
 		default:

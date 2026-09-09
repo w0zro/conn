@@ -27,10 +27,12 @@ var (
 // there returns to the watch. The words of both are said again each
 // second, from what was read and the clock as it stands.
 //
-// In conn's tmux server, enter reaches the cursor's process, when it is
-// in a pane of the server; s opens a shell at the cursor's place; q and
-// ctrl+c detach, and the server keeps on. Without the server, q and
-// ctrl+c close conn.
+// In conn's tmux server, conn is the rail on the left of the home
+// window; when the watch first comes on it opens the slot beside it,
+// with a hold in it, and opens it again should it close. Enter puts
+// the cursor's process in the slot, when it is in a pane of the server;
+// s opens a shell at the cursor's place there; q and ctrl+c detach, and
+// the server keeps on. Without the server, q and ctrl+c close conn.
 
 // The views.
 const (
@@ -58,7 +60,8 @@ type (
 	stationMsg struct{ station } // the station is read
 	watchMsg   struct {          // the process table is read
 		places []place
-		panes  map[string]string // the server's panes by terminal
+		panes  map[string]pane // the server's panes by terminal
+		slot   string          // the terminal in the slot
 		err    string
 		gen    int
 	}
@@ -81,14 +84,16 @@ type model struct {
 	cursorAt int // where in the rows it was, for when the pid goes
 	watchErr string
 	watchGen int // which stay on the watch the ticks belong to
-	self     int // this process
+	pid      int // this process
 	uid      int
 	roots    func(string) string
 
-	srv    *server           // conn's tmux server, when there is one
-	inside bool              // this conn runs in the server's watch window
-	panes  map[string]string // the server's panes by terminal, as last read
-	note   string            // a word on the bottom row, until the next key
+	srv    *server         // conn's tmux server, when there is one
+	inside bool            // this conn is the rail of the server's home window
+	self   string          // this binary, for the hold
+	panes  map[string]pane // the server's panes by terminal, as last read
+	slot   string          // the terminal in the slot, as last read
+	note   string          // a word on the bottom row, until the next key
 }
 
 func newModel(p palette) model {
@@ -96,7 +101,7 @@ func newModel(p palette) model {
 		head:  station{build: readBuild(), session: readSession()},
 		now:   time.Now(),
 		p:     p,
-		self:  os.Getpid(),
+		pid:   os.Getpid(),
 		uid:   os.Getuid(),
 		roots: placeRoots(),
 	}
@@ -114,7 +119,7 @@ func (m model) report() report {
 // watchReport is the watch's words as things stand.
 func (m model) watchReport() watchReport {
 	r := m.report()
-	w := composeWatch(m.places, m.panes, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
+	w := composeWatch(m.places, m.panes, m.slot, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
 	w.inside, w.note = m.inside, m.note
 	return w
 }
@@ -127,21 +132,28 @@ func readStationCmd() tea.Msg {
 	return stationMsg{readStation()}
 }
 
-// readWatch reads the process table, and the server's panes when conn
-// is in it, and composes the watch off them.
+// readWatch reads the process table, and in the server its panes and
+// the slot, opening the slot when home has none, and composes the watch
+// off them.
 func (m model) readWatch() tea.Cmd {
-	gen, self, uid, roots := m.watchGen, m.self, m.uid, m.roots
+	gen, pid, uid, roots := m.watchGen, m.pid, m.uid, m.roots
 	var srv *server
 	if m.inside {
 		srv = m.srv
 	}
+	home, self := m.head.session.home, m.self
 	return func() tea.Msg {
 		procs, err := readProcesses(uid)
 		if err != nil {
 			return watchMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
-		msg := watchMsg{places: watch(procs, self, uid, roots), gen: gen}
+		msg := watchMsg{places: watch(procs, pid, uid, roots), gen: gen}
 		if srv != nil {
+			if slot, ok, err := srv.slot(); err == nil && !ok {
+				_ = srv.splitSlot(home, self)
+			} else if ok {
+				msg.slot = slot.tty
+			}
 			msg.panes, _ = srv.panes()
 		}
 		return msg
@@ -187,7 +199,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.watchGen {
 			return m, nil
 		}
-		m.places, m.panes, m.watchErr = msg.places, msg.panes, msg.err
+		m.places, m.panes, m.slot, m.watchErr = msg.places, msg.panes, msg.slot, msg.err
 		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
 		if m.view == viewWatch {
 			return m, m.watchTick()
@@ -238,11 +250,13 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			m.note = "NOTHING CAN BE REACHED OUTSIDE CONN'S TMUX SERVER"
 		case !ok:
 			m.note = "NOTHING UNDER THE CURSOR"
-		case m.panes[e.tty] == "":
+		case m.panes[e.tty].id == "":
 			m.note = "NOT IN A PANE OF CONN'S SERVER"
+		case m.panes[e.tty].id == m.srv.rail():
+			m.note = "THAT IS THIS WATCH"
 		default:
 			target := m.panes[e.tty]
-			return m, m.serverCmd(func() error { return m.srv.reach(target) }, "")
+			return m, m.serverCmd(func() error { return m.srv.show(target) }, "")
 		}
 	case k == "s":
 		_, pl, ok := m.under()

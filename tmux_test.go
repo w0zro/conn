@@ -36,8 +36,12 @@ func TestTheServerIsFoundBySocket(t *testing.T) {
 
 // list-panes, as tmux prints it for the format asked.
 func TestPanesAreParsed(t *testing.T) {
-	out := "/dev/ttys004\tconn:0.0\n/dev/ttys007\tconn:1.0\n/dev/ttys008\tconn:1.1\n\n"
-	want := map[string]string{"ttys004": "conn:0.0", "ttys007": "conn:1.0", "ttys008": "conn:1.1"}
+	out := "%0\t/dev/ttys004\t48\t40\t\n%1\t/dev/ttys007\t138\t40\t1\n%5\t/dev/ttys008\t138\t40\t\n\n"
+	want := map[string]pane{
+		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40},
+		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true},
+		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40},
+	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)
 	}
@@ -53,7 +57,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 	for _, s := range []string{
 		"set -g prefix C-Space", "set -g status off", "set -g mouse on",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
-		"set -g default-terminal tmux-256color", "bind w select-window -t :=watch", "bind C-Space last-window",
+		"set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor", "bind w select-pane -L", "bind C-Space last-pane",
 	} {
 		if !strings.Contains(conf, s) {
 			t.Errorf("configuration lacks %q", s)

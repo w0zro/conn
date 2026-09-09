@@ -33,6 +33,7 @@ const (
 	kindEditor = "EDITOR"
 	kindConn   = "CONN"
 	kindRun    = "RUN"
+	kindHold   = "HOLD" // conn standing in an empty slot; not on the watch
 )
 
 var (
@@ -48,6 +49,8 @@ func kindOf(p process) string {
 		name = strings.TrimPrefix(filepath.Base(p.args[0]), "-")
 	}
 	switch {
+	case name == "conn" && len(p.args) > 1 && p.args[1] == "hold":
+		return kindHold
 	case name == "conn":
 		return kindConn
 	case slices.Contains(shells, name):
@@ -139,6 +142,9 @@ func watch(procs []process, self, uid int, rootOf func(string) string) []place {
 			continue
 		}
 		kind := kindOf(p)
+		if kind == kindHold {
+			continue
+		}
 		if kind == kindShell && hasChild[p.pid] {
 			continue
 		}

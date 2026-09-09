@@ -9,7 +9,7 @@ import (
 )
 
 func testWatch() watchReport {
-	return composeWatch(watch(testProcs, 67032, 501, testRoots), nil, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	return composeWatch(watch(testProcs, 67032, 501, testRoots), nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 }
 
 // The watch at 120 by 40 is a file of record, as are the empty watch and
@@ -17,10 +17,13 @@ func testWatch() watchReport {
 func TestWatchMatchesTheGolden(t *testing.T) {
 	golden(t, "watch-120x40.txt", texts(drawWatch(testWatch(), 67032, 120, 40, plain)))
 	golden(t, "watch-cursor-100x9.txt", texts(drawWatch(testWatch(), 80002, 100, 9, plain)))
-	empty := composeWatch(nil, nil, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	empty := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	golden(t, "watch-empty-80x24.txt", texts(drawWatch(empty, 0, 80, 24, plain)))
-	failed := composeWatch(nil, nil, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
+	failed := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
 	golden(t, "watch-unread-80x24.txt", texts(drawWatch(failed, 0, 80, 24, plain)))
+	rail := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys004": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	rail.inside = true
+	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
 }
 
 // The watch's columns hold: the status flush right, the kind at the
@@ -83,7 +86,7 @@ func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 // The cursor moves with j and k, stays within the rows, and follows its
 // process across readings; when the process goes it holds its row.
 func TestTheCursorFollowsItsProcess(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewWatch, self: 67032, uid: 501, roots: testRoots, now: watchNow}
+	m := model{p: plain, width: 120, height: 40, view: viewWatch, pid: 67032, uid: 501, roots: testRoots, now: watchNow}
 	next, _ := m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots)})
 	m = next.(model)
 	if m.cursor != 67032 {
@@ -132,7 +135,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 // table and reads it again on its tick; c brings the console back, and a
 // stale tick is dropped.
 func TestTheKeyContinuesToTheWatch(t *testing.T) {
-	m := model{head: station{build: testStation.build, session: testStation.session}, now: watchNow, p: plain, width: 120, height: 40, self: 67032, uid: 501, roots: testRoots}
+	m := model{head: station{build: testStation.build, session: testStation.session}, now: watchNow, p: plain, width: 120, height: 40, pid: 67032, uid: 501, roots: testRoots}
 	st := testStation
 	m.st = &st
 	m.stage = lastStage(m.report())
@@ -176,7 +179,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 // In the server, the keys say what can be done, a terminal the server
 // does not hold is faint, and a note takes the bottom row until a key.
 func TestTheWatchInsideTheServer(t *testing.T) {
-	w := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]string{"ttys007": "conn:1.0"}, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	w.inside = true
 	rows := drawWatch(w, 67032, 120, 40, colored())
 	text := texts(rows)
@@ -186,6 +189,19 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	p := colored()
 	if !strings.Contains(text, p.faint+"TTYS004") || !strings.Contains(text, p.gray+"TTYS007") {
 		t.Errorf("the terminals are not colored by reach:\n%s", text)
+	}
+	if !strings.Contains(text, p.orange+p.bold+"AGENT") || !strings.Contains(text, p.orange+p.bold+"ACTIVE") {
+		t.Errorf("the row in the slot is not in orange:\n%s", text)
+	}
+	// In the rail there is no terminal column, and the rows close up.
+	railText := texts(drawWatch(w, 67032, 48, 30, plain))
+	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AGENT  claude --resume") || !strings.Contains(railText, railKeyInside) {
+		t.Errorf("the rail:\n%s", railText)
+	}
+	for _, r := range drawWatch(w, 67032, 48, 30, plain) {
+		if w := utf8.RuneCountInString(r.text); w > 48 {
+			t.Errorf("rail row is %d wide: %q", w, r.text)
+		}
 	}
 	w.note = "NOT IN A PANE OF CONN'S SERVER"
 	rows = drawWatch(w, 67032, 120, 40, plain)
@@ -198,8 +214,8 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 // server, n opens a shell at its place, and q detaches; each says why
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewWatch, self: 67032, uid: 501, roots: testRoots, now: watchNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
-	next, _ := m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots), panes: map[string]string{"ttys007": "conn:1.0"}})
+	m := model{p: plain, width: 120, height: 40, view: viewWatch, pid: 67032, uid: 501, roots: testRoots, now: watchNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
+	next, _ := m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: k})

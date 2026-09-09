@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -198,6 +200,107 @@ func tmuxStyled(fg string, bold bool, text string) string {
 		style += ",bold"
 	}
 	return style + "]" + strings.ReplaceAll(text, "#", "##") + "#[default]"
+}
+
+// tmuxOf is a line conn drew, in tmux's styling: each escape's weight and
+// colors become a #[...] of the same, a reset a #[default], and the text
+// between is doubled where tmux would read a # as a format. Anything the
+// escapes say that tmux's styles cannot is dropped, not passed along.
+func tmuxOf(line string) string {
+	var b strings.Builder
+	for len(line) > 0 {
+		i := strings.Index(line, "\x1b[")
+		if i < 0 {
+			b.WriteString(strings.ReplaceAll(line, "#", "##"))
+			break
+		}
+		b.WriteString(strings.ReplaceAll(line[:i], "#", "##"))
+		line = line[i+2:]
+		end := strings.IndexFunc(line, func(r rune) bool { return r >= 0x40 && r <= 0x7e })
+		if end < 0 {
+			break
+		}
+		params, final := line[:end], line[end]
+		line = line[end+1:]
+		if final != 'm' {
+			continue
+		}
+		if s := tmuxStyle(params); s != "" {
+			b.WriteString("#[" + s + "]")
+		}
+	}
+	return b.String()
+}
+
+// tmuxStyle is one SGR sequence's parameters as a tmux style, or nothing
+// when none of them say anything tmux can draw.
+func tmuxStyle(params string) string {
+	if params == "" {
+		return "default"
+	}
+	p := strings.Split(params, ";")
+	var out []string
+	for i := 0; i < len(p); i++ {
+		switch p[i] {
+		case "0":
+			out = append(out, "default")
+		case "1":
+			out = append(out, "bold")
+		case "2":
+			out = append(out, "dim")
+		case "3":
+			out = append(out, "italics")
+		case "4":
+			out = append(out, "underscore")
+		case "7":
+			out = append(out, "reverse")
+		case "22":
+			out = append(out, "nobold", "nodim")
+		case "23":
+			out = append(out, "noitalics")
+		case "24":
+			out = append(out, "nounderscore")
+		case "27":
+			out = append(out, "noreverse")
+		case "39":
+			out = append(out, "fg=default")
+		case "49":
+			out = append(out, "bg=default")
+		case "38", "48":
+			which := "fg="
+			if p[i] == "48" {
+				which = "bg="
+			}
+			switch {
+			case i+4 < len(p) && p[i+1] == "2":
+				out = append(out, fmt.Sprintf("%s#%02x%02x%02x", which, atoiByte(p[i+2]), atoiByte(p[i+3]), atoiByte(p[i+4])))
+				i += 4
+			case i+2 < len(p) && p[i+1] == "5":
+				out = append(out, which+"colour"+p[i+2])
+				i += 2
+			}
+		default:
+			if n, err := strconv.Atoi(p[i]); err == nil {
+				switch {
+				case n >= 30 && n <= 37:
+					out = append(out, "fg=colour"+strconv.Itoa(n-30))
+				case n >= 40 && n <= 47:
+					out = append(out, "bg=colour"+strconv.Itoa(n-40))
+				case n >= 90 && n <= 97:
+					out = append(out, "fg=colour"+strconv.Itoa(n-90+8))
+				case n >= 100 && n <= 107:
+					out = append(out, "bg=colour"+strconv.Itoa(n-100+8))
+				}
+			}
+		}
+	}
+	return strings.Join(out, ",")
+}
+
+// atoiByte reads a color channel, 0 where it is not a number.
+func atoiByte(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n & 0xff
 }
 
 // The glyphs: one mark per meaning, everywhere it appears — a tab, a row, a

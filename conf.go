@@ -24,10 +24,12 @@ func confPath() string {
 }
 
 // chromeRows is the height of conn's own pane while a buffer is shown under
-// it: the edge row over the tabs, the tabline, a blank, and the buffer's
-// heading. The border row under them is blank too, so the heading has a
-// row of air on either side. The layout holds it through every resize.
-const chromeRows = 4
+// it: the edge row over the tabs, the tabline, and a blank. The border row
+// under them carries the buffer's heading, drawn by tmux from what conn
+// says it reads, two columns in like the rows of the column; the buffer's
+// own first row is the air under it. The layout holds the height through
+// every resize.
+const chromeRows = 3
 
 // tmuxConf is the configuration for conn's server. conn is the path of this
 // build, which the chords run; the path is quoted so a directory with a
@@ -128,8 +130,8 @@ func tmuxConf(conn string, scrollback int) string {
 	if paintShells {
 		w(`set -g window-style "bg=` + tp.ground + `,fg=` + tp.ink + `"`)
 	}
-	// The border between conn's pane and the buffer is a blank row of the
-	// ground: the air under the heading. Between two buffers it is the
+	// The border between conn's pane and the buffer is a row of the ground
+	// carrying the heading; between two buffers it is a blank row of the
 	// same, and the edge is what says which has focus.
 	w(`set -g pane-border-style "fg=`+tp.ground+`,bg=`+tp.ground+`"`,
 		`set -g pane-active-border-style "fg=`+tp.ground+`,bg=`+tp.ground+`"`,
@@ -142,7 +144,11 @@ func tmuxConf(conn string, scrollback int) string {
 		"# buffer with focus filling the rest. The layout is re-applied on every",
 		"# resize, so the buffer takes the window's growth.",
 		"set -g main-pane-height "+strconv.Itoa(chromeRows),
-		"set -g pane-border-status off",
+		// The row under every pane is its border status: under conn's
+		// pane it is the shown buffer's heading, which conn keeps in an
+		// option; under a buffer it is a blank row of the ground.
+		"set -g pane-border-status bottom",
+		`set -g pane-border-format "#{?#{@conn_nav},#{`+headingOption+`},}"`,
 		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,
 		"",
 		"# The status line: the CONN chip, then one mode chip — the prefix",
@@ -177,11 +183,12 @@ func tmuxConf(conn string, scrollback int) string {
 // clock has not reached it. Nothing has to clear the note, and the
 // navigator's message is back under it when it goes.
 const (
-	msgOption   = "@conn_msg"
-	modeOption  = "@conn_mode"
-	noteOption  = "@conn_note"
-	untilOption = "@conn_until"
-	nowOption   = "@conn_now" // holds %s, so #{T:@conn_now} is the time
+	msgOption     = "@conn_msg"
+	modeOption    = "@conn_mode"
+	headingOption = "@conn_heading" // the shown buffer's heading, in tmux's styling
+	noteOption    = "@conn_note"
+	untilOption   = "@conn_until"
+	nowOption     = "@conn_now" // holds %s, so #{T:@conn_now} is the time
 )
 
 // noteFor is how long a chord's note stands: display-time's three seconds

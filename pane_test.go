@@ -615,8 +615,9 @@ func TestTheKeysListTheKindKey(t *testing.T) {
 }
 func TestUnderTheTablineAShownBufferLeavesConnTheChrome(t *testing.T) {
 	// With a buffer shown, conn's pane is exactly the chrome tall — the
-	// edge, the tabline, a blank and the buffer's heading — and no wider
-	// than the window: tmux draws the border and everything under it.
+	// edge, the tabline and a blank — and no wider than the window: tmux
+	// draws the heading on the border row and everything under it, from
+	// what the status says the heading reads.
 	m := withProcList(80, 24,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
@@ -641,8 +642,16 @@ func TestUnderTheTablineAShownBufferLeavesConnTheChrome(t *testing.T) {
 	if !strings.HasPrefix(lines[0], glyphEdge) {
 		t.Errorf("edge row = %q, want the edge over the focused tab", lines[0])
 	}
-	if !strings.Contains(lines[3], "zsh") || !strings.Contains(lines[3], "in tmp") {
-		t.Errorf("heading = %q, want the buffer named and placed under a blank", lines[3])
+	if strings.TrimSpace(lines[2]) != "" {
+		t.Errorf("last chrome row = %q, want the blank over the heading", lines[2])
+	}
+	head := m.statusLine().heading
+	if !strings.Contains(head, "zsh") || !strings.Contains(head, "in tmp") || !strings.Contains(head, "#[") {
+		t.Errorf("heading for tmux = %q, want the buffer named and placed, in tmux's styling", head)
+	}
+	m.shown = 0
+	if head := m.statusLine().heading; head != "" {
+		t.Errorf("heading for tmux = %q with no buffer shown, want none", head)
 	}
 }
 

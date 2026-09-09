@@ -54,7 +54,7 @@ func (m model) layout() string {
 	rows := max(m.height, 1)
 	lines := []string{m.edgeRow(), m.tabline()}
 	if m.shown != 0 {
-		lines = append(lines, "", m.heading())
+		lines = append(lines, "")
 	} else {
 		lines = append(lines, m.body(max(rows-2, 0))...)
 	}
@@ -301,13 +301,15 @@ func (m model) viewingAll() bool {
 // heading is the line under the tabline while a buffer is shown: what the
 // buffer is, bold in parchment, and its facts in gray joined by middots —
 // where it works, its pid, its ports, how its run ended and the runs before.
+// tmux draws it on the border row under conn's pane, two columns in and
+// two short of the right edge, so the line is cut to the width between.
 func (m model) heading() string {
 	t := m.terms[m.shown]
 	if t == nil {
 		return ""
 	}
 	name, facts := m.bufferFacts(m.shown, t)
-	return gutter + headingStyle.Render(name) + " " + facts
+	return headingStyle.Render(name) + " " + facts
 }
 
 // bufferFacts is a buffer's name and the facts beside it, styled: the
@@ -365,7 +367,7 @@ func (m model) bufferFacts(pid int, t *remoteTerm) (string, string) {
 	if strip := m.runsStrip(pid, t); strip != "" {
 		line += hintStyle.Render(" "+glyphDot+" past runs ") + strip
 	}
-	return name, truncateStyled(line, m.width-lipgloss.Width(gutter+name+" "), false)
+	return name, truncateStyled(line, m.width-4-lipgloss.Width(name+" "), false)
 }
 
 // runsStrip is the buffer's run history: the last runs of its command,

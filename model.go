@@ -2788,6 +2788,9 @@ func (m *model) dressStatus() {
 // newer conn says, else the session's facts.
 func (m model) statusLine() statusText {
 	var t statusText
+	if m.shown != 0 {
+		t.heading = tmuxOf(m.heading())
+	}
 	need := m.needCount()
 	switch {
 	case m.pendingReplace:

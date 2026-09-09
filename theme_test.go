@@ -26,3 +26,19 @@ func TestDotsJoinTheFactsThatAreThere(t *testing.T) {
 		t.Errorf("dots = %q", got)
 	}
 }
+
+func TestALineConnDrewReadsTheSameInTmuxsStyling(t *testing.T) {
+	line := headingStyle.Render("claude") + " " + hintStyle.Render("in conn · pid 7 · #1") + "\x1b[0m"
+	got := tmuxOf(line)
+	for _, want := range []string{"#[bold", "fg=" + colorParchment, "claude", "#[default]", "fg=" + colorGray, "in conn · pid 7 · ##1"} {
+		if !strings.Contains(strings.ToLower(got), strings.ToLower(want)) {
+			t.Errorf("tmuxOf = %q, want it to hold %q", got, want)
+		}
+	}
+	if strings.Contains(got, "\x1b") {
+		t.Errorf("tmuxOf = %q, want no escape left in it", got)
+	}
+	if got := tmuxStyle("22"); got != "nobold,nodim" {
+		t.Errorf("tmuxStyle(22) = %q", got)
+	}
+}

@@ -84,6 +84,9 @@ type remoteTerm struct {
 	// hangUp says a kill asked for the shell as well as what ran in it:
 	// once nothing runs in it any more it is hung up, buffer and all.
 	hangUp bool
+	// killed says the ending was asked for with x: an exit you asked for
+	// is not a wrong one, and carries no mark.
+	killed bool
 }
 
 // live reports whether the shell is still running what it was started

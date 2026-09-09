@@ -1950,6 +1950,7 @@ func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*
 			m.server.closeTerm(n.PID)
 			continue
 		}
+		t.killed = true
 		if t.name == "" {
 			t.hangUp = true
 		}
@@ -2014,7 +2015,7 @@ func (m *model) rerun(t *remoteTerm) tea.Cmd {
 		m.status, m.statusErr = "no server to run it in: "+m.serverErr, true
 		return nil
 	}
-	t.exit, t.at, t.summary, t.settled, t.dropped, t.recorded = "", time.Time{}, "", false, false, false
+	t.exit, t.at, t.summary, t.settled, t.dropped, t.recorded, t.killed = "", time.Time{}, "", false, false, false, false
 	delete(m.unread, t.pid)
 	m.server.respawn(t.pid, t.run)
 	m.status, m.statusErr = "running "+t.name+" again: "+t.run, false
@@ -2341,7 +2342,18 @@ func (m model) wrong(r navRow) bool {
 		return false
 	}
 	exit := m.ended(r)
-	return unwell(r.run) || containerWrong(r.run) || (exit != "" && exit != "0")
+	return unwell(r.run) || containerWrong(r.run) || (exit != "" && exit != "0" && !m.askedEnd(r))
+}
+
+// askedEnd reports a row whose ending was asked for with x: the shell's
+// command was killed on purpose, so the exit is what you wanted, not a
+// failure to be taken to.
+func (m model) askedEnd(r navRow) bool {
+	if r.kind != rowProc {
+		return false
+	}
+	t := m.terms[r.node.PID]
+	return t != nil && t.killed
 }
 
 // needsYou reports a row that tab goes to: an agent waiting on you, or a

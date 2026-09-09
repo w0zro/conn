@@ -5003,3 +5003,46 @@ func asksForRests(cmd tea.Cmd) bool {
 	}
 	return false
 }
+
+func TestAnEndingXAskedForIsNotAWrongOne(t *testing.T) {
+	// A killed entry's shell stays as the record, but the ending is what
+	// you asked for: no cross on its row or its tab, no FAILED chip, and
+	// tab does not stop there; the row and the heading say it in gray.
+	m, _ := pipeServer(t, composeTree()) // app: zsh 10 running docker compose up
+	m = press(press(m, "down"), "x")
+	m.splitKill(m.pendingKill.nodes)
+	m.pendingKill = nil
+	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}}})
+	m = next.(model)
+	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 10, Dir: "/p/conn", Name: "app", Run: "docker compose up", Exit: "143"}}})
+	m = next.(model)
+	if got := m.terms[10]; got == nil || got.exit != "143" || !got.killed {
+		t.Fatalf("terms[10] = %+v, want the ending learned and remembered as asked for", got)
+	}
+	found := false
+	for _, r := range m.rows {
+		if r.kind == rowProc && r.node.PID == 10 {
+			found = true
+			if m.wrong(r) || m.needsYou(r) {
+				t.Errorf("the killed entry reads as wrong: wrong %v, needs you %v", m.wrong(r), m.needsYou(r))
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the entry's row is missing")
+	}
+	if f := footer(m); strings.Contains(f, "FAILED") {
+		t.Errorf("footer = %q, want no FAILED chip for an ending asked for", f)
+	}
+	for _, tb := range m.tabs() {
+		if tb.pid == 10 && tb.mark != "" {
+			t.Errorf("tab mark = %q, want none", tb.mark)
+		}
+	}
+	m.shown = 10
+	m.keepRows()
+	head := stripANSI(m.heading())
+	if strings.Contains(head, glyphFailed) || !strings.Contains(head, "terminated") {
+		t.Errorf("heading = %q, want terminated said with no mark", head)
+	}
+}

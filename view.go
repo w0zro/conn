@@ -366,7 +366,14 @@ func (m model) bufferFacts(pid int, t *remoteTerm) (string, string) {
 		if e.State != "0" {
 			style, mark = toneStyles[toneUrgent], glyphFailed
 		}
-		parts := []string{mark + " " + cmp.Or(exitWord(e.State), "exit "+e.State)}
+		how := cmp.Or(exitWord(e.State), "exit "+e.State)
+		if t.killed {
+			// An ending you asked for is said in gray, with no mark.
+			style = hintStyle
+		} else {
+			how = mark + " " + how
+		}
+		parts := []string{how}
 		if e.Summary != "" && e.Summary != exitWord(e.State) {
 			parts = append(parts, e.Summary)
 		}

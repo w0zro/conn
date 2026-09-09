@@ -24,11 +24,11 @@ func confPath() string {
 }
 
 // chromeRows is the height of conn's own pane while a buffer is shown under
-// it: the tabline, and the row of air under it carrying the focused tab's
-// rim. The border row under them carries the buffer's heading, drawn by
-// tmux from what conn says it reads, two columns in like the rows of the
-// column; the buffer's own first row is the air under it. The layout
-// holds the height through every resize.
+// it: the rim row over the tabs, and the tabline. The border row under
+// them carries the buffer's heading, drawn by tmux from what conn says it
+// reads, two columns in like the rows of the column; the buffer's own
+// first row is the air under it. The layout holds the height through
+// every resize.
 const chromeRows = 2
 
 // tmuxConf is the configuration for conn's server. conn is the path of this

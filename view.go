@@ -52,7 +52,7 @@ func (m model) View() tea.View {
 
 func (m model) layout() string {
 	rows := max(m.height, 1)
-	lines := []string{m.tabline(), m.rimRow()}
+	lines := []string{m.rimRow(), m.tabline()}
 	if m.shown == 0 {
 		lines = append(lines, m.body(max(rows-2, 0))...)
 	}
@@ -251,12 +251,12 @@ func (m model) tabline() string {
 	return b.String() + barStyle.Render(strings.Repeat(" ", rest)) + barStyle.Inherit(faintStyle).Render(hint) + barStyle.Render(" ")
 }
 
-// rimRow is the row under the tabline: the ground across, the air under
-// the tabs, and under the focused tab's columns the rim along its top —
-// the focus signal, the tab standing on it: orange for a buffer, teal for
-// the everything view, which is where the identities are read. It is
-// drawn under the tab rather than over it so the chrome is two rows,
-// the rest of the window being work.
+// rimRow is the row over the tabline: the bar across, one dark with the
+// terminal's margin over it, and over the focused tab's columns the rim
+// along the row's foot, sitting on the tab's top — the focus signal:
+// orange for a buffer, teal for the everything view, which is where the
+// identities are read. The chrome is this row and the tabline, the rest
+// of the window being work; what is under the tabs starts at once.
 func (m model) rimRow() string {
 	cells, start := m.tabCells()
 	hint := m.tabHint()
@@ -271,13 +271,13 @@ func (m model) rimRow() string {
 			if cells[i].everything {
 				edge = tealStyle
 			}
-			return groundStyle.Render(strings.Repeat(" ", used)) +
-				groundStyle.Inherit(edge).Render(strings.Repeat(glyphEdge, cells[i].width)) +
-				groundStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
+			return barStyle.Render(strings.Repeat(" ", used)) +
+				barStyle.Inherit(edge).Render(strings.Repeat(glyphEdge, cells[i].width)) +
+				barStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
 		}
 		used += cells[i].width
 	}
-	return groundStyle.Render(strings.Repeat(" ", m.width))
+	return barStyle.Render(strings.Repeat(" ", m.width))
 }
 
 // tabHint is the one hint the tabline's right end holds: the key that
@@ -441,7 +441,7 @@ func (m model) everything(rows int) []string {
 	if m.release != "" {
 		foot[1] = "enter opens the buffer · x previews a kill · U installs conn " + strings.TrimPrefix(m.release, "v")
 	}
-	// The rim row over the list is its air; the rows start under it.
+	// The rows start under the tabline: the chrome spends no row on air.
 	body := m.bodyHeight()
 	var lines []string
 	if req := m.pendingKill; req != nil {
@@ -459,7 +459,7 @@ func (m model) everything(rows int) []string {
 }
 
 // bodyHeight is the number of rows the everything view's list has: the
-// window under the tabline and its rim row, less the footer, which is
+// window under the rim row and the tabline, less the footer, which is
 // what the cursor scrolls within.
 func (m model) bodyHeight() int {
 	rows := m.height - 2

@@ -317,7 +317,7 @@ const (
 	glyphBusy      = "⠹"  // the spinner, standing still: for a title that is not redrawn per frame
 	glyphJoin      = "›"  // the prompt line, and the joins of a run
 	glyphNote      = "←"  // leads an annotation
-	glyphEdge      = "▔"  // the focus rim, drawn along the top of the row under the focused tab
+	glyphEdge      = "▁"  // the focus rim, drawn along the foot of the row over the focused tab
 	glyphDot       = "·"  // joins the facts of a line
 )
 

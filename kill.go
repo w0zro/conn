@@ -35,6 +35,16 @@ func (req *killRequest) headOnly() *killRequest {
 	return &killRequest{subject: req.subject, where: req.where, nodes: req.head, sig: req.sig}
 }
 
+// names reports whether the request would kill pid.
+func (req *killRequest) names(pid int) bool {
+	for _, n := range req.nodes {
+		if n.PID == pid {
+			return true
+		}
+	}
+	return false
+}
+
 // ports is every port the request's processes hold.
 func (req *killRequest) ports() []string {
 	seen := map[string]bool{}

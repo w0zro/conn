@@ -221,3 +221,49 @@ func TestAReachesIntoTheRowsPlaceOrTheShownBuffers(t *testing.T) {
 		t.Error("nothing under the cursor and nothing shown should name no place")
 	}
 }
+
+func TestAKillFromTheEverythingViewLeavesYouOnIt(t *testing.T) {
+	// The everything view opened from a buffer keeps the window through
+	// a kill: the preview marks the processes on the list itself, the
+	// tab stays, and after the kill — or a change of mind — the list is
+	// still up, with the buffer waiting for esc.
+	m := heldTabs(100)
+	m.procs = append(m.procs, Proc{PID: 710, PPID: 702, Command: "node", Argv: "node vite", Dir: "/p/demo", Ports: []string{"3000"}})
+	m.rebuild()
+	m.all, m.shown = false, 702
+	m.keepRows()
+	m, _ = pipeServer(t, m)
+	m = press(m, ".")
+	if !m.all || m.shown != 0 || m.from != 702 {
+		t.Fatalf("all %v, shown %d, from %d; want the everything view up over the parked buffer", m.all, m.shown, m.from)
+	}
+	for i, r := range m.rows {
+		if r.kind == rowProc && r.holds(702) {
+			m.cursor = i
+		}
+	}
+	m = press(m, "x")
+	if m.pendingKill == nil || !m.all {
+		t.Fatalf("pending %v, all %v; want the preview on the everything view", m.pendingKill, m.all)
+	}
+	page := strings.Join(strings.Fields(strings.Join(bodyRows(m), " ")), " ")
+	for _, want := range []string{"everything", "demo", "▸ web · about to die", "x kills web", "esc changes your mind"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page lacks %q:\n%s", want, page)
+		}
+	}
+	m = press(m, "esc")
+	if m.pendingKill != nil || !m.all || m.shown != 0 || m.from != 702 {
+		t.Errorf("after esc: pending %v, all %v, shown %d, from %d; want the list kept and the buffer still parked", m.pendingKill, m.all, m.shown, m.from)
+	}
+	m = press(m, "x")
+	next, _ := m.Update(killedMsg{subject: "web", results: []killResult{{pid: 702}, {pid: 710}}})
+	m = next.(model)
+	if !m.all || m.shown != 0 {
+		t.Errorf("after the kill: all %v, shown %d; want the list kept", m.all, m.shown)
+	}
+	m = press(m, "esc")
+	if m.all || m.shown != 702 {
+		t.Errorf("after esc: all %v, shown %d; want the buffer back", m.all, m.shown)
+	}
+}

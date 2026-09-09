@@ -1347,8 +1347,14 @@ func (m *model) take() {
 }
 
 // showAgain gives the window back to the buffer a view took it from, where
-// that buffer is still held; with none, conn keeps the window.
+// that buffer is still held; with none, conn keeps the window. While the
+// everything view is up it keeps the window: a kill previewed there,
+// done or kept, leaves you on the list you chose it from, and the buffer
+// the list was opened from waits for esc.
 func (m *model) showAgain() {
+	if m.all {
+		return
+	}
 	t := m.terms[m.from]
 	m.from = 0
 	if t != nil && m.shown == 0 && m.pendingKill == nil {

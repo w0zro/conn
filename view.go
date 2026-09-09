@@ -187,9 +187,10 @@ func (m model) tabMark(pid int, t *remoteTerm) (string, lipgloss.Style) {
 // tabCell is one tab drawn: its text, how wide it is, and whether it is
 // the focused one.
 type tabCell struct {
-	text    string
-	width   int
-	focused bool
+	text       string
+	width      int
+	focused    bool
+	everything bool // the everything view's tab, whose edge is the teal
 }
 
 // tabCells draws the tabs and says where the row starts: from the first
@@ -218,7 +219,7 @@ func (m model) tabCells() (cells []tabCell, start int) {
 			text += " " + t.mark
 		}
 		cell += bg.Render(" ")
-		cells = append(cells, tabCell{text: cell, width: lipgloss.Width(text) + 1, focused: t.focused})
+		cells = append(cells, tabCell{text: cell, width: lipgloss.Width(text) + 1, focused: t.focused, everything: t.pid == 0})
 	}
 	if focused >= 0 {
 		total := 0
@@ -254,7 +255,9 @@ func (m model) tabline() string {
 
 // edgeRow is the row over the tabline: the bar across, one dark with the
 // terminal's margin over it, and under the focused tab's columns the
-// orange edge — the focus signal, sitting on the tab's top.
+// edge — the focus signal, sitting on the tab's top: orange over a
+// buffer, teal over the everything view, which is where the identities
+// are read.
 func (m model) edgeRow() string {
 	cells, start := m.tabCells()
 	hint := m.tabHint()
@@ -265,8 +268,12 @@ func (m model) edgeRow() string {
 			break
 		}
 		if cells[i].focused {
+			edge := orangeStyle
+			if cells[i].everything {
+				edge = tealStyle
+			}
 			return barStyle.Render(strings.Repeat(" ", used)) +
-				barStyle.Inherit(orangeStyle).Render(strings.Repeat(glyphEdge, cells[i].width)) +
+				barStyle.Inherit(edge).Render(strings.Repeat(glyphEdge, cells[i].width)) +
 				barStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
 		}
 		used += cells[i].width
@@ -295,7 +302,7 @@ func (m model) tabHint() string {
 // in for a buffer while none is shown — with nothing to show, what is
 // running is the thing to look at.
 func (m model) viewingAll() bool {
-	return m.pendingKill == nil && (m.all || m.shown == 0)
+	return m.all || (m.shown == 0 && m.pendingKill == nil)
 }
 
 // heading is the line under the tabline while a buffer is shown: what the
@@ -398,10 +405,12 @@ func (m model) runsStrip(pid int, t *remoteTerm) string {
 }
 
 // body is what conn draws under the tabline when it has the window: the
-// kill preview while one waits, else the everything view — put up, or
-// standing in while no buffer is shown.
+// kill preview while one waits — on the everything view itself when that
+// is up, the processes to die marked where they stand, else a page of
+// its own — else the everything view, put up, or standing in while no
+// buffer is shown.
 func (m model) body(rows int) []string {
-	if m.pendingKill != nil {
+	if m.pendingKill != nil && !m.all {
 		return m.killPreview(rows)
 	}
 	if m.err != nil {
@@ -435,6 +444,16 @@ func (m model) everything(rows int) []string {
 	}
 	body := m.bodyHeight()
 	lines := []string{""}
+	if req := m.pendingKill; req != nil {
+		// The processes to die are marked on their rows, the confirm
+		// line stands under the list, and the keys' hints give way to
+		// the signals'; the status line says what goes with them.
+		foot = []string{"9 kills outright · i interrupts · h hangs up · esc changes your mind"}
+		lines = append(lines, m.navLines(max(body-2, 1))...)
+		lines = padTo(lines, max(body-1, 1))
+		lines = append(lines, gutter+blockedStyle.Render(req.confirmWord())+" "+hintStyle.Render(glyphDot+" "+req.alternatives()))
+		return m.withFooter(lines, rows, foot...)
+	}
 	lines = append(lines, m.navLines(body)...)
 	return m.withFooter(lines, rows, foot...)
 }
@@ -566,6 +585,13 @@ func (m model) renderRow(r navRow, selected bool) string {
 		}
 	}
 
+	// A process a kill preview names shows the cross and says so, where
+	// it stands on the list it was chosen from.
+	doomed := r.kind == rowProc && m.pendingKill != nil && m.pendingKill.names(r.node.PID)
+	if doomed {
+		mark, markStyle = " "+glyphFailed, errStyle
+	}
+
 	// A process that is conn itself is (me), and only that, in gray.
 	if m.selfRun(r) && !selected {
 		style = selfStyle
@@ -602,9 +628,12 @@ func (m model) renderRow(r navRow, selected bool) string {
 			}
 		}
 	}
+	if doomed {
+		facts = " " + glyphDot + " about to die" + facts
+	}
 	// A place's fold count and a wrong run's word read in the state's color.
 	factStyle := hintStyle
-	if r.kind == rowProc && m.wrong(r) && !selected {
+	if r.kind == rowProc && (m.wrong(r) || doomed) && !selected {
 		factStyle = errStyle
 	}
 

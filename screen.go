@@ -10,9 +10,9 @@ import (
 // The boot console, as the design hands it off: the wordmark with the
 // station's identification beside it; under a rule, the system block,
 // eight facts in two columns; the start-up checks, five lines to one
-// status column; and under a second rule the verdict band, pulled tight
-// — the count of faults as a chip with what the first one means for conn,
-// then the greeting. Uppercase throughout, by design.
+// status column against the right edge; and under a second rule the
+// verdict band, pulled tight — the count of faults as a chip, then the
+// greeting. Uppercase throughout, by design.
 
 // The palette is the handoff's tokens. Off a terminal every sequence is
 // empty and the console is plain text.
@@ -45,23 +45,25 @@ func colored() palette {
 }
 
 // The console is set to the terminal's width less a margin each side:
-// the facts in two columns of half the measure, the checks' status
-// column against its right edge. These are the fixed columns, and the
-// size under which the terminal is called small.
+// the facts in two columns of half the measure, the checks' statuses
+// flush with its right edge. These are the fixed columns, and the size
+// under which the terminal is called small.
 const (
 	margin     = 3
 	factCol    = 10 // a fact's value, from its column
 	checkCol   = 12 // a check's value, from the margin
-	statusW    = 7  // the status column's width: NOMINAL
+	statusW    = 7  // the widest status: NOMINAL
 	minCols    = 80
 	minRows    = 24
 	stationGap = 5 // between the wordmark and the station block
 )
 
-// columns are the measure's, for a terminal width columns wide.
-func columns(width int) (measure, rightCol, statusCol, leaderEnd int) {
+// columns are the measure's, for a terminal width columns wide: the
+// second column of facts, and where a check's leaders stop, short of the
+// widest status and a space.
+func columns(width int) (measure, rightCol, leaderEnd int) {
 	measure = max(width, minCols) - 2*margin
-	return measure, measure / 2, measure - statusW, measure - statusW - 2
+	return measure, measure / 2, measure - statusW - 2
 }
 
 // A row of the console and the stage of the sequence it comes on at.
@@ -85,7 +87,7 @@ const (
 func screen(r report, width, height int) []row {
 	p := pal
 	width = max(width, minCols)
-	measure, rightCol, statusCol, leaderEnd := columns(width)
+	measure, rightCol, leaderEnd := columns(width)
 	var rows []row
 
 	// A line is built from painted pieces; cells counts the columns.
@@ -206,29 +208,29 @@ func screen(r report, width, height int) []row {
 		emit(&l, stageChecks, false)
 	}
 	checks := append([]check{terminalCheck(r.term, width, height)}, r.checks...)
-	faults, consequence := 0, ""
+	faults := 0
 	for i, c := range checks {
 		var l line
 		leader(&l, strings.ToUpper(c.label), checkCol-1, p.gray)
 		add(&l, p.ink, fit(strings.ToUpper(c.value), leaderEnd-checkCol-2))
 		add(&l, "", " ")
 		add(&l, p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
+		status := strings.ToUpper(c.status)
 		if c.fault {
 			faults++
-			if consequence == "" {
-				consequence = c.consequence
-			}
-			to(&l, statusCol-1)
-			add(&l, p.chip, " "+strings.ToUpper(c.status)+" ")
+			status = " " + status + " "
+		}
+		to(&l, measure-utf8.RuneCountInString(status))
+		if c.fault {
+			add(&l, p.chip, status)
 		} else {
-			to(&l, statusCol)
-			add(&l, p.gray, strings.ToUpper(c.status))
+			add(&l, p.gray, status)
 		}
 		emit(&l, stageChecks+i, false)
 	}
 
-	// The verdict band: a rule, the count of faults and what the first
-	// means, and the greeting. All nominal, it is the greeting alone.
+	// The verdict band: a rule, the count of faults, and the greeting.
+	// All nominal, it is the greeting alone.
 	blank(lastStage)
 	rule(lastStage)
 	if faults > 0 {
@@ -238,10 +240,6 @@ func screen(r report, width, height int) []row {
 			count = strconv.Itoa(faults) + " SYSTEMS NOT NOMINAL"
 		}
 		add(&l, p.chip, " "+count+" ")
-		if consequence != "" {
-			add(&l, "", "  ")
-			add(&l, p.gray, strings.ToUpper(consequence))
-		}
 		emit(&l, lastStage, true)
 	}
 	{
@@ -262,8 +260,7 @@ func screen(r report, width, height int) []row {
 func terminalCheck(term string, width, height int) check {
 	value := join(" · ", term, strconv.Itoa(width)+"×"+strconv.Itoa(height))
 	if width < minCols || height < minRows {
-		return check{label: "TERMINAL", value: value, status: "SMALL", fault: true,
-			consequence: "TERMINAL SMALL — CONN RUNS, THE BOARD WILL BE CRAMPED"}
+		return check{label: "TERMINAL", value: value, status: "SMALL", fault: true}
 	}
 	return check{label: "TERMINAL", value: value, status: nominal}
 }

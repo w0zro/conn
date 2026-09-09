@@ -43,7 +43,7 @@ func texts(rows []row) string {
 // greeting alone when all is nominal.
 func TestConsoleLaysOutAsHandedOff(t *testing.T) {
 	rows := screen(testReport, 100, 30)
-	_, rightCol, statusCol, _ := columns(100)
+	measure, rightCol, _ := columns(100)
 	text := texts(rows)
 	for _, s := range []string{
 		"CONN 0.7.1 (devel)", "STATION  W0ZRO@STATION", "08-SEP-2026  23:58:41 Z",
@@ -62,8 +62,8 @@ func TestConsoleLaysOutAsHandedOff(t *testing.T) {
 		t.Errorf("console carries escapes off a terminal:\n%q", text)
 	}
 	for _, r := range rows {
-		if i := strings.Index(r.text, "NOMINAL"); i >= 0 && utf8.RuneCountInString(r.text[:i]) != margin+statusCol {
-			t.Errorf("status is not in column %d: %q", margin+statusCol, r.text)
+		if i := strings.Index(r.text, "NOMINAL"); i >= 0 && utf8.RuneCountInString(r.text) != margin+measure {
+			t.Errorf("status is not flush with column %d: %q", margin+measure, r.text)
 		}
 		if w := utf8.RuneCountInString(r.text); w > 100 {
 			t.Errorf("row is %d columns: %q", w, r.text)
@@ -89,17 +89,28 @@ func TestConsoleLaysOutAsHandedOff(t *testing.T) {
 func TestFaultsLightTheConsole(t *testing.T) {
 	r := testReport
 	r.checks = append([]check{}, r.checks...)
-	r.checks[3] = check{label: "DISK", value: "6.9 GB FREE OF 494 GB", status: "LOW", fault: true, consequence: "DISK LOW — CONN RUNS, MIND YOUR BUILDS"}
+	r.checks[3] = check{label: "DISK", value: "6.9 GB FREE OF 494 GB", status: "LOW", fault: true}
 	r.facts = append([]fact{}, r.facts...)
 	r.facts[4].anomaly = "6.9 GB DISK FREE"
-	text := texts(screen(r, 100, 30))
-	for _, s := range []string{" LOW ", "1 SYSTEM NOT NOMINAL", "DISK LOW — CONN RUNS, MIND YOUR BUILDS", "MEMORY .. 18 GB · 6.9 GB DISK FREE"} {
+	rows := screen(r, 100, 30)
+	text := texts(rows)
+	for _, s := range []string{" LOW", "1 SYSTEM NOT NOMINAL", "MEMORY .. 18 GB · 6.9 GB DISK FREE"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("fault not lit, lacks %q:\n%s", s, text)
 		}
 	}
+	if strings.Contains(text, "MIND YOUR BUILDS") {
+		t.Errorf("the consequence copy is back:\n%s", text)
+	}
+	// In plain text the chip's trailing space is trimmed with the row's.
+	measure, _, _ := columns(100)
+	for _, row := range rows {
+		if strings.HasSuffix(row.text, " LOW") && utf8.RuneCountInString(row.text) != margin+measure-1 {
+			t.Errorf("chip is not flush with column %d: %q", margin+measure, row.text)
+		}
+	}
 	small := texts(screen(r, 60, 20))
-	if !strings.Contains(small, " SMALL ") || !strings.Contains(small, "2 SYSTEMS NOT NOMINAL") {
+	if !strings.Contains(small, " SMALL") || !strings.Contains(small, "2 SYSTEMS NOT NOMINAL") {
 		t.Errorf("small terminal not a fault:\n%s", small)
 	}
 }
@@ -195,7 +206,7 @@ func TestStationReportReadsTheMachine(t *testing.T) {
 		t.Errorf("%d checks, not %d: %+v", len(r.checks), checkCount-1, r.checks)
 	}
 	for _, c := range r.checks {
-		if c.label == "" || c.value == "" || c.status == "" || (c.fault && c.consequence == "") {
+		if c.label == "" || c.value == "" || c.status == "" {
 			t.Errorf("check incomplete: %+v", c)
 		}
 	}

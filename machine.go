@@ -23,11 +23,10 @@ type fact struct {
 }
 
 // A check is a line of the start-up checks: what was checked, what was
-// found, the word for how it stands, and — when it is a fault — what
-// that means for conn, in a line.
+// found, the word for how it stands, and whether that is a fault.
 type check struct {
-	label, value, status, consequence string
-	fault                             bool
+	label, value, status string
+	fault                bool
 }
 
 const nominal = "NOMINAL"
@@ -90,7 +89,7 @@ func stationReport() report {
 		networkFact(),
 	}
 	r.checks = []check{
-		commandCheck("TMUX", "tmux", "-V", "TMUX MISSING — CONN CANNOT HOLD A SHELL"),
+		commandCheck("TMUX", "tmux", "-V"),
 		toolsCheck(),
 		stateCheck(home),
 		disk,
@@ -163,10 +162,10 @@ func commandVersion(name, flag string) string {
 }
 
 // commandCheck is a program conn needs: its version, or a fault.
-func commandCheck(label, name, flag, consequence string) check {
+func commandCheck(label, name, flag string) check {
 	v := commandVersion(name, flag)
 	if v == "" {
-		return check{label: label, value: "NOT FOUND", status: "MISSING", consequence: consequence, fault: true}
+		return check{label: label, value: "NOT FOUND", status: "MISSING", fault: true}
 	}
 	return check{label: label, value: v, status: nominal}
 }
@@ -180,16 +179,14 @@ func toolsCheck() check {
 		parts = append(parts, v)
 	} else {
 		parts = append(parts, "MISSING")
-		c.status, c.fault, c.consequence = "MISSING", true, "GIT MISSING — PROJECTS WILL NOT BE FOUND"
+		c.status, c.fault = "MISSING", true
 	}
 	if runtime.GOOS == "darwin" {
 		if v := commandVersion("lsof", "-v"); v != "" {
 			parts = append(parts, "LSOF "+v)
 		} else {
 			parts = append(parts, "LSOF MISSING")
-			if !c.fault {
-				c.status, c.fault, c.consequence = "MISSING", true, "LSOF MISSING — PROCESSES WILL NOT BE SEEN"
-			}
+			c.status, c.fault = "MISSING", true
 		}
 	}
 	if v := commandVersion("docker", "--version"); v != "" {
@@ -222,18 +219,17 @@ func stateCheck(home string) check {
 	if home != "" && strings.HasPrefix(dir, home) {
 		shown = "~" + strings.TrimPrefix(dir, home)
 	}
-	const consequence = "STATE UNWRITABLE — CONN CANNOT KEEP ITS SERVER"
 	probe := dir
 	for {
 		if info, err := os.Stat(probe); err == nil {
 			if !info.IsDir() || syscall.Access(probe, 2) != nil {
-				return check{label: "STATE", value: shown, status: "READ ONLY", consequence: consequence, fault: true}
+				return check{label: "STATE", value: shown, status: "READ ONLY", fault: true}
 			}
 			return check{label: "STATE", value: shown, status: nominal}
 		}
 		parent := filepath.Dir(probe)
 		if parent == probe {
-			return check{label: "STATE", value: shown, status: "NO PATH", consequence: consequence, fault: true}
+			return check{label: "STATE", value: shown, status: "NO PATH", fault: true}
 		}
 		probe = parent
 	}
@@ -247,7 +243,7 @@ func diskCheck(home string) check {
 	}
 	c := check{label: "DISK", value: gigabytes(free, 1e9) + " FREE OF " + gigabytes(total, 1e9), status: nominal}
 	if free*10 < total {
-		c.status, c.fault, c.consequence = "LOW", true, "DISK LOW — CONN RUNS, MIND YOUR BUILDS"
+		c.status, c.fault = "LOW", true
 	}
 	return c
 }

@@ -252,9 +252,10 @@ func (m model) tabline() string {
 	return b.String() + barStyle.Render(strings.Repeat(" ", rest)) + barStyle.Inherit(faintStyle).Render(hint) + barStyle.Render(" ")
 }
 
-// edgeRow is the row over the tabline: the bar's ground across, and under
-// the focused tab's columns the orange edge — the focus signal, on the
-// tab's top.
+// edgeRow is the row over the tabline: the ground across, and under the
+// focused tab's columns the orange edge — the focus signal, sitting on
+// the tab's top, so the bar under it reads as one row with the edge on
+// its rim rather than a band the edge runs through.
 func (m model) edgeRow() string {
 	cells, start := m.tabCells()
 	hint := m.tabHint()
@@ -265,13 +266,13 @@ func (m model) edgeRow() string {
 			break
 		}
 		if cells[i].focused {
-			return barStyle.Render(strings.Repeat(" ", used)) +
-				barStyle.Inherit(orangeStyle).Render(strings.Repeat(glyphEdge, cells[i].width)) +
-				barStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
+			return groundStyle.Render(strings.Repeat(" ", used)) +
+				groundStyle.Inherit(orangeStyle).Render(strings.Repeat(glyphEdge, cells[i].width)) +
+				groundStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
 		}
 		used += cells[i].width
 	}
-	return barStyle.Render(strings.Repeat(" ", m.width))
+	return groundStyle.Render(strings.Repeat(" ", m.width))
 }
 
 // tabHint is the one hint the tabline's right end holds: the key that
@@ -342,11 +343,16 @@ func (m model) bufferFacts(pid int, t *remoteTerm) (string, string) {
 				}
 			}
 		}
-		facts = append(facts, m.deep[pid].Facts...)
+		// The branch, the pid and the ports, then what the buffer says of
+		// itself read deeper: what it is and where before what it holds.
+		if b := m.deep[pid].Branch; b != "" {
+			facts = append(facts, b)
+		}
 		facts = append(facts, "pid "+strconv.Itoa(r.node.PID))
 		if ps := runPorts(r.run, r.node); len(ps) > 0 {
 			facts = append(facts, ":"+strings.Join(ps, " :"))
 		}
+		facts = append(facts, m.deep[pid].Facts...)
 	}
 	line := hintStyle.Render(dots(facts...))
 	if e := m.ending(r); e.State != "" {

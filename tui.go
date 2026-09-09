@@ -28,7 +28,7 @@ var (
 // second, from what was read and the clock as it stands.
 //
 // In conn's tmux server, enter reaches the cursor's process, when it is
-// in a pane of the server; n opens a shell at the cursor's place; q and
+// in a pane of the server; s opens a shell at the cursor's place; q and
 // ctrl+c detach, and the server keeps on. Without the server, q and
 // ctrl+c close conn.
 
@@ -209,7 +209,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // key answers a key: q and ctrl+c detach in the server and close conn
 // outside it, from anywhere; on the console a key skips the sequence,
 // then continues to the watch; on the watch c brings the console back,
-// enter reaches the cursor's process, and n opens a shell at its place.
+// enter reaches the cursor's process, and s opens a shell at its place.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c" || k == "q":
@@ -244,7 +244,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			target := m.panes[e.tty]
 			return m, m.serverCmd(func() error { return m.srv.reach(target) }, "")
 		}
-	case k == "n":
+	case k == "s":
 		_, pl, ok := m.under()
 		switch {
 		case !m.inside:

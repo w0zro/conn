@@ -65,7 +65,7 @@ const (
 	ttyW           = 10
 	ageW           = 9
 	watchKey       = "J K MOVE · Q CLOSES · C CONSOLE"
-	watchKeyInside = "J K MOVE · ENTER REACHES · N OPENS A SHELL · Q DETACHES · C CONSOLE"
+	watchKeyInside = "J K MOVE · ENTER REACHES · S OPENS A SHELL · Q DETACHES · C CONSOLE"
 )
 
 // drawWatch renders the watch for a terminal of the given size, with

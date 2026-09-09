@@ -215,8 +215,8 @@ func TestKeysInsideTheServer(t *testing.T) {
 	} else if n, ok := cmd().(noteMsg); !ok || !strings.Contains(n.note, "TMUX") {
 		t.Errorf("a server that is not there should be said on the bottom row: %+v", n)
 	}
-	if cmd := press("n", 'n'); cmd == nil {
-		t.Error("n should open a shell at the place")
+	if cmd := press("s", 's'); cmd == nil {
+		t.Error("s should open a shell at the place")
 	}
 	if cmd := press("q", 'q'); cmd == nil {
 		t.Error("q should detach")

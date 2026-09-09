@@ -13,19 +13,18 @@ import (
 // the start-up checks, one status column against the right edge; and
 // under a second rule the verdict, pulled tight — the count of faults as
 // a chip, or the word that all is well. On a terminal the bottom row
-// waits on a key. Uppercase throughout, by design.
+// waits on a key. Uppercase throughout, by design; a path keeps its own
+// case, since its case is part of it.
 
-// The palette is the handoff's tokens. Off a terminal every sequence is
-// empty and the console is plain text.
+// The palette is the handoff's tokens. The plain palette has no
+// sequences at all: the console is text, for a pipe and for the tests.
 type palette struct {
 	ground, border, ink, gray, faint, orange, owed, parchment, bold, chip string
 	normal, end                                                           string // ink on the ground again; the row's end
+	plain                                                                 bool
 }
 
-var (
-	plain palette
-	pal   = plain
-)
+var plain = palette{plain: true}
 
 func colored() palette {
 	p := palette{
@@ -54,16 +53,17 @@ const (
 	margin     = 3
 	factCol    = 12 // a fact's value, from its column
 	checkCol   = 12 // a check's value, from the margin
-	statusW    = 9  // the widest status: UNCHECKED
+	statusW    = 9  // the widest status: UNCHECKED, NOT A DIR
 	minCols    = 80
 	stationGap = 5 // between the wordmark and the station block
+	prompt     = "PRESS ANY KEY TO CONTINUE"
 )
 
 // columns are the measure's, for a terminal width columns wide: the
 // second column of the readout, and where a check's leaders stop, short
 // of the widest status and a space.
 func columns(width int) (measure, rightCol, leaderEnd int) {
-	measure = max(width, minCols) - 2*margin
+	measure = width - 2*margin
 	return measure, measure / 2, measure - statusW - 2
 }
 
@@ -86,76 +86,46 @@ func lastStage(r report) int {
 	return stageChecks + 1 + len(r.checks)
 }
 
-// rowsNeeded is how many rows the console takes for a report: the header,
-// the readout, the checks and the verdict, with their rules and air, and
-// the prompt on the bottom row.
+// rowsNeeded is how many rows the console takes for a report: the body,
+// then air and the prompt. It is counted off the layout, not summed by
+// hand.
 func rowsNeeded(r report) int {
-	return 1 + len(wordmark) + 1 + 1 + max(len(r.system), len(r.session)) + 1 + 1 + 1 + len(r.checks) + 1 + 1 + 1 + 1 + 1
+	return len(body(r, minCols, check{}, plain)) + 2
 }
 
-// screen renders the console for a terminal of the given size: rows the
-// terminal's width, painted on the ground, to its height.
-func screen(r report, width, height int) []row {
-	p := pal
-	own := screenCheck(r, width, height)
-	width = max(width, minCols)
-	measure, rightCol, leaderEnd := columns(width)
-	var rows []row
+// screen renders the console for a terminal of the given size, in the
+// palette: rows the terminal's width, painted on the ground, to its
+// height. Off a terminal, height is 0, and the rows are the body alone.
+// A terminal too small for the body gets the small console instead.
+func screen(r report, width, height int, p palette) []row {
+	need := rowsNeeded(r)
+	own := screenCheck(r.term, width, height, need)
+	if own.fault {
+		return small(own, width, height, need, p)
+	}
+	rows := body(r, max(width, minCols), own, p)
+	if height > 0 {
+		c := canvas{p: p, width: max(width, minCols), rows: rows}
+		for len(c.rows) < height-1 {
+			c.blank(lastStage(r))
+		}
+		l := c.line()
+		l.add(p.gray, prompt)
+		c.emit(l, lastStage(r), true)
+		rows = c.rows
+	}
+	return rows
+}
 
-	// A line is built from painted pieces; cells counts the columns.
-	type line struct {
-		b     strings.Builder
-		cells int
-	}
-	add := func(l *line, color, s string) {
-		if color != "" {
-			l.b.WriteString(color)
-		}
-		l.b.WriteString(s)
-		if color != "" {
-			l.b.WriteString(p.normal)
-		}
-		l.cells += utf8.RuneCountInString(s)
-	}
-	to := func(l *line, col int) {
-		if col > l.cells {
-			add(l, "", strings.Repeat(" ", col-l.cells))
-		}
-	}
-	// emit frames a line as a row: the margin — or, centered, the column
-	// that centers it — the pieces, and the ground to the edge.
-	emit := func(l *line, stage int, centered bool) {
-		left := margin
-		if centered {
-			left = max((width-l.cells)/2, 0)
-		}
-		text := p.normal + strings.Repeat(" ", left) + l.b.String() + strings.Repeat(" ", max(width-left-l.cells, 0)) + p.end
-		if p == plain {
-			text = strings.TrimRight(text, " ")
-		}
-		rows = append(rows, row{text: text, stage: stage})
-	}
-	blank := func(stage int) { emit(&line{}, stage, false) }
-	rule := func(stage int) {
-		var l line
-		add(&l, p.border, strings.Repeat("─", measure))
-		emit(&l, stage, false)
-	}
-	title := func(l *line, col int, s string) {
-		to(l, col)
-		add(l, p.parchment+p.bold, s)
-	}
-	// leader is a label and short dots to a field's width.
-	leader := func(l *line, label string, field int, dots string) {
-		add(l, p.gray, label)
-		add(l, "", " ")
-		add(l, dots, strings.Repeat(".", max(field-l.cells, 1)))
-		add(l, "", " ")
-	}
+// body is the console proper, at a width no less than minCols, with the
+// screen's own check first among the checks.
+func body(r report, width int, own check, p palette) []row {
+	measure, rightCol, leaderEnd := columns(width)
+	c := canvas{p: p, width: width}
 
 	// The header: the wordmark, the station block beside it on its first
 	// rows, and a rule under it.
-	blank(stageHeader)
+	c.blank(stageHeader)
 	markW := utf8.RuneCountInString(wordmark[0])
 	station := [][2]string{
 		{p.bold, strings.TrimSpace("CONN " + r.version)},
@@ -164,116 +134,225 @@ func screen(r report, width, height int) []row {
 		{p.gray, r.build},
 	}
 	for i, m := range wordmark {
-		var l line
-		add(&l, p.orange+p.bold, m)
+		l := c.line()
+		l.add(p.orange+p.bold, m)
 		if i < len(station) && station[i][1] != "" {
-			to(&l, markW+stationGap)
-			add(&l, station[i][0], station[i][1])
+			l.to(markW + stationGap)
+			l.add(station[i][0], station[i][1])
 			if i == 0 && r.note != "" {
-				add(&l, p.gray, " "+r.note)
+				l.add(p.gray, " "+r.note)
 			}
 		}
-		emit(&l, stageHeader, false)
+		c.emit(l, stageHeader, false)
 	}
-	rule(stageHeader)
+	c.rule(stageHeader, measure)
 
 	// The readout: the system in the left column, the session in the
 	// right, each under its title.
 	factLine := func(l *line, col, width int, f fact) {
-		to(l, col)
-		leader(l, strings.ToUpper(f.label), col+factCol-1, p.faint)
-		add(l, p.ink, fit(strings.ToUpper(f.value), width-factCol-2))
+		l.to(col)
+		l.leader(strings.ToUpper(f.label), col+factCol-1, p.faint)
+		l.add(p.ink, fit(cased(f.value, f.path), width-factCol-2))
 	}
-	{
-		var l line
-		title(&l, 0, "SYSTEM")
-		title(&l, rightCol, "SESSION")
-		emit(&l, stageReadout, false)
-	}
+	l := c.line()
+	l.title(0, "SYSTEM")
+	l.title(rightCol, "SESSION")
+	c.emit(l, stageReadout, false)
 	for i := 0; i < max(len(r.system), len(r.session)); i++ {
-		var l line
+		l := c.line()
 		if i < len(r.system) {
-			factLine(&l, 0, rightCol, r.system[i])
+			factLine(l, 0, rightCol, r.system[i])
 		}
 		if i < len(r.session) {
-			factLine(&l, rightCol, measure-rightCol, r.session[i])
+			factLine(l, rightCol, measure-rightCol, r.session[i])
 		}
-		emit(&l, stageReadout, false)
+		c.emit(l, stageReadout, false)
 	}
 
 	// The checks: the title, then the screen's own line and the report's,
 	// each to the status column.
-	blank(stageChecks)
-	{
-		var l line
-		title(&l, 0, "START-UP CHECKS")
-		emit(&l, stageChecks, false)
-	}
-	checks := append([]check{own}, r.checks...)
+	c.blank(stageChecks)
+	l = c.line()
+	l.title(0, "START-UP CHECKS")
+	c.emit(l, stageChecks, false)
 	faults := 0
-	for i, c := range checks {
-		var l line
-		leader(&l, strings.ToUpper(c.label), checkCol-1, p.gray)
-		add(&l, p.ink, fit(strings.ToUpper(c.value), leaderEnd-checkCol-2))
-		add(&l, "", " ")
-		add(&l, p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
-		status := strings.ToUpper(c.status)
-		if c.fault {
+	for i, k := range append([]check{own}, r.checks...) {
+		l := c.line()
+		l.leader(strings.ToUpper(k.label), checkCol-1, p.gray)
+		l.add(p.ink, fit(cased(k.value, k.path), leaderEnd-checkCol-2))
+		l.add("", " ")
+		l.add(p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
+		if k.fault {
 			faults++
-			status = " " + status + " "
-		}
-		to(&l, measure-utf8.RuneCountInString(status))
-		if c.fault {
-			add(&l, p.chip, status)
+			l.to(measure - utf8.RuneCountInString(k.status) - 2)
+			l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
 		} else {
-			add(&l, p.gray, status)
+			l.to(measure - utf8.RuneCountInString(k.status))
+			l.add(p.gray, strings.ToUpper(k.status))
 		}
-		emit(&l, stageChecks+i, false)
+		c.emit(l, stageChecks+i, false)
 	}
 
 	// The verdict: a rule, then the count of faults as a chip, or the
 	// word that all is well.
 	last := lastStage(r)
-	blank(last)
-	rule(last)
-	{
-		var l line
-		switch {
-		case faults > 1:
-			add(&l, p.chip, " "+strconv.Itoa(faults)+" SYSTEMS NOT NOMINAL ")
-		case faults == 1:
-			add(&l, p.chip, " 1 SYSTEM NOT NOMINAL ")
-		default:
-			add(&l, p.gray, "ALL SYSTEMS NOMINAL")
-		}
-		emit(&l, last, true)
+	c.blank(last)
+	c.rule(last, measure)
+	l = c.line()
+	switch {
+	case faults > 1:
+		l.add(p.chip, " "+strconv.Itoa(faults)+" SYSTEMS NOT NOMINAL ")
+	case faults == 1:
+		l.add(p.chip, " 1 SYSTEM NOT NOMINAL ")
+	default:
+		l.add(p.gray, "ALL SYSTEMS NOMINAL")
 	}
+	c.emit(l, last, true)
+	return c.rows
+}
 
-	// The prompt, on the bottom row of the terminal. Off a terminal there
-	// is no key to wait on.
-	if height > 0 {
-		for len(rows) < height-1 {
-			blank(last)
+// small is the console for a terminal the body will not fit: the mark
+// when there is room for it, the name otherwise, and the screen's check
+// with the size it needs, all at once. Nothing is clipped, so the reason
+// is always in view.
+func small(own check, width, height, need int, p palette) []row {
+	c := canvas{p: p, width: width}
+	measure, _, _ := columns(width)
+	c.blank(stageHeader)
+	if markW := utf8.RuneCountInString(wordmark[0]); measure >= markW && height >= len(wordmark)+5 {
+		for _, m := range wordmark {
+			l := c.line()
+			l.add(p.orange+p.bold, m)
+			c.emit(l, stageHeader, false)
 		}
-		var l line
-		add(&l, p.gray, "PRESS ANY KEY TO CONTINUE")
-		emit(&l, last, true)
+	} else {
+		l := c.line()
+		l.add(p.orange+p.bold, "CONN")
+		c.emit(l, stageHeader, false)
 	}
-	return rows
+	c.blank(stageHeader)
+	l := c.line()
+	l.add(p.gray, "SCREEN ")
+	l.add(p.ink, fit(strings.ToUpper(own.value), measure-len("SCREEN ")-len(" SMALL ")-1))
+	l.to(measure - len(" SMALL "))
+	l.add(p.chip, " SMALL ")
+	c.emit(l, stageHeader, false)
+	l = c.line()
+	l.add(p.gray, "NEEDS ")
+	l.add(p.ink, strconv.Itoa(minCols)+"×"+strconv.Itoa(need))
+	c.emit(l, stageHeader, false)
+	if height > 0 {
+		for len(c.rows) < height-1 {
+			c.blank(stageHeader)
+		}
+		if len(c.rows) == height-1 {
+			l := c.line()
+			l.add(p.gray, prompt)
+			c.emit(l, stageHeader, true)
+		}
+	}
+	return c.rows
 }
 
 // screenCheck is the screen itself: its size, what the terminal calls
 // itself, and whether the console fits. Off a terminal there is no
 // screen to check.
-func screenCheck(r report, width, height int) check {
+func screenCheck(term string, width, height, need int) check {
 	if height == 0 {
-		return check{label: "SCREEN", value: join(" · ", "NO TERMINAL", r.term), status: "UNCHECKED"}
+		return check{label: "SCREEN", value: join(" · ", "NO TERMINAL", term), status: unchecked}
 	}
-	value := join(" · ", strconv.Itoa(width)+"×"+strconv.Itoa(height), r.term)
-	if width < minCols || height < rowsNeeded(r) {
+	value := join(" · ", strconv.Itoa(width)+"×"+strconv.Itoa(height), term)
+	if width < minCols || height < need {
 		return check{label: "SCREEN", value: value, status: "SMALL", fault: true}
 	}
 	return check{label: "SCREEN", value: value, status: nominal}
+}
+
+// A canvas takes rows of one width in one palette.
+type canvas struct {
+	p     palette
+	width int
+	rows  []row
+}
+
+// A line is built from painted pieces; cells counts the columns.
+type line struct {
+	p     palette
+	b     strings.Builder
+	cells int
+}
+
+func (c *canvas) line() *line {
+	return &line{p: c.p}
+}
+
+// add paints a piece in a color, or none, and returns to ink on the
+// ground after it, so no piece's color runs on.
+func (l *line) add(color, s string) {
+	if color != "" {
+		l.b.WriteString(color)
+	}
+	l.b.WriteString(s)
+	if color != "" {
+		l.b.WriteString(l.p.normal)
+	}
+	l.cells += utf8.RuneCountInString(s)
+}
+
+// to pads the line out to a column.
+func (l *line) to(col int) {
+	if col > l.cells {
+		l.add("", strings.Repeat(" ", col-l.cells))
+	}
+}
+
+// title is a block's title, at a column.
+func (l *line) title(col int, s string) {
+	l.to(col)
+	l.add(l.p.parchment+l.p.bold, s)
+}
+
+// leader is a label and short dots to a field's width.
+func (l *line) leader(label string, field int, dots string) {
+	l.add(l.p.gray, label)
+	l.add("", " ")
+	l.add(dots, strings.Repeat(".", max(field-l.cells, 1)))
+	l.add("", " ")
+}
+
+// emit frames a line as a row: the margin — or, centered, the column
+// that centers it — the pieces, and the ground to the edge. In the plain
+// palette the ground is nothing, and the row ends with its last piece.
+func (c *canvas) emit(l *line, stage int, centered bool) {
+	p := c.p
+	left := margin
+	if centered {
+		left = max((c.width-l.cells)/2, 0)
+	}
+	text := p.normal + strings.Repeat(" ", left) + l.b.String() + strings.Repeat(" ", max(c.width-left-l.cells, 0)) + p.end
+	if p.plain {
+		text = strings.TrimRight(text, " ")
+	}
+	c.rows = append(c.rows, row{text: text, stage: stage})
+}
+
+func (c *canvas) blank(stage int) {
+	c.emit(c.line(), stage, false)
+}
+
+func (c *canvas) rule(stage, measure int) {
+	l := c.line()
+	l.add(c.p.border, strings.Repeat("─", measure))
+	c.emit(l, stage, false)
+}
+
+// cased is a value as the console sets it: in capitals, unless it is a
+// path.
+func cased(value string, path bool) string {
+	if path {
+		return value
+	}
+	return strings.ToUpper(value)
 }
 
 // stdoutIsTerminal says whether what conn prints is going to a person's

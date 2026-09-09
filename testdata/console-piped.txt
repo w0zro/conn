@@ -1,0 +1,34 @@
+
+    ██████╗ ██████╗ ███╗   ██╗███╗   ██╗     CONN 0.7.0 (devel)
+   ██╔════╝██╔═══██╗████╗  ██║████╗  ██║     STATION  W0ZRO@STATION
+   ██║     ██║   ██║██╔██╗ ██║██╔██╗ ██║     09-SEP-2026  02:58:41 Z
+   ██║     ██║   ██║██║╚██╗██║██║╚██╗██║     4af550d · 09-SEP-2026 · MODIFIED
+   ╚██████╗╚██████╔╝██║ ╚████║██║ ╚████║
+    ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝
+   ──────────────────────────────────────────────────────────────────────────
+   SYSTEM                               SESSION
+   HOST ...... STATION                  USER ...... W0ZRO · UID 501 · ADMIN
+   SYSTEM .... MACOS 26.6.2 (25G83)     SHELL ..... ZSH 5.9
+   KERNEL .... DARWIN 25.6.0 · 16 KB …  TTY ....... TTYS004
+   MODEL ..... MAC15,6                  TERMINAL .. GHOSTTY 1.3.1
+   CPU ....... APPLE M3 PRO · 11 CORE…  SESSION ... LOCAL
+   MEMORY .... 18 GB · 77% AVAILABLE    LOCALE .... EN_US.UTF-8
+   SWAP ...... 3.7 GB USED OF 5 GB · …  TIME ZONE . AMERICA/LOS_ANGELES · …
+   VOLUME .... APFS · 995 GB            CWD ....... ~/projects/w0zro/conn
+   UPTIME .... 5D 02H 12M · UP SINCE …  PROCESS ... PID 67032 · PARENT 670…
+   PROCESSES . 747 RUNNING              ENV ....... 62 VARIABLES · PATH 23…
+   SIP ....... ENABLED                  RUNTIME ... GO1.27.0 · DARWIN/ARM6…
+                                        BINARY .... ~/…/conn/conn · 5.2 MB
+
+   START-UP CHECKS
+   SCREEN .... NO TERMINAL · XTERM-256COLOR · TRUECOLOR ..........  UNCHECKED
+   STATE ..... ~/.local/state/conn ...............................    NOMINAL
+   DISK ...... 6.8 GB FREE OF 995 GB .............................       LOW
+   MEMORY .... 77% OF 18 GB AVAILABLE ............................    NOMINAL
+   LOAD ...... 1.85 2.07 1.99 · 11 CORES .........................    NOMINAL
+   NET ....... EN0 192.168.68.58 · 2 UP ..........................    NOMINAL
+   POWER ..... BATTERY · 7% · DISCHARGING · 0:31 LEFT ............       LOW
+   CLOCK ..... AFTER THE BUILD OF 09-SEP-2026 ....................    NOMINAL
+
+   ──────────────────────────────────────────────────────────────────────────
+                             2 SYSTEMS NOT NOMINAL

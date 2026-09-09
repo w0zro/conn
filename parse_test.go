@@ -1,0 +1,107 @@
+package main
+
+import (
+	"encoding/binary"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+// The pmset parser, against captures of each form pmset takes.
+func TestPmsetIsParsed(t *testing.T) {
+	for _, c := range []struct {
+		file string
+		want power
+	}{
+		{"battery.txt", power{source: "battery", percent: 73, state: "discharging", remaining: "8:53"}},
+		{"charged.txt", power{source: "ac", percent: 100, state: "charged"}},
+		{"charging.txt", power{source: "ac", percent: 41, state: "charging", remaining: "1:12"}},
+		{"charging-no-estimate.txt", power{source: "ac", percent: 41, state: "charging"}},
+		{"desktop.txt", power{source: "ac", percent: -1}},
+		{"low.txt", power{source: "battery", percent: 7, state: "discharging", remaining: "0:31"}},
+	} {
+		out, err := os.ReadFile(filepath.Join("testdata", "pmset", c.file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := parsePmset(string(out)); got != c.want {
+			t.Errorf("%s: %+v, want %+v", c.file, got, c.want)
+		}
+	}
+	if got := parsePmset(""); got != (power{percent: -1}) {
+		t.Errorf("no output: %+v", got)
+	}
+}
+
+// The sysctl structs, laid out as the kernel lays them.
+func TestSysctlStructsAreParsed(t *testing.T) {
+	swap := make([]byte, 32)
+	binary.LittleEndian.PutUint64(swap[0:], 5<<30)
+	binary.LittleEndian.PutUint64(swap[8:], 1<<30)
+	binary.LittleEndian.PutUint64(swap[16:], 4<<30)
+	binary.LittleEndian.PutUint32(swap[24:], 16384)
+	binary.LittleEndian.PutUint32(swap[28:], 1)
+	total, used, encrypted, ok := parseSwapUsage(swap)
+	if !ok || total != 5<<30 || used != 4<<30 || !encrypted {
+		t.Errorf("swap: %d %d %v %v", total, used, encrypted, ok)
+	}
+	if _, _, _, ok := parseSwapUsage(swap[:31]); ok {
+		t.Error("a short swapusage parsed")
+	}
+	load := make([]byte, 24)
+	binary.LittleEndian.PutUint32(load[0:], 2048*250/100)
+	binary.LittleEndian.PutUint32(load[4:], 2048*200/100)
+	binary.LittleEndian.PutUint32(load[8:], 2048*3)
+	binary.LittleEndian.PutUint64(load[16:], 2048)
+	if got, ok := parseLoadavg(load); !ok || got != [3]float64{2.5, 2, 3} {
+		t.Errorf("load: %v %v", got, ok)
+	}
+	binary.LittleEndian.PutUint64(load[16:], 0)
+	if _, ok := parseLoadavg(load); ok {
+		t.Error("a loadavg with no scale parsed")
+	}
+}
+
+// What Linux keeps on file, read off a fixture tree: an EC2 instance
+// that, for the test, also has a battery.
+func TestLinuxFilesAreRead(t *testing.T) {
+	m := machine{available: -1}
+	readLinuxFiles("testdata/linux", &m)
+	want := machine{
+		system:    "Ubuntu 24.04.2 LTS",
+		model:     "Amazon EC2 m6i.xlarge",
+		processor: "Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz",
+		cpus:      4,
+		available: 75,
+		power:     power{source: "battery", percent: 43, state: "discharging"},
+	}
+	if m != want {
+		t.Errorf("read\n%+v\nwant\n%+v", m, want)
+	}
+	m = machine{available: -1}
+	readLinuxFiles(t.TempDir(), &m)
+	if m != (machine{available: -1, power: power{percent: -1}}) {
+		t.Errorf("an empty tree read as %+v", m)
+	}
+}
+
+// The parsers behind the Linux files, on the forms they meet.
+func TestLinuxTextIsParsed(t *testing.T) {
+	if got := parseOSRelease("NAME=Alpine\nPRETTY_NAME=\"Alpine Linux v3.20\"\n"); got != "Alpine Linux v3.20" {
+		t.Errorf("os-release: %q", got)
+	}
+	if got := parseOSRelease("NAME=Alpine\n"); got != "" {
+		t.Errorf("os-release without a pretty name: %q", got)
+	}
+	model, cpus := parseCPUInfo("processor\t: 0\nHardware\t: BCM2835\nprocessor\t: 1\n")
+	if model != "BCM2835" || cpus != 2 {
+		t.Errorf("arm cpuinfo: %q %d", model, cpus)
+	}
+	total, avail := parseMeminfo("MemTotal:       1000 kB\nMemAvailable:    250 kB\n")
+	if total != 1024000 || avail != 256000 {
+		t.Errorf("meminfo: %d %d", total, avail)
+	}
+	if p := readPowerSupply(filepath.Join(t.TempDir(), "none")); p != (power{percent: -1}) {
+		t.Errorf("no power_supply: %+v", p)
+	}
+}

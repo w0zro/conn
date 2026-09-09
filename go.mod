@@ -1,9 +1,10 @@
 module github.com/w0zro/conn
 
-go 1.25.0
+go 1.26.0
 
 require (
 	charm.land/bubbletea/v2 v2.0.9
+	golang.org/x/mod v0.41.0
 	golang.org/x/sys v0.46.0
 )
 

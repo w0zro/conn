@@ -349,7 +349,7 @@ func (s *session) notify(n ctlNote) {
 	switch n.kind {
 	case noteWindows:
 		// Now, and again once the window's maker has dressed it: a window
-		// made by another client — a chord, conn test from a shell — is
+		// made by another client — a chord, conn run from a shell — is
 		// announced before its directory and name are set, and nothing is
 		// announced when they are. A navigator that read the first list
 		// alone saw a bare shell for good.

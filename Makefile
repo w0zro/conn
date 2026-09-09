@@ -1,6 +1,5 @@
-# What conn's t, b and l run here, each the way it is done before a commit
-# or a release. conn believes a Makefile's targets over its guesses for a
-# go.mod — go test ./..., go build ./... and go vet ./... alone.
+# The tests, the build and the lint, each the way it is done before a
+# commit or a release.
 .PHONY: test build lint
 
 # The tests, vetted and under the race detector.

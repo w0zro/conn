@@ -59,8 +59,6 @@ the chords run these; they are not for typing:
   conn agent [dir] an agent in dir, shown beside the navigator
   conn kind        the next kind of agent, for a and the agent chord
   conn run [dir]   the plan of the place holding dir
-  conn test [dir]  the tests of the place holding dir, the way it says they run
-  conn build [dir] its build, and conn lint [dir] its lint, the same way
   conn jump        the next thing owed: an agent waiting, a command that ended badly
   conn back        back: the previous buffer, or the everything view
   conn next, prev  the next and previous buffer
@@ -181,9 +179,6 @@ var chords = map[string]func(arg string) error{
 	"agent":  func(dir string) error { return runShellAt(dir, startAgent(tmuxCommand)) },
 	"kind":   func(string) error { return runKind() },
 	"run":    runPlanAt,
-	"test":   runVerbAt(verbNamed("test")),
-	"build":  runVerbAt(verbNamed("build")),
-	"lint":   runVerbAt(verbNamed("lint")),
 	"jump":   func(string) error { return runJump() },
 	"back":   func(string) error { return runBack() },
 	"next":   func(string) error { return runStep(1) },

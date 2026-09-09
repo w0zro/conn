@@ -1761,41 +1761,6 @@ func askedForKind(t *testing.T, asked chan message, kind string) message {
 	}
 }
 
-// askedForKinds waits until the server has been asked for one of each
-// kind, in any order, and returns them by kind — for a key that asks two
-// things at once, a close and an open, each on a goroutine of its own, so
-// the fake records them in whichever order the scheduler runs them.
-func askedForKinds(t *testing.T, asked chan message, kinds ...string) map[string]message {
-	t.Helper()
-	want := map[string]bool{}
-	for _, k := range kinds {
-		want[k] = true
-	}
-	got := map[string]message{}
-	deadline := time.After(time.Second)
-	for len(got) < len(want) {
-		select {
-		case m := <-asked:
-			if want[m.Kind] {
-				if _, seen := got[m.Kind]; !seen {
-					got[m.Kind] = m
-				}
-			}
-		case <-deadline:
-			for k := range want {
-				if _, seen := got[k]; !seen {
-					t.Fatalf("the server was never asked to %s", k)
-				}
-			}
-		}
-	}
-	return got
-}
-
-// askedFor waits for the next ask that is about the shells, or fails the
-// test. The status line's
-// asks — the mode, the message — ride along with any update and are not
-// what a test asking "what did that key do" is about.
 func askedFor(t *testing.T, asked chan message) message {
 	t.Helper()
 	deadline := time.After(time.Second)
@@ -2243,23 +2208,15 @@ func TestAShellListedBeforeItWasDressedIsStillThePlansShell(t *testing.T) {
 func TestAShellAtItsPromptWithNoExitRecordedIsNotRunning(t *testing.T) {
 	// The recording can miss, and an older server's shells recorded
 	// nothing: a plan shell the scan finds at its prompt with no ending is
-	// not running its entry — r starts the entry again, and the key runs
-	// a task again — rather than standing in the way for good.
+	// not running its entry — r starts the entry again — rather than
+	// standing in the way for good.
 	repo := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module x\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: repo}, {PID: 701, PPID: 700, Command: "go", Dir: repo}})
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: repo, name: "build"}}
-	m, asked := pipeServer(t, m)
 	m.rebuild()
 	if !m.namesIn(repo, readPlan(repo))["build"] {
 		t.Fatal("setup: the build should count as running while go runs under its shell")
-	}
-	m = press(m, "b")
-	if m.status != "already building conn" {
-		t.Fatalf("status = %q, want the run left to finish", m.status)
 	}
 
 	// The go is gone and the shell is at its prompt, but nothing was
@@ -2271,91 +2228,6 @@ func TestAShellAtItsPromptWithNoExitRecordedIsNotRunning(t *testing.T) {
 	}
 	if st := m.entryStates(repo)["build"]; st.State == "up" {
 		t.Error("the checklist should not show it up either")
-	}
-	m = press(m, "b")
-	got := askedForKinds(t, asked, kindClose, kindOpen)
-	if got[kindClose].PID != 700 {
-		t.Errorf("asked %+v, want the shell at its prompt closed for the new run", got[kindClose])
-	}
-	if got[kindOpen].Run != "go build ./..." {
-		t.Errorf("asked %+v, want the build run again", got[kindOpen])
-	}
-}
-
-func TestTRunsThePlacesTestsAndRedoesRatherThanStacks(t *testing.T) {
-	// t runs the tests the way the place says, in a shell named test that
-	// is wrapped like a plan entry's, and the cursor goes to it. A second
-	// t while they run leaves them to finish; once they have ended, t
-	// closes that shell and runs them again in a new one.
-	repo := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module x\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}}, nil)
-	m, asked := pipeServer(t, m)
-
-	m = press(m, "t")
-	got := askedForKind(t, asked, kindOpen)
-	if got.Dir != repo || got.Run != "go test ./..." || got.Name != testName {
-		t.Fatalf("asked %+v, want go test run at the place in a shell named test", got)
-	}
-	if m.status != "testing conn: go test ./..." || m.wantName != testName {
-		t.Errorf("status %q, wantName %q; want the run said and the cursor headed for it", m.status, m.wantName)
-	}
-
-	// Running: left alone.
-	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: repo, Name: testName}}})
-	m = next.(model)
-	m = press(m, "t")
-	if m.status != "already testing conn" {
-		t.Errorf("status = %q, want the run left to finish", m.status)
-	}
-	select {
-	case got := <-asked:
-		if got.Kind == kindOpen || got.Kind == kindClose {
-			t.Errorf("a second t while running asked %+v", got)
-		}
-	case <-time.After(50 * time.Millisecond):
-	}
-
-	// Ended: replaced.
-	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 901, Dir: repo, Name: testName, Exit: "1"}}})
-	m = next.(model)
-	m = press(m, "t")
-	both := askedForKinds(t, asked, kindClose, kindOpen)
-	if both[kindClose].PID != 901 {
-		t.Errorf("asked %+v, want the ended test shell closed", both[kindClose])
-	}
-	if both[kindOpen].Run != "go test ./..." {
-		t.Errorf("asked %+v, want the tests run again", both[kindOpen])
-	}
-
-	// A place that says nothing of its tests: said.
-	bare := t.TempDir()
-	m = withProcList(90, 14, []Project{{Name: "bare", Path: bare}}, nil)
-	m, _ = pipeServer(t, m)
-	if m = press(m, "t"); m.status != "bare does not say how its tests run" {
-		t.Errorf("status = %q, want the lack said", m.status)
-	}
-}
-
-func TestBAndLRunTheBuildAndTheLintTheSameWay(t *testing.T) {
-	repo := t.TempDir()
-	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module x\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}}, nil)
-	m, asked := pipeServer(t, m)
-	m = press(m, "b")
-	if got := askedForKind(t, asked, kindOpen); got.Run != "go build ./..." || got.Name != "build" {
-		t.Errorf("b asked %+v, want the build in a shell named build", got)
-	}
-	if m.status != "building conn: go build ./..." {
-		t.Errorf("status = %q", m.status)
-	}
-	m = press(m, "l")
-	if got := askedForKind(t, asked, kindOpen); got.Run != "go vet ./..." || got.Name != "lint" {
-		t.Errorf("l asked %+v, want the lint in a shell named lint", got)
 	}
 }
 
@@ -3891,7 +3763,7 @@ func TestJAndKStepThroughTheHeldShellsInOrder(t *testing.T) {
 		t.Fatalf("heldOrder = %v, want alpha's shell before beta's", got)
 	}
 	for i, want := range []int{701, 700, 701} {
-		m = press(m, "J")
+		m = press(m, "l")
 		if got := askedForKind(t, asked, kindFocus); got.PID != want {
 			t.Errorf("J %d took focus to %d, want %d", i+1, got.PID, want)
 		}
@@ -3899,7 +3771,7 @@ func TestJAndKStepThroughTheHeldShellsInOrder(t *testing.T) {
 			t.Errorf("J %d left the cursor on %+v, want the shell %d", i+1, r, want)
 		}
 	}
-	m = press(m, "K")
+	m = press(m, "h")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
 		t.Errorf("K took focus to %d, want back to 700", got.PID)
 	}
@@ -3929,12 +3801,12 @@ func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
 	}
 	m.shown = 701
 	for i, want := range []int{700, 702, 701} {
-		m = press(m, "J")
+		m = press(m, "l")
 		if got := askedForKind(t, asked, kindFocus); got.PID != want {
 			t.Errorf("J %d took focus to %d, want %d", i+1, got.PID, want)
 		}
 	}
-	m = press(m, "K")
+	m = press(m, "h")
 	if got := askedForKind(t, asked, kindFocus); got.PID != 702 {
 		t.Errorf("K took focus to %d, want back up to 702", got.PID)
 	}
@@ -3942,7 +3814,7 @@ func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
 
 func TestJWithNoShellOpenSaysSo(t *testing.T) {
 	m, _ := pipeServer(t, repoModel())
-	m = press(m, "J")
+	m = press(m, "l")
 	if f := footer(m); !strings.Contains(f, "no buffer is open") {
 		t.Errorf("footer = %q, want it said that there is nothing to step to", f)
 	}
@@ -4200,7 +4072,7 @@ func TestJReachesAShellOutsideEveryPlace(t *testing.T) {
 	m, asked := pipeServer(t, m)
 	m = press(m, "down") // the cursor on 700's row, focus still here
 
-	m = press(m, "J") // from the row under the cursor
+	m = press(m, "l") // from the row under the cursor
 	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
 		t.Errorf("J took focus to %d, want the shell outside every place, 701", got.PID)
 	}
@@ -4246,9 +4118,9 @@ func TestBackReturnsToTheShellBeforeThisOne(t *testing.T) {
 	// is this one: the last two, however the pane beside the list has been
 	// rearranged since.
 	m, asked := twoShells(t)
-	m = press(m, "J") // to alpha's shell, 701
+	m = press(m, "l") // to alpha's shell, 701
 	askedForKind(t, asked, kindFocus)
-	m = press(m, "J") // on to beta's, 700
+	m = press(m, "l") // on to beta's, 700
 	askedForKind(t, asked, kindFocus)
 	if m.focus != 700 || m.was != 701 {
 		t.Fatalf("focus %d, was %d; want focus in 700 from 701", m.focus, m.was)
@@ -4266,7 +4138,7 @@ func TestBackReturnsToTheShellBeforeThisOne(t *testing.T) {
 
 func TestBackFromAShellReachedFromTheListIsTheList(t *testing.T) {
 	m, asked := twoShells(t)
-	m = press(m, "J")
+	m = press(m, "l")
 	askedForKind(t, asked, kindFocus)
 
 	// The keys came from the list, so back is the list: its pane, which the
@@ -4291,11 +4163,11 @@ func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
 	// the second, not a place focus stopped. Back from the second is
 	// the first, and back again the second — however many times.
 	m, asked := twoShells(t)
-	m = press(m, "J") // to alpha's shell, 701
+	m = press(m, "l") // to alpha's shell, 701
 	askedForKind(t, asked, kindFocus)
 	m = press(m, "shift+tab") // to the list
 	askedForKind(t, asked, kindFocus)
-	m = press(m, "J") // on to beta's, 700, by way of the list
+	m = press(m, "l") // on to beta's, 700, by way of the list
 	askedForKind(t, asked, kindFocus)
 	if m.focus != 700 || m.was != 701 {
 		t.Fatalf("focus %d, was %d; want focus in 700 from 701, the list passed through", m.focus, m.was)
@@ -4367,7 +4239,7 @@ func TestBackWithNowhereToGoSaysSoOrTakesTheShellUnderTheCursor(t *testing.T) {
 	}
 	// The shell focus came from has gone: back from the list falls to
 	// what is shown; back from a shell falls to the list.
-	m = press(m, "J") // 700, from 701
+	m = press(m, "l") // 700, from 701
 	askedForKind(t, asked, kindFocus)
 	delete(m.terms, 701)
 	m = press(m, "shift+tab")

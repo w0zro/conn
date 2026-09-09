@@ -79,7 +79,6 @@ func TestTheHeadingSaysHowTheRunEndedAndWhatRanBefore(t *testing.T) {
 
 func TestTheFindersListingHoldsEverythingOpenable(t *testing.T) {
 	m := heldTabs(80)
-	m.tasks = map[string][]task{"/p/demo": {{Name: "lint", Run: "go vet ./..."}, {Name: "test", Run: "go test ./..."}}}
 	m.plans = map[string]plan{"/p/demo": {Entries: []entry{{Name: "web", Run: "npm run dev"}, {Name: "api", Run: "go run ./api"}}}}
 	m.roots = []string{"/p"}
 	snap := m.finderSnapshot()
@@ -88,9 +87,9 @@ func TestTheFindersListingHoldsEverythingOpenable(t *testing.T) {
 		byLabel[e.Label] = append(byLabel[e.Label], e)
 	}
 	// The held buffers, each once, whatever the place defines by the same
-	// name; the tasks and entries not held; the place's shell.
+	// name; the entries not held; the place's shell.
 	for label, kind := range map[string]string{"demo/zsh": "buffer", "demo/test": "buffer", "demo/web": "buffer",
-		"demo/lint": "task", "demo/api": "entry", "demo/terminal": "place"} {
+		"demo/api": "entry", "demo/terminal": "place"} {
 		es := byLabel[label]
 		if len(es) != 1 || es[0].Kind != kind {
 			t.Errorf("%s: %+v, want one %s entry", label, es, kind)

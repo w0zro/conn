@@ -198,7 +198,7 @@ func TestAChordPressesItsKeyAtTheNavigator(t *testing.T) {
 	deadline := time.After(3 * time.Second)
 	for {
 		out, _ := tmuxCommand("capture-pane", "-p", "-t", h.pane)
-		if strings.Contains(out, "J") {
+		if strings.Contains(out, "l") {
 			return
 		}
 		select {

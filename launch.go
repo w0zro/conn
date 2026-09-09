@@ -132,11 +132,11 @@ func attach(tmux string) error {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	ossignal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
 	if paintShells {
-		fmt.Fprint(os.Stdout, oscGround(tp.bar))
+		_, _ = fmt.Fprint(os.Stdout, oscGround(tp.bar))
 	}
 	err := cmd.Run()
 	if paintShells {
-		fmt.Fprint(os.Stdout, oscGroundReset)
+		_, _ = fmt.Fprint(os.Stdout, oscGroundReset)
 	}
 	// tmux has said what went wrong itself; its status is conn's.
 	var exit *exec.ExitError
@@ -454,44 +454,6 @@ func runPlanAt(dir string) error {
 	return nil
 }
 
-// runVerbAt is `conn test [dir]`, `conn build [dir]` and `conn lint
-// [dir]`: the task of the place holding dir, the way the place says it
-// runs, in a shell named for it — the navigator's t, b and l, from any
-// shell. A run still going is left to finish; the last run's shell at
-// its prompt is closed for the new one.
-func runVerbAt(v *verb) func(dir string) error {
-	return func(dir string) error {
-		p, err := placeHolding(dir)
-		if err != nil {
-			return err
-		}
-		run, _, ok := v.command(p.Path)
-		if !ok {
-			return errors.New(p.Name + " does not say " + v.unknown)
-		}
-		out, err := tmuxCommand("list-panes", "-a", "-F", listFormat)
-		if err != nil && !errors.Is(err, errNoServer) {
-			return err
-		}
-		held, _ := parseListing(out)
-		procs, perr := runningProcs()
-		busy := busyHeld(held, procs, perr)
-		for _, pane := range held {
-			if pane.name != v.name || pane.dir != p.Path {
-				continue
-			}
-			if busy[pane.pid] {
-				return errors.New("already " + v.doing + " " + p.Name)
-			}
-			if _, err := tmuxCommand("kill-pane", "-t", pane.id); err != nil {
-				return err
-			}
-		}
-		_, err = createWindow(tmuxCommand, p.Path, run, v.name, false)
-		return err
-	}
-}
-
 // busyHeld is which of the held shells are still running the command they
 // were started with, by pid: no exit recorded, and something under the
 // shell in the process table — the same reading the navigator makes.
@@ -586,10 +548,10 @@ func runBack() error {
 }
 
 // runStep is `conn next` and `conn prev`: the shell after or before the one
-// shown, in the navigator's order, which is the navigator's J and K.
+// shown, in the navigator's order, which is the navigator's l and h.
 func runStep(delta int) error {
 	if delta < 0 {
-		return tell("K")
+		return tell("h")
 	}
-	return tell("J")
+	return tell("l")
 }

@@ -130,7 +130,7 @@
           <li><a href="#shells"><span class="n">4</span><span>Shells</span><span class="dots"></span><span>4-1</span></a></li>
           <li><a href="#agents"><span class="n">5</span><span>Agents</span><span class="dots"></span><span>5-1</span></a></li>
           <li><a href="#plans"><span class="n">6</span><span>Plans</span><span class="dots"></span><span>6-1</span></a></li>
-          <li><a href="#tasks"><span class="n">7</span><span>Tasks</span><span class="dots"></span><span>7-1</span></a></li>
+          <li><a href="#runs"><span class="n">7</span><span>Runs</span><span class="dots"></span><span>7-1</span></a></li>
         </ol>
       </div>
       <div>
@@ -306,7 +306,7 @@
         <p class="para"><span class="n">3-1.</span>Between buffers, at conn &mdash; in its pane, or in the everything view; from a buffer, the same keys after <b>ctrl-space</b> (3-7):</p>
         <p class="caption">Table 3-1.&nbsp; Moving between buffers</p>
         <div class="table narrow">
-          <div class="row"><span>J K</span><span>the next and previous buffer, in the tabline's order</span></div>
+          <div class="row"><span>h l</span><span>the previous and next buffer, in the tabline's order</span></div>
           <div class="row"><span>tab</span><span>the next thing owed (3-8)</span></div>
           <div class="row"><span>shift+tab</span><span>back: the previous buffer, or everything (3-9)</span></div>
           <div class="row"><span>enter</span><span>open the buffer under the cursor</span></div>
@@ -318,7 +318,6 @@
         <p class="caption">Table 3-2.&nbsp; What the finder lists</p>
         <div class="table">
           <div class="row"><span>a buffer held</span><span>with its state and last word: <b>&#9679; running &middot; done, review when ready</b>, <b>&#10007; 1 failed &middot; 2m</b></span></div>
-          <div class="row"><span>a task not running</span><span>every place's test, build and lint, with the last runs: <b>task &middot; last runs &#10003; 12s &#10007; 2m &#10003; 14s</b></span></div>
           <div class="row"><span>a plan's entry not running</span><span><b>plan &middot; npm run dev</b></span></div>
           <div class="row"><span>a container</span><span><b>&#11042; container &middot; :5432 &middot; up 2d</b></span></div>
           <div class="row"><span>a conversation at rest</span><span>the newest under each place: <b>datum &middot; resume</b>, the last prompt, its age, its branch (5-3)</span></div>
@@ -354,7 +353,6 @@
           <div class="row"><span>.</span><span>everything, or only what is running</span></div>
           <div class="row"><span>enter</span><span>open the row's buffer</span></div>
           <div class="row"><span>s a r</span><span>a shell, an agent, the plan, at the place</span></div>
-          <div class="row"><span>t b l</span><span>its tests, build, lint (Section 7)</span></div>
           <div class="row"><span>x X</span><span>preview a kill of the row, or of its tree (Section 8)</span></div>
           <div class="row"><span>e</span><span>the environment (4-3)</span></div>
           <div class="row"><span>U R</span><span>update conn; end the server (Section 10)</span></div>
@@ -546,26 +544,14 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 7-1 &mdash; 7-3</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 7-1 &mdash; 7-2</span></div>
     <div class="rule"></div>
     <div class="body">
-      <div class="section" id="tasks">
+      <div class="section" id="runs">
         <p class="kicker">SECTION 7</p>
-        <h2>Tasks</h2>
-        <p class="para"><span class="n">7-1.</span><b>t</b>, <b>b</b> and <b>l</b> run the place's tests, build and lint as the project itself defines them. What the project wrote down comes first: a Makefile target, a justfile recipe, a Taskfile task or a package.json script named <b>test</b>, <b>build</b> or <b>lint</b>. Otherwise the ecosystem's own command. Only a linter the ecosystem ships with is guessed at; a project on ruff or eslint names it in a script. A project the guess is wrong for says so in its Makefile, which conn checks first.</p>
-        <p class="caption">Table 7-1.&nbsp; How a task's command is found</p>
-        <div class="table">
-          <div class="row head"><span>THE PROJECT HAS</span><span>THE TASK RUNS</span></div>
-          <div class="row"><span>Makefile, justfile, Taskfile</span><span>the target, recipe or task named for the task</span></div>
-          <div class="row"><span>package.json</span><span>the script named for the task, run with npm</span></div>
-          <div class="row"><span>go.mod</span><span><b>go test ./...</b>, <b>go build ./...</b>, <b>go vet ./...</b></span></div>
-          <div class="row"><span>Cargo.toml</span><span><b>cargo test</b>, <b>cargo build</b>, <b>cargo clippy</b></span></div>
-          <div class="row"><span>pyproject.toml</span><span><b>pytest</b>; <b>python3 manage.py test</b> for a Django project</span></div>
-          <div class="row"><span>Gemfile</span><span><b>rspec</b> with a spec directory, else <b>rake test</b></span></div>
-          <div class="row"><span>mix.exs and the rest</span><span>the ecosystem's own: mix, gradle, mvn, deno, swift, dune</span></div>
-        </div>
-        <p class="para"><span class="n">7-2.</span>Each run is a buffer named for its task, <b>datum/tests</b>, in a shell of its own, so its tab and its row show &#10003; or &#10007;, <b>tab</b> goes to a failure, and the status line's chip says <b>FAILED</b> while a failed one is shown. The buffer outlives its run &mdash; dead, but readable: the transcript stays, and the heading says how the run ended and the runs before it, <b>&#10007; exit 1 &middot; 3 failed &middot; 2m ago &middot; past runs &#10003; 12s &#10003; 14s</b>. Stepping onto a dead buffer, by <b>tab</b>, <b>J K</b> or the finder, shows it with the keys kept at conn: <b>r</b> runs it again in place &mdash; the same pane, cleared, the same name; <b>gf</b> opens the last file:line the transcript names in <b>$EDITOR</b>, vi without one, in the buffer's own shell; <b>q</b> closes the buffer, its runs staying on the record; <b>enter</b> steps into the shell beneath. Running anything by hand in that shell makes it a live buffer again, and the ending clears. The key again replaces a finished run rather than stacking another beside it; a run still going is left to finish. <b>conn test</b>, <b>conn build</b>, <b>conn lint</b> and <b>ctrl-space t</b>, <b>b</b>, <b>l</b> do the same from any buffer, and the finder lists every place's tasks not running, with their last runs.</p>
-        <p class="para"><span class="n">7-3.</span>conn reads the run's summary line as the tool prints it: go test, pytest, jest, vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc, ruff, eslint. A failed run's heading says <b>&#10007; exit 1 &middot; 3 failed</b>, a passed one <b>&#10003; 12 passed</b>, and its row says the same. Output conn does not recognize leaves them with pass or fail alone.</p>
+        <h2>Runs</h2>
+        <p class="para"><span class="n">7-1.</span>Each entry <b>r</b> starts is a buffer named for it, <b>datum/api</b>, in a shell of its own, so its tab and its row show &#10003; or &#10007;, <b>tab</b> goes to a failure, and the status line's chip says <b>FAILED</b> while a failed one is shown. The buffer outlives its run &mdash; dead, but readable: the transcript stays, and the heading says how the run ended and the runs before it, <b>&#10007; exit 1 &middot; 3 failed &middot; 2m ago &middot; past runs &#10003; 12s &#10003; 14s</b>. Stepping onto a dead buffer, by <b>tab</b>, <b>h l</b> or the finder, shows it with the keys kept at conn: <b>r</b> runs it again in place &mdash; the same pane, cleared, the same name; <b>gf</b> opens the last file:line the transcript names in <b>$EDITOR</b>, vi without one, in the buffer's own shell; <b>q</b> closes the buffer, its runs staying on the record; <b>enter</b> steps into the shell beneath. Running anything by hand in that shell makes it a live buffer again, and the ending clears.</p>
+        <p class="para"><span class="n">7-2.</span>conn reads the run's summary line as the tool prints it: go test, pytest, jest, vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc, ruff, eslint. A failed run's heading says <b>&#10007; exit 1 &middot; 3 failed</b>, a passed one <b>&#10003; 12 passed</b>, and its row says the same. Output conn does not recognize leaves them with pass or fail alone.</p>
       </div>
     </div>
     <div class="foot">
@@ -692,7 +678,6 @@
           <div class="row"><span>conn agent [dir]</span><span>an agent in dir, as a buffer</span></div>
           <div class="row"><span>conn kind</span><span>the next kind of agent, for <b>a</b> and the agent chord</span></div>
           <div class="row"><span>conn run [dir]</span><span>the plan of the place holding dir</span></div>
-          <div class="row"><span>conn test [dir]</span><span>its tests; <b>build</b> and <b>lint</b> the same way</span></div>
           <div class="row"><span>conn jump</span><span>the next thing owed</span></div>
           <div class="row"><span>conn back</span><span>back: the previous buffer, or everything</span></div>
           <div class="row"><span>conn next, prev</span><span>the next and previous buffer</span></div>
@@ -727,7 +712,7 @@
         <p class="caption">Table A-1.&nbsp; At conn: in its pane, and in the everything view</p>
         <div class="table keys" id="keys-navigator">
           <div class="row"><span>&#8593;&#8595; j k</span><span>move</span></div>
-          <div class="row"><span>J K</span><span>next &middot; previous buffer</span></div>
+          <div class="row"><span>h l</span><span>previous &middot; next buffer</span></div>
           <div class="row"><span>enter</span><span>open the buffer</span></div>
           <div class="row"><span>tab</span><span>the next thing owed</span></div>
           <div class="row"><span>shift+tab</span><span>back: the previous buffer, or everything</span></div>
@@ -740,8 +725,7 @@
           <div class="row"><span>s</span><span>shell</span></div>
           <div class="row"><span>a</span><span>agent</span></div>
           <div class="row"><span>,</span><span>the next kind of agent</span></div>
-          <div class="row"><span>r</span><span>run a dead task again in place &middot; run the plan</span></div>
-          <div class="row"><span>t &middot; b &middot; l</span><span>test &middot; build &middot; lint</span></div>
+          <div class="row"><span>r</span><span>run a dead entry again in place &middot; run the plan</span></div>
           <div class="row"><span>x &middot; X</span><span>preview a kill &middot; of the tree</span></div>
           <div class="row"><span>e</span><span>the environment, annotated</span></div>
           <div class="row"><span>gf</span><span>open the last file:line in your editor</span></div>
@@ -754,11 +738,11 @@
           <div class="row"><span>^p</span><span>the finder, from any buffer</span></div>
           <div class="row"><span>^spc p /</span><span>the finder</span></div>
           <div class="row"><span>^spc - .</span><span>everything, from any buffer</span></div>
-          <div class="row"><span>^spc j k</span><span>next &middot; previous buffer</span></div>
+          <div class="row"><span>^spc h l</span><span>previous &middot; next buffer</span></div>
           <div class="row"><span>^spc ^spc</span><span>back: the previous buffer, or everything</span></div>
           <div class="row"><span>^spc enter</span><span>the next thing owed</span></div>
           <div class="row"><span>^spc x X</span><span>preview a kill of this buffer &middot; of its tree</span></div>
-          <div class="row"><span>^spc s a r t b l</span><span>shell &middot; agent &middot; run &middot; test &middot; build &middot; lint, here</span></div>
+          <div class="row"><span>^spc s a r</span><span>shell &middot; agent &middot; run, here</span></div>
           <div class="row"><span>^spc ,</span><span>the next kind of agent</span></div>
           <div class="row"><span>^spc e</span><span>the environment of the pane's process, annotated</span></div>
           <div class="row"><span>^spc q</span><span>leave from anywhere</span></div>

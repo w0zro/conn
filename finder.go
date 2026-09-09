@@ -16,9 +16,9 @@ import (
 )
 
 // The finder is the front door: ctrl-p from any buffer, p at conn, and one
-// list holds everything openable — the buffers held, the tasks a place
-// defines and their run history, a plan's entries, the containers, the
-// conversations at rest, and every place, for a shell at its root. Enter
+// list holds everything openable — the buffers held, a plan's entries,
+// the containers, the conversations at rest, and every place, for a
+// shell at its root. Enter
 // attaches to what is running, starts what is defined, and, on a name that
 // matches nothing, makes the repository and opens its shell: opening what
 // does not exist creates it, like a new file.
@@ -33,11 +33,11 @@ import (
 
 // finderEntry is one openable thing, as the navigator wrote it down.
 type finderEntry struct {
-	Kind  string    `json:"kind"`            // buffer, task, entry, container, resume, place, process
+	Kind  string    `json:"kind"`            // buffer, entry, container, resume, place, process
 	Label string    `json:"label"`           // place/name, as the row reads
 	Dir   string    `json:"dir"`             // where it runs, or would
 	Pane  string    `json:"pane,omitempty"`  // a held buffer's pane
-	Name  string    `json:"name,omitempty"`  // a task's or an entry's name
+	Name  string    `json:"name,omitempty"`  // an entry's name
 	Run   string    `json:"run,omitempty"`   // what starting it runs
 	Held  bool      `json:"held,omitempty"`  // a process conn can step into
 	Facts []segment `json:"facts,omitempty"` // what the row says after its name
@@ -205,9 +205,8 @@ func (m model) procEntry(r navRow) finderEntry {
 	return e
 }
 
-// definedEntries is what a place defines that is not running: its tasks
-// — the tests, the build, the lint — each with its run history, and its
-// plan's entries.
+// definedEntries is what a place defines that is not running: its plan's
+// entries.
 func (m model) definedEntries(p Project) []finderEntry {
 	var out []finderEntry
 	states := m.entryStates(p.Path)
@@ -216,20 +215,6 @@ func (m model) definedEntries(p Project) []finderEntry {
 	held := map[string]bool{}
 	for _, t := range m.planned(p.Path) {
 		held[t.name] = true
-	}
-	for _, t := range m.tasks[p.Path] {
-		if held[t.Name] {
-			continue
-		}
-		e := finderEntry{Kind: "task", Label: p.Name + "/" + t.Name, Dir: p.Path, Name: t.Name, Run: t.Run,
-			Facts: []segment{{"task", toneQuiet}}}
-		if runs := pastRuns(p.Path, t.Name, t.Run, 3); len(runs) > 0 {
-			e.Facts = append(e.Facts, segment{"last runs", toneQuiet})
-			e.Facts = append(e.Facts, runSegments(runs)...)
-		} else {
-			e.Facts = append(e.Facts, segment{t.Run, toneQuiet})
-		}
-		out = append(out, e)
 	}
 	for _, en := range m.plans[p.Path].Entries {
 		if held[en.Name] || states[en.Name].State == "up" {
@@ -254,24 +239,6 @@ func runSegments(runs []run) []segment {
 			mark += " " + shortTook(durationOf(r.Took))
 		}
 		out = append(out, segment{mark, t})
-	}
-	return out
-}
-
-// task is one task a place defines: the verb's name, and how the place
-// runs it.
-type task struct {
-	Name string
-	Run  string
-}
-
-// tasksOf is the tasks a place says how to run.
-func tasksOf(dir string) []task {
-	var out []task
-	for _, v := range verbs {
-		if run, _, ok := v.command(dir); ok {
-			out = append(out, task{Name: v.name, Run: run})
-		}
 	}
 	return out
 }
@@ -366,10 +333,10 @@ func readFinder() (finderSnapshot, error) {
 	if err != nil {
 		return finderSnapshot{}, err
 	}
-	m.tasks, m.plans = map[string][]task{}, map[string]plan{}
+	m.plans = map[string]plan{}
 	m.history, m.histories = map[int][]run{}, map[int]string{}
 	for _, p := range m.projects {
-		m.tasks[p.Path], m.plans[p.Path] = tasksOf(p.Path), readPlan(p.Path)
+		m.plans[p.Path] = readPlan(p.Path)
 	}
 	m.readHistories()
 	return m.finderSnapshot(), nil
@@ -519,7 +486,7 @@ func (m finderModel) agentHere() (tea.Model, tea.Cmd) {
 }
 
 // openEntry opens one entry through the server: a held buffer is asked to
-// be shown, a task or an entry starts in a buffer that is wanted — in the
+// be shown, a plan's entry starts in a buffer that is wanted — in the
 // pane of its last run, when that run is over — a container's logs open
 // as a buffer, a conversation at rest is picked back up, a place opens a
 // shell at its root. A process conn does not hold is nowhere to go.
@@ -527,7 +494,7 @@ func openEntry(run runner, e finderEntry) error {
 	switch e.Kind {
 	case "buffer":
 		return showHeld(run, e.Pane)
-	case "task", "entry":
+	case "entry":
 		return startNamed(run, e.Dir, e.Name, e.Run)
 	case "container", "resume":
 		if e.Run == "" {
@@ -562,7 +529,7 @@ func showHeld(run runner, pane string) error {
 	return err
 }
 
-// startNamed starts a place's task or entry by name, wanted: in the pane
+// startNamed starts a place's entry by name, wanted: in the pane
 // of its last run when that run is over — the buffer, run again in place
 // — and in a new window otherwise. A run still going is shown rather than
 // started again beside itself.

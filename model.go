@@ -58,10 +58,8 @@ type projectsMsg struct {
 	groups   []Project
 	subs     map[string][]Project
 	roots    []string
-	// tasks and plans are what each place defines, by its path: the
-	// tasks it says how to run and the plan it says it needs, read off
-	// the render path with the places, for the finder to list.
-	tasks map[string][]task
+	// plans are what each place says it needs, by its path, read off the
+	// render path with the places, for the finder to list.
 	plans map[string]plan
 	err   error
 }
@@ -157,10 +155,9 @@ type model struct {
 	parent  map[int]int
 	nodes   map[int]*ProcNode
 
-	// tasks and plans are what each place defines, by its path, as the
-	// last scan of the places read them: the finder lists the ones not
+	// plans are what each place says it needs, by its path, as the last
+	// scan of the places read them: the finder lists the entries not
 	// running.
-	tasks map[string][]task
 	plans map[string]plan
 
 	// subs are each repository's sub-projects, keyed by the repository's
@@ -427,24 +424,23 @@ func scanProjects() tea.Msg {
 	// than in turn: fifty repositories at twenty milliseconds each would
 	// otherwise hold the first paint for a second.
 	subs := make(map[string][]Project, len(projects))
-	tasks := make(map[string][]task, len(projects))
 	plans := make(map[string]plan, len(projects))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, p := range projects {
 		wg.Go(func() {
 			found := subProjects(p.Path)
-			ts, pl := tasksOf(p.Path), readPlan(p.Path)
+			pl := readPlan(p.Path)
 			mu.Lock()
 			if len(found) > 0 {
 				subs[p.Path] = found
 			}
-			tasks[p.Path], plans[p.Path] = ts, pl
+			plans[p.Path] = pl
 			mu.Unlock()
 		})
 	}
 	wg.Wait()
-	return projectsMsg{projects: projects, groups: groups, subs: subs, roots: cfg.roots(), tasks: tasks, plans: plans}
+	return projectsMsg{projects: projects, groups: groups, subs: subs, roots: cfg.roots(), plans: plans}
 }
 
 // scanProcs reads the working directory of every visible process.
@@ -534,8 +530,8 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case projectsMsg:
 		m.projects, m.groups, m.subs, m.err = msg.projects, msg.groups, msg.subs, msg.err
-		if msg.tasks != nil {
-			m.tasks, m.plans = msg.tasks, msg.plans
+		if msg.plans != nil {
+			m.plans = msg.plans
 		}
 		m.manifestDirs = nil
 		if msg.roots != nil {
@@ -977,11 +973,9 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.move(1)
 	case "up", "k":
 		return m, m.move(-1)
-	case "t", "b", "l":
-		return m, m.runVerb(msg.String())
-	case "J":
+	case "l":
 		return m, m.stepShell(1)
-	case "K":
+	case "h":
 		return m, m.stepShell(-1)
 	case "tab":
 		// The next thing owed — an agent waiting on you, a run that
@@ -1447,8 +1441,8 @@ func (m *model) showPID(pid int) {
 
 // stepShell shows the next or previous buffer in the tabline's order from
 // the shown one — or, from a view, the one under the cursor — wrapping,
-// and gives it focus: the chord ctrl-space j and k, from any buffer, and J
-// and K at conn.
+// and gives it focus: the chord ctrl-space h and l, from any buffer, and h
+// and l at conn — the tabs run left to right, so the keys do.
 func (m *model) stepShell(delta int) tea.Cmd {
 	order := m.heldOrder()
 	if len(order) == 0 {
@@ -1507,7 +1501,7 @@ func (m model) selfRun(r navRow) bool {
 }
 
 // heldOrder is every held shell in the order the navigator lists them. It
-// is the order J and K step through, and it does not depend on what is
+// is the order h and l step through, and it does not depend on what is
 // folded or filtered — a shell is still there when its row is not — so it
 // is read off the list as it would be drawn with nothing filtered, folded
 // or collapsed: groups and repositories by name, a place's shells by the
@@ -2088,51 +2082,6 @@ func describeStarted(entries []entry, services []string) string {
 		names = append(names, e.Name)
 	}
 	return strings.Join(append(names, services...), ", ")
-}
-
-// runVerb runs a task of the place the cursor is in, the way the place
-// says it runs: the keys t, b and l, each the key of its verb.
-func (m *model) runVerb(key string) tea.Cmd {
-	r, ok := m.selected()
-	if !ok {
-		return nil
-	}
-	for _, v := range verbs {
-		if v.key == key {
-			return m.doVerb(r.project, v)
-		}
-	}
-	return nil
-}
-
-// doVerb runs one place's task in a shell named for it, wrapped like a
-// plan entry's so how it ends is recorded. A task is redone, not kept
-// beside itself: the last run's shell, at its prompt, is closed for the
-// new one. A run still going is left to finish.
-func (m *model) doVerb(p Project, v *verb) tea.Cmd {
-	if m.server == nil {
-		m.status, m.statusErr = "no server to hold it: "+m.serverErr, true
-		return nil
-	}
-	run, _, ok := v.command(p.Path)
-	if !ok {
-		m.status, m.statusErr = p.Name+" does not say "+v.unknown, true
-		return nil
-	}
-	for _, t := range m.planned(p.Path) {
-		if t.name != v.name {
-			continue
-		}
-		if m.busy(t) {
-			m.status, m.statusErr = "already "+v.doing+" "+p.Name, false
-			return nil
-		}
-		m.server.closeTerm(t.pid)
-	}
-	m.server.open(p.Path, run, v.name)
-	m.wantCursor, m.wantProject, m.wantName = 0, p.Path, v.name
-	m.status, m.statusErr = v.doing+" "+p.Name+": "+run, false
-	return m.scanNow()
 }
 
 // planned are the shells in a project that a plan started, which are the ones

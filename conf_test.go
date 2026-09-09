@@ -18,7 +18,7 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		`bind x run-shell "'/opt/my tools/it'\''s/conn' home x"`,
 		`bind s run-shell "'/opt/my tools/it'\''s/conn' shell '#{pane_current_path}'"`,
 		`bind , run-shell "'/opt/my tools/it'\''s/conn' kind"`,
-		`bind j run-shell "'/opt/my tools/it'\''s/conn' next"`,
+		`bind l run-shell "'/opt/my tools/it'\''s/conn' next"`,
 		`bind C-Space run-shell "'/opt/my tools/it'\''s/conn' back"`,
 		`bind ? run-shell "'/opt/my tools/it'\''s/conn' keys '#{client_name}'"`,
 		// The finder is the front door: the prefix's p, and ctrl-p alone

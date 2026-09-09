@@ -274,8 +274,8 @@ buffer, the same keys after \fBctrl\-space\fR (3-7):
 .I "Table 3-1. Moving between buffers"
 .RS
 .TP
-\fBJ K\fR
-the next and previous buffer, in the tabline's order
+\fBh l\fR
+the previous and next buffer, in the tabline's order
 .TP
 \fBtab\fR
 the next thing owed (3-8)
@@ -314,10 +314,6 @@ with an orange ▸; \fB↑↓\fR move it.
 \fBa buffer held\fR
 with its state and last word: \fB● running · done, review when ready\fR,
 \fB✗ 1 failed · 2m\fR
-.TP
-\fBa task not running\fR
-every place's test, build and lint, with the last runs: \fBtask · last runs ✓
-12s ✗ 2m ✓ 14s\fR
 .TP
 \fBa plan's entry not running\fR
 \fBplan · npm run dev\fR
@@ -376,9 +372,6 @@ open the row's buffer
 .TP
 \fBs a r\fR
 a shell, an agent, the plan, at the place
-.TP
-\fBt b l\fR
-its tests, build, lint (Section 7)
 .TP
 \fBx X\fR
 preview a kill of the row, or of its tree (Section 8)
@@ -657,61 +650,23 @@ plan entry is named for is left to the entry.
 A plan is not a supervisor. An ended entry's buffer stays at its prompt, with
 its transcript, until \fBx\fR closes it or \fBr\fR starts the entry again beside
 it.
-.SH TASKS
+.SH RUNS
 .TP
 7-1.
-\fBt\fR, \fBb\fR and \fBl\fR run the place's tests, build and lint as the
-project itself defines them. What the project wrote down comes first: a Makefile
-target, a justfile recipe, a Taskfile task or a package.json script named
-\fBtest\fR, \fBbuild\fR or \fBlint\fR. Otherwise the ecosystem's own command.
-Only a linter the ecosystem ships with is guessed at; a project on ruff or
-eslint names it in a script. A project the guess is wrong for says so in its
-Makefile, which conn checks first.
-.PP
-.I "Table 7-1. How a task's command is found"
-.RS
-.TP
-\fBMakefile, justfile, Taskfile\fR
-the target, recipe or task named for the task
-.TP
-\fBpackage.json\fR
-the script named for the task, run with npm
-.TP
-\fBgo.mod\fR
-\fBgo test ./...\fR, \fBgo build ./...\fR, \fBgo vet ./...\fR
-.TP
-\fBCargo.toml\fR
-\fBcargo test\fR, \fBcargo build\fR, \fBcargo clippy\fR
-.TP
-\fBpyproject.toml\fR
-\fBpytest\fR; \fBpython3 manage.py test\fR for a Django project
-.TP
-\fBGemfile\fR
-\fBrspec\fR with a spec directory, else \fBrake test\fR
-.TP
-\fBmix.exs and the rest\fR
-the ecosystem's own: mix, gradle, mvn, deno, swift, dune
-.RE
-.TP
-7-2.
-Each run is a buffer named for its task, \fBdatum/tests\fR, in a shell of its
-own, so its tab and its row show ✓ or ✗, \fBtab\fR goes to a failure, and
-the status line's chip says \fBFAILED\fR while a failed one is shown. The buffer
-outlives its run — dead, but readable: the transcript stays, and the heading
-says how the run ended and the runs before it, \fB✗ exit 1 · 3 failed · 2m
-ago · past runs ✓ 12s ✓ 14s\fR. Stepping onto a dead buffer, by \fBtab\fR,
-\fBJ K\fR or the finder, shows it with the keys kept at conn: \fBr\fR runs it
-again in place — the same pane, cleared, the same name; \fBgf\fR opens the
-last file:line the transcript names in \fB$EDITOR\fR, vi without one, in the
+Each entry \fBr\fR starts is a buffer named for it, \fBdatum/api\fR, in a shell
+of its own, so its tab and its row show ✓ or ✗, \fBtab\fR goes to a failure,
+and the status line's chip says \fBFAILED\fR while a failed one is shown. The
+buffer outlives its run — dead, but readable: the transcript stays, and the
+heading says how the run ended and the runs before it, \fB✗ exit 1 · 3 failed
+· 2m ago · past runs ✓ 12s ✓ 14s\fR. Stepping onto a dead buffer, by
+\fBtab\fR, \fBh l\fR or the finder, shows it with the keys kept at conn: \fBr\fR
+runs it again in place — the same pane, cleared, the same name; \fBgf\fR opens
+the last file:line the transcript names in \fB$EDITOR\fR, vi without one, in the
 buffer's own shell; \fBq\fR closes the buffer, its runs staying on the record;
 \fBenter\fR steps into the shell beneath. Running anything by hand in that shell
-makes it a live buffer again, and the ending clears. The key again replaces a
-finished run rather than stacking another beside it; a run still going is left
-to finish. \fBconn test\fR, \fBconn build\fR, \fBconn lint\fR and \fBctrl\-space
-t\fR, \fBb\fR, \fBl\fR do the same from any buffer, and the finder lists every
-place's tasks not running, with their last runs.
+makes it a live buffer again, and the ending clears.
 .TP
-7-3.
+7-2.
 conn reads the run's summary line as the tool prints it: go test, pytest, jest,
 vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc, ruff, eslint. A failed
 run's heading says \fB✗ exit 1 · 3 failed\fR, a passed one \fB✓ 12
@@ -884,9 +839,6 @@ the next kind of agent, for \fBa\fR and the agent chord
 \fBconn run [dir]\fR
 the plan of the place holding dir
 .TP
-\fBconn test [dir]\fR
-its tests; \fBbuild\fR and \fBlint\fR the same way
-.TP
 \fBconn jump\fR
 the next thing owed
 .TP
@@ -933,8 +885,8 @@ processes of the places, which is not an error.
 \fB↑↓ j k\fR
 move
 .TP
-\fBJ K\fR
-next · previous buffer
+\fBh l\fR
+previous · next buffer
 .TP
 \fBenter\fR
 open the buffer
@@ -973,10 +925,7 @@ agent
 the next kind of agent
 .TP
 \fBr\fR
-run a dead task again in place · run the plan
-.TP
-\fBt · b · l\fR
-test · build · lint
+run a dead entry again in place · run the plan
 .TP
 \fBx · X\fR
 preview a kill · of the tree
@@ -1009,8 +958,8 @@ the finder
 \fB^spc \- .\fR
 everything, from any buffer
 .TP
-\fB^spc j k\fR
-next · previous buffer
+\fB^spc h l\fR
+previous · next buffer
 .TP
 \fB^spc ^spc\fR
 back: the previous buffer, or everything
@@ -1021,8 +970,8 @@ the next thing owed
 \fB^spc x X\fR
 preview a kill of this buffer · of its tree
 .TP
-\fB^spc s a r t b l\fR
-shell · agent · run · test · build · lint, here
+\fB^spc s a r\fR
+shell · agent · run, here
 .TP
 \fB^spc ,\fR
 the next kind of agent

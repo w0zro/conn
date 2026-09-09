@@ -1290,3 +1290,9 @@ func runEnvChord(arg string) error {
 	}
 	return showLiveEnv(tmuxCommand, connExe(), client, pid, os.Environ())
 }
+
+// exists reports whether a path is there.
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}

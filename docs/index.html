@@ -307,6 +307,7 @@
         <p class="caption">Table 3-1.&nbsp; Moving between buffers</p>
         <div class="table narrow">
           <div class="row"><span>h l</span><span>the previous and next buffer, in the tabline's order</span></div>
+          <div class="row"><span>1 to 9</span><span>the nth buffer, counted as the tabs read</span></div>
           <div class="row"><span>tab</span><span>the next thing owed (3-8)</span></div>
           <div class="row"><span>shift+tab</span><span>back: the previous buffer, or everything (3-9)</span></div>
           <div class="row"><span>enter</span><span>open the buffer under the cursor</span></div>
@@ -681,6 +682,7 @@
           <div class="row"><span>conn jump</span><span>the next thing owed</span></div>
           <div class="row"><span>conn back</span><span>back: the previous buffer, or everything</span></div>
           <div class="row"><span>conn next, prev</span><span>the next and previous buffer</span></div>
+          <div class="row"><span>conn nth n</span><span>the nth buffer, 1 to 9</span></div>
           <div class="row"><span>conn finder [client]</span><span>the finder, in a popup over the client; <b>conn page finder</b> is the page inside it</span></div>
           <div class="row"><span>conn keys [client]</span><span>the key list, in a popup; <b>conn page</b> is the page inside it</span></div>
           <div class="row"><span>conn env [pid client]</span><span>the environment of the pane whose shell is pid, annotated, in a popup; <b>conn page env pid</b> is the page inside it</span></div>
@@ -713,6 +715,7 @@
         <div class="table keys" id="keys-navigator">
           <div class="row"><span>&#8593;&#8595; j k</span><span>move</span></div>
           <div class="row"><span>h l</span><span>previous &middot; next buffer</span></div>
+          <div class="row"><span>1-9</span><span>the nth buffer</span></div>
           <div class="row"><span>enter</span><span>open the buffer</span></div>
           <div class="row"><span>tab</span><span>the next thing owed</span></div>
           <div class="row"><span>shift+tab</span><span>back: the previous buffer, or everything</span></div>
@@ -739,6 +742,7 @@
           <div class="row"><span>^spc p /</span><span>the finder</span></div>
           <div class="row"><span>^spc - .</span><span>everything, from any buffer</span></div>
           <div class="row"><span>^spc h l</span><span>previous &middot; next buffer</span></div>
+          <div class="row"><span>^spc 1-9</span><span>the nth buffer</span></div>
           <div class="row"><span>^spc ^spc</span><span>back: the previous buffer, or everything</span></div>
           <div class="row"><span>^spc enter</span><span>the next thing owed</span></div>
           <div class="row"><span>^spc x X</span><span>preview a kill of this buffer &middot; of its tree</span></div>

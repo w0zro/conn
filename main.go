@@ -62,6 +62,7 @@ the chords run these; they are not for typing:
   conn jump        the next thing owed: an agent waiting, a command that ended badly
   conn back        back: the previous buffer, or the everything view
   conn next, prev  the next and previous buffer
+  conn nth n       the nth buffer, 1 to 9
 
 files:
   ~/.config/conn/config.json  configuration
@@ -187,6 +188,7 @@ var chords = map[string]func(arg string) error{
 	"back":   func(string) error { return runBack() },
 	"next":   func(string) error { return runStep(1) },
 	"prev":   func(string) error { return runStep(-1) },
+	"nth":    runNth,
 	"keys":   func(client string) error { return showKeys(tmuxCommand, connExe(), client) },
 	"finder": func(client string) error { return showFinder(tmuxCommand, connExe(), client, "") },
 	"env":    runEnvChord,

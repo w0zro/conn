@@ -981,6 +981,8 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.stepShell(1)
 	case "h":
 		return m, m.stepShell(-1)
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		return m, m.showNth(int(msg.String()[0] - '0'))
 	case "tab":
 		// The next thing owed — an agent waiting on you, a run that
 		// ended badly — and again around them in turn: the jump the
@@ -1471,6 +1473,25 @@ func (m *model) stepShell(delta int) tea.Cmd {
 	}
 	next := order[(at+delta+len(order))%len(order)]
 	m.show(m.terms[next])
+	return nil
+}
+
+// showNth shows the nth buffer in the tabline's order, counted from one,
+// and gives it focus: the chord ctrl-space 1 to 9, from any buffer, and
+// the digits at conn — the tabs are numbered as they are read. A digit
+// past the last tab says so and moves nothing.
+func (m *model) showNth(n int) tea.Cmd {
+	order := m.heldOrder()
+	if len(order) == 0 {
+		m.status, m.statusErr = "no buffer is open", false
+		return nil
+	}
+	if n > len(order) {
+		m.status, m.statusErr = fmt.Sprintf("no buffer %d: %d open", n, len(order)), false
+		return nil
+	}
+	m.letGo()
+	m.show(m.terms[order[n-1]])
 	return nil
 }
 

@@ -3812,6 +3812,39 @@ func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
 	}
 }
 
+func TestADigitShowsTheNthBufferInOrder(t *testing.T) {
+	// The chord ctrl-space 2 presses 2 here: the second buffer in the
+	// tabline's order, wherever the shown one is, focused. A digit past
+	// the last tab says so and moves nothing.
+	m := withProcList(90, 14,
+		[]Project{{Name: "alpha", Path: "/p/alpha"}, {Name: "beta", Path: "/p/beta"}},
+		[]Proc{
+			{PID: 700, PPID: 1, Command: "zsh", Dir: "/p/beta"},
+			{PID: 701, PPID: 1, Command: "zsh", Dir: "/p/alpha"},
+		})
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/beta"}, 701: {pid: 701, dir: "/p/alpha"}}
+	m, asked := pipeServer(t, m)
+
+	m = press(m, "2")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
+		t.Errorf("2 took focus to %d, want beta's shell 700, the second tab", got.PID)
+	}
+	m = press(m, "1")
+	if got := askedForKind(t, asked, kindFocus); got.PID != 701 {
+		t.Errorf("1 took focus to %d, want alpha's shell 701, the first tab", got.PID)
+	}
+	if r, ok := m.selected(); !ok || !r.holds(701) {
+		t.Errorf("1 left the cursor on %+v, want the shell 701", r)
+	}
+	m = press(m, "3")
+	if f := footer(m); !strings.Contains(f, "no buffer 3") {
+		t.Errorf("footer = %q, want it said there is no third tab", f)
+	}
+	if m.shown != 701 {
+		t.Errorf("3 moved the shown buffer to %d, want it left on 701", m.shown)
+	}
+}
+
 func TestJWithNoShellOpenSaysSo(t *testing.T) {
 	m, _ := pipeServer(t, repoModel())
 	m = press(m, "l")

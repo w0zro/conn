@@ -277,6 +277,9 @@ buffer, the same keys after \fBctrl\-space\fR (3-7):
 \fBh l\fR
 the previous and next buffer, in the tabline's order
 .TP
+\fB1 to 9\fR
+the nth buffer, counted as the tabs read
+.TP
 \fBtab\fR
 the next thing owed (3-8)
 .TP
@@ -850,6 +853,9 @@ back: the previous buffer, or everything
 \fBconn next, prev\fR
 the next and previous buffer
 .TP
+\fBconn nth n\fR
+the nth buffer, 1 to 9
+.TP
 \fBconn finder [client]\fR
 the finder, in a popup over the client; \fBconn page finder\fR is the page
 inside it
@@ -889,6 +895,9 @@ move
 .TP
 \fBh l\fR
 previous · next buffer
+.TP
+\fB1\-9\fR
+the nth buffer
 .TP
 \fBenter\fR
 open the buffer
@@ -962,6 +971,9 @@ everything, from any buffer
 .TP
 \fB^spc h l\fR
 previous · next buffer
+.TP
+\fB^spc 1\-9\fR
+the nth buffer
 .TP
 \fB^spc ^spc\fR
 back: the previous buffer, or everything

@@ -23,6 +23,7 @@ import (
 var keyList = [][2]string{
 	{"↑↓ j k", "move"},
 	{"h l", "previous · next buffer"},
+	{"1-9", "the nth buffer"},
 	{"enter", "open the buffer"},
 	{"tab", "the next thing owed"},
 	{"shift+tab", "back: the previous buffer, or everything"},
@@ -46,6 +47,7 @@ var keyList = [][2]string{
 	{"^spc p /", "the finder"},
 	{"^spc - .", "everything, from any buffer"},
 	{"^spc h l", "previous · next buffer"},
+	{"^spc 1-9", "the nth buffer"},
 	{"^spc ^spc", "back: the previous buffer, or everything"},
 	{"^spc enter", "the next thing owed"},
 	{"^spc x X", "preview a kill of this buffer · of its tree"},

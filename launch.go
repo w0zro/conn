@@ -555,3 +555,12 @@ func runStep(delta int) error {
 	}
 	return tell("l")
 }
+
+// runNth is `conn nth n`: the nth buffer in the navigator's order, counted
+// from one, which is the navigator's digit. Only 1 to 9 are keys.
+func runNth(n string) error {
+	if len(n) != 1 || n[0] < '1' || n[0] > '9' {
+		return fmt.Errorf("conn nth: want a digit 1 to 9, not %q", n)
+	}
+	return tell(n)
+}

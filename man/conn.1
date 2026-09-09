@@ -534,11 +534,13 @@ A conversation does not end when its instance exits; it is suspended, and can be
 picked back up. The newest conversation at rest under each place is a row of the
 finder, \fBdatum · resume\fR, with the last thing asked of it, how long it has
 rested and its branch; \fBenter\fR continues it in a buffer opened where it was
-had. In the everything view the same conversation is a row of its own, dimmed,
-at the end of the place's family, \fBclaude · suspended · 6h\fR, and
-\fBenter\fR on it continues it. A conversation an instance still carries is not
-offered. A place with no work shows none there: the row is kept the way an
-exited container is kept beside its running siblings.
+had. \fBA\fR at conn, or \fBctrl\-space A\fR from any buffer, opens the finder
+on every conversation at rest instead, newest first across the places, for the
+one that is not the newest. In the everything view the same conversation is a
+row of its own, dimmed, at the end of the place's family, \fBclaude · suspended
+· 6h\fR, and \fBenter\fR on it continues it. A conversation an instance still
+carries is not offered. A place with no work shows none there: the row is kept
+the way an exited container is kept beside its running siblings.
 .TP
 5-4.
 conn knows two kinds of agent: \fBclaude\fR and \fBollama\fR. \fB,\fR at conn or
@@ -920,6 +922,9 @@ shell
 \fBa\fR
 agent
 .TP
+\fBA\fR
+continue a conversation at rest
+.TP
 \fB,\fR
 the next kind of agent
 .TP
@@ -968,6 +973,9 @@ preview a kill of this buffer · of its tree
 .TP
 \fB^spc s a r\fR
 shell · agent · run, here
+.TP
+\fB^spc A\fR
+continue a conversation at rest
 .TP
 \fB^spc ,\fR
 the next kind of agent

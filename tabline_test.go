@@ -113,7 +113,7 @@ func TestTheFindersListingHoldsEverythingOpenable(t *testing.T) {
 }
 
 func TestTheFinderNarrowsByFuzzAndOffersToMakeWhatIsMissing(t *testing.T) {
-	f := newFinderModel()
+	f := newFinderModel("")
 	f.loaded = true
 	f.snap = finderSnapshot{Root: "/p", Entries: []finderEntry{
 		{Kind: "buffer", Label: "datum/tests", Facts: []segment{{"task", toneQuiet}}},
@@ -170,5 +170,32 @@ func TestTheKillPreviewShowsTheTreeAndTheConsequences(t *testing.T) {
 	m = press(m, "esc")
 	if m.pendingKill != nil || m.shown != 702 {
 		t.Errorf("after esc: pending %v, shown %d; want the buffer back", m.pendingKill, m.shown)
+	}
+}
+
+func TestAOpensTheFinderOnEveryConversationAtRest(t *testing.T) {
+	// The page on the conversations at rest lists them alone, offers
+	// to make nothing, and says what enter does there.
+	f := newFinderModel(finderRests)
+	f.loaded = true
+	f.snap = finderSnapshot{Entries: []finderEntry{
+		restEntry(Project{Name: "datum", Path: "/p/datum"}, conversation{ID: "a1", Dir: "/p/datum", Prompt: "fix the trace", Branch: "main", Kind: "claude"}),
+		restEntry(Project{Name: "conn", Path: "/p/conn"}, conversation{ID: "b2", Dir: "/p/conn", Summary: "reading", Kind: "claude"}),
+	}}
+	page := stripANSI(f.render())
+	for _, want := range []string{"datum ·", `"fix the trace"`, "main", "conn ·", `"reading"`, "enter picks it back up", "esc leaves it"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page lacks %q:\n%s", want, page)
+		}
+	}
+	if strings.Contains(page, "makes the repo") {
+		t.Errorf("page offers to make a repo from the conversations at rest:\n%s", page)
+	}
+	f.query.SetValue("zzz")
+	if next, _ := f.act(); next.(finderModel).said != "" {
+		t.Errorf("enter on no match said %q, want nothing made and nothing said", next.(finderModel).said)
+	}
+	if page := stripANSI(f.render()); !strings.Contains(page, "nothing at rest answers zzz") {
+		t.Errorf("page = %s, want the lack said", page)
 	}
 }

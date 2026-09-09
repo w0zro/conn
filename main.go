@@ -111,7 +111,11 @@ func main() {
 				return
 			}
 			if len(os.Args) > 2 && os.Args[2] == "finder" {
-				runFinder()
+				only := ""
+				if len(os.Args) > 3 {
+					only = os.Args[3]
+				}
+				runFinder(only)
 				return
 			}
 			runKeys()
@@ -184,7 +188,7 @@ var chords = map[string]func(arg string) error{
 	"next":   func(string) error { return runStep(1) },
 	"prev":   func(string) error { return runStep(-1) },
 	"keys":   func(client string) error { return showKeys(tmuxCommand, connExe(), client) },
-	"finder": func(client string) error { return showFinder(tmuxCommand, connExe(), client) },
+	"finder": func(client string) error { return showFinder(tmuxCommand, connExe(), client, "") },
 	"env":    runEnvChord,
 }
 

@@ -248,16 +248,32 @@ func runSegments(runs []run) []segment {
 // finderShare is the popup's share of the client's width.
 const finderShare = 85
 
+// finderRests is the finder's other listing: the conversations at rest
+// alone, every one, for A. "" is the finder itself.
+const finderRests = "rests"
+
 // showFinder shows the finder in a popup over the client, sized to its
 // listing — most of the width, and as tall as the rows it will list, the
 // query line and the foot — so it opens with no room to spare; "" is the
-// client that spoke last.
-func showFinder(run runner, exe, client string) error {
+// client that spoke last. only names the other listing, or is "".
+func showFinder(run runner, exe, client, only string) error {
 	rows := 12
-	if snap, err := readFinder(); err == nil {
+	if snap, err := readListing(only); err == nil {
 		rows = len(snap.Entries)
 	}
-	return popupShare(run, client, finderShare, rows+8, shellQuote(exe)+" page finder")
+	command := shellQuote(exe) + " page finder"
+	if only != "" {
+		command += " " + only
+	}
+	return popupShare(run, client, finderShare, rows+8, command)
+}
+
+// readListing is the listing the page reads: the finder's, or the other.
+func readListing(only string) (finderSnapshot, error) {
+	if only == finderRests {
+		return readRests()
+	}
+	return readFinder()
 }
 
 // popupShare runs a command in a popup over the client that is a share of
@@ -290,6 +306,7 @@ func popupShare(run runner, client string, share, rows int, command string) erro
 type finderModel struct {
 	query   textinput.Model
 	snap    finderSnapshot
+	only    string // the other listing the page is on, or ""
 	agent   string // the kind a starts, as the server holds it
 	loaded  bool
 	err     error
@@ -307,13 +324,14 @@ type finderReadMsg struct {
 	err   error
 }
 
-func newFinderModel() finderModel {
-	return finderModel{query: newLine(), width: 96, height: 24}
+func newFinderModel(only string) finderModel {
+	return finderModel{query: newLine(), only: only, width: 96, height: 24}
 }
 
 func (m finderModel) Init() tea.Cmd {
+	only := m.only
 	return func() tea.Msg {
-		snap, err := readFinder()
+		snap, err := readListing(only)
 		return finderReadMsg{snap: snap, agent: currentKind(tmuxCommand).name, err: err}
 	}
 }
@@ -431,6 +449,9 @@ func plainFacts(e finderEntry) string {
 func (m finderModel) act() (tea.Model, tea.Cmd) {
 	list := m.matches()
 	if len(list) == 0 {
+		if m.only != "" {
+			return m, nil
+		}
 		return m.create()
 	}
 	e := list[min(m.cursor, len(list)-1)]
@@ -604,7 +625,12 @@ func (m finderModel) rows(inside int) []string {
 	list := m.matches()
 	if len(list) == 0 {
 		q := strings.TrimSpace(m.query.Value())
-		if q == "" {
+		switch {
+		case m.only == finderRests && q == "":
+			return []string{wash.Render(pad(gutter+noteStyle.Render("no conversation at rest"), inside))}
+		case m.only != "":
+			return []string{wash.Render(pad(gutter+noteStyle.Render("nothing at rest answers "+q), inside))}
+		case q == "":
 			return []string{wash.Render(pad(gutter+noteStyle.Render("nothing to open yet"), inside))}
 		}
 		return []string{wash.Render(pad(gutter+noteStyle.Render("nothing answers "+q+" — enter makes it"), inside))}
@@ -665,6 +691,12 @@ func (m finderModel) foot() []string {
 		}
 		return []string{style.Render(m.said), ""}
 	}
+	if m.only == finderRests {
+		return []string{
+			"every conversation at rest, newest first " + glyphDot + " enter picks it back up",
+			"where it was had " + glyphDot + " esc leaves it",
+		}
+	}
 	name := strings.TrimSpace(m.query.Value())
 	if name == "" {
 		name = "w0zro/parser"
@@ -675,9 +707,10 @@ func (m finderModel) foot() []string {
 	}
 }
 
-// runFinder is `conn page finder`: the finder, in the popup.
-func runFinder() {
-	if _, err := tea.NewProgram(newFinderModel()).Run(); err != nil {
+// runFinder is `conn page finder [rests]`: the finder, in the popup, on
+// its own listing or on the conversations at rest.
+func runFinder(only string) {
+	if _, err := tea.NewProgram(newFinderModel(only)).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)
 		os.Exit(1)
 	}

@@ -952,6 +952,10 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		// kind is the window's call, then the config's; claude is the
 		// default.
 		return m, m.start(m.agentCommand())
+	case "A":
+		// The same verb, reaching back: a starts a fresh conversation,
+		// A picks one at rest back up — any of them, in the finder.
+		return m, m.openResume()
 	case ",":
 		// The next kind for a to start — claude, ollama, claude — for
 		// the whole server: the chords start the same kind, and the

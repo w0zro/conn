@@ -152,7 +152,7 @@ func body(r report, width int, own check, p palette) []row {
 	factLine := func(l *line, col, width int, f fact) {
 		l.to(col)
 		l.leader(strings.ToUpper(f.label), col+factCol-1, p.faint)
-		l.add(p.ink, fit(cased(f.value, f.path), width-factCol-2))
+		l.add(p.ink, fit(cased(f.value, f.path), width-factCol-2, f.path))
 	}
 	l := c.line()
 	l.title(0, "SYSTEM")
@@ -179,7 +179,7 @@ func body(r report, width int, own check, p palette) []row {
 	for i, k := range append([]check{own}, r.checks...) {
 		l := c.line()
 		l.leader(strings.ToUpper(k.label), checkCol-1, p.gray)
-		l.add(p.ink, fit(cased(k.value, k.path), leaderEnd-checkCol-2))
+		l.add(p.ink, fit(cased(k.value, k.path), leaderEnd-checkCol-2, k.path))
 		l.add("", " ")
 		l.add(p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
 		if k.fault {
@@ -233,7 +233,7 @@ func small(own check, width, height, need int, p palette) []row {
 	c.blank(stageHeader)
 	l := c.line()
 	l.add(p.gray, "SCREEN ")
-	l.add(p.ink, fit(strings.ToUpper(own.value), measure-len("SCREEN ")-len(" SMALL ")-1))
+	l.add(p.ink, fit(strings.ToUpper(own.value), measure-len("SCREEN ")-len(" SMALL ")-1, false))
 	l.to(measure - len(" SMALL "))
 	l.add(p.chip, " SMALL ")
 	c.emit(l, stageHeader, false)
@@ -362,18 +362,18 @@ func stdoutIsTerminal() bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-// fit holds a value to w columns. A path, which begins at / or ~, is
-// shortened between its head and its end so the name it leads to is what
-// survives; anything else is cut at the end. A note after the path, set
-// off by " · ", keeps its place.
-func fit(s string, w int) string {
+// fit holds a value to w columns. A path is shortened between its head
+// and its end so the name it leads to is what survives; anything else is
+// cut at the end. A note after the path, set off by " · ", keeps its
+// place.
+func fit(s string, w int, path bool) string {
 	if utf8.RuneCountInString(s) <= w {
 		return s
 	}
 	if w <= 1 {
 		return ""
 	}
-	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "~") {
+	if path {
 		path, note, _ := strings.Cut(s, " · ")
 		if note != "" {
 			note = " · " + note

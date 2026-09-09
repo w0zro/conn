@@ -14,8 +14,8 @@ build:
 	CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$$(git describe --tags --always --dirty)" -o conn .
 
 # What the CI holds the tree to: formatted, and clean under the linters
-# .golangci.yml pins — on Linux as well as here, since the process list is
-# read by different files on each and a function only one of them calls is
+# .golangci.yml pins — on Linux as well as here, since the machine is read
+# by a file for each platform, and a function only one of them calls is
 # unused on the other.
 lint:
 	@unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "unformatted:"; echo "$$unformatted"; exit 1; fi

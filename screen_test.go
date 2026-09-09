@@ -202,20 +202,22 @@ func TestPathsShortenFromTheMiddle(t *testing.T) {
 	for _, c := range []struct {
 		in   string
 		w    int
+		path bool
 		want string
 	}{
-		{exe + " · 5.5 MB", 90, exe + " · 5.5 MB"},
-		{exe + " · 5.5 MB", 60, "/var/…/T/go-build3688959642/b001/exe/conn · 5.5 MB"},
-		{exe + " · 5.5 MB", 30, "/var/…/b001/exe/conn · 5.5 MB"},
-		{exe + " · 5.5 MB", 22, "/var/…/conn · 5.5 MB"},
-		{exe, 8, "…xe/conn"},
-		{"~/projects/w0zro/conn/conn", 20, "~/…/w0zro/conn/conn"},
-		{"~/projects/w0zro/conn", 40, "~/projects/w0zro/conn"},
-		{"APPLE M3 PRO · 11 CORES (5P + 6E)", 12, "APPLE M3 PR…"},
-		{"/a/b", 1, ""},
+		{exe + " · 5.5 MB", 90, true, exe + " · 5.5 MB"},
+		{exe + " · 5.5 MB", 60, true, "/var/…/T/go-build3688959642/b001/exe/conn · 5.5 MB"},
+		{exe + " · 5.5 MB", 30, true, "/var/…/b001/exe/conn · 5.5 MB"},
+		{exe + " · 5.5 MB", 22, true, "/var/…/conn · 5.5 MB"},
+		{exe, 8, true, "…xe/conn"},
+		{"~/projects/w0zro/conn/conn", 20, true, "~/…/w0zro/conn/conn"},
+		{"~/projects/w0zro/conn", 40, true, "~/projects/w0zro/conn"},
+		{"APPLE M3 PRO · 11 CORES (5P + 6E)", 12, false, "APPLE M3 PR…"},
+		{"/NOT/A/PATH/BY/ITS/FLAG", 12, false, "/NOT/A/PATH…"},
+		{"/a/b", 1, true, ""},
 	} {
-		if got := fit(c.in, c.w); got != c.want || utf8.RuneCountInString(got) > c.w {
-			t.Errorf("fit(%q, %d) = %q, want %q", c.in, c.w, got, c.want)
+		if got := fit(c.in, c.w, c.path); got != c.want || utf8.RuneCountInString(got) > c.w {
+			t.Errorf("fit(%q, %d, %v) = %q, want %q", c.in, c.w, c.path, got, c.want)
 		}
 	}
 }

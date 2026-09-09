@@ -7,12 +7,14 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// conn comes up on its start-up screen and holds it until ctrl+c. Off a
-// terminal, it writes the screen and is done. Everything it was is in the
-// history, and comes back piece by piece, in the form it is wanted in.
+// conn comes up on its boot console and holds it until ctrl+c. Off a
+// terminal, it writes the console and is done. Everything it was is in
+// the history, and comes back piece by piece, in the form it is wanted in.
 func main() {
 	if !stdoutIsTerminal() {
-		fmt.Println(joinRows(screen(stationReport(), minCols, minRows)))
+		for _, r := range screen(stationReport(), minCols, minRows) {
+			fmt.Println(r.text)
+		}
 		return
 	}
 	pal = colored()

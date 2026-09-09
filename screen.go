@@ -7,19 +7,18 @@ import (
 	"unicode/utf8"
 )
 
-// The start-up screen is a system screen of the old kind, filling the
-// terminal: ruled in double lines into a header, where the name is set
-// large beside the station's identification; a body, where the machine
-// is read out and the checks come up nominal; and a footer, where the
-// checks are summed and conn calls hello.
+// The boot console, as the design hands it off: the wordmark with the
+// station's identification beside it; under a rule, the system block,
+// eight facts in two columns; the start-up checks, five lines to one
+// status column; and under a second rule the verdict band, pulled tight
+// — the count of faults as a chip with what the first one means for conn,
+// then the greeting. Uppercase throughout, by design.
 
-// The palette is the site's: the desk the screen is painted on, paper
-// for the text, faint and muted for the labels and the leaders, orange
-// for the name and for a fault, and green for a check come up nominal.
-// Off a terminal every sequence is empty and the screen is plain text.
+// The palette is the handoff's tokens. Off a terminal every sequence is
+// empty and the console is plain text.
 type palette struct {
-	ground, paper, faint, muted, orange, alarm, good, bold string
-	normal, end                                            string // back to paper on the desk; the row's end
+	ground, border, ink, gray, faint, orange, owed, parchment, bold, chip string
+	normal, end                                                           string // ink on the ground again; the row's end
 }
 
 var (
@@ -29,55 +28,99 @@ var (
 
 func colored() palette {
 	p := palette{
-		ground: "\x1b[48;2;25;27;31m",
-		paper:  "\x1b[38;2;241;235;222m",
-		faint:  "\x1b[38;2;141;132;116m",
-		muted:  "\x1b[38;2;111;102;86m",
-		orange: "\x1b[38;2;189;58;29m",
-		alarm:  "\x1b[48;2;189;58;29m\x1b[38;2;241;235;222m",
-		good:   "\x1b[38;2;46;125;79m",
-		bold:   "\x1b[1m",
-		end:    "\x1b[0m",
+		ground:    "\x1b[48;2;21;19;15m",
+		border:    "\x1b[38;2;42;38;32m",
+		ink:       "\x1b[38;2;230;223;208m",
+		gray:      "\x1b[38;2;139;130;114m",
+		faint:     "\x1b[38;2;92;86;74m",
+		orange:    "\x1b[38;2;232;93;47m",
+		owed:      "\x1b[38;2;255;120;71m",
+		parchment: "\x1b[38;2;191;179;154m",
+		bold:      "\x1b[1m",
+		chip:      "\x1b[48;2;232;93;47m\x1b[38;2;21;19;15m\x1b[1m",
+		end:       "\x1b[0m",
 	}
-	p.normal = p.end + p.ground + p.paper
+	p.normal = p.end + p.ground + p.ink
 	return p
 }
 
-// The smallest terminal the screen is laid out for, the rows the footer
-// takes, which come on last, and the columns the body is set to.
+// The measure the console is set to, from a left margin; the columns
+// within it; and the size under which the terminal is called small.
 const (
+	margin     = 3
+	measure    = 72
+	factCol    = 10 // a fact's value, from the margin
+	rightCol   = 36 // the second column of facts
+	checkCol   = 12 // a check's value
+	leaderEnd  = 54 // where a check's leaders stop
+	statusCol  = 56 // a check's status
 	minCols    = 80
 	minRows    = 24
-	footerRows = 6
-	leftCol    = 3  // where a line starts, from the left rule
-	labelCol   = 16 // where a value starts, from the left rule
-	statusCol  = 12 // the status column's width, against the right rule
+	stationGap = 5 // between the wordmark and the station block
 )
 
-// screen renders the start-up screen for a terminal of the given size:
-// its rows, each the terminal's width, as many as its height.
-func screen(r report, width, height int) []string {
-	terminal := terminalCheck(r.term, width, height)
-	width = max(width, minCols)
-	height = max(height, minRows)
-	inner := width - 2
-	p := pal
+// A row of the console and the stage of the sequence it comes on at.
+type row struct {
+	text  string
+	stage int
+}
 
-	var rows []string
-	rule := func(l, m, rt string) {
-		rows = append(rows, p.normal+p.faint+l+strings.Repeat(m, inner)+rt+p.end)
+// The stages: the header at once, the system block, each check in turn,
+// and the verdict. lastStage is the verdict's.
+const (
+	stageHeader = iota
+	stageSystem
+	stageChecks // the first check; each after is one more
+	checkCount  = 5
+	lastStage   = stageChecks + checkCount
+)
+
+// screen renders the console for a terminal of the given size: rows the
+// terminal's width, painted on the ground, to its height.
+func screen(r report, width, height int) []row {
+	p := pal
+	width = max(width, minCols)
+	var rows []row
+
+	// A line is built from painted pieces; cells counts the columns.
+	type line struct {
+		b     strings.Builder
+		cells int
 	}
-	// line frames text between the side rules at a column from the left
-	// rule; cells is the text's width without its colors. Negative, the
-	// column centers the text.
-	line := func(text string, cells, col int) {
-		if col < 0 {
-			col = (inner - cells) / 2
+	add := func(l *line, color, s string) {
+		if color != "" {
+			l.b.WriteString(color)
 		}
-		right := max(inner-col-cells, 0)
-		rows = append(rows, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", col)+text+p.normal+strings.Repeat(" ", right)+p.faint+"║"+p.end)
+		l.b.WriteString(s)
+		if color != "" {
+			l.b.WriteString(p.normal)
+		}
+		l.cells += utf8.RuneCountInString(s)
 	}
-	blank := func() { line("", 0, 0) }
+	to := func(l *line, col int) {
+		if col > l.cells {
+			add(l, "", strings.Repeat(" ", col-l.cells))
+		}
+	}
+	// emit frames a line as a row: the margin — or, centered, the column
+	// that centers it — the pieces, and the ground to the edge.
+	emit := func(l *line, stage int, centered bool) {
+		left := margin
+		if centered {
+			left = max((width-l.cells)/2, 0)
+		}
+		text := p.normal + strings.Repeat(" ", left) + l.b.String() + strings.Repeat(" ", max(width-left-l.cells, 0)) + p.end
+		if p == plain {
+			text = strings.TrimRight(text, " ")
+		}
+		rows = append(rows, row{text: text, stage: stage})
+	}
+	blank := func(stage int) { emit(&line{}, stage, false) }
+	rule := func(stage int) {
+		var l line
+		add(&l, p.border, strings.Repeat("─", measure))
+		emit(&l, stage, false)
+	}
 	fit := func(s string, w int) string {
 		if utf8.RuneCountInString(s) <= w {
 			return s
@@ -87,135 +130,136 @@ func screen(r report, width, height int) []string {
 		}
 		return string([]rune(s)[:w-1]) + "…"
 	}
-	// paint is text in a color, back to paper after; width is the
-	// text's own.
-	paint := func(color, text string) string { return color + text + p.normal }
+	// leader is a label and short dots to a field's width.
+	leader := func(l *line, label string, field int, dots string) {
+		add(l, p.gray, label)
+		add(l, "", " ")
+		add(l, dots, strings.Repeat(".", max(field-l.cells, 1)))
+		add(l, "", " ")
+	}
 
-	// The header: the name, and beside it — under it, when the terminal
-	// is too narrow for beside — who and what this is.
-	rule("╔", "═", "╗")
-	blank()
-	name := letters(nameSet)
-	nameW := utf8.RuneCountInString(name[0])
-	ident := []string{
-		"CONN " + r.version,
-		r.build,
-		"STATION  " + strings.ToUpper(r.station),
-		r.clock,
+	// The header: the wordmark, the station block beside it on its first
+	// rows, and a rule under it.
+	blank(stageHeader)
+	markW := utf8.RuneCountInString(wordmark[0])
+	station := [][2]string{
+		{p.bold, strings.TrimSpace("CONN " + r.version)},
+		{p.gray, "STATION  " + strings.ToUpper(r.station)},
+		{p.gray, strings.ToUpper(r.clock)},
 	}
-	identColor := []string{p.bold, p.faint, p.paper, p.paper}
-	identCol := leftCol + nameW + 8
-	identW := 0
-	for _, s := range ident {
-		identW = max(identW, utf8.RuneCountInString(s))
-	}
-	beside := identCol+identW <= inner-leftCol
-	for i, l := range name {
-		text, cells := paint(p.orange+p.bold, l), nameW
-		if j := i - 1; beside && j >= 0 && j < len(ident) && ident[j] != "" {
-			pad := strings.Repeat(" ", identCol-leftCol-nameW)
-			text += pad + paint(identColor[j], ident[j])
-			cells += len(pad) + utf8.RuneCountInString(ident[j])
-		}
-		line(text, cells, leftCol)
-	}
-	if !beside {
-		blank()
-		one := fit(strings.Join(ident, "  ·  "), inner-2*leftCol)
-		line(one, utf8.RuneCountInString(one), leftCol)
-	}
-	blank()
-	rule("╠", "═", "╣")
-
-	// The body: the facts, then the checks. When the terminal is short the
-	// facts are cut first, from the end, and the checks kept whole.
-	var body []string
-	entry := func(it item) {
-		label := strings.ToUpper(it.label) + " "
-		leader := strings.Repeat(".", max(labelCol-leftCol-utf8.RuneCountInString(label), 1)) + " "
-		valueW := inner - leftCol - utf8.RuneCountInString(label+leader)
-		if it.status != "" {
-			valueW -= statusCol + 3
-		}
-		value := fit(strings.ToUpper(it.value), valueW)
-		text := paint(p.faint, label) + paint(p.muted, leader) + value
-		cells := utf8.RuneCountInString(label + leader + value)
-		if it.status != "" {
-			status := strings.ToUpper(it.status)
-			gap := strings.Repeat(".", max(inner-leftCol-cells-statusCol-2, 1))
-			color := p.faint
-			switch {
-			case it.fault:
-				color = p.alarm + p.bold
-				status = " " + status + " "
-			case it.status == nominal:
-				color = p.good + p.bold
+	for i, m := range wordmark {
+		var l line
+		add(&l, p.orange+p.bold, m)
+		if i < len(station) {
+			to(&l, markW+stationGap)
+			add(&l, station[i][0], station[i][1])
+			if i == 0 && r.note != "" {
+				add(&l, p.gray, " "+r.note)
 			}
-			text += " " + paint(p.muted, gap) + " " + paint(color, status)
-			cells += 2 + len(gap) + utf8.RuneCountInString(status)
 		}
-		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", leftCol)+text+p.normal+strings.Repeat(" ", max(inner-leftCol-cells, 0))+p.faint+"║"+p.end)
+		emit(&l, stageHeader, false)
 	}
-	section := func(title string, items []item) {
-		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", inner)+p.faint+"║"+p.end)
-		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", leftCol)+paint(p.bold, title)+strings.Repeat(" ", inner-leftCol-utf8.RuneCountInString(title))+p.faint+"║"+p.end)
-		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", inner)+p.faint+"║"+p.end)
-		for _, it := range items {
-			entry(it)
+	rule(stageHeader)
+
+	// The system block: the title and the facts, four to a column.
+	{
+		var l line
+		add(&l, p.parchment+p.bold, "SYSTEM")
+		emit(&l, stageSystem, false)
+	}
+	factLine := func(l *line, col int, f fact) {
+		to(l, col)
+		leader(l, strings.ToUpper(f.label), col+factCol-1, p.faint)
+		if f.value != "" {
+			add(l, p.ink, fit(strings.ToUpper(f.value), rightCol-factCol-2))
+		}
+		if f.anomaly != "" {
+			if f.value != "" {
+				add(l, p.gray, " · ")
+			}
+			add(l, p.owed, strings.ToUpper(f.anomaly))
 		}
 	}
-	checks := append([]item{terminal}, r.checks...)
-	room := max(height-len(rows)-footerRows, 0)
-	section("START-UP CHECKS", checks)
-	checkRows := body
-	body = nil
-	if facts := room - len(checkRows); facts >= 4 {
-		section("SYSTEM", r.facts)
-		if len(body) > facts {
-			body = body[:facts]
+	for i := 0; i < 4; i++ {
+		var l line
+		if i < len(r.facts) {
+			factLine(&l, 0, r.facts[i])
 		}
-	}
-	body = append(body, checkRows...)
-	if len(body) > room {
-		body = body[:room]
-	}
-	rows = append(rows, body...)
-	for len(rows) < height-footerRows {
-		blank()
+		if 4+i < len(r.facts) {
+			factLine(&l, rightCol, r.facts[4+i])
+		}
+		emit(&l, stageSystem, false)
 	}
 
-	// The footer: the sum of the checks, and the call.
-	faults := 0
-	for _, c := range checks {
+	// The checks: the title, then the terminal's own line and the four
+	// from the report, each to the status column.
+	blank(stageChecks)
+	{
+		var l line
+		add(&l, p.parchment+p.bold, "START-UP CHECKS")
+		emit(&l, stageChecks, false)
+	}
+	checks := append([]check{terminalCheck(r.term, width, height)}, r.checks...)
+	faults, consequence := 0, ""
+	for i, c := range checks {
+		var l line
+		leader(&l, strings.ToUpper(c.label), checkCol-1, p.gray)
+		add(&l, p.ink, fit(strings.ToUpper(c.value), leaderEnd-checkCol-2))
+		add(&l, "", " ")
+		add(&l, p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
 		if c.fault {
 			faults++
+			if consequence == "" {
+				consequence = c.consequence
+			}
+			to(&l, statusCol-1)
+			add(&l, p.chip, " "+strings.ToUpper(c.status)+" ")
+		} else {
+			to(&l, statusCol)
+			add(&l, p.gray, strings.ToUpper(c.status))
 		}
+		emit(&l, stageChecks+i, false)
 	}
-	sum, sumColor := "ALL SYSTEMS NOMINAL", p.good+p.bold
-	switch {
-	case faults == 1:
-		sum, sumColor = " 1 SYSTEM NOT NOMINAL ", p.alarm+p.bold
-	case faults > 1:
-		sum, sumColor = " "+strconv.Itoa(faults)+" SYSTEMS NOT NOMINAL ", p.alarm+p.bold
+
+	// The verdict band: a rule, the count of faults and what the first
+	// means, and the greeting. All nominal, it is the greeting alone.
+	blank(lastStage)
+	rule(lastStage)
+	if faults > 0 {
+		var l line
+		count := "1 SYSTEM NOT NOMINAL"
+		if faults > 1 {
+			count = strconv.Itoa(faults) + " SYSTEMS NOT NOMINAL"
+		}
+		add(&l, p.chip, " "+count+" ")
+		if consequence != "" {
+			add(&l, "", "  ")
+			add(&l, p.gray, strings.ToUpper(consequence))
+		}
+		emit(&l, lastStage, true)
 	}
-	rule("╠", "═", "╣")
-	blank()
-	line(paint(sumColor, sum), utf8.RuneCountInString(sum), -1)
-	call := strings.ToUpper(greeting)
-	line(paint(p.orange, "***")+"  "+paint(p.bold, call)+"  "+paint(p.orange, "***"), utf8.RuneCountInString(call)+10, -1)
-	blank()
-	rule("╚", "═", "╝")
+	{
+		var l line
+		add(&l, p.orange, "***")
+		add(&l, p.gray, "  "+strings.ToUpper(greeting)+"  ")
+		add(&l, p.orange, "***")
+		emit(&l, lastStage, true)
+	}
+	for len(rows) < height {
+		blank(lastStage)
+	}
 	return rows
 }
 
 // terminalCheck is the terminal itself: what it calls itself, its size,
-// and whether the screen fits it.
-func terminalCheck(term string, width, height int) item {
-	value := strings.TrimSpace(strings.ToUpper(term) + "  " + strconv.Itoa(width) + " X " + strconv.Itoa(height))
+// and whether the console fits it.
+func terminalCheck(term string, width, height int) check {
+	value := join(" · ", term, strconv.Itoa(width)+"×"+strconv.Itoa(height))
 	if width < minCols || height < minRows {
-		return item{label: "TERMINAL", value: value, status: "SMALL", fault: true}
+		return check{label: "TERMINAL", value: value, status: "SMALL", fault: true,
+			consequence: "TERMINAL SMALL — CONN RUNS, THE BOARD WILL BE CRAMPED"}
 	}
-	return item{label: "TERMINAL", value: value, status: nominal}
+	return check{label: "TERMINAL", value: value, status: nominal}
 }
 
 // stdoutIsTerminal says whether what conn prints is going to a person's

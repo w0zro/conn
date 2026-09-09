@@ -1,27 +1,36 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
 
-// The program holds the screen. It comes on a row at a time, the checks
-// reading out as they go, the clock keeps time once it is up, and it
-// stays until ctrl+c or q.
+// The program holds the console. It comes on in stages — the header at
+// once, the system block, the checks one by one, the verdict — in under
+// a second; any key skips to the end of the sequence, the clock keeps
+// time once it is up, and it stays until ctrl+c or q.
 
-// paintPace is the time between rows as the screen comes on.
-const paintPace = 40 * time.Millisecond
+// The time before each stage after the header.
+func stageDelay(stage int) time.Duration {
+	switch stage {
+	case stageSystem, lastStage:
+		return 150 * time.Millisecond
+	default:
+		return 120 * time.Millisecond
+	}
+}
 
-// paintMsg says the next row is due; clockMsg says the second has turned.
+// stageMsg says the next stage is due; clockMsg says the second has turned.
 type (
-	paintMsg struct{}
+	stageMsg struct{}
 	clockMsg struct{}
 )
 
 type model struct {
 	report        report
-	shown         int // rows on screen so far
+	stage         int // the stage the console has come on to
 	width, height int
 }
 
@@ -30,11 +39,11 @@ func newModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(nextRow(), nextSecond())
+	return tea.Batch(nextStage(m.stage+1), nextSecond())
 }
 
-func nextRow() tea.Cmd {
-	return tea.Tick(paintPace, func(time.Time) tea.Msg { return paintMsg{} })
+func nextStage(stage int) tea.Cmd {
+	return tea.Tick(stageDelay(stage), func(time.Time) tea.Msg { return stageMsg{} })
 }
 
 func nextSecond() tea.Cmd {
@@ -45,10 +54,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-	case paintMsg:
-		if m.shown < m.height {
-			m.shown++
-			return m, nextRow()
+	case stageMsg:
+		if m.stage < lastStage {
+			m.stage++
+		}
+		if m.stage < lastStage {
+			return m, nextStage(m.stage + 1)
 		}
 	case clockMsg:
 		m.report.clock = zulu(time.Now())
@@ -57,30 +68,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		default:
+			m.stage = lastStage
 		}
 	}
 	return m, nil
 }
 
-// View is the screen as far as it has come on: the rows so far, and the
-// footer once the last body row is up.
+// View is the console as far as it has come on: rows of a later stage
+// are the ground until their turn.
 func (m model) View() tea.View {
 	rows := screen(m.report, m.width, m.height)
-	if m.shown < len(rows)-footerRows {
-		rows = rows[:m.shown]
+	ground := screen(report{}, m.width, 1)[0].text
+	texts := make([]string, 0, len(rows))
+	for i, r := range rows {
+		if i >= m.height && m.height > 0 {
+			break
+		}
+		if r.stage > m.stage {
+			texts = append(texts, ground)
+		} else {
+			texts = append(texts, r.text)
+		}
 	}
-	v := tea.NewView(joinRows(rows))
+	v := tea.NewView(strings.Join(texts, "\n"))
 	v.AltScreen = true
 	return v
-}
-
-func joinRows(rows []string) string {
-	var b []byte
-	for i, r := range rows {
-		if i > 0 {
-			b = append(b, '\n')
-		}
-		b = append(b, r...)
-	}
-	return string(b)
 }

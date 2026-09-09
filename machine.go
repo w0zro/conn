@@ -16,29 +16,37 @@ import (
 	"time"
 )
 
-// An item is a line of the report: what is being reported, what was
-// found, and — for a check — the word for how it stands. A fault is a
-// check that did not come up nominal and matters.
-type item struct {
-	label, value, status string
-	fault                bool
+// A fact is a line of the system block: what is reported and what was
+// found. An anomaly the checks turned up is echoed after the value, lit.
+type fact struct {
+	label, value, anomaly string
+}
+
+// A check is a line of the start-up checks: what was checked, what was
+// found, the word for how it stands, and — when it is a fault — what
+// that means for conn, in a line.
+type check struct {
+	label, value, status, consequence string
+	fault                             bool
 }
 
 const nominal = "NOMINAL"
 
 // A report is everything the station says of itself as it comes up: the
-// identification in the header, the facts of the machine, and the checks.
+// identification in the header, eight facts of the machine, and five
+// checks of what conn runs on.
 type report struct {
-	version, build, station, term, clock string
-	facts, checks                        []item
+	version, note, station, term, clock string
+	facts                               []fact  // host, system, cpu, user; memory, uptime, load, net
+	checks                              []check // terminal is added by the screen, which knows its size
 }
 
 // stationReport reads the machine. Nothing here waits on the network;
 // the commands it runs answer from disk and are given a moment each.
 func stationReport() report {
-	who, uid := "someone", ""
+	who := "someone"
 	if u, err := user.Current(); err == nil && u.Username != "" {
-		who, uid = u.Username, u.Uid
+		who = u.Username
 	}
 	host, err := os.Hostname()
 	if err != nil || host == "" {
@@ -47,102 +55,148 @@ func stationReport() report {
 	host, _, _ = strings.Cut(host, ".")
 	home, _ := os.UserHomeDir()
 	m := readMachine()
+	version, note := buildVersion()
 
 	r := report{
-		version: buildVersion(),
-		build:   buildStamp(),
+		version: version,
+		note:    note,
 		station: who + "@" + host,
-		term:    strings.TrimSpace(os.Getenv("TERM") + "  " + os.Getenv("COLORTERM")),
+		term:    join(" · ", os.Getenv("TERM"), os.Getenv("COLORTERM")),
 		clock:   zulu(time.Now()),
 	}
-	fact := func(label, value string) {
-		if value = strings.TrimSpace(value); value != "" {
-			r.facts = append(r.facts, item{label: label, value: value})
+
+	disk := diskCheck(home)
+	load := fact{label: "LOAD"}
+	if m.load == [3]float64{} {
+		load.value = "UNREAD"
+	} else {
+		load.value = fmt.Sprintf("%.2f %.2f %.2f", m.load[0], m.load[1], m.load[2])
+		if m.load[0] > float64(runtime.NumCPU()) {
+			load.value, load.anomaly = "", load.value+" · HIGH"
 		}
 	}
-	fact("HOST", host)
-	fact("SYSTEM", m.system)
-	fact("KERNEL", m.kernel+" "+runtime.GOARCH)
-	fact("MODEL", m.model)
-	fact("PROCESSOR", strings.TrimSpace(m.processor+fmt.Sprintf("  %d CORES", runtime.NumCPU())))
-	fact("MEMORY", gigabytes(m.memory, 1<<30))
-	fact("UPTIME", uptime(m.booted))
-	fact("USER", strings.TrimSpace(who+" "+uid))
-	fact("SHELL", os.Getenv("SHELL"))
-	fact("HOME", home)
-	fact("LOCALE", os.Getenv("LANG"))
-	fact("TIME ZONE", timeZone())
-	fact("PROCESS", fmt.Sprintf("PID %d  PARENT %d", os.Getpid(), os.Getppid()))
-	fact("RUNTIME", runtime.Version())
-
-	r.checks = append(r.checks, commandCheck("TMUX", "tmux", "-V", true))
-	if runtime.GOOS == "darwin" {
-		r.checks = append(r.checks, commandCheck("LSOF", "lsof", "-v", true))
-	} else {
-		r.checks = append(r.checks, procCheck())
+	memory := fact{label: "MEMORY", value: gigabytes(m.memory, 1<<30)}
+	if disk.fault {
+		memory.anomaly = strings.TrimSuffix(disk.value, " FREE OF "+gigabytes(diskTotal(home), 1e9)) + " DISK FREE"
 	}
-	r.checks = append(r.checks,
-		commandCheck("GIT", "git", "--version", true),
-		commandCheck("DOCKER", "docker", "", false),
+	r.facts = []fact{
+		{label: "HOST", value: host},
+		{label: "SYSTEM", value: join(" · ", m.system, runtime.GOARCH)},
+		{label: "CPU", value: join(" · ", m.processor, strconv.Itoa(runtime.NumCPU())+" CORES")},
+		{label: "USER", value: join(" · ", who, os.Getenv("SHELL"))},
+		memory,
+		{label: "UPTIME", value: uptime(m.booted)},
+		load,
+		networkFact(),
+	}
+	r.checks = []check{
+		commandCheck("TMUX", "tmux", "-V", "TMUX MISSING — CONN CANNOT HOLD A SHELL"),
+		toolsCheck(),
 		stateCheck(home),
-		diskCheck(home),
-		loadCheck(m.load),
-		networkCheck(),
-	)
+		disk,
+	}
 	return r
 }
 
-// buildStamp is the commit and the date the build came from, when the
-// module system recorded them.
-func buildStamp() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return ""
-	}
-	var rev, when, dirty string
-	for _, s := range info.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			if len(s.Value) > 7 {
-				rev = s.Value[:7]
-			} else {
-				rev = s.Value
-			}
-		case "vcs.time":
-			if t, err := time.Parse(time.RFC3339, s.Value); err == nil {
-				when = t.UTC().Format("02-Jan-2006")
-			}
-		case "vcs.modified":
-			if s.Value == "true" {
-				dirty = "MODIFIED"
-			}
+// join is the parts that are not empty, with the separator between.
+func join(sep string, parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
 		}
 	}
-	return strings.Join(strings.Fields(rev+" "+when+" "+dirty), "  ")
+	return strings.Join(kept, sep)
 }
 
-// commandCheck looks for a program on the path and, given a flag, asks it
-// for its version. A program conn needs is a fault when missing; one it
-// can do without is only absent.
-func commandCheck(label, name, flag string, needed bool) item {
+// buildVersion is the version this build reports and a note on it: 0.7.0
+// and nothing for a release; the tag it is past and (devel) for a build
+// off a commit; no version and (devel) for a build with no record of
+// where it came from; whatever else the release stamp says, otherwise.
+func buildVersion() (string, string) {
+	v := version
+	if v == "" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			v = info.Main.Version
+		}
+	}
+	if v == "" {
+		v = "unknown"
+	}
+	v = strings.TrimPrefix(v, "v")
+	if base, rest, ok := strings.Cut(v, "-0.20"); ok && len(rest) > 12 {
+		return base, "(devel)"
+	}
+	if v == "(devel)" {
+		return "", "(devel)"
+	}
+	return v, ""
+}
+
+// version is stamped by the release build. A build that came another way
+// answers from the module system instead, which go install fills with the
+// tag and a plain go build leaves as (devel).
+var version string
+
+// zulu writes a time the way the old systems did, in UTC.
+func zulu(t time.Time) string {
+	return t.UTC().Format("02-Jan-2006  15:04:05") + " Z"
+}
+
+// commandVersion asks a program on the path for its version, or its path
+// when it will not say; missing, it is the empty string.
+func commandVersion(name, flag string) string {
 	path, err := exec.LookPath(name)
 	if err != nil {
-		if needed {
-			return item{label: label, value: "NOT FOUND", status: "MISSING", fault: true}
-		}
-		return item{label: label, value: "NOT FOUND", status: "ABSENT"}
+		return ""
 	}
-	value := path
 	if flag != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if out, err := exec.CommandContext(ctx, name, flag).CombinedOutput(); err == nil {
 			if v := firstVersion(string(out)); v != "" {
-				value = v
+				return v
 			}
 		}
 	}
-	return item{label: label, value: value, status: nominal}
+	return path
+}
+
+// commandCheck is a program conn needs: its version, or a fault.
+func commandCheck(label, name, flag, consequence string) check {
+	v := commandVersion(name, flag)
+	if v == "" {
+		return check{label: label, value: "NOT FOUND", status: "MISSING", consequence: consequence, fault: true}
+	}
+	return check{label: label, value: v, status: nominal}
+}
+
+// toolsCheck is the kin tools on one line: git, lsof on macOS, and
+// docker, which conn can do without and which is left off when absent.
+func toolsCheck() check {
+	c := check{label: "GIT", status: nominal}
+	var parts []string
+	if v := commandVersion("git", "--version"); v != "" {
+		parts = append(parts, v)
+	} else {
+		parts = append(parts, "MISSING")
+		c.status, c.fault, c.consequence = "MISSING", true, "GIT MISSING — PROJECTS WILL NOT BE FOUND"
+	}
+	if runtime.GOOS == "darwin" {
+		if v := commandVersion("lsof", "-v"); v != "" {
+			parts = append(parts, "LSOF "+v)
+		} else {
+			parts = append(parts, "LSOF MISSING")
+			if !c.fault {
+				c.status, c.fault, c.consequence = "MISSING", true, "LSOF MISSING — PROCESSES WILL NOT BE SEEN"
+			}
+		}
+	}
+	if v := commandVersion("docker", "--version"); v != "" {
+		parts = append(parts, "DOCKER "+v)
+	}
+	c.value = strings.Join(parts, " · ")
+	return c
 }
 
 // firstVersion picks the version out of what a program says of itself:
@@ -156,18 +210,9 @@ func firstVersion(out string) string {
 	return ""
 }
 
-// procCheck is the Linux counterpart of lsof: the process table is read
-// from /proc.
-func procCheck() item {
-	if _, err := os.Stat("/proc/self/status"); err != nil {
-		return item{label: "PROC", value: "/proc NOT MOUNTED", status: "MISSING", fault: true}
-	}
-	return item{label: "PROC", value: "/proc", status: nominal}
-}
-
 // stateCheck is where conn keeps its state: the directory, or the one it
 // would be made in, must be writable.
-func stateCheck(home string) item {
+func stateCheck(home string) check {
 	dir := os.Getenv("XDG_STATE_HOME")
 	if dir == "" {
 		dir = filepath.Join(home, ".local", "state")
@@ -177,53 +222,53 @@ func stateCheck(home string) item {
 	if home != "" && strings.HasPrefix(dir, home) {
 		shown = "~" + strings.TrimPrefix(dir, home)
 	}
+	const consequence = "STATE UNWRITABLE — CONN CANNOT KEEP ITS SERVER"
 	probe := dir
 	for {
 		if info, err := os.Stat(probe); err == nil {
 			if !info.IsDir() || syscall.Access(probe, 2) != nil {
-				return item{label: "STATE", value: shown, status: "READ ONLY", fault: true}
+				return check{label: "STATE", value: shown, status: "READ ONLY", consequence: consequence, fault: true}
 			}
-			return item{label: "STATE", value: shown, status: nominal}
+			return check{label: "STATE", value: shown, status: nominal}
 		}
 		parent := filepath.Dir(probe)
 		if parent == probe {
-			return item{label: "STATE", value: shown, status: "NO PATH", fault: true}
+			return check{label: "STATE", value: shown, status: "NO PATH", consequence: consequence, fault: true}
 		}
 		probe = parent
 	}
 }
 
 // diskCheck is the room on the volume that holds home: low under a tenth.
-func diskCheck(home string) item {
+func diskCheck(home string) check {
+	free, total := diskRoom(home)
+	if total == 0 {
+		return check{label: "DISK", value: "UNREAD", status: "UNKNOWN"}
+	}
+	c := check{label: "DISK", value: gigabytes(free, 1e9) + " FREE OF " + gigabytes(total, 1e9), status: nominal}
+	if free*10 < total {
+		c.status, c.fault, c.consequence = "LOW", true, "DISK LOW — CONN RUNS, MIND YOUR BUILDS"
+	}
+	return c
+}
+
+// diskRoom is the free and total bytes of the volume holding a path.
+func diskRoom(path string) (free, total uint64) {
 	var st syscall.Statfs_t
-	if home == "" || syscall.Statfs(home, &st) != nil {
-		return item{label: "DISK", value: "UNREAD", status: "UNKNOWN"}
+	if path == "" || syscall.Statfs(path, &st) != nil {
+		return 0, 0
 	}
-	free := st.Bavail * uint64(st.Bsize)
-	total := st.Blocks * uint64(st.Bsize)
-	it := item{label: "DISK", value: gigabytes(free, 1e9) + " FREE OF " + gigabytes(total, 1e9), status: nominal}
-	if total > 0 && free*10 < total {
-		it.status, it.fault = "LOW", true
-	}
-	return it
+	return st.Bavail * uint64(st.Bsize), st.Blocks * uint64(st.Bsize)
 }
 
-// loadCheck is the load average against the cores: high when the last
-// minute's exceeds them.
-func loadCheck(load [3]float64) item {
-	if load == [3]float64{} {
-		return item{label: "LOAD", value: "UNREAD", status: "UNKNOWN"}
-	}
-	it := item{label: "LOAD", value: fmt.Sprintf("%.2f  %.2f  %.2f", load[0], load[1], load[2]), status: nominal}
-	if load[0] > float64(runtime.NumCPU()) {
-		it.status, it.fault = "HIGH", true
-	}
-	return it
+func diskTotal(path string) uint64 {
+	_, total := diskRoom(path)
+	return total
 }
 
-// networkCheck is the first interface that is up, not loopback, and has
-// an address; none is down.
-func networkCheck() item {
+// networkFact is the first interface that is up, not loopback, and has an
+// address; none is an anomaly.
+func networkFact() fact {
 	ifaces, err := net.Interfaces()
 	if err == nil {
 		for _, ifc := range ifaces {
@@ -236,12 +281,12 @@ func networkCheck() item {
 			}
 			for _, a := range addrs {
 				if ipn, ok := a.(*net.IPNet); ok && ipn.IP.To4() != nil {
-					return item{label: "NETWORK", value: ifc.Name + "  " + ipn.IP.String(), status: nominal}
+					return fact{label: "NET", value: ifc.Name + " " + ipn.IP.String()}
 				}
 			}
 		}
 	}
-	return item{label: "NETWORK", value: "NO INTERFACE UP", status: "DOWN", fault: true}
+	return fact{label: "NET", anomaly: "NO INTERFACE UP"}
 }
 
 // gigabytes writes a size in whole or tenth gigabytes of the given unit:
@@ -271,59 +316,4 @@ func uptime(booted time.Time) string {
 		return fmt.Sprintf("%dD %02dH %02dM", days, hours, mins)
 	}
 	return fmt.Sprintf("%02dH %02dM", hours, mins)
-}
-
-// timeZone is the zone the machine keeps, by name where the system links
-// to one, and its offset from UTC.
-func timeZone() string {
-	name := os.Getenv("TZ")
-	if name == "" {
-		if target, err := os.Readlink("/etc/localtime"); err == nil {
-			if _, after, ok := strings.Cut(target, "zoneinfo/"); ok {
-				name = after
-			}
-		}
-	}
-	abbr, off := time.Now().Zone()
-	sign := "+"
-	if off < 0 {
-		sign, off = "-", -off
-	}
-	utc := fmt.Sprintf("UTC%s%02d:%02d", sign, off/3600, off%3600/60)
-	if name == "" {
-		name = abbr
-	}
-	return strings.TrimSpace(name + "  " + utc)
-}
-
-// version is stamped by the release build. A build that came another way
-// answers from the module system instead, which go install fills with the
-// tag and a plain go build leaves as (devel).
-var version string
-
-// buildVersion is the version this build reports, bare: 0.7.0 for a
-// release; (devel), or a tag with commits and a dirty mark after it, for a
-// build that is not one.
-func buildVersion() string {
-	v := version
-	if v == "" {
-		if info, ok := debug.ReadBuildInfo(); ok {
-			v = info.Main.Version
-		}
-	}
-	if v == "" {
-		v = "unknown"
-	}
-	v = strings.TrimPrefix(v, "v")
-	// A pseudo-version — a tag, a timestamp and a commit — is a build off
-	// a commit past the tag; the commit is on the build line.
-	if base, rest, ok := strings.Cut(v, "-0.20"); ok && len(rest) > 12 {
-		v = base + " DEVEL"
-	}
-	return v
-}
-
-// zulu writes a time the way the old systems did, in UTC.
-func zulu(t time.Time) string {
-	return t.UTC().Format("02-Jan-2006  15:04:05") + " Z"
 }

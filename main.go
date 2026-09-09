@@ -113,11 +113,7 @@ func main() {
 				return
 			}
 			if len(os.Args) > 2 && os.Args[2] == "finder" {
-				client := ""
-				if len(os.Args) > 3 {
-					client = os.Args[3]
-				}
-				runFinder(client)
+				runFinder()
 				return
 			}
 			runKeys()

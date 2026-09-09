@@ -133,7 +133,7 @@ func tmuxConf(conn string, scrollback int) string {
 		"set -g pane-border-indicators off",
 		"set -g popup-border-lines single",
 		`set -g popup-border-style "fg=`+tp.border+`,bg=`+tp.wash+`"`,
-		`set -g popup-style "bg=`+tp.ground+`,fg=`+tp.ink+`"`,
+		`set -g popup-style "bg=`+tp.wash+`,fg=`+tp.ink+`"`,
 		"",
 		"# The home window: conn's tabline across the top at its height, the",
 		"# buffer with focus filling the rest. The layout is re-applied on every",

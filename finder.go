@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -277,16 +278,49 @@ func tasksOf(dir string) []task {
 
 // The popup.
 
-// showFinder shows the finder over the client's window; "" is the client
-// that spoke last.
+// finderShare is the popup's share of the client's width.
+const finderShare = 85
+
+// showFinder shows the finder in a popup over the client, sized to its
+// listing — most of the width, and as tall as the rows it will list, the
+// query line and the foot — so it opens with no room to spare; "" is the
+// client that spoke last.
 func showFinder(run runner, exe, client string) error {
-	return popupOver(run, client, shellQuote(exe)+" page finder")
+	rows := 12
+	if snap, err := readFinder(); err == nil {
+		rows = len(snap.Entries)
+	}
+	return popupShare(run, client, finderShare, rows+8, shellQuote(exe)+" page finder")
+}
+
+// popupShare runs a command in a popup over the client that is a share of
+// the client's width and as many rows as asked, cut to the client.
+func popupShare(run runner, client string, share, rows int, command string) error {
+	if client == "" {
+		var err error
+		if client, err = latestClient(run); err != nil {
+			return err
+		}
+	}
+	width, height := 96, rows
+	if out, err := run("display-message", "-p", "-c", client, "#{client_width} #{client_height}"); err == nil {
+		if f := strings.Fields(out); len(f) == 2 {
+			if cw, err := strconv.Atoi(f[0]); err == nil && cw > 0 {
+				width = max(min(cw*share/100, cw), 20)
+			}
+			if ch, err := strconv.Atoi(f[1]); err == nil && ch > 0 {
+				height = max(min(rows, ch-2), 8)
+			}
+		}
+	}
+	_, err := run("display-popup", "-E", "-c", client, "-T", "",
+		"-w", strconv.Itoa(width), "-h", strconv.Itoa(height), command)
+	return err
 }
 
 // finderModel is the popup: the query, the listing, what answers, and the
-// cursor over it, drawn as a box over the dimmed window.
+// cursor over it.
 type finderModel struct {
-	client  string // the client the popup is over, whose window is the backdrop
 	query   textinput.Model
 	snap    finderSnapshot
 	agent   string // the kind a starts, as the server holds it
@@ -295,8 +329,7 @@ type finderModel struct {
 	cursor  int
 	width   int
 	height  int
-	bg      []string // the window behind, dimmed
-	said    string   // what the last action said, when it could not act
+	said    string // what the last action said, when it could not act
 	saidErr bool
 }
 
@@ -307,8 +340,8 @@ type finderReadMsg struct {
 	err   error
 }
 
-func newFinderModel(client string) finderModel {
-	return finderModel{client: client, query: newLine(), width: 96, height: 24}
+func newFinderModel() finderModel {
+	return finderModel{query: newLine(), width: 96, height: 24}
 }
 
 func (m finderModel) Init() tea.Cmd {
@@ -317,9 +350,6 @@ func (m finderModel) Init() tea.Cmd {
 		return finderReadMsg{snap: snap, agent: currentKind(tmuxCommand).name, err: err}
 	}
 }
-
-// backdropMsg is the window behind the popup, read once its size is known.
-type backdropMsg struct{ rows []string }
 
 // readFinder reads the navigator's listing. Without one — the navigator
 // not running, or nothing written yet — the listing is read the way conn
@@ -349,10 +379,6 @@ func (m finderModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		client, w, h := m.client, m.width, m.height
-		return m, func() tea.Msg { return backdropMsg{rows: backdrop(tmuxCommand, client, w, h)} }
-	case backdropMsg:
-		m.bg = msg.rows
 	case finderReadMsg:
 		m.loaded, m.err, m.snap, m.agent = true, msg.err, msg.snap, msg.agent
 	case tea.PasteMsg:
@@ -574,16 +600,12 @@ func (m finderModel) View() tea.View {
 	return v
 }
 
-// boxWidth is the box's width: most of the window's.
-func (m finderModel) boxWidth() int { return max(min(m.width*overlayShare/100, m.width-2), 40) }
-
-// render draws the page: the dimmed window, and over it the box — the
-// query line with its prompt and block cursor over a rule, the rows that
-// answer with the cursor's on a bar and the matched letters lit, a blank,
-// and at the foot what enter does with no match and how agents start. The
-// box is as tall as that and no taller.
+// render draws the page: the query line with its prompt and block cursor
+// over a rule, the rows that answer with the cursor's on a bar and the
+// matched letters lit, a blank, and at the foot what enter does with no
+// match and how agents start. tmux draws the border around it.
 func (m finderModel) render() string {
-	inside := m.boxWidth() - 2
+	inside := m.width
 	wash := lipgloss.NewStyle().Background(lipgloss.Color(colorWash))
 	line := func(s string) string { return wash.Render(pad(truncateStyled(s, inside, false), inside)) }
 	q := m.query.Value()
@@ -601,8 +623,10 @@ func (m finderModel) render() string {
 	for _, f := range m.foot() {
 		box = append(box, line(gutter+faintStyle.Render(f)))
 	}
-	box = append(box, line(""))
-	return overlay(m.bg, box, m.width, m.height, m.boxWidth())
+	for len(box) < m.height {
+		box = append(box, line(""))
+	}
+	return strings.Join(box[:min(len(box), m.height)], "\n")
 }
 
 // rows is the listing that answers, the cursor's row on the chip's bar
@@ -623,7 +647,7 @@ func (m finderModel) rows(inside int) []string {
 		labelW = max(labelW, lipgloss.Width(e.Label))
 	}
 	labelW = min(labelW, max(inside/3, 16))
-	size := max(1, m.height-11)
+	size := max(1, m.height-7)
 	cursor := min(m.cursor, len(list)-1)
 	top := max(0, min(cursor-size+1, len(list)-size))
 	q := strings.TrimSpace(m.query.Value())
@@ -684,10 +708,9 @@ func (m finderModel) foot() []string {
 	}
 }
 
-// runFinder is `conn page finder [client]`: the finder, in the popup over
-// the client's window.
-func runFinder(client string) {
-	if _, err := tea.NewProgram(newFinderModel(client)).Run(); err != nil {
+// runFinder is `conn page finder`: the finder, in the popup.
+func runFinder() {
+	if _, err := tea.NewProgram(newFinderModel()).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)
 		os.Exit(1)
 	}

@@ -270,7 +270,7 @@ func TestThePageGroupsTheProjectsFirstAndTheSettersAfter(t *testing.T) {
 // envPage is the page with the site read into it, drawn at a size.
 func envPage(t *testing.T, width, height int) envModel {
 	t.Helper()
-	m := newEnvModel(40, nil, "")
+	m := newEnvModel(40, nil)
 	next, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: height})
 	next, _ = next.(envModel).Update(envReadMsg{subj: site(t)})
 	return next.(envModel)
@@ -380,7 +380,7 @@ func TestThePageDrawsFoldsAndFinds(t *testing.T) {
 }
 
 func TestThePageSaysWhenItCannotRead(t *testing.T) {
-	m := newEnvModel(1, nil, "")
+	m := newEnvModel(1, nil)
 	if page := stripANSI(m.render()); !strings.Contains(page, "reading the environment") {
 		t.Errorf("before the read: %q", page)
 	}
@@ -404,10 +404,8 @@ func TestTheEnvironmentPopupRunsThePageForThePid(t *testing.T) {
 	if err := showEnv(run, "/opt/conn", "c0", 42); err != nil {
 		t.Fatal(err)
 	}
-	// Over the whole window but the status line, borderless: the page
-	// draws the dimmed window and its own box.
-	if len(popup) < 14 || popup[1] != "-B" || popup[4] != "c0" || popup[12] != "59" || popup[13] != shellQuote("/opt/conn")+" page env 42 'c0'" {
-		t.Errorf("popup = %q, want the page for pid 42 over c0's window", popup)
+	if len(popup) < 11 || popup[3] != "c0" || popup[10] != shellQuote("/opt/conn")+" page env 42" {
+		t.Errorf("popup = %q, want the page for pid 42 over c0", popup)
 	}
 }
 
@@ -522,7 +520,7 @@ func TestTheLivePopupCarriesTheEnvironment(t *testing.T) {
 	if err := showLiveEnv(run, "/opt/conn", "c0", 10, []string{"A=1", "B=two words"}); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"-e", "A=1", "-e", "B=two words", shellQuote("/opt/conn") + " page env live 10 'c0'"}
+	want := []string{"-e", "A=1", "-e", "B=two words", shellQuote("/opt/conn") + " page env live 10"}
 	if got := strings.Join(popup[len(popup)-5:], "|"); got != strings.Join(want, "|") {
 		t.Errorf("popup ends %q, want %q", got, strings.Join(want, "|"))
 	}

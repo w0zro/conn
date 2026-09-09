@@ -111,6 +111,10 @@ func main() {
 				runEnvPage(os.Args[3:])
 				return
 			}
+			if len(os.Args) > 2 && os.Args[2] == "look" {
+				runLookPage()
+				return
+			}
 			if len(os.Args) > 2 && os.Args[2] == "finder" {
 				only := ""
 				if len(os.Args) > 3 {

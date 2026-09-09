@@ -966,6 +966,10 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, nil
 	case "e":
 		return m, m.showEnvironment()
+	case "i":
+		// The look page: what conn knows about the row, read without
+		// entering it.
+		return m, m.openLook()
 	case "x":
 		return m, m.askKill(false)
 	case "X":

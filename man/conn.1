@@ -383,6 +383,9 @@ a shell, an agent, the plan, at the place
 \fBx X\fR
 preview a kill of the row, or of its tree (Section 8)
 .TP
+\fBi\fR
+look at the row (3-10)
+.TP
 \fBe\fR
 the environment (4-3)
 .TP
@@ -453,6 +456,23 @@ well as under \fBtab\fR.
 focus to where it was: the buffer before this one, or the everything view when
 focus came from it. Again returns. Before focus has moved at all, it is the
 everything view from a buffer and the cursor's buffer from the view.
+.TP
+3-10.
+\fBi\fR at conn, or \fBctrl\-space i\fR from a buffer, looks at the row without
+entering it: a popup over the window, on the wash, saying what conn knows. Of a
+process: its name and pid, where it runs, what an agent there is doing and what
+it was last asked, the run it is part of, its parent and its job, its arguments,
+the binary behind its name, the telling part of its environment, its uptime and
+its share of the machine, its state, the ports it listens on, its children, how
+its command ended, and the last of what its shell has shown, in the colors the
+shell drew. Of a place: its branch, whether its tree is clean, its standing
+against its upstream, its last commit and its origin, what is running in it, and
+its plan as a checklist, each entry up with its ports, down, or ended and how,
+with the last runs under it. Of a container: its image, its status, what it
+publishes, and the tail of its logs. Of a conversation at rest: when it last
+moved, its branch, what was asked and what it said. \fBj k\fR scroll it;
+\fBq\fR, \fBesc\fR or \fBi\fR again close it. In the everything view it is the
+cursor's row; with a buffer shown, the buffer's.
 .SH SHELLS
 .TP
 4-1.
@@ -956,6 +976,9 @@ run a dead entry again in place · run the plan
 \fBx · X\fR
 preview a kill · of the tree
 .TP
+\fBi\fR
+look at the row: what it is, runs, holds and has shown
+.TP
 \fBe\fR
 the environment, annotated
 .TP
@@ -1005,6 +1028,9 @@ continue a conversation at rest in this place
 \fB^spc ,\fR
 the next kind of agent
 .TP
+\fB^spc i\fR
+look at this buffer's process
+.TP
 \fB^spc e\fR
 the environment of the pane's process, annotated
 .TP
@@ -1042,6 +1068,10 @@ read from it
 \fB~/.local/state/conn/finder.json\fR
 the finder's listing, everything openable, rewritten by conn whenever it changes
 so the popup opens at once
+.TP
+\fB~/.local/state/conn/look.json\fR
+what the look page says of the row \fBi\fR was pressed on, written for the popup
+as it opens
 .TP
 \fB.conn\fR
 a project's plan; Section 6

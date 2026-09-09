@@ -18,6 +18,7 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		`bind x run-shell "'/opt/my tools/it'\''s/conn' home x"`,
 		`bind s run-shell "'/opt/my tools/it'\''s/conn' shell '#{pane_current_path}'"`,
 		`bind A run-shell "'/opt/my tools/it'\''s/conn' home A"`,
+		`bind i run-shell "'/opt/my tools/it'\''s/conn' home i"`,
 		`bind , run-shell "'/opt/my tools/it'\''s/conn' kind"`,
 		`bind l run-shell "'/opt/my tools/it'\''s/conn' next"`,
 		`bind 9 run-shell "'/opt/my tools/it'\''s/conn' nth 9"`,

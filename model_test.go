@@ -119,10 +119,10 @@ func navColumn(m model) []string {
 	return out
 }
 
-// tablineOf is the view's second row, plain: the tabs and the hint. The
-// first is the edge over them.
+// tablineOf is the view's first row, plain: the tabs and the hint. The
+// second is the rim under the focused one.
 func tablineOf(m model) string {
-	return strings.Join(strings.Fields(bodyRows(m)[1]), " ")
+	return strings.Join(strings.Fields(bodyRows(m)[0]), " ")
 }
 
 func wantRows(t *testing.T, got, want []string) {
@@ -155,11 +155,11 @@ func TestViewPutsTheTablineOverTheList(t *testing.T) {
 	if !strings.HasPrefix(tablineOf(m), "everything") || !strings.HasSuffix(tablineOf(m), "running · all") {
 		t.Errorf("tabline = %q, want the everything tab and its hint", tablineOf(m))
 	}
-	if rows[3] != "▸ alpha" {
-		t.Errorf("fourth line = %q, want the list's first row under the edge, the tabline and a blank", rows[3])
+	if rows[2] != "▸ alpha" {
+		t.Errorf("third line = %q, want the list's first row under the tabline and its rim row", rows[2])
 	}
-	if !strings.HasPrefix(rows[0], glyphEdge) {
-		t.Errorf("first line = %q, want the orange edge over the focused tab", rows[0])
+	if !strings.HasPrefix(rows[1], glyphEdge) {
+		t.Errorf("second line = %q, want the rim under the focused tab", rows[1])
 	}
 	if strings.Contains(stripANSI(m.View().Content), " conn\n") {
 		t.Error("the view still carries conn's name")
@@ -477,7 +477,7 @@ func manyRepos(n, h int) model {
 }
 
 func TestScrollFollowsCursorPastTheBottom(t *testing.T) {
-	m := manyRepos(10, 6) // 3 body rows under the edge, the tabline and its blank
+	m := manyRepos(10, 5) // 3 body rows under the tabline and its rim row
 	for range 3 {
 		m = press(m, "down")
 	}

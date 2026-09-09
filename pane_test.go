@@ -615,7 +615,7 @@ func TestTheKeysListTheKindKey(t *testing.T) {
 }
 func TestUnderTheTablineAShownBufferLeavesConnTheChrome(t *testing.T) {
 	// With a buffer shown, conn's pane is exactly the chrome tall — the
-	// edge, the tabline and a blank — and no wider than the window: tmux
+	// tabline and the rim row — and no wider than the window: tmux
 	// draws the heading on the border row and everything under it, from
 	// what the status says the heading reads.
 	m := withProcList(80, 24,
@@ -636,14 +636,11 @@ func TestUnderTheTablineAShownBufferLeavesConnTheChrome(t *testing.T) {
 			t.Fatalf("line %d = %q, want it within the window", i, line)
 		}
 	}
-	if !strings.Contains(lines[1], "tmp/zsh") {
-		t.Errorf("tabline = %q, want the buffer's tab", lines[1])
+	if !strings.Contains(lines[0], "tmp/zsh") {
+		t.Errorf("tabline = %q, want the buffer's tab", lines[0])
 	}
-	if !strings.HasPrefix(lines[0], glyphEdge) {
-		t.Errorf("edge row = %q, want the edge over the focused tab", lines[0])
-	}
-	if strings.TrimSpace(lines[2]) != "" {
-		t.Errorf("last chrome row = %q, want the blank over the heading", lines[2])
+	if !strings.HasPrefix(lines[1], glyphEdge) || strings.TrimSpace(strings.ReplaceAll(lines[1], glyphEdge, "")) != "" {
+		t.Errorf("rim row = %q, want the rim under the focused tab and air beside it", lines[1])
 	}
 	head := m.statusLine().heading
 	if !strings.Contains(head, "zsh") || !strings.Contains(head, "in tmp") || !strings.Contains(head, "#[") {

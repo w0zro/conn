@@ -29,7 +29,7 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		"set -g history-limit 4242",
 		"set -g automatic-rename off",
 		// The home window is conn's tabline over the buffer with focus.
-		"set -g main-pane-height 3",
+		"set -g main-pane-height 2",
 		"set -g pane-border-status bottom",
 		`set -g pane-border-format "#{?#{@conn_nav},#{@conn_heading},}"`,
 		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,

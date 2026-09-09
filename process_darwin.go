@@ -88,7 +88,7 @@ func ttyNames() map[uint32]string {
 	return names
 }
 
-// readTools is what the board needs on this platform: lsof, for the
+// readTools is what the watch needs on this platform: lsof, for the
 // working directories.
 func readTools() []tool {
 	return []tool{{name: "lsof", path: lookPath("lsof")}}
@@ -96,7 +96,7 @@ func readTools() []tool {
 
 // listingTimeout bounds a listing. lsof answers in tens of milliseconds
 // on a healthy machine; the bound is for the machine with a dead network
-// mount, where it hangs, and the board must come back even so.
+// mount, where it hangs, and the watch must come back even so.
 const listingTimeout = 5 * time.Second
 
 // listing is what a program prints when asked for a list, kept even when

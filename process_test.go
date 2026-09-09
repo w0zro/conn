@@ -15,22 +15,22 @@ import (
 // ttys004, a shell running conn. On ttys007, a shell running claude,
 // which runs a node of its own and a bash it asked for, which runs a go
 // test. On ttys009, a shell at its prompt, and one stopped vim. A root
-// process and one with no terminal, which the board leaves out.
+// process and one with no terminal, which the watch leaves out.
 var (
-	boardNow  = time.Date(2026, 9, 9, 3, 0, 0, 0, time.UTC)
+	watchNow  = time.Date(2026, 9, 9, 3, 0, 0, 0, time.UTC)
 	testProcs = []process{
-		{pid: 1, ppid: 0, uid: 0, command: "launchd", started: boardNow.Add(-5 * 24 * time.Hour)},
-		{pid: 500, ppid: 1, uid: 501, command: "distnoted", state: 'S', started: boardNow.Add(-4 * 24 * time.Hour), cwd: "/"},
-		{pid: 67031, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: boardNow.Add(-3 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/conn"},
-		{pid: 67032, ppid: 67031, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "conn", args: []string{"./conn"}, started: boardNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
-		{pid: 70001, ppid: 1, uid: 501, tty: "ttys007", state: 'S', command: "zsh", args: []string{"-zsh"}, started: boardNow.Add(-2 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
-		{pid: 70100, ppid: 70001, uid: 501, tty: "ttys007", foreground: true, state: 'S', command: "claude", args: []string{"claude", "--resume"}, started: boardNow.Add(-47 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
-		{pid: 70212, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "node", args: []string{"node", "/opt/claude/mcp.js"}, started: boardNow.Add(-46 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
-		{pid: 70300, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "bash", args: []string{"bash", "-c", "go test ./..."}, started: boardNow.Add(-12 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
-		{pid: 70301, ppid: 70300, uid: 501, tty: "ttys007", state: 'R', command: "go", args: []string{"go", "test", "./..."}, started: boardNow.Add(-11 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
-		{pid: 80001, ppid: 1, uid: 501, tty: "ttys009", foreground: true, state: 'S', command: "zsh", args: []string{"-zsh"}, started: boardNow.Add(-26 * time.Hour), cwd: "/Users/w0zro"},
-		{pid: 80002, ppid: 80001, uid: 501, tty: "ttys009", state: 'T', command: "vim", args: []string{"vim", "notes.md"}, started: boardNow.Add(-25 * time.Hour), cwd: "/Users/w0zro"},
-		{pid: 90000, ppid: 1, uid: 502, tty: "ttys011", state: 'S', command: "zsh", args: []string{"-zsh"}, started: boardNow.Add(-time.Hour), cwd: "/Users/other"},
+		{pid: 1, ppid: 0, uid: 0, command: "launchd", started: watchNow.Add(-5 * 24 * time.Hour)},
+		{pid: 500, ppid: 1, uid: 501, command: "distnoted", state: 'S', started: watchNow.Add(-4 * 24 * time.Hour), cwd: "/"},
+		{pid: 67031, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-3 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 67032, ppid: 67031, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "conn", args: []string{"./conn"}, started: watchNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 70001, ppid: 1, uid: 501, tty: "ttys007", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-2 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+		{pid: 70100, ppid: 70001, uid: 501, tty: "ttys007", foreground: true, state: 'S', command: "claude", args: []string{"claude", "--resume"}, started: watchNow.Add(-47 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+		{pid: 70212, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "node", args: []string{"node", "/opt/claude/mcp.js"}, started: watchNow.Add(-46 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+		{pid: 70300, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "bash", args: []string{"bash", "-c", "go test ./..."}, started: watchNow.Add(-12 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
+		{pid: 70301, ppid: 70300, uid: 501, tty: "ttys007", state: 'R', command: "go", args: []string{"go", "test", "./..."}, started: watchNow.Add(-11 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
+		{pid: 80001, ppid: 1, uid: 501, tty: "ttys009", foreground: true, state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-26 * time.Hour), cwd: "/Users/w0zro"},
+		{pid: 80002, ppid: 80001, uid: 501, tty: "ttys009", state: 'T', command: "vim", args: []string{"vim", "notes.md"}, started: watchNow.Add(-25 * time.Hour), cwd: "/Users/w0zro"},
+		{pid: 90000, ppid: 1, uid: 502, tty: "ttys011", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/other"},
 	}
 	testRoots = func(dir string) string {
 		for _, root := range []string{"/Users/w0zro/projects/w0zro/conn", "/Users/w0zro/projects/w0zro/vim.pro/conjurer"} {
@@ -42,12 +42,12 @@ var (
 	}
 )
 
-// The board stands one process for each piece of work: conn for its
+// The watch stands one process for each piece of work: conn for its
 // shell, claude for everything it runs, the idle shell for itself, the
 // stopped vim over its shell; the newest work first; nothing of root's,
 // of another user's, or without a terminal.
-func TestBoardStandsOneProcessForEachWork(t *testing.T) {
-	places := board(testProcs, 67032, 501, testRoots)
+func TestWatchStandsOneProcessForEachWork(t *testing.T) {
+	places := watch(testProcs, 67032, 501, testRoots)
 	var got []string
 	for _, pl := range places {
 		for _, e := range pl.entries {
@@ -60,7 +60,7 @@ func TestBoardStandsOneProcessForEachWork(t *testing.T) {
 		"/Users/w0zro EDITOR vim notes.md STOPPED",
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("board:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	if places[2].entries[0].fault != true || places[0].entries[0].fault {
 		t.Error("the stopped vim is not a fault, or conn is")
@@ -73,16 +73,16 @@ func TestBoardStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	got = got[:0]
-	for _, pl := range board(without, 67032, 501, testRoots) {
+	for _, pl := range watch(without, 67032, 501, testRoots) {
 		for _, e := range pl.entries {
 			got = append(got, e.kind+" "+e.command+" "+e.status)
 		}
 	}
 	want = []string{"RUN go test ./... ACTIVE", "RUN node /opt/claude/mcp.js ACTIVE", "SHELL zsh IDLE", "CONN conn HERE", "EDITOR vim notes.md STOPPED"}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("board without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if b := board(nil, 1, 501, testRoots); len(b) != 0 {
+	if b := watch(nil, 1, 501, testRoots); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
 	}
 }
@@ -105,12 +105,12 @@ func TestKindsAndCommands(t *testing.T) {
 			t.Errorf("%+v: %s %q, want %s %q", c.p, kind, cmd, c.kind, c.command)
 		}
 	}
-	if age(boardNow.Add(-3*24*time.Hour-2*time.Hour), boardNow) != "3D 02H" ||
-		age(boardNow.Add(-2*time.Hour-5*time.Minute), boardNow) != "2H 05M" ||
-		age(boardNow.Add(-47*time.Minute-9*time.Second), boardNow) != "47M 09S" ||
-		age(boardNow.Add(-11*time.Second), boardNow) != "11S" ||
-		age(time.Time{}, boardNow) != "" {
-		t.Errorf("ages: %q %q %q %q", age(boardNow.Add(-3*24*time.Hour-2*time.Hour), boardNow), age(boardNow.Add(-2*time.Hour-5*time.Minute), boardNow), age(boardNow.Add(-47*time.Minute-9*time.Second), boardNow), age(boardNow.Add(-11*time.Second), boardNow))
+	if age(watchNow.Add(-3*24*time.Hour-2*time.Hour), watchNow) != "3D 02H" ||
+		age(watchNow.Add(-2*time.Hour-5*time.Minute), watchNow) != "2H 05M" ||
+		age(watchNow.Add(-47*time.Minute-9*time.Second), watchNow) != "47M 09S" ||
+		age(watchNow.Add(-11*time.Second), watchNow) != "11S" ||
+		age(time.Time{}, watchNow) != "" {
+		t.Errorf("ages: %q %q %q %q", age(watchNow.Add(-3*24*time.Hour-2*time.Hour), watchNow), age(watchNow.Add(-2*time.Hour-5*time.Minute), watchNow), age(watchNow.Add(-47*time.Minute-9*time.Second), watchNow), age(watchNow.Add(-11*time.Second), watchNow))
 	}
 }
 

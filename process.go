@@ -12,7 +12,7 @@ import (
 
 // A process, as the kernel describes it: who runs it, what terminal it
 // holds, where it is working, what it was started as and when. The
-// platform files read the table; the board is composed from it.
+// platform files read the table; the watch is composed from it.
 type process struct {
 	pid, ppid, pgid int
 	uid             int
@@ -25,7 +25,7 @@ type process struct {
 	cwd             string
 }
 
-// The kinds of process the board tells apart, by the program's name.
+// The kinds of process the watch tells apart, by the program's name.
 // Everything else is a run: a build, a test, a server, a script.
 const (
 	kindShell  = "SHELL"
@@ -72,7 +72,7 @@ const (
 	statusEnded   = "ENDED"   // finished, and not yet collected
 )
 
-// An entry is a row of the board: one process that stands for the work
+// An entry is a row of the watch: one process that stands for the work
 // it is doing.
 type entry struct {
 	pid     int
@@ -86,17 +86,17 @@ type entry struct {
 
 // A place is a directory work is happening in, and the entries at it.
 type place struct {
-	path    string // as read; the board writes it from ~
+	path    string // as read; the watch writes it from ~
 	entries []entry
 }
 
-// board composes the places from the process table: the processes of one
+// watch composes the places from the process table: the processes of one
 // user with a terminal, each standing for its work. A shell shows only
-// when it is idle, with nothing of its own on the board; an agent, an
+// when it is idle, with nothing of its own on the watch; an agent, an
 // editor and conn show and cover what they run; anything else shows when
 // it is the leaf of its tree. rootOf turns a working directory into the
 // place that holds it.
-func board(procs []process, self, uid int, rootOf func(string) string) []place {
+func watch(procs []process, self, uid int, rootOf func(string) string) []place {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
@@ -107,7 +107,7 @@ func board(procs []process, self, uid int, rootOf func(string) string) []place {
 		candidate[p.pid] = p.uid == uid && p.tty != ""
 	}
 	// covered says whether an ancestor stands for a process: an agent, an
-	// editor or a conn above it, on the board, covers what it runs.
+	// editor or a conn above it, on the watch, covers what it runs.
 	covered := func(p process) bool {
 		seen := map[int]bool{}
 		for pid := p.ppid; pid > 0 && !seen[pid]; {
@@ -194,7 +194,7 @@ func commandLine(p process) string {
 
 // placeRoots finds the place that holds a directory: the nearest ancestor
 // with a .git in it, else the directory itself. It remembers what it
-// found, since the board asks for the same directories on every read.
+// found, since the watch asks for the same directories on every read.
 func placeRoots() func(string) string {
 	known := map[string]string{}
 	return func(dir string) string {

@@ -21,16 +21,16 @@ var (
 // read meanwhile, and the readout comes on when it is in hand and its
 // beat has passed, then the checks one by one, then the verdict, in
 // under a second. A key skips to the end; a key at the end continues to
-// the board. The board is what is running, by place, read again every
+// the watch. The watch is what is running, by place, read again every
 // two seconds while it is up; c brings the console back, and any key
-// there returns to the board. The words of both are said again each
+// there returns to the watch. The words of both are said again each
 // second, from what was read and the clock as it stands. ctrl+c or q
 // closes conn from either.
 
 // The views.
 const (
 	viewConsole = iota
-	viewBoard
+	viewWatch
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -44,19 +44,19 @@ func (m model) stageDelay(stage int) time.Duration {
 	}
 }
 
-// boardEvery is how often the board reads the process table.
-const boardEvery = 2 * time.Second
+// watchEvery is how often the watch reads the process table.
+const watchEvery = 2 * time.Second
 
 type (
 	stageMsg   struct{}          // the next stage is due
 	clockMsg   struct{}          // the second has turned
 	stationMsg struct{ station } // the station is read
-	boardMsg   struct {          // the process table is read
+	watchMsg   struct {          // the process table is read
 		places []place
 		err    string
 		gen    int
 	}
-	boardTickMsg struct{ gen int } // the board is due to be read again
+	watchTickMsg struct{ gen int } // the watch is due to be read again
 )
 
 type model struct {
@@ -70,8 +70,8 @@ type model struct {
 
 	view     int
 	places   []place
-	boardErr string
-	boardGen int // which stay on the board the ticks belong to
+	watchErr string
+	watchGen int // which stay on the watch the ticks belong to
 	self     int // this process
 	uid      int
 	roots    func(string) string
@@ -97,10 +97,10 @@ func (m model) report() report {
 	return compose(m.head, m.now)
 }
 
-// boardReport is the board's words as things stand.
-func (m model) boardReport() boardReport {
+// watchReport is the watch's words as things stand.
+func (m model) watchReport() watchReport {
 	r := m.report()
-	return composeBoard(m.places, m.head.session.home, m.now, r.station, r.clock, m.boardErr)
+	return composeWatch(m.places, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
 }
 
 func (m model) Init() tea.Cmd {
@@ -111,15 +111,15 @@ func readStationCmd() tea.Msg {
 	return stationMsg{readStation()}
 }
 
-// readBoard reads the process table and composes the board off it.
-func (m model) readBoard() tea.Cmd {
-	gen, self, uid, roots := m.boardGen, m.self, m.uid, m.roots
+// readWatch reads the process table and composes the watch off it.
+func (m model) readWatch() tea.Cmd {
+	gen, self, uid, roots := m.watchGen, m.self, m.uid, m.roots
 	return func() tea.Msg {
 		procs, err := readProcesses(uid)
 		if err != nil {
-			return boardMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
+			return watchMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
-		return boardMsg{places: board(procs, self, uid, roots), gen: gen}
+		return watchMsg{places: watch(procs, self, uid, roots), gen: gen}
 	}
 }
 
@@ -133,9 +133,9 @@ func nextSecond(now time.Time) tea.Cmd {
 	return tea.Tick(time.Until(now.Truncate(time.Second).Add(time.Second)), func(time.Time) tea.Msg { return clockMsg{} })
 }
 
-func (m model) boardTick() tea.Cmd {
-	gen := m.boardGen
-	return tea.Tick(boardEvery, func(time.Time) tea.Msg { return boardTickMsg{gen} })
+func (m model) watchTick() tea.Cmd {
+	gen := m.watchGen
+	return tea.Tick(watchEvery, func(time.Time) tea.Msg { return watchTickMsg{gen} })
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -158,19 +158,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clockMsg:
 		m.now = time.Now()
 		return m, nextSecond(m.now)
-	case boardMsg:
-		if msg.gen != m.boardGen {
+	case watchMsg:
+		if msg.gen != m.watchGen {
 			return m, nil
 		}
-		m.places, m.boardErr = msg.places, msg.err
-		if m.view == viewBoard {
-			return m, m.boardTick()
+		m.places, m.watchErr = msg.places, msg.err
+		if m.view == viewWatch {
+			return m, m.watchTick()
 		}
-	case boardTickMsg:
-		if msg.gen != m.boardGen || m.view != viewBoard {
+	case watchTickMsg:
+		if msg.gen != m.watchGen || m.view != viewWatch {
 			return m, nil
 		}
-		return m, m.readBoard()
+		return m, m.readWatch()
 	case tea.KeyPressMsg:
 		return m.key(msg.String())
 	}
@@ -178,8 +178,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // key answers a key: q and ctrl+c close conn from anywhere; on the
-// console a key skips the sequence, then continues to the board; on the
-// board c brings the console back.
+// console a key skips the sequence, then continues to the watch; on the
+// watch c brings the console back.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c" || k == "q":
@@ -188,9 +188,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		m.stage = lastStage(m.report())
 		return m, nil
 	case m.view == viewConsole:
-		m.view = viewBoard
-		m.boardGen++
-		return m, m.readBoard()
+		m.view = viewWatch
+		m.watchGen++
+		return m, m.readWatch()
 	case k == "c":
 		m.view = viewConsole
 		return m, nil
@@ -215,8 +215,8 @@ func (m model) advance() (tea.Model, tea.Cmd) {
 func (m model) View() tea.View {
 	var rows []row
 	switch m.view {
-	case viewBoard:
-		rows = drawBoard(m.boardReport(), m.width, m.height, m.p)
+	case viewWatch:
+		rows = drawWatch(m.watchReport(), m.width, m.height, m.p)
 	default:
 		rows = screen(m.report(), m.width, m.height, m.p)
 	}

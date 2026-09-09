@@ -1,10 +1,10 @@
 # conn
 
 conn comes up on the loop, reads out the machine, runs its start-up checks,
-and gives its verdict; a key continues to the board, which is what is
+and gives its verdict; a key continues to the watch, which is what is
 running, by place: the processes of yours with a terminal, one standing for
 each piece of work, grouped under the repository it is working in. ctrl+c
-or q closes conn from either view. On macOS the board needs `lsof`, which
+or q closes conn from either view. On macOS the watch needs `lsof`, which
 is how a process's working directory is read there; Linux keeps it on
 /proc. Everything else conn was is in the history, and comes back piece by
 piece, in the form it is wanted in.

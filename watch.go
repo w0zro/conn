@@ -7,41 +7,41 @@ import (
 	"unicode/utf8"
 )
 
-// The board: what is running, by place. Under a short header, each
+// The watch: what is running, by place. Under a short header, each
 // place work is happening in is a block — its path as a title, and a
 // row for each process that stands for work there: its kind, what it
 // was started as, its terminal, how long it has been at it, and the
 // word for how it stands. The newest work is at the top. The bottom
-// row says which keys the board answers to.
+// row says which keys the watch answers to.
 
-// The board's words, composed from the places as of a moment.
-type boardReport struct {
+// The watch's words, composed from the places as of a moment.
+type watchReport struct {
 	station, clock string
-	places         []boardPlace
+	places         []watchPlace
 	err            string // why the table could not be read, when it could not
 }
 
-type boardPlace struct {
+type watchPlace struct {
 	path string
-	rows []boardRow
+	rows []watchRow
 }
 
-type boardRow struct {
+type watchRow struct {
 	kind, command, tty, age, status string
 	fault                           bool
 	here                            bool
 }
 
-// composeBoard words the places.
-func composeBoard(places []place, home string, now time.Time, station, clock, err string) boardReport {
-	b := boardReport{station: station, clock: clock, err: err}
+// composeWatch words the places.
+func composeWatch(places []place, home string, now time.Time, station, clock, err string) watchReport {
+	b := watchReport{station: station, clock: clock, err: err}
 	for _, pl := range places {
-		bp := boardPlace{path: tilde(pl.path, home)}
+		bp := watchPlace{path: tilde(pl.path, home)}
 		if bp.path == "" {
 			bp.path = "NO PLACE"
 		}
 		for _, e := range pl.entries {
-			bp.rows = append(bp.rows, boardRow{
+			bp.rows = append(bp.rows, watchRow{
 				kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
 				status: e.status, fault: e.fault, here: e.status == statusHere,
 			})
@@ -51,18 +51,18 @@ func composeBoard(places []place, home string, now time.Time, station, clock, er
 	return b
 }
 
-// The board's columns, from the right: the status flush with the
+// The watch's columns, from the right: the status flush with the
 // measure, the age and the terminal before it, and the command taking
 // what is left after the kind.
 const (
 	kindW    = 8
 	ttyW     = 10
 	ageW     = 9
-	boardKey = "Q CLOSES · C CONSOLE"
+	watchKey = "Q CLOSES · C CONSOLE"
 )
 
-// drawBoard renders the board for a terminal of the given size.
-func drawBoard(b boardReport, width, height int, p palette) []row {
+// drawWatch renders the watch for a terminal of the given size.
+func drawWatch(b watchReport, width, height int, p palette) []row {
 	width = max(width, minCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
@@ -76,7 +76,7 @@ func drawBoard(b boardReport, width, height int, p palette) []row {
 	c.blank(0)
 	l := c.line()
 	l.add(p.orange+p.bold, "CONN")
-	l.add(p.parchment+p.bold, "  THE BOARD")
+	l.add(p.parchment+p.bold, "  WATCH")
 	right := strings.ToUpper(join("  ·  ", b.station, b.clock))
 	l.to(measure - utf8.RuneCountInString(right))
 	l.add(p.gray, right)
@@ -100,7 +100,7 @@ func drawBoard(b boardReport, width, height int, p palette) []row {
 		room = 1 << 30
 	}
 	var body []row
-	place := func(bp boardPlace) {
+	place := func(bp watchPlace) {
 		d := canvas{p: p, width: width}
 		d.blank(0)
 		l := d.line()
@@ -148,7 +148,7 @@ func drawBoard(b boardReport, width, height int, p palette) []row {
 		d := canvas{p: p, width: width}
 		d.blank(0)
 		l := d.line()
-		l.add(p.gray, "NOTHING ON THE BOARD")
+		l.add(p.gray, "NOTHING ON WATCH")
 		d.emit(l, 0, true)
 		body = d.rows
 	default:
@@ -175,7 +175,7 @@ func drawBoard(b boardReport, width, height int, p palette) []row {
 			c.blank(0)
 		}
 		l := c.line()
-		l.add(p.gray, boardKey)
+		l.add(p.gray, watchKey)
 		c.emit(l, 0, true)
 	}
 	return c.rows

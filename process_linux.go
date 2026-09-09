@@ -13,7 +13,7 @@ func readProcesses(uid int) ([]process, error) {
 	return readProcTree("/proc", parseBootTime(string(stat)), 100), nil
 }
 
-// readTools is what the board needs on this platform: nothing past the
+// readTools is what the watch needs on this platform: nothing past the
 // kernel.
 func readTools() []tool {
 	return nil

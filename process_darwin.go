@@ -88,10 +88,10 @@ func ttyNames() map[uint32]string {
 	return names
 }
 
-// readTools is what the watch needs on this platform: lsof, for the
-// working directories.
+// readTools is what conn needs on this platform past the kernel: tmux,
+// to hold the work, and lsof, for the working directories.
 func readTools() []tool {
-	return []tool{{name: "lsof", path: lookPath("lsof")}}
+	return []tool{{name: "tmux", path: lookPath("tmux")}, {name: "lsof", path: lookPath("lsof")}}
 }
 
 // listingTimeout bounds a listing. lsof answers in tens of milliseconds
@@ -113,13 +113,4 @@ func listing(name string, args ...string) string {
 	cmd.WaitDelay = 2 * time.Second
 	out, _ := cmd.Output()
 	return string(out)
-}
-
-// lookPath is where a program is on PATH, or nothing.
-func lookPath(name string) string {
-	path, err := exec.LookPath(name)
-	if err != nil {
-		return ""
-	}
-	return path
 }

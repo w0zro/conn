@@ -20,6 +20,8 @@ type watchReport struct {
 	station, clock string
 	places         []watchPlace
 	err            string // why the table could not be read, when it could not
+	inside         bool   // conn is in its server, and rows can be reached
+	note           string // a word for the bottom row, in place of the keys
 }
 
 type watchPlace struct {
@@ -32,10 +34,12 @@ type watchRow struct {
 	kind, command, tty, age, status string
 	fault                           bool
 	here                            bool
+	reach                           string // the pane that holds it, in conn's server
 }
 
-// composeWatch words the places.
-func composeWatch(places []place, home string, now time.Time, station, clock, err string) watchReport {
+// composeWatch words the places; panes says which terminals are the
+// server's.
+func composeWatch(places []place, panes map[string]string, home string, now time.Time, station, clock, err string) watchReport {
 	b := watchReport{station: station, clock: clock, err: err}
 	for _, pl := range places {
 		bp := watchPlace{path: tilde(pl.path, home)}
@@ -45,7 +49,7 @@ func composeWatch(places []place, home string, now time.Time, station, clock, er
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, watchRow{
 				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
-				status: e.status, fault: e.fault, here: e.status == statusHere,
+				status: e.status, fault: e.fault, here: e.status == statusHere, reach: panes[e.tty],
 			})
 		}
 		b.places = append(b.places, bp)
@@ -57,10 +61,11 @@ func composeWatch(places []place, home string, now time.Time, station, clock, er
 // measure, the age and the terminal before it, and the command taking
 // what is left after the kind.
 const (
-	kindW    = 8
-	ttyW     = 10
-	ageW     = 9
-	watchKey = "J K MOVE · Q CLOSES · C CONSOLE"
+	kindW          = 8
+	ttyW           = 10
+	ageW           = 9
+	watchKey       = "J K MOVE · Q CLOSES · C CONSOLE"
+	watchKeyInside = "J K MOVE · ENTER REACHES · N OPENS A SHELL · Q DETACHES · C CONSOLE"
 )
 
 // drawWatch renders the watch for a terminal of the given size, with
@@ -128,7 +133,13 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			l.to(kindW)
 			l.add(command, fit(r.command, commandW, false))
 			l.to(ttyCol)
-			l.add(p.gray, fit(strings.ToUpper(r.tty), ttyW, false))
+			// A terminal the server holds is in gray; one it does not, and
+			// so cannot be reached, is faint.
+			ttyColor := p.gray
+			if b.inside && r.reach == "" {
+				ttyColor = p.faint
+			}
+			l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
 			l.to(ageCol)
 			l.add(p.gray, r.age)
 			switch {
@@ -197,7 +208,14 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			c.blank(0)
 		}
 		l := c.line()
-		l.add(p.gray, watchKey)
+		switch {
+		case b.note != "":
+			l.add(p.owed, b.note)
+		case b.inside:
+			l.add(p.gray, watchKeyInside)
+		default:
+			l.add(p.gray, watchKey)
+		}
 		c.emit(l, 0, true)
 	}
 	return c.rows

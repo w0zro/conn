@@ -224,11 +224,7 @@ const (
 // ~/.local/state — and probes the nearest existing ancestor for whether
 // conn could write under it.
 func readStateDir(home string) stateDir {
-	dir := os.Getenv("XDG_STATE_HOME")
-	if dir == "" {
-		dir = filepath.Join(home, ".local", "state")
-	}
-	dir = filepath.Join(dir, "conn")
+	dir := filepath.Join(stateHome(home), "conn")
 	s := stateDir{path: dir}
 	for probe := dir; ; probe = filepath.Dir(probe) {
 		if info, err := os.Stat(probe); err == nil {

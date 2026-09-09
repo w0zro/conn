@@ -83,6 +83,15 @@ func run(name string, args ...string) string {
 	return string(out)
 }
 
+// lookPath is where a program is on PATH, or nothing.
+func lookPath(name string) string {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
 // A tool is a program a platform needs past the kernel, and where it is.
 type tool struct {
 	name, path string

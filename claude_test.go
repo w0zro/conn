@@ -252,13 +252,14 @@ func TestMissingTranscriptLeavesTheSessionAlone(t *testing.T) {
 }
 
 func TestClaudeFactsSayTheBranchAndTheContext(t *testing.T) {
-	// A heading's facts: the branch, the context in tokens, the subagents
-	// out — and nothing for what is unknown.
+	// A heading's facts: the context in tokens and the subagents out —
+	// the branch is the heading's own, before the pid — and nothing for
+	// what is unknown.
 	facts := claudeFacts(claudeSession{
 		Branch: "main", Context: 177664,
 		Agents: []agentRun{{Description: "read the tests"}},
 	})
-	want := []string{"main", "177k tokens", "1 agent out"}
+	want := []string{"177k tokens", "1 agent out"}
 	if strings.Join(facts, "|") != strings.Join(want, "|") {
 		t.Errorf("facts = %q, want %q", facts, want)
 	}

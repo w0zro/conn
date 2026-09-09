@@ -850,13 +850,10 @@ func tailLines(path string, max int64) ([][]byte, error) {
 }
 
 // claudeFacts is what a heading says of a Claude Code instance beyond
-// its name: the branch it is on, how much context it holds, and how many
-// subagents it has out.
+// its name and branch: how much context it holds, and how many subagents
+// it has out.
 func claudeFacts(s claudeSession) []string {
 	var facts []string
-	if s.Branch != "" {
-		facts = append(facts, s.Branch)
-	}
 	if s.Context > 0 {
 		facts = append(facts, shortTokens(s.Context)+" tokens")
 	}

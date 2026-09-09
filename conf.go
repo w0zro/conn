@@ -141,9 +141,10 @@ func tmuxConf(conn string, scrollback int) string {
 		"set -g main-pane-height "+strconv.Itoa(chromeRows+1),
 		// The row over every pane is its border status: over conn's pane
 		// it carries the orange edge above the focused tab, on the bar;
-		// over a buffer it is the hairline under the heading.
+		// over a buffer it is the hairline under the heading, drawn long
+		// and cut to the pane.
 		"set -g pane-border-status top",
-		`set -g pane-border-format "#{?#{@conn_nav},#{`+edgeOption+`},}"`,
+		`set -g pane-border-format "#{?#{@conn_nav},#{`+edgeOption+`},#[fg=`+tp.chip+`]`+strings.Repeat("─", 400)+`}"`,
 		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,
 		"",
 		"# The status line: the CONN chip, then one mode chip — the prefix",

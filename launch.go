@@ -283,6 +283,10 @@ func refreshHome(h home) error {
 		return err
 	}
 	cmd, build, _ := strings.Cut(out, "\t")
+	// The layout is laid again either way: a build that changed the
+	// chrome's height finds the home window laid out at the old one, and
+	// the hook that lays it again waits for a resize that may not come.
+	_, _ = tmuxCommand("select-layout", "-t", h.win, "main-horizontal")
 	if strings.Trim(strings.TrimSpace(cmd), `"`) == homeCommand() && build == buildVersion() {
 		return nil
 	}

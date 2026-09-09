@@ -725,11 +725,11 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	case agentsMsg:
 		m.agents = msg.agents
 		// An instance at work again has a turn nobody has seen yet; one
-		// that finishes in the buffer with focus is being looked at.
+		// that finishes in the buffer on screen is being looked at.
 		for pid, a := range m.agents {
 			if a.working() {
 				delete(m.seen, pid)
-			} else if t := m.owningTerm(pid); t != nil && t.pid == m.focus && m.focus != 0 {
+			} else if t := m.owningTerm(pid); t != nil && t.pid == m.shown {
 				m.seen[pid] = true
 			}
 		}

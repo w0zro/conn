@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	ossignal "os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -112,8 +113,43 @@ func runLaunch() error {
 		fmt.Println("conn: attached here already; the server has this build's configuration and navigator")
 		return nil
 	}
-	return syscall.Exec(tmux, []string{"tmux", "-S", socketPath(), "attach", "-t", tmuxSession}, os.Environ())
+	return attach(tmux)
 }
+
+// attach runs tmux in this terminal until it detaches, and for as long as
+// it runs the terminal's own ground is the hangar's: the margin a terminal
+// keeps around its cells is painted in its default background, and with
+// the default set to the ground the window is one ground from its edges
+// in, rather than a frame of the terminal's color around conn. The ground
+// is given back when tmux is done, and the config's "terminal" theme
+// leaves it alone throughout. tmux is run as a child rather than in this
+// process's place so there is a moment after it to give the ground back;
+// the keys that would interrupt or stop a process from the keyboard are
+// tmux's to read while it holds the terminal, so they are ignored here.
+func attach(tmux string) error {
+	cmd := exec.Command(tmux, "-S", socketPath(), "attach", "-t", tmuxSession)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	ossignal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
+	if paintShells {
+		fmt.Fprint(os.Stdout, oscGround(tp.ground))
+	}
+	err := cmd.Run()
+	if paintShells {
+		fmt.Fprint(os.Stdout, oscGroundReset)
+	}
+	// tmux has said what went wrong itself; its status is conn's.
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		os.Exit(exit.ExitCode())
+	}
+	return err
+}
+
+// oscGround sets the terminal's default background, and oscGroundReset
+// gives it back its own.
+func oscGround(color string) string { return "\x1b]11;" + color + "\x07" }
+
+const oscGroundReset = "\x1b]111\x07"
 
 // syncServerEnv brings the server's global environment to the terminal
 // attaching: what the server would hold had it been started from this

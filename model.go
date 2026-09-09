@@ -2788,7 +2788,6 @@ func (m *model) dressStatus() {
 // newer conn says, else the session's facts.
 func (m model) statusLine() statusText {
 	var t statusText
-	t.edge = m.tabEdge()
 	need := m.needCount()
 	switch {
 	case m.pendingReplace:

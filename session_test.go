@@ -95,7 +95,7 @@ func TestTheBufferIsShownUnderTheTablineAndParkedAgain(t *testing.T) {
 	}
 	f := strings.Split(out, "\t")
 	markHome(f[0], f[1], buildVersion())
-	if _, err := tmuxCommand("set", "-g", "main-pane-height", "2"); err != nil {
+	if _, err := tmuxCommand("set", "-g", "main-pane-height", "4"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,8 +107,8 @@ func TestTheBufferIsShownUnderTheTablineAndParkedAgain(t *testing.T) {
 	m.server.show(pid)
 	m = pump(t, m, shown, 10*time.Second)
 	out, _ = tmuxCommand("list-panes", "-t", f[0], "-F", "#{pane_id} #{pane_top} #{pane_height} #{pane_active}")
-	if !strings.Contains(out, f[1]+" 0 2 0") || !strings.Contains(out, m.server.pane(pid).id+" 3 ") {
-		t.Errorf("home window panes:\n%s\nwant conn 2 rows tall on top and the buffer active under it", out)
+	if !strings.Contains(out, f[1]+" 0 4 0") || !strings.Contains(out, m.server.pane(pid).id+" 5 ") {
+		t.Errorf("home window panes:\n%s\nwant conn 4 rows tall on top and the buffer active under it", out)
 	}
 
 	// A second shell, previewed from the list: it trades places with the

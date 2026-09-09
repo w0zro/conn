@@ -52,11 +52,11 @@ func (m model) View() tea.View {
 
 func (m model) layout() string {
 	rows := max(m.height, 1)
-	lines := []string{m.tabline()}
+	lines := []string{m.edgeRow(), m.tabline()}
 	if m.shown != 0 {
-		lines = append(lines, m.heading())
+		lines = append(lines, "", m.heading())
 	} else {
-		lines = append(lines, m.body(rows-1)...)
+		lines = append(lines, m.body(max(rows-2, 0))...)
 	}
 	lines = padTo(lines, rows)
 	for i := range lines {
@@ -70,6 +70,7 @@ func (m model) layout() string {
 
 // padTo lengthens lines to exactly n.
 func padTo(lines []string, n int) []string {
+	n = max(n, 0)
 	for len(lines) < n {
 		lines = append(lines, "")
 	}
@@ -251,11 +252,10 @@ func (m model) tabline() string {
 	return b.String() + barStyle.Render(strings.Repeat(" ", rest)) + barStyle.Inherit(faintStyle).Render(hint) + barStyle.Render(" ")
 }
 
-// tabEdge is the orange edge over the focused tab, for the row tmux draws
-// above the tabline: the bar's ground across, and under the focused tab's
-// columns the line, as a tmux style string for the pane's border format.
-func (m model) tabEdge() string {
-	edge := "#[bg=" + tp.bar + ",fill=" + tp.bar + "]"
+// edgeRow is the row over the tabline: the bar's ground across, and under
+// the focused tab's columns the orange edge — the focus signal, on the
+// tab's top.
+func (m model) edgeRow() string {
 	cells, start := m.tabCells()
 	hint := m.tabHint()
 	room := m.width - lipgloss.Width(hint) - 2
@@ -265,11 +265,13 @@ func (m model) tabEdge() string {
 			break
 		}
 		if cells[i].focused {
-			return edge + strings.Repeat(" ", used) + "#[fg=" + tp.orange + "]" + strings.Repeat(glyphEdge, cells[i].width) + "#[fg=default]"
+			return barStyle.Render(strings.Repeat(" ", used)) +
+				barStyle.Inherit(orangeStyle).Render(strings.Repeat(glyphEdge, cells[i].width)) +
+				barStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
 		}
 		used += cells[i].width
 	}
-	return edge
+	return barStyle.Render(strings.Repeat(" ", m.width))
 }
 
 // tabHint is the one hint the tabline's right end holds: the key that
@@ -431,10 +433,10 @@ func (m model) everything(rows int) []string {
 }
 
 // bodyHeight is the number of rows the everything view's list has: the
-// window under the tabline and the blank after it, less the footer, which
-// is what the cursor scrolls within.
+// window under the edge row, the tabline and the blank after it, less the
+// footer, which is what the cursor scrolls within.
 func (m model) bodyHeight() int {
-	rows := m.height - 2
+	rows := m.height - 3
 	if rows >= 8 {
 		rows -= 3
 	}

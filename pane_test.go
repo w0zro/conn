@@ -615,8 +615,8 @@ func TestTheKeysListTheKindKey(t *testing.T) {
 }
 func TestUnderTheTablineAShownBufferLeavesConnTheChrome(t *testing.T) {
 	// With a buffer shown, conn's pane is exactly the chrome tall — the
-	// tabline and the buffer's heading — and no wider than the window:
-	// tmux draws the border and everything under it.
+	// edge, the tabline, a blank and the buffer's heading — and no wider
+	// than the window: tmux draws the border and everything under it.
 	m := withProcList(80, 24,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
@@ -635,11 +635,14 @@ func TestUnderTheTablineAShownBufferLeavesConnTheChrome(t *testing.T) {
 			t.Fatalf("line %d = %q, want it within the window", i, line)
 		}
 	}
-	if !strings.Contains(lines[0], "tmp/zsh") {
-		t.Errorf("tabline = %q, want the buffer's tab", lines[0])
+	if !strings.Contains(lines[1], "tmp/zsh") {
+		t.Errorf("tabline = %q, want the buffer's tab", lines[1])
 	}
-	if !strings.Contains(lines[1], "zsh") || !strings.Contains(lines[1], "in tmp") {
-		t.Errorf("heading = %q, want the buffer named and placed", lines[1])
+	if !strings.HasPrefix(lines[0], glyphEdge) {
+		t.Errorf("edge row = %q, want the edge over the focused tab", lines[0])
+	}
+	if !strings.Contains(lines[3], "zsh") || !strings.Contains(lines[3], "in tmp") {
+		t.Errorf("heading = %q, want the buffer named and placed under a blank", lines[3])
 	}
 }
 

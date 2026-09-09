@@ -158,7 +158,7 @@ func TestTheNavigatorGoesBackOnTopOfAHomeWindowThatLostIt(t *testing.T) {
 	}
 	f := strings.Split(out, "\t")
 	if _, err := tmuxCommand("set", "-w", "-t", f[0], "@conn_home", "1", ";",
-		"set", "-g", "main-pane-height", "2"); err != nil {
+		"set", "-g", "main-pane-height", "4"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -170,8 +170,8 @@ func TestTheNavigatorGoesBackOnTopOfAHomeWindowThatLostIt(t *testing.T) {
 		t.Errorf("home = %+v, want the navigator back in window %s", h, f[0])
 	}
 	out, _ = tmuxCommand("list-panes", "-t", f[0], "-F", "#{pane_id} #{pane_top} #{pane_height} #{@conn_nav}")
-	if !strings.Contains(out, h.pane+" 0 2 1") || !strings.Contains(out, f[1]+" 3 ") {
-		t.Errorf("panes:\n%s\nwant the navigator 2 rows tall on top and the buffer under it", out)
+	if !strings.Contains(out, h.pane+" 0 4 1") || !strings.Contains(out, f[1]+" 5 ") {
+		t.Errorf("panes:\n%s\nwant the navigator 4 rows tall on top and the buffer under it", out)
 	}
 }
 

@@ -24,10 +24,10 @@ func confPath() string {
 }
 
 // chromeRows is the height of conn's own pane while a buffer is shown under
-// it: the tabline, and the buffer's heading. Over them tmux draws one row
-// more, the pane's border status, which carries the orange edge over the
-// focused tab; the layout holds all three through every resize.
-const chromeRows = 2
+// it: the edge row over the tabs, the tabline, a blank, and the buffer's
+// heading. The border row under them is blank too, so the heading has a
+// row of air on either side. The layout holds it through every resize.
+const chromeRows = 4
 
 // tmuxConf is the configuration for conn's server. conn is the path of this
 // build, which the chords run; the path is quoted so a directory with a
@@ -128,8 +128,11 @@ func tmuxConf(conn string, scrollback int) string {
 	if paintShells {
 		w(`set -g window-style "bg=` + tp.ground + `,fg=` + tp.ink + `"`)
 	}
-	w(`set -g pane-border-style "fg=`+tp.chip+`,bg=`+tp.ground+`"`,
-		`set -g pane-active-border-style "fg=`+tp.chip+`,bg=`+tp.ground+`"`,
+	// The border between conn's pane and the buffer is a blank row of the
+	// ground: the air under the heading. Between two buffers it is the
+	// same, and the edge is what says which has focus.
+	w(`set -g pane-border-style "fg=`+tp.ground+`,bg=`+tp.ground+`"`,
+		`set -g pane-active-border-style "fg=`+tp.ground+`,bg=`+tp.ground+`"`,
 		"set -g pane-border-indicators off",
 		"set -g popup-border-lines single",
 		`set -g popup-border-style "fg=`+tp.border+`,bg=`+tp.wash+`"`,
@@ -138,13 +141,8 @@ func tmuxConf(conn string, scrollback int) string {
 		"# The home window: conn's tabline across the top at its height, the",
 		"# buffer with focus filling the rest. The layout is re-applied on every",
 		"# resize, so the buffer takes the window's growth.",
-		"set -g main-pane-height "+strconv.Itoa(chromeRows+1),
-		// The row over every pane is its border status: over conn's pane
-		// it carries the orange edge above the focused tab, on the bar;
-		// over a buffer it is the hairline under the heading, drawn long
-		// and cut to the pane.
-		"set -g pane-border-status top",
-		`set -g pane-border-format "#{?#{@conn_nav},#{`+edgeOption+`},#[fg=`+tp.chip+`]`+strings.Repeat("─", 400)+`}"`,
+		"set -g main-pane-height "+strconv.Itoa(chromeRows),
+		"set -g pane-border-status off",
 		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,
 		"",
 		"# The status line: the CONN chip, then one mode chip — the prefix",
@@ -181,7 +179,6 @@ func tmuxConf(conn string, scrollback int) string {
 const (
 	msgOption   = "@conn_msg"
 	modeOption  = "@conn_mode"
-	edgeOption  = "@conn_edge"
 	noteOption  = "@conn_note"
 	untilOption = "@conn_until"
 	nowOption   = "@conn_now" // holds %s, so #{T:@conn_now} is the time

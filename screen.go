@@ -143,15 +143,6 @@ func screen(r report, width, height int) []row {
 		to(l, col)
 		add(l, p.parchment+p.bold, s)
 	}
-	fit := func(s string, w int) string {
-		if utf8.RuneCountInString(s) <= w {
-			return s
-		}
-		if w <= 1 {
-			return ""
-		}
-		return string([]rune(s)[:w-1]) + "…"
-	}
 	// leader is a label and short dots to a field's width.
 	leader := func(l *line, label string, field int, dots string) {
 		add(l, p.gray, label)
@@ -284,4 +275,49 @@ func screenCheck(r report, width, height int) check {
 func stdoutIsTerminal() bool {
 	info, err := os.Stdout.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+// fit holds a value to w columns. A path, which begins at / or ~, is
+// shortened between its head and its end so the name it leads to is what
+// survives; anything else is cut at the end. A note after the path, set
+// off by " · ", keeps its place.
+func fit(s string, w int) string {
+	if utf8.RuneCountInString(s) <= w {
+		return s
+	}
+	if w <= 1 {
+		return ""
+	}
+	if strings.HasPrefix(s, "/") || strings.HasPrefix(s, "~") {
+		path, note, _ := strings.Cut(s, " · ")
+		if note != "" {
+			note = " · " + note
+		}
+		if room := w - utf8.RuneCountInString(note); room >= 6 {
+			return shortenPath(path, room) + note
+		}
+	}
+	return string([]rune(s)[:w-1]) + "…"
+}
+
+// shortenPath elides directories from the middle of a path until it
+// fits in w columns, keeping the head and as much of the end as will go.
+// When the last name alone will not fit, its end is what shows.
+func shortenPath(path string, w int) string {
+	if utf8.RuneCountInString(path) <= w {
+		return path
+	}
+	parts := strings.Split(path, "/")
+	head := 1 // ~ or the first directory; under the root, the first directory
+	if parts[0] == "" && len(parts) > 2 {
+		head = 2
+	}
+	for keep := len(parts) - head - 1; keep >= 1; keep-- {
+		s := strings.Join(parts[:head], "/") + "/…/" + strings.Join(parts[len(parts)-keep:], "/")
+		if utf8.RuneCountInString(s) <= w {
+			return s
+		}
+	}
+	r := []rune(path)
+	return "…" + string(r[len(r)-(w-1):])
 }

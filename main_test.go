@@ -197,6 +197,29 @@ func TestProgramComesOnInStages(t *testing.T) {
 }
 
 // The machine can be read without a fuss, and what it says is in shape.
+func TestPathsShortenFromTheMiddle(t *testing.T) {
+	exe := "/VAR/FOLDERS/51/KKGWPD9J2R53TRB71LNMFP6R0000GN/T/GO-BUILD3688959642/B001/EXE/CONN"
+	for _, c := range []struct {
+		in   string
+		w    int
+		want string
+	}{
+		{exe + " · 5.5 MB", 90, exe + " · 5.5 MB"},
+		{exe + " · 5.5 MB", 60, "/VAR/…/T/GO-BUILD3688959642/B001/EXE/CONN · 5.5 MB"},
+		{exe + " · 5.5 MB", 30, "/VAR/…/B001/EXE/CONN · 5.5 MB"},
+		{exe + " · 5.5 MB", 22, "/VAR/…/CONN · 5.5 MB"},
+		{exe, 8, "…XE/CONN"},
+		{"~/PROJECTS/W0ZRO/CONN/CONN", 20, "~/…/W0ZRO/CONN/CONN"},
+		{"~/PROJECTS/W0ZRO/CONN", 40, "~/PROJECTS/W0ZRO/CONN"},
+		{"APPLE M3 PRO · 11 CORES (5P + 6E)", 12, "APPLE M3 PR…"},
+		{"/A/B", 1, ""},
+	} {
+		if got := fit(c.in, c.w); got != c.want || utf8.RuneCountInString(got) > c.w {
+			t.Errorf("fit(%q, %d) = %q, want %q", c.in, c.w, got, c.want)
+		}
+	}
+}
+
 func TestStationReportReadsTheMachine(t *testing.T) {
 	r := stationReport()
 	if (r.version == "" && r.note == "") || r.station == "" || r.clock == "" {

@@ -6,71 +6,57 @@ import (
 	"unicode/utf8"
 )
 
-var testReport = report{version: "0.7.0", station: "w0zro@station", platform: "darwin/arm64", clock: "2026-09-08 23:58:41Z"}
+var testReport = report{version: "0.7.0", station: "w0zro@station", platform: "darwin/arm64", clock: "08-Sep-2026  23:58:41 Z"}
 
-// The plain screen fits the width it was asked for, carries no escapes and
-// no trailing space, reports the station, and calls hello.
-func TestPlainScreenReportsAndCalls(t *testing.T) {
-	rows := screen(plain, testReport, 80)
+// The screen is eighty by twenty-four, every row framed to the same
+// width, and it reports the station and calls hello, in capitals.
+func TestScreenIsEightyByTwentyFour(t *testing.T) {
+	rows := screen(testReport, screenCols)
+	if len(rows) != screenRows {
+		t.Errorf("screen is %d rows, not %d:\n%s", len(rows), screenRows, strings.Join(rows, "\n"))
+	}
+	for i, l := range rows {
+		if l == "" && (i == 0 || i == len(rows)-1) {
+			continue
+		}
+		if w := utf8.RuneCountInString(l); w != screenCols {
+			t.Errorf("row %d is %d columns: %q", i, w, l)
+		}
+		if !strings.HasPrefix(l, "║") && !strings.HasPrefix(l, "╔") && !strings.HasPrefix(l, "╠") && !strings.HasPrefix(l, "╚") {
+			t.Errorf("row %d is not framed: %q", i, l)
+		}
+	}
 	text := strings.Join(rows, "\n")
-	for _, s := range []string{tagline, "VERSION   0.7.0", "STATION   w0zro@station", "PLATFORM  darwin/arm64", "CLOCK     2026-09-08 23:58:41Z", greeting} {
+	for _, s := range []string{tagline, "CONN VERSION 0.7.0", "STATION   W0ZRO@STATION", "PLATFORM  DARWIN/ARM64", "08-SEP-2026  23:58:41 Z", "***  HELLO FROM THE CONN  ***"} {
 		if !strings.Contains(text, s) {
 			t.Errorf("screen lacks %q:\n%s", s, text)
 		}
 	}
-	if !strings.HasSuffix(strings.TrimSpace(text), greeting) {
-		t.Errorf("screen does not end with the call:\n%s", text)
+	if strings.Contains(text, "\x1b") {
+		t.Errorf("screen carries escapes off a terminal:\n%q", text)
 	}
-	for _, l := range rows {
-		if strings.Contains(l, "\x1b") {
-			t.Errorf("plain row carries escapes: %q", l)
+}
+
+// A wider terminal centers the screen; a narrower one gets it flush left.
+func TestScreenCentersInAWiderTerminal(t *testing.T) {
+	for _, l := range screen(testReport, 120)[1:23] {
+		if !strings.HasPrefix(l, strings.Repeat(" ", 20)+"╔") && !strings.HasPrefix(l, strings.Repeat(" ", 20)+"║") && !strings.HasPrefix(l, strings.Repeat(" ", 20)+"╠") && !strings.HasPrefix(l, strings.Repeat(" ", 20)+"╚") {
+			t.Errorf("row is not centered in 120: %q", l)
 		}
-		if w := utf8.RuneCountInString(l); w > 80 {
-			t.Errorf("row is %d columns: %q", w, l)
-		}
-		if l != strings.TrimRight(l, " ") {
-			t.Errorf("row has trailing space: %q", l)
+	}
+	for _, l := range screen(testReport, 60)[1:23] {
+		if strings.HasPrefix(l, " ") {
+			t.Errorf("row is indented in a narrow terminal: %q", l)
 		}
 	}
 }
 
-// The painted screen covers every column of every row, so the panel has
-// straight edges, and says what the plain one says.
-func TestPaintedScreenCoversTheWidth(t *testing.T) {
-	for _, width := range []int{60, 80, 132} {
-		for i, l := range screen(colored, testReport, width) {
-			if !strings.HasSuffix(l, colored.reset) {
-				t.Errorf("width %d row %d does not reset: %q", width, i, l)
-			}
-			if w := utf8.RuneCountInString(stripEscapes(l)); w != width {
-				t.Errorf("width %d row %d paints %d columns: %q", width, i, w, l)
-			}
-		}
-	}
-	text := strings.Join(screen(colored, testReport, 80), "\n")
-	if !strings.Contains(text, greeting) || !strings.Contains(text, "0.7.0") {
-		t.Errorf("painted screen lost its words:\n%s", text)
-	}
-}
-
-// A terminal too narrow for the letters gets the name spelled out instead.
-func TestNarrowScreenSpellsTheName(t *testing.T) {
-	text := strings.Join(screen(plain, testReport, 50), "\n")
-	if !strings.Contains(text, "C O N N") {
-		t.Errorf("narrow screen does not spell the name:\n%s", text)
-	}
-	for _, l := range strings.Split(text, "\n") {
-		if w := utf8.RuneCountInString(l); w > 50 {
-			t.Errorf("row is %d columns: %q", w, l)
-		}
-	}
-}
-
-// Every letter is the same height, and the word sets to rows of one width.
+// The name is set from its own letters, every letter the same height,
+// and the word to rows of one width.
 func TestLettersSetEvenly(t *testing.T) {
 	for r, g := range glyphs {
-		if len(g) != 12 {
-			t.Errorf("%c is %d pixels tall, not 12", r, len(g))
+		if len(g) != 7 {
+			t.Errorf("%c is %d rows tall, not 7", r, len(g))
 		}
 		for i, row := range g {
 			if len(row) != len(g[0]) {
@@ -79,27 +65,15 @@ func TestLettersSetEvenly(t *testing.T) {
 		}
 	}
 	rows := letters(nameSet)
-	if len(rows) != 6 {
-		t.Fatalf("%q sets to %d rows, not 6", nameSet, len(rows))
+	if len(rows) != 7 {
+		t.Fatalf("%q sets to %d rows, not 7", nameSet, len(rows))
 	}
 	for i, row := range rows {
 		if w := utf8.RuneCountInString(row); w != utf8.RuneCountInString(rows[0]) {
 			t.Errorf("row %d is %d wide, row 0 is %d", i, w, utf8.RuneCountInString(rows[0]))
 		}
-	}
-}
-
-// stripEscapes drops the color sequences, leaving the cells.
-func stripEscapes(s string) string {
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		if s[i] == 0x1b {
-			for i < len(s) && s[i] != 'm' {
-				i++
-			}
-			continue
+		if strings.Trim(row, "CON ") != "" {
+			t.Errorf("row %d is drawn in something other than the letters: %q", i, row)
 		}
-		b.WriteByte(s[i])
 	}
-	return b.String()
 }

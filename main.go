@@ -5,16 +5,17 @@ import (
 	"time"
 )
 
-// conn comes up: the start-up screen is painted a row at a time, the
-// station reports itself, and conn calls hello from the loop. Everything
-// it was is in the history, and comes back piece by piece, in the form it
-// is wanted in.
+// conn comes up: the start-up screen is written a row at a time, the way
+// a screen was painted down a serial line, the station reports itself,
+// and conn calls hello from the loop. Everything it was is in the
+// history, and comes back piece by piece, in the form it is wanted in.
 func main() {
-	p, width, pace := plain, 80, time.Duration(0)
+	width, pace := screenCols, time.Duration(0)
 	if stdoutIsTerminal() {
-		p, width, pace = colored, terminalWidth(), 28*time.Millisecond
+		width, pace = terminalWidth(), 30*time.Millisecond
+		bright, normal = "\x1b[1m", "\x1b[0m"
 	}
-	for _, row := range screen(p, stationReport(), width) {
+	for _, row := range screen(stationReport(), width) {
 		fmt.Println(row)
 		time.Sleep(pace)
 	}

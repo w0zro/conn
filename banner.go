@@ -33,32 +33,21 @@ func buildVersion() string {
 	return strings.TrimPrefix(v, "v")
 }
 
-// The start-up screen is the station coming on. A dark panel is painted
-// across the terminal, the name comes up large, the station reports what
-// it is running and where, and then conn is on the loop and calls hello.
+// The start-up screen is a system screen of the old kind: eighty columns
+// by twenty-four rows, ruled in double lines, the name set large in the
+// upper panel, the station's report in the middle one, and the call in
+// the lower. It is monochrome, in whatever the terminal's phosphor is;
+// on a terminal, the name and the call are bright.
 
-// tagline is what conn is for, in the manual's words.
-const tagline = "every project and its processes, on one console"
-
-// The palette is the site's: the dark of the ground, paper for the text,
-// grey for the small print, red for the bar along the top and the rule
-// along the bottom, and green for the light that says conn is on the loop.
-type palette struct {
-	ground, paper, grey, red, redInk, green, reset string
-}
-
-var (
-	colored = palette{
-		ground: "\x1b[48;2;25;27;31m",
-		paper:  "\x1b[38;2;241;235;222m",
-		grey:   "\x1b[38;2;141;132;116m",
-		red:    "\x1b[48;2;189;58;29m",
-		redInk: "\x1b[38;2;189;58;29m",
-		green:  "\x1b[38;2;46;125;79m",
-		reset:  "\x1b[0m",
-	}
-	plain palette
+const (
+	screenCols = 80
+	screenRows = 24
+	tagline    = "EVERY PROJECT AND ITS PROCESSES, ON ONE CONSOLE"
 )
+
+// bright and normal are the one attribute the screen uses, and are empty
+// off a terminal.
+var bright, normal string
 
 // A report is what the station says of itself: the build, who is on it
 // and where, the platform, and the clock in Zulu.
@@ -81,92 +70,87 @@ func stationReport() report {
 		version:  buildVersion(),
 		station:  who + "@" + host,
 		platform: runtime.GOOS + "/" + runtime.GOARCH,
-		clock:    time.Now().UTC().Format("2006-01-02 15:04:05Z"),
+		clock:    time.Now().UTC().Format("02-Jan-2006  15:04:05") + " Z",
 	}
 }
 
-// screen renders the start-up screen as rows, each painted edge to edge
-// when the palette has a ground, for a terminal width columns wide.
-func screen(p palette, r report, width int) []string {
-	name := letters(nameSet)
-	block := utf8.RuneCountInString(name[0])
-	if width < block+4 {
-		name = []string{strings.Join(strings.Split(nameSet, ""), " ")}
-		block = utf8.RuneCountInString(name[0])
-	}
-	if w := utf8.RuneCountInString(tagline); w > block {
-		block = w
-	}
-	left := (width - block) / 2
-	if left < 1 {
-		left = 1
+// screen renders the start-up screen as rows, centered in a terminal
+// width columns wide when it is wider than the screen.
+func screen(r report, width int) []string {
+	inner := screenCols - 2
+	margin := ""
+	if width > screenCols {
+		margin = strings.Repeat(" ", (width-screenCols)/2)
 	}
 
 	var rows []string
-	row := func(text string, cells int) {
-		pad := width - left - cells
-		if pad < 0 {
-			pad = 0
+	rule := func(l, m, rt string) {
+		rows = append(rows, margin+l+strings.Repeat(m, inner)+rt)
+	}
+	// line frames text between the side rules, at a column from the left
+	// rule; negative, it centers the text.
+	line := func(text string, col int, attr string) {
+		w := utf8.RuneCountInString(text)
+		if col < 0 {
+			col = (inner - w) / 2
 		}
-		rows = append(rows, p.ground+p.paper+strings.Repeat(" ", left)+text+strings.Repeat(" ", pad)+p.reset)
+		right := inner - col - w
+		if right < 0 {
+			right = 0
+		}
+		rows = append(rows, margin+"║"+strings.Repeat(" ", col)+attr+text+normal+strings.Repeat(" ", right)+"║")
 	}
-	blank := func() { row("", 0) }
+	blank := func() { line("", 0, "") }
 
-	if p != plain {
-		rows = append(rows, p.red+strings.Repeat(" ", width)+p.reset)
-	}
+	rows = append(rows, "")
+	rule("╔", "═", "╗")
 	blank()
-	blank()
+	name := letters(nameSet)
+	col := (inner - utf8.RuneCountInString(name[0])) / 2
 	for _, l := range name {
-		row(l, utf8.RuneCountInString(l))
+		line(l, col, bright)
 	}
 	blank()
-	row(p.grey+tagline+p.paper, utf8.RuneCountInString(tagline))
+	line(tagline, -1, "")
 	blank()
+	rule("╠", "═", "╣")
 	blank()
-	for _, f := range []struct{ label, value string }{
-		{"VERSION", r.version},
-		{"STATION", r.station},
-		{"PLATFORM", r.platform},
-		{"CLOCK", r.clock},
-	} {
-		label := f.label + strings.Repeat(" ", 10-len(f.label))
-		row(p.grey+label+p.paper+f.value, 10+utf8.RuneCountInString(f.value))
+	left := 4
+	labels := [][2]string{
+		{"CONN VERSION " + r.version, "STATION   " + strings.ToUpper(r.station)},
+		{strings.ToUpper(r.clock), "PLATFORM  " + strings.ToUpper(r.platform)},
 	}
-	blank()
-	row(p.green+"●"+p.paper+"  "+greeting, 3+len(greeting))
-	blank()
-	blank()
-	if p != plain {
-		rows = append(rows, p.ground+p.redInk+strings.Repeat("▀", width)+p.reset)
-	}
-
-	if p == plain {
-		for i := range rows {
-			rows[i] = strings.TrimRight(rows[i], " ")
+	for _, l := range labels {
+		gap := inner/2 - left - utf8.RuneCountInString(l[0])
+		if gap < 2 {
+			gap = 2
 		}
+		line(l[0]+strings.Repeat(" ", gap)+l[1], left, "")
 	}
+	blank()
+	rule("╠", "═", "╣")
+	blank()
+	line("***  "+strings.ToUpper(greeting)+"  ***", -1, bright)
+	blank()
+	rule("╚", "═", "╝")
+	rows = append(rows, "")
 	return rows
 }
 
 // stdoutIsTerminal says whether what conn prints is going to a person's
-// screen, where the paint belongs, or to a pipe or file, where it does
-// not. NO_COLOR, set to anything, asks for none either way.
+// screen, or to a pipe or file.
 func stdoutIsTerminal() bool {
-	if _, set := os.LookupEnv("NO_COLOR"); set {
-		return false
-	}
 	info, err := os.Stdout.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-// terminalWidth is how many columns the terminal on stdout has, or 80 when
-// it will not say.
+// terminalWidth is how many columns the terminal on stdout has, or the
+// screen's own when it will not say.
 func terminalWidth() int {
 	var ws struct{ rows, cols, x, y uint16 }
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, os.Stdout.Fd(), syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&ws)))
 	if errno != 0 || ws.cols == 0 {
-		return 80
+		return screenCols
 	}
 	return int(ws.cols)
 }

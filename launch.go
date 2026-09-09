@@ -117,12 +117,13 @@ func runLaunch() error {
 }
 
 // attach runs tmux in this terminal until it detaches, and for as long as
-// it runs the terminal's own ground is the hangar's: the margin a terminal
+// it runs the terminal's own ground is the bar's: the margin a terminal
 // keeps around its cells is painted in its default background, and with
-// the default set to the ground the window is one ground from its edges
-// in, rather than a frame of the terminal's color around conn. The ground
-// is given back when tmux is done, and the config's "terminal" theme
-// leaves it alone throughout. tmux is run as a child rather than in this
+// the default set to the tab strip's color the margin is the dark the
+// strip and the status line sit in, over the tabs and under the foot,
+// rather than a frame of the terminal's color around conn. The ground is
+// given back when tmux is done, and the config's "terminal" theme leaves
+// it alone throughout. tmux is run as a child rather than in this
 // process's place so there is a moment after it to give the ground back;
 // the keys that would interrupt or stop a process from the keyboard are
 // tmux's to read while it holds the terminal, so they are ignored here.
@@ -131,7 +132,7 @@ func attach(tmux string) error {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	ossignal.Ignore(syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTSTP)
 	if paintShells {
-		fmt.Fprint(os.Stdout, oscGround(tp.ground))
+		fmt.Fprint(os.Stdout, oscGround(tp.bar))
 	}
 	err := cmd.Run()
 	if paintShells {

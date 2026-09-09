@@ -252,10 +252,9 @@ func (m model) tabline() string {
 	return b.String() + barStyle.Render(strings.Repeat(" ", rest)) + barStyle.Inherit(faintStyle).Render(hint) + barStyle.Render(" ")
 }
 
-// edgeRow is the row over the tabline: the ground across, and under the
-// focused tab's columns the orange edge — the focus signal, sitting on
-// the tab's top, so the bar under it reads as one row with the edge on
-// its rim rather than a band the edge runs through.
+// edgeRow is the row over the tabline: the bar across, one dark with the
+// terminal's margin over it, and under the focused tab's columns the
+// orange edge — the focus signal, sitting on the tab's top.
 func (m model) edgeRow() string {
 	cells, start := m.tabCells()
 	hint := m.tabHint()
@@ -266,13 +265,13 @@ func (m model) edgeRow() string {
 			break
 		}
 		if cells[i].focused {
-			return groundStyle.Render(strings.Repeat(" ", used)) +
-				groundStyle.Inherit(orangeStyle).Render(strings.Repeat(glyphEdge, cells[i].width)) +
-				groundStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
+			return barStyle.Render(strings.Repeat(" ", used)) +
+				barStyle.Inherit(orangeStyle).Render(strings.Repeat(glyphEdge, cells[i].width)) +
+				barStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
 		}
 		used += cells[i].width
 	}
-	return groundStyle.Render(strings.Repeat(" ", m.width))
+	return barStyle.Render(strings.Repeat(" ", m.width))
 }
 
 // tabHint is the one hint the tabline's right end holds: the key that

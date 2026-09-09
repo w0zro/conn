@@ -47,10 +47,10 @@ type agent interface {
 	blocked() (string, bool)
 
 	// describe is what the instance says of itself read deeper than the
-	// scan does — its branch, its context — as facts for a heading. It
-	// may read a transcript, so it runs off the render path, for the shown
-	// buffer only.
-	describe() []string
+	// scan does — its branch, its context — for a heading, and for telling
+	// two tabs of the same name apart. It may read a transcript, so it
+	// runs off the render path.
+	describe() agentFacts
 }
 
 // runs reports whether a process is an instance of an agent: the kind's own
@@ -99,6 +99,14 @@ func agentKindOf(n *ProcNode) (agentKind, bool) {
 		}
 	}
 	return agentKind{}, false
+}
+
+// agentFacts is what an instance says of itself when read deeper than the
+// scan does: the branch it is on, and the facts a heading lists after the
+// name — the branch among them, the context, the subagents out.
+type agentFacts struct {
+	Branch string
+	Facts  []string
 }
 
 // modeled is an agent that knows the model it is running. Not every kind

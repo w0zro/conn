@@ -95,10 +95,21 @@ const (
 type navRow struct {
 	kind    rowKind
 	project Project
+	name    string       // a place's name as its heading reads: the repository under its group, the sub-project under its repository
 	run     []*ProcNode  // the whole folded run, oldest first
 	node    *ProcNode    // the one in it the row is named for
-	prefix  string       // tree rules of the ancestors already drawn
+	prefix  string       // the indent of the ancestors already drawn
 	rest    conversation // for a row at rest, the conversation it stands for
+}
+
+// placeName is what a place's row is called: a repository under a group
+// is named for both, w0zro/conn, and a sub-project for its repository
+// and itself, conn/docs — every place a heading of its own, at the margin.
+func (r navRow) placeName() string {
+	if r.name != "" {
+		return r.name
+	}
+	return r.project.Name
 }
 
 // chain is the top of the run, which a tree kill has to cover.
@@ -215,10 +226,16 @@ type model struct {
 	// ending — so a strip is read again when the ending changes.
 	histories map[int]string
 
-	// deep is what the shown buffer's agent says of itself when read
-	// deeper than the scan does — its branch, its context — for the
-	// heading, read off the render path for the shown buffer alone.
-	deep map[int][]string
+	// deep is what each held agent says of itself when read deeper than
+	// the scan does — its branch, its context — for the heading, and for
+	// telling two tabs of one name apart; read off the render path.
+	deep map[int]agentFacts
+
+	// seen holds the agents whose finished turn has been looked at: the
+	// buffer was shown, or had focus when the turn ended. A turn looked at
+	// is quiet — the filled mark is for a result you have not seen — and
+	// the next turn the agent works clears it.
+	seen map[int]bool
 
 	// snapshot is the finder's listing as last written beside the socket,
 	// so it is written again only when it changed.
@@ -382,7 +399,8 @@ func newModel() model {
 		dressed:   map[int]string{},
 		history:   map[int][]run{},
 		histories: map[int]string{},
-		deep:      map[int][]string{},
+		deep:      map[int]agentFacts{},
+		seen:      map[int]bool{},
 		// Init sends the first scan, and Init cannot write here to say so.
 		scanning: true,
 	}
@@ -706,6 +724,15 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 
 	case agentsMsg:
 		m.agents = msg.agents
+		// An instance at work again has a turn nobody has seen yet; one
+		// that finishes in the buffer with focus is being looked at.
+		for pid, a := range m.agents {
+			if a.working() {
+				delete(m.seen, pid)
+			} else if t := m.owningTerm(pid); t != nil && t.pid == m.focus && m.focus != 0 {
+				m.seen[pid] = true
+			}
+		}
 		// The marks changed without the tree changing; the windows show
 		// the new ones.
 		m.dressWindows()
@@ -1252,6 +1279,7 @@ func (m *model) show(t *remoteTerm) {
 	m.setFilter("")
 	m.all = false
 	m.from = 0
+	m.lookAt(t)
 	for i, r := range m.rows {
 		if r.kind == rowProc && m.owningTerm(r.node.PID) == t {
 			m.cursor = i
@@ -1268,6 +1296,30 @@ func (m *model) show(t *remoteTerm) {
 	}
 	m.keysTo(0)
 	m.server.showQuiet(t.pid)
+}
+
+// lookAt marks the finished turns of the agents in a buffer as seen: the
+// buffer is being shown, and what it had to show has been looked at.
+func (m *model) lookAt(t *remoteTerm) {
+	for pid, a := range m.agents {
+		if !a.working() && m.owningTerm(pid) == t {
+			m.seen[pid] = true
+		}
+	}
+}
+
+// owed is the agent a row is running when it is owed a look: blocked on
+// an ask, whatever has been seen, or done with a turn nobody has looked
+// at yet. A finished turn already looked at is quiet.
+func (m model) owed(r navRow) agent {
+	a := m.awaiting(r)
+	if a == nil {
+		return nil
+	}
+	if _, blocked := a.blocked(); blocked || !m.seen[r.node.PID] {
+		return a
+	}
+	return nil
 }
 
 // park gives the shown buffer a window of its own and conn the whole
@@ -2278,7 +2330,7 @@ func (m model) wrong(r navRow) bool {
 // needsYou reports a row that tab goes to: an agent waiting on you, or a
 // row gone wrong — the things that stop work until you look.
 func (m model) needsYou(r navRow) bool {
-	return m.awaiting(r) != nil || m.wrong(r)
+	return m.owed(r) != nil || m.wrong(r)
 }
 
 // askKill previews a kill for whatever the cursor is on: what would die,
@@ -2736,6 +2788,7 @@ func (m *model) dressStatus() {
 // newer conn says, else the session's facts.
 func (m model) statusLine() statusText {
 	var t statusText
+	t.edge = m.tabEdge()
 	need := m.needCount()
 	switch {
 	case m.pendingReplace:
@@ -2882,7 +2935,7 @@ func (m model) shellLabel(pid int, t *remoteTerm) (string, string) {
 			switch {
 			case a.working():
 				mark = glyphBusy
-			case m.awaiting(r) != nil:
+			case m.owed(r) != nil:
 				if _, blocked := a.blocked(); blocked {
 					mark = glyphAsk
 				} else {
@@ -3160,34 +3213,45 @@ func (m model) flatten() []navRow {
 			continue
 		}
 
-		rows = append(rows, top)
+		// A group is a heading only for the work at its own level — a
+		// shell opened on the group, the global place's processes; its
+		// repositories are headings of their own, named for it.
 		repos := m.visibleRepos(top.project)
+		own := m.byPlace[top.project.Path]
 		if m.typing {
-			// Work at the group's own level answers a query the same way it
-			// is listed without one: before the repositories it sits beside.
 			if f := strings.ToLower(strings.TrimSpace(m.filter)); f != "" {
-				for _, n := range m.matchingProcs(m.byPlace[top.project.Path], f) {
-					rows = append(rows, m.flattenProc(top.project, n, glyphIndent)...)
+				own = m.matchingProcs(own, f)
+			} else {
+				own = nil
+			}
+		}
+		if len(own) > 0 || top.project.Path == globalPlace || (len(repos) == 0 && !m.typing) {
+			rows = append(rows, top)
+			if !m.collapsed[detailKey(top)] {
+				for _, n := range m.treesByNeed(own) {
+					rows = append(rows, m.flattenProc(top.project, n, "")...)
 				}
 			}
-			for _, p := range repos {
-				rows = append(rows, m.flattenRepo(p, "  ")...)
-			}
-			continue
-		}
-		if m.collapsed[detailKey(top)] {
-			continue
-		}
-		// Work at the group's own level — a shell opened on the group row —
-		// comes before the repositories it sits beside.
-		for _, n := range m.treesByNeed(m.byPlace[top.project.Path]) {
-			rows = append(rows, m.flattenProc(top.project, n, glyphIndent)...)
 		}
 		for _, p := range repos {
-			rows = append(rows, m.flattenRepo(p, "  ")...)
+			rows = append(rows, m.flattenRepo(p, "")...)
 		}
 	}
 	return rows
+}
+
+// qualified is a repository's heading: its name under its group's, when
+// it has one.
+func (m model) qualified(p Project) string {
+	if p.Group == "" {
+		return p.Name
+	}
+	for _, g := range m.groups {
+		if g.Path == p.Group {
+			return g.Name + "/" + p.Name
+		}
+	}
+	return filepath.Base(p.Group) + "/" + p.Name
 }
 
 // topPlaces is the top of the navigator: the groups and the repositories
@@ -3345,7 +3409,7 @@ func (m model) treesByNeed(roots []*ProcNode) []*ProcNode {
 // sub-projects and process trees, everything shifted right when the
 // repository itself sits under a group.
 func (m model) flattenRepo(p Project, indent string) []navRow {
-	row := navRow{kind: rowProject, project: p, prefix: indent}
+	row := navRow{kind: rowProject, project: p, name: m.qualified(p), prefix: indent}
 	rows := []navRow{row}
 	subs := m.visibleSubs(p)
 	// While a project is being looked up, an empty query lists places alone —
@@ -3363,13 +3427,13 @@ func (m model) flattenRepo(p Project, indent string) []navRow {
 			rows = append(rows, m.flattenProc(p, n, indent)...)
 		}
 		for _, sp := range subs {
-			srow := navRow{kind: rowSub, project: sp, prefix: indent}
+			srow := navRow{kind: rowSub, project: sp, name: p.Name + "/" + sp.Name, prefix: indent}
 			rows = append(rows, srow)
 			if f == "" {
 				continue
 			}
 			for _, n := range m.matchingProcs(m.byPlace[sp.Path], f) {
-				rows = append(rows, m.flattenProc(sp, n, indent+glyphIndent)...)
+				rows = append(rows, m.flattenProc(sp, n, indent)...)
 			}
 		}
 		return rows
@@ -3377,28 +3441,27 @@ func (m model) flattenRepo(p Project, indent string) []navRow {
 	if m.collapsed[detailKey(row)] {
 		return rows
 	}
-	// Processes and sub-projects hang off the repository as one family of
-	// siblings: sub-projects and processes share one indent. The trees
-	// that need you come first, then the sub-projects that do.
+	// The repository's own processes, the trees that need you first; then
+	// the newest conversation at rest, while the place has work: a process
+	// that is not running, kept in view the way an exited container is
+	// beside its siblings, for enter to pick back up. Each sub-project is
+	// a heading of its own after, named for the repository and itself.
 	for _, n := range m.treesByNeed(m.byPlace[p.Path]) {
 		rows = append(rows, m.flattenProc(p, n, indent)...)
 	}
+	if c, ok := m.rests[p.Path]; ok && m.workIn(p.Path) {
+		rows = append(rows, navRow{kind: rowRest, project: p, rest: c, prefix: indent})
+	}
 	slices.SortStableFunc(subs, m.byNeed)
 	for _, sp := range subs {
-		srow := navRow{kind: rowSub, project: sp, prefix: indent}
+		srow := navRow{kind: rowSub, project: sp, name: p.Name + "/" + sp.Name, prefix: indent}
 		rows = append(rows, srow)
 		if m.collapsed[detailKey(srow)] {
 			continue
 		}
 		for _, n := range m.treesByNeed(m.byPlace[sp.Path]) {
-			rows = append(rows, m.flattenProc(sp, n, indent+glyphIndent)...)
+			rows = append(rows, m.flattenProc(sp, n, indent)...)
 		}
-	}
-	// The newest conversation at rest, last in the family, while the place
-	// has work: a process that is not running, kept in view the way an
-	// exited container is beside its siblings, for enter to pick back up.
-	if c, ok := m.rests[p.Path]; ok && m.workIn(p.Path) {
-		rows = append(rows, navRow{kind: rowRest, project: p, rest: c, prefix: indent})
 	}
 	return rows
 }
@@ -3546,27 +3609,32 @@ func (m model) awaiting(r navRow) agent {
 	return a
 }
 
-// deepMsg is what the shown buffer's agent said of itself, read deeper
-// than the scan does.
+// deepMsg is what a held agent said of itself, read deeper than the scan
+// does.
 type deepMsg struct {
 	pid   int
-	facts []string
+	facts agentFacts
 }
 
-// deepCmd reads the shown buffer's agent for the heading's facts — its
-// branch, its context — off the render path, for the shown buffer alone:
-// the transcript is megabytes, and only its tail is read.
+// deepCmd reads every held agent for its heading's facts — its branch,
+// its context — off the render path: the transcript is megabytes, and
+// only its tail is read. The facts are kept by the buffer's shell, which
+// is what the heading and the tabline are about.
 func (m model) deepCmd() tea.Cmd {
-	r, ok := m.shownRow()
-	if !ok {
-		return nil
+	var cmds []tea.Cmd
+	for pid, a := range m.agents {
+		t := m.owningTerm(pid)
+		if t == nil {
+			continue
+		}
+		n := m.nodes[pid]
+		if n == nil || !runs(a, n) {
+			continue
+		}
+		shell := t.pid
+		cmds = append(cmds, func() tea.Msg { return deepMsg{pid: shell, facts: a.describe()} })
 	}
-	a := m.agentFor(r)
-	if a == nil {
-		return nil
-	}
-	pid := m.shown
-	return func() tea.Msg { return deepMsg{pid: pid, facts: a.describe()} }
+	return tea.Batch(cmds...)
 }
 
 // restsMsg carries the newest conversation at rest under each place with

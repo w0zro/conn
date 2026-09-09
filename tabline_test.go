@@ -114,7 +114,7 @@ func TestTheFindersListingHoldsEverythingOpenable(t *testing.T) {
 }
 
 func TestTheFinderNarrowsByFuzzAndOffersToMakeWhatIsMissing(t *testing.T) {
-	f := newFinderModel()
+	f := newFinderModel("")
 	f.loaded = true
 	f.snap = finderSnapshot{Root: "/p", Entries: []finderEntry{
 		{Kind: "buffer", Label: "datum/tests", Facts: []segment{{"task", toneQuiet}}},

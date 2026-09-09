@@ -85,8 +85,8 @@ func TestTheSelectedRowIsStillFindableWhenDimmed(t *testing.T) {
 	if !strings.Contains(row, "▸ ") {
 		t.Errorf("row = %q, want the cursor marker to still say where you are", row)
 	}
-	if !m.rowStyle(m.rows[1], true).GetBold() {
-		t.Error("the selected row should stand out from the other dim ones")
+	if !strings.Contains(m.renderRow(m.rows[1], true), "48;2;42;38;32") {
+		t.Error("the selected row should stand out from the other dim ones on the bar")
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -159,7 +158,7 @@ func (m model) procEntry(r navRow) finderEntry {
 		switch {
 		case a.working():
 			e.Facts = append(e.Facts, segment{mark + " working", toneAttn})
-		case m.awaiting(r) != nil:
+		case m.owed(r) != nil:
 			t := toneGood
 			word := "done, review when ready"
 			if ask, ok := a.blocked(); ok {
@@ -186,11 +185,13 @@ func (m model) procEntry(r navRow) finderEntry {
 			e.Facts = append(e.Facts, segment{shortAge(ending.At), toneGood})
 		}
 	default:
-		word, t := "running", toneGood
+		// Up and quiet: the hollow mark, in gray — the filled one is for
+		// a result you have not looked at.
+		word := "running"
 		if !e.Held {
-			word, t = "not conn's — look, don't step", toneQuiet
+			word = "not conn's — look, don't step"
 		}
-		e.Facts = append(e.Facts, segment{glyphOn + " " + word, t})
+		e.Facts = append(e.Facts, segment{glyphOff + " " + word, toneQuiet})
 		if ps := runPorts(r.run, r.node); len(ps) > 0 {
 			e.Facts = append(e.Facts, segment{":" + strings.Join(ps, " :"), toneAccent})
 		}
@@ -276,44 +277,16 @@ func tasksOf(dir string) []task {
 
 // The popup.
 
-// finderPopupWidth and finderPopupHeight are the popup's share of the
-// client: most of the width, and enough rows for a list.
-const finderPopupWidth, finderPopupHeight = 85, 60
-
-// showFinder shows the finder in a popup over the client; "" is the client
+// showFinder shows the finder over the client's window; "" is the client
 // that spoke last.
 func showFinder(run runner, exe, client string) error {
-	return popupShare(run, client, finderPopupWidth, finderPopupHeight, shellQuote(exe)+" page finder")
-}
-
-// popupShare runs a command in a popup sized as a share of the client:
-// the width's and the height's percentage each, untitled.
-func popupShare(run runner, client string, wp, hp int, command string) error {
-	if client == "" {
-		var err error
-		if client, err = latestClient(run); err != nil {
-			return err
-		}
-	}
-	width, height := 96, 24
-	if out, err := run("display-message", "-p", "-c", client, "#{client_width} #{client_height}"); err == nil {
-		if f := strings.Fields(out); len(f) == 2 {
-			if cw, err := strconv.Atoi(f[0]); err == nil && cw > 0 {
-				width = max(min(cw*wp/100, cw), 20)
-			}
-			if ch, err := strconv.Atoi(f[1]); err == nil && ch > 0 {
-				height = max(min(ch*hp/100, ch), 8)
-			}
-		}
-	}
-	_, err := run("display-popup", "-E", "-c", client, "-T", "",
-		"-w", strconv.Itoa(width), "-h", strconv.Itoa(height), command)
-	return err
+	return popupOver(run, client, shellQuote(exe)+" page finder")
 }
 
 // finderModel is the popup: the query, the listing, what answers, and the
-// cursor over it.
+// cursor over it, drawn as a box over the dimmed window.
 type finderModel struct {
+	client  string // the client the popup is over, whose window is the backdrop
 	query   textinput.Model
 	snap    finderSnapshot
 	agent   string // the kind a starts, as the server holds it
@@ -322,7 +295,8 @@ type finderModel struct {
 	cursor  int
 	width   int
 	height  int
-	said    string // what the last action said, when it could not act
+	bg      []string // the window behind, dimmed
+	said    string   // what the last action said, when it could not act
 	saidErr bool
 }
 
@@ -333,8 +307,8 @@ type finderReadMsg struct {
 	err   error
 }
 
-func newFinderModel() finderModel {
-	return finderModel{query: newLine(), width: 96, height: 24}
+func newFinderModel(client string) finderModel {
+	return finderModel{client: client, query: newLine(), width: 96, height: 24}
 }
 
 func (m finderModel) Init() tea.Cmd {
@@ -343,6 +317,9 @@ func (m finderModel) Init() tea.Cmd {
 		return finderReadMsg{snap: snap, agent: currentKind(tmuxCommand).name, err: err}
 	}
 }
+
+// backdropMsg is the window behind the popup, read once its size is known.
+type backdropMsg struct{ rows []string }
 
 // readFinder reads the navigator's listing. Without one — the navigator
 // not running, or nothing written yet — the listing is read the way conn
@@ -372,6 +349,10 @@ func (m finderModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		client, w, h := m.client, m.width, m.height
+		return m, func() tea.Msg { return backdropMsg{rows: backdrop(tmuxCommand, client, w, h)} }
+	case backdropMsg:
+		m.bg = msg.rows
 	case finderReadMsg:
 		m.loaded, m.err, m.snap, m.agent = true, msg.err, msg.snap, msg.agent
 	case tea.PasteMsg:
@@ -593,55 +574,56 @@ func (m finderModel) View() tea.View {
 	return v
 }
 
-// render draws the popup: the query line with its prompt and block cursor
-// over a rule, the rows that answer with the cursor's on a bar and the
-// matched letters lit, and at the foot what enter does with no match and
-// how agents start.
+// boxWidth is the box's width: most of the window's.
+func (m finderModel) boxWidth() int { return max(min(m.width*overlayShare/100, m.width-2), 40) }
+
+// render draws the page: the dimmed window, and over it the box — the
+// query line with its prompt and block cursor over a rule, the rows that
+// answer with the cursor's on a bar and the matched letters lit, a blank,
+// and at the foot what enter does with no match and how agents start. The
+// box is as tall as that and no taller.
 func (m finderModel) render() string {
+	inside := m.boxWidth() - 2
 	wash := lipgloss.NewStyle().Background(lipgloss.Color(colorWash))
-	line := func(s string) string { return wash.Render(pad(s, m.width)) }
+	line := func(s string) string { return wash.Render(pad(truncateStyled(s, inside, false), inside)) }
 	q := m.query.Value()
 	query := gutter + wash.Inherit(orangeStyle).Bold(true).Render(glyphJoin) + " " + wash.Inherit(itemStyle).Render(q) + cursorStyle.Render(" ")
-	lines := []string{line(query), line(ruleStyle.Render(strings.Repeat("─", m.width))), line("")}
+	box := []string{line(query), wash.Inherit(ruleStyle).Render(strings.Repeat("─", inside)), line("")}
 	switch {
 	case !m.loaded:
-		lines = append(lines, line(gutter+noteStyle.Render("looking…")))
+		box = append(box, line(gutter+noteStyle.Render("looking…")))
 	case m.err != nil:
-		lines = append(lines, line(gutter+errStyle.Render(m.err.Error())))
+		box = append(box, line(gutter+errStyle.Render(m.err.Error())))
 	default:
-		lines = append(lines, m.rows()...)
+		box = append(box, m.rows(inside)...)
 	}
-	foot := m.foot()
-	for len(lines) < m.height-len(foot)-1 {
-		lines = append(lines, line(""))
+	box = append(box, line(""))
+	for _, f := range m.foot() {
+		box = append(box, line(gutter+faintStyle.Render(f)))
 	}
-	lines = lines[:max(0, min(len(lines), m.height-len(foot)-1))]
-	for _, f := range foot {
-		lines = append(lines, line(gutter+faintStyle.Render(truncateTail(f, m.width-len(gutter)))))
-	}
-	lines = append(lines, line(""))
-	return strings.Join(lines, "\n")
+	box = append(box, line(""))
+	return overlay(m.bg, box, m.width, m.height, m.boxWidth())
 }
 
 // rows is the listing that answers, the cursor's row on the chip's bar
 // with the orange marker, the labels in one column and the facts in the
-// next.
-func (m finderModel) rows() []string {
+// next, as many as the window has rows for.
+func (m finderModel) rows(inside int) []string {
 	wash := lipgloss.NewStyle().Background(lipgloss.Color(colorWash))
 	list := m.matches()
 	if len(list) == 0 {
 		q := strings.TrimSpace(m.query.Value())
 		if q == "" {
-			return []string{wash.Render(pad(gutter+noteStyle.Render("nothing to open yet"), m.width))}
+			return []string{wash.Render(pad(gutter+noteStyle.Render("nothing to open yet"), inside))}
 		}
-		return []string{wash.Render(pad(gutter+noteStyle.Render("nothing answers "+q+" — enter makes it"), m.width))}
+		return []string{wash.Render(pad(gutter+noteStyle.Render("nothing answers "+q+" — enter makes it"), inside))}
 	}
 	labelW := 0
 	for _, e := range list {
 		labelW = max(labelW, lipgloss.Width(e.Label))
 	}
-	labelW = min(labelW, max(m.width/3, 16))
-	size := max(1, m.height-7)
+	labelW = min(labelW, max(inside/3, 16))
+	size := max(1, m.height-11)
 	cursor := min(m.cursor, len(list)-1)
 	top := max(0, min(cursor-size+1, len(list)-size))
 	q := strings.TrimSpace(m.query.Value())
@@ -664,11 +646,11 @@ func (m finderModel) rows() []string {
 		}
 		label := labelStyle.Render(truncateTail(e.Label, labelW))
 		if q != "" {
-			label = truncateStyled(highlight(e.Label, matchSpans(q, e.Label), labelStyle), labelW, false)
+			label = truncateStyled(highlightOn(e.Label, matchSpans(q, e.Label), labelStyle, bg.Inherit(matchStyle)), labelW, false)
 		}
 		row := bg.Render(gutter) + bg.Inherit(selStyle).Render(marker) + bg.Render(" ") + label +
 			bg.Render(strings.Repeat(" ", max(labelW-lipgloss.Width(e.Label), 0)+4))
-		room := m.width - lipgloss.Width(row)
+		room := inside - lipgloss.Width(row)
 		parts := make([]string, 0, len(e.Facts))
 		for _, s := range e.Facts {
 			if s.Text != "" {
@@ -677,7 +659,7 @@ func (m finderModel) rows() []string {
 		}
 		facts := strings.Join(parts, bg.Inherit(hintStyle).Render(" "+glyphDot+" "))
 		row += truncateStyled(facts, room, false)
-		out = append(out, bg.Render(pad(row, m.width)))
+		out = append(out, bg.Render(pad(row, inside)))
 	}
 	return out
 }
@@ -702,9 +684,10 @@ func (m finderModel) foot() []string {
 	}
 }
 
-// runFinder is `conn page finder`: the finder, in the popup.
-func runFinder() {
-	if _, err := tea.NewProgram(newFinderModel()).Run(); err != nil {
+// runFinder is `conn page finder [client]`: the finder, in the popup over
+// the client's window.
+func runFinder(client string) {
+	if _, err := tea.NewProgram(newFinderModel(client)).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)
 		os.Exit(1)
 	}

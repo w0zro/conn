@@ -783,6 +783,8 @@ var meanings = map[string]string{
 // the folds, and a filter typed with /.
 type envModel struct {
 	pid     int
+	client  string   // the client the popup is over, whose window is the backdrop
+	bg      []string // the window behind, dimmed
 	live    []string // the shell's environment as it is now, for conn env typed there
 	subj    envSubject
 	groups  []envGroup
@@ -806,9 +808,12 @@ type envReadMsg struct {
 	err  error
 }
 
-func newEnvModel(pid int, live []string) envModel {
-	return envModel{pid: pid, live: live, width: 80, height: 24, telling: true, folded: map[int]bool{}, foldedV: map[string]bool{}}
+func newEnvModel(pid int, live []string, client string) envModel {
+	return envModel{pid: pid, live: live, client: client, width: 80, height: 24, telling: true, folded: map[int]bool{}, foldedV: map[string]bool{}}
 }
+
+// boxWidth is the box's width: most of the window's.
+func (m envModel) boxWidth() int { return max(min(m.width*overlayShare/100, m.width-2), 40) }
 
 func (m envModel) Init() tea.Cmd {
 	pid, live := m.pid, m.live
@@ -822,6 +827,13 @@ func (m envModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		if m.client == "" {
+			return m, nil
+		}
+		client, w, h := m.client, m.width, m.height
+		return m, func() tea.Msg { return backdropMsg{rows: backdrop(tmuxCommand, client, w, h)} }
+	case backdropMsg:
+		m.bg = msg.rows
 	case envReadMsg:
 		m.loaded, m.err, m.subj = true, msg.err, msg.subj
 		m.groups, m.rows = envRows(msg.subj)
@@ -932,8 +944,10 @@ func (m *envModel) move(by int) {
 	m.cursor = min(max(m.cursor+by, 0), max(0, len(m.visible())-1))
 }
 
-// pageSize is how many rows fit under the heading and over the foot.
-func (m envModel) pageSize() int { return max(1, m.height-m.headLines()-2) }
+// pageSize is how many rows fit in the box under the heading and over
+// the foot: the window's rows less the box's frame and the lines around
+// the rows.
+func (m envModel) pageSize() int { return max(1, m.height-m.headLines()-6) }
 
 // headLines is the heading: the title, its notes, the rule, and a blank.
 func (m envModel) headLines() int { return 3 + len(m.subj.notes) }
@@ -1025,11 +1039,14 @@ func (m envModel) View() tea.View {
 // the rows that fit around the cursor, and a foot with the keys — or the
 // filter, while one is typed.
 func (m envModel) render() string {
+	inside := m.boxWidth() - 2
+	wash := lipgloss.NewStyle().Background(lipgloss.Color(colorWash))
+	line := func(s string) string { return wash.Render(pad(truncateStyled(s, inside, false), inside)) }
 	if !m.loaded {
-		return "\n" + gutter + noteStyle.Render("reading the environment…")
+		return overlay(m.bg, []string{line(gutter + noteStyle.Render("reading the environment…"))}, m.width, m.height, m.boxWidth())
 	}
 	if m.err != nil {
-		return "\n" + gutter + errStyle.Render(m.err.Error()) + "\n\n" + gutter + hintStyle.Render("q leaves")
+		return overlay(m.bg, []string{line(gutter + errStyle.Render(m.err.Error())), line(""), line(gutter + hintStyle.Render("q leaves"))}, m.width, m.height, m.boxWidth())
 	}
 	vis := m.visible()
 	size := m.pageSize()
@@ -1057,27 +1074,23 @@ func (m envModel) render() string {
 	if m.subj.pid != 0 {
 		pid = "pid " + strconv.Itoa(m.subj.pid)
 	}
-	head := gutter + headingStyle.Render(m.subj.title+"'s environment") + " " +
-		faintStyle.Render(glyphDot+" "+dots(pid, facts))
-	lines := []string{truncateStyled(head, m.width, false)}
+	head := gutter + wash.Inherit(headingStyle).Render(m.subj.title+"'s environment") + " " +
+		wash.Inherit(faintStyle).Render(glyphDot+" "+dots(pid, facts))
+	box := []string{line(head)}
 	for _, n := range m.subj.notes {
-		lines = append(lines, gutter+faintStyle.Render(truncateTail(n, m.width-len(gutter))))
+		box = append(box, line(gutter+faintStyle.Render(truncateTail(n, inside-len(gutter)))))
 	}
-	lines = append(lines, ruleStyle.Render(strings.Repeat("─", m.width)), "")
+	box = append(box, wash.Inherit(ruleStyle).Render(strings.Repeat("─", inside)), line(""))
 
-	widths := m.columns(vis[top:min(top+size, len(vis))])
+	widths := m.columns(vis[top:min(top+size, len(vis))], inside)
 	for i := top; i < len(vis) && i < top+size; i++ {
-		lines = append(lines, m.line(vis[i], i == cursor, widths))
+		box = append(box, m.line(vis[i], i == cursor, widths, inside))
 	}
 	if len(vis) == 0 && m.filter != "" {
-		lines = append(lines, gutter+noteStyle.Render("nothing matches "+m.filter))
+		box = append(box, line(gutter+noteStyle.Render("nothing matches "+m.filter)))
 	}
-	for len(lines) < m.height-2 {
-		lines = append(lines, "")
-	}
-	foot := m.foot(telling)
-	lines = append(lines[:max(0, min(m.height-2, len(lines)))], truncateTail(foot, m.width), "")
-	return strings.Join(lines, "\n")
+	box = append(box, line(""), line(m.foot(telling)), line(""))
+	return overlay(m.bg, box, m.width, m.height, m.boxWidth())
 }
 
 // foot is the page's last line: what space does from here, that secrets
@@ -1109,7 +1122,7 @@ type envColumns struct{ pair, note, source int }
 // widest, and the source — where a startup file set it — as wide as its
 // widest when the rows have more than one to tell apart; a filter down
 // to one row keeps it, since the row's source may be what was asked.
-func (m envModel) columns(rows []envRow) envColumns {
+func (m envModel) columns(rows []envRow, width int) envColumns {
 	var c envColumns
 	for _, r := range rows {
 		if r.kind == envGroupRow {
@@ -1129,7 +1142,7 @@ func (m envModel) columns(rows []envRow) envColumns {
 		c.source = 0
 	}
 	c.source = min(c.source, 30)
-	room := m.width - len(gutter) - 2
+	room := width - len(gutter) - 2
 	if c.source > 0 {
 		room -= c.source + 2
 	}
@@ -1163,8 +1176,8 @@ func btoi(b bool) int {
 // ink, its note after an arrow in the note's tone, and where it came
 // from, faint; an entry indented under its variable. The cursor's row is
 // a bar.
-func (m envModel) line(r envRow, selected bool, c envColumns) string {
-	bg := lipgloss.NewStyle()
+func (m envModel) line(r envRow, selected bool, c envColumns, width int) string {
+	bg := lipgloss.NewStyle().Background(lipgloss.Color(colorWash))
 	if selected {
 		bg = chipStyle
 	}
@@ -1174,7 +1187,7 @@ func (m envModel) line(r envRow, selected bool, c envColumns) string {
 			fold = " " + glyphSelected
 		}
 		row := bg.Render(gutter) + bg.Inherit(headingStyle).Render(r.name) + bg.Inherit(faintStyle).Render("  "+r.value+fold)
-		return bg.Render(pad(truncateStyled(row, m.width, false), m.width))
+		return bg.Render(pad(truncateStyled(row, width, false), width))
 	}
 	var pair string
 	valueStyle := bg.Inherit(toneStyles[r.valueTone])
@@ -1199,7 +1212,7 @@ func (m envModel) line(r envRow, selected bool, c envColumns) string {
 	if c.source > 0 {
 		out += bg.Render("  ") + bg.Inherit(faintStyle).Render(truncate(r.source, c.source))
 	}
-	return bg.Render(pad(truncateStyled(out, m.width, false), m.width))
+	return bg.Render(pad(truncateStyled(out, width, false), width))
 }
 
 // showEnvironment is the navigator's e: the environment of the run the
@@ -1218,41 +1231,39 @@ func (m *model) showEnvironment() tea.Cmd {
 	return nil
 }
 
-// runEnvPage is `conn page env [pid]`, the page in the popup — and `conn
-// page env live pid`, the page for the environment the popup itself was
-// given, which is the shell's at pid as it is now.
+// runEnvPage is `conn page env pid [client]`, the page in the popup over
+// the client's window — and `conn page env live pid [client]`, the page
+// for the environment the popup itself was given, which is the shell's at
+// pid as it is now.
 func runEnvPage(args []string) {
 	var live []string
 	if len(args) > 0 && args[0] == "live" {
 		live, args = os.Environ(), args[1:]
 	}
-	pid := 0
+	pid, client := 0, ""
 	if len(args) > 0 {
 		pid, _ = strconv.Atoi(args[0])
 	}
-	if _, err := tea.NewProgram(newEnvModel(pid, live)).Run(); err != nil {
+	if len(args) > 1 {
+		client = args[1]
+	}
+	if _, err := tea.NewProgram(newEnvModel(pid, live, client)).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-// envPopupWidth and envPopupHeight are the room the page asks for; a
-// smaller client cuts it to the client.
-const envPopupWidth, envPopupHeight = 110, 40
-
 // showEnv shows the environment of the run pid heads — or the server's,
-// for 0 — in a popup over the client; "" is the client that spoke last.
+// for 0 — over the client's window; "" is the client that spoke last.
 func showEnv(run runner, exe, client string, pid int) error {
-	return popup(run, client, " environment ", envPopupWidth, envPopupHeight,
-		shellQuote(exe)+" page env "+strconv.Itoa(pid))
+	return popupOver(run, client, shellQuote(exe)+" page env "+strconv.Itoa(pid))
 }
 
 // showLiveEnv shows an environment as it is now — the shell's at pid,
-// which conn env typed there inherited — in the popup: handed to the
+// which conn env typed there inherited — over the window: handed to the
 // popup's command variable by variable, so the page reads its own.
 func showLiveEnv(run runner, exe, client string, pid int, env []string) error {
-	return popup(run, client, " environment ", envPopupWidth, envPopupHeight,
-		shellQuote(exe)+" page env live "+strconv.Itoa(pid), env...)
+	return popupOver(run, client, shellQuote(exe)+" page env live "+strconv.Itoa(pid), env...)
 }
 
 // runEnvChord is `conn env [pid client]`: the chord's, handed the pane's

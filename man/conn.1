@@ -89,11 +89,15 @@ type a project's name, and \fBenter\fR opens a shell there. conn looks under
 2-1.
 The tabline is the working set: one tab for every buffer conn holds — the
 shells it opened, the agents, the tasks, a plan's entries, a container's logs
-— named place/name: \fBconn/claude\fR, \fBdatum/tests\fR, \fBpg\fR. The tab
-with focus is bold ink on the ground; the others are gray. Each tab carries its
-buffer's mark (Table 2-1), and the mark stays while the state does. The right
-end holds one hint for the moment: \fB⌃p opens\fR, \fBr reruns\fR, \fBesc
-keeps it\fR, \fB. toggles running · all\fR.
+— named place/name and nothing more: \fBconn/claude\fR, \fBdatum/tests\fR,
+\fBpg\fR — the facts live in the heading. The tab with focus is bold ink on
+the ground, with an orange edge over it; the others are gray on the bar. Each
+tab carries its buffer's mark (Table 2-1), and the mark stays while the state
+does. Two buffers that would read the same are told apart by the shortest fact
+that differs, in gray: the branch, when both are known and differ, else an
+ordinal, \fBconn/claude ·2\fR, only while the collision lasts. The right end
+holds one hint for the moment: \fB⌃p opens\fR, \fBr reruns\fR, \fBesc keeps
+it\fR, \fB. toggles running · all\fR.
 .PP
 .I "Table 2-1. Marks, on a tab and on a row"
 .RS
@@ -105,7 +109,8 @@ in amber: working — an agent mid-turn
 in owed orange: an ask owed — a permission prompt, a question
 .TP
 \fB●\fR
-in green: done, and waiting on you
+in green: done, with a result you have not looked at yet; looked at, the mark
+goes hollow
 .TP
 \fB✓\fR
 in green: the command ended well. Beside the name, what the run said of itself
@@ -132,13 +137,15 @@ then its past runs from the record (Appendix B), newest first: \fBpast runs ✗
 2-3.
 \fB.\fR at conn, or \fBctrl\-space \-\fR from any buffer, is the everything
 view: every process, grouped by place, drawn by conn in the whole window under
-the tabline, where an \fBeverything\fR tab stands first. It is a tree, at most
-four levels deep: \fBgroup\fR → \fBrepository\fR → \fBsub\-project\fR →
-\fBprocess\fR. A group, a repository and a sub-project are each a place: a row
-you can open a shell at. A repository is any git repository under a root. conn
-skips \fBnode_modules\fR, \fBvendor\fR, \fBtarget\fR, \fB.build\fR, \fBPods\fR,
-\fB.venv\fR, \fBvenv\fR, every directory whose name begins with a dot, and
-whatever \fBskipDirs\fR names.
+the tabline, where an \fBeverything\fR tab stands first. It is two levels deep:
+a heading for every place, at the margin, and its rows one indent in. A
+repository under a group is named for both, \fBw0zro/conn\fR; a sub-project for
+its repository and itself, \fBconn/docs\fR; a group is a heading only for work
+at its own level. A group, a repository and a sub-project are each a place: a
+row you can open a shell at. A repository is any git repository under a root.
+conn skips \fBnode_modules\fR, \fBvendor\fR, \fBtarget\fR, \fB.build\fR,
+\fBPods\fR, \fB.venv\fR, \fBvenv\fR, every directory whose name begins with a
+dot, and whatever \fBskipDirs\fR names.
 .TP
 2-4.
 A folder inside a root that holds two or more repositories is a group. It is a
@@ -161,16 +168,18 @@ run dev\fR, not \fBnode\fR. A row that listens carries its port, \fBnpm run dev
 · :5173\fR; an agent's row carries its model; a container's row its mark and
 its age, \fB⬢ pg · :5432 · up 2d\fR; a shell a plan or a task started is
 named for its entry; a row that ended or is stuck carries the mark of Table 2-1.
-Place headings are bold in parchment, with the branch; the cursor is an orange
-▸; a folded place says what it hides, \fB+3 folded\fR. Faint rows have no
-buffer to step into: processes started outside conn, and processes a shell's
-command started in turn, a claude's tools, say; the view says so of them, \fBdim
-means look, don't step\fR. \fBenter\fR reaches as far as the shell above them.
-All are listed and killable. The row that is conn itself says \fB(me)\fR. The
-newest conversation at rest under a place with work is a row of its own,
-\fBclaude · suspended · 6h\fR (5-3); what runs outside every project is under
-\fBglobal\fR (6-5). The foot of the view teaches two lines of keys; with nothing
-running it says \fBnothing running\fR and names the doors (1-6).
+Place headings are bold in parchment; the cursor's row is a bar on the chip's
+ground with an orange ▸ in its gutter, and keeps its colors — hue never says
+where the cursor is, the bar does; a folded place says what it hides, \fB+3
+folded\fR. Faint rows have no buffer to step into: processes started outside
+conn, and processes a shell's command started in turn, a claude's tools, say;
+the view says so of them, \fBdim means look, don't step\fR. \fBenter\fR reaches
+as far as the shell above them. All are listed and killable. The row that is
+conn itself says \fB(me)\fR. The newest conversation at rest under a place with
+work is a row of its own, \fBclaude · suspended · 6h\fR (5-3); what runs
+outside every project is under \fBglobal\fR (6-5). The foot of the view teaches
+two lines of keys; with nothing running it says \fBnothing running\fR and names
+the doors (1-6).
 .TP
 2-7.
 The status line at the foot begins with the \fBCONN\fR chip — bold, the
@@ -290,12 +299,15 @@ leave; everything keeps running (10-1)
 3-2.
 \fBctrl\-p\fR, from any buffer, opens the finder: the front door. \fBp\fR or
 \fBctrl\-p\fR at conn, and \fBctrl\-space p\fR, \fBctrl\-space ctrl\-p\fR and
-\fBctrl\-space /\fR from anywhere, open it too. It is a popup over the window: a
-query line with an orange › prompt, and under it one list of everything
-openable (Table 3-2). Each word of the query must appear in order inside what a
-row says, not contiguously: \fBtsl\fR finds tressle-api, \fBmono api\fR finds
-the api inside mono, and the letters that matched are lit in orange. The
-cursor's row is a bar with an orange ▸; \fB↑↓\fR move it.
+\fBctrl\-space /\fR from anywhere, open it too. It is a box over the window, on
+the wash inside a border, exactly as tall as what it lists, with the window
+behind it dimmed to a shadow: a query line with an orange › prompt over a
+rule, under it one list of everything openable (Table 3-2), and at the foot two
+faint lines saying what enter does with no match. Each word of the query must
+appear in order inside what a row says, not contiguously: \fBtsl\fR finds
+tressle-api, \fBmono api\fR finds the api inside mono, and the letters that
+matched are lit in orange. The cursor's row is a bar with an orange ▸;
+\fB↑↓\fR move it.
 .PP
 .I "Table 3-2. What the finder lists"
 .RS

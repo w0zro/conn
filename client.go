@@ -905,8 +905,10 @@ func showPane(run runner, nav, target string) error {
 		}
 		w, werr := strconv.Atoi(f[2])
 		h, herr := strconv.Atoi(f[3])
-		if werr == nil && herr == nil && w > 0 && h > chromeRows+1 {
-			slot = []string{"-x", strconv.Itoa(w), "-y", strconv.Itoa(h - chromeRows - 1)}
+		// The slot is the window past the chrome — its edge row, its
+		// rows — and the buffer's own border row.
+		if werr == nil && herr == nil && w > 0 && h > chromeRows+2 {
+			slot = []string{"-x", strconv.Itoa(w), "-y", strconv.Itoa(h - chromeRows - 2)}
 		}
 	}
 	// park sizes the window a pane has just gone back to: the pane names
@@ -1084,6 +1086,7 @@ func (s *session) dress(pid int, name string) {
 // one to name, and what it has to say.
 type statusText struct {
 	mode, msg string
+	edge      string // the orange edge over the focused tab, on the row above the tabline
 }
 
 // say hands tmux conn's part of the status line. Said one at a time and
@@ -1098,6 +1101,7 @@ func (s *session) say(t statusText) {
 	s.saying.ask(t, func(t statusText) {
 		_, _ = s.run("set", "-g", modeOption, t.mode, ";",
 			"set", "-g", msgOption, t.msg, ";",
+			"set", "-g", edgeOption, t.edge, ";",
 			"refresh-client", "-S")
 	})
 }

@@ -24,8 +24,9 @@ func confPath() string {
 }
 
 // chromeRows is the height of conn's own pane while a buffer is shown under
-// it: the tabline, and the buffer's heading. The layout holds it through
-// every resize.
+// it: the tabline, and the buffer's heading. Over them tmux draws one row
+// more, the pane's border status, which carries the orange edge over the
+// focused tab; the layout holds all three through every resize.
 const chromeRows = 2
 
 // tmuxConf is the configuration for conn's server. conn is the path of this
@@ -132,12 +133,17 @@ func tmuxConf(conn string, scrollback int) string {
 		"set -g pane-border-indicators off",
 		"set -g popup-border-lines single",
 		`set -g popup-border-style "fg=`+tp.border+`,bg=`+tp.wash+`"`,
-		`set -g popup-style "bg=`+tp.wash+`,fg=`+tp.ink+`"`,
+		`set -g popup-style "bg=`+tp.ground+`,fg=`+tp.ink+`"`,
 		"",
 		"# The home window: conn's tabline across the top at its height, the",
 		"# buffer with focus filling the rest. The layout is re-applied on every",
 		"# resize, so the buffer takes the window's growth.",
-		"set -g main-pane-height "+strconv.Itoa(chromeRows),
+		"set -g main-pane-height "+strconv.Itoa(chromeRows+1),
+		// The row over every pane is its border status: over conn's pane
+		// it carries the orange edge above the focused tab, on the bar;
+		// over a buffer it is the hairline under the heading.
+		"set -g pane-border-status top",
+		`set -g pane-border-format "#{?#{@conn_nav},#{`+edgeOption+`},}"`,
 		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,
 		"",
 		"# The status line: the CONN chip, then one mode chip — the prefix",
@@ -174,6 +180,7 @@ func tmuxConf(conn string, scrollback int) string {
 const (
 	msgOption   = "@conn_msg"
 	modeOption  = "@conn_mode"
+	edgeOption  = "@conn_edge"
 	noteOption  = "@conn_note"
 	untilOption = "@conn_until"
 	nowOption   = "@conn_now" // holds %s, so #{T:@conn_now} is the time

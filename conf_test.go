@@ -29,12 +29,13 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		"set -g history-limit 4242",
 		"set -g automatic-rename off",
 		// The home window is conn's tabline over the buffer with focus.
-		"set -g main-pane-height 2",
+		"set -g main-pane-height 3",
+		"set -g pane-border-status top",
 		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,
 		// The hangar under every pane, and the chip's hairline between them.
 		`set -g window-style "bg=` + tp.ground + `,fg=` + tp.ink + `"`,
 		`set -g pane-border-style "fg=` + tp.chip + `,bg=` + tp.ground + `"`,
-		`set -g popup-style "bg=` + tp.wash + `,fg=` + tp.ink + `"`,
+		`set -g popup-style "bg=` + tp.ground + `,fg=` + tp.ink + `"`,
 		`set -g status-left "` + statusLeft() + `"`,
 		// The status line begins with conn's name, on the orange, before
 		// any mode: it is the one inverted ground on screen.

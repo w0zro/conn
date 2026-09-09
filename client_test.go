@@ -147,13 +147,13 @@ func TestShowingAShellJoinsSwapsOrParks(t *testing.T) {
 	}{
 		// Nothing under the tabline: the buffer joins beneath it, and the
 		// layout gives conn its rows.
-		{"", "%5", "join-pane -v -d -l 26 -s %5 -t %0 ; select-layout -t %0 main-horizontal"},
+		{"", "%5", "join-pane -v -d -l 25 -s %5 -t %0 ; select-layout -t %0 main-horizontal"},
 		// A buffer there already: the two trade places, so the one leaving
 		// takes the window the other came from, sized to the slot it left.
-		{"%3", "%5", "swap-pane -d -s %5 -t %3 ; resize-window -t %3 -x 120 -y 26"},
+		{"%3", "%5", "swap-pane -d -s %5 -t %3 ; resize-window -t %3 -x 120 -y 25"},
 		// No buffer wanted: the one there goes back to a window of its own,
 		// at the slot's size.
-		{"%3", "", "break-pane -d -n shell -s %3 ; resize-window -t %3 -x 120 -y 26"},
+		{"%3", "", "break-pane -d -n shell -s %3 ; resize-window -t %3 -x 120 -y 25"},
 	}
 	for _, c := range cases {
 		run, moved := homeWith(c.shown)
@@ -227,7 +227,7 @@ func TestArrangementsCoalesceToTheLastAsked(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(moved) != 2 || !strings.Contains(moved[0], "join-pane -v -d -l 26 -s %1 ") || !strings.Contains(moved[1], "join-pane -v -d -l 26 -s %4 ") {
+	if len(moved) != 2 || !strings.Contains(moved[0], "join-pane -v -d -l 25 -s %1 ") || !strings.Contains(moved[1], "join-pane -v -d -l 25 -s %4 ") {
 		t.Errorf("moved %q, want the first ask and then only the last", moved)
 	}
 }

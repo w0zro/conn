@@ -14,10 +14,11 @@ import (
 
 // agentMark is the glyph beside an agent: a working one turns, one stopped
 // mid-turn on a specific ask holds a bright diamond, one that has finished a
-// turn and waits on its user holds a filled marker in the attention color,
-// and one idle since it started — owed nothing — sits hollow and quiet. The
-// diamond is the one worth crossing the room for: that answer resumes work
-// already in flight.
+// turn nobody has looked at holds a filled marker in the attention color,
+// and one idle — since it started, or since its result was seen — sits
+// hollow and quiet. The diamond is the one worth crossing the room for:
+// that answer resumes work already in flight; the filled mark is for what
+// changed while you were elsewhere.
 func (m model) agentMark(r navRow, a agent) (string, lipgloss.Style) {
 	if _, ok := a.blocked(); ok {
 		return glyphAsk, blockedStyle
@@ -25,10 +26,10 @@ func (m model) agentMark(r navRow, a agent) (string, lipgloss.Style) {
 	switch {
 	case a.working():
 		return spinFrames[m.frame%len(spinFrames)], busyStyle
-	case m.awaiting(r) != nil:
+	case m.owed(r) != nil:
 		return glyphOn, attnStyle
 	}
-	return glyphOff, faintStyle
+	return glyphOff, hintStyle
 }
 
 // View lays the window out as the tabline over a body.
@@ -77,18 +78,21 @@ func padTo(lines []string, n int) []string {
 
 // tab is one entry of the tabline: a buffer, or the everything view.
 type tab struct {
-	pid     int    // the held shell; zero for the everything view
-	label   string // project/name
-	mark    string // its state's glyph, or nothing
-	style   lipgloss.Style
-	focused bool
-	quiet   bool // de-prioritized: dead and read, or nothing owed
+	pid       int    // the held shell; zero for the everything view
+	label     string // project/name
+	qualifier string // what tells it from another tab of the same name, in gray: a branch, an ordinal
+	mark      string // its state's glyph, or nothing
+	style     lipgloss.Style
+	focused   bool
 }
 
 // tabs is the working set: the everything view while it is up, then every
 // held shell in the navigator's order. A tab is named place/name and marked
 // with its state — an ask, a spinner, done-and-waiting, ended well or
-// badly, a container — in the state's color.
+// badly, a container — in the state's color, and nothing more: the facts
+// live in the heading. Two buffers that would read the same are told
+// apart by the shortest fact that differs — the branch, when both are
+// known and differ — else by an ordinal, only while the collision lasts.
 func (m model) tabs() []tab {
 	var out []tab
 	if m.viewingAll() {
@@ -103,18 +107,44 @@ func (m model) tabs() []tab {
 		tb.mark, tb.style = m.tabMark(pid, t)
 		out = append(out, tb)
 	}
+	byLabel := map[string][]int{}
+	for i, tb := range out {
+		if tb.pid != 0 {
+			byLabel[tb.label] = append(byLabel[tb.label], i)
+		}
+	}
+	for _, same := range byLabel {
+		if len(same) < 2 {
+			continue
+		}
+		branches := map[string]bool{}
+		for _, i := range same {
+			branches[m.deep[out[i].pid].Branch] = true
+		}
+		byBranch := len(branches) == len(same) && !branches[""]
+		for n, i := range same {
+			if byBranch {
+				out[i].qualifier = m.deep[out[i].pid].Branch
+			} else {
+				out[i].qualifier = glyphDot + strconv.Itoa(n+1)
+			}
+		}
+	}
 	return out
 }
 
 // tabLabel is what a buffer's tab says: the place it works in and the name
 // its row would show — the plan's name for a shell it started, what an
-// agent is, else what runs there.
+// agent is called, else what runs there — with no fact after it: a tab is
+// a name and a mark, and the heading is where the facts are.
 func (m model) tabLabel(pid int, t *remoteTerm) string {
 	name := t.name
 	if n := m.nodes[pid]; n != nil {
 		run := runFrom(n, len(m.procs))
 		r := navRow{kind: rowProc, run: run, node: nameOf(run)}
-		if name == "" || m.agentFor(r) != nil {
+		if k, ok := agentKindOf(r.node); ok {
+			name = agentLabel(k, m.agentNameOf(r.node), "")
+		} else if name == "" {
 			name = m.rowName(r)
 		}
 	}
@@ -153,74 +183,93 @@ func (m model) tabMark(pid int, t *remoteTerm) (string, lipgloss.Style) {
 	return "", faintStyle
 }
 
-// tabline is the top row: the working set across the bar, the focused tab
-// in bold ink on the ground and the rest in gray on the bar, and at the
-// right end one hint at most. Tabs past the width give way from the left
-// so the focused one is always in view.
-func (m model) tabline() string {
+// tabCell is one tab drawn: its text, how wide it is, and whether it is
+// the focused one.
+type tabCell struct {
+	text    string
+	width   int
+	focused bool
+}
+
+// tabCells draws the tabs and says where the row starts: from the first
+// tab, unless the focused one would fall off the end — then from as far
+// along as keeps it in view. The focused tab is bold ink on the ground;
+// the rest are gray on the bar; a mark sits after the name in its color,
+// and a qualifier in gray between them.
+func (m model) tabCells() (cells []tabCell, start int) {
 	hint := m.tabHint()
 	room := m.width - lipgloss.Width(hint) - 2
-	tabs := m.tabs()
-	cells := make([]string, len(tabs))
-	widths := make([]int, len(tabs))
 	focused := -1
-	for i, t := range tabs {
+	for i, t := range m.tabs() {
+		bg, style := barStyle, hintStyle
+		if t.focused {
+			bg, style = groundStyle, itemStyle
+			focused = i
+		}
 		text := " " + t.label
+		cell := bg.Inherit(style).Bold(t.focused).Render(text)
+		if t.qualifier != "" {
+			cell += bg.Inherit(hintStyle).Render(" " + t.qualifier)
+			text += " " + t.qualifier
+		}
 		if t.mark != "" {
+			cell += bg.Render(" ") + bg.Inherit(t.style).Render(t.mark)
 			text += " " + t.mark
 		}
-		text += " "
-		widths[i] = lipgloss.Width(text)
-		switch {
-		case t.focused:
-			focused = i
-			cell := groundStyle.Inherit(itemStyle).Bold(true).Render(" " + t.label + " ")
-			if t.mark != "" {
-				cell = groundStyle.Inherit(itemStyle).Bold(true).Render(" "+t.label+" ") +
-					groundStyle.Inherit(t.style).Render(t.mark+" ")
-				widths[i] = lipgloss.Width(" " + t.label + " " + t.mark + " ")
-			}
-			cells[i] = cell
-		default:
-			style := hintStyle
-			if t.quiet {
-				style = faintStyle
-			}
-			cell := barStyle.Inherit(style).Render(" " + t.label + " ")
-			if t.mark != "" {
-				cell = barStyle.Inherit(style).Render(" "+t.label+" ") + barStyle.Inherit(t.style).Render(t.mark+" ")
-			}
-			cells[i] = cell
-		}
+		cell += bg.Render(" ")
+		cells = append(cells, tabCell{text: cell, width: lipgloss.Width(text) + 1, focused: t.focused})
 	}
-	// From the first tab, unless the focused one would fall off the end:
-	// then from as far along as keeps it in view.
-	start := 0
 	if focused >= 0 {
 		total := 0
 		for i := focused; i >= 0; i-- {
-			total += widths[i]
+			total += cells[i].width
 			if total > room {
 				start = i + 1
 				break
 			}
 		}
 	}
+	return cells, start
+}
+
+// tabline is the top row: the working set across the bar, and at the
+// right end one hint at most.
+func (m model) tabline() string {
+	hint := m.tabHint()
+	room := m.width - lipgloss.Width(hint) - 2
+	cells, start := m.tabCells()
 	var b strings.Builder
 	used := 0
 	for i := start; i < len(cells); i++ {
-		if used+widths[i] > room {
+		if used+cells[i].width > room {
 			break
 		}
-		b.WriteString(cells[i])
-		used += widths[i]
+		b.WriteString(cells[i].text)
+		used += cells[i].width
 	}
-	line := b.String()
-	rest := m.width - used - lipgloss.Width(hint) - 1
-	if rest < 0 {
-		rest = 0
+	rest := max(m.width-used-lipgloss.Width(hint)-1, 0)
+	return b.String() + barStyle.Render(strings.Repeat(" ", rest)) + barStyle.Inherit(faintStyle).Render(hint) + barStyle.Render(" ")
+}
+
+// tabEdge is the orange edge over the focused tab, for the row tmux draws
+// above the tabline: the bar's ground across, and under the focused tab's
+// columns the line, as a tmux style string for the pane's border format.
+func (m model) tabEdge() string {
+	edge := "#[bg=" + tp.bar + ",fill=" + tp.bar + "]"
+	cells, start := m.tabCells()
+	hint := m.tabHint()
+	room := m.width - lipgloss.Width(hint) - 2
+	used := 0
+	for i := start; i < len(cells); i++ {
+		if used+cells[i].width > room {
+			break
+		}
+		if cells[i].focused {
+			return edge + strings.Repeat(" ", used) + "#[fg=" + tp.orange + "]" + strings.Repeat(glyphEdge, cells[i].width) + "#[fg=default]"
+		}
+		used += cells[i].width
 	}
-	return line + barStyle.Render(strings.Repeat(" ", rest)) + barStyle.Inherit(faintStyle).Render(hint) + barStyle.Render(" ")
+	return edge
 }
 
 // tabHint is the one hint the tabline's right end holds: the key that
@@ -289,6 +338,7 @@ func (m model) bufferFacts(pid int, t *remoteTerm) (string, string) {
 				}
 			}
 		}
+		facts = append(facts, m.deep[pid].Facts...)
 		facts = append(facts, "pid "+strconv.Itoa(r.node.PID))
 		if ps := runPorts(r.run, r.node); len(ps) > 0 {
 			facts = append(facts, ":"+strings.Join(ps, " :"))
@@ -445,7 +495,7 @@ func (m model) navLines(rows int) []string {
 // isPlace reports whether a row is a place at the top of the list: a group,
 // or a repository under no group.
 func isPlace(r navRow) bool {
-	return r.prefix == "" && (r.kind == rowGroup || r.kind == rowProject)
+	return r.prefix == "" && (r.kind == rowGroup || r.kind == rowProject || r.kind == rowSub)
 }
 
 // renderRow draws one row of the everything view. A place is a heading in
@@ -464,6 +514,13 @@ func (m model) renderRow(r navRow, selected bool) string {
 		marker = glyphSelected
 	}
 	style := m.rowStyle(r, selected)
+	// The cursor's row is a bar: everything on it keeps its color and
+	// takes the chip's ground.
+	bg := lipgloss.NewStyle()
+	if selected {
+		bg = chipStyle
+	}
+	on := func(st lipgloss.Style) lipgloss.Style { return bg.Inherit(st) }
 
 	fold := ""
 	if m.collapsed[detailKey(r)] {
@@ -542,17 +599,19 @@ func (m model) renderRow(r navRow, selected bool) string {
 		factStyle = errStyle
 	}
 
-	// A place sits on its indent alone, naming what the rows beneath are
-	// inside. What hangs off a place — its processes and its sub-projects
-	// — is one family of siblings, a step further in.
+	// A place is a heading at the margin, naming what the rows beneath are
+	// inside; its rows sit one indent in, each child of a row a step
+	// further.
 	indent := r.prefix
-	if r.kind == rowProc || r.kind == rowSub || r.kind == rowRest {
+	margin := ""
+	if r.kind == rowProc || r.kind == rowRest {
 		indent += glyphIndent + " "
+		margin = " "
 	}
 	// A repository is cut from the left and a command from the right, because
 	// what identifies each is at that end: the repo name after its parents,
 	// and the program before its arguments.
-	label := r.project.Name
+	label := r.placeName()
 	fromLeft := strings.Contains(label, "/")
 	switch r.kind {
 	case rowProc:
@@ -570,28 +629,28 @@ func (m model) renderRow(r navRow, selected bool) string {
 		fromLeft = false
 	}
 
-	// A column of margin, the indent, and the marker's two columns come
-	// before the name.
-	room := m.width - 3 - lipgloss.Width(indent) - lipgloss.Width(fold) -
+	// The margin, the indent, and the marker's two columns come before
+	// the name.
+	room := m.width - 2 - lipgloss.Width(margin) - lipgloss.Width(indent) - lipgloss.Width(fold) -
 		lipgloss.Width(spinner) - lipgloss.Width(mark) - lipgloss.Width(facts)
 
 	// While a query is at work the matched letters are lit, so the narrowed
 	// list always shows why it narrowed.
 	var seg string
 	if q := strings.TrimSpace(m.filter); q != "" && (m.typing || m.filter != "") {
-		seg = truncateStyled(highlight(label, matchSpans(q, label), style), room, fromLeft)
+		seg = truncateStyled(highlightOn(label, matchSpans(q, label), on(style), on(matchStyle)), room, fromLeft)
 	} else if fromLeft {
-		seg = style.Render(truncate(label, room))
+		seg = on(style).Render(truncate(label, room))
 	} else {
-		seg = style.Render(truncateTail(label, room))
+		seg = on(style).Render(truncateTail(label, room))
 	}
-	cursor := selStyle.Render(marker)
-	if selected && !m.attachable(r) {
-		cursor = offSelStyle.Render(marker)
+	row := bg.Render(margin+indent) + on(selStyle).Render(marker) + bg.Render(" ") + seg + on(factStyle).Render(facts) +
+		on(markStyle).Render(mark) + on(errStyle).Render(spinner) +
+		on(hintStyle).Render(fold)
+	if selected {
+		return bg.Render(pad(row, m.width))
 	}
-	return " " + indent + cursor + " " + seg + factStyle.Render(facts) +
-		markStyle.Render(mark) + errStyle.Render(spinner) +
-		hintStyle.Render(fold)
+	return row
 }
 
 // rowLabel names a process row. A shell a project asked for by name is called
@@ -725,27 +784,17 @@ var interpreters = map[string]bool{
 // the row can be stepped into: a place opens a shell, and a buffer conn holds
 // can be returned to. Everything else is somebody else's process on somebody
 // else's terminal, which conn cannot attach to, so it is drawn dim rather
-// than offered and then refused: dim means look, don't step.
+// than offered and then refused: dim means look, don't step. The cursor
+// changes none of it: selection is the bar under the row, never a color.
 func (m model) rowStyle(r navRow, selected bool) lipgloss.Style {
 	// While a project is being looked up the list is a reference rather than
 	// the working view. Every row is a candidate and none of them has been
 	// chosen, so nothing is lit but the one under the cursor.
-	if m.typing {
-		if selected {
-			return selStyle
-		}
+	if m.typing && !selected {
 		return faintStyle
 	}
 	if !m.attachable(r) {
-		if selected {
-			return offSelStyle
-		}
 		return faintStyle
-	}
-	if selected {
-		// Lit whether or not conn has focus: the row is the one focus
-		// went from, and dim reads as out of reach.
-		return selStyle
 	}
 	if r.kind != rowProc {
 		return placeStyle

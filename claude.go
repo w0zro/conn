@@ -127,9 +127,9 @@ func (s claudeSession) blocked() (string, bool) {
 // describe reads the transcript into a copy of the session — the deeper
 // look the scan does not take — and says what a heading wants of it: the
 // branch, the context in tokens, and the subagents alive under it.
-func (s claudeSession) describe() []string {
+func (s claudeSession) describe() agentFacts {
 	readTranscript(transcriptPath(s), &s)
-	return claudeFacts(s)
+	return agentFacts{Branch: s.Branch, Facts: claudeFacts(s)}
 }
 
 // agentRun is one subagent, as its parent described it when starting it.

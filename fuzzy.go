@@ -118,22 +118,28 @@ func isSep(r rune) bool {
 // result carries its styling, so anything cutting it afterwards has to cut
 // ansi-aware.
 func highlight(s string, spans []int, base lipgloss.Style) string {
+	return highlightOn(s, spans, base, matchStyle)
+}
+
+// highlightOn is highlight with the lit style given too: on a selection
+// bar both carry the bar's ground.
+func highlightOn(s string, spans []int, base, lit lipgloss.Style) string {
 	if len(spans) == 0 {
 		return base.Render(s)
 	}
-	lit := map[int]bool{}
+	on := map[int]bool{}
 	for _, p := range spans {
-		lit[p] = true
+		on[p] = true
 	}
 	var b strings.Builder
 	runes := []rune(s)
 	for i := 0; i < len(runes); {
 		j := i
-		for j < len(runes) && lit[j] == lit[i] {
+		for j < len(runes) && on[j] == on[i] {
 			j++
 		}
-		if lit[i] {
-			b.WriteString(matchStyle.Render(string(runes[i:j])))
+		if on[i] {
+			b.WriteString(lit.Render(string(runes[i:j])))
 		} else {
 			b.WriteString(base.Render(string(runes[i:j])))
 		}

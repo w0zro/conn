@@ -19,7 +19,7 @@ func TestTheFilterReachesAShellByThePlansName(t *testing.T) {
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/brand", name: "web"}}
 	m.rebuild()
 
-	wantRows(t, found(m, "web"), []string{"   brand", "    ▸ web"})
+	wantRows(t, found(m, "web"), []string{"  brand", "    ▸ web"})
 }
 
 func TestTheFilterReachesAShellByWhatItsRunSaid(t *testing.T) {
@@ -30,7 +30,7 @@ func TestTheFilterReachesAShellByWhatItsRunSaid(t *testing.T) {
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/brand", name: "test", exit: "1", summary: "3 failed"}}
 	m.rebuild()
 
-	wantRows(t, found(m, "failed"), []string{"   brand", "    ▸ test · 3 failed"})
+	wantRows(t, found(m, "failed"), []string{"  brand", "    ▸ test · 3 failed"})
 }
 
 func TestTheFilterReachesAnAgentByTheNameItsUserGaveIt(t *testing.T) {
@@ -48,7 +48,7 @@ func TestTheFilterReachesAnAgentByTheNameItsUserGaveIt(t *testing.T) {
 	m.rebuild()
 
 	for _, q := range []string{"docs", "opus", "claude"} {
-		wantRows(t, found(m, q), []string{"   conn", "    ▸ docs · opus-4-8"})
+		wantRows(t, found(m, q), []string{"  conn", "    ▸ docs · opus-4-8"})
 	}
 }
 
@@ -58,7 +58,7 @@ func TestTheFilterReachesAProcessByWhatItWasRunWith(t *testing.T) {
 	m := withProcList(90, 14, []Project{{Name: "brand", Path: "/p/brand"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "node", Argv: "/opt/homebrew/bin/npm run dev", Dir: "/p/brand"}})
 
-	wantRows(t, found(m, "dev"), []string{"   brand", "    ▸ npm run dev"})
+	wantRows(t, found(m, "dev"), []string{"  brand", "    ▸ npm run dev"})
 }
 
 func TestTheFilterReachesAProcessByItsPort(t *testing.T) {
@@ -73,8 +73,8 @@ func TestTheFilterReachesAProcessByItsPort(t *testing.T) {
 	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/p/brand", name: "web"}}
 	m.rebuild()
 
-	wantRows(t, found(m, "8080"), []string{"   brand", "    ▸ web · :8080"})
-	wantRows(t, found(m, "web 8080"), []string{"   brand", "    ▸ web · :8080"})
+	wantRows(t, found(m, "8080"), []string{"  brand", "    ▸ web · :8080"})
+	wantRows(t, found(m, "web 8080"), []string{"  brand", "    ▸ web · :8080"})
 }
 
 func TestTheFilterStillPrunesWhatDoesNotAnswer(t *testing.T) {

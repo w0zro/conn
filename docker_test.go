@@ -109,7 +109,7 @@ func composeModel() model {
 
 func TestAContainerRowIsNamedForItsServiceWithItsPorts(t *testing.T) {
 	m := composeModel()
-	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        ⬢ cache · :6390", "        ⬢ web · :8438"})
+	wantRows(t, navColumn(m), []string{"▸ demo", "      app", "        ⬢ cache · :6390", "        ⬢ web · :8438"})
 
 	m = press(m, "-") // unfolded, the rows show what they go by
 	col := strings.Join(navColumn(m), "\n")
@@ -176,7 +176,7 @@ func TestALoneContainerKeepsARowOfItsOwn(t *testing.T) {
 	m := withProcList(80, 12, []Project{{Name: "demo", Path: "/p/demo"}}, procs)
 	m.terms[10] = &remoteTerm{pid: 10, dir: "/p/demo", name: "app"}
 	m.rebuild()
-	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        ⬢ web · :8438"})
+	wantRows(t, navColumn(m), []string{"▸ demo", "      app", "        ⬢ web · :8438"})
 }
 
 func TestNeedsIsThePlansEntriesThenTheServicesDown(t *testing.T) {
@@ -346,7 +346,7 @@ func troubledModel() model {
 
 func TestADeadServiceShowsTheCrossAndTabGoesToIt(t *testing.T) {
 	m := troubledModel()
-	wantRows(t, navColumn(m), []string{" ▸ demo", "      app", "        ⬢ cache · :6390", "        ⬢ web · unhealthy ✗", "        ⬢ worker · 3m ✗"})
+	wantRows(t, navColumn(m), []string{"▸ demo", "      app", "        ⬢ cache · :6390", "        ⬢ web · unhealthy ✗", "        ⬢ worker · 3m ✗"})
 	var web, worker navRow
 	for _, r := range m.rows {
 		if r.kind == rowProc && r.node.Command == "web" {
@@ -408,15 +408,15 @@ func TestDockersWordIsMergedWithTheScan(t *testing.T) {
 	m = next.(model)
 	next, _ = m.Update(dockerMsg{containers: parseContainers([]byte(dockerPS))[:2]})
 	m = next.(model)
-	wantRows(t, navColumn(m), []string{" ▸ demo", "      docker compose up", "        ⬢ cache · :6390", "        ⬢ web · :8438"})
+	wantRows(t, navColumn(m), []string{"▸ demo", "      docker compose up", "        ⬢ cache · :6390", "        ⬢ web · :8438"})
 
 	// The next scan keeps docker's word; docker's next word keeps the scan.
 	next, _ = m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Argv: "zsh", Dir: "/p/demo"}}})
 	m = next.(model)
-	wantRows(t, navColumn(m), []string{" ▸ demo", "      ⬢ cache · :6390", "      ⬢ web · :8438", "      zsh"})
+	wantRows(t, navColumn(m), []string{"▸ demo", "      ⬢ cache · :6390", "      ⬢ web · :8438", "      zsh"})
 	next, _ = m.Update(dockerMsg{})
 	m = next.(model)
-	wantRows(t, navColumn(m), []string{" ▸ demo", "      zsh"})
+	wantRows(t, navColumn(m), []string{"▸ demo", "      zsh"})
 }
 
 func TestAContainerOfNoProjectIsGlobal(t *testing.T) {

@@ -710,24 +710,28 @@ end conn and every buffer it holds
 .RE
 .TP
 8-1.
-Nothing dies unasked. \fBx\fR shows, in the whole window, what dying means
-before anything dies: the heading, \fB<name> in <place> · about to die\fR; the
-process tree with ✗ before each name, and after it the pid and the ports it
-holds, \fBpid 4431 · holds :3000\fR; the consequences in prose, \fBthe tree
-dies together — an orphaned esbuild is a zombie you would meet again as ✗
-stopped · :3000 frees · nothing else touches it\fR; and the confirm line, \fBX
-kills all 3 · x the head alone · esc changes your mind\fR. The status line's
-chip says \fBCONFIRM\fR, and beside it the facts, \fBconn/web · 3 processes ·
-:3000\fR. \fBX\fR takes the tree; \fBx\fR the head alone, the row's process and
-the shell around it; \fBy\fR or \fBenter\fR whichever was asked. Processes get
-SIGTERM; \fB9\fR confirms with SIGKILL, \fBi\fR with SIGINT, for a server that
-only tears down on ctrl-c, and \fBh\fR with SIGHUP, for a daemon that reloads on
-it. Any other key keeps everything alive and gives the buffer back. A signalled
-row keeps its mark until the process is seen to have gone; conn never claims an
-exit it has not seen. A process that has not gone in five seconds is given up
-on, and the status line says so; \fBx\fR on it then, or on a row still on its
-way out, offers SIGKILL: outright. Kills work on any listed process, including
-ones conn did not start.
+Nothing dies unasked. \fBx\fR shows what dying means before anything dies. In
+the everything view it shows it on the view itself: the processes to die carry
+✗ on their rows and say \fBabout to die\fR, the confirm line stands under the
+list, \fBX kills all 3 · x the head alone · esc changes your mind\fR, and the
+view keeps the window through the kill, done or kept. From a buffer it takes the
+window for a page of its own: the heading, \fB<name> in <place> · about to
+die\fR; the process tree with ✗ before each name, and after it the pid and the
+ports it holds, \fBpid 4431 · holds :3000\fR; the consequences in prose, \fBthe
+tree dies together — an orphaned esbuild is a zombie you would meet again as
+✗ stopped · :3000 frees · nothing else touches it\fR; and the same confirm
+line. The status line's chip says \fBCONFIRM\fR, and beside it the facts,
+\fBconn/web · 3 processes · :3000\fR. \fBX\fR takes the tree; \fBx\fR the head
+alone, the row's process and the shell around it; \fBy\fR or \fBenter\fR
+whichever was asked. Processes get SIGTERM; \fB9\fR confirms with SIGKILL,
+\fBi\fR with SIGINT, for a server that only tears down on ctrl-c, and \fBh\fR
+with SIGHUP, for a daemon that reloads on it. Any other key keeps everything
+alive and gives the buffer back, or the list. A signalled row keeps its mark
+until the process is seen to have gone; conn never claims an exit it has not
+seen. A process that has not gone in five seconds is given up on, and the status
+line says so; \fBx\fR on it then, or on a row still on its way out, offers
+SIGKILL: outright. Kills work on any listed process, including ones conn did not
+start.
 .TP
 8-2.
 After death the buffer stays as the record. A held shell running a command is

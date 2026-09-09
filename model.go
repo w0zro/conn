@@ -567,6 +567,8 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			m.merge()
 		}
 		m.rebuild()
+		m.hangUpIdle()
+		m.rebuild()
 		return m, tea.Batch(owed, m.publish(), m.deepCmd())
 
 	case dockerReadyMsg:
@@ -1920,16 +1922,22 @@ func (m *model) runKill(req *killRequest) tea.Cmd {
 
 // splitKill sorts a kill's targets into the shells the server hangs up and
 // the processes to signal, which take in what runs under a held shell. A
-// held shell running a command keeps its pane: what runs in it is
-// signalled, parents first, and the shell is back at its prompt with the
-// ending recorded — the buffer stays as the record of the ending, dead but
-// readable, until q closes it. A held shell at its prompt with nothing
-// running is a buffer of nothing but a prompt, and is hung up. A process
-// is signalled once, whichever way it was reached.
+// held shell running a command keeps its pane for now: what runs in it is
+// signalled, parents first, so a docker compose up stops its containers
+// on the way out, and the shell is back at its prompt with the ending
+// recorded. A plan entry's shell stays so — the buffer is the record of
+// the ending, dead but readable, until q closes it, and r runs the entry
+// again in it. A shell with no name — opened by hand, or an agent's — is
+// hung up once what ran in it has gone (hangUpIdle): killing the row is
+// asking for the whole of it, the shell included. A held shell at its
+// prompt with nothing running is a buffer of nothing but a prompt, and is
+// hung up at once. A process is signalled once, whichever way it was
+// reached.
 func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*ProcNode) {
 	seen := map[int]bool{}
 	for _, n := range nodes {
-		if _, mine := m.terms[n.PID]; !mine {
+		t, mine := m.terms[n.PID]
+		if !mine {
 			if !seen[n.PID] {
 				seen[n.PID] = true
 				signalled = append(signalled, n)
@@ -1942,6 +1950,9 @@ func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*
 			m.server.closeTerm(n.PID)
 			continue
 		}
+		if t.name == "" {
+			t.hangUp = true
+		}
 		for _, under := range subtree(shell)[1:] {
 			if _, held := m.terms[under.PID]; held || seen[under.PID] {
 				continue
@@ -1951,6 +1962,32 @@ func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*
 		}
 	}
 	return hungUp, signalled
+}
+
+// hangUpIdle hangs up the shells a kill asked for once nothing runs in
+// them any more: the command was signalled first and has gone, and the
+// shell at its prompt is the rest of what was asked for. A shell whose
+// command is still going stays, still asked for, until it goes. Read
+// after every scan, since the scan is what says the command has gone.
+func (m *model) hangUpIdle() {
+	for pid, t := range m.terms {
+		if !t.hangUp {
+			continue
+		}
+		if n := m.nodes[pid]; n != nil && len(n.Children) > 0 {
+			continue
+		}
+		m.server.closeTerm(pid)
+		delete(m.terms, pid)
+		delete(m.dressed, pid)
+		if m.shown == pid {
+			m.shown = 0
+			m.keepRows()
+		}
+		if m.from == pid {
+			m.from = 0
+		}
+	}
 }
 
 // closeBuffer closes a dead buffer: its run is over and on the record,

@@ -4326,20 +4326,23 @@ func TestKillingAShellRunningACommandSignalsTheCommandFirst(t *testing.T) {
 
 	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
 	if len(hungUp) != 0 {
-		t.Errorf("hung up %+v, want the shell kept: the buffer is the record", hungUp)
+		t.Errorf("hung up %+v, want the shell kept while its command goes", hungUp)
 	}
 	if got := pids(signalled); !slices.Equal(got, []int{20, 30}) {
 		t.Errorf("signalled %v, want what runs in the shell, parents first", got)
 	}
-	// The shell is never hung up: the command is signalled — hung up first,
-	// docker compose up would leave its containers running — and the shell
-	// stays at its prompt beneath the transcript, dead but readable.
+	// The command is signalled first — hung up first, docker compose up
+	// would leave its containers running — and the shell, opened by hand,
+	// is hung up once the command has gone: the kill asked for the row,
+	// shell and all.
 	notAsked(t, asked, kindClose)
 	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}}})
 	m = next.(model)
-	notAsked(t, asked, kindClose)
-	if _, held := m.terms[10]; !held {
-		t.Error("the shell should still be held")
+	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
+		t.Errorf("asked %+v, want the shell hung up once its command has gone", got)
+	}
+	if _, held := m.terms[10]; held {
+		t.Error("the shell should be gone with its command")
 	}
 }
 

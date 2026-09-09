@@ -81,6 +81,9 @@ type remoteTerm struct {
 	// recorded says the ending has been written to the runs file, which
 	// happens once, when the transcript has been read for what it said.
 	recorded bool
+	// hangUp says a kill asked for the shell as well as what ran in it:
+	// once nothing runs in it any more it is hung up, buffer and all.
+	hangUp bool
 }
 
 // live reports whether the shell is still running what it was started

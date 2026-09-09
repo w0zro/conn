@@ -734,16 +734,19 @@ SIGKILL: outright. Kills work on any listed process, including ones conn did not
 start.
 .TP
 8-2.
-After death the buffer stays as the record. A held shell running a command is
-not hung up: the command is signalled, and the shell sits at its prompt beneath
-the transcript with the ending recorded, how and when, so a \fBdocker compose
-up\fR stops its containers on the way out and its buffer remains to read;
-\fBq\fR closes it (7-2). A held shell at its prompt with nothing running is hung
-up: a buffer of nothing but a prompt. \fBx\fR on an entry's row previews the
-entry, named, and once it is dead \fBr\fR starts it again. \fBX\fR, and \fBx\fR
-on an entry, also kill processes the command started that have since detached
-from it; such a process is listed under the command while it runs, and the
-preview says \fBorphaned\fR of it.
+A held shell running a command is not hung up first: the command is signalled,
+so a \fBdocker compose up\fR stops its containers on the way out, and the shell
+sits at its prompt beneath the transcript with the ending recorded, how and
+when. What happens then depends on whose shell it is. A plan entry's buffer
+stays as the record, dead but readable, until \fBq\fR closes it (7-1) or \fBr\fR
+runs the entry again in it. A shell opened by hand, or an agent's, is hung up
+once its command has gone, buffer and all: killing the row asks for the whole of
+it. A held shell at its prompt with nothing running is hung up at once: a buffer
+of nothing but a prompt. \fBx\fR on an entry's row previews the entry, named,
+and once it is dead \fBr\fR starts it again. \fBX\fR, and \fBx\fR on an entry,
+also kill processes the command started that have since detached from it; such a
+process is listed under the command while it runs, and the preview says
+\fBorphaned\fR of it.
 .TP
 8-3.
 A container is stopped by docker, which signals the process inside it and, after

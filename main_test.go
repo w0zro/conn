@@ -59,6 +59,44 @@ func TestScreenFillsTheTerminal(t *testing.T) {
 	}
 }
 
+// In color, every row is painted edge to edge on the desk and ends with
+// the terminal's own colors back; the words are the plain screen's.
+func TestColoredScreenPaintsEveryRow(t *testing.T) {
+	pal = colored()
+	defer func() { pal = plain }()
+	for _, size := range [][2]int{{80, 24}, {132, 43}} {
+		for i, l := range screen(testReport, size[0], size[1]) {
+			if !strings.HasPrefix(l, pal.normal) || !strings.HasSuffix(l, pal.end) {
+				t.Errorf("%dx%d row %d is not painted from the desk to the end: %q", size[0], size[1], i, l)
+			}
+			if w := utf8.RuneCountInString(stripEscapes(l)); w != size[0] {
+				t.Errorf("%dx%d row %d paints %d columns: %q", size[0], size[1], i, w, stripEscapes(l))
+			}
+		}
+	}
+	text := stripEscapes(strings.Join(screen(testReport, 132, 43), "\n"))
+	for _, s := range []string{"CONN 0.7.0", "TMUX ........ 3.5A", "NOMINAL", "ALL SYSTEMS NOMINAL", "***  HELLO FROM THE CONN  ***"} {
+		if !strings.Contains(text, s) {
+			t.Errorf("colored screen lacks %q:\n%s", s, text)
+		}
+	}
+}
+
+// stripEscapes drops the color sequences, leaving the cells.
+func stripEscapes(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == 0x1b {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 // A body taller than the terminal is cut above the footer, which stays.
 func TestScreenKeepsTheFooterWhenShort(t *testing.T) {
 	rows := screen(testReport, 80, 24)

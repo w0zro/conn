@@ -11,15 +11,40 @@ import (
 // terminal: ruled in double lines into a header, where the name is set
 // large beside the station's identification; a body, where the machine
 // is read out and the checks come up nominal; and a footer, where the
-// checks are summed and conn calls hello. It is monochrome, in whatever
-// the terminal's phosphor is; the name, the call and a fault stand out.
+// checks are summed and conn calls hello.
 
-// bright, alarm and normal are the attributes the screen uses, and are
-// empty off a terminal.
-var bright, alarm, normal string
+// The palette is the site's: the desk the screen is painted on, paper
+// for the text, faint and muted for the labels and the leaders, orange
+// for the name and for a fault, and green for a check come up nominal.
+// Off a terminal every sequence is empty and the screen is plain text.
+type palette struct {
+	ground, paper, faint, muted, orange, alarm, good, bold string
+	normal, end                                            string // back to paper on the desk; the row's end
+}
 
-// The smallest terminal the screen is laid out for, and the rows the
-// footer takes, which come on last.
+var (
+	plain palette
+	pal   = plain
+)
+
+func colored() palette {
+	p := palette{
+		ground: "\x1b[48;2;25;27;31m",
+		paper:  "\x1b[38;2;241;235;222m",
+		faint:  "\x1b[38;2;141;132;116m",
+		muted:  "\x1b[38;2;111;102;86m",
+		orange: "\x1b[38;2;189;58;29m",
+		alarm:  "\x1b[48;2;189;58;29m\x1b[38;2;241;235;222m",
+		good:   "\x1b[38;2;46;125;79m",
+		bold:   "\x1b[1m",
+		end:    "\x1b[0m",
+	}
+	p.normal = p.end + p.ground + p.paper
+	return p
+}
+
+// The smallest terminal the screen is laid out for, the rows the footer
+// takes, which come on last, and the columns the body is set to.
 const (
 	minCols    = 80
 	minRows    = 24
@@ -33,30 +58,24 @@ const (
 // its rows, each the terminal's width, as many as its height.
 func screen(r report, width, height int) []string {
 	terminal := terminalCheck(r.term, width, height)
-	if width < minCols {
-		width = minCols
-	}
-	if height < minRows {
-		height = minRows
-	}
+	width = max(width, minCols)
+	height = max(height, minRows)
 	inner := width - 2
+	p := pal
 
 	var rows []string
 	rule := func(l, m, rt string) {
-		rows = append(rows, l+strings.Repeat(m, inner)+rt)
+		rows = append(rows, p.normal+p.faint+l+strings.Repeat(m, inner)+rt+p.end)
 	}
 	// line frames text between the side rules at a column from the left
-	// rule; cells is the text's width without its attributes. Negative,
-	// the column centers the text.
+	// rule; cells is the text's width without its colors. Negative, the
+	// column centers the text.
 	line := func(text string, cells, col int) {
 		if col < 0 {
 			col = (inner - cells) / 2
 		}
-		right := inner - col - cells
-		if right < 0 {
-			right = 0
-		}
-		rows = append(rows, "║"+strings.Repeat(" ", col)+text+strings.Repeat(" ", right)+"║")
+		right := max(inner-col-cells, 0)
+		rows = append(rows, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", col)+text+p.normal+strings.Repeat(" ", right)+p.faint+"║"+p.end)
 	}
 	blank := func() { line("", 0, 0) }
 	fit := func(s string, w int) string {
@@ -68,6 +87,9 @@ func screen(r report, width, height int) []string {
 		}
 		return string([]rune(s)[:w-1]) + "…"
 	}
+	// paint is text in a color, back to paper after; width is the
+	// text's own.
+	paint := func(color, text string) string { return color + text + p.normal }
 
 	// The header: the name, and beside it — under it, when the terminal
 	// is too narrow for beside — who and what this is.
@@ -81,6 +103,7 @@ func screen(r report, width, height int) []string {
 		"STATION  " + strings.ToUpper(r.station),
 		r.clock,
 	}
+	identColor := []string{p.bold, p.faint, p.paper, p.paper}
 	identCol := leftCol + nameW + 8
 	identW := 0
 	for _, s := range ident {
@@ -88,10 +111,10 @@ func screen(r report, width, height int) []string {
 	}
 	beside := identCol+identW <= inner-leftCol
 	for i, l := range name {
-		text, cells := bright+l+normal, nameW
+		text, cells := paint(p.orange+p.bold, l), nameW
 		if j := i - 1; beside && j >= 0 && j < len(ident) && ident[j] != "" {
 			pad := strings.Repeat(" ", identCol-leftCol-nameW)
-			text += pad + ident[j]
+			text += pad + paint(identColor[j], ident[j])
 			cells += len(pad) + utf8.RuneCountInString(ident[j])
 		}
 		line(text, cells, leftCol)
@@ -105,35 +128,38 @@ func screen(r report, width, height int) []string {
 	rule("╠", "═", "╣")
 
 	// The body: the facts, then the checks. When the terminal is short the
-	// facts go first, then what is left is cut above the footer.
+	// facts are cut first, from the end, and the checks kept whole.
 	var body []string
 	entry := func(it item) {
 		label := strings.ToUpper(it.label) + " "
-		leader := strings.Repeat(".", max(labelCol-leftCol-utf8.RuneCountInString(label), 1))
-		valueW := inner - labelCol - 1
-		text := label + leader + " "
+		leader := strings.Repeat(".", max(labelCol-leftCol-utf8.RuneCountInString(label), 1)) + " "
+		valueW := inner - leftCol - utf8.RuneCountInString(label+leader)
 		if it.status != "" {
-			valueW -= statusCol + 2
+			valueW -= statusCol + 3
 		}
 		value := fit(strings.ToUpper(it.value), valueW)
-		text += value
-		cells := utf8.RuneCountInString(text)
+		text := paint(p.faint, label) + paint(p.muted, leader) + value
+		cells := utf8.RuneCountInString(label + leader + value)
 		if it.status != "" {
-			gap := inner - leftCol - cells - statusCol
-			text += " " + strings.Repeat(".", max(gap-2, 1)) + " "
 			status := strings.ToUpper(it.status)
-			if it.fault {
-				status = alarm + status + normal
+			gap := strings.Repeat(".", max(inner-leftCol-cells-statusCol-2, 1))
+			color := p.faint
+			switch {
+			case it.fault:
+				color = p.alarm + p.bold
+				status = " " + status + " "
+			case it.status == nominal:
+				color = p.good + p.bold
 			}
-			text += status
-			cells = inner - leftCol - statusCol + utf8.RuneCountInString(strings.ToUpper(it.status))
+			text += " " + paint(p.muted, gap) + " " + paint(color, status)
+			cells += 2 + len(gap) + utf8.RuneCountInString(status)
 		}
-		body = append(body, "║"+strings.Repeat(" ", leftCol)+text+strings.Repeat(" ", max(inner-leftCol-cells, 0))+"║")
+		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", leftCol)+text+p.normal+strings.Repeat(" ", max(inner-leftCol-cells, 0))+p.faint+"║"+p.end)
 	}
 	section := func(title string, items []item) {
-		body = append(body, "║"+strings.Repeat(" ", inner)+"║")
-		body = append(body, "║"+strings.Repeat(" ", leftCol)+title+strings.Repeat(" ", inner-leftCol-utf8.RuneCountInString(title))+"║")
-		body = append(body, "║"+strings.Repeat(" ", inner)+"║")
+		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", inner)+p.faint+"║"+p.end)
+		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", leftCol)+paint(p.bold, title)+strings.Repeat(" ", inner-leftCol-utf8.RuneCountInString(title))+p.faint+"║"+p.end)
+		body = append(body, p.normal+p.faint+"║"+p.normal+strings.Repeat(" ", inner)+p.faint+"║"+p.end)
 		for _, it := range items {
 			entry(it)
 		}
@@ -165,17 +191,18 @@ func screen(r report, width, height int) []string {
 			faults++
 		}
 	}
-	sum := "ALL SYSTEMS NOMINAL"
-	if faults == 1 {
-		sum = alarm + "1 SYSTEM NOT NOMINAL" + normal
-	} else if faults > 1 {
-		sum = alarm + strconv.Itoa(faults) + " SYSTEMS NOT NOMINAL" + normal
+	sum, sumColor := "ALL SYSTEMS NOMINAL", p.good+p.bold
+	switch {
+	case faults == 1:
+		sum, sumColor = " 1 SYSTEM NOT NOMINAL ", p.alarm+p.bold
+	case faults > 1:
+		sum, sumColor = " "+strconv.Itoa(faults)+" SYSTEMS NOT NOMINAL ", p.alarm+p.bold
 	}
 	rule("╠", "═", "╣")
 	blank()
-	line(sum, utf8.RuneCountInString(strings.ReplaceAll(strings.ReplaceAll(sum, alarm, ""), normal, "")), -1)
-	call := "***  " + strings.ToUpper(greeting) + "  ***"
-	line(bright+call+normal, utf8.RuneCountInString(call), -1)
+	line(paint(sumColor, sum), utf8.RuneCountInString(sum), -1)
+	call := strings.ToUpper(greeting)
+	line(paint(p.orange, "***")+"  "+paint(p.bold, call)+"  "+paint(p.orange, "***"), utf8.RuneCountInString(call)+10, -1)
 	blank()
 	rule("╚", "═", "╝")
 	return rows

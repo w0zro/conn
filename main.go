@@ -15,7 +15,7 @@ func main() {
 		fmt.Println(joinRows(screen(stationReport(), minCols, minRows)))
 		return
 	}
-	bright, alarm, normal = "\x1b[1m", "\x1b[7m", "\x1b[0m"
+	pal = colored()
 	if _, err := tea.NewProgram(newModel()).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)
 		os.Exit(1)

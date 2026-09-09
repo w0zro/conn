@@ -11,14 +11,11 @@ var testReport = report{version: "0.7.0", station: "w0zro@station", platform: "d
 // The screen is eighty by twenty-four, every row framed to the same
 // width, and it reports the station and calls hello, in capitals.
 func TestScreenIsEightyByTwentyFour(t *testing.T) {
-	rows := screen(testReport, screenCols)
+	rows := screen(testReport)
 	if len(rows) != screenRows {
 		t.Errorf("screen is %d rows, not %d:\n%s", len(rows), screenRows, strings.Join(rows, "\n"))
 	}
 	for i, l := range rows {
-		if l == "" && (i == 0 || i == len(rows)-1) {
-			continue
-		}
 		if w := utf8.RuneCountInString(l); w != screenCols {
 			t.Errorf("row %d is %d columns: %q", i, w, l)
 		}
@@ -37,17 +34,44 @@ func TestScreenIsEightyByTwentyFour(t *testing.T) {
 	}
 }
 
-// A wider terminal centers the screen; a narrower one gets it flush left.
-func TestScreenCentersInAWiderTerminal(t *testing.T) {
-	for _, l := range screen(testReport, 120)[1:23] {
-		if !strings.HasPrefix(l, strings.Repeat(" ", 20)+"╔") && !strings.HasPrefix(l, strings.Repeat(" ", 20)+"║") && !strings.HasPrefix(l, strings.Repeat(" ", 20)+"╠") && !strings.HasPrefix(l, strings.Repeat(" ", 20)+"╚") {
+// A larger terminal centers the screen; a smaller one gets it flush with
+// the top left corner.
+func TestScreenIsPlacedInTheTerminal(t *testing.T) {
+	rows := screen(testReport)
+	big := strings.Split(place(rows, len(rows), 120, 40), "\n")
+	if len(big) != 8+screenRows {
+		t.Errorf("120x40 places %d rows, not %d", len(big), 8+screenRows)
+	}
+	for _, l := range big[8:] {
+		if !strings.HasPrefix(l, strings.Repeat(" ", 20)) || strings.HasPrefix(l, strings.Repeat(" ", 21)) {
 			t.Errorf("row is not centered in 120: %q", l)
 		}
 	}
-	for _, l := range screen(testReport, 60)[1:23] {
-		if strings.HasPrefix(l, " ") {
-			t.Errorf("row is indented in a narrow terminal: %q", l)
+	small := strings.Split(place(rows, len(rows), 60, 20), "\n")
+	if len(small) != screenRows || strings.HasPrefix(small[0], " ") {
+		t.Errorf("60x20 does not place the screen flush: %d rows, first %q", len(small), small[0])
+	}
+}
+
+// The screen comes on a row at a time, and the clock keeps time.
+func TestProgramPaintsThenKeepsTime(t *testing.T) {
+	m := newModel()
+	m.report = testReport
+	m.width, m.height = screenCols, screenRows
+	for i := 0; i < screenRows; i++ {
+		if got := strings.Count(m.View().Content, "\n"); got != max(i-1, 0) {
+			t.Errorf("after %d rows the view has %d", i, got+1)
 		}
+		next, _ := m.Update(paintMsg{})
+		m = next.(model)
+	}
+	if !strings.Contains(m.View().Content, "HELLO FROM THE CONN") {
+		t.Errorf("the screen never finished:\n%s", m.View().Content)
+	}
+	next, cmd := m.Update(clockMsg{})
+	m = next.(model)
+	if m.report.clock == testReport.clock || cmd == nil {
+		t.Errorf("the clock did not turn: %q", m.report.clock)
 	}
 }
 

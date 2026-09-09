@@ -2,22 +2,24 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"os"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
 )
 
-// conn comes up: the start-up screen is written a row at a time, the way
-// a screen was painted down a serial line, the station reports itself,
-// and conn calls hello from the loop. Everything it was is in the
+// conn comes up on its start-up screen and holds it until ctrl+c. Off a
+// terminal, it writes the screen and is done. Everything it was is in the
 // history, and comes back piece by piece, in the form it is wanted in.
 func main() {
-	width, pace := screenCols, time.Duration(0)
-	if stdoutIsTerminal() {
-		width, pace = terminalWidth(), 30*time.Millisecond
-		bright, normal = "\x1b[1m", "\x1b[0m"
+	if !stdoutIsTerminal() {
+		fmt.Println(strings.Join(screen(stationReport()), "\n"))
+		return
 	}
-	for _, row := range screen(stationReport(), width) {
-		fmt.Println(row)
-		time.Sleep(pace)
+	bright, normal = "\x1b[1m", "\x1b[0m"
+	if _, err := tea.NewProgram(newModel()).Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "conn: %v\n", err)
+		os.Exit(1)
 	}
 }
 

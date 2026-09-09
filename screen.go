@@ -6,10 +6,8 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
-	"syscall"
 	"time"
 	"unicode/utf8"
-	"unsafe"
 )
 
 // version is stamped by the release build. A build that came another way
@@ -37,7 +35,7 @@ func buildVersion() string {
 // by twenty-four rows, ruled in double lines, the name set large in the
 // upper panel, the station's report in the middle one, and the call in
 // the lower. It is monochrome, in whatever the terminal's phosphor is;
-// on a terminal, the name and the call are bright.
+// on a terminal, the name and the call are bright, and the clock runs.
 
 const (
 	screenCols = 80
@@ -70,22 +68,22 @@ func stationReport() report {
 		version:  buildVersion(),
 		station:  who + "@" + host,
 		platform: runtime.GOOS + "/" + runtime.GOARCH,
-		clock:    time.Now().UTC().Format("02-Jan-2006  15:04:05") + " Z",
+		clock:    zulu(time.Now()),
 	}
 }
 
-// screen renders the start-up screen as rows, centered in a terminal
-// width columns wide when it is wider than the screen.
-func screen(r report, width int) []string {
+// zulu writes a time the way the old systems did, in UTC.
+func zulu(t time.Time) string {
+	return t.UTC().Format("02-Jan-2006  15:04:05") + " Z"
+}
+
+// screen renders the start-up screen: its rows, each the screen's width.
+func screen(r report) []string {
 	inner := screenCols - 2
-	margin := ""
-	if width > screenCols {
-		margin = strings.Repeat(" ", (width-screenCols)/2)
-	}
 
 	var rows []string
 	rule := func(l, m, rt string) {
-		rows = append(rows, margin+l+strings.Repeat(m, inner)+rt)
+		rows = append(rows, l+strings.Repeat(m, inner)+rt)
 	}
 	// line frames text between the side rules, at a column from the left
 	// rule; negative, it centers the text.
@@ -98,12 +96,12 @@ func screen(r report, width int) []string {
 		if right < 0 {
 			right = 0
 		}
-		rows = append(rows, margin+"║"+strings.Repeat(" ", col)+attr+text+normal+strings.Repeat(" ", right)+"║")
+		rows = append(rows, "║"+strings.Repeat(" ", col)+attr+text+normal+strings.Repeat(" ", right)+"║")
 	}
 	blank := func() { line("", 0, "") }
 
-	rows = append(rows, "")
 	rule("╔", "═", "╗")
+	blank()
 	blank()
 	name := letters(nameSet)
 	col := (inner - utf8.RuneCountInString(name[0])) / 2
@@ -112,6 +110,7 @@ func screen(r report, width int) []string {
 	}
 	blank()
 	line(tagline, -1, "")
+	blank()
 	blank()
 	rule("╠", "═", "╣")
 	blank()
@@ -133,8 +132,29 @@ func screen(r report, width int) []string {
 	line("***  "+strings.ToUpper(greeting)+"  ***", -1, bright)
 	blank()
 	rule("╚", "═", "╝")
-	rows = append(rows, "")
 	return rows
+}
+
+// place sets the first shown rows of the screen in a terminal of the given
+// size, where the whole screen would sit: centered when there is room,
+// flush with the top left corner when there is not.
+func place(rows []string, shown, width, height int) string {
+	var b strings.Builder
+	if top := (height - len(rows)) / 2; top > 0 {
+		b.WriteString(strings.Repeat("\n", top))
+	}
+	margin := ""
+	if width > screenCols {
+		margin = strings.Repeat(" ", (width-screenCols)/2)
+	}
+	for i, r := range rows[:shown] {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(margin)
+		b.WriteString(r)
+	}
+	return b.String()
 }
 
 // stdoutIsTerminal says whether what conn prints is going to a person's
@@ -142,15 +162,4 @@ func screen(r report, width int) []string {
 func stdoutIsTerminal() bool {
 	info, err := os.Stdout.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
-}
-
-// terminalWidth is how many columns the terminal on stdout has, or the
-// screen's own when it will not say.
-func terminalWidth() int {
-	var ws struct{ rows, cols, x, y uint16 }
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, os.Stdout.Fd(), syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(&ws)))
-	if errno != 0 || ws.cols == 0 {
-		return screenCols
-	}
-	return int(ws.cols)
 }

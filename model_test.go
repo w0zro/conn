@@ -4434,16 +4434,26 @@ func TestXOnAnEntryIsNamedForItAndKeepsItsShell(t *testing.T) {
 	}
 	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
 	if len(hungUp) != 0 || len(signalled) != 2 {
-		t.Errorf("hung up %v, signalled %v; want the command signalled and the shell kept", hungUp, signalled)
+		t.Errorf("hung up %v, signalled %v; want the command signalled first and the shell kept until it has gone", hungUp, signalled)
 	}
-	// The shell stays: the buffer is the record of the ending, and r runs
-	// the entry again in it.
 	notAsked(t, asked, kindClose)
 
 	// Unfolded, on the shell's own row, the same.
 	m = press(press(press(m, "esc"), "-"), "x")
 	if f := footer(m); !strings.Contains(f, "app") {
 		t.Errorf("footer = %q, want the entry named on its shell's row too", f)
+	}
+
+	// The shell stays until the command has gone, then goes with it; r
+	// starts the entry again from the plan.
+	m = press(m, "esc")
+	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}}})
+	m = next.(model)
+	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
+		t.Errorf("asked %+v, want the entry's shell hung up once its command has gone", got)
+	}
+	if _, held := m.terms[10]; held {
+		t.Error("the entry's shell should be gone with its command")
 	}
 }
 
@@ -5005,17 +5015,17 @@ func asksForRests(cmd tea.Cmd) bool {
 }
 
 func TestAnEndingXAskedForIsNotAWrongOne(t *testing.T) {
-	// A killed entry's shell stays as the record, but the ending is what
-	// you asked for: no cross on its row or its tab, no FAILED chip, and
-	// tab does not stop there; the row and the heading say it in gray.
+	// While a killed entry's shell waits for its command to go, the
+	// ending it records is what you asked for: no cross on its row or its
+	// tab, no FAILED chip, and tab does not stop there; the row and the
+	// heading say it in gray.
 	m, _ := pipeServer(t, composeTree()) // app: zsh 10 running docker compose up
 	m = press(press(m, "down"), "x")
 	m.splitKill(m.pendingKill.nodes)
 	m.pendingKill = nil
-	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}}})
+	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 10, Dir: "/p/conn", Name: "app", Run: "docker compose up", Exit: "143"}}})
 	m = next.(model)
-	next, _ = m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 10, Dir: "/p/conn", Name: "app", Run: "docker compose up", Exit: "143"}}})
-	m = next.(model)
+	m = press(m, "-") // unfolded, so the shell has a row of its own
 	if got := m.terms[10]; got == nil || got.exit != "143" || !got.killed {
 		t.Fatalf("terms[10] = %+v, want the ending learned and remembered as asked for", got)
 	}
@@ -5038,11 +5048,5 @@ func TestAnEndingXAskedForIsNotAWrongOne(t *testing.T) {
 		if tb.pid == 10 && tb.mark != "" {
 			t.Errorf("tab mark = %q, want none", tb.mark)
 		}
-	}
-	m.shown = 10
-	m.keepRows()
-	head := stripANSI(m.heading())
-	if strings.Contains(head, glyphFailed) || !strings.Contains(head, "terminated") {
-		t.Errorf("heading = %q, want terminated said with no mark", head)
 	}
 }

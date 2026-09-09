@@ -1924,15 +1924,12 @@ func (m *model) runKill(req *killRequest) tea.Cmd {
 // the processes to signal, which take in what runs under a held shell. A
 // held shell running a command keeps its pane for now: what runs in it is
 // signalled, parents first, so a docker compose up stops its containers
-// on the way out, and the shell is back at its prompt with the ending
-// recorded. A plan entry's shell stays so — the buffer is the record of
-// the ending, dead but readable, until q closes it, and r runs the entry
-// again in it. A shell with no name — opened by hand, or an agent's — is
-// hung up once what ran in it has gone (hangUpIdle): killing the row is
-// asking for the whole of it, the shell included. A held shell at its
-// prompt with nothing running is a buffer of nothing but a prompt, and is
-// hung up at once. A process is signalled once, whichever way it was
-// reached.
+// on the way out, and the shell is hung up once what ran in it has gone
+// (hangUpIdle), whoever opened it: killing the row is asking for the
+// whole of it, the shell included, and r starts an entry again from the
+// plan. A held shell at its prompt with nothing running is a buffer of
+// nothing but a prompt, and is hung up at once. A process is signalled
+// once, whichever way it was reached.
 func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*ProcNode) {
 	seen := map[int]bool{}
 	for _, n := range nodes {
@@ -1950,10 +1947,7 @@ func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*
 			m.server.closeTerm(n.PID)
 			continue
 		}
-		t.killed = true
-		if t.name == "" {
-			t.hangUp = true
-		}
+		t.killed, t.hangUp = true, true
 		for _, under := range subtree(shell)[1:] {
 			if _, held := m.terms[under.PID]; held || seen[under.PID] {
 				continue

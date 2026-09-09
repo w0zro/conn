@@ -85,7 +85,8 @@ type remoteTerm struct {
 	// once nothing runs in it any more it is hung up, buffer and all.
 	hangUp bool
 	// killed says the ending was asked for with x: an exit you asked for
-	// is not a wrong one, and carries no mark.
+	// is not a wrong one, and carries no mark while the shell waits to be
+	// hung up.
 	killed bool
 }
 

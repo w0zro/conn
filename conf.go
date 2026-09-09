@@ -135,6 +135,13 @@ func tmuxConf(conn string, scrollback int) string {
 	)
 	if paintShells {
 		w(`set -g window-style "bg=` + tp.ground + `,fg=` + tp.ink + `"`)
+		// The sixteen colors a program asks for by name are the hangar's
+		// too, so what draws by index — a prompt, git, an agent on its
+		// terminal's palette — draws in the one palette; truecolor passes
+		// through as it is.
+		for i, c := range panePalette() {
+			w("set -g pane-colours[" + strconv.Itoa(i) + `] "` + c + `"`)
+		}
 	}
 	// The border between conn's pane and the buffer is a row of the ground
 	// carrying the heading; between two buffers it is a blank row of the
@@ -231,4 +238,16 @@ func statusLeft() string {
 		",#{?pane_in_mode," + chip(tp.teal, "COPY") +
 		",#{?" + modeOption + ",#{" + modeOption + "}," + wash + "}}}"
 	return brandChip() + mode + messageSlot()
+}
+
+// panePalette is the hangar as the sixteen ANSI colors, black to bright
+// white: the bar for black and the gray for its bright, the ink for both
+// whites, the tones for the hues — owed for red, green for green, amber
+// for yellow, teal for blue and cyan, the orange for magenta — the bright
+// of each the same, since the hangar spends one tone on a meaning.
+func panePalette() []string {
+	return []string{
+		tp.bar, tp.owed, tp.green, tp.amber, tp.teal, tp.orange, tp.teal, tp.ink,
+		tp.gray, tp.owed, tp.green, tp.amber, tp.teal, tp.orange, tp.teal, tp.ink,
+	}
 }

@@ -35,6 +35,18 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,
 		// The hangar under every pane, and the chip's hairline between them.
 		`set -g window-style "bg=` + tp.ground + `,fg=` + tp.ink + `"`,
+		// The named colors are the hangar's: black the bar, its bright
+		// the gray, white the ink, and the hues the tones.
+		`set -g pane-colours[0] "` + tp.bar + `"`,
+		`set -g pane-colours[8] "` + tp.gray + `"`,
+		`set -g pane-colours[7] "` + tp.ink + `"`,
+		`set -g pane-colours[15] "` + tp.ink + `"`,
+		`set -g pane-colours[1] "` + tp.owed + `"`,
+		`set -g pane-colours[2] "` + tp.green + `"`,
+		`set -g pane-colours[3] "` + tp.amber + `"`,
+		`set -g pane-colours[4] "` + tp.teal + `"`,
+		`set -g pane-colours[5] "` + tp.orange + `"`,
+		`set -g pane-colours[6] "` + tp.teal + `"`,
 		`set -g pane-border-style "fg=` + tp.ground + `,bg=` + tp.ground + `"`,
 		`set -g popup-style "bg=` + tp.wash + `,fg=` + tp.ink + `"`,
 		`set -g status-left "` + statusLeft() + `"`,
@@ -71,8 +83,8 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 func TestTheTerminalThemeLeavesTheShellsGround(t *testing.T) {
 	t.Cleanup(func() { applyTheme("") })
 	applyTheme("terminal")
-	if strings.Contains(tmuxConf("/opt/conn", 100), "window-style") {
-		t.Error("theme terminal should leave the shells' ground to the terminal")
+	if conf := tmuxConf("/opt/conn", 100); strings.Contains(conf, "window-style") || strings.Contains(conf, "pane-colours") {
+		t.Error("theme terminal should leave the shells' ground and colors to the terminal")
 	}
 	applyTheme("anything else")
 	if !strings.Contains(tmuxConf("/opt/conn", 100), "window-style") {

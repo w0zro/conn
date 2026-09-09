@@ -12,7 +12,7 @@ import (
 // the history, and comes back piece by piece, in the form it is wanted in.
 func main() {
 	if !stdoutIsTerminal() {
-		for _, r := range screen(stationReport(), minCols, minRows) {
+		for _, r := range screen(stationReport(), minCols, 0) {
 			fmt.Println(r.text)
 		}
 		return

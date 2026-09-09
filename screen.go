@@ -7,12 +7,12 @@ import (
 	"unicode/utf8"
 )
 
-// The boot console, as the design hands it off: the wordmark with the
-// station's identification beside it; under a rule, the system block,
-// eight facts in two columns; the start-up checks, five lines to one
-// status column against the right edge; and under a second rule the
-// verdict band, pulled tight — the count of faults as a chip, then the
-// greeting. Uppercase throughout, by design.
+// The boot console, as the design hands it off and the brief has grown
+// it: the wordmark with the station's identification beside it; under a
+// rule, the readout — the system on the left, the session on the right;
+// the start-up checks, one status column against the right edge; and
+// under a second rule the verdict band, pulled tight — the count of
+// faults as a chip, then the greeting. Uppercase throughout, by design.
 
 // The palette is the handoff's tokens. Off a terminal every sequence is
 // empty and the console is plain text.
@@ -45,22 +45,22 @@ func colored() palette {
 }
 
 // The console is set to the terminal's width less a margin each side:
-// the facts in two columns of half the measure, the checks' statuses
-// flush with its right edge. These are the fixed columns, and the size
-// under which the terminal is called small.
+// the readout in two columns of half the measure, the checks' statuses
+// flush with its right edge. These are the fixed columns, and the width
+// under which the terminal is called small; the rows it needs depend on
+// the report.
 const (
 	margin     = 3
-	factCol    = 10 // a fact's value, from its column
+	factCol    = 12 // a fact's value, from its column
 	checkCol   = 12 // a check's value, from the margin
-	statusW    = 7  // the widest status: NOMINAL
+	statusW    = 9  // the widest status: UNCHECKED
 	minCols    = 80
-	minRows    = 24
 	stationGap = 5 // between the wordmark and the station block
 )
 
 // columns are the measure's, for a terminal width columns wide: the
-// second column of facts, and where a check's leaders stop, short of the
-// widest status and a space.
+// second column of the readout, and where a check's leaders stop, short
+// of the widest status and a space.
 func columns(width int) (measure, rightCol, leaderEnd int) {
 	measure = max(width, minCols) - 2*margin
 	return measure, measure / 2, measure - statusW - 2
@@ -72,20 +72,30 @@ type row struct {
 	stage int
 }
 
-// The stages: the header at once, the system block, each check in turn,
-// and the verdict. lastStage is the verdict's.
+// The stages: the header at once, the readout, each check in turn, and
+// the verdict last.
 const (
 	stageHeader = iota
-	stageSystem
+	stageReadout
 	stageChecks // the first check; each after is one more
-	checkCount  = 5
-	lastStage   = stageChecks + checkCount
 )
+
+// lastStage is the verdict's, after the screen's check and the report's.
+func lastStage(r report) int {
+	return stageChecks + 1 + len(r.checks)
+}
+
+// rowsNeeded is how many rows the console takes for a report: the header,
+// the readout, the checks and the verdict, with their rules and air.
+func rowsNeeded(r report) int {
+	return 1 + len(wordmark) + 1 + 1 + max(len(r.system), len(r.session)) + 1 + 1 + 1 + len(r.checks) + 1 + 1 + 2
+}
 
 // screen renders the console for a terminal of the given size: rows the
 // terminal's width, painted on the ground, to its height.
 func screen(r report, width, height int) []row {
 	p := pal
+	own := screenCheck(r, width, height)
 	width = max(width, minCols)
 	measure, rightCol, leaderEnd := columns(width)
 	var rows []row
@@ -129,6 +139,10 @@ func screen(r report, width, height int) []row {
 		add(&l, p.border, strings.Repeat("─", measure))
 		emit(&l, stage, false)
 	}
+	title := func(l *line, col int, s string) {
+		to(l, col)
+		add(l, p.parchment+p.bold, s)
+	}
 	fit := func(s string, w int) string {
 		if utf8.RuneCountInString(s) <= w {
 			return s
@@ -154,11 +168,12 @@ func screen(r report, width, height int) []row {
 		{p.bold, strings.TrimSpace("CONN " + r.version)},
 		{p.gray, "STATION  " + strings.ToUpper(r.station)},
 		{p.gray, strings.ToUpper(r.clock)},
+		{p.gray, r.build},
 	}
 	for i, m := range wordmark {
 		var l line
 		add(&l, p.orange+p.bold, m)
-		if i < len(station) {
+		if i < len(station) && station[i][1] != "" {
 			to(&l, markW+stationGap)
 			add(&l, station[i][0], station[i][1])
 			if i == 0 && r.note != "" {
@@ -169,45 +184,39 @@ func screen(r report, width, height int) []row {
 	}
 	rule(stageHeader)
 
-	// The system block: the title and the facts, four to a column.
-	{
-		var l line
-		add(&l, p.parchment+p.bold, "SYSTEM")
-		emit(&l, stageSystem, false)
-	}
-	factLine := func(l *line, col int, f fact) {
+	// The readout: the system in the left column, the session in the
+	// right, each under its title.
+	factLine := func(l *line, col, width int, f fact) {
 		to(l, col)
 		leader(l, strings.ToUpper(f.label), col+factCol-1, p.faint)
-		if f.value != "" {
-			add(l, p.ink, fit(strings.ToUpper(f.value), min(rightCol, measure-rightCol)-factCol-2))
-		}
-		if f.anomaly != "" {
-			if f.value != "" {
-				add(l, p.gray, " · ")
-			}
-			add(l, p.owed, strings.ToUpper(f.anomaly))
-		}
+		add(l, p.ink, fit(strings.ToUpper(f.value), width-factCol-2))
 	}
-	for i := 0; i < 4; i++ {
+	{
 		var l line
-		if i < len(r.facts) {
-			factLine(&l, 0, r.facts[i])
+		title(&l, 0, "SYSTEM")
+		title(&l, rightCol, "SESSION")
+		emit(&l, stageReadout, false)
+	}
+	for i := 0; i < max(len(r.system), len(r.session)); i++ {
+		var l line
+		if i < len(r.system) {
+			factLine(&l, 0, rightCol, r.system[i])
 		}
-		if 4+i < len(r.facts) {
-			factLine(&l, rightCol, r.facts[4+i])
+		if i < len(r.session) {
+			factLine(&l, rightCol, measure-rightCol, r.session[i])
 		}
-		emit(&l, stageSystem, false)
+		emit(&l, stageReadout, false)
 	}
 
-	// The checks: the title, then the terminal's own line and the four
-	// from the report, each to the status column.
+	// The checks: the title, then the screen's own line and the report's,
+	// each to the status column.
 	blank(stageChecks)
 	{
 		var l line
-		add(&l, p.parchment+p.bold, "START-UP CHECKS")
+		title(&l, 0, "START-UP CHECKS")
 		emit(&l, stageChecks, false)
 	}
-	checks := append([]check{terminalCheck(r.term, width, height)}, r.checks...)
+	checks := append([]check{own}, r.checks...)
 	faults := 0
 	for i, c := range checks {
 		var l line
@@ -231,8 +240,9 @@ func screen(r report, width, height int) []row {
 
 	// The verdict band: a rule, the count of faults, and the greeting.
 	// All nominal, it is the greeting alone.
-	blank(lastStage)
-	rule(lastStage)
+	last := lastStage(r)
+	blank(last)
+	rule(last)
 	if faults > 0 {
 		var l line
 		count := "1 SYSTEM NOT NOMINAL"
@@ -240,29 +250,33 @@ func screen(r report, width, height int) []row {
 			count = strconv.Itoa(faults) + " SYSTEMS NOT NOMINAL"
 		}
 		add(&l, p.chip, " "+count+" ")
-		emit(&l, lastStage, true)
+		emit(&l, last, true)
 	}
 	{
 		var l line
 		add(&l, p.orange, "***")
 		add(&l, p.gray, "  "+strings.ToUpper(greeting)+"  ")
 		add(&l, p.orange, "***")
-		emit(&l, lastStage, true)
+		emit(&l, last, true)
 	}
 	for len(rows) < height {
-		blank(lastStage)
+		blank(last)
 	}
 	return rows
 }
 
-// terminalCheck is the terminal itself: what it calls itself, its size,
-// and whether the console fits it.
-func terminalCheck(term string, width, height int) check {
-	value := join(" · ", term, strconv.Itoa(width)+"×"+strconv.Itoa(height))
-	if width < minCols || height < minRows {
-		return check{label: "TERMINAL", value: value, status: "SMALL", fault: true}
+// screenCheck is the screen itself: its size, what the terminal calls
+// itself, and whether the console fits. Off a terminal there is no
+// screen to check.
+func screenCheck(r report, width, height int) check {
+	if height == 0 {
+		return check{label: "SCREEN", value: join(" · ", "NO TERMINAL", r.term), status: "UNCHECKED"}
 	}
-	return check{label: "TERMINAL", value: value, status: nominal}
+	value := join(" · ", strconv.Itoa(width)+"×"+strconv.Itoa(height), r.term)
+	if width < minCols || height < rowsNeeded(r) {
+		return check{label: "SCREEN", value: value, status: "SMALL", fault: true}
+	}
+	return check{label: "SCREEN", value: value, status: nominal}
 }
 
 // stdoutIsTerminal says whether what conn prints is going to a person's

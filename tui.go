@@ -20,13 +20,14 @@ var (
 // a second; any key skips to the end of the sequence, the clock keeps
 // time once it is up, and it stays until ctrl+c or q.
 
-// The time before each stage after the header.
-func stageDelay(stage int) time.Duration {
+// The time before each stage after the header: a beat for the readout
+// and the verdict, less for each check.
+func (m model) stageDelay(stage int) time.Duration {
 	switch stage {
-	case stageSystem, lastStage:
+	case stageReadout, lastStage(m.report):
 		return 150 * time.Millisecond
 	default:
-		return 120 * time.Millisecond
+		return 80 * time.Millisecond
 	}
 }
 
@@ -47,11 +48,11 @@ func newModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(nextStage(m.stage+1), nextSecond())
+	return tea.Batch(m.nextStage(), nextSecond())
 }
 
-func nextStage(stage int) tea.Cmd {
-	return tea.Tick(stageDelay(stage), func(time.Time) tea.Msg { return stageMsg{} })
+func (m model) nextStage() tea.Cmd {
+	return tea.Tick(m.stageDelay(m.stage+1), func(time.Time) tea.Msg { return stageMsg{} })
 }
 
 func nextSecond() tea.Cmd {
@@ -63,11 +64,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case stageMsg:
-		if m.stage < lastStage {
+		last := lastStage(m.report)
+		if m.stage < last {
 			m.stage++
 		}
-		if m.stage < lastStage {
-			return m, nextStage(m.stage + 1)
+		if m.stage < last {
+			return m, m.nextStage()
 		}
 	case clockMsg:
 		m.report.clock = zulu(time.Now())
@@ -77,7 +79,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		default:
-			m.stage = lastStage
+			m.stage = lastStage(m.report)
 		}
 	}
 	return m, nil

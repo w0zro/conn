@@ -212,7 +212,7 @@ func recordPages(tags []tag, change string) string {
 		if n == 1 {
 			b.WriteString(`        <p class="kicker">RECORD OF REVISIONS</p>
         <h2>Revisions</h2>
-        <p class="para">Each release of conn, as the tag that cut it described it. The stamp on the cover names the one in effect.</p>
+        <p class="para">Each release of conn, logged as the tag that cut it described it. The stamp on the cover names the revision in effect.</p>
 `)
 		}
 		b.WriteString(`        <div class="table record">

@@ -7,7 +7,7 @@ import "strings"
 // rows of pixels, drawn with the half blocks, so the letters come out near
 // square in a terminal's tall cells and stay one file of plain text.
 
-const name = "CONN"
+const nameSet = "CONN"
 
 // glyphs are the letters, a row of pixels per string, # for ink.
 var glyphs = map[rune][]string{

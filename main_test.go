@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 var testReport = report{
@@ -114,7 +116,7 @@ func TestFaultsLightTheConsole(t *testing.T) {
 	if !strings.Contains(piped, "SCREEN .... NO TERMINAL") || !strings.Contains(piped, " UNCHECKED") || !strings.Contains(piped, "1 SYSTEM NOT NOMINAL") {
 		t.Errorf("no terminal should be unchecked, not a fault:\n%s", piped)
 	}
-	if rowsNeeded(testReport) != 27 {
+	if rowsNeeded(testReport) != 29 {
 		t.Errorf("the test report needs %d rows", rowsNeeded(testReport))
 	}
 }
@@ -156,14 +158,14 @@ func stripEscapes(s string) string {
 	return b.String()
 }
 
-// The console comes on in stages, a key skips to the end, and the clock
-// keeps time.
+// The console comes on in stages, a key skips to the end, the clock
+// keeps time, and a key at the end continues.
 func TestProgramComesOnInStages(t *testing.T) {
 	m := newModel()
 	m.report = testReport
 	m.width, m.height = 120, 40
 	has := func(s string) bool { return strings.Contains(m.View().Content, s) }
-	if !has("STATION  W0ZRO@STATION") || has("SYSTEM") || has("ALL SYSTEMS") {
+	if !has("STATION  W0ZRO@STATION") || has("SYSTEM") || has("ALL SYSTEMS") || has("ANY KEY") {
 		t.Errorf("the header alone should be up at the start:\n%s", m.View().Content)
 	}
 	if got := strings.Count(m.View().Content, "\n") + 1; got != 40 {
@@ -185,6 +187,14 @@ func TestProgramComesOnInStages(t *testing.T) {
 	}
 	if !has("CLOCK") || !has("ALL SYSTEMS NOMINAL") {
 		t.Errorf("the console did not finish:\n%s", m.View().Content)
+	}
+	if lines := strings.Split(m.View().Content, "\n"); !strings.Contains(lines[len(lines)-1], "PRESS ANY KEY TO CONTINUE") {
+		t.Errorf("the prompt is not on the bottom row:\n%s", m.View().Content)
+	}
+	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil {
+		t.Errorf("a key at the end should continue")
+	} else if _, quit := cmd().(tea.QuitMsg); !quit {
+		t.Errorf("a key at the end should close the console, got %T", cmd())
 	}
 	if lastStage(m.report) != stageChecks+8 {
 		t.Errorf("last stage is %d", lastStage(m.report))

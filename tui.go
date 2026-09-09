@@ -17,8 +17,9 @@ var (
 
 // The program holds the console. It comes on in stages — the header at
 // once, the system block, the checks one by one, the verdict — in under
-// a second; any key skips to the end of the sequence, the clock keeps
-// time once it is up, and it stays until ctrl+c or q.
+// a second; a key skips to the end of the sequence, and the clock keeps
+// time once it is up. It waits there on a key: for now, with nothing
+// past the console, the key closes it, as ctrl+c or q does at any time.
 
 // The time before each stage after the header: a beat for the readout
 // and the verdict, less for each check.
@@ -79,6 +80,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		default:
+			if m.stage >= lastStage(m.report) {
+				return m, tea.Quit
+			}
 			m.stage = lastStage(m.report)
 		}
 	}

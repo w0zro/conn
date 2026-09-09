@@ -12,7 +12,8 @@ import (
 // rule, the readout — the system on the left, the session on the right;
 // the start-up checks, one status column against the right edge; and
 // under a second rule the verdict, pulled tight — the count of faults as
-// a chip, or the word that all is well. Uppercase throughout, by design.
+// a chip, or the word that all is well. On a terminal the bottom row
+// waits on a key. Uppercase throughout, by design.
 
 // The palette is the handoff's tokens. Off a terminal every sequence is
 // empty and the console is plain text.
@@ -86,9 +87,10 @@ func lastStage(r report) int {
 }
 
 // rowsNeeded is how many rows the console takes for a report: the header,
-// the readout, the checks and the verdict, with their rules and air.
+// the readout, the checks and the verdict, with their rules and air, and
+// the prompt on the bottom row.
 func rowsNeeded(r report) int {
-	return 1 + len(wordmark) + 1 + 1 + max(len(r.system), len(r.session)) + 1 + 1 + 1 + len(r.checks) + 1 + 1 + 1
+	return 1 + len(wordmark) + 1 + 1 + max(len(r.system), len(r.session)) + 1 + 1 + 1 + len(r.checks) + 1 + 1 + 1 + 1 + 1
 }
 
 // screen renders the console for a terminal of the given size: rows the
@@ -246,8 +248,16 @@ func screen(r report, width, height int) []row {
 		}
 		emit(&l, last, true)
 	}
-	for len(rows) < height {
-		blank(last)
+
+	// The prompt, on the bottom row of the terminal. Off a terminal there
+	// is no key to wait on.
+	if height > 0 {
+		for len(rows) < height-1 {
+			blank(last)
+		}
+		var l line
+		add(&l, p.gray, "PRESS ANY KEY TO CONTINUE")
+		emit(&l, last, true)
 	}
 	return rows
 }

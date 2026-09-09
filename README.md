@@ -1,7 +1,8 @@
 # conn
 
-conn says hello from the conn. Everything it was is in the history, and
-comes back piece by piece, in the form it is wanted in.
+conn comes up on the loop, shows its cover, and calls hello from the conn.
+Everything it was is in the history, and comes back piece by piece, in the
+form it is wanted in.
 
 ## Build it yourself
 

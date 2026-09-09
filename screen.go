@@ -44,20 +44,25 @@ func colored() palette {
 	return p
 }
 
-// The measure the console is set to, from a left margin; the columns
-// within it; and the size under which the terminal is called small.
+// The console is set to the terminal's width less a margin each side:
+// the facts in two columns of half the measure, the checks' status
+// column against its right edge. These are the fixed columns, and the
+// size under which the terminal is called small.
 const (
 	margin     = 3
-	measure    = 72
-	factCol    = 10 // a fact's value, from the margin
-	rightCol   = 36 // the second column of facts
-	checkCol   = 12 // a check's value
-	leaderEnd  = 54 // where a check's leaders stop
-	statusCol  = 56 // a check's status
+	factCol    = 10 // a fact's value, from its column
+	checkCol   = 12 // a check's value, from the margin
+	statusW    = 7  // the status column's width: NOMINAL
 	minCols    = 80
 	minRows    = 24
 	stationGap = 5 // between the wordmark and the station block
 )
+
+// columns are the measure's, for a terminal width columns wide.
+func columns(width int) (measure, rightCol, statusCol, leaderEnd int) {
+	measure = max(width, minCols) - 2*margin
+	return measure, measure / 2, measure - statusW, measure - statusW - 2
+}
 
 // A row of the console and the stage of the sequence it comes on at.
 type row struct {
@@ -80,6 +85,7 @@ const (
 func screen(r report, width, height int) []row {
 	p := pal
 	width = max(width, minCols)
+	measure, rightCol, statusCol, leaderEnd := columns(width)
 	var rows []row
 
 	// A line is built from painted pieces; cells counts the columns.
@@ -171,7 +177,7 @@ func screen(r report, width, height int) []row {
 		to(l, col)
 		leader(l, strings.ToUpper(f.label), col+factCol-1, p.faint)
 		if f.value != "" {
-			add(l, p.ink, fit(strings.ToUpper(f.value), rightCol-factCol-2))
+			add(l, p.ink, fit(strings.ToUpper(f.value), min(rightCol, measure-rightCol)-factCol-2))
 		}
 		if f.anomaly != "" {
 			if f.value != "" {

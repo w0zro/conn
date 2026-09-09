@@ -1,10 +1,18 @@
 package main
 
 import (
+	"image/color"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+)
+
+// The ground and the ink, as the terminal is asked to take them for its
+// own while the console is up, so its padding is the ground too.
+var (
+	groundColor = color.RGBA{R: 21, G: 19, B: 15, A: 255}
+	inkColor    = color.RGBA{R: 230, G: 223, B: 208, A: 255}
 )
 
 // The program holds the console. It comes on in stages — the header at
@@ -93,5 +101,8 @@ func (m model) View() tea.View {
 	}
 	v := tea.NewView(strings.Join(texts, "\n"))
 	v.AltScreen = true
+	v.BackgroundColor = groundColor
+	v.ForegroundColor = inkColor
+	v.WindowTitle = "conn"
 	return v
 }

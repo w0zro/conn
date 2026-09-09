@@ -43,6 +43,7 @@ func texts(rows []row) string {
 // greeting alone when all is nominal.
 func TestConsoleLaysOutAsHandedOff(t *testing.T) {
 	rows := screen(testReport, 100, 30)
+	_, rightCol, statusCol, _ := columns(100)
 	text := texts(rows)
 	for _, s := range []string{
 		"CONN 0.7.1 (devel)", "STATION  W0ZRO@STATION", "08-SEP-2026  23:58:41 Z",

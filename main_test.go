@@ -6,25 +6,47 @@ import (
 	"unicode/utf8"
 )
 
-var testReport = report{version: "0.7.0", station: "w0zro@station", platform: "darwin/arm64", clock: "08-Sep-2026  23:58:41 Z"}
+var testReport = report{
+	version: "0.7.0",
+	build:   "3d7c5de  09-Sep-2026",
+	station: "w0zro@station",
+	term:    "xterm-256color  truecolor",
+	clock:   "08-Sep-2026  23:58:41 Z",
+	facts: []item{
+		{label: "HOST", value: "station"},
+		{label: "SYSTEM", value: "macOS 26.0"},
+		{label: "MEMORY", value: "18 GB"},
+	},
+	checks: []item{
+		{label: "TMUX", value: "3.5a", status: nominal},
+		{label: "DISK", value: "412 GB FREE OF 994 GB", status: nominal},
+	},
+}
 
-// The screen is eighty by twenty-four, every row framed to the same
-// width, and it reports the station and calls hello, in capitals.
-func TestScreenIsEightyByTwentyFour(t *testing.T) {
-	rows := screen(testReport)
-	if len(rows) != screenRows {
-		t.Errorf("screen is %d rows, not %d:\n%s", len(rows), screenRows, strings.Join(rows, "\n"))
-	}
-	for i, l := range rows {
-		if w := utf8.RuneCountInString(l); w != screenCols {
-			t.Errorf("row %d is %d columns: %q", i, w, l)
+// The screen fills the terminal it is given, every row framed to its
+// width, and reads out the machine, the checks and the call in capitals.
+func TestScreenFillsTheTerminal(t *testing.T) {
+	for _, size := range [][2]int{{80, 24}, {132, 43}, {200, 60}} {
+		rows := screen(testReport, size[0], size[1])
+		if len(rows) != size[1] {
+			t.Errorf("%dx%d: screen is %d rows", size[0], size[1], len(rows))
 		}
-		if !strings.HasPrefix(l, "║") && !strings.HasPrefix(l, "╔") && !strings.HasPrefix(l, "╠") && !strings.HasPrefix(l, "╚") {
-			t.Errorf("row %d is not framed: %q", i, l)
+		for i, l := range rows {
+			if w := utf8.RuneCountInString(l); w != size[0] {
+				t.Errorf("%dx%d: row %d is %d columns: %q", size[0], size[1], i, w, l)
+			}
+			if !strings.ContainsAny(l[:3], "║╔╠╚") {
+				t.Errorf("row %d is not framed: %q", i, l)
+			}
 		}
 	}
-	text := strings.Join(rows, "\n")
-	for _, s := range []string{tagline, "CONN VERSION 0.7.0", "STATION   W0ZRO@STATION", "PLATFORM  DARWIN/ARM64", "08-SEP-2026  23:58:41 Z", "***  HELLO FROM THE CONN  ***"} {
+	text := strings.Join(screen(testReport, 132, 43), "\n")
+	for _, s := range []string{
+		"CONN 0.7.0", "3d7c5de  09-Sep-2026", "STATION  W0ZRO@STATION", "08-Sep-2026  23:58:41 Z",
+		"SYSTEM", "HOST ........ STATION", "MEMORY ...... 18 GB",
+		"START-UP CHECKS", "TERMINAL .... XTERM-256COLOR  TRUECOLOR  132 X 43", "NOMINAL",
+		"TMUX ........ 3.5A", "ALL SYSTEMS NOMINAL", "***  HELLO FROM THE CONN  ***",
+	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("screen lacks %q:\n%s", s, text)
 		}
@@ -32,24 +54,31 @@ func TestScreenIsEightyByTwentyFour(t *testing.T) {
 	if strings.Contains(text, "\x1b") {
 		t.Errorf("screen carries escapes off a terminal:\n%q", text)
 	}
+	if strings.Contains(text, "CONSOLE") {
+		t.Errorf("the tagline is back:\n%s", text)
+	}
 }
 
-// A larger terminal centers the screen; a smaller one gets it flush with
-// the top left corner.
-func TestScreenIsPlacedInTheTerminal(t *testing.T) {
-	rows := screen(testReport)
-	big := strings.Split(place(rows, len(rows), 120, 40), "\n")
-	if len(big) != 8+screenRows {
-		t.Errorf("120x40 places %d rows, not %d", len(big), 8+screenRows)
+// A body taller than the terminal is cut above the footer, which stays.
+func TestScreenKeepsTheFooterWhenShort(t *testing.T) {
+	rows := screen(testReport, 80, 24)
+	last := strings.Join(rows[len(rows)-footerRows:], "\n")
+	if !strings.Contains(last, "HELLO FROM THE CONN") || !strings.HasPrefix(rows[len(rows)-1], "╚") {
+		t.Errorf("footer is not the last %d rows:\n%s", footerRows, last)
 	}
-	for _, l := range big[8:] {
-		if !strings.HasPrefix(l, strings.Repeat(" ", 20)) || strings.HasPrefix(l, strings.Repeat(" ", 21)) {
-			t.Errorf("row is not centered in 120: %q", l)
-		}
+}
+
+// A check that failed is counted, and said, at the foot.
+func TestFaultsAreSummed(t *testing.T) {
+	r := testReport
+	r.checks = append(r.checks, item{label: "GIT", value: "NOT FOUND", status: "MISSING", fault: true})
+	text := strings.Join(screen(r, 100, 40), "\n")
+	if !strings.Contains(text, "1 SYSTEM NOT NOMINAL") || !strings.Contains(text, "MISSING") {
+		t.Errorf("fault not summed:\n%s", text)
 	}
-	small := strings.Split(place(rows, len(rows), 60, 20), "\n")
-	if len(small) != screenRows || strings.HasPrefix(small[0], " ") {
-		t.Errorf("60x20 does not place the screen flush: %d rows, first %q", len(small), small[0])
+	small := strings.Join(screen(r, 60, 20), "\n")
+	if !strings.Contains(small, "SMALL") || !strings.Contains(small, "2 SYSTEMS NOT NOMINAL") {
+		t.Errorf("small terminal not a fault:\n%s", small)
 	}
 }
 
@@ -57,21 +86,43 @@ func TestScreenIsPlacedInTheTerminal(t *testing.T) {
 func TestProgramPaintsThenKeepsTime(t *testing.T) {
 	m := newModel()
 	m.report = testReport
-	m.width, m.height = screenCols, screenRows
-	for i := 0; i < screenRows; i++ {
+	m.width, m.height = 100, 40
+	for i := 0; i < 40-footerRows; i++ {
 		if got := strings.Count(m.View().Content, "\n"); got != max(i-1, 0) {
 			t.Errorf("after %d rows the view has %d", i, got+1)
 		}
 		next, _ := m.Update(paintMsg{})
 		m = next.(model)
 	}
-	if !strings.Contains(m.View().Content, "HELLO FROM THE CONN") {
-		t.Errorf("the screen never finished:\n%s", m.View().Content)
+	if v := m.View().Content; !strings.Contains(v, "HELLO FROM THE CONN") || strings.Count(v, "\n") != 39 {
+		t.Errorf("the screen did not finish:\n%s", v)
 	}
 	next, cmd := m.Update(clockMsg{})
 	m = next.(model)
 	if m.report.clock == testReport.clock || cmd == nil {
 		t.Errorf("the clock did not turn: %q", m.report.clock)
+	}
+}
+
+// The machine can be read without a fuss, and what it says is in shape.
+func TestStationReportReadsTheMachine(t *testing.T) {
+	r := stationReport()
+	if r.version == "" || r.station == "" || r.clock == "" {
+		t.Errorf("identification incomplete: %+v", r)
+	}
+	if len(r.facts) < 5 {
+		t.Errorf("only %d facts: %+v", len(r.facts), r.facts)
+	}
+	for _, c := range r.checks {
+		if c.label == "" || c.value == "" || c.status == "" {
+			t.Errorf("check incomplete: %+v", c)
+		}
+	}
+	if gigabytes(18<<30, 1<<30) != "18 GB" || gigabytes(994_662_584_320, 1e9) != "995 GB" {
+		t.Errorf("sizes: %q %q", gigabytes(18<<30, 1<<30), gigabytes(994_662_584_320, 1e9))
+	}
+	if firstVersion("tmux 3.5a") != "3.5a" || firstVersion("git version 2.50.1") != "2.50.1" {
+		t.Errorf("versions: %q %q", firstVersion("tmux 3.5a"), firstVersion("git version 2.50.1"))
 	}
 }
 

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -13,10 +12,10 @@ import (
 // history, and comes back piece by piece, in the form it is wanted in.
 func main() {
 	if !stdoutIsTerminal() {
-		fmt.Println(strings.Join(screen(stationReport()), "\n"))
+		fmt.Println(joinRows(screen(stationReport(), minCols, minRows)))
 		return
 	}
-	bright, normal = "\x1b[1m", "\x1b[0m"
+	bright, alarm, normal = "\x1b[1m", "\x1b[7m", "\x1b[0m"
 	if _, err := tea.NewProgram(newModel()).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)
 		os.Exit(1)

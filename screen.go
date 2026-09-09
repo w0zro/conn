@@ -2,159 +2,193 @@ package main
 
 import (
 	"os"
-	"os/user"
-	"runtime"
-	"runtime/debug"
+	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
-// version is stamped by the release build. A build that came another way
-// answers from the module system instead, which go install fills with the
-// tag and a plain go build leaves as (devel).
-var version string
+// The start-up screen is a system screen of the old kind, filling the
+// terminal: ruled in double lines into a header, where the name is set
+// large beside the station's identification; a body, where the machine
+// is read out and the checks come up nominal; and a footer, where the
+// checks are summed and conn calls hello. It is monochrome, in whatever
+// the terminal's phosphor is; the name, the call and a fault stand out.
 
-// buildVersion is the version this build reports, bare: 0.7.0 for a
-// release; (devel), or a tag with commits and a dirty mark after it, for a
-// build that is not one.
-func buildVersion() string {
-	v := version
-	if v == "" {
-		if info, ok := debug.ReadBuildInfo(); ok {
-			v = info.Main.Version
-		}
-	}
-	if v == "" {
-		v = "unknown"
-	}
-	return strings.TrimPrefix(v, "v")
-}
+// bright, alarm and normal are the attributes the screen uses, and are
+// empty off a terminal.
+var bright, alarm, normal string
 
-// The start-up screen is a system screen of the old kind: eighty columns
-// by twenty-four rows, ruled in double lines, the name set large in the
-// upper panel, the station's report in the middle one, and the call in
-// the lower. It is monochrome, in whatever the terminal's phosphor is;
-// on a terminal, the name and the call are bright, and the clock runs.
-
+// The smallest terminal the screen is laid out for, and the rows the
+// footer takes, which come on last.
 const (
-	screenCols = 80
-	screenRows = 24
-	tagline    = "EVERY PROJECT AND ITS PROCESSES, ON ONE CONSOLE"
+	minCols    = 80
+	minRows    = 24
+	footerRows = 6
+	leftCol    = 3  // where a line starts, from the left rule
+	labelCol   = 16 // where a value starts, from the left rule
+	statusCol  = 12 // the status column's width, against the right rule
 )
 
-// bright and normal are the one attribute the screen uses, and are empty
-// off a terminal.
-var bright, normal string
-
-// A report is what the station says of itself: the build, who is on it
-// and where, the platform, and the clock in Zulu.
-type report struct {
-	version, station, platform, clock string
-}
-
-// stationReport reads the report from the machine.
-func stationReport() report {
-	who := "someone"
-	if u, err := user.Current(); err == nil && u.Username != "" {
-		who = u.Username
+// screen renders the start-up screen for a terminal of the given size:
+// its rows, each the terminal's width, as many as its height.
+func screen(r report, width, height int) []string {
+	terminal := terminalCheck(r.term, width, height)
+	if width < minCols {
+		width = minCols
 	}
-	host, err := os.Hostname()
-	if err != nil || host == "" {
-		host = "somewhere"
+	if height < minRows {
+		height = minRows
 	}
-	host, _, _ = strings.Cut(host, ".")
-	return report{
-		version:  buildVersion(),
-		station:  who + "@" + host,
-		platform: runtime.GOOS + "/" + runtime.GOARCH,
-		clock:    zulu(time.Now()),
-	}
-}
-
-// zulu writes a time the way the old systems did, in UTC.
-func zulu(t time.Time) string {
-	return t.UTC().Format("02-Jan-2006  15:04:05") + " Z"
-}
-
-// screen renders the start-up screen: its rows, each the screen's width.
-func screen(r report) []string {
-	inner := screenCols - 2
+	inner := width - 2
 
 	var rows []string
 	rule := func(l, m, rt string) {
 		rows = append(rows, l+strings.Repeat(m, inner)+rt)
 	}
-	// line frames text between the side rules, at a column from the left
-	// rule; negative, it centers the text.
-	line := func(text string, col int, attr string) {
-		w := utf8.RuneCountInString(text)
+	// line frames text between the side rules at a column from the left
+	// rule; cells is the text's width without its attributes. Negative,
+	// the column centers the text.
+	line := func(text string, cells, col int) {
 		if col < 0 {
-			col = (inner - w) / 2
+			col = (inner - cells) / 2
 		}
-		right := inner - col - w
+		right := inner - col - cells
 		if right < 0 {
 			right = 0
 		}
-		rows = append(rows, "║"+strings.Repeat(" ", col)+attr+text+normal+strings.Repeat(" ", right)+"║")
+		rows = append(rows, "║"+strings.Repeat(" ", col)+text+strings.Repeat(" ", right)+"║")
 	}
-	blank := func() { line("", 0, "") }
+	blank := func() { line("", 0, 0) }
+	fit := func(s string, w int) string {
+		if utf8.RuneCountInString(s) <= w {
+			return s
+		}
+		if w <= 1 {
+			return ""
+		}
+		return string([]rune(s)[:w-1]) + "…"
+	}
 
+	// The header: the name, and beside it — under it, when the terminal
+	// is too narrow for beside — who and what this is.
 	rule("╔", "═", "╗")
 	blank()
-	blank()
 	name := letters(nameSet)
-	col := (inner - utf8.RuneCountInString(name[0])) / 2
-	for _, l := range name {
-		line(l, col, bright)
+	nameW := utf8.RuneCountInString(name[0])
+	ident := []string{
+		"CONN " + r.version,
+		r.build,
+		"STATION  " + strings.ToUpper(r.station),
+		r.clock,
 	}
-	blank()
-	line(tagline, -1, "")
-	blank()
-	blank()
-	rule("╠", "═", "╣")
-	blank()
-	left := 4
-	labels := [][2]string{
-		{"CONN VERSION " + r.version, "STATION   " + strings.ToUpper(r.station)},
-		{strings.ToUpper(r.clock), "PLATFORM  " + strings.ToUpper(r.platform)},
+	identCol := leftCol + nameW + 8
+	identW := 0
+	for _, s := range ident {
+		identW = max(identW, utf8.RuneCountInString(s))
 	}
-	for _, l := range labels {
-		gap := inner/2 - left - utf8.RuneCountInString(l[0])
-		if gap < 2 {
-			gap = 2
+	beside := identCol+identW <= inner-leftCol
+	for i, l := range name {
+		text, cells := bright+l+normal, nameW
+		if j := i - 1; beside && j >= 0 && j < len(ident) && ident[j] != "" {
+			pad := strings.Repeat(" ", identCol-leftCol-nameW)
+			text += pad + ident[j]
+			cells += len(pad) + utf8.RuneCountInString(ident[j])
 		}
-		line(l[0]+strings.Repeat(" ", gap)+l[1], left, "")
+		line(text, cells, leftCol)
+	}
+	if !beside {
+		blank()
+		one := fit(strings.Join(ident, "  ·  "), inner-2*leftCol)
+		line(one, utf8.RuneCountInString(one), leftCol)
 	}
 	blank()
 	rule("╠", "═", "╣")
+
+	// The body: the facts, then the checks. When the terminal is short the
+	// facts go first, then what is left is cut above the footer.
+	var body []string
+	entry := func(it item) {
+		label := strings.ToUpper(it.label) + " "
+		leader := strings.Repeat(".", max(labelCol-leftCol-utf8.RuneCountInString(label), 1))
+		valueW := inner - labelCol - 1
+		text := label + leader + " "
+		if it.status != "" {
+			valueW -= statusCol + 2
+		}
+		value := fit(strings.ToUpper(it.value), valueW)
+		text += value
+		cells := utf8.RuneCountInString(text)
+		if it.status != "" {
+			gap := inner - leftCol - cells - statusCol
+			text += " " + strings.Repeat(".", max(gap-2, 1)) + " "
+			status := strings.ToUpper(it.status)
+			if it.fault {
+				status = alarm + status + normal
+			}
+			text += status
+			cells = inner - leftCol - statusCol + utf8.RuneCountInString(strings.ToUpper(it.status))
+		}
+		body = append(body, "║"+strings.Repeat(" ", leftCol)+text+strings.Repeat(" ", max(inner-leftCol-cells, 0))+"║")
+	}
+	section := func(title string, items []item) {
+		body = append(body, "║"+strings.Repeat(" ", inner)+"║")
+		body = append(body, "║"+strings.Repeat(" ", leftCol)+title+strings.Repeat(" ", inner-leftCol-utf8.RuneCountInString(title))+"║")
+		body = append(body, "║"+strings.Repeat(" ", inner)+"║")
+		for _, it := range items {
+			entry(it)
+		}
+	}
+	checks := append([]item{terminal}, r.checks...)
+	room := max(height-len(rows)-footerRows, 0)
+	section("START-UP CHECKS", checks)
+	checkRows := body
+	body = nil
+	if facts := room - len(checkRows); facts >= 4 {
+		section("SYSTEM", r.facts)
+		if len(body) > facts {
+			body = body[:facts]
+		}
+	}
+	body = append(body, checkRows...)
+	if len(body) > room {
+		body = body[:room]
+	}
+	rows = append(rows, body...)
+	for len(rows) < height-footerRows {
+		blank()
+	}
+
+	// The footer: the sum of the checks, and the call.
+	faults := 0
+	for _, c := range checks {
+		if c.fault {
+			faults++
+		}
+	}
+	sum := "ALL SYSTEMS NOMINAL"
+	if faults == 1 {
+		sum = alarm + "1 SYSTEM NOT NOMINAL" + normal
+	} else if faults > 1 {
+		sum = alarm + strconv.Itoa(faults) + " SYSTEMS NOT NOMINAL" + normal
+	}
+	rule("╠", "═", "╣")
 	blank()
-	line("***  "+strings.ToUpper(greeting)+"  ***", -1, bright)
+	line(sum, utf8.RuneCountInString(strings.ReplaceAll(strings.ReplaceAll(sum, alarm, ""), normal, "")), -1)
+	call := "***  " + strings.ToUpper(greeting) + "  ***"
+	line(bright+call+normal, utf8.RuneCountInString(call), -1)
 	blank()
 	rule("╚", "═", "╝")
 	return rows
 }
 
-// place sets the first shown rows of the screen in a terminal of the given
-// size, where the whole screen would sit: centered when there is room,
-// flush with the top left corner when there is not.
-func place(rows []string, shown, width, height int) string {
-	var b strings.Builder
-	if top := (height - len(rows)) / 2; top > 0 {
-		b.WriteString(strings.Repeat("\n", top))
+// terminalCheck is the terminal itself: what it calls itself, its size,
+// and whether the screen fits it.
+func terminalCheck(term string, width, height int) item {
+	value := strings.TrimSpace(strings.ToUpper(term) + "  " + strconv.Itoa(width) + " X " + strconv.Itoa(height))
+	if width < minCols || height < minRows {
+		return item{label: "TERMINAL", value: value, status: "SMALL", fault: true}
 	}
-	margin := ""
-	if width > screenCols {
-		margin = strings.Repeat(" ", (width-screenCols)/2)
-	}
-	for i, r := range rows[:shown] {
-		if i > 0 {
-			b.WriteByte('\n')
-		}
-		b.WriteString(margin)
-		b.WriteString(r)
-	}
-	return b.String()
+	return item{label: "TERMINAL", value: value, status: nominal}
 }
 
 // stdoutIsTerminal says whether what conn prints is going to a person's

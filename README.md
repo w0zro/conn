@@ -1,8 +1,8 @@
 # conn
 
-conn comes up on the loop, holds its start-up screen, and calls hello from
-the conn; ctrl+c or q closes it. Everything it was is in the history, and
-comes back piece by piece, in the form it is wanted in.
+conn comes up on the loop, reads out the machine, runs its start-up checks,
+and calls hello from the conn; ctrl+c or q closes it. Everything it was is
+in the history, and comes back piece by piece, in the form it is wanted in.
 
 ## Build it yourself
 

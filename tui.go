@@ -22,7 +22,8 @@ var (
 // beat has passed, then the checks one by one, then the verdict, in
 // under a second. A key skips to the end; a key at the end continues to
 // the watch. The watch is what is running, by place, read again every
-// two seconds while it is up; c brings the console back, and any key
+// two seconds while it is up; j and k move the cursor, which follows
+// its process across readings; c brings the console back, and any key
 // there returns to the watch. The words of both are said again each
 // second, from what was read and the clock as it stands. ctrl+c or q
 // closes conn from either.
@@ -70,6 +71,8 @@ type model struct {
 
 	view     int
 	places   []place
+	cursor   int // the pid the cursor is on
+	cursorAt int // where in the rows it was, for when the pid goes
 	watchErr string
 	watchGen int // which stay on the watch the ticks belong to
 	self     int // this process
@@ -163,6 +166,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.places, m.watchErr = msg.places, msg.err
+		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
 		if m.view == viewWatch {
 			return m, m.watchTick()
 		}
@@ -194,8 +198,34 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case k == "c":
 		m.view = viewConsole
 		return m, nil
+	case k == "j" || k == "down":
+		m.cursor, m.cursorAt = follow(m.places, 0, m.cursorAt+1)
+	case k == "k" || k == "up":
+		m.cursor, m.cursorAt = follow(m.places, 0, max(m.cursorAt-1, 0))
 	}
 	return m, nil
+}
+
+// follow finds the cursor after the rows change: the row of its pid,
+// where that is still on watch, else the row where it was, held within
+// the rows there are. It answers the pid and the row.
+func follow(places []place, pid, at int) (int, int) {
+	var pids []int
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			pids = append(pids, e.pid)
+		}
+	}
+	if len(pids) == 0 {
+		return 0, 0
+	}
+	for i, p := range pids {
+		if pid != 0 && p == pid {
+			return p, i
+		}
+	}
+	at = min(max(at, 0), len(pids)-1)
+	return pids[at], at
 }
 
 // advance brings the next stage on and sets the one after it going.
@@ -216,7 +246,7 @@ func (m model) View() tea.View {
 	var rows []row
 	switch m.view {
 	case viewWatch:
-		rows = drawWatch(m.watchReport(), m.width, m.height, m.p)
+		rows = drawWatch(m.watchReport(), m.cursor, m.width, m.height, m.p)
 	default:
 		rows = screen(m.report(), m.width, m.height, m.p)
 	}

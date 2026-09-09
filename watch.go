@@ -11,7 +11,8 @@ import (
 // place work is happening in is a block — its path as a title, and a
 // row for each process that stands for work there: its kind, what it
 // was started as, its terminal, how long it has been at it, and the
-// word for how it stands. The newest work is at the top. The bottom
+// word for how it stands. The newest work is at the top. A cursor
+// marks one row, and the rows scroll to keep it in view. The bottom
 // row says which keys the watch answers to.
 
 // The watch's words, composed from the places as of a moment.
@@ -27,6 +28,7 @@ type watchPlace struct {
 }
 
 type watchRow struct {
+	pid                             int
 	kind, command, tty, age, status string
 	fault                           bool
 	here                            bool
@@ -42,7 +44,7 @@ func composeWatch(places []place, home string, now time.Time, station, clock, er
 		}
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, watchRow{
-				kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
+				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
 				status: e.status, fault: e.fault, here: e.status == statusHere,
 			})
 		}
@@ -58,11 +60,12 @@ const (
 	kindW    = 8
 	ttyW     = 10
 	ageW     = 9
-	watchKey = "Q CLOSES · C CONSOLE"
+	watchKey = "J K MOVE · Q CLOSES · C CONSOLE"
 )
 
-// drawWatch renders the watch for a terminal of the given size.
-func drawWatch(b watchReport, width, height int, p palette) []row {
+// drawWatch renders the watch for a terminal of the given size, with
+// the cursor on the row of the given pid.
+func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	width = max(width, minCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
@@ -100,6 +103,7 @@ func drawWatch(b watchReport, width, height int, p palette) []row {
 		room = 1 << 30
 	}
 	var body []row
+	cursorRow := -1
 	place := func(bp watchPlace) {
 		d := canvas{p: p, width: width}
 		d.blank(0)
@@ -114,9 +118,15 @@ func drawWatch(b watchReport, width, height int, p palette) []row {
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()
+			command := p.ink
+			if r.pid == cursor {
+				l.mark = "▸"
+				command += p.bold
+				cursorRow = len(body) + len(d.rows)
+			}
 			l.add(p.gray, r.kind)
 			l.to(kindW)
-			l.add(p.ink, fit(r.command, commandW, false))
+			l.add(command, fit(r.command, commandW, false))
 			l.to(ttyCol)
 			l.add(p.gray, fit(strings.ToUpper(r.tty), ttyW, false))
 			l.to(ageCol)
@@ -156,14 +166,26 @@ func drawWatch(b watchReport, width, height int, p palette) []row {
 			place(bp)
 		}
 	}
-	// What will not fit is counted on the last row that does.
-	if over := len(c.rows) + len(body) - room; over > 0 && height > 0 {
-		keep := max(room-len(c.rows)-1, 0)
-		hidden := len(body) - keep
-		body = body[:keep]
+	// What will not fit scrolls, so the cursor's row is in view, and the
+	// rows out of view are counted on the last row.
+	if height > 0 && len(c.rows)+len(body) > room {
+		visible := max(room-len(c.rows)-1, 0)
+		top := 0
+		if cursorRow >= visible {
+			top = cursorRow - visible + 1
+		}
+		below := len(body) - top - visible
+		body = body[top:min(top+visible, len(body))]
 		d := canvas{p: p, width: width}
 		l := d.line()
-		l.add(p.gray, "… "+strconv.Itoa(hidden)+" MORE ROWS")
+		note := []string{}
+		if top > 0 {
+			note = append(note, strconv.Itoa(top)+" ABOVE")
+		}
+		if below > 0 {
+			note = append(note, strconv.Itoa(below)+" BELOW")
+		}
+		l.add(p.gray, "… "+strings.Join(note, " · "))
 		d.emit(l, 0, false)
 		body = append(body, d.rows...)
 	}

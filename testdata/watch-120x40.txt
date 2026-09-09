@@ -4,7 +4,7 @@
    KIND    COMMAND                                                                     TTY        AGE          STATUS
 
    ~/projects/w0zro/conn                                                                                    1 PROCESS
-   CONN    conn                                                                        TTYS004    1M 30S         HERE
+ ▸ CONN    conn                                                                        TTYS004    1M 30S         HERE
 
    ~/projects/w0zro/vim.pro/conjurer                                                                        1 PROCESS
    AGENT   claude --resume                                                             TTYS007    47M 00S      ACTIVE
@@ -37,4 +37,4 @@
 
 
 
-                                                  Q CLOSES · C CONSOLE
+                                            J K MOVE · Q CLOSES · C CONSOLE

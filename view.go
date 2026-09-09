@@ -255,9 +255,9 @@ func (m model) tabline() string {
 
 // edgeRow is the row over the tabline: the bar across, one dark with the
 // terminal's margin over it, and under the focused tab's columns the
-// edge — the focus signal, sitting on the tab's top: orange over a
-// buffer, teal over the everything view, which is where the identities
-// are read.
+// tab's own ground with the edge along its top — the tab stands two rows
+// tall, the focus signal its rim: orange for a buffer, teal for the
+// everything view, which is where the identities are read.
 func (m model) edgeRow() string {
 	cells, start := m.tabCells()
 	hint := m.tabHint()
@@ -273,7 +273,7 @@ func (m model) edgeRow() string {
 				edge = tealStyle
 			}
 			return barStyle.Render(strings.Repeat(" ", used)) +
-				barStyle.Inherit(edge).Render(strings.Repeat(glyphEdge, cells[i].width)) +
+				groundStyle.Inherit(edge).Render(strings.Repeat(glyphEdge, cells[i].width)) +
 				barStyle.Render(strings.Repeat(" ", max(m.width-used-cells[i].width, 0)))
 		}
 		used += cells[i].width

@@ -71,3 +71,19 @@ func TestTheClientEnvironmentDropsTmux(t *testing.T) {
 		t.Errorf("environment: %q", got)
 	}
 }
+
+// Before the client has the terminal, the terminal is asked to take the
+// ground and the ink for its own, so its padding around the client is
+// the ground; when the client returns it gets its own colors back. The
+// colors are the ones the panes are drawn in.
+func TestTheTerminalIsAskedForTheGround(t *testing.T) {
+	if got := oscColors(); got != "\x1b]10;#E6DFD0\x1b\\\x1b]11;#15130F\x1b\\" {
+		t.Errorf("colors asked for: %q", got)
+	}
+	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\" {
+		t.Errorf("colors given back: %q", oscOwnColors)
+	}
+	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf(), want) {
+		t.Errorf("the panes are not drawn in %s", want)
+	}
+}

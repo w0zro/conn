@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,10 +103,15 @@ func (s *server) attach(self, home string) (int, error) {
 	// A tmux inside another tmux refuses to attach while TMUX is set; the
 	// terminal is this conn's to give.
 	cmd.Env = withoutTmux(os.Environ())
+	// The terminal takes the ground and the ink for its own before the
+	// client has it, so the padding around the client is the ground too.
+	// The conn in the pane asks the same of tmux, which keeps it to the
+	// pane; the terminal outside hears it from here.
+	fmt.Print(oscColors())
 	err := cmd.Run()
 	// The client is gone and the terminal is ours again: the colors conn
 	// asked it to take go back to its own.
-	fmt.Print("\x1b]110\x1b\\\x1b]111\x1b\\")
+	fmt.Print(oscOwnColors)
 	if ee, ok := err.(*exec.ExitError); ok {
 		return ee.ExitCode(), nil
 	}
@@ -113,6 +119,21 @@ func (s *server) attach(self, home string) (int, error) {
 		return 0, err
 	}
 	return 0, nil
+}
+
+// oscColors asks the terminal to take conn's ink and ground for its
+// own, and oscOwnColors gives it its own back. tmux keeps what the conn
+// in a pane asks for to the pane, so the terminal outside hears it from
+// the conn that attached, which is also there to take it back.
+func oscColors() string {
+	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", hex(inkColor), hex(groundColor))
+}
+
+const oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\"
+
+// hex is a color as a terminal wants it written.
+func hex(c color.RGBA) string {
+	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
 }
 
 // withoutTmux is an environment with tmux's own variables dropped.

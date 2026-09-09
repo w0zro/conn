@@ -16,8 +16,9 @@ import (
 // everything view and a resume row in the finder — its prompt, its age,
 // its branch — and enter continues it, in a shell like any other. A at
 // conn, or ctrl-space A from any buffer, is the same verb reaching
-// further back: the finder on every conversation at rest, newest first,
-// for the one that is not the newest.
+// further back: the finder on every conversation at rest in the place —
+// the row's place, or the shown buffer's — newest first, for the one
+// that is not the newest.
 
 // convoDirs is every directory a place's conversations could be filed under:
 // its own, its sub-projects', and for a group each repository's in turn —
@@ -54,10 +55,12 @@ func (m model) liveConversations() map[string]bool {
 	return live
 }
 
-// openResume lists every conversation at rest under every place, off the
-// render path, and opens the finder on that list alone. The directories
-// and the live conversations are read here, where the model is; the
-// transcripts are read in the command.
+// openResume lists every conversation at rest in the place at hand, off
+// the render path, and opens the finder on that list alone. The place is
+// the row's while the everything view is up, else the shown buffer's —
+// which is where the chord from a buffer lands — and every place when
+// neither names one. The directories and the live conversations are read
+// here, where the model is; the transcripts are read in the command.
 func (m *model) openResume() tea.Cmd {
 	if m.server == nil {
 		m.status, m.statusErr = "no server to hold it: "+m.serverErr, true
@@ -68,11 +71,17 @@ func (m *model) openResume() tea.Cmd {
 		dirs    []string
 	}
 	var places []placeDirs
-	for _, p := range m.projects {
-		if p.Path == globalPlace {
-			continue
-		}
+	name := ""
+	if p, ok := m.restPlace(); ok {
 		places = append(places, placeDirs{p, m.convoDirs(p)})
+		name = p.Name
+	} else {
+		for _, p := range m.projects {
+			if p.Path == globalPlace {
+				continue
+			}
+			places = append(places, placeDirs{p, m.convoDirs(p)})
+		}
 	}
 	live := m.liveConversations()
 	s := m.server
@@ -97,11 +106,28 @@ func (m *model) openResume() tea.Cmd {
 		for _, r := range rests {
 			entries = append(entries, restEntry(r.project, r.conv))
 		}
-		if err := s.showRests(entries); err != nil {
+		if err := s.showRests(finderSnapshot{Entries: entries, Place: name}); err != nil {
 			return serverErrorMsg{err: err}
 		}
 		return nil
 	}
+}
+
+// restPlace is the place A reaches into: the row's while the everything
+// view is up, else the shown buffer's. Nothing names one from the row of
+// what runs outside every place, or with nothing shown.
+func (m model) restPlace() (Project, bool) {
+	if m.viewingAll() {
+		r, ok := m.selected()
+		if !ok || r.project.Path == "" || r.project.Path == globalPlace {
+			return Project{}, false
+		}
+		return r.project, true
+	}
+	if t := m.terms[m.shown]; t != nil {
+		return m.placeAt(t.dir)
+	}
+	return Project{}, false
 }
 
 // restEntry is a conversation at rest as the finder lists it: its place
@@ -121,8 +147,8 @@ func restsPath() string {
 }
 
 // writeRests writes the listing for the page.
-func writeRests(entries []finderEntry) error {
-	b, err := json.Marshal(finderSnapshot{Entries: entries})
+func writeRests(snap finderSnapshot) error {
+	b, err := json.Marshal(snap)
 	if err != nil {
 		return err
 	}

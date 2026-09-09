@@ -55,6 +55,7 @@ type segment struct {
 type finderSnapshot struct {
 	Entries []finderEntry `json:"entries"`
 	Root    string        `json:"root,omitempty"`
+	Place   string        `json:"place,omitempty"` // the one place the conversations at rest are in, or ""
 }
 
 // finderPath is where the listing is kept: beside the socket.
@@ -627,7 +628,7 @@ func (m finderModel) rows(inside int) []string {
 		q := strings.TrimSpace(m.query.Value())
 		switch {
 		case m.only == finderRests && q == "":
-			return []string{wash.Render(pad(gutter+noteStyle.Render("no conversation at rest"), inside))}
+			return []string{wash.Render(pad(gutter+noteStyle.Render("no conversation at rest"+m.inPlace()), inside))}
 		case m.only != "":
 			return []string{wash.Render(pad(gutter+noteStyle.Render("nothing at rest answers "+q), inside))}
 		case q == "":
@@ -693,7 +694,7 @@ func (m finderModel) foot() []string {
 	}
 	if m.only == finderRests {
 		return []string{
-			"every conversation at rest, newest first " + glyphDot + " enter picks it back up",
+			"every conversation at rest" + m.inPlace() + ", newest first " + glyphDot + " enter picks it back up",
 			"where it was had " + glyphDot + " esc leaves it",
 		}
 	}
@@ -705,6 +706,14 @@ func (m finderModel) foot() []string {
 		"no match? enter on \"" + name + "\" makes the repo and opens its",
 		"shell " + glyphDot + " agents: ^a a " + cmp.Or(m.agent, defaultKind().name) + " here " + glyphDot + " , the next kind",
 	}
+}
+
+// inPlace names the place the conversations at rest are in, or nothing.
+func (m finderModel) inPlace() string {
+	if m.snap.Place == "" {
+		return ""
+	}
+	return " in " + m.snap.Place
 }
 
 // runFinder is `conn page finder [rests]`: the finder, in the popup, on

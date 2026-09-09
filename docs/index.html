@@ -460,7 +460,7 @@
           <div class="row"><span>&#9675;</span><span>idle since it started</span></div>
         </div>
         <p class="para"><span class="n">5-2.</span>The &#9670; is the one to answer first: answering it resumes work already underway. The answer is typed in the buffer itself, at the agent's own prompt, and the mark clears when the instance says the ask is answered. A waiting instance's heading says how long it has waited, <b>waiting 3m</b>, beside its branch and the size of its context; the finder's row for it says the last word. The status line counts the asks owed while any is. <b>tab</b>, or <b>ctrl-space enter</b> from any buffer, goes to it (3-8).</p>
-        <p class="para"><span class="n">5-3.</span>A conversation does not end when its instance exits; it is suspended, and can be picked back up. The newest conversation at rest under each place is a row of the finder, <b>datum &middot; resume</b>, with the last thing asked of it, how long it has rested and its branch; <b>enter</b> continues it in a buffer opened where it was had. <b>A</b> at conn, or <b>ctrl-space A</b> from any buffer, opens the finder on every conversation at rest instead, newest first across the places, for the one that is not the newest. In the everything view the same conversation is a row of its own, dimmed, at the end of the place's family, <b>claude &middot; suspended &middot; 6h</b>, and <b>enter</b> on it continues it. A conversation an instance still carries is not offered. A place with no work shows none there: the row is kept the way an exited container is kept beside its running siblings.</p>
+        <p class="para"><span class="n">5-3.</span>A conversation does not end when its instance exits; it is suspended, and can be picked back up. The newest conversation at rest under each place is a row of the finder, <b>datum &middot; resume</b>, with the last thing asked of it, how long it has rested and its branch; <b>enter</b> continues it in a buffer opened where it was had. <b>A</b> on a place at conn, or <b>ctrl-space A</b> from any buffer, opens the finder on every conversation at rest in that place instead &mdash; the row's, or the buffer's &mdash; newest first, for the one that is not the newest. In the everything view the same conversation is a row of its own, dimmed, at the end of the place's family, <b>claude &middot; suspended &middot; 6h</b>, and <b>enter</b> on it continues it. A conversation an instance still carries is not offered. A place with no work shows none there: the row is kept the way an exited container is kept beside its running siblings.</p>
         <p class="para"><span class="n">5-4.</span>conn knows two kinds of agent: <b>claude</b> and <b>ollama</b>. <b>,</b> at conn or in the finder, or <b>ctrl-space ,</b> from any buffer, moves <b>a</b> on to the next kind, around the end, for every window until conn is restarted; the finder's foot names it, <b>^a a claude here</b>. Ollama's rows are plain processes, unmarked. It runs the model most recently pulled or run; with nothing pulled, <b>a</b> runs <b>ollama list</b> instead, and with the ollama server down the REPL says so. <b>agentRuns</b> in the configuration names what a kind runs when its own choice is not the wanted one.</p>
       </div>
     </div>
@@ -724,7 +724,7 @@
           <div class="row"><span>gg &middot; G</span><span>top &middot; bottom</span></div>
           <div class="row"><span>s</span><span>shell</span></div>
           <div class="row"><span>a</span><span>agent</span></div>
-          <div class="row"><span>A</span><span>continue a conversation at rest</span></div>
+          <div class="row"><span>A</span><span>continue a conversation at rest in the place</span></div>
           <div class="row"><span>,</span><span>the next kind of agent</span></div>
           <div class="row"><span>r</span><span>run a dead entry again in place &middot; run the plan</span></div>
           <div class="row"><span>x &middot; X</span><span>preview a kill &middot; of the tree</span></div>
@@ -743,7 +743,7 @@
           <div class="row"><span>^spc enter</span><span>the next thing owed</span></div>
           <div class="row"><span>^spc x X</span><span>preview a kill of this buffer &middot; of its tree</span></div>
           <div class="row"><span>^spc s a r</span><span>shell &middot; agent &middot; run, here</span></div>
-          <div class="row"><span>^spc A</span><span>continue a conversation at rest</span></div>
+          <div class="row"><span>^spc A</span><span>continue a conversation at rest in this place</span></div>
           <div class="row"><span>^spc ,</span><span>the next kind of agent</span></div>
           <div class="row"><span>^spc e</span><span>the environment of the pane's process, annotated</span></div>
           <div class="row"><span>^spc q</span><span>leave from anywhere</span></div>

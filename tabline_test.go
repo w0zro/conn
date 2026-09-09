@@ -178,12 +178,12 @@ func TestAOpensTheFinderOnEveryConversationAtRest(t *testing.T) {
 	// to make nothing, and says what enter does there.
 	f := newFinderModel(finderRests)
 	f.loaded = true
-	f.snap = finderSnapshot{Entries: []finderEntry{
+	f.snap = finderSnapshot{Place: "datum", Entries: []finderEntry{
 		restEntry(Project{Name: "datum", Path: "/p/datum"}, conversation{ID: "a1", Dir: "/p/datum", Prompt: "fix the trace", Branch: "main", Kind: "claude"}),
-		restEntry(Project{Name: "conn", Path: "/p/conn"}, conversation{ID: "b2", Dir: "/p/conn", Summary: "reading", Kind: "claude"}),
+		restEntry(Project{Name: "datum", Path: "/p/datum"}, conversation{ID: "b2", Dir: "/p/datum/api", Summary: "reading", Kind: "claude"}),
 	}}
 	page := stripANSI(f.render())
-	for _, want := range []string{"datum ·", `"fix the trace"`, "main", "conn ·", `"reading"`, "enter picks it back up", "esc leaves it"} {
+	for _, want := range []string{"datum ·", `"fix the trace"`, "main", `"reading"`, "every conversation at rest in datum", "enter picks it back up", "esc leaves it"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page lacks %q:\n%s", want, page)
 		}
@@ -197,5 +197,27 @@ func TestAOpensTheFinderOnEveryConversationAtRest(t *testing.T) {
 	}
 	if page := stripANSI(f.render()); !strings.Contains(page, "nothing at rest answers zzz") {
 		t.Errorf("page = %s, want the lack said", page)
+	}
+}
+
+func TestAReachesIntoTheRowsPlaceOrTheShownBuffers(t *testing.T) {
+	m := heldTabs(80)
+	m.all, m.shown = true, 0
+	for i, r := range m.rows {
+		if r.project.Name == "demo" && r.kind == rowProject {
+			m.cursor = i
+		}
+	}
+	if p, ok := m.restPlace(); !ok || p.Name != "demo" {
+		t.Errorf("place = %+v, %v with the cursor on demo, want demo", p, ok)
+	}
+	m.all, m.shown = false, 701
+	if p, ok := m.restPlace(); !ok || p.Path != m.terms[701].dir {
+		t.Errorf("place = %+v, %v with 701 shown, want the buffer's place", p, ok)
+	}
+	m.shown = 0
+	m.cursor = -1
+	if _, ok := m.restPlace(); ok {
+		t.Error("nothing under the cursor and nothing shown should name no place")
 	}
 }

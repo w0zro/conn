@@ -976,8 +976,8 @@ func (s *session) finder() {
 
 // showRests keeps the listing of the conversations at rest for the page
 // and opens the finder on it, over the client that spoke last.
-func (s *session) showRests(entries []finderEntry) error {
-	if err := writeRests(entries); err != nil {
+func (s *session) showRests(snap finderSnapshot) error {
+	if err := writeRests(snap); err != nil {
 		return err
 	}
 	return showFinder(s.run, connExe(), "", finderRests)

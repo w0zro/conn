@@ -15,7 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// The finder is the front door: ctrl-p from any buffer, p at conn, and one
+// The finder is the front door: p at conn, the prefix's p from any buffer, and one
 // list holds everything openable — the buffers held, a plan's entries,
 // the containers, the conversations at rest, and every place, for a
 // shell at its root. Enter

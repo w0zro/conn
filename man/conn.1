@@ -80,9 +80,9 @@ $ conn
 1-6.
 There is nothing to set up. With no buffer open, the window is the everything
 view (2-3), which shows what is running, so on a quiet machine it says
-\fBnothing running\fR and names the doors: \fB⌃p\fR find a project · open a
-buffer, \fB.\fR show all, \fB?\fR the keys. \fBctrl\-p\fR is the finder (3-2):
-type a project's name, and \fBenter\fR opens a shell there. conn looks under
+\fBnothing running\fR and names the doors: \fBp\fR find a project · open a
+buffer, \fB.\fR show all, \fB?\fR the keys. \fBp\fR is the finder (3-2): type a
+project's name, and \fBenter\fR opens a shell there. conn looks under
 \fB~/projects\fR; Section 9 points it elsewhere.
 .SH THE WINDOW
 .TP
@@ -96,8 +96,8 @@ tab carries its buffer's mark (Table 2-1), and the mark stays while the state
 does. Two buffers that would read the same are told apart by the shortest fact
 that differs, in gray: the branch, when both are known and differ, else an
 ordinal, \fBconn/claude ·2\fR, only while the collision lasts. The right end
-holds one hint for the moment: \fB⌃p opens\fR, \fBr reruns\fR, \fBesc keeps
-it\fR, \fB. toggles running · all\fR.
+holds one hint for the moment: \fB⌃spc p opens\fR, \fBr reruns\fR, \fBesc
+keeps it\fR, \fB. toggles running · all\fR.
 .PP
 .I "Table 2-1. Marks, on a tab and on a row"
 .RS
@@ -286,7 +286,7 @@ back: the previous buffer, or everything (3-9)
 \fBenter\fR
 open the buffer under the cursor
 .TP
-\fBp ctrl\-p\fR
+\fBp\fR
 the finder (3-2)
 .TP
 \fB.\fR
@@ -297,16 +297,15 @@ leave; everything keeps running (10-1)
 .RE
 .TP
 3-2.
-\fBctrl\-p\fR, from any buffer, opens the finder: the front door. \fBp\fR or
-\fBctrl\-p\fR at conn, and \fBctrl\-space p\fR, \fBctrl\-space ctrl\-p\fR and
-\fBctrl\-space /\fR from anywhere, open it too. It is a popup over the window,
-on the wash inside a border, opened as tall as what it lists: a query line with
-an orange › prompt over a rule, under it one list of everything openable
-(Table 3-2), and at the foot two faint lines saying what enter does with no
-match. Each word of the query must appear in order inside what a row says, not
-contiguously: \fBtsl\fR finds tressle-api, \fBmono api\fR finds the api inside
-mono, and the letters that matched are lit in orange. The cursor's row is a bar
-with an orange ▸; \fB↑↓\fR move it.
+\fBctrl\-space p\fR, from any buffer, opens the finder: the front door. \fBp\fR
+at conn, and \fBctrl\-space /\fR from anywhere, open it too. It is a popup over
+the window, on the wash inside a border, opened as tall as what it lists: a
+query line with an orange › prompt over a rule, under it one list of
+everything openable (Table 3-2), and at the foot two faint lines saying what
+enter does with no match. Each word of the query must appear in order inside
+what a row says, not contiguously: \fBtsl\fR finds tressle-api, \fBmono api\fR
+finds the api inside mono, and the letters that matched are lit in orange. The
+cursor's row is a bar with an orange ▸; \fB↑↓\fR move it.
 .PP
 .I "Table 3-2. What the finder lists"
 .RS
@@ -426,10 +425,10 @@ cancel the search
 3-7.
 \fBenter\fR on a buffer's tab or row, or \fBs\fR on a place, focuses the buffer:
 it fills the window under the tabline. From then on the buffer receives every
-keystroke but two: \fBctrl\-p\fR, the finder, and \fBctrl\-space\fR, the prefix
-that reaches conn from any buffer (Table A-2). \fBctrl\-space \-\fR brings the
-everything view up. \fB?\fR, at conn or after ctrl-space, lists every key in a
-popup over the window; Appendix A lists them here.
+keystroke but one: \fBctrl\-space\fR, the prefix that reaches conn from any
+buffer (Table A-2). \fBctrl\-space \-\fR brings the everything view up. \fB?\fR,
+at conn or after ctrl-space, lists every key in a popup over the window;
+Appendix A lists them here.
 .TP
 3-8.
 \fBtab\fR at conn, or \fBctrl\-space enter\fR anywhere, goes to the next thing
@@ -897,7 +896,7 @@ the next thing owed
 \fBshift+tab\fR
 back: the previous buffer, or everything
 .TP
-\fBp ^p\fR
+\fBp\fR
 the finder: open, start, or make a project
 .TP
 \fB/\fR
@@ -946,11 +945,8 @@ end the server, buffers and all
 close a dead buffer · leave; the buffers keep running
 .RE
 .PP
-.I "Table A-2. From any buffer: ctrl-p alone, and the chords after ctrl-space"
+.I "Table A-2. From any buffer: the chords after ctrl-space"
 .RS
-.TP
-\fB^p\fR
-the finder, from any buffer
 .TP
 \fB^spc p /\fR
 the finder

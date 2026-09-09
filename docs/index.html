@@ -186,7 +186,7 @@
           <p>conn needs <b>tmux</b> installed: <b>brew install tmux</b>, or your package manager's. On macOS it also needs <b>lsof</b>, which macOS ships. <b>docker</b> is optional: with it, a project's containers are listed too (Section 6).</p>
         </div>
         <div class="cmd" role="group" aria-label="first run"><span class="prompt">$</span><code>conn</code><button class="copy" type="button" data-copy="conn">[copy]</button></div>
-        <p class="para"><span class="n">1-6.</span>There is nothing to set up. With no buffer open, the window is the everything view (2-3), which shows what is running, so on a quiet machine it says <b>nothing running</b> and names the doors: <b>&#8963;p</b> find a project &middot; open a buffer, <b>.</b> show all, <b>?</b> the keys. <b>ctrl-p</b> is the finder (3-2): type a project's name, and <b>enter</b> opens a shell there. conn looks under <b>~/projects</b>; Section 9 points it elsewhere.</p>
+        <p class="para"><span class="n">1-6.</span>There is nothing to set up. With no buffer open, the window is the everything view (2-3), which shows what is running, so on a quiet machine it says <b>nothing running</b> and names the doors: <b>p</b> find a project &middot; open a buffer, <b>.</b> show all, <b>?</b> the keys. <b>p</b> is the finder (3-2): type a project's name, and <b>enter</b> opens a shell there. conn looks under <b>~/projects</b>; Section 9 points it elsewhere.</p>
       </div>
     </div>
     <div class="foot">
@@ -207,7 +207,7 @@
       <div class="section" id="window">
         <p class="kicker">SECTION 2</p>
         <h2>The window</h2>
-        <p class="para"><span class="n">2-1.</span>The tabline is the working set: one tab for every buffer conn holds &mdash; the shells it opened, the agents, the tasks, a plan's entries, a container's logs &mdash; named place/name and nothing more: <b>conn/claude</b>, <b>datum/tests</b>, <b>pg</b> &mdash; the facts live in the heading. The tab with focus is bold ink on the ground, with an orange edge over it; the others are gray on the bar. Each tab carries its buffer's mark (Table 2-1), and the mark stays while the state does. Two buffers that would read the same are told apart by the shortest fact that differs, in gray: the branch, when both are known and differ, else an ordinal, <b>conn/claude &middot;2</b>, only while the collision lasts. The right end holds one hint for the moment: <b>&#8963;p opens</b>, <b>r reruns</b>, <b>esc keeps it</b>, <b>. toggles running &middot; all</b>.</p>
+        <p class="para"><span class="n">2-1.</span>The tabline is the working set: one tab for every buffer conn holds &mdash; the shells it opened, the agents, the tasks, a plan's entries, a container's logs &mdash; named place/name and nothing more: <b>conn/claude</b>, <b>datum/tests</b>, <b>pg</b> &mdash; the facts live in the heading. The tab with focus is bold ink on the ground, with an orange edge over it; the others are gray on the bar. Each tab carries its buffer's mark (Table 2-1), and the mark stays while the state does. Two buffers that would read the same are told apart by the shortest fact that differs, in gray: the branch, when both are known and differ, else an ordinal, <b>conn/claude &middot;2</b>, only while the collision lasts. The right end holds one hint for the moment: <b>&#8963;spc p opens</b>, <b>r reruns</b>, <b>esc keeps it</b>, <b>. toggles running &middot; all</b>.</p>
         <p class="caption">Table 2-1.&nbsp; Marks, on a tab and on a row</p>
         <div class="table marks">
           <div class="row"><span>&#10247;</span><span>in amber: working &mdash; an agent mid-turn</span></div>
@@ -310,11 +310,11 @@
           <div class="row"><span>tab</span><span>the next thing owed (3-8)</span></div>
           <div class="row"><span>shift+tab</span><span>back: the previous buffer, or everything (3-9)</span></div>
           <div class="row"><span>enter</span><span>open the buffer under the cursor</span></div>
-          <div class="row"><span>p ctrl-p</span><span>the finder (3-2)</span></div>
+          <div class="row"><span>p</span><span>the finder (3-2)</span></div>
           <div class="row"><span>.</span><span>the everything view; there, running or all</span></div>
           <div class="row"><span>q</span><span>leave; everything keeps running (10-1)</span></div>
         </div>
-        <p class="para"><span class="n">3-2.</span><b>ctrl-p</b>, from any buffer, opens the finder: the front door. <b>p</b> or <b>ctrl-p</b> at conn, and <b>ctrl-space p</b>, <b>ctrl-space ctrl-p</b> and <b>ctrl-space /</b> from anywhere, open it too. It is a popup over the window, on the wash inside a border, opened as tall as what it lists: a query line with an orange &#8250; prompt over a rule, under it one list of everything openable (Table 3-2), and at the foot two faint lines saying what enter does with no match. Each word of the query must appear in order inside what a row says, not contiguously: <b>tsl</b> finds tressle-api, <b>mono api</b> finds the api inside mono, and the letters that matched are lit in orange. The cursor's row is a bar with an orange &#9656;; <b>&#8593;&#8595;</b> move it.</p>
+        <p class="para"><span class="n">3-2.</span><b>ctrl-space p</b>, from any buffer, opens the finder: the front door. <b>p</b> at conn, and <b>ctrl-space /</b> from anywhere, open it too. It is a popup over the window, on the wash inside a border, opened as tall as what it lists: a query line with an orange &#8250; prompt over a rule, under it one list of everything openable (Table 3-2), and at the foot two faint lines saying what enter does with no match. Each word of the query must appear in order inside what a row says, not contiguously: <b>tsl</b> finds tressle-api, <b>mono api</b> finds the api inside mono, and the letters that matched are lit in orange. The cursor's row is a bar with an orange &#9656;; <b>&#8593;&#8595;</b> move it.</p>
         <p class="caption">Table 3-2.&nbsp; What the finder lists</p>
         <div class="table">
           <div class="row"><span>a buffer held</span><span>with its state and last word: <b>&#9679; running &middot; done, review when ready</b>, <b>&#10007; 1 failed &middot; 2m</b></span></div>
@@ -387,7 +387,7 @@
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">3-7.</span><b>enter</b> on a buffer's tab or row, or <b>s</b> on a place, focuses the buffer: it fills the window under the tabline. From then on the buffer receives every keystroke but two: <b>ctrl-p</b>, the finder, and <b>ctrl-space</b>, the prefix that reaches conn from any buffer (Table A-2). <b>ctrl-space -</b> brings the everything view up. <b>?</b>, at conn or after ctrl-space, lists every key in a popup over the window; Appendix A lists them here.</p>
+        <p class="para"><span class="n">3-7.</span><b>enter</b> on a buffer's tab or row, or <b>s</b> on a place, focuses the buffer: it fills the window under the tabline. From then on the buffer receives every keystroke but one: <b>ctrl-space</b>, the prefix that reaches conn from any buffer (Table A-2). <b>ctrl-space -</b> brings the everything view up. <b>?</b>, at conn or after ctrl-space, lists every key in a popup over the window; Appendix A lists them here.</p>
         <p class="para"><span class="n">3-8.</span><b>tab</b> at conn, or <b>ctrl-space enter</b> anywhere, goes to the next thing owed: an agent waiting, a run that ended badly, a process stopped or hung. Again continues around them. A held buffer is shown, at its prompt or transcript; a process conn only watches gets the cursor in the everything view. The view is in the same order: places by name and each place's rows by name, except that a row that is owed something stands first among its siblings and a place with one stands above the places without, so what is owed is at the top of the view as well as under <b>tab</b>.</p>
         <p class="para"><span class="n">3-9.</span><b>shift+tab</b> at conn, or <b>ctrl-space ctrl-space</b> anywhere, returns focus to where it was: the buffer before this one, or the everything view when focus came from it. Again returns. Before focus has moved at all, it is the everything view from a buffer and the cursor's buffer from the view.</p>
       </div>
@@ -716,7 +716,7 @@
           <div class="row"><span>enter</span><span>open the buffer</span></div>
           <div class="row"><span>tab</span><span>the next thing owed</span></div>
           <div class="row"><span>shift+tab</span><span>back: the previous buffer, or everything</span></div>
-          <div class="row"><span>p ^p</span><span>the finder: open, start, or make a project</span></div>
+          <div class="row"><span>p</span><span>the finder: open, start, or make a project</span></div>
           <div class="row"><span>/</span><span>narrow everything by anything a row says</span></div>
           <div class="row"><span>esc</span><span>clear the filter &middot; close everything</span></div>
           <div class="row"><span>.</span><span>everything &middot; running &middot; all</span></div>
@@ -733,9 +733,8 @@
           <div class="row"><span>R</span><span>end the server, buffers and all</span></div>
           <div class="row"><span>q</span><span>close a dead buffer &middot; leave; the buffers keep running</span></div>
         </div>
-        <p class="caption">Table A-2.&nbsp; From any buffer: ctrl-p alone, and the chords after ctrl-space</p>
+        <p class="caption">Table A-2.&nbsp; From any buffer: the chords after ctrl-space</p>
         <div class="table keys" id="keys-chords">
-          <div class="row"><span>^p</span><span>the finder, from any buffer</span></div>
           <div class="row"><span>^spc p /</span><span>the finder</span></div>
           <div class="row"><span>^spc - .</span><span>everything, from any buffer</span></div>
           <div class="row"><span>^spc h l</span><span>previous &middot; next buffer</span></div>

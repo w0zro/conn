@@ -923,7 +923,7 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.askReplace()
 	case "U":
 		return m, m.updateConn()
-	case "p", "ctrl+p":
+	case "p":
 		// The front door: everything openable, in a popup over the window.
 		m.server.finder()
 		return m, nil

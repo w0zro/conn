@@ -284,11 +284,11 @@ func (m model) tabHint() string {
 		if t := m.terms[m.shown]; t != nil && !t.live() && t.name != "" {
 			return "r reruns"
 		}
-		return "⌃p opens"
+		return "⌃spc p opens"
 	case m.viewingAll():
 		return ". toggles running · all"
 	}
-	return "⌃p opens"
+	return "p opens"
 }
 
 // viewingAll reports the everything view on screen: put up, or standing
@@ -471,7 +471,7 @@ func (m model) navLines(rows int) []string {
 		return []string{
 			gutter + noteStyle.Render("nothing running"),
 			"",
-			gutter + faintStyle.Render("⌃p  find a project · open a buffer"),
+			gutter + faintStyle.Render("p   find a project · open a buffer"),
 			gutter + faintStyle.Render(".   show all"),
 			gutter + faintStyle.Render("?   the keys"),
 		}

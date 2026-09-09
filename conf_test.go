@@ -21,10 +21,8 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 		`bind l run-shell "'/opt/my tools/it'\''s/conn' next"`,
 		`bind C-Space run-shell "'/opt/my tools/it'\''s/conn' back"`,
 		`bind ? run-shell "'/opt/my tools/it'\''s/conn' keys '#{client_name}'"`,
-		// The finder is the front door: the prefix's p, and ctrl-p alone
-		// from any buffer.
+		// The finder is the front door: the prefix's p, from any buffer.
 		`bind p run-shell "'/opt/my tools/it'\''s/conn' finder '#{client_name}'"`,
-		`bind -n C-p run-shell "'/opt/my tools/it'\''s/conn' finder '#{client_name}'"`,
 		"bind q detach-client",
 		"set -g history-limit 4242",
 		"set -g automatic-rename off",
@@ -61,9 +59,9 @@ func TestTheConfigurationBindsTheChordsToThisBuild(t *testing.T) {
 			t.Errorf("the configuration lacks %q", want)
 		}
 	}
-	// tmux keeps the root table for its mouse bindings; ctrl-p is the one
-	// key conn adds to it.
-	if strings.Contains(conf, "-T root") {
+	// tmux keeps the root table for its mouse bindings; conn adds nothing
+	// to it, so every key reaches the buffer with focus but the prefix.
+	if strings.Contains(conf, "-T root") || strings.Contains(conf, "bind -n") {
 		t.Error("the configuration touches the root table by name")
 	}
 }

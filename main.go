@@ -48,21 +48,22 @@ usage:
   conn --version   report the version; version, bare, too
 
 the chords run these; they are not for typing:
-  conn nav         the navigator, in the home window's left pane
+  conn nav         conn itself: the tabline, in the home window's top pane
+  conn finder [c]  the finder, in a popup over the client c
   conn keys [c]    the keys, in a popup over the client c
   conn env [p c]   the environment of the pane whose shell is pid p, annotated, over c;
                    typed at a shell, that shell's own, as it is now
-  conn page [env p] the page inside those popups
-  conn home [key]  to the navigator, pressing key there
+  conn page [env p | finder] the page inside those popups
+  conn home [key]  the everything view; handed a key, that key pressed at conn
   conn shell [dir] a shell in dir, shown beside the navigator
   conn agent [dir] an agent in dir, shown beside the navigator
   conn kind        the next kind of agent, for a and the agent chord
   conn run [dir]   the plan of the place holding dir
   conn test [dir]  the tests of the place holding dir, the way it says they run
   conn build [dir] its build, and conn lint [dir] its lint, the same way
-  conn jump        the next thing that needs you: an agent waiting, a command that ended badly
-  conn back        back: the previous shell, or the navigator
-  conn next, prev  the next and previous shell
+  conn jump        the next thing owed: an agent waiting, a command that ended badly
+  conn back        back: the previous buffer, or the everything view
+  conn next, prev  the next and previous buffer
 
 files:
   ~/.config/conn/config.json  configuration
@@ -109,6 +110,10 @@ func main() {
 			// the run a pid heads.
 			if len(os.Args) > 2 && os.Args[2] == "env" {
 				runEnvPage(os.Args[3:])
+				return
+			}
+			if len(os.Args) > 2 && os.Args[2] == "finder" {
+				runFinder()
 				return
 			}
 			runKeys()
@@ -171,20 +176,21 @@ func needHome() error {
 // chords is every word the configuration binds, and what each does with
 // the argument the binding passes.
 var chords = map[string]func(arg string) error{
-	"home":  runHome,
-	"shell": func(dir string) error { return runShellAt(dir, "") },
-	"agent": func(dir string) error { return runShellAt(dir, startAgent(tmuxCommand)) },
-	"kind":  func(string) error { return runKind() },
-	"run":   runPlanAt,
-	"test":  runVerbAt(verbNamed("test")),
-	"build": runVerbAt(verbNamed("build")),
-	"lint":  runVerbAt(verbNamed("lint")),
-	"jump":  func(string) error { return runJump() },
-	"back":  func(string) error { return runBack() },
-	"next":  func(string) error { return runStep(1) },
-	"prev":  func(string) error { return runStep(-1) },
-	"keys":  func(client string) error { return showKeys(tmuxCommand, connExe(), client) },
-	"env":   runEnvChord,
+	"home":   runHome,
+	"shell":  func(dir string) error { return runShellAt(dir, "") },
+	"agent":  func(dir string) error { return runShellAt(dir, startAgent(tmuxCommand)) },
+	"kind":   func(string) error { return runKind() },
+	"run":    runPlanAt,
+	"test":   runVerbAt(verbNamed("test")),
+	"build":  runVerbAt(verbNamed("build")),
+	"lint":   runVerbAt(verbNamed("lint")),
+	"jump":   func(string) error { return runJump() },
+	"back":   func(string) error { return runBack() },
+	"next":   func(string) error { return runStep(1) },
+	"prev":   func(string) error { return runStep(-1) },
+	"keys":   func(client string) error { return showKeys(tmuxCommand, connExe(), client) },
+	"finder": func(client string) error { return showFinder(tmuxCommand, connExe(), client) },
+	"env":    runEnvChord,
 }
 
 // runNav is the navigator: the program in the home window. The navigator's

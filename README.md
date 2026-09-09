@@ -1,11 +1,14 @@
 # conn
 
-A terminal UI for working on projects at the command line. conn is a tmux
-client: `conn` brings up a tmux server of its own under its own
-configuration, attaches the terminal, and runs the navigator down the left
-of the home window. The shell under the navigator's cursor is the tmux pane
-beside it; the navigator lists, finds, starts and kills what runs in every
-project.
+A terminal UI for working on projects at the command line, built on one
+idea: a process is a buffer. conn is a tmux client: `conn` brings up a
+tmux server of its own under its own configuration, attaches the terminal,
+and draws a tabline across the top of the home window — the working set of
+buffers: shells, agents, tasks, containers, across projects — with the
+buffer that has focus filling the window under it. ctrl-p opens the finder,
+which opens, starts, or makes anything by name; `.` shows everything
+running, grouped by place; `x` previews a kill before anything dies; a task
+that ended stays as a buffer, dead but readable, until you close it.
 
 ## Install
 

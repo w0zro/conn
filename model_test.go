@@ -40,7 +40,7 @@ func withProcs(w, h int, projects []Project, dirs []string) model {
 // the default in the app, so tests that want it call narrowed().
 func withProcList(w, h int, projects []Project, procs []Proc) model {
 	m := sized(w, h)
-	m.showAll = true
+	m.showAll, m.all = true, true
 	m.projects, m.procs = projects, procs
 	m.rebuild()
 	return m
@@ -96,50 +96,32 @@ func targets(req *killRequest) []int {
 	return pids(req.nodes)
 }
 
-// splitRow cuts a body row into its navigator and detail halves at the pane
-// divider, which sits at a fixed column.
-func splitRow(row string) (nav, detail string) {
-	r := []rune(row)
-	if len(r) <= navWidth {
-		return row, ""
-	}
-	return string(r[:navWidth]), string(r[navWidth+1:])
-}
-
-// bodyRows returns every row of the view.
+// bodyRows returns every row of the view, plain.
 func bodyRows(m model) []string {
 	all := strings.Split(m.View().Content, "\n")
 	out := make([]string, 0, len(all))
 	for _, ln := range all {
-		out = append(out, stripANSI(ln))
+		out = append(out, strings.TrimRight(stripANSI(ln), " "))
 	}
 	return out
 }
 
-// navColumn returns the non-blank navigator rows. The column is the list
-// from its first row: conn's own name is on the status line, not over it.
+// navColumn returns the non-blank rows of the everything view's list, as
+// the view draws them: the rows and nothing over or under them — the
+// tabline and the footer are the view's, not the list's.
 func navColumn(m model) []string {
 	var out []string
-	for _, row := range bodyRows(m) {
-		nav, _ := splitRow(row)
-		if nav = strings.TrimRight(nav, " "); strings.TrimSpace(nav) != "" {
-			out = append(out, nav)
+	for _, row := range m.navLines(m.bodyHeight()) {
+		if row = strings.TrimRight(stripANSI(row), " "); strings.TrimSpace(row) != "" {
+			out = append(out, row)
 		}
 	}
 	return out
 }
 
-// detailColumn returns the non-blank pane rows. The pane runs the whole height
-// of the window, so none of them are skipped.
-func detailColumn(m model) []string {
-	var out []string
-	for _, row := range bodyRows(m) {
-		_, detail := splitRow(row)
-		if detail = strings.TrimRight(detail, " "); strings.TrimSpace(detail) != "" {
-			out = append(out, detail)
-		}
-	}
-	return out
+// tablineOf is the view's first row, plain: the tabs and the hint.
+func tablineOf(m model) string {
+	return strings.Join(strings.Fields(bodyRows(m)[0]), " ")
 }
 
 func wantRows(t *testing.T, got, want []string) {
@@ -160,36 +142,33 @@ func lineAt(ls []string, i int) string {
 
 // --- layout ---------------------------------------------------------------
 
-func TestViewPutsTheListInTheTopLeft(t *testing.T) {
-	// conn's name is on the status line, not over the column: the first
-	// row of the window is the first row of the list.
+func TestViewPutsTheTablineOverTheList(t *testing.T) {
+	// The first row of the window is the tabline — the everything view's
+	// tab, and the hint at its end — and the list follows under a blank.
+	// conn's name is on the status line, not over the list.
 	m := withProcList(80, 24, []Project{{Name: "alpha", Path: "/p/alpha"}}, nil)
-	lines := strings.Split(m.View().Content, "\n")
-	if got := len(lines); got != 24 {
+	rows := bodyRows(m)
+	if got := len(rows); got != 24 {
 		t.Fatalf("view height = %d lines, want 24", got)
 	}
-	if nav, _ := splitRow(stripANSI(lines[0])); strings.TrimRight(nav, " ") != " ▸ alpha" {
-		t.Errorf("first line = %q, want the list's first row, with no masthead over it", lines[0])
+	if !strings.HasPrefix(tablineOf(m), "everything") || !strings.HasSuffix(tablineOf(m), "running · all") {
+		t.Errorf("tabline = %q, want the everything tab and its hint", tablineOf(m))
+	}
+	if rows[2] != " ▸ alpha" {
+		t.Errorf("third line = %q, want the list's first row under the tabline and a blank", rows[2])
 	}
 	if strings.Contains(stripANSI(m.View().Content), " conn\n") {
-		t.Error("the column still carries conn's name")
+		t.Error("the view still carries conn's name")
 	}
 }
 
-func TestNavPaneOccupiesItsColumn(t *testing.T) {
-	lines := strings.Split(sized(80, 24).View().Content, "\n")
-	for i := 1; i < len(lines); i++ {
-		row := []rune(stripANSI(lines[i]))
-		if len(row) <= navWidth || row[navWidth] != '│' {
-			t.Fatalf("row %d: no divider at column %d: %q", i, navWidth, string(row))
+func TestTheFootTeachesTheKeysThatMatter(t *testing.T) {
+	m := withProcList(80, 24, []Project{{Name: "alpha", Path: "/p/alpha"}}, nil)
+	foot := strings.Join(bodyRows(m)[20:], " ")
+	for _, want := range []string{"space folds a place", "/ narrows", "enter opens the buffer", "x previews a kill"} {
+		if !strings.Contains(foot, want) {
+			t.Errorf("foot = %q, want %q taught", foot, want)
 		}
-	}
-}
-
-func TestDetailPaneDroppedWhenTooNarrow(t *testing.T) {
-	view := stripANSI(sized(navWidth+paneMin, 24).View().Content)
-	if strings.Contains(view, "│") {
-		t.Errorf("detail pane drawn with less than %d columns of pane:\n%s", paneMin, view)
 	}
 }
 
@@ -211,8 +190,8 @@ func TestNavListsRepoNames(t *testing.T) {
 
 func TestNavTruncatesLongNames(t *testing.T) {
 	m := withProcList(80, 8, []Project{{Name: strings.Repeat("x", 100)}}, nil)
-	if got := len([]rune(navColumn(m)[0])); got > navWidth {
-		t.Errorf("row is %d columns wide, want at most %d", got, navWidth)
+	if got := len([]rune(navColumn(m)[0])); got > m.width {
+		t.Errorf("row is %d columns wide, want at most %d", got, m.width)
 	}
 }
 
@@ -224,8 +203,8 @@ func TestQualifiedNamesKeepTheirRepoName(t *testing.T) {
 	if !strings.Contains(row, "checklists-api") {
 		t.Errorf("row = %q, want the repo name to survive truncation", row)
 	}
-	if got := len([]rune(row)); got > navWidth {
-		t.Errorf("row is %d columns, want at most %d: %q", got, navWidth, row)
+	if got := len([]rune(row)); got > m.width {
+		t.Errorf("row is %d columns, want at most %d: %q", got, m.width, row)
 	}
 }
 
@@ -400,7 +379,7 @@ func TestAToggleRoundTrips(t *testing.T) {
 
 func TestNarrowingRescansProcesses(t *testing.T) {
 	wide := sized(80, 8)
-	wide.showAll = true
+	wide.showAll, wide.all = true, true
 
 	_, cmd := wide.Update(typed("."))
 	if cmd == nil {
@@ -411,7 +390,7 @@ func TestNarrowingRescansProcesses(t *testing.T) {
 func TestTheKeysListTheToggle(t *testing.T) {
 	// Both sides at once: the modal describes the pair rather than tracking
 	// which view the next press would show.
-	if !strings.Contains(keysOf(), ". all · running") {
+	if !strings.Contains(keysOf(), ". everything · running · all") {
 		t.Error("the keys should mention the all/running toggle")
 	}
 }
@@ -494,7 +473,7 @@ func manyRepos(n, h int) model {
 }
 
 func TestScrollFollowsCursorPastTheBottom(t *testing.T) {
-	m := manyRepos(10, 3) // 3 body rows: the column is the list
+	m := manyRepos(10, 5) // 3 body rows under the tabline and its blank
 	for range 3 {
 		m = press(m, "down")
 	}
@@ -506,7 +485,7 @@ func TestScrollFollowsCursorPastTheBottom(t *testing.T) {
 }
 
 func TestScrollKeepsCursorVisibleAfterWrap(t *testing.T) {
-	m := press(manyRepos(10, 3), "up") // wraps to the last row
+	m := press(manyRepos(10, 5), "up") // wraps to the last row
 
 	col := navColumn(m)
 	if !strings.HasPrefix(col[len(col)-1], " ▸ j") {
@@ -525,66 +504,6 @@ func TestScrollStopsAtTheLastRow(t *testing.T) {
 }
 
 // --- detail pane ----------------------------------------------------------
-
-func TestDetailPaneDescribesTheSelectedRepo(t *testing.T) {
-	m := withProcList(80, 12, []Project{{Name: "alpha", Path: "/p/alpha"}}, nil)
-	m.details[detailKey(m.rows[0])] = []field{{label: "name", value: "alpha"}, {label: "path", value: "/p/alpha"}}
-
-	col := strings.Join(detailColumn(m), "\n")
-	if !strings.Contains(col, "alpha") || !strings.Contains(col, "/p/alpha") {
-		t.Errorf("detail pane should describe the selection:\n%s", col)
-	}
-}
-
-func TestDetailPaneFollowsTheCursor(t *testing.T) {
-	m := withProcList(80, 12,
-		[]Project{{Name: "conn", Path: "/p/conn"}},
-		[]Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}},
-	)
-	m.details[detailKey(m.rows[0])] = []field{{label: "name", value: "conn"}}
-	m.details[detailKey(m.rows[1])] = []field{{label: "command", value: "zsh"}}
-
-	if !strings.Contains(strings.Join(detailColumn(m), "\n"), "conn") {
-		t.Error("detail should describe the repo while the repo is selected")
-	}
-	m = press(m, "down")
-	if !strings.Contains(strings.Join(detailColumn(m), "\n"), "zsh") {
-		t.Error("detail should describe the process once the cursor moves onto it")
-	}
-}
-
-func TestDetailPaneSaysWhenItIsStillLoading(t *testing.T) {
-	m := withProcList(80, 12, []Project{{Name: "alpha", Path: "/p/alpha"}}, nil)
-	if !strings.Contains(strings.Join(detailColumn(m), "\n"), "loading") {
-		t.Error("an uninspected row should say it is loading rather than look empty")
-	}
-}
-
-func TestMovingRequestsDetailForTheNewRow(t *testing.T) {
-	m := threeRepos(10)
-	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if cmd == nil {
-		t.Error("moving the cursor should request details for the newly selected row")
-	}
-}
-
-func TestDetailIsNotRefetchedWhenCached(t *testing.T) {
-	m := threeRepos(10)
-	m.details[detailKey(m.rows[1])] = []field{{label: "name", value: "b"}}
-
-	if _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyDown}); cmd != nil {
-		t.Error("a row already inspected should not be inspected again")
-	}
-}
-
-func TestStaleDetailKeysAreIgnored(t *testing.T) {
-	m := threeRepos(10)
-	next, _ := m.Update(detailMsg{key: "repo:/p/gone", fields: []field{{label: "name", value: "gone"}}})
-
-	if strings.Contains(strings.Join(detailColumn(next.(model)), "\n"), "gone") {
-		t.Error("a detail result for another row should not be shown for this one")
-	}
-}
 
 func TestCursorKeepsItsSubjectAcrossRescans(t *testing.T) {
 	m := threeRepos(10)
@@ -762,8 +681,8 @@ func TestCollapsedRowStaysInItsColumn(t *testing.T) {
 	)
 	m = press(m, " ")
 
-	if got := len([]rune(navColumn(m)[0])); got > navWidth {
-		t.Errorf("collapsed row is %d columns, want at most %d: %q", got, navWidth, navColumn(m)[0])
+	if got := len([]rune(navColumn(m)[0])); got > m.width {
+		t.Errorf("collapsed row is %d columns, want at most %d: %q", got, m.width, navColumn(m)[0])
 	}
 }
 
@@ -802,11 +721,15 @@ func TestXAsksBeforeKilling(t *testing.T) {
 	m := press(nestedTree(12), "down") // onto zsh 10
 	m = press(m, "x")
 
-	if m.pendingKill == nil || len(m.pendingKill.nodes) != 1 || m.pendingKill.nodes[0].PID != 10 {
-		t.Fatalf("pendingKill = %v, want just the selected process", m.pendingKill)
+	// The preview shows the whole tree; x at it takes the head alone.
+	if m.pendingKill == nil || len(m.pendingKill.head) != 1 || m.pendingKill.head[0].PID != 10 {
+		t.Fatalf("pendingKill = %v, want the selected process as the head", m.pendingKill)
 	}
-	if f := footer(m); !strings.Contains(f, "kill zsh 10?") {
+	if f := footer(m); !strings.Contains(f, "CONFIRM") || !strings.Contains(f, "zsh") {
 		t.Errorf("footer = %q, want it to ask before killing", f)
+	}
+	if preview := strings.Join(bodyRows(m), " "); !strings.Contains(preview, "x the head alone") {
+		t.Errorf("preview = %q, want the head offered alone", preview)
 	}
 }
 
@@ -858,8 +781,8 @@ func TestAnyOtherKeyCancelsTheKill(t *testing.T) {
 		if cmd != nil {
 			t.Errorf("%q signalled something instead of cancelling", key)
 		}
-		if !strings.Contains(footer(m), "cancelled") {
-			t.Errorf("%q should say the kill was cancelled, footer = %q", key, footer(m))
+		if !strings.Contains(footer(m), "kept") {
+			t.Errorf("%q should say the kill was called off, footer = %q", key, footer(m))
 		}
 	}
 }
@@ -926,7 +849,7 @@ func TestStatusClearsOnTheNextKey(t *testing.T) {
 }
 
 func TestTheKeysListTheKill(t *testing.T) {
-	if !strings.Contains(keysOf(), "x · X kill") {
+	if !strings.Contains(keysOf(), "x · X preview a kill") {
 		t.Error("the keys should mention the kill key")
 	}
 }
@@ -1021,96 +944,6 @@ func TestCursorClampsWhenTheListShrinksPastIt(t *testing.T) {
 	}
 }
 
-func TestRefreshKeepsTheVisibleDetailCurrent(t *testing.T) {
-	m := nestedTree(12)
-	m.details[detailKey(m.rows[0])] = []field{{label: "name", value: "stale"}}
-
-	if cmd := m.refreshDetailCmd(); cmd == nil {
-		t.Error("the selected row should be re-inspected even when cached")
-	}
-}
-
-func TestRefreshDoesNotBlankTheDetailPane(t *testing.T) {
-	m := nestedTree(12)
-	m.details[detailKey(m.rows[0])] = []field{{label: "name", value: "conn"}}
-
-	next, _ := m.Update(tickMsg{})
-	if strings.Contains(strings.Join(detailColumn(next.(model)), "\n"), "loading") {
-		t.Error("a refresh should keep showing the old value until the new one lands")
-	}
-}
-
-func TestStaleDetailsArePruned(t *testing.T) {
-	m := nestedTree(12)
-	m.details["proc:99999"] = []field{{label: "command", value: "long gone"}}
-	m.rebuild()
-
-	if _, ok := m.details["proc:99999"]; ok {
-		t.Error("details for rows no longer listed should be dropped")
-	}
-	if _, ok := m.details[detailKey(m.rows[0])]; !ok && len(m.details) > 0 {
-		t.Error("pruning should keep details for rows still listed")
-	}
-}
-
-func TestAPlaceIsReadAgainWhenWhatItHoldsChanges(t *testing.T) {
-	// A place's details — how many processes, which plan entries are up —
-	// are cached against the row, and a process arriving would otherwise
-	// leave "0 processes" on screen until the slow refresh came round.
-	root := t.TempDir()
-	repo := filepath.Join(root, "conn")
-	docs := filepath.Join(repo, "docs")
-	if err := os.MkdirAll(docs, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	m := withProcList(90, 14, []Project{{Name: "conn", Path: repo}}, nil)
-	m.subs = map[string][]Project{repo: {{Name: "docs", Path: docs}}}
-	m.rebuild()
-	m = press(m, "down")
-	r, ok := m.selected()
-	if !ok || r.kind != rowSub {
-		t.Fatalf("setup: cursor on %+v, want docs", r)
-	}
-	key := detailKey(r)
-	m.details[key] = []field{{label: "running", value: "0 processes"}}
-	m.inspected[key] = m.holdings(r)
-	if m.detailCmd() != nil {
-		t.Fatal("setup: a place read as holding what it holds is not read again")
-	}
-
-	next, cmd := m.Update(procsMsg{procs: []Proc{{PID: 901, PPID: 1, Command: "zsh", Dir: docs}}})
-	m = next.(model)
-	if m.cursor != 1 {
-		t.Fatalf("cursor = %d, want still on docs", m.cursor)
-	}
-	if !readsAgain(cmd, key) {
-		t.Error("a process arriving in the place should have it read again")
-	}
-	// And the stale reading stays on screen until the new one lands.
-	if strings.Contains(strings.Join(detailColumn(m), "\n"), "loading") {
-		t.Error("the old reading should stay up rather than blink through loading")
-	}
-}
-
-// readsAgain reports whether a command, or a batch of them, reads the
-// details of the given subject.
-func readsAgain(cmd tea.Cmd, key string) bool {
-	if cmd == nil {
-		return false
-	}
-	switch msg := cmd().(type) {
-	case detailMsg:
-		return msg.key == key
-	case tea.BatchMsg:
-		for _, c := range msg {
-			if readsAgain(c, key) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func TestRefreshPreservesCollapsedNodes(t *testing.T) {
 	m := press(nestedTree(12), " ") // repo folded
 	next, _ := m.Update(tickMsg{})
@@ -1138,7 +971,7 @@ func TestRefreshDoesNotDisturbAPendingKill(t *testing.T) {
 	if next.(model).pendingKill == nil {
 		t.Error("a background refresh should not cancel a pending confirmation")
 	}
-	if !strings.Contains(footer(next.(model)), "kill zsh 10?") {
+	if !strings.Contains(footer(next.(model)), "CONFIRM") {
 		t.Error("the confirmation should stay on screen through a refresh")
 	}
 }
@@ -1323,19 +1156,23 @@ func TestXKillsTheSubtreeParentsFirst(t *testing.T) {
 	if got, want := targets(m.pendingKill), []int{10, 20, 40, 50, 30}; !slices.Equal(got, want) {
 		t.Errorf("targets = %v, want the subtree parents first %v", got, want)
 	}
-	if f := footer(m); !strings.Contains(f, "kill zsh 10 and 4 under it?") {
+	if f := footer(m); !strings.Contains(f, "5 processes") {
 		t.Errorf("footer = %q, want it to say how much it is about to kill", f)
+	}
+	if preview := strings.Join(bodyRows(m), " "); !strings.Contains(preview, "X kills all 5") {
+		t.Errorf("preview = %q, want the confirm line to count the tree", preview)
 	}
 }
 
 func TestLowercaseXTakesOnlyTheOneProcess(t *testing.T) {
 	m := press(press(nestedTree(12), "down"), "x") // onto zsh 10
 
-	if got := targets(m.pendingKill); !slices.Equal(got, []int{10}) {
-		t.Errorf("targets = %v, want only the selected process", got)
+	// The preview is the tree's; x at it is the head alone.
+	if got := pids(m.pendingKill.head); !slices.Equal(got, []int{10}) {
+		t.Errorf("head = %v, want only the selected process", got)
 	}
-	if f := footer(m); !strings.Contains(f, "kill zsh 10?") {
-		t.Errorf("footer = %q, want a plain kill to read as one", f)
+	if got := targets(m.pendingKill.headOnly()); !slices.Equal(got, []int{10}) {
+		t.Errorf("targets = %v, want only the selected process", got)
 	}
 }
 
@@ -1349,8 +1186,8 @@ func TestXOnALeafReadsAsAPlainKill(t *testing.T) {
 	if got := targets(m.pendingKill); !slices.Equal(got, []int{40}) {
 		t.Errorf("targets = %v, want just the leaf", got)
 	}
-	if f := footer(m); !strings.Contains(f, "kill fmt 40?") {
-		t.Errorf("footer = %q, want no count when there is nothing below it", f)
+	if preview := strings.Join(bodyRows(m), " "); !strings.Contains(preview, "x kills fmt") || strings.Contains(preview, "head alone") {
+		t.Errorf("preview = %q, want a plain kill with no head to offer", preview)
 	}
 }
 
@@ -1360,7 +1197,7 @@ func TestXOnARepoTakesEverythingInIt(t *testing.T) {
 	if got, want := targets(m.pendingKill), []int{10, 20, 40, 50, 30}; !slices.Equal(got, want) {
 		t.Errorf("targets = %v, want every process in the repo %v", got, want)
 	}
-	if f := footer(m); !strings.Contains(f, "kill 5 processes in conn?") {
+	if f := footer(m); !strings.Contains(f, "5 processes in conn") {
 		t.Errorf("footer = %q, want it to say what it is about to clear out", f)
 	}
 }
@@ -1476,7 +1313,7 @@ func TestAWhollyRefusedTreeKillReportsEachReasonOnce(t *testing.T) {
 }
 
 func TestTheKeysListTheTreeKill(t *testing.T) {
-	if f := keysOf(); !strings.Contains(f, "kill the tree") {
+	if f := keysOf(); !strings.Contains(f, "preview a kill · of the tree") {
 		t.Errorf("keys = %q, want the tree kill listed", f)
 	}
 }
@@ -1589,12 +1426,12 @@ func TestAFinishedTurnLightsItsRow(t *testing.T) {
 	}
 	styled := false
 	for raw := range strings.SplitSeq(m.View().Content, "\n") {
-		if strings.Contains(raw, attnStyle.Render("claude")) {
+		if strings.Contains(raw, attnStyle.Render(" "+glyphOn)) {
 			styled = true
 		}
 	}
 	if !styled {
-		t.Error("no row renders the label in the attention style")
+		t.Error("no row renders the mark in the attention style")
 	}
 }
 
@@ -1613,12 +1450,12 @@ func TestABlockedInstanceHoldsTheBrightDiamond(t *testing.T) {
 	}
 	styled := false
 	for raw := range strings.SplitSeq(m.View().Content, "\n") {
-		if strings.Contains(raw, blockedStyle.Render("claude")) {
+		if strings.Contains(raw, blockedStyle.Render(" "+glyphAsk)) {
 			styled = true
 		}
 	}
 	if !styled {
-		t.Error("no row renders the label in the blocked style")
+		t.Error("no row renders the mark in the blocked style")
 	}
 
 	// The chord counts it among the waiting, unlike an instance merely idle
@@ -2029,28 +1866,10 @@ func TestTheMarkerLeavesRoomForTheName(t *testing.T) {
 		700: {PID: 700, Status: "busy"},
 	})
 
-	for i, row := range bodyRows(m) {
-		nav, _ := splitRow(row)
-		if w := len([]rune(nav)); w != navWidth {
-			t.Fatalf("row %d is %d columns wide, want %d: %q", i, w, navWidth, nav)
+	for i, row := range strings.Split(m.View().Content, "\n") {
+		if w := lipgloss.Width(stripANSI(row)); w != m.width {
+			t.Fatalf("row %d is %d columns wide, want %d: %q", i, w, m.width, stripANSI(row))
 		}
-	}
-}
-
-func TestAgentDetailIsAskedForOnlyOnAnAgentRow(t *testing.T) {
-	m := withClaude("claude", map[int]claudeSession{
-		700: {PID: 700, Name: "conn-1f", Status: "busy"},
-	})
-
-	repo, _ := m.rows[0], m.rows[1]
-	if got := m.agentFor(repo); got != nil {
-		t.Errorf("agentFor(repo row) = %+v, want nothing", got)
-	}
-	m.cursor = 1
-	proc, _ := m.selected()
-	got, ok := m.agentFor(proc).(claudeSession)
-	if !ok || got.Name != "conn-1f" {
-		t.Errorf("agentFor(claude row) = %+v, want the session", m.agentFor(proc))
 	}
 }
 
@@ -2067,46 +1886,6 @@ func TestTheListKeepsARowHoweverShortTheWindow(t *testing.T) {
 }
 
 // --- the folded run, and unfolding it ------------------------------------
-
-func TestTheDetailPaneNamesTheWholeRun(t *testing.T) {
-	// The shell that started this is not on screen anywhere else once the run
-	// is folded, so the detail pane is where it has to be said.
-	m := withProcList(80, 12,
-		[]Project{{Name: "conn", Path: "/p/conn"}},
-		[]Proc{
-			{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"},
-			{PID: 20, PPID: 10, Command: "nvim", Dir: "/p/conn"},
-			{PID: 21, PPID: 20, Command: "nvim", Dir: "/p/conn"},
-		})
-	m.cursor = 1
-
-	r, _ := m.selected()
-	fs := procFields(r.node, m.rowName(r), r.run, nil)
-
-	got, ok := fieldValue(fs, "run")
-	if !ok {
-		t.Fatalf("no run field: %+v", fs)
-	}
-	if got != "zsh 10 › nvim 20 › nvim 21" {
-		t.Errorf("run = %q, want the whole run oldest first", got)
-	}
-}
-
-func TestARowThatFoldedNothingHasNoRun(t *testing.T) {
-	m := withProcList(80, 12,
-		[]Project{{Name: "conn", Path: "/p/conn"}},
-		[]Proc{
-			{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"},
-			{PID: 20, PPID: 10, Command: "nvim", Dir: "/p/conn"},
-			{PID: 30, PPID: 10, Command: "zig", Dir: "/p/conn"},
-		})
-	m.cursor = 2 // nvim, which folded nothing because zsh branches
-
-	r, _ := m.selected()
-	if _, ok := fieldValue(procFields(r.node, m.rowName(r), r.run, nil), "run"); ok {
-		t.Error("a row that stands for one process should not describe a run")
-	}
-}
 
 func TestDashShowsEveryProcess(t *testing.T) {
 	m := withProcList(80, 12,
@@ -2280,23 +2059,6 @@ func TestCtrlXWhileTypingAsksToKillWhatWasFound(t *testing.T) {
 	}
 	if got := targets(m.pendingKill); len(got) != 1 || got[0] != 100 {
 		t.Fatalf("pending kill on %v, want the vim, pid 100", got)
-	}
-}
-
-func TestNavWidthComesFromConfigWithinReason(t *testing.T) {
-	defer func(w int) { navWidth = w }(navWidth)
-
-	for _, tc := range []struct{ in, want int }{
-		{0, 30},   // unset leaves the default
-		{40, 40},  // a chosen width holds
-		{5, 16},   // too narrow for any name
-		{200, 60}, // most of any screen
-	} {
-		navWidth = 30
-		applyNavWidth(tc.in)
-		if navWidth != tc.want {
-			t.Errorf("applyNavWidth(%d): navWidth = %d, want %d", tc.in, navWidth, tc.want)
-		}
 	}
 }
 
@@ -2959,7 +2721,7 @@ func TestEscWhileTypingPutsTheCursorBack(t *testing.T) {
 
 func TestAFilterThatMatchesNothingSaysSo(t *testing.T) {
 	m := typeFilter(press(narrowed(manyProjects(90, 14)), "/"), "zzz")
-	wantRows(t, navColumn(m), []string{"  no project matches"})
+	wantRows(t, navColumn(m), []string{"  nothing answers zzz"})
 }
 
 func TestTheFooterShowsWhatIsBeingTyped(t *testing.T) {
@@ -2979,10 +2741,10 @@ func TestTheFooterShowsWhatIsBeingTyped(t *testing.T) {
 func TestTheEmptyListPointsAtTheFilter(t *testing.T) {
 	m := narrowed(manyProjects(90, 14))
 	col := strings.Join(navColumn(m), "\n")
-	if !strings.Contains(col, "/  find a project") {
+	if !strings.Contains(col, "find a project") {
 		t.Errorf("empty list = %q, want it to point at the way out", col)
 	}
-	if !strings.Contains(col, "?  the keys") {
+	if !strings.Contains(col, "?   the keys") {
 		t.Errorf("empty list = %q, want the front door to teach the keys", col)
 	}
 }
@@ -3175,12 +2937,12 @@ func TestALoginShellIsStillAShell(t *testing.T) {
 
 // --- the keys, on request ------------------------------------------------
 
-func TestTheFootIsEmptyWhenQuiet(t *testing.T) {
+func TestTheFootSaysTheSessionsFactsWhenQuiet(t *testing.T) {
 	// The keys live behind ?, and the mode is the status line's to show;
-	// the foot says nothing until something has to be said.
+	// the foot says the session's facts until something has to be said.
 	m := manyProjects(90, 14)
-	if got := footer(m); got != "" {
-		t.Errorf("footer = %q, want nothing", got)
+	if got := footer(m); got != "ALL "+m.sessionFacts() {
+		t.Errorf("footer = %q, want the facts alone", got)
 	}
 }
 
@@ -3188,11 +2950,12 @@ func TestQuestionMarkAsksForTheKeysPopup(t *testing.T) {
 	// The navigator's pane is a column; the keys are a page, and the page
 	// is tmux's popup over the whole window, from ? here as from the chord.
 	m, asked := pipeServer(t, manyProjects(90, 14))
+	before := footer(m)
 	m = press(m, "?")
 	if got := askedForKind(t, asked, kindHelp); got.Kind != kindHelp {
 		t.Fatal("? did not ask for the popup")
 	}
-	if got := footer(m); got != "" {
+	if got := footer(m); got != before {
 		t.Errorf("footer = %q, want the foot untouched", got)
 	}
 }
@@ -3222,7 +2985,7 @@ func TestTheKeysPageFitsItsPopup(t *testing.T) {
 			t.Errorf("page row %d is %d columns, wider than the popup's %d: %q", i, got, w, stripANSI(ln))
 		}
 	}
-	for _, key := range []string{"shell", "kill the tree", "the next thing that needs you", "leave"} {
+	for _, key := range []string{"shell", "of the tree", "the next thing owed", "leave"} {
 		if !strings.Contains(keysOf(), key) {
 			t.Errorf("the page does not list %q", key)
 		}
@@ -3251,40 +3014,41 @@ func TestThePopupIsCutToAShortClient(t *testing.T) {
 		t.Errorf("popup = %q, want it on the client that spoke last, 20 rows tall", popup)
 	}
 }
-
-func TestTheNavigatorHoldsItsColumnWhileAShellIsShown(t *testing.T) {
-	// The pane's size reaches the navigator late. A size the width of the
-	// whole window arriving while a shell is shown beside the list is the
-	// size from before the shell joined: drawn at it, the frame overflows
-	// the column and tmux wraps the overflow into the list for a frame.
-	m := withProcList(navWidth, 24,
+func TestConnHoldsItsRowsWhileABufferIsShown(t *testing.T) {
+	// The pane's size reaches conn late. A size the height of the whole
+	// window arriving while a buffer is shown under the tabline is the
+	// size from before the buffer joined: drawn at it, the frame overflows
+	// the chrome and tmux wraps the overflow into the pane for a frame.
+	m := withProcList(80, 24,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
 	m.terms = map[int]*remoteTerm{700: {pid: 700}}
 	m, _ = pipeServer(t, m)
-	m = press(press(m, "down"), "enter") // into the shell: shown beside the list
+	m = press(press(m, "down"), "enter") // into the buffer: shown under the tabline
 
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 254, Height: 62})
 	m = next.(model)
-	if m.width != navWidth {
-		t.Errorf("width = %d with a shell shown, want the column, %d", m.width, navWidth)
+	if m.height != chromeRows {
+		t.Errorf("height = %d with a buffer shown, want the chrome, %d", m.height, chromeRows)
+	}
+	if m.width != 254 {
+		t.Errorf("width = %d, want the window's: the tabline is as wide as it", m.width)
 	}
 
-	// The keys home: the shell is parked, and the navigator has the window.
-	next, _ = m.Update(tea.FocusMsg{})
-	m = next.(model)
+	// The everything view: the buffer is parked, and conn has the window.
+	m = press(m, ".")
 	next, _ = m.Update(tea.WindowSizeMsg{Width: 254, Height: 62})
 	m = next.(model)
-	if m.width != 254 {
-		t.Errorf("width = %d with nothing shown, want the window's 254", m.width)
+	if m.height != 62 {
+		t.Errorf("height = %d with nothing shown, want the window's 62", m.height)
 	}
 
-	// Entering the shell narrows the navigator at once, before the join
-	// it asked for can happen, so no frame is drawn wide into a pane
-	// about to be a column.
+	// Entering the buffer shortens conn at once, before the join it
+	// asked for can happen, so no frame is drawn tall into a pane about
+	// to be two rows.
 	m = press(m, "enter")
-	if m.width != navWidth {
-		t.Errorf("width = %d on entering a shell, want the column at once", m.width)
+	if m.height != chromeRows {
+		t.Errorf("height = %d on entering a buffer, want the chrome at once", m.height)
 	}
 }
 
@@ -3319,9 +3083,9 @@ func TestTheQueryIsALineWithReadlinesKeys(t *testing.T) {
 func TestARowSaysWhereItListens(t *testing.T) {
 	// A dev server's row says what it is; the port beside it says where
 	// it is. The port is the run's — the node under the npm holds it —
-	// and a name too long for the column is the part that gives, not the
+	// and a name too long for the row is the part that gives, not the
 	// port.
-	m := withProcList(90, 14,
+	m := withProcList(30, 14,
 		[]Project{{Name: "conn", Path: "/p/conn"}},
 		[]Proc{
 			{PID: 700, PPID: 1, Command: "npm", Argv: "npm run dev", Dir: "/p/conn"},
@@ -3368,8 +3132,8 @@ func TestARowShowsTheCrossWhenItsCommandEndedBadlyOrItsProcessIsUnwell(t *testin
 	for _, r := range m.rows[1:] {
 		rows[m.rowLabel(r)] = renderRow(m, r)
 	}
-	if row := rows["web"]; !strings.Contains(row, glyphFailed) || !strings.Contains(row, errStyle.Render("web")) {
-		t.Errorf("web = %q, want the cross and the row in red", row)
+	if row := rows["web"]; !strings.Contains(row, errStyle.Render(" "+glyphFailed)) {
+		t.Errorf("web = %q, want the cross in the owed color", row)
 	}
 	if row := rows["job"]; !strings.Contains(row, glyphDone) || strings.Contains(row, glyphFailed) {
 		t.Errorf("job = %q, want the check, ended well", row)
@@ -3413,10 +3177,14 @@ func TestTabGoesToACommandThatEndedBadlyAsToAWaitingAgent(t *testing.T) {
 	if r, ok := m.selected(); !ok || r.kind != rowProc || r.node.PID != 701 {
 		t.Fatalf("cursor on %+v, want the stopped worker", r)
 	}
-	// Then the shell whose command ended badly: focus goes into it.
+	// Then the shell whose command ended badly: its buffer is shown, dead
+	// but readable, and the keys stay with conn — r reruns, q closes.
 	m = press(m, "tab")
-	if got := askedForKind(t, asked, kindFocus); got.PID != 700 {
-		t.Fatalf("tab took focus to %d, want the shell whose command ended badly", got.PID)
+	if got := askedForKind(t, asked, kindShow); got.PID != 700 {
+		t.Fatalf("tab showed %d, want the shell whose command ended badly", got.PID)
+	}
+	if m.shown != 700 || m.focus != 0 {
+		t.Fatalf("shown = %d, focus = %d; want the dead buffer shown and the keys kept", m.shown, m.focus)
 	}
 	// Around again to the worker.
 	m = press(m, "tab")
@@ -3498,11 +3266,11 @@ func TestTheProcessTickNoLongerCarriesTheSessions(t *testing.T) {
 	if !ok {
 		t.Fatal("a tick should schedule more than one thing")
 	}
-	// The process scan, the next tick, and re-inspecting the selected row.
-	// If this becomes four, check that the sessions have not been put back on
-	// this chain as well as their own.
-	if len(batch) != 3 {
-		t.Errorf("tick batched %d commands, want 3", len(batch))
+	// The process scan and the next tick. If this becomes three, check
+	// that the sessions have not been put back on this chain as well as
+	// their own.
+	if len(batch) != 2 {
+		t.Errorf("tick batched %d commands, want 2", len(batch))
 	}
 }
 
@@ -3689,17 +3457,6 @@ func TestTwoOfTheSameCommandAreStillToldApartUnfolded(t *testing.T) {
 	wantRows(t, navColumn(m), []string{" ▸ conn", "      nvim 10", "      nvim 11"})
 }
 
-func TestAProcessListeningNowhereSaysNothingAboutPorts(t *testing.T) {
-	// Most processes are not listening on anything, and a line saying so on
-	// every one of them would be noise.
-	self := &ProcNode{Proc: Proc{PID: pidOfSelf(), PPID: 1, Command: "test", Dir: "/tmp"}}
-	for _, f := range procFields(self, "test", nil, nil) {
-		if f.label == "listening" {
-			t.Errorf("this process is not a server, yet the pane says %q", f.value)
-		}
-	}
-}
-
 func TestPortsAreOrderedByNumber(t *testing.T) {
 	got := []string{"8080", "80", "443"}
 	sortPorts(got)
@@ -3855,32 +3612,6 @@ func TestAScanFailureKeepsTheLastList(t *testing.T) {
 func TestASlowListingIsCutOff(t *testing.T) {
 	if _, err := listing(50*time.Millisecond, "sleep", "5"); err == nil {
 		t.Error("a command that outlives the timeout should come back an error")
-	}
-}
-
-func TestARepoIsReAskedOnItsOwnSlowerCadence(t *testing.T) {
-	// A repository's details are half a dozen git spawns, and git status in a
-	// large checkout is real work; what they say changes at the speed of a
-	// person committing. Only the background refresh slows — landing on a row
-	// still loads it at once, through the cache-miss path.
-	m := threeRepos(8)
-	m.ticks = 1
-	if m.refreshDetailCmd() != nil {
-		t.Error("a repo's details were re-asked on an off-cadence poll")
-	}
-	m.ticks = repoDetailEvery
-	if m.refreshDetailCmd() == nil {
-		t.Error("the cadence tick should refresh the repo's details")
-	}
-}
-
-func TestAProcessIsReAskedOnEveryPoll(t *testing.T) {
-	// cpu, memory and ports are exactly the numbers that move.
-	m := withProcs(80, 8, []Project{{Name: "a", Path: "/p/a"}}, []string{"/p/a"})
-	m.cursor = 1
-	m.ticks = 1
-	if m.refreshDetailCmd() == nil {
-		t.Error("a process's details should refresh on every poll")
 	}
 }
 
@@ -4123,13 +3854,7 @@ func TestLandingOnAShellLeavesItWhereItIsAndSaysWhatItIs(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 	if m.shown != 0 {
-		t.Errorf("shown = %d, want nothing beside the navigator", m.shown)
-	}
-	if !m.showDetail() {
-		t.Error("the navigator should have the window, and its pane in it")
-	}
-	if pane := strings.Join(detailColumn(m), "\n"); !strings.Contains(pane, "loading") && !strings.Contains(pane, "zsh") {
-		t.Errorf("pane = %q, want the shell's row described", pane)
+		t.Errorf("shown = %d, want nothing under the tabline", m.shown)
 	}
 }
 
@@ -4215,7 +3940,7 @@ func TestJStepsDownTheListWhateverTheShellsPids(t *testing.T) {
 func TestJWithNoShellOpenSaysSo(t *testing.T) {
 	m, _ := pipeServer(t, repoModel())
 	m = press(m, "J")
-	if f := footer(m); !strings.Contains(f, "no shell is open") {
+	if f := footer(m); !strings.Contains(f, "no buffer is open") {
 		t.Errorf("footer = %q, want it said that there is nothing to step to", f)
 	}
 }
@@ -4239,11 +3964,11 @@ func TestAShellAChordOpenedIsShownWhenItIsListed(t *testing.T) {
 	}
 }
 
-func TestANavigatorStartingBesideAShownShellBeginsOnItAndParksIt(t *testing.T) {
-	// The last navigator went with a shell shown beside it; the next one
-	// has focus, so the shell goes back to a window of its own, and the
-	// cursor begins on its row — where it was left — rather than wherever
-	// the list happens to start.
+func TestANavigatorStartingUnderAShownBufferKeepsIt(t *testing.T) {
+	// The last navigator went with a buffer shown under it; the next one
+	// keeps it shown — the session restores as it was left — and the
+	// cursor begins on its row rather than wherever the list happens to
+	// start.
 	m := withProcList(90, 14,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
@@ -4253,8 +3978,8 @@ func TestANavigatorStartingBesideAShownShellBeginsOnItAndParksIt(t *testing.T) {
 
 	next, _ := m.Update(sessionsMsg{sessions: []sessionInfo{{PID: 700, Dir: "/tmp", Shown: true}}})
 	m = next.(model)
-	if m.shown != 0 {
-		t.Errorf("shown = %d, want nothing beside the navigator", m.shown)
+	if m.shown != 700 || m.height != chromeRows {
+		t.Errorf("shown = %d at %d rows, want the buffer kept under the chrome", m.shown, m.height)
 	}
 	if r, ok := m.selected(); !ok || !r.holds(700) {
 		t.Errorf("cursor on %+v, want the shell's row", r)
@@ -4283,26 +4008,6 @@ func TestThePickerDrawsInTheNavigatorsOwnPane(t *testing.T) {
 			t.Errorf("the picker moved a shell: %+v", got)
 		}
 	case <-time.After(50 * time.Millisecond):
-	}
-}
-
-func TestAWideNavigatorInANarrowWindowDoesNotPanic(t *testing.T) {
-	// The user sets navWidth, up to 60 — and the terminal sizes the
-	// window. At 60 columns each, the pane came out a column
-	// short of nothing, and the negative width walked into the renderer.
-	old := navWidth
-	t.Cleanup(func() { navWidth = old })
-	applyNavWidth(60)
-
-	m := withProcList(60, 24,
-		[]Project{{Name: "tmp", Path: "/tmp"}},
-		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
-	m.terms = map[int]*remoteTerm{700: {pid: 700}}
-	m.cursor = 1 // the shell's row
-
-	view := stripANSI(m.View().Content)
-	if strings.Contains(view, "│") {
-		t.Errorf("a pane with no room was drawn anyway:\n%s", view)
 	}
 }
 
@@ -4614,9 +4319,10 @@ func TestBackBetweenTwoShellsChosenFromTheListSkipsTheList(t *testing.T) {
 }
 
 func TestTheMouseMovingFocusCountsAsAMove(t *testing.T) {
-	// A click back into the navigator from the shell beside it focuses
-	// the navigator without going through a key: a move back should know
-	// about, and with focus here again, the shell is parked.
+	// A click into conn's pane from the buffer under it focuses conn
+	// without going through a key: a move back should know about. The
+	// buffer stays shown: a dead one answers to conn's keys, and a live
+	// one is a click away.
 	m, asked := twoShells(t)
 	m = press(press(m, "down"), "enter") // into alpha's shell, 701
 	askedForKind(t, asked, kindFocus)
@@ -4626,13 +4332,11 @@ func TestTheMouseMovingFocusCountsAsAMove(t *testing.T) {
 	next, _ := m.Update(tea.FocusMsg{})
 	m = next.(model)
 	if m.focus != 0 || m.was != 701 {
-		t.Fatalf("focus %d, was %d after focus; want the list, from 701", m.focus, m.was)
+		t.Fatalf("focus %d, was %d after focus; want conn, from 701", m.focus, m.was)
 	}
-	if got := askedForKind(t, asked, kindPark); got.PID != 701 {
-		t.Fatalf("asked %+v, want the shell parked now focus is here", got)
-	}
-	if m.shown != 0 {
-		t.Errorf("shown = %d, want nothing beside the navigator", m.shown)
+	notAsked(t, asked, kindPark)
+	if m.shown != 701 {
+		t.Errorf("shown = %d, want the buffer kept under the tabline", m.shown)
 	}
 	// The navigator blurring with nothing beside it — the mouse on another
 	// window — is not a move into anything.
@@ -4707,35 +4411,26 @@ func TestKillingAShellRunningACommandSignalsTheCommandFirst(t *testing.T) {
 	m, asked := pipeServer(t, m)
 	m = press(m, "down") // onto the run, named for docker compose up
 	m = press(m, "x")
-	if f := footer(m); !strings.Contains(f, "kill docker 20 and its shell?") {
-		t.Fatalf("footer = %q, want the command and its shell asked about", f)
+	if f := footer(m); !strings.Contains(f, "CONFIRM") || !strings.Contains(f, "docker compose up") {
+		t.Fatalf("footer = %q, want the command asked about", f)
 	}
 
 	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
-	if len(hungUp) != 1 || hungUp[0].pid != 10 || !hungUp[0].hungUp {
-		t.Errorf("hung up %+v, want the shell alone", hungUp)
+	if len(hungUp) != 0 {
+		t.Errorf("hung up %+v, want the shell kept: the buffer is the record", hungUp)
 	}
 	if got := pids(signalled); !slices.Equal(got, []int{20, 30}) {
 		t.Errorf("signalled %v, want what runs in the shell, parents first", got)
 	}
-	// The shell is hung up once the command has gone, not now: hung up
-	// first, docker compose up leaves its containers running.
+	// The shell is never hung up: the command is signalled — hung up first,
+	// docker compose up would leave its containers running — and the shell
+	// stays at its prompt beneath the transcript, dead but readable.
 	notAsked(t, asked, kindClose)
-	if _, waiting := m.closing[10]; !waiting {
-		t.Fatal("the shell should be waiting to be hung up")
-	}
-	if !m.spinNeeded() {
-		t.Error("the wait should keep the scans coming")
-	}
-
-	// The scan that finds the command gone hangs the shell up.
 	next, _ := m.Update(procsMsg{procs: []Proc{{PID: 10, PPID: 1, Command: "zsh", Dir: "/p/conn"}}})
 	m = next.(model)
-	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
-		t.Errorf("asked %+v, want the shell hung up", got)
-	}
-	if len(m.closing) != 0 {
-		t.Errorf("closing = %v, want nothing left waiting", m.closing)
+	notAsked(t, asked, kindClose)
+	if _, held := m.terms[10]; !held {
+		t.Error("the shell should still be held")
 	}
 }
 
@@ -4756,13 +4451,13 @@ func TestKillingTheShellRowItselfSignalsWhatRunsInIt(t *testing.T) {
 	m, asked := pipeServer(t, m)
 	m = press(press(m, "-"), "down") // unfolded, the shell has a row of its own
 	m = press(m, "x")
-	if f := footer(m); !strings.Contains(f, "kill zsh 10?") {
+	if f := footer(m); !strings.Contains(f, "zsh") {
 		t.Fatalf("footer = %q, want the shell asked about", f)
 	}
 
 	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
-	if len(hungUp) != 1 || hungUp[0].pid != 10 {
-		t.Errorf("hung up %+v, want the shell", hungUp)
+	if len(hungUp) != 0 {
+		t.Errorf("hung up %+v, want the shell kept while something runs in it", hungUp)
 	}
 	if got := pids(signalled); !slices.Equal(got, []int{20, 30}) {
 		t.Errorf("signalled %v, want what runs in the shell, parents first", got)
@@ -4784,9 +4479,6 @@ func TestAShellAtItsPromptIsHungUpAtOnce(t *testing.T) {
 	if got := askedForKind(t, asked, kindClose); got.PID != 10 {
 		t.Errorf("asked %+v, want the idle shell hung up now", got)
 	}
-	if len(m.closing) != 0 {
-		t.Errorf("closing = %v, want nothing waiting", m.closing)
-	}
 }
 
 func TestAShellWhoseCommandDoesNotExitStaysOpen(t *testing.T) {
@@ -4798,9 +4490,6 @@ func TestAShellWhoseCommandDoesNotExitStaysOpen(t *testing.T) {
 	// The frames pass with the command still listed.
 	for range killLinger + 1 {
 		m.ageDying()
-	}
-	if len(m.closing) != 0 {
-		t.Errorf("closing = %v, want the wait given up", m.closing)
 	}
 	next, _ := m.Update(procsMsg{procs: m.procs})
 	m = next.(model)
@@ -4820,34 +4509,28 @@ func TestAShellClosedByHandIsNotWaitedOn(t *testing.T) {
 	next, _ = m.Update(procsMsg{procs: nil})
 	m = next.(model)
 	notAsked(t, asked, kindClose)
-	if len(m.closing) != 0 {
-		t.Errorf("closing = %v, want nothing waiting on a shell that went", m.closing)
-	}
 }
 
-func TestXOnAnEntryIsNamedForItAndTakesItsShell(t *testing.T) {
+func TestXOnAnEntryIsNamedForItAndKeepsItsShell(t *testing.T) {
 	m, asked := pipeServer(t, composeTree()) // app: zsh 10 running docker compose up
 	m = press(press(m, "down"), "x")
-	if f := footer(m); !strings.Contains(f, "kill app?") {
+	if f := footer(m); !strings.Contains(f, "app") {
 		t.Fatalf("footer = %q, want the entry named", f)
 	}
 	if got := targets(m.pendingKill); !slices.Equal(got, []int{10, 20, 30}) {
 		t.Errorf("targets = %v, want the shell and what runs in it", got)
 	}
 	hungUp, signalled := m.splitKill(m.pendingKill.nodes)
-	if len(hungUp) != 1 || hungUp[0].pid != 10 || len(signalled) != 2 {
-		t.Errorf("hung up %v, signalled %v; want the command signalled and the shell to follow", hungUp, signalled)
+	if len(hungUp) != 0 || len(signalled) != 2 {
+		t.Errorf("hung up %v, signalled %v; want the command signalled and the shell kept", hungUp, signalled)
 	}
-	// The shell goes once the command has: the entry is then gone
-	// altogether, as an entry nothing runs in is.
+	// The shell stays: the buffer is the record of the ending, and r runs
+	// the entry again in it.
 	notAsked(t, asked, kindClose)
-	if _, waiting := m.closing[10]; !waiting {
-		t.Error("the shell should be waiting to be hung up")
-	}
 
 	// Unfolded, on the shell's own row, the same.
 	m = press(press(press(m, "esc"), "-"), "x")
-	if f := footer(m); !strings.Contains(f, "kill app?") {
+	if f := footer(m); !strings.Contains(f, "app") {
 		t.Errorf("footer = %q, want the entry named on its shell's row too", f)
 	}
 }
@@ -4861,7 +4544,7 @@ func TestXOnAnEndedEntryClosesItsShellByName(t *testing.T) {
 	m.rebuild()
 	m, asked := pipeServer(t, m)
 	m = press(press(m, "down"), "x")
-	if f := footer(m); !strings.Contains(f, "kill app 10?") {
+	if f := footer(m); !strings.Contains(f, "app") {
 		t.Fatalf("footer = %q, want the ended entry's shell asked about by name", f)
 	}
 	m.splitKill(m.pendingKill.nodes)
@@ -4884,11 +4567,11 @@ func TestAgoSaysJustNowForAMomentAgo(t *testing.T) {
 func TestTheConfirmationOffersTheOtherSignals(t *testing.T) {
 	// The plain prompt names the keys that send something other than
 	// SIGTERM: a dev server that only tears down on ctrl-c wants SIGINT.
-	m := press(press(nestedTree(12), "down"), "x")
-	f := footer(m)
+	m := press(press(nestedTree(24), "down"), "x")
+	f := strings.Join(bodyRows(m), " ")
 	for _, want := range []string{"9 kills outright", "i interrupts", "h hangs up"} {
 		if !strings.Contains(f, want) {
-			t.Errorf("footer = %q, want it to offer %q", f, want)
+			t.Errorf("preview = %q, want it to offer %q", f, want)
 		}
 	}
 }
@@ -4932,8 +4615,11 @@ func TestXOnAProcessOnItsWayOutOffersSIGKILL(t *testing.T) {
 	if m.pendingKill == nil || m.pendingKill.signalOf() != syscall.SIGKILL {
 		t.Fatalf("pendingKill = %+v, want SIGKILL armed", m.pendingKill)
 	}
-	if f := footer(m); !strings.Contains(f, "kill zsh 10 outright?") || strings.Contains(f, "9 kills") {
-		t.Errorf("footer = %q, want the escalation said, and nothing past it offered", f)
+	if f := footer(m); !strings.Contains(f, "outright") {
+		t.Errorf("footer = %q, want the escalation said", f)
+	}
+	if preview := strings.Join(bodyRows(m), " "); !strings.Contains(preview, "outright") {
+		t.Errorf("preview = %q, want the confirm line to say outright", preview)
 	}
 }
 
@@ -5000,15 +4686,15 @@ func TestATreeKillCoversTheProcessGroup(t *testing.T) {
 	if got, want := targets(m.pendingKill), []int{10, 20, 60}; !slices.Equal(got, want) {
 		t.Errorf("targets = %v, want %v: the tree, then the group's straggler", got, want)
 	}
-	if f := footer(m); !strings.Contains(f, "and 2 under it") {
+	if f := footer(m); !strings.Contains(f, "3 processes") {
 		t.Errorf("footer = %q, want the straggler counted", f)
 	}
 
-	// A plain x takes the one process, as ever.
+	// A plain x previews the same tree, and takes the one process at it.
 	m.pendingKill = nil
 	m = press(m, "x")
-	if got := targets(m.pendingKill); !slices.Equal(got, []int{20}) {
-		t.Errorf("x targets = %v, want the row's process alone", got)
+	if got := pids(m.pendingKill.head); !slices.Equal(got, []int{20}) {
+		t.Errorf("x's head = %v, want the row's process alone", got)
 	}
 }
 
@@ -5122,31 +4808,33 @@ func placeNames(m model) []string {
 	}
 	return names
 }
-
-func TestTheCornerCountsWhatNeedsYou(t *testing.T) {
-	// The status line's corner says how many rows need you, in words, and
-	// nothing when none does — the number is there before the list says
+func TestTheModeChipCountsWhatIsOwed(t *testing.T) {
+	// The status line's mode chip says how many answers are owed, and
+	// nothing when none is — the number is there before the list says
 	// where, folded or not.
 	m := withClaude("claude", map[int]claudeSession{
 		700: {PID: 700, Name: "conn-1f", Status: waitingStatus, WaitingFor: "permission prompt"},
 	})
-	if got := m.statusLine().need; got != "1 needs you" {
-		t.Errorf("need = %q, want the one blocked instance counted", got)
+	// With a buffer shown; the everything view's chip outranks the count.
+	m.all, m.shown = false, 700
+	m.keepRows()
+	if got := stripTmux(m.statusLine().mode); !strings.Contains(got, "1 OWED") {
+		t.Errorf("mode = %q, want the one blocked instance counted", got)
 	}
-	// The words reach the server's option, for the corner to read.
+	// The chip reaches the server's option, for the line to read.
 	m, asked := pipeServer(t, m)
 	m.dressStatus()
-	if got := askedForKind(t, asked, kindNeed); got.Name != "1 needs you" {
-		t.Errorf("the server was told %q, want the count in words", got.Name)
+	if got := askedForKind(t, asked, kindMode); !strings.Contains(got.Name, "1 OWED") {
+		t.Errorf("the server was told %q, want the count", got.Name)
 	}
 	m.collapsed[detailKey(m.rows[0])] = true
 	m.rebuild()
-	if got := m.statusLine().need; got != "1 needs you" {
-		t.Errorf("need = %q after folding the place, want the count to stand", got)
+	if got := stripTmux(m.statusLine().mode); !strings.Contains(got, "1 OWED") {
+		t.Errorf("mode = %q after folding the place, want the count to stand", got)
 	}
 	m.agents = asAgents(map[int]claudeSession{700: {PID: 700, Status: "idle"}})
-	if got := m.statusLine().need; got != "" {
-		t.Errorf("need = %q, want nothing said when nothing needs you", got)
+	if got := m.statusLine().mode; got != "" {
+		t.Errorf("mode = %q, want nothing said when nothing is owed", got)
 	}
 }
 

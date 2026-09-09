@@ -5,7 +5,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,7 +13,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
 // insideShell puts a process under a shell the server holds: a claude
@@ -236,8 +234,8 @@ func TestAProcessInNobodysShellIsJustItself(t *testing.T) {
 	m.cursor = 1
 
 	next, _ := m.Update(typed("x"))
-	if got := targets(next.(model).pendingKill); !slices.Equal(got, []int{801}) {
-		t.Errorf("targets = %v, want just the process", got)
+	if got := pids(next.(model).pendingKill.head); !slices.Equal(got, []int{801}) {
+		t.Errorf("head = %v, want just the process", got)
 	}
 }
 
@@ -301,7 +299,7 @@ func TestRAsksBeforeEndingTheWorkItHolds(t *testing.T) {
 	if !m.pendingReplace {
 		t.Fatal("R should ask before ending the shells the server holds")
 	}
-	if f := footer(m); !strings.Contains(f, "end the server, and 1 shell?") {
+	if f := footer(m); !strings.Contains(f, "end the server, and 1 buffer?") {
 		t.Errorf("footer = %q, want it to say what it is about to end", f)
 	}
 }
@@ -615,38 +613,33 @@ func TestTheKeysListTheKindKey(t *testing.T) {
 		}
 	}
 }
-
-func TestAHeldShellsRowDrawsItsFactsNotItsScreen(t *testing.T) {
-	// The shell itself is tmux's pane beside the navigator only while it
-	// has focus. With the navigator focused its own pane says what the
-	// row is, and never tries to draw what the shell is showing.
-	m := withProcList(90, 24,
+func TestUnderTheTablineAShownBufferLeavesConnTheChrome(t *testing.T) {
+	// With a buffer shown, conn's pane is exactly the chrome tall — the
+	// tabline and the buffer's heading — and no wider than the window:
+	// tmux draws the border and everything under it.
+	m := withProcList(80, 24,
 		[]Project{{Name: "tmp", Path: "/tmp"}},
 		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
-	m.terms = map[int]*remoteTerm{700: {pid: 700}}
+	m.terms = map[int]*remoteTerm{700: {pid: 700, dir: "/tmp"}}
+	m.rebuild()
 	m.cursor = 1
-	m.details[detailKey(m.rows[1])] = []field{heading("zsh 700"), note("/tmp")}
+	m.shown = 700
+	m.keepRows()
 
-	pane := stripANSI(strings.Join(m.paneLines(60, 24), "\n"))
-	if !strings.Contains(pane, "zsh 700") {
-		t.Errorf("pane lacks the row's facts:\n%s", pane)
+	lines := strings.Split(stripANSI(m.layout()), "\n")
+	if len(lines) != chromeRows {
+		t.Fatalf("layout is %d lines, want the chrome's %d", len(lines), chromeRows)
 	}
-}
-
-func TestBesideAShownShellTheNavigatorIsOnlyItsColumn(t *testing.T) {
-	// With a shell shown, the navigator's pane is exactly its column wide,
-	// and it draws no pane of its own: tmux draws the border and everything
-	// right of it.
-	m := withProcList(navWidth, 24,
-		[]Project{{Name: "tmp", Path: "/tmp"}},
-		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
-	m.terms = map[int]*remoteTerm{700: {pid: 700}}
-	m.cursor = 1
-
-	for i, line := range strings.Split(stripANSI(m.layout()), "\n") {
-		if strings.Contains(line, glyphDivider) || lipgloss.Width(line) > navWidth {
-			t.Fatalf("line %d = %q, want the navigator's column and nothing beside it", i, line)
+	for i, line := range lines {
+		if lipgloss.Width(line) > m.width {
+			t.Fatalf("line %d = %q, want it within the window", i, line)
 		}
+	}
+	if !strings.Contains(lines[0], "tmp/zsh") {
+		t.Errorf("tabline = %q, want the buffer's tab", lines[0])
+	}
+	if !strings.Contains(lines[1], "zsh") || !strings.Contains(lines[1], "in tmp") {
+		t.Errorf("heading = %q, want the buffer named and placed", lines[1])
 	}
 }
 
@@ -657,78 +650,5 @@ func TestAPasteAtTheNavigatorSaysWhereItWent(t *testing.T) {
 	next, _ := m.Update(tea.PasteMsg{Content: "some text"})
 	if f := footer(next.(model)); !strings.Contains(f, "nothing here to paste") {
 		t.Errorf("footer = %q, want the paste explained", f)
-	}
-}
-
-func TestATranscriptTooTallForThePaneShowsItsLastLines(t *testing.T) {
-	// The pane keeps the facts above and the heading, and drops the
-	// transcript's oldest lines to fit: what the shell showed last is
-	// what there is to read.
-	m := withProcList(90, 24,
-		[]Project{{Name: "tmp", Path: "/tmp"}},
-		[]Proc{{PID: 700, PPID: 1, Command: "zsh", Dir: "/tmp"}})
-	m.cursor = 1
-	fs := []field{heading("zsh 700"), note("/tmp"), gap(), {label: "parent", value: "1"}}
-	var lines []string
-	for i := 1; i <= 30; i++ {
-		lines = append(lines, fmt.Sprintf("line %d", i))
-	}
-	fs = append(fs, transcript(lines)...)
-	m.details[detailKey(m.rows[1])] = fs
-
-	got := stripANSI(strings.Join(m.detailLines(60, 12), "\n"))
-	rows := strings.Split(got, "\n")
-	if len(rows) != 12 {
-		t.Fatalf("pane is %d rows, want 12:\n%s", len(rows), got)
-	}
-	for _, want := range []string{"zsh 700", "parent", "transcript", "line 30"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("pane lacks %q:\n%s", want, got)
-		}
-	}
-	if strings.Contains(got, "line 1\n") || strings.Contains(got, "line 22") {
-		t.Errorf("pane shows the transcript's oldest lines rather than its last:\n%s", got)
-	}
-	if !strings.HasSuffix(strings.TrimRight(got, " "), "line 30") {
-		t.Errorf("pane does not end on the last line shown:\n%s", got)
-	}
-}
-
-func TestALeadStandsAheadOfItsValueInItsOwnTone(t *testing.T) {
-	// A commit's hash before its subject, a plan entry's mark and name
-	// before its command: the lead is picked out in its tone, and the
-	// value follows in its own.
-	lines := wrapField(field{label: "last commit", lead: "abc1234", leadTone: toneAccent, value: "first commit"}, 11, 60)
-	if len(lines) != 1 || !strings.Contains(stripANSI(lines[0]), "abc1234  first commit") {
-		t.Errorf("lines = %q, want the lead ahead of the value", lines)
-	}
-	if !strings.Contains(lines[0], toneStyles[toneAccent].Render("abc1234")) {
-		t.Errorf("line = %q, want the lead in the accent", lines[0])
-	}
-	// A lead alone has no gap after it.
-	lines = wrapField(field{label: "needs", lead: glyphOn + " web", leadTone: toneGood}, 5, 60)
-	if got := strings.TrimRight(stripANSI(lines[0]), " "); !strings.HasSuffix(got, glyphOn+" web") {
-		t.Errorf("line = %q, want the lead and nothing after", got)
-	}
-}
-
-func TestATranscriptLineKeepsItsColorsAndIsCutToThePane(t *testing.T) {
-	// The shell drew the line in its colors; the pane keeps them, cuts
-	// the line at its width without cutting through an escape, and ends
-	// it reset so nothing the shell set leaks into the next line.
-	red := "\x1b[31m"
-	line := red + "error: something went badly wrong in a long line" + "\x1b[0m"
-	got := renderBlock([]field{heading("transcript"), text(line)}, 20)
-	if len(got) != 2 {
-		t.Fatalf("got %d lines, want the heading and the line", len(got))
-	}
-	if w := lipgloss.Width(got[1]); w > 20 {
-		t.Errorf("line is %d wide, want at most 20: %q", w, got[1])
-	}
-	if !strings.Contains(got[1], red) || !strings.HasSuffix(got[1], ansi.ResetStyle) {
-		t.Errorf("line = %q, want the shell's color kept and a reset at the end", got[1])
-	}
-	if !strings.Contains(got[0], titleStyle.Render("transcript")) {
-		t.Errorf("heading = %q, want the pane's title style", got[0])
 	}
 }

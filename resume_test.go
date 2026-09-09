@@ -3,11 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // agedTranscript files a transcript through writeTranscript, then ages it
@@ -139,99 +136,6 @@ func TestShortAge(t *testing.T) {
 		}
 	}
 }
-
-// pickerOn is a model standing on a repository with the picker open and a
-// listing already landed.
-func pickerOn(convos ...conversation) model {
-	m := withProcs(96, 14, []Project{{Name: "conn", Path: "/p/conn"}}, nil)
-	for i := range convos {
-		if convos[i].Kind == "" {
-			convos[i].Kind = "claude" // stamped by the layer in earnest
-		}
-	}
-	m.resume = &resumeView{place: Project{Name: "conn", Path: "/p/conn"}, loaded: true, convos: convos}
-	return m
-}
-
-func TestAOpensThePickerOnThePlace(t *testing.T) {
-	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(t.TempDir(), "absent"))
-	m := withProcs(96, 14, []Project{{Name: "conn", Path: "/p/conn"}}, nil)
-
-	next, cmd := m.Update(typed("A"))
-	m = next.(model)
-	if m.resume == nil || m.resume.place.Path != "/p/conn" {
-		t.Fatalf("picker = %+v, want it open on the selected place", m.resume)
-	}
-	if cmd == nil {
-		t.Fatal("no listing was asked for")
-	}
-	msg, ok := cmd().(convosMsg)
-	if !ok || msg.place != "/p/conn" {
-		t.Fatalf("listing = %+v, want convosMsg for the place", msg)
-	}
-	next, _ = m.Update(msg)
-	m = next.(model)
-	if !m.resume.loaded {
-		t.Fatal("the landed listing did not mark the picker loaded")
-	}
-}
-
-func TestPickerTypingNarrowsAndEnterContinues(t *testing.T) {
-	m := pickerOn(
-		conversation{ID: "aaaa-1111", Dir: "/p/conn", Prompt: "fix the resize race"},
-		conversation{ID: "bbbb-2222", Dir: "/p/conn/docs", Prompt: "polish the site"},
-	)
-	m, asked := pipeServer(t, m)
-
-	for _, k := range []string{"s", "i", "t", "e"} {
-		m = press(m, k)
-	}
-	if got := m.resume.matches(); len(got) != 1 || got[0].ID != "bbbb-2222" {
-		t.Fatalf("matches = %+v, want the query to narrow to the site work", got)
-	}
-
-	m = press(m, "enter")
-	got := askedFor(t, asked)
-	if got.Kind != kindOpen || got.Dir != "/p/conn/docs" || got.Run != "claude --resume bbbb-2222" {
-		t.Fatalf("asked %+v, want the conversation continued where it was had", got)
-	}
-	if m.resume != nil {
-		t.Error("the picker is still open after acting; picking is the end of looking")
-	}
-}
-
-func TestPickerEscReturnsToTheNavigator(t *testing.T) {
-	m := pickerOn(conversation{ID: "aaaa-1111", Prompt: "anything"})
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if next.(model).resume != nil {
-		t.Fatal("esc left the picker open")
-	}
-}
-
-func TestPickerCursorMovesAndWraps(t *testing.T) {
-	m := pickerOn(
-		conversation{ID: "aaaa-1111", Prompt: "one"},
-		conversation{ID: "bbbb-2222", Prompt: "two"},
-	)
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	m = next.(model)
-	if m.resume.cursor != 1 {
-		t.Fatalf("cursor = %d after down, want 1", m.resume.cursor)
-	}
-	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
-	if got := next.(model).resume.cursor; got != 0 {
-		t.Fatalf("cursor = %d, want the wrap back to the top", got)
-	}
-}
-
-func TestAStaleListingIsDropped(t *testing.T) {
-	m := pickerOn(conversation{ID: "aaaa-1111", Prompt: "current"})
-	next, _ := m.Update(convosMsg{place: "/p/other", convos: []conversation{{ID: "cccc-3333"}}})
-	if got := next.(model).resume.convos; len(got) != 1 || got[0].ID != "aaaa-1111" {
-		t.Fatalf("convos = %+v, want another place's listing dropped", got)
-	}
-}
-
 func TestConvoDirsCoverThePlace(t *testing.T) {
 	m := withProcs(96, 14, []Project{
 		{Name: "a", Path: "/g/one/a", Group: "/g/one"},
@@ -272,63 +176,6 @@ func TestLiveConversationsAreVettedAgainstTheTable(t *testing.T) {
 	})
 	if live := m.liveConversations(); live["left-2222"] {
 		t.Fatal("a stale session file hid the conversation it left behind")
-	}
-}
-
-func TestPickerListsWhatCouldBeContinued(t *testing.T) {
-	m := pickerOn(
-		conversation{ID: "aaaa-1111", When: time.Now().Add(-2 * time.Hour),
-			Branch: "main", Prompt: "fix the resize race"},
-	)
-	pane := stripANSI(strings.Join(m.resumeLines(60, 12), "\n"))
-	for _, want := range []string{"conn", "suspended conversations", "2h", "main", "fix the resize race"} {
-		if !strings.Contains(pane, want) {
-			t.Errorf("pane = %q, missing %q", pane, want)
-		}
-	}
-}
-
-func TestPickerSaysWhenNothingAnswers(t *testing.T) {
-	m := pickerOn(conversation{ID: "aaaa-1111", Prompt: "one thing"})
-	m = press(m, "z")
-	pane := stripANSI(strings.Join(m.resumeLines(60, 12), "\n"))
-	if !strings.Contains(pane, "nothing answers z") {
-		t.Errorf("pane = %q, want it to say nothing answers", pane)
-	}
-
-	m.resume = &resumeView{place: Project{Name: "conn"}, loaded: true}
-	pane = stripANSI(strings.Join(m.resumeLines(60, 12), "\n"))
-	if !strings.Contains(pane, "none to continue") {
-		t.Errorf("pane = %q, want it to say there is nothing suspended", pane)
-	}
-}
-
-func TestPickerFootShowsTheQuery(t *testing.T) {
-	m := pickerOn(conversation{ID: "aaaa-1111", Prompt: "one thing"})
-	m = press(m, "o")
-	if f := footer(m); !strings.Contains(f, "/o█") {
-		t.Errorf("footer = %q, want the query being typed", f)
-	}
-}
-
-func TestThePickerShowsTheSelectedConversationWhole(t *testing.T) {
-	// A row can only truncate the prompt; the block beneath the list says
-	// it whole, with the branch and the place it was had.
-	m := pickerOn(
-		conversation{ID: "aaaa-1111", Dir: "/p/conn/docs", Branch: "site",
-			Prompt: "make the long prompt that a narrow row could never hold visible in full"},
-	)
-	pane := stripANSI(strings.Join(m.resumeLines(60, 24), "\n"))
-	for _, want := range []string{"hold visible in full", "site", "/p/conn/docs"} {
-		if !strings.Contains(pane, want) {
-			t.Errorf("pane missing %q:\n%s", want, pane)
-		}
-	}
-
-	// A short pane keeps the list whole instead.
-	short := stripANSI(strings.Join(m.resumeLines(60, 8), "\n"))
-	if strings.Contains(short, "asked") {
-		t.Errorf("a short pane should not spend rows on the detail:\n%s", short)
 	}
 }
 

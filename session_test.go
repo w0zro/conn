@@ -83,10 +83,10 @@ func TestOpeningAShellHoldsItInAWindowOfItsOwn(t *testing.T) {
 	}
 }
 
-func TestTheShellIsShownBesideTheNavigatorAndParkedAgain(t *testing.T) {
-	// The shell is a tmux pane. Shown, it sits in the home window beside the
-	// navigator's pane, which keeps its column; parked, it is back in a
-	// window of its own and the navigator has the home window to itself.
+func TestTheBufferIsShownUnderTheTablineAndParkedAgain(t *testing.T) {
+	// The buffer is a tmux pane. Shown, it sits in the home window under
+	// conn's pane, which keeps its rows; parked, it is back in a window of
+	// its own and conn has the home window to itself.
 	m := connected(t, repoModel())
 	out, err := tmuxCommand("new-session", "-d", "-s", tmuxSession, "-x", "120", "-y", "30",
 		"-n", homeName, "-P", "-F", "#{window_id}\t#{pane_id}", "sleep 30")
@@ -95,7 +95,7 @@ func TestTheShellIsShownBesideTheNavigatorAndParkedAgain(t *testing.T) {
 	}
 	f := strings.Split(out, "\t")
 	markHome(f[0], f[1], buildVersion())
-	if _, err := tmuxCommand("set", "-g", "main-pane-width", "28"); err != nil {
+	if _, err := tmuxCommand("set", "-g", "main-pane-height", "2"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -106,9 +106,9 @@ func TestTheShellIsShownBesideTheNavigatorAndParkedAgain(t *testing.T) {
 
 	m.server.show(pid)
 	m = pump(t, m, shown, 10*time.Second)
-	out, _ = tmuxCommand("list-panes", "-t", f[0], "-F", "#{pane_id} #{pane_left} #{pane_width} #{pane_active}")
-	if !strings.Contains(out, f[1]+" 0 28 0") || !strings.Contains(out, m.server.pane(pid).id+" 29 ") {
-		t.Errorf("home window panes:\n%s\nwant the navigator 28 wide on the left and the shell active beside it", out)
+	out, _ = tmuxCommand("list-panes", "-t", f[0], "-F", "#{pane_id} #{pane_top} #{pane_height} #{pane_active}")
+	if !strings.Contains(out, f[1]+" 0 2 0") || !strings.Contains(out, m.server.pane(pid).id+" 3 ") {
+		t.Errorf("home window panes:\n%s\nwant conn 2 rows tall on top and the buffer active under it", out)
 	}
 
 	// A second shell, previewed from the list: it trades places with the

@@ -109,11 +109,13 @@ func parseNote(line string) ctlNote {
 	case strings.HasPrefix(line, "%window-close "),
 		strings.HasPrefix(line, "%unlinked-window-close "),
 		strings.HasPrefix(line, "%window-add "),
+		strings.HasPrefix(line, "%window-renamed "),
 		strings.HasPrefix(line, "%layout-change "):
 		// Either way the windows are not what they were: one came or went,
-		// or a pane moved between two — a shell shown beside the navigator
-		// or parked again. What holds what is asked of tmux rather than
-		// tracked by arithmetic.
+		// a pane moved between two — a buffer shown under the tabline or
+		// parked again — or a window was named for wanting, which is how
+		// the finder asks for a buffer already held to be shown. What
+		// holds what is asked of tmux rather than tracked by arithmetic.
 		return ctlNote{kind: noteWindows}
 	case line == "%exit" || strings.HasPrefix(line, "%exit "):
 		return ctlNote{kind: noteExit}

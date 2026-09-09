@@ -111,8 +111,8 @@ func (l *latest[T]) idle() bool {
 	return !l.busy
 }
 
-// homeWith is a fake tmux for showPane: a home window holding the navigator
-// %0 and, when shown is not empty, that pane beside it. It records the one
+// homeWith is a fake tmux for showPane: a home window holding conn's pane
+// %0 and, when shown is not empty, that pane under it. It records the one
 // command that moves a pane.
 func homeWith(shown string) (runner, *[]string) {
 	var moved []string
@@ -145,19 +145,19 @@ func TestShowingAShellJoinsSwapsOrParks(t *testing.T) {
 		shown, target string
 		want          string
 	}{
-		// Nothing beside the navigator: the shell joins it, and the layout
-		// gives the navigator its column.
-		{"", "%5", "join-pane -h -d -l 91 -s %5 -t %0 ; select-layout -t %0 main-vertical"},
-		// A shell there already: the two trade places, so the one leaving
+		// Nothing under the tabline: the buffer joins beneath it, and the
+		// layout gives conn its rows.
+		{"", "%5", "join-pane -v -d -l 26 -s %5 -t %0 ; select-layout -t %0 main-horizontal"},
+		// A buffer there already: the two trade places, so the one leaving
 		// takes the window the other came from, sized to the slot it left.
-		{"%3", "%5", "swap-pane -d -s %5 -t %3 ; resize-window -t %3 -x 91 -y 29"},
-		// No shell wanted: the one there goes back to a window of its own,
+		{"%3", "%5", "swap-pane -d -s %5 -t %3 ; resize-window -t %3 -x 120 -y 26"},
+		// No buffer wanted: the one there goes back to a window of its own,
 		// at the slot's size.
-		{"%3", "", "break-pane -d -n shell -s %3 ; resize-window -t %3 -x 91 -y 29"},
+		{"%3", "", "break-pane -d -n shell -s %3 ; resize-window -t %3 -x 120 -y 26"},
 	}
 	for _, c := range cases {
 		run, moved := homeWith(c.shown)
-		if err := showPane(run, "%0", c.target, 28); err != nil {
+		if err := showPane(run, "%0", c.target); err != nil {
 			t.Fatal(err)
 		}
 		if len(*moved) != 1 || (*moved)[0] != c.want {
@@ -169,7 +169,7 @@ func TestShowingAShellJoinsSwapsOrParks(t *testing.T) {
 func TestShowingTheShellAlreadyShownMovesNothing(t *testing.T) {
 	for _, shown := range []string{"", "%3"} {
 		run, moved := homeWith(shown)
-		if err := showPane(run, "%0", shown, 28); err != nil {
+		if err := showPane(run, "%0", shown); err != nil {
 			t.Fatal(err)
 		}
 		if len(*moved) != 0 {
@@ -186,7 +186,6 @@ func TestArrangementsCoalesceToTheLastAsked(t *testing.T) {
 	s := newSession()
 	s.closed = true
 	s.nav = "%0"
-	s.column = 28
 	for pid := 1; pid <= 4; pid++ {
 		id := "%" + strconv.Itoa(pid)
 		s.panes[pid] = &pane{id: id, pid: pid}
@@ -228,7 +227,7 @@ func TestArrangementsCoalesceToTheLastAsked(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(moved) != 2 || !strings.Contains(moved[0], "join-pane -h -d -l 91 -s %1 ") || !strings.Contains(moved[1], "join-pane -h -d -l 91 -s %4 ") {
+	if len(moved) != 2 || !strings.Contains(moved[0], "join-pane -v -d -l 26 -s %1 ") || !strings.Contains(moved[1], "join-pane -v -d -l 26 -s %4 ") {
 		t.Errorf("moved %q, want the first ask and then only the last", moved)
 	}
 }

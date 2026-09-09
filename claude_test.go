@@ -251,54 +251,19 @@ func TestMissingTranscriptLeavesTheSessionAlone(t *testing.T) {
 	}
 }
 
-func TestClaudeFieldsLeadWithTheSession(t *testing.T) {
-	fs := claudeFields(claudeSession{
-		Name: "conn-1f", Status: "busy", StatusFor: 3 * time.Minute,
-		Summary: "building conn", Model: "claude-opus-5", Context: 177664,
-		Prompt: "make the spinner red",
-		Branch: "main", SessionID: "abc",
+func TestClaudeFactsSayTheBranchAndTheContext(t *testing.T) {
+	// A heading's facts: the branch, the context in tokens, the subagents
+	// out — and nothing for what is unknown.
+	facts := claudeFacts(claudeSession{
+		Branch: "main", Context: 177664,
+		Agents: []agentRun{{Description: "read the tests"}},
 	})
-
-	// What it is, then what it is doing, then what it is doing it with.
-	pairs := pairsOf(fs)
-	want := []string{"session", "status", "branch", "summary", "asked", "model", "context", "session id"}
-	for i, label := range want {
-		if i >= len(pairs) || pairs[i].label != label {
-			t.Fatalf("field %d = %q, want %q\nall: %+v", i, labelAt(pairs, i), label, fs)
-		}
+	want := []string{"main", "177k tokens", "1 agent out"}
+	if strings.Join(facts, "|") != strings.Join(want, "|") {
+		t.Errorf("facts = %q, want %q", facts, want)
 	}
-	if len(blocks(fs)) < 3 {
-		t.Errorf("fields fall into %d groups, want them grouped rather than one list", len(blocks(fs)))
-	}
-	if v, _ := fieldValue(fs, "status"); v != "busy  (3m)" {
-		t.Errorf("status = %q, want it to say how long it has been that way", v)
-	}
-	if v, _ := fieldValue(fs, "context"); v != "177k tokens" {
-		t.Errorf("context = %q, want a readable token count", v)
-	}
-}
-
-func TestClaudeFieldsNameWhatBlocksASession(t *testing.T) {
-	// "waiting" alone would send you looking for what it is waiting on, and
-	// the pane is where you would look.
-	fs := claudeFields(claudeSession{
-		Name: "conn-1f", Status: waitingStatus, WaitingFor: "permission prompt",
-		StatusFor: 2 * time.Minute,
-	})
-	if v, _ := fieldValue(fs, "status"); v != "waiting on permission prompt  (2m)" {
-		t.Errorf("status = %q, want the prompt named", v)
-	}
-}
-
-func TestClaudeFieldsSkipWhatIsUnknown(t *testing.T) {
-	fs := pairsOf(claudeFields(claudeSession{Name: "conn-1f", Status: "idle"}))
-	for _, f := range fs {
-		if f.value == "" {
-			t.Errorf("field %q has no value; empty fields should be left out", f.label)
-		}
-	}
-	if len(fs) != 2 {
-		t.Errorf("fields = %+v, want only the two that are known", fs)
+	if facts := claudeFacts(claudeSession{Name: "conn-1f", Status: "idle"}); len(facts) != 0 {
+		t.Errorf("facts = %q, want none when nothing beyond the name is known", facts)
 	}
 }
 
@@ -321,13 +286,6 @@ func TestShortTokens(t *testing.T) {
 			t.Errorf("shortTokens(%d) = %q, want %q", n, got, want)
 		}
 	}
-}
-
-func labelAt(fs []field, i int) string {
-	if i < len(fs) {
-		return fs[i].label
-	}
-	return "<missing>"
 }
 
 func recentMillis(ago time.Duration) string {
@@ -476,60 +434,10 @@ func TestASessionWithNoSubagentsSaysNothingAboutThem(t *testing.T) {
 	if got := agentsFor(t, dir, asstRec); len(got) != 0 {
 		t.Errorf("agents = %+v, want none", got)
 	}
-	fs := claudeFields(claudeSession{Name: "x", Status: "idle"})
-	for _, f := range fs {
-		if f.label == "agents" {
-			t.Error("a session with no subagents should not have a line about them")
+	for _, f := range claudeFacts(claudeSession{Name: "x", Status: "idle"}) {
+		if strings.Contains(f, "agent") {
+			t.Error("a session with no subagents should not have a word about them")
 		}
-	}
-}
-
-func TestTheAgentsAreListedUnderOneLabel(t *testing.T) {
-	fs := claudeFields(claudeSession{
-		Name: "x",
-		Agents: []agentRun{
-			{Description: "first", Type: "Explore"},
-			{Description: "second", Type: "general-purpose"},
-		},
-	})
-	var labels, values []string
-	for _, f := range pairsOf(fs) {
-		if f.label == "agents" || (f.label == "" && strings.Contains(f.value, "second")) {
-			labels = append(labels, f.label)
-			values = append(values, f.value)
-		}
-	}
-	if len(values) != 2 {
-		t.Fatalf("values = %v, want both agents listed", values)
-	}
-	if labels[0] != "agents" || labels[1] != "" {
-		t.Errorf("labels = %v, want the rest to line up under the first", labels)
-	}
-	if !strings.Contains(values[0], "first  (Explore)") {
-		t.Errorf("value = %q, want the description and what kind it is", values[0])
-	}
-}
-
-func TestAStatusReadsInItsMarksColor(t *testing.T) {
-	// The pane's status field shows the same meaning the navigator's marks
-	// do: working is alive, blocked is urgent, idle recedes.
-	toneOf := func(s claudeSession) tone {
-		for _, f := range claudeFields(s) {
-			if f.label == "status" {
-				return f.tone
-			}
-		}
-		t.Fatalf("no status field for %+v", s)
-		return tonePlain
-	}
-	if got := toneOf(claudeSession{Status: busyStatus}); got != toneGood {
-		t.Errorf("busy status tone = %v, want good", got)
-	}
-	if got := toneOf(claudeSession{Status: waitingStatus}); got != toneUrgent {
-		t.Errorf("waiting status tone = %v, want urgent", got)
-	}
-	if got := toneOf(claudeSession{Status: "idle"}); got != toneQuiet {
-		t.Errorf("idle status tone = %v, want quiet", got)
 	}
 }
 

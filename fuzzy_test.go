@@ -67,19 +67,6 @@ func TestTheFilterFindsByFuzz(t *testing.T) {
 	}
 }
 
-func TestThePickerFindsByFuzz(t *testing.T) {
-	m := pickerOn(
-		conversation{ID: "aaaa-1111", Prompt: "fix the resize race"},
-		conversation{ID: "bbbb-2222", Prompt: "polish the site"},
-	)
-	for _, k := range []string{"f", "x", "r", "c"} { // fxrc ⊂ fix-resize-race
-		m = press(m, k)
-	}
-	if got := m.resume.matches(); len(got) != 1 || got[0].ID != "aaaa-1111" {
-		t.Fatalf("matches = %+v, want the subsequence to find the resize work", got)
-	}
-}
-
 func TestTheMatchedLettersAreLit(t *testing.T) {
 	m := typeFilter(press(narrowed(manyProjects(90, 14)), "/"), "tsl")
 	var row string

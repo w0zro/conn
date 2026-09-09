@@ -47,6 +47,7 @@ type envSubject struct {
 	chainNames []string
 	top        string            // the command of the outermost ancestor read: a shell, when the shell could be
 	server     map[string]string // tmux's global environment: the launcher's terminal
+	place      string            // the place the process works in, by its path
 	dotenv     map[string]string // the place's .env, by name; nil for none
 	dotenvKeys []string          // its names, in the file's order
 	listeners  map[string]listener
@@ -85,6 +86,7 @@ func readEnvSubject(run runner, pid int, live []string) (envSubject, error) {
 	if p, err := placeHolding(s.dir); err == nil {
 		place = p.Path
 	}
+	s.place = place
 	s.dotenv, s.dotenvKeys = readDotenv(filepath.Join(place, ".env"))
 	s.tools = toolsFor(place)
 	return s, nil
@@ -546,6 +548,14 @@ func describeVar(name, value, source string, s envSubject) []envRow {
 		if v := venvVersion(value); v != "" {
 			row.note = "python " + v
 		}
+		// A venv from another project, in this one's process: the thing
+		// most worth a glance on the page.
+		if s.place != "" && s.place != globalPlace && !under(expandPath(value), s.place) {
+			row.note, row.noteTone = "a "+filepath.Base(filepath.Dir(expandPath(value)))+" venv, in a "+filepath.Base(s.place)+" process", toneAttn
+			if filepath.Base(expandPath(value)) != ".venv" && filepath.Base(expandPath(value)) != "venv" {
+				row.note = "a " + filepath.Base(expandPath(value)) + " venv, in a " + filepath.Base(s.place) + " process"
+			}
+		}
 	}
 	if row.note == "" {
 		if s.dotenv != nil && s.dotenv[name] != "" && s.dotenv[name] != value {
@@ -768,8 +778,9 @@ var meanings = map[string]string{
 
 // The page as a program.
 
-// envModel is the page: the rows under a heading, a cursor, the folds,
-// and a filter typed with /.
+// envModel is the page: the subject's telling variables, annotated —
+// or, unfolded, every variable under a heading for who set it — a cursor,
+// the folds, and a filter typed with /.
 type envModel struct {
 	pid     int
 	live    []string // the shell's environment as it is now, for conn env typed there
@@ -784,6 +795,7 @@ type envModel struct {
 	height  int
 	filter  string
 	typing  bool
+	telling bool            // the telling variables alone, which is how the page opens
 	folded  map[int]bool    // by group
 	foldedV map[string]bool // by list variable
 }
@@ -795,7 +807,7 @@ type envReadMsg struct {
 }
 
 func newEnvModel(pid int, live []string) envModel {
-	return envModel{pid: pid, live: live, width: 80, height: 24, folded: map[int]bool{}, foldedV: map[string]bool{}}
+	return envModel{pid: pid, live: live, width: 80, height: 24, telling: true, folded: map[int]bool{}, foldedV: map[string]bool{}}
 }
 
 func (m envModel) Init() tea.Cmd {
@@ -813,14 +825,20 @@ func (m envModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case envReadMsg:
 		m.loaded, m.err, m.subj = true, msg.err, msg.subj
 		m.groups, m.rows = envRows(msg.subj)
-		for i, g := range m.groups {
-			if g.folded {
-				m.folded[i] = true
-			}
-		}
 		for _, r := range m.rows {
 			if r.folds {
 				m.foldedV[r.name] = true
+			}
+		}
+		// A subject with nothing telling — the server's environment, a
+		// bare shell's — opens on the whole, rather than on a blank page.
+		if m.telling {
+			m.telling = false
+			for _, r := range m.rows {
+				if m.tellingRow(r) && !secretName(r.name) {
+					m.telling = true
+					break
+				}
 			}
 		}
 		if msg.err == nil {
@@ -842,8 +860,9 @@ func (m envModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // key is a keystroke: the filter's while one is being typed, else the
-// navigator's vocabulary — j k move, space folds, - unfolds all, / finds,
-// esc clears the filter, q leaves.
+// page's — j k move, space unfolds all from the telling and folds a group
+// after, - unfolds everything, / finds, esc clears the filter, goes back
+// to the telling, and closes; q closes.
 func (m envModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.typing {
 		switch msg.String() {
@@ -869,11 +888,16 @@ func (m envModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "esc":
-		if m.filter == "" && !m.typing {
+		switch {
+		case m.filter != "":
+			m.filter = ""
+			m.cursor, m.top = 0, 0
+		case !m.telling:
+			m.telling = true
+			m.cursor, m.top = 0, 0
+		default:
 			return m, tea.Quit
 		}
-		m.filter = ""
-		m.cursor, m.top = 0, 0
 	case "/":
 		m.typing = true
 	case "j", "down":
@@ -889,6 +913,14 @@ func (m envModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+u", "pgup":
 		m.move(-m.pageSize())
 	case "space":
+		if m.telling {
+			// The whole environment, every group open: what the
+			// telling left out, and who set each.
+			m.telling = false
+			m.folded = map[int]bool{}
+			m.cursor, m.top = 0, 0
+			return m, nil
+		}
 		m.toggle()
 	case "-":
 		m.folded, m.foldedV = map[int]bool{}, map[string]bool{}
@@ -901,10 +933,10 @@ func (m *envModel) move(by int) {
 }
 
 // pageSize is how many rows fit under the heading and over the foot.
-func (m envModel) pageSize() int { return max(1, m.height-m.headLines()-1) }
+func (m envModel) pageSize() int { return max(1, m.height-m.headLines()-2) }
 
-// headLines is the heading: the title, its notes, and a blank line.
-func (m envModel) headLines() int { return 2 + len(m.subj.notes) }
+// headLines is the heading: the title, its notes, the rule, and a blank.
+func (m envModel) headLines() int { return 3 + len(m.subj.notes) }
 
 // toggle folds or unfolds what the cursor is on: a list variable's
 // entries, else the group.
@@ -924,18 +956,49 @@ func (m *envModel) toggle() {
 	}
 }
 
-// visible is the rows the page shows: under a filter, every variable and
-// entry that matches, folds ignored; otherwise what the folds leave.
+// tellingRow reports a variable the page opens on: the project's, and
+// the runtime's that say which environment this is.
+func (m envModel) tellingRow(r envRow) bool {
+	if r.kind != envVarRow {
+		return false
+	}
+	return m.groups[r.group].title == groupProject || tellingName(r.name)
+}
+
+// secrets is how many variables the page leaves out by their names.
+func (m envModel) secrets() int {
+	n := 0
+	for _, r := range m.rows {
+		if r.kind == envVarRow && secretName(r.name) {
+			n++
+		}
+	}
+	return n
+}
+
+// visible is the rows the page shows. A secret is never one of them.
+// Under a filter, every variable and entry that matches, folds ignored;
+// on the telling page, the telling variables alone; otherwise what the
+// folds leave.
 func (m envModel) visible() []envRow {
 	var out []envRow
 	needle := strings.ToLower(m.filter)
 	for _, r := range m.rows {
+		if r.kind == envVarRow && secretName(r.name) {
+			continue
+		}
 		if needle != "" {
 			if r.kind == envGroupRow {
 				continue
 			}
 			hay := strings.ToLower(r.name + " " + r.under + " " + r.value + " " + r.note + " " + r.source)
 			if strings.Contains(hay, needle) {
+				out = append(out, r)
+			}
+			continue
+		}
+		if m.telling {
+			if m.tellingRow(r) {
 				out = append(out, r)
 			}
 			continue
@@ -958,15 +1021,15 @@ func (m envModel) View() tea.View {
 	return v
 }
 
-// render draws the page: the subject and its moment, the rows that fit
-// around the cursor, and a foot with the keys — or the filter, while one
-// is typed.
+// render draws the page: whose environment and its counts over a rule,
+// the rows that fit around the cursor, and a foot with the keys — or the
+// filter, while one is typed.
 func (m envModel) render() string {
 	if !m.loaded {
-		return "\n " + hintStyle.Render("reading the environment…")
+		return "\n" + gutter + noteStyle.Render("reading the environment…")
 	}
 	if m.err != nil {
-		return "\n " + errStyle.Render(m.err.Error()) + "\n\n " + hintStyle.Render("q leaves")
+		return "\n" + gutter + errStyle.Render(m.err.Error()) + "\n\n" + gutter + hintStyle.Render("q leaves")
 	}
 	vis := m.visible()
 	size := m.pageSize()
@@ -980,59 +1043,80 @@ func (m envModel) render() string {
 	}
 	top = max(0, min(top, max(0, len(vis)-size)))
 
-	head := " " + headingStyle.Render(m.subj.title)
-	if m.subj.dir != "" {
-		head += "  " + noteStyle.Render(homely(m.subj.dir))
-	}
-	lines := []string{truncateTail(head, m.width)}
-	for i, n := range m.subj.notes {
-		if i == len(m.subj.notes)-1 {
-			n += " · " + plural(len(m.subj.env), "variable", "variables")
+	telling := 0
+	for _, r := range m.rows {
+		if m.tellingRow(r) && !secretName(r.name) {
+			telling++
 		}
-		lines = append(lines, " "+hintStyle.Render(truncateTail(n, m.width-1)))
 	}
-	lines = append(lines, "")
+	facts := plural(len(m.subj.env), "variable", "variables")
+	if telling > 0 {
+		facts += ", " + strconv.Itoa(telling) + " telling"
+	}
+	pid := ""
+	if m.subj.pid != 0 {
+		pid = "pid " + strconv.Itoa(m.subj.pid)
+	}
+	head := gutter + headingStyle.Render(m.subj.title+"'s environment") + " " +
+		faintStyle.Render(glyphDot+" "+dots(pid, facts))
+	lines := []string{truncateStyled(head, m.width, false)}
+	for _, n := range m.subj.notes {
+		lines = append(lines, gutter+faintStyle.Render(truncateTail(n, m.width-len(gutter))))
+	}
+	lines = append(lines, ruleStyle.Render(strings.Repeat("─", m.width)), "")
 
 	widths := m.columns(vis[top:min(top+size, len(vis))])
 	for i := top; i < len(vis) && i < top+size; i++ {
 		lines = append(lines, m.line(vis[i], i == cursor, widths))
 	}
-	for len(lines) < m.height-1 {
+	if len(vis) == 0 && m.filter != "" {
+		lines = append(lines, gutter+noteStyle.Render("nothing matches "+m.filter))
+	}
+	for len(lines) < m.height-2 {
 		lines = append(lines, "")
 	}
-	foot := " " + hintStyle.Render("space fold · - unfold all · / find · q leave")
-	if m.typing || m.filter != "" {
-		foot = " " + itemStyle.Render("/"+m.filter)
-		if m.typing {
-			foot += itemStyle.Render("▏")
-		}
-	}
-	if len(vis) == 0 && m.filter != "" && len(lines) > m.headLines() {
-		lines[m.headLines()] = " " + hintStyle.Render("nothing matches "+m.filter)
-	}
-	lines = append(lines[:max(0, min(m.height-1, len(lines)))], truncateTail(foot, m.width))
+	foot := m.foot(telling)
+	lines = append(lines[:max(0, min(m.height-2, len(lines)))], truncateTail(foot, m.width), "")
 	return strings.Join(lines, "\n")
 }
 
-// envColumns is the width of each column: the name, the value, the note,
-// the source.
-type envColumns struct{ name, value, note, source int }
+// foot is the page's last line: what space does from here, that secrets
+// are never listed, and the way out — or the filter, while one is typed.
+func (m envModel) foot(telling int) string {
+	if m.typing || m.filter != "" {
+		foot := gutter + itemStyle.Render("/"+m.filter)
+		if m.typing {
+			foot += cursorStyle.Render(" ")
+		}
+		return foot
+	}
+	secrets := ""
+	if n := m.secrets(); n > 0 {
+		secrets = plural(n, "secret", "secrets") + " never listed"
+	}
+	if m.telling {
+		return gutter + faintStyle.Render(dots(secrets, "space unfolds all "+strconv.Itoa(len(m.subj.env)), "esc closes"))
+	}
+	return gutter + faintStyle.Render(dots(secrets, "space folds a group", "- unfolds the lists", "/ finds", "esc back to the "+strconv.Itoa(telling)+" telling"))
+}
 
-// columns sizes the columns to the rows in view: the name and the source
-// as wide as their widest — the source goes when every row of the page
-// has the same, as the server's do; a filter down to one row keeps it,
-// since the row's source may be what was asked — the note as wide as its
-// widest up to a cap, and the value the rest, no narrower than a few
-// words; when even that is short the note gives way, since the value is
-// what the page is for.
+// envColumns is the width of each column: the variable with its value,
+// the note, the source.
+type envColumns struct{ pair, note, source int }
+
+// columns sizes the columns to the rows in view: the variable and its
+// value as wide as their widest up to a cap, the note as wide as its
+// widest, and the source — where a startup file set it — as wide as its
+// widest when the rows have more than one to tell apart; a filter down
+// to one row keeps it, since the row's source may be what was asked.
 func (m envModel) columns(rows []envRow) envColumns {
 	var c envColumns
 	for _, r := range rows {
 		if r.kind == envGroupRow {
 			continue
 		}
-		c.name = max(c.name, lipgloss.Width(r.name)+2*btoi(r.kind == envEntryRow))
-		c.note = max(c.note, lipgloss.Width(r.note))
+		c.pair = max(c.pair, lipgloss.Width(m.pairText(r)))
+		c.note = max(c.note, lipgloss.Width(r.note)+2)
 		c.source = max(c.source, lipgloss.Width(r.source))
 	}
 	sources := map[string]bool{}
@@ -1044,15 +1128,27 @@ func (m envModel) columns(rows []envRow) envColumns {
 	if len(sources) < 2 {
 		c.source = 0
 	}
-	c.name = min(c.name, 28)
-	c.note = min(c.note, 36)
 	c.source = min(c.source, 30)
-	rest := func() int { return m.width - 1 - c.name - 2 - c.note - 2 - c.source - 2*btoi(c.source > 0) }
-	if rest() < 40 {
-		c.note = max(12, c.note+rest()-40)
+	room := m.width - len(gutter) - 2
+	if c.source > 0 {
+		room -= c.source + 2
 	}
-	c.value = max(16, rest())
+	c.pair = min(c.pair, max(room-min(c.note, 24)-2, 24))
+	c.note = max(min(c.note, room-c.pair-2), 0)
 	return c
+}
+
+// pairText is a row's variable and value as one word: NAME=value, an
+// entry of a list indented under its variable.
+func (m envModel) pairText(r envRow) string {
+	switch r.kind {
+	case envEntryRow:
+		if r.name != "" {
+			return "  " + r.name + "  " + r.value
+		}
+		return "  " + r.value
+	}
+	return r.name + "=" + r.value
 }
 
 func btoi(b bool) int {
@@ -1062,49 +1158,48 @@ func btoi(b bool) int {
 	return 0
 }
 
-// line draws one row: a group's title bold with its count and a mark
-// while it is folded; a variable's name, value, note and source in
-// their columns; an entry indented under its variable.
+// line draws one row: a group's title bold in parchment with its count,
+// and a mark while it is folded; a variable's name in teal, its value in
+// ink, its note after an arrow in the note's tone, and where it came
+// from, faint; an entry indented under its variable. The cursor's row is
+// a bar.
 func (m envModel) line(r envRow, selected bool, c envColumns) string {
-	mark := " "
+	bg := lipgloss.NewStyle()
 	if selected {
-		mark = selStyle.Render("▌")
+		bg = chipStyle
 	}
 	if r.kind == envGroupRow {
-		title := headingStyle.Render(r.name)
-		if selected {
-			title = selStyle.Render(r.name)
-		}
 		fold := ""
 		if m.folded[r.group] {
-			fold = " ▸"
+			fold = " " + glyphSelected
 		}
-		return truncateTail(mark+title+"  "+hintStyle.Render(r.value)+hintStyle.Render(fold), m.width)
+		row := bg.Render(gutter) + bg.Inherit(headingStyle).Render(r.name) + bg.Inherit(faintStyle).Render("  "+r.value+fold)
+		return bg.Render(pad(truncateStyled(row, m.width, false), m.width))
 	}
-	name := r.name
-	nameStyle := itemStyle
-	if r.kind == envEntryRow {
-		name = "  " + name
-		nameStyle = faintStyle
+	var pair string
+	valueStyle := bg.Inherit(toneStyles[r.valueTone])
+	switch {
+	case r.kind == envEntryRow && r.name != "":
+		pair = bg.Inherit(faintStyle).Render("  ") + bg.Inherit(tealStyle).Render(r.name) + bg.Render("  ") + valueStyle.Render(r.value)
+	case r.kind == envEntryRow:
+		pair = bg.Render("  ") + valueStyle.Render(r.value)
+	default:
+		value := r.value
+		if r.folds && m.foldedV[r.name] && m.filter == "" {
+			value += " " + glyphSelected
+		}
+		pair = bg.Inherit(tealStyle).Render(r.name) + bg.Inherit(itemStyle).Render("=") + valueStyle.Render(value)
 	}
-	if selected {
-		nameStyle = selStyle
+	pair = pad(truncateStyled(pair, c.pair, false), c.pair)
+	note := ""
+	if r.note != "" && c.note > 2 {
+		note = bg.Inherit(toneStyles[r.noteTone]).Render(truncateTail(glyphNote+" "+r.note, c.note))
 	}
-	width := c.value - 2*btoi(r.folds)
-	value := truncateTail(r.value, width)
-	if strings.HasPrefix(r.value, "/") || strings.HasPrefix(r.value, "~") {
-		value = truncate(r.value, width)
-	}
-	if r.folds && m.foldedV[r.name] && m.filter == "" {
-		value += " ▸"
-	}
-	out := mark + pad(nameStyle.Render(truncateTail(name, c.name)), c.name) + "  " +
-		pad(toneStyles[r.valueTone].Render(value), c.value) + "  " +
-		pad(toneStyles[r.noteTone].Render(truncateTail(r.note, c.note)), c.note)
+	out := bg.Render(gutter) + pair + bg.Render("  ") + pad(note, c.note)
 	if c.source > 0 {
-		out += "  " + faintStyle.Render(truncate(r.source, c.source))
+		out += bg.Render("  ") + bg.Inherit(faintStyle).Render(truncate(r.source, c.source))
 	}
-	return truncateTail(out, m.width)
+	return bg.Render(pad(truncateStyled(out, m.width, false), m.width))
 }
 
 // showEnvironment is the navigator's e: the environment of the run the

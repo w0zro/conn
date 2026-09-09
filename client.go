@@ -15,11 +15,11 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// The navigator's side of the server. It never touches a pty and never draws
-// a shell: tmux does both, in the pane beside the navigator. This file is
-// the session that talks to the server: asking what it holds, moving the
-// shell under the cursor into the pane on the right and the last one back
-// out, moving focus to a shell, and hearing when shells come and go.
+// conn's side of the server. It never touches a pty and never draws a
+// buffer: tmux does both, in the pane under the tabline. This file is the
+// session that talks to the server: asking what it holds, moving the
+// buffer to show into the pane under the tabline and the last one back
+// out, moving focus to a buffer, and hearing when buffers come and go.
 
 // socketPath is where conn's tmux server listens. It is per user and outside
 // any project, because one server holds the shells for every repository. It
@@ -39,7 +39,7 @@ func socketPath() string {
 
 // sessionInfo is a shell the server is holding. Name is what the project
 // that asked for it calls it, and empty for a shell opened by hand. Shown
-// says it is the shell in the pane beside the navigator; Wanted that a chord
+// says it is the buffer in the pane under the tabline; Wanted that a chord
 // opened it and asked for it to be shown.
 type sessionInfo struct {
 	PID   int
@@ -171,13 +171,13 @@ type pane struct {
 	summary  string // what the transcript said of the run, once the navigator read it
 	recorded string // "1" once the ending is on the record
 	cmd      string // what is in the pane's foreground: the command, or the shell at its prompt
-	shown    bool   // in the home window, beside the navigator
+	shown    bool   // in the home window, under the tabline
 	wanted   bool   // opened by a chord that asked for it to be shown
 }
 
-// placement is one request to arrange the home window: the shell to put
-// beside the navigator — none, to leave the navigator the whole window —
-// and whether focus should go to it.
+// placement is one request to arrange the home window: the buffer to put
+// under the tabline — none, to leave conn the whole window — and whether
+// focus should go to it.
 type placement struct {
 	pid   int
 	focus bool
@@ -196,8 +196,7 @@ type session struct {
 	ctl     *ctlClient
 	panes   map[int]*pane      // by the pid of the shell in the pane
 	byPane  map[string]int     // pane id → that pid
-	nav     string             // the navigator's own pane, "%0"
-	column  int                // the navigator's width, read once: the goroutines never touch the global
+	nav     string             // conn's own pane, "%0"
 	placing latest[placement]  // the arrangement asked for, made one at a time
 	saying  latest[statusText] // what the status line is to read, said one at a time
 	listing sync.Mutex         // one list is read and told at a time, so the newer is heard last
@@ -223,7 +222,6 @@ func newSession() *session {
 		run:     tmuxCommand,
 		panes:   map[int]*pane{},
 		byPane:  map[string]int{},
-		column:  navWidth,
 		probe:   probeEvery,
 		settle:  windowSettle,
 		stopped: make(chan struct{}),
@@ -744,8 +742,8 @@ func (s *session) list() {
 	go s.refreshList()
 }
 
-// show puts a shell in the pane beside the navigator and moves focus to
-// it. tmux draws it there; the navigator keeps its column.
+// show puts a buffer in the pane under the tabline and moves focus to it.
+// tmux draws it there; conn keeps its rows.
 func (s *session) show(pid int) {
 	if s == nil {
 		return
@@ -753,8 +751,18 @@ func (s *session) show(pid int) {
 	s.place(placement{pid: pid, focus: true})
 }
 
-// home moves focus to the navigator, from wherever it is: its window,
-// and its pane in it.
+// showQuiet puts a buffer in the pane under the tabline and keeps focus
+// with conn: a dead buffer is readable beneath, and answers to conn's keys.
+func (s *session) showQuiet(pid int) {
+	if s == nil {
+		return
+	}
+	s.place(placement{pid: pid})
+	s.home()
+}
+
+// home moves focus to conn, from wherever it is: its window, and its pane
+// in it.
 func (s *session) home() {
 	if s == nil {
 		return
@@ -772,9 +780,9 @@ func (s *session) home() {
 	}()
 }
 
-// park puts the shell shown beside the navigator back in a window of its
-// own and leaves the navigator the whole window: the navigator has focus,
-// and has something of its own to draw there.
+// park puts the buffer shown under the tabline back in a window of its own
+// and leaves conn the whole window: conn has focus, and has something of
+// its own to draw there.
 func (s *session) park() {
 	if s == nil {
 		return
@@ -834,9 +842,9 @@ func (l *latest[T]) ask(v T, do func(T)) {
 	}()
 }
 
-// arrange makes one arrangement: the shell asked for moves into the pane
-// beside the navigator, and whichever shell was there moves into the
-// window it left. What the home window holds is asked of tmux as it
+// arrange makes one arrangement: the buffer asked for moves into the pane
+// under the tabline, and whichever buffer was there moves into the window
+// it left. What the home window holds is asked of tmux as it
 // stands rather than remembered, so an arrangement made by a chord or by
 // a shell closing is built on, not fought.
 func (s *session) arrange(p placement) error {
@@ -850,12 +858,12 @@ func (s *session) arrange(p placement) error {
 	}
 	s.mu.Unlock()
 	if nav == "" {
-		return errors.New("no navigator pane to arrange around")
+		return errors.New("no pane of conn's to arrange around")
 	}
 	if p.pid != 0 && target == "" {
 		return nil // gone since it was asked for; the list will say so
 	}
-	if err := showPane(s.run, nav, target, s.column); err != nil {
+	if err := showPane(s.run, nav, target); err != nil {
 		return err
 	}
 	if p.focus && target != "" {
@@ -865,22 +873,22 @@ func (s *session) arrange(p placement) error {
 	return nil
 }
 
-// showPane puts the target pane beside the navigator's pane nav — or, with
-// no target, puts whatever is there back in a window of its own. It reads
-// the home window first, so it is right about what is there whoever last
-// changed it. The layout is main-vertical with the navigator as the main
-// pane, and that holds the navigator's width when the window is resized:
-// the configuration re-applies it on every resize.
+// showPane puts the target pane under conn's pane nav — or, with no
+// target, puts whatever is there back in a window of its own. It reads the
+// home window first, so it is right about what is there whoever last
+// changed it. The layout is main-horizontal with conn's pane as the main
+// one, and that holds the chrome's height when the window is resized: the
+// configuration re-applies it on every resize.
 //
-// A shell keeps its size as it moves. It joins at the slot's width in one
-// step rather than at half the window and then the slot, and the window it
-// goes back to is sized to the slot as it goes — a window sized by hand
-// stays that size whatever the client does — so a program in it sees no
-// change in its terminal, and has nothing to repaint, as the cursor moves
-// over its row and off again. A shell's first showing is the one resize:
-// its window was made at the client's size. column is the navigator's
-// width, which the slot is the rest of the window past.
-func showPane(run runner, nav, target string, column int) error {
+// A buffer keeps its size as it moves. It joins at the slot's height in
+// one step rather than at half the window and then the slot, and the
+// window it goes back to is sized to the slot as it goes — a window sized
+// by hand stays that size whatever the client does — so a program in it
+// sees no change in its terminal, and has nothing to repaint, as it is
+// shown and shown again. A buffer's first showing is the one resize: its
+// window was made at the client's size. The slot is the window past the
+// chrome's rows and the border under them.
+func showPane(run runner, nav, target string) error {
 	out, err := run("list-panes", "-t", nav, "-F", "#{pane_id}\t#{@conn_nav}\t#{window_width}\t#{window_height}")
 	if err != nil {
 		return err
@@ -897,8 +905,8 @@ func showPane(run runner, nav, target string, column int) error {
 		}
 		w, werr := strconv.Atoi(f[2])
 		h, herr := strconv.Atoi(f[3])
-		if werr == nil && herr == nil && w > column+1 && h > 0 {
-			slot = []string{"-x", strconv.Itoa(w - column - 1), "-y", strconv.Itoa(h)}
+		if werr == nil && herr == nil && w > 0 && h > chromeRows+1 {
+			slot = []string{"-x", strconv.Itoa(w), "-y", strconv.Itoa(h - chromeRows - 1)}
 		}
 	}
 	// park sizes the window a pane has just gone back to: the pane names
@@ -920,12 +928,12 @@ func showPane(run runner, nav, target string, column int) error {
 		// first, while the pane is still there to name the window by —
 		// joined, its window closes behind it.
 		args := []string{"rename-window", "-t", target, heldName, ";",
-			"join-pane", "-h", "-d"}
+			"join-pane", "-v", "-d"}
 		if slot != nil {
-			args = append(args, "-l", slot[1])
+			args = append(args, "-l", slot[3])
 		}
 		args = append(args, "-s", target, "-t", nav, ";",
-			"select-layout", "-t", nav, "main-vertical")
+			"select-layout", "-t", nav, "main-horizontal")
 		_, err = run(args...)
 	default:
 		// -d: focus stays where it is. Without it the pane swapped in
@@ -946,6 +954,19 @@ func (s *session) help() {
 	}
 	go func() {
 		if err := showKeys(s.run, connExe(), ""); err != nil {
+			s.events <- serverErrorMsg{err: err}
+		}
+	}()
+}
+
+// finder shows the finder in a popup over the client that spoke last, the
+// way help does: the front door, from anywhere.
+func (s *session) finder() {
+	if s == nil {
+		return
+	}
+	go func() {
+		if err := showFinder(s.run, connExe(), ""); err != nil {
 			s.events <- serverErrorMsg{err: err}
 		}
 	}()
@@ -1003,6 +1024,40 @@ func (s *session) closeTerm(pid int) {
 	go func() { _, _ = s.run("kill-pane", "-t", p.id) }()
 }
 
+// respawn runs a command again in a held shell's pane, in place: the pane
+// keeps its id, its place in the layout and its options — its directory,
+// its name, what it ran — and gets a new shell running the command with a
+// shell waiting behind it, the ending recorded as it goes, as the first
+// run's was. The old ending is taken off the pane first.
+func (s *session) respawn(pid int, command string) {
+	if s == nil {
+		return
+	}
+	p := s.pane(pid)
+	if p == nil {
+		return
+	}
+	go func() {
+		_, _ = s.run("set", "-pu", "-t", p.id, "@conn_exit", ";", "set", "-pu", "-t", p.id, "@conn_ended", ";",
+			"set", "-pu", "-t", p.id, "@conn_summary", ";", "set", "-pu", "-t", p.id, "@conn_recorded", ";",
+			"respawn-pane", "-k", "-t", p.id, command+recordExit()+`; exec "$SHELL"`)
+		s.refreshList()
+	}()
+}
+
+// typeInto types a line at a held shell's prompt, and enter after it: the
+// way gf opens the editor in the buffer's own shell.
+func (s *session) typeInto(pid int, text string) {
+	if s == nil {
+		return
+	}
+	p := s.pane(pid)
+	if p == nil {
+		return
+	}
+	go func() { _, _ = s.run("send-keys", "-t", p.id, "-l", text, ";", "send-keys", "-t", p.id, "Enter") }()
+}
+
 // replace ends the server and every shell it holds. Nothing reaches this by
 // accident: it takes the same second key any other kill takes.
 func (s *session) replace() {
@@ -1025,26 +1080,24 @@ func (s *session) dress(pid int, name string) {
 	go func() { _, _ = s.run("set", "-p", "-t", p.id, "@conn_title", name) }()
 }
 
-// statusText is what the navigator has the status line read: the mode
-// its keys are in, when it has one to name, what it has to say, and how
-// many rows need you, in words, for the corner.
+// statusText is what conn has the status line read: the mode, when it has
+// one to name, and what it has to say.
 type statusText struct {
-	mode, msg, need string
+	mode, msg string
 }
 
-// say hands tmux the navigator's part of the status line. Said one at a
-// time and superseded while waiting, so a query being typed lands in the
-// order it was typed and the line ends up reading the last of it; and the
-// line is refreshed at once rather than on its next tick, because a mode
-// that lags the keys is a mode that lies.
+// say hands tmux conn's part of the status line. Said one at a time and
+// superseded while waiting, so a query being typed lands in the order it
+// was typed and the line ends up reading the last of it; and the line is
+// refreshed at once rather than on its next tick, because a mode that
+// lags the keys is a mode that lies.
 func (s *session) say(t statusText) {
 	if s == nil {
 		return
 	}
 	s.saying.ask(t, func(t statusText) {
-		_, _ = s.run("set", "-g", "@conn_mode", t.mode, ";",
+		_, _ = s.run("set", "-g", modeOption, t.mode, ";",
 			"set", "-g", msgOption, t.msg, ";",
-			"set", "-g", needOption, t.need, ";",
 			"refresh-client", "-S")
 	})
 }

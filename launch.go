@@ -69,7 +69,7 @@ func runLaunch() error {
 		return err
 	}
 	conf := confPath()
-	if err := os.WriteFile(conf, []byte(tmuxConf(connExe(), scrollbackLines, navWidth)), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(connExe(), scrollbackLines)), 0o600); err != nil {
 		return err
 	}
 
@@ -177,16 +177,18 @@ type home struct {
 	pane string
 }
 
-// markHome pins the options that tell the home window and the navigator's
-// pane apart from the rest: the window's reaches every pane in it, which is
-// how a shell shown beside the navigator is known to be shown. The pane
-// also records which build its navigator is, for the next launch to
-// compare against its own; build is "" for a navigator found running
-// that nothing recorded, which the next launch replaces to be sure.
+// markHome pins the options that tell the home window and conn's pane
+// apart from the rest: the window's reaches every pane in it, which is how
+// a buffer shown under the tabline is known to be shown. The pane also
+// records which build its navigator is, for the next launch to compare
+// against its own; build is "" for a navigator found running that nothing
+// recorded, which the next launch replaces to be sure. conn's pane sits on
+// the hangar's ground whatever the shells sit on.
 func markHome(win, pane, build string) {
 	_, _ = tmuxCommand("set", "-w", "-t", win, "@conn_home", "1", ";",
 		"set", "-p", "-t", pane, "@conn_nav", "1", ";",
-		"set", "-p", "-t", pane, "@conn_build", build)
+		"set", "-p", "-t", pane, "@conn_build", build, ";",
+		"select-pane", "-t", pane, "-P", "bg="+tp.ground+",fg="+tp.ink)
 }
 
 // isNavCommand reports whether a pane's start command runs the navigator:
@@ -239,10 +241,10 @@ func ensureHome() (home, error) {
 	}
 	if homeWin != "" {
 		// The window is there with a shell in it and no navigator: the
-		// navigator goes back on the left, as the main pane of the layout.
-		out, err = tmuxCommand("split-window", "-h", "-b", "-d", "-P", "-F", "#{pane_id}",
+		// navigator goes back on top, as the main pane of the layout.
+		out, err = tmuxCommand("split-window", "-v", "-b", "-d", "-P", "-F", "#{pane_id}",
 			"-t", homeWin, "-c", "/", homeCommand(), ";",
-			"select-layout", "-t", homeWin, "main-vertical")
+			"select-layout", "-t", homeWin, "main-horizontal")
 		if err != nil {
 			return home{}, err
 		}
@@ -291,8 +293,9 @@ func refreshHome(h home) error {
 	return err
 }
 
-// runHome is `conn home [key]`: to the navigator, and handed a key, that key
-// pressed there — / to start looking, ? for the keys, A for the picker.
+// runHome is `conn home [key]`: to conn, and handed a key, that key pressed
+// there — x for the kill preview of the buffer with focus. With none, it
+// is the everything view: the chord ctrl-space - and ctrl-space . both.
 func runHome(key string) error {
 	h, err := ensureHome()
 	if err != nil {
@@ -301,9 +304,10 @@ func runHome(key string) error {
 	if _, err := tmuxCommand("select-window", "-t", h.win, ";", "select-pane", "-t", h.pane); err != nil {
 		return err
 	}
-	if key != "" {
-		_, err = tmuxCommand("send-keys", "-t", h.pane, key)
+	if key == "" {
+		key = "."
 	}
+	_, err = tmuxCommand("send-keys", "-t", h.pane, key)
 	return err
 }
 
@@ -323,8 +327,8 @@ func tell(key string) error {
 
 // runShellAt is `conn shell [dir]` and `conn agent [dir]`: a shell — or a
 // command with a shell waiting behind it — in dir, opened in a window of
-// its own and wanted, which the navigator answers by showing it beside
-// itself and moving focus there. The navigator is made sure of after,
+// its own and wanted, which the navigator answers by showing it under the
+// tabline and moving focus there. The navigator is made sure of after,
 // so a home window that was closed is back to answer.
 func runShellAt(dir, command string) error {
 	if dir == "" {
@@ -355,9 +359,9 @@ func runKind() error {
 // under it, untouched, and back when the note goes; the format does the
 // timing, so nothing here has to stay around to clear it.
 func announce(run runner, now time.Time, text string, failed bool) error {
-	color := tp.fg
+	color := tp.ink
 	if failed {
-		color = tp.red
+		color = tp.owed
 	}
 	until := strconv.FormatInt(now.Add(noteFor).Unix(), 10)
 	_, err := run("set", "-g", noteOption, tmuxStyled(color, false, " "+text), ";",
@@ -521,16 +525,16 @@ func report(err error) bool {
 	return true
 }
 
-// runJump is `conn jump`: the next agent waiting on you, which is the
-// navigator's tab — it knows the marks, and it shows the shell and moves
-// focus there. With nothing waiting the navigator says so at its foot,
-// which is in view from every shell.
+// runJump is `conn jump`: the next thing owed, which is the navigator's
+// tab — it knows the marks, and it shows the buffer and moves focus there.
+// With nothing owed the navigator says so on the status line, which is in
+// view from every buffer.
 func runJump() error {
 	return tell("Tab")
 }
 
-// runBack is `conn back`: focus back to the previous pane — the shell
-// before this one, or the navigator — which is the navigator's shift-tab:
+// runBack is `conn back`: focus back to the previous pane — the buffer
+// before this one, or the everything view — which is the navigator's shift-tab:
 // it is the one that sent focus everywhere it has been, so it is the one
 // that knows. tmux's own last-pane cannot: it keeps a pane within a
 // window, and a shell shown beside the navigator is a pane moved into the

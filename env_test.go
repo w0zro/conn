@@ -298,19 +298,33 @@ func TestThePageDrawsFoldsAndFinds(t *testing.T) {
 	m := envPage(t, 100, 30)
 	page := stripANSI(m.render())
 	t.Log("\n" + page)
-	for _, want := range []string{"npm run dev 40", "~/site", "as it was started, 2h ago · 10 variables",
-		"the project's", "DATABASE_URL", "postgres://app:•••@localhost:5432/site", "docker db listens",
-		"REDIS_URL", "nothing is listening", "SESSION_SECRET", "set, 6 chars", "API_BASE", "not set",
-		"the runtime", "PATH", "2 entries", "npm run dev's  1 variable ▸", "the shell's  2 variables ▸",
-		"space fold · - unfold all · / find · q leave"} {
+	// The page opens on the telling variables alone, annotated, with the
+	// secrets left out and the counts at the head.
+	for _, want := range []string{"npm run dev 40's environment", "pid 40", "10 variables",
+		"as it was started, 2h ago",
+		"DATABASE_URL=postgres://app:•••@localhost:5432/site", "← docker db listens",
+		"REDIS_URL", "← nothing is listening", "API_BASE", "not set",
+		"1 secret never listed · space unfolds all 10 · esc closes"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page lacks %q", want)
 		}
 	}
-	for _, hidden := range []string{"npm_lifecycle_event", "EDITOR", "hunter2", "s3cret"} {
+	for _, hidden := range []string{"npm_lifecycle_event", "EDITOR", "hunter2", "s3cret", "SESSION_SECRET", "the project's", "PATH"} {
 		if strings.Contains(page, hidden) {
 			t.Errorf("the page shows %q", hidden)
 		}
+	}
+	// space unfolds the whole environment, grouped by who set each.
+	m = envPress(m, "space")
+	page = stripANSI(m.render())
+	for _, want := range []string{"the project's", "the runtime", "PATH", "2 entries", "npm run dev's  1 variable", "the shell's  2 variables",
+		"npm_lifecycle_event", "EDITOR", "HOME"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the unfolded page lacks %q", want)
+		}
+	}
+	if strings.Contains(page, "SESSION_SECRET") {
+		t.Error("the unfolded page lists a secret")
 	}
 	for _, ln := range strings.Split(page, "\n") {
 		if w := len([]rune(ln)); w > 100 {
@@ -321,15 +335,22 @@ func TestThePageDrawsFoldsAndFinds(t *testing.T) {
 		t.Errorf("the page is %d lines, want the window's 30", lines)
 	}
 
-	// G to the last row, the terminal's group; space unfolds it.
-	m = envPress(envPress(m, "G"), "space")
-	if page := stripANSI(m.render()); !strings.Contains(page, "HOME") || !strings.Contains(page, "the home directory") {
-		t.Errorf("the terminal's group did not unfold:\n%s", page)
+	// space on a group's row folds it; - unfolds everything again.
+	for i := 0; i < 40; i++ {
+		m = envPress(m, "k")
 	}
-	// - unfolds everything.
+	m = envPress(m, "space") // the first row: the project's group
+	if page := stripANSI(m.render()); strings.Contains(page, "DATABASE_URL") || !strings.Contains(page, "the project's") {
+		t.Errorf("the project's group did not fold:\n%s", page)
+	}
 	m = envPress(m, "-")
-	if page := stripANSI(m.render()); !strings.Contains(page, "EDITOR") || !strings.Contains(page, "npm_lifecycle_event") {
+	if page := stripANSI(m.render()); !strings.Contains(page, "DATABASE_URL") || !strings.Contains(page, "npm_lifecycle_event") {
 		t.Errorf("- did not unfold all:\n%s", page)
+	}
+	// esc goes back to the telling.
+	m = envPress(m, "esc")
+	if page := stripANSI(m.render()); strings.Contains(page, "EDITOR") || !strings.Contains(page, "space unfolds all") {
+		t.Errorf("esc did not go back to the telling:\n%s", page)
 	}
 	// A filter finds through the folds, and esc clears it.
 	m = envPage(t, 100, 30)
@@ -349,7 +370,7 @@ func TestThePageDrawsFoldsAndFinds(t *testing.T) {
 	if m.filter != "" || !strings.Contains(stripANSI(m.render()), "DATABASE_URL") {
 		t.Errorf("esc did not clear the filter")
 	}
-	// esc with nothing to clear leaves; so does q.
+	// esc with nothing to clear closes; so does q.
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape}); cmd == nil {
 		t.Error("esc on a clear page did not leave")
 	}

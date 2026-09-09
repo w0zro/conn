@@ -3,21 +3,103 @@ package main
 import (
 	"errors"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // killRequest is a kill waiting on confirmation: the processes to signal,
 // what to call them while asking, and the signal to send. The zero signal
 // is SIGTERM, the one every kill sends unless the confirmation chose
-// another (chooseSignal) or the process has already refused it.
+// another (chooseSignal) or the process has already refused it. The
+// preview shows nodes, the whole tree; head is what x alone would take —
+// the row's own process, and the shell around it — when that is less
+// than the tree, and tree says which of the two was asked for.
 type killRequest struct {
 	subject string
+	where   string // in <place>, for the preview's heading
 	nodes   []*ProcNode
+	head    []*ProcNode
+	tree    bool
 	sig     syscall.Signal
+}
+
+// headOnly is the request cut to the head alone: x at the preview.
+func (req *killRequest) headOnly() *killRequest {
+	return &killRequest{subject: req.subject, where: req.where, nodes: req.head, sig: req.sig}
+}
+
+// ports is every port the request's processes hold.
+func (req *killRequest) ports() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, n := range req.nodes {
+		for _, p := range n.Ports {
+			if !seen[p] {
+				seen[p] = true
+				out = append(out, p)
+			}
+		}
+	}
+	sortPorts(out)
+	return out
+}
+
+// consequence is the preview's prose: what dying means here, in a
+// sentence or two. The tree dies together, since an orphan is a zombie
+// you would meet again; the ports free; and the buffer stays.
+func (req *killRequest) consequence() string {
+	var parts []string
+	if len(req.nodes) > 1 {
+		orphan := commandOf(req.nodes[len(req.nodes)-1])
+		parts = append(parts, "the tree dies together — an orphaned "+orphan+" is a zombie you would meet again as "+glyphFailed+" stopped")
+	} else {
+		parts = append(parts, "it goes alone")
+	}
+	if ps := req.ports(); len(ps) > 0 {
+		parts = append(parts, ":"+strings.Join(ps, " :")+" frees")
+	}
+	parts = append(parts, "nothing else touches it")
+	return dots(parts...)
+}
+
+// confirmWord is the preview's confirm line: which key takes what.
+func (req *killRequest) confirmWord() string {
+	outright := ""
+	if req.signalOf() == syscall.SIGKILL {
+		outright = " outright"
+	}
+	if len(req.head) > 0 || (req.tree && len(req.nodes) > 1) {
+		return "X kills all " + strconv.Itoa(len(req.nodes)) + outright
+	}
+	return "x kills " + req.subject + outright
+}
+
+// alternatives is what the other keys do at the preview.
+func (req *killRequest) alternatives() string {
+	if len(req.head) > 0 {
+		return "x the head alone " + glyphDot + " esc changes your mind"
+	}
+	return "esc changes your mind"
+}
+
+// facts is the status line's word on the preview: what is about to die,
+// how many processes, and the ports they hold.
+func (req *killRequest) facts() string {
+	facts := []string{req.subject, plural(len(req.nodes), "process", "processes")}
+	if req.signalOf() == syscall.SIGKILL {
+		facts = append(facts, "outright")
+	}
+	if ps := req.ports(); len(ps) > 0 {
+		facts = append(facts, ":"+strings.Join(ps, " :"))
+	}
+	return dots(facts...)
 }
 
 // signalOf is the signal a request sends: what was chosen, else SIGTERM.
@@ -243,4 +325,33 @@ func signalWith(pid int, sig syscall.Signal) error {
 		return errors.New("not permitted")
 	}
 	return err
+}
+
+// fileLine is a file:line as a run names one: a path with an extension,
+// a colon, a number — env_test.go:299, src/app.ts:12:5.
+var fileLine = regexp.MustCompile(`([A-Za-z0-9_./~-]+\.[A-Za-z0-9]+):(\d+)`)
+
+// lastFileLine is the last file:line the transcript's lines name, or
+// nothing: the last is the one a run said last, which for a test run is
+// the failure worth opening first.
+func lastFileLine(lines []string) string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		found := fileLine.FindAllStringSubmatch(ansi.Strip(lines[i]), -1)
+		if len(found) > 0 {
+			last := found[len(found)-1]
+			return last[1] + ":" + last[2]
+		}
+	}
+	return ""
+}
+
+// editorCommand opens a file:line in the editor: the one EDITOR names,
+// else vi, at the line, the way every editor since ex has been told a line.
+func editorCommand(loc string) string {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	path, line, _ := strings.Cut(loc, ":")
+	return editor + " +" + line + " " + shellQuote(path)
 }

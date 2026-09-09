@@ -8,13 +8,14 @@ import (
 )
 
 // conn is a tmux client. The terminal attaches to conn's private server the
-// way any tmux client does, and tmux draws the shells, holds the prefix and
-// keeps the status line; conn is the program in the home window's left
-// pane — the navigator — and the commands the prefix's chords run. The
-// shell under the navigator's cursor is the pane on its right; the rest
-// wait in windows of their own. What makes the server conn's rather than a
-// stock tmux is this configuration, written at every launch and sourced
-// into a server already running, so the bindings are always the build's.
+// way any tmux client does, and tmux draws the buffers, holds the prefix and
+// keeps the status line; conn is the program in the home window's top pane
+// — the tabline, and the views it draws beneath it — and the commands the
+// prefix's chords run. The buffer with focus is the pane under the tabline;
+// the rest wait in windows of their own. What makes the server conn's rather
+// than a stock tmux is this configuration, written at every launch and
+// sourced into a server already running, so the bindings are always the
+// build's.
 
 // confPath is where the configuration is written: beside the socket, in
 // the state directory.
@@ -22,11 +23,15 @@ func confPath() string {
 	return filepath.Join(filepath.Dir(socketPath()), "tmux.conf")
 }
 
+// chromeRows is the height of conn's own pane while a buffer is shown under
+// it: the tabline, and the buffer's heading. The layout holds it through
+// every resize.
+const chromeRows = 2
+
 // tmuxConf is the configuration for conn's server. conn is the path of this
 // build, which the chords run; the path is quoted so a directory with a
-// space in its name still finds it. navWidth is the navigator's column,
-// which the layout holds through every resize.
-func tmuxConf(conn string, scrollback, navWidth int) string {
+// space in its name still finds it.
+func tmuxConf(conn string, scrollback int) string {
 	exe := shellQuote(conn)
 	run := func(args string) string {
 		return `run-shell "` + exe + ` ` + args + `"`
@@ -42,33 +47,40 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 	w("# Written by conn at every launch; edits do not survive one.",
 		"",
 		"# The keys. ctrl-space is the prefix, and each chord keeps its letter's",
-		"# meaning: - is the navigator, ctrl-space again is back to the previous",
-		"# pane, enter the next thing that needs you, s a r t b l a shell, an",
-		"# agent, the plan, the tests, the build, the lint in the focused pane's",
-		"# directory, , the next kind of agent for a to start, and e the pane's",
-		"# environment, annotated, in a popup. Every chord",
-		"# tmux would otherwise bind is unbound first; the root table is left as",
-		"# tmux has it, which is the mouse.",
+		"# meaning: p and / open the finder, - and . the everything view, j and",
+		"# k the next and previous tab, enter the next thing owed, ctrl-space",
+		"# again the buffer before this one, x and X the kill preview of the",
+		"# buffer with focus, e its environment, s a r t b l a shell, an agent,",
+		"# the plan, the tests, the build, the lint in the focused pane's",
+		"# directory, and , the next kind of agent. ctrl-p alone opens the",
+		"# finder from any buffer: it is the front door. Every chord tmux would",
+		"# otherwise bind is unbound first; the root table is left as tmux has",
+		"# it, which is the mouse, plus that one key.",
 		"set -g prefix C-Space",
 		"unbind -a",
 		"bind C-Space "+run("back"),
 		"bind - "+run("home"),
+		"bind . "+run("home"),
 		"bind j "+run("next"),
 		"bind k "+run("prev"),
 		"bind Enter "+run("jump"),
-		"bind / "+run("home /"),
+		"bind p "+run("finder '#{client_name}'"),
+		"bind C-p "+run("finder '#{client_name}'"),
+		"bind / "+run("finder '#{client_name}'"),
+		"bind -n C-p "+run("finder '#{client_name}'"),
 		"bind ? "+run("keys '#{client_name}'"),
 		"bind e "+run("env '#{pane_pid} #{client_name}'"),
+		"bind x "+run("home x"),
+		"bind X "+run("home X"),
 		"bind s "+run("shell '#{pane_current_path}'"),
 		"bind a "+run("agent '#{pane_current_path}'"),
-		"bind A "+run("home A"),
 		"bind , "+run("kind"),
 		"bind r "+run("run '#{pane_current_path}'"),
 		"bind t "+run("test '#{pane_current_path}'"),
 		"bind b "+run("build '#{pane_current_path}'"),
 		"bind l "+run("lint '#{pane_current_path}'"),
 		"bind q detach-client",
-		`bind R confirm-before -p "end the server, and every shell it holds? (y/n)" kill-server`,
+		`bind R confirm-before -p "end the server, and every buffer it holds? (y/n)" kill-server`,
 		"",
 		"# The server. The config sets the transcript cap; windows follow the",
 		"# client that last spoke; a program's copy reaches the clipboard; the",
@@ -90,9 +102,9 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 		"set -g default-terminal tmux-256color",
 		`set -as terminal-features ",*:RGB"`,
 		// Claude Code caps itself at 256 colors wherever TMUX is set, whatever
-		// TERM and COLORTERM say, and paints datum's near-black grounds as the
-		// nearest cube color, a saturated teal. This variable is its own way
-		// out of the cap; every pane inherits it.
+		// TERM and COLORTERM say, and paints the hangar's near-black grounds
+		// as the nearest cube color, a saturated teal. This variable is its
+		// own way out of the cap; every pane inherits it.
 		"set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1",
 		// What a program says to the terminal around tmux — the progress
 		// Claude Code reports while it works, its notification when it is
@@ -107,39 +119,48 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 		// and this option is the one specifier the format needs.
 		`set -g `+nowOption+` "%s"`,
 		"",
-		"# The home window: the navigator down the left at its width, the shell",
-		"# under its cursor filling the right. The layout is re-applied on every",
-		"# resize, so the shell takes the window's growth.",
-		"set -g main-pane-width "+strconv.Itoa(navWidth),
-		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-vertical"'`,
-		`set -g pane-border-style "fg=`+tp.bg1+`"`,
-		`set -g pane-active-border-style "fg=`+tp.bg1+`"`,
+		"# The ground. Every pane sits on the hangar's ground in its ink unless",
+		"# the config keeps the terminal's for the shells; the borders are a",
+		"# hairline two steps off it, and an overlay sits on the wash inside a",
+		"# border of its own.",
+	)
+	if paintShells {
+		w(`set -g window-style "bg=` + tp.ground + `,fg=` + tp.ink + `"`)
+	}
+	w(`set -g pane-border-style "fg=`+tp.chip+`,bg=`+tp.ground+`"`,
+		`set -g pane-active-border-style "fg=`+tp.chip+`,bg=`+tp.ground+`"`,
 		"set -g pane-border-indicators off",
-		"set -g popup-border-lines rounded",
-		`set -g popup-border-style "fg=`+tp.bg2+`"`,
+		"set -g popup-border-lines single",
+		`set -g popup-border-style "fg=`+tp.border+`,bg=`+tp.wash+`"`,
+		`set -g popup-style "bg=`+tp.wash+`,fg=`+tp.ink+`"`,
 		"",
-		"# The status line: conn's name, then the mode — the prefix while a",
-		"# chord hangs, copy mode, the navigator's own when it has one to name,",
-		"# else which pane has focus — then what the navigator says, or — for a",
-		"# few seconds, over it — what a chord said.",
-		"# The right corner names the kind of agent a starts:",
-		"# the one the window chose, else the config's. The window list tmux",
-		"# would draw is turned off: the windows are where shells wait, and",
-		"# the navigator is the list of them.",
+		"# The home window: conn's tabline across the top at its height, the",
+		"# buffer with focus filling the rest. The layout is re-applied on every",
+		"# resize, so the buffer takes the window's growth.",
+		"set -g main-pane-height "+strconv.Itoa(chromeRows),
+		`set-hook -g window-resized 'if -F "#{@conn_home}" "select-layout main-horizontal"'`,
+		"",
+		"# The status line: the CONN chip, then one mode chip — the prefix",
+		"# while a chord hangs, copy mode, else what the navigator names: an",
+		"# answer owed, a run failed, a confirmation waiting, the everything",
+		"# view — then what the navigator says, or — for a few seconds, over",
+		"# it — what a chord said, and ? keys at the end. Nothing else lives",
+		"# here. The window list tmux would draw is turned off: the windows",
+		"# are where buffers wait, and the tabline is the list of them.",
 		"set -g status on",
 		"set -g status-position bottom",
 		"set -g status-interval 1",
 		"set -g status-justify left",
 		"set -g status-left-length 400",
-		`set -g status-style "bg=`+tp.bg1+`,fg=`+tp.gray+`"`,
+		`set -g status-style "bg=`+tp.wash+`,fg=`+tp.gray+`"`,
 		`set -g status-left "`+statusLeft()+`"`,
 		`set -g status-right "`+statusRight()+`"`,
 		`set -g window-status-separator ""`,
 		`set -g window-status-format ""`,
 		`set -g window-status-current-format ""`,
-		`set -g message-style "bg=`+tp.bg1+`,fg=`+tp.amber+`,bold"`,
-		`set -g message-command-style "bg=`+tp.bg1+`,fg=`+tp.amber+`"`,
-		`set -g mode-style "bg=`+tp.bg2+`,fg=`+tp.fg+`"`,
+		`set -g message-style "bg=`+tp.wash+`,fg=`+tp.amber+`,bold"`,
+		`set -g message-command-style "bg=`+tp.wash+`,fg=`+tp.amber+`"`,
+		`set -g mode-style "bg=`+tp.chip+`,fg=`+tp.ink+`"`,
 	)
 	return b.String()
 }
@@ -152,7 +173,7 @@ func tmuxConf(conn string, scrollback, navWidth int) string {
 // navigator's message is back under it when it goes.
 const (
 	msgOption   = "@conn_msg"
-	needOption  = "@conn_need"
+	modeOption  = "@conn_mode"
 	noteOption  = "@conn_note"
 	untilOption = "@conn_until"
 	nowOption   = "@conn_now" // holds %s, so #{T:@conn_now} is the time
@@ -169,41 +190,27 @@ func messageSlot() string {
 	return "#{?#{e|<:#{T:" + nowOption + "},#{" + untilOption + "}},#{" + noteOption + "},#{" + msgOption + "}}"
 }
 
-// statusRight is the status line's corner: how many rows need you, in
-// the color of an agent done and waiting, while any does — the navigator
-// says the words in @conn_need — then the kind of agent a starts, dim.
-// The kind is the server's option when the window has chosen one — the
-// format reads it live, so a choice shows the moment it is made — else
-// the config's, which the launcher knows when it writes this.
+// statusRight is the status line's end: ? keys, in gray on the wash.
 func statusRight() string {
-	// The count is a format, not text, so it is styled by hand: tmuxStyled
-	// would double its # as a literal's; and the style's comma is escaped
-	// for the conditional it stands in.
-	need := "#[fg=" + tp.green + "#,bold]#{" + needOption + "}  #[default]"
-	return "#{?" + needOption + "," + need + ",}" +
-		"#[fg=" + tp.gray + "]#{?" + agentOption + ",#{" + agentOption + "}," + defaultKind().name + "} "
+	return "#[fg=" + tp.gray + ",bg=" + tp.wash + "] ? keys "
 }
 
 // statusLeft is the status line's format: conn's name, the mode, then the
 // message. The name is first and always there — the line is where conn
-// says its own, now that the column is the list alone. tmux knows most of
-// the modes itself — the prefix, copy mode, which pane has focus — and the
-// navigator names its own in @conn_mode, which counts only while the
-// navigator has focus: a filter half-typed is not the mode of a shell.
-// What the navigator has to say is in @conn_msg. Each
-// mode is a chip in its color with the line washed one tone after it:
-// amber for the prefix, green for a process, cyan for copy mode, and the
-// navigator in ink — home is not a state. The message after the mode is
-// the navigator's, or a chord's note over it while the note is fresh.
+// says its own. tmux knows two of the modes itself — the prefix, copy mode
+// — and the navigator names the rest in @conn_mode, a chip in its color
+// with the line washed one tone after it; with no mode to name the wash
+// begins at once. The message after the mode is the navigator's, or a
+// chord's note over it while the note is fresh.
 func statusLeft() string {
 	// A chip stands inside a conditional, where a comma would split the
 	// alternatives, so the styles' commas are escaped.
 	chip := func(color, word string) string {
 		return strings.ReplaceAll(statusChip(color, word), ",", "#,")
 	}
+	wash := "#[fg=" + tp.gray + "#,bg=" + tp.wash + "#,fill=" + tp.wash + "]"
 	mode := "#{?client_prefix," + chip(tp.amber, "PREFIX") +
-		",#{?pane_in_mode," + chip(tp.cyan, "COPY") +
-		",#{?@conn_nav,#{?@conn_mode,#{@conn_mode}," + chip(tp.fg, "NAV") + "}," +
-		chip(tp.green, "PROC") + "}}}"
+		",#{?pane_in_mode," + chip(tp.teal, "COPY") +
+		",#{?" + modeOption + ",#{" + modeOption + "}," + wash + "}}}"
 	return brandChip() + mode + messageSlot()
 }

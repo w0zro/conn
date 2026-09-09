@@ -11,45 +11,48 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// The keys, spelled out. They are asked for with ? — at the navigator, or
-// with the prefix from any shell — and answer in a tmux popup over the
-// whole window, whichever pane had focus: the navigator's own pane
-// is a column, and a page needs the width. The popup runs this build as
-// `conn page`, which draws the page, waits for a keystroke and goes.
+// The keys, spelled out. They are asked for with ? — at conn, or with the
+// prefix from any buffer — and answer in a tmux popup over the whole
+// window, whichever pane had focus. The popup runs this build as `conn
+// page`, which draws the page, waits for a keystroke and goes. The
+// footnotes at the foot of every view teach the few that matter there;
+// this is the whole of them.
 
-// keyList is every key, in the order a reader wants them: the navigator's
+// keyList is every key, in the order a reader wants them: conn's own
 // first, then the chords.
 var keyList = [][2]string{
 	{"↑↓ j k", "move"},
-	{"J K", "next · previous shell"},
-	{"enter", "open"},
-	{"tab", "the next thing that needs you"},
-	{"shift+tab", "back: the previous shell, or the list"},
+	{"J K", "next · previous buffer"},
+	{"enter", "open the buffer"},
+	{"tab", "the next thing owed"},
+	{"shift+tab", "back: the previous buffer, or everything"},
+	{"p ^p", "the finder: open, start, or make a project"},
+	{"/", "narrow everything by anything a row says"},
+	{"esc", "clear the filter · close everything"},
+	{".", "everything · running · all"},
+	{"space · -", "fold · unfold all"},
+	{"gg · G", "top · bottom"},
 	{"s", "shell"},
 	{"a", "agent"},
-	{"A", "continue a conversation"},
 	{",", "the next kind of agent"},
-	{"n", "new project"},
-	{"r", "run"},
+	{"r", "run a dead task again in place · run the plan"},
 	{"t · b · l", "test · build · lint"},
-	{"x · X", "kill · kill the tree"},
+	{"x · X", "preview a kill · of the tree"},
 	{"e", "the environment, annotated"},
-	{"/", "find a project · a process"},
-	{"esc", "clear the filter"},
-	{"space · -", "fold · unfold all"},
-	{".", "all · running"},
-	{"gg · G", "top · bottom"},
+	{"gf", "open the last file:line in your editor"},
 	{"U", "update conn"},
-	{"R", "end the server, shells and all"},
-	{"q", "leave; the shells keep running"},
-	{"^spc -", "the navigator, from any shell"},
-	{"^spc j k", "next · previous shell"},
-	{"^spc ^spc", "back: the previous shell, or the list"},
-	{"^spc enter", "the next thing that needs you"},
-	{"^spc s a r t b l A", "shell · agent · run · test · build · lint, here · continue"},
+	{"R", "end the server, buffers and all"},
+	{"q", "close a dead buffer · leave; the buffers keep running"},
+	{"^p", "the finder, from any buffer"},
+	{"^spc p /", "the finder"},
+	{"^spc - .", "everything, from any buffer"},
+	{"^spc j k", "next · previous buffer"},
+	{"^spc ^spc", "back: the previous buffer, or everything"},
+	{"^spc enter", "the next thing owed"},
+	{"^spc x X", "preview a kill of this buffer · of its tree"},
+	{"^spc s a r t b l", "shell · agent · run · test · build · lint, here"},
 	{"^spc ,", "the next kind of agent"},
 	{"^spc e", "the environment of the pane's process, annotated"},
-	{"^spc /", "find from anywhere"},
 	{"^spc q", "leave from anywhere"},
 	{"^spc R", "end the server from anywhere"},
 	{"^spc ?", "this"},
@@ -75,8 +78,8 @@ func keysPage() []string {
 // cannot fit rather than cutting it — titled, and closing when the page
 // does. The client has to be named: a command from outside tmux has none,
 // and a popup with no client has no size to fit. A chord names the client
-// that pressed it; the navigator, given none, takes the one that spoke
-// last. exe is this build, quoted for the shell tmux runs the page under.
+// that pressed it; conn, given none, takes the one that spoke last. exe is
+// this build, quoted for the shell tmux runs the page under.
 func showKeys(run runner, exe, client string) error {
 	page := keysPage()
 	width := 0

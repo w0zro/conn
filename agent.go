@@ -46,10 +46,11 @@ type agent interface {
 	// blocked one is holding unfinished work until it is answered.
 	blocked() (string, bool)
 
-	// describe is the detail pane's description of the instance. It may read
-	// deeper sources than the scan does, so it runs off the render path, for
-	// the selected row only.
-	describe() []field
+	// describe is what the instance says of itself read deeper than the
+	// scan does — its branch, its context — as facts for a heading. It
+	// may read a transcript, so it runs off the render path, for the shown
+	// buffer only.
+	describe() []string
 }
 
 // runs reports whether a process is an instance of an agent: the kind's own

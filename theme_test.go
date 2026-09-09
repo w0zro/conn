@@ -7,24 +7,22 @@ import (
 
 func TestAStatusChipWashesTheLineAfterIt(t *testing.T) {
 	chip := statusChip(tp.amber, "PRE#FIX")
-	for _, want := range []string{"fg=" + tp.amber, "bg=" + tp.bg2, ",bold] PRE##FIX ", "fill=" + tp.bg1} {
+	for _, want := range []string{"fg=" + tp.amber, "bg=" + tp.chip, ",bold] PRE##FIX ", "fill=" + tp.wash} {
 		if !strings.Contains(chip, want) {
 			t.Errorf("chip %q lacks %q", chip, want)
 		}
 	}
 }
 
-func TestTheConfigNamesTmuxsSide(t *testing.T) {
-	// The navigator draws with the terminal's slots and needs no telling;
-	// tmux takes colors, so the config says which side, dark unless it
-	// says light.
-	t.Cleanup(func() { applyTheme("") })
-	applyTheme("light")
-	if tp != tmuxLight || !strings.Contains(tmuxConf("/opt/conn", 100, 28), "bg="+tmuxLight.bg1) {
-		t.Error("theme light should have tmux draw the light side")
+func TestTheBrandChipIsTheOneInvertedGround(t *testing.T) {
+	chip := brandChip()
+	if !strings.Contains(chip, "bg="+tp.orange) || !strings.Contains(chip, "fg="+tp.ground) {
+		t.Errorf("chip %q, want CONN in the ground's color on the orange", chip)
 	}
-	applyTheme("anything else")
-	if tp != tmuxDark {
-		t.Error("anything but light is dark")
+}
+
+func TestDotsJoinTheFactsThatAreThere(t *testing.T) {
+	if got := dots("pid 4402", "", ":3000", "2h"); got != "pid 4402 · :3000 · 2h" {
+		t.Errorf("dots = %q", got)
 	}
 }

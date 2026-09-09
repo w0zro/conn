@@ -32,15 +32,14 @@ type Config struct {
 	// that no built-in list can know (bazel-out, dist, an extracted dataset).
 	SkipDirs []string `json:"skipDirs,omitempty"`
 
-	// NavWidth is the navigator column's width, for when the default 30 is
-	// too tight for the qualified names a work checkout produces. Held
-	// between 16 and 60; zero means the default.
+	// NavWidth was the navigator column's width, from before the tabline;
+	// it is read and set aside, so an older config still loads.
 	NavWidth int `json:"navWidth,omitempty"`
 
-	// Theme is the side tmux draws for — "dark" unless it says "light". The
-	// navigator needs no telling: it draws with the terminal's own sixteen
-	// colors. tmux draws the status line, the borders and the popups, and
-	// takes colors, not slots, so the config says which side.
+	// Theme is what the shells sit on: the hangar, conn's own ground, unless
+	// it says "terminal", which leaves the shells the terminal's colors.
+	// conn's own panes, the status line and the popups are the hangar
+	// either way.
 	Theme string `json:"theme,omitempty"`
 
 	// Agent names the kind of agent the a key starts — "claude" unless said
@@ -58,11 +57,10 @@ func defaultConfig() Config {
 }
 
 // apply records what the config says for the parts of conn that read it
-// before anything is drawn or started: the navigator's width, the shells'
-// scrollback, the agent a starts, and the side tmux draws for. Every way in
-// — the launcher, the navigator, a chord — applies it the same way.
+// before anything is drawn or started: the shells' scrollback, the agent a
+// starts, and the ground the shells sit on. Every way in — the launcher,
+// the navigator, a chord — applies it the same way.
 func (c Config) apply() {
-	applyNavWidth(c.NavWidth)
 	applyScrollback(c.Scrollback)
 	applyAgentConfig(c.Agent, c.AgentRuns)
 	applyTheme(c.Theme)

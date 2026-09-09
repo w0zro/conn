@@ -5,18 +5,19 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
-// agentMark is the glyph beside an agent's row. A working one turns, one
-// stopped mid-turn on a specific ask holds a bright diamond, one that has
-// finished a turn and waits on its user holds a filled marker in the
-// attention color, and one idle since it started — owed nothing — sits
-// hollow and quiet. The diamond is the one worth crossing the room for:
-// that answer resumes work already in flight.
+// agentMark is the glyph beside an agent: a working one turns, one stopped
+// mid-turn on a specific ask holds a bright diamond, one that has finished a
+// turn and waits on its user holds a filled marker in the attention color,
+// and one idle since it started — owed nothing — sits hollow and quiet. The
+// diamond is the one worth crossing the room for: that answer resumes work
+// already in flight.
 func (m model) agentMark(r navRow, a agent) (string, lipgloss.Style) {
 	if _, ok := a.blocked(); ok {
 		return glyphAsk, blockedStyle
@@ -30,58 +31,40 @@ func (m model) agentMark(r navRow, a agent) (string, lipgloss.Style) {
 	return glyphOff, faintStyle
 }
 
-// View lays the window out as two full-height columns.
+// View lays the window out as the tabline over a body.
 //
-// The navigator draws in a pane of its own down the left of the home
-// window, and the shell under its cursor is the tmux pane on its right: when
-// a shell is shown, this view is exactly the navigator's column, as wide as
-// its pane. With no shell to show the navigator has the whole window, and
-// the right becomes its own pane — what is known about the row, or the
-// picker. conn's name and its keys are on tmux's status line at the foot,
-// not in a header of the column's own, so the column is the list from its
-// first row and the right is the shell and nothing else. A terminal made
-// to give up its first row to a header is a terminal drawing something
-// other than what it was told it had room for.
+// conn draws in a pane of its own across the top of the home window, and
+// the buffer with focus is the tmux pane beneath it: when a buffer is shown
+// this view is exactly the chrome — the tabline, and the buffer's heading —
+// as tall as its pane. With no buffer to show conn has the whole window, and
+// the body is its own: the everything view, a kill preview, or the empty
+// workspace. conn's name and its keys are on tmux's status line at the
+// foot, not in a header of the column's own.
 func (m model) View() tea.View {
 	v := tea.NewView(m.layout())
 	v.AltScreen = true
-	// Told when focus leaves for a shell and comes back, so the cursor
+	// Told when focus leaves for a buffer and comes back, so the cursor
 	// can say whose the next letter is.
 	v.ReportFocus = true
 	return v
 }
 
 func (m model) layout() string {
-	rows := m.height
-	if rows <= 0 {
-		rows = 1
+	rows := max(m.height, 1)
+	lines := []string{m.tabline()}
+	if m.shown != 0 {
+		lines = append(lines, m.heading())
+	} else {
+		lines = append(lines, m.body(rows-1)...)
 	}
-
-	left := m.leftColumn(rows)
-	lines := padTo(left, rows)
-	if m.showDetail() {
-		right := m.paneLines(m.detailWidth(), rows)
-		divider := ruleStyle.Render(glyphDivider)
-
-		lines = make([]string, 0, rows)
-		for i := 0; i < rows; i++ {
-			// Every line ends reset, so nothing a row set can outlive it.
-			lines = append(lines, pad(at(left, i), navWidth)+divider+at(right, i)+ansi.ResetStyle)
-		}
+	lines = padTo(lines, rows)
+	for i := range lines {
+		// Every line is cut and painted to the width on the ground, and
+		// ends reset, so nothing a row set can outlive it and nothing
+		// wraps into the row below.
+		lines[i] = groundStyle.Render(pad(truncateStyled(lines[i], m.width, false), m.width)) + ansi.ResetStyle
 	}
 	return strings.Join(lines, "\n")
-}
-
-// leftColumn is conn's own column: the navigator, from the first row. Its
-// name and what it has to say are said on tmux's status line, not here;
-// the column is the list.
-func (m model) leftColumn(rows int) []string {
-	body := m.bodyHeight()
-	nav := m.navLines(body)
-	if len(nav) > body {
-		nav = nav[:body]
-	}
-	return nav
 }
 
 // padTo lengthens lines to exactly n.
@@ -92,30 +75,346 @@ func padTo(lines []string, n int) []string {
 	return lines[:n]
 }
 
-// navLines renders the visible window of the navigator: repositories, each
+// tab is one entry of the tabline: a buffer, or the everything view.
+type tab struct {
+	pid     int    // the held shell; zero for the everything view
+	label   string // project/name
+	mark    string // its state's glyph, or nothing
+	style   lipgloss.Style
+	focused bool
+	quiet   bool // de-prioritized: dead and read, or nothing owed
+}
+
+// tabs is the working set: the everything view while it is up, then every
+// held shell in the navigator's order. A tab is named place/name and marked
+// with its state — an ask, a spinner, done-and-waiting, ended well or
+// badly, a container — in the state's color.
+func (m model) tabs() []tab {
+	var out []tab
+	if m.viewingAll() {
+		out = append(out, tab{label: "everything", focused: true})
+	}
+	for _, pid := range m.heldOrder() {
+		t := m.terms[pid]
+		if t == nil {
+			continue
+		}
+		tb := tab{pid: pid, label: m.tabLabel(pid, t), focused: pid == m.shown || (m.shown == 0 && pid == m.from)}
+		tb.mark, tb.style = m.tabMark(pid, t)
+		out = append(out, tb)
+	}
+	return out
+}
+
+// tabLabel is what a buffer's tab says: the place it works in and the name
+// its row would show — the plan's name for a shell it started, what an
+// agent is, else what runs there.
+func (m model) tabLabel(pid int, t *remoteTerm) string {
+	name := t.name
+	if n := m.nodes[pid]; n != nil {
+		run := runFrom(n, len(m.procs))
+		r := navRow{kind: rowProc, run: run, node: nameOf(run)}
+		if name == "" || m.agentFor(r) != nil {
+			name = m.rowName(r)
+		}
+	}
+	if name == "" {
+		name = "shell"
+	}
+	if p, ok := m.placeAt(t.dir); ok {
+		return p.Name + "/" + name
+	}
+	return name
+}
+
+// tabMark is a buffer's mark and its color: what its agent is doing, else
+// how its run stands, else nothing.
+func (m model) tabMark(pid int, t *remoteTerm) (string, lipgloss.Style) {
+	n := m.nodes[pid]
+	if n == nil {
+		return "", faintStyle
+	}
+	run := runFrom(n, len(m.procs))
+	r := navRow{kind: rowProc, run: run, node: nameOf(run)}
+	if a := m.agentFor(r); a != nil {
+		return m.agentMark(r, a)
+	}
+	if strings.HasPrefix(t.run, "docker") && strings.Contains(t.run, "logs") {
+		return glyphContainer, tealStyle
+	}
+	switch {
+	case m.signalled(r):
+		return spinFrames[m.frame%len(spinFrames)], errStyle
+	case m.wrong(r):
+		return glyphFailed, errStyle
+	case m.ended(r) == "0":
+		return glyphDone, toneStyles[toneGood]
+	}
+	return "", faintStyle
+}
+
+// tabline is the top row: the working set across the bar, the focused tab
+// in bold ink on the ground and the rest in gray on the bar, and at the
+// right end one hint at most. Tabs past the width give way from the left
+// so the focused one is always in view.
+func (m model) tabline() string {
+	hint := m.tabHint()
+	room := m.width - lipgloss.Width(hint) - 2
+	tabs := m.tabs()
+	cells := make([]string, len(tabs))
+	widths := make([]int, len(tabs))
+	focused := -1
+	for i, t := range tabs {
+		text := " " + t.label
+		if t.mark != "" {
+			text += " " + t.mark
+		}
+		text += " "
+		widths[i] = lipgloss.Width(text)
+		switch {
+		case t.focused:
+			focused = i
+			cell := groundStyle.Inherit(itemStyle).Bold(true).Render(" " + t.label + " ")
+			if t.mark != "" {
+				cell = groundStyle.Inherit(itemStyle).Bold(true).Render(" "+t.label+" ") +
+					groundStyle.Inherit(t.style).Render(t.mark+" ")
+				widths[i] = lipgloss.Width(" " + t.label + " " + t.mark + " ")
+			}
+			cells[i] = cell
+		default:
+			style := hintStyle
+			if t.quiet {
+				style = faintStyle
+			}
+			cell := barStyle.Inherit(style).Render(" " + t.label + " ")
+			if t.mark != "" {
+				cell = barStyle.Inherit(style).Render(" "+t.label+" ") + barStyle.Inherit(t.style).Render(t.mark+" ")
+			}
+			cells[i] = cell
+		}
+	}
+	// From the first tab, unless the focused one would fall off the end:
+	// then from as far along as keeps it in view.
+	start := 0
+	if focused >= 0 {
+		total := 0
+		for i := focused; i >= 0; i-- {
+			total += widths[i]
+			if total > room {
+				start = i + 1
+				break
+			}
+		}
+	}
+	var b strings.Builder
+	used := 0
+	for i := start; i < len(cells); i++ {
+		if used+widths[i] > room {
+			break
+		}
+		b.WriteString(cells[i])
+		used += widths[i]
+	}
+	line := b.String()
+	rest := m.width - used - lipgloss.Width(hint) - 1
+	if rest < 0 {
+		rest = 0
+	}
+	return line + barStyle.Render(strings.Repeat(" ", rest)) + barStyle.Inherit(faintStyle).Render(hint) + barStyle.Render(" ")
+}
+
+// tabHint is the one hint the tabline's right end holds: the key that
+// matters most now.
+func (m model) tabHint() string {
+	switch {
+	case m.pendingKill != nil:
+		return "esc keeps it"
+	case m.shown != 0:
+		if t := m.terms[m.shown]; t != nil && !t.live() && t.name != "" {
+			return "r reruns"
+		}
+		return "⌃p opens"
+	case m.viewingAll():
+		return ". toggles running · all"
+	}
+	return "⌃p opens"
+}
+
+// viewingAll reports the everything view on screen: put up, or standing
+// in for a buffer while none is shown — with nothing to show, what is
+// running is the thing to look at.
+func (m model) viewingAll() bool {
+	return m.pendingKill == nil && (m.all || m.shown == 0)
+}
+
+// heading is the line under the tabline while a buffer is shown: what the
+// buffer is, bold in parchment, and its facts in gray joined by middots —
+// where it works, its pid, its ports, how its run ended and the runs before.
+func (m model) heading() string {
+	t := m.terms[m.shown]
+	if t == nil {
+		return ""
+	}
+	name, facts := m.bufferFacts(m.shown, t)
+	return gutter + headingStyle.Render(name) + " " + facts
+}
+
+// bufferFacts is a buffer's name and the facts beside it, styled: the
+// ending in its color when the run has one, the past runs in theirs.
+func (m model) bufferFacts(pid int, t *remoteTerm) (string, string) {
+	name := "shell"
+	var r navRow
+	if n := m.nodes[pid]; n != nil {
+		run := runFrom(n, len(m.procs))
+		r = navRow{kind: rowProc, run: run, node: nameOf(run)}
+		name = m.rowName(r)
+	} else if t.name != "" {
+		name = t.name
+	}
+	var facts []string
+	if p, ok := m.placeAt(t.dir); ok {
+		facts = append(facts, "in "+p.Name)
+	}
+	if t.run != "" && t.name != "" {
+		facts = append(facts, t.run)
+	}
+	if r.node != nil {
+		if a := m.agentFor(r); a != nil {
+			if w, ok := a.(waited); ok && m.awaiting(r) != nil && w.since() > 0 {
+				facts = append(facts, "waiting "+shortFor(w.since()))
+			}
+			if _, ok := a.blocked(); ok {
+				if ask, _ := a.blocked(); ask != "" {
+					facts = append(facts, "asks: "+ask)
+				}
+			}
+		}
+		facts = append(facts, "pid "+strconv.Itoa(r.node.PID))
+		if ps := runPorts(r.run, r.node); len(ps) > 0 {
+			facts = append(facts, ":"+strings.Join(ps, " :"))
+		}
+	}
+	line := hintStyle.Render(dots(facts...))
+	if e := m.ending(r); e.State != "" {
+		style := toneStyles[toneGood]
+		mark := glyphDone
+		if e.State != "0" {
+			style, mark = toneStyles[toneUrgent], glyphFailed
+		}
+		parts := []string{mark + " " + cmp.Or(exitWord(e.State), "exit "+e.State)}
+		if e.Summary != "" && e.Summary != exitWord(e.State) {
+			parts = append(parts, e.Summary)
+		}
+		if !e.At.IsZero() {
+			parts = append(parts, ago(e.At))
+		}
+		line += hintStyle.Render(" "+glyphDot+" ") + style.Render(dots(parts...))
+	}
+	if strip := m.runsStrip(pid, t); strip != "" {
+		line += hintStyle.Render(" "+glyphDot+" past runs ") + strip
+	}
+	return name, truncateStyled(line, m.width-lipgloss.Width(gutter+name+" "), false)
+}
+
+// runsStrip is the buffer's run history: the last runs of its command,
+// newest first, each its mark and how long it took in the mark's color.
+func (m model) runsStrip(pid int, t *remoteTerm) string {
+	runs := m.history[pid]
+	if len(runs) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(runs))
+	for _, r := range runs {
+		style, mark := toneStyles[toneGood], glyphDone
+		if r.Exit != "0" {
+			style, mark = toneStyles[toneBad], glyphFailed
+		}
+		word := mark
+		if r.Took > 0 {
+			word += " " + shortTook(durationOf(r.Took))
+		}
+		parts = append(parts, style.Render(word))
+	}
+	return strings.Join(parts, " ")
+}
+
+// body is what conn draws under the tabline when it has the window: the
+// kill preview while one waits, else the everything view — put up, or
+// standing in while no buffer is shown.
+func (m model) body(rows int) []string {
+	if m.pendingKill != nil {
+		return m.killPreview(rows)
+	}
+	if m.err != nil {
+		return wrapText(m.err.Error(), m.width-len(gutter), rows, errStyle)
+	}
+	return m.everything(rows)
+}
+
+// withFooter puts up to two faint lines at the foot of a view, teaching the
+// keys that matter now, when the view has the room.
+func (m model) withFooter(lines []string, rows int, foot ...string) []string {
+	if rows < len(lines)+len(foot)+2 {
+		return padTo(lines, rows)
+	}
+	lines = padTo(lines, rows-len(foot)-1)
+	for _, f := range foot {
+		lines = append(lines, gutter+faintStyle.Render(truncateTail(f, m.width-len(gutter))))
+	}
+	return padTo(append(lines, ""), rows)
+}
+
+// everything is the old navigator as one view: every process grouped by
+// place, docker merged in, a footer of the keys beneath.
+func (m model) everything(rows int) []string {
+	foot := []string{
+		"space folds a place · / narrows by anything a row says · esc clears",
+		"enter opens the buffer · x previews a kill · . toggles running · all",
+	}
+	if m.release != "" {
+		foot[1] = "enter opens the buffer · x previews a kill · U installs conn " + strings.TrimPrefix(m.release, "v")
+	}
+	body := m.bodyHeight()
+	lines := []string{""}
+	lines = append(lines, m.navLines(body)...)
+	return m.withFooter(lines, rows, foot...)
+}
+
+// bodyHeight is the number of rows the everything view's list has: the
+// window under the tabline and the blank after it, less the footer, which
+// is what the cursor scrolls within.
+func (m model) bodyHeight() int {
+	rows := m.height - 2
+	if rows >= 8 {
+		rows -= 3
+	}
+	return max(rows, 1)
+}
+
+// navLines renders the visible window of the everything view: places, each
 // followed by the processes running in them, nested the way they started one
 // another.
 func (m model) navLines(rows int) []string {
 	if m.err != nil {
-		return wrapText(m.err.Error(), navWidth-1, rows, errStyle)
+		return wrapText(m.err.Error(), m.width-len(gutter), rows, errStyle)
 	}
 	if m.projects == nil {
 		return nil // still scanning
 	}
 	switch {
 	case len(m.projects) == 0:
-		return []string{"  " + noteStyle.Render("no repositories")}
+		return []string{gutter + noteStyle.Render("no repositories")}
 	case len(m.rows) == 0 && m.filter != "":
-		return []string{"  " + noteStyle.Render("no project matches")}
+		return []string{gutter + noteStyle.Render("nothing answers "+strings.TrimSpace(m.filter))}
 	case len(m.rows) == 0:
-		// The front door teaches the three doors out of it — including the
+		// The front door teaches the doors out of it — including the
 		// one that teaches everything else.
 		return []string{
-			"  " + noteStyle.Render("nothing running"),
+			gutter + noteStyle.Render("nothing running"),
 			"",
-			"  " + faintStyle.Render(".  show all"),
-			"  " + faintStyle.Render("/  find a project"),
-			"  " + faintStyle.Render("?  the keys"),
+			gutter + faintStyle.Render("⌃p  find a project · open a buffer"),
+			gutter + faintStyle.Render(".   show all"),
+			gutter + faintStyle.Render("?   the keys"),
 		}
 	}
 
@@ -149,15 +448,16 @@ func isPlace(r navRow) bool {
 	return r.prefix == "" && (r.kind == rowGroup || r.kind == rowProject)
 }
 
-// renderRow draws one navigator row. The cursor is a marker in the gutter
-// rather than a highlight, so it survives the tree rules beside it.
+// renderRow draws one row of the everything view. A place is a heading in
+// parchment; a process sits under it, its cursor a marker in a gutter of
+// its own, its state's mark beside its name in the state's color.
 //
 // A collapsed node carries the count of what it is hiding. That count is what
-// distinguishes a folded node from a leaf, which the tree rules alone cannot
+// distinguishes a folded node from a leaf, which the indent alone cannot
 // show once the children are gone.
 //
-// A signalled process keeps its row and gains a red marker until a rescan finds
-// it gone, so the list never claims an exit that has not been observed.
+// A signalled process keeps its row and gains a turning marker until a rescan
+// finds it gone, so the list never claims an exit that has not been observed.
 func (m model) renderRow(r navRow, selected bool) string {
 	marker := " "
 	if selected {
@@ -168,38 +468,26 @@ func (m model) renderRow(r navRow, selected bool) string {
 	fold := ""
 	if m.collapsed[detailKey(r)] {
 		if n := m.childCount(r); n > 0 {
-			fold = " +" + strconv.Itoa(n)
+			fold = " +" + strconv.Itoa(n) + " folded"
 		}
 	}
 
 	// An agent's row says which of you the other is waiting on: a working
-	// instance turns beside its name, and one that has finished a turn
-	// lights the whole row, because done-and-waiting is the state that most
-	// wants to be seen and the one a stopped spinner used to whisper.
+	// instance turns beside its name, one stopped on an ask holds the
+	// diamond, and one that has finished a turn holds the filled mark.
 	mark, markStyle := "", faintStyle
 	if a := m.agentFor(r); a != nil {
 		glyph, mstyle := m.agentMark(r, a)
 		mark, markStyle = " "+glyph, mstyle
-		if _, ok := a.blocked(); ok && !selected {
-			style = blockedStyle
-		} else if m.awaiting(r) != nil && !selected {
-			style = attnStyle
-		}
 	}
 
 	// A row whose command ended badly, or whose process is stopped or a
-	// zombie, shows the cross in red — alive by the table and no use to
-	// anyone, which is the state that most wants noticing after an agent's
-	// ask. One whose command ended well shows the check in green: done,
-	// and as worth seeing as a failure, since a run's exit either way is
-	// what you were waiting on.
+	// zombie, shows the cross and says so; one whose command ended well
+	// shows the check: a run's exit either way is what you were waiting on.
 	if mark == "" && r.kind == rowProc {
 		switch {
 		case m.wrong(r):
 			mark, markStyle = " "+glyphFailed, errStyle
-			if !selected {
-				style = errStyle
-			}
 		case m.ended(r) == "0" || containerDone(r):
 			mark, markStyle = " "+glyphDone, toneStyles[toneGood]
 		}
@@ -212,10 +500,7 @@ func (m model) renderRow(r navRow, selected bool) string {
 		}
 	}
 
-	// A process that is conn itself is (me), and only that, in a color of
-	// its own: the launcher become a tmux client would read as a go or a
-	// tmux, and neither is what the row is. Ports it has none of, and a
-	// mark it does not show.
+	// A process that is conn itself is (me), and only that, in gray.
 	if m.selfRun(r) && !selected {
 		style = selfStyle
 	}
@@ -225,51 +510,41 @@ func (m model) renderRow(r navRow, selected bool) string {
 		style = faintStyle
 	}
 
-	// Where it listens, beside the name, in the slot that holds an agent's
-	// model on its row: a dev server's row says what it is, and this says
-	// where it is. It stands outside the name rather than in it, so a name
-	// cut to fit loses its tail and keeps its port — the port being the
-	// thing you were about to go and look up.
-	ports := ""
+	// The facts after the name, in gray: where it listens; at rest, for
+	// how long; a container's port, health or age; a run's last word.
+	facts := ""
 	if r.kind == rowRest {
-		// At rest, and for how long: the age says how far back the
-		// conversation is, which is what picking it back up costs.
-		ports = " · suspended · " + shortAge(r.rest.When)
+		facts = " " + glyphDot + " suspended " + glyphDot + " " + shortAge(r.rest.When)
 	} else if r.kind == rowProc && r.node.Container != nil {
-		ports = containerNote(r.node)
+		facts = containerNote(r.node)
 	} else if r.kind == rowProc {
 		if ps := runPorts(r.run, r.node); len(ps) > 0 {
-			ports = " · :" + strings.Join(ps, " :")
+			facts = " " + glyphDot + " :" + strings.Join(ps, " :")
 		}
-		// A shell at its prompt after its run says what the run said of
-		// itself and how long ago it ended, where a running one says its
-		// ports: 3 failed · 3m — the row reading as the transcript's last
-		// word, and how stale it is.
-		// A run that said nothing of itself and was ended by a signal
-		// says that: killed, where a crash and a kill would otherwise
-		// read the same.
 		if e := m.ending(r); e.State != "" {
-			ports = ""
+			facts = ""
 			if said := cmp.Or(e.Summary, exitWord(e.State)); said != "" {
-				ports += " · " + said
+				facts += " " + glyphDot + " " + said
 			}
 			if !e.At.IsZero() {
-				ports += " · " + shortAge(e.At)
+				facts += " " + glyphDot + " " + shortAge(e.At)
 			}
 		}
-		// An agent waiting on you says how long it has, when its kind
-		// can say: the age of the ask is what decides which to answer
-		// first, and the row is where that is decided.
 		if a := m.awaiting(r); a != nil {
 			if w, ok := a.(waited); ok && w.since() > 0 {
-				ports += " · " + shortFor(w.since())
+				facts += " " + glyphDot + " " + shortFor(w.since())
 			}
 		}
 	}
+	// A place's fold count and a wrong run's word read in the state's color.
+	factStyle := hintStyle
+	if r.kind == rowProc && m.wrong(r) && !selected {
+		factStyle = errStyle
+	}
 
-	// A group or a repository sits on indent alone, naming a place the rows
-	// beneath are inside. What hangs off a repository — its processes and its
-	// sub-projects — is one family of siblings, a step further in.
+	// A place sits on its indent alone, naming what the rows beneath are
+	// inside. What hangs off a place — its processes and its sub-projects
+	// — is one family of siblings, a step further in.
 	indent := r.prefix
 	if r.kind == rowProc || r.kind == rowSub || r.kind == rowRest {
 		indent += glyphIndent + " "
@@ -283,20 +558,25 @@ func (m model) renderRow(r navRow, selected bool) string {
 	case rowProc:
 		label = m.rowLabel(r)
 		fromLeft = false
+		if r.node.Container != nil {
+			label = glyphContainer + " " + label
+			if !selected {
+				style = tealStyle
+			}
+		}
 	case rowRest:
 		// Named for the kind that had it, as its live row would be.
 		label = r.rest.Kind
 		fromLeft = false
 	}
 
-	// A column of gutter, the indent, and the marker's two columns come
+	// A column of margin, the indent, and the marker's two columns come
 	// before the name.
-	room := navWidth - 3 - lipgloss.Width(indent) - lipgloss.Width(fold) -
-		lipgloss.Width(spinner) - lipgloss.Width(mark) - lipgloss.Width(ports)
+	room := m.width - 3 - lipgloss.Width(indent) - lipgloss.Width(fold) -
+		lipgloss.Width(spinner) - lipgloss.Width(mark) - lipgloss.Width(facts)
 
 	// While a query is at work the matched letters are lit, so the narrowed
-	// list always shows why it narrowed. The styled label is cut ansi-aware;
-	// the plain path stays the plain cut.
+	// list always shows why it narrowed.
 	var seg string
 	if q := strings.TrimSpace(m.filter); q != "" && (m.typing || m.filter != "") {
 		seg = truncateStyled(highlight(label, matchSpans(q, label), style), room, fromLeft)
@@ -305,20 +585,19 @@ func (m model) renderRow(r navRow, selected bool) string {
 	} else {
 		seg = style.Render(truncateTail(label, room))
 	}
-	// The marker stands beside the name it marks, in the indent, rather
-	// than at the edge of the column with the whole indent between them.
-	return " " + indent + style.Render(marker) + " " + seg + style.Render(ports) +
+	cursor := selStyle.Render(marker)
+	if selected && !m.attachable(r) {
+		cursor = offSelStyle.Render(marker)
+	}
+	return " " + indent + cursor + " " + seg + factStyle.Render(facts) +
 		markStyle.Render(mark) + errStyle.Render(spinner) +
-		faintStyle.Render(fold)
+		hintStyle.Render(fold)
 }
 
 // rowLabel names a process row. A shell a project asked for by name is called
 // that: "web" is what the project calls it and what you would say out loud,
 // where "sleep 35228" is only true.
 //
-// The name belongs to the shell, so it stands for whatever is running in it —
-// a run folded into one row is named for the shell that was asked for, not for
-// the command that shell happens to be running now.
 // The pid is only shown while every process is on a line of its own. Folded,
 // the list is about what is happening and the pid is a number beside every row
 // that never helps you read it; unfolded, it is what tells two nvim apart and
@@ -332,7 +611,7 @@ func (m model) rowLabel(r navRow) string {
 }
 
 // rowName is what a row is called, without the number the unfolded list
-// adds: the pane's heading uses it too, so the pane is about what the row
+// adds: the tab and the heading use it too, so they are about what the row
 // says it is about.
 func (m model) rowName(r navRow) string {
 	if m.selfRun(r) {
@@ -341,8 +620,7 @@ func (m model) rowName(r navRow) string {
 	name := commandOf(r.node)
 
 	// An agent reads as what it is, not how it was invoked: the kind, and
-	// the model when the invocation names one. The resume id, the launcher,
-	// the flags are the detail pane's to keep. This stands ahead of the
+	// the model when the invocation names one. This stands ahead of the
 	// plan's name — an agent is named for its kind, not the entry that
 	// happened to start it.
 	if k, ok := agentKindOf(r.node); ok {
@@ -350,9 +628,7 @@ func (m model) rowName(r navRow) string {
 	} else if planned := m.plannedName(r); planned != "" {
 		// A shell a project asked for is called what the project calls it,
 		// whatever is running in it: web, not the http.server that is web
-		// this time. The name comes from the service, the command is how it is
-		// run today, and the row is about the service. The pane says the
-		// command.
+		// this time.
 		name = planned
 	}
 	return name
@@ -368,9 +644,7 @@ func (m model) agentNameOf(n *ProcNode) string {
 }
 
 // agentModelOf is the model an agent row shows: the one its invocation
-// names, else the one the live instance advertises. ollama names its model
-// on the command line; claude keeps it in the transcript, which the scan
-// reads for the row and folds into the instance.
+// names, else the one the live instance advertises.
 func (m model) agentModelOf(n *ProcNode) string {
 	if model := agentModel(n.Argv); model != "" {
 		return model
@@ -448,10 +722,10 @@ var interpreters = map[string]bool{
 }
 
 // rowStyle decides how brightly a row is drawn. Brightness in this list means
-// the row can be stepped into: a repository opens a shell, and a shell conn
-// started can be returned to. Everything else is somebody else's process on
-// somebody else's terminal, which conn cannot attach to, so it is drawn dim
-// rather than offered and then refused.
+// the row can be stepped into: a place opens a shell, and a buffer conn holds
+// can be returned to. Everything else is somebody else's process on somebody
+// else's terminal, which conn cannot attach to, so it is drawn dim rather
+// than offered and then refused: dim means look, don't step.
 func (m model) rowStyle(r navRow, selected bool) lipgloss.Style {
 	// While a project is being looked up the list is a reference rather than
 	// the working view. Every row is a candidate and none of them has been
@@ -469,9 +743,8 @@ func (m model) rowStyle(r navRow, selected bool) lipgloss.Style {
 		return faintStyle
 	}
 	if selected {
-		// Lit whether or not the navigator has focus: the row is the one
-		// focus went from, and dim reads as out of reach. Which pane has
-		// focus is the status line's to say.
+		// Lit whether or not conn has focus: the row is the one focus
+		// went from, and dim reads as out of reach.
 		return selStyle
 	}
 	if r.kind != rowProc {
@@ -480,323 +753,62 @@ func (m model) rowStyle(r navRow, selected bool) lipgloss.Style {
 	return itemStyle
 }
 
-// paneLeft is the pane's first column in the window: past the navigator and
-// the divider.
-func (m model) paneLeft() int { return navWidth + 1 }
+// killPreview is what x shows before anything dies: the buffer's heading
+// saying so, the process tree with its pids and held ports, the
+// consequences in prose, and the confirm line.
+func (m model) killPreview(rows int) []string {
+	req := m.pendingKill
+	lines := []string{""}
+	head := req.subject
+	lines = append(lines, gutter+headingStyle.Render(head)+" "+hintStyle.Render(dots(req.where, "about to die")))
+	lines = append(lines, "")
 
-// detailWidth is the room left for the detail pane beside the navigator.
-func (m model) detailWidth() int { return m.width - m.paneLeft() }
-
-// showDetail reports whether the navigator has room to carry a pane of its
-// own beside the list. Beside an entered shell it has exactly its column
-// and does not; with the window to itself it does, unless the window is
-// narrow.
-func (m model) showDetail() bool { return m.detailWidth() >= paneMin }
-
-// paneLines renders the navigator's own pane beside the list: the picker
-// while it is open, and otherwise what is known about the selected row —
-// a held shell's included. The shell itself is only beside the navigator
-// while it has focus, and then the navigator is its column alone.
-func (m model) paneLines(width, rows int) []string {
-	if m.resume != nil {
-		return m.resumeLines(width, rows)
-	}
-	return m.detailLines(width, rows)
-}
-
-// resumeLines is the picker: a place's suspended conversations, newest
-// first. Each row is when the conversation last moved, the branch it was on,
-// and the last thing asked of it — the things a reader recognizes one by.
-// The cursor's row is lit in the navigator's selection style.
-func (m model) resumeLines(width, rows int) []string {
-	v := m.resume
-	lines := []string{
-		paneGutter + headingStyle.Render(v.place.Name),
-		paneGutter + noteStyle.Render("suspended conversations"),
-		"",
-	}
-	switch {
-	case !v.loaded:
-		return append(lines, paneGutter+noteStyle.Render("looking…"))
-	case len(v.convos) == 0:
-		return append(lines, paneGutter+noteStyle.Render("none to continue"))
-	}
-	list := v.matches()
-	if len(list) == 0 {
-		return append(lines, paneGutter+noteStyle.Render("nothing answers "+strings.TrimSpace(v.query)))
-	}
-
-	// The columns are sized to this listing: the age is short by construction,
-	// and a branch keeps enough to be told apart without owning the row.
-	agew, bw := 0, 0
-	for _, c := range list {
-		agew = max(agew, lipgloss.Width(shortAge(c.When)))
-		bw = max(bw, lipgloss.Width(c.Branch))
-	}
-	bw = min(bw, 12)
-
-	// The window slides the least amount that keeps the cursor on screen,
-	// derived from the cursor alone so drawing moves nothing.
-	sel := min(v.cursor, len(list)-1)
-	detail := resumeDetail(list[sel], width, rows)
-	body := max(rows-len(lines)-len(detail), 1)
-	off := max(sel-body+1, 0)
-
-	lead := 3 + agew + 2
-	if bw > 0 {
-		lead += bw + 2
-	}
-	for i := off; i < min(off+body, len(list)); i++ {
-		c := list[i]
-		marker, style := " ", itemStyle
-		if i == sel {
-			marker, style = glyphSelected, selStyle
+	// The tree, parents first, each a step further in than the one above.
+	depth := map[int]int{}
+	for _, n := range req.nodes {
+		d := 0
+		if pd, ok := depth[n.PPID]; ok {
+			d = pd + 1
 		}
-		row := " " + marker + " " + faintStyle.Render(pad(shortAge(c.When), agew)) + "  "
-		if bw > 0 {
-			row += faintStyle.Render(pad(truncate(c.Branch, bw), bw)) + "  "
+		depth[n.PID] = d
+		facts := []string{"pid " + nodeID(n)}
+		if len(n.Ports) > 0 {
+			facts = append(facts, "holds :"+strings.Join(n.Ports, " :"))
 		}
-		// The prompt is the recognizer; a conversation that never got one is
-		// named by what it said it was doing, or failing that by its id.
-		text := c.Prompt
-		if text == "" {
-			text = c.Summary
+		name := commandOf(n)
+		if n.Container != nil {
+			name = glyphContainer + " " + n.Container.Service
 		}
-		if text == "" {
-			text = c.ID
-		}
-		seg := style.Render(truncateTail(text, width-lead))
-		if q := strings.TrimSpace(v.query); q != "" {
-			seg = truncateStyled(highlight(text, matchSpans(q, text), style), width-lead, false)
-		}
-		lines = append(lines, row+seg)
+		// The names in one column, the facts in the next: a name too long
+		// for its column gives way, so a pid is always where the eye
+		// expects it.
+		column := min(m.width/2, 40)
+		lead := gutter + strings.Repeat("  ", d) + errStyle.Render(glyphFailed) + " "
+		name = truncateTail(name, max(column-lipgloss.Width(lead)-1, 4))
+		row := pad(lead+itemStyle.Render(name), column) + hintStyle.Render(dots(facts...))
+		lines = append(lines, truncateStyled(row, m.width, false))
 	}
-	for len(lines) < rows-len(detail) {
+	// The consequences, when the window has the rows for them: the
+	// confirm line is the one that must be read, and comes first when
+	// they compete.
+	var prose []string
+	for _, l := range wrapValue(req.consequence(), m.width-len(gutter)) {
+		prose = append(prose, gutter+hintStyle.Render(l))
+	}
+	confirm := gutter + blockedStyle.Render(req.confirmWord()) + " " + hintStyle.Render(glyphDot+" "+req.alternatives())
+	if len(lines)+len(prose)+3 <= rows {
 		lines = append(lines, "")
+		lines = append(lines, prose...)
 	}
-	return append(lines, detail...)
+	lines = append(lines, "", confirm)
+	return m.withFooter(lines, rows,
+		"after: the buffer stays as the record of the ending, until you close it",
+		"9 kills outright · i interrupts · h hangs up · esc changes your mind")
 }
 
-// resumeDetail is the selected conversation whole, under the list: the full
-// prompt a row could only truncate, what the session said it was doing, and
-// where and on what branch it was had. A short pane keeps the list instead —
-// the names are the scanning surface, and the depth can wait for room.
-func resumeDetail(c conversation, width, rows int) []string {
-	if rows < 14 {
-		return nil
-	}
-	var fs []field
-	add := func(label, value string, t tone) {
-		if value != "" {
-			fs = append(fs, field{label: label, value: value, tone: t})
-		}
-	}
-	add("asked", c.Prompt, tonePlain)
-	add("said", c.Summary, toneQuiet)
-	add("branch", c.Branch, toneAccent)
-	add("where", c.Dir, toneQuiet)
-	if len(fs) == 0 {
-		return nil
-	}
-	out := []string{ruleStyle.Render(strings.Repeat("─", width))}
-	return append(out, renderBlock(fs, width)...)
-}
-
-// detailLines renders everything known about the selected row.
-func (m model) detailLines(width, rows int) []string {
-	r, ok := m.selected()
-	if !ok {
-		return []string{paneGutter + noteStyle.Render("nothing selected")}
-	}
-
-	fields, loaded := m.details[detailKey(r)]
-	if !loaded {
-		return []string{paneGutter + noteStyle.Render("loading…")}
-	}
-
-	// A transcript is read from its end: it is the last block, and when
-	// the pane is too short for all of it, the lines that go are its
-	// oldest, under its heading, so what the shell showed last is what
-	// the pane shows.
-	var lines []string
-	tailAt := -1 // the first transcript line, when there is one
-	for _, block := range blocks(fields) {
-		drawn := renderBlock(block, width)
-		if len(drawn) == 0 {
-			continue
-		}
-		if len(lines) > 0 {
-			lines = append(lines, "")
-		}
-		if isTranscript(block) {
-			tailAt = len(lines) + 1
-		}
-		lines = append(lines, drawn...)
-	}
-	if over := len(lines) - rows; over > 0 {
-		if tailAt >= 0 && tailAt+over <= len(lines) {
-			lines = append(lines[:tailAt:tailAt], lines[tailAt+over:]...)
-		} else {
-			lines = lines[:rows]
-		}
-	}
-	return lines
-}
-
-// isTranscript reports whether a block is a shell's transcript: a heading
-// over lines of text.
-func isTranscript(block []field) bool {
-	return len(block) > 1 && block[0].kind == headingField && block[1].kind == textField
-}
-
-// blocks splits the fields at the breaks between groups. A group sets its own
-// value column, so one long label does not indent a pane that has nothing else
-// like it in it.
-func blocks(fields []field) [][]field {
-	var out [][]field
-	var cur []field
-	for _, f := range fields {
-		if f.kind == gapField {
-			out = append(out, cur)
-			cur = nil
-			continue
-		}
-		cur = append(cur, f)
-	}
-	return append(out, cur)
-}
-
-// renderBlock draws one group, preceded by the blank line that separates it
-// from the last. A group with nothing in it draws nothing at all, so a pane
-// that skipped a whole group does not leave a hole where it would have been.
-func renderBlock(block []field, width int) []string {
-	if len(block) == 0 {
-		return nil
-	}
-
-	// The widest label in this group sets its value column, so values line up.
-	labelW := 0
-	for _, f := range block {
-		if f.kind == pairField {
-			labelW = max(labelW, lipgloss.Width(f.label))
-		}
-	}
-
-	var lines []string
-	for _, f := range block {
-		switch f.kind {
-		case headingField:
-			lines = append(lines, paneGutter+titleStyle.Render(f.value))
-		case noteField:
-			for _, c := range wrapValue(f.value, width-len(paneGutter)-1) {
-				lines = append(lines, paneGutter+noteStyle.Render(c))
-			}
-		case textField:
-			// As the shell showed it, in the colors it drew, cut to the
-			// pane: a transcript wrapped would be a different transcript.
-			// Each line ends reset, so nothing the shell set outlives it.
-			lines = append(lines, paneGutter+truncateStyled(f.value, width-len(paneGutter), false)+ansi.ResetStyle)
-		default:
-			lines = append(lines, wrapField(f, labelW, width)...)
-		}
-	}
-	return lines
-}
-
-// wrapField draws one label and its value, wrapping a long value under the
-// value column rather than letting it run off the pane.
-func wrapField(f field, labelW, width int) []string {
-	label := pad(labelStyle.Render(f.label), labelW)
-	gutter := paneGutter
-	valueW := max(width-labelW-2*len(gutter), 8)
-
-	// The lead stands ahead of the value on its first line, in its own
-	// tone, and the value wraps in the room it leaves.
-	lead := ""
-	if f.lead != "" {
-		lead = toneStyles[f.leadTone].Render(f.lead)
-		if f.value != "" {
-			lead += "  "
-		}
-		valueW = max(valueW-lipgloss.Width(lead), 8)
-	}
-
-	chunks := wrapValue(f.value, valueW)
-	if len(chunks) == 0 {
-		chunks = []string{""}
-	}
-
-	style := toneStyles[f.tone]
-	lines := make([]string, 0, len(chunks))
-	for i, c := range chunks {
-		if i == 0 {
-			lines = append(lines, gutter+label+gutter+lead+style.Render(c))
-			continue
-		}
-		lines = append(lines, gutter+strings.Repeat(" ", labelW)+gutter+style.Render(c))
-	}
-	return lines
-}
-
-// wrapValue breaks a value at spaces where it can, and mid-token when a single
-// token is longer than the pane — paths and command lines usually are.
-//
-// Everything is measured in the columns a terminal will give it, the unit
-// used throughout this file. Counting bytes instead wraps a line of accented
-// text a third of the way early, and cutting at a byte offset lands inside a
-// character, leaving half of it on each of two lines where it draws as neither
-// — which the ellipsis on a truncated prompt and the › between the processes
-// of a run are both enough to trigger.
-func wrapValue(s string, width int) []string {
-	if width <= 0 {
-		return nil
-	}
-	var lines []string
-	for word := range strings.FieldsSeq(s) {
-		switch {
-		case len(lines) == 0:
-			lines = append(lines, word)
-		case lipgloss.Width(lines[len(lines)-1])+1+lipgloss.Width(word) <= width:
-			lines[len(lines)-1] += " " + word
-		default:
-			lines = append(lines, word)
-		}
-		// Split anything still too wide for the pane.
-		for lipgloss.Width(lines[len(lines)-1]) > width {
-			head, tail := cutColumns(lines[len(lines)-1], width)
-			lines[len(lines)-1] = head
-			if tail == "" {
-				break // a single character wider than the whole pane
-			}
-			lines = append(lines, tail)
-		}
-	}
-	return lines
-}
-
-// cutColumns splits s after the last character that still fits in width
-// columns. A character too wide for the pane on its own is kept whole and
-// overflows, because the alternative is to cut it into bytes that are not a
-// character at all — and returning it uncut is what lets the caller stop
-// rather than ask again for the same string.
-func cutColumns(s string, width int) (head, tail string) {
-	col := 0
-	for i, r := range s {
-		w := lipgloss.Width(string(r))
-		if i > 0 && col+w > width {
-			return s[:i], s[i:]
-		}
-		col += w
-	}
-	return s, ""
-}
-
-// at returns the line at i, or blank past the end.
-func at(lines []string, i int) string {
-	if i < len(lines) {
-		return lines[i]
-	}
-	return ""
+// durationOf is seconds as a duration.
+func durationOf(secs float64) time.Duration {
+	return time.Duration(secs * float64(time.Second))
 }
 
 // pad right-fills a rendered line to width columns, measuring display width so
@@ -858,8 +870,57 @@ func truncateTail(s string, width int) string {
 	return head + "…"
 }
 
-// wrapText breaks a message across at most rows navigator lines, measured in
-// columns like everything else here.
+// cutColumns splits s after the last character that still fits in width
+// columns. A character too wide for the pane on its own is kept whole and
+// overflows, because the alternative is to cut it into bytes that are not a
+// character at all — and returning it uncut is what lets the caller stop
+// rather than ask again for the same string.
+func cutColumns(s string, width int) (head, tail string) {
+	col := 0
+	for i, r := range s {
+		w := lipgloss.Width(string(r))
+		if i > 0 && col+w > width {
+			return s[:i], s[i:]
+		}
+		col += w
+	}
+	return s, ""
+}
+
+// wrapValue breaks a value at spaces where it can, and mid-token when a single
+// token is longer than the width — paths and command lines usually are.
+//
+// Everything is measured in the columns a terminal will give it, the unit
+// used throughout this file.
+func wrapValue(s string, width int) []string {
+	if width <= 0 {
+		return nil
+	}
+	var lines []string
+	for word := range strings.FieldsSeq(s) {
+		switch {
+		case len(lines) == 0:
+			lines = append(lines, word)
+		case lipgloss.Width(lines[len(lines)-1])+1+lipgloss.Width(word) <= width:
+			lines[len(lines)-1] += " " + word
+		default:
+			lines = append(lines, word)
+		}
+		// Split anything still too wide.
+		for lipgloss.Width(lines[len(lines)-1]) > width {
+			head, tail := cutColumns(lines[len(lines)-1], width)
+			lines[len(lines)-1] = head
+			if tail == "" {
+				break // a single character wider than the whole width
+			}
+			lines = append(lines, tail)
+		}
+	}
+	return lines
+}
+
+// wrapText breaks a message across at most rows lines, measured in columns
+// like everything else here.
 func wrapText(s string, width, rows int, style lipgloss.Style) []string {
 	if width <= 0 || rows <= 0 {
 		return nil

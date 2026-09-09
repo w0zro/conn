@@ -124,11 +124,12 @@ func (s claudeSession) blocked() (string, bool) {
 	return s.WaitingFor, s.Status == waitingStatus
 }
 
-// describe reads the transcript into a copy of the session — the deeper look
-// the scan does not take — and lays the whole of it out for the pane.
-func (s claudeSession) describe() []field {
+// describe reads the transcript into a copy of the session — the deeper
+// look the scan does not take — and says what a heading wants of it: the
+// branch, the context in tokens, and the subagents alive under it.
+func (s claudeSession) describe() []string {
 	readTranscript(transcriptPath(s), &s)
-	return claudeFields(s)
+	return claudeFacts(s)
 }
 
 // agentRun is one subagent, as its parent described it when starting it.
@@ -848,76 +849,21 @@ func tailLines(path string, max int64) ([][]byte, error) {
 	return lines, nil
 }
 
-// claudeFields describes a Claude Code instance, most useful first: what the
-// session is called, whether it is working, and what it was last asked to do.
-func claudeFields(s claudeSession) []field {
-	// What it is, then what it is doing, then what it is doing it with. The
-	// prose is given a group of its own because it is the part worth reading
-	// and the part that wraps.
-	var what, doing, with []field
-	add := func(fs *[]field, label, value string, tones ...tone) {
-		if value == "" {
-			return
-		}
-		f := field{label: label, value: value}
-		if len(tones) > 0 {
-			f.tone = tones[0]
-		}
-		*fs = append(*fs, f)
+// claudeFacts is what a heading says of a Claude Code instance beyond
+// its name: the branch it is on, how much context it holds, and how many
+// subagents it has out.
+func claudeFacts(s claudeSession) []string {
+	var facts []string
+	if s.Branch != "" {
+		facts = append(facts, s.Branch)
 	}
-
-	add(&what, "session", s.Name, toneAccent)
-	if s.Status != "" {
-		status := s.Status
-		// The status reads in the color of its mark in the navigator:
-		// working is alive, blocked is the answer holding up work, and idle
-		// recedes. A blocked session says what it is blocked on, which is
-		// the part worth reading: "waiting" alone would send you to the pane
-		// to find out, and the pane is where you already are.
-		t := toneQuiet
-		switch s.Status {
-		case busyStatus:
-			t = toneGood
-		case waitingStatus:
-			t = toneUrgent
-			if s.WaitingFor != "" {
-				status = "waiting on " + s.WaitingFor
-			}
-		}
-		if s.StatusFor > 0 {
-			status += "  (" + shortDuration(s.StatusFor) + ")"
-		}
-		add(&what, "status", status, t)
-	}
-	add(&what, "branch", s.Branch, toneAccent)
-
-	// The summary is the conversation's name; the prompt is your own words,
-	// in your color; the agents are work alive under it.
-	add(&doing, "summary", s.Summary, toneName)
-	add(&doing, "asked", s.Prompt, toneSelf)
-	for i, a := range s.Agents {
-		label := "agents"
-		if i > 0 {
-			label = "" // the rest line up under the first
-		}
-		add(&doing, label, a.String(), toneGood)
-	}
-
-	add(&with, "model", s.Model, toneName)
 	if s.Context > 0 {
-		add(&with, "context", shortTokens(s.Context)+" tokens", toneCount)
+		facts = append(facts, shortTokens(s.Context)+" tokens")
 	}
-	add(&with, "session id", s.SessionID, toneQuiet)
-
-	var fs []field
-	for _, group := range [][]field{what, doing, with} {
-		if len(group) == 0 {
-			continue
-		}
-		fs = append(fs, gap())
-		fs = append(fs, group...)
+	if len(s.Agents) > 0 {
+		facts = append(facts, plural(len(s.Agents), "agent", "agents")+" out")
 	}
-	return fs
+	return facts
 }
 
 // shortDuration is a duration at a glance: one unit, no decimals.

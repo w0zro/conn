@@ -17,15 +17,18 @@ the window is closed.
 .SH GENERAL
 .TP
 1-1.
-\fBconn\fR is a terminal UI for working on many projects at once. It lists every
-git repository under your project roots, what is running in each, and the shells
-you have open there, and marks the rows that need you.
+\fBconn\fR is a terminal UI for working on many projects at once. It knows every
+git repository under your project roots and what is running in each, and it
+treats a process the way an editor treats a file: every shell, agent, task and
+container log it holds is a buffer, the buffers open are the tabs across the top
+of the window, and the ones that need you are marked.
 .TP
 1-2.
-conn is one window. The navigator runs down the left; the shell you are working
-in fills the right. Other shells keep running out of view until you return to
-them. Close the terminal and everything keeps running; run \fBconn\fR again and
-it is where you left it.
+conn is one window. conn's own pane runs across the top, two rows: the tabline,
+and the heading of the buffer shown. The buffer with focus fills the window
+under it; the tmux status line sits at the foot. The other buffers keep running
+out of view until you step back to them. Close the terminal and everything keeps
+running; run \fBconn\fR again and it shows what it showed.
 .TP
 1-3.
 Install the release built for this machine:
@@ -75,26 +78,74 @@ $ conn
 .RE
 .TP
 1-6.
-There is nothing to set up. The list opens showing what is running, so on a
-quiet machine it says \fBnothing running\fR. Press \fB.\fR to show every
-repository, \fB/\fR to find one by name. conn looks under \fB~/projects\fR;
-Section 9 points it elsewhere.
-.SH THE NAVIGATOR
+There is nothing to set up. With no buffer open, the window is the everything
+view (2-3), which shows what is running, so on a quiet machine it says
+\fBnothing running\fR and names the doors: \fB⌃p\fR find a project · open a
+buffer, \fB.\fR show all, \fB?\fR the keys. \fBctrl\-p\fR is the finder (3-2):
+type a project's name, and \fBenter\fR opens a shell there. conn looks under
+\fB~/projects\fR; Section 9 points it elsewhere.
+.SH THE WINDOW
 .TP
 2-1.
-The left column is a tree, at most four levels deep: \fBgroup\fR →
-\fBrepository\fR → \fBsub\-project\fR → \fBprocess\fR. A group, a repository
-and a sub-project are each a place: a row you can open a shell at. A repository
-is any git repository under a root. conn skips \fBnode_modules\fR, \fBvendor\fR,
-\fBtarget\fR, \fB.build\fR, \fBPods\fR, \fB.venv\fR, \fBvenv\fR, every directory
-whose name begins with a dot, and whatever \fBskipDirs\fR names.
+The tabline is the working set: one tab for every buffer conn holds — the
+shells it opened, the agents, the tasks, a plan's entries, a container's logs
+— named place/name: \fBconn/claude\fR, \fBdatum/tests\fR, \fBpg\fR. The tab
+with focus is bold ink on the ground; the others are gray. Each tab carries its
+buffer's mark (Table 2-1), and the mark stays while the state does. The right
+end holds one hint for the moment: \fB⌃p opens\fR, \fBr reruns\fR, \fBesc
+keeps it\fR, \fB. toggles running · all\fR.
+.PP
+.I "Table 2-1. Marks, on a tab and on a row"
+.RS
+.TP
+\fB⠇\fR
+in amber: working — an agent mid-turn
+.TP
+\fB◆\fR
+in owed orange: an ask owed — a permission prompt, a question
+.TP
+\fB●\fR
+in green: done, and waiting on you
+.TP
+\fB✓\fR
+in green: the command ended well. Beside the name, what the run said of itself
+and how long ago: \fBtest · 12 passed · 2h\fR
+.TP
+\fB✗\fR
+in owed orange: the command ended badly, or the process is stopped or hung:
+\fBtest · 3 failed · 3m\fR
+.TP
+\fB⬢\fR
+in teal: a container
+.RE
 .TP
 2-2.
+Under the tabline is the heading of the buffer shown: its name, bold in
+parchment, then its facts in gray, joined by middots. \fBin <place>\fR; the
+command a task ran; its pid; the ports it listens on; an agent's branch and the
+size of its context, \fB48.2k tokens\fR, read from its transcript; how long a
+waiting agent has waited, \fBwaiting 3m\fR. For a run that ended, how, in the
+mark's color: \fB✗ exit 1 · 3 failed · 2m ago\fR, or the same after ✓;
+then its past runs from the record (Appendix B), newest first: \fBpast runs ✗
+2m ✓ 12s ✓ 14s\fR. What a buffer is doing is read off its heading.
+.TP
+2-3.
+\fB.\fR at conn, or \fBctrl\-space \-\fR from any buffer, is the everything
+view: every process, grouped by place, drawn by conn in the whole window under
+the tabline, where an \fBeverything\fR tab stands first. It is a tree, at most
+four levels deep: \fBgroup\fR → \fBrepository\fR → \fBsub\-project\fR →
+\fBprocess\fR. A group, a repository and a sub-project are each a place: a row
+you can open a shell at. A repository is any git repository under a root. conn
+skips \fBnode_modules\fR, \fBvendor\fR, \fBtarget\fR, \fB.build\fR, \fBPods\fR,
+\fB.venv\fR, \fBvenv\fR, every directory whose name begins with a dot, and
+whatever \fBskipDirs\fR names.
+.TP
+2-4.
 A folder inside a root that holds two or more repositories is a group. It is a
 place of its own: \fBs\fR opens a shell there, \fBr\fR runs its plan, \fBx\fR
 covers everything beneath it.
 .TP
-2-3.
+2-5.
 In a monorepo, a directory with a manifest is a sub-project and gets a row under
 its repository. A manifest is any of \fB.conn\fR, \fBProcfile\fR,
 \fBpackage.json\fR, \fBdeno.json\fR, \fBcomposer.json\fR, \fBgo.mod\fR,
@@ -104,79 +155,60 @@ ignores are skipped; an untracked \fB.conn\fR still counts. A process working in
 a directory with a manifest is listed under it either way: the process makes the
 sub-project, and the manifest names it.
 .TP
-2-4.
+2-6.
 Each place lists what is running in it, named by what you would call it: \fBnpm
 run dev\fR, not \fBnode\fR. A row that listens carries its port, \fBnpm run dev
-· :5173\fR; an agent's row carries its model; a shell a plan or a task started
-is named for its entry. Dim rows have no shell of their own to go to: processes
-started outside conn, and processes a shell's command started in turn, a
-claude's tools, say. \fBenter\fR reaches as far as the shell above them. All are
-listed and killable. The row that is conn itself says \fB(me)\fR.
-.TP
-2-5.
-A row's mark says how its command ended, or that its process is stuck. An
-agent's marks are in Section 5.
-.PP
-.I "Table 2-1. Row marks"
-.RS
-.TP
-\fB✗\fR
-in red: the command ended badly, or the process is stopped or hung. Beside the
-name, what the run said of itself and how long ago: \fBtest · 3 failed · 3m\fR
-.TP
-\fB✓\fR
-in green: the command ended well. \fBtest · 12 passed · 2h\fR
-.RE
-.TP
-2-6.
-While the navigator has focus, the pane beside the list shows what is known
-about the row under the cursor. For a place: its branch, status, upstream and
-last commit; its plan as a checklist, each entry up, down or ended and how, an
-entry that is up saying the ports it listens on; its tasks and how their last
-run went; and under each entry and task that has run before, the last five runs
-of its command, newest first, how each ended and how long it took: \fBruns ✓
-12s · ✗ 2m\fR. The runs are kept after their shells are gone (Appendix B).
-For a process: its arguments; the binary behind its name, which node or which
-python; the environment variables that say where it runs and what it talks to,
-the \fB*_ENV\fR family, port and host, log level and URLs, with secrets left out
-by name and passwords in URLs masked; uptime, cpu, memory, state, ports and
-children; and beneath the facts the last of what its shell has shown. For a
-container: its name, image, status and the last of its logs. What a thing is
-doing can be read without entering it.
+· :5173\fR; an agent's row carries its model; a container's row its mark and
+its age, \fB⬢ pg · :5432 · up 2d\fR; a shell a plan or a task started is
+named for its entry; a row that ended or is stuck carries the mark of Table 2-1.
+Place headings are bold in parchment, with the branch; the cursor is an orange
+▸; a folded place says what it hides, \fB+3 folded\fR. Faint rows have no
+buffer to step into: processes started outside conn, and processes a shell's
+command started in turn, a claude's tools, say; the view says so of them, \fBdim
+means look, don't step\fR. \fBenter\fR reaches as far as the shell above them.
+All are listed and killable. The row that is conn itself says \fB(me)\fR. The
+newest conversation at rest under a place with work is a row of its own,
+\fBclaude · suspended · 6h\fR (5-3); what runs outside every project is under
+\fBglobal\fR (6-5). The foot of the view teaches two lines of keys; with nothing
+running it says \fBnothing running\fR and names the doors (1-6).
 .TP
 2-7.
-The status line at the foot begins with \fBCONN\fR, then the mode (Table 2-2),
-then anything conn has to say until the next key: a report, an error, a
-confirmation, or that a newer release is out. What a chord says from a shell
-shows there too, for a few seconds. The right corner counts what needs you,
-while anything does, then names the kind of agent \fBa\fR starts.
+The status line at the foot begins with the \fBCONN\fR chip — bold, the
+ground's color on the orange, the one inverted ground on the screen — then one
+mode chip, bold in its color, while one holds (Table 2-2). Then, in gray,
+anything conn has to say until the next key: a report, an error, or that a newer
+release is out, \fBconn 0.6.0 is out · U installs it\fR; else the session's
+facts, \fBdatum/tests · 3 buffers · 12 more processes live behind them\fR, or
+in the everything view \fB17 processes · 6 places\fR. What a chord says from a
+buffer shows there too, for a few seconds. The right end is \fB? keys\fR.
+Nothing else lives there.
 .PP
 .I "Table 2-2. Modes on the status line"
 .RS
 .TP
-\fBNAV\fR
-the navigator has focus
-.TP
-\fBPROC\fR
-a shell has focus
-.TP
 \fBPREFIX\fR
-ctrl-space pressed, waiting for the next key
+in amber: ctrl-space pressed, waiting for the next key
 .TP
 \fBCOPY\fR
-scrolling back through a pane
+in teal: scrolling back through a pane
 .TP
 \fB/query\fR
 a query being typed, or the filter standing
 .TP
-\fBCONTINUE\fR
-the picker of conversations is open
-.TP
-\fBNEW\fR
-a project's path is being typed
+\fBALL\fR
+in teal: the everything view is up
 .TP
 \fBCONFIRM\fR
-a kill waits on its second key
+a kill, or \fBR\fR, waits on its second key
+.TP
+\fBFAILED\fR
+the shown buffer's run ended badly
+.TP
+\fBN OWED\fR
+answers owed: agents waiting, runs failed, processes stuck
+.TP
+\fBWORKING\fR
+the shown buffer's agent is mid-turn
 .RE
 .TP
 2-8.
@@ -184,17 +216,133 @@ The mouse works throughout: the wheel scrolls back through a pane, a drag
 selects and copies on release, a click focuses the pane under it, and a program
 that uses the mouse gets its own clicks and wheel. Hold shift to select with the
 terminal's own selection. A program that copies for itself, vim's clipboard yank
-for one, reaches the system clipboard.
+for one, reaches the system clipboard. A click into conn's pane at the top
+focuses it, and the keys of Appendix A work there; \fBctrl\-space \-\fR brings
+the everything view up from any pane.
 .TP
-\fBNOTE\fR
-A click into the navigator focuses it, as \fBctrl\-space \-\fR does: the shell
-beside it moves out of view.
+2-9.
+conn draws in truecolor with a palette of its own, the hangar (Table 2-3). Hue
+is spent on state and focus alone, one accent to a phrase. Every pane sits on
+the hangar's ground and ink unless the configuration's \fBtheme\fR says
+\fBterminal\fR, which leaves the shells the terminal's own colors; conn's pane,
+the status line and the popups are the hangar either way.
+.PP
+.I "Table 2-3. The hangar"
+.RS
+.TP
+\fBground · #15130F\fR
+behind every pane; wash #1D1A15 behind the status line and the popups; chip
+#2A2620 for chips, borders and the cursor's bar
+.TP
+\fBink · #E6DFD0\fR
+text; gray #8B8272 for facts and tabs without focus; faint #5C564A for rows conn
+cannot step into
+.TP
+\fBparchment · #BFB39A\fR
+headings and place names
+.TP
+\fBorange · #E85D2F\fR
+the brand, the cursor and focus
+.TP
+\fBowed · #FF7847\fR
+asks, failures and dying
+.TP
+\fBamber · #E3A94F\fR
+working
+.TP
+\fBgreen · #93C98B\fR
+done and passed
+.TP
+\fBteal · #7FC7BD\fR
+identity: ports, branches, containers, the names of variables
+.RE
 .SH MOVING
 .TP
 3-1.
-In the list:
+Between buffers, at conn — in its pane, or in the everything view; from a
+buffer, the same keys after \fBctrl\-space\fR (3-7):
 .PP
-.I "Table 3-1. Moving in the list"
+.I "Table 3-1. Moving between buffers"
+.RS
+.TP
+\fBJ K\fR
+the next and previous buffer, in the tabline's order
+.TP
+\fBtab\fR
+the next thing owed (3-8)
+.TP
+\fBshift+tab\fR
+back: the previous buffer, or everything (3-9)
+.TP
+\fBenter\fR
+open the buffer under the cursor
+.TP
+\fBp ctrl\-p\fR
+the finder (3-2)
+.TP
+\fB.\fR
+the everything view; there, running or all
+.TP
+\fBq\fR
+leave; everything keeps running (10-1)
+.RE
+.TP
+3-2.
+\fBctrl\-p\fR, from any buffer, opens the finder: the front door. \fBp\fR or
+\fBctrl\-p\fR at conn, and \fBctrl\-space p\fR, \fBctrl\-space ctrl\-p\fR and
+\fBctrl\-space /\fR from anywhere, open it too. It is a popup over the window: a
+query line with an orange › prompt, and under it one list of everything
+openable (Table 3-2). Each word of the query must appear in order inside what a
+row says, not contiguously: \fBtsl\fR finds tressle-api, \fBmono api\fR finds
+the api inside mono, and the letters that matched are lit in orange. The
+cursor's row is a bar with an orange ▸; \fB↑↓\fR move it.
+.PP
+.I "Table 3-2. What the finder lists"
+.RS
+.TP
+\fBa buffer held\fR
+with its state and last word: \fB● running · done, review when ready\fR,
+\fB✗ 1 failed · 2m\fR
+.TP
+\fBa task not running\fR
+every place's test, build and lint, with the last runs: \fBtask · last runs ✓
+12s ✗ 2m ✓ 14s\fR
+.TP
+\fBa plan's entry not running\fR
+\fBplan · npm run dev\fR
+.TP
+\fBa container\fR
+\fB⬢ container · :5432 · up 2d\fR
+.TP
+\fBa conversation at rest\fR
+the newest under each place: \fBdatum · resume\fR, the last prompt, its age,
+its branch (5-3)
+.TP
+\fBa place\fR
+\fBdemo/terminal — shell · opens at the root\fR
+.TP
+\fBa process conn cannot step into\fR
+dim: look, don't step
+.RE
+.TP
+3-3.
+\fBenter\fR attaches to a buffer that is running; starts what is defined — a
+task, a plan's entry — and a task whose last run lies dead in its buffer is
+run again in the same pane; opens a container's logs as a buffer, \fBdocker
+compose logs \-f\fR; continues a conversation at rest where it was had; opens a
+shell at a place. A query that matches nothing offers to make the project:
+\fBenter\fR on \fBw0zro/parser\fR makes the repository under the first projects
+root and opens its shell (4-2). \fBctrl\-a\fR starts an agent where the cursor's
+row is; \fB,\fR turns the kind of agent (5-4); \fBesc\fR closes. The foot of the
+popup says as much: \fBno match? enter on \(dq<query>\(dq makes the repo and
+opens its shell · agents: ^a a claude here · , the next kind\fR. conn writes
+the listing beside the socket whenever it changes (Appendix B), so the finder
+opens at once; with no conn running it reads the machine itself.
+.TP
+3-4.
+In the everything view:
+.PP
+.I "Table 3-3. Keys in the everything view"
 .RS
 .TP
 \fBj k\fR
@@ -204,42 +352,59 @@ move; the arrows move too
 top and bottom
 .TP
 \fBspace\fR
-fold or unfold the selected node; a folded node shows +n for what it hides
+fold or unfold the place under the cursor; a folded place says \fB+n folded\fR
 .TP
 \fB\-\fR
-fold or unfold everything; unfolded rows also show pids, and a container's id
+unfold everything; unfolded rows also show pids, and a container's id
 .TP
 \fB.\fR
 everything, or only what is running
 .TP
-\fBJ K\fR
-focus the next and previous shell, in the list's order
+\fBenter\fR
+open the row's buffer
+.TP
+\fBs a r\fR
+a shell, an agent, the plan, at the place
+.TP
+\fBt b l\fR
+its tests, build, lint (Section 7)
+.TP
+\fBx X\fR
+preview a kill of the row, or of its tree (Section 8)
+.TP
+\fBe\fR
+the environment (4-3)
+.TP
+\fBU R\fR
+update conn; end the server (Section 10)
+.TP
+\fBesc\fR
+clear the filter, else close the view
 .RE
 .TP
-3-2.
-\fB/\fR finds. Each word of the query must appear in order inside what a row
-says, not contiguously: \fBtsl\fR finds tressle-api, \fBmono api\fR finds the
-api inside mono, and the letters that matched are lit. A place answers by its
-name; a process by anything its row says: the command, its arguments, the plan's
-name for it, an agent's name and model, a port. Processes that answer are listed
-under their places, pruned to the branches that answer. An empty query lists
-places alone.
+3-5.
+\fB/\fR narrows the view by anything a row says. Each word of the query must
+appear in order inside it, not contiguously, and the letters that matched are
+lit. A place answers by its name; a process by anything its row says: the
+command, its arguments, the plan's name for it, an agent's name and model, a
+port. Processes that answer are listed under their places, pruned to the
+branches that answer. An empty query lists places alone.
 .TP
-3-3.
+3-6.
 A search is a way of getting somewhere, so the keys that go somewhere work while
-the query is still being typed. Acting ends the search; the filter holds, so the
-subject stays listed. \fBesc\fR cancels the search and puts the cursor back
-where it was. The query takes readline's editing keys: \fBctrl\-w\fR,
-\fBctrl\-u\fR, \fBctrl\-h\fR, \fBctrl\-e\fR and the rest.
+the query is still being typed (Table 3-4). Acting ends the search; the filter
+holds, so the subject stays listed. \fBesc\fR cancels the search and puts the
+cursor back where it was. The query takes readline's editing keys:
+\fBctrl\-w\fR, \fBctrl\-u\fR, \fBctrl\-h\fR, \fBctrl\-e\fR and the rest.
 .PP
-.I "Table 3-2. Keys while a query is typed"
+.I "Table 3-4. Keys while a query is typed"
 .RS
 .TP
-\fB↑↓ ctrl\-p ctrl\-n\fR
+\fB↑↓\fR
 move through what is left
 .TP
 \fBenter\fR
-open a shell on a place; step into a found process's shell
+open a shell on a place; open a found process's buffer
 .TP
 \fBctrl\-r\fR
 run the plan there
@@ -247,93 +412,94 @@ run the plan there
 \fBctrl\-a\fR
 start an agent there
 .TP
-\fBtab\fR
-the next thing that needs you
-.TP
-\fBshift+tab\fR
-back: the previous shell, or the list
-.TP
 \fBctrl\-x\fR
-ask to kill what the cursor is on
+preview a kill of what the cursor is on
 .TP
 \fBesc\fR
 cancel the search
 .RE
 .TP
-3-4.
-\fBenter\fR on a shell's row, or \fBs\fR on a place, focuses a shell beside the
-navigator. From then on the shell receives every keystroke but one:
-\fBctrl\-space\fR, which reaches conn from any shell. \fBctrl\-space \-\fR
-focuses the navigator again. \fB?\fR, in the navigator or after ctrl-space,
-lists every key in a popup over the window; Appendix A lists them here.
+3-7.
+\fBenter\fR on a buffer's tab or row, or \fBs\fR on a place, focuses the buffer:
+it fills the window under the tabline. From then on the buffer receives every
+keystroke but two: \fBctrl\-p\fR, the finder, and \fBctrl\-space\fR, the prefix
+that reaches conn from any buffer (Table A-2). \fBctrl\-space \-\fR brings the
+everything view up. \fB?\fR, at conn or after ctrl-space, lists every key in a
+popup over the window; Appendix A lists them here.
 .TP
-3-5.
-\fBtab\fR at the list, or \fBctrl\-space enter\fR anywhere, goes to the next
-thing that needs you: an agent waiting, a command that ended badly, a process
-stopped or hung. Again continues around them. A held shell is entered, at its
-prompt or transcript; a process conn only watches gets the cursor. The list is
-in the same order: places by name and each place's rows by name, except that a
-row that needs you stands first among its siblings and a place with one stands
-above the places without, so what needs you is at the top of the list as well as
-under \fBtab\fR.
+3-8.
+\fBtab\fR at conn, or \fBctrl\-space enter\fR anywhere, goes to the next thing
+owed: an agent waiting, a run that ended badly, a process stopped or hung. Again
+continues around them. A held buffer is shown, at its prompt or transcript; a
+process conn only watches gets the cursor in the everything view. The view is in
+the same order: places by name and each place's rows by name, except that a row
+that is owed something stands first among its siblings and a place with one
+stands above the places without, so what is owed is at the top of the view as
+well as under \fBtab\fR.
 .TP
-3-6.
-\fBshift+tab\fR at the list, or \fBctrl\-space ctrl\-space\fR anywhere, returns
-focus to where it was: the shell before this one, or the navigator when focus
-came from it. Again returns. Before focus has moved at all, it is the list from
-a shell and the cursor's shell from the list.
+3-9.
+\fBshift+tab\fR at conn, or \fBctrl\-space ctrl\-space\fR anywhere, returns
+focus to where it was: the buffer before this one, or the everything view when
+focus came from it. Again returns. Before focus has moved at all, it is the
+everything view from a buffer and the cursor's buffer from the view.
 .SH SHELLS
 .TP
 4-1.
-\fBs\fR opens your shell at the selected place, beside the navigator, focused. A
-shell you enter moves in beside the navigator; when the navigator takes focus
-again it moves out of view, where it keeps running, and the navigator has the
-whole window. Each shell keeps 10,000 lines of scrollback; \fBscrollback\fR in
-the configuration raises that.
+\fBs\fR on a place in the everything view, \fBenter\fR on a place in the finder,
+or \fBctrl\-space s\fR from a buffer, opens your shell at the place: a buffer,
+with a tab in the tabline, focused, filling the window. When another buffer
+takes focus it moves out of view, where it keeps running, and its tab stays.
+Each shell keeps 10,000 lines of scrollback; \fBscrollback\fR in the
+configuration raises that.
 .TP
 4-2.
-\fBn\fR makes a new project. The status line asks where, on a line prefilled
-with the cursor's folder relative to its root, \fBw0zro/\fR for a cursor on a
-repository in that folder, and the name goes on the end. Backspace the folder
-away for the root itself; type another and it is made. A path from \fB~\fR or
-\fB/\fR is taken as it is. \fBenter\fR makes the directory, runs \fBgit init\fR
-in it and opens a shell there; the cursor lands on the project once it is
-listed. A directory already there is left alone. \fBesc\fR cancels.
+The finder makes projects. A query that matches nothing is offered as a name:
+\fBenter\fR on \fBw0zro/parser\fR makes \fBw0zro/parser\fR under the first
+projects root, folder and all, runs \fBgit init\fR in it and opens a shell
+there, and the project is listed from then on. A directory already there is left
+alone. \fBesc\fR closes the finder instead.
 .TP
 4-3.
-\fBe\fR is env, annotated: the environment of the process under the cursor, in a
-popup over the window. The process is the one the pane is running — the dev
-server, not the shell that started it — and the variables are the ones it was
-started with; a shell at its prompt shows what it started with, and an export
-typed since is not there. Each is read for what it is. A path says whether it is
-there; PATH is counted, its missing and repeated entries marked, and the place's
-tools found along it. A URL or a port that points at this machine says who is
-listening there, or that nothing is. A secret says only that it is set. The
-project's variables come first — the ones its \fB.env\fR sets, and the ones
-that name the environment and what it talks to — and a variable the file names
-that the process lacks is a line of its own; then the runtime's; the rest are
-grouped by who set them, npm, the shell's rc files, the terminal conn was
-attached from, and folded. For a variable a startup file set, the page says
-which file and line: it starts the shell once more, traced, after its first
-paint, and reads the assignment off the trace; a variable the trace did not see
-set is looked for in the startup files by name, and said to be named there. An
-entry of PATH that \fB/etc/paths\fR put there says so. \fBspace\fR folds and
-unfolds, \fB\-\fR unfolds all, \fB/\fR finds, \fBq\fR leaves. On a place the
-page is the server's environment, which every shell starts from: the terminal's,
-brought over each time one attaches, so a variable its rc files stopped
-exporting is gone from the next shell opened. \fBctrl\-space e\fR does the same
-from any shell. \fBconn env\fR typed at a prompt shows that shell's environment
-as it is now, exports and all, since the command inherited it. On macOS a system
-shell at its prompt keeps its environment to itself; the page says so and shows
-what the shell started from, and \fBconn env\fR typed there shows its own.
+\fBe\fR on a buffer, or \fBctrl\-space e\fR from any pane, is the environment,
+annotated: a popup over the window, headed \fB<name>'s environment · pid 4402
+· 61 variables, 6 telling\fR. The process is the one the pane is running —
+the dev server, not the shell that started it — and the variables are the ones
+it was started with; a shell at its prompt shows what it started with, and an
+export typed since is not there. The telling variables come first: the
+\fB*_ENV\fR family, \fBPORT\fR and \fBHOST\fR, \fBLOG_LEVEL\fR, URLs and DSNs,
+\fBVIRTUAL_ENV\fR; each is \fBNAME=value\fR, the name in teal, and after a
+\fB←\fR in gray what conn read from it, \fB← where it listens\fR: in owed
+orange when the value looks wrong, \fB← nothing is listening\fR, in amber when
+it looks suspicious, a venv from another project. Each is read for what it is. A
+path says whether it is there; PATH is counted, its missing and repeated entries
+marked, and the place's tools found along it. A URL or a port that points at
+this machine says who is listening there, or that nothing is. Secrets are never
+listed; a password in a URL is masked \fB•••\fR. \fBspace\fR unfolds all N
+variables, grouped by who set them: the project's — the ones its \fB.env\fR
+sets, a variable the file names that the process lacks being a line of its own
+— then the runtime's, npm's, conn's, the shell's rc files, the terminal conn
+was attached from. For a variable a startup file set, the page says which file
+and line: it starts the shell once more, traced, after its first paint, and
+reads the assignment off the trace; a variable the trace did not see set is
+looked for in the startup files by name, and said to be named there. An entry of
+PATH that \fB/etc/paths\fR put there says so. \fB/\fR finds, \fBesc\fR closes.
+On a place the page is the server's environment, which every shell starts from:
+the terminal's, brought over each time one attaches, so a variable its rc files
+stopped exporting is gone from the next shell opened. \fBconn env\fR typed at a
+prompt shows that shell's environment as it is now, exports and all, since the
+command inherited it. On macOS a system shell at its prompt keeps its
+environment to itself; the page says so and shows what the shell started from,
+and \fBconn env\fR typed there shows its own.
 .SH AGENTS
 .TP
 5-1.
-\fBa\fR starts an agent at the selected place, in a shell like any other: Claude
-Code, unless the configuration's \fBagent\fR says otherwise. Claude Code reports
-its state, and its transcript says whether it has answered since it started, so
-a finished turn is read from the instance rather than remembered by the window,
-and stands across a restart of conn; the navigator marks each instance:
+\fBa\fR on a place in the everything view, \fBctrl\-a\fR in the finder, or
+\fBctrl\-space a\fR from a buffer, starts an agent at the place, in a buffer
+like any other: Claude Code, unless the configuration's \fBagent\fR says
+otherwise. Claude Code reports its state, and its transcript says whether it has
+answered since it started, so a finished turn is read from the instance rather
+than remembered by the window, and stands across a restart of conn; conn marks
+each instance, on its tab and on its row:
 .PP
 .I "Table 5-1. Agent marks"
 .RS
@@ -353,34 +519,33 @@ idle since it started
 .TP
 5-2.
 The ◆ is the one to answer first: answering it resumes work already underway.
-A waiting instance's row says how long it has waited, the way a run's row says
-how long ago it ended. The pane for a claude row names what it is waiting on,
-the last thing asked of it, and what it says it is doing. \fBtab\fR, or
-\fBctrl\-space enter\fR from any shell, goes to it (3-5).
+The answer is typed in the buffer itself, at the agent's own prompt, and the
+mark clears when the instance says the ask is answered. A waiting instance's
+heading says how long it has waited, \fBwaiting 3m\fR, beside its branch and the
+size of its context; the finder's row for it says the last word. The status line
+counts the asks owed while any is. \fBtab\fR, or \fBctrl\-space enter\fR from
+any buffer, goes to it (3-8).
 .TP
 5-3.
 A conversation does not end when its instance exits; it is suspended, and can be
-picked back up. \fBA\fR on a place lists what is suspended there, sub-projects
-included and, for a group, its repositories, newest first: when each last moved,
-its branch, and the last thing asked of it. Typing narrows the list, \fBenter\fR
-continues the one under the cursor in a shell opened where it was had, \fBesc\fR
-closes the list. A conversation an instance still carries is not offered. The
-newest conversation at rest under a place with work is a row of its own, dimmed,
-at the end of the place's family, with how long it has rested; \fBenter\fR on it
-continues it, and the pane says what was last asked of it — the one you would
-most often pick back up, without the picker; \fBA\fR lists the rest. A place
-with no work shows none: it is kept the way an exited container is kept beside
-its running siblings.
+picked back up. The newest conversation at rest under each place is a row of the
+finder, \fBdatum · resume\fR, with the last thing asked of it, how long it has
+rested and its branch; \fBenter\fR continues it in a buffer opened where it was
+had. In the everything view the same conversation is a row of its own, dimmed,
+at the end of the place's family, \fBclaude · suspended · 6h\fR, and
+\fBenter\fR on it continues it. A conversation an instance still carries is not
+offered. A place with no work shows none there: the row is kept the way an
+exited container is kept beside its running siblings.
 .TP
 5-4.
-conn knows two kinds of agent: \fBclaude\fR and \fBollama\fR. \fB,\fR at the
-navigator, or \fBctrl\-space ,\fR from any shell, moves \fBa\fR on to the next
-kind, around the end, for every window until conn is restarted; the status
-line's right corner names it. Ollama's rows are plain processes, unmarked. It
-runs the model most recently pulled or run; with nothing pulled, \fBa\fR runs
-\fBollama list\fR instead, and with the ollama server down the REPL says so.
-\fBagentRuns\fR in the configuration names what a kind runs when its own choice
-is not the wanted one.
+conn knows two kinds of agent: \fBclaude\fR and \fBollama\fR. \fB,\fR at conn or
+in the finder, or \fBctrl\-space ,\fR from any buffer, moves \fBa\fR on to the
+next kind, around the end, for every window until conn is restarted; the
+finder's foot names it, \fB^a a claude here\fR. Ollama's rows are plain
+processes, unmarked. It runs the model most recently pulled or run; with nothing
+pulled, \fBa\fR runs \fBollama list\fR instead, and with the ollama server down
+the REPL says so. \fBagentRuns\fR in the configuration names what a kind runs
+when its own choice is not the wanted one.
 .SH PLANS
 .TP
 6-1.
@@ -419,38 +584,42 @@ and attaches to each; \fBcompose.yml\fR, \fBdocker\-compose.yml\fR and
 .RE
 .TP
 6-3.
-\fBr\fR starts the entries that are not running, each in a window named for it,
-and puts the cursor on the first. An entry is running when its command is
-running in the place, whoever started it: the shell \fBr\fR opened for it, a
-shell opened by hand, or a terminal outside conn. The command a shell was
-started with is kept on it, so what a shell ran is what it ran whatever the plan
-says since. It is a list to run, not a supervisor: nothing restarts on its own.
-When an entry's command ends, it says so itself as it goes, and the navigator
-hears it rather than finding the shell at its prompt on a later look; the shell
-stays at the prompt with the transcript, the row shows ✗ or ✓, the pane's
-checklist says how and when it ended, and \fBr\fR starts it again beside the old
-shell. What the run said of itself, and that its ending is on the record, are
-kept on the shell, so a navigator started later says the same and records
-nothing twice. Running anything by hand in that shell clears the mark.
+\fBr\fR on a place, \fBctrl\-space r\fR from a buffer, or \fBenter\fR on an
+entry in the finder, starts the entries that are not running, each in a buffer
+named for it, with a tab in the tabline, and shows the first. An entry is
+running when its command is running in the place, whoever started it: the shell
+\fBr\fR opened for it, a shell opened by hand, or a terminal outside conn. The
+command a shell was started with is kept on it, so what a shell ran is what it
+ran whatever the plan says since. It is a list to run, not a supervisor: nothing
+restarts on its own. When an entry's command ends, it says so itself as it goes,
+and conn hears it rather than finding the shell at its prompt on a later look;
+the shell stays at the prompt with the transcript, the tab and the row show ✗
+or ✓, the heading says how and when it ended and the runs before it, and
+\fBr\fR starts it again beside the old shell. What the run said of itself, and
+that its ending is on the record, are kept on the shell, so a conn started later
+says the same and records nothing twice. Running anything by hand in that shell
+clears the mark.
 .TP
 6-4.
 A project that runs its services with docker compose shows each service as a
 row: named for the service, with the ports it publishes, \fBweb · :8438\fR,
 under the \fBdocker compose up\fR that runs it when one is running in a shell,
-and under the place itself when compose runs detached. \fBenter\fR on a service
-opens a shell inside its container. Its pane shows the container's name, image,
-status and the last of its logs. A service that died stays listed while the
-project runs, with the cross and how long ago, \fBworker · 3m ✗\fR, and
-\fBtab\fR goes to it; one that exited well shows the check. A service whose
-health check is not passing shows that in place of its ports: \fBapi ·
-unhealthy ✗\fR, or starting.
+and under the place itself when compose runs detached. Its row carries the
+container's mark, ⬢ in teal, and in the finder its port and its age, \fB⬢
+container · :5432 · up 2d\fR. \fBenter\fR on a service, in the view or the
+finder, opens its logs as a buffer, \fBdocker compose logs \-f\fR, with a tab
+marked ⬢; the heading names the container, its image and its status. A service
+that died stays listed while the project runs, with the cross and how long ago,
+\fBworker · 3m ✗\fR, and \fBtab\fR goes to it; one that exited well shows the
+check. A service whose health check is not passing shows that in place of its
+ports: \fBapi · unhealthy ✗\fR, or starting.
 .PP
 .RS
 .nf
 compose-demo
    app
-     cache · :6390
-     web · :8438
+     ⬢ cache · :6390
+     ⬢ web · :8438
 .fi
 .RE
 .PP
@@ -458,13 +627,13 @@ compose-demo
 .TP
 6-5.
 What runs outside every project is listed under \fBglobal\fR, at the foot of the
-list, while there is anything to list: containers started by hand or from
-elsewhere, processes listening on a port from outside your projects, an
+everything view, while there is anything to list: containers started by hand or
+from elsewhere, processes listening on a port from outside your projects, an
 \fBollama serve\fR or a \fBbrew\fR postgres, and agents started outside your
 projects, with what they run: an agent is yours wherever it runs, and the place
 is a label on it, not a gate. The system's own listeners are left out. \fBx\fR,
-\fBenter\fR and the pane work there as under a project; there is no directory,
-so no shell opens there and no project is made.
+\fBenter\fR and \fBe\fR work there as under a project; there is no directory, so
+no shell opens there and no project is made.
 .TP
 6-6.
 What \fBx\fR stopped, \fBr\fR brings back where it was: the services the compose
@@ -474,8 +643,9 @@ starting that runs compose itself brings everything up instead. A service that a
 plan entry is named for is left to the entry.
 .TP
 \fBNOTE\fR
-A plan is not a supervisor. An ended entry's shell stays at its prompt, with its
-transcript, until \fBx\fR closes it or \fBr\fR starts the entry again beside it.
+A plan is not a supervisor. An ended entry's buffer stays at its prompt, with
+its transcript, until \fBx\fR closes it or \fBr\fR starts the entry again beside
+it.
 .SH TASKS
 .TP
 7-1.
@@ -513,64 +683,87 @@ the ecosystem's own: mix, gradle, mvn, deno, swift, dune
 .RE
 .TP
 7-2.
-Each run is a shell named for its task, so its row shows ✓ or ✗, \fBtab\fR
-goes to a failure, and the place's pane says how each task's last run went and
-how long ago. The key again replaces a finished run rather than stacking another
-beside it; a run still going is left to finish. \fBconn test\fR, \fBconn
-build\fR, \fBconn lint\fR and \fBctrl\-space t\fR, \fBb\fR, \fBl\fR do the same
-from any shell.
+Each run is a buffer named for its task, \fBdatum/tests\fR, in a shell of its
+own, so its tab and its row show ✓ or ✗, \fBtab\fR goes to a failure, and
+the status line's chip says \fBFAILED\fR while a failed one is shown. The buffer
+outlives its run — dead, but readable: the transcript stays, and the heading
+says how the run ended and the runs before it, \fB✗ exit 1 · 3 failed · 2m
+ago · past runs ✓ 12s ✓ 14s\fR. Stepping onto a dead buffer, by \fBtab\fR,
+\fBJ K\fR or the finder, shows it with the keys kept at conn: \fBr\fR runs it
+again in place — the same pane, cleared, the same name; \fBgf\fR opens the
+last file:line the transcript names in \fB$EDITOR\fR, vi without one, in the
+buffer's own shell; \fBq\fR closes the buffer, its runs staying on the record;
+\fBenter\fR steps into the shell beneath. Running anything by hand in that shell
+makes it a live buffer again, and the ending clears. The key again replaces a
+finished run rather than stacking another beside it; a run still going is left
+to finish. \fBconn test\fR, \fBconn build\fR, \fBconn lint\fR and \fBctrl\-space
+t\fR, \fBb\fR, \fBl\fR do the same from any buffer, and the finder lists every
+place's tasks not running, with their last runs.
 .TP
 7-3.
 conn reads the run's summary line as the tool prints it: go test, pytest, jest,
 vitest, mocha, cargo, rspec, ExUnit, golangci-lint, tsc, ruff, eslint. A failed
-run's row says \fBtest · 3 failed\fR, a passed one \fB12 passed\fR. Output conn
-does not recognize leaves the row with pass or fail alone.
+run's heading says \fB✗ exit 1 · 3 failed\fR, a passed one \fB✓ 12
+passed\fR, and its row says the same. Output conn does not recognize leaves them
+with pass or fail alone.
 .SH STOPPING
 .I "Table 8-1. Kill keys"
 .RS
 .TP
 \fBx\fR
-kill the selected process
+preview a kill of the shown buffer's process, or of the row under the cursor
 .TP
 \fBX\fR
-kill it, everything under it, and what it started that has since detached
+preview a kill of it, everything under it, and what it started that has since
+detached
 .TP
 \fBx on an entry\fR
-end the entry's command and its shell; \fBr\fR starts it again
+end the entry's command; the buffer stays, and \fBr\fR starts the entry again
 .TP
 \fBx on a container\fR
 stop the container
 .TP
 \fBx on a place\fR
-kill everything running in it
+preview a kill of everything running in it
 .TP
 \fBx on a signalled row\fR
 kill outright: SIGKILL to what has not gone
 .TP
 \fBR\fR
-end conn and every shell it holds
+end conn and every buffer it holds
 .RE
 .TP
 8-1.
-Every kill asks first: \fBx\fR, \fBy\fR or \fBenter\fR confirms, anything else
-cancels. Processes get SIGTERM. The question offers the other signals: \fB9\fR
-confirms with SIGKILL, \fBi\fR with SIGINT, for a server that only tears down on
-ctrl-c, and \fBh\fR with SIGHUP, for a daemon that reloads on it. A signalled
-row shows a red marker until the process is seen to have gone; the list never
-claims an exit it has not seen. A process that has not gone in five seconds is
-given up on, and the status line says so; \fBx\fR on it then, or on a row still
-on its way out, asks to kill it outright with SIGKILL. Kills work on any listed
-process, including ones conn did not start.
+Nothing dies unasked. \fBx\fR shows, in the whole window, what dying means
+before anything dies: the heading, \fB<name> in <place> · about to die\fR; the
+process tree with ✗ before each name, and after it the pid and the ports it
+holds, \fBpid 4431 · holds :3000\fR; the consequences in prose, \fBthe tree
+dies together — an orphaned esbuild is a zombie you would meet again as ✗
+stopped · :3000 frees · nothing else touches it\fR; and the confirm line, \fBX
+kills all 3 · x the head alone · esc changes your mind\fR. The status line's
+chip says \fBCONFIRM\fR, and beside it the facts, \fBconn/web · 3 processes ·
+:3000\fR. \fBX\fR takes the tree; \fBx\fR the head alone, the row's process and
+the shell around it; \fBy\fR or \fBenter\fR whichever was asked. Processes get
+SIGTERM; \fB9\fR confirms with SIGKILL, \fBi\fR with SIGINT, for a server that
+only tears down on ctrl-c, and \fBh\fR with SIGHUP, for a daemon that reloads on
+it. Any other key keeps everything alive and gives the buffer back. A signalled
+row keeps its mark until the process is seen to have gone; conn never claims an
+exit it has not seen. A process that has not gone in five seconds is given up
+on, and the status line says so; \fBx\fR on it then, or on a row still on its
+way out, offers SIGKILL: outright. Kills work on any listed process, including
+ones conn did not start.
 .TP
 8-2.
-Killing a shell that is still running a command signals the command first and
-closes the shell once the command has gone, so a \fBdocker compose up\fR stops
-its containers on the way out. \fBx\fR on an entry's row kills the entry, and
-the question names it: \fBkill app?\fR The entry is then gone, and \fBr\fR
-starts it again. An exit that \fBx\fR asked for shows no mark. \fBX\fR, and
-\fBx\fR on an entry, also kill processes the command started that have since
-detached from it; such a process is listed under the command while it runs, and
-the pane says \fBorphaned\fR of it.
+After death the buffer stays as the record. A held shell running a command is
+not hung up: the command is signalled, and the shell sits at its prompt beneath
+the transcript with the ending recorded, how and when, so a \fBdocker compose
+up\fR stops its containers on the way out and its buffer remains to read;
+\fBq\fR closes it (7-2). A held shell at its prompt with nothing running is hung
+up: a buffer of nothing but a prompt. \fBx\fR on an entry's row previews the
+entry, named, and once it is dead \fBr\fR starts it again. \fBX\fR, and \fBx\fR
+on an entry, also kill processes the command started that have since detached
+from it; such a process is listed under the command while it runs, and the
+preview says \fBorphaned\fR of it.
 .TP
 8-3.
 A container is stopped by docker, which signals the process inside it and, after
@@ -586,7 +779,7 @@ One JSON file, entirely optional, at \fB~/.config/conn/config.json\fR;
 {
   \(dqprojectsDirs\(dq: [\(dq~/projects\(dq, \(dq~/work/mono\(dq],
   \(dqscrollback\(dq: 50000,
-  \(dqnavWidth\(dq: 34,
+  \(dqtheme\(dq: \(dqterminal\(dq,
   \(dqskipDirs\(dq: [\(dqbazel-out\(dq, \(dqdist\(dq]
 }
 .fi
@@ -613,11 +806,11 @@ lines of scrollback each shell keeps. Raising it takes a restart: \fBR\fR, then
 \fBconn\fR again, or \fBconn restart\fR (10-2) (default 10000)
 .TP
 \fBnavWidth\fR
-the navigator column's width, 16–60 (default 30)
+read and ignored: there is no column now
 .TP
 \fBtheme\fR
-dark or light, to match the terminal; the navigator itself uses the terminal's
-own colors (default dark)
+hangar, the palette of 2-9 on every pane, or terminal, which leaves the shells
+the terminal's own colors (default hangar)
 .TP
 \fBagent\fR
 the kind of agent \fBa\fR starts, until \fB,\fR says otherwise: claude or ollama
@@ -632,13 +825,15 @@ directory names never searched, on top of the built-in list
 .SH LEAVING, RESTARTING, UPDATING
 .TP
 10-1.
-\fBq\fR in the navigator, or \fBctrl\-space q\fR anywhere, leaves conn and
-returns you to the terminal. Everything keeps running: the shells, the plans,
-the agents. Run \fBconn\fR again, from any terminal, and it is where you left
-it. If the navigator's pane was closed, \fBctrl\-space \-\fR brings it back.
+\fBq\fR at conn, or \fBctrl\-space q\fR anywhere, leaves conn and returns you to
+the terminal; on a dead buffer \fBq\fR closes the buffer first (7-2), and the
+next \fBq\fR leaves. Everything keeps running: the shells, the plans, the
+agents. Run \fBconn\fR again, from any terminal, and it shows what it showed. If
+conn's pane was closed, \fBctrl\-space \-\fR brings the everything view, and the
+pane with it.
 .TP
 10-2.
-\fBR\fR, or \fBctrl\-space R\fR from any shell, ends conn and every shell it
+\fBR\fR, or \fBctrl\-space R\fR from any buffer, ends conn and every buffer it
 holds, after asking. \fBconn restart\fR, typed in a terminal outside conn, does
 the same and then starts conn again; inside conn it stops with a message, since
 the shell running it would go too. A restart is the way to a fresh start, and
@@ -647,10 +842,10 @@ what a raised \fBscrollback\fR needs to take effect.
 10-3.
 conn checks for a newer release once a day. When one is out, the status line
 says so whenever nothing else is being said: \fBconn 0.6.0 is out · U installs
-it\fR. \fBU\fR installs it and restarts the navigator as the new build; the
-shells stay. With nothing newer known, \fBU\fR checks now and says what it
-finds. Installing a new binary by hand works the same: the next \fBconn\fR picks
-it up. A build from source is never told it is behind.
+it\fR. \fBU\fR installs it and restarts conn as the new build; the buffers stay.
+With nothing newer known, \fBU\fR checks now and says what it finds. Installing
+a new binary by hand works the same: the next \fBconn\fR picks it up. A build
+from source is never told it is behind.
 .TP
 10-4.
 conn also answers on the command line. From a shell inside conn, these act on
@@ -659,14 +854,18 @@ the directory the shell is in:
 .I "Table 10-1. Commands"
 .RS
 .TP
+\fBconn nav\fR
+conn itself, the program in the home window's top pane
+.TP
 \fBconn home [key]\fR
-to the navigator, pressing key there
+the everything view; handed a key, that key pressed at conn — \fBx\fR for the
+kill preview of the focused buffer
 .TP
 \fBconn shell [dir]\fR
-a shell in dir, beside the navigator
+a shell in dir, as a buffer
 .TP
 \fBconn agent [dir]\fR
-an agent in dir, beside the navigator
+an agent in dir, as a buffer
 .TP
 \fBconn kind\fR
 the next kind of agent, for \fBa\fR and the agent chord
@@ -678,20 +877,27 @@ the plan of the place holding dir
 its tests; \fBbuild\fR and \fBlint\fR the same way
 .TP
 \fBconn jump\fR
-the next thing that needs you
+the next thing owed
 .TP
 \fBconn back\fR
-back: the previous shell, or the navigator
+back: the previous buffer, or everything
 .TP
 \fBconn next, prev\fR
-the next and previous shell
+the next and previous buffer
+.TP
+\fBconn finder [client]\fR
+the finder, in a popup over the client; \fBconn page finder\fR is the page
+inside it
 .TP
 \fBconn keys [client]\fR
 the key list, in a popup; \fBconn page\fR is the page inside it
 .TP
 \fBconn env [pid client]\fR
 the environment of the pane whose shell is pid, annotated, in a popup; \fBconn
-page env\fR is the page inside it
+page env pid\fR is the page inside it
+.TP
+\fBconn page [env pid | finder]\fR
+the page a popup shows: the keys, an environment, the finder
 .TP
 \fBconn ls\fR
 the held shells: pid, directory, name, exit; one per line
@@ -701,32 +907,50 @@ end conn, after asking, and start it again
 .RE
 .TP
 10-5.
-\fBconn ls\fR is for scripts: what the navigator lists, in its order, one run
-per line, tab-separated: the pid of the run's head, the place, the name the row
-shows, its state (\fBworking\fR, \fBblocked\fR or \fBwaiting\fR for an agent;
-\fBfailed\fR, \fBdone\fR, or \fBrunning\fR), the exit of a held shell's command
-once it has ended, and the ports the run listens on. It is built from the same
-places, processes and held shells as the window, so the two never disagree. With
-conn not running no shells are held, and the list is the processes of the
-places, which is not an error.
+\fBconn ls\fR is for scripts: what the everything view lists, in its order, one
+run per line, tab-separated: the pid of the run's head, the place, the name the
+row shows, its state (\fBworking\fR, \fBblocked\fR or \fBwaiting\fR for an
+agent; \fBfailed\fR, \fBdone\fR, or \fBrunning\fR), the exit of a held shell's
+command once it has ended, and the ports the run listens on. It is built from
+the same places, processes and held shells as the window, so the two never
+disagree. With conn not running no shells are held, and the list is the
+processes of the places, which is not an error.
 .SH KEYS
-.I "Table A-1. In the navigator"
+.I "Table A-1. At conn: in its pane, and in the everything view"
 .RS
 .TP
 \fB↑↓ j k\fR
 move
 .TP
 \fBJ K\fR
-next · previous shell
+next · previous buffer
 .TP
 \fBenter\fR
-open
+open the buffer
 .TP
 \fBtab\fR
-the next thing that needs you
+the next thing owed
 .TP
 \fBshift+tab\fR
-back: the previous shell, or the list
+back: the previous buffer, or everything
+.TP
+\fBp ^p\fR
+the finder: open, start, or make a project
+.TP
+\fB/\fR
+narrow everything by anything a row says
+.TP
+\fBesc\fR
+clear the filter · close everything
+.TP
+\fB.\fR
+everything · running · all
+.TP
+\fBspace · \-\fR
+fold · unfold all
+.TP
+\fBgg · G\fR
+top · bottom
 .TP
 \fBs\fR
 shell
@@ -734,78 +958,66 @@ shell
 \fBa\fR
 agent
 .TP
-\fBA\fR
-continue a conversation
-.TP
 \fB,\fR
 the next kind of agent
 .TP
-\fBn\fR
-new project
-.TP
 \fBr\fR
-run
+run a dead task again in place · run the plan
 .TP
 \fBt · b · l\fR
 test · build · lint
 .TP
 \fBx · X\fR
-kill · kill the tree
+preview a kill · of the tree
 .TP
 \fBe\fR
 the environment, annotated
 .TP
-\fB/\fR
-find a project · a process
-.TP
-\fBesc\fR
-clear the filter
-.TP
-\fBspace · \-\fR
-fold · unfold all
-.TP
-\fB.\fR
-all · running
-.TP
-\fBgg · G\fR
-top · bottom
+\fBgf\fR
+open the last file:line in your editor
 .TP
 \fBU\fR
 update conn
 .TP
 \fBR\fR
-end the server, shells and all
+end the server, buffers and all
 .TP
 \fBq\fR
-leave; the shells keep running
+close a dead buffer · leave; the buffers keep running
 .RE
 .PP
-.I "Table A-2. From any shell, after ctrl-space"
+.I "Table A-2. From any buffer: ctrl-p alone, and the chords after ctrl-space"
 .RS
 .TP
-\fB^spc \-\fR
-the navigator, from any shell
+\fB^p\fR
+the finder, from any buffer
+.TP
+\fB^spc p /\fR
+the finder
+.TP
+\fB^spc \- .\fR
+everything, from any buffer
 .TP
 \fB^spc j k\fR
-next · previous shell
+next · previous buffer
 .TP
 \fB^spc ^spc\fR
-back: the previous shell, or the list
+back: the previous buffer, or everything
 .TP
 \fB^spc enter\fR
-the next thing that needs you
+the next thing owed
 .TP
-\fB^spc s a r t b l A\fR
-shell · agent · run · test · build · lint, here · continue
+\fB^spc x X\fR
+preview a kill of this buffer · of its tree
+.TP
+\fB^spc s a r t b l\fR
+shell · agent · run · test · build · lint, here
 .TP
 \fB^spc ,\fR
 the next kind of agent
 .TP
 \fB^spc e\fR
 the environment of the pane's process, annotated
-.TP
-\fB^spc /\fR
-find from anywhere
 .TP
 \fB^spc q\fR
 leave from anywhere
@@ -835,7 +1047,12 @@ the latest release as last checked, and when
 \fB~/.local/state/conn/runs.jsonl\fR
 each run of an entry's or a task's command, one per line — the command, its
 name, how it ended, when, and how long it took; cut back to the last two
-thousand as it grows
+thousand as it grows. The heading's past runs and the finder's last runs are
+read from it
+.TP
+\fB~/.local/state/conn/finder.json\fR
+the finder's listing, everything openable, rewritten by conn whenever it changes
+so the popup opens at once
 .TP
 \fB.conn\fR
 a project's plan; Section 6
@@ -854,11 +1071,11 @@ where the configuration lives, instead of ~/.config
 where the state directory is, instead of ~/.local/state
 .TP
 \fBSHELL\fR
-the shell \fBs\fR opens, and the one behind \fBa\fR, \fBA\fR, \fBr\fR and the
-tasks
+the shell \fBs\fR opens, and the one behind \fBa\fR, \fBr\fR, the tasks and a
+resumed conversation
 .TP
 \fBNO_COLOR\fR
-set, the navigator draws without color, as no-color.org asks; CLICOLOR_FORCE and
+set, conn draws without color, as no-color.org asks; CLICOLOR_FORCE and
 TERM=dumb are honored too
 .TP
 \fBCLAUDE_CONFIG_DIR\fR

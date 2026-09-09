@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"os/exec"
@@ -493,58 +492,16 @@ func dockerKill(c *Container) error {
 	return err
 }
 
-// containerLogs is the last of what a container has written, both
-// streams, for the pane.
-func containerLogs(id string, lines int) []string {
-	if dockerPath == "" {
-		return nil
+// containerLogs is the command a container's buffer runs: its logs,
+// followed — compose's, in the place, for the service, or docker's own by
+// name for a container with no place to run compose in. The buffer is the
+// container's, marked as one, and enter on it is a shell inside: the
+// logs are what a container has to show, and a shell in it is a step in.
+func containerLogs(n *ProcNode) string {
+	if n.Dir == globalPlace {
+		return "docker logs -f --tail 200 " + n.Container.Name
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), scanTimeout)
-	defer cancel()
-	out, _ := exec.CommandContext(ctx, dockerPath, "logs", "--tail", strconv.Itoa(lines), id).CombinedOutput()
-	said := strings.TrimRight(string(out), "\n")
-	if said == "" {
-		return nil
-	}
-	return strings.Split(said, "\n")
-}
-
-// containerFields describes a container: what it is, where it belongs,
-// and what docker says of it, then the last of its logs.
-func containerFields(n *ProcNode) []field {
-	c := n.Container
-	statusTone := toneGood
-	if containerWrong([]*ProcNode{n}) {
-		statusTone = toneBad
-	} else if !c.running() {
-		statusTone = toneQuiet
-	}
-	where := n.Dir
-	if where == globalPlace {
-		where = "started outside every project"
-	}
-	fs := []field{
-		heading(procLabel(n)),
-		note(where),
-		gap(),
-		field{label: "container", value: c.Name, tone: toneName},
-		field{label: "image", value: c.Image, tone: toneQuiet},
-		field{label: "status", value: c.Status, tone: statusTone},
-	}
-	if len(n.Ports) > 0 {
-		fs = append(fs, field{label: "publishes", value: strings.Join(n.Ports, ", "), tone: toneAccent})
-	}
-	return append(fs, transcript(containerLogs(c.ID, transcriptLines))...)
-}
-
-// globalFields describes the global place: what it is, and what is in it.
-func globalFields(procCount int) []field {
-	return []field{
-		heading(globalGroup.Name),
-		note("what the machine runs outside every project: containers, and what listens"),
-		gap(),
-		runningField(procCount),
-	}
+	return "docker compose logs -f --tail 200 " + n.Container.Service
 }
 
 // service reports a process outside every project worth a row in global:

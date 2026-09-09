@@ -276,9 +276,10 @@ func assignNames(root string, ps []Project) {
 	shortenNames(ps, segs, depth)
 }
 
-// nameRoom is the width a repository's name has in the navigator, which is
-// what decides whether its parents have to be squeezed.
-func nameRoom() int { return navWidth - 2 }
+// nameRoom is the width a repository's name has in a tab and a row, which
+// is what a qualified name is shortened to fit: a tab is a name and a
+// mark, and a row is a name and its facts.
+func nameRoom() int { return 28 }
 
 // shortenNames cuts the parent directories of a name that will not fit, so
 // that the repository's own name survives.

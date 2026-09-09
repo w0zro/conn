@@ -11,32 +11,33 @@ import (
 // rest of the code reads are derived from them. An appearance change is a
 // change here; the render code asks for roles, not colors.
 //
-// conn carries no colors of its own. It draws with the terminal's sixteen
-// slots, so the list uses whatever palette the terminal has — datum, in
-// light or dark — and the claude in the pane beside it, the tmux around
-// both and the list are one palette by construction. Hue is spent on state:
-// amber for working, green for finished and waiting on you, the orange-red
-// for blocked and for dying — and on one thing more: where you are, in the
-// slot the terminal's own cursor is drawn in, so conn's cursor and the
-// terminal's are the same color. When nothing needs you, the list is ink
-// and the cursor.
-//
-// The pane beside the list is the exception: a page, colored to be read at
-// a glance. Its headings are in the place pastel, identities — a branch, a
-// port, a commit — the cyan, states their own colors, the secondary facts
-// the gray, and a shell's transcript whatever the shell drew it in.
+// The ground is warm graphite — a hangar at night, kin to the manual's paper
+// by temperature rather than tint. Most of the screen is ink and gray; hue
+// is spent on state and on focus, so a glance finds what changed. One
+// orange serves three jobs on purpose — the brand, the focus edge, the
+// answer owed — because all three mean "here". conn draws these colors
+// itself, in truecolor, and hands tmux the same values for the status
+// line, the borders and the popups, so the window is one palette by
+// construction whatever the terminal's own is.
 
-// The slots, by the job each does here. The terminal's theme says what
-// color a slot is; conn says what it means.
+// The palette, by the job each color does here.
 const (
-	slotRed    = "1"  // blocked on an ask, dying, failed, destructive
-	slotGreen  = "2"  // alive and well; finished and waiting on you
-	slotSelf   = "4"  // conn itself, where it shows up as a process
-	slotCursor = "5"  // here: the cursor — the terminal's cursor color
-	slotCyan   = "6"  // found: the letters a query matched
-	slotGray   = "8"  // quiet: idle rows, labels, conn's own asides
-	slotAmber  = "9"  // working, and an answer owed
-	slotPlace  = "12" // a place — a group, a repository, a sub-project: the frequent names, in a pastel
+	colorGround = "#15130F" // the screen itself
+	colorBar    = "#100E0B" // the tabline's ground, a step under the screen
+	colorWash   = "#1D1A15" // overlays, the status line: one step off the ground
+	colorChip   = "#2A2620" // the selection bar, chips, borders: two steps off
+	colorBorder = "#3A342A" // an overlay's edge
+
+	colorInk       = "#E6DFD0" // content at full weight
+	colorGray      = "#8B8272" // labels, facts, asides
+	colorFaint     = "#5C564A" // hints, dead output, idle: text a reader may skip
+	colorParchment = "#BFB39A" // headings, place names
+
+	colorOrange = "#E85D2F" // the brand, the focus edge, the cursor, the CONN chip
+	colorOwed   = "#FF7847" // an ask, a failure, a stop, a death in progress
+	colorAmber  = "#E3A94F" // working: an agent mid-turn
+	colorGreen  = "#93C98B" // done and waiting on you; ended well
+	colorTeal   = "#7FC7BD" // identity: branches, ports, containers, env names
 )
 
 // The styles are package-wide because everything drawing reads them.
@@ -46,157 +47,146 @@ var (
 	attnStyle, blockedStyle, headingStyle         lipgloss.Style
 	titleStyle                                    lipgloss.Style
 	offSelStyle, noteStyle, matchStyle, selfStyle lipgloss.Style
-	placeStyle                                    lipgloss.Style
+	placeStyle, tealStyle, orangeStyle            lipgloss.Style
+
+	// The grounds: the tabline's bar, the screen, and the selection bar.
+	barStyle, groundStyle, chipStyle lipgloss.Style
+	// The block cursor: reversed ink.
+	cursorStyle lipgloss.Style
 )
 
 func init() { applyStyles() }
 
-// applyStyles builds every style from the slots.
+// applyStyles builds every style from the palette.
 func applyStyles() {
-	slot := func(s string) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(s)) }
-	ink := lipgloss.NewStyle()
+	fg := func(c string) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(c)) }
 
-	// The cursor row is the one bold thing in the list, in the cursor's
-	// color: where you are. conn's own name is not in the column at all;
-	// it is on the status line, in tmux's colors.
-	selStyle = slot(slotCursor).Bold(true)
-	// selfStyle tags a process that is conn itself, in a color nothing
-	// else uses: not the cursor's, not a state's.
-	selfStyle = slot(slotSelf)
-
-	// placeStyle names the places — the groups, repositories and
-	// sub-projects the processes sit under — in the pastel datum keeps for
-	// the names that are everywhere: they structure the list without
-	// competing with the states.
-	placeStyle = slot(slotPlace)
-	itemStyle = ink
-	headingStyle = ink.Bold(true)
-	// titleStyle heads the pane: what the page is about, in the list's
-	// pastel for places, so the page reads as the row's.
-	titleStyle = slot(slotPlace).Bold(true)
-
-	// One quiet gray, for content that is idle (faint), for the names of
-	// facts (label) and for conn's own asides (hint) alike; asides in
-	// italic, so they are set apart from the text.
-	faintStyle = slot(slotGray)
-	labelStyle = slot(slotGray)
-	hintStyle = slot(slotGray)
-	noteStyle = faintStyle.Italic(true)
-
-	// The rules that separate, never speak: a hairline, one step off the
-	// ground in whatever the ground is.
-	ruleStyle = ink.Faint(true)
-
-	// offSelStyle marks the selected row when that row is one conn cannot
+	itemStyle = fg(colorInk)
+	// Structure is bold: headings and place names in parchment, the
+	// cursor's row in the orange that means here.
+	headingStyle = fg(colorParchment).Bold(true)
+	titleStyle = headingStyle
+	placeStyle = headingStyle
+	selStyle = fg(colorOrange).Bold(true)
+	orangeStyle = fg(colorOrange)
+	// offSelStyle marks the cursor's row when that row is one conn cannot
 	// step into: bold enough to find, dim enough to still read as unavailable.
-	offSelStyle = faintStyle.Bold(true)
+	offSelStyle = fg(colorFaint).Bold(true)
 
-	// The states. busyStyle turns beside work in progress in claude's own
-	// amber; attnStyle marks an agent that is done and waiting on its user;
-	// blockedStyle one stopped mid-turn on a specific ask, holding up work
-	// already in flight.
-	busyStyle = slot(slotAmber)
-	attnStyle = slot(slotGreen).Bold(true)
-	blockedStyle = slot(slotRed).Bold(true)
-	errStyle = slot(slotRed)
+	// Gray carries everything true but secondary; faint is for what a
+	// reader may skip. conn's own asides are italic, set apart from content.
+	faintStyle = fg(colorFaint)
+	labelStyle = fg(colorGray)
+	hintStyle = fg(colorGray)
+	noteStyle = fg(colorGray).Italic(true)
+	// A process that is conn itself reads in gray: (me), and nothing more.
+	selfStyle = fg(colorGray)
+
+	// The rules that separate, never speak.
+	ruleStyle = fg(colorChip)
+
+	// The states. busyStyle turns beside work in progress; attnStyle marks an
+	// agent that is done and waiting on its user; blockedStyle one stopped
+	// mid-turn on a specific ask, holding up work already in flight; and
+	// errStyle a failure, a stop, a death.
+	busyStyle = fg(colorAmber)
+	attnStyle = fg(colorGreen).Bold(true)
+	blockedStyle = fg(colorOwed).Bold(true)
+	errStyle = fg(colorOwed)
+	tealStyle = fg(colorTeal)
 
 	// matchStyle lights the letters a query matched, inside whatever style
 	// the row otherwise has: a narrowed list always shows why it narrowed.
-	// In the list, cyan is found and nothing else; on the page it is the
-	// accent, on the facts that identify.
-	matchStyle = slot(slotCyan).Bold(true)
+	matchStyle = fg(colorOrange).Bold(true)
+
+	barStyle = lipgloss.NewStyle().Background(lipgloss.Color(colorBar))
+	groundStyle = lipgloss.NewStyle().Background(lipgloss.Color(colorGround))
+	chipStyle = lipgloss.NewStyle().Background(lipgloss.Color(colorChip))
+	cursorStyle = lipgloss.NewStyle().Background(lipgloss.Color(colorInk)).Foreground(lipgloss.Color(colorGround))
 
 	toneStyles = map[tone]lipgloss.Style{
 		tonePlain:  itemStyle,
-		toneGood:   slot(slotGreen),
-		toneAttn:   slot(slotAmber),
-		toneUrgent: slot(slotRed).Bold(true),
-		toneBad:    slot(slotRed),
-		toneAccent: slot(slotCyan).Bold(true),
+		toneGood:   fg(colorGreen),
+		toneAttn:   fg(colorAmber),
+		toneUrgent: fg(colorOwed).Bold(true),
+		toneBad:    fg(colorOwed),
+		toneAccent: fg(colorTeal),
 		toneQuiet:  faintStyle,
-		toneName:   slot(slotPlace),
-		toneCount:  slot(slotCyan),
-		toneSelf:   slot(slotSelf),
+		toneName:   itemStyle,
+		toneCount:  fg(colorTeal),
+		toneSelf:   fg(colorGray),
 	}
 }
 
-// tone is how a value in the detail pane reads. Most facts are plain; the
-// few that carry a state carry it in the same colors as the navigator's
-// marks, and the ones that are true but secondary recede.
+// tone is how a value reads. Most facts are plain; the few that carry a
+// state carry it in the same colors as the marks, and the ones that are
+// true but secondary recede.
 type tone int
 
 const (
 	tonePlain  tone = iota // content, read at full weight
-	toneGood               // alive and well: running, working
-	toneAttn               // worth a glance: a dirty tree, a diverged branch
-	toneUrgent             // holding up work: blocked on an ask
+	toneGood               // alive and well: running, working, passed
+	toneAttn               // worth a glance: a dirty tree, a suspicious value
+	toneUrgent             // holding up work: blocked on an ask, a failure named
 	toneBad                // wrong: a zombie, a failure
-	toneAccent             // identity worth picking out: a branch, a port
-	toneQuiet              // true but secondary: ids, urls, empty counts
+	toneAccent             // identity worth picking out: a branch, a port, a name
+	toneQuiet              // true but secondary: ids, urls, hints
 	toneName               // what a thing is called: a model, a command, a state
 	toneCount              // a measure: tokens, a share of the machine, a count
-	toneSelf               // your own words, in the color conn uses for itself
+	toneSelf               // your own words
 )
 
-// toneStyles is the color each tone reads in. The accent and the urgent
-// are bold as well — the two a reader is looking for — and the rest are
-// color alone: the pane is a page, and color is enough of a voice on it.
+// toneStyles is the color each tone reads in.
 var toneStyles map[tone]lipgloss.Style
 
 // tmuxPalette is what tmux draws with: the status line, the borders, the
-// popups. tmux takes hex, and is configured once for every terminal rather
-// than asked which ground it found, so the config names the side and the
-// values are datum's for it — the same colors the slots resolve to in a
-// terminal set to datum.
+// popups, and the ground under every pane. The same values conn draws with.
 type tmuxPalette struct {
-	bg1, bg2                string // one and two steps off the ground: the wash, the chip
-	fg, gray                string
-	green, amber, red, cyan string
-	purple                  string // the ground under conn's own name, and nothing else
+	ground, bar, wash, chip, border string
+	ink, gray, faint, parchment     string
+	orange, owed, amber, green      string
+	teal                            string
 }
 
-var tmuxDark = tmuxPalette{
-	bg1: "#1A1E24", bg2: "#2B2F35", fg: "#DBE0E8", gray: "#8F98A3",
-	green: "#54DCAA", amber: "#F8BD5F", red: "#FE9864", cyan: "#6AE5EC",
-	purple: "#B9A7FF",
+var hangar = tmuxPalette{
+	ground: colorGround, bar: colorBar, wash: colorWash, chip: colorChip, border: colorBorder,
+	ink: colorInk, gray: colorGray, faint: colorFaint, parchment: colorParchment,
+	orange: colorOrange, owed: colorOwed, amber: colorAmber, green: colorGreen,
+	teal: colorTeal,
 }
 
-var tmuxLight = tmuxPalette{
-	bg1: "#E7ECF2", bg2: "#CED3D9", fg: "#292E35", gray: "#616A76",
-	green: "#007553", amber: "#976700", red: "#A24500", cyan: "#0D7A7F",
-	purple: "#5E48C2",
-}
+// tp is the palette tmux draws with.
+var tp = hangar
 
-// tp is the palette tmux draws with: dark unless the config says light.
-var tp = tmuxDark
+// paintShells says whether the shells' ground is the hangar's too: their
+// default background and ink, so the window is one ground from the tabline
+// to the status line. The config's "terminal" theme leaves the shells to
+// the terminal's own colors, and conn's own panes keep the hangar.
+var paintShells = true
 
-// applyTheme picks tmux's side from the config. Anything but "light" is
-// dark, the more common terminal.
+// applyTheme reads the config's theme: "terminal" keeps the shells' ground
+// the terminal's; anything else is the hangar, which is the one palette
+// conn has.
 func applyTheme(theme string) {
-	if theme == "light" {
-		tp = tmuxLight
-	} else {
-		tp = tmuxDark
-	}
+	paintShells = theme != "terminal"
 }
 
-// brandChip is conn's name at the head of the status line: CONN, bold on
-// a purple ground in the wash's ink, the mode's chip butted against it.
-// It is the one thing on the line that is not a state — it says whose
-// line this is, and it stays while everything after it changes; the
-// inverted ground is what tells it from the modes beside it.
+// brandChip is conn's name at the head of the status line: CONN, bold in
+// the ground's color on the orange, the mode's chip butted against it. It
+// is the one inverted ground on screen — it says whose line this is, and
+// it stays while everything after it changes.
 func brandChip() string {
-	return "#[fg=" + tp.bg1 + ",bg=" + tp.purple + ",bold] CONN "
+	return "#[fg=" + tp.ground + ",bg=" + tp.orange + ",bold] CONN "
 }
 
 // statusChip is a mode on the status line: the word, bold in its color on
 // the chip's ground, and after it the rest of the line washed one step off
-// the terminal's ground — one tone for every mode, the chip alone carrying
-// the color. The word's # are doubled: tmux expands them otherwise.
+// the ground — one tone for every mode, the chip alone carrying the color.
+// The word's # are doubled: tmux expands them otherwise.
 func statusChip(color, word string) string {
-	return "#[fg=" + color + ",bg=" + tp.bg2 + ",bold] " +
+	return "#[fg=" + color + ",bg=" + tp.chip + ",bold] " +
 		strings.ReplaceAll(word, "#", "##") +
-		" #[fg=default,bg=" + tp.bg1 + ",fill=" + tp.bg1 + "]"
+		" #[fg=" + tp.gray + ",bg=" + tp.wash + ",fill=" + tp.wash + "]"
 }
 
 // tmuxStyled wraps text for tmux's status line: its color and weight in
@@ -210,26 +200,42 @@ func tmuxStyled(fg string, bold bool, text string) string {
 	return style + "]" + strings.ReplaceAll(text, "#", "##") + "#[default]"
 }
 
-// The glyphs. A filled mark is something lit — an answer waiting, a plan
-// entry up — and a hollow one is the same thing quiet; the diamond is an ask.
+// The glyphs: one mark per meaning, everywhere it appears — a tab, a row, a
+// heading, an ending. Filled is lit; hollow is quiet.
 const (
-	glyphSelected = "▸"  // the cursor, in the navigator's gutter
-	glyphIndent   = "  " // a child sits on indent alone: the tree's rules were the loudest thing on screen
-	glyphDivider  = "│"  // between the navigator and its own pane; tmux's border stands where a shell's is
-	glyphOn       = "●"
-	glyphOff      = "○"
-	glyphAsk      = "◆"
-	glyphFailed   = "✗" // a command that ended badly; a process stopped, or a zombie
-	glyphDone     = "✓" // a command that ended well
-	glyphBusy     = "⋯" // the spinner, standing still: for a status line that is not redrawn per frame
-	glyphJoin     = "›" // between the processes of a run
+	glyphSelected  = "▸"  // the cursor, in a gutter of its own
+	glyphIndent    = "  " // a child sits on indent alone: the tree's rules were the loudest thing on screen
+	glyphOn        = "●"  // done and waiting on you
+	glyphOff       = "○"  // the same thing, quiet: idle since it started
+	glyphAsk       = "◆"  // an ask — an answer owed
+	glyphFailed    = "✗"  // ended badly; stopped; a zombie
+	glyphDone      = "✓"  // ended well
+	glyphContainer = "⬢"  // a container, merged in beside the processes
+	glyphBusy      = "⠹"  // the spinner, standing still: for a title that is not redrawn per frame
+	glyphJoin      = "›"  // the prompt line, and the joins of a run
+	glyphNote      = "←"  // leads an annotation
+	glyphDot       = "·"  // joins the facts of a line
 )
 
-// paneGutter is the room the detail pane's prose keeps off the divider. The
-// navigator's single-column gutter is part of the tree; the pane is a page,
-// and a page gets a margin.
-const paneGutter = "  "
+// gutter is the room every line of a buffer or a view keeps off the left
+// edge: the buffer is a page, and a page gets a margin.
+const gutter = "  "
+
+// paneGutter is the same margin, by the name the older render code uses.
+const paneGutter = gutter
 
 // spinFrames is the turning marker beside work in progress: a process being
 // killed, an agent mid-turn.
 var spinFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// dots joins facts on a line with middots: pid 4402 · :3000 · 2h. Empty
+// facts are left out.
+func dots(facts ...string) string {
+	var out []string
+	for _, f := range facts {
+		if f != "" {
+			out = append(out, f)
+		}
+	}
+	return strings.Join(out, " "+glyphDot+" ")
+}

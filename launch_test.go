@@ -143,14 +143,14 @@ func TestALaunchRestartsANavigatorFromAnOlderBuild(t *testing.T) {
 	}
 }
 
-func TestTheNavigatorGoesBackOnTheLeftOfAHomeWindowThatLostIt(t *testing.T) {
+func TestTheNavigatorGoesBackOnTopOfAHomeWindowThatLostIt(t *testing.T) {
 	tmuxOnSocket(t)
 	old := homeCommand
 	homeCommand = func() string { return "sleep 30" }
 	t.Cleanup(func() { homeCommand = old })
 
 	// A home window holding only a shell: the navigator was in it and went,
-	// and the shell that was beside it has the window.
+	// and the buffer that was under it has the window.
 	out, err := tmuxCommand("new-session", "-d", "-s", tmuxSession, "-x", "120", "-y", "30",
 		"-n", homeName, "-P", "-F", "#{window_id}\t#{pane_id}", "sleep 30")
 	if err != nil {
@@ -158,7 +158,7 @@ func TestTheNavigatorGoesBackOnTheLeftOfAHomeWindowThatLostIt(t *testing.T) {
 	}
 	f := strings.Split(out, "\t")
 	if _, err := tmuxCommand("set", "-w", "-t", f[0], "@conn_home", "1", ";",
-		"set", "-g", "main-pane-width", "28"); err != nil {
+		"set", "-g", "main-pane-height", "2"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -169,9 +169,9 @@ func TestTheNavigatorGoesBackOnTheLeftOfAHomeWindowThatLostIt(t *testing.T) {
 	if h.win != f[0] {
 		t.Errorf("home = %+v, want the navigator back in window %s", h, f[0])
 	}
-	out, _ = tmuxCommand("list-panes", "-t", f[0], "-F", "#{pane_id} #{pane_left} #{pane_width} #{@conn_nav}")
-	if !strings.Contains(out, h.pane+" 0 28 1") || !strings.Contains(out, f[1]+" 29 ") {
-		t.Errorf("panes:\n%s\nwant the navigator 28 wide on the left and the shell beside it", out)
+	out, _ = tmuxCommand("list-panes", "-t", f[0], "-F", "#{pane_id} #{pane_top} #{pane_height} #{@conn_nav}")
+	if !strings.Contains(out, h.pane+" 0 2 1") || !strings.Contains(out, f[1]+" 3 ") {
+		t.Errorf("panes:\n%s\nwant the navigator 2 rows tall on top and the buffer under it", out)
 	}
 }
 
@@ -226,7 +226,7 @@ func TestAChordsNoteTakesTheNavigatorsSlotForAFewSeconds(t *testing.T) {
 		t.Fatalf("asked %q, want one command", asked)
 	}
 	for _, want := range []string{
-		"set -g @conn_note " + tmuxStyled(tp.fg, false, " a starts ollama"),
+		"set -g @conn_note " + tmuxStyled(tp.ink, false, " a starts ollama"),
 		"set -g @conn_until 1000004",
 		"refresh-client -S",
 	} {
@@ -237,8 +237,8 @@ func TestAChordsNoteTakesTheNavigatorsSlotForAFewSeconds(t *testing.T) {
 	// A failure is the same note in red.
 	asked = nil
 	_ = announce(run, now, "no project holds /x", true)
-	if !strings.Contains(asked[0], tmuxStyled(tp.red, false, " no project holds /x")) {
-		t.Errorf("asked %q, want the failure in red", asked[0])
+	if !strings.Contains(asked[0], tmuxStyled(tp.owed, false, " no project holds /x")) {
+		t.Errorf("asked %q, want the failure in the owed color", asked[0])
 	}
 	// The note is not the navigator's message: that stays under it.
 	if strings.Contains(asked[0], "@conn_msg") {

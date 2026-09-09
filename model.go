@@ -17,28 +17,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// navWidth is the column the navigator occupies, divider excluded. The
-// default suits short home-project names; the config widens it for the long
-// qualified paths a work checkout produces.
-var navWidth = 30
-
-// applyNavWidth sets the navigator's width from the config, within reason:
-// below 16 columns no name survives, and past 60 the navigator is most of
-// any screen. Zero — unset — leaves the default standing.
-func applyNavWidth(w int) {
-	if w > 0 {
-		navWidth = min(max(w, 16), 60)
-	}
-}
-
-// paneMin is the narrowest detail pane worth drawing beside the navigator;
-// with less room than this the navigator takes the whole width. It measures
-// the pane rather than the window, because the navigator's width is the
-// user's to set: a wide navigator in a narrow window leaves the pane no
-// room at all, and a pane of no room must not be drawn — negative widths
-// walk straight into the renderer.
-const paneMin = 31
-
 // procPoll is how often the process list is refreshed. Processes come and go
 // constantly, and an lsof sweep is cheap enough to repeat at this rate.
 const procPoll = 2 * time.Second
@@ -80,7 +58,12 @@ type projectsMsg struct {
 	groups   []Project
 	subs     map[string][]Project
 	roots    []string
-	err      error
+	// tasks and plans are what each place defines, by its path: the
+	// tasks it says how to run and the plan it says it needs, read off
+	// the render path with the places, for the finder to list.
+	tasks map[string][]task
+	plans map[string]plan
+	err   error
 }
 
 // procsMsg carries the running processes. It arrives at startup and again
@@ -136,11 +119,10 @@ func (r navRow) leaf() *ProcNode {
 }
 
 type model struct {
-	width int
-	// window is the width the terminal last reported, which is the
-	// navigator's whole pane; width is what it draws in — the column
-	// alone while a shell is shown beside it (keepColumn).
-	window int
+	// width and height are what conn draws in: its pane. windowRows is
+	// the height the terminal last reported; height is held to the
+	// chrome's rows while a buffer is shown under it (keepRows).
+	width, height, windowRows int
 
 	// host is what the last process scan read, and containers what docker
 	// last said (dockerfeed.go); procs is the two merged, the tree's
@@ -150,7 +132,6 @@ type model struct {
 	host, containers []Proc
 	docker           *dockerFeed
 	dockerStalled    bool
-	height           int
 
 	projects []Project
 	err      error
@@ -164,6 +145,12 @@ type model struct {
 	byPlace map[string][]*ProcNode
 	parent  map[int]int
 	nodes   map[int]*ProcNode
+
+	// tasks and plans are what each place defines, by its path, as the
+	// last scan of the places read them: the finder lists the ones not
+	// running.
+	tasks map[string][]task
+	plans map[string]plan
 
 	// subs are each repository's sub-projects, keyed by the repository's
 	// path. They come from the repository scan, not the process scan: a
@@ -198,17 +185,6 @@ type model struct {
 	// not, because acting is the point of having looked.
 	filterFrom string
 
-	// creating says the name of a new project is being typed, on newName.
-	// newIn is the directory it will be made in, settled from the row the
-	// cursor was on when the line opened.
-	creating bool
-	newName  textinput.Model
-	newIn    string
-
-	// landOn is the path of a repository just made, for the cursor to land
-	// on once the scan that finds it lands.
-	landOn string
-
 	// roots are the config's project directories, as the last scan read
 	// them: where a new project goes when nothing under the cursor says.
 	roots []string
@@ -217,10 +193,36 @@ type model struct {
 	// status line says so whenever nothing else is said, and U takes it.
 	release string
 
-	// showAll toggles the navigator between every repository and only those
-	// with a process running in them. It starts off: the repositories with
-	// something running in them are the ones worth opening conn to see.
+	// showAll toggles the everything view between every repository and only
+	// those with a process running in them. It starts off: the repositories
+	// with something running in them are the ones worth seeing.
 	showAll bool
+
+	// all says the everything view is up: conn has the window, and draws
+	// the list under the tabline. Off, with nothing shown, the window is
+	// the empty workspace.
+	all bool
+
+	// from is the buffer a kill preview was asked from, parked while
+	// the preview has the window and shown again after — the buffer stays
+	// as the record of the ending, or as it was when esc kept it.
+	from int
+
+	// history is each named buffer's past runs, newest first, read for the
+	// heading's strip once per ending rather than per frame.
+	history map[int][]run
+	// histories is what each strip was read against — the buffer's last
+	// ending — so a strip is read again when the ending changes.
+	histories map[int]string
+
+	// deep is what the shown buffer's agent says of itself when read
+	// deeper than the scan does — its branch, its context — for the
+	// heading, read off the render path for the shown buffer alone.
+	deep map[int][]string
+
+	// snapshot is the finder's listing as last written beside the socket,
+	// so it is written again only when it changed.
+	snapshot string
 
 	// rows is the flattened navigator, rebuilt whenever its inputs change;
 	// cursor indexes into it and offset is the first row on screen.
@@ -232,16 +234,13 @@ type model struct {
 	// same way as details so the state survives a rescan.
 	collapsed map[string]bool
 
-	// pendingKill is the kill that has been asked for but not confirmed.
-	// Killing cannot be undone, so it takes a second key.
+	// pendingKill is the kill that has been asked for but not confirmed:
+	// the preview has the window until it is. Killing cannot be undone, so
+	// it takes a second key.
 	pendingKill *killRequest
 
 	// pendingG is a g waiting for the g that makes it mean the top.
 	pendingG bool
-
-	// resume is the picker over a place's suspended conversations, and nil
-	// while it is closed. Open, it has the pane and focus.
-	resume *resumeView
 
 	// dying holds the processes that have been signalled and are still listed.
 	// They keep their place, marked, until a rescan finds them gone: a row that
@@ -256,13 +255,6 @@ type model struct {
 	// offers SIGKILL rather than the signal it has already ignored. A
 	// process is off the list once a scan finds it gone.
 	refused map[int]string
-
-	// closing holds the shells conn holds that a kill is ending while they
-	// run a command, by pid, with how many frames each has waited: the
-	// command is signalled first, and the shell is hung up once it is back
-	// at its prompt. A hangup that came first would take the command's
-	// terminal before it had ended its own work.
-	closing map[int]int
 
 	// status is a one-line report of the last action, cleared as soon as the
 	// cursor moves on.
@@ -333,12 +325,14 @@ type model struct {
 	// leaves the cursor on the row that shell belongs to.
 	wantCursor int
 
-	// shown is the shell in the pane beside the navigator — the one the
-	// keys are in — and zero when the navigator has the window to itself.
-	// A shell is only placed beside the navigator to be entered; with the
-	// keys in the navigator, the navigator draws the pane, saying what
-	// is known about the row under the cursor, whatever that row is.
-	shown int
+	// shown is the buffer in the pane under the tabline, and zero when
+	// conn has the window to itself — for the everything view, a kill
+	// preview, or the empty workspace. shownGone says the shell shown has
+	// gone by the server's word, and the next list says what is under the
+	// tabline now: the same pane with a new shell in it, after a rerun in
+	// place, or nothing.
+	shown     int
+	shownGone bool
 
 	// focus is what has focus, as far as the navigator knows: zero for the
 	// navigator itself, else the pid of the shell that has it. was is where
@@ -362,10 +356,6 @@ type model struct {
 	// same reason.
 	said statusText
 
-	// details caches inspections by subject key, so revisiting a row is
-	// instant and moving quickly through the list does not queue up work.
-	details map[string][]field
-
 	// askedExit is the plan shells found at their prompt whose exit the
 	// server has been asked for, so the server is asked once per exit.
 	askedExit map[int]bool
@@ -378,26 +368,21 @@ type model struct {
 	// endings counts the endings learned of, to order them: the latest of
 	// several shells for one entry is the one that speaks for it.
 	endings int
-
-	// inspected is what each cached place was read as holding, by the same
-	// key: a place is read again when that has changed under it, rather
-	// than showing the count and checklist of before something started.
-	inspected map[string]string
 }
 
 func newModel() model {
 	return model{
 		query:     newLine(),
 		collapsed: map[string]bool{},
-		details:   map[string][]field{},
-		inspected: map[string]string{},
 		askedExit: map[int]bool{},
 		unread:    map[int]bool{},
 		dying:     map[int]dyingProc{},
 		refused:   map[int]string{},
-		closing:   map[int]int{},
 		terms:     map[int]*remoteTerm{},
 		dressed:   map[int]string{},
+		history:   map[int][]run{},
+		histories: map[int]string{},
+		deep:      map[int][]string{},
 		// Init sends the first scan, and Init cannot write here to say so.
 		scanning: true,
 	}
@@ -424,19 +409,24 @@ func scanProjects() tea.Msg {
 	// than in turn: fifty repositories at twenty milliseconds each would
 	// otherwise hold the first paint for a second.
 	subs := make(map[string][]Project, len(projects))
+	tasks := make(map[string][]task, len(projects))
+	plans := make(map[string]plan, len(projects))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for _, p := range projects {
 		wg.Go(func() {
-			if found := subProjects(p.Path); len(found) > 0 {
-				mu.Lock()
+			found := subProjects(p.Path)
+			ts, pl := tasksOf(p.Path), readPlan(p.Path)
+			mu.Lock()
+			if len(found) > 0 {
 				subs[p.Path] = found
-				mu.Unlock()
 			}
+			tasks[p.Path], plans[p.Path] = ts, pl
+			mu.Unlock()
 		})
 	}
 	wg.Wait()
-	return projectsMsg{projects: projects, groups: groups, subs: subs, roots: cfg.roots()}
+	return projectsMsg{projects: projects, groups: groups, subs: subs, roots: cfg.roots(), tasks: tasks, plans: plans}
 }
 
 // scanProcs reads the working directory of every visible process.
@@ -499,44 +489,47 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		return m, nil
 
 	case tea.BlurMsg:
-		// The keys have gone to a shell. What was pending here was about
+		// The keys have gone to a buffer. What was pending here was about
 		// the next key, and the next key is not coming: a kill left armed
-		// would fire on the first letter typed back into the list.
-		m.pendingKill, m.pendingReplace, m.pendingG = nil, false, false
-		// To the shell beside the list, when there is one: the navigator
-		// took them to any other itself, and said so then.
+		// would fire on the first letter typed back into the list. A
+		// preview gives the window back.
+		if m.pendingKill != nil {
+			m.pendingKill = nil
+			m.showAgain()
+		}
+		m.pendingReplace, m.pendingG = false, false
+		// To the buffer under the tabline, when there is one: conn took
+		// them to any other itself, and said so then.
 		if m.shown != 0 {
 			m.keysTo(m.shown)
 		}
 
 	case tea.FocusMsg:
-		// The keys are here, and the navigator draws the pane again:
-		// the shell they were in goes back to a window of its own.
+		// The keys are here. The buffer under the tabline stays: a dead
+		// one answers to these keys, and a live one is a click away.
 		m.keysTo(0)
-		m.park()
 
 	case tea.WindowSizeMsg:
-		m.window, m.height = msg.Width, msg.Height
-		m.keepColumn()
+		m.width, m.windowRows = msg.Width, msg.Height
+		m.keepRows()
 		m.scrollToCursor()
 
 	case projectsMsg:
 		m.projects, m.groups, m.subs, m.err = msg.projects, msg.groups, msg.subs, msg.err
+		if msg.tasks != nil {
+			m.tasks, m.plans = msg.tasks, msg.plans
+		}
 		m.manifestDirs = nil
 		if msg.roots != nil {
 			m.roots = msg.roots
 		}
 		m.rebuild()
-		m.landIfFound()
-		return m, tea.Batch(m.detailCmd(), m.restsCmd())
+		return m, tea.Batch(m.restsCmd(), m.publish())
 
 	case restsMsg:
 		m.rests = msg.rests
 		m.rebuild()
-		return m, m.detailCmd()
-
-	case createdMsg:
-		return m, m.created(msg)
+		return m, m.publish()
 
 	case updateMsg:
 		m.learnUpdate(msg)
@@ -560,8 +553,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			m.merge()
 		}
 		m.rebuild()
-		m.closeSettled()
-		return m, tea.Batch(m.detailCmd(), owed)
+		return m, tea.Batch(owed, m.publish(), m.deepCmd())
 
 	case dockerReadyMsg:
 		m.docker = msg.feed
@@ -577,8 +569,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		m.dockerStalled = msg.stalled
 		m.merge()
 		m.rebuild()
-		m.closeSettled()
-		return m, tea.Batch(m.detailCmd(), nextDocker(m.docker))
+		return m, tea.Batch(nextDocker(m.docker), m.publish())
 
 	case reconnectMsg:
 		return m, connectServer()
@@ -667,21 +658,20 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			held[s.PID] = t
 		}
 		m.terms = held
-		// A navigator starting beside a shell already shown — the last
-		// navigator closed, or the server was found holding shells — has
-		// focus, so the shell goes back to a window of its own; the cursor
-		// begins on its row, which is where it was left. A shell found
-		// beside because this navigator sent focus there has focus, and
-		// stays.
-		if !m.synced {
-			m.synced = true
+		// A navigator starting under a buffer already shown — the last
+		// navigator closed, or the server was found holding shells — keeps
+		// it shown: the session restores as it was left, and the cursor
+		// begins on its row. And the server is the authority on what is
+		// under the tabline once the shell shown there has gone: the same
+		// pane with a new shell in it, after a rerun in place, is the
+		// buffer still, and the cursor follows it; nothing there is the
+		// window back to conn.
+		if !m.synced || m.shownGone {
+			m.synced, m.shownGone = true, false
+			m.shown = beside
+			m.keepRows()
 			if beside != 0 {
-				m.shown = beside
-				m.keepColumn()
-				if m.focus == 0 {
-					m.wantCursor = beside
-					m.park()
-				}
+				m.wantCursor = beside
 			}
 		}
 		m.rebuild()
@@ -690,18 +680,20 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		if wanted != 0 {
 			m.showPID(wanted)
 		}
-		return m, tea.Batch(nextEvent(m.server), m.scanNow())
+		// The endings the list carried are the finder's news too.
+		return m, tea.Batch(nextEvent(m.server), m.scanNow(), m.publish())
 
 	case termGoneMsg:
 		delete(m.terms, msg.pid)
 		delete(m.dressed, msg.pid)
 		if m.shown == msg.pid {
-			// Its pane went with it, and the navigator has the window —
-			// which tmux said first, widening the pane before the shell
-			// was known to be gone, when the width was held to the column;
-			// the width it said is now the whole window.
-			m.shown = 0
-			m.keepColumn()
+			// The list that says so follows at once, and says what is
+			// under the tabline now: the same pane with a new shell in
+			// it, or nothing, which is the window back to conn.
+			m.shownGone = true
+		}
+		if m.from == msg.pid {
+			m.from = 0
 		}
 		m.rebuild()
 		// Asking again is what notices a server that has just become
@@ -740,8 +732,8 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		m.docker.ask()
 		return m, m.scanNow()
 
-	case detailMsg:
-		m.details[msg.key] = msg.fields
+	case deepMsg:
+		m.deep[msg.pid] = msg.facts
 
 	case outcomeMsg:
 		// What the run's transcript said, for a shell whose ending still
@@ -753,14 +745,6 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			return m, m.record(t)
 		}
 
-	case convosMsg:
-		// Only the picker that asked wants this; one opened on another place
-		// since — or closed — has moved past the answer.
-		if m.resume != nil && m.resume.place.Path == msg.place {
-			m.resume.loaded = true
-			m.resume.convos = msg.convos
-		}
-
 	case tickMsg:
 		m.ticks++
 		cmds := []tea.Cmd{m.scanPoll(), tick(procPoll)}
@@ -770,15 +754,13 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		if m.ticks%updateTicks == 0 {
 			cmds = append(cmds, checkUpdate(false, time.Now()))
 		}
-		// Keep the pane the user is looking at current too; the rest of the
-		// cache is refreshed lazily when the cursor reaches it.
-		if c := m.refreshDetailCmd(); c != nil {
-			cmds = append(cmds, c)
-		}
+		// Keep the shown buffer's heading current too.
+		cmds = append(cmds, m.deepCmd())
 		return m, tea.Batch(cmds...)
 
 	case killedMsg:
 		m.pendingKill = nil
+		m.showAgain()
 		signalled := 0
 		for _, r := range msg.results {
 			if errors.Is(r.err, errGone) {
@@ -828,17 +810,11 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case tea.PasteMsg:
-		// Into the picker it is more of the query: pasting a phrase from a
-		// transcript is a fine way to look.
-		if m.resume != nil {
-			m.setResumeQuery(m.resume.query + msg.Content)
-			return m, nil
-		}
 		// Into the filter it is just more of the query.
 		if m.typing {
 			m.status = ""
 			m.setFilter(m.filter + msg.Content)
-			return m, m.detailCmd()
+			return m, nil
 		}
 		// At the navigator, pasted text lands nowhere — and saying so beats
 		// a paste that silently vanishes and reads as broken.
@@ -851,39 +827,34 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	return m, nil
 }
 
-// keyPress is a key at the navigator: the one place every key is read,
-// and the order they are read in is the order of the claims on them.
+// keyPress is a key at conn: the one place every key is read, and the
+// order they are read in is the order of the claims on them.
 func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
-	// A pending kill takes the next key, whatever it is — before even
-	// the prefix, or the warning lies: routed later, a prefix excursion
-	// could carry the armed kill along for minutes and hand it to an
-	// enter meant to open something.
+	// A kill preview takes the next key, whatever it is — before even the
+	// prefix, or the preview lies: routed later, a prefix excursion could
+	// carry the armed kill along for minutes and hand it to an enter meant
+	// to open something. X takes the tree, x the head alone, and any other
+	// key keeps everything alive and gives the buffer back.
 	if m.pendingKill != nil {
 		req := m.pendingKill
 		m.pendingKill = nil
-		if sig, ok := chooseSignal(msg.String(), req.sig); ok {
+		key := msg.String()
+		if key == "x" && len(req.head) > 0 {
+			req = req.headOnly()
+		}
+		if sig, ok := chooseSignal(key, req.sig); ok {
 			req.sig = sig
 			return m, m.runKill(req)
 		}
-		m.status, m.statusErr = "kill cancelled", false
+		m.showAgain()
+		m.status, m.statusErr = "kept "+req.subject, false
 		return m, nil
-	}
-
-	// The resume picker takes every key while it is open: it is a look
-	// through what could be continued, and it takes the filter's keys.
-	if m.resume != nil {
-		return m, m.resumeKey(msg)
 	}
 
 	// The filter takes every key while it is being typed, so a repository
 	// called "scratch" can be typed without s opening a shell halfway through.
 	if m.typing {
 		return m, m.filterKey(msg)
-	}
-
-	// So does the name of a new project.
-	if m.creating {
-		return m, m.createKey(msg)
 	}
 
 	// Ending the server ends the work it is holding, so it takes a
@@ -896,7 +867,7 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 			// here as well just spares the window a beat of stale rows.
 			m.server.replace()
 			m.terms = map[int]*remoteTerm{}
-			m.status, m.statusErr = "ending the server and its shells", false
+			m.status, m.statusErr = "ending the server and its buffers", false
 			m.rebuild()
 			return m, nil
 		}
@@ -904,13 +875,16 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, nil
 	}
 
-	// gg is a pair, so the first g waits for the second. Anything else
-	// cancels it and is swallowed, rather than being acted on as though
-	// the g had not been typed.
+	// gg is a pair, so the first g waits for the second; gf is the other
+	// pair. Anything else cancels it and is swallowed, rather than being
+	// acted on as though the g had not been typed.
 	if m.pendingG {
 		m.pendingG = false
-		if msg.String() == "g" {
+		switch msg.String() {
+		case "g":
 			return m, m.jump(0)
+		case "f":
+			return m, m.openFileLine()
 		}
 		return m, nil
 	}
@@ -926,11 +900,26 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, m.askReplace()
 	case "U":
 		return m, m.updateConn()
+	case "p", "ctrl+p":
+		// The front door: everything openable, in a popup over the window.
+		m.server.finder()
+		return m, nil
 	case "/":
+		// / narrows the everything view, opening it first when it is not
+		// up: looking for a name across the machine is the finder's, on p,
+		// and / is the look within the view.
+		if !m.viewingAll() {
+			m.openAll()
+		}
 		return m, m.openFilter()
 	case "enter":
 		return m, m.openShell()
 	case "r":
+		// On a dead task buffer, r runs it again in place; elsewhere it
+		// starts what the cursor's place says it needs.
+		if t := m.terms[m.shown]; t != nil && !t.live() && t.name != "" {
+			return m, m.rerun(t)
+		}
 		return m, m.run()
 	case "s":
 		return m, m.start("")
@@ -940,16 +929,10 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		// kind is the window's call, then the config's; claude is the
 		// default.
 		return m, m.start(m.agentCommand())
-	case "A":
-		// The same verb, reaching back: a starts a fresh conversation,
-		// A picks a suspended one back up.
-		return m, m.openResume()
-	case "n":
-		return m, m.openCreate()
 	case ",":
 		// The next kind for a to start — claude, ollama, claude — for
 		// the whole server: the chords start the same kind, and the
-		// status line's corner names it.
+		// finder names it.
 		m.cycleKind()
 		return m, nil
 	case "e":
@@ -974,13 +957,13 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	case "K":
 		return m, m.stepShell(-1)
 	case "tab":
-		// The next agent waiting on you, and again around them in
-		// turn: the jump the chord ctrl-space enter delivers from
-		// any shell, at the list.
+		// The next thing owed — an agent waiting on you, a run that
+		// ended badly — and again around them in turn: the jump the
+		// chord ctrl-space enter delivers from any buffer.
 		return m, m.jumpWaiting()
 	case "shift+tab":
-		// Back to the previous pane: the chord ctrl-space ctrl-space,
-		// from any shell, at the list.
+		// Back to the previous buffer: the chord ctrl-space ctrl-space,
+		// from any buffer.
 		return m, m.back()
 	case "space":
 		m.toggleCollapse()
@@ -988,31 +971,42 @@ func (m model) keyPress(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	case "-":
 		m.unfolded = !m.unfolded
 		m.rebuild()
-		return m, m.detailCmd()
+		return m, nil
 	case ".":
-		// Dot shows and hides the hidden.
+		// Dot opens the everything view; there, it shows and hides the
+		// hidden.
+		if !m.viewingAll() {
+			m.openAll()
+			return m, nil
+		}
 		m.showAll = !m.showAll
 		m.rebuild()
 		if !m.showAll {
 			// Narrowing is a question about right now, so ask again.
-			return m, tea.Batch(m.scanNow(), m.detailCmd())
+			return m, m.scanNow()
 		}
-		return m, m.detailCmd()
+		return m, nil
 	case "esc":
-		// Esc closes whatever is open — the filter here, and the modal
-		// and the transcript where they have focus — and it never
-		// closes conn. Leaving is q's word alone: one reflexive esc too
-		// many, a beat after the filter it was meant for has already
-		// gone, must not take the window with it.
-		if m.filter != "" {
+		// Esc closes whatever is open — the filter, the everything view —
+		// and it never closes conn. Leaving is q's word alone: one
+		// reflexive esc too many, a beat after the filter it was meant
+		// for has already gone, must not take the window with it.
+		switch {
+		case m.filter != "":
 			m.setFilter("")
-			return m, m.detailCmd()
+		case m.all:
+			m.closeAll()
 		}
 		return m, nil
 	case "q", "ctrl+c":
-		// Leaving the window, not the shells: the client detaches and
-		// the navigator keeps its place in the home window for the
-		// next `conn`.
+		// On a dead buffer, q closes it: the run is over, and its history
+		// is on the record. Anywhere else q leaves the window, not the
+		// buffers: the client detaches and conn keeps its place in the
+		// home window for the next `conn`.
+		if t := m.terms[m.shown]; t != nil && !t.live() && m.focus == 0 {
+			m.closeBuffer(t)
+			return m, nil
+		}
 		m.server.leave()
 		return m, nil
 	}
@@ -1037,7 +1031,7 @@ func (m *model) filterKey(msg tea.KeyPressMsg) tea.Cmd {
 		if _, ok := m.selected(); ok {
 			return m.openShell()
 		}
-		return m.detailCmd()
+		return nil
 
 	// Moving through what is left, without leaving the typing.
 	case "up", "ctrl+p":
@@ -1051,7 +1045,7 @@ func (m *model) filterKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.typing = false
 		m.setFilter("")
 		m.selectKey(m.filterFrom)
-		return m.detailCmd()
+		return nil
 	case "tab":
 		// The jump reaches through the search: the waiting agent lives in
 		// the whole list, and going to it is the end of looking.
@@ -1096,7 +1090,6 @@ func (m *model) filterKey(msg tea.KeyPressMsg) tea.Cmd {
 	if v := m.query.Value(); v != before {
 		m.status = "" // whatever was reported was about the last project
 		m.setFilter(v)
-		return m.detailCmd()
 	}
 	return nil
 }
@@ -1212,7 +1205,7 @@ func (m *model) jump(i int) tea.Cmd {
 	}
 	m.cursor = i
 	m.scrollToCursor()
-	return m.detailCmd()
+	return nil
 }
 
 // jumpWaiting goes to the next row that needs you — an agent waiting on
@@ -1242,19 +1235,23 @@ func (m *model) jumpWaiting() tea.Cmd {
 		}
 		m.cursor = i
 		m.scrollToCursor()
-		return m.detailCmd()
+		return nil
 	}
 	m.status, m.statusErr = "nothing needs you", false
 	return nil
 }
 
-// show gives a shell focus from anywhere: the cursor goes to its row, a
-// filter that led here is finished, like enter's, and the shell is shown
-// beside the navigator, focused.
+// show puts a buffer in the pane under the tabline from anywhere: the
+// cursor goes to its row, a filter that led here is finished, like enter's,
+// the everything view gives way, and the buffer has focus — unless its run
+// has ended. A dead buffer is readable beneath and answers to conn's keys —
+// r reruns, gf opens the file, q closes — so the keys stay with conn, and
+// enter steps into the shell when that is wanted.
 func (m *model) show(t *remoteTerm) {
 	m.typing = false
-	m.resume = nil
 	m.setFilter("")
+	m.all = false
+	m.from = 0
 	for i, r := range m.rows {
 		if r.kind == rowProc && m.owningTerm(r.node.PID) == t {
 			m.cursor = i
@@ -1263,31 +1260,72 @@ func (m *model) show(t *remoteTerm) {
 		}
 	}
 	m.shown = t.pid
-	m.keepColumn()
-	m.keysTo(t.pid)
-	m.server.show(t.pid)
+	m.keepRows()
+	if t.live() {
+		m.keysTo(t.pid)
+		m.server.show(t.pid)
+		return
+	}
+	m.keysTo(0)
+	m.server.showQuiet(t.pid)
 }
 
-// park gives the shell beside the navigator a window of its own and the
-// navigator the whole window: the navigator has focus, and what it
-// has to say about the row under the cursor draws where the shell was.
+// park gives the shown buffer a window of its own and conn the whole
+// window: conn has focus, and something of its own to draw there.
 func (m *model) park() {
 	if m.shown == 0 {
 		return
 	}
 	m.shown = 0
+	m.keepRows()
 	m.server.park()
 	m.dressWindows()
 }
 
-// keysTo records that focus has gone to pid — zero for the navigator —
-// keeping where it was, when that is somewhere else. Where it already is
-// is not a move: the navigator's own blur after it sent focus somewhere
-// says the same thing twice. And the navigator on the way from one shell
-// to another is not a place focus was: choosing a second shell from the
-// list leaves the first as where focus was, so back from the second is the
-// first, not the list it was chosen from. Back to the same shell from the
-// list is a round trip, and the list is where focus was.
+// take takes the window for a view of conn's own — the everything view, a
+// kill preview — remembering the buffer it took it from, for the view to
+// give back.
+func (m *model) take() {
+	if m.shown != 0 {
+		m.from = m.shown
+		m.park()
+	}
+	m.keysTo(0)
+	m.server.home()
+}
+
+// showAgain gives the window back to the buffer a view took it from, where
+// that buffer is still held; with none, conn keeps the window.
+func (m *model) showAgain() {
+	t := m.terms[m.from]
+	m.from = 0
+	if t != nil && m.shown == 0 && m.pendingKill == nil {
+		m.show(t)
+	}
+}
+
+// openAll puts the everything view up: conn takes the window, and the list
+// draws under the tabline.
+func (m *model) openAll() {
+	m.all = true
+	m.take()
+}
+
+// closeAll takes the everything view down, and gives the window back to
+// the buffer it took it from.
+func (m *model) closeAll() {
+	m.all = false
+	m.showAgain()
+}
+
+// keysTo records that focus has gone to pid — zero for conn — keeping
+// where it was, when that is somewhere else. Where it already is is not
+// a move: conn's own blur after it sent focus somewhere says the same
+// thing twice. And conn on the way from one buffer to another is not a
+// place focus was: choosing a second buffer leaves the first as where
+// focus was, so back from the second is the first, not the view it was
+// chosen from. Back to the same buffer from conn is a round trip, and
+// conn is where focus was.
 func (m *model) keysTo(pid int) {
 	switch {
 	case pid == m.focus:
@@ -1298,12 +1336,12 @@ func (m *model) keysTo(pid int) {
 	}
 }
 
-// back returns focus to the previous pane: the shell it was in before
-// this one, or the navigator, whichever it was — the chord ctrl-space
-// ctrl-space, from anywhere. A shell that has gone since is no place to
-// go; then, back from a shell is the list, and back from the list is
-// enter: the shell under the cursor, when the row has one. From the list
-// with none there is nowhere, which is said.
+// back returns focus to the previous pane: the buffer it was in before
+// this one, or conn, whichever it was — the chord ctrl-space ctrl-space,
+// from anywhere. A buffer that has gone since is no place to go; then,
+// back from a buffer is the everything view, and back from conn is enter:
+// the buffer under the cursor, when the row has one. From conn with none
+// there is nowhere, which is said.
 func (m *model) back() tea.Cmd {
 	target := m.was
 	if target != 0 && m.terms[target] == nil {
@@ -1319,9 +1357,7 @@ func (m *model) back() tea.Cmd {
 			m.status, m.statusErr = "no shell to go back to", false
 			return nil
 		}
-		m.keysTo(0)
-		m.server.home()
-		m.park()
+		m.openAll()
 		return nil
 	}
 	m.letGo()
@@ -1329,45 +1365,49 @@ func (m *model) back() tea.Cmd {
 	return nil
 }
 
-// keepColumn holds the navigator to its column while a shell is shown
-// beside it. The pane's size reaches the navigator late, as a message
-// behind the resize: a frame drawn between a shell joining and that
-// message is drawn at the whole window's width into a pane a column
-// wide, and tmux writes the overflow wrapped into the column — the
-// details, shifted, where the list should be, for a frame. The navigator
-// knows when a shell is shown, so it does not wait to be told it is
-// narrow: it narrows itself as it asks for the shell, and a size wider
-// than its column while one is shown is a size from before the join.
-func (m *model) keepColumn() {
-	m.width = m.window
+// keepRows holds conn to the chrome's rows while a buffer is shown under
+// it. The pane's size reaches conn late, as a message behind the resize:
+// a frame drawn between a buffer joining and that message is drawn at the
+// whole window's height into a pane two rows tall, and tmux writes the
+// overflow wrapped into it. conn knows when a buffer is shown, so it does
+// not wait to be told it is short: it shortens itself as it asks for the
+// buffer, and a size taller than the chrome while one is shown is a size
+// from before the join.
+func (m *model) keepRows() {
+	m.height = m.windowRows
 	if m.shown != 0 {
-		m.width = min(m.width, navWidth)
+		m.height = min(m.height, chromeRows)
 	}
 }
 
-// showPID shows a shell that may not have a row yet — one just opened,
+// showPID shows a buffer that may not have a row yet — one just opened,
 // before the process scan has seen it. The keys go to it now; the cursor
 // follows as soon as its row lands.
 func (m *model) showPID(pid int) {
+	m.all = false
+	m.from = 0
 	m.shown = pid
-	m.keepColumn()
+	m.keepRows()
 	m.wantCursor = pid
 	m.keysTo(pid)
 	m.server.show(pid)
 }
 
-// stepShell shows the next or previous held shell in the navigator's order
-// from the focused one — or, from the list, the one under the cursor —
-// wrapping, and gives it focus: the chord ctrl-space j and
-// k, from any shell, and J and K at the list.
+// stepShell shows the next or previous buffer in the tabline's order from
+// the shown one — or, from a view, the one under the cursor — wrapping,
+// and gives it focus: the chord ctrl-space j and k, from any buffer, and J
+// and K at conn.
 func (m *model) stepShell(delta int) tea.Cmd {
 	order := m.heldOrder()
 	if len(order) == 0 {
-		m.status, m.statusErr = "no shell is open", false
+		m.status, m.statusErr = "no buffer is open", false
 		return nil
 	}
 	m.letGo()
 	from := m.shown
+	if from == 0 {
+		from = m.from
+	}
 	if from == 0 {
 		if t := m.cursorTerm(); t != nil {
 			from = t.pid
@@ -1455,12 +1495,11 @@ func (m *model) openFilter() tea.Cmd {
 	if r, ok := m.selected(); ok {
 		m.filterFrom = detailKey(r)
 	}
-	m.resume = nil // one search at a time; the filter is the search now
 	m.typing = true
 	m.rebuild()
 	m.cursor = 0
 	m.scrollToCursor()
-	return m.detailCmd()
+	return nil
 }
 
 // placeAt is the place a directory belongs to — the innermost repository or
@@ -1600,7 +1639,7 @@ func (m *model) move(delta int) tea.Cmd {
 	m.letGo()
 	m.cursor = (m.cursor + delta + len(m.rows)) % len(m.rows)
 	m.scrollToCursor()
-	return m.detailCmd()
+	return nil
 }
 
 // cursorTerm is the shell belonging to the row under the cursor: the one
@@ -1786,19 +1825,10 @@ func (m *model) openShell() tea.Cmd {
 
 // runKill carries out a confirmed kill, splitting it by who owns the target.
 //
-// A shell conn holds is hung up through the server rather than signalled: an
-// interactive shell ignores SIGTERM, so signalling one leaves it sitting there
-// and conn reporting that it would not go. Everything else is somebody else's
-// process, and a signal is all conn has.
-//
-// A held shell running a command — a plan's entry, a task, an agent — is
-// hung up only once the command has gone. Hanging it up first takes the
-// command's terminal away, and a command ends its own work on a signal, not
-// on losing its terminal: docker compose up hung up leaves its containers
-// running, and given SIGTERM stops them before it goes. So everything under
-// the shell is signalled, parents first — the hangup would have taken all of
-// it anyway, and a signal is the chance the hangup did not give — and the
-// shell is hung up when a scan finds it back at its prompt (closeSettled).
+// A shell conn holds at its prompt is hung up through the server rather
+// than signalled: an interactive shell ignores SIGTERM, so signalling one
+// leaves it sitting there and conn reporting that it would not go.
+// Everything else is somebody else's process, and a signal is all conn has.
 func (m *model) runKill(req *killRequest) tea.Cmd {
 	hungUp, signalled := m.splitKill(req.nodes)
 	// docker says when a container has stopped; the feed is asked to ask.
@@ -1808,13 +1838,17 @@ func (m *model) runKill(req *killRequest) tea.Cmd {
 			break
 		}
 	}
-	return killTree(&killRequest{subject: req.subject, nodes: signalled}, hungUp)
+	return killTree(&killRequest{subject: req.subject, nodes: signalled, sig: req.sig}, hungUp)
 }
 
-// splitKill sorts a kill's targets into the shells the server hangs up —
-// now, or once what they run has gone — and the processes to signal, which
-// take in what runs under a held shell. A process is signalled once,
-// whichever way it was reached.
+// splitKill sorts a kill's targets into the shells the server hangs up and
+// the processes to signal, which take in what runs under a held shell. A
+// held shell running a command keeps its pane: what runs in it is
+// signalled, parents first, and the shell is back at its prompt with the
+// ending recorded — the buffer stays as the record of the ending, dead but
+// readable, until q closes it. A held shell at its prompt with nothing
+// running is a buffer of nothing but a prompt, and is hung up. A process
+// is signalled once, whichever way it was reached.
 func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*ProcNode) {
 	seen := map[int]bool{}
 	for _, n := range nodes {
@@ -1825,16 +1859,12 @@ func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*
 			}
 			continue
 		}
-		hungUp = append(hungUp, killResult{command: n.Command, pid: n.PID, hungUp: true})
 		shell := m.nodes[n.PID]
 		if shell == nil || len(shell.Children) == 0 {
+			hungUp = append(hungUp, killResult{command: n.Command, pid: n.PID, hungUp: true})
 			m.server.closeTerm(n.PID)
 			continue
 		}
-		if m.closing == nil {
-			m.closing = map[int]int{}
-		}
-		m.closing[n.PID] = 0
 		for _, under := range subtree(shell)[1:] {
 			if _, held := m.terms[under.PID]; held || seen[under.PID] {
 				continue
@@ -1846,21 +1876,56 @@ func (m *model) splitKill(nodes []*ProcNode) (hungUp []killResult, signalled []*
 	return hungUp, signalled
 }
 
-// closeSettled hangs up the shells a kill is waiting on, where a scan has
-// found the command gone and the shell back at its prompt. A shell no
-// longer held — closed by hand meanwhile — is nothing to wait on.
-func (m *model) closeSettled() {
-	for pid := range m.closing {
-		shell := m.nodes[pid]
-		if _, held := m.terms[pid]; !held || shell == nil {
-			delete(m.closing, pid)
-			continue
-		}
-		if len(shell.Children) == 0 {
-			m.server.closeTerm(pid)
-			delete(m.closing, pid)
-		}
+// closeBuffer closes a dead buffer: its run is over and on the record,
+// and the shell at its prompt beneath the transcript is hung up. The
+// tabline moves on to the next buffer.
+func (m *model) closeBuffer(t *remoteTerm) {
+	m.server.closeTerm(t.pid)
+	delete(m.terms, t.pid)
+	delete(m.dressed, t.pid)
+	m.shown = 0
+	m.keepRows()
+	m.rebuild()
+	if len(m.terms) > 0 {
+		m.stepShell(1)
 	}
+	m.status, m.statusErr = "closed "+t.name+"; its runs stay on the record", false
+}
+
+// rerun runs a dead task buffer again in place: the same pane, the same
+// name, the command it ran, its transcript starting over. The ending is
+// forgotten first, so the run is live until it ends again.
+func (m *model) rerun(t *remoteTerm) tea.Cmd {
+	if m.server == nil {
+		m.status, m.statusErr = "no server to run it in: "+m.serverErr, true
+		return nil
+	}
+	t.exit, t.at, t.summary, t.settled, t.dropped, t.recorded = "", time.Time{}, "", false, false, false
+	delete(m.unread, t.pid)
+	m.server.respawn(t.pid, t.run)
+	m.status, m.statusErr = "running "+t.name+" again: "+t.run, false
+	return m.scanNow()
+}
+
+// openFileLine is gf on a buffer: the last file:line its transcript names
+// — a failing test, a compiler's complaint — opened in the editor, in the
+// buffer's own shell, which is at its prompt beneath the transcript.
+func (m *model) openFileLine() tea.Cmd {
+	t := m.terms[m.shown]
+	if t == nil || m.server == nil {
+		m.status, m.statusErr = "no buffer to open a file from", false
+		return nil
+	}
+	loc := lastFileLine(m.server.tail(t.pid, transcriptLines))
+	if loc == "" {
+		m.status, m.statusErr = "the transcript names no file:line", false
+		return nil
+	}
+	m.server.typeInto(t.pid, editorCommand(loc))
+	m.status, m.statusErr = "opening "+loc, false
+	m.keysTo(t.pid)
+	m.server.show(t.pid)
+	return nil
 }
 
 // entryOf is the named shell a row is, or is running in — a plan's
@@ -2216,11 +2281,13 @@ func (m model) needsYou(r navRow) bool {
 	return m.awaiting(r) != nil || m.wrong(r)
 }
 
-// askKill arms a kill for whatever the cursor is on. A plain kill takes the
-// one selected process; a tree kill takes everything below it too. On a
-// repository row the two widths are the same width — everything running in
-// it: a narrow kill that stopped only what the plan had started read as x
-// ignoring half of what was on screen.
+// askKill previews a kill for whatever the cursor is on: what would die,
+// with what it holds, before anything does. A plain kill takes the one
+// selected process; a tree kill takes everything below it too; the
+// preview shows the tree either way, since the consequences are the
+// tree's, and X and x choose. On a place both widths are the same width
+// — everything running in it. The preview has the window: a buffer shown
+// gives it up, and has it back once the question is answered.
 func (m *model) askKill(tree bool) tea.Cmd {
 	r, ok := m.selected()
 	if !ok {
@@ -2230,6 +2297,10 @@ func (m *model) askKill(tree bool) tea.Cmd {
 		// Nothing is running: there is nothing to stop.
 		m.status, m.statusErr = "a conversation at rest is not running; enter continues it", false
 		return nil
+	}
+	where := ""
+	if p, ok := m.placeAt(r.project.Path); ok {
+		where = "in " + p.Name
 	}
 
 	if r.kind != rowProc {
@@ -2254,53 +2325,45 @@ func (m *model) askKill(tree bool) tea.Cmd {
 			m.status, m.statusErr = "nothing running in "+r.project.Name, true
 			return nil
 		}
-		m.pendingKill = &killRequest{
+		m.preview(&killRequest{
 			subject: plural(len(nodes), "process", "processes") + " in " + r.project.Name,
+			where:   "",
 			nodes:   nodes,
-		}
+			tree:    true,
+		})
 		return nil
 	}
 
-	if !tree {
-		nodes := []*ProcNode{r.node}
-		subject := procLabel(r.node)
-
-		// An entry's shell — a plan's, a task's — goes with its command,
-		// and everything under it; the row is the entry, and the question
-		// names it: kill
-		// app? What runs in the shell gets SIGTERM first and the shell is
-		// hung up once it has gone (splitKill), so the entry is gone the
-		// way it would be had nothing been running, and r starts it again.
-		if t := m.entryOf(r); t != nil {
-			if shell := m.nodes[t.pid]; shell != nil && t.live() && len(shell.Children) > 0 {
-				m.pendingKill = m.escalated(r, &killRequest{subject: t.name, nodes: m.withGroup(subtree(shell))})
-				return nil
-			}
-			subject = t.name + " " + strconv.Itoa(t.pid)
-		}
-
-		// A process running in a shell conn holds takes the shell with it.
-		// Quitting a Claude instance yourself leaves you at the prompt, which
-		// is what the shell is there for; killing it from here means being
-		// done with the whole thing, and leaving an empty shell behind would
-		// only be something else to tidy up.
-		if shell := m.shellAround(r.node); shell != nil {
-			nodes = append(nodes, shell)
-			subject += " and its shell"
-		}
-		m.pendingKill = m.escalated(r, &killRequest{subject: subject, nodes: nodes})
-		return nil
+	// The head: the row's process, and the shell conn holds around it, for
+	// a process running in one. The tree: the whole run the row stands for
+	// and everything under it, the job included. An entry's shell — a
+	// plan's, a task's — is its command and everything under it, whichever
+	// was asked: the row is the entry, and the entry is the job.
+	name := m.rowName(r)
+	head := []*ProcNode{r.node}
+	if shell := m.shellAround(r.node); shell != nil {
+		head = append(head, shell)
 	}
-
-	// A tree kill covers the whole run the row stands for, not just the part
-	// it is named after: the shell above an editor is part of that editor.
-	nodes := m.withGroup(subtree(r.chain()))
-	subject := procLabel(r.node)
-	if len(nodes) > 1 {
-		subject += " and " + strconv.Itoa(len(nodes)-1) + " under it"
+	all := m.withGroup(subtree(r.chain()))
+	if t := m.entryOf(r); t != nil {
+		if shell := m.nodes[t.pid]; shell != nil && t.live() && len(shell.Children) > 0 {
+			all = m.withGroup(subtree(shell))
+			head = nil
+			name = t.name
+		}
 	}
-	m.pendingKill = m.escalated(r, &killRequest{subject: subject, nodes: nodes})
+	req := &killRequest{subject: name, where: where, nodes: all, head: head, tree: tree}
+	if len(head) >= len(all) {
+		req.head = nil
+	}
+	m.preview(m.escalated(r, req))
 	return nil
+}
+
+// preview puts a kill's preview up: conn takes the window for it.
+func (m *model) preview(req *killRequest) {
+	m.pendingKill = req
+	m.take()
 }
 
 // withGroup is a kill's targets and what shares a process group with them:
@@ -2320,16 +2383,6 @@ func (m model) escalated(r navRow, req *killRequest) *killRequest {
 		req.sig = syscall.SIGKILL
 	}
 	return req
-}
-
-// killPrompt is the question a kill waits on. The plain one offers the
-// other signals; one already escalated to SIGKILL says so, and offers only
-// the confirmation, since there is nothing past SIGKILL to offer.
-func killPrompt(req *killRequest) string {
-	if req.signalOf() == syscall.SIGKILL {
-		return " kill " + req.subject + " outright? · x confirms"
-	}
-	return " kill " + req.subject + "? · x confirms · 9 kills outright · i interrupts · h hangs up"
 }
 
 // ended names what was actually done, because a kill is not one thing: a shell
@@ -2420,7 +2473,7 @@ func (m model) childCount(r navRow) int {
 // spinNeeded reports whether anything on screen is moving: a process on its
 // way out, or an agent at work.
 func (m model) spinNeeded() bool {
-	if len(m.dying) > 0 || len(m.closing) > 0 {
+	if len(m.dying) > 0 {
 		return true
 	}
 	for _, r := range m.rows {
@@ -2435,17 +2488,6 @@ func (m model) spinNeeded() bool {
 // the ones that are not going. Marking a process forever would both misreport
 // it and keep rescanning on its behalf for the rest of the session.
 func (m *model) ageDying() {
-	// A shell waiting on a command that has not gone in that long stops
-	// waiting, and stays: its command is among the ones reported below,
-	// and hanging the shell up now would be the very thing the wait was
-	// for not doing.
-	for pid, frames := range m.closing {
-		if frames++; frames > killLinger {
-			delete(m.closing, pid)
-			continue
-		}
-		m.closing[pid] = frames
-	}
 	var stuck []int
 	for pid, d := range m.dying {
 		d.frames++
@@ -2506,14 +2548,6 @@ func (m model) signalled(r navRow) bool {
 		}
 	}
 	return false
-}
-
-// bodyHeight is the number of navigator rows that fit in the column, which
-// is what the cursor scrolls within.
-func (m model) bodyHeight() int {
-	// The column is the list and nothing over it: every row is the
-	// list's.
-	return max(m.height, 0)
 }
 
 // scrollToCursor moves the window the least amount that brings the cursor back
@@ -2637,10 +2671,34 @@ func (m *model) rebuild() {
 		}
 	}
 
-	m.pruneDetails()
 	m.pruneDying()
+	m.readHistories()
 	m.scrollToCursor()
 	m.dressWindows()
+}
+
+// readHistories reads each named buffer's past runs for the heading's
+// strip, once per ending: the runs file is read again for a buffer when
+// its ending changed, and a buffer gone takes its strip with it.
+func (m *model) readHistories() {
+	for pid, t := range m.terms {
+		if t.name == "" {
+			continue
+		}
+		key := t.exit + "/" + strconv.Itoa(t.ended)
+		if m.histories[pid] == key {
+			continue
+		}
+		m.histories[pid] = key
+		m.history[pid] = pastRuns(t.dir, t.name, t.run, runsShown)
+	}
+	for pid := range m.history {
+		if _, held := m.terms[pid]; !held {
+			delete(m.history, pid)
+			delete(m.histories, pid)
+			delete(m.deep, pid)
+		}
+	}
 }
 
 // dressWindows names each held shell's pane — its place, what is running
@@ -2670,79 +2728,127 @@ func (m *model) dressStatus() {
 	}
 }
 
-// statusLine is what the navigator has the status line read, in tmux's
-// styling. The mode is the navigator's only when focus is in something
-// other than the list itself — a query being typed, a filter standing, a
-// confirmation waiting on its second key — and tmux names the rest. The
-// message is the last report, or the prompt a confirmation carries with
-// it: while one is on screen it is the only thing the next keystroke is
-// about. Most of the time both are empty, and the line is the strip.
+// statusLine is what conn has the status line read, in tmux's styling.
+// One mode chip: a confirmation waiting on its second key, a query being
+// typed or a filter standing, the everything view, the shown buffer's run
+// failed, answers owed, an agent working — the first of those that holds,
+// and nothing when none does. The message is the last report, or what a
+// newer conn says, else the session's facts.
 func (m model) statusLine() statusText {
 	var t statusText
-	// The corner counts what needs you, whatever else the line says: the
-	// number is there before the list says where, and a confirmation
-	// does not hide it.
-	t.need = needWords(m.needCount())
+	need := m.needCount()
 	switch {
 	case m.pendingReplace:
-		t.mode = statusChip(tp.amber, "CONFIRM")
-		t.msg = tmuxStyled(tp.amber, true, " end the server, and "+
-			plural(len(m.terms), "shell", "shells")+"? · R confirms")
+		t.mode = statusChip(tp.owed, "CONFIRM")
+		t.msg = tmuxStyled(tp.owed, true, " end the server, and "+
+			plural(len(m.terms), "buffer", "buffers")+"? · R confirms")
 		return t
 
 	case m.pendingKill != nil:
-		t.mode = statusChip(tp.amber, "CONFIRM")
-		t.msg = tmuxStyled(tp.amber, true, killPrompt(m.pendingKill))
+		t.mode = statusChip(tp.owed, "CONFIRM")
+		t.msg = tmuxStyled(tp.gray, false, " "+m.pendingKill.facts())
 		return t
-
-	case m.creating:
-		// The name being typed, and where the project it names will go:
-		// the one thing worth knowing before enter.
-		t.mode = statusChip(tp.fg, "NEW "+lineText(m.newName))
-		t.msg = tmuxStyled(tp.fg, false, " in "+m.newIn)
-		return t
-
-	case m.resume != nil:
-		// The picker is drawn like the filter: it is the same kind of
-		// typing, aimed at conversations instead of places.
-		t.mode = statusChip(tp.fg, "CONTINUE /"+lineText(m.resume.input))
 
 	case m.typing:
-		t.mode = statusChip(tp.fg, "/"+lineText(m.query))
+		t.mode = statusChip(tp.ink, "/"+lineText(m.query))
 
 	case m.filter != "":
-		// A standing filter is the navigator's mode still, in its color.
-		t.mode = statusChip(tp.cyan, "/"+m.filter)
+		// A standing filter is the view's mode still, in its color.
+		t.mode = statusChip(tp.teal, "/"+m.filter)
+
+	case m.viewingAll():
+		t.mode = statusChip(tp.teal, "ALL")
+
+	case m.shownFailed():
+		t.mode = statusChip(tp.owed, "FAILED")
+
+	case need > 0:
+		t.mode = statusChip(tp.owed, strconv.Itoa(need)+" OWED")
+
+	case m.shownWorking():
+		t.mode = statusChip(tp.amber, "WORKING")
 	}
 
 	// What was just reported stays beside the query being typed: acting
 	// from the search is the point of it, and an action that says nothing
 	// looks like one that did nothing.
-	if m.status != "" {
-		color := tp.fg
+	switch {
+	case m.status != "":
+		color := tp.ink
 		if m.statusErr {
-			color = tp.red
+			color = tp.owed
 		}
 		t.msg = tmuxStyled(color, false, " "+m.status)
-	} else if m.release != "" {
+	case m.release != "":
 		// A newer conn, said whenever nothing else is: it gives way to
 		// any report and is back after, until it is taken.
 		t.msg = tmuxStyled(tp.gray, false, " "+updateNotice(m.release))
+	case !m.typing && m.filter == "":
+		t.msg = tmuxStyled(tp.gray, false, " "+m.sessionFacts())
 	}
 	return t
 }
 
-// needWords is the corner's count in words: how many rows need you,
-// and nothing when none does — a zero would be the corner saying
-// nothing at length.
-func needWords(n int) string {
-	switch n {
-	case 0:
-		return ""
-	case 1:
-		return "1 needs you"
+// shownFailed reports the shown buffer's run ended badly, or its process
+// has gone wrong.
+func (m model) shownFailed() bool {
+	r, ok := m.shownRow()
+	return ok && m.wrong(r)
+}
+
+// shownWorking reports the shown buffer's agent mid-turn.
+func (m model) shownWorking() bool {
+	r, ok := m.shownRow()
+	if !ok {
+		return false
 	}
-	return strconv.Itoa(n) + " need you"
+	a := m.agentFor(r)
+	return a != nil && a.working()
+}
+
+// shownRow is the row the shown buffer stands for, when the scan has it.
+func (m model) shownRow() (navRow, bool) {
+	n := m.nodes[m.shown]
+	if m.shown == 0 || n == nil {
+		return navRow{}, false
+	}
+	run := runFrom(n, len(m.procs))
+	return navRow{kind: rowProc, run: run, node: nameOf(run)}, true
+}
+
+// sessionFacts is what the status line says when nothing else is said:
+// the buffers open, and how much more is live behind them; in the
+// everything view, what it lists.
+func (m model) sessionFacts() string {
+	listed := 0
+	for _, roots := range m.byPlace {
+		for _, n := range roots {
+			listed += countTree(n)
+		}
+	}
+	if m.viewingAll() {
+		places := 0
+		for _, r := range m.rows {
+			if isPlace(r) {
+				places++
+			}
+		}
+		return dots(plural(listed, "process", "processes"), plural(places, "place", "places"))
+	}
+	behind := listed
+	for pid := range m.terms {
+		if n := m.nodes[pid]; n != nil {
+			behind -= countTree(n)
+		}
+	}
+	facts := plural(len(m.terms), "buffer", "buffers")
+	if behind > 0 {
+		facts += " " + glyphDot + " " + strconv.Itoa(behind) + " more processes live behind them"
+	}
+	if t := m.terms[m.shown]; t != nil {
+		return dots(m.tabLabel(m.shown, t), facts)
+	}
+	return facts
 }
 
 // windowLabelWidth is as much of a shell's label as its title gets: a
@@ -2804,25 +2910,6 @@ func (m model) running(pid int) bool {
 		}
 	}
 	return false
-}
-
-// pruneDetails drops cached inspections for rows that are no longer listed, so
-// a long session polling every couple of seconds does not accumulate details
-// for every process that has ever run.
-func (m *model) pruneDetails() {
-	if len(m.details) == 0 {
-		return
-	}
-	live := make(map[string]bool, len(m.rows))
-	for _, r := range m.rows {
-		live[detailKey(r)] = true
-	}
-	for k := range m.details {
-		if !live[k] {
-			delete(m.details, k)
-			delete(m.inspected, k)
-		}
-	}
 }
 
 // groupProcs files running processes under the repository they belong to.
@@ -3414,24 +3501,6 @@ func (m model) selected() (navRow, bool) {
 	return m.rows[m.cursor], true
 }
 
-// refreshDetailCmd re-inspects the selected row even though it is cached, so
-// what is on screen keeps up with the process it describes. The cached value
-// stays until the new one lands, so the pane does not blink through "loading".
-//
-// A repository is re-asked on its own, slower cadence: its answers cost git
-// real work in a big checkout. Landing on a row still loads it at once —
-// this is only the background refresh of an answer already on screen.
-func (m model) refreshDetailCmd() tea.Cmd {
-	r, ok := m.selected()
-	if !ok {
-		return nil
-	}
-	if r.kind != rowProc && m.ticks%repoDetailEvery != 0 {
-		return nil
-	}
-	return m.inspect(r)
-}
-
 // holds reports whether a pid is anywhere in the run this row stands for.
 func (r navRow) holds(pid int) bool {
 	for _, n := range r.run {
@@ -3477,30 +3546,27 @@ func (m model) awaiting(r navRow) agent {
 	return a
 }
 
-// detailCmd inspects the selected row unless it has been inspected already:
-// the cursor has just moved, or the world just changed under it.
-func (m *model) detailCmd() tea.Cmd {
-	r, ok := m.selected()
+// deepMsg is what the shown buffer's agent said of itself, read deeper
+// than the scan does.
+type deepMsg struct {
+	pid   int
+	facts []string
+}
+
+// deepCmd reads the shown buffer's agent for the heading's facts — its
+// branch, its context — off the render path, for the shown buffer alone:
+// the transcript is megabytes, and only its tail is read.
+func (m model) deepCmd() tea.Cmd {
+	r, ok := m.shownRow()
 	if !ok {
 		return nil
 	}
-	key := detailKey(r)
-	if _, cached := m.details[key]; cached && m.inspected[key] == m.holdings(r) {
+	a := m.agentFor(r)
+	if a == nil {
 		return nil
 	}
-	return m.inspect(r)
-}
-
-// inspect reads a row, noting what its place held at the time so the
-// reading can be told stale.
-func (m *model) inspect(r navRow) tea.Cmd {
-	m.inspected[detailKey(r)] = m.holdings(r)
-	name := ""
-	if r.kind == rowProc {
-		name = m.rowName(r)
-	}
-	return loadDetail(r, name, len(m.placeTrees(r)), len(m.grouped[r.project.Path]),
-		m.agentFor(r), m.entryStates(r.project.Path), m.tailOf(r), m.ending(r))
+	pid := m.shown
+	return func() tea.Msg { return deepMsg{pid: pid, facts: a.describe()} }
 }
 
 // restsMsg carries the newest conversation at rest under each place with
@@ -3552,53 +3618,4 @@ func (m *model) continueRest(c conversation) tea.Cmd {
 	}
 	m.server.open(c.Dir, run, "")
 	return nil
-}
-
-// tailOf reads the transcript of the shell a process row is in — the one
-// conn holds around it, which is where what the row is named for is
-// drawing — or is nothing for a row with no such shell.
-func (m model) tailOf(r navRow) func() []string {
-	if r.kind != rowProc || m.server == nil {
-		return nil
-	}
-	t := m.owningTerm(r.node.PID)
-	if t == nil {
-		return nil
-	}
-	srv, pid := m.server, t.pid
-	return func() []string { return srv.tail(pid, transcriptLines) }
-}
-
-// holdings is what a place's details are read from, in a word: the
-// process trees it holds and the plan's entries running in it. It is
-// empty for a process, whose details come from the process alone.
-func (m model) holdings(r navRow) string {
-	if r.kind == rowProc {
-		return ""
-	}
-	if r.kind == rowRest {
-		return r.rest.ID
-	}
-	var b strings.Builder
-	for _, t := range m.placeTrees(r) {
-		b.WriteString(strconv.Itoa(t.PID) + " ")
-	}
-	for _, t := range m.planned(r.project.Path) {
-		b.WriteString(t.name + "=" + t.exit + "/" + t.summary + " ")
-	}
-	return b.String()
-}
-
-// placeTrees is the process trees a row's place holds — for a repository
-// or a group, everything in it.
-func (m model) placeTrees(r navRow) []*ProcNode {
-	switch r.kind {
-	case rowGroup:
-		return m.groupTrees(r.project.Path)
-	case rowProject:
-		return m.repoTrees(r.project.Path)
-	case rowRest:
-		return nil
-	}
-	return m.byPlace[r.project.Path]
 }

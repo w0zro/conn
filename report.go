@@ -21,6 +21,7 @@ type station struct {
 	network network
 	netRead bool
 	state   stateDir
+	tools   []tool // what the platform needs past the kernel
 }
 
 // readStation reads the station. Nothing here waits on the network; the
@@ -31,6 +32,7 @@ func readStation() station {
 	st.volume = readVolume(st.session.home)
 	st.network, st.netRead = readNetwork()
 	st.state = readStateDir(st.session.home)
+	st.tools = readTools()
 	return st
 }
 
@@ -110,7 +112,18 @@ func compose(st station, now time.Time) report {
 		powerCheck(st.machine.power),
 		clockCheck(st.build, now),
 	}
+	for _, t := range st.tools {
+		r.checks = append(r.checks, toolCheck(t))
+	}
 	return r
+}
+
+// toolCheck is a program the platform needs: where it is, or MISSING.
+func toolCheck(t tool) check {
+	if t.path == "" {
+		return check{label: t.name, value: "NOT ON PATH", status: "MISSING", fault: true}
+	}
+	return check{label: t.name, value: t.path, status: nominal, path: true}
 }
 
 // buildLine is the commit, its date, and MODIFIED when the tree had

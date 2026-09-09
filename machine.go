@@ -82,3 +82,8 @@ func run(name string, args ...string) string {
 	}
 	return string(out)
 }
+
+// A tool is a program a platform needs past the kernel, and where it is.
+type tool struct {
+	name, path string
+}

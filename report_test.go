@@ -251,8 +251,8 @@ func TestTheStationCanBeRead(t *testing.T) {
 	if len(r.system) < 6 || len(r.session) < 8 {
 		t.Errorf("readout thin: %d system, %d session\n%+v\n%+v", len(r.system), len(r.session), r.system, r.session)
 	}
-	if len(r.checks) != 7 {
-		t.Errorf("%d checks, not 7: %+v", len(r.checks), r.checks)
+	if len(r.checks) != 7+len(st.tools) {
+		t.Errorf("%d checks, not %d: %+v", len(r.checks), 7+len(st.tools), r.checks)
 	}
 	for _, c := range r.checks {
 		if c.label == "" || c.value == "" || c.status == "" {

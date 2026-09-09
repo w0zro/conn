@@ -1,0 +1,40 @@
+
+   CONN  THE BOARD                                                          W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z
+   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   KIND    COMMAND                                                                     TTY        AGE          STATUS
+
+   ~/projects/w0zro/conn                                                                                    1 PROCESS
+   CONN    conn                                                                        TTYS004    1M 30S         HERE
+
+   ~/projects/w0zro/vim.pro/conjurer                                                                        1 PROCESS
+   AGENT   claude --resume                                                             TTYS007    47M 00S      ACTIVE
+
+   ~                                                                                                        1 PROCESS
+   EDITOR  vim notes.md                                                                TTYS009    1D 01H     STOPPED
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                  Q CLOSES · C CONSOLE

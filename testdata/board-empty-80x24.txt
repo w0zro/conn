@@ -1,0 +1,24 @@
+
+   CONN  THE BOARD                  W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z
+   ──────────────────────────────────────────────────────────────────────────
+   KIND    COMMAND                             TTY        AGE          STATUS
+
+                              NOTHING ON THE BOARD
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                              Q CLOSES · C CONSOLE

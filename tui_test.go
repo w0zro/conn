@@ -11,7 +11,7 @@ import (
 // The console comes on in stages: the header at once, the readout when
 // the station is in hand and its beat has passed, the screen's check
 // alone, then the rest; a key skips to the end; a key at the end
-// continues; the clock turns on the second.
+// continues to the board; the clock turns on the second.
 func TestProgramComesOnInStages(t *testing.T) {
 	m := model{head: station{build: testStation.build, session: session{user: "w0zro", host: "station"}}, now: testNow, p: plain}
 	m.width, m.height = 120, 40
@@ -53,10 +53,8 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if lastStage(m.report()) != stageChecks+8 {
 		t.Errorf("last stage is %d", lastStage(m.report()))
 	}
-	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil {
-		t.Errorf("a key at the end should continue")
-	} else if _, quit := cmd().(tea.QuitMsg); !quit {
-		t.Errorf("a key at the end should close the console, got %T", cmd())
+	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewBoard {
+		t.Errorf("a key at the end should continue to the board")
 	}
 	before := m.report().clock
 	next, cmd = m.Update(clockMsg{})

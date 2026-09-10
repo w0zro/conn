@@ -288,14 +288,14 @@ func (s *server) detach() error {
 	return err
 }
 
-// tmuxConf is the server's configuration: the prefix, the look, and the
-// keys that come back to the watch. The look is the console's: every
-// pane on the ground, in the ink, with the sixteen colors a program asks
-// for by name drawn from the same palette.
+// tmuxConf is the server's configuration: no keys, and the look. tmux
+// has no prefix here, so none of its keys or actions are reachable
+// through conn yet; conn's own keys on the rail are all there is. The
+// look is the console's: every pane on the ground, in the ink, with the
+// sixteen colors a program asks for by name drawn from the same palette.
 func tmuxConf() string {
 	return `# conn's tmux server. Written by conn on each start; edits do not keep.
-set -g prefix C-Space
-unbind C-b
+set -g prefix None
 set -g status off
 set -g mouse on
 set -g history-limit 10000
@@ -331,9 +331,6 @@ set -g pane-colours[15] "#E6DFD0"
 set -g pane-border-style "fg=#15130F,bg=#15130F"
 set -g pane-active-border-style "fg=#15130F,bg=#15130F"
 set -g pane-border-indicators off
-# The keys under the prefix: w to the watch, C-Space to the other pane.
-bind w select-pane -L
-bind C-Space last-pane
 `
 }
 

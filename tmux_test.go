@@ -50,18 +50,21 @@ func TestPanesAreParsed(t *testing.T) {
 	}
 }
 
-// The configuration carries the prefix, the look, and the keys back to
-// the watch; a path with a quote in it survives quoting.
+// The configuration binds no keys and turns tmux's prefix off, and
+// carries the look; a path with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
 	conf := tmuxConf()
 	for _, s := range []string{
-		"set -g prefix C-Space", "set -g status off", "set -g mouse on",
+		"set -g prefix None", "set -g status off", "set -g mouse on",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
-		"set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor", "bind w select-pane -L", "bind C-Space last-pane",
+		"set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
 	} {
 		if !strings.Contains(conf, s) {
 			t.Errorf("configuration lacks %q", s)
 		}
+	}
+	if strings.Contains(conf, "\nbind") || strings.Contains(conf, "C-Space") || strings.Contains(conf, "C-b") {
+		t.Errorf("configuration binds a key:\n%s", conf)
 	}
 	if got := shellQuote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
 		t.Errorf("quoted: %s", got)

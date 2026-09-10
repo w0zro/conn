@@ -1,0 +1,267 @@
+package main
+
+import (
+	"cmp"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+)
+
+// The projects: every place work could happen, where the watch is every
+// place it is happening. They are found by walking the roots — where the
+// checkouts are kept — for repositories, and the shape of what is found
+// is the declaration: a folder holding two or more of them is the
+// project they collectively make, and gets a row of its own, since that
+// is the level the work is often about. A folder of one stays flat, so
+// nothing grows a header per repository.
+
+// A project is a place work could happen: a repository under one of the
+// roots, or the folder that groups two or more of them.
+type project struct {
+	name    string // what the list calls it: enough of the path to tell it apart
+	path    string
+	grouped bool // a repository under a group, listed beneath it
+	repos   int  // a group's repositories; none for a repository
+}
+
+// roots are the directories conn looks for projects under: CONN_ROOTS,
+// a list in the path list separator's spelling, or ~/projects. A root
+// that is not on this machine is still a root; the walk decides whether
+// it is there, not the environment.
+func projectRoots(home string) []string {
+	list := os.Getenv("CONN_ROOTS")
+	if list == "" {
+		return []string{filepath.Join(home, "projects")}
+	}
+	var out []string
+	for _, d := range filepath.SplitList(list) {
+		if d = strings.TrimSpace(d); d != "" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// skipDirs are never entered. They hold what a package manager put
+// there, not the projects the list is for, and walking them is most of
+// what walking a root would cost.
+var skipDirs = map[string]bool{
+	"node_modules": true,
+	"vendor":       true,
+	"target":       true,
+	".build":       true,
+	"Pods":         true,
+	".venv":        true,
+	"venv":         true,
+}
+
+// findProjects is every project under the roots, in the order the list
+// draws them: each group followed by its repositories, and the
+// repositories that stand alone among them, by name.
+//
+// A root that cannot be walked is passed over so long as another can:
+// the same environment rides between machines, and a checkout that is
+// only on the other one should not empty the list. Only every root
+// failing is an error, so a lone mistyped root still says so.
+func findProjects(roots []string) ([]project, error) {
+	var repos []project
+	rootOf := map[string]string{} // a repository's path, to the root it was found under
+	seen := map[string]bool{}
+	var firstErr error
+	walked := false
+	for _, root := range roots {
+		if real, err := filepath.EvalSymlinks(root); err == nil {
+			root = real
+		}
+		found, err := walkRoot(root)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		walked = true
+		for _, path := range found {
+			if seen[path] {
+				continue // one root under another would list a repository twice
+			}
+			seen[path] = true
+			rootOf[path] = root
+			repos = append(repos, project{name: relName(root, path), path: path})
+		}
+	}
+	if !walked && firstErr != nil {
+		return nil, firstErr
+	}
+	groups := deriveGroups(repos, rootOf)
+	qualify(repos, rootOf)
+	qualify(groups, groupRoots(groups, repos, rootOf))
+	return order(groups, repos), nil
+}
+
+// walkRoot is every git repository under a root, at any depth. A
+// repository is not descended into: a checkout within a checkout is the
+// business of the one that holds it.
+func walkRoot(root string) ([]string, error) {
+	var found []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if path == root {
+				return err // the root itself: there is nothing to walk
+			}
+			return nil // a directory that cannot be read is passed over
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if path != root && (skipDirs[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
+			return fs.SkipDir
+		}
+		if isRepo(path) {
+			found = append(found, path)
+			return fs.SkipDir
+		}
+		// A directory tagged as a cache says itself that it holds nothing
+		// to find. CACHEDIR.TAG is the tag the tools that keep caches
+		// agreed to leave for a walk like this one, and it reaches what no
+		// list of names can.
+		if path != root && isCacheDir(path) {
+			return fs.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return found, nil
+}
+
+// isRepo says whether a directory is the top of a git repository. .git
+// is a directory in a clone and a file in a worktree or a submodule.
+func isRepo(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
+}
+
+// isCacheDir says whether a directory carries a CACHEDIR.TAG.
+func isCacheDir(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, "CACHEDIR.TAG"))
+	return err == nil
+}
+
+// deriveGroups finds the folders that group repositories: a
+// repository's own parent, when it is not a root itself and holds a
+// second repository. The repositories were put in one folder because
+// they make one project, and there is no file to drop anywhere to say
+// so. A repository in a group goes by its own directory name, since the
+// header above it already says the rest.
+func deriveGroups(repos []project, rootOf map[string]string) []project {
+	isRoot := map[string]bool{}
+	for _, root := range rootOf {
+		isRoot[root] = true
+	}
+	siblings := map[string][]int{}
+	for i, r := range repos {
+		if parent := filepath.Dir(r.path); !isRoot[parent] {
+			siblings[parent] = append(siblings[parent], i)
+		}
+	}
+	var groups []project
+	for parent, idx := range siblings {
+		if len(idx) < 2 {
+			continue
+		}
+		for _, i := range idx {
+			repos[i].name = filepath.Base(repos[i].path)
+			repos[i].grouped = true
+		}
+		root := rootOf[repos[idx[0]].path]
+		groups = append(groups, project{name: relName(root, parent), path: parent, repos: len(idx)})
+	}
+	return groups
+}
+
+// groupRoots is each group's root, taken from a repository of its own.
+func groupRoots(groups, repos []project, rootOf map[string]string) map[string]string {
+	roots := map[string]string{}
+	for _, g := range groups {
+		for _, r := range repos {
+			if filepath.Dir(r.path) == g.path {
+				roots[g.path] = rootOf[r.path]
+				break
+			}
+		}
+	}
+	return roots
+}
+
+// qualify puts the root's own name before the names that two roots both
+// offered: with a checkout at work and one at home, the root's name is
+// the only thing that tells an api here from an api there.
+func qualify(ps []project, rootOf map[string]string) {
+	byName := map[string][]int{}
+	for i, p := range ps {
+		byName[p.name] = append(byName[p.name], i)
+	}
+	for _, idx := range byName {
+		if len(idx) < 2 {
+			continue
+		}
+		roots := map[string]bool{}
+		for _, i := range idx {
+			roots[rootOf[ps[i].path]] = true
+		}
+		if len(roots) < 2 {
+			continue // one root's own doing, and its names already differ
+		}
+		for _, i := range idx {
+			ps[i].name = filepath.Base(rootOf[ps[i].path]) + "/" + ps[i].name
+		}
+	}
+}
+
+// order lays the projects out as the list draws them: the groups and
+// the repositories that stand alone together by name, and each group's
+// repositories under it.
+func order(groups, repos []project) []project {
+	under := map[string][]project{}
+	var top []project
+	for _, r := range repos {
+		if r.grouped {
+			under[filepath.Dir(r.path)] = append(under[filepath.Dir(r.path)], r)
+			continue
+		}
+		top = append(top, r)
+	}
+	top = append(top, groups...)
+	slices.SortFunc(top, byName)
+	out := make([]project, 0, len(repos)+len(groups))
+	for _, p := range top {
+		out = append(out, p)
+		if p.repos > 0 {
+			kids := under[p.path]
+			slices.SortFunc(kids, byName)
+			out = append(out, kids...)
+		}
+	}
+	return out
+}
+
+// byName orders projects by name, case aside, and by path between two
+// that share one.
+func byName(a, b project) int {
+	return cmp.Or(cmp.Compare(strings.ToLower(a.name), strings.ToLower(b.name)), cmp.Compare(a.path, b.path))
+}
+
+// relName is a path as its root's, in slashes: the name a project goes
+// by when nothing groups it, which is as much of the way down as it
+// takes to tell it from the others under that root.
+func relName(root, path string) string {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return filepath.Base(path)
+	}
+	return filepath.ToSlash(rel)
+}

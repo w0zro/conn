@@ -13,7 +13,9 @@ import (
 // was started as, its terminal, how long it has been at it, and the
 // word for how it stands. The newest work is at the top. A cursor
 // is on one row, which is drawn on a raised ground from edge to edge,
-// and the rows scroll to keep it in view. The bottom
+// and the rows scroll to keep it in view. A row conn holds — one it can
+// reach, because its process is in a pane of the server — carries a
+// rule down the margin; the rest are work conn can only report. The bottom
 // row is kept clear for a note — what went wrong reaching something —
 // and holds nothing otherwise. In the rail, which is narrower than the
 // console, the terminal column is left off and the rest close up; the
@@ -147,6 +149,12 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			command, kind, word := p.ink, p.gray, p.gray
 			if r.shown || r.here {
 				kind, word = p.orange+p.bold, p.orange+p.bold
+			}
+			// A row conn holds — its process is in a pane of the server, so
+			// it can be reached — carries a rule down the margin. A run of
+			// them draws one line, which is what conn holds at that place.
+			if r.reach != "" {
+				l.rule = "│"
 			}
 			if r.pid == cursor {
 				// The row under the cursor is the one on the raised ground,

@@ -308,3 +308,47 @@ func TestTheCursorIsAGround(t *testing.T) {
 		t.Errorf("the plain watch lost its cursor:\n%s", plainRows)
 	}
 }
+
+// A row conn holds carries a rule down the margin, and a row it can
+// only report does not. Outside the server conn holds nothing, so no
+// row carries one.
+func TestTheRowsConnHoldsAreRuled(t *testing.T) {
+	w := composeWatch(watch(testProcs, 67032, 501, testRoots),
+		map[string]pane{"ttys004": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
+		"/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w.inside = true
+	ruled := map[string]bool{}
+	for _, r := range drawWatch(w, 67032, 120, 40, plain) {
+		if !strings.Contains(r.text, "│") {
+			continue
+		}
+		kind := strings.Fields(strings.Trim(stripEscapes(r.text), " │▸"))
+		if len(kind) > 0 {
+			ruled[kind[0]] = true
+		}
+	}
+	if !ruled["CONN"] || !ruled["AGENT"] {
+		t.Errorf("conn's own rows are not ruled: %v", ruled)
+	}
+	if ruled["EDITOR"] {
+		t.Error("a row conn cannot reach is ruled")
+	}
+	// The rule and the cursor's mark share the margin without either
+	// pushing the row along.
+	for _, r := range drawWatch(w, 67032, 120, 40, plain) {
+		if strings.Contains(r.text, "▸") && !strings.HasPrefix(r.text, "│▸ ") {
+			t.Errorf("the margin is not the rule then the mark: %q", r.text)
+		}
+	}
+	// It is drawn in the faint, which is what furniture is drawn in.
+	p := colored()
+	for _, r := range drawWatch(w, 67032, 120, 40, p) {
+		if strings.Contains(r.text, "│") && !strings.Contains(r.text, p.faint+"│") {
+			t.Errorf("the rule is not faint: %q", r.text)
+		}
+	}
+	// Outside the server there is nothing to hold.
+	if out := texts(drawWatch(testWatch(), 67032, 120, 40, plain)); strings.Contains(out, "│") {
+		t.Errorf("a rule outside the server:\n%s", out)
+	}
+}

@@ -301,14 +301,16 @@ type canvas struct {
 	rows  []row
 }
 
-// A line is built from painted pieces; cells counts the columns. A mark
-// is set in the margin, before the line, where there is no color to
-// carry it — see palette.chosen.
+// A line is built from painted pieces; cells counts the columns. The
+// margin before the line carries two things: a rule, on a row conn
+// holds, and a mark, where there is no color to say which row is the
+// cursor's — see palette.chosen.
 type line struct {
 	p     palette
 	b     strings.Builder
 	cells int
 	mark  string
+	rule  string // a rule down the margin, for a row conn holds
 }
 
 func (c *canvas) line() *line {
@@ -359,8 +361,15 @@ func (c *canvas) emit(l *line, stage int, centered bool) {
 		left = max((c.width-l.cells)/2, 0)
 	}
 	lead := strings.Repeat(" ", left)
-	if l.mark != "" && !centered {
-		lead = " " + p.orange + p.bold + l.mark + p.normal + strings.Repeat(" ", margin-2)
+	if !centered && (l.rule != "" || l.mark != "") {
+		rule, mark := " ", " "
+		if l.rule != "" {
+			rule = p.faint + l.rule + p.normal
+		}
+		if l.mark != "" {
+			mark = p.orange + p.bold + l.mark + p.normal
+		}
+		lead = rule + mark + strings.Repeat(" ", margin-2)
 	}
 	text := p.normal + lead + l.b.String() + strings.Repeat(" ", max(c.width-left-l.cells, 0)) + p.end
 	if p.plain {

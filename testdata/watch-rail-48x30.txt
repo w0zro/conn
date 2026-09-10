@@ -4,10 +4,10 @@
    KIND   COMMAND           AGE        STATUS
 
    ~/projects/w0zro/conn            1 PROCESS
-   CONN   conn              1M 30S       HERE
+│  CONN   conn              1M 30S       HERE
 
    ~/…/w0zro/vim.pro/conjurer       1 PROCESS
- ▸ AGENT  claude --resume   47M 00S    ACTIVE
+│▸ AGENT  claude --resume   47M 00S    ACTIVE
 
    ~                                1 PROCESS
    EDITOR vim notes.md      1D 01H   STOPPED

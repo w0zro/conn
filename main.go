@@ -69,7 +69,9 @@ func asks() func(string) bool {
 	return func(q string) bool {
 		fmt.Printf("%s [y/N] ", q)
 		var answer string
-		fmt.Scanln(&answer)
+		if _, err := fmt.Scanln(&answer); err != nil {
+			return false // nothing typed, or no line to read: that is a no
+		}
 		answer = strings.ToLower(strings.TrimSpace(answer))
 		return answer == "y" || answer == "yes"
 	}

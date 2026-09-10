@@ -6,22 +6,21 @@ running, by place: the processes of yours with a terminal, one standing for
 each piece of work, grouped under the repository it is working in.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
-(or where `CONN_SOCKET` says), and the terminal is on it while conn is up.
-Its home window is a rail on the left, which is the watch, and a slot on
-the right, which is the process reached from it: `s` opens a shell at the
-place under the cursor and puts it in the slot, `enter` puts the process
-under the cursor there, and what leaves the slot goes back to a window of
-its own, out of sight, where it keeps running. One chord, `ctrl-space -`
-(`CONN_PREFIX` names another prefix, in tmux's spelling), puts focus on
-the watch from anywhere in the server; tmux's own keys are unbound, so
-none of them are reachable through conn. `q` detaches,
-and the server keeps everything in it for the next `conn`; `conn down`
-takes the server down with everything in it, and says what went, the way
-`docker compose down` does. Without tmux, conn
-shows the console and the watch and reaches nothing. On macOS the watch needs `lsof`, which is how a process's working
-directory is read there; Linux keeps it on /proc. Everything else conn was
-is in the history, and comes back piece by piece, in the form it is wanted
-in.
+(or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its
+home window is a rail on the left, which is the watch, and a slot on the
+right, which is the process reached from it: `s` opens a shell at the place
+under the cursor and puts it in the slot, `enter` puts the process under the
+cursor there, and what leaves the slot goes back to a window of its own, out
+of sight, where it keeps running. One chord, `ctrl-space -` (`CONN_PREFIX`
+names another prefix, in tmux's spelling), puts focus on the watch from
+anywhere in the server; tmux's own keys are unbound, so none of them are
+reachable through conn. `q` detaches, and the server keeps everything in it
+for the next `conn`; `conn down` takes the server down with everything in it,
+and says what went, the way `docker compose down` does. Without tmux, conn
+shows the console and the watch and reaches nothing. On macOS the watch needs
+`lsof`, which is how a process's working directory is read there; Linux keeps
+it on /proc. Everything else conn was is in the history, and comes back piece
+by piece, in the form it is wanted in.
 
 Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.

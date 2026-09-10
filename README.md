@@ -36,7 +36,9 @@ conn theme claude > ~/.claude/themes/conn.json   # then pick it with /theme
 
 conn prints it and stops there. Where the file goes, and whether it is the
 theme in use, is not conn's business: conn dresses its own server, not the
-programs it holds.
+programs it holds. `CONN` is set in the server, so a program that draws in
+its own hex can tell where it is and dress to match — Claude Code takes its
+theme for the run from `claude --settings '{"theme":"custom:conn"}'`.
 
 ## Build it yourself
 

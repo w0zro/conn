@@ -375,6 +375,8 @@ var scheme = [16]string{
 // puts focus on the watch, and that is the only chord for now. The
 // look is the console's: every pane on the ground, in the ink, with the
 // sixteen colors a program asks for by name drawn from conn's scheme,
+// with CONN set in the server so a program that draws in its own hex
+// can tell where it is and dress to match,
 // the cursor in the orange and a selection on the border color, and
 // between the rail and the slot a line in that color too, the same
 // whichever side has focus.
@@ -399,6 +401,8 @@ set -g focus-events on
 set -g default-terminal tmux-256color
 set -as terminal-features ",*:RGB"
 set-environment -g COLORTERM truecolor
+# A program in a pane can tell it is in conn, and dress accordingly.
+set-environment -g CONN 1
 set -g allow-passthrough on
 set -g display-time 3000
 `)

@@ -42,12 +42,16 @@ var (
 	editors = []string{"vim", "nvim", "vi", "hx", "helix", "emacs", "nano", "micro", "kak"}
 )
 
-// kindOf is the kind of a process, from the name of its program.
+// kindOf is the kind of a process, from the name of its program. A
+// program that writes its own title puts its name first and what it is
+// at after it — claude bg-spare is claude, at its spare work — so the
+// name is the first word of what it was started as.
 func kindOf(p process) string {
 	name := strings.TrimPrefix(filepath.Base(p.command), "-")
 	if len(p.args) > 0 {
 		name = strings.TrimPrefix(filepath.Base(p.args[0]), "-")
 	}
+	name, _, _ = strings.Cut(name, " ")
 	switch {
 	case name == "conn" && len(p.args) > 1 && p.args[1] == "hold":
 		return kindHold

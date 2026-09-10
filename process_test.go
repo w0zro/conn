@@ -109,6 +109,9 @@ func TestKindsAndCommands(t *testing.T) {
 		{process{command: "go", args: []string{"go", "test", "./..."}}, kindRun, "go test ./..."},
 		{process{command: "python3.12"}, kindRun, "python3.12"},
 		{process{command: "conn", args: []string{"/usr/local/bin/conn", "hold"}}, kindHold, "conn hold"},
+		// A written title: the name is the first word of it, and the
+		// whole of it is what the process was started as.
+		{process{command: "claude", args: []string{"claude bg-spare", "--bg-spare", "/tmp/1a39b95b.claim.sock"}}, kindAgent, "claude bg-spare --bg-spare /tmp/1a39b95b.claim.sock"},
 	} {
 		if kind, cmd := kindOf(c.p), commandLine(c.p); kind != c.kind || cmd != c.command {
 			t.Errorf("%+v: %s %q, want %s %q", c.p, kind, cmd, c.kind, c.command)

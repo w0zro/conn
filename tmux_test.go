@@ -58,6 +58,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"set -g prefix None", "set -g status off", "set -g mouse on",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		"set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
+		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`, `set -g pane-active-border-style "fg=#2A2620,bg=#15130F"`,
 	} {
 		if !strings.Contains(conf, s) {
 			t.Errorf("configuration lacks %q", s)

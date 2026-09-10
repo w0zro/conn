@@ -292,7 +292,9 @@ func (s *server) detach() error {
 // has no prefix here, so none of its keys or actions are reachable
 // through conn yet; conn's own keys on the rail are all there is. The
 // look is the console's: every pane on the ground, in the ink, with the
-// sixteen colors a program asks for by name drawn from the same palette.
+// sixteen colors a program asks for by name drawn from the same palette,
+// and between the rail and the slot a line in the console's border
+// color, the same whichever side has focus.
 func tmuxConf() string {
 	return `# conn's tmux server. Written by conn on each start; edits do not keep.
 set -g prefix None
@@ -328,8 +330,9 @@ set -g pane-colours[12] "#7FC7BD"
 set -g pane-colours[13] "#E85D2F"
 set -g pane-colours[14] "#7FC7BD"
 set -g pane-colours[15] "#E6DFD0"
-set -g pane-border-style "fg=#15130F,bg=#15130F"
-set -g pane-active-border-style "fg=#15130F,bg=#15130F"
+set -g pane-border-lines single
+set -g pane-border-style "fg=#2A2620,bg=#15130F"
+set -g pane-active-border-style "fg=#2A2620,bg=#15130F"
 set -g pane-border-indicators off
 `
 }

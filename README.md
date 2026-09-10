@@ -3,7 +3,8 @@
 conn comes up on the loop, reads out the machine, runs its start-up checks,
 and gives its verdict; a key continues to the watch, which is what is
 running, by place: the processes of yours with a terminal, one standing for
-each piece of work, grouped under the repository it is working in.
+each piece of work, grouped under the place it works in — the repository, or
+the app or service inside it that carries a manifest of its own.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its
@@ -21,6 +22,19 @@ shows the console and the watch and reaches nothing. On macOS the watch needs
 `lsof`, which is how a process's working directory is read there; Linux keeps
 it on /proc. Everything else conn was is in the history, and comes back piece
 by piece, in the form it is wanted in.
+
+`p` is the list: every project the roots hold, whether anything is running in
+it or not. conn walks `CONN_ROOTS` — or `~/projects`, when it says nothing —
+for repositories, and the shape of what it finds is the declaration: a folder
+holding two or more of them is the project they collectively make, and gets a
+row of its own with its repositories under it, by their own names; a folder of
+one stays flat. The list is a line typed into, so the letters the watch is
+worked by are characters there: what is typed narrows the rows, and a project
+answers by its own name and by the name of the folder that groups it. `enter`
+opens a shell at the row under the cursor and comes back to the watch, where
+the shell shows; on a group row that is a shell at the level the work is
+about, which is what the group row is for. `esc` comes back without opening
+anything.
 
 Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.

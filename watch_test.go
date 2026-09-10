@@ -27,7 +27,7 @@ func TestWatchMatchesTheGolden(t *testing.T) {
 }
 
 // The watch's columns hold: the status flush right, the kind at the
-// margin, the path from ~, the ages as of the clock, the keys on the
+// margin, the path from ~, the ages as of the clock, no legend on the
 // bottom row, no row past the width.
 func TestWatchLaysOut(t *testing.T) {
 	rows := drawWatch(testWatch(), 70100, 120, 40, plain)
@@ -38,13 +38,13 @@ func TestWatchLaysOut(t *testing.T) {
 		"KIND    COMMAND", "TTY", "AGE", "STATUS",
 		"~/projects/w0zro/conn", "1 PROCESS", "CONN    conn", "TTYS004", "1M 30S", "HERE",
 		"~/projects/w0zro/vim.pro/conjurer", "AGENT   claude --resume", "47M 00S", "ACTIVE",
-		"~", "EDITOR  vim notes.md", "1D 01H", " STOPPED", watchKey, " ▸ AGENT   claude --resume",
+		"~", "EDITOR  vim notes.md", "1D 01H", " STOPPED", " ▸ AGENT   claude --resume",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("watch lacks %q:\n%s", s, text)
 		}
 	}
-	if len(rows) != 40 || !strings.Contains(rows[39].text, watchKey) {
+	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
 		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
 	}
 	for _, r := range rows {
@@ -65,12 +65,12 @@ func TestWatchLaysOut(t *testing.T) {
 	}
 }
 
-// A watch taller than the terminal scrolls to keep the cursor in view,
-// says how many rows are above and below, and still ends on the keys.
+// A watch taller than the terminal scrolls to keep the cursor in view
+// and says how many rows are above and below.
 func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 	rows := drawWatch(testWatch(), 67032, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(rows[8].text, watchKey) || !strings.Contains(text, "▸ CONN") {
+	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ CONN") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawWatch(testWatch(), 80002, 100, 9, plain)
@@ -78,7 +78,7 @@ func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 	if len(rows) != 9 || !strings.Contains(text, "… 6 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸ EDITOR") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
-	if piped := drawWatch(testWatch(), 67032, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") || strings.Contains(texts(piped), watchKey) {
+	if piped := drawWatch(testWatch(), 67032, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
 		t.Errorf("off a terminal:\n%s", texts(piped))
 	}
 }
@@ -183,9 +183,6 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	w.inside = true
 	rows := drawWatch(w, 67032, 120, 40, colored())
 	text := texts(rows)
-	if !strings.Contains(stripEscapes(text), watchKeyInside) {
-		t.Errorf("the keys inside the server are not up:\n%s", stripEscapes(text))
-	}
 	p := colored()
 	if !strings.Contains(text, p.faint+"TTYS004") || !strings.Contains(text, p.gray+"TTYS007") {
 		t.Errorf("the terminals are not colored by reach:\n%s", text)
@@ -195,7 +192,7 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	}
 	// In the rail there is no terminal column, and the rows close up.
 	railText := texts(drawWatch(w, 67032, 48, 30, plain))
-	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AGENT  claude --resume") || !strings.Contains(railText, railKeyInside) {
+	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AGENT  claude --resume") {
 		t.Errorf("the rail:\n%s", railText)
 	}
 	for _, r := range drawWatch(w, 67032, 48, 30, plain) {
@@ -205,7 +202,7 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	}
 	w.note = "NOT IN A PANE OF CONN'S SERVER"
 	rows = drawWatch(w, 67032, 120, 40, plain)
-	if !strings.Contains(rows[39].text, w.note) || strings.Contains(texts(rows), watchKeyInside) {
+	if !strings.Contains(rows[39].text, w.note) {
 		t.Errorf("the note is not on the bottom row:\n%s", texts(rows))
 	}
 }
@@ -247,5 +244,33 @@ func TestKeysInsideTheServer(t *testing.T) {
 		t.Error("q outside the server should close conn")
 	} else if _, quit := cmd().(tea.QuitMsg); !quit {
 		t.Error("q outside the server should close conn")
+	}
+}
+
+// The watch says no keys. They are learned once; a legend on every row
+// of every reading is a thing to read past forever. The bottom row is
+// kept clear all the same, so a note has a place to land that does not
+// move the rows.
+func TestTheWatchSaysNoKeys(t *testing.T) {
+	w := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	for _, inside := range []bool{false, true} {
+		w.inside = inside
+		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
+			text := stripEscapes(texts(drawWatch(w, 67032, size[0], size[1], plain)))
+			for _, key := range []string{"MOVE", "REACHES", "OPENS", "DETACHES", "CLOSES", "CONSOLE"} {
+				if strings.Contains(text, key) {
+					t.Errorf("inside=%v at %dx%d the watch still says %q:\n%s", inside, size[0], size[1], key, text)
+				}
+			}
+		}
+	}
+	rows := drawWatch(w, 67032, 120, 40, plain)
+	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
+		t.Errorf("the bottom row is not kept clear: %q", rows[39].text)
+	}
+	w.note = "NOTHING UNDER THE CURSOR"
+	rows = drawWatch(w, 67032, 120, 40, plain)
+	if len(rows) != 40 || !strings.Contains(rows[39].text, w.note) {
+		t.Errorf("a note has no place to land: %q", rows[39].text)
 	}
 }

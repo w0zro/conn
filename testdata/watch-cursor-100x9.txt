@@ -6,4 +6,4 @@
    ~                                                                                    1 PROCESS
  ▸ EDITOR  vim notes.md                                            TTYS009    1D 01H     STOPPED
    … 6 ABOVE
-                                  J K MOVE · Q CLOSES · C CONSOLE
+

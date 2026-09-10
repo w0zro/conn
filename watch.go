@@ -13,9 +13,10 @@ import (
 // was started as, its terminal, how long it has been at it, and the
 // word for how it stands. The newest work is at the top. A cursor
 // marks one row, and the rows scroll to keep it in view. The bottom
-// row says which keys the watch answers to. In the rail, which is
-// narrower than the console, the terminal column is left off and the
-// rest close up; the row on the right, in the slot, is in orange.
+// row is kept clear for a note — what went wrong reaching something —
+// and holds nothing otherwise. In the rail, which is narrower than the
+// console, the terminal column is left off and the rest close up; the
+// row on the right, in the slot, is in orange.
 
 // The watch's words, composed from the places as of a moment.
 type watchReport struct {
@@ -23,7 +24,7 @@ type watchReport struct {
 	places         []watchPlace
 	err            string // why the table could not be read, when it could not
 	inside         bool   // conn is in its server, and rows can be reached
-	note           string // a word for the bottom row, in place of the keys
+	note           string // a word for the bottom row, until a key
 }
 
 type watchPlace struct {
@@ -66,15 +67,12 @@ func composeWatch(places []place, panes map[string]pane, slot string, home strin
 // what is left after the kind. Under minCols the watch is a rail: the
 // terminal column goes, the kind and the age close up.
 const (
-	kindW          = 8
-	ttyW           = 10
-	ageW           = 9
-	railKindW      = 7
-	railAgeW       = 7
-	railMinCols    = 40
-	watchKey       = "J K MOVE · Q CLOSES · C CONSOLE"
-	watchKeyInside = "J K MOVE · ENTER REACHES · S OPENS A SHELL · Q DETACHES · C CONSOLE"
-	railKeyInside  = "J K MOVE · ENTER REACHES · S OPENS · Q DETACHES"
+	kindW       = 8
+	ttyW        = 10
+	ageW        = 9
+	railKindW   = 7
+	railAgeW    = 7
+	railMinCols = 40
 )
 
 // drawWatch renders the watch for a terminal of the given size, with
@@ -125,7 +123,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	c.emit(l, 0, false)
 
 	// The places, newest first; or the reason there are none.
-	room := height - 1 // the bottom row is the keys
+	room := height - 1 // the bottom row is kept for a note
 	if height == 0 {
 		room = 1 << 30
 	}
@@ -225,23 +223,20 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	}
 	c.rows = append(c.rows, body...)
 
-	// The keys, on the bottom row.
+	// The bottom row is a note's, when there is one, and otherwise the
+	// ground: the keys are learned once, and a legend on every row of
+	// every reading is a thing to read past forever.
 	if height > 0 {
 		for len(c.rows) < height-1 {
 			c.blank(0)
 		}
-		l := c.line()
-		switch {
-		case b.note != "":
+		if b.note == "" {
+			c.blank(0)
+		} else {
+			l := c.line()
 			l.add(p.owed, fit(b.note, measure, false))
-		case b.inside && rail:
-			l.add(p.gray, railKeyInside)
-		case b.inside:
-			l.add(p.gray, watchKeyInside)
-		default:
-			l.add(p.gray, watchKey)
+			c.emit(l, 0, true)
 		}
-		c.emit(l, 0, true)
 	}
 	return c.rows
 }

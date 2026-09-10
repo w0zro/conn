@@ -9,19 +9,19 @@ import (
 )
 
 func testWatch() watchReport {
-	return composeWatch(watch(testProcs, 67032, 501, testRoots), nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	return composeWatch(watch(testProcs, 501, testRoots), nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 }
 
 // The watch at 120 by 40 is a file of record, as are the empty watch and
 // the one that could not be read.
 func TestWatchMatchesTheGolden(t *testing.T) {
-	golden(t, "watch-120x40.txt", texts(drawWatch(testWatch(), 67032, 120, 40, plain)))
+	golden(t, "watch-120x40.txt", texts(drawWatch(testWatch(), 67040, 120, 40, plain)))
 	golden(t, "watch-cursor-100x9.txt", texts(drawWatch(testWatch(), 80002, 100, 9, plain)))
 	empty := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	golden(t, "watch-empty-80x24.txt", texts(drawWatch(empty, 0, 80, 24, plain)))
 	failed := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
 	golden(t, "watch-unread-80x24.txt", texts(drawWatch(failed, 0, 80, 24, plain)))
-	rail := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys004": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	rail := composeWatch(watch(testProcs, 501, testRoots), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	rail.inside = true
 	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
 }
@@ -36,7 +36,7 @@ func TestWatchLaysOut(t *testing.T) {
 	for _, s := range []string{
 		"CONN ", "W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z",
 		"KIND    COMMAND", "TTY", "AGE", "STATUS",
-		"~/projects/w0zro/conn", "1 PROCESS", "CONN    conn", "TTYS004", "1M 30S", "HERE",
+		"~/projects/w0zro/conn", "1 PROCESS", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
 		"~/projects/w0zro/vim.pro/conjurer", "AGENT   claude --resume", "47M 00S", "ACTIVE",
 		"~", "EDITOR  vim notes.md", "1D 01H", " STOPPED", " ▸ AGENT   claude --resume",
 	} {
@@ -68,9 +68,9 @@ func TestWatchLaysOut(t *testing.T) {
 // A watch taller than the terminal scrolls to keep the cursor in view
 // and says how many rows are above and below.
 func TestAWatchThatWillNotFitScrolls(t *testing.T) {
-	rows := drawWatch(testWatch(), 67032, 100, 9, plain)
+	rows := drawWatch(testWatch(), 67040, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ CONN") {
+	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawWatch(testWatch(), 80002, 100, 9, plain)
@@ -78,7 +78,7 @@ func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 	if len(rows) != 9 || !strings.Contains(text, "… 6 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸ EDITOR") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
-	if piped := drawWatch(testWatch(), 67032, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
+	if piped := drawWatch(testWatch(), 67040, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
 		t.Errorf("off a terminal:\n%s", texts(piped))
 	}
 }
@@ -86,10 +86,10 @@ func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 // The cursor moves with j and k, stays within the rows, and follows its
 // process across readings; when the process goes it holds its row.
 func TestTheCursorFollowsItsProcess(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewWatch, pid: 67032, uid: 501, roots: testRoots, now: watchNow}
-	next, _ := m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots)})
+	m := model{p: plain, width: 120, height: 40, view: viewWatch, uid: 501, roots: testRoots, now: watchNow}
+	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots)})
 	m = next.(model)
-	if m.cursor != 67032 {
+	if m.cursor != 67040 {
 		t.Errorf("the cursor should start on the first row, not %d", m.cursor)
 	}
 	press := func(k string) {
@@ -114,12 +114,12 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 			without = append(without, p)
 		}
 	}
-	next, _ = m.Update(watchMsg{places: watch(without, 67032, 501, testRoots)})
+	next, _ = m.Update(watchMsg{places: watch(without, 501, testRoots)})
 	m = next.(model)
 	if m.cursor != 70212 || m.cursorAt != 1 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
 	}
-	next, _ = m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots)})
+	next, _ = m.Update(watchMsg{places: watch(testProcs, 501, testRoots)})
 	m = next.(model)
 	if m.cursor != 70100 {
 		t.Errorf("the cursor did not follow a pid that is back: %d", m.cursor)
@@ -135,7 +135,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 // table and reads it again on its tick; c brings the console back, and a
 // stale tick is dropped.
 func TestTheKeyContinuesToTheWatch(t *testing.T) {
-	m := model{head: station{build: testStation.build, session: testStation.session}, now: watchNow, p: plain, width: 120, height: 40, pid: 67032, uid: 501, roots: testRoots}
+	m := model{head: station{build: testStation.build, session: testStation.session}, now: watchNow, p: plain, width: 120, height: 40, uid: 501, roots: testRoots}
 	st := testStation
 	m.st = &st
 	m.stage = lastStage(m.report())
@@ -147,7 +147,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	if strings.Contains(m.View().Content, "CONN  WATCH") || !strings.Contains(m.View().Content, "NOTHING ON WATCH") {
 		t.Errorf("the watch should be up, empty until read:\n%s", m.View().Content)
 	}
-	next, cmd = m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots), gen: m.watchGen})
+	next, cmd = m.Update(watchMsg{places: watch(testProcs, 501, testRoots), gen: m.watchGen})
 	m = next.(model)
 	if cmd == nil || !strings.Contains(m.View().Content, "claude --resume") {
 		t.Errorf("the watch should show what was read and set the tick going:\n%s", m.View().Content)
@@ -179,29 +179,29 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 // In the server, the keys say what can be done, a terminal the server
 // does not hold is faint, and a note takes the bottom row until a key.
 func TestTheWatchInsideTheServer(t *testing.T) {
-	w := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	w.inside = true
-	rows := drawWatch(w, 67032, 120, 40, colored())
+	rows := drawWatch(w, 67040, 120, 40, colored())
 	text := texts(rows)
 	p := colored()
-	if !strings.Contains(text, p.faint+"TTYS004") || !strings.Contains(text, p.gray+"TTYS007") {
+	if !strings.Contains(text, p.faint+"TTYS005") || !strings.Contains(text, p.gray+"TTYS007") {
 		t.Errorf("the terminals are not colored by reach:\n%s", text)
 	}
 	if !strings.Contains(text, p.orange+p.bold+"AGENT") || !strings.Contains(text, p.orange+p.bold+"ACTIVE") {
 		t.Errorf("the row in the slot is not in orange:\n%s", text)
 	}
 	// In the rail there is no terminal column, and the rows close up.
-	railText := texts(drawWatch(w, 67032, 48, 30, plain))
+	railText := texts(drawWatch(w, 67040, 48, 30, plain))
 	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AGENT  claude --resume") {
 		t.Errorf("the rail:\n%s", railText)
 	}
-	for _, r := range drawWatch(w, 67032, 48, 30, plain) {
+	for _, r := range drawWatch(w, 67040, 48, 30, plain) {
 		if w := utf8.RuneCountInString(r.text); w > 48 {
 			t.Errorf("rail row is %d wide: %q", w, r.text)
 		}
 	}
 	w.note = "NOT IN A PANE OF CONN'S SERVER"
-	rows = drawWatch(w, 67032, 120, 40, plain)
+	rows = drawWatch(w, 67040, 120, 40, plain)
 	if !strings.Contains(rows[39].text, w.note) {
 		t.Errorf("the note is not on the bottom row:\n%s", texts(rows))
 	}
@@ -211,8 +211,8 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 // server, n opens a shell at its place, and q detaches; each says why
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewWatch, pid: 67032, uid: 501, roots: testRoots, now: watchNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
-	next, _ := m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
+	m := model{p: plain, width: 120, height: 40, view: viewWatch, uid: 501, roots: testRoots, now: watchNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
+	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: k})
@@ -252,11 +252,11 @@ func TestKeysInsideTheServer(t *testing.T) {
 // kept clear all the same, so a note has a place to land that does not
 // move the rows.
 func TestTheWatchSaysNoKeys(t *testing.T) {
-	w := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
-			text := stripEscapes(texts(drawWatch(w, 67032, size[0], size[1], plain)))
+			text := stripEscapes(texts(drawWatch(w, 67040, size[0], size[1], plain)))
 			for _, key := range []string{"MOVE", "REACHES", "OPENS", "DETACHES", "CLOSES", "CONSOLE"} {
 				if strings.Contains(text, key) {
 					t.Errorf("inside=%v at %dx%d the watch still says %q:\n%s", inside, size[0], size[1], key, text)
@@ -264,12 +264,12 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 			}
 		}
 	}
-	rows := drawWatch(w, 67032, 120, 40, plain)
+	rows := drawWatch(w, 67040, 120, 40, plain)
 	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
 		t.Errorf("the bottom row is not kept clear: %q", rows[39].text)
 	}
 	w.note = "NOTHING UNDER THE CURSOR"
-	rows = drawWatch(w, 67032, 120, 40, plain)
+	rows = drawWatch(w, 67040, 120, 40, plain)
 	if len(rows) != 40 || !strings.Contains(rows[39].text, w.note) {
 		t.Errorf("a note has no place to land: %q", rows[39].text)
 	}
@@ -281,12 +281,12 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 // the record still says which one it is.
 func TestTheCursorIsAGround(t *testing.T) {
 	p := colored()
-	rows := drawWatch(testWatch(), 67032, 120, 40, p)
+	rows := drawWatch(testWatch(), 67040, 120, 40, p)
 	on := 0
 	for _, r := range rows {
 		if strings.Contains(r.text, p.selection) {
 			on++
-			if !strings.HasPrefix(stripEscapes(r.text), "   CONN    conn") {
+			if !strings.HasPrefix(stripEscapes(r.text), "   SHELL   zsh") {
 				t.Errorf("the raised row is not the cursor's: %q", stripEscapes(r.text))
 			}
 			// Raised from edge to edge: the row never falls back to the
@@ -303,8 +303,8 @@ func TestTheCursorIsAGround(t *testing.T) {
 		t.Error("the cursor is still a mark where it has a ground")
 	}
 	// In plain text there is no ground to raise, so the mark stays.
-	plainRows := texts(drawWatch(testWatch(), 67032, 120, 40, plain))
-	if !strings.Contains(plainRows, "▸ CONN    conn") {
+	plainRows := texts(drawWatch(testWatch(), 67040, 120, 40, plain))
+	if !strings.Contains(plainRows, "▸ SHELL   zsh") {
 		t.Errorf("the plain watch lost its cursor:\n%s", plainRows)
 	}
 }
@@ -315,15 +315,15 @@ func TestTheCursorIsAGround(t *testing.T) {
 // every row.
 func TestWhatConnHoldsIsInTheInk(t *testing.T) {
 	p := colored()
-	held := composeWatch(watch(testProcs, 67032, 501, testRoots),
-		map[string]pane{"ttys004": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
+	held := composeWatch(watch(testProcs, 501, testRoots),
+		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
 		"/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	held.inside = true
-	text := texts(drawWatch(held, 67032, 120, 40, p))
+	text := texts(drawWatch(held, 67040, 120, 40, p))
 	// conn's own, which is the cursor's row and so bold as well, and the
 	// agent in a pane of the server: both in the ink.
-	if !strings.Contains(text, p.ink+p.bold+"conn") {
-		t.Errorf("conn's own row is not in the ink:\n%s", text)
+	if !strings.Contains(text, p.ink+p.bold+"zsh") {
+		t.Errorf("the shell conn holds is not in the ink:\n%s", text)
 	}
 	if !strings.Contains(text, p.ink+"claude --resume") {
 		t.Errorf("the agent conn holds is not in the ink:\n%s", text)
@@ -337,8 +337,8 @@ func TestWhatConnHoldsIsInTheInk(t *testing.T) {
 	}
 	// Outside the server, every command is the ink: conn can reach none
 	// of them, so dimming would say nothing.
-	out := texts(drawWatch(testWatch(), 67032, 120, 40, p))
-	for _, in := range []string{p.ink + p.bold + "conn", p.ink + "claude --resume", p.ink + "vim notes.md"} {
+	out := texts(drawWatch(testWatch(), 67040, 120, 40, p))
+	for _, in := range []string{p.ink + p.bold + "zsh", p.ink + "claude --resume", p.ink + "vim notes.md"} {
 		if !strings.Contains(out, in) {
 			t.Errorf("outside the server a command is not in the ink:\n%s", out)
 		}

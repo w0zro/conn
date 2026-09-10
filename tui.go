@@ -115,7 +115,6 @@ type model struct {
 	pending  *pendingRow
 	watchErr string
 	watchGen int // which stay on the watch the ticks belong to
-	pid      int // this process
 	uid      int
 	roots    func(string) string
 
@@ -133,7 +132,6 @@ func newModel(p palette) model {
 		head:  station{build: readBuild(), session: readSession()},
 		now:   time.Now(),
 		p:     p,
-		pid:   os.Getpid(),
 		uid:   os.Getuid(),
 		roots: placeRoots(),
 	}
@@ -172,7 +170,7 @@ func readStationCmd() tea.Msg {
 // the slot, opening the slot when home has none, and composes the watch
 // off them.
 func (m model) readWatch() tea.Cmd {
-	gen, pid, uid, roots := m.watchGen, m.pid, m.uid, m.roots
+	gen, uid, roots := m.watchGen, m.uid, m.roots
 	var srv *server
 	if m.inside {
 		srv = m.srv
@@ -183,7 +181,7 @@ func (m model) readWatch() tea.Cmd {
 		if err != nil {
 			return watchMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
-		msg := watchMsg{places: watch(procs, pid, uid, roots), gen: gen}
+		msg := watchMsg{places: watch(procs, uid, roots), gen: gen}
 		if srv != nil {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
 				_ = srv.splitSlot(home, self)
@@ -356,8 +354,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			m.note = "NOTHING UNDER THE CURSOR"
 		case m.panes[e.tty].id == "":
 			m.note = "NOT IN A PANE OF CONN'S SERVER"
-		case m.panes[e.tty].id == m.srv.rail():
-			m.note = "THAT IS THIS WATCH"
 		default:
 			return m, m.reach(m.panes[e.tty], e.tty)
 		}

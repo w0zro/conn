@@ -4,7 +4,7 @@
    KIND   COMMAND           AGE        STATUS
 
    ~/projects/w0zro/conn            1 PROCESS
-   CONN   conn              1M 30S       HERE
+   SHELL  zsh               1M 30S       IDLE
 
    ~/…/w0zro/vim.pro/conjurer       1 PROCESS
  ▸ AGENT  claude --resume   47M 00S    ACTIVE

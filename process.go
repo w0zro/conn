@@ -31,7 +31,7 @@ const (
 	kindShell  = "SHELL"
 	kindAgent  = "AGENT"
 	kindEditor = "EDITOR"
-	kindConn   = "CONN"
+	kindConn   = "CONN" // conn itself; not on the watch
 	kindRun    = "RUN"
 	kindHold   = "HOLD" // conn standing in an empty slot; not on the watch
 )
@@ -68,7 +68,6 @@ func kindOf(p process) string {
 // kernel caught it on a processor or asleep: the instant says nothing,
 // and macOS calls nearly everything runnable.
 const (
-	statusHere    = "HERE"    // this conn
 	statusActive  = "ACTIVE"  // alive, at its work
 	statusIdle    = "IDLE"    // a shell at its prompt
 	statusStopped = "STOPPED" // suspended
@@ -95,11 +94,16 @@ type place struct {
 
 // watch composes the places from the process table: the processes of one
 // user with a terminal, each standing for its work. A shell shows only
-// when it is idle, with nothing of its own on the watch; an agent, an
-// editor and conn show and cover what they run; anything else shows when
-// it is the leaf of its tree. rootOf turns a working directory into the
-// place that holds it.
-func watch(procs []process, self, uid int, rootOf func(string) string) []place {
+// when it is idle, with nothing of its own on the watch; an agent and an
+// editor show and cover what they run; anything else shows when it is
+// the leaf of its tree. rootOf turns a working directory into the place
+// that holds it.
+//
+// conn is not on the watch. It is the instrument, not the work — the one
+// conn you are looking at, the conn behind it holding the terminal, and
+// the hold standing in an empty slot alike. It still covers what runs
+// under it, so the tmux client it holds is not a row of its own.
+func watch(procs []process, uid int, rootOf func(string) string) []place {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
@@ -142,7 +146,7 @@ func watch(procs []process, self, uid int, rootOf func(string) string) []place {
 			continue
 		}
 		kind := kindOf(p)
-		if kind == kindHold {
+		if kind == kindConn || kind == kindHold {
 			continue
 		}
 		if kind == kindShell && hasChild[p.pid] {
@@ -152,7 +156,7 @@ func watch(procs []process, self, uid int, rootOf func(string) string) []place {
 			continue
 		}
 		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started}
-		e.status, e.fault = statusOf(p, kind, p.pid == self)
+		e.status, e.fault = statusOf(p, kind)
 		root := rootOf(p.cwd)
 		if places[root] == nil {
 			places[root] = &place{path: root}
@@ -172,10 +176,8 @@ func watch(procs []process, self, uid int, rootOf func(string) string) []place {
 }
 
 // statusOf is the word for a process as it stands.
-func statusOf(p process, kind string, self bool) (string, bool) {
+func statusOf(p process, kind string) (string, bool) {
 	switch {
-	case self:
-		return statusHere, false
 	case p.state == 'T':
 		return statusStopped, true
 	case p.state == 'Z':

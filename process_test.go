@@ -23,6 +23,7 @@ var (
 		{pid: 500, ppid: 1, uid: 501, command: "distnoted", state: 'S', started: watchNow.Add(-4 * 24 * time.Hour), cwd: "/"},
 		{pid: 67031, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-3 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/conn"},
 		{pid: 67032, ppid: 67031, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "conn", args: []string{"./conn"}, started: watchNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 67040, ppid: 67031, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
 		{pid: 70001, ppid: 1, uid: 501, tty: "ttys007", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-2 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
 		{pid: 70100, ppid: 70001, uid: 501, tty: "ttys007", foreground: true, state: 'S', command: "claude", args: []string{"claude", "--resume"}, started: watchNow.Add(-47 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
 		{pid: 70212, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "node", args: []string{"node", "/opt/claude/mcp.js"}, started: watchNow.Add(-46 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
@@ -42,12 +43,13 @@ var (
 	}
 )
 
-// The watch stands one process for each piece of work: conn for its
-// shell, claude for everything it runs, the idle shell for itself, the
-// stopped vim over its shell; the newest work first; nothing of root's,
-// of another user's, or without a terminal.
+// The watch stands one process for each piece of work: claude for
+// everything it runs, the idle shell for itself, the stopped vim over
+// its shell; the newest work first; nothing of root's, of another
+// user's, without a terminal, or conn's own — conn is the instrument
+// and not the work, though it still covers what runs under it.
 func TestWatchStandsOneProcessForEachWork(t *testing.T) {
-	places := watch(testProcs, 67032, 501, testRoots)
+	places := watch(testProcs, 501, testRoots)
 	var got []string
 	for _, pl := range places {
 		for _, e := range pl.entries {
@@ -55,7 +57,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	want := []string{
-		"/Users/w0zro/projects/w0zro/conn CONN conn HERE",
+		"/Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 		"/Users/w0zro/projects/w0zro/vim.pro/conjurer AGENT claude --resume ACTIVE",
 		"/Users/w0zro EDITOR vim notes.md STOPPED",
 	}
@@ -63,7 +65,13 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	if places[2].entries[0].fault != true || places[0].entries[0].fault {
-		t.Error("the stopped vim is not a fault, or conn is")
+		t.Error("the stopped vim is not a fault, or the idle shell is")
+	}
+	// conn is in the table, at the same place, and is not a row of it.
+	for _, e := range places[0].entries {
+		if e.kind == kindConn {
+			t.Error("conn is on its own watch")
+		}
 	}
 	// The go test shows once claude is gone, and the shell it left idle.
 	var without []process
@@ -73,16 +81,16 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	got = got[:0]
-	for _, pl := range watch(without, 67032, 501, testRoots) {
+	for _, pl := range watch(without, 501, testRoots) {
 		for _, e := range pl.entries {
 			got = append(got, e.kind+" "+e.command+" "+e.status)
 		}
 	}
-	want = []string{"RUN go test ./... ACTIVE", "RUN node /opt/claude/mcp.js ACTIVE", "SHELL zsh IDLE", "CONN conn HERE", "EDITOR vim notes.md STOPPED"}
+	want = []string{"RUN go test ./... ACTIVE", "RUN node /opt/claude/mcp.js ACTIVE", "SHELL zsh IDLE", "SHELL zsh IDLE", "EDITOR vim notes.md STOPPED"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if b := watch(nil, 1, 501, testRoots); len(b) != 0 {
+	if b := watch(nil, 501, testRoots); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
 	}
 }

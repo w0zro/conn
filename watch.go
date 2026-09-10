@@ -39,7 +39,6 @@ type watchRow struct {
 	pid                             int
 	kind, command, tty, age, status string
 	fault                           bool
-	here                            bool
 	reach                           string // the pane that holds it, in conn's server
 	shown                           bool   // it is in the slot, on the right
 }
@@ -56,7 +55,7 @@ func composeWatch(places []place, panes map[string]pane, slot string, home strin
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, watchRow{
 				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
-				status: e.status, fault: e.fault, here: e.status == statusHere, reach: panes[e.tty].id,
+				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: slot != "" && e.tty == slot,
 			})
 		}
@@ -147,7 +146,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		for _, r := range bp.rows {
 			l := d.line()
 			command, kind, word := p.ink, p.gray, p.gray
-			if r.shown || r.here {
+			if r.shown {
 				kind, word = p.orange+p.bold, p.orange+p.bold
 			}
 			// What conn holds is written in the ink: its process is in a

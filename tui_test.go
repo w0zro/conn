@@ -128,68 +128,44 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	}
 }
 
-// A shell conn opens is a row the moment it is made: tmux says the pid,
-// the pane and the terminal, which is everything a row needs, so the
-// row and the cursor are there before the process table has heard of
-// it. The row stands until a reading brings the process itself, and is
-// given up on if none ever does.
-func TestTheRowIsThereWhenTheShellIsMade(t *testing.T) {
+// A shell conn opens is the cursor's once the process table has it. The
+// slot is marked at once; until the reading brings the shell the watch
+// reads soon rather than at its pace, and the cursor stays where it was;
+// a shell that never comes is given up on when the wait is out.
+func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 	here := []place{{path: "/w", entries: []entry{{pid: 11}, {pid: 22}}}}
 	read := func(m model, places []place) model {
 		next, _ := m.Update(watchMsg{places: places, gen: m.watchGen})
 		return next.(model)
 	}
-	opened := openedMsg{
-		shell: shell{pane: pane{id: "%9", tty: "ttys009"}, pid: 4242, command: "zsh"},
-		place: "/w",
-	}
-
 	m := newModel(plain)
 	m.view, m.cursor, m.now = viewWatch, 11, time.Now()
 	m = read(m, here)
 
-	next, cmd := m.Update(opened)
+	next, cmd := m.Update(openedMsg{shell: shell{pane: pane{id: "%9", tty: "ttys009"}, pid: 4242}})
 	m = next.(model)
-	if cmd == nil {
-		t.Error("the watch was not read again")
+	if cmd == nil || m.awaited != 4242 || m.slot != "ttys009" {
+		t.Errorf("after opening: cmd %v, awaited %d, slot %q", cmd != nil, m.awaited, m.slot)
 	}
-	// The row is up at once, at the top of its place, and is the cursor's.
-	if m.cursor != 4242 {
-		t.Errorf("the cursor is on %d, not the shell", m.cursor)
-	}
-	if !hasPid(m.places, 4242) {
-		t.Error("the shell is not a row yet")
-	}
-	if got := m.places[0].entries[0]; got.pid != 4242 || got.kind != kindShell || got.command != "zsh" {
-		t.Errorf("the row conn made: %+v", got)
-	}
-	// It is in a pane of the server, and it is what the slot holds, so it
-	// draws as reachable and as the one shown rather than as neither.
-	if m.slot != "ttys009" || m.panes["ttys009"].id != "%9" {
-		t.Errorf("slot %q, panes %v", m.slot, m.panes)
-	}
-
-	// A reading without it yet keeps the row and the cursor where they are.
+	// A reading without it yet leaves the cursor, and the next read is soon.
 	m = read(m, here)
-	if m.cursor != 4242 || !hasPid(m.places, 4242) || m.pending == nil {
-		t.Errorf("the row did not stand: cursor %d, pending %v", m.cursor, m.pending)
+	if m.cursor != 11 || m.awaited != 4242 {
+		t.Errorf("before the shell is read: cursor %d, awaited %d", m.cursor, m.awaited)
 	}
-	// The reading that brings the process takes the row over.
+	if next, _ := m.Update(watchTickMsg{gen: m.watchGen}); next == nil {
+		t.Error("the tick should read")
+	}
+	// The reading that brings the shell puts the cursor on it.
 	withIt := []place{{path: "/w", entries: []entry{{pid: 4242, kind: kindShell}, {pid: 11}, {pid: 22}}}}
 	m = read(m, withIt)
-	if m.pending != nil || m.cursor != 4242 {
-		t.Errorf("the made row outlived the read one: pending %v, cursor %d", m.pending, m.cursor)
+	if m.cursor != 4242 || m.awaited != 0 {
+		t.Errorf("with the shell read: cursor %d, awaited %d", m.cursor, m.awaited)
 	}
-
-	// A shell that never comes up stops being a row once the wait is out.
-	m.pending = &pendingRow{row: entry{pid: 9999}, place: "/w", until: time.Now().Add(-time.Second)}
-	m.cursor = 11
+	// A shell that never comes up is given up on once the wait is out.
+	m.awaited, m.until, m.cursor = 9999, time.Now().Add(-time.Second), 11
 	m = read(m, here)
-	if m.pending != nil || hasPid(m.places, 9999) {
-		t.Error("a shell that never came up is still a row")
-	}
-	if m.cursor != 11 {
-		t.Errorf("the cursor moved to %d when the row went", m.cursor)
+	if m.awaited != 0 || m.cursor != 11 {
+		t.Errorf("after the wait: awaited %d, cursor %d", m.awaited, m.cursor)
 	}
 }
 

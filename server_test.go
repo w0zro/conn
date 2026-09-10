@@ -171,6 +171,7 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 	s.until("a second shell, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.parked(slotFirst)
 	})
+	s.until("the second shell's row", func() bool { return strings.Count(s.rail(), "SHELL  ") == 2 })
 
 	// The cursor is on the newest shell, which is in the slot; j is the
 	// first, and enter brings it back.

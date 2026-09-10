@@ -292,20 +292,18 @@ func (s *server) show(target pane) error {
 }
 
 // A shell conn opened, as tmux answers when it makes the window: the
-// pane it is in, the process in it, and what that process is called.
-// It is everything a row of the watch needs, so conn can show the row
-// at once rather than wait for the process table to notice.
+// pane it is in and the process in it. What tmux says the process is
+// called at that instant is tmux itself, before the shell has taken
+// over, so the name is left to the process table.
 type shell struct {
-	pane    pane
-	pid     int
-	command string
+	pane pane
+	pid  int
 }
 
 // open opens a shell at a directory, in a window of its own, and shows
 // it in the slot.
 func (s *server) open(dir string) (shell, error) {
-	out, err := s.run("new-window", "-d", "-P", "-F",
-		"#{pane_id}\t#{pane_pid}\t#{pane_tty}\t#{pane_current_command}", "-c", dir)
+	out, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}\t#{pane_pid}\t#{pane_tty}", "-c", dir)
 	if err != nil {
 		return shell{}, err
 	}
@@ -316,10 +314,10 @@ func (s *server) open(dir string) (shell, error) {
 // parseOpened reads what new-window printed for the pane it made.
 func parseOpened(out string) shell {
 	f := strings.Split(strings.TrimSpace(out), "\t")
-	for len(f) < 4 {
+	for len(f) < 3 {
 		f = append(f, "")
 	}
-	sh := shell{pane: pane{id: f[0], tty: strings.TrimPrefix(f[2], "/dev/")}, command: f[3]}
+	sh := shell{pane: pane{id: f[0], tty: strings.TrimPrefix(f[2], "/dev/")}}
 	sh.pid, _ = strconv.Atoi(f[1])
 	return sh
 }

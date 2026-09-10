@@ -89,8 +89,9 @@ type (
 		shell shell
 		place string
 	}
-	blinkMsg struct{} // the chip's half is up
-	noteMsg  struct{ note string }
+	reachedMsg struct{ tty string } // a process was put in the slot
+	blinkMsg   struct{}             // the chip's half is up
+	noteMsg    struct{ note string }
 )
 
 type model struct {
@@ -267,6 +268,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cursor, m.cursorAt = follow(m.places, e.pid, m.cursorAt)
 		m.watchGen++
 		return m, m.readWatch()
+	case reachedMsg:
+		// The pane is in the slot; conn knows it now and does not have to
+		// read the server to find out, so the row says so at once.
+		m.slot = msg.tty
+		m.watchGen++
+		return m, m.readWatch()
 	case blinkMsg:
 		m.lit = !m.lit
 		return m, m.nextBlink()
@@ -352,8 +359,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		case m.panes[e.tty].id == m.srv.rail():
 			m.note = "THAT IS THIS WATCH"
 		default:
-			target := m.panes[e.tty]
-			return m, m.serverCmd(func() error { return m.srv.show(target) }, "")
+			return m, m.reach(m.panes[e.tty], e.tty)
 		}
 	case k == "s":
 		_, pl, ok := m.under()
@@ -390,6 +396,18 @@ type pendingRow struct {
 	pane  pane
 	place string
 	until time.Time
+}
+
+// reach puts a process in the slot, off the loop, and hands back the
+// terminal that is in the slot once it is there.
+func (m model) reach(target pane, tty string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		if err := srv.show(target); err != nil {
+			return noteMsg{strings.ToUpper(err.Error())}
+		}
+		return reachedMsg{tty}
+	}
 }
 
 // openShell opens a shell at a place, off the loop, and hands back what

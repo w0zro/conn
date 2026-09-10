@@ -192,3 +192,36 @@ func TestTheRowIsThereWhenTheShellIsMade(t *testing.T) {
 		t.Errorf("the cursor moved to %d when the row went", m.cursor)
 	}
 }
+
+// Reaching a process puts it in the slot, and conn knows that without
+// reading the server back: the row says it is the one shown at once,
+// and the row that was shown stops saying so.
+func TestTheReachedRowIsTheSlotAtOnce(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.slot = viewWatch, "ttys001"
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}}}}
+	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
+
+	gen := m.watchGen
+	next, cmd := m.Update(reachedMsg{"ttys002"})
+	m = next.(model)
+	if m.slot != "ttys002" {
+		t.Errorf("the slot is %q, not the reached terminal", m.slot)
+	}
+	if cmd == nil || m.watchGen == gen {
+		t.Error("the watch was not read again after reaching")
+	}
+	// The watch says so: the reached row is shown, the one it replaced
+	// is not.
+	w := m.watchReport()
+	for _, pl := range w.places {
+		for _, r := range pl.rows {
+			if r.tty == "ttys002" && !r.shown {
+				t.Error("the reached row does not read as the one in the slot")
+			}
+			if r.tty == "ttys001" && r.shown {
+				t.Error("the row that left the slot still reads as shown")
+			}
+		}
+	}
+}

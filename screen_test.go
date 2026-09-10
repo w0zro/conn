@@ -222,11 +222,12 @@ func TestPathsShortenFromTheMiddle(t *testing.T) {
 	}
 }
 
-// The verdict's chip is an annunciator: on its dark half the row is the
-// ground, and no other row moves. The word that all is well
-// does not blink, and a reading nobody is watching turn by turn — a
-// pipe, a test — is lit.
-func TestTheVerdictBlinks(t *testing.T) {
+// The console's alarms are annunciators: the verdict's chip and every
+// fault's own chip blink together, so what is wrong and how many are
+// the one alarm. On the dark half those cells are the ground and
+// nothing else moves; what is nominal never blinks, and neither does
+// the word that all is well.
+func TestTheAlarmsBlink(t *testing.T) {
 	st := testStation
 	st.volume.free = 6_800_000_000
 	r := compose(st, testNow)
@@ -236,14 +237,24 @@ func TestTheVerdictBlinks(t *testing.T) {
 	lit := screen(r, 120, 40, plain)
 	r.lit = false
 	dark := screen(r, 120, 40, plain)
-	if !strings.Contains(texts(lit), "1 SYSTEM NOT NOMINAL") {
-		t.Errorf("the chip is not up on the lit second:\n%s", texts(lit))
+	for _, s := range []string{"1 SYSTEM NOT NOMINAL", " LOW"} {
+		if !strings.Contains(texts(lit), s) {
+			t.Errorf("%q is not up on the lit half:\n%s", s, texts(lit))
+		}
+		if strings.Contains(texts(dark), s) {
+			t.Errorf("%q is still up on the dark half:\n%s", s, texts(dark))
+		}
 	}
-	if strings.Contains(texts(dark), "NOT NOMINAL") {
-		t.Errorf("the chip is still up on the dark second:\n%s", texts(dark))
+	// The fault's own line keeps saying which system, and what it read;
+	// only the chip goes.
+	if !strings.Contains(texts(dark), "6.8 GB FREE OF 995 GB") {
+		t.Errorf("the fault's measurement went dark with its chip:\n%s", texts(dark))
 	}
-	// The rows are the same rows; only the verdict's went dark, and the
-	// check above it keeps saying LOW.
+	// A check that is nominal does not blink.
+	if !strings.Contains(texts(dark), "NOMINAL") {
+		t.Errorf("what is nominal blinked:\n%s", texts(dark))
+	}
+	// Two rows differ, the fault's and the verdict's, and no other.
 	if len(lit) != len(dark) {
 		t.Fatalf("%d rows lit, %d dark", len(lit), len(dark))
 	}
@@ -253,11 +264,23 @@ func TestTheVerdictBlinks(t *testing.T) {
 			moved++
 		}
 	}
-	if moved != 1 {
-		t.Errorf("%d rows differ between lit and dark; only the verdict's should", moved)
+	if moved != 2 {
+		t.Errorf("%d rows differ between lit and dark; the fault's and the verdict's should", moved)
 	}
-	if !strings.Contains(texts(dark), " LOW") {
-		t.Errorf("the check's own chip went dark with the verdict:\n%s", texts(dark))
+	// Two faults blink three rows: each chip, and the count.
+	st.machine.power.percent, st.machine.power.state = 5, "discharging"
+	two := compose(st, testNow)
+	two.lit = false
+	twoDark := screen(two, 120, 40, plain)
+	twoLit := screen(compose(st, testNow), 120, 40, plain)
+	moved = 0
+	for i := range twoLit {
+		if twoLit[i].text != twoDark[i].text {
+			moved++
+		}
+	}
+	if moved != 3 {
+		t.Errorf("with two faults %d rows blink, not 3", moved)
 	}
 	// All being well is a word, not an annunciator.
 	well := compose(testStation, testNow)

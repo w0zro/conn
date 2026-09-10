@@ -170,7 +170,8 @@ func body(r report, width int, own check, p palette) []row {
 	}
 
 	// The checks: the title, then the screen's own line and the report's,
-	// each to the status column.
+	// each to the status column. A fault's chip blinks with the verdict's;
+	// what is nominal stays put.
 	c.blank(stageChecks)
 	l = c.line()
 	l.title(0, "START-UP CHECKS")
@@ -184,8 +185,12 @@ func body(r report, width int, own check, p palette) []row {
 		l.add(p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
 		if k.fault {
 			faults++
-			l.to(measure - utf8.RuneCountInString(k.status) - 2)
-			l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
+			// A fault's chip is an annunciator too, and blinks with the
+			// verdict: what is wrong and how many are the same alarm.
+			if r.lit {
+				l.to(measure - utf8.RuneCountInString(k.status) - 2)
+				l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
+			}
 		} else {
 			l.to(measure - utf8.RuneCountInString(k.status))
 			l.add(p.gray, strings.ToUpper(k.status))
@@ -195,8 +200,9 @@ func body(r report, width int, own check, p palette) []row {
 
 	// The verdict: a rule, then the count of faults as a chip, or the
 	// word that all is well. The chip is an annunciator and blinks, a
-	// second and a half lit against half of one dark; on the dark half
-	// the row is the ground, and nothing under it moves.
+	// second lit against half of one dark, and the faults' own chips
+	// blink with it; on the dark half those cells are the ground, and
+	// nothing around them moves.
 	last := lastStage(r)
 	c.blank(last)
 	c.rule(last, measure)

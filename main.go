@@ -29,15 +29,6 @@ func main() {
 		}
 		return
 	}
-	if len(os.Args) > 1 && os.Args[1] == "console" {
-		m := newModel(colored())
-		m.consoleOnly = true
-		if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "conn console: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
 	if len(os.Args) > 1 && os.Args[1] == "down" {
 		home, _ := os.UserHomeDir()
 		msg, ok := takeDown(findServer(home), home)

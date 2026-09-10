@@ -23,7 +23,6 @@ type watchReport struct {
 	places         []watchPlace
 	err            string // why the table could not be read, when it could not
 	inside         bool   // conn is in its server, and rows can be reached
-	prefix         string // the key conn's chords come under, for the legend
 	note           string // a word for the bottom row, in place of the keys
 }
 
@@ -74,8 +73,8 @@ const (
 	railAgeW       = 7
 	railMinCols    = 40
 	watchKey       = "J K MOVE · Q CLOSES · C CONSOLE"
-	watchKeyInside = "THEN  J K MOVE · ENTER REACHES · S OPENS A SHELL · Q DETACHES · C CONSOLE · W RAIL"
-	railKeyInside  = "· J K · ENTER · S · Q · C · W"
+	watchKeyInside = "J K MOVE · ENTER REACHES · S OPENS A SHELL · Q DETACHES · C CONSOLE"
+	railKeyInside  = "J K MOVE · ENTER REACHES · S OPENS · Q DETACHES"
 )
 
 // drawWatch renders the watch for a terminal of the given size, with
@@ -236,11 +235,9 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		case b.note != "":
 			l.add(p.owed, fit(b.note, measure, false))
 		case b.inside && rail:
-			l.add(p.parchment, prefixLabel(b.prefix))
-			l.add(p.gray, " "+railKeyInside)
+			l.add(p.gray, railKeyInside)
 		case b.inside:
-			l.add(p.parchment, prefixLabel(b.prefix))
-			l.add(p.gray, " "+watchKeyInside)
+			l.add(p.gray, watchKeyInside)
 		default:
 			l.add(p.gray, watchKey)
 		}

@@ -51,14 +51,12 @@ func TestPanesAreParsed(t *testing.T) {
 }
 
 // The configuration sets the prefix, empties tmux's prefix table, and
-// binds conn's chords, each sending its key to the rail; it carries the
-// look; a path with a quote in it survives quoting.
+// binds one chord, - to the watch; it carries the look; a path with a
+// quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, s := range []string{
-		"set -g prefix C-Space", "unbind -a -T prefix", "bind C-Space send-prefix",
-		"bind j send-keys -t conn:home.0 j", "bind Enter send-keys -t conn:home.0 Enter", "bind s send-keys -t conn:home.0 s",
-		"bind q send-keys -t conn:home.0 q", "bind w select-pane -t conn:home.0", "set -g prefix2 None",
+		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
 		"set -g status off", "set -g mouse on",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		"set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
@@ -68,8 +66,8 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
-		t.Errorf("configuration keeps tmux's prefix or ignores the one given:\n%s", conf)
+	if strings.Count(conf, "\nbind ") != 1 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+		t.Errorf("configuration binds more than the one chord, or ignores the prefix given:\n%s", conf)
 	}
 	t.Setenv("CONN_PREFIX", "")
 	if prefix() != "C-Space" || prefixLabel(prefix()) != "C-SPACE" {

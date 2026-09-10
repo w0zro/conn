@@ -28,15 +28,11 @@ var (
 // second, from what was read and the clock as it stands.
 //
 // In conn's tmux server, conn is the rail on the left of the home
-// window, and c brings the console up over the whole window, since the
-// rail is too narrow for it; when the watch first comes on it opens the slot beside it,
+// window; when the watch first comes on it opens the slot beside it,
 // with a hold in it, and opens it again should it close. Enter puts
 // the cursor's process in the slot, when it is in a pane of the server;
 // s opens a shell at the cursor's place there; q and ctrl+c detach, and
-// the server keeps on. Every key the rail answers is also a chord under
-// the prefix, ctrl+space by default, from anywhere in the server: the
-// server sends the key to the rail. Without the server, q and ctrl+c
-// close conn.
+// the server keeps on. Without the server, q and ctrl+c close conn.
 
 // The views.
 const (
@@ -92,13 +88,12 @@ type model struct {
 	uid      int
 	roots    func(string) string
 
-	srv         *server         // conn's tmux server, when there is one
-	inside      bool            // this conn is the rail of the server's home window
-	consoleOnly bool            // conn console: the console alone, and a key at the end closes it
-	self        string          // this binary, for the hold
-	panes       map[string]pane // the server's panes by terminal, as last read
-	slot        string          // the terminal in the slot, as last read
-	note        string          // a word on the bottom row, until the next key
+	srv    *server         // conn's tmux server, when there is one
+	inside bool            // this conn is the rail of the server's home window
+	self   string          // this binary, for the hold
+	panes  map[string]pane // the server's panes by terminal, as last read
+	slot   string          // the terminal in the slot, as last read
+	note   string          // a word on the bottom row, until the next key
 }
 
 func newModel(p palette) model {
@@ -125,7 +120,7 @@ func (m model) report() report {
 func (m model) watchReport() watchReport {
 	r := m.report()
 	w := composeWatch(m.places, m.panes, m.slot, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
-	w.inside, w.prefix, w.note = m.inside, prefix(), m.note
+	w.inside, w.note = m.inside, m.note
 	return w
 }
 
@@ -237,17 +232,10 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case m.view == viewConsole && m.stage < lastStage(m.report()):
 		m.stage = lastStage(m.report())
 		return m, nil
-	case m.view == viewConsole && m.consoleOnly:
-		return m, tea.Quit
 	case m.view == viewConsole:
 		m.view = viewWatch
 		m.watchGen++
 		return m, m.readWatch()
-	case k == "c" && m.inside:
-		// The rail is too narrow for the console: it comes up over the
-		// whole window, as conn console, and a key closes it.
-		self, rows := m.self, rowsNeeded(m.report())
-		return m, m.serverCmd(func() error { return m.srv.popup(self+" console", rows) }, "")
 	case k == "c":
 		m.view = viewConsole
 		return m, nil

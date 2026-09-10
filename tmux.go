@@ -41,7 +41,7 @@ func prefix() string {
 	return defaultPrefix
 }
 
-// prefixLabel is the prefix as the legends write it: C-SPACE, C-A.
+// prefixLabel is the prefix as a legend writes it: C-SPACE, C-A.
 func prefixLabel(p string) string {
 	return strings.ToUpper(p)
 }
@@ -291,15 +291,6 @@ func (s *server) open(dir string) error {
 	return s.show(pane{id: strings.TrimSpace(id)})
 }
 
-// popup runs a command in a popup over the window, as wide as the
-// window less a little and as tall as asked, with the border around
-// that; tmux holds it to the window. The popup closes when the command
-// ends.
-func (s *server) popup(command string, rows int) error {
-	_, err := s.run("display-popup", "-E", "-w", "95%", "-h", strconv.Itoa(rows+2), "-d", "#{pane_current_path}", command)
-	return err
-}
-
 // focusRail puts focus on the rail.
 func (s *server) focusRail() error {
 	_, err := s.run("select-pane", "-t", s.rail())
@@ -312,26 +303,21 @@ func (s *server) detach() error {
 	return err
 }
 
-// tmuxConf is the server's configuration: the prefix and conn's chords
+// tmuxConf is the server's configuration: the prefix with one chord
 // under it, and the look. tmux's own prefix table is emptied, so none
-// of its keys or actions are reachable through conn; each of conn's
-// chords sends its key to the rail, which answers it as if it had
-// focus, and w gives the rail focus. The look is the console's: every
-// pane on the ground, in the ink, with the sixteen colors a program
-// asks for by name drawn from the same palette, and between the rail
-// and the slot a line in the console's border color, the same
-// whichever side has focus.
+// of its keys or actions are reachable through conn; prefix then -
+// puts focus on the watch, and that is the only chord for now. The
+// look is the console's: every pane on the ground, in the ink, with the
+// sixteen colors a program asks for by name drawn from the same palette,
+// and between the rail and the slot a line in the console's border
+// color, the same whichever side has focus.
 func tmuxConf(prefix string) string {
-	rail := sessionName + ":" + homeWindow + ".0"
-	var keys strings.Builder
-	fmt.Fprintf(&keys, "set -g prefix %s\nunbind -a -T prefix\nbind %s send-prefix\n", prefix, prefix)
-	for _, k := range []string{"j", "k", "Down", "Up", "Enter", "s", "q", "c"} {
-		fmt.Fprintf(&keys, "bind %s send-keys -t %s %s\n", k, rail, k)
-	}
-	fmt.Fprintf(&keys, "bind w select-pane -t %s\n", rail)
 	return `# conn's tmux server. Written by conn on each start; edits do not keep.
-# conn's chords come under the prefix; tmux's own are unbound.
-` + keys.String() + `set -g prefix2 None
+# One chord under the prefix, to the watch; tmux's own are unbound.
+set -g prefix ` + prefix + `
+set -g prefix2 None
+unbind -a -T prefix
+bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0
 set -g status off
 set -g mouse on
 set -g history-limit 10000

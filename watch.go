@@ -12,7 +12,8 @@ import (
 // row for each process that stands for work there: its kind, what it
 // was started as, its terminal, how long it has been at it, and the
 // word for how it stands. The newest work is at the top. A cursor
-// marks one row, and the rows scroll to keep it in view. The bottom
+// is on one row, which is drawn on a raised ground from edge to edge,
+// and the rows scroll to keep it in view. The bottom
 // row is kept clear for a note — what went wrong reaching something —
 // and holds nothing otherwise. In the rail, which is narrower than the
 // console, the terminal column is left off and the rest close up; the
@@ -148,7 +149,13 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 				kind, word = p.orange+p.bold, p.orange+p.bold
 			}
 			if r.pid == cursor {
-				l.mark = "▸"
+				// The row under the cursor is the one on the raised ground,
+				// edge to edge; where there is no color to raise it, it takes
+				// a mark in the margin instead.
+				l.p = p.chosen()
+				if p.plain {
+					l.mark = "▸"
+				}
 				command += p.bold
 				cursorRow = len(body) + len(d.rows)
 			}

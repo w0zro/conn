@@ -20,6 +20,7 @@ import (
 // sequences at all: the console is text, for a pipe and for the tests.
 type palette struct {
 	ground, border, ink, gray, faint, orange, owed, parchment, bold, chip string
+	selection                                                             string // the ground a chosen row sits on
 	normal, end                                                           string // ink on the ground again; the row's end
 	plain                                                                 bool
 }
@@ -38,9 +39,24 @@ func colored() palette {
 		parchment: "\x1b[38;2;191;179;154m",
 		bold:      "\x1b[1m",
 		chip:      "\x1b[48;2;232;93;47m\x1b[38;2;21;19;15m\x1b[1m",
+		selection: "\x1b[48;2;42;38;32m",
 		end:       "\x1b[0m",
 	}
 	p.normal = p.end + p.ground + p.ink
+	return p
+}
+
+// chosen is the palette with the ground raised to the selection color:
+// a row drawn in it sits on that ground instead, from edge to edge, and
+// every piece on it returns to it rather than to the ground. It is how
+// a row is shown to be the one under the cursor. The plain palette has
+// no ground to raise, and marks the row instead.
+func (p palette) chosen() palette {
+	if p.plain {
+		return p
+	}
+	p.ground = p.selection
+	p.normal = p.end + p.selection + p.ink
 	return p
 }
 
@@ -286,7 +302,8 @@ type canvas struct {
 }
 
 // A line is built from painted pieces; cells counts the columns. A mark
-// is set in the margin, before the line.
+// is set in the margin, before the line, where there is no color to
+// carry it — see palette.chosen.
 type line struct {
 	p     palette
 	b     strings.Builder
@@ -336,7 +353,7 @@ func (l *line) leader(label string, field int, dots string) {
 // that centers it — the pieces, and the ground to the edge. In the plain
 // palette the ground is nothing, and the row ends with its last piece.
 func (c *canvas) emit(l *line, stage int, centered bool) {
-	p := c.p
+	p := l.p
 	left := margin
 	if centered {
 		left = max((c.width-l.cells)/2, 0)

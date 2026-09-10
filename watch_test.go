@@ -274,3 +274,37 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 		t.Errorf("a note has no place to land: %q", rows[39].text)
 	}
 }
+
+// The cursor is a ground, not a mark: its row is drawn on the selection
+// color from edge to edge, and no other row is. Where there is no color
+// to raise — a pipe, a golden file — the row takes a mark instead, so
+// the record still says which one it is.
+func TestTheCursorIsAGround(t *testing.T) {
+	p := colored()
+	rows := drawWatch(testWatch(), 67032, 120, 40, p)
+	on := 0
+	for _, r := range rows {
+		if strings.Contains(r.text, p.selection) {
+			on++
+			if !strings.HasPrefix(stripEscapes(r.text), "   CONN    conn") {
+				t.Errorf("the raised row is not the cursor's: %q", stripEscapes(r.text))
+			}
+			// Raised from edge to edge: the row never falls back to the
+			// ground partway along.
+			if strings.Contains(r.text, p.ground) {
+				t.Errorf("the raised row falls back to the ground: %q", r.text)
+			}
+		}
+	}
+	if on != 1 {
+		t.Errorf("%d rows are raised; one should be", on)
+	}
+	if strings.Contains(texts(rows), "▸") {
+		t.Error("the cursor is still a mark where it has a ground")
+	}
+	// In plain text there is no ground to raise, so the mark stays.
+	plainRows := texts(drawWatch(testWatch(), 67032, 120, 40, plain))
+	if !strings.Contains(plainRows, "▸ CONN    conn") {
+		t.Errorf("the plain watch lost its cursor:\n%s", plainRows)
+	}
+}

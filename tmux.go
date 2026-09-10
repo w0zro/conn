@@ -249,7 +249,14 @@ func (s *server) splitSlot(home, self string) error {
 	if _, err := s.run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_hold", "1"); err != nil {
 		return err
 	}
-	_, err = s.run("resize-pane", "-t", s.rail(), "-x", strconv.Itoa(railWidth))
+	return s.holdRail()
+}
+
+// holdRail sets the rail to its width. tmux keeps the panes in
+// proportion when the window is resized, so the rail is put back each
+// time it is not its width.
+func (s *server) holdRail() error {
+	_, err := s.run("resize-pane", "-t", s.rail(), "-x", strconv.Itoa(railWidth))
 	return err
 }
 

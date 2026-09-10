@@ -179,6 +179,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		// The rail holds its width through a resize of the window, once it
+		// is a rail: with the slot beside it, on the watch.
+		if m.inside && m.view == viewWatch && m.slot != "" && m.width != railWidth {
+			return m, m.serverCmd(func() error { return m.srv.holdRail() }, "")
+		}
 	case stationMsg:
 		st := msg.station
 		m.st = &st

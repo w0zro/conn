@@ -8,24 +8,49 @@
 
 /* conn's site is an operating manual: US-letter pages on a dark desk,
    scanned paper, binder holes, one monospace face throughout — the
-   terminal's own — with international orange as the one spot ink. The landing
+   terminal's own — with conn's orange as the one spot ink. The landing
    page is the manual's cover; the guide is its interior pages, in one
    scroll. Every page is a fixed artifact, 816 by 1056, and never
    reflows: below the desk's width it is scaled, not rewrapped. */
 
+/* The page is conn's scheme, inverted onto paper: what the terminal
+   grounds on is what the manual is printed in, and what the terminal
+   writes in is the paper it is printed on. So the ink is conn's ground,
+   the desk the paper lies on is that same ground, and the paper's own
+   shadow is conn's ink.
+
+   Between the ink and the paper the manual needs five rungs; conn names
+   four of them — the ground, black, bright black and the console's gray
+   — and the fifth, --ink-3, is the step between the first two, spelled
+   out because no slot has a name for it.
+
+   A spot color is conn's own at the value paper needs: the hue and the
+   saturation are the scheme's to within a fifth of a degree, and only
+   the value comes down, until the ink reads against the stock. conn
+   picks its colors against a dark ground, where the orange carries at
+   5.3:1; laid on cream it would read at 2.8, under the floor. So the
+   orange and the green are laid until a mark reads on paper, 3.8:1 —
+   where the orange the manual was drawn with already sat — and the blue
+   is laid for the stamp, which takes it at part strength. */
+
 :root {
-  --desk: #191b1f;
-  --ink: #1a1611;
-  --ink-2: #2b2620;
-  --ink-3: #4a4335;
-  --muted: #6f6656;
-  --faint: #8d8474;
-  --orange: #bd3a1d;
-  --paper: linear-gradient(115deg, #f1ebde 0%, #ece5d6 45%, #e6dfcf 100%);
-  --paper-top: #f1ebde;
+  --desk: #15130F;        /* conn's ground */
+  --ink: #15130F;         /* conn's ground, as ink */
+  --ink-2: #2A2620;       /* conn's black */
+  --ink-3: #433E35;       /* the step between them; conn has no name for it */
+  --muted: #5C564A;       /* conn's bright black */
+  --faint: #8B8272;       /* the console's gray */
+  --orange: #C34E27;      /* conn's #E85D2F at the paper's value */
+  --orange-rgb: 195,78,39;
+  --green: #5A7B55;       /* conn's #93C98B at the paper's value */
+  --blue: 66,87,105;      /* conn's #7FA7C9 at the paper's value; the
+                             stamp lays it at part strength, so it is
+                             kept as channels rather than a hex */
+  --paper: linear-gradient(115deg, #f1ebde 0%, #ece5d6 45%, #E6DFD0 100%);
+  --paper-top: #f1ebde;   /* the paper's lit edge, above conn's ink */
   --box: rgba(255,255,255,0.35);
-  --dash: rgba(43,38,32,0.35);
-  --dots: rgba(43,38,32,0.45);
+  --dash: rgba(42,38,32,0.35);
+  --dots: rgba(42,38,32,0.45);
   --mono: 'JetBrains Mono', ui-monospace, 'Courier New', Courier, monospace;
   --display: var(--mono);
   /* The paper's fibre, drawn once as noise. The ink mask is solid over
@@ -67,7 +92,7 @@ b, strong { font-weight: 700; }
 .end {
   font: 400 10.5px var(--mono);
   letter-spacing: 0.24em;
-  color: #565c68;
+  color: var(--muted);
   margin: 0;
   text-align: center;
 }
@@ -180,7 +205,7 @@ b, strong { font-weight: 700; }
   left: -4px;
   right: 0;
   top: 46%;
-  border-top: 2px solid rgba(43,38,32,0.65);
+  border-top: 2px solid rgba(42,38,32,0.65);
   transform: rotate(-1.2deg);
 }
 
@@ -224,7 +249,7 @@ b, strong { font-weight: 700; }
   gap: 28px;
   margin-top: 24px;
   padding-bottom: 22px;
-  border-bottom: 1px solid rgba(43,38,32,0.3);
+  border-bottom: 1px solid rgba(42,38,32,0.3);
 }
 .contents > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
 .contents .label {
@@ -299,7 +324,7 @@ b, strong { font-weight: 700; }
   padding: 11px 18px;
   font: 400 13px var(--mono);
   color: var(--ink-2);
-  box-shadow: 2px 2px 0 rgba(43,38,32,0.18);
+  box-shadow: 2px 2px 0 rgba(42,38,32,0.18);
   margin: 0 0 16px;
 }
 .cmd .prompt { color: var(--orange); font-weight: 700; }
@@ -320,7 +345,7 @@ b, strong { font-weight: 700; }
   margin: 0 auto 6px;
   border: 1px solid var(--ink-2);
   background: var(--box);
-  box-shadow: 2px 2px 0 rgba(43,38,32,0.18);
+  box-shadow: 2px 2px 0 rgba(42,38,32,0.18);
   padding: 14px 20px;
 }
 .figure.wide { max-width: 540px; }
@@ -366,7 +391,7 @@ b, strong { font-weight: 700; }
 .table.keys .row { padding: 3px 6px; }
 .table.narrow .row > span:first-child { width: 120px; }
 .table.marks .row > span:first-child { width: 44px; color: var(--orange); font-weight: 700; }
-.table.marks .row > span.good { color: #2e7d4f; }
+.table.marks .row > span.good { color: var(--green); }
 .table.three .row > span:nth-child(2) { flex: none; width: 110px; }
 .table.paths .row > span:first-child { width: 250px; }
 .table.record .row > span:first-child { width: 60px; font-weight: 400; }
@@ -489,8 +514,8 @@ b, strong { font-weight: 700; }
   right: 50px;
   top: 38px;
   transform: rotate(-4deg);
-  border: 2px solid rgba(70,80,140,0.55);
-  color: rgba(70,80,140,0.72);
+  border: 2px solid rgba(var(--blue),0.55);
+  color: rgba(var(--blue),0.72);
   padding: 8px 10px 7px;
   font: 700 9px/1.65 var(--mono);
   letter-spacing: 0.12em;
@@ -523,8 +548,8 @@ b, strong { font-weight: 700; }
 .cover .stamp {
   flex: none;
   transform: rotate(-7deg);
-  border: 2.5px solid rgba(189,58,29,0.6);
-  color: rgba(189,58,29,0.78);
+  border: 2.5px solid rgba(var(--orange-rgb),0.6);
+  color: rgba(var(--orange-rgb),0.78);
   padding: 9px 16px 8px;
   font: 700 12px var(--mono);
   letter-spacing: 0.22em;

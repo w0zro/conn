@@ -22,7 +22,7 @@ func TestWatchMatchesTheGolden(t *testing.T) {
 	failed := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
 	golden(t, "watch-unread-80x24.txt", texts(drawWatch(failed, 0, 80, 24, plain)))
 	rail := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys004": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
-	rail.inside = true
+	rail.inside, rail.prefix = true, "C-Space"
 	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
 }
 
@@ -180,7 +180,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 // does not hold is faint, and a note takes the bottom row until a key.
 func TestTheWatchInsideTheServer(t *testing.T) {
 	w := composeWatch(watch(testProcs, 67032, 501, testRoots), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
-	w.inside = true
+	w.inside, w.prefix = true, "C-Space"
 	rows := drawWatch(w, 67032, 120, 40, colored())
 	text := texts(rows)
 	if !strings.Contains(stripEscapes(text), watchKeyInside) {
@@ -195,7 +195,7 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	}
 	// In the rail there is no terminal column, and the rows close up.
 	railText := texts(drawWatch(w, 67032, 48, 30, plain))
-	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AGENT  claude --resume") || !strings.Contains(railText, railKeyInside) {
+	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AGENT  claude --resume") || !strings.Contains(railText, "C-SPACE "+railKeyInside) {
 		t.Errorf("the rail:\n%s", railText)
 	}
 	for _, r := range drawWatch(w, 67032, 48, 30, plain) {

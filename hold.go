@@ -10,7 +10,7 @@ import (
 // a line saying how to put one there. A key in it hands focus back to
 // the rail. conn runs it as `conn hold`, in a pane of its own server.
 
-const holdHint = "ENTER ON THE WATCH REACHES A PROCESS · S OPENS A SHELL"
+const holdHint = "S OPENS A SHELL · ENTER REACHES THE PROCESS UNDER THE CURSOR · W THE RAIL"
 
 type holdModel struct {
 	srv           *server
@@ -43,7 +43,7 @@ func (h holdModel) View() tea.View {
 		c.blank(0)
 	}
 	l := c.line()
-	l.add(h.p.faint, fit(holdHint, max(h.width-2, 1), false))
+	l.add(h.p.faint, fit(prefixLabel(prefix())+" THEN  "+holdHint, max(h.width-2, 1), false))
 	c.emit(l, 0, true)
 	for len(c.rows) < h.height {
 		c.blank(0)

@@ -11,9 +11,12 @@ Its home window is a rail on the left, which is the watch, and a slot on
 the right, which is the process reached from it: `s` opens a shell at the
 place under the cursor and puts it in the slot, `enter` puts the process
 under the cursor there, and what leaves the slot goes back to a window of
-its own, out of sight, where it keeps running. tmux has no prefix in
-conn's server, so none of its keys are reachable through conn yet; the
-mouse moves focus between the rail and the slot. `q` detaches,
+its own, out of sight, where it keeps running. Every key the rail answers
+is also a chord under the prefix, `ctrl-space` by default (`CONN_PREFIX`
+names another, in tmux's spelling), from anywhere in the server:
+`ctrl-space s` opens a shell, `ctrl-space enter` reaches, `ctrl-space j`
+and `k` move the cursor, `ctrl-space w` puts focus on the rail. tmux's own
+keys are unbound, so none of them are reachable through conn. `q` detaches,
 and the server keeps everything in it for the next `conn`; `conn down`
 takes the server down with everything in it, and says what went, the way
 `docker compose down` does. Without tmux, conn

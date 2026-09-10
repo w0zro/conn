@@ -27,4 +27,4 @@
 
 
 
-J K MOVE · ENTER REACHES · S OPENS · Q DETACHES
+     C-SPACE · J K · ENTER · S · Q · C · W

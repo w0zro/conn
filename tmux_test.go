@@ -50,12 +50,16 @@ func TestPanesAreParsed(t *testing.T) {
 	}
 }
 
-// The configuration binds no keys and turns tmux's prefix off, and
-// carries the look; a path with a quote in it survives quoting.
+// The configuration sets the prefix, empties tmux's prefix table, and
+// binds conn's chords, each sending its key to the rail; it carries the
+// look; a path with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
-	conf := tmuxConf()
+	conf := tmuxConf("C-Space")
 	for _, s := range []string{
-		"set -g prefix None", "set -g status off", "set -g mouse on",
+		"set -g prefix C-Space", "unbind -a -T prefix", "bind C-Space send-prefix",
+		"bind j send-keys -t conn:home.0 j", "bind Enter send-keys -t conn:home.0 Enter", "bind s send-keys -t conn:home.0 s",
+		"bind q send-keys -t conn:home.0 q", "bind w select-pane -t conn:home.0", "set -g prefix2 None",
+		"set -g status off", "set -g mouse on",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		"set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
 		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`, `set -g pane-active-border-style "fg=#2A2620,bg=#15130F"`,
@@ -64,8 +68,16 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Contains(conf, "\nbind") || strings.Contains(conf, "C-Space") || strings.Contains(conf, "C-b") {
-		t.Errorf("configuration binds a key:\n%s", conf)
+	if strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+		t.Errorf("configuration keeps tmux's prefix or ignores the one given:\n%s", conf)
+	}
+	t.Setenv("CONN_PREFIX", "")
+	if prefix() != "C-Space" || prefixLabel(prefix()) != "C-SPACE" {
+		t.Errorf("default prefix: %q %q", prefix(), prefixLabel(prefix()))
+	}
+	t.Setenv("CONN_PREFIX", "C-a")
+	if prefix() != "C-a" {
+		t.Errorf("prefix from the environment: %q", prefix())
 	}
 	if got := shellQuote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
 		t.Errorf("quoted: %s", got)
@@ -91,7 +103,7 @@ func TestTheTerminalIsAskedForTheGround(t *testing.T) {
 	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\" {
 		t.Errorf("colors given back: %q", oscOwnColors)
 	}
-	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf(), want) {
+	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf("C-Space"), want) {
 		t.Errorf("the panes are not drawn in %s", want)
 	}
 }

@@ -127,3 +127,54 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 		t.Error("the chip did not come back")
 	}
 }
+
+// A shell conn opens is the cursor's as soon as it is read: the model
+// waits for the process it started, and the reading that brings it puts
+// the cursor there. A process that never appears is given up on, so it
+// cannot claim the cursor later on a pid that came round again.
+func TestTheCursorGoesToWhatConnOpened(t *testing.T) {
+	here := []place{{path: "/w", entries: []entry{{pid: 11}, {pid: 22}}}}
+	andTheShell := []place{{path: "/w", entries: []entry{{pid: 11}, {pid: 22}, {pid: 4242}}}}
+	read := func(m model, places []place) model {
+		next, _ := m.Update(watchMsg{places: places, gen: m.watchGen})
+		return next.(model)
+	}
+
+	m := newModel(plain)
+	m.view, m.cursor = viewWatch, 11
+	m = read(m, here)
+
+	next, cmd := m.Update(openedMsg{4242})
+	m = next.(model)
+	if m.wanted != 4242 || m.wantedLeft != waitForOpened {
+		t.Errorf("the shell is not waited on: wanted %d for %d", m.wanted, m.wantedLeft)
+	}
+	if cmd == nil {
+		t.Error("the watch was not read again at once")
+	}
+
+	// It is not there yet: the cursor stays where it was.
+	m = read(m, here)
+	if m.cursor != 11 || m.wanted != 4242 {
+		t.Errorf("cursor %d, still waiting on %d", m.cursor, m.wanted)
+	}
+	// The reading that brings it moves the cursor, and the wait is over.
+	m = read(m, andTheShell)
+	if m.cursor != 4242 || m.wanted != 0 {
+		t.Errorf("cursor %d, wanted %d: the shell should have it", m.cursor, m.wanted)
+	}
+
+	// A shell that never comes up is given up on, and the cursor is left
+	// where the user had it.
+	m.cursor, m.wanted, m.wantedLeft = 11, 9999, waitForOpened
+	for range waitForOpened {
+		m = read(m, here)
+	}
+	if m.wanted != 0 {
+		t.Errorf("still waiting on %d after %d readings", m.wanted, waitForOpened)
+	}
+	m = read(m, append(here, place{path: "/x", entries: []entry{{pid: 9999}}}))
+	if m.cursor == 9999 {
+		t.Error("a pid that came round later took the cursor")
+	}
+}

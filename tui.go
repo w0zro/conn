@@ -76,6 +76,7 @@ type (
 		gen    int
 	}
 	watchTickMsg struct{ gen int } // the watch is due to be read again
+	openedMsg    struct{ pid int } // a shell was opened, and is the cursor's
 	blinkMsg     struct{}          // the chip's half is up
 	noteMsg      struct{ note string }
 )
@@ -94,11 +95,16 @@ type model struct {
 	places   []place
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
-	watchErr string
-	watchGen int // which stay on the watch the ticks belong to
-	pid      int // this process
-	uid      int
-	roots    func(string) string
+	// A process conn has just started is the cursor's as soon as it is
+	// read. It is waited on for a reading or two and then given up on,
+	// so a shell that never came up cannot claim the cursor later.
+	wanted     int
+	wantedLeft int
+	watchErr   string
+	watchGen   int // which stay on the watch the ticks belong to
+	pid        int // this process
+	uid        int
+	roots      func(string) string
 
 	srv    *server         // conn's tmux server, when there is one
 	inside bool            // this conn is the rail of the server's home window
@@ -227,6 +233,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clockMsg:
 		m.now = time.Now()
 		return m, nextSecond(m.now)
+	case openedMsg:
+		// The shell is the cursor's now; read again at once rather than
+		// waiting out the tick, so the row it is on comes up under the
+		// hand that opened it.
+		m.wanted, m.wantedLeft = msg.pid, waitForOpened
+		m.watchGen++
+		return m, m.readWatch()
 	case blinkMsg:
 		m.lit = !m.lit
 		return m, m.nextBlink()
@@ -235,6 +248,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.places, m.panes, m.slot, m.watchErr = msg.places, msg.panes, msg.slot, msg.err
+		if m.wanted != 0 {
+			switch {
+			case hasPid(m.places, m.wanted):
+				m.cursor, m.wanted = m.wanted, 0
+			default:
+				m.wantedLeft--
+				if m.wantedLeft <= 0 {
+					m.wanted = 0
+				}
+			}
+		}
 		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
 		if m.view == viewWatch {
 			return m, m.watchTick()
@@ -309,7 +333,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			m.note = "NO PLACE UNDER THE CURSOR"
 		default:
 			dir := pl.path
-			return m, m.serverCmd(func() error { return m.srv.open(dir) }, "")
+			return m, m.openShell(dir)
 		}
 	}
 	return m, nil
@@ -325,6 +349,35 @@ func (m model) under() (entry, place, bool) {
 		}
 	}
 	return entry{}, place{}, false
+}
+
+// waitForOpened is how many readings a process conn started is waited
+// on for before the cursor gives up on it.
+const waitForOpened = 3
+
+// openShell opens a shell at a place, off the loop, and hands back the
+// process it started so the cursor can go to it.
+func (m model) openShell(dir string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		pid, err := srv.open(dir)
+		if err != nil {
+			return noteMsg{strings.ToUpper(err.Error())}
+		}
+		return openedMsg{pid}
+	}
+}
+
+// hasPid says whether a process is among what was read.
+func hasPid(places []place, pid int) bool {
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			if e.pid == pid {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // serverCmd runs a server action off the loop; what goes wrong is said

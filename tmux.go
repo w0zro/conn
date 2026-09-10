@@ -292,13 +292,22 @@ func (s *server) show(target pane) error {
 }
 
 // open opens a shell at a directory, in a window of its own, and shows
-// it in the slot.
-func (s *server) open(dir string) error {
-	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", dir)
+// it in the slot. It answers the shell's process, so the watch can put
+// its cursor on the row that is about to appear.
+func (s *server) open(dir string) (int, error) {
+	out, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}\t#{pane_pid}", "-c", dir)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return s.show(pane{id: strings.TrimSpace(id)})
+	id, pid := cutPanePid(out)
+	return pid, s.show(pane{id: id})
+}
+
+// cutPanePid reads the pane and the process new-window printed.
+func cutPanePid(out string) (string, int) {
+	id, rest, _ := strings.Cut(strings.TrimSpace(out), "\t")
+	pid, _ := strconv.Atoi(strings.TrimSpace(rest))
+	return id, pid
 }
 
 // wide gives the rail the whole window, which is what the console

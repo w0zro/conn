@@ -27,18 +27,23 @@ Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.
 A program that writes its own hex instead asks for none of them, and tmux
 passes those through untouched, so conn's palette cannot reach it. For one
-of those, `conn theme claude` prints a Claude Code theme drawn from the same
-table, so the two cannot drift apart:
+of those, `conn theme claude` writes `~/.claude/themes/conn.json` from the
+same table, so the two cannot drift apart. The theme sits on Claude Code's
+`dark-ansi` base and names a slot wherever a token has a slot-shaped
+meaning, so most of it follows the pane's own sixteen; only the grounds no
+slot has a name for — the washes under a diff, the bar behind a message —
+are spelled out. Claude Code's syntax coloring is not a theme's to set: it
+is a fixed map onto those same sixteen, so code in a pane is conn's colors
+already.
 
-```sh
-conn theme claude > ~/.claude/themes/conn.json   # then pick it with /theme
-```
+conn writes the file and says where. It offers to select the theme only
+when Claude Code is on one it came with, or on none; a custom theme is
+somebody's own doing, and conn says what it is and leaves it. Selecting it
+by hand is `/theme` in a session.
 
-conn prints it and stops there. Where the file goes, and whether it is the
-theme in use, is not conn's business: conn dresses its own server, not the
-programs it holds. `CONN` is set in the server, so a program that draws in
-its own hex can tell where it is and dress to match — Claude Code takes its
-theme for the run from `claude --settings '{"theme":"custom:conn"}'`.
+`CONN` is set in the server too, so a program can tell where it is and
+dress to match for a run: `claude --settings '{"theme":"custom:conn"}'`
+wears conn's colors inside conn and leaves the theme elsewhere alone.
 
 ## Build it yourself
 

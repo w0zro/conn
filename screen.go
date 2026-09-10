@@ -372,6 +372,12 @@ func stdoutIsTerminal() bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
+// stdinIsTerminal says whether there is somebody there to answer.
+func stdinIsTerminal() bool {
+	info, err := os.Stdin.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
 // fit holds a value to w columns. A path is shortened between its head
 // and its end so the name it leads to is what survives; anything else is
 // cut at the end. A note after the path, set off by " · ", keeps its

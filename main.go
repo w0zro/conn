@@ -10,18 +10,65 @@ import (
 	"github.com/charmbracelet/colorprofile"
 )
 
-// themeFor prints a theme for a program conn holds but cannot dress
+// dressProgram writes a theme for a program conn holds but cannot dress
 // through its server, since the program writes its own hex rather than
-// asking for a color by name. Claude Code is the one so far.
-func themeFor(args []string) (string, error) {
+// asking for a color by name. Claude Code is the one so far. It answers
+// what to say and whether it went well; ask says yes to a question, and
+// is nil where there is nobody to ask.
+func dressProgram(args []string, home string, ask func(string) bool) (string, bool) {
 	if len(args) != 1 {
-		return "", fmt.Errorf("say which program: conn theme claude")
+		return "conn theme: say which program: conn theme claude\n", false
 	}
-	switch args[0] {
-	case "claude":
-		return claudeThemeJSON()
+	if args[0] != "claude" {
+		return fmt.Sprintf("conn theme: conn has no theme for %s; it has one for claude\n", args[0]), false
+	}
+	return dressClaude(home, ask)
+}
+
+// dressClaude writes the theme, and offers to put Claude Code on it
+// when nothing of the user's own is in the way: a settings file on one
+// of the themes Claude Code comes with, or on none. A custom theme is
+// somebody's own doing, and conn says what it is and leaves it.
+func dressClaude(home string, ask func(string) bool) (string, bool) {
+	path, err := writeClaudeTheme(home)
+	if err != nil {
+		return fmt.Sprintf("conn theme: %v\n", err), false
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Wrote conn's theme for Claude Code to %s\n", tilde(path, home))
+	in, ok := themeInUse(home)
+	switch {
+	case !ok:
+		fmt.Fprintf(&b, "Claude Code has no settings file yet; it will read the theme once %q is its theme.\n", claudeThemeRef)
+	case in == claudeThemeRef:
+		// Already on it, and the themes directory is watched: a session
+		// that is up has the new colors already.
+	case !builtinThemes[in]:
+		fmt.Fprintf(&b, "Claude Code is on %s, which is not conn's to change. Pick Conn with /theme when you want it.\n", in)
+	case ask != nil && ask("Put Claude Code on it now?"):
+		if err := useClaudeTheme(home); err != nil {
+			fmt.Fprintf(&b, "conn theme: %v\n", err)
+			return b.String(), false
+		}
+		fmt.Fprintf(&b, "Claude Code is on %s. A session that is up picks it up as the directory is watched.\n", claudeThemeRef)
 	default:
-		return "", fmt.Errorf("conn has no theme for %s; it has one for claude", args[0])
+		fmt.Fprintf(&b, "Pick Conn with /theme, or set %q as the theme in ~/.claude/settings.json.\n", claudeThemeRef)
+	}
+	return b.String(), true
+}
+
+// asks is how conn puts a yes-or-no question, when there is somebody at
+// the terminal to answer it and nowhere for the answer to be piped from.
+func asks() func(string) bool {
+	if !stdoutIsTerminal() || !stdinIsTerminal() {
+		return nil
+	}
+	return func(q string) bool {
+		fmt.Printf("%s [y/N] ", q)
+		var answer string
+		fmt.Scanln(&answer)
+		answer = strings.ToLower(strings.TrimSpace(answer))
+		return answer == "y" || answer == "yes"
 	}
 }
 
@@ -45,12 +92,13 @@ func main() {
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "theme" {
-		out, err := themeFor(os.Args[2:])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "conn theme: %v\n", err)
+		home, _ := os.UserHomeDir()
+		msg, ok := dressProgram(os.Args[2:], home, asks())
+		if !ok {
+			fmt.Fprint(os.Stderr, msg)
 			os.Exit(1)
 		}
-		fmt.Print(out)
+		fmt.Print(msg)
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "down" {

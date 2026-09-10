@@ -2,113 +2,181 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// A step from one color to another: the ends are the ends, and the
-// middle is between them.
-func TestAColorIsMixed(t *testing.T) {
-	a, b := "#000000", "#FFFFFF"
-	if got := mix(a, b, 0); got != "#000000" {
-		t.Errorf("no step: %s", got)
-	}
-	if got := mix(a, b, 1); got != "#FFFFFF" {
-		t.Errorf("the whole step: %s", got)
-	}
-	if got := mix(a, b, 0.5); got != "#808080" {
-		t.Errorf("half a step: %s", got)
-	}
-	if got := rgbString("#7FA7C9"); got != "rgb(127,167,201)" {
-		t.Errorf("as a theme writes it: %s", got)
-	}
-}
-
-// The theme conn prints is Claude Code's own shape, and every color in
-// it is one conn draws: the sixteen, the console's grounds and ranks,
-// or a step between two of those.
-func TestTheClaudeThemeIsConnsOwn(t *testing.T) {
-	out, err := claudeThemeJSON()
-	if err != nil {
-		t.Fatal(err)
-	}
+// The theme is a theme file Claude Code can read: its own shape, on the
+// ansi base so what conn says nothing about falls through to the slot
+// the pane already has, and no token written twice.
+func TestTheClaudeThemeIsATheme(t *testing.T) {
 	var got struct {
 		Name      string            `json:"name"`
 		Base      string            `json:"base"`
 		Overrides map[string]string `json:"overrides"`
 	}
+	out := claudeThemeJSON()
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatalf("not a theme file: %v", err)
+		t.Fatalf("not a theme file: %v\n%s", err, out)
 	}
-	if got.Name != "conn" || got.Base != "dark" {
+	if got.Name != "Conn" || got.Base != "dark-ansi" {
 		t.Errorf("named %q on %q", got.Name, got.Base)
 	}
-	for k, v := range got.Overrides {
-		if !strings.HasPrefix(v, "rgb(") || !strings.HasSuffix(v, ")") {
-			t.Errorf("%s is not written as a color: %s", k, v)
+	seen := map[string]bool{}
+	n := 0
+	for _, g := range claudeTheme() {
+		for _, tk := range g {
+			if seen[tk.name] {
+				t.Errorf("%s is written twice", tk.name)
+			}
+			seen[tk.name] = true
+			n++
 		}
 	}
-	// The page is the console's, not a theme's own.
-	for k, want := range map[string]string{
-		"background":  rgbString(hex(groundColor)),
-		"text":        rgbString(hex(inkColor)),
-		"inverseText": rgbString(hex(groundColor)),
-		"selectionBg": rgbString(borderHex),
-	} {
-		if got.Overrides[k] != want {
-			t.Errorf("%s is %s, not %s", k, got.Overrides[k], want)
+	if len(got.Overrides) != n {
+		t.Errorf("%d tokens written, %d read back", n, len(got.Overrides))
+	}
+	// The file is grouped the way the handoff groups it, so it can be
+	// read against it; the groups are what the blank lines separate.
+	if groups := strings.Count(out, "\n\n"); groups != len(claudeTheme())-1 {
+		t.Errorf("%d blank lines between %d groups", groups, len(claudeTheme()))
+	}
+}
+
+// Every color is one conn draws: a slot of the scheme, one of the
+// console's own, a reference to a slot, or one of the grounds no slot
+// has a name for. Nothing is a color from somewhere else.
+func TestTheThemeIsDrawnFromConnsOwn(t *testing.T) {
+	known := map[string]bool{
+		hex(groundColor): true, hex(inkColor): true, grayHex: true, borderHex: true,
+		diffAddedBg: true, diffRemovedBg: true, diffAddedDim: true, diffRemovedDim: true,
+		diffAddedWord: true, diffRemovedWord: true,
+		messageHoverBg: true, toolBg: true,
+	}
+	for _, c := range scheme {
+		known[c] = true
+	}
+	for _, g := range claudeTheme() {
+		for _, tk := range g {
+			if strings.HasPrefix(tk.color, "ansi:") {
+				continue
+			}
+			if !known[tk.color] {
+				t.Errorf("%s is %s, which is no color of conn's", tk.name, tk.color)
+			}
 		}
 	}
 }
 
-// Orange is what conn spends on the thing that wants you. A mode is on
-// all day, so no mode may take it; an error may.
-func TestOrangeIsNotSpentOnAMode(t *testing.T) {
-	th := claudeTheme()
-	orange, owed := scheme[9], scheme[1]
-	for _, mode := range []string{"planMode", "autoAccept", "skill", "merged", "effortUltra", "fastMode"} {
-		if c := th[mode]; c == orange || c == owed {
-			t.Errorf("%s takes the orange: %s", mode, c)
+// A verdict is slot-shaped, so it is written as the slot and follows
+// the pane's own sixteen. The orange is "you, here": the mark, the
+// dialog that stops and waits, and the meter — never a mode.
+func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
+	at := map[string]string{}
+	for _, g := range claudeTheme() {
+		for _, tk := range g {
+			at[tk.name] = tk.color
 		}
 	}
-	if th["error"] != owed {
-		t.Errorf("an error is %s, not the red", th["error"])
+	for _, k := range []string{"success", "error", "warning", "merged"} {
+		if !strings.HasPrefix(at[k], "ansi:") {
+			t.Errorf("%s is %s, not a slot", k, at[k])
+		}
 	}
-	if th["claude"] != orange {
-		t.Errorf("the mark is %s, not the orange", th["claude"])
+	orange := scheme[9]
+	for _, k := range []string{"claude", "permission", "rate_limit_fill"} {
+		if at[k] != orange {
+			t.Errorf("%s is %s, not the orange", k, at[k])
+		}
+	}
+	for _, mode := range []string{"planMode", "autoAccept", "fastMode", "bashBorder", "promptBorder"} {
+		if at[mode] == orange {
+			t.Errorf("%s takes the orange", mode)
+		}
 	}
 }
 
-// An agent is told apart from another by its color, so no two of them
-// may be the same.
-func TestTheAgentColorsAreApart(t *testing.T) {
-	th := claudeTheme()
-	seen := map[string]string{}
-	for _, k := range []string{
-		"red_FOR_SUBAGENTS_ONLY", "orange_FOR_SUBAGENTS_ONLY", "yellow_FOR_SUBAGENTS_ONLY",
-		"green_FOR_SUBAGENTS_ONLY", "cyan_FOR_SUBAGENTS_ONLY", "blue_FOR_SUBAGENTS_ONLY",
-		"purple_FOR_SUBAGENTS_ONLY", "pink_FOR_SUBAGENTS_ONLY",
-	} {
-		c, ok := th[k]
-		if !ok {
-			t.Errorf("no color for %s", k)
-			continue
+// conn writes the theme where Claude Code looks, says so, and offers to
+// point Claude Code at it only when nothing of the user's own is in the
+// way.
+func TestConnWritesTheThemeAndOffersOnce(t *testing.T) {
+	yes := func(string) bool { return true }
+	write := func(t *testing.T, settings string) string {
+		t.Helper()
+		home := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+			t.Fatal(err)
 		}
-		if was, dup := seen[c]; dup {
-			t.Errorf("%s is %s again: %s", k, was, c)
+		if settings != "" {
+			if err := os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(settings), 0o600); err != nil {
+				t.Fatal(err)
+			}
 		}
-		seen[c] = k
+		return home
+	}
+
+	// On a built-in theme, conn offers, and the answer is taken.
+	home := write(t, `{
+  "model": "opus[1m]",
+  "theme": "dark",
+  "autoMode": true
+}
+`)
+	msg, ok := dressProgram([]string{"claude"}, home, yes)
+	if !ok || !strings.Contains(msg, "themes/conn.json") {
+		t.Errorf("the theme was not written: %q", msg)
+	}
+	if b, err := os.ReadFile(filepath.Join(home, ".claude", "themes", "conn.json")); err != nil || !strings.Contains(string(b), `"base": "dark-ansi"`) {
+		t.Errorf("the file on disk: %v", err)
+	}
+	after, _ := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
+	if !strings.Contains(string(after), `"theme": "custom:conn"`) {
+		t.Errorf("the theme was not taken up:\n%s", after)
+	}
+	// Everything else in the file is the user's still, in their order.
+	if !strings.HasPrefix(string(after), "{\n  \"model\": \"opus[1m]\",\n") || !strings.Contains(string(after), `"autoMode": true`) {
+		t.Errorf("the settings file was rewritten:\n%s", after)
+	}
+
+	// On somebody's own custom theme, conn says what it is and leaves it.
+	home = write(t, `{"theme": "custom:datum-dark"}`)
+	msg, ok = dressProgram([]string{"claude"}, home, yes)
+	after, _ = os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
+	if !ok || !strings.Contains(msg, "custom:datum-dark") || strings.Contains(string(after), "custom:conn") {
+		t.Errorf("conn changed a theme of the user's own: %q\n%s", msg, after)
+	}
+
+	// Already on it: conn writes the file and says nothing more of it.
+	home = write(t, `{"theme": "custom:conn"}`)
+	msg, ok = dressProgram([]string{"claude"}, home, yes)
+	if !ok || strings.Count(msg, "\n") != 1 || !strings.HasPrefix(msg, "Wrote conn's theme") {
+		t.Errorf("conn said something about a theme already in use: %q", msg)
+	}
+
+	// With nobody to ask, conn writes the file and says how to pick it.
+	home = write(t, `{"theme": "dark"}`)
+	msg, ok = dressProgram([]string{"claude"}, home, nil)
+	after, _ = os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
+	if !ok || !strings.Contains(msg, "/theme") || strings.Contains(string(after), "custom:conn") {
+		t.Errorf("conn set the theme with nobody to ask: %q", msg)
+	}
+
+	// A settings file that names the theme in more than one place is not
+	// conn's to edit by guessing which.
+	home = write(t, `{"theme": "dark", "somethingElse": {"theme": "of its own"}}`)
+	if err := useClaudeTheme(home); err == nil {
+		t.Error("conn guessed which theme to rewrite")
 	}
 }
 
 // conn dresses one program it holds, and says so for any other.
 func TestConnDressesClaudeAndSaysSoOtherwise(t *testing.T) {
-	if _, err := themeFor([]string{"claude"}); err != nil {
-		t.Errorf("no theme for claude: %v", err)
-	}
+	home := t.TempDir()
 	for _, args := range [][]string{{}, {"vim"}, {"claude", "dark"}} {
-		if _, err := themeFor(args); err == nil {
-			t.Errorf("conn theme %v gave a theme", args)
+		if _, ok := dressProgram(args, home, nil); ok {
+			t.Errorf("conn theme %v was taken", args)
 		}
 	}
 }

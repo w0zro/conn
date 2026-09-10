@@ -56,8 +56,3 @@ func (h holdModel) View() tea.View {
 	v.AltScreen = true
 	return v
 }
-
-// holdEnv says whether this conn was started as the hold.
-func holdEnv(args []string) bool {
-	return len(args) > 1 && args[1] == "hold"
-}

@@ -88,33 +88,8 @@ func asks() func(string) bool {
 // Everything else it was is in the history, and comes back piece by
 // piece, in the form it is wanted in.
 func main() {
-	if holdEnv(os.Args) {
-		home, _ := os.UserHomeDir()
-		if err := runHold(findServer(home), colored()); err != nil {
-			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "theme" {
-		home, _ := os.UserHomeDir()
-		msg, ok := dressProgram(os.Args[2:], home, asks())
-		if !ok {
-			fmt.Fprint(os.Stderr, msg)
-			os.Exit(1)
-		}
-		fmt.Print(msg)
-		return
-	}
-	if len(os.Args) > 1 && os.Args[1] == "down" {
-		home, _ := os.UserHomeDir()
-		msg, ok := takeDown(findServer(home), home)
-		if !ok {
-			fmt.Fprint(os.Stderr, msg)
-			os.Exit(1)
-		}
-		fmt.Print(msg)
-		return
+	if len(os.Args) > 1 {
+		os.Exit(runCommand(os.Args[1], os.Args[2:]))
 	}
 	if !stdoutIsTerminal() {
 		for _, r := range screen(compose(readStation(), time.Now()), minCols, 0, plain) {
@@ -159,4 +134,68 @@ func programOptions() []tea.ProgramOption {
 		return []tea.ProgramOption{tea.WithColorProfile(colorprofile.TrueColor)}
 	}
 	return nil
+}
+
+// A command conn answers to by name, after conn itself: what it is
+// called, a line on it, and what it does, answering the exit status.
+type command struct {
+	name string
+	use  string
+	run  func(args []string) int
+}
+
+// The commands. hold is conn's own, run in a pane of its server, and
+// is not offered.
+var commands = []command{
+	{"down", "take the server down, with everything in it", func([]string) int {
+		home, _ := os.UserHomeDir()
+		return say(takeDown(findServer(home), home))
+	}},
+	{"theme", "write conn's theme for a program that draws its own: claude, vim", func(args []string) int {
+		home, _ := os.UserHomeDir()
+		return say(dressProgram(args, home, asks()))
+	}},
+	{"hold", "", func([]string) int {
+		home, _ := os.UserHomeDir()
+		if err := runHold(findServer(home), colored()); err != nil {
+			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
+			return 1
+		}
+		return 0
+	}},
+}
+
+// runCommand runs the command of a name; a name conn does not know is
+// said, with the names it does.
+func runCommand(name string, args []string) int {
+	for _, c := range commands {
+		if c.name == name {
+			return c.run(args)
+		}
+	}
+	fmt.Fprint(os.Stderr, usage(name))
+	return 2
+}
+
+// usage is what conn says of a name it does not know.
+func usage(name string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "conn: no such command: %s\n\nconn alone comes up on the console and the watch. The commands:\n", name)
+	for _, c := range commands {
+		if c.use != "" {
+			fmt.Fprintf(&b, "  conn %-6s  %s\n", c.name, c.use)
+		}
+	}
+	return b.String()
+}
+
+// say prints a message where it goes, out or err, and answers the exit
+// status: 0 when it went well.
+func say(msg string, ok bool) int {
+	if !ok {
+		fmt.Fprint(os.Stderr, msg)
+		return 1
+	}
+	fmt.Print(msg)
+	return 0
 }

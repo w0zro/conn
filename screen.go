@@ -194,9 +194,9 @@ func body(r report, width int, own check, p palette) []row {
 	}
 
 	// The verdict: a rule, then the count of faults as a chip, or the
-	// word that all is well. The chip is an annunciator and blinks: on
-	// the second it is dark the row is the ground, and nothing under it
-	// moves.
+	// word that all is well. The chip is an annunciator and blinks, a
+	// second lit against half of one dark; on the dark half the row is
+	// the ground, and nothing under it moves.
 	last := lastStage(r)
 	c.blank(last)
 	c.rule(last, measure)

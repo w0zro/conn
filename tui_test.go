@@ -103,3 +103,27 @@ func TestTheClockTicksOnTheSecond(t *testing.T) {
 func m0() model {
 	return model{head: station{build: testStation.build}, now: testNow, p: plain}
 }
+
+// The chip's dark half is half its lit half, and each turn schedules
+// the other: the blink goes on by itself for as long as conn is up.
+func TestTheBlinkHasTwoHalves(t *testing.T) {
+	if blinkDark*2 != blinkLit {
+		t.Errorf("dark %v against lit %v: the dark half should be half of the lit", blinkDark, blinkLit)
+	}
+	m := newModel(plain)
+	if !m.lit {
+		t.Error("the chip starts dark")
+	}
+	next, ok := m.Update(blinkMsg{})
+	m = next.(model)
+	if m.lit {
+		t.Error("the chip did not go dark on the turn")
+	}
+	if ok == nil {
+		t.Fatal("the blink stopped at the first turn")
+	}
+	next, ok = m.Update(blinkMsg{})
+	if m = next.(model); !m.lit || ok == nil {
+		t.Error("the chip did not come back")
+	}
+}

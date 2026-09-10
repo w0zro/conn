@@ -56,6 +56,14 @@ func (m model) stageDelay(stage int) time.Duration {
 // watchEvery is how often the watch reads the process table.
 const watchEvery = 2 * time.Second
 
+// The verdict's chip blinks like an annunciator on a panel: lit for a
+// second, dark for half of one. The dark is the shorter half — the
+// blink is there to catch the eye, not to take the words away.
+const (
+	blinkLit  = time.Second
+	blinkDark = time.Second / 2
+)
+
 type (
 	stageMsg   struct{}          // the next stage is due
 	clockMsg   struct{}          // the second has turned
@@ -68,6 +76,7 @@ type (
 		gen    int
 	}
 	watchTickMsg struct{ gen int } // the watch is due to be read again
+	blinkMsg     struct{}          // the chip's half is up
 	noteMsg      struct{ note string }
 )
 
@@ -81,6 +90,7 @@ type model struct {
 	p             palette
 
 	view     int
+	lit      bool // the verdict's chip is showing this half of the blink
 	places   []place
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
@@ -100,6 +110,7 @@ type model struct {
 
 func newModel(p palette) model {
 	return model{
+		lit:   true,
 		head:  station{build: readBuild(), session: readSession()},
 		now:   time.Now(),
 		p:     p,
@@ -127,7 +138,7 @@ func (m model) watchReport() watchReport {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{readStationCmd, m.nextStage(), nextSecond(m.now)}
+	cmds := []tea.Cmd{readStationCmd, m.nextStage(), nextSecond(m.now), m.nextBlink()}
 	if m.inside {
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }, ""))
 	}
@@ -176,6 +187,16 @@ func nextSecond(now time.Time) tea.Cmd {
 	return tea.Tick(time.Until(now.Truncate(time.Second).Add(time.Second)), func(time.Time) tea.Msg { return clockMsg{} })
 }
 
+// nextBlink is the turn of the chip's other half, each half its own
+// length.
+func (m model) nextBlink() tea.Cmd {
+	d := blinkLit
+	if !m.lit {
+		d = blinkDark
+	}
+	return tea.Tick(d, func(time.Time) tea.Msg { return blinkMsg{} })
+}
+
 func (m model) watchTick() tea.Cmd {
 	gen := m.watchGen
 	return tea.Tick(watchEvery, func(time.Time) tea.Msg { return watchTickMsg{gen} })
@@ -206,6 +227,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clockMsg:
 		m.now = time.Now()
 		return m, nextSecond(m.now)
+	case blinkMsg:
+		m.lit = !m.lit
+		return m, m.nextBlink()
 	case watchMsg:
 		if msg.gen != m.watchGen {
 			return m, nil
@@ -357,9 +381,7 @@ func (m model) View() tea.View {
 		rows = drawWatch(m.watchReport(), m.cursor, m.width, m.height, m.p)
 	default:
 		r := m.report()
-		// The verdict's chip blinks on the turn of the second, the way an
-		// annunciator on a panel does: lit, dark, lit.
-		r.lit = m.now.Second()%2 == 0
+		r.lit = m.lit
 		rows = screen(r, m.width, m.height, m.p)
 	}
 	ground := rows[0].text // the first row is blank, on the ground, at the rows' width

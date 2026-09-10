@@ -222,8 +222,8 @@ func TestPathsShortenFromTheMiddle(t *testing.T) {
 	}
 }
 
-// The verdict's chip is an annunciator: on the second it is dark the
-// row is the ground, and no other row moves. The word that all is well
+// The verdict's chip is an annunciator: on its dark half the row is the
+// ground, and no other row moves. The word that all is well
 // does not blink, and a reading nobody is watching turn by turn — a
 // pipe, a test — is lit.
 func TestTheVerdictBlinks(t *testing.T) {

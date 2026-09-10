@@ -104,11 +104,12 @@ func m0() model {
 	return model{head: station{build: testStation.build}, now: testNow, p: plain}
 }
 
-// The chip's dark half is half its lit half, and each turn schedules
-// the other: the blink goes on by itself for as long as conn is up.
+// The chip is dark for a third of the time it is lit, and each turn
+// schedules the other: the blink goes on by itself for as long as conn
+// is up.
 func TestTheBlinkHasTwoHalves(t *testing.T) {
-	if blinkDark*2 != blinkLit {
-		t.Errorf("dark %v against lit %v: the dark half should be half of the lit", blinkDark, blinkLit)
+	if blinkLit != 3*time.Second/2 || blinkDark != time.Second/2 {
+		t.Errorf("lit %v, dark %v: a second and a half against half of one", blinkLit, blinkDark)
 	}
 	m := newModel(plain)
 	if !m.lit {

@@ -57,10 +57,11 @@ func (m model) stageDelay(stage int) time.Duration {
 const watchEvery = 2 * time.Second
 
 // The verdict's chip blinks like an annunciator on a panel: lit for a
-// second, dark for half of one. The dark is the shorter half — the
-// blink is there to catch the eye, not to take the words away.
+// second and a half, dark for half of one. The dark is the shorter
+// half — the blink is there to catch the eye, not to take the words
+// away.
 const (
-	blinkLit  = time.Second
+	blinkLit  = 3 * time.Second / 2
 	blinkDark = time.Second / 2
 )
 

@@ -24,8 +24,10 @@ var (
 // the watch. The watch is what is running, by place, read again every
 // two seconds while it is up; j and k move the cursor, which follows
 // its process across readings; c brings the console back, and any key
-// there returns to the watch. The words of both are said again each
-// second, from what was read and the clock as it stands.
+// there returns to the watch. The console is a page: in the server it
+// takes the whole window while it is up, and the slot has its side
+// again on the way back to the watch. The words of both are said
+// again each second, from what was read and the clock as it stands.
 //
 // In conn's tmux server, conn is the rail on the left of the home
 // window; when the watch first comes on it opens the slot beside it,
@@ -125,7 +127,11 @@ func (m model) watchReport() watchReport {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(readStationCmd, m.nextStage(), nextSecond(m.now))
+	cmds := []tea.Cmd{readStationCmd, m.nextStage(), nextSecond(m.now)}
+	if m.inside {
+		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }, ""))
+	}
+	return tea.Batch(cmds...)
 }
 
 func readStationCmd() tea.Msg {
@@ -225,7 +231,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // key answers a key: q and ctrl+c detach in the server and close conn
 // outside it, from anywhere; on the console a key skips the sequence,
-// then continues to the watch; on the watch c brings the console back,
+// then continues to the watch and gives the slot its side back; on the
+// watch c brings the console back over the whole window,
 // enter reaches the cursor's process, and s opens a shell at its place.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	switch {
@@ -240,9 +247,15 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case m.view == viewConsole:
 		m.view = viewWatch
 		m.watchGen++
+		if m.inside {
+			return m, tea.Batch(m.readWatch(), m.serverCmd(func() error { return m.srv.narrow() }, ""))
+		}
 		return m, m.readWatch()
 	case k == "c":
 		m.view = viewConsole
+		if m.inside {
+			return m, m.serverCmd(func() error { return m.srv.wide() }, "")
+		}
 		return m, nil
 	case k == "j" || k == "down":
 		m.cursor, m.cursorAt = follow(m.places, 0, m.cursorAt+1)

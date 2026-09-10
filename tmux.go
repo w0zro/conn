@@ -298,6 +298,27 @@ func (s *server) open(dir string) error {
 	return s.show(pane{id: strings.TrimSpace(id)})
 }
 
+// wide gives the rail the whole window, which is what the console
+// wants: it is a page, not a rail. narrow gives the slot its side back.
+// tmux has one key for both, so each looks first at how the window
+// stands; on a home with no slot yet there is nothing to zoom and both
+// are nothing.
+func (s *server) wide() error { return s.zoom(true) }
+
+func (s *server) narrow() error { return s.zoom(false) }
+
+func (s *server) zoom(on bool) error {
+	out, err := s.run("display-message", "-p", "-t", s.rail(), "#{window_zoomed_flag}")
+	if err != nil {
+		return err
+	}
+	if (strings.TrimSpace(out) == "1") == on {
+		return nil
+	}
+	_, err = s.run("resize-pane", "-Z", "-t", s.rail())
+	return err
+}
+
 // focusRail puts focus on the rail.
 func (s *server) focusRail() error {
 	_, err := s.run("select-pane", "-t", s.rail())

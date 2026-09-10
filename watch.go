@@ -214,30 +214,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			place(bp)
 		}
 	}
-	// What will not fit scrolls, so the cursor's row is in view, and the
-	// rows out of view are counted on the last row.
-	if height > 0 && len(c.rows)+len(body) > room {
-		visible := max(room-len(c.rows)-1, 0)
-		top := 0
-		if cursorRow >= visible {
-			top = cursorRow - visible + 1
-		}
-		below := len(body) - top - visible
-		body = body[top:min(top+visible, len(body))]
-		d := canvas{p: p, width: width}
-		l := d.line()
-		note := []string{}
-		if top > 0 {
-			note = append(note, strconv.Itoa(top)+" ABOVE")
-		}
-		if below > 0 {
-			note = append(note, strconv.Itoa(below)+" BELOW")
-		}
-		l.add(p.gray, "… "+strings.Join(note, " · "))
-		d.emit(l, 0, false)
-		body = append(body, d.rows...)
-	}
-	c.rows = append(c.rows, body...)
+	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
 	// The bottom row is a note's, when there is one, and otherwise the
 	// ground: the keys are learned once, and a legend on every row of

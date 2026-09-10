@@ -42,6 +42,19 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
+// scanProjects walks the roots off the loop; what it found, or why it
+// could not, comes back as a message.
+func (m model) scanProjects() tea.Cmd {
+	roots := projectRoots(m.head.session.home)
+	return func() tea.Msg {
+		ps, err := findProjects(roots)
+		if err != nil {
+			return projectsMsg{err: "THE ROOTS COULD NOT BE WALKED: " + err.Error()}
+		}
+		return projectsMsg{projects: ps}
+	}
+}
+
 // hasPid says whether a process is among what was read.
 func hasPid(places []place, pid int) bool {
 	for _, pl := range places {

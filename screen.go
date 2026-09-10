@@ -379,6 +379,34 @@ func (c *canvas) rule(stage, measure int) {
 	c.emit(l, stage, false)
 }
 
+// scrolled is a body of rows kept to the room there is for it, with the
+// cursor's row in view: the rows out of view are counted on a row of
+// their own at the foot, which is part of the room.
+func scrolled(body []row, cursorRow, room, width int, p palette) []row {
+	if room <= 0 || len(body) <= room {
+		return body
+	}
+	visible := max(room-1, 0)
+	top := 0
+	if cursorRow >= visible {
+		top = cursorRow - visible + 1
+	}
+	below := len(body) - top - visible
+	body = body[top:min(top+visible, len(body))]
+	d := canvas{p: p, width: width}
+	l := d.line()
+	note := []string{}
+	if top > 0 {
+		note = append(note, strconv.Itoa(top)+" ABOVE")
+	}
+	if below > 0 {
+		note = append(note, strconv.Itoa(below)+" BELOW")
+	}
+	l.add(p.gray, "… "+strings.Join(note, " · "))
+	d.emit(l, 0, false)
+	return append(body, d.rows...)
+}
+
 // cased is a value as the console sets it: in capitals, unless it is a
 // path.
 func cased(value string, path bool) string {

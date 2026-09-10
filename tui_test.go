@@ -229,3 +229,82 @@ func TestTheReachedRowIsTheSlotAtOnce(t *testing.T) {
 		}
 	}
 }
+
+// p leaves the watch for the list and walks the roots; what is typed
+// narrows the rows and puts the cursor back at the top; the arrows and
+// ctrl+n and ctrl+p move it, held within the rows there are; esc comes
+// back to the watch, and the watch reads again.
+func TestTheListIsALineTypedInto(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.width, m.height = viewWatch, 48, 30
+	key := func(m model, k string) (model, tea.Cmd) {
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k, Code: rune(k[0])}))
+		return next.(model), cmd
+	}
+	m, cmd := key(m, "p")
+	if m.view != viewProjects || !m.scanning || cmd == nil {
+		t.Fatalf("after p: view %d, scanning %v, cmd %v", m.view, m.scanning, cmd != nil)
+	}
+	next, _ := m.Update(projectsMsg{projects: testProjects})
+	m = next.(model)
+	if m.scanning || len(m.projectRows()) != len(testProjects) {
+		t.Errorf("with the roots walked: scanning %v, %d rows", m.scanning, len(m.projectRows()))
+	}
+	// The letters the watch is worked by are characters here.
+	for _, k := range []string{"c", "o", "n", "n"} {
+		m, _ = key(m, k)
+	}
+	if m.filter != "conn" || m.view != viewProjects {
+		t.Fatalf("typed: filter %q, view %d", m.filter, m.view)
+	}
+	if rows := m.projectRows(); len(rows) != 2 || rows[1].name != "conn" {
+		t.Errorf("conn leaves %d rows", len(rows))
+	}
+	// The cursor is held within them, and backspace widens them again.
+	for range 5 {
+		m, _ = key(m, "down")
+	}
+	if m.pcursor != 1 {
+		t.Errorf("the cursor ran to %d of 2 rows", m.pcursor)
+	}
+	m, _ = key(m, "ctrl+p")
+	if m.pcursor != 0 {
+		t.Errorf("ctrl+p left the cursor at %d", m.pcursor)
+	}
+	m, _ = key(m, "backspace")
+	if m.filter != "con" || m.pcursor != 0 {
+		t.Errorf("after backspace: filter %q, cursor %d", m.filter, m.pcursor)
+	}
+	m, _ = key(m, "ctrl+u")
+	if m.filter != "" {
+		t.Errorf("ctrl+u left %q", m.filter)
+	}
+	m, cmd = key(m, "esc")
+	if m.view != viewWatch || cmd == nil {
+		t.Errorf("after esc: view %d, cmd %v", m.view, cmd != nil)
+	}
+}
+
+// Enter on a row opens a shell at that project and comes back to the
+// watch, where the shell will show. Outside the server nothing can be
+// opened, and the list says so on the bottom row.
+func TestEnterOpensAShellAtTheProject(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.projects, m.pcursor = viewProjects, testProjects, 3
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = next.(model)
+	if m.view != viewProjects || cmd != nil || m.note == "" {
+		t.Errorf("outside the server: view %d, note %q", m.view, m.note)
+	}
+	m.inside, m.srv, m.note = true, &server{tmux: "/nonexistent/tmux"}, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = next.(model)
+	if m.view != viewWatch || cmd == nil {
+		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
+	}
+	// The shell is opened at the row the cursor was on: the tmux that
+	// cannot be run says so as a note, which is where the path shows.
+	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
+		t.Errorf("enter did not both read the watch and open the shell: %T", cmd())
+	}
+}

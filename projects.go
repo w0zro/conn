@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // The projects: every place work could happen, where the watch is every
@@ -264,4 +266,189 @@ func relName(root, path string) string {
 		return filepath.Base(path)
 	}
 	return filepath.ToSlash(rel)
+}
+
+// The list is the projects as a page: a line to type into, and under it
+// every project, each group with its repositories beneath it. What is
+// typed narrows the rows — a project answers by its own name and by the
+// name of the folder that groups it, which is where the work is often
+// called by — and the cursor is on one row, which enter opens a shell
+// at. The list is drawn on the same measure as the watch, in the rail
+// beside the slot.
+
+// The list's words as things stand.
+type projectsReport struct {
+	filter   string
+	rows     []project // the projects the filter left, in the order they draw
+	total    int       // how many there are before it
+	roots    []string  // where conn looked, from ~, for when it found nothing
+	scanning bool
+	err      string
+	note     string
+}
+
+// composeProjects words the list: the filter's rows out of the whole,
+// and the count of both.
+func composeProjects(ps []project, filter string, roots []string, home string, scanning bool, err string) projectsReport {
+	b := projectsReport{filter: filter, rows: matching(ps, filter), total: len(ps), scanning: scanning, err: err}
+	for _, root := range roots {
+		b.roots = append(b.roots, tilde(root, home))
+	}
+	return b
+}
+
+// matching is the projects a filter leaves. A repository answers by its
+// own name and by its group's, since a group is what a piece of work is
+// often called by; a group answers by its name and by its
+// repositories', and carries down the ones that answered. A group's
+// count is what is under it, so the number says what is drawn.
+func matching(ps []project, filter string) []project {
+	f := strings.ToLower(strings.TrimSpace(filter))
+	if f == "" {
+		return ps
+	}
+	hit := func(p project) bool { return strings.Contains(strings.ToLower(p.name), f) }
+	var out []project
+	for i := 0; i < len(ps); {
+		p := ps[i]
+		if p.repos == 0 {
+			if hit(p) {
+				out = append(out, p)
+			}
+			i++
+			continue
+		}
+		var kids []project
+		j := i + 1
+		for ; j < len(ps) && ps[j].grouped; j++ {
+			if hit(p) || hit(ps[j]) {
+				kids = append(kids, ps[j])
+			}
+		}
+		if len(kids) > 0 {
+			p.repos = len(kids)
+			out = append(out, p)
+			out = append(out, kids...)
+		}
+		i = j
+	}
+	return out
+}
+
+// The list's columns: the name from the margin, a group's repositories
+// indented under it, and a group's count flush with the measure. The
+// filter's line puts what is typed where a name goes, so the rows read
+// down from it.
+const (
+	nestW = 2
+	findW = 6
+	caret = "▏"
+)
+
+// drawProjects renders the list for a terminal of the given size, with
+// the cursor on the given row.
+func drawProjects(b projectsReport, cursor, width, height int, p palette) []row {
+	width = max(width, railMinCols)
+	measure, _, _ := columns(width)
+	c := canvas{p: p, width: width}
+
+	// The header: the name of the view, and against the right the count
+	// — of everything, or of what the filter left out of it.
+	c.blank(0)
+	l := c.line()
+	l.add(p.orange+p.bold, "PROJECTS")
+	right := strconv.Itoa(b.total) + " FOUND"
+	switch {
+	case b.scanning && b.total == 0:
+		right = "" // nothing has been found yet, and none is not a count
+	case b.filter != "":
+		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
+	}
+	l.to(measure - utf8.RuneCountInString(right))
+	l.add(p.gray, right)
+	c.emit(l, 0, false)
+	c.rule(0, measure)
+
+	// The line typed into: the word, and the filter with the caret after
+	// it, so it is plain that the keys go here.
+	l = c.line()
+	l.add(p.gray, "FIND")
+	l.to(findW)
+	l.add(p.ink+p.bold, fit(b.filter, measure-findW-1, false))
+	l.add(p.orange+p.bold, caret)
+	c.emit(l, 0, false)
+
+	room := height - 1 // the bottom row is kept for a note
+	if height == 0 {
+		room = 1 << 30
+	}
+	var body []row
+	cursorRow := -1
+	d := canvas{p: p, width: width}
+	say := func(color, s string) {
+		d.blank(0)
+		l := d.line()
+		l.add(color, s)
+		d.emit(l, 0, true)
+		body = d.rows
+	}
+	switch {
+	case b.err != "":
+		say(p.chip, " "+strings.ToUpper(b.err)+" ")
+	case b.scanning && len(b.rows) == 0:
+		say(p.gray, "SCANNING")
+	case len(b.rows) == 0 && b.filter != "":
+		say(p.gray, "NOTHING ANSWERS TO "+strings.ToUpper(b.filter))
+	case len(b.rows) == 0:
+		say(p.gray, "NO REPOSITORIES UNDER "+strings.ToUpper(strings.Join(b.roots, " · ")))
+	default:
+		d.blank(0)
+		for i, pr := range b.rows {
+			l := d.line()
+			if i == cursor {
+				l.p = p.chosen()
+				if p.plain {
+					l.mark = "▸"
+				}
+				cursorRow = len(d.rows)
+			}
+			// A group is a title with its repositories under it, the way a
+			// place is on the watch; a repository that stands alone is a
+			// row at the margin like any other.
+			switch {
+			case pr.repos > 0:
+				count := strconv.Itoa(pr.repos) + " REPO"
+				if pr.repos != 1 {
+					count += "S"
+				}
+				l.add(p.parchment+p.bold, fit(pr.name, measure-utf8.RuneCountInString(count)-2, true))
+				l.to(measure - utf8.RuneCountInString(count))
+				l.add(p.gray, count)
+			case pr.grouped:
+				l.to(nestW)
+				l.add(p.ink, fit(pr.name, measure-nestW, true))
+			default:
+				l.add(p.ink, fit(pr.name, measure, true))
+			}
+			d.emit(l, 0, false)
+		}
+		body = d.rows
+	}
+	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
+
+	// The bottom row is a note's, when there is one, and the ground
+	// otherwise, as on the watch.
+	if height > 0 {
+		for len(c.rows) < height-1 {
+			c.blank(0)
+		}
+		if b.note == "" {
+			c.blank(0)
+		} else {
+			l := c.line()
+			l.add(p.owed, fit(b.note, measure, false))
+			c.emit(l, 0, true)
+		}
+	}
+	return c.rows
 }

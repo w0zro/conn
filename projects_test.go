@@ -3,7 +3,9 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // mkRepo makes a directory and puts a .git in it.
@@ -139,4 +141,103 @@ func equal(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// testProjects is a list as the roots would give it: two groups, the
+// repositories that stand alone among them, and one name qualified by
+// the root it came from.
+var testProjects = []project{
+	{name: "arboreum.io", path: "/Users/w0zro/projects/arboreum.io", repos: 2},
+	{name: "content", path: "/Users/w0zro/projects/arboreum.io/content", grouped: true},
+	{name: "welcome", path: "/Users/w0zro/projects/arboreum.io/welcome", grouped: true},
+	{name: "compose-demo", path: "/Users/w0zro/projects/compose-demo"},
+	{name: "experiments/one-off", path: "/Users/w0zro/projects/experiments/one-off"},
+	{name: "work/api", path: "/work/api"},
+	{name: "w0zro", path: "/Users/w0zro/projects/w0zro", repos: 3},
+	{name: "conn", path: "/Users/w0zro/projects/w0zro/conn", grouped: true},
+	{name: "quickfix-pro", path: "/Users/w0zro/projects/w0zro/quickfix-pro", grouped: true},
+	{name: "vim.pro", path: "/Users/w0zro/projects/w0zro/vim.pro", grouped: true},
+}
+
+func testList(filter string) projectsReport {
+	return composeProjects(testProjects, filter, []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
+}
+
+// The list in the rail, the list narrowed, and the list with nothing
+// found yet are files of record.
+func TestProjectsMatchTheGolden(t *testing.T) {
+	golden(t, "projects-48x30.txt", texts(drawProjects(testList(""), 0, 48, 30, plain)))
+	golden(t, "projects-filtered-48x30.txt", texts(drawProjects(testList("pro"), 2, 48, 30, plain)))
+	empty := composeProjects(nil, "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", true, "")
+	golden(t, "projects-scanning-48x30.txt", texts(drawProjects(empty, 0, 48, 30, plain)))
+	failed := composeProjects(nil, "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "THE ROOTS COULD NOT BE WALKED: no such directory")
+	golden(t, "projects-unwalked-48x30.txt", texts(drawProjects(failed, 0, 48, 30, plain)))
+}
+
+// The list's rows hold: the count against the right, the filter on its
+// own line, a group's repositories indented under it, the cursor on one
+// row, no row past the width, and the bottom row left for a note.
+func TestProjectsLayOut(t *testing.T) {
+	rows := drawProjects(testList(""), 6, 48, 30, plain)
+	text := texts(rows)
+	for _, s := range []string{
+		"PROJECTS", "10 FOUND", "FIND  ▏",
+		"arboreum.io", "2 REPOS", "  content", "compose-demo",
+		"experiments/one-off", " ▸ w0zro", "3 REPOS", "  conn",
+	} {
+		if !strings.Contains(text, s) {
+			t.Errorf("the list lacks %q:\n%s", s, text)
+		}
+	}
+	if len(rows) != 30 || strings.TrimSpace(rows[29].text) != "" {
+		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
+	}
+	if strings.Count(text, "▸") != 1 {
+		t.Errorf("the cursor marks %d rows", strings.Count(text, "▸"))
+	}
+	for _, r := range drawProjects(testList("conn"), 0, 48, 30, colored()) {
+		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != 48 {
+			t.Errorf("a colored row paints %d columns", w)
+		}
+	}
+	// A note has the bottom row, and the filter is on the header's count.
+	b := testList("pro")
+	b.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
+	text = texts(drawProjects(b, 0, 48, 30, plain))
+	if !strings.Contains(text, "3 OF 10") || !strings.Contains(text, "NOTHING CAN BE OPENED") {
+		t.Errorf("narrowed, with a note:\n%s", text)
+	}
+}
+
+// A project answers the filter by its own name and by the name of the
+// folder that groups it; a group answers for its repositories, and
+// carries down the ones that answered, so its count says what is drawn.
+func TestTheFilterAnswersByNameAndByGroup(t *testing.T) {
+	for _, c := range []struct {
+		filter string
+		want   []string
+	}{
+		{"", []string{"arboreum.io/", "  content", "  welcome", "compose-demo", "experiments/one-off", "work/api", "w0zro/", "  conn", "  quickfix-pro", "  vim.pro"}},
+		{"pro", []string{"w0zro/", "  quickfix-pro", "  vim.pro"}},
+		{"w0zro", []string{"w0zro/", "  conn", "  quickfix-pro", "  vim.pro"}},
+		{"CONN", []string{"w0zro/", "  conn"}},
+		{"arbo", []string{"arboreum.io/", "  content", "  welcome"}},
+		{"nothing at all", nil},
+	} {
+		if got := names(matching(testProjects, c.filter)); !equal(got, c.want) {
+			t.Errorf("%q leaves %q, not %q", c.filter, got, c.want)
+		}
+	}
+	if got := matching(testProjects, "quickfix"); len(got) != 2 || got[0].repos != 1 {
+		t.Errorf("a group narrowed to one repository says %+v", got)
+	}
+}
+
+// A list taller than the terminal scrolls to keep the cursor in view.
+func TestAListThatWillNotFitScrolls(t *testing.T) {
+	rows := drawProjects(testList(""), 9, 48, 10, plain)
+	text := texts(rows)
+	if len(rows) != 10 || !strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸   vim.pro") {
+		t.Errorf("at 48x10 with the cursor on the last row:\n%s", text)
+	}
 }

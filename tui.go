@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -16,7 +17,7 @@ var (
 	inkColor    = color.RGBA{R: 230, G: 223, B: 208, A: 255}
 )
 
-// The program holds two views. The console comes on first: the header
+// The program holds three views. The console comes on first: the header
 // at once, from what is known before anything is read; the station is
 // read meanwhile, and the readout comes on when it is in hand and its
 // beat has passed, then the checks one by one, then the verdict, in
@@ -29,6 +30,13 @@ var (
 // again on the way back to the watch. The words of both are said
 // again each second, from what was read and the clock as it stands.
 //
+// p is the list: every project the roots hold, whether anything is
+// running in it or not, walked as the view comes on. It is a line typed
+// into, so the keys the other views are worked by are characters there;
+// enter opens a shell at the row under the cursor and comes back to the
+// watch, where the shell shows, and esc comes back without opening
+// anything.
+//
 // In conn's tmux server, conn is the rail on the left of the home
 // window; when the watch first comes on it opens the slot beside it,
 // with a hold in it, and opens it again should it close. Enter puts
@@ -40,6 +48,7 @@ var (
 const (
 	viewConsole = iota
 	viewWatch
+	viewProjects
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -90,6 +99,10 @@ type (
 	reachedMsg   struct{ tty string }  // a process was put in the slot
 	blinkMsg     struct{ gen int }     // the chip's half is up
 	noteMsg      struct{ note string }
+	projectsMsg  struct { // the roots were walked
+		projects []project
+		err      string
+	}
 )
 
 type model struct {
@@ -113,8 +126,15 @@ type model struct {
 	until    time.Time
 	watchErr string
 	watchGen int // which stay on the watch the ticks belong to
-	uid      int
-	roots    func(string) string
+	// The list: the projects as the roots were last walked, what has been
+	// typed to narrow them, and which of the rows the cursor is on.
+	projects    []project
+	filter      string
+	pcursor     int
+	scanning    bool
+	projectsErr string
+	uid         int
+	roots       func(string) string
 
 	srv    *server         // conn's tmux server, when there is one
 	inside bool            // this conn is the rail of the server's home window
@@ -150,6 +170,18 @@ func (m model) watchReport() watchReport {
 	w := composeWatch(m.places, m.panes, m.slot, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
 	w.inside, w.note = m.inside, m.note
 	return w
+}
+
+// projectsReport is the list's words as things stand, and projectRows
+// the rows the filter leaves, which the cursor is an index into.
+func (m model) projectsReport() projectsReport {
+	b := composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
+	b.note = m.note
+	return b
+}
+
+func (m model) projectRows() []project {
+	return matching(m.projects, m.filter)
 }
 
 func (m model) Init() tea.Cmd {
@@ -296,6 +328,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.readWatch()
+	case projectsMsg:
+		m.projects, m.projectsErr, m.scanning = msg.projects, msg.err, false
+		m.pcursor = clamp(m.pcursor, len(m.projectRows()))
 	case noteMsg:
 		m.note = msg.note
 	case tea.KeyPressMsg:
@@ -311,6 +346,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // watch c brings the console back over the whole window,
 // enter reaches the cursor's process, and s opens a shell at its place.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
+	if m.view == viewProjects {
+		return m.projectKey(k)
+	}
 	switch {
 	case k == "ctrl+c" || k == "q":
 		if m.inside {
@@ -360,8 +398,73 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		default:
 			return m, m.openShell(pl.path)
 		}
+	case k == "p":
+		m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
+		return m, m.scanProjects()
 	}
 	return m, nil
+}
+
+// projectKey answers a key on the list, which is a line typed into: a
+// key that stands for a character goes to the filter, so the letters the
+// other views are worked by are themselves here. Up and down move the
+// cursor, and ctrl+n and ctrl+p do too, since a hand on a filter is a
+// hand that cannot reach j and k; enter opens a shell at the row under
+// the cursor and goes back to the watch, which is where the shell will
+// show; esc goes back without opening anything, and ctrl+c is what it is
+// everywhere.
+func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
+	rows := m.projectRows()
+	switch {
+	case k == "ctrl+c":
+		if m.inside {
+			return m, m.serverCmd(func() error { return m.srv.detach() }, "")
+		}
+		return m, tea.Quit
+	case k == "esc":
+		return m.toWatch()
+	case k == "enter":
+		switch {
+		case !m.inside:
+			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
+		case m.pcursor >= len(rows):
+			m.note = "NO PROJECT UNDER THE CURSOR"
+		default:
+			path := rows[m.pcursor].path
+			mm, cmd := m.toWatch()
+			m = mm.(model)
+			return m, tea.Batch(cmd, m.openShell(path))
+		}
+	case k == "up" || k == "ctrl+p":
+		m.pcursor = clamp(m.pcursor-1, len(rows))
+	case k == "down" || k == "ctrl+n":
+		m.pcursor = clamp(m.pcursor+1, len(rows))
+	case k == "backspace":
+		if r := []rune(m.filter); len(r) > 0 {
+			m.filter = string(r[:len(r)-1])
+		}
+		m.pcursor = 0
+	case k == "ctrl+u":
+		m.filter, m.pcursor = "", 0
+	case k == "space":
+		m.filter, m.pcursor = m.filter+" ", 0
+	case utf8.RuneCountInString(k) == 1:
+		m.filter, m.pcursor = m.filter+k, 0
+	}
+	return m, nil
+}
+
+// toWatch leaves the list for the watch, which starts reading again.
+func (m model) toWatch() (tea.Model, tea.Cmd) {
+	m.view = viewWatch
+	m.watchGen++
+	return m, m.readWatch()
+}
+
+// clamp holds an index within the rows there are; with no rows it is
+// the first, which is no row.
+func clamp(at, rows int) int {
+	return min(max(at, 0), max(rows-1, 0))
 }
 
 // under is the entry and the place under the cursor.
@@ -417,6 +520,8 @@ func (m model) View() tea.View {
 	switch m.view {
 	case viewWatch:
 		rows = drawWatch(m.watchReport(), m.cursor, m.width, m.height, m.p)
+	case viewProjects:
+		rows = drawProjects(m.projectsReport(), m.pcursor, m.width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit

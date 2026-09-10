@@ -26,9 +26,21 @@ in.
 Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.
 A program that writes its own hex instead asks for none of them, and tmux
-passes those through untouched, so conn's palette cannot reach it. For one
-of those, `conn theme claude` writes `~/.claude/themes/conn.json` from the
-same table, so the two cannot drift apart. The theme sits on Claude Code's
+passes those through untouched, so conn's palette cannot reach it. There is
+a theme for each of those conn knows about, written from the same table, so
+none of them can drift from the palette:
+
+```sh
+conn theme claude   # ~/.claude/themes/conn.json
+conn theme vim      # ~/.config/nvim/colors/conn.vim
+```
+
+nvim takes its colorscheme with `colorscheme conn`; every color in it
+carries the slot it is as well as its hex, so it holds up where sixteen is
+all a terminal was given, and a ground that is no slot takes the pane's
+own. conn is one ground and does not follow the system.
+
+`conn theme claude` writes its file. The theme sits on Claude Code's
 `dark-ansi` base and names a slot wherever a token has a slot-shaped
 meaning, so most of it follows the pane's own sixteen; only the grounds no
 slot has a name for — the washes under a diff, the bar behind a message —

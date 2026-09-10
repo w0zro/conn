@@ -12,17 +12,20 @@ import (
 
 // dressProgram writes a theme for a program conn holds but cannot dress
 // through its server, since the program writes its own hex rather than
-// asking for a color by name. Claude Code is the one so far. It answers
+// asking for a color by name: Claude Code and nvim. It answers
 // what to say and whether it went well; ask says yes to a question, and
 // is nil where there is nobody to ask.
 func dressProgram(args []string, home string, ask func(string) bool) (string, bool) {
 	if len(args) != 1 {
-		return "conn theme: say which program: conn theme claude\n", false
+		return "conn theme: say which program: conn theme claude, conn theme vim\n", false
 	}
-	if args[0] != "claude" {
-		return fmt.Sprintf("conn theme: conn has no theme for %s; it has one for claude\n", args[0]), false
+	switch args[0] {
+	case "claude":
+		return dressClaude(home, ask)
+	case "vim", "nvim":
+		return dressVim(home)
 	}
-	return dressClaude(home, ask)
+	return fmt.Sprintf("conn theme: conn has no theme for %s; it has one for claude and one for vim\n", args[0]), false
 }
 
 // dressClaude writes the theme, and offers to put Claude Code on it

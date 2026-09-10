@@ -171,10 +171,11 @@ func TestConnWritesTheThemeAndOffersOnce(t *testing.T) {
 	}
 }
 
-// conn dresses one program it holds, and says so for any other.
-func TestConnDressesClaudeAndSaysSoOtherwise(t *testing.T) {
+// conn dresses the programs it has a theme for, and says so for any
+// other.
+func TestConnDressesWhatItHasAThemeFor(t *testing.T) {
 	home := t.TempDir()
-	for _, args := range [][]string{{}, {"vim"}, {"claude", "dark"}} {
+	for _, args := range [][]string{{}, {"emacs"}, {"claude", "dark"}} {
 		if _, ok := dressProgram(args, home, nil); ok {
 			t.Errorf("conn theme %v was taken", args)
 		}

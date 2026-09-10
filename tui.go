@@ -53,8 +53,17 @@ func (m model) stageDelay(stage int) time.Duration {
 	}
 }
 
-// watchEvery is how often the watch reads the process table.
-const watchEvery = 2 * time.Second
+// watchEvery is how often the watch reads the process table at rest.
+// While it is waiting on a process conn has just started, it reads
+// again as soon as it can: a shell takes a moment to reach the table,
+// and two seconds of the cursor sitting on the old row is the shell
+// feeling slow to open. waitForOpened is how long that is worth doing
+// before giving the process up.
+const (
+	watchEvery    = 2 * time.Second
+	watchSoon     = 150 * time.Millisecond
+	waitForOpened = 3 * time.Second
+)
 
 // The console's alarms blink like annunciators on a panel: lit for a
 // second, dark for half of one. The dark is the shorter half — the
@@ -76,9 +85,12 @@ type (
 		gen    int
 	}
 	watchTickMsg struct{ gen int } // the watch is due to be read again
-	openedMsg    struct{ pid int } // a shell was opened, and is the cursor's
-	blinkMsg     struct{}          // the chip's half is up
-	noteMsg      struct{ note string }
+	openedMsg    struct {          // a shell was opened, and is the cursor's
+		shell shell
+		place string
+	}
+	blinkMsg struct{} // the chip's half is up
+	noteMsg  struct{ note string }
 )
 
 type model struct {
@@ -95,16 +107,16 @@ type model struct {
 	places   []place
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
-	// A process conn has just started is the cursor's as soon as it is
-	// read. It is waited on for a reading or two and then given up on,
-	// so a shell that never came up cannot claim the cursor later.
-	wanted     int
-	wantedLeft int
-	watchErr   string
-	watchGen   int // which stay on the watch the ticks belong to
-	pid        int // this process
-	uid        int
-	roots      func(string) string
+	// A row for a process conn has just started. It is shown from the
+	// moment the process is made, out of what tmux said about it, and
+	// kept until the process table catches up — or until the wait is
+	// out, so a shell that never came up is not a row forever.
+	pending  *pendingRow
+	watchErr string
+	watchGen int // which stay on the watch the ticks belong to
+	pid      int // this process
+	uid      int
+	roots    func(string) string
 
 	srv    *server         // conn's tmux server, when there is one
 	inside bool            // this conn is the rail of the server's home window
@@ -203,9 +215,14 @@ func (m model) nextBlink() tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg { return blinkMsg{} })
 }
 
+// watchTick is when the watch reads again: at once while it waits on a
+// process conn started, and at its own pace otherwise.
 func (m model) watchTick() tea.Cmd {
-	gen := m.watchGen
-	return tea.Tick(watchEvery, func(time.Time) tea.Msg { return watchTickMsg{gen} })
+	gen, every := m.watchGen, watchEvery
+	if m.pending != nil {
+		every = watchSoon
+	}
+	return tea.Tick(every, func(time.Time) tea.Msg { return watchTickMsg{gen} })
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -234,10 +251,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.now = time.Now()
 		return m, nextSecond(m.now)
 	case openedMsg:
-		// The shell is the cursor's now; read again at once rather than
-		// waiting out the tick, so the row it is on comes up under the
-		// hand that opened it.
-		m.wanted, m.wantedLeft = msg.pid, waitForOpened
+		// tmux made the shell and said what it is, so the row exists now
+		// rather than whenever the process table next says so: conn draws
+		// it, puts the cursor on it, and reads again to catch up.
+		e := entry{
+			pid: msg.shell.pid, kind: kindShell, command: msg.shell.command,
+			tty: msg.shell.pane.tty, started: m.now, status: statusIdle,
+		}
+		m.pending = &pendingRow{row: e, pane: msg.shell.pane, place: msg.place, until: time.Now().Add(waitForOpened)}
+		m.places = withRow(m.places, msg.place, e)
+		if m.panes == nil {
+			m.panes = map[string]pane{}
+		}
+		m.panes[e.tty], m.slot = msg.shell.pane, e.tty
+		m.cursor, m.cursorAt = follow(m.places, e.pid, m.cursorAt)
 		m.watchGen++
 		return m, m.readWatch()
 	case blinkMsg:
@@ -247,18 +274,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.watchGen {
 			return m, nil
 		}
-		m.places, m.panes, m.slot, m.watchErr = msg.places, msg.panes, msg.slot, msg.err
-		if m.wanted != 0 {
+		// The row conn made for a shell it opened stands until the reading
+		// has the process itself, and the pane and the slot with it.
+		if m.pending != nil {
 			switch {
-			case hasPid(m.places, m.wanted):
-				m.cursor, m.wanted = m.wanted, 0
+			case hasPid(msg.places, m.pending.row.pid), time.Now().After(m.pending.until):
+				m.pending = nil
 			default:
-				m.wantedLeft--
-				if m.wantedLeft <= 0 {
-					m.wanted = 0
+				msg.places = withRow(msg.places, m.pending.place, m.pending.row)
+				if msg.panes == nil {
+					msg.panes = map[string]pane{}
 				}
+				msg.panes[m.pending.row.tty] = m.pending.pane
+				msg.slot = m.pending.row.tty
 			}
 		}
+		m.places, m.panes, m.slot, m.watchErr = msg.places, msg.panes, msg.slot, msg.err
 		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
 		if m.view == viewWatch {
 			return m, m.watchTick()
@@ -333,7 +364,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			m.note = "NO PLACE UNDER THE CURSOR"
 		default:
 			dir := pl.path
-			return m, m.openShell(dir)
+			return m, m.openShell(dir, pl.path)
 		}
 	}
 	return m, nil
@@ -351,21 +382,44 @@ func (m model) under() (entry, place, bool) {
 	return entry{}, place{}, false
 }
 
-// waitForOpened is how many readings a process conn started is waited
-// on for before the cursor gives up on it.
-const waitForOpened = 3
+// A row conn made for a process it started, before the process table
+// has it: the row, the pane it is in, where it goes, and how long it
+// stands.
+type pendingRow struct {
+	row   entry
+	pane  pane
+	place string
+	until time.Time
+}
 
-// openShell opens a shell at a place, off the loop, and hands back the
-// process it started so the cursor can go to it.
-func (m model) openShell(dir string) tea.Cmd {
+// openShell opens a shell at a place, off the loop, and hands back what
+// tmux said of it, which is a row.
+func (m model) openShell(dir, place string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		pid, err := srv.open(dir)
+		sh, err := srv.open(dir)
 		if err != nil {
 			return noteMsg{strings.ToUpper(err.Error())}
 		}
-		return openedMsg{pid}
+		return openedMsg{shell: sh, place: place}
 	}
+}
+
+// withRow is the places with a row at the top of the place it belongs
+// to; a place nothing was happening in yet is made for it. The places
+// it is given are left as they were: a reading is composed once and
+// held, and a row conn adds to what it shows must not become a row of
+// the reading itself.
+func withRow(places []place, at string, e entry) []place {
+	out := make([]place, len(places))
+	copy(out, places)
+	for i, pl := range out {
+		if pl.path == at {
+			out[i].entries = append([]entry{e}, pl.entries...)
+			return out
+		}
+	}
+	return append([]place{{path: at, entries: []entry{e}}}, out...)
 }
 
 // hasPid says whether a process is among what was read.

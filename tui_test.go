@@ -128,53 +128,67 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	}
 }
 
-// A shell conn opens is the cursor's as soon as it is read: the model
-// waits for the process it started, and the reading that brings it puts
-// the cursor there. A process that never appears is given up on, so it
-// cannot claim the cursor later on a pid that came round again.
-func TestTheCursorGoesToWhatConnOpened(t *testing.T) {
+// A shell conn opens is a row the moment it is made: tmux says the pid,
+// the pane and the terminal, which is everything a row needs, so the
+// row and the cursor are there before the process table has heard of
+// it. The row stands until a reading brings the process itself, and is
+// given up on if none ever does.
+func TestTheRowIsThereWhenTheShellIsMade(t *testing.T) {
 	here := []place{{path: "/w", entries: []entry{{pid: 11}, {pid: 22}}}}
-	andTheShell := []place{{path: "/w", entries: []entry{{pid: 11}, {pid: 22}, {pid: 4242}}}}
 	read := func(m model, places []place) model {
 		next, _ := m.Update(watchMsg{places: places, gen: m.watchGen})
 		return next.(model)
 	}
+	opened := openedMsg{
+		shell: shell{pane: pane{id: "%9", tty: "ttys009"}, pid: 4242, command: "zsh"},
+		place: "/w",
+	}
 
 	m := newModel(plain)
-	m.view, m.cursor = viewWatch, 11
+	m.view, m.cursor, m.now = viewWatch, 11, time.Now()
 	m = read(m, here)
 
-	next, cmd := m.Update(openedMsg{4242})
+	next, cmd := m.Update(opened)
 	m = next.(model)
-	if m.wanted != 4242 || m.wantedLeft != waitForOpened {
-		t.Errorf("the shell is not waited on: wanted %d for %d", m.wanted, m.wantedLeft)
-	}
 	if cmd == nil {
-		t.Error("the watch was not read again at once")
+		t.Error("the watch was not read again")
+	}
+	// The row is up at once, at the top of its place, and is the cursor's.
+	if m.cursor != 4242 {
+		t.Errorf("the cursor is on %d, not the shell", m.cursor)
+	}
+	if !hasPid(m.places, 4242) {
+		t.Error("the shell is not a row yet")
+	}
+	if got := m.places[0].entries[0]; got.pid != 4242 || got.kind != kindShell || got.command != "zsh" {
+		t.Errorf("the row conn made: %+v", got)
+	}
+	// It is in a pane of the server, and it is what the slot holds, so it
+	// draws as reachable and as the one shown rather than as neither.
+	if m.slot != "ttys009" || m.panes["ttys009"].id != "%9" {
+		t.Errorf("slot %q, panes %v", m.slot, m.panes)
 	}
 
-	// It is not there yet: the cursor stays where it was.
+	// A reading without it yet keeps the row and the cursor where they are.
 	m = read(m, here)
-	if m.cursor != 11 || m.wanted != 4242 {
-		t.Errorf("cursor %d, still waiting on %d", m.cursor, m.wanted)
+	if m.cursor != 4242 || !hasPid(m.places, 4242) || m.pending == nil {
+		t.Errorf("the row did not stand: cursor %d, pending %v", m.cursor, m.pending)
 	}
-	// The reading that brings it moves the cursor, and the wait is over.
-	m = read(m, andTheShell)
-	if m.cursor != 4242 || m.wanted != 0 {
-		t.Errorf("cursor %d, wanted %d: the shell should have it", m.cursor, m.wanted)
+	// The reading that brings the process takes the row over.
+	withIt := []place{{path: "/w", entries: []entry{{pid: 4242, kind: kindShell}, {pid: 11}, {pid: 22}}}}
+	m = read(m, withIt)
+	if m.pending != nil || m.cursor != 4242 {
+		t.Errorf("the made row outlived the read one: pending %v, cursor %d", m.pending, m.cursor)
 	}
 
-	// A shell that never comes up is given up on, and the cursor is left
-	// where the user had it.
-	m.cursor, m.wanted, m.wantedLeft = 11, 9999, waitForOpened
-	for range waitForOpened {
-		m = read(m, here)
+	// A shell that never comes up stops being a row once the wait is out.
+	m.pending = &pendingRow{row: entry{pid: 9999}, place: "/w", until: time.Now().Add(-time.Second)}
+	m.cursor = 11
+	m = read(m, here)
+	if m.pending != nil || hasPid(m.places, 9999) {
+		t.Error("a shell that never came up is still a row")
 	}
-	if m.wanted != 0 {
-		t.Errorf("still waiting on %d after %d readings", m.wanted, waitForOpened)
-	}
-	m = read(m, append(here, place{path: "/x", entries: []entry{{pid: 9999}}}))
-	if m.cursor == 9999 {
-		t.Error("a pid that came round later took the cursor")
+	if m.cursor != 11 {
+		t.Errorf("the cursor moved to %d when the row went", m.cursor)
 	}
 }

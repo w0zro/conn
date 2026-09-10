@@ -291,23 +291,37 @@ func (s *server) show(target pane) error {
 	return err
 }
 
-// open opens a shell at a directory, in a window of its own, and shows
-// it in the slot. It answers the shell's process, so the watch can put
-// its cursor on the row that is about to appear.
-func (s *server) open(dir string) (int, error) {
-	out, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}\t#{pane_pid}", "-c", dir)
-	if err != nil {
-		return 0, err
-	}
-	id, pid := cutPanePid(out)
-	return pid, s.show(pane{id: id})
+// A shell conn opened, as tmux answers when it makes the window: the
+// pane it is in, the process in it, and what that process is called.
+// It is everything a row of the watch needs, so conn can show the row
+// at once rather than wait for the process table to notice.
+type shell struct {
+	pane    pane
+	pid     int
+	command string
 }
 
-// cutPanePid reads the pane and the process new-window printed.
-func cutPanePid(out string) (string, int) {
-	id, rest, _ := strings.Cut(strings.TrimSpace(out), "\t")
-	pid, _ := strconv.Atoi(strings.TrimSpace(rest))
-	return id, pid
+// open opens a shell at a directory, in a window of its own, and shows
+// it in the slot.
+func (s *server) open(dir string) (shell, error) {
+	out, err := s.run("new-window", "-d", "-P", "-F",
+		"#{pane_id}\t#{pane_pid}\t#{pane_tty}\t#{pane_current_command}", "-c", dir)
+	if err != nil {
+		return shell{}, err
+	}
+	sh := parseOpened(out)
+	return sh, s.show(sh.pane)
+}
+
+// parseOpened reads what new-window printed for the pane it made.
+func parseOpened(out string) shell {
+	f := strings.Split(strings.TrimSpace(out), "\t")
+	for len(f) < 4 {
+		f = append(f, "")
+	}
+	sh := shell{pane: pane{id: f[0], tty: strings.TrimPrefix(f[2], "/dev/")}, command: f[3]}
+	sh.pid, _ = strconv.Atoi(f[1])
+	return sh
 }
 
 // wide gives the rail the whole window, which is what the console

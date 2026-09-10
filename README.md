@@ -23,6 +23,21 @@ directory is read there; Linux keeps it on /proc. Everything else conn was
 is in the history, and comes back piece by piece, in the form it is wanted
 in.
 
+Every pane of the server is drawn in conn's scheme: the ground and the ink,
+the cursor in the orange, and the sixteen colors a program asks for by name.
+A program that writes its own hex instead asks for none of them, and tmux
+passes those through untouched, so conn's palette cannot reach it. For one
+of those, `conn theme claude` prints a Claude Code theme drawn from the same
+table, so the two cannot drift apart:
+
+```sh
+conn theme claude > ~/.claude/themes/conn.json   # then pick it with /theme
+```
+
+conn prints it and stops there. Where the file goes, and whether it is the
+theme in use, is not conn's business: conn dresses its own server, not the
+programs it holds.
+
 ## Build it yourself
 
 ```sh

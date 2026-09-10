@@ -10,6 +10,21 @@ import (
 	"github.com/charmbracelet/colorprofile"
 )
 
+// themeFor prints a theme for a program conn holds but cannot dress
+// through its server, since the program writes its own hex rather than
+// asking for a color by name. Claude Code is the one so far.
+func themeFor(args []string) (string, error) {
+	if len(args) != 1 {
+		return "", fmt.Errorf("say which program: conn theme claude")
+	}
+	switch args[0] {
+	case "claude":
+		return claudeThemeJSON()
+	default:
+		return "", fmt.Errorf("conn has no theme for %s; it has one for claude", args[0])
+	}
+}
+
 // conn comes up on its boot console, reads out the machine, runs its
 // start-up checks, and continues to the watch. On a machine with tmux
 // the first conn brings up a tmux server of its own, with conn as the
@@ -27,6 +42,15 @@ func main() {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			os.Exit(1)
 		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "theme" {
+		out, err := themeFor(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "conn theme: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(out)
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "down" {

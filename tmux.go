@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // conn holds a tmux server of its own. The first conn brings it up with
@@ -339,4 +340,83 @@ bind C-Space last-pane
 // shellQuote quotes a path for a tmux command line.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// A window of the server, for the report of what conn down ends: its
+// name and the directory its pane is in.
+type window struct {
+	name, path string
+}
+
+// windows is every window in the server.
+func (s *server) windows() ([]window, error) {
+	out, err := s.run("list-windows", "-a", "-F", "#{window_name}\t#{pane_current_path}")
+	if err != nil {
+		return nil, err
+	}
+	return parseWindows(out), nil
+}
+
+// parseWindows reads list-windows: a name and a path per line.
+func parseWindows(out string) []window {
+	var ws []window
+	for _, l := range strings.Split(out, "\n") {
+		name, path, ok := strings.Cut(l, "\t")
+		if !ok {
+			continue
+		}
+		ws = append(ws, window{name: name, path: path})
+	}
+	return ws
+}
+
+// up says whether the server is up.
+func (s *server) up() bool {
+	_, err := s.run("has-session")
+	return err == nil
+}
+
+// down ends the server and everything in it.
+func (s *server) down() error {
+	_, err := s.run("kill-server")
+	return err
+}
+
+// takeDown is conn down: it takes the server down and says what went
+// with it, a line for each window and one for the server, the way
+// docker compose down does. With no server up it says so, and that is
+// not a failure. It answers what to say and whether it went well.
+func takeDown(srv *server, home string) (string, bool) {
+	if srv == nil {
+		return "conn: tmux is not on PATH; there is no server to take down\n", false
+	}
+	if !srv.up() {
+		return fmt.Sprintf("conn: no server up on %s\n", tilde(srv.socket, home)), true
+	}
+	ws, err := srv.windows()
+	if err != nil {
+		return fmt.Sprintf("conn: %v\n", err), false
+	}
+	if err := srv.down(); err != nil {
+		return fmt.Sprintf("conn: %v\n", err), false
+	}
+	return downReport(ws, srv.socket, home), true
+}
+
+// downReport is what conn down says of what it ended.
+func downReport(ws []window, socket, home string) string {
+	var lines []string
+	for _, w := range ws {
+		lines = append(lines, "Window "+join("  ", w.name, tilde(w.path, home)))
+	}
+	lines = append(lines, "Server "+tilde(socket, home))
+	width := 0
+	for _, l := range lines {
+		width = max(width, utf8.RuneCountInString(l))
+	}
+	var b strings.Builder
+	for _, l := range lines {
+		fmt.Fprintf(&b, " ✔ %-*s  ended\n", width, l)
+	}
+	return b.String()
 }

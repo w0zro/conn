@@ -14,9 +14,10 @@ import (
 // start-up checks, and continues to the watch. On a machine with tmux
 // the first conn brings up a tmux server of its own, with conn as the
 // rail of its home window and the slot beside it, and puts the terminal
-// on it; a later conn attaches to what is there. Without tmux, conn
-// shows the console and the watch and can reach nothing. Off a terminal
-// it writes the console and is done.
+// on it; a later conn attaches to what is there. conn down takes the
+// server down with everything in it. Without tmux, conn shows the
+// console and the watch and can reach nothing. Off a terminal it writes
+// the console and is done.
 // Everything else it was is in the history, and comes back piece by
 // piece, in the form it is wanted in.
 func main() {
@@ -26,6 +27,16 @@ func main() {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			os.Exit(1)
 		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "down" {
+		home, _ := os.UserHomeDir()
+		msg, ok := takeDown(findServer(home), home)
+		if !ok {
+			fmt.Fprint(os.Stderr, msg)
+			os.Exit(1)
+		}
+		fmt.Print(msg)
 		return
 	}
 	if !stdoutIsTerminal() {

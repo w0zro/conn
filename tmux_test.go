@@ -91,3 +91,24 @@ func TestTheTerminalIsAskedForTheGround(t *testing.T) {
 		t.Errorf("the panes are not drawn in %s", want)
 	}
 }
+
+// conn down says what it ended, a line for each window and one for the
+// server, the columns aligned; a window's path is written from ~.
+func TestDownSaysWhatItEnded(t *testing.T) {
+	ws := parseWindows("home\t/Users/w0zro\nzsh\t/Users/w0zro/projects/w0zro/conn\nclaude\t/Users/w0zro/projects/w0zro/vim.pro\n")
+	if len(ws) != 3 || ws[1] != (window{name: "zsh", path: "/Users/w0zro/projects/w0zro/conn"}) {
+		t.Errorf("windows: %+v", ws)
+	}
+	got := downReport(ws, "/Users/w0zro/.local/state/conn/tmux.sock", "/Users/w0zro")
+	want := "" +
+		" ✔ Window home  ~                           ended\n" +
+		" ✔ Window zsh  ~/projects/w0zro/conn        ended\n" +
+		" ✔ Window claude  ~/projects/w0zro/vim.pro  ended\n" +
+		" ✔ Server ~/.local/state/conn/tmux.sock     ended\n"
+	if got != want {
+		t.Errorf("report:\n%s\nwant:\n%s", got, want)
+	}
+	if got := downReport(nil, "/tmp/cs/sock", "/Users/w0zro"); got != " ✔ Server /tmp/cs/sock  ended\n" {
+		t.Errorf("report with no windows: %q", got)
+	}
+}

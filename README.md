@@ -13,8 +13,9 @@ place under the cursor and puts it in the slot, `enter` puts the process
 under the cursor there, and what leaves the slot goes back to a window of
 its own, out of sight, where it keeps running. `ctrl-space w` puts focus
 back on the rail, `ctrl-space ctrl-space` on the other pane. `q` detaches,
-and the server keeps everything in it for the next `conn`; `tmux -S
-~/.local/state/conn/tmux.sock kill-server` ends it. Without tmux, conn
+and the server keeps everything in it for the next `conn`; `conn down`
+takes the server down with everything in it, and says what went, the way
+`docker compose down` does. Without tmux, conn
 shows the console and the watch and reaches nothing. On macOS the watch needs `lsof`, which is how a process's working
 directory is read there; Linux keeps it on /proc. Everything else conn was
 is in the history, and comes back piece by piece, in the form it is wanted

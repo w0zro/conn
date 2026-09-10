@@ -1,5 +1,5 @@
 
-   CONN  WATCH                     03:00:00 Z
+   CONN                            03:00:00 Z
    ──────────────────────────────────────────
    KIND   COMMAND           AGE        STATUS
 

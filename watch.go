@@ -96,12 +96,12 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		commandW = ageCol - 1 - kindCol
 	}
 
-	// The header: the name, the view, and the station and clock against
-	// the right; a rule; the column heads.
+	// The header: the name, and the station and clock against the right;
+	// a rule; the column heads. The view goes unlabeled: it is what conn
+	// is when it is up.
 	c.blank(0)
 	l := c.line()
 	l.add(p.orange+p.bold, "CONN")
-	l.add(p.parchment+p.bold, "  WATCH")
 	right := strings.ToUpper(join("  ·  ", b.station, b.clock))
 	if rail {
 		_, right, _ = strings.Cut(strings.ToUpper(b.clock), "  ")

@@ -34,7 +34,7 @@ func TestWatchLaysOut(t *testing.T) {
 	text := texts(rows)
 	measure, _, _ := columns(120)
 	for _, s := range []string{
-		"CONN  WATCH", "W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z",
+		"CONN ", "W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z",
 		"KIND    COMMAND", "TTY", "AGE", "STATUS",
 		"~/projects/w0zro/conn", "1 PROCESS", "CONN    conn", "TTYS004", "1M 30S", "HERE",
 		"~/projects/w0zro/vim.pro/conjurer", "AGENT   claude --resume", "47M 00S", "ACTIVE",
@@ -144,7 +144,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	if m.view != viewWatch || cmd == nil {
 		t.Fatalf("a key at the end should go to the watch and read it")
 	}
-	if !strings.Contains(m.View().Content, "WATCH") || !strings.Contains(m.View().Content, "NOTHING ON WATCH") {
+	if strings.Contains(m.View().Content, "CONN  WATCH") || !strings.Contains(m.View().Content, "NOTHING ON WATCH") {
 		t.Errorf("the watch should be up, empty until read:\n%s", m.View().Content)
 	}
 	next, cmd = m.Update(watchMsg{places: watch(testProcs, 67032, 501, testRoots), gen: m.watchGen})

@@ -206,9 +206,40 @@ func commandLine(p process) string {
 	return strings.Join(parts, " ")
 }
 
+// manifests are the files that mark a directory as a project of its own:
+// a plan of conn's, then the file a package manager runs the project by,
+// since most projects run through one and the manifest is where that is
+// said.
+var manifests = []string{
+	".conn", "Procfile",
+	"package.json", "deno.json", "composer.json",
+	"go.mod", "Cargo.toml", "Gemfile", "mix.exs",
+	"pyproject.toml", "pom.xml", "build.gradle", "build.gradle.kts",
+}
+
+// hasManifest says whether a directory carries one of them.
+func hasManifest(dir string) bool {
+	for _, f := range manifests {
+		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // placeRoots finds the place that holds a directory: the nearest ancestor
-// with a .git in it, else the directory itself. It remembers what it
-// found, since the watch asks for the same directories on every read.
+// with a .git in it, and within that repository the nearest directory
+// from where the work happens up to it — not counting the repository
+// itself, whose own row already stands for its manifest — that carries a
+// manifest. A monorepo's apps and services are places of their own, and
+// the manifest is what says so. Outside every repository the directory
+// stands for itself.
+//
+// The process makes the sub-project, and it is made from where the
+// process is, not from an index: a manifest git ignores, or one written
+// a minute ago, marks its directory the same as one a scan would have
+// listed. placeRoots remembers what it found, since the watch asks for
+// the same directories on every read.
 func placeRoots() func(string) string {
 	known := map[string]string{}
 	return func(dir string) string {
@@ -218,15 +249,21 @@ func placeRoots() func(string) string {
 		if root, ok := known[dir]; ok {
 			return root
 		}
-		root := dir
+		root, sub, repo := dir, "", false
 		for d := dir; ; d = filepath.Dir(d) {
 			if _, err := os.Stat(filepath.Join(d, ".git")); err == nil {
-				root = d
+				root, repo = d, true
 				break
+			}
+			if sub == "" && hasManifest(d) {
+				sub = d
 			}
 			if filepath.Dir(d) == d {
 				break
 			}
+		}
+		if repo && sub != "" {
+			root = sub
 		}
 		known[dir] = root
 		return root

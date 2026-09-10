@@ -156,6 +156,41 @@ func TestPlaceRootsFindTheRepository(t *testing.T) {
 	}
 }
 
+// A manifest between the work and its repository makes the place: the
+// monorepo's service is one, the repository's own manifest is not, and
+// outside a repository a manifest marks nothing.
+func TestPlaceRootsFindTheSubProject(t *testing.T) {
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "repo")
+	api := filepath.Join(repo, "services", "api")
+	for _, d := range []string{filepath.Join(repo, ".git"), filepath.Join(api, "internal"), filepath.Join(repo, "cmd", "conn"), filepath.Join(dir, "loose")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, f := range []string{filepath.Join(repo, "go.mod"), filepath.Join(api, "package.json"), filepath.Join(dir, "loose", "go.mod")} {
+		if err := os.WriteFile(f, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	roots := placeRoots()
+	if got := roots(filepath.Join(api, "internal")); got != api {
+		t.Errorf("the place under the service is %q", got)
+	}
+	if got := roots(api); got != api {
+		t.Errorf("the service is its own place, not %q", got)
+	}
+	if got := roots(filepath.Join(repo, "cmd", "conn")); got != repo {
+		t.Errorf("a directory with no manifest above it works at the repository, not %q", got)
+	}
+	if got := roots(repo); got != repo {
+		t.Errorf("the repository's own manifest makes no sub-project: %q", got)
+	}
+	if got := roots(filepath.Join(dir, "loose")); got != filepath.Join(dir, "loose") {
+		t.Errorf("outside a repository a directory stands for itself, not %q", got)
+	}
+}
+
 // lsof -F pcn, as captured.
 func TestLsofIsParsed(t *testing.T) {
 	out, err := os.ReadFile("testdata/lsof.txt")

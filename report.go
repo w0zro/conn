@@ -68,6 +68,11 @@ type report struct {
 	version, note, build, station, term, clock string
 	system, session                            []fact
 	checks                                     []check
+	// The verdict's chip is an annunciator: lit on one second, dark on
+	// the next, while the console is up. Everywhere else — a pipe, a
+	// test, a reading that is not being watched turn by turn — it is
+	// lit, since there is no second to be dark on.
+	lit bool
 }
 
 // The thresholds the checks hold the machine to.
@@ -100,6 +105,7 @@ func compose(st station, now time.Time) report {
 		station: who + "@" + host,
 		term:    st.session.term,
 		clock:   zulu(now),
+		lit:     true,
 	}
 	r.system = systemFacts(st, now)
 	r.session = sessionFacts(st.session, now)

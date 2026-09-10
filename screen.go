@@ -194,18 +194,22 @@ func body(r report, width int, own check, p palette) []row {
 	}
 
 	// The verdict: a rule, then the count of faults as a chip, or the
-	// word that all is well.
+	// word that all is well. The chip is an annunciator and blinks: on
+	// the second it is dark the row is the ground, and nothing under it
+	// moves.
 	last := lastStage(r)
 	c.blank(last)
 	c.rule(last, measure)
 	l = c.line()
 	switch {
+	case faults == 0:
+		l.add(p.gray, "ALL SYSTEMS NOMINAL")
+	case !r.lit:
+		// dark this second
 	case faults > 1:
 		l.add(p.chip, " "+strconv.Itoa(faults)+" SYSTEMS NOT NOMINAL ")
-	case faults == 1:
-		l.add(p.chip, " 1 SYSTEM NOT NOMINAL ")
 	default:
-		l.add(p.gray, "ALL SYSTEMS NOMINAL")
+		l.add(p.chip, " 1 SYSTEM NOT NOMINAL ")
 	}
 	c.emit(l, last, true)
 	return c.rows

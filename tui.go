@@ -356,7 +356,11 @@ func (m model) View() tea.View {
 	case viewWatch:
 		rows = drawWatch(m.watchReport(), m.cursor, m.width, m.height, m.p)
 	default:
-		rows = screen(m.report(), m.width, m.height, m.p)
+		r := m.report()
+		// The verdict's chip blinks on the turn of the second, the way an
+		// annunciator on a panel does: lit, dark, lit.
+		r.lit = m.now.Second()%2 == 0
+		rows = screen(r, m.width, m.height, m.p)
 	}
 	ground := rows[0].text // the first row is blank, on the ground, at the rows' width
 	texts := make([]string, 0, len(rows))

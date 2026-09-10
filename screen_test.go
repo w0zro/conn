@@ -221,3 +221,48 @@ func TestPathsShortenFromTheMiddle(t *testing.T) {
 		}
 	}
 }
+
+// The verdict's chip is an annunciator: on the second it is dark the
+// row is the ground, and no other row moves. The word that all is well
+// does not blink, and a reading nobody is watching turn by turn — a
+// pipe, a test — is lit.
+func TestTheVerdictBlinks(t *testing.T) {
+	st := testStation
+	st.volume.free = 6_800_000_000
+	r := compose(st, testNow)
+	if !r.lit {
+		t.Error("a reading is dark before anyone asks it to blink")
+	}
+	lit := screen(r, 120, 40, plain)
+	r.lit = false
+	dark := screen(r, 120, 40, plain)
+	if !strings.Contains(texts(lit), "1 SYSTEM NOT NOMINAL") {
+		t.Errorf("the chip is not up on the lit second:\n%s", texts(lit))
+	}
+	if strings.Contains(texts(dark), "NOT NOMINAL") {
+		t.Errorf("the chip is still up on the dark second:\n%s", texts(dark))
+	}
+	// The rows are the same rows; only the verdict's went dark, and the
+	// check above it keeps saying LOW.
+	if len(lit) != len(dark) {
+		t.Fatalf("%d rows lit, %d dark", len(lit), len(dark))
+	}
+	moved := 0
+	for i := range lit {
+		if lit[i].text != dark[i].text {
+			moved++
+		}
+	}
+	if moved != 1 {
+		t.Errorf("%d rows differ between lit and dark; only the verdict's should", moved)
+	}
+	if !strings.Contains(texts(dark), " LOW") {
+		t.Errorf("the check's own chip went dark with the verdict:\n%s", texts(dark))
+	}
+	// All being well is a word, not an annunciator.
+	well := compose(testStation, testNow)
+	well.lit = false
+	if !strings.Contains(texts(screen(well, 120, 40, plain)), "ALL SYSTEMS NOMINAL") {
+		t.Error("the word that all is well blinked")
+	}
+}

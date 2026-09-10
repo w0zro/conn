@@ -145,12 +145,15 @@ func (s *server) attach(self, home string) (int, error) {
 // oscColors asks the terminal to take conn's ink and ground for its
 // own, and oscOwnColors gives it its own back. tmux keeps what the conn
 // in a pane asks for to the pane, so the terminal outside hears it from
-// the conn that attached, which is also there to take it back.
+// the conn that attached, which is also there to take it back. The
+// cursor is the other way about: tmux does put the server's on the
+// terminal, and leaves it there when the client goes, so conn asks for
+// nothing and takes it back all the same.
 func oscColors() string {
 	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", hex(inkColor), hex(groundColor))
 }
 
-const oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\"
+const oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\"
 
 // hex is a color as a terminal wants it written.
 func hex(c color.RGBA) string {
@@ -331,16 +334,53 @@ func (s *server) detach() error {
 	return err
 }
 
+// The terminal's chrome, beyond the ground and the ink the console is
+// drawn in: the orange for the cursor, and the console's border color,
+// which draws the line between the rail and the slot and sits behind a
+// selection.
+const (
+	cursorHex = "#E85D2F"
+	borderHex = "#2A2620"
+)
+
+// The sixteen colors a program asks for by name, as conn draws them.
+// Most are the console's own tokens: the two oranges for the reds, the
+// parchment and the ink for the whites, the faint for bright black, the
+// border for black. The blue and the magenta are conn's own, added so
+// that the slots a shell theme leans on — structure, type, what can be
+// run — stay apart from one another instead of collapsing into the
+// orange and the teal. Normal, then bright.
+var scheme = [16]string{
+	"#2A2620", // black
+	"#FF7847", // red
+	"#93C98B", // green
+	"#E3A94F", // yellow
+	"#7FA7C9", // blue
+	"#C98BA8", // magenta
+	"#7FC7BD", // cyan
+	"#BFB39A", // white
+	"#5C564A", // bright black
+	"#E85D2F", // bright red
+	"#A8DBA0", // bright green
+	"#F2C06E", // bright yellow
+	"#9BBEDB", // bright blue
+	"#DBA6C0", // bright magenta
+	"#9AD9D0", // bright cyan
+	"#E6DFD0", // bright white
+}
+
 // tmuxConf is the server's configuration: the prefix with one chord
 // under it, and the look. tmux's own prefix table is emptied, so none
 // of its keys or actions are reachable through conn; prefix then -
 // puts focus on the watch, and that is the only chord for now. The
 // look is the console's: every pane on the ground, in the ink, with the
-// sixteen colors a program asks for by name drawn from the same palette,
-// and between the rail and the slot a line in the console's border
-// color, the same whichever side has focus.
+// sixteen colors a program asks for by name drawn from conn's scheme,
+// the cursor in the orange and a selection on the border color, and
+// between the rail and the slot a line in that color too, the same
+// whichever side has focus.
 func tmuxConf(prefix string) string {
-	return `# conn's tmux server. Written by conn on each start; edits do not keep.
+	var b strings.Builder
+	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
 # One chord under the prefix, to the watch; tmux's own are unbound.
 set -g prefix ` + prefix + `
 set -g prefix2 None
@@ -361,28 +401,19 @@ set -as terminal-features ",*:RGB"
 set-environment -g COLORTERM truecolor
 set -g allow-passthrough on
 set -g display-time 3000
-set -g window-style "bg=#15130F,fg=#E6DFD0"
-set -g pane-colours[0] "#100E0B"
-set -g pane-colours[1] "#FF7847"
-set -g pane-colours[2] "#93C98B"
-set -g pane-colours[3] "#E3A94F"
-set -g pane-colours[4] "#7FC7BD"
-set -g pane-colours[5] "#E85D2F"
-set -g pane-colours[6] "#7FC7BD"
-set -g pane-colours[7] "#E6DFD0"
-set -g pane-colours[8] "#8B8272"
-set -g pane-colours[9] "#FF7847"
-set -g pane-colours[10] "#93C98B"
-set -g pane-colours[11] "#E3A94F"
-set -g pane-colours[12] "#7FC7BD"
-set -g pane-colours[13] "#E85D2F"
-set -g pane-colours[14] "#7FC7BD"
-set -g pane-colours[15] "#E6DFD0"
-set -g pane-border-lines single
-set -g pane-border-style "fg=#2A2620,bg=#15130F"
-set -g pane-active-border-style "fg=#2A2620,bg=#15130F"
-set -g pane-border-indicators off
-`
+`)
+	ground, ink := hex(groundColor), hex(inkColor)
+	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)
+	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", cursorHex)
+	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", borderHex, ink)
+	for i, c := range scheme {
+		fmt.Fprintf(&b, "set -g pane-colours[%d] \"%s\"\n", i, c)
+	}
+	b.WriteString("set -g pane-border-lines single\n")
+	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
+	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
+	b.WriteString("set -g pane-border-indicators off\n")
+	return b.String()
 }
 
 // shellQuote quotes a path for a tmux command line.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -59,6 +60,8 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
 		"set -g status off", "set -g mouse on",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
+		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
+		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`,
 		"set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
 		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`, `set -g pane-active-border-style "fg=#2A2620,bg=#15130F"`,
 	} {
@@ -98,7 +101,9 @@ func TestTheTerminalIsAskedForTheGround(t *testing.T) {
 	if got := oscColors(); got != "\x1b]10;#E6DFD0\x1b\\\x1b]11;#15130F\x1b\\" {
 		t.Errorf("colors asked for: %q", got)
 	}
-	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\" {
+	// The cursor is given back too: the server puts its own on the
+	// terminal, and does not take it off.
+	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\" {
 		t.Errorf("colors given back: %q", oscOwnColors)
 	}
 	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf("C-Space"), want) {
@@ -124,5 +129,30 @@ func TestDownSaysWhatItEnded(t *testing.T) {
 	}
 	if got := downReport(nil, "/tmp/cs/sock", "/Users/w0zro"); got != " ✔ Server /tmp/cs/sock  ended\n" {
 		t.Errorf("report with no windows: %q", got)
+	}
+}
+
+// The sixteen are sixteen: every slot set, and the slots a shell theme
+// leans on — structure, what can be run, type — apart from each other,
+// in both the normal colors and the bright.
+func TestTheSixteenAreSixteen(t *testing.T) {
+	conf := tmuxConf(defaultPrefix)
+	for i, c := range scheme {
+		if want := fmt.Sprintf("set -g pane-colours[%d] %q", i, c); !strings.Contains(conf, want) {
+			t.Errorf("configuration lacks %q", want)
+		}
+	}
+	for _, slots := range [][3]int{{4, 5, 6}, {12, 13, 14}} {
+		blue, magenta, cyan := scheme[slots[0]], scheme[slots[1]], scheme[slots[2]]
+		if blue == cyan || blue == magenta || magenta == cyan {
+			t.Errorf("slots %v collapse: %s %s %s", slots, blue, magenta, cyan)
+		}
+	}
+	seen := map[string]int{}
+	for i, c := range scheme {
+		if was, dup := seen[c]; dup {
+			t.Errorf("slot %d is slot %d again: %s", i, was, c)
+		}
+		seen[c] = i
 	}
 }

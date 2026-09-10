@@ -81,13 +81,14 @@ type (
 		places []place
 		panes  map[string]pane // the server's panes by terminal
 		slot   string          // the terminal in the slot
+		noSlot bool            // home has no slot beside the rail
 		err    string
 		gen    int
 	}
 	watchTickMsg struct{ gen int }     // the watch is due to be read again
 	openedMsg    struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
 	reachedMsg   struct{ tty string }  // a process was put in the slot
-	blinkMsg     struct{}              // the chip's half is up
+	blinkMsg     struct{ gen int }     // the chip's half is up
 	noteMsg      struct{ note string }
 )
 
@@ -102,6 +103,7 @@ type model struct {
 
 	view     int
 	lit      bool // the verdict's chip is showing this half of the blink
+	blinkGen int  // which stay on the console the blink belongs to
 	places   []place
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
@@ -163,15 +165,14 @@ func readStationCmd() tea.Msg {
 }
 
 // readWatch reads the process table, and in the server its panes and
-// the slot, opening the slot when home has none, and composes the watch
-// off them.
+// the slot, and composes the watch off them. It reads and does nothing
+// else; what the reading calls for is decided when it comes back.
 func (m model) readWatch() tea.Cmd {
 	gen, uid, roots := m.watchGen, m.uid, m.roots
 	var srv *server
 	if m.inside {
 		srv = m.srv
 	}
-	home, self := m.head.session.home, m.self
 	return func() tea.Msg {
 		procs, err := readProcesses(uid)
 		if err != nil {
@@ -180,7 +181,7 @@ func (m model) readWatch() tea.Cmd {
 		msg := watchMsg{places: watch(procs, uid, roots), gen: gen}
 		if srv != nil {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
-				_ = srv.splitSlot(home, self)
+				msg.noSlot = true
 			} else if ok {
 				msg.slot = slot.tty
 			}
@@ -188,6 +189,12 @@ func (m model) readWatch() tea.Cmd {
 		}
 		return msg
 	}
+}
+
+// openSlot opens the slot beside the rail, with the hold in it.
+func (m model) openSlot() tea.Cmd {
+	home, self := m.head.session.home, m.self
+	return m.serverCmd(func() error { return m.srv.splitSlot(home, self) }, "")
 }
 
 func (m model) nextStage() tea.Cmd {
@@ -201,13 +208,15 @@ func nextSecond(now time.Time) tea.Cmd {
 }
 
 // nextBlink is the turn of the chip's other half, each half its own
-// length.
+// length. The blink belongs to a stay on the console: a turn that comes
+// after the console is left, or from an earlier stay, is dropped.
 func (m model) nextBlink() tea.Cmd {
 	d := blinkLit
 	if !m.lit {
 		d = blinkDark
 	}
-	return tea.Tick(d, func(time.Time) tea.Msg { return blinkMsg{} })
+	gen := m.blinkGen
+	return tea.Tick(d, func(time.Time) tea.Msg { return blinkMsg{gen} })
 }
 
 // watchTick is when the watch reads again: soon while it waits on a
@@ -259,6 +268,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.watchGen++
 		return m, m.readWatch()
 	case blinkMsg:
+		if msg.gen != m.blinkGen || m.view != viewConsole {
+			m.lit = true
+			return m, nil
+		}
 		m.lit = !m.lit
 		return m, m.nextBlink()
 	case watchMsg:
@@ -278,6 +291,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
 		if m.view == viewWatch {
+			// A home without its slot gets one; the next reading finds it.
+			if m.inside && msg.noSlot {
+				return m, tea.Batch(m.watchTick(), m.openSlot())
+			}
 			return m, m.watchTick()
 		}
 	case watchTickMsg:
@@ -318,10 +335,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m, m.readWatch()
 	case k == "c":
 		m.view = viewConsole
+		m.lit, m.blinkGen = true, m.blinkGen+1
 		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.wide() }, "")
+			return m, tea.Batch(m.nextBlink(), m.serverCmd(func() error { return m.srv.wide() }, ""))
 		}
-		return m, nil
+		return m, m.nextBlink()
 	case k == "j" || k == "down":
 		m.cursor, m.cursorAt = follow(m.places, 0, m.cursorAt+1)
 	case k == "k" || k == "up":

@@ -58,7 +58,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, s := range []string{
 		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
-		"set -g status off", "set -g mouse on",
+		"set -g status off", "set -g mouse on", "unbind -n MouseDrag1Border",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
 		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`,

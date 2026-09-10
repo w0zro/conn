@@ -114,7 +114,7 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if !m.lit {
 		t.Error("the chip starts dark")
 	}
-	next, ok := m.Update(blinkMsg{})
+	next, ok := m.Update(blinkMsg{gen: m.blinkGen})
 	m = next.(model)
 	if m.lit {
 		t.Error("the chip did not go dark on the turn")
@@ -122,9 +122,37 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if ok == nil {
 		t.Fatal("the blink stopped at the first turn")
 	}
-	next, ok = m.Update(blinkMsg{})
+	next, ok = m.Update(blinkMsg{gen: m.blinkGen})
 	if m = next.(model); !m.lit || ok == nil {
 		t.Error("the chip did not come back")
+	}
+	// Off the console the blink stops, lit; coming back to the console
+	// starts it again; a turn from an earlier stay is dropped.
+	m.view = viewWatch
+	next, ok = m.Update(blinkMsg{gen: m.blinkGen})
+	if m = next.(model); !m.lit || ok != nil {
+		t.Error("the blink went on off the console")
+	}
+	next, ok = m.key("c")
+	if m = next.(model); m.view != viewConsole || ok == nil {
+		t.Error("c did not start the blink again")
+	}
+	next, ok = m.Update(blinkMsg{gen: m.blinkGen - 1})
+	if m = next.(model); !m.lit || ok != nil {
+		t.Error("a turn from an earlier stay was not dropped")
+	}
+}
+
+// A reading that finds home without its slot has the slot opened; a
+// reading with the slot only ticks.
+func TestAHomeWithoutItsSlotGetsOne(t *testing.T) {
+	m := model{p: plain, width: 48, height: 40, view: viewWatch, inside: true, srv: &server{tmux: "/nonexistent/tmux"}}
+	_, cmd := m.Update(watchMsg{noSlot: true})
+	if cmd == nil {
+		t.Fatal("no command for a home without its slot")
+	}
+	if _, cmd := m.Update(watchMsg{slot: "ttys009"}); cmd == nil {
+		t.Error("a home with its slot should still tick")
 	}
 }
 

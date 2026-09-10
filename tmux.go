@@ -411,6 +411,9 @@ unbind -a -T prefix
 bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0
 set -g status off
 set -g mouse on
+# The rail's width is conn's to hold; a drag of the border would only be
+# put back.
+unbind -n MouseDrag1Border
 set -g history-limit 10000
 set -g window-size latest
 set -g set-clipboard on

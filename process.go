@@ -102,7 +102,9 @@ type place struct {
 // conn is not on the watch. It is the instrument, not the work — the one
 // conn you are looking at, the conn behind it holding the terminal, and
 // the hold standing in an empty slot alike. It still covers what runs
-// under it, so the tmux client it holds is not a row of its own.
+// under it, so the tmux client it holds is not a row of its own. The rule
+// goes by the program's name, so a conn on another socket, or an older
+// conn installed beside this one, is off the watch too.
 func watch(procs []process, uid int, rootOf func(string) string) []place {
 	byPid := map[int]process{}
 	for _, p := range procs {

@@ -41,6 +41,12 @@ when Claude Code is on one it came with, or on none; a custom theme is
 somebody's own doing, and conn says what it is and leaves it. Selecting it
 by hand is `/theme` in a session.
 
+The server also says the terminal does truecolor twice over: `COLORTERM`,
+and `CLAUDE_CODE_TMUX_TRUECOLOR` for Claude Code, which otherwise reads
+`TERM=tmux-256color` and paints conn's scheme in the 256 palette — where
+the warm dark end of it does not exist, and a diff's washes come out the
+same gray whichever way the line went.
+
 `CONN` is set in the server too, so a program can tell where it is and
 dress to match for a run: `claude --settings '{"theme":"custom:conn"}'`
 wears conn's colors inside conn and leaves the theme elsewhere alone.

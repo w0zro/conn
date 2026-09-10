@@ -401,6 +401,11 @@ set -g focus-events on
 set -g default-terminal tmux-256color
 set -as terminal-features ",*:RGB"
 set-environment -g COLORTERM truecolor
+# TERM says tmux-256color, which is what tmux draws with; a program that
+# reads it and stops there paints conn's scheme in the 256 palette, where
+# the warm dark end of it does not exist. Claude Code is one, and takes
+# this for an answer.
+set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 # A program in a pane can tell it is in conn, and dress accordingly.
 set-environment -g CONN 1
 set -g allow-passthrough on

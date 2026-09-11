@@ -279,22 +279,24 @@ func TestAOpensAnAgentAtThePlace(t *testing.T) {
 	}
 }
 
-// Capital A opens the picker over what claude left suspended at the
-// place under the cursor, asking for that place's own directory alone.
-func TestCapitalAOpensThePickerAtThePlace(t *testing.T) {
+// alt+a opens the picker over what claude left suspended at the place
+// under the cursor, asking for that place's own directory alone. Plain
+// A is not bound to it — a shift chord costs the same as an alt one,
+// so there is no reason to answer to both.
+func TestAltAOpensThePickerAtThePlace(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewWatch
 	m.places = []place{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
 	m.cursor = 11
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
 	if cmd != nil || m.note == "" {
 		t.Errorf("outside the server: cmd %v, note %q", cmd != nil, m.note)
 	}
 
 	m.inside, m.note = true, ""
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
 	if m.view != viewResume || !m.convosLoading || cmd == nil {
 		t.Fatalf("in the server: view %d, loading %v, cmd %v", m.view, m.convosLoading, cmd != nil)
@@ -305,20 +307,13 @@ func TestCapitalAOpensThePickerAtThePlace(t *testing.T) {
 	if msg, ok := cmd().(convosMsg); !ok || len(msg.dirs) != 1 || msg.dirs[0] != "/w" {
 		t.Errorf("scanConvos did not ask for the place under the cursor: %v", cmd())
 	}
-}
 
-// alt+a opens the picker on the watch too, the same as A: there is no
-// filter here for it to collide with, but it is one chord either way.
-func TestAltAOpensThePickerAtThePlaceToo(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.inside = viewWatch, true
-	m.places = []place{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
-	m.cursor = 11
-
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
+	// A is unbound on the watch: nothing happens, the view holds.
+	m.view, m.note = viewWatch, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
 	m = next.(model)
-	if m.view != viewResume || cmd == nil {
-		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)
+	if m.view != viewWatch || cmd != nil || m.note != "" {
+		t.Errorf("A did something: view %d, cmd %v, note %q", m.view, cmd != nil, m.note)
 	}
 }
 
@@ -494,15 +489,18 @@ func TestCtrlAOpensAnAgentAtTheProject(t *testing.T) {
 	}
 }
 
-// Capital A opens the picker at the row's own directory, or, on a
-// group, at every repository under it too — a transcript is filed by
-// the exact directory it was had in, not the folder that names them.
-func TestCapitalAOpensThePickerAtTheProject(t *testing.T) {
+// alt+a opens the picker at the row's own directory, or, on a group,
+// at every repository under it too — a transcript is filed by the
+// exact directory it was had in, not the folder that names them. Plain
+// A is not bound to it, unlike ctrl+shift+a which never could be — a
+// shift chord costs the same as an alt one, so there is no reason to
+// give up typing a capital letter into the filter for it.
+func TestAltAOpensThePickerAtTheProject(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.projects, m.pcursor = viewProjects, testProjects, 0 // arboreum.io, a group of two
 	m.inside = true
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
 	if m.view != viewResume || cmd == nil {
 		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)
@@ -515,24 +513,14 @@ func TestCapitalAOpensThePickerAtTheProject(t *testing.T) {
 	if !equal(m.convosDirs, want) {
 		t.Errorf("convosDirs = %v, want %v", m.convosDirs, want)
 	}
-}
 
-// alt+a opens the picker the same way A does — ctrl+shift+a is not a
-// chord any terminal can tell apart from plain ctrl+a, alphabetic ctrl
-// combinations already being their letter's own case, so alt+a is the
-// one beside ctrl+a's own chord that reaches conn distinctly.
-func TestAltAOpensThePickerAtTheProjectToo(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.projects, m.pcursor = viewProjects, testProjects, 0
-	m.inside = true
-
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
+	// A is a letter to type here, the same as a is: the picker does not
+	// take it from the filter.
+	m.view, m.filter = viewProjects, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
 	m = next.(model)
-	if m.view != viewResume || cmd == nil {
-		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)
-	}
-	if len(m.convosDirs) != 3 {
-		t.Errorf("convosDirs = %v", m.convosDirs)
+	if m.view != viewProjects || m.filter != "A" || cmd != nil {
+		t.Errorf("A did not type: view %d, filter %q, cmd %v", m.view, m.filter, cmd != nil)
 	}
 }
 

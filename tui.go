@@ -386,10 +386,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // then continues to the watch and gives the slot its side back; on the
 // watch c brings the console back over the whole window,
 // enter reaches the cursor's process, s opens a shell at its place, a
-// opens claude there instead, and A, or alt+a beside it, opens the
-// picker over what claude left suspended there. x asks to end the
-// cursor's process, and arms the question rather than the ending: the
-// next key answers it.
+// opens claude there instead, and alt+a opens the picker over what
+// claude left suspended there. x asks to end the cursor's process, and
+// arms the question rather than the ending: the next key answers it.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A kill x asked for takes the next key, whatever it is: x, y or
 	// enter confirms it, and anything else cancels — no other binding
@@ -479,7 +478,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		default:
 			return m, m.openAgent(pl.path)
 		}
-	case k == "A" || k == "alt+a":
+	case k == "alt+a":
 		_, pl, ok := m.under()
 		switch {
 		case !m.inside:
@@ -503,13 +502,13 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // hand that cannot reach j and k; enter opens a shell at the row under
 // the cursor and goes back to the watch, which is where the shell will
 // show, and ctrl+a opens claude there instead, since a plain a is a
-// letter to type; A, or alt+a beside it — ctrl+shift+a is not its own
-// chord to any terminal, alphabetic ctrl combinations being their
-// letter's own case already — opens the picker over what claude left
-// suspended at the row, group included — a plain A is not a letter
-// anyone types into a project's name; esc goes back without opening
-// anything, and
-// ctrl+c is what it is everywhere.
+// letter to type; alt+a opens the picker over what claude left
+// suspended at the row, group included, the same way — not a plain A,
+// which would take a letter the filter can still be typed with, and
+// not ctrl+shift+a, which is not its own chord to any terminal at all,
+// alphabetic ctrl combinations being their letter's own case already;
+// esc goes back without opening anything, and ctrl+c is what it is
+// everywhere.
 func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.projectRows()
 	switch {
@@ -544,7 +543,7 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openAgent(path))
 		}
-	case k == "A" || k == "alt+a":
+	case k == "alt+a":
 		switch {
 		case !m.inside:
 			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"

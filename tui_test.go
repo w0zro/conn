@@ -502,14 +502,16 @@ func TestCapitalAOpensThePickerAtTheProject(t *testing.T) {
 	}
 }
 
-// ctrl+shift+a opens the picker the same way A does, beside ctrl+a's
-// own chord for a fresh conversation.
-func TestCtrlShiftAOpensThePickerAtTheProjectToo(t *testing.T) {
+// alt+a opens the picker the same way A does — ctrl+shift+a is not a
+// chord any terminal can tell apart from plain ctrl+a, alphabetic ctrl
+// combinations already being their letter's own case, so alt+a is the
+// one beside ctrl+a's own chord that reaches conn distinctly.
+func TestAltAOpensThePickerAtTheProjectToo(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.projects, m.pcursor = viewProjects, testProjects, 0
 	m.inside = true
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "ctrl+shift+a"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
 	if m.view != viewResume || cmd == nil {
 		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)

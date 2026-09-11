@@ -502,10 +502,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // hand that cannot reach j and k; enter opens a shell at the row under
 // the cursor and goes back to the watch, which is where the shell will
 // show, and ctrl+a opens claude there instead, since a plain a is a
-// letter to type; A, or ctrl+shift+a beside ctrl+a's own chord, opens
-// the picker over what claude left suspended at the row, group
-// included — a plain A is not a letter anyone types into a project's
-// name; esc goes back without opening anything, and
+// letter to type; A, or alt+a beside it — ctrl+shift+a is not its own
+// chord to any terminal, alphabetic ctrl combinations being their
+// letter's own case already — opens the picker over what claude left
+// suspended at the row, group included — a plain A is not a letter
+// anyone types into a project's name; esc goes back without opening
+// anything, and
 // ctrl+c is what it is everywhere.
 func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.projectRows()
@@ -541,7 +543,7 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openAgent(path))
 		}
-	case k == "A" || k == "ctrl+shift+a":
+	case k == "A" || k == "alt+a":
 		switch {
 		case !m.inside:
 			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"

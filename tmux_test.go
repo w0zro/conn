@@ -37,11 +37,11 @@ func TestTheServerIsFoundBySocket(t *testing.T) {
 
 // list-panes, as tmux prints it for the format asked.
 func TestPanesAreParsed(t *testing.T) {
-	out := "%0\t/dev/ttys004\t48\t40\t\n%1\t/dev/ttys007\t138\t40\t1\n%5\t/dev/ttys008\t138\t40\t\n\n"
+	out := "%0\t/dev/ttys004\t48\t40\t\t\n%1\t/dev/ttys007\t138\t40\t1\t\n%5\t/dev/ttys008\t138\t40\t\t1\n\n"
 	want := map[string]pane{
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40},
 		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true},
-		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40},
+		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40, dead: true},
 	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)
@@ -63,6 +63,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
 		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`,
 		"set-environment -g CONN 1", "set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1", "set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
+		"set -g remain-on-exit on",
 		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`, `set -g pane-active-border-style "fg=#2A2620,bg=#15130F"`,
 	} {
 		if !strings.Contains(conf, s) {

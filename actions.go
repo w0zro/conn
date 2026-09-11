@@ -17,6 +17,12 @@ func (m model) openSlot() tea.Cmd {
 	return m.serverCmd(func() error { return m.srv.splitSlot(home, self) }, "")
 }
 
+// reviveSlot puts a hold in a slot whose pane died, in its own shape.
+func (m model) reviveSlot() tea.Cmd {
+	home, self := m.head.session.home, m.self
+	return m.serverCmd(func() error { return m.srv.reviveSlot(home, self) }, "")
+}
+
 // reach puts a process in the slot, off the loop, and hands back the
 // terminal that is in the slot once it is there.
 func (m model) reach(target pane, tty string) tea.Cmd {

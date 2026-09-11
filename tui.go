@@ -89,12 +89,13 @@ type (
 	clockMsg   struct{}          // the second has turned
 	stationMsg struct{ station } // the station is read
 	watchMsg   struct {          // the process table is read
-		places []place
-		panes  map[string]pane // the server's panes by terminal
-		slot   string          // the terminal in the slot
-		noSlot bool            // home has no slot beside the rail
-		err    string
-		gen    int
+		places   []place
+		panes    map[string]pane // the server's panes by terminal
+		slot     string          // the terminal in the slot
+		noSlot   bool            // home has no slot beside the rail
+		slotDead bool            // the slot's pane held on remain-on-exit, its process gone
+		err      string
+		gen      int
 	}
 	watchTickMsg struct{ gen int }     // the watch is due to be read again
 	openedMsg    struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
@@ -230,7 +231,7 @@ func (m model) readWatch() tea.Cmd {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
 				msg.noSlot = true
 			} else if ok {
-				msg.slot = slot.tty
+				msg.slot, msg.slotDead = slot.tty, slot.dead
 			}
 			msg.panes, _ = srv.panes()
 		}
@@ -332,9 +333,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
 		if m.view == viewWatch {
+			switch {
 			// A home without its slot gets one; the next reading finds it.
-			if m.inside && msg.noSlot {
+			case m.inside && msg.noSlot:
 				return m, tea.Batch(m.watchTick(), m.openSlot())
+			// A slot whose pane died stays the shape it was; only what is
+			// in it is replaced, so the rail never has to give up its
+			// width and take it back.
+			case m.inside && msg.slotDead:
+				return m, tea.Batch(m.watchTick(), m.reviveSlot())
 			}
 			return m, m.watchTick()
 		}

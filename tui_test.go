@@ -156,6 +156,20 @@ func TestAHomeWithoutItsSlotGetsOne(t *testing.T) {
 	}
 }
 
+// A slot whose pane died on remain-on-exit is revived, not resplit:
+// the rail never has to give up its width and take it back for it.
+func TestASlotWhosePaneDiedIsRevived(t *testing.T) {
+	m := model{p: plain, width: 48, height: 40, view: viewWatch, inside: true, srv: &server{tmux: "/nonexistent/tmux"}}
+	next, cmd := m.Update(watchMsg{slot: "ttys009", slotDead: true})
+	m = next.(model)
+	if cmd == nil {
+		t.Fatal("no command for a slot whose pane died")
+	}
+	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
+		t.Errorf("a dead slot did not both tick and revive: %T", cmd())
+	}
+}
+
 // A shell conn opens is the cursor's once the process table has it. The
 // slot is marked at once; until the reading brings the shell the watch
 // reads soon rather than at its pace, and the cursor stays where it was;

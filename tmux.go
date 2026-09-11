@@ -201,14 +201,16 @@ func (s *server) hasHome() bool {
 }
 
 // A pane of the server: its id, which holds through swaps; the terminal
-// it holds; its size; and whether it is a hold.
+// it holds; its size; whether it is a hold; and whether remain-on-exit
+// is the only thing keeping it up, its process already gone.
 type pane struct {
 	id, tty       string
 	width, height int
 	hold          bool
+	dead          bool
 }
 
-const paneFormat = "#{pane_id}\t#{pane_tty}\t#{pane_width}\t#{pane_height}\t#{@conn_hold}"
+const paneFormat = "#{pane_id}\t#{pane_tty}\t#{pane_width}\t#{pane_height}\t#{@conn_hold}\t#{pane_dead}"
 
 // panes is every pane in the server, by the terminal it holds.
 func (s *server) panes() (map[string]pane, error) {
@@ -225,10 +227,10 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, "\t")
-		if len(f) != 5 || f[0] == "" {
+		if len(f) != 6 || f[0] == "" {
 			continue
 		}
-		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"), hold: f[4] == "1"}
+		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"), hold: f[4] == "1", dead: f[5] == "1"}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -274,6 +276,31 @@ func (s *server) splitSlot(home, self string) error {
 // time it is not its width.
 func (s *server) holdRail() error {
 	_, err := s.run("resize-pane", "-t", s.rail(), "-x", strconv.Itoa(railWidth))
+	return err
+}
+
+// reviveSlot puts a hold in a slot whose pane has died: remain-on-exit
+// kept it there, its process gone, so this is a swap into the slot's
+// own shape rather than a split — nothing about the window's layout
+// moves. Without a slot at all, which a swap has nothing to land in,
+// it falls back to splitSlot.
+func (s *server) reviveSlot(home, self string) error {
+	slot, ok, err := s.slot()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return s.splitSlot(home, self)
+	}
+	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, "exec "+shellQuote(self)+" hold")
+	if err != nil {
+		return err
+	}
+	hold := strings.TrimSpace(id)
+	if _, err := s.run("set-option", "-p", "-t", hold, "@conn_hold", "1"); err != nil {
+		return err
+	}
+	_, err = s.run("swap-pane", "-d", "-s", hold, "-t", slot.id, ";", "kill-pane", "-t", slot.id)
 	return err
 }
 
@@ -442,6 +469,10 @@ set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 set-environment -g CONN 1
 set -g allow-passthrough on
 set -g display-time 3000
+# A pane whose process ends stays instead of closing, so a killed shell
+# does not collapse the window to the rail alone before conn re-splits
+# it: the slot holds its place, dead, until conn puts a hold there.
+set -g remain-on-exit on
 `)
 	ground, ink := hex(groundColor), hex(inkColor)
 	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)

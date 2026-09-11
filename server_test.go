@@ -102,6 +102,13 @@ func (s *scratch) shellIn(at string) bool {
 	return len(f) == 3 && (f[1] == "sh" || f[1] == "bash" || f[1] == "zsh" || f[1] == "dash")
 }
 
+// paneDead says whether the pane at a place is held dead on
+// remain-on-exit, its process already gone.
+func (s *scratch) paneDead(at string) bool {
+	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+at, "#{pane_dead}")
+	return strings.TrimSpace(out) == "1"
+}
+
 // parked says whether a pane is in a window of its own, out of home.
 func (s *scratch) parked(id string) bool {
 	for _, p := range strings.Fields(s.panes()) {
@@ -194,6 +201,43 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.until("the rail to hold its width", func() bool { return s.display("#{pane_width}") == "48" })
+}
+
+// A shell that dies in the slot does not take the rail's width from
+// it first: remain-on-exit holds the dead pane in the slot's own
+// shape, so there is no moment the window is the rail alone, and conn
+// swaps a hold into the dead pane once it reads that it is one.
+func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.keys("Space")
+	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == "48" })
+
+	s.keys("s")
+	s.until("a shell in the slot", func() bool { return s.shellIn("home.1") })
+
+	// The shell has the keys once s opens it, the same as select-pane
+	// gave them there; exit goes to it directly, not through the rail.
+	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "exit", "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	s.until("the shell's pane to die, still in the slot", func() bool { return s.paneDead("home.1") })
+	// remain-on-exit means this was never anything but true: the window
+	// never had one pane to begin with, so there is nothing to catch mid
+	// collapse.
+	if n := s.display("#{window_panes}"); n != "2" {
+		t.Errorf("home has %s panes with a dead shell in the slot", n)
+	}
+	if w := s.display("#{pane_width}"); w != "48" {
+		t.Errorf("the rail gave up its width to a dead shell: %s", w)
+	}
+
+	s.until("a hold to take the dead pane's place", func() bool {
+		return strings.Contains(s.panes(), "home.1:conn:")
+	})
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != "48" {
+		t.Errorf("the revival changed the window's shape: %s panes, %s wide", n, w)
+	}
 }
 
 // conn down ends what the test brought up, and says so; a second

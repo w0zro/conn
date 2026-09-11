@@ -4,10 +4,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+// railW is the rail's width, as tmux reports a pane's: the tests ask
+// tmux rather than assume it, so a change to railWidth does not also
+// mean hunting down what was typed against it.
+var railW = strconv.Itoa(railWidth)
 
 // The server, against tmux itself. The test builds conn, brings a tmux
 // server up on a scratch socket with conn in its home window, the way
@@ -154,7 +160,7 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 
 	s.keys("Space")
 	s.until("the slot to open", func() bool {
-		return s.display("#{pane_width}") == "48" && strings.Contains(s.panes(), "home.1:conn:")
+		return s.display("#{pane_width}") == railW && strings.Contains(s.panes(), "home.1:conn:")
 	})
 	if hold := s.display("#{window_panes}"); hold != "2" {
 		t.Errorf("home has %s panes", hold)
@@ -194,13 +200,13 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 	})
 	s.keys("Space")
 	s.until("the slot to have its side again", func() bool {
-		return s.display("#{window_zoomed_flag}") == "0" && s.display("#{pane_width}") == "48"
+		return s.display("#{window_zoomed_flag}") == "0" && s.display("#{pane_width}") == railW
 	})
 
 	if _, err := s.srv.run("resize-window", "-x", "200", "-y", "40"); err != nil {
 		t.Fatal(err)
 	}
-	s.until("the rail to hold its width", func() bool { return s.display("#{pane_width}") == "48" })
+	s.until("the rail to hold its width", func() bool { return s.display("#{pane_width}") == railW })
 }
 
 // A shell that dies in the slot does not take the rail's width from
@@ -211,7 +217,7 @@ func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
 	s.keys("Space")
-	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == "48" })
+	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
 
 	s.keys("s")
 	s.until("a shell in the slot", func() bool { return s.shellIn("home.1") })
@@ -228,14 +234,14 @@ func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
 	if n := s.display("#{window_panes}"); n != "2" {
 		t.Errorf("home has %s panes with a dead shell in the slot", n)
 	}
-	if w := s.display("#{pane_width}"); w != "48" {
+	if w := s.display("#{pane_width}"); w != railW {
 		t.Errorf("the rail gave up its width to a dead shell: %s", w)
 	}
 
 	s.until("a hold to take the dead pane's place", func() bool {
 		return strings.Contains(s.panes(), "home.1:conn:")
 	})
-	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != "48" {
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != railW {
 		t.Errorf("the revival changed the window's shape: %s panes, %s wide", n, w)
 	}
 }

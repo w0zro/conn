@@ -28,7 +28,7 @@ import (
 const (
 	sessionName   = "conn"
 	homeWindow    = "home"
-	railWidth     = 48 // the rail's columns; the slot has the rest
+	railWidth     = 44 // the rail's columns; the slot has the rest
 	defaultPrefix = "C-Space"
 )
 

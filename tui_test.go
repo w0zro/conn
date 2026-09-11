@@ -307,6 +307,21 @@ func TestCapitalAOpensThePickerAtThePlace(t *testing.T) {
 	}
 }
 
+// alt+a opens the picker on the watch too, the same as A: there is no
+// filter here for it to collide with, but it is one chord either way.
+func TestAltAOpensThePickerAtThePlaceToo(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside = viewWatch, true
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
+	m.cursor = 11
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
+	m = next.(model)
+	if m.view != viewResume || cmd == nil {
+		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)
+	}
+}
+
 // x arms a kill on the entry under the cursor rather than sending one;
 // off any entry there is nothing to arm, and it says so.
 func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {

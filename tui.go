@@ -386,9 +386,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // then continues to the watch and gives the slot its side back; on the
 // watch c brings the console back over the whole window,
 // enter reaches the cursor's process, s opens a shell at its place, a
-// opens claude there instead, and A opens the picker over what claude
-// left suspended there. x asks to end the cursor's process, and arms
-// the question rather than the ending: the next key answers it.
+// opens claude there instead, and A, or alt+a beside it, opens the
+// picker over what claude left suspended there. x asks to end the
+// cursor's process, and arms the question rather than the ending: the
+// next key answers it.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A kill x asked for takes the next key, whatever it is: x, y or
 	// enter confirms it, and anything else cancels — no other binding
@@ -478,7 +479,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		default:
 			return m, m.openAgent(pl.path)
 		}
-	case k == "A":
+	case k == "A" || k == "alt+a":
 		_, pl, ok := m.under()
 		switch {
 		case !m.inside:

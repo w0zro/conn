@@ -47,11 +47,12 @@ A conversation does not end when claude exits: the transcript it leaves is
 enough to pick it back up. `A`, on the watch or the list — a group's own
 row and all — opens a picker over what is suspended at that place: newest
 first, each answering by its branch, the last thing it was asked, or where
-it was had. It is a line typed into like the list, `enter` continues the
-one under the cursor in a shell running `claude --resume`, and `esc` comes
-back without continuing anything. A conversation a live instance is already
-carrying is left off, checked against the process table rather than trusted
-on the file's word alone.
+it was had. On the list `ctrl-shift-a` opens it too, beside `ctrl-a`'s own
+chord for a fresh conversation. It is a line typed into like the list,
+`enter` continues the one under the cursor in a shell running `claude
+--resume`, and `esc` comes back without continuing anything. A conversation
+a live instance is already carrying is left off, checked against the
+process table rather than trusted on the file's word alone.
 
 Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.

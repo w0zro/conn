@@ -502,6 +502,23 @@ func TestCapitalAOpensThePickerAtTheProject(t *testing.T) {
 	}
 }
 
+// ctrl+shift+a opens the picker the same way A does, beside ctrl+a's
+// own chord for a fresh conversation.
+func TestCtrlShiftAOpensThePickerAtTheProjectToo(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.projects, m.pcursor = viewProjects, testProjects, 0
+	m.inside = true
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "ctrl+shift+a"}))
+	m = next.(model)
+	if m.view != viewResume || cmd == nil {
+		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)
+	}
+	if len(m.convosDirs) != 3 {
+		t.Errorf("convosDirs = %v", m.convosDirs)
+	}
+}
+
 // The picker is a line typed into, the same as the list: what is typed
 // narrows the rows and puts the cursor back at the top, backspace and
 // ctrl+u widen it again, and esc leaves without continuing anything.

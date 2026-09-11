@@ -24,6 +24,7 @@ var (
 		{pid: 500, ppid: 1, uid: 501, command: "distnoted", state: 'S', started: watchNow.Add(-4 * 24 * time.Hour), cwd: "/"},
 		{pid: 67031, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-3 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/conn"},
 		{pid: 67032, ppid: 67031, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "conn", args: []string{"./conn"}, started: watchNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 67033, ppid: 67032, uid: 501, tty: "ttys004", state: 'S', command: "tmux", args: []string{"tmux", "-S", "/Users/w0zro/.local/state/conn/sock", "attach"}, started: watchNow.Add(-89 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
 		{pid: 67040, ppid: 67031, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
 		{pid: 70001, ppid: 1, uid: 501, tty: "ttys007", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-2 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
 		{pid: 70100, ppid: 70001, uid: 501, tty: "ttys007", foreground: true, state: 'S', command: "claude", args: []string{"claude", "--resume"}, started: watchNow.Add(-47 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
@@ -99,11 +100,16 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		t.Errorf("a bare shell is %s, not idle", e.status)
 	}
 	// conn is in the table, at the same place as its own shell, and is
-	// not a row of it, root or branch.
+	// not a row of it — nor is the tmux client it holds, which is
+	// conn's own doing and goes off the watch with it rather than
+	// hanging from the shell above conn.
 	for _, pl := range places {
 		for _, e := range pl.entries {
 			if e.kind == kindConn {
 				t.Error("conn is on its own watch")
+			}
+			if e.pid == 67033 {
+				t.Errorf("the tmux client conn holds is a row: %+v", e)
 			}
 		}
 	}

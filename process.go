@@ -105,12 +105,13 @@ type place struct {
 // into the place that holds it; a whole tree is one place's, the root's
 // own directory, whatever a process under it has since cd'd to.
 //
-// conn is not on the watch, root or branch. It is the instrument, not
-// the work — the one conn you are looking at, the conn behind it
-// holding the terminal, and the hold standing in an empty slot alike.
-// Something running under one of those, however unlikely, roots a tree
-// of its own rather than hiding with it. The rule goes by the
-// program's name, so a conn on another socket, or an older conn
+// conn is not on the watch, and neither is what it holds. It is the
+// instrument, not the work — the one conn you are looking at, the conn
+// behind it holding the terminal, and the hold standing in an empty
+// slot alike — and it covers what runs under it, so the tmux client it
+// holds is no more a row than conn is. An agent and an editor cover
+// nothing: what they run is work, and reads as theirs. The rule goes
+// by the program's name, so a conn on another socket, or an older conn
 // installed beside this one, is off the watch too.
 func watch(procs []process, uid int, rootOf func(string) string) []place {
 	byPid := map[int]process{}
@@ -122,10 +123,31 @@ func watch(procs []process, uid int, rootOf func(string) string) []place {
 	for _, p := range procs {
 		candidate[p.pid] = p.uid == uid && p.tty != ""
 	}
+	// covered says whether conn stands anywhere above a process: the
+	// tmux client conn holds is conn's own doing, not work of yours,
+	// and goes off the watch with it rather than hanging from whatever
+	// happens to be above conn.
+	covered := func(p process) bool {
+		seen := map[int]bool{}
+		for pid := p.ppid; pid > 0 && !seen[pid]; {
+			seen[pid] = true
+			a, ok := byPid[pid]
+			if !ok {
+				return false
+			}
+			if candidate[a.pid] {
+				switch kindOf(a) {
+				case kindConn, kindHold:
+					return true
+				}
+			}
+			pid = a.ppid
+		}
+		return false
+	}
 	// treeParent is the nearest candidate ancestor a process hangs
-	// from, climbing past whatever is not one itself; conn and the
-	// hold are never that ancestor, since neither is a row anything
-	// belongs under.
+	// from, climbing past whatever is not one itself. Nothing covered
+	// gets this far, so no ancestor it can find is conn's.
 	treeParent := func(p process) (int, bool) {
 		seen := map[int]bool{}
 		for pid := p.ppid; pid > 0 && !seen[pid]; {
@@ -135,12 +157,7 @@ func watch(procs []process, uid int, rootOf func(string) string) []place {
 				return 0, false
 			}
 			if candidate[a.pid] {
-				switch kindOf(a) {
-				case kindConn, kindHold:
-					// not a parent to hang from; keep climbing past it
-				default:
-					return a.pid, true
-				}
+				return a.pid, true
 			}
 			pid = a.ppid
 		}
@@ -149,7 +166,7 @@ func watch(procs []process, uid int, rootOf func(string) string) []place {
 	children := map[int][]int{}
 	var roots []int
 	for _, p := range procs {
-		if !candidate[p.pid] {
+		if !candidate[p.pid] || covered(p) {
 			continue
 		}
 		switch kindOf(p) {

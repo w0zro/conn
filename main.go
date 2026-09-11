@@ -175,6 +175,7 @@ var commands = []command{
 	}},
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()
+		applyMode(serverMode(socketPath(home)))
 		if err := runHold(findServer(home), colored()); err != nil {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			return 1

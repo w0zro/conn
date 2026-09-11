@@ -26,9 +26,10 @@ func TestWatchMatchesTheGolden(t *testing.T) {
 	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
 }
 
-// The watch's columns hold: the status flush right, the kind at the
-// margin, the path from ~, the ages as of the clock, no legend on the
-// bottom row, no row past the width.
+// The watch's columns hold: the status flush right, a root's kind at
+// the margin and what runs under it a level in per level, the path
+// from ~, the ages as of the clock, no legend on the bottom row, no
+// row past the width.
 func TestWatchLaysOut(t *testing.T) {
 	rows := drawWatch(testWatch(), 70100, 120, 40, plain)
 	text := texts(rows)
@@ -36,9 +37,17 @@ func TestWatchLaysOut(t *testing.T) {
 	for _, s := range []string{
 		"CONN ", "W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z",
 		"KIND    COMMAND", "TTY", "AGE", "STATUS",
-		"~/projects/w0zro/conn", "1 PROCESS", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
-		"~/projects/w0zro/vim.pro/conjurer", "AGENT   claude --resume", "47M 00S", "ACTIVE",
-		"~", "EDITOR  vim notes.md", "1D 01H", " STOPPED", " ▸ AGENT   claude --resume",
+		"~/projects/w0zro/conn", "2 PROCESSES", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
+		"~/projects/w0zro/vim.pro/conjurer", "47M 00S", "ACTIVE",
+		"~", "1D 01H", " STOPPED",
+		// A root at the margin, and the tree under it stepping in: the
+		// agent its shell runs, the shell the agent runs, the go that
+		// one runs. The cursor's mark sits in the margin regardless.
+		"\n   SHELL   zsh",
+		"\n       SHELL   bash -c go test ./...",
+		"\n         RUN     go test ./...",
+		"\n     EDITOR  vim notes.md",
+		" ▸   AGENT   claude --resume",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("watch lacks %q:\n%s", s, text)
@@ -68,17 +77,19 @@ func TestWatchLaysOut(t *testing.T) {
 // A watch taller than the terminal scrolls to keep the cursor in view
 // and says how many rows are above and below.
 func TestAWatchThatWillNotFitScrolls(t *testing.T) {
-	rows := drawWatch(testWatch(), 67040, 100, 9, plain)
+	rows := drawWatch(testWatch(), 70001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 12 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawWatch(testWatch(), 80002, 100, 9, plain)
 	text = texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 6 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸ EDITOR") {
+	// The cursor's mark keeps the margin; the row it marks still steps
+	// in for the level it is at.
+	if len(rows) != 9 || !strings.Contains(text, "… 12 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸   EDITOR") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
-	if piped := drawWatch(testWatch(), 67040, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
+	if piped := drawWatch(testWatch(), 70001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
 		t.Errorf("off a terminal:\n%s", texts(piped))
 	}
 }
@@ -89,7 +100,10 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewWatch, uid: 501, roots: testRoots, now: watchNow}
 	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots)})
 	m = next.(model)
-	if m.cursor != 67040 {
+	// The rows read down the tree: the conjurer's shell, the claude it
+	// runs, the bash that one runs, its go, then the node beside the
+	// bash.
+	if m.cursor != 70001 {
 		t.Errorf("the cursor should start on the first row, not %d", m.cursor)
 	}
 	press := func(k string) {
@@ -99,15 +113,23 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	press("j")
 	press("j")
 	press("j")
-	if m.cursor != 80002 || m.cursorAt != 2 {
+	if m.cursor != 70301 || m.cursorAt != 3 {
 		t.Errorf("after three j the cursor is on %d at %d", m.cursor, m.cursorAt)
 	}
 	press("k")
+	press("k")
 	if m.cursor != 70100 {
-		t.Errorf("after k the cursor is on %d", m.cursor)
+		t.Errorf("after two k the cursor is on %d", m.cursor)
 	}
-	// claude gone: the go test, node and idle shell take its place; the
-	// cursor keeps its row.
+	// A reading that still has the pid keeps the cursor on it, wherever
+	// in the rows it has moved to.
+	next, _ = m.Update(watchMsg{places: watch(testProcs, 501, testRoots)})
+	m = next.(model)
+	if m.cursor != 70100 || m.cursorAt != 1 {
+		t.Errorf("the cursor left the pid it was on: %d at %d", m.cursor, m.cursorAt)
+	}
+	// claude gone: what it ran stands on its own, and the cursor, with
+	// no pid of its own left to follow, holds the row it was at.
 	var without []process
 	for _, p := range testProcs {
 		if p.pid != 70100 {
@@ -116,13 +138,8 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	}
 	next, _ = m.Update(watchMsg{places: watch(without, 501, testRoots)})
 	m = next.(model)
-	if m.cursor != 70212 || m.cursorAt != 1 {
+	if m.cursorAt != 1 || m.cursor != 70301 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
-	}
-	next, _ = m.Update(watchMsg{places: watch(testProcs, 501, testRoots)})
-	m = next.(model)
-	if m.cursor != 70100 {
-		t.Errorf("the cursor did not follow a pid that is back: %d", m.cursor)
 	}
 	next, _ = m.Update(watchMsg{})
 	m = next.(model)
@@ -219,14 +236,20 @@ func TestKeysInsideTheServer(t *testing.T) {
 		m = next.(model)
 		return cmd
 	}
-	if cmd := press("enter", tea.KeyEnter); cmd != nil || m.note != "NOT IN A PANE OF CONN'S SERVER" {
-		t.Errorf("enter on a process outside the server: %q", m.note)
-	}
-	press("j", 'j')
+	// The cursor starts on the conjurer's shell, whose terminal is a
+	// pane of the server: enter reaches it.
 	if cmd := press("enter", tea.KeyEnter); cmd == nil || m.note != "" {
 		t.Errorf("enter on a process in the server should reach it: %q", m.note)
 	} else if n, ok := cmd().(noteMsg); !ok || !strings.Contains(n.note, "TMUX") {
 		t.Errorf("a server that is not there should be said on the bottom row: %+v", n)
+	}
+	// Down past that tree to conn's own place, whose terminals the
+	// server does not hold.
+	for range 5 {
+		press("j", 'j')
+	}
+	if cmd := press("enter", tea.KeyEnter); cmd != nil || m.note != "NOT IN A PANE OF CONN'S SERVER" {
+		t.Errorf("enter on a process outside the server: %q", m.note)
 	}
 	if cmd := press("s", 's'); cmd == nil {
 		t.Error("s should open a shell at the place")
@@ -286,7 +309,8 @@ func TestTheCursorIsAGround(t *testing.T) {
 	for _, r := range rows {
 		if strings.Contains(r.text, p.selection) {
 			on++
-			if !strings.HasPrefix(stripEscapes(r.text), "   SHELL   zsh") {
+			// The slot's shell is a level in, under the rail's own.
+			if !strings.HasPrefix(stripEscapes(r.text), "     SHELL   zsh") {
 				t.Errorf("the raised row is not the cursor's: %q", stripEscapes(r.text))
 			}
 			// Raised from edge to edge: the row never falls back to the
@@ -304,7 +328,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 	}
 	// In plain text there is no ground to raise, so the mark stays.
 	plainRows := texts(drawWatch(testWatch(), 67040, 120, 40, plain))
-	if !strings.Contains(plainRows, "▸ SHELL   zsh") {
+	if !strings.Contains(plainRows, "▸   SHELL   zsh") {
 		t.Errorf("the plain watch lost its cursor:\n%s", plainRows)
 	}
 }

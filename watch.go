@@ -9,17 +9,21 @@ import (
 
 // The watch: what is running, by place. Under a short header, each
 // place work is happening in is a block — its path as a title, and a
-// row for each process that stands for work there: its kind, what it
-// was started as, its terminal, how long it has been at it, and the
-// word for how it stands. The newest work is at the top. A cursor
-// is on one row, which is drawn on a raised ground from edge to edge,
-// and the rows scroll to keep it in view. What conn holds — a process
-// in a pane of the server, which can be reached — is written in the
-// ink; work conn can only report is dimmed a rank. The bottom
-// row is kept clear for a note — what went wrong reaching something —
-// and holds nothing otherwise. In the rail, which is narrower than the
-// console, the terminal column is left off and the rest close up; the
-// row on the right, in the slot, is in orange.
+// row for each process that stands for its own work there, nested
+// under whatever runs it the way the processes actually are: its
+// kind, what it was started as, its terminal, how long it has been at
+// it, and the word for how it stands. A row under another indents,
+// its kind and command shifted in together, the rest of its columns
+// holding their own place. The newest work anywhere in a tree brings
+// it, and its place, to the top. A cursor is on one row, which is
+// drawn on a raised ground from edge to edge, and the rows scroll to
+// keep it in view. What conn holds — a process in a pane of the
+// server, which can be reached — is written in the ink; work conn can
+// only report is dimmed a rank. The bottom row is kept clear for a
+// note — what went wrong reaching something — and holds nothing
+// otherwise. In the rail, which is narrower than the console, the
+// terminal column is left off and the rest close up; the row on the
+// right, in the slot, is in orange.
 
 // The watch's words, composed from the places as of a moment.
 type watchReport struct {
@@ -41,6 +45,7 @@ type watchRow struct {
 	fault                           bool
 	reach                           string // the pane that holds it, in conn's server
 	shown                           bool   // it is in the slot, on the right
+	depth                           int    // how deep under its place's own root
 }
 
 // composeWatch words the places; panes says which terminals are the
@@ -56,7 +61,7 @@ func composeWatch(places []place, panes map[string]pane, slot string, home strin
 			bp.rows = append(bp.rows, watchRow{
 				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
-				shown: slot != "" && e.tty == slot,
+				shown: slot != "" && e.tty == slot, depth: e.depth,
 			})
 		}
 		b.places = append(b.places, bp)
@@ -75,6 +80,7 @@ const (
 	railKindW   = 7
 	railAgeW    = 7
 	railMinCols = 40
+	treeIndent  = 2 // columns a row gives up per level under its root
 )
 
 // drawWatch renders the watch for a terminal of the given size, with
@@ -168,9 +174,14 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 				command += p.bold
 				cursorRow = len(body) + len(d.rows)
 			}
+			// A row under another indents, kind and command shifted in
+			// together; the command gives up what the indent takes; a
+			// tree too deep for the room there is stops taking more.
+			indent := min(r.depth*treeIndent, max(commandW-4, 0))
+			l.to(indent)
 			l.add(kind, fit(r.kind, kindCol-1, false))
-			l.to(kindCol)
-			l.add(command, fit(r.command, commandW, false))
+			l.to(kindCol + indent)
+			l.add(command, fit(r.command, commandW-indent, false))
 			if !rail {
 				l.to(ttyCol)
 				// A terminal the server holds is in gray; one it does not,

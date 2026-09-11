@@ -78,8 +78,9 @@ const (
 	statusEnded   = "ENDED"   // finished, and not yet collected
 )
 
-// An entry is a row of the watch: one process that stands for the work
-// it is doing.
+// An entry is a row of the watch: one process, standing for its own
+// work, at its place in the tree the processes it is among actually
+// are.
 type entry struct {
 	pid     int
 	kind    string
@@ -88,6 +89,7 @@ type entry struct {
 	started time.Time
 	status  string
 	fault   bool // a status to be looked at: STOPPED, ENDED
+	depth   int  // how deep under its place's own root; the root at 0
 }
 
 // A place is a directory work is happening in, and the entries at it.
@@ -96,19 +98,20 @@ type place struct {
 	entries []entry
 }
 
-// watch composes the places from the process table: the processes of one
-// user with a terminal, each standing for its work. A shell shows only
-// when it is idle, with nothing of its own on the watch; an agent and an
-// editor show and cover what they run; anything else shows when it is
-// the leaf of its tree. rootOf turns a working directory into the place
-// that holds it.
+// watch composes the places from the process table: the processes of
+// one user with a terminal, each standing for its own work, nested
+// under whatever candidate process runs it — the tree they actually
+// are, rather than one leaf apiece. rootOf turns a working directory
+// into the place that holds it; a whole tree is one place's, the root's
+// own directory, whatever a process under it has since cd'd to.
 //
-// conn is not on the watch. It is the instrument, not the work — the one
-// conn you are looking at, the conn behind it holding the terminal, and
-// the hold standing in an empty slot alike. It still covers what runs
-// under it, so the tmux client it holds is not a row of its own. The rule
-// goes by the program's name, so a conn on another socket, or an older
-// conn installed beside this one, is off the watch too.
+// conn is not on the watch, root or branch. It is the instrument, not
+// the work — the one conn you are looking at, the conn behind it
+// holding the terminal, and the hold standing in an empty slot alike.
+// Something running under one of those, however unlikely, roots a tree
+// of its own rather than hiding with it. The rule goes by the
+// program's name, so a conn on another socket, or an older conn
+// installed beside this one, is off the watch too.
 func watch(procs []process, uid int, rootOf func(string) string) []place {
 	byPid := map[int]process{}
 	for _, p := range procs {
@@ -119,76 +122,136 @@ func watch(procs []process, uid int, rootOf func(string) string) []place {
 	for _, p := range procs {
 		candidate[p.pid] = p.uid == uid && p.tty != ""
 	}
-	// covered says whether an ancestor stands for a process: an agent, an
-	// editor or a conn above it, on the watch, covers what it runs.
-	covered := func(p process) bool {
+	// treeParent is the nearest candidate ancestor a process hangs
+	// from, climbing past whatever is not one itself; conn and the
+	// hold are never that ancestor, since neither is a row anything
+	// belongs under.
+	treeParent := func(p process) (int, bool) {
 		seen := map[int]bool{}
 		for pid := p.ppid; pid > 0 && !seen[pid]; {
 			seen[pid] = true
 			a, ok := byPid[pid]
 			if !ok {
-				return false
+				return 0, false
 			}
 			if candidate[a.pid] {
 				switch kindOf(a) {
-				case kindAgent, kindEditor, kindConn:
-					return true
+				case kindConn, kindHold:
+					// not a parent to hang from; keep climbing past it
+				default:
+					return a.pid, true
 				}
 			}
 			pid = a.ppid
 		}
-		return false
+		return 0, false
 	}
-	// A leaf has no candidate child.
-	hasChild := map[int]bool{}
+	children := map[int][]int{}
+	var roots []int
 	for _, p := range procs {
-		if candidate[p.pid] {
-			hasChild[p.ppid] = true
+		if !candidate[p.pid] {
+			continue
+		}
+		switch kindOf(p) {
+		case kindConn, kindHold:
+			continue
+		}
+		if parent, ok := treeParent(p); ok {
+			children[parent] = append(children[parent], p.pid)
+		} else {
+			roots = append(roots, p.pid)
 		}
 	}
+	// The table is read a process at a time, not all at once, so what
+	// comes back can be of two moments: the same pid listed twice, or
+	// a pid reused in between leaving a parent that is its own
+	// descendant. Neither costs more than a row — walked keeps the
+	// first from being written twice, and newest keeps the second from
+	// following itself down forever.
+	walked := map[int]bool{}
+
+	// newest is the latest a pid or anything under it started: what
+	// orders a tree among its siblings, and a place among the others —
+	// fresh work under a shell open for hours still counts as fresh.
+	memo := map[int]time.Time{}
+	var newest func(pid int, seen map[int]bool) time.Time
+	newest = func(pid int, seen map[int]bool) time.Time {
+		if t, ok := memo[pid]; ok {
+			return t
+		}
+		if seen[pid] {
+			return byPid[pid].started
+		}
+		seen[pid] = true
+		t := byPid[pid].started
+		for _, c := range children[pid] {
+			if ct := newest(c, seen); ct.After(t) {
+				t = ct
+			}
+		}
+		memo[pid] = t
+		return t
+	}
+	newestOf := func(pid int) time.Time { return newest(pid, map[int]bool{}) }
+	sortNewest := func(pids []int) {
+		sort.SliceStable(pids, func(i, j int) bool { return newestOf(pids[i]).After(newestOf(pids[j])) })
+	}
+	sortNewest(roots)
+	for pid := range children {
+		sortNewest(children[pid])
+	}
+
 	places := map[string]*place{}
-	for _, p := range procs {
-		if !candidate[p.pid] || covered(p) {
-			continue
+	var order []string
+	placeNewest := map[string]time.Time{}
+	var walk func(pid, depth int, path string)
+	walk = func(pid, depth int, path string) {
+		if walked[pid] {
+			return
 		}
+		walked[pid] = true
+		p := byPid[pid]
 		kind := kindOf(p)
-		if kind == kindConn || kind == kindHold {
-			continue
+		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth}
+		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0)
+		if places[path] == nil {
+			places[path] = &place{path: path}
+			order = append(order, path)
 		}
-		if kind == kindShell && hasChild[p.pid] {
-			continue
+		places[path].entries = append(places[path].entries, e)
+		for _, c := range children[pid] {
+			walk(c, depth+1, path)
 		}
-		if kind == kindRun && hasChild[p.pid] {
-			continue
-		}
-		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started}
-		e.status, e.fault = statusOf(p, kind)
-		root := rootOf(p.cwd)
-		if places[root] == nil {
-			places[root] = &place{path: root}
-		}
-		places[root].entries = append(places[root].entries, e)
 	}
+	for _, rootPid := range roots {
+		path := rootOf(byPid[rootPid].cwd)
+		if t := newestOf(rootPid); t.After(placeNewest[path]) {
+			placeNewest[path] = t
+		}
+		walk(rootPid, 0, path)
+	}
+
 	out := make([]place, 0, len(places))
-	for _, pl := range places {
-		sort.SliceStable(pl.entries, func(i, j int) bool { return pl.entries[i].started.After(pl.entries[j].started) })
-		out = append(out, *pl)
+	for _, path := range order {
+		out = append(out, *places[path])
 	}
-	// The newest work first; a place with nothing dated, last.
+	// The newest work first, anywhere in a place's trees.
 	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].entries[0].started.After(out[j].entries[0].started)
+		return placeNewest[out[i].path].After(placeNewest[out[j].path])
 	})
 	return out
 }
 
-// statusOf is the word for a process as it stands.
-func statusOf(p process, kind string) (string, bool) {
+// statusOf is the word for a process as it stands. A shell is only
+// idle bare, at its prompt; running anything, even nested many levels
+// down, it is active the way what it runs is.
+func statusOf(p process, kind string, hasChildren bool) (string, bool) {
 	switch {
 	case p.state == 'T':
 		return statusStopped, true
 	case p.state == 'Z':
 		return statusEnded, true
-	case kind == kindShell:
+	case kind == kindShell && !hasChildren:
 		return statusIdle, false
 	default:
 		return statusActive, false

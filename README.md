@@ -2,9 +2,17 @@
 
 conn comes up on the loop, reads out the machine, runs its start-up checks,
 and gives its verdict; a key continues to the watch, which is what is
-running, by place: the processes of yours with a terminal, one standing for
-each piece of work, grouped under the place it works in — the repository, or
-the app or service inside it that carries a manifest of its own.
+running, by place: the processes of yours with a terminal, each standing for
+its own work, grouped under the place it works in — the repository, or the
+app or service inside it that carries a manifest of its own.
+
+Under a place they read as the tree they are: a shell, the agent it runs
+indented under it, the shell that agent asked for under that, and its `go
+test` under that again. A whole tree belongs to one place, the directory its
+root stands in, whatever a process below it has since `cd`'d to. A shell is
+idle only bare, at its prompt; running anything, however far down, it is
+active the way what it runs is. The newest work anywhere in a tree brings it,
+and its place, to the top.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

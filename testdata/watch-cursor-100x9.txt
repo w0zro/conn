@@ -2,8 +2,8 @@
    CONN                                                 W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z
    ──────────────────────────────────────────────────────────────────────────────────────────────
    KIND    COMMAND                                                 TTY        AGE          STATUS
-
-   ~                                                                                    1 PROCESS
- ▸ EDITOR  vim notes.md                                            TTYS009    1D 01H     STOPPED
-   … 6 ABOVE
+   ~                                                                                  2 PROCESSES
+   SHELL   zsh                                                     TTYS009    1D 02H       ACTIVE
+ ▸   EDITOR  vim notes.md                                          TTYS009    1D 01H     STOPPED
+   … 12 ABOVE
 

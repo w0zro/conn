@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -43,37 +44,71 @@ var (
 	}
 )
 
-// The watch stands one process for each piece of work: claude for
-// everything it runs, the idle shell for itself, the stopped vim over
-// its shell; the newest work first; nothing of root's, of another
-// user's, without a terminal, or conn's own — conn is the instrument
-// and not the work, though it still covers what runs under it.
+// The watch stands every process for its own work, nested under
+// whatever runs it: claude's node and its bash, the bash's own go, a
+// shell over its idle sibling, another over its stopped vim. The
+// newest work anywhere in a tree brings it, and its place, to the top.
+// Nothing of root's, of another user's, without a terminal, or conn's
+// own — conn is the instrument and not the work, though something
+// under it, however unlikely, would still root a tree of its own.
 func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	places := watch(testProcs, 501, testRoots)
 	var got []string
 	for _, pl := range places {
 		for _, e := range pl.entries {
-			got = append(got, pl.path+" "+e.kind+" "+e.command+" "+e.status)
+			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
 	}
 	want := []string{
-		"/Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
-		"/Users/w0zro/projects/w0zro/vim.pro/conjurer AGENT claude --resume ACTIVE",
-		"/Users/w0zro EDITOR vim notes.md STOPPED",
+		"/Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL zsh ACTIVE",
+		" /Users/w0zro/projects/w0zro/vim.pro/conjurer AGENT claude --resume ACTIVE",
+		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL bash -c go test ./... ACTIVE",
+		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
+		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN node /opt/claude/mcp.js ACTIVE",
+		"/Users/w0zro/projects/w0zro/conn SHELL zsh ACTIVE",
+		" /Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
+		"/Users/w0zro SHELL zsh ACTIVE",
+		" /Users/w0zro EDITOR vim notes.md STOPPED",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if places[2].entries[0].fault != true || places[0].entries[0].fault {
-		t.Error("the stopped vim is not a fault, or the idle shell is")
+
+	find := func(pid int) entry {
+		for _, pl := range places {
+			for _, e := range pl.entries {
+				if e.pid == pid {
+					return e
+				}
+			}
+		}
+		t.Fatalf("pid %d is not on the watch", pid)
+		return entry{}
 	}
-	// conn is in the table, at the same place, and is not a row of it.
-	for _, e := range places[0].entries {
-		if e.kind == kindConn {
-			t.Error("conn is on its own watch")
+	if e := find(80002); !e.fault {
+		t.Error("the stopped vim is not a fault")
+	}
+	if e := find(80001); e.fault {
+		t.Error("the shell over it is a fault")
+	}
+	// A shell running anything, however deep, is active; bare, idle.
+	if e := find(70001); e.status != statusActive {
+		t.Errorf("a shell running claude is %s, not active", e.status)
+	}
+	if e := find(67040); e.status != statusIdle {
+		t.Errorf("a bare shell is %s, not idle", e.status)
+	}
+	// conn is in the table, at the same place as its own shell, and is
+	// not a row of it, root or branch.
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			if e.kind == kindConn {
+				t.Error("conn is on its own watch")
+			}
 		}
 	}
-	// The go test shows once claude is gone, and the shell it left idle.
+	// The go test and the node stand on their own once claude is gone,
+	// each a root of its own place's tree; the shell it left is idle.
 	var without []process
 	for _, p := range testProcs {
 		if p.pid != 70100 {
@@ -83,15 +118,81 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	got = got[:0]
 	for _, pl := range watch(without, 501, testRoots) {
 		for _, e := range pl.entries {
-			got = append(got, e.kind+" "+e.command+" "+e.status)
+			got = append(got, strings.Repeat(" ", e.depth)+e.kind+" "+e.command+" "+e.status)
 		}
 	}
-	want = []string{"RUN go test ./... ACTIVE", "RUN node /opt/claude/mcp.js ACTIVE", "SHELL zsh IDLE", "SHELL zsh IDLE", "EDITOR vim notes.md STOPPED"}
+	want = []string{
+		"SHELL bash -c go test ./... ACTIVE",
+		" RUN go test ./... ACTIVE",
+		"RUN node /opt/claude/mcp.js ACTIVE",
+		"SHELL zsh IDLE",
+		"SHELL zsh ACTIVE",
+		" SHELL zsh IDLE",
+		"SHELL zsh ACTIVE",
+		" EDITOR vim notes.md STOPPED",
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	if b := watch(nil, 501, testRoots); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
+	}
+}
+
+// The table is read a process at a time, so what comes back can be of
+// two moments: a pid listed twice, or one reused in between, leaving a
+// parent that is its own descendant. Either costs a row, not the
+// reading — the watch comes back, without looping and without saying
+// the same process twice.
+func TestATornTableCostsARowNotTheReading(t *testing.T) {
+	dup := []process{
+		{pid: 20, ppid: 1, uid: 501, tty: "ttys001", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
+		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+	}
+	var pids []int
+	for _, pl := range watch(dup, 501, testRoots) {
+		for _, e := range pl.entries {
+			pids = append(pids, e.pid)
+		}
+	}
+	if !slices.Equal(pids, []int{20, 21}) {
+		t.Errorf("a pid listed twice reads as %v", pids)
+	}
+	cycle := []process{
+		{pid: 10, ppid: 11, uid: 501, tty: "ttys001", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
+		{pid: 11, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "bash", args: []string{"bash"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		// Two more under one of them, so the ordering of that one's
+		// children is something that has to be worked out at all.
+		{pid: 13, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 14, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "vim", args: []string{"vim"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 12, ppid: 1, uid: 501, tty: "ttys002", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
+	}
+	done := make(chan []place, 1)
+	go func() { done <- watch(cycle, 501, testRoots) }()
+	select {
+	case places := <-done:
+		// The one process standing clear of the cycle is still read.
+		var pids []int
+		for _, pl := range places {
+			for _, e := range pl.entries {
+				pids = append(pids, e.pid)
+			}
+		}
+		if !slices.Contains(pids, 12) {
+			t.Errorf("the process outside the cycle was lost: %v", pids)
+		}
+		for _, pl := range places {
+			seen := map[int]bool{}
+			for _, e := range pl.entries {
+				if seen[e.pid] {
+					t.Errorf("pid %d is on the watch twice", e.pid)
+				}
+				seen[e.pid] = true
+			}
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the watch did not come back from a cycle in the table")
 	}
 }
 

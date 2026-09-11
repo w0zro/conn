@@ -64,6 +64,7 @@ func startScratch(t *testing.T) *scratch {
 		"-s", sessionName, "-n", homeWindow, "-c", home, "exec "+shellQuote(bin))
 	cmd.Env = append(withoutTmux(os.Environ()),
 		"CONN_SOCKET="+s.srv.socket, "XDG_STATE_HOME="+filepath.Join(dir, "state"),
+		"CONN_ROOTS="+home,
 		"HOME="+home, "TERM=xterm-256color", "COLORTERM=truecolor", "SHELL=/bin/sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("starting the server: %v\n%s", err, out)
@@ -83,6 +84,48 @@ func (s *scratch) keys(keys ...string) {
 func (s *scratch) rail() string {
 	out, _ := s.srv.run("capture-pane", "-p", "-t", sessionName+":"+homeWindow+".0")
 	return out
+}
+
+// scratchPlace is the tail the rail keeps of the scratch root's
+// repository: the one place on the watch that is this test's own,
+// since the watch reads the whole machine's table and everything else
+// it finds there is somewhere else entirely. The head of the path is
+// elided, and is /private/tmp rather than the /tmp it was made under,
+// macOS having the one be a link to the other, so the tail is what a
+// test can hold to.
+const scratchPlace = "home/repo"
+
+// placeRows is how many processes the rail says stand at that place,
+// read off the place's own title line.
+func (s *scratch) placeRows() int {
+	for line := range strings.SplitSeq(s.rail(), "\n") {
+		if !strings.Contains(line, scratchPlace) {
+			continue
+		}
+		f := strings.Fields(line)
+		for i, w := range f {
+			if strings.HasPrefix(w, "PROCESS") && i > 0 {
+				n, _ := strconv.Atoi(f[i-1])
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+// openShell opens a shell at the scratch root's own repository, from
+// the list rather than with s at the cursor: the watch reads the whole
+// machine's process table, so what the cursor lands on is whatever
+// else is running here, while the list is only ever the roots this
+// test laid down. The cursor follows the shell it opens, so a test
+// that goes on to act on it acts on that one.
+func (s *scratch) openShell() {
+	s.t.Helper()
+	s.keys("p")
+	s.until("the list to find the scratch repository", func() bool {
+		return strings.Contains(s.rail(), "PROJECTS") && strings.Contains(s.rail(), "repo")
+	})
+	s.keys("Enter")
 }
 
 // panes is every pane as window.index:command:id.
@@ -166,9 +209,9 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 		t.Errorf("home has %s panes", hold)
 	}
 
-	s.keys("s")
+	s.openShell()
 	s.until("a shell in the slot", func() bool {
-		return s.shellIn("home.1") && strings.Contains(s.rail(), "SHELL  ")
+		return s.shellIn("home.1") && strings.Contains(s.rail(), scratchPlace)
 	})
 	if strings.Contains(s.panes(), "conn:") && strings.Count(s.panes(), "conn:") > 1 {
 		t.Errorf("the hold should be gone once a shell is in the slot: %s", s.panes())
@@ -180,11 +223,15 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 		t.Fatalf("the rail and the slot are one pane: %s", s.panes())
 	}
 
-	s.keys("s")
+	// The tree shows whatever else this machine is running too, so the
+	// count to wait for is a rise from where it stood at the scratch's
+	// own place, not a fixed number anywhere on the rail.
+	before := s.placeRows()
+	s.openShell()
 	s.until("a second shell, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.parked(slotFirst)
 	})
-	s.until("the second shell's row", func() bool { return strings.Count(s.rail(), "SHELL  ") == 2 })
+	s.until("the second shell's row", func() bool { return s.placeRows() > before })
 
 	// The cursor is on the newest shell, which is in the slot; j is the
 	// first, and enter brings it back.
@@ -219,7 +266,7 @@ func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
 	s.keys("Space")
 	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
 
-	s.keys("s")
+	s.openShell()
 	s.until("a shell in the slot", func() bool { return s.shellIn("home.1") })
 
 	// The shell has the keys once s opens it, the same as select-pane
@@ -256,9 +303,13 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	s.keys("Space")
 	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
 
-	s.keys("s")
+	// The tree now shows whatever else this machine is running too, so
+	// the row to wait for is a rise from where the count stood, and the
+	// cursor a beat to follow the shell — awaited, but the watch reads
+	// it on its own poll, not this test's.
+	s.openShell()
 	s.until("a shell in the slot", func() bool {
-		return s.shellIn("home.1") && strings.Contains(s.rail(), "SHELL  ")
+		return s.shellIn("home.1") && s.placeRows() == 1
 	})
 
 	s.keys("x")
@@ -283,7 +334,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	s.keys("Space")
 	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
 
-	s.keys("s")
+	s.openShell()
 	s.until("a shell in the slot", func() bool { return s.shellIn("home.1") })
 
 	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "sleep 100", "Enter"); err != nil {
@@ -291,6 +342,10 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	}
 	s.until("sleep running in the slot", func() bool { return strings.Contains(s.rail(), "RUN") && strings.Contains(s.rail(), "sleep 100") })
 
+	// The cursor stayed on the shell's own pid — it does not jump to a
+	// child that only just appeared under it — and sleep is nested
+	// right below it, the tree's next row down.
+	s.keys("j")
 	s.keys("x")
 	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.rail(), "END SLEEP 100") })
 	s.keys("x")

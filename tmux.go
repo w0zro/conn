@@ -425,25 +425,28 @@ var (
 // otherwise; see mode.go for the light table and both grounds.
 var scheme = darkScheme
 
-// tmuxConf is the server's configuration: the prefix with one chord
-// under it, and the look. tmux's own prefix table is emptied, so none
-// of its keys or actions are reachable through conn; prefix then -
-// puts focus on the watch, and that is the only chord for now. The
-// look is the console's: every pane on the ground, in the ink, with the
-// sixteen colors a program asks for by name drawn from conn's scheme,
-// with CONN set in the server so a program that draws in its own hex
-// can tell where it is and dress to match,
-// the cursor in the orange and a selection on the border color, and
-// between the rail and the slot a line in that color too, the same
-// whichever side has focus.
+// tmuxConf is the server's configuration: the prefix with its chords,
+// and the look. tmux's own prefix table is emptied, so none of its
+// keys or actions are reachable through conn; prefix then - puts focus
+// on the watch from wherever the keys are, and prefix then q detaches
+// the way q does from the watch itself, without first coming back to
+// it. The look is the console's: every pane on the ground, in the ink,
+// with the sixteen colors a program asks for by name drawn from conn's
+// scheme, with CONN set in the server so a program that draws in its
+// own hex can tell where it is and dress to match, the cursor in the
+// orange and a selection on the border color, and between the rail
+// and the slot a line in that color too, the same whichever side has
+// focus.
 func tmuxConf(prefix string) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
-# One chord under the prefix, to the watch; tmux's own are unbound.
+# Two chords under the prefix: to the watch, and to detach; tmux's own
+# are unbound.
 set -g prefix ` + prefix + `
 set -g prefix2 None
 unbind -a -T prefix
 bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0
+bind q detach-client
 set -g status off
 set -g mouse on
 # The rail's width is conn's to hold; a drag of the border would only be

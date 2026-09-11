@@ -18,11 +18,13 @@ the next key answers it, `x`, `y` or `enter` confirming and anything else
 calling it off. A bare shell, with nothing running in it, is killed outright
 — asked more gently it just ignores the signal — and anything a shell runs
 is asked to end on its own, leaving the shell at its prompt rather than
-taking it too. One chord, `ctrl-space -` (`CONN_PREFIX`
-names another prefix, in tmux's spelling), puts focus on the watch from
-anywhere in the server; tmux's own keys are unbound, so none of them are
-reachable through conn. `q` detaches, and the server keeps everything in it
-for the next `conn`; `conn down` takes the server down with everything in it,
+taking it too. Two chords live under `ctrl-space` (`CONN_PREFIX` names
+another prefix, in tmux's spelling): `ctrl-space -` puts focus on the
+watch from anywhere in the server, and `ctrl-space q` detaches from
+anywhere too, the same as `q` does from the watch itself — without first
+coming back to it. tmux's own keys are otherwise unbound, so none of them
+are reachable through conn. The server keeps everything in it for the
+next `conn`; `conn down` takes the server down with everything in it,
 and says what went, the way `docker compose down` does. Without tmux, conn
 shows the console and the watch and reaches nothing. On macOS the watch needs
 `lsof`, which is how a process's working directory is read there; Linux keeps

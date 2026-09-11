@@ -264,6 +264,34 @@ func TestAOpensAnAgentAtThePlace(t *testing.T) {
 	}
 }
 
+// Capital A opens the picker over what claude left suspended at the
+// place under the cursor, asking for that place's own directory alone.
+func TestCapitalAOpensThePickerAtThePlace(t *testing.T) {
+	m := newModel(plain)
+	m.view = viewWatch
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
+	m.cursor = 11
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
+	m = next.(model)
+	if cmd != nil || m.note == "" {
+		t.Errorf("outside the server: cmd %v, note %q", cmd != nil, m.note)
+	}
+
+	m.inside, m.note = true, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
+	m = next.(model)
+	if m.view != viewResume || !m.convosLoading || cmd == nil {
+		t.Fatalf("in the server: view %d, loading %v, cmd %v", m.view, m.convosLoading, cmd != nil)
+	}
+	if got := m.convosDirs; len(got) != 1 || got[0] != "/w" {
+		t.Errorf("convosDirs = %v", got)
+	}
+	if msg, ok := cmd().(convosMsg); !ok || len(msg.dirs) != 1 || msg.dirs[0] != "/w" {
+		t.Errorf("scanConvos did not ask for the place under the cursor: %v", cmd())
+	}
+}
+
 // p leaves the watch for the list and walks the roots; what is typed
 // narrows the rows and puts the cursor back at the top; the arrows and
 // ctrl+n and ctrl+p move it, held within the rows there are; esc comes
@@ -358,5 +386,101 @@ func TestCtrlAOpensAnAgentAtTheProject(t *testing.T) {
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
 		t.Errorf("ctrl+a did not both read the watch and open the agent: %T", cmd())
+	}
+}
+
+// Capital A opens the picker at the row's own directory, or, on a
+// group, at every repository under it too — a transcript is filed by
+// the exact directory it was had in, not the folder that names them.
+func TestCapitalAOpensThePickerAtTheProject(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.projects, m.pcursor = viewProjects, testProjects, 0 // arboreum.io, a group of two
+	m.inside = true
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
+	m = next.(model)
+	if m.view != viewResume || cmd == nil {
+		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)
+	}
+	want := []string{
+		"/Users/w0zro/projects/arboreum.io",
+		"/Users/w0zro/projects/arboreum.io/content",
+		"/Users/w0zro/projects/arboreum.io/welcome",
+	}
+	if !equal(m.convosDirs, want) {
+		t.Errorf("convosDirs = %v, want %v", m.convosDirs, want)
+	}
+}
+
+// The picker is a line typed into, the same as the list: what is typed
+// narrows the rows and puts the cursor back at the top, backspace and
+// ctrl+u widen it again, and esc leaves without continuing anything.
+func TestResumeIsALineTypedInto(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.convos = viewResume, testConvos
+	key := func(m model, k string) (model, tea.Cmd) {
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		return next.(model), cmd
+	}
+	for _, k := range []string{"t", "o", "p", "i", "c"} {
+		m, _ = key(m, k)
+	}
+	if m.rfilter != "topic" || len(m.resumeRows()) != 1 {
+		t.Fatalf("typed: filter %q, %d rows", m.rfilter, len(m.resumeRows()))
+	}
+	m, _ = key(m, "backspace")
+	if m.rfilter != "topi" {
+		t.Errorf("after backspace: filter %q", m.rfilter)
+	}
+	m, _ = key(m, "ctrl+u")
+	if m.rfilter != "" || len(m.resumeRows()) != 2 {
+		t.Errorf("ctrl+u left filter %q, %d rows", m.rfilter, len(m.resumeRows()))
+	}
+	m, cmd := key(m, "esc")
+	if m.view != viewWatch || cmd == nil {
+		t.Errorf("after esc: view %d, cmd %v", m.view, cmd != nil)
+	}
+}
+
+// Enter continues the conversation under the cursor in a shell running
+// claude --resume, and comes back to the watch, where the shell will
+// show; outside the server nothing can be opened, and the picker says
+// so on the bottom row.
+func TestEnterContinuesTheConversationUnderTheCursor(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.convos, m.rcursor = viewResume, testConvos, 1
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = next.(model)
+	if m.view != viewResume || cmd != nil || m.note == "" {
+		t.Errorf("outside the server: view %d, note %q", m.view, m.note)
+	}
+	m.inside, m.srv, m.note = true, &server{tmux: "/nonexistent/tmux"}, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = next.(model)
+	if m.view != viewWatch || cmd == nil {
+		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
+	}
+	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
+		t.Errorf("enter did not both read the watch and open the conversation: %T", cmd())
+	}
+}
+
+// A picker's listing that lands after it moved on to another place —
+// or closed — is dropped: only the one that asked for these dirs wants
+// them.
+func TestAStaleConvosAnswerIsDropped(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.convosDirs, m.convosLoading = viewResume, []string{"/a"}, true
+
+	next, _ := m.Update(convosMsg{dirs: []string{"/b"}, convos: testConvos})
+	m = next.(model)
+	if !m.convosLoading || len(m.convos) != 0 {
+		t.Errorf("a stale answer landed: loading %v, %d convos", m.convosLoading, len(m.convos))
+	}
+
+	next, _ = m.Update(convosMsg{dirs: []string{"/a"}, convos: testConvos})
+	m = next.(model)
+	if m.convosLoading || len(m.convos) != len(testConvos) {
+		t.Errorf("the matching answer did not land: loading %v, %d convos", m.convosLoading, len(m.convos))
 	}
 }

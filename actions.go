@@ -72,6 +72,29 @@ func (m model) scanProjects() tea.Cmd {
 	}
 }
 
+// scanConvos reads a place's suspended conversations off the loop, the
+// process table as it stood when the picker opened, so a leftover
+// session file cannot be mistaken for one still going.
+func (m model) scanConvos(dirs []string) tea.Cmd {
+	places := m.places
+	return func() tea.Msg {
+		return convosMsg{dirs: dirs, convos: claudeSuspended(dirs, places)}
+	}
+}
+
+// openResumed opens a shell that picks a suspended conversation back
+// up, off the loop, the way openAgent opens a fresh one.
+func (m model) openResumed(dir, id string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		sh, err := srv.openCmd(dir, resumeCommand(id))
+		if err != nil {
+			return noteMsg{strings.ToUpper(err.Error())}
+		}
+		return openedMsg{shell: sh}
+	}
+}
+
 // hasPid says whether a process is among what was read.
 func hasPid(places []place, pid int) bool {
 	for _, pl := range places {

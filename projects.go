@@ -335,6 +335,23 @@ func matching(ps []project, filter string) []project {
 	return out
 }
 
+// convoDirs is the directories a project's conversations could be filed
+// under: its own, and for a group each repository beneath it in turn —
+// a transcript is filed by the exact directory it was had in, which for
+// a group is one of its repositories, not the folder that names them.
+func convoDirs(all []project, p project) []string {
+	dirs := []string{p.path}
+	if p.repos == 0 {
+		return dirs
+	}
+	for _, c := range all {
+		if c.grouped && filepath.Dir(c.path) == p.path {
+			dirs = append(dirs, c.path)
+		}
+	}
+	return dirs
+}
+
 // The list's columns: the name from the margin, a group's repositories
 // indented under it, and a group's count flush with the measure. The
 // filter's line puts what is typed where a name goes, so the rows read

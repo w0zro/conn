@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -49,6 +50,7 @@ const (
 	viewConsole = iota
 	viewWatch
 	viewProjects
+	viewResume
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -103,6 +105,10 @@ type (
 		projects []project
 		err      string
 	}
+	convosMsg struct { // a place's suspended conversations were read
+		dirs   []string
+		convos []conversation
+	}
 )
 
 type model struct {
@@ -135,6 +141,15 @@ type model struct {
 	projectsErr string
 	uid         int
 	roots       func(string) string
+
+	// The picker: a place's suspended conversations, as last read, what
+	// has narrowed them, and which of the rows the cursor is on.
+	convosDirs    []string // the directories asked for; a stale answer's guard
+	convosPlace   string
+	convos        []conversation
+	convosLoading bool
+	rfilter       string
+	rcursor       int
 
 	srv    *server         // conn's tmux server, when there is one
 	inside bool            // this conn is the rail of the server's home window
@@ -331,6 +346,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case projectsMsg:
 		m.projects, m.projectsErr, m.scanning = msg.projects, msg.err, false
 		m.pcursor = clamp(m.pcursor, len(m.projectRows()))
+	case convosMsg:
+		// Only the picker that asked for these dirs wants them; one opened
+		// on another place since has moved past the answer.
+		if !slices.Equal(msg.dirs, m.convosDirs) {
+			return m, nil
+		}
+		m.convos, m.convosLoading = msg.convos, false
+		m.rcursor = clamp(m.rcursor, len(m.resumeRows()))
 	case noteMsg:
 		m.note = msg.note
 	case tea.KeyPressMsg:
@@ -344,11 +367,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // outside it, from anywhere; on the console a key skips the sequence,
 // then continues to the watch and gives the slot its side back; on the
 // watch c brings the console back over the whole window,
-// enter reaches the cursor's process, s opens a shell at its place, and
-// a opens claude there instead.
+// enter reaches the cursor's process, s opens a shell at its place, a
+// opens claude there instead, and A opens the picker over what claude
+// left suspended there.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
-	if m.view == viewProjects {
+	switch m.view {
+	case viewProjects:
 		return m.projectKey(k)
+	case viewResume:
+		return m.resumeKey(k)
 	}
 	switch {
 	case k == "ctrl+c" || k == "q":
@@ -409,6 +436,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		default:
 			return m, m.openAgent(pl.path)
 		}
+	case k == "A":
+		_, pl, ok := m.under()
+		switch {
+		case !m.inside:
+			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
+		case !ok || pl.path == "":
+			m.note = "NO PLACE UNDER THE CURSOR"
+		default:
+			return m.openResume(pl.path, []string{pl.path})
+		}
 	case k == "p":
 		m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
 		return m, m.scanProjects()
@@ -423,8 +460,10 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // hand that cannot reach j and k; enter opens a shell at the row under
 // the cursor and goes back to the watch, which is where the shell will
 // show, and ctrl+a opens claude there instead, since a plain a is a
-// letter to type; esc goes back without opening anything, and ctrl+c is
-// what it is everywhere.
+// letter to type; A opens the picker over what claude left suspended
+// at the row, group included — a plain A is not a letter anyone types
+// into a project's name; esc goes back without opening anything, and
+// ctrl+c is what it is everywhere.
 func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.projectRows()
 	switch {
@@ -459,6 +498,16 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openAgent(path))
 		}
+	case k == "A":
+		switch {
+		case !m.inside:
+			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
+		case m.pcursor >= len(rows):
+			m.note = "NO PROJECT UNDER THE CURSOR"
+		default:
+			row := rows[m.pcursor]
+			return m.openResume(row.path, convoDirs(m.projects, row))
+		}
 	case k == "up" || k == "ctrl+p":
 		m.pcursor = clamp(m.pcursor-1, len(rows))
 	case k == "down" || k == "ctrl+n":
@@ -483,6 +532,78 @@ func (m model) toWatch() (tea.Model, tea.Cmd) {
 	m.view = viewWatch
 	m.watchGen++
 	return m, m.readWatch()
+}
+
+// openResume opens the picker over a place's suspended conversations:
+// place is what it is for, and dirs the directories a transcript could
+// be filed under, which for a group is a repository under it, not the
+// folder that names it.
+func (m model) openResume(place string, dirs []string) (tea.Model, tea.Cmd) {
+	m.view = viewResume
+	m.convosDirs, m.convosPlace, m.convosLoading = dirs, place, true
+	m.convos, m.rfilter, m.rcursor = nil, "", 0
+	return m, m.scanConvos(dirs)
+}
+
+// resumeRows is the conversations the filter leaves, which the cursor
+// is an index into.
+func (m model) resumeRows() []conversation {
+	return matchingConvos(m.convos, m.rfilter)
+}
+
+// resumeReport is the picker's words as things stand.
+func (m model) resumeReport() resumeReport {
+	b := composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
+	b.note = m.note
+	return b
+}
+
+// resumeKey answers a key on the picker, which is a line typed into the
+// same way the list is: letters narrow it, up and down move the cursor
+// and ctrl+n and ctrl+p do too, enter continues the conversation under
+// the cursor and goes back to the watch, esc goes back without
+// continuing anything, and ctrl+c is what it is everywhere.
+func (m model) resumeKey(k string) (tea.Model, tea.Cmd) {
+	rows := m.resumeRows()
+	switch {
+	case k == "ctrl+c":
+		if m.inside {
+			return m, m.serverCmd(func() error { return m.srv.detach() }, "")
+		}
+		return m, tea.Quit
+	case k == "esc":
+		return m.toWatch()
+	case k == "enter":
+		switch {
+		case !m.inside:
+			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
+		case m.convosLoading:
+			m.note = "STILL LOOKING"
+		case m.rcursor >= len(rows):
+			m.note = "NO CONVERSATION UNDER THE CURSOR"
+		default:
+			c := rows[m.rcursor]
+			mm, cmd := m.toWatch()
+			m = mm.(model)
+			return m, tea.Batch(cmd, m.openResumed(c.Dir, c.ID))
+		}
+	case k == "up" || k == "ctrl+p":
+		m.rcursor = clamp(m.rcursor-1, len(rows))
+	case k == "down" || k == "ctrl+n":
+		m.rcursor = clamp(m.rcursor+1, len(rows))
+	case k == "backspace":
+		if r := []rune(m.rfilter); len(r) > 0 {
+			m.rfilter = string(r[:len(r)-1])
+		}
+		m.rcursor = 0
+	case k == "ctrl+u":
+		m.rfilter, m.rcursor = "", 0
+	case k == "space":
+		m.rfilter, m.rcursor = m.rfilter+" ", 0
+	case utf8.RuneCountInString(k) == 1:
+		m.rfilter, m.rcursor = m.rfilter+k, 0
+	}
+	return m, nil
 }
 
 // clamp holds an index within the rows there are; with no rows it is
@@ -546,6 +667,8 @@ func (m model) View() tea.View {
 		rows = drawWatch(m.watchReport(), m.cursor, m.width, m.height, m.p)
 	case viewProjects:
 		rows = drawProjects(m.projectsReport(), m.pcursor, m.width, m.height, m.p)
+	case viewResume:
+		rows = drawResume(m.resumeReport(), m.rcursor, m.width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit

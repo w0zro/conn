@@ -222,11 +222,12 @@ func body(r report, width int, own check, p palette) []row {
 			}
 		} else {
 			// UNCHECKED is not a pass the way NOMINAL is — there was
-			// nothing to check against — so it is said a rank quieter,
-			// the same faint a hint or a leader is.
+			// nothing to check against — so it is said in the color
+			// something owed already is: not a fault, but worth a
+			// second look, which gray would let slide past.
 			word := p.gray
 			if k.status == unchecked {
-				word = p.faint
+				word = p.owed
 			}
 			l.to(measure - utf8.RuneCountInString(k.status))
 			l.add(word, strings.ToUpper(k.status))

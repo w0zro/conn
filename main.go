@@ -93,8 +93,13 @@ func asks() func(string) bool {
 // Everything else it was is in the history, and comes back piece by
 // piece, in the form it is wanted in.
 func main() {
-	if len(os.Args) > 1 {
-		os.Exit(runCommand(os.Args[1], os.Args[2:]))
+	args, override, err := parseModeFlags(os.Args[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "conn:", err)
+		os.Exit(2)
+	}
+	if len(args) > 0 {
+		os.Exit(runCommand(args[0], args[1:]))
 	}
 	if !stdoutIsTerminal() {
 		for _, r := range screen(compose(readStation(), time.Now()), minCols, 0, plain) {
@@ -109,7 +114,7 @@ func main() {
 		self, err := os.Executable()
 		if err == nil {
 			var code int
-			code, err = srv.attach(self, home)
+			code, err = srv.attach(self, home, override)
 			if err == nil {
 				os.Exit(code)
 			}
@@ -121,11 +126,11 @@ func main() {
 	}
 	// A pane of conn's own server draws on the ground the server already
 	// chose; anything else - no tmux, or the server could not come up -
-	// has nobody to ask but the terminal itself.
+	// has nobody to ask but the terminal itself, or --light/--dark.
 	if inside {
 		applyMode(serverMode(srv.socket))
 	} else {
-		applyMode(detectDark())
+		applyMode(askDark(override))
 	}
 	m := newModel(colored())
 	m.srv, m.inside = srv, inside

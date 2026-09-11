@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
@@ -165,6 +166,44 @@ func serverMode(socket string) bool {
 // or says something conn cannot read, is dark - which is what every
 // terminal was before conn asked, and the safe read of a query that
 // went nowhere.
+// askDark is a ground already chosen - a --light or --dark flag - or
+// the terminal's own, asked fresh.
+func askDark(override *bool) bool {
+	if override != nil {
+		return *override
+	}
+	return detectDark()
+}
+
+// parseModeFlags reads --light and --dark off the front of conn's own
+// arguments, before any command name: which ground to come up on,
+// instead of asking the terminal or a server's mode file. It stops at
+// the first argument that is not one of the two, dark or light or a
+// command's own, and answers what is left of args from there, whole.
+// The two flags together is a contradiction; neither leaves the choice
+// where it always was.
+func parseModeFlags(args []string) (rest []string, override *bool, err error) {
+	for i, a := range args {
+		switch a {
+		case "--dark":
+			if override != nil && !*override {
+				return nil, nil, fmt.Errorf("--dark and --light are a contradiction")
+			}
+			dark := true
+			override = &dark
+		case "--light":
+			if override != nil && *override {
+				return nil, nil, fmt.Errorf("--dark and --light are a contradiction")
+			}
+			light := false
+			override = &light
+		default:
+			return args[i:], override, nil
+		}
+	}
+	return nil, override, nil
+}
+
 func detectDark() bool {
 	if !stdoutIsTerminal() || !stdinIsTerminal() {
 		return true

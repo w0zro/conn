@@ -44,6 +44,12 @@ the server's life. `conn down` and a relaunch is how it is asked again; a
 terminal that says nothing, or nothing conn can read, stays dark, which is
 what conn was before there was a light to ask for.
 
+`conn --light` and `conn --dark` say the ground instead of asking the
+terminal, ahead of a command name if there is one (`conn --light theme
+claude`). Either still only takes hold the first time a server rises; a
+server already up keeps what it came up on regardless, the same as the
+terminal's own answer would.
+
 A program that writes its own hex instead asks for none of the sixteen, and
 tmux passes those through untouched, so conn's palette cannot reach it.
 There is a theme for each of those conn knows about, written from the same

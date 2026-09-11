@@ -7,6 +7,71 @@ import (
 	"testing"
 )
 
+// --light and --dark, read off the front of conn's own arguments, pick
+// a ground before anything is asked; together they contradict, and
+// anything else - a command's name, an argument of its own - ends the
+// reading right there, whole.
+func TestParseModeFlags(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	for _, c := range []struct {
+		name string
+		args []string
+		rest []string
+		want *bool // nil means no override
+	}{
+		{"nothing", nil, nil, nil},
+		{"a command alone", []string{"down"}, []string{"down"}, nil},
+		{"--dark alone", []string{"--dark"}, nil, boolPtr(true)},
+		{"--light alone", []string{"--light"}, nil, boolPtr(false)},
+		{"--dark before a command", []string{"--dark", "theme", "claude"}, []string{"theme", "claude"}, boolPtr(true)},
+		{"--light before a command", []string{"--light", "down"}, []string{"down"}, boolPtr(false)},
+		{"--dark said twice", []string{"--dark", "--dark"}, nil, boolPtr(true)},
+		{"a command first leaves the flag its own", []string{"theme", "--light", "claude"}, []string{"theme", "--light", "claude"}, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			rest, got, err := parseModeFlags(c.args)
+			if err != nil {
+				t.Fatalf("parseModeFlags(%v): %v", c.args, err)
+			}
+			if len(rest) != len(c.rest) {
+				t.Fatalf("parseModeFlags(%v) rest = %v, want %v", c.args, rest, c.rest)
+			}
+			for i := range rest {
+				if rest[i] != c.rest[i] {
+					t.Errorf("parseModeFlags(%v) rest = %v, want %v", c.args, rest, c.rest)
+				}
+			}
+			if (got == nil) != (c.want == nil) || (got != nil && *got != *c.want) {
+				t.Errorf("parseModeFlags(%v) override = %v, want %v", c.args, got, c.want)
+			}
+		})
+	}
+
+	if _, _, err := parseModeFlags([]string{"--dark", "--light"}); err == nil {
+		t.Error("--dark and --light together was not a contradiction")
+	}
+	if _, _, err := parseModeFlags([]string{"--light", "--dark"}); err == nil {
+		t.Error("--light and --dark together was not a contradiction")
+	}
+}
+
+// askDark takes an override over the terminal, when there is one.
+func TestAskDark(t *testing.T) {
+	light, dark := false, true
+	if askDark(&light) {
+		t.Error("askDark(&light) is dark")
+	}
+	if !askDark(&dark) {
+		t.Error("askDark(&dark) is light")
+	}
+	// With no override and no terminal to ask (a test has none), askDark
+	// falls back the same way detectDark does: dark.
+	if !askDark(nil) {
+		t.Error("askDark(nil) with no terminal is not dark")
+	}
+}
+
 // applyMode puts every color on one ground or the other, and nothing
 // else touches these package vars mid-test, so a light call is always
 // undone before another test reads the dark defaults.

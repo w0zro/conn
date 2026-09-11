@@ -104,18 +104,18 @@ func (s *server) run(args ...string) (string, error) {
 // of its own, before the client had the terminal.
 //
 // The server's ground is decided here, once: what a mode file beside
-// the socket already says, or the terminal's own if there is none yet,
-// written down so it holds for this server's life. A tmux already up
-// keeps the ground it started with regardless - tmux does not re-read
-// -f on an attach - so asking again here costs nothing and changes
-// nothing until conn down clears the file.
-func (s *server) attach(self, home string) (int, error) {
+// the socket already says, or override if given, or the terminal's own
+// if there is neither, written down so it holds for this server's life.
+// A tmux already up keeps the ground it started with regardless - tmux
+// does not re-read -f on an attach - so asking again here costs nothing
+// and changes nothing until conn down clears the file.
+func (s *server) attach(self, home string, override *bool) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(s.socket), 0o700); err != nil {
 		return 0, err
 	}
 	dark, ok := readModeFile(s.socket)
 	if !ok {
-		dark = detectDark()
+		dark = askDark(override)
 		_ = writeMode(s.socket, dark)
 	}
 	applyMode(dark)

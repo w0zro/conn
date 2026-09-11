@@ -68,15 +68,17 @@ Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.
 conn comes up on one of two grounds, dark or light: the first time a server
 rises it asks the terminal for its own background and keeps that answer for
-the server's life. `conn down` and a relaunch is how it is asked again; a
-terminal that says nothing, or nothing conn can read, stays dark, which is
-what conn was before there was a light to ask for.
+the server's life, so later attaches do not each ask again. A terminal that
+says nothing, or nothing conn can read, stays dark, which is what conn was
+before there was a light to ask for.
 
 `conn --light` and `conn --dark` say the ground instead of asking the
 terminal, ahead of a command name if there is one (`conn --light theme
-claude`). Either still only takes hold the first time a server rises; a
-server already up keeps what it came up on regardless, the same as the
-terminal's own answer would.
+claude`). Either says it whenever it is given: a server already up is put on
+the other ground where it stands, no `conn down` in between. Every pane takes
+the new sixteen, the rail and a hold in the slot come back drawn on the new
+ground, and a pane with work in it keeps the colors it writes itself — what
+it asks for by name it gets from the new sixteen like everything else.
 
 A program that writes its own hex instead asks for none of the sixteen, and
 tmux passes those through untouched, so conn's palette cannot reach it.

@@ -103,26 +103,38 @@ func (s *server) run(args ...string) (string, error) {
 // or the server ends. It answers how the client exited; an error is one
 // of its own, before the client had the terminal.
 //
-// The server's ground is decided here, once: what a mode file beside
-// the socket already says, or override if given, or the terminal's own
-// if there is neither, written down so it holds for this server's life.
-// A tmux already up keeps the ground it started with regardless - tmux
-// does not re-read -f on an attach - so asking again here costs nothing
-// and changes nothing until conn down clears the file.
+// The server's ground is what a mode file beside the socket says, or
+// the terminal's own the first time a server rises, written down so it
+// holds across attaches. --light or --dark says it instead, and says it
+// whenever it is given: a server already up is put on the other ground
+// where it stands, rather than keeping what it rose on until conn down.
+// tmux does not re-read -f on an attach, so that takes sourcing the
+// configuration again; see reground.
 func (s *server) attach(self, home string, override *bool) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(s.socket), 0o700); err != nil {
 		return 0, err
 	}
 	dark, ok := readModeFile(s.socket)
-	if !ok {
+	asked := false
+	switch {
+	case !ok:
 		dark = askDark(override)
 		_ = writeMode(s.socket, dark)
+	case override != nil && *override != dark:
+		dark = *override
+		_ = writeMode(s.socket, dark)
+		asked = true
 	}
 	applyMode(dark)
 	refreshClaudeTheme(home)
 	conf := filepath.Join(filepath.Dir(s.socket), "tmux.conf")
 	if err := os.WriteFile(conf, []byte(tmuxConf(prefix())), 0o600); err != nil {
 		return 0, err
+	}
+	if asked {
+		if err := s.reground(conf); err != nil {
+			return 0, err
+		}
 	}
 	// A server that is up but has lost its home window gets one back.
 	if _, err := s.run("has-session", "-t", "="+sessionName); err == nil {
@@ -154,6 +166,39 @@ func (s *server) attach(self, home string, override *bool) (int, error) {
 		return 0, err
 	}
 	return 0, nil
+}
+
+// reground puts a server already up onto the ground the mode file now
+// says. Sourcing the configuration again is what tmux has in place of
+// re-reading -f: every set -g in it lands on the live server, so each
+// pane takes the new sixteen and the new ground without going down.
+//
+// The panes conn draws itself are the exception. They are conn, and
+// conn reads the mode once, when it starts; the palette each is
+// painting from is the one it rose on. So they are started again — the
+// rail, and a hold if one is standing in the slot — and read the mode
+// afresh. A pane with work in it draws in its own colors and keeps
+// them; what it asks for by name it now gets from the new sixteen.
+func (s *server) reground(conf string) error {
+	if !s.up() {
+		return nil
+	}
+	if _, err := s.run("source-file", conf); err != nil {
+		return err
+	}
+	panes, err := s.panes()
+	if err != nil {
+		return err
+	}
+	for _, p := range panes {
+		if p.hold {
+			if _, err := s.run("respawn-pane", "-k", "-t", p.id); err != nil {
+				return err
+			}
+		}
+	}
+	_, err = s.run("respawn-pane", "-k", "-t", sessionName+":"+homeWindow+".0")
+	return err
 }
 
 // oscColors asks the terminal to take conn's ink and ground for its

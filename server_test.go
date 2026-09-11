@@ -358,6 +358,51 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	}
 }
 
+// --light on a server already up puts it on the other ground where it
+// stands: the sixteen and the ground the panes are drawn on change,
+// the mode file says the new one, and the rail comes back painting
+// from it — no conn down in between.
+func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	// The scratch server rose on dark, the ground of a terminal that
+	// says nothing. tmux answers a color in its own case.
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, darkScheme[0]) {
+		t.Fatalf("the server did not rise on dark: slot 0 is %q", got)
+	}
+
+	// attach would take the terminal, which a test has none of; what is
+	// under test is the ground, so the same steps run without a client.
+	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
+	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
+	applyMode(false)
+	confText := tmuxConf("C-Space")
+	applyMode(true) // the test binary goes back to the ground it had
+	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeMode(srv.socket, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.reground(conf); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, lightScheme[0]) {
+		t.Errorf("slot 0 is %q after regrounding, not light's %q", got, lightScheme[0])
+	}
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+hex(lightGround)+",fg="+hex(lightInk)) {
+		t.Errorf("the window style is %q, not on the light ground", got)
+	}
+	if dark, ok := readModeFile(srv.socket); !ok || dark {
+		t.Errorf("the mode file was not put on light: dark %v, found %v", dark, ok)
+	}
+	// The rail came back, and came back conn.
+	s.until("the rail to come back", func() bool {
+		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.rail(), "CONN")
+	})
+}
+
 // conn down ends what the test brought up, and says so; a second
 // conn down finds nothing.
 func TestDownEndsTheScratchServer(t *testing.T) {

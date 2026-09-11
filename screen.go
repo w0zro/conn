@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -27,19 +28,31 @@ type palette struct {
 
 var plain = palette{plain: true}
 
+// ansiHex is a hex color, conn's own or a program's, as the escape a
+// terminal wants: 38 for ink, 48 for a ground.
+func ansiHex(code int, h string) string {
+	h = strings.TrimPrefix(h, "#")
+	v, _ := strconv.ParseUint(h, 16, 32)
+	return fmt.Sprintf("\x1b[%d;2;%d;%d;%dm", code, v>>16&0xFF, v>>8&0xFF, v&0xFF)
+}
+
+// colored draws the boot console on whichever ground applyMode last
+// picked: the console's own tokens are conn's scheme, so light or dark
+// reaches this palette the same way it reaches everything else conn
+// draws.
 func colored() palette {
 	p := palette{
-		ground:    "\x1b[48;2;21;19;15m",
-		border:    "\x1b[38;2;42;38;32m",
-		ink:       "\x1b[38;2;230;223;208m",
-		gray:      "\x1b[38;2;139;130;114m",
-		faint:     "\x1b[38;2;92;86;74m",
-		orange:    "\x1b[38;2;232;93;47m",
-		owed:      "\x1b[38;2;255;120;71m",
-		parchment: "\x1b[38;2;191;179;154m",
+		ground:    ansiHex(48, hex(groundColor)),
+		border:    ansiHex(38, borderHex),
+		ink:       ansiHex(38, hex(inkColor)),
+		gray:      ansiHex(38, grayHex),
+		faint:     ansiHex(38, scheme[8]),
+		orange:    ansiHex(38, cursorHex),
+		owed:      ansiHex(38, scheme[1]),
+		parchment: ansiHex(38, scheme[7]),
 		bold:      "\x1b[1m",
-		chip:      "\x1b[48;2;232;93;47m\x1b[38;2;21;19;15m\x1b[1m",
-		selection: "\x1b[48;2;42;38;32m",
+		chip:      ansiHex(48, cursorHex) + ansiHex(38, hex(groundColor)) + "\x1b[1m",
+		selection: ansiHex(48, borderHex),
 		end:       "\x1b[0m",
 	}
 	p.normal = p.end + p.ground + p.ink

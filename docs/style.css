@@ -1,17 +1,21 @@
-/* The manual is set in what conn is read in: JetBrains Mono throughout,
-   body and display alike, with the ligatures off the way ghostty has
-   them off — the glyph vocabulary renders as itself and the column
-   arithmetic stays honest. The family stops at 800, so the display
-   weights are 800; a 900 would be the browser drawing a bold of its
-   own. --display is kept as its own name because the role is its own:
-   the sizes and the tracking are not the body's. */
+/* The display is set in what conn is read in — JetBrains Mono, the
+   family ghostty loads for the terminal conn holds — and the body is
+   set in the typewriter the manual was typed on. The wordmark, the
+   banner under it and the section heads are the terminal's face; the
+   paragraphs, tables and figures are Courier Prime. Both advance
+   0.6em, so the two faces sit on one grid and the fixed pages keep
+   their arithmetic. The ligatures are off the way ghostty has them
+   off, so the glyph vocabulary renders as itself. JetBrains Mono
+   stops at 800, so the display weights are 800; a 900 would be the
+   browser drawing a bold of its own. */
 
 /* conn's site is an operating manual: US-letter pages on a dark desk,
-   scanned paper, binder holes, one monospace face throughout — the
-   terminal's own — with conn's orange as the one spot ink. The landing
-   page is the manual's cover; the guide is its interior pages, in one
-   scroll. Every page is a fixed artifact, 816 by 1056, and never
-   reflows: below the desk's width it is scaled, not rewrapped. */
+   scanned paper, binder holes, a typewriter body and the terminal's
+   own face for the display, with conn's orange as the one spot ink.
+   The landing page is the manual's cover; the guide is its interior
+   pages, in one scroll. Every page is a fixed artifact, 816 by 1056,
+   and never reflows: below the desk's width it is scaled, not
+   rewrapped. */
 
 /* The page is conn's scheme, inverted onto paper: what the terminal
    grounds on is what the manual is printed in, and what the terminal
@@ -51,8 +55,8 @@
   --box: rgba(255,255,255,0.35);
   --dash: rgba(42,38,32,0.35);
   --dots: rgba(42,38,32,0.45);
-  --mono: 'JetBrains Mono', ui-monospace, 'Courier New', Courier, monospace;
-  --display: var(--mono);
+  --mono: 'Courier Prime', 'Courier New', Courier, monospace;
+  --display: 'JetBrains Mono', ui-monospace, 'Courier New', Courier, monospace;
   /* The paper's fibre, drawn once as noise. The ink mask is solid over
      most of the noise, thins a little where it runs high, and only at
      its peaks lets the paper through: the ink that missed a fibre. The fibre overlay is the same noise as a faint warm

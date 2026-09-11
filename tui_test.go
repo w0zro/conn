@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -303,6 +304,81 @@ func TestCapitalAOpensThePickerAtThePlace(t *testing.T) {
 	}
 	if msg, ok := cmd().(convosMsg); !ok || len(msg.dirs) != 1 || msg.dirs[0] != "/w" {
 		t.Errorf("scanConvos did not ask for the place under the cursor: %v", cmd())
+	}
+}
+
+// x arms a kill on the entry under the cursor rather than sending one;
+// off any entry there is nothing to arm, and it says so.
+func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
+	m := newModel(plain)
+	m.view = viewWatch
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, kind: kindAgent, command: "claude"}}}}
+	m.cursor = 11
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if cmd != nil || m.kill == nil || m.kill.pid != 11 || m.kill.command != "claude" || m.kill.sig != syscall.SIGTERM {
+		t.Fatalf("arming: cmd %v, kill %+v", cmd != nil, m.kill)
+	}
+	if !strings.Contains(m.note, "END CLAUDE 11?") {
+		t.Errorf("no question on the bottom row: %q", m.note)
+	}
+
+	// A bare shell — nothing running in it to lose — is armed for SIGKILL
+	// instead, since it is proven to ignore the gentler signals.
+	m.places = []place{{path: "/w", entries: []entry{{pid: 22, kind: kindShell, command: "zsh"}}}}
+	m.cursor, m.kill, m.note = 22, nil, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.note, "KILL ZSH 22?") {
+		t.Errorf("arming a shell: kill %+v, note %q", m.kill, m.note)
+	}
+
+	m.places, m.kill, m.note = nil, nil, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if cmd != nil || m.kill != nil || m.note == "" {
+		t.Errorf("off any entry: cmd %v, kill %v, note %q", cmd != nil, m.kill, m.note)
+	}
+}
+
+// x, y or enter answers an armed kill by sending it; anything else
+// cancels, and takes the key that cancelled it rather than also acting
+// on it — j does not also move the cursor.
+func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
+	m := newModel(plain)
+	m.view = viewWatch
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, kind: kindAgent, command: "claude"}}}}
+	m.cursor = 11
+
+	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
+	m = next.(model)
+	if m.kill != nil || m.note != "KILL CANCELLED" || m.cursor != 11 {
+		t.Errorf("cancelled: kill %v, note %q, cursor %d", m.kill, m.note, m.cursor)
+	}
+
+	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if m.kill != nil || cmd == nil {
+		t.Fatalf("confirmed: kill %v, cmd %v", m.kill, cmd != nil)
+	}
+	msg, ok := cmd().(killedMsg)
+	if !ok || msg.pid != 11 || msg.command != "claude" || msg.sig != syscall.SIGTERM {
+		t.Errorf("killEntry did not ask to signal the armed entry: %v", cmd())
+	}
+}
+
+// What a kill came to is said on the bottom row, and the table is read
+// again after a beat, so the row is not read a moment too soon.
+func TestAKilledMsgNotesTheOutcomeAndRereads(t *testing.T) {
+	m := newModel(plain)
+	m.view = viewWatch
+	next, cmd := m.Update(killedMsg{command: "claude", pid: 11, sig: syscall.SIGTERM})
+	m = next.(model)
+	if m.note != "SENT SIGTERM TO CLAUDE 11" || cmd == nil {
+		t.Errorf("note %q, cmd %v", m.note, cmd != nil)
 	}
 }
 

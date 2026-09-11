@@ -152,6 +152,10 @@ type model struct {
 	rfilter       string
 	rcursor       int
 
+	// kill is a kill x has asked for and not yet answered; nothing else
+	// binds while it is not nil.
+	kill *pendingKill
+
 	srv    *server         // conn's tmux server, when there is one
 	inside bool            // this conn is the rail of the server's home window
 	self   string          // this binary, for the hold
@@ -361,6 +365,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.convos, m.convosLoading = msg.convos, false
 		m.rcursor = clamp(m.rcursor, len(m.resumeRows()))
+	case killedMsg:
+		m.note = killNote(msg)
+		// A beat for the signal to be acted on, so the row is not read a
+		// moment too soon, still there; the watchTick this reuses is a
+		// no-op once the stay it belongs to has moved on.
+		gen := m.watchGen
+		return m, tea.Tick(killGrace, func(time.Time) tea.Msg { return watchTickMsg{gen: gen} })
 	case noteMsg:
 		m.note = msg.note
 	case tea.KeyPressMsg:
@@ -376,8 +387,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // watch c brings the console back over the whole window,
 // enter reaches the cursor's process, s opens a shell at its place, a
 // opens claude there instead, and A opens the picker over what claude
-// left suspended there.
+// left suspended there. x asks to end the cursor's process, and arms
+// the question rather than the ending: the next key answers it.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
+	// A kill x asked for takes the next key, whatever it is: x, y or
+	// enter confirms it, and anything else cancels — no other binding
+	// fires while the question is on the bottom row.
+	if m.kill != nil {
+		req := m.kill
+		m.kill = nil
+		switch k {
+		case "x", "y", "enter":
+			return m, m.killEntry(req.pid, req.command, req.sig)
+		default:
+			m.note = "KILL CANCELLED"
+			return m, nil
+		}
+	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
@@ -423,6 +449,15 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		default:
 			return m, m.reach(m.panes[e.tty], e.tty)
 		}
+	case k == "x":
+		e, _, ok := m.under()
+		if !ok {
+			m.note = "NOTHING UNDER THE CURSOR"
+			return m, nil
+		}
+		sig := killSignal(e.kind)
+		m.kill = &pendingKill{pid: e.pid, command: e.command, sig: sig}
+		m.note = killPrompt(e.command, e.pid, sig)
 	case k == "s":
 		_, pl, ok := m.under()
 		switch {

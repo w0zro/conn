@@ -12,8 +12,13 @@ home window is a rail on the left, which is the watch, and a slot on the
 right, which is the process reached from it: `s` opens a shell at the place
 under the cursor and puts it in the slot, `a` opens claude there instead,
 `enter` puts the process under the cursor there, and what leaves the slot
-goes back to a window of its own, out of sight, where it keeps running. One
-chord, `ctrl-space -` (`CONN_PREFIX`
+goes back to a window of its own, out of sight, where it keeps running. `x`
+asks to end the cursor's entry, arming the question rather than the ending:
+the next key answers it, `x`, `y` or `enter` confirming and anything else
+calling it off. A bare shell, with nothing running in it, is killed outright
+— asked more gently it just ignores the signal — and anything a shell runs
+is asked to end on its own, leaving the shell at its prompt rather than
+taking it too. One chord, `ctrl-space -` (`CONN_PREFIX`
 names another prefix, in tmux's spelling), puts focus on the watch from
 anywhere in the server; tmux's own keys are unbound, so none of them are
 reachable through conn. `q` detaches, and the server keeps everything in it

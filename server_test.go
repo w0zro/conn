@@ -246,6 +246,63 @@ func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
 	}
 }
 
+// x arms a kill on the shell in the slot, and x again confirms it:
+// the shell is signalled, and the dead pane it leaves behind is
+// revived the same way any other is — a hold in its place, the window
+// never having given the rail's width up for it.
+func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.keys("Space")
+	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
+
+	s.keys("s")
+	s.until("a shell in the slot", func() bool {
+		return s.shellIn("home.1") && strings.Contains(s.rail(), "SHELL  ")
+	})
+
+	s.keys("x")
+	s.until("the kill armed", func() bool { return strings.Contains(s.rail(), "KILL") })
+	s.keys("x")
+
+	s.until("the shell's pane to die", func() bool { return s.paneDead("home.1") })
+	s.until("a hold to take its place", func() bool {
+		return strings.Contains(s.panes(), "home.1:conn:")
+	})
+	if w := s.display("#{pane_width}"); w != railW {
+		t.Errorf("the rail gave up its width to the kill: %s", w)
+	}
+}
+
+// x on what a shell runs ends the command, SIGTERM, and leaves the
+// shell at its prompt — the same pane, still live — rather than taking
+// it too; a kill of an entry is always the command alone.
+func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.keys("Space")
+	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
+
+	s.keys("s")
+	s.until("a shell in the slot", func() bool { return s.shellIn("home.1") })
+
+	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "sleep 100", "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	s.until("sleep running in the slot", func() bool { return strings.Contains(s.rail(), "RUN") && strings.Contains(s.rail(), "sleep 100") })
+
+	s.keys("x")
+	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.rail(), "END SLEEP 100") })
+	s.keys("x")
+
+	s.until("sleep to end and the shell to take its row back", func() bool {
+		return strings.Contains(s.rail(), "SHELL") && !strings.Contains(s.rail(), "sleep")
+	})
+	if s.paneDead("home.1") || !s.shellIn("home.1") {
+		t.Errorf("the shell did not survive ending what it ran")
+	}
+}
+
 // conn down ends what the test brought up, and says so; a second
 // conn down finds nothing.
 func TestDownEndsTheScratchServer(t *testing.T) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -98,6 +99,13 @@ func (m model) openResumed(dir, id string) tea.Cmd {
 			return noteMsg{strings.ToUpper(err.Error())}
 		}
 		return openedMsg{shell: sh}
+	}
+}
+
+// killEntry signals a process, off the loop.
+func (m model) killEntry(pid int, command string, sig syscall.Signal) tea.Cmd {
+	return func() tea.Msg {
+		return killedMsg{command: command, pid: pid, sig: sig, err: signal(pid, sig)}
 	}
 }
 

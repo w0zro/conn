@@ -11,6 +11,7 @@ import (
 	"time"
 
 	term "github.com/charmbracelet/x/term"
+	"golang.org/x/sys/unix"
 )
 
 // conn comes up on one of two grounds. Dark is every terminal it ever
@@ -226,15 +227,29 @@ func detectDark() bool {
 	if _, err := os.Stdout.WriteString("\x1b]11;?\x1b\\"); err != nil {
 		return true
 	}
-	_ = os.Stdin.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
-	defer os.Stdin.SetReadDeadline(time.Time{})
-
+	if !waitReadable(fd, 200*time.Millisecond) {
+		return true
+	}
 	reply := readOSCReply(os.Stdin)
 	dark, ok := parseBackground(reply)
 	if !ok {
 		return true
 	}
 	return dark
+}
+
+// waitReadable blocks until fd has a byte waiting or the wait passes.
+// os.Stdin's own read deadline is what a query with nowhere to go was
+// meant to lean on, but a pty's fd does not support one - Go answers
+// SetReadDeadline with "file type does not support deadline" on one,
+// silently, since the error was never checked - so the read that
+// followed blocked forever on a terminal that never replies to OSC 11
+// and never closes the pty either. Polling the raw fd first works on
+// any fd, pty included.
+func waitReadable(fd uintptr, wait time.Duration) bool {
+	fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
+	n, err := unix.Poll(fds, int(wait.Milliseconds()))
+	return err == nil && n > 0
 }
 
 // readOSCReply reads an OSC response one byte at a time until it ends -

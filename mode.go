@@ -27,6 +27,12 @@ import (
 // more ink, not more light, so the light scheme's bright slots go
 // darker than its normal ones - the opposite of the dark scheme, where
 // bright is lighter.
+//
+// The two neutral slots are the exception, and keep what every program
+// means by them: 0 is black, which on paper is ordinary text and the
+// strongest ink there is, and 8 is the gray a program dims with. They
+// are not a border and a quieter border; a program writing ANSI-0
+// expects to be read.
 
 // The two grounds and the two inks.
 var (
@@ -58,7 +64,7 @@ var darkScheme = [16]string{
 }
 
 var lightScheme = [16]string{
-	"#D8D0BD", // black
+	"#2B2620", // black
 	"#A63214", // red
 	"#23703F", // green
 	"#8A5F00", // yellow
@@ -79,6 +85,20 @@ var lightScheme = [16]string{
 const (
 	darkCursorHex  = "#E85D2F"
 	lightCursorHex = "#BD3A1D"
+)
+
+// The border, and the grounds that go with it: a pane's edge, a
+// selection, the bar behind what you said. On dark this is scheme[0],
+// which is the darkest thing there is and so the quietest edge. On
+// light it cannot be: light's scheme[0] is black, and black is what a
+// program writing ANSI-0 means by ordinary text — Claude Code writes
+// the unchanged lines of a diff in it. A border pale enough to be an
+// edge on paper is #D8D0BD, which is 1.27:1 against lightGround and
+// unreadable as text, so the two part company here rather than in the
+// sixteen.
+const (
+	darkBorderHex  = "#2A2620"
+	lightBorderHex = "#D8D0BD"
 )
 
 // The gray of the console's second rank, light; the dark one is grayHex
@@ -119,7 +139,7 @@ func applyMode(dark bool) {
 	if dark {
 		groundColor, inkColor = darkGround, darkInk
 		scheme = darkScheme
-		cursorHex, borderHex = darkCursorHex, darkScheme[0]
+		cursorHex, borderHex = darkCursorHex, darkBorderHex
 		grayHex = darkGrayHex
 		faintHex = darkFaintHex
 		diffAddedBg, diffRemovedBg = darkDiffAddedBg, darkDiffRemovedBg
@@ -131,7 +151,7 @@ func applyMode(dark bool) {
 	}
 	groundColor, inkColor = lightGround, lightInk
 	scheme = lightScheme
-	cursorHex, borderHex = lightCursorHex, lightScheme[0]
+	cursorHex, borderHex = lightCursorHex, lightBorderHex
 	grayHex = lightGrayHex
 	faintHex = lightFaintHex
 	diffAddedBg, diffRemovedBg = lightDiffAddedBg, lightDiffRemovedBg

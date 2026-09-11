@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -120,6 +122,66 @@ func TestTheLightSchemeIsSixteenToo(t *testing.T) {
 	blue, magenta, cyan := lightScheme[4], lightScheme[5], lightScheme[6]
 	if blue == cyan || blue == magenta || magenta == cyan {
 		t.Errorf("slots 4/5/6 collapse: %s %s %s", blue, magenta, cyan)
+	}
+}
+
+// contrast is the WCAG ratio between two hexes, which is how every
+// color on a ground here was chosen.
+func contrast(a, b string) float64 {
+	lum := func(h string) float64 {
+		var r, g, bl int
+		fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &bl)
+		part := func(v int) float64 {
+			c := float64(v) / 255
+			if c <= 0.03928 {
+				return c / 12.92
+			}
+			return math.Pow((c+0.055)/1.055, 2.4)
+		}
+		return 0.2126*part(r) + 0.7152*part(g) + 0.0722*part(bl)
+	}
+	hi, lo := lum(a), lum(b)
+	if hi < lo {
+		hi, lo = lo, hi
+	}
+	return (hi + 0.05) / (lo + 0.05)
+}
+
+// A slot a program writes ordinary text in has to be readable on the
+// ground it is written against. Which slots those are is the
+// convention, not conn's to pick: on paper black is text, and on a
+// dark ground the whites are. conn's light scheme once had black at
+// #D8D0BD - an edge, not an ink, and 1.27:1 against its own ground -
+// which left the unchanged lines of a Claude Code diff all but blank.
+func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
+	const readable = 4.5 // WCAG AA for body text
+	for _, c := range []struct {
+		ground string
+		slot   int
+		scheme [16]string
+		name   string
+	}{
+		{hex(lightGround), 0, lightScheme, "light black"},
+		{hex(lightGround), 7, lightScheme, "light white"},
+		{hex(lightGround), 15, lightScheme, "light bright white"},
+		{hex(darkGround), 7, darkScheme, "dark white"},
+		{hex(darkGround), 15, darkScheme, "dark bright white"},
+	} {
+		if r := contrast(c.scheme[c.slot], c.ground); r < readable {
+			t.Errorf("%s (slot %d, %s) is %.2f:1 on %s; %.1f:1 is what reading it takes",
+				c.name, c.slot, c.scheme[c.slot], r, c.ground, readable)
+		}
+	}
+	// The gray a program dims with is meant to be quieter than text,
+	// and is held to no more than that, but it is still a color and
+	// not the ground.
+	for _, c := range []struct{ name, hex, ground string }{
+		{"light bright black", lightScheme[8], hex(lightGround)},
+		{"dark bright black", darkScheme[8], hex(darkGround)},
+	} {
+		if r := contrast(c.hex, c.ground); r < 2 {
+			t.Errorf("%s (%s) is %.2f:1 on %s, which is the ground again", c.name, c.hex, r, c.ground)
+		}
 	}
 }
 

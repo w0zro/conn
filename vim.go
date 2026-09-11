@@ -18,6 +18,10 @@ import (
 // that are no slot say NONE and take the pane's own, which in conn is
 // the ground already.
 
+// vimBackground is what the colorscheme tells nvim its own background
+// is: dark or light, whichever ground applyMode last chose.
+var vimBackground = "dark"
+
 // A color as a colorscheme names it: what to draw it in, and which of
 // the sixteen it is when sixteen is all there is.
 type vimColor struct{ gui, cterm string }
@@ -276,9 +280,10 @@ func vimColorscheme() string {
 " this holds up where sixteen is all there is; a ground that is no slot
 " says NONE and takes the pane's own, which in conn is the ground.
 "
-" conn is one ground, and does not follow the system.
+" conn picks one ground - dark or light - when a server rises, and holds
+" it for that server's life; it does not follow the system after.
 
-set background=dark
+set background=` + vimBackground + `
 hi clear
 if exists('syntax_on')
   syntax reset

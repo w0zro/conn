@@ -19,6 +19,11 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 	if len(args) != 1 {
 		return "conn theme: say which program: conn theme claude, conn theme vim\n", false
 	}
+	// The theme drawn matches whichever ground the server on this
+	// machine is running, or would come up on if none is up yet - not
+	// an argument of its own, so it never drifts from what conn itself
+	// is dressed in.
+	applyMode(serverMode(socketPath(home)))
 	switch args[0] {
 	case "claude":
 		return dressClaude(home, ask)
@@ -113,6 +118,14 @@ func main() {
 		// says so.
 		fmt.Fprintf(os.Stderr, "conn: the tmux server could not be brought up: %v\n", err)
 		srv = nil
+	}
+	// A pane of conn's own server draws on the ground the server already
+	// chose; anything else - no tmux, or the server could not come up -
+	// has nobody to ask but the terminal itself.
+	if inside {
+		applyMode(serverMode(srv.socket))
+	} else {
+		applyMode(detectDark())
 	}
 	m := newModel(colored())
 	m.srv, m.inside = srv, inside

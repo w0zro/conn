@@ -28,8 +28,11 @@ import (
 // pane is conn's colors either way.
 
 // The gray of the console's second rank, as a hex; the ground, the ink
-// and the border have it already.
-const grayHex = "#8B8272"
+// and the border have it already. Dark until applyMode says otherwise;
+// see mode.go for the light one.
+const darkGrayHex = "#8B8272"
+
+var grayHex = darkGrayHex
 
 // Where Claude Code keeps what conn writes and what it reads back.
 const (
@@ -37,19 +40,35 @@ const (
 	claudeThemeRef = "custom:conn"
 )
 
-// The grounds a slot has no name for: the washes a diff is laid on, one
-// step up for the words inside it, and the bars behind a message and a
-// tool's output. In the ground's own temperature, none of them a fill.
+// The grounds a slot has no name for, dark: the washes a diff is laid
+// on, one step up for the words inside it, and the bars behind a
+// message and a tool's output. In the ground's own temperature, none of
+// them a fill. Light equivalents are in mode.go.
 const (
-	diffAddedBg     = "#1E2A1C"
-	diffRemovedBg   = "#331F17"
-	diffAddedDim    = "#191F17"
-	diffRemovedDim  = "#231A14"
-	diffAddedWord   = "#2C4028"
-	diffRemovedWord = "#4A2A1D"
-	messageHoverBg  = "#33302A"
-	toolBg          = "#1D1A15"
+	darkDiffAddedBg     = "#1E2A1C"
+	darkDiffRemovedBg   = "#331F17"
+	darkDiffAddedDim    = "#191F17"
+	darkDiffRemovedDim  = "#231A14"
+	darkDiffAddedWord   = "#2C4028"
+	darkDiffRemovedWord = "#4A2A1D"
+	darkMessageHoverBg  = "#33302A"
+	darkToolBg          = "#1D1A15"
 )
+
+var (
+	diffAddedBg     = darkDiffAddedBg
+	diffRemovedBg   = darkDiffRemovedBg
+	diffAddedDim    = darkDiffAddedDim
+	diffRemovedDim  = darkDiffRemovedDim
+	diffAddedWord   = darkDiffAddedWord
+	diffRemovedWord = darkDiffRemovedWord
+	messageHoverBg  = darkMessageHoverBg
+	toolBg          = darkToolBg
+)
+
+// themeBase is the base claudeThemeJSON sits on: dark-ansi or
+// light-ansi, whichever ground applyMode last chose.
+var themeBase = "dark-ansi"
 
 // A token and what conn would have it drawn in.
 type token struct{ name, color string }
@@ -122,7 +141,7 @@ func claudeTheme() [][]token {
 // be read against the handoff line for line.
 func claudeThemeJSON() string {
 	var b strings.Builder
-	b.WriteString("{\n  \"name\": \"Conn\",\n  \"base\": \"dark-ansi\",\n  \"overrides\": {\n")
+	fmt.Fprintf(&b, "{\n  \"name\": \"Conn\",\n  \"base\": %q,\n  \"overrides\": {\n", themeBase)
 	groups := claudeTheme()
 	for i, g := range groups {
 		for j, t := range g {

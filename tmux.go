@@ -102,10 +102,23 @@ func (s *server) run(args ...string) (string, error) {
 // running conn, and puts this terminal on it until the client detaches
 // or the server ends. It answers how the client exited; an error is one
 // of its own, before the client had the terminal.
+//
+// The server's ground is decided here, once: what a mode file beside
+// the socket already says, or the terminal's own if there is none yet,
+// written down so it holds for this server's life. A tmux already up
+// keeps the ground it started with regardless - tmux does not re-read
+// -f on an attach - so asking again here costs nothing and changes
+// nothing until conn down clears the file.
 func (s *server) attach(self, home string) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(s.socket), 0o700); err != nil {
 		return 0, err
 	}
+	dark, ok := readModeFile(s.socket)
+	if !ok {
+		dark = detectDark()
+		_ = writeMode(s.socket, dark)
+	}
+	applyMode(dark)
 	conf := filepath.Join(filepath.Dir(s.socket), "tmux.conf")
 	if err := os.WriteFile(conf, []byte(tmuxConf(prefix())), 0o600); err != nil {
 		return 0, err
@@ -358,10 +371,10 @@ func (s *server) detach() error {
 // The terminal's chrome, beyond the ground and the ink the console is
 // drawn in: the orange for the cursor, and the console's border color,
 // which draws the line between the rail and the slot and sits behind a
-// selection.
-const (
-	cursorHex = "#E85D2F"
-	borderHex = "#2A2620"
+// selection. Dark until applyMode says otherwise; see mode.go.
+var (
+	cursorHex = darkCursorHex
+	borderHex = darkScheme[0]
 )
 
 // The sixteen colors a program asks for by name, as conn draws them.
@@ -370,25 +383,9 @@ const (
 // border for black. The blue and the magenta are conn's own, added so
 // that the slots a shell theme leans on — structure, type, what can be
 // run — stay apart from one another instead of collapsing into the
-// orange and the teal. Normal, then bright.
-var scheme = [16]string{
-	"#2A2620", // black
-	"#FF7847", // red
-	"#93C98B", // green
-	"#E3A94F", // yellow
-	"#7FA7C9", // blue
-	"#C98BA8", // magenta
-	"#7FC7BD", // cyan
-	"#BFB39A", // white
-	"#5C564A", // bright black
-	"#E85D2F", // bright red
-	"#A8DBA0", // bright green
-	"#F2C06E", // bright yellow
-	"#9BBEDB", // bright blue
-	"#DBA6C0", // bright magenta
-	"#9AD9D0", // bright cyan
-	"#E6DFD0", // bright white
-}
+// orange and the teal. Normal, then bright. Dark until applyMode says
+// otherwise; see mode.go for the light table and both grounds.
+var scheme = darkScheme
 
 // tmuxConf is the server's configuration: the prefix with one chord
 // under it, and the look. tmux's own prefix table is emptied, so none
@@ -488,9 +485,13 @@ func (s *server) up() bool {
 	return err == nil
 }
 
-// down ends the server and everything in it.
+// down ends the server and everything in it, and clears the ground it
+// came up on, so the next one to rise picks fresh.
 func (s *server) down() error {
 	_, err := s.run("kill-server")
+	if err == nil {
+		_ = os.Remove(modePath(s.socket))
+	}
 	return err
 }
 

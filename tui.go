@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image/color"
 	"os"
 	"strings"
 	"time"
@@ -11,10 +10,11 @@ import (
 )
 
 // The ground and the ink, as the terminal is asked to take them for its
-// own while conn is up, so its padding is the ground too.
+// own while conn is up, so its padding is the ground too. Dark until
+// applyMode says otherwise; see mode.go.
 var (
-	groundColor = color.RGBA{R: 21, G: 19, B: 15, A: 255}
-	inkColor    = color.RGBA{R: 230, G: 223, B: 208, A: 255}
+	groundColor = darkGround
+	inkColor    = darkInk
 )
 
 // The program holds three views. The console comes on first: the header

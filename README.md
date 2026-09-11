@@ -38,10 +38,17 @@ anything.
 
 Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.
-A program that writes its own hex instead asks for none of them, and tmux
-passes those through untouched, so conn's palette cannot reach it. There is
-a theme for each of those conn knows about, written from the same table, so
-none of them can drift from the palette:
+conn comes up on one of two grounds, dark or light: the first time a server
+rises it asks the terminal for its own background and keeps that answer for
+the server's life. `conn down` and a relaunch is how it is asked again; a
+terminal that says nothing, or nothing conn can read, stays dark, which is
+what conn was before there was a light to ask for.
+
+A program that writes its own hex instead asks for none of the sixteen, and
+tmux passes those through untouched, so conn's palette cannot reach it.
+There is a theme for each of those conn knows about, written from the same
+table, so none of them can drift from the palette, or from the ground the
+server is actually on:
 
 ```sh
 conn theme claude   # ~/.claude/themes/conn.json
@@ -51,15 +58,16 @@ conn theme vim      # ~/.config/nvim/colors/conn.vim
 nvim takes its colorscheme with `colorscheme conn`; every color in it
 carries the slot it is as well as its hex, so it holds up where sixteen is
 all a terminal was given, and a ground that is no slot takes the pane's
-own. conn is one ground and does not follow the system.
+own. conn picks one ground when a server rises and holds it for that
+server's life; it does not follow the system after.
 
-`conn theme claude` writes its file. The theme sits on Claude Code's
-`dark-ansi` base and names a slot wherever a token has a slot-shaped
-meaning, so most of it follows the pane's own sixteen; only the grounds no
-slot has a name for — the washes under a diff, the bar behind a message —
-are spelled out. Claude Code's syntax coloring is not a theme's to set: it
-is a fixed map onto those same sixteen, so code in a pane is conn's colors
-already.
+`conn theme claude` writes its file, on `dark-ansi` or `light-ansi`
+according to the server's own ground. The theme names a slot wherever a
+token has a slot-shaped meaning, so most of it follows the pane's own
+sixteen; only the grounds no slot has a name for — the washes under a
+diff, the bar behind a message — are spelled out. Claude Code's syntax
+coloring is not a theme's to set: it is a fixed map onto those same
+sixteen, so code in a pane is conn's colors already.
 
 conn writes the file and says where. It offers to select the theme only
 when Claude Code is on one it came with, or on none; a custom theme is

@@ -209,3 +209,95 @@ func TestDownEndsTheScratchServer(t *testing.T) {
 		t.Errorf("a second down: %v %q", ok, msg)
 	}
 }
+
+// A mode file beside the socket is what a real tmux server comes up on:
+// light, when one says light, in the pane-colours a program in it would
+// actually read back - the same wiring attach uses, proven against
+// tmux itself rather than against tmuxConf's text. conn theme reads the
+// same file, and conn down clears it.
+func TestAServerComesUpOnItsModeFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("a real tmux server is not started under -short")
+	}
+	tmux := lookPath("tmux")
+	if tmux == "" {
+		t.Skip("tmux is not installed")
+	}
+	t.Cleanup(func() { applyMode(true) })
+
+	dir, err := os.MkdirTemp("/tmp", "conn-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	srv := &server{tmux: tmux, socket: filepath.Join(dir, "sock")}
+	t.Cleanup(func() { _, _ = srv.run("kill-server") })
+
+	// Nothing has picked yet: a server not up comes up dark.
+	if !serverMode(srv.socket) {
+		t.Fatal("a socket with no mode file is not dark")
+	}
+
+	// A terminal that said light, on a first bring-up, leaves this
+	// behind for attach to find; here it is put there by hand, the way
+	// attach's own detectDark branch would.
+	if err := writeMode(srv.socket, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// What attach does with a mode file already there: read it, and put
+	// every color conn draws from on that ground, before tmuxConf is
+	// asked for the server's look.
+	dark, ok := readModeFile(srv.socket)
+	if !ok || dark {
+		t.Fatalf("readModeFile = (%v, %v), want (false, true)", dark, ok)
+	}
+	applyMode(dark)
+
+	conf := filepath.Join(dir, "tmux.conf")
+	if err := os.WriteFile(conf, []byte(tmuxConf(defaultPrefix)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(tmux, "-S", srv.socket, "-f", conf, "new-session", "-d",
+		"-s", sessionName, "-n", homeWindow, "sleep 30")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("starting the server: %v\n%s", out, err)
+	}
+	for _, c := range []struct{ option, want string }{
+		{"pane-colours[0]", lightScheme[0]},
+		{"pane-colours[9]", lightScheme[9]},
+		{"cursor-colour", lightCursorHex},
+	} {
+		out, err := srv.run("show-options", "-g", c.option)
+		if err != nil {
+			t.Fatalf("%s: %v", c.option, err)
+		}
+		if got := strings.Fields(out); len(got) != 2 || !strings.EqualFold(got[1], c.want) {
+			t.Errorf("%s: %q, want %s", c.option, out, c.want)
+		}
+	}
+
+	// conn theme reads the file the same way, not an argument of its
+	// own, so it never drifts from what the server actually came up on.
+	claudeHome := t.TempDir()
+	t.Setenv("CONN_SOCKET", srv.socket)
+	if _, ok := dressProgram([]string{"claude"}, claudeHome, nil); !ok {
+		t.Fatal("conn theme claude was not taken")
+	}
+	claudeJSON, err := os.ReadFile(filepath.Join(claudeHome, ".claude", "themes", "conn.json"))
+	if err != nil || !strings.Contains(string(claudeJSON), `"base": "light-ansi"`) {
+		t.Errorf("conn theme claude did not read the server's mode: %v\n%s", err, claudeJSON)
+	}
+
+	// conn down clears the file it wrote, so the next server to rise
+	// asks the terminal fresh instead of remembering this one's ground.
+	if err := srv.down(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := readModeFile(srv.socket); ok {
+		t.Error("conn down left the mode file behind")
+	}
+	if !serverMode(srv.socket) {
+		t.Error("after conn down, the socket is not dark again")
+	}
+}

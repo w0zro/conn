@@ -1,0 +1,234 @@
+package main
+
+import (
+	"image/color"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	term "github.com/charmbracelet/x/term"
+)
+
+// conn comes up on one of two grounds. Dark is every terminal it ever
+// knew; light is for the terminal that says its own ground is light
+// when conn asks. The choice is made once, the first time conn brings
+// up a tmux server that is not there yet, and holds for that server's
+// life: conn down and a relaunch is how it is asked again. A run with
+// no server behind it - no tmux on the machine, or a pane of conn's own
+// server, where the server already chose - asks fresh or reads what the
+// server chose, in place of guessing.
+//
+// Light is not dark with the lightness flipped. On paper, emphasis is
+// more ink, not more light, so the light scheme's bright slots go
+// darker than its normal ones - the opposite of the dark scheme, where
+// bright is lighter.
+
+// The two grounds and the two inks.
+var (
+	darkGround  = color.RGBA{R: 21, G: 19, B: 15, A: 255}
+	darkInk     = color.RGBA{R: 230, G: 223, B: 208, A: 255}
+	lightGround = color.RGBA{R: 0xEF, G: 0xE9, B: 0xDB, A: 255}
+	lightInk    = color.RGBA{R: 0x1A, G: 0x16, B: 0x11, A: 255}
+)
+
+// The sixteen, dark and light. darkScheme is what scheme was before
+// there was a choice; lightScheme is the same table, on paper.
+var darkScheme = [16]string{
+	"#2A2620", // black
+	"#FF7847", // red
+	"#93C98B", // green
+	"#E3A94F", // yellow
+	"#7FA7C9", // blue
+	"#C98BA8", // magenta
+	"#7FC7BD", // cyan
+	"#BFB39A", // white
+	"#5C564A", // bright black
+	"#E85D2F", // bright red
+	"#A8DBA0", // bright green
+	"#F2C06E", // bright yellow
+	"#9BBEDB", // bright blue
+	"#DBA6C0", // bright magenta
+	"#9AD9D0", // bright cyan
+	"#E6DFD0", // bright white
+}
+
+var lightScheme = [16]string{
+	"#D8D0BD", // black
+	"#A63214", // red
+	"#23703F", // green
+	"#8A5F00", // yellow
+	"#3E5F7A", // blue
+	"#7A4258", // magenta
+	"#0D6B70", // cyan
+	"#4A4335", // white
+	"#9A9080", // bright black
+	"#BD3A1D", // bright red
+	"#1C5A33", // bright green
+	"#75500A", // bright yellow
+	"#32506A", // bright blue
+	"#68384B", // bright magenta
+	"#0A585D", // bright cyan
+	"#1A1611", // bright white
+}
+
+const (
+	darkCursorHex  = "#E85D2F"
+	lightCursorHex = "#BD3A1D"
+)
+
+// The gray of the console's second rank, light; the dark one is grayHex
+// in theme.go, renamed darkGrayHex.
+const lightGrayHex = "#6F6656"
+
+// The grounds no slot has a name for, light: the same washes and bars
+// theme.go names dark, in the light ground's own temperature.
+const (
+	lightDiffAddedBg     = "#DCE5D2"
+	lightDiffRemovedBg   = "#EBD9CC"
+	lightDiffAddedDim    = "#E6E7D7"
+	lightDiffRemovedDim  = "#EDE2D5"
+	lightDiffAddedWord   = "#C2D4B0"
+	lightDiffRemovedWord = "#E0BFA8"
+	lightMessageHoverBg  = "#CFC6B0"
+	lightToolBg          = "#E6DFCF"
+)
+
+// applyMode puts every color conn draws from onto one ground. It is
+// called once, before anything reads scheme, groundColor, cursorHex, or
+// any of the rest.
+func applyMode(dark bool) {
+	if dark {
+		groundColor, inkColor = darkGround, darkInk
+		scheme = darkScheme
+		cursorHex, borderHex = darkCursorHex, darkScheme[0]
+		grayHex = darkGrayHex
+		diffAddedBg, diffRemovedBg = darkDiffAddedBg, darkDiffRemovedBg
+		diffAddedDim, diffRemovedDim = darkDiffAddedDim, darkDiffRemovedDim
+		diffAddedWord, diffRemovedWord = darkDiffAddedWord, darkDiffRemovedWord
+		messageHoverBg, toolBg = darkMessageHoverBg, darkToolBg
+		themeBase, vimBackground = "dark-ansi", "dark"
+		return
+	}
+	groundColor, inkColor = lightGround, lightInk
+	scheme = lightScheme
+	cursorHex, borderHex = lightCursorHex, lightScheme[0]
+	grayHex = lightGrayHex
+	diffAddedBg, diffRemovedBg = lightDiffAddedBg, lightDiffRemovedBg
+	diffAddedDim, diffRemovedDim = lightDiffAddedDim, lightDiffRemovedDim
+	diffAddedWord, diffRemovedWord = lightDiffAddedWord, lightDiffRemovedWord
+	messageHoverBg, toolBg = lightMessageHoverBg, lightToolBg
+	themeBase, vimBackground = "light-ansi", "light"
+}
+
+// modePath is where the mode a server came up on is kept, beside its
+// socket and its tmux.conf.
+func modePath(socket string) string {
+	return filepath.Join(filepath.Dir(socket), "mode")
+}
+
+// readModeFile is the mode written at modePath, and whether one was:
+// a server that has not picked yet has nothing there.
+func readModeFile(socket string) (dark, ok bool) {
+	b, err := os.ReadFile(modePath(socket))
+	if err != nil {
+		return false, false
+	}
+	return strings.TrimSpace(string(b)) != "light", true
+}
+
+// writeMode records the mode a fresh server comes up on, so a later
+// conn - attaching, or asking for a theme - reads the same one back
+// instead of asking the terminal again.
+func writeMode(socket string, dark bool) error {
+	if err := os.MkdirAll(filepath.Dir(modePath(socket)), 0o700); err != nil {
+		return err
+	}
+	mode := "dark"
+	if !dark {
+		mode = "light"
+	}
+	return os.WriteFile(modePath(socket), []byte(mode), 0o600)
+}
+
+// serverMode is the mode the server on this socket came up on, or would
+// if none is up yet: dark, until one has picked light for itself.
+func serverMode(socket string) bool {
+	dark, ok := readModeFile(socket)
+	return !ok || dark
+}
+
+// detectDark asks the terminal for its own background with OSC 11 and
+// reads what comes back. A terminal that says nothing within the wait,
+// or says something conn cannot read, is dark - which is what every
+// terminal was before conn asked, and the safe read of a query that
+// went nowhere.
+func detectDark() bool {
+	if !stdoutIsTerminal() || !stdinIsTerminal() {
+		return true
+	}
+	fd := os.Stdin.Fd()
+	state, err := term.MakeRaw(fd)
+	if err != nil {
+		return true
+	}
+	defer term.Restore(fd, state)
+
+	if _, err := os.Stdout.WriteString("\x1b]11;?\x1b\\"); err != nil {
+		return true
+	}
+	_ = os.Stdin.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	defer os.Stdin.SetReadDeadline(time.Time{})
+
+	reply := readOSCReply(os.Stdin)
+	dark, ok := parseBackground(reply)
+	if !ok {
+		return true
+	}
+	return dark
+}
+
+// readOSCReply reads an OSC response one byte at a time until it ends -
+// with BEL, or with ST (ESC \) - or the read stalls or a cap is hit.
+func readOSCReply(r interface{ Read([]byte) (int, error) }) []byte {
+	buf := make([]byte, 0, 64)
+	one := make([]byte, 1)
+	for len(buf) < 64 {
+		n, err := r.Read(one)
+		if n == 0 || err != nil {
+			break
+		}
+		buf = append(buf, one[0])
+		if one[0] == '\a' || (len(buf) >= 2 && buf[len(buf)-2] == 0x1b && buf[len(buf)-1] == '\\') {
+			break
+		}
+	}
+	return buf
+}
+
+// oscBackground finds OSC 11's color in its reply: rgb:RRRR/GGGG/BBBB,
+// however many hex digits a channel came in.
+var oscBackground = regexp.MustCompile(`rgb:([0-9a-fA-F]+)/([0-9a-fA-F]+)/([0-9a-fA-F]+)`)
+
+// parseBackground reads OSC 11's reply as dark or light, by the same
+// relative luminance a screen reader uses to say if text passes on a
+// ground: below half is dark.
+func parseBackground(reply []byte) (dark, ok bool) {
+	m := oscBackground.FindSubmatch(reply)
+	if m == nil {
+		return false, false
+	}
+	channel := func(h []byte) float64 {
+		v, err := strconv.ParseUint(string(h), 16, 64)
+		if err != nil {
+			return 0
+		}
+		max := uint64(1)<<(4*uint(len(h))) - 1
+		return float64(v) / float64(max)
+	}
+	r, g, b := channel(m[1]), channel(m[2]), channel(m[3])
+	luminance := 0.2126*r + 0.7152*g + 0.0722*b
+	return luminance < 0.5, true
+}

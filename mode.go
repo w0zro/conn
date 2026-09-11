@@ -84,6 +84,12 @@ const (
 // in theme.go, renamed darkGrayHex.
 const lightGrayHex = "#6F6656"
 
+// The quietest tier of text, light; the dark one is faintHex in
+// theme.go, renamed darkFaintHex. Apart from scheme[8] (ANSI-8, light's
+// #9A9080), which stays exactly as it was for the pane's own sake - see
+// the comment on darkFaintHex.
+const lightFaintHex = "#867C6A"
+
 // The grounds no slot has a name for, light: the same washes and bars
 // theme.go names dark, in the light ground's own temperature.
 const (
@@ -106,6 +112,7 @@ func applyMode(dark bool) {
 		scheme = darkScheme
 		cursorHex, borderHex = darkCursorHex, darkScheme[0]
 		grayHex = darkGrayHex
+		faintHex = darkFaintHex
 		diffAddedBg, diffRemovedBg = darkDiffAddedBg, darkDiffRemovedBg
 		diffAddedDim, diffRemovedDim = darkDiffAddedDim, darkDiffRemovedDim
 		diffAddedWord, diffRemovedWord = darkDiffAddedWord, darkDiffRemovedWord
@@ -117,6 +124,7 @@ func applyMode(dark bool) {
 	scheme = lightScheme
 	cursorHex, borderHex = lightCursorHex, lightScheme[0]
 	grayHex = lightGrayHex
+	faintHex = lightFaintHex
 	diffAddedBg, diffRemovedBg = lightDiffAddedBg, lightDiffRemovedBg
 	diffAddedDim, diffRemovedDim = lightDiffAddedDim, lightDiffRemovedDim
 	diffAddedWord, diffRemovedWord = lightDiffAddedWord, lightDiffRemovedWord

@@ -46,7 +46,7 @@ func colored() palette {
 		border:    ansiHex(38, borderHex),
 		ink:       ansiHex(38, hex(inkColor)),
 		gray:      ansiHex(38, grayHex),
-		faint:     ansiHex(38, scheme[8]),
+		faint:     ansiHex(38, faintHex),
 		orange:    ansiHex(38, cursorHex),
 		owed:      ansiHex(38, scheme[1]),
 		parchment: ansiHex(38, scheme[7]),

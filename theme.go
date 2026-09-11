@@ -34,6 +34,17 @@ const darkGrayHex = "#8B8272"
 
 var grayHex = darkGrayHex
 
+// The quietest tier conn draws text in - a hint, a leader, Claude
+// Code's subtle and promptBorder. Dark matches scheme[8], the ANSI-8
+// slot faint has always drawn from; light needed a color of its own,
+// since ANSI-8 there (#9A9080) reads fine as a background tint but
+// nearly vanishes as foreground text on the light ground - the light
+// one is in mode.go. scheme[8] itself is untouched either way: a pane
+// still gets exactly the ANSI-8 it always did.
+const darkFaintHex = "#5C564A"
+
+var faintHex = darkFaintHex
+
 // Where Claude Code keeps what conn writes and what it reads back.
 const (
 	claudeDir      = ".claude"
@@ -81,7 +92,7 @@ func claudeTheme() [][]token {
 	var (
 		red, yellow, cyan = scheme[1], scheme[3], scheme[6]
 		parchment         = scheme[7]
-		faint, orange     = scheme[8], scheme[9]
+		faint, orange     = faintHex, scheme[9]
 		ink               = scheme[15]
 	)
 	return [][]token{{

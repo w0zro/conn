@@ -230,6 +230,40 @@ func TestTheReachedRowIsTheSlotAtOnce(t *testing.T) {
 	}
 }
 
+// a opens claude at the place under the cursor, the way s opens a shell
+// there; outside the server nothing can be opened, and off any place
+// there is nothing to open it at.
+func TestAOpensAnAgentAtThePlace(t *testing.T) {
+	m := newModel(plain)
+	m.view = viewWatch
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
+	m.cursor = 11
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
+	m = next.(model)
+	if cmd != nil || m.note == "" {
+		t.Errorf("outside the server: cmd %v, note %q", cmd != nil, m.note)
+	}
+
+	m.inside, m.srv, m.note = true, &server{tmux: "/nonexistent/tmux"}, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
+	m = next.(model)
+	if cmd == nil {
+		t.Fatal("in the server, a opened nothing")
+	}
+	if msg, ok := cmd().(noteMsg); !ok || msg.note == "" {
+		t.Errorf("the tmux that cannot be run did not say so: %v", cmd())
+	}
+
+	m.places = nil
+	m.note = ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
+	m = next.(model)
+	if cmd != nil || m.note == "" {
+		t.Errorf("off any place: cmd %v, note %q", cmd != nil, m.note)
+	}
+}
+
 // p leaves the watch for the list and walks the roots; what is typed
 // narrows the rows and puts the cursor back at the top; the arrows and
 // ctrl+n and ctrl+p move it, held within the rows there are; esc comes
@@ -306,5 +340,23 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	// cannot be run says so as a note, which is where the path shows.
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
 		t.Errorf("enter did not both read the watch and open the shell: %T", cmd())
+	}
+}
+
+// ctrl+a opens claude at the row instead, the way enter opens a shell
+// there — plain a is a letter to type into the filter, so this is the
+// list's key for it, the way ctrl+u is its key for clearing the filter.
+func TestCtrlAOpensAnAgentAtTheProject(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.projects, m.pcursor = viewProjects, testProjects, 3
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "ctrl+a"}))
+	m = next.(model)
+	if m.view != viewWatch || cmd == nil {
+		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
+	}
+	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
+		t.Errorf("ctrl+a did not both read the watch and open the agent: %T", cmd())
 	}
 }

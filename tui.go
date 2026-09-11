@@ -344,7 +344,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // outside it, from anywhere; on the console a key skips the sequence,
 // then continues to the watch and gives the slot its side back; on the
 // watch c brings the console back over the whole window,
-// enter reaches the cursor's process, and s opens a shell at its place.
+// enter reaches the cursor's process, s opens a shell at its place, and
+// a opens claude there instead.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if m.view == viewProjects {
 		return m.projectKey(k)
@@ -398,6 +399,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		default:
 			return m, m.openShell(pl.path)
 		}
+	case k == "a":
+		_, pl, ok := m.under()
+		switch {
+		case !m.inside:
+			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
+		case !ok || pl.path == "":
+			m.note = "NO PLACE UNDER THE CURSOR"
+		default:
+			return m, m.openAgent(pl.path)
+		}
 	case k == "p":
 		m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
 		return m, m.scanProjects()
@@ -411,8 +422,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // cursor, and ctrl+n and ctrl+p do too, since a hand on a filter is a
 // hand that cannot reach j and k; enter opens a shell at the row under
 // the cursor and goes back to the watch, which is where the shell will
-// show; esc goes back without opening anything, and ctrl+c is what it is
-// everywhere.
+// show, and ctrl+a opens claude there instead, since a plain a is a
+// letter to type; esc goes back without opening anything, and ctrl+c is
+// what it is everywhere.
 func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.projectRows()
 	switch {
@@ -434,6 +446,18 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 			mm, cmd := m.toWatch()
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openShell(path))
+		}
+	case k == "ctrl+a":
+		switch {
+		case !m.inside:
+			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
+		case m.pcursor >= len(rows):
+			m.note = "NO PROJECT UNDER THE CURSOR"
+		default:
+			path := rows[m.pcursor].path
+			mm, cmd := m.toWatch()
+			m = mm.(model)
+			return m, tea.Batch(cmd, m.openAgent(path))
 		}
 	case k == "up" || k == "ctrl+p":
 		m.pcursor = clamp(m.pcursor-1, len(rows))

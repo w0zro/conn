@@ -42,6 +42,23 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
+// agentCommand starts an agent. Claude is the only kind conn starts for
+// now, so a is its key everywhere a shell's is s.
+const agentCommand = "claude"
+
+// openAgent opens an agent at a place, off the loop, the way openShell
+// opens a shell there.
+func (m model) openAgent(dir string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		sh, err := srv.openCmd(dir, agentCommand)
+		if err != nil {
+			return noteMsg{strings.ToUpper(err.Error())}
+		}
+		return openedMsg{shell: sh}
+	}
+}
+
 // scanProjects walks the roots off the loop; what it found, or why it
 // could not, comes back as a message.
 func (m model) scanProjects() tea.Cmd {

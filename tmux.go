@@ -317,7 +317,17 @@ type shell struct {
 // open opens a shell at a directory, in a window of its own, and shows
 // it in the slot.
 func (s *server) open(dir string) (shell, error) {
-	out, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}\t#{pane_pid}\t#{pane_tty}", "-c", dir)
+	return s.openCmd(dir, "")
+}
+
+// openCmd is open, running a command instead of the directory's own
+// shell — what a opens claude with.
+func (s *server) openCmd(dir, cmd string) (shell, error) {
+	args := []string{"new-window", "-d", "-P", "-F", "#{pane_id}\t#{pane_pid}\t#{pane_tty}", "-c", dir}
+	if cmd != "" {
+		args = append(args, cmd)
+	}
+	out, err := s.run(args...)
 	if err != nil {
 		return shell{}, err
 	}

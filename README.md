@@ -10,9 +10,10 @@ conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its
 home window is a rail on the left, which is the watch, and a slot on the
 right, which is the process reached from it: `s` opens a shell at the place
-under the cursor and puts it in the slot, `enter` puts the process under the
-cursor there, and what leaves the slot goes back to a window of its own, out
-of sight, where it keeps running. One chord, `ctrl-space -` (`CONN_PREFIX`
+under the cursor and puts it in the slot, `a` opens claude there instead,
+`enter` puts the process under the cursor there, and what leaves the slot
+goes back to a window of its own, out of sight, where it keeps running. One
+chord, `ctrl-space -` (`CONN_PREFIX`
 names another prefix, in tmux's spelling), puts focus on the watch from
 anywhere in the server; tmux's own keys are unbound, so none of them are
 reachable through conn. `q` detaches, and the server keeps everything in it
@@ -33,8 +34,9 @@ worked by are characters there: what is typed narrows the rows, and a project
 answers by its own name and by the name of the folder that groups it. `enter`
 opens a shell at the row under the cursor and comes back to the watch, where
 the shell shows; on a group row that is a shell at the level the work is
-about, which is what the group row is for. `esc` comes back without opening
-anything.
+about, which is what the group row is for. `ctrl-a` opens claude there
+instead — plain `a` is a letter to type into the filter, so the list takes
+the chord `s` does not need. `esc` comes back without opening anything.
 
 Every pane of the server is drawn in conn's scheme: the ground and the ink,
 the cursor in the orange, and the sixteen colors a program asks for by name.

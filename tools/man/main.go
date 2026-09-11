@@ -91,7 +91,10 @@ func render(page, version string) (string, error) {
 		return "", fmt.Errorf("the cover has no tagline")
 	}
 	name := strings.TrimSuffix(inline(line[1]), ".")
-	b.WriteString(".SH NAME\nconn \\- " + strings.ToLower(name[:1]) + name[1:] + "\n")
+	if name != "" {
+		name = strings.ToLower(name[:1]) + name[1:]
+	}
+	b.WriteString(".SH NAME\nconn \\- " + name + "\n")
 	b.WriteString(".SH SYNOPSIS\n.B conn\n.br\n.B conn ls\n.br\n.B conn restart\n.br\n.B conn \\-h | \\-\\-help | \\-\\-version\n")
 
 	sub := subline.FindStringSubmatch(page)

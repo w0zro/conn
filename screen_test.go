@@ -180,6 +180,22 @@ func TestColoredConsolePaintsEveryRow(t *testing.T) {
 	}
 }
 
+// UNCHECKED is not the same claim NOMINAL is — there was nothing to
+// check against — so it reads a rank quieter, the faint a hint or a
+// leader already is, apart from a nominal row's gray.
+func TestUncheckedReadsQuieterThanNominal(t *testing.T) {
+	p := colored()
+	st := testStation
+	st.machine.cpus = 0 // LOAD has no core count to check against
+	text := texts(screen(compose(st, testNow), 120, 40, p))
+	if !strings.Contains(text, p.faint+"UNCHECKED") {
+		t.Errorf("UNCHECKED is not painted faint:\n%s", stripEscapes(text))
+	}
+	if !strings.Contains(text, p.gray+"NOMINAL") {
+		t.Errorf("NOMINAL is not painted gray:\n%s", stripEscapes(text))
+	}
+}
+
 // stripEscapes drops the color sequences, leaving the cells.
 func stripEscapes(s string) string {
 	var b strings.Builder

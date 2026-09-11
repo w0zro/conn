@@ -221,8 +221,15 @@ func body(r report, width int, own check, p palette) []row {
 				l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
 			}
 		} else {
+			// UNCHECKED is not a pass the way NOMINAL is — there was
+			// nothing to check against — so it is said a rank quieter,
+			// the same faint a hint or a leader is.
+			word := p.gray
+			if k.status == unchecked {
+				word = p.faint
+			}
 			l.to(measure - utf8.RuneCountInString(k.status))
-			l.add(p.gray, strings.ToUpper(k.status))
+			l.add(word, strings.ToUpper(k.status))
 		}
 		c.emit(l, stageChecks+i, false)
 	}

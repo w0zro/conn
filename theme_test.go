@@ -171,6 +171,32 @@ func TestConnWritesTheThemeAndOffersOnce(t *testing.T) {
 	}
 }
 
+// refreshClaudeTheme keeps the file on the mode the server is on: it
+// rewrites what conn theme claude already wrote, and writes nothing
+// where that command has never run.
+func TestRefreshClaudeThemeKeepsTheFileCurrent(t *testing.T) {
+	home := t.TempDir()
+
+	// Never written: refreshing writes nothing.
+	refreshClaudeTheme(home)
+	if _, err := os.Stat(filepath.Join(home, ".claude", "themes", "conn.json")); err == nil {
+		t.Error("refreshClaudeTheme wrote a file conn theme claude never had")
+	}
+
+	// Written once, on dark; the server moves to light; a refresh
+	// catches the file up without being asked again.
+	if _, err := writeClaudeTheme(home); err != nil {
+		t.Fatal(err)
+	}
+	applyMode(false)
+	t.Cleanup(func() { applyMode(true) })
+	refreshClaudeTheme(home)
+	b, err := os.ReadFile(filepath.Join(home, ".claude", "themes", "conn.json"))
+	if err != nil || !strings.Contains(string(b), `"base": "light-ansi"`) {
+		t.Errorf("the file was not refreshed to light: %v\n%s", err, b)
+	}
+}
+
 // conn dresses the programs it has a theme for, and says so for any
 // other.
 func TestConnDressesWhatItHasAThemeFor(t *testing.T) {

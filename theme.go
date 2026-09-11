@@ -171,6 +171,19 @@ func writeClaudeTheme(home string) (string, error) {
 	return path, os.WriteFile(path, []byte(claudeThemeJSON()), 0o644)
 }
 
+// refreshClaudeTheme rewrites conn's theme for Claude Code if it has
+// already been written once, so a server that settles on a mode never
+// leaves the file behind on the mode it was last written under. It
+// writes nothing where `conn theme claude` has never run - that command
+// is still what puts the file there the first time.
+func refreshClaudeTheme(home string) {
+	path := filepath.Join(home, claudeDir, "themes", "conn.json")
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	_, _ = writeClaudeTheme(home)
+}
+
 // The themes Claude Code comes with. A settings file on one of these,
 // or on none at all, is one conn can offer to point at itself; a custom
 // theme is somebody's own, and conn leaves it alone.

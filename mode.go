@@ -92,14 +92,22 @@ const lightGrayHex = "#6F6656"
 const lightFaintHex = "#867C6A"
 
 // The grounds no slot has a name for, light: the same washes and bars
-// theme.go names dark, in the light ground's own temperature.
+// theme.go names dark, in the light ground's own temperature. A wash
+// this pale needs more room from the ground than the same wash does on
+// dark to read as a color at all rather than a shade of the ground
+// itself - lightness compresses toward white long before it compresses
+// toward black. Chosen, like lightFaintHex, by holding each one to at
+// least the contrast its dark counterpart already has against its own
+// ground (WCAG ratio; e.g. dark's diffAddedWord is 1.65:1 against
+// darkGround, light's #C2D4B0 was only 1.30:1 against lightGround -
+// #A4C187 is what 1.65:1 costs on the same hue).
 const (
-	lightDiffAddedBg     = "#DCE5D2"
-	lightDiffRemovedBg   = "#EBD9CC"
-	lightDiffAddedDim    = "#E6E7D7"
-	lightDiffRemovedDim  = "#EDE2D5"
-	lightDiffAddedWord   = "#C2D4B0"
-	lightDiffRemovedWord = "#E0BFA8"
+	lightDiffAddedBg     = "#CAD7BB"
+	lightDiffRemovedBg   = "#E8D3C4"
+	lightDiffAddedDim    = "#DFE1CD"
+	lightDiffRemovedDim  = "#EBDED0"
+	lightDiffAddedWord   = "#A4C187"
+	lightDiffRemovedWord = "#E0BDA4"
 	lightMessageHoverBg  = "#CFC6B0"
 	lightToolBg          = "#E6DFCF"
 )

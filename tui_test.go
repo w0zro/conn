@@ -14,7 +14,9 @@ import (
 // alone, then the rest; a key skips to the end; a key at the end
 // continues to the watch; the clock turns on the second.
 func TestProgramComesOnInStages(t *testing.T) {
-	m := model{head: station{build: testStation.build, session: session{user: "w0zro", host: "station"}}, now: testNow, p: plain}
+	// ticking as newModel leaves it: conn comes up on the console, which
+	// annunciates, and Init sets the blink going.
+	m := model{head: station{build: testStation.build, session: session{user: "w0zro", host: "station"}}, now: testNow, p: plain, ticking: true}
 	m.width, m.height = 120, 40
 	view := func() string { return m.View().Content }
 	has := func(s string) bool { return strings.Contains(view(), s) }
@@ -68,7 +70,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 // The station arriving first, then the beat, comes on the same way; and
 // a key during the sequence skips to the end.
 func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
-	m := model{head: station{build: testStation.build}, now: testNow, p: plain, width: 120, height: 40}
+	m := model{head: station{build: testStation.build}, now: testNow, p: plain, width: 120, height: 40, ticking: true}
 	next, cmd := m.Update(stationMsg{testStation})
 	m = next.(model)
 	if cmd != nil || m.stage != stageHeader {
@@ -127,15 +129,25 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if m = next.(model); !m.lit || ok == nil {
 		t.Error("the chip did not come back")
 	}
-	// Off the console the blink stops, lit; coming back to the console
-	// starts it again; a turn from an earlier stay is dropped.
-	m.view = viewWatch
+	// Off the console, with nothing on the watch waiting, the blink stops
+	// and rests lit; coming back to the console starts it again; a turn
+	// from an earlier run is dropped.
+	// The first key skips the console's stages to the end, the second
+	// leaves for the watch, and the watch is not up until its reading is.
+	next, ok = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	m = next.(model)
+	next, ok = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	m = next.(model)
+	next, ok = m.Update(watchMsg{gen: m.watchGen})
+	if m = next.(model); m.view != viewWatch || m.ticking {
+		t.Errorf("on a watch with nothing waiting the blink still ticks: view %d", m.view)
+	}
 	next, ok = m.Update(blinkMsg{gen: m.blinkGen})
 	if m = next.(model); !m.lit || ok != nil {
-		t.Error("the blink went on off the console")
+		t.Error("the blink went on with nothing to annunciate")
 	}
-	next, ok = m.key("c")
-	if m = next.(model); m.view != viewConsole || ok == nil {
+	next, ok = m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	if m = next.(model); m.view != viewConsole || ok == nil || !m.ticking {
 		t.Error("c did not start the blink again")
 	}
 	next, ok = m.Update(blinkMsg{gen: m.blinkGen - 1})

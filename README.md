@@ -49,7 +49,14 @@ whose child is working is active, and the row doing the work is the one that
 says so.
 
 `WAITING` is the other end of that question, and the one word on the watch
-that asks something of you: an agent stopped on something it put to you and
+that asks something of you. It blinks, which is the one thing on a screen
+that reaches the corner of an eye: reading down a list of rows that all say
+something, the row that wants you is the row that moves. On the dark half its
+cells are the ground and nothing around them moves, the way the console's
+verdict goes dark — a word that jumped its neighbours about would be worse
+than one that never blinked. Nothing else on the watch blinks; a fault wears
+a chip and keeps it, since a process you suspended yourself is not asking
+anything of you. It is an agent stopped on something it put to you and
 cannot go on without — a permission, a question, a dialog sitting there
 unanswered. An agent whose turn is simply over is `IDLE` instead, the same
 word a shell at its prompt gets and for the same reason: at rest, nothing

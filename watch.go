@@ -31,6 +31,7 @@ type watchReport struct {
 	places []watchPlace
 	err    string // why the table could not be read, when it could not
 	inside bool   // conn is in its server, and rows can be reached
+	lit    bool   // the annunciators' lit half; see the waiting word below
 }
 
 type watchPlace struct {
@@ -257,9 +258,20 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			case r.status == statusWaiting:
 				// The one word here that asks something of you, and the
 				// only one worth finding without looking: it is not a
-				// fault, so it takes the color rather than the chip.
-				l.to(measure - utf8.RuneCountInString(r.status))
-				l.add(p.owed+p.bold, r.status)
+				// fault, so it takes the color rather than the chip, and
+				// it blinks, which is the one thing on a screen that
+				// reaches the corner of an eye. Reading down a list of
+				// rows that all say something, the row that wants you is
+				// the row that moves.
+				//
+				// On the dark half the cells are the ground and nothing
+				// around them moves, the way the console's verdict goes
+				// dark: a word that jumped its neighbours about would be
+				// worse than one that never blinked.
+				if b.lit {
+					l.to(measure - utf8.RuneCountInString(r.status))
+					l.add(p.owed+p.bold, r.status)
+				}
 			default:
 				l.to(measure - utf8.RuneCountInString(r.status))
 				l.add(word, r.status)

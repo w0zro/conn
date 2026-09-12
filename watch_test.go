@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -469,5 +470,87 @@ func TestAPlaceIsNamedByWhatTellsItApart(t *testing.T) {
 	// With no roots at all nothing is taken off anything.
 	if got := placeName("/Users/w0zro/projects/w0zro/conn", nil, "/Users/w0zro"); got != "~/projects/w0zro/conn" {
 		t.Errorf("with no roots the place is called %q", got)
+	}
+}
+
+// The one word on the watch that asks something of you blinks, which is
+// the one thing on a screen that reaches the corner of an eye: reading
+// down a list of rows that all say something, the row that wants you is
+// the row that moves. On the dark half its cells are the ground and
+// nothing around them moves — a word that jumped its neighbours about
+// would be worse than one that never blinked.
+func TestTheWaitingWordBlinks(t *testing.T) {
+	held := []place{{path: "/w", entries: []entry{
+		{pid: 11, kind: kindShell, command: "zsh", status: statusActive},
+		{pid: 12, kind: kindAgent, command: "claude", status: statusWaiting, depth: 1, since: watchNow.Add(-time.Minute)},
+	}}}
+	b := composeWatch(held, nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
+
+	b.lit = true
+	on := texts(drawWatch(b, 0, 60, 12, plain))
+	if !strings.Contains(on, statusWaiting) {
+		t.Errorf("the lit half has no word:\n%s", on)
+	}
+	b.lit = false
+	off := texts(drawWatch(b, 0, 60, 12, plain))
+	if strings.Contains(off, statusWaiting) {
+		t.Errorf("the dark half still says it:\n%s", off)
+	}
+	// Only the word goes. Every row is the same shape on both halves, so
+	// nothing around it moves.
+	b.lit = true
+	onRows := drawWatch(b, 0, 60, 12, plain)
+	b.lit = false
+	offRows := drawWatch(b, 0, 60, 12, plain)
+	if len(onRows) != len(offRows) {
+		t.Fatalf("the halves are %d rows and %d", len(onRows), len(offRows))
+	}
+	for i := range onRows {
+		if lit, dark := onRows[i].text, offRows[i].text; lit != dark && !strings.Contains(lit, statusWaiting) {
+			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
+		}
+	}
+	// What is merely active does not blink, and neither does a fault: a
+	// process you suspended yourself is not asking anything of you.
+	steady := composeWatch([]place{{path: "/w", entries: []entry{
+		{pid: 21, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
+	}}}, nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
+	steady.lit = false
+	if !strings.Contains(texts(drawWatch(steady, 0, 60, 12, plain)), statusStopped) {
+		t.Error("a fault went dark with the blink")
+	}
+}
+
+// The blink runs while something annunciates and stops when nothing
+// does, so a watch with nothing held up on it is not redrawn a second
+// and a half at a time for nothing.
+func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
+	m := newModel(plain)
+	if !m.annunciating() {
+		t.Error("the console does not annunciate")
+	}
+	m.view = viewWatch
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, status: statusActive}}}}
+	if m.annunciating() {
+		t.Error("a watch with nothing waiting annunciates")
+	}
+	m.places[0].entries = append(m.places[0].entries, entry{pid: 12, status: statusWaiting, since: watchNow})
+	if !m.annunciating() {
+		t.Error("a row waiting on you does not annunciate")
+	}
+	// Coming to it starts the tick; going off it stops the tick and
+	// leaves the word lit, which is where anything not blinking rests.
+	m.ticking, m.lit = false, false
+	next, cmd := m.blinked()
+	if !next.ticking || !next.lit || cmd == nil {
+		t.Errorf("the blink did not start: ticking %v lit %v cmd %v", next.ticking, next.lit, cmd != nil)
+	}
+	if _, again := next.blinked(); again != nil {
+		t.Error("the blink was started twice over")
+	}
+	next.places = nil
+	stopped, cmd := next.blinked()
+	if stopped.ticking || !stopped.lit || cmd != nil {
+		t.Errorf("the blink did not stop: ticking %v lit %v", stopped.ticking, stopped.lit)
 	}
 }

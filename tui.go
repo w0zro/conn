@@ -139,8 +139,9 @@ type model struct {
 	p             palette
 
 	view     int
-	lit      bool // the verdict's chip is showing this half of the blink
-	blinkGen int  // which stay on the console the blink belongs to
+	lit      bool // the annunciators are showing this half of the blink
+	blinkGen int  // which run of the blink a turn belongs to
+	ticking  bool // the blink's tick is in flight, because something annunciates
 	places   []place
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
@@ -204,8 +205,11 @@ func newModel(p palette) model {
 	roots := realRoots(projectRoots(home))
 	isProject := projectDirs(roots)
 	return model{
-		lit:  true,
-		told: -1, // nothing published yet; the first cursor is news
+		lit: true,
+		// conn comes up on the console, which annunciates, and Init sets
+		// the blink going with everything else.
+		ticking: true,
+		told:    -1, // nothing published yet; the first cursor is news
 
 		head:      station{build: readBuild(), session: readSession()},
 		now:       time.Now(),
@@ -229,7 +233,7 @@ func (m model) report() report {
 // watchReport is the watch's words as things stand.
 func (m model) watchReport() watchReport {
 	w := composeWatch(m.places, m.panes, m.slot, m.projRoots, m.head.session.home, m.now, m.watchErr)
-	w.inside = m.inside
+	w.inside, w.lit = m.inside, m.lit
 	return w
 }
 
@@ -303,9 +307,45 @@ func nextSecond(now time.Time) tea.Cmd {
 	return tea.Tick(time.Until(now.Truncate(time.Second).Add(time.Second)), func(time.Time) tea.Msg { return clockMsg{} })
 }
 
-// nextBlink is the turn of the chip's other half, each half its own
-// length. The blink belongs to a stay on the console: a turn that comes
-// after the console is left, or from an earlier stay, is dropped.
+// annunciating says whether anything conn is drawing blinks as things
+// stand: the console's verdict while the console is up, and a row on the
+// watch that is waiting on you. Nothing else does — a fault on the watch
+// wears a chip and keeps it, since a process you suspended yourself is
+// not asking anything of you, and a word that blinks all day is a word
+// that is never seen.
+func (m model) annunciating() bool {
+	switch m.view {
+	case viewConsole:
+		return true
+	case viewWatch:
+		return len(waitingRound(m.places)) > 0
+	default:
+		return false
+	}
+}
+
+// blinked starts the blink's tick when something begins to annunciate
+// and lets it stop when nothing does, so a watch with nothing held up on
+// it is not redrawn a second and a half at a time for nothing. Going
+// through here means no view has to remember to start it: what blinks is
+// decided in one place and the tick follows.
+func (m model) blinked() (model, tea.Cmd) {
+	want := m.annunciating()
+	if want == m.ticking {
+		return m, nil
+	}
+	// A turn already in flight belongs to the run that is ending, and is
+	// dropped when it lands; the lit half is where anything not blinking
+	// rests.
+	m.ticking, m.lit, m.blinkGen = want, true, m.blinkGen+1
+	if !want {
+		return m, nil
+	}
+	return m, m.nextBlink()
+}
+
+// nextBlink is the turn of the annunciator's other half, each half its
+// own length. A turn from an earlier run of the blink is dropped.
 func (m model) nextBlink() tea.Cmd {
 	d := blinkLit
 	if !m.lit {
@@ -341,8 +381,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, reading := msg.(watchMsg)
 		nm = nm.published(reading)
 		nm, said := nm.saying()
-		if said != nil {
-			return nm, tea.Batch(cmd, said)
+		nm, blink := nm.blinked()
+		if said != nil || blink != nil {
+			return nm, tea.Batch(cmd, said, blink)
 		}
 		return nm, cmd
 	}
@@ -475,7 +516,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.watchGen++
 		return m, m.readWatch()
 	case blinkMsg:
-		if msg.gen != m.blinkGen || m.view != viewConsole {
+		if msg.gen != m.blinkGen || !m.annunciating() {
 			m.lit = true
 			return m, nil
 		}
@@ -631,12 +672,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 		return m, m.readWatch()
 	case k == "c":
+		// The blink is not started here: what annunciates is decided in
+		// one place, and the tick follows the view on its own.
 		m.view = viewConsole
-		m.lit, m.blinkGen = true, m.blinkGen+1
 		if m.inside {
-			return m, tea.Batch(m.nextBlink(), m.serverCmd(func() error { return m.srv.wide() }, ""))
+			return m, m.serverCmd(func() error { return m.srv.wide() }, "")
 		}
-		return m, m.nextBlink()
 	case k == "j" || k == "down":
 		m.cursor, m.cursorAt = follow(m.places, 0, m.cursorAt+1)
 	case k == "k" || k == "up":

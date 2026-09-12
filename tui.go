@@ -30,7 +30,7 @@ var (
 // you, longest held up first and round again; i opens the look on the
 // row under the cursor — what conn knows of it past the six columns a
 // row has room for — which opens in the slot, beside the watch rather
-// than over it; c brings the console back, and any key there returns
+// than over it, and follows the cursor from there; c brings the console back, and any key there returns
 // to the watch. The console is a page: in the server it
 // takes the whole window while it is up, and the slot has its side
 // again on the way back to the watch. The words of both are said
@@ -137,6 +137,7 @@ type model struct {
 	places   []place
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
+	told     int // the cursor as last published for the look to follow
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -181,7 +182,9 @@ type model struct {
 
 func newModel(p palette) model {
 	return model{
-		lit:   true,
+		lit:  true,
+		told: -1, // nothing published yet; the first cursor is news
+
 		head:  station{build: readBuild(), session: readSession()},
 		now:   time.Now(),
 		p:     p,
@@ -301,7 +304,49 @@ func (m model) watchTick() tea.Cmd {
 	return tea.Tick(every, func(time.Time) tea.Msg { return watchTickMsg{gen} })
 }
 
+// Update answers a message and, whatever came of it, publishes where
+// the cursor ended up. Every path that moves it — j and k, tab, a
+// reading that carried it along, the shell conn just opened — publishes
+// by going through here, which is the point of doing it in one place
+// rather than at each of them: a move that forgot to say so would leave
+// the look reading a row nobody is looking at.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if nm, ok := next.(model); ok {
+		// A reading says it again whether or not it moved, so a file
+		// gone missing — a state directory swept, a server that came
+		// back — comes back on the next beat rather than staying gone
+		// until somebody presses j.
+		_, reading := msg.(watchMsg)
+		return nm.published(reading), cmd
+	}
+	return next, cmd
+}
+
+// published tells the cursor where it is, when it has moved since the
+// last telling or when a reading is saying it again. The look follows
+// it; nothing else reads it.
+func (m model) published(again bool) model {
+	pid := m.cursor
+	// Off the watch there is no cursor on a process. The subject is not
+	// unchosen by going to the list to open something — the look goes
+	// on reading the row it was given — so nothing is said rather than
+	// a nothing said.
+	//
+	// With no home there is nowhere to say it: the path would be a
+	// relative one, and conn does not write beside whatever directory
+	// it happens to have been started in.
+	if m.view != viewWatch || !m.inside || m.head.session.home == "" {
+		return m
+	}
+	if pid != m.told || again {
+		m.told = pid
+		tellCursor(cursorPath(m.head.session.home), pid)
+	}
+	return m
+}
+
+func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -532,14 +577,14 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m.openResume(pl.path, []string{pl.path})
 		}
 	case k == "i":
-		e, _, ok := m.under()
+		_, _, ok := m.under()
 		switch {
 		case !m.inside:
 			m.note = "NOTHING CAN BE SHOWN OUTSIDE CONN'S TMUX SERVER"
 		case !ok:
 			m.note = "NOTHING UNDER THE CURSOR"
 		default:
-			return m, m.openLook(e.pid)
+			return m, m.openLook()
 		}
 	case k == "tab":
 		// The ring of what is waiting on you, longest held up first: the

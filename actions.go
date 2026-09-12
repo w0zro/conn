@@ -36,12 +36,13 @@ func (m model) reach(target pane, tty string) tea.Cmd {
 	}
 }
 
-// openLook puts the look at a pid in the slot, off the loop. Focus
-// stays on the rail: the page is a reading, and the cursor going on
-// moving is how a list gets read.
-func (m model) openLook(pid int) tea.Cmd {
+// openLook puts the look in the slot, off the loop. It follows the
+// rail's cursor from there, so this is asked once and not again for
+// every row read: focus stays on the rail, and j and k carry the page
+// along with them.
+func (m model) openLook() tea.Cmd {
 	home, self := m.head.session.home, m.self
-	return m.serverCmd(func() error { return m.srv.showLook(home, self, pid) }, "")
+	return m.serverCmd(func() error { return m.srv.showLook(home, self) }, "")
 }
 
 // openShell opens a shell at a place, off the loop, and hands back what

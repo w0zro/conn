@@ -349,16 +349,20 @@ func (s *server) reviveSlot(home, self string) error {
 	return err
 }
 
-// showLook puts a look at a pid in the slot, and leaves focus on the
-// rail. It is furniture rather than work — it runs nothing of yours,
-// and reaching anything else is meant to be rid of it — so it is
-// marked the way a hold is: killed when a real pane takes the slot,
-// and respawned where it stands when the ground changes. Focus stays
-// where it was because the look is a reading, not a place to be: the
-// cursor goes on moving and the next i replaces the page.
-func (s *server) showLook(home, self string, pid int) error {
+// showLook puts the look in the slot, and leaves focus on the rail. It
+// is furniture rather than work — it runs nothing of yours, and
+// reaching anything else is meant to be rid of it — so it is marked the
+// way a hold is: killed when a real pane takes the slot, and respawned
+// where it stands when the ground changes. Focus stays where it was
+// because the look is a reading, not a place to be.
+//
+// It is opened on no pid, which is the look's word for "whatever the
+// rail's cursor is on". One page then serves the whole list, j and k
+// carrying it along, where a page opened per row would spawn a window a
+// keystroke and blank the slot between each.
+func (s *server) showLook(home, self string) error {
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
-		"exec "+shellQuote(self)+" look "+strconv.Itoa(pid))
+		"exec "+shellQuote(self)+" look")
 	if err != nil {
 		return err
 	}

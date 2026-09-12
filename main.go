@@ -181,7 +181,7 @@ var commands = []command{
 			pid, _ = strconv.Atoi(args[0])
 		}
 		applyMode(serverMode(socketPath(home)))
-		if err := runLook(findServer(home), pid, colored()); err != nil {
+		if err := runLook(findServer(home), pid, home, colored()); err != nil {
 			fmt.Fprintf(os.Stderr, "conn look: %v\n", err)
 			return 1
 		}

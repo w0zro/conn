@@ -19,39 +19,83 @@ import (
 // nothing to do on the page — it is a reading — and the keys that work
 // the watch all live on the rail, so the useful thing a keypress here
 // can mean is "put me back where the keys are".
+//
+// With no pid it follows the rail's cursor, which is what i opens: the
+// page is about whatever the cursor is on, so j and k read down the
+// list with the page keeping up rather than leaving it on a row nobody
+// is looking at any more. With a pid it stays on that pid, which is
+// what `conn look 123` by hand is for.
 
-// lookBeat is how often the page reads again. The watch's own beat:
-// the two are readings of the same table and there is no reason for one
-// to be staler than the other.
-const lookBeat = 2 * time.Second
+// lookBeat is how often the page reads its subject again. The watch's
+// own beat: the two are readings of the same table and there is no
+// reason for one to be staler than the other.
+//
+// lookPoll is how often it asks where the cursor is, which is a read of
+// a few bytes rather than the whole table and can afford to be quick.
+// It has to be: j held down moves the cursor faster than the beat, and
+// a page that lagged a second behind the cursor would be worse than one
+// that did not follow at all.
+const (
+	lookBeat = 2 * time.Second
+	lookPoll = 150 * time.Millisecond
+)
 
 type lookModel struct {
 	srv           *server
 	pid           int
+	follow        bool   // the subject is the rail's cursor, not a pid given
+	cursor        string // where the rail publishes it
 	width, height int
 	p             palette
 	report        lookReport
+	read          time.Time // when the subject was last read in full
 }
 
-type lookReadMsg struct{ report lookReport }
+// lookReadMsg carries a reading, and the pid it was of: several can be
+// in flight at once when the cursor is moving, and one that lands after
+// the subject has changed again is stale and dropped.
+type lookReadMsg struct {
+	pid    int
+	report lookReport
+}
 
-func runLook(srv *server, pid int, p palette) error {
-	m := lookModel{srv: srv, pid: pid, p: p, report: lookReport{pid: pid}}
+func runLook(srv *server, pid int, home string, p palette) error {
+	m := lookModel{srv: srv, pid: pid, follow: pid == 0, cursor: cursorPath(home), p: p,
+		report: lookReport{pid: pid}}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
 }
 
-func (m lookModel) Init() tea.Cmd { return m.read() }
+func (m lookModel) Init() tea.Cmd {
+	_, cmd := m.reading()
+	return cmd
+}
 
 func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case lookReadMsg:
-		m.report = msg.report
-		return m, tea.Tick(lookBeat, func(time.Time) tea.Msg { return lookTickMsg{} })
+		// A reading of a subject that has since moved on is no longer
+		// about anything, and putting it up would be a page flicking
+		// back to a row the cursor has left.
+		if msg.pid == m.pid {
+			m.report = msg.report
+		}
 	case lookTickMsg:
-		return m, m.read()
+		// Where the cursor is, then whether that is news. A subject that
+		// changed is read at once; one that has not is read on the beat,
+		// so a page nobody is moving still keeps up with its row.
+		if m.follow {
+			if pid := askCursor(m.cursor); pid != 0 && pid != m.pid {
+				m.pid = pid
+				return m.reading()
+			}
+		}
+		if time.Since(m.read) >= lookBeat {
+			return m.reading()
+		}
+		return m, m.tick()
 	case tea.KeyPressMsg:
 		if m.srv != nil {
 			return m, func() tea.Msg { _ = m.srv.focusRail(); return nil }
@@ -62,19 +106,31 @@ func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 type lookTickMsg struct{}
 
-// read gathers the subject and words it, off the loop: the process
+func (m lookModel) tick() tea.Cmd {
+	return tea.Tick(lookPoll, func(time.Time) tea.Msg { return lookTickMsg{} })
+}
+
+// reading gathers the subject and words it, off the loop: the process
 // table, the tree the row sits in, what claude says of it, and what git
 // says of its place are each a reading, and git is a process besides.
-func (m lookModel) read() tea.Cmd {
+// It marks the model as having read, so the two go together and neither
+// can be done without the other.
+func (m lookModel) reading() (lookModel, tea.Cmd) {
+	m.read = time.Now()
 	pid, srv := m.pid, m.srv
-	return func() tea.Msg {
-		return lookReadMsg{report: lookOf(pid, srv)}
-	}
+	return m, tea.Batch(
+		func() tea.Msg { return lookReadMsg{pid: pid, report: lookOf(pid, srv)} },
+		m.tick(),
+	)
 }
 
 // lookOf is the page for a pid as things stand, or the page that says
-// the row has gone.
+// the row has gone. A pid of nothing is a page waiting on a cursor that
+// has not said where it is yet.
 func lookOf(pid int, srv *server) lookReport {
+	if pid == 0 {
+		return lookReport{}
+	}
 	uid := os.Getuid()
 	procs, err := readProcesses(uid)
 	if err != nil {

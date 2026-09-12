@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -94,6 +95,17 @@ func (s *scratch) rail() string {
 // macOS having the one be a link to the other, so the tail is what a
 // test can hold to.
 const scratchPlace = "home/repo"
+
+// lookPid is the pid the look in the slot says it is about, or "" when
+// the slot is not a look or has not read yet.
+var lookPidRe = regexp.MustCompile(`PID (\d+)`)
+
+func (s *scratch) lookPidOf() string {
+	if m := lookPidRe.FindStringSubmatch(s.slot()); m != nil {
+		return m[1]
+	}
+	return ""
+}
 
 // slot is what the pane on the right shows.
 func (s *scratch) slot() string {
@@ -581,14 +593,26 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 		t.Errorf("focus went to pane %s rather than staying on the rail", got)
 	}
 
-	// Reading down a list is i, j, i, j: each page replaces the last
-	// rather than filing it away, or a few minutes of reading would
-	// leave a window behind for every row looked at.
-	for i := 0; i < 3; i++ {
-		s.keys("j")
-		s.keys("i")
-		s.until("the next page", func() bool { return strings.Contains(s.slot(), "WHERE") })
+	// Reading down the list is j and k: the page follows the cursor,
+	// so the one page serves the whole list and no key but j is
+	// pressed. A page left on the row the cursor has walked away from
+	// would be a page about nothing anybody is looking at.
+	was := s.lookPidOf()
+	if was == "" {
+		t.Fatalf("the page says no pid:\n%s", s.slot())
 	}
+	s.keys("j")
+	s.until("the page to follow the cursor down", func() bool {
+		got := s.lookPidOf()
+		return got != "" && got != was
+	})
+	moved := s.lookPidOf()
+	s.keys("k")
+	s.until("the page to follow it back", func() bool { return s.lookPidOf() == was })
+	t.Logf("the page followed %s → %s → %s", was, moved, was)
+
+	// Following costs nothing in panes: it is one page changing subject,
+	// not a page per row.
 	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != "1" || n != "2" {
 		t.Errorf("reading down the list left %s windows and %s panes in home", w, n)
 	}

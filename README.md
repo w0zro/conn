@@ -35,13 +35,27 @@ word a shell at its prompt gets and for the same reason: at rest, nothing
 pending, yours when you want it. The difference is whether anything is held
 up, and only the thing that is held up is worth a word that carries.
 
-`i` opens the look on the row under the cursor, in the slot — beside the
-watch rather than over it, so the row it is about stays on screen under the
-cursor, and moving the cursor and pressing `i` again is how a list gets read
-down. It is conn's own program in a pane of the server, `conn look`, the way
-the hold is, so the slot holds it like anything else and reaching a real
-process is rid of it. Focus stays on the rail: the page is a reading, not a
-place to be put.
+`i` opens the look in the slot — beside the watch rather than over it, so the
+row it is about stays on screen under the cursor. It then follows that
+cursor: `j` and `k` walk the list and the page walks with them, and `tab`
+carries it to whatever is waiting on you. One page serves the whole list,
+which is why `i` is pressed once and not once a row. It is conn's own program
+in a pane of the server, `conn look`, the way the hold is, so the slot holds
+it like anything else and reaching a real process is rid of it. Focus stays
+on the rail: the page is a reading, not a place to be put, and every key that
+works the watch is over there.
+
+The two are separate programs in separate panes, so the cursor travels
+between them as a few bytes in a file beside the socket — written when it
+moves and said again on every reading, so a file swept away comes back on the
+next beat. The page reads it three times a second, which is what it takes to
+keep up with `j` held down, and reads the table itself only when the subject
+actually changes or the beat comes round. A reading that lands after the
+cursor has moved on is dropped rather than shown: the page never flicks back
+to a row nobody is looking at. Off the watch nothing is published — going to
+the list to open something does not unchoose the row you were reading, and
+the page goes on reading it. `conn look <pid>` by hand pins the page to one
+process instead.
 
 A row of the watch is six columns on a rail, and most of what conn reads of a
 process does not fit in that; it is dropped rather than shortened, which is

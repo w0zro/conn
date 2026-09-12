@@ -33,7 +33,7 @@ type process struct {
 // Everything else is a run: a build, a test, a server, a script.
 const (
 	kindShell  = "SHELL"
-	kindAgent  = "AGENT"
+	kindAI     = "AI"
 	kindEditor = "EDITOR"
 	kindConn   = "CONN" // conn itself; not on the watch
 	kindRun    = "RUN"
@@ -42,7 +42,7 @@ const (
 
 var (
 	shells  = []string{"zsh", "bash", "fish", "sh", "dash", "nu", "tcsh", "ksh"}
-	agents  = []string{"claude", "codex", "gemini", "aider", "opencode", "goose", "amp", "copilot", "ollama"}
+	ais     = []string{"claude", "codex", "gemini", "aider", "opencode", "goose", "amp", "copilot", "ollama"}
 	editors = []string{"vim", "nvim", "vi", "hx", "helix", "emacs", "nano", "micro", "kak"}
 )
 
@@ -63,8 +63,8 @@ func kindOf(p process) string {
 		return kindConn
 	case slices.Contains(shells, name):
 		return kindShell
-	case slices.Contains(agents, name):
-		return kindAgent
+	case slices.Contains(ais, name):
+		return kindAI
 	case slices.Contains(editors, name):
 		return kindEditor
 	default:
@@ -78,25 +78,25 @@ func kindOf(p process) string {
 // for a process that did something between one reading and the next.
 const (
 	statusWorking = "WORKING" // doing something, right now
-	statusWaiting = "WAITING" // an agent stopped on an ask it put to you
+	statusWaiting = "WAITING" // an AI stopped on an ask it put to you
 	statusActive  = "ACTIVE"  // alive, and not doing anything
-	statusIdle    = "IDLE"    // a shell at its prompt, or an agent at rest
+	statusIdle    = "IDLE"    // a shell at its prompt, or an AI at rest
 	statusStopped = "STOPPED" // suspended
 	statusEnded   = "ENDED"   // finished, and not yet collected
 )
 
 // standing is what conn learned about a process past what the table
 // says of it. Anything can be working, read off the processor time it
-// spent. Only an agent says more, being the only thing here that knows
+// spent. Only an AI says more, being the only thing here that knows
 // its own mind: mid-turn, stopped on an ask it put to you, or stopped
 // with its turn over and nothing pending.
 type standing struct {
 	working bool
 	waiting bool   // stopped on something it asked of you
 	idle    bool   // stopped with its turn over, asking nothing
-	asking  string // what a waiting agent is stopped on, in its own words
+	asking  string // what a waiting AI is stopped on, in its own words
 	// When it came to stand this way, where it says so; zero where it
-	// does not. Only an agent knows the moment it stopped, and only
+	// does not. Only an AI knows the moment it stopped, and only
 	// waiting is worth the moment: how long a thing has been held up on
 	// you is the order to answer it in.
 	since time.Time
@@ -117,7 +117,7 @@ type entry struct {
 	since   time.Time // when it came to stand as it does, where that is known
 	// What the watch has no column for and the look reads: where the
 	// process itself is, whatever place its tree belongs to, and what an
-	// agent says it is stopped on.
+	// AI says it is stopped on.
 	cwd    string
 	asking string
 }
@@ -139,7 +139,7 @@ type place struct {
 // instrument, not the work — the one conn you are looking at, the conn
 // behind it holding the terminal, and the hold standing in an empty
 // slot alike — and it covers what runs under it, so the tmux client it
-// holds is no more a row than conn is. An agent and an editor cover
+// holds is no more a row than conn is. An AI and an editor cover
 // nothing: what they run is work, and reads as theirs. The rule goes
 // by the program's name, so a conn on another socket, or an older conn
 // installed beside this one, is off the watch too.
@@ -148,7 +148,7 @@ type place struct {
 // it is most of it, but not all: a server you left running has no
 // terminal and is work all the same. So a process of yours without
 // one is adopted where it works inside a project you have terminal
-// work in - the dev server under the agent that started it, and the
+// work in - the dev server under the AI that started it, and the
 // one from last week that outlived its shell alike. The project is
 // what makes that safe. A place that is merely a directory adopts
 // nothing, since a shell sitting at home would otherwise take in
@@ -291,7 +291,7 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 	//
 	// It was the newest start anywhere in a subtree, which brought fresh
 	// work and its whole place to the top. That is a true thing to say
-	// about a list and a hard one to read: an agent running a command a
+	// about a list and a hard one to read: an AI running a command a
 	// second re-sorted the trees, their rows and the places under the
 	// eye trying to follow them, and a row read twice was rarely in the
 	// same spot. What is worth watching is found by looking, and looking
@@ -363,7 +363,7 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 }
 
 // waitingRound is the order to answer the waiting in: longest held up
-// first. An agent that cannot say when it stopped goes last — it is
+// first. An AI that cannot say when it stopped goes last — it is
 // waiting, which is what the word is for, but it cannot claim a turn
 // ahead of one that can prove it waited longer. The order is the same
 // on every reading, so a key stepping through it steps through the
@@ -460,21 +460,21 @@ func cpuOf(procs []process) map[int]time.Duration {
 // idle bare, at its prompt; running anything, even nested many levels
 // down, it is active the way what it runs is. Working is narrower than
 // active and is the one worth watching: the process was doing
-// something between one reading and the next, which an agent says of
+// something between one reading and the next, which an AI says of
 // itself and anything else is read off the processor time it used.
 // Work is not claimed up the tree - a shell whose child is working is
 // active, and the row doing the work is the one that says so.
 //
 // Waiting is the other end of the same question, and the only word
-// here that asks something of you: an agent stopped on something it
+// here that asks something of you: an AI stopped on something it
 // put to you and cannot go on without — a permission, a question, a
 // dialog waiting to be answered. It is narrower than merely stopped.
-// An agent whose turn is simply over is idle, the same word a shell at
+// An AI whose turn is simply over is idle, the same word a shell at
 // its prompt gets and for the same reason: at rest, nothing pending,
 // yours when you want it. The difference is whether anything is held
 // up, and only the one that is held up is worth a word that carries.
 //
-// Nothing but an agent is ever called waiting here - a server waiting
+// Nothing but an AI is ever called waiting here - a server waiting
 // on a socket is waiting on the socket - so the word is only ever
 // about a person. It is no fault, nothing having gone wrong, so it is
 // a word of its own rather than a chip.

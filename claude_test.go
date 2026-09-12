@@ -9,18 +9,18 @@ import (
 	"time"
 )
 
-// conn tells the agents it starts where they are, and the note travels
+// conn tells the AIs it starts where they are, and the note travels
 // as one word on a shell command line: a socket with an apostrophe in
 // it must stay inside that word rather than break out of it and run as
 // something else. What the note says has to name the socket, since an
-// agent told to open a window and not told which server would be
+// AI told to open a window and not told which server would be
 // guessing.
 func TestTheAgentIsToldWhereItIs(t *testing.T) {
-	const prefix = agentProgram + " --append-system-prompt "
+	const prefix = aiProgram + " --append-system-prompt "
 	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
-		got := agentCommand(socket)
+		got := aiCommand(socket)
 		if !strings.HasPrefix(got, prefix) {
-			t.Fatalf("agentCommand(%q) = %q", socket, got)
+			t.Fatalf("aiCommand(%q) = %q", socket, got)
 		}
 		word := strings.TrimPrefix(got, prefix)
 		if !strings.HasPrefix(word, "'") || !strings.HasSuffix(word, "'") {
@@ -37,7 +37,7 @@ func TestTheAgentIsToldWhereItIs(t *testing.T) {
 		}
 	}
 	// Resuming a conversation is the same launch, carrying the id.
-	if got := resumeCommand("/s/conn.sock", "abc-123"); got != agentCommand("/s/conn.sock")+" --resume abc-123" {
+	if got := resumeCommand("/s/conn.sock", "abc-123"); got != aiCommand("/s/conn.sock")+" --resume abc-123" {
 		t.Errorf("resumeCommand = %q", got)
 	}
 }
@@ -119,11 +119,11 @@ func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
 	}
 }
 
-// An agent says of itself whether it is working; having stopped, it
+// An AI says of itself whether it is working; having stopped, it
 // stopped for you, so anything its file says other than busy is
 // waiting.
 // A file only counts against a pid the table still has standing as an
-// agent, and an agent with no file to read says neither.
+// AI, and an AI with no file to read says neither.
 func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	claude := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", claude)
@@ -137,7 +137,7 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	agent := func(pid int) process {
+	AI := func(pid int) process {
 		return process{pid: pid, uid: 501, tty: "ttys001", state: 'S', command: "claude", args: []string{"claude"},
 			started: watchNow.Add(-time.Hour), cwd: "/w"}
 	}
@@ -145,16 +145,16 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	say(11, "idle")    // a turn it finished, asking nothing
 	say(12, "waiting") // stopped on something it put to you
 	say(13, "busy")    // a file its process did not outlive
-	say(14, "busy")    // a pid the table has, but not as an agent
+	say(14, "busy")    // a pid the table has, but not as an AI
 	say(15, "")        // a file saying nothing of the sort
 	say(17, "sulking") // a word conn has never heard
 	say(18, "shell")   // a command running under it, which is work
-	procs := []process{agent(10), agent(11), agent(12), agent(15), agent(16), agent(17), agent(18),
+	procs := []process{AI(10), AI(11), AI(12), AI(15), AI(16), AI(17), AI(18),
 		{pid: 14, uid: 501, tty: "ttys001", state: 'S', command: "node", args: []string{"node"},
 			started: watchNow.Add(-time.Hour), cwd: "/w"},
 	}
 
-	how := agentStandings(procs)
+	how := aiStandings(procs)
 	for _, pid := range []int{10, 18} {
 		if (how[pid] != standing{working: true}) {
 			t.Errorf("pid %d, mid-turn or running a command, stands %+v", pid, how[pid])
@@ -163,13 +163,13 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	// Stopped on an ask is not the same as stopped with nothing
 	// pending, and only the first is waiting.
 	if (how[12] != standing{waiting: true}) {
-		t.Errorf("an agent stopped on an ask stands %+v", how[12])
+		t.Errorf("an AI stopped on an ask stands %+v", how[12])
 	}
 	if (how[11] != standing{idle: true}) {
-		t.Errorf("an agent whose turn is over stands %+v", how[11])
+		t.Errorf("an AI whose turn is over stands %+v", how[11])
 	}
 	// 17 says a word conn does not know, which leaves it exactly where
-	// an agent with no file at all is: nothing said of it.
+	// an AI with no file at all is: nothing said of it.
 	for _, pid := range []int{13, 14, 15, 16, 17} {
 		if (how[pid] != standing{}) {
 			t.Errorf("pid %d stands %+v, and nothing should be said of it", pid, how[pid])
@@ -189,7 +189,7 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 		12: statusWaiting, // stopped on an ask
 		11: statusIdle,    // turn over
 		17: statusActive,  // a word conn does not know, so nothing is claimed
-		16: statusActive,  // an agent with nothing to say of itself
+		16: statusActive,  // an AI with nothing to say of itself
 	} {
 		if got[pid] != want {
 			t.Errorf("the watch writes %s for pid %d, want %s", got[pid], pid, want)
@@ -229,8 +229,8 @@ func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
 	write(999, "22222222-2222-2222-2222-222222222222")
 
 	places := []place{{path: dir, entries: []entry{
-		{pid: 111, kind: kindAgent},
-		{pid: 999, kind: kindShell}, // 999 is running, but not as an agent
+		{pid: 111, kind: kindAI},
+		{pid: 999, kind: kindShell}, // 999 is running, but not as an AI
 	}}}
 
 	cs := claudeSuspended([]string{dir}, places)
@@ -239,7 +239,7 @@ func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
 	}
 }
 
-// An agent says when its status became what it is, and that is the
+// An AI says when its status became what it is, and that is the
 // moment a wait is measured from. Claude writes the file on a change
 // rather than on a clock, so the stamp holds still between changes and
 // is the moment of the change itself. A file that says nothing of when
@@ -259,21 +259,21 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 	}
 	write(20, `{"pid":20,"sessionId":"a-1","status":"waiting","statusUpdatedAt":1789152626774}`)
 	write(21, `{"pid":21,"sessionId":"a-2","status":"waiting"}`) // says nothing of when
-	agent := func(pid int) process {
+	AI := func(pid int) process {
 		return process{pid: pid, uid: 501, tty: "ttys001", state: 'S', command: "claude", args: []string{"claude"},
 			started: watchNow.Add(-time.Hour), cwd: "/w"}
 	}
 
-	how := agentStandings([]process{agent(20), agent(21)})
+	how := aiStandings([]process{AI(20), AI(21)})
 	if !how[20].waiting || !how[20].since.Equal(since) {
-		t.Errorf("an agent that says when it stopped stands %+v, want waiting since %v", how[20], since)
+		t.Errorf("an AI that says when it stopped stands %+v, want waiting since %v", how[20], since)
 	}
 	if !how[21].waiting || !how[21].since.IsZero() {
-		t.Errorf("an agent that says nothing of when stands %+v, and the moment should be unsaid", how[21])
+		t.Errorf("an AI that says nothing of when stands %+v, and the moment should be unsaid", how[21])
 	}
 
 	// And the entry carries it, which is what orders the round.
-	for _, pl := range watch([]process{agent(20), agent(21)}, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
+	for _, pl := range watch([]process{AI(20), AI(21)}, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.entries {
 			if e.pid == 20 && !e.since.Equal(since) {
 				t.Errorf("the entry for pid 20 stands since %v, want %v", e.since, since)
@@ -284,7 +284,7 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 
 // The ask is read off the end of the transcript: the tool use of the
 // last turn that has no result yet, with what it asked for, and with
-// nothing pending the last thing the agent said. A sidechain is
+// nothing pending the last thing the AI said. A sidechain is
 // somebody else's turn and is passed over.
 func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 	dir := t.TempDir()

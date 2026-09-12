@@ -14,7 +14,7 @@ import (
 // SIGTERM outright, and zsh ignores SIGHUP too, so a bare shell with
 // nothing running in it, the only entry a shell is ever its own, is
 // killed outright instead; there is nothing in it to give the chance
-// to save. Anything a shell is running — an editor, a build, an agent —
+// to save. Anything a shell is running — an editor, a build, an AI —
 // gets SIGTERM, the ask a well-behaved command answers by saving,
 // flushing and tearing its own children down, the way it would ending
 // on its own. The cursor's entry is already the leaf the watch covers

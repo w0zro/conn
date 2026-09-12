@@ -327,8 +327,8 @@ func TestReachingFromInsideATreePutsTheCursorOnItsHead(t *testing.T) {
 	m.places = []place{{path: "/w", entries: []entry{
 		{pid: 9, tty: "ttys001"},
 		{pid: 11, tty: "ttys002"},           // the head: what the pane was opened on
-		{pid: 12, tty: "ttys002", depth: 1}, // the agent it runs
-		{pid: 13, tty: "ttys002", depth: 2}, // and what the agent runs
+		{pid: 12, tty: "ttys002", depth: 1}, // the AI it runs
+		{pid: 13, tty: "ttys002", depth: 2}, // and what the AI runs
 	}}}
 	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
 	m.cursor, m.cursorAt = 13, 3 // down inside the tree
@@ -383,7 +383,7 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 	m.places = []place{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}}}}
 	m.cursor, m.cursorAt = 11, 0
 	tab()
-	if m.cursor != 11 || m.note != "NO AGENT IS WAITING" {
+	if m.cursor != 11 || m.note != "NO AI IS WAITING" {
 		t.Errorf("with nothing waiting: cursor %d, note %q", m.cursor, m.note)
 	}
 }
@@ -512,7 +512,7 @@ func TestAltAOpensThePickerAtThePlace(t *testing.T) {
 func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewWatch
-	m.places = []place{{path: "/w", entries: []entry{{pid: 11, kind: kindAgent, command: "claude"}}}}
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, kind: kindAI, command: "claude"}}}}
 	m.cursor = 11
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
@@ -550,7 +550,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewWatch
-	m.places = []place{{path: "/w", entries: []entry{{pid: 11, kind: kindAgent, command: "claude"}}}}
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, kind: kindAI, command: "claude"}}}}
 	m.cursor = 11
 
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
@@ -677,7 +677,7 @@ func TestCtrlAOpensAnAgentAtTheProject(t *testing.T) {
 		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
-		t.Errorf("ctrl+a did not both read the watch and open the agent: %T", cmd())
+		t.Errorf("ctrl+a did not both read the watch and open the AI: %T", cmd())
 	}
 }
 

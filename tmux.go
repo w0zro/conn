@@ -654,7 +654,7 @@ set -g remain-on-exit on
 // and this is that strip. A lamp is a rank of gray while its process
 // is working, the faintest ink while it is idle or merely active — it
 // keeps its place, since a lamp that vanished would shift the ones
-// beside it — and the waiting color, bold and blinking, while an agent is
+// beside it — and the waiting color, bold and blinking, while an AI is
 // stopped on something it asked of you. The terminal does the blinking,
 // so nothing here redraws on a beat; a terminal that will not blink
 // shows it steady, which is the same lamp less insistent.

@@ -10,13 +10,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// lookSubj is a waiting agent with everything the page has to say about
+// lookSubj is a waiting AI with everything the page has to say about
 // one: a long command, a status it has stood in for a while, a
 // directory of its own under its place, a pane conn holds, what it runs
 // and what runs it, a conversation, and a place with a git standing.
 func lookSubj() lookSubject {
 	e := entry{
-		pid: 49212, kind: kindAgent,
+		pid: 49212, kind: kindAI,
 		command: "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1",
 		tty:     "ttys003", started: watchNow.Add(-92 * time.Minute),
 		status: statusWaiting, since: watchNow.Add(-7 * time.Minute),
@@ -67,7 +67,7 @@ func TestTheLookSaysWhatTheWatchCannot(t *testing.T) {
 	// The ask is the reason to open the page on a waiting row at all, so
 	// it comes before what the row is, where a cut page cannot lose it.
 	if !strings.Contains(text, "INPUT NEEDED") {
-		t.Errorf("what the agent is stopped on is not on the page:\n%s", text)
+		t.Errorf("what the AI is stopped on is not on the page:\n%s", text)
 	}
 	if strings.Index(text, "WAITING") > strings.Index(text, "WHAT") {
 		t.Errorf("the ask is not the first thing on the page:\n%s", text)
@@ -114,7 +114,7 @@ func TestTheLookLeavesOutWhatThereIsNoneOf(t *testing.T) {
 	}
 	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
 
-	for _, gone := range []string{"WAITING", "ASKS", "SAID", "AGENT", "PLACE\n", "TREE", "CWD", "CPU"} {
+	for _, gone := range []string{"WAITING", "ASKS", "SAID", "AI", "PLACE\n", "TREE", "CWD", "CPU"} {
 		if strings.Contains(text, gone) {
 			t.Errorf("%q is on a page that has nothing to put under it:\n%s", gone, text)
 		}
@@ -142,15 +142,15 @@ func TestTheLookSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 	}
 }
 
-// A stopped process is not dated from an agent's own clock: the moment
-// conn holds is when the agent last changed what it says of itself,
+// A stopped process is not dated from an AI's own clock: the moment
+// conn holds is when the AI last changed what it says of itself,
 // which is not when anything stopped it.
 func TestTheLookDoesNotDateAFaultFromTheAgentsClock(t *testing.T) {
 	s := lookSubj()
 	s.entry.status, s.entry.fault, s.entry.asking = statusStopped, true, ""
 	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
 	if strings.Contains(text, "STOPPED · FOR") {
-		t.Errorf("a stopped row was dated from the agent's clock:\n%s", text)
+		t.Errorf("a stopped row was dated from the AI's clock:\n%s", text)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestTheLookSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
 func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 	pl := place{path: "/w", entries: []entry{
 		{pid: 1, kind: kindShell, command: "zsh", depth: 0},
-		{pid: 2, kind: kindAgent, command: "claude", depth: 1},
+		{pid: 2, kind: kindAI, command: "claude", depth: 1},
 		{pid: 3, kind: kindRun, command: "go test", depth: 2},
 		{pid: 4, kind: kindRun, command: "compile", depth: 3}, // a grandchild
 		{pid: 5, kind: kindRun, command: "caffeinate", depth: 2},

@@ -21,7 +21,7 @@ import (
 // said nowhere. This is where it is said. What the process is and was
 // started as, whole. Where it actually is, against the place its tree
 // belongs to. What runs it and what it runs. What it has spent. Of an
-// agent, which conversation it is carrying and what it is stopped on.
+// AI, which conversation it is carrying and what it is stopped on.
 // Of the place, what git says of it — the branch, whether the tree is
 // clean, what the last commit was — since a row stands for work and
 // the work is in a repository.
@@ -45,7 +45,7 @@ type lookSubject struct {
 	children []entry // what it runs, in the order the tree has them
 	pane     pane
 	inside   bool
-	sess     sessionFile // what an agent says of itself, when conn can ask
+	sess     sessionFile // what an AI says of itself, when conn can ask
 	convo    conversation
 	git      gitStanding
 }
@@ -58,7 +58,7 @@ type lookReport struct {
 }
 
 // A lookGroup is a title and the facts under it. A group with no facts
-// is not drawn: an agent's title over a shell's row would be a heading
+// is not drawn: an AI's title over a shell's row would be a heading
 // over nothing, and a place that is no repository has no git to report.
 type lookGroup struct {
 	title string
@@ -103,7 +103,7 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	e := s.entry
 	b := lookReport{pid: e.pid}
 
-	// What the agent is stopped on goes first, ahead of what the row
+	// What the AI is stopped on goes first, ahead of what the row
 	// even is. It is the whole reason to open the page on a waiting
 	// row, the one thing the watch has no column wide enough for, and
 	// the page is cut off at the pane's height rather than scrolled —
@@ -112,7 +112,7 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 		ask := lookGroup{title: "WAITING"}
 		ask.add("on", e.asking)
 		ask.add("for", age(e.since, now))
-		// The thing itself, in the agent's words: the tool it asked to
+		// The thing itself, in the AI's words: the tool it asked to
 		// use and what for, or what it last said, which is the question
 		// when a turn ended on one.
 		if s.convo.Ask.Tool != "" {
@@ -127,9 +127,9 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	what.add("kind", e.kind)
 	what.addAsWritten("command", e.command)
 	what.add("pid", strconv.Itoa(e.pid))
-	// How it stands, and how long it has stood that way. Only an agent
+	// How it stands, and how long it has stood that way. Only an AI
 	// says the moment; a stopped or ended process gets no clause at all,
-	// since the moment conn holds for it is when an agent last changed
+	// since the moment conn holds for it is when an AI last changed
 	// what it says of itself, which has nothing to do with when
 	// something stopped it.
 	standing := e.status
@@ -168,17 +168,17 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	}
 	b.groups = append(b.groups, where)
 
-	// Which conversation an agent is carrying, and what it was last
+	// Which conversation an AI is carrying, and what it was last
 	// asked — the two things that say which of several claudes this one
 	// is, where the command line only says that it is one.
-	agent := lookGroup{title: "AGENT"}
-	agent.add("session", s.sess.SessionID)
-	agent.add("name", s.sess.Name)
-	agent.add("version", s.sess.Version)
-	agent.add("running", s.sess.Kind)
-	agent.add("branch", s.convo.Branch)
-	agent.addAsWritten("last ask", s.convo.Prompt)
-	b.groups = append(b.groups, agent)
+	AI := lookGroup{title: "AI"}
+	AI.add("session", s.sess.SessionID)
+	AI.add("name", s.sess.Name)
+	AI.add("version", s.sess.Version)
+	AI.add("running", s.sess.Kind)
+	AI.add("branch", s.convo.Branch)
+	AI.addAsWritten("last ask", s.convo.Prompt)
+	b.groups = append(b.groups, AI)
 
 	// What git says of the place. A row stands for work, and the branch
 	// it is on and whether the tree is clean are the first two things

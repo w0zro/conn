@@ -224,7 +224,7 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 	t.procs = procs
 	home, _ := os.UserHomeDir()
 	isProject := projectDirs(projectRoots(home))
-	t.places = watch(procs, uid, placeRoots(isProject), isProject, agentStandings(procs))
+	t.places = watch(procs, uid, placeRoots(isProject), isProject, aiStandings(procs))
 
 	// What conn holds for the rows' terminals, when there is a server to
 	// ask. Outside one there is nothing to say of panes.
@@ -239,9 +239,9 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 	if !ok {
 		return t
 	}
-	// Which conversation an agent is carrying — the session file names
+	// Which conversation an AI is carrying — the session file names
 	// it, and the transcript is where the branch and the last ask are.
-	if s.entry.kind == kindAgent {
+	if s.entry.kind == kindAI {
 		if f := t.sess[pid]; f.SessionID != "" && f.wroteBy(s.entry.started) {
 			dir := s.entry.cwd
 			if f.Cwd != "" {
@@ -285,7 +285,7 @@ func lookPage(pid int, t lookTable) (lookReport, bool) {
 	if t.inside {
 		s.pane, s.inside = t.panes[s.entry.tty], true
 	}
-	if s.entry.kind == kindAgent {
+	if s.entry.kind == kindAI {
 		s.sess, s.convo = t.sess[pid], t.convo[pid]
 	}
 	s.git = t.git[s.place.path]

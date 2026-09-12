@@ -8,7 +8,7 @@
    ASKS ...... AskUserQuestion · Is this session's lamp lit on the bar while this question waits?
 
    WHAT
-   KIND ...... AGENT
+   KIND ...... AI
    COMMAND ... claude --resume d81d7536-e545-4881-8daa-f1d291a03be1
    PID ....... 49212
    STATUS .... WAITING
@@ -22,7 +22,7 @@
    TTY ....... TTYS003
    PANE ...... %2 · CAN BE REACHED
 
-   AGENT
+   AI
    SESSION ... D81D7536-E545-4881-8DAA-F1D291A03BE1
    NAME ...... CONN-2D
    VERSION ... 2.1.267

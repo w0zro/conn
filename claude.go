@@ -72,16 +72,16 @@ func isSessionID(id string) bool {
 	return true
 }
 
-// insideNote is what conn tells an agent it starts about where it is.
-// An agent that backgrounds a dev server leaves it with no terminal:
+// insideNote is what conn tells an AI it starts about where it is.
+// An AI that backgrounds a dev server leaves it with no terminal:
 // no pane to attach to, no scrollback to read, and its output wherever
-// the agent happened to send it. A window of its own costs the agent
+// the AI happened to send it. A window of its own costs the AI
 // nothing and makes the server a process like any other here — conn
 // shows it, you reach it, and its log is the pane you are looking at.
 //
-// conn says this to the agents it starts rather than writing it into
+// conn says this to the AIs it starts rather than writing it into
 // anybody's settings. It travels with conn, so a conn on another
-// machine tells its agents the same thing, and a machine conn is gone
+// machine tells its AIs the same thing, and a machine conn is gone
 // from is as conn found it.
 func insideNote(socket string) string {
 	return "You are running inside conn, which holds this terminal as a tmux pane " +
@@ -96,16 +96,16 @@ func insideNote(socket string) string {
 		"only be read through whatever file its output was sent to."
 }
 
-// agentCommand is what conn runs to start an agent: the program, told
+// aiCommand is what conn runs to start an AI: the program, told
 // where it is.
-func agentCommand(socket string) string {
-	return agentProgram + " --append-system-prompt " + shellQuote(insideNote(socket))
+func aiCommand(socket string) string {
+	return aiProgram + " --append-system-prompt " + shellQuote(insideNote(socket))
 }
 
 // resumeCommand is the command that picks a suspended conversation back
 // up, told the same. The id travels onto a shell command line, so only
 // ids claudeSuspended vetted are ever handed here.
-func resumeCommand(socket, id string) string { return agentCommand(socket) + " --resume " + id }
+func resumeCommand(socket, id string) string { return aiCommand(socket) + " --resume " + id }
 
 // What Claude Code calls itself, in the file it keeps per instance.
 // The vocabulary is closed at four, and these are all of them, read
@@ -113,7 +113,7 @@ func resumeCommand(socket, id string) string { return agentCommand(socket) + " -
 // ones happened to be caught being written.
 //
 // Busy is mid-turn. Shell is a command of its own running, which is
-// work too, and work conn could not otherwise see: an agent waiting on
+// work too, and work conn could not otherwise see: an AI waiting on
 // its own child spends no processor time, so a test suite running ten
 // minutes would read at rest the whole way. Claude Code's own status
 // line makes the same pair - busy and shell both come out as its word
@@ -188,7 +188,7 @@ func (f sessionFile) wroteBy(started time.Time) bool {
 	return true
 }
 
-// An ask is what a waiting agent wants, in its own words, read off the
+// An ask is what a waiting AI wants, in its own words, read off the
 // end of its transcript. The session file says only that it is stopped
 // and on what sort of thing, one phrase from a closed set; the
 // transcript has the thing itself: the tool it asked to use and has no
@@ -234,7 +234,7 @@ func askDetail(input map[string]json.RawMessage) string {
 	return ""
 }
 
-// readAsk reads the end of a transcript for what the agent is waiting
+// readAsk reads the end of a transcript for what the AI is waiting
 // on: the tool uses of its last turn, less the ones that have been
 // answered, or what it last said. A turn is written as several records,
 // the text and each tool use on a line of its own, so the reading
@@ -336,23 +336,23 @@ func claudeSessions() map[int]sessionFile {
 	return out
 }
 
-// agentStandings is what every agent says of itself: working, or
-// stopped and waiting on you. An agent is asked rather than measured —
+// aiStandings is what every AI says of itself: working, or
+// stopped and waiting on you. An AI is asked rather than measured —
 // it knows whether it is mid-turn, where the processor time it happens
 // to be using says little, a model answering being barely any and
 // waiting on you none at all.
 //
-// An agent that has stopped has not necessarily stopped on anything:
+// An AI that has stopped has not necessarily stopped on anything:
 // a turn that is simply over asks nothing and holds nothing up, while
 // a permission or a question is a thing sitting there unanswered. Only
 // the second is worth a word that carries, so the two are kept apart
 // here rather than both being called waiting.
 //
 // A file can outlive the process that wrote it, so a pid counts only
-// where the table still has it standing as an agent; an agent with no
+// where the table still has it standing as an AI; an AI with no
 // file to read - another maker's, or one too old to write one - says
 // nothing of itself, and reads as alive like anything else.
-func agentStandings(procs []process) map[int]standing {
+func aiStandings(procs []process) map[int]standing {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
@@ -360,7 +360,7 @@ func agentStandings(procs []process) map[int]standing {
 	how := map[int]standing{}
 	for pid, s := range claudeSessions() {
 		p, ok := byPid[pid]
-		if !ok || kindOf(p) != kindAgent || s.Status == "" || !s.wroteBy(p.started) {
+		if !ok || kindOf(p) != kindAI || s.Status == "" || !s.wroteBy(p.started) {
 			continue
 		}
 		var since time.Time
@@ -376,8 +376,8 @@ func agentStandings(procs []process) map[int]standing {
 			how[pid] = standing{idle: true, since: since}
 		}
 		// A word outside the four is a Claude newer than this conn, and
-		// conn says nothing of an agent it cannot understand — the same
-		// as an agent with no file at all, which is the honest answer
+		// conn says nothing of an AI it cannot understand — the same
+		// as an AI with no file at all, which is the honest answer
 		// and already has a word. Idle especially is not the answer to
 		// guess: it says at rest, nothing pending, yours when you want
 		// it, and none of that is known.
@@ -388,12 +388,12 @@ func agentStandings(procs []process) map[int]standing {
 // liveConversations is the id of every conversation a running claude
 // instance is carrying. A session file can outlive the process that
 // wrote it, so a pid is only believed when the process table still has
-// it, standing as an agent.
+// it, standing as an AI.
 func liveConversations(places []place) map[string]bool {
 	began := map[int]time.Time{}
 	for _, pl := range places {
 		for _, e := range pl.entries {
-			if e.kind == kindAgent {
+			if e.kind == kindAI {
 				began[e.pid] = e.started
 			}
 		}

@@ -280,14 +280,14 @@ func (m model) readWatch() tea.Cmd {
 		}
 		// How each process stands past what the table says: anything is
 		// working by the processor time it spent since the last reading,
-		// which is why that reading is kept, and an agent answers for
+		// which is why that reading is kept, and an AI answers for
 		// itself instead - working, or waiting on you.
 		now, nowAt := cpuOf(procs), time.Now()
 		how := map[int]standing{}
 		for pid := range cpuWorking(was, wasAt, procs, nowAt) {
 			how[pid] = standing{working: true}
 		}
-		maps.Copy(how, agentStandings(procs))
+		maps.Copy(how, aiStandings(procs))
 		msg := watchMsg{places: watch(procs, uid, roots, isProject, how), gen: gen, cpu: now, cpuAt: nowAt}
 		if srv != nil {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
@@ -739,7 +739,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		case !ok || pl.path == "":
 			m.note = "NO PLACE UNDER THE CURSOR"
 		default:
-			return m, m.openAgent(pl.path)
+			return m, m.startAI(pl.path)
 		}
 	case k == "alt+a":
 		_, pl, ok := m.under()
@@ -830,7 +830,7 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 			path := rows[m.pcursor].path
 			mm, cmd := m.toWatch()
 			m = mm.(model)
-			return m, tea.Batch(cmd, m.openAgent(path))
+			return m, tea.Batch(cmd, m.startAI(path))
 		}
 	case k == "alt+a":
 		switch {
@@ -917,7 +917,7 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 func (m model) toWaiting() (tea.Model, tea.Cmd) {
 	round := waitingRound(m.places)
 	if len(round) == 0 {
-		m.note = "NO AGENT IS WAITING"
+		m.note = "NO AI IS WAITING"
 		return m, nil
 	}
 	next := round[0]

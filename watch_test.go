@@ -46,13 +46,13 @@ func TestWatchLaysOut(t *testing.T) {
 		"w0zro/vim.pro/conjurer", "47M 00S", "ACTIVE",
 		"~", "1D 01H", " STOPPED",
 		// A root at the margin, and the tree under it stepping in: the
-		// agent its shell runs, the shell the agent runs, the go that
+		// AI its shell runs, the shell the AI runs, the go that
 		// one runs. The cursor's mark sits in the margin regardless.
 		"\n   SHELL   zsh",
 		"\n       SHELL   bash -c go test ./...",
 		"\n         RUN     go test ./...",
 		"\n     EDITOR  vim notes.md",
-		" ▸   AGENT   claude --resume",
+		" ▸   AI      claude --resume",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("watch lacks %q:\n%s", s, text)
@@ -233,13 +233,13 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 		t.Errorf("the terminals are not colored by reach:\n%s", text)
 	}
 	// The slot's mark is on the kind of its head, which is the shell,
-	// not the agent under it.
+	// not the AI under it.
 	if !strings.Contains(text, p.orange+p.bold+"SHELL") {
 		t.Errorf("the slot's head is not marked:\n%s", text)
 	}
 	// In the rail there is no terminal column, and the rows close up.
 	railText := texts(drawWatch(w, 67040, 48, 30, plain))
-	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AGENT  claude --resume") {
+	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AI     claude --resume") {
 		t.Errorf("the rail:\n%s", railText)
 	}
 	for _, r := range drawWatch(w, 67040, 48, 30, plain) {
@@ -486,7 +486,7 @@ func TestAPlaceIsNamedByWhatTellsItApart(t *testing.T) {
 func TestTheWaitingWordBlinks(t *testing.T) {
 	held := []place{{path: "/w", entries: []entry{
 		{pid: 11, kind: kindShell, command: "zsh", status: statusActive},
-		{pid: 12, kind: kindAgent, command: "claude", status: statusWaiting, depth: 1, since: watchNow.Add(-time.Minute)},
+		{pid: 12, kind: kindAI, command: "claude", status: statusWaiting, depth: 1, since: watchNow.Add(-time.Minute)},
 	}}}
 	b := composeWatch(held, nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
 

@@ -82,7 +82,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		"/Users/w0zro/projects/w0zro/conn SHELL zsh ACTIVE",
 		" /Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 		"/Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL zsh ACTIVE",
-		" /Users/w0zro/projects/w0zro/vim.pro/conjurer AGENT claude --resume ACTIVE",
+		" /Users/w0zro/projects/w0zro/vim.pro/conjurer AI claude --resume ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN node /opt/claude/mcp.js ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL bash -c go test ./... ACTIVE",
 		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
@@ -161,9 +161,9 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	}
 }
 
-// Work with no terminal is still work. A server the agent started and
+// Work with no terminal is still work. A server the AI started and
 // one that outlived the shell that started it are both of the project,
-// and both stand as rows: the first under the agent that runs it, the
+// and both stand as rows: the first under the AI that runs it, the
 // second rooting a tree of its own, since nothing of yours runs it any
 // more. What is merely on the machine stays off — a daemon working in
 // its own container under home, where a shell happens to sit, is not
@@ -196,7 +196,7 @@ func TestTheWatchAdoptsWorkWithNoTerminal(t *testing.T) {
 	want := []string{
 		conn + " RUN python3 -m http.server 8137 ACTIVE",
 		conn + " SHELL zsh ACTIVE",
-		" " + conn + " AGENT claude ACTIVE",
+		" " + conn + " AI claude ACTIVE",
 		"  " + conn + " RUN python3 -m http.server 8000 ACTIVE",
 		"/Users/w0zro SHELL zsh IDLE",
 	}
@@ -400,7 +400,7 @@ func TestTheFirstReadingCallsNothingWorking(t *testing.T) {
 // The word for a process is working when it is doing something, which
 // beats idle and is beaten by a fault: a stopped process is stopped
 // whatever it spent before it was. Waiting beats working in turn — an
-// agent that says both is one whose file was written between the two,
+// AI that says both is one whose file was written between the two,
 // and the thing worth saying is that it wants you — and it is no
 // fault, since nothing went wrong.
 func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
@@ -422,24 +422,24 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	if s, _ := statusOf(process{state: 'S'}, kindRun, true, nothing); s != statusActive {
 		t.Errorf("a run doing nothing is %s", s)
 	}
-	agent := process{state: 'S'}
-	s, fault := statusOf(agent, kindAgent, false, waits)
+	AI := process{state: 'S'}
+	s, fault := statusOf(AI, kindAI, false, waits)
 	if s != statusWaiting {
-		t.Errorf("an agent waiting on you is %s", s)
+		t.Errorf("an AI waiting on you is %s", s)
 	}
 	if fault {
-		t.Error("an agent waiting on you is a fault")
+		t.Error("an AI waiting on you is a fault")
 	}
-	// An agent stopped with its turn over holds nothing up, and reads
+	// An AI stopped with its turn over holds nothing up, and reads
 	// the way anything else at rest does rather than asking for you.
-	if s, _ := statusOf(agent, kindAgent, false, standing{idle: true}); s != statusIdle {
-		t.Errorf("an agent with its turn over is %s, not idle", s)
+	if s, _ := statusOf(AI, kindAI, false, standing{idle: true}); s != statusIdle {
+		t.Errorf("an AI with its turn over is %s, not idle", s)
 	}
-	if s, _ := statusOf(agent, kindAgent, false, standing{working: true, waiting: true}); s != statusWaiting {
-		t.Errorf("an agent that says both is %s, not waiting", s)
+	if s, _ := statusOf(AI, kindAI, false, standing{working: true, waiting: true}); s != statusWaiting {
+		t.Errorf("an AI that says both is %s, not waiting", s)
 	}
-	if s, _ := statusOf(process{state: 'T'}, kindAgent, false, waits); s != statusStopped {
-		t.Error("a stopped agent is not stopped")
+	if s, _ := statusOf(process{state: 'T'}, kindAI, false, waits); s != statusStopped {
+		t.Error("a stopped AI is not stopped")
 	}
 }
 
@@ -451,7 +451,7 @@ func TestKindsAndCommands(t *testing.T) {
 		command string
 	}{
 		{process{command: "zsh", args: []string{"-zsh"}}, kindShell, "zsh"},
-		{process{command: "node", args: []string{"/usr/local/bin/claude", "--resume"}}, kindAgent, "claude --resume"},
+		{process{command: "node", args: []string{"/usr/local/bin/claude", "--resume"}}, kindAI, "claude --resume"},
 		{process{command: "nvim"}, kindEditor, "nvim"},
 		{process{command: "conn", args: []string{"/Users/w0zro/.local/bin/conn"}}, kindConn, "conn"},
 		{process{command: "go", args: []string{"go", "test", "./..."}}, kindRun, "go test ./..."},
@@ -459,7 +459,7 @@ func TestKindsAndCommands(t *testing.T) {
 		{process{command: "conn", args: []string{"/usr/local/bin/conn", "hold"}}, kindHold, "conn hold"},
 		// A written title: the name is the first word of it, and the
 		// whole of it is what the process was started as.
-		{process{command: "claude", args: []string{"claude bg-spare", "--bg-spare", "/tmp/1a39b95b.claim.sock"}}, kindAgent, "claude bg-spare --bg-spare /tmp/1a39b95b.claim.sock"},
+		{process{command: "claude", args: []string{"claude bg-spare", "--bg-spare", "/tmp/1a39b95b.claim.sock"}}, kindAI, "claude bg-spare --bg-spare /tmp/1a39b95b.claim.sock"},
 	} {
 		if kind, cmd := kindOf(c.p), commandLine(c.p); kind != c.kind || cmd != c.command {
 			t.Errorf("%+v: %s %q, want %s %q", c.p, kind, cmd, c.kind, c.command)
@@ -661,7 +661,7 @@ func TestProcIsParsed(t *testing.T) {
 	}
 }
 
-// The waiting are answered longest held up first. An agent that cannot
+// The waiting are answered longest held up first. An AI that cannot
 // say when it stopped is waiting all the same, but it cannot claim a
 // turn ahead of one that can prove it waited longer, so it goes last;
 // two that stopped at the same moment go by pid, so the ring is the
@@ -695,7 +695,7 @@ func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
 // already there — not the row it hangs under, not that row's siblings,
 // not the place: it goes on the end of where it belongs and everything
 // above keeps its spot. It was the newest start anywhere in a subtree
-// that ordered all three, so a command an agent ran re-sorted the watch
+// that ordered all three, so a command an AI ran re-sorted the watch
 // out from under whoever was reading it.
 func TestTheWatchHoldsItsOrder(t *testing.T) {
 	rows := func(procs []process) []int {
@@ -709,7 +709,7 @@ func TestTheWatchHoldsItsOrder(t *testing.T) {
 	}
 	before := rows(testProcs)
 
-	// A command under the agent, a shell of its own in the oldest place,
+	// A command under the AI, a shell of its own in the oldest place,
 	// and a tree in a place the watch has never had: each is newer than
 	// everything on the list.
 	grown := append(append([]process{}, testProcs...),
@@ -737,7 +737,7 @@ func TestTheWatchHoldsItsOrder(t *testing.T) {
 		t.Errorf("the rows that were there moved:\n%v\nwere:\n%v", kept, before)
 	}
 	// And the new work is on the end of where it belongs: the command
-	// under the agent last among what the agent runs, the new shell last
+	// under the AI last among what the AI runs, the new shell last
 	// in the place it is in, the new place last of all.
 	if last := after[len(after)-1]; last != 90999 {
 		t.Errorf("a place the watch has never had stands before the others: last row is %d", last)
@@ -752,7 +752,7 @@ func TestTheWatchHoldsItsOrder(t *testing.T) {
 		return -1
 	}
 	if at(70999) < at(70301) {
-		t.Error("the agent's newest command stands before the ones it started earlier")
+		t.Error("the AI's newest command stands before the ones it started earlier")
 	}
 	if at(80999) < at(80002) {
 		t.Error("a shell opened just now stands before what was already at its place")

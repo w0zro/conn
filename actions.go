@@ -75,16 +75,16 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
-// agentProgram is the agent conn starts. Claude is the only kind conn
+// aiProgram is the AI conn starts. Claude is the only kind conn
 // starts for now, so a is its key everywhere a shell's is s.
-const agentProgram = "claude"
+const aiProgram = "claude"
 
-// openAgent opens an agent at a place, off the loop, the way openShell
+// startAI opens an AI at a place, off the loop, the way openShell
 // opens a shell there.
-func (m model) openAgent(dir string) tea.Cmd {
+func (m model) startAI(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.openCmd(dir, agentCommand(srv.socket))
+		sh, err := srv.openCmd(dir, aiCommand(srv.socket))
 		if err != nil {
 			return noteMsg{strings.ToUpper(err.Error())}
 		}
@@ -116,7 +116,7 @@ func (m model) scanConvos(dirs []string) tea.Cmd {
 }
 
 // openResumed opens a shell that picks a suspended conversation back
-// up, off the loop, the way openAgent opens a fresh one.
+// up, off the loop, the way startAI opens a fresh one.
 func (m model) openResumed(dir, id string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {

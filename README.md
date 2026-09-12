@@ -8,7 +8,7 @@ section, so that a decision can be found again.
 
 **1-1. PURPOSE.** conn is the station from which one operator directs the
 work of many hands on one machine. A hand is a process that works a place
-on the operator's behalf: a shell, an agent, a run. Hands work without
+on the operator's behalf: a shell, an AI, a run. Hands work without
 direction, and stop to ask for it. The station shows what each hand is
 doing and which hand is waiting, so that the operator's attention, which
 is the one thing not in supply, goes where it is asked for.
@@ -18,7 +18,7 @@ the thing being run. The word here is hand, and where that could be read
 as the operator's own, station hand: the general worker on a station,
 who does what the place needs without being stood over. A hand is
 long-lived. It has a place it works, a
-tree of processes under it, and, if it is an agent, a conversation it is
+tree of processes under it, and, if it is an AI, a conversation it is
 carrying and a state of mind that cannot be read off its processor time.
 Above all it can stop and wait on the operator. A compiler never waited
 on anyone. That one new fact is why the hands are the thing to watch, and
@@ -83,7 +83,7 @@ rail forty-four columns wide. A place outside every root is written from
 the only thing its line has to say.
 
 **3-3. THE TREE.** Under a place the hands read as the tree they are: a
-shell, the agent it runs indented under it, the shell that agent asked for
+shell, the AI it runs indented under it, the shell that AI asked for
 under that, and its `go test` under that again. A whole tree belongs to
 one place, the directory its root stands in, whatever a process below it
 has since changed directory to. A shell is idle only bare, at its prompt.
@@ -94,7 +94,7 @@ long as it lives: a place by the work that first began there, a tree by
 its own root, a row among its siblings by itself, oldest first. What is
 new goes on the end, so nothing above it moves and a row read twice is in
 the same spot. Sorting by the newest work was tried and rejected. It is a
-true thing to say about a list and a hard one to read: an agent running a
+true thing to say about a list and a hard one to read: an AI running a
 command a second re-sorted the whole watch under the eye trying to follow
 it.
 
@@ -103,11 +103,11 @@ something between one reading and the next, and `ACTIVE` when it is only
 alive. A dev server waiting on a request and one answering it are not the
 same thing, and the column says which.
 
-An agent is asked rather than measured. It knows whether it is mid-turn,
+An AI is asked rather than measured. It knows whether it is mid-turn,
 and the processor time it uses says little either way: a model answering
-spends barely any, waiting on the operator spends none, and an agent
+spends barely any, waiting on the operator spends none, and an AI
 sitting on a test suite of its own spends none while the suite spends
-plenty. That last is work conn could not see any other way, so an agent
+plenty. That last is work conn could not see any other way, so an AI
 with a command running under it is working, the same as one mid-turn.
 
 Everything else is read off the processor time it spent, against how long
@@ -121,7 +121,7 @@ claimed up the tree: a shell whose child is working is active, and the
 row doing the work is the one that says so.
 
 **3-6. WAITING.** `WAITING` is the other end of the same question, and the
-one word on the watch that asks something of the operator. It is an agent
+one word on the watch that asks something of the operator. It is an AI
 stopped on something it put to you and cannot go on without: a
 permission, a question, a dialog sitting there unanswered. It blinks,
 which is the one thing on a screen that reaches the corner of an eye.
@@ -132,30 +132,30 @@ word that jumped its neighbours about would be worse than one that never
 blinked.
 
 Nothing else on the watch blinks. A fault wears a chip and keeps it, since
-a process you suspended yourself is not asking anything of you. An agent
+a process you suspended yourself is not asking anything of you. An AI
 whose turn is simply over is `IDLE`, the same word a shell at its prompt
 gets and for the same reason: at rest, nothing pending, yours when you
 want it. The difference is whether anything is held up, and only the
 thing that is held up is worth a word that carries.
 
-Nothing but an agent is ever called waiting. A server waiting on a socket
+Nothing but an AI is ever called waiting. A server waiting on a socket
 is waiting on the socket, so the word is only ever about a person. It is
-no fault, so it takes a color of its own rather than a chip. Only an agent
-says any of this, being the only thing that knows its own mind. An agent
+no fault, so it takes a color of its own rather than a chip. Only an AI
+says any of this, being the only thing that knows its own mind. An AI
 conn cannot ask, another maker's, one too old to say, or one newer than
 conn and using a word conn has never heard, reads as alive like anything
 else. Guessing at the word is worse than having none: `IDLE` says at
 rest, nothing pending, yours when you want it, and none of that is known.
 
-**3-7. TAB.** `tab` goes to what is waiting: the cursor to the agent that
+**3-7. TAB.** `tab` goes to what is waiting: the cursor to the AI that
 has been held up longest, its pane into the slot, and the keys into it,
 so one press has the operator answering. Each press after it goes to the
-next, and round again from the end. An agent says when its status became
+next, and round again from the end. An AI says when its status became
 what it is, and Claude writes that on a change rather than on a clock, so
 the stamp is the moment the wait began and the order is how long each
 has actually waited. One that cannot say goes last. It is still waiting,
 which is what the word is for, but it cannot claim a turn ahead of one
-that can prove it waited longer. A waiting agent conn holds no pane for
+that can prove it waited longer. A waiting AI conn holds no pane for
 is gone to on the rail, and the row says why the keys did not follow.
 
 **3-8. HELD AND REPORTED.** A row is also written by what conn can do with
@@ -215,7 +215,7 @@ dropped part said nowhere. The look is where it is said.
 - How long it has been up and how much processor time it has actually
   spent, which is the measure behind `WORKING`.
 - What runs it, and what it runs.
-- Of an agent, which conversation it is carrying: the session, the
+- Of an AI, which conversation it is carrying: the session, the
   branch, the last thing it was asked. Stopped on you, what it is stopped
   on: `input needed`, `dialog open`, a `sandbox request`, the one thing
   the watch has no column wide enough for. That group is written first,
@@ -226,7 +226,7 @@ dropped part said nowhere. The look is where it is said.
   stands for work, and the work is in a repository.
 
 Nothing is said twice and nothing is said of what there is none of. A
-shell has no conversation and gets no agent heading, a place that is no
+shell has no conversation and gets no AI heading, a place that is no
 repository has no git to report, and a status with no moment behind it is
 not dated. The form is the console's own, a label, a dotted leader, a
 value, grouped under a title, because the console says what the machine
@@ -250,7 +250,7 @@ again newer. What git said of a place and which conversation a row was
 carrying are kept along with it, since a list walked down and back up is
 the same few places over and over and git is a process each time; a page
 left open on one row asks git again only after half a minute, and reads
-what a waiting agent wants again only when its standing changes. A
+what a waiting AI wants again only when its standing changes. A
 reading that lands after the cursor has moved on is dropped rather than
 shown, so the page never flicks back to a row nobody is looking at; the
 table it came with is kept, being a reading of the machine and not of the
@@ -304,7 +304,7 @@ names another prefix, in tmux's spelling.
 The prefix twice over is the other hand. It puts back whatever was in the
 slot before the thing in it now, and takes the thing in it now as the one
 to come back to, so pressed twice it is where it started. It is the key
-for working two things at once: a shell and the agent you are asking
+for working two things at once: a shell and the AI you are asking
 about it, a build and the file it is failing on. conn's own furniture is
 never somewhere you were working. A hold standing in an empty slot and
 the look are not remembered, and going back never lands on one. `alt-o`
@@ -348,7 +348,7 @@ watch, in the watch's order, so a lamp's place on the row is a row's
 place on the list. A lamp is a rank of gray while its hand is working,
 the faintest ink while it is idle or merely active, keeping its place so
 the lamps beside it do not shift, and the waiting color, bold and blinking,
-while an agent is stopped on something it asked of you. The terminal does
+while an AI is stopped on something it asked of you. The terminal does
 the blinking, so nothing here redraws on a beat; a terminal that will not
 blink shows it steady, which is the same lamp less insistent. Faults stay
 off the panel. A process you suspended yourself is not holding you up,

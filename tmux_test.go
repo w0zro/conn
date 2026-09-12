@@ -231,7 +231,7 @@ func TestConnLightsTheBar(t *testing.T) {
 	m := newModel(plain)
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.places = []place{{path: "/w", entries: []entry{
-		{pid: 11, kind: kindAgent, command: "claude", tty: "ttys004", status: statusWaiting},
+		{pid: 11, kind: kindAI, command: "claude", tty: "ttys004", status: statusWaiting},
 	}}}
 
 	// Every view conn's keys can be in is dark: you can see where you are.
@@ -254,15 +254,15 @@ func TestConnLightsTheBar(t *testing.T) {
 	m.kill = nil
 
 	// One lamp per row, in order: a shell at its prompt the faintest
-	// ink, an agent working a rank of gray, an agent waiting in the
+	// ink, an AI working a rank of gray, an AI waiting in the
 	// waiting color and blinking, and a fault no different from rest.
 	m.places = []place{
 		{path: "/w", entries: []entry{
 			{pid: 11, kind: kindShell, status: statusIdle},
-			{pid: 12, kind: kindAgent, status: statusWorking, depth: 1},
+			{pid: 12, kind: kindAI, status: statusWorking, depth: 1},
 		}},
 		{path: "/x", entries: []entry{
-			{pid: 21, kind: kindAgent, status: statusWaiting},
+			{pid: 21, kind: kindAI, status: statusWaiting},
 			{pid: 22, kind: kindShell, status: statusStopped, fault: true},
 		}},
 	}

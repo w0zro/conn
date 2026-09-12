@@ -574,7 +574,7 @@ func TestTabReachesTheWatchAsTab(t *testing.T) {
 
 	s.keys("Tab")
 	s.until("the watch to answer tab", func() bool {
-		return strings.Contains(s.rail(), "NO AGENT IS WAITING")
+		return strings.Contains(s.rail(), "NO AI IS WAITING")
 	})
 }
 

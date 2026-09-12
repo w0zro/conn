@@ -12,7 +12,7 @@
 
    w0zro/vim.pro/conjurer
    SHELL  zsh               2H 00M     ACTIVE
- ▸   AGENT  claude --resume 47M 00S    ACTIVE
+ ▸   AI     claude --resume 47M 00S    ACTIVE
        RUN    node /opt/cl… 46M 00S    ACTIVE
        SHELL  bash -c go t… 12S        ACTIVE
          RUN    go test ./… 11S        ACTIVE

@@ -164,16 +164,14 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		commandW = ageCol - 1 - kindCol
 	}
 
-	// The header: the name, a rule, the column heads. The view goes
-	// unlabeled: it is what conn is when it is up. The station and the
-	// clock stood against the right and are the bar's now — the session's
-	// business rather than the list's, and the columns want the room.
+	// The header: a rule and the column heads. The view goes unlabeled:
+	// it is what conn is when it is up. The name stood over this row and
+	// is the bar's now, at the bottom left of the window where a name
+	// belongs — it is the whole program's and not the watch's, and the
+	// watch is the one view that was carrying it for all of them.
 	c.blank(0)
-	l := c.line()
-	l.add(p.orange+p.bold, "CONN")
-	c.emit(l, 0, false)
 	c.rule(0, measure)
-	l = c.line()
+	l := c.line()
 	l.add(p.gray, "KIND")
 	l.to(kindCol)
 	l.add(p.gray, "COMMAND")

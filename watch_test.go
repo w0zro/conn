@@ -36,9 +36,9 @@ func TestWatchLaysOut(t *testing.T) {
 	text := texts(rows)
 	measure, _, _ := columns(120)
 	for _, s := range []string{
-		// The name alone: the station and the clock stood against the
-		// right of this row and are the bar's now.
-		"CONN", "KIND    COMMAND", "TTY", "AGE", "STATUS",
+		// No name over it: that is the bar's now, at the bottom left of
+		// the window. The watch begins with its rule and its columns.
+		"KIND    COMMAND", "TTY", "AGE", "STATUS",
 		// A place is named by what is left of its path once the root the
 		// checkouts are kept under is taken off it; one outside every
 		// root is written from ~, whole.
@@ -81,18 +81,19 @@ func TestWatchLaysOut(t *testing.T) {
 
 // A watch taller than the terminal scrolls to keep the cursor in view
 // and says how many rows are above and below. The foot is kept for a
-// note, so nine rows of terminal are eight of watch.
+// note and the name is the bar's, so nine rows of terminal are eight of
+// watch, one more of them list than before.
 func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 	rows := drawWatch(testWatch(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 12 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 11 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawWatch(testWatch(), 70301, 100, 9, plain)
 	text = texts(rows)
 	// The cursor's mark keeps the margin; the row it marks still steps
 	// in for the level it is at.
-	if len(rows) != 9 || !strings.Contains(text, "… 12 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
+	if len(rows) != 9 || !strings.Contains(text, "… 11 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawWatch(testWatch(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {

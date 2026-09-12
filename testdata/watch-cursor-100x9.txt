@@ -1,9 +1,9 @@
 
-   CONN
    ──────────────────────────────────────────────────────────────────────────────────────────────
    KIND    COMMAND                                                 TTY        AGE          STATUS
+
    ~                                                                                  2 PROCESSES
    SHELL   zsh                                                     TTYS009    1D 02H       ACTIVE
  ▸   EDITOR  vim notes.md                                          TTYS009    1D 01H     STOPPED
-   … 1 ABOVE · 11 BELOW
+   … 11 BELOW
 

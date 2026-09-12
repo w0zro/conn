@@ -641,22 +641,26 @@ set -g remain-on-exit on
 // rail and one for the slot, which tmux chooses between by which pane
 // the keys are in.
 //
-// A mode is a block cut into the bar: the word in the orange, on the
-// window's own ground, which is the ground the panes above are on. The
-// bar stands on the raised one, so a mode reads as a recess in it rather
-// than as a tile laid on top.
+// The bar begins with conn's name, in the orange with the light ink
+// knocked out of it. It is the one thing on the screen that is the
+// program's own rather than the work's, and the bottom left of a window
+// is where a name belongs. It stood over the watch before, which made it
+// the watch's when it is every view's.
 //
-// One color for all of them, and it is the orange, which is "you, here"
-// everywhere in conn — a mode is where you are as much as the cursor is.
-// Colors by family were a code to learn: three grounds to know before
-// the word could be read, when the word was always going to be read
-// anyway.
+// The name holds the orange, so the mode beside it steps back a rank:
+// the word in the parchment conn titles with, on the window's own
+// ground, which is the ground the panes above are on. The bar stands on
+// the raised one, so a mode reads as a recess beside the name rather
+// than a second badge competing with it. Colors by family were tried
+// before this and were a code to learn — three grounds to know before
+// the word could be read, when the word was going to be read anyway.
 //
-// The one exception is a question armed, which is not a state you are in
-// but a thing waiting on you, and takes the next key whatever it is. It
-// is the same two colors the other way round — the orange as the ground
-// and the word knocked out of it — so it is the one loud block among
-// quiet ones without a third color being learned.
+// A question armed is the exception. It is not a state you are in but a
+// thing waiting on you, and takes the next key whatever it is, so its
+// word is in the orange the name wears — the same recess, one rank up,
+// and no third color to learn.
+//
+// The rest of the row is the bar's own ground and nothing else.
 //
 // The row stands on the raised ground — the one a chosen row sits on
 // everywhere else in conn — and keeps it whether or not there is a mode
@@ -690,26 +694,33 @@ set -g window-status-current-format ""
 	// Where the keys are, which is tmux's to know: the rail is the first
 	// pane of the home window and everything else is work.
 	onRail := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
-	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_rail},#{@conn_slot}}}}\"\n",
-		barMode("PREFIX"), barMode("COPY"), onRail)
+	fmt.Fprintf(&b, "set -g status-left \"%s#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_rail},#{@conn_slot}}}}\"\n",
+		barName(), barMode("PREFIX"), barMode("COPY"), onRail)
 	return b.String()
 }
 
-// barMode is a mode as the bar wears it: the word in the orange on the
-// window's own ground, with a space either side so what meets the edge
-// of the screen is the block and not the letters.
+// barName is conn's name as the bar wears it: the light ink knocked out
+// of the orange. The ink is the dark palette's whichever ground conn is
+// on — a badge is not part of the page's flow, and white on the orange
+// reads on either.
 //
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
 // would read the style as the branches of the question.
+func barName() string {
+	return fmt.Sprintf("#[bg=%s fg=%s bold] CONN ", cursorHex, hex(darkInk))
+}
+
+// barMode is a mode as the bar wears it: the word a rank below the name,
+// in the parchment, on the window's own ground.
 func barMode(word string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", hex(groundColor), cursorHex, word)
+	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", hex(groundColor), scheme[7], word)
 }
 
 // barAsk is the one mode that is not a state you are in but a question
-// waiting on you: the same two colors the other way round.
+// waiting on you: the same recess, the word a rank up in the orange.
 func barAsk(word string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", cursorHex, hex(groundColor), word)
+	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", hex(groundColor), cursorHex, word)
 }
 
 // say puts conn's two modes on the server — what its own keys are doing

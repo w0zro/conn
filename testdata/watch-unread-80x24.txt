@@ -1,9 +1,9 @@
 
-   CONN
    ──────────────────────────────────────────────────────────────────────────
    KIND    COMMAND                             TTY        AGE          STATUS
 
               THE PROCESS TABLE COULD NOT BE READ: LSOF: NOT FOUND
+
 
 
 

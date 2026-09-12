@@ -73,10 +73,13 @@ func TestTheConfigurationHolds(t *testing.T) {
 		// sits on: a surface of its own and not the last line of the pane
 		// over it. Its text begins where the rail's does.
 		`set -g status-style "bg=` + borderHex + `,fg=#8B8272"`,
-		// A mode wears its color as a ground, parted by spaces rather
-		// than commas so the conditional around it is not cut in two.
-		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] PREFIX ",
-		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] COPY ",
+		// The name in the orange with the light ink knocked out of it,
+		// and a mode a rank below it. The attributes are parted by
+		// spaces rather than commas so the conditional around a mode is
+		// not cut in two.
+		"#[bg=" + cursorHex + " fg=" + hex(darkInk) + " bold] CONN ",
+		"#[bg=" + hex(groundColor) + " fg=" + scheme[7] + " bold] PREFIX ",
+		"#[bg=" + hex(groundColor) + " fg=" + scheme[7] + " bold] COPY ",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
@@ -197,8 +200,8 @@ func TestTheBarIsTmuxsToDrawAlone(t *testing.T) {
 	for _, want := range []string{
 		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_rail}", "#{@conn_slot}",
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
-		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] PREFIX ",
-		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] COPY ",
+		"#[bg=" + hex(groundColor) + " fg=" + scheme[7] + " bold] PREFIX ",
+		"#[bg=" + hex(groundColor) + " fg=" + scheme[7] + " bold] COPY ",
 	} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("the bar lacks %q:\n%s", want, conf)
@@ -274,13 +277,20 @@ func TestConnSaysTheModeItIsIn(t *testing.T) {
 	if _, again := next.saying(); again != nil {
 		t.Error("the same mode was written to the bar twice")
 	}
-	// A question waiting on you is the one loud block among quiet ones:
-	// the same two colors the other way round, and no third to learn.
-	if barAsk("X") == barMode("X") {
-		t.Error("a question armed looks like a state you are in")
+	// The name holds the orange; a mode steps back a rank into the
+	// parchment, and only the question comes up to meet the name.
+	if !strings.Contains(barName(), "bg="+cursorHex) || !strings.Contains(barName(), "fg="+hex(darkInk)) {
+		t.Errorf("the name is not the light ink on the orange: %s", barName())
 	}
-	if !strings.Contains(barMode("X"), "fg="+cursorHex) || !strings.Contains(barAsk("X"), "bg="+cursorHex) {
-		t.Errorf("the two are not the one pair reversed:\n%s\n%s", barMode("X"), barAsk("X"))
+	if !strings.Contains(barMode("X"), "fg="+scheme[7]) {
+		t.Errorf("a mode is not a rank below the name: %s", barMode("X"))
+	}
+	if !strings.Contains(barAsk("X"), "fg="+cursorHex) || barAsk("X") == barMode("X") {
+		t.Errorf("a question armed does not come up to meet it:\n%s\n%s", barAsk("X"), barMode("X"))
+	}
+	// Both are the same recess: only the word's color parts them.
+	if !strings.Contains(barMode("X"), "bg="+hex(groundColor)) || !strings.Contains(barAsk("X"), "bg="+hex(groundColor)) {
+		t.Error("a mode and a question sit on different grounds")
 	}
 
 	// Outside the server there is no bar to write to.

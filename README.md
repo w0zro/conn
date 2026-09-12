@@ -187,18 +187,22 @@ tell you. tmux knows those and has them for nothing. The rest are conn's,
 and conn puts them in two options, one for the rail and one for the slot,
 which tmux chooses between by which pane the keys are in.
 
-A mode is a block cut into the bar: the word in the orange, on the window's
-own ground, which is the ground the panes above it are on. The bar stands on
-the raised ground a chosen row sits on everywhere else, so a mode reads as a
-recess in it rather than a tile laid on top. One color for all of them, and
-it is the orange, which is "you, here" everywhere in conn — a mode is where
-you are as much as the cursor is. The one exception is the question, which
-is not a state you are in but a thing waiting on you: `CONFIRM` is the same
-two colors the other way round, the orange as the ground and the word
-knocked out of it, so it is the one loud block among quiet ones without a
-third color being learned. The block begins at the edge of the screen, since
-a block of color is not read but seen, and one that starts where the screen
-starts is seen first.
+The bar begins with conn's name, at the edge of the screen: the light ink
+knocked out of the orange. It is the one thing on the screen that is the
+program's own rather than the work's, and the bottom left of a window is
+where a name belongs. It stood over the watch before, which made it the
+watch's when it is every view's — so the watch begins with its rule and its
+columns now, and has the row back.
+
+The mode sits beside it, a rank below: the word in the parchment conn titles
+with, on the window's own ground, which is the ground the panes above are
+on. The bar stands on the raised ground a chosen row sits on everywhere
+else, so a mode reads as a recess beside the name rather than a second badge
+competing with it. The exception is the question, which is not a state you
+are in but a thing waiting on you: `CONFIRM` keeps the recess and takes its
+word up into the orange the name wears, so it comes to meet it without a
+third color being learned. The rest of the row is the bar's own ground and
+nothing else.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

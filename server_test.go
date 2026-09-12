@@ -438,9 +438,10 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	if dark, ok := readModeFile(srv.socket); !ok || dark {
 		t.Errorf("the mode file was not put on light: dark %v, found %v", dark, ok)
 	}
-	// The rail came back, and came back conn.
+	// The rail came back, and came back conn: respawned it comes up on
+	// the console, whose own identification carries the name.
 	s.until("the rail to come back", func() bool {
-		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.rail(), "CONN")
+		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.rail(), "CONN 0.7.0")
 	})
 }
 

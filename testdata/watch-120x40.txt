@@ -1,5 +1,4 @@
 
-   CONN
    ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    KIND    COMMAND                                                                     TTY        AGE          STATUS
 
@@ -17,6 +16,7 @@
        RUN     node /opt/claude/mcp.js                                                 TTYS007    46M 00S      ACTIVE
        SHELL   bash -c go test ./...                                                   TTYS007    12S          ACTIVE
          RUN     go test ./...                                                         TTYS007    11S          ACTIVE
+
 
 
 

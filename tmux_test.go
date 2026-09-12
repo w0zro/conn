@@ -91,8 +91,13 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 3 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
-		t.Errorf("configuration binds more than the three chords, or ignores the prefix given:\n%s", conf)
+	if strings.Count(conf, "\nbind ") != 4 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+		t.Errorf("configuration binds more than the four chords, or ignores the prefix given:\n%s", conf)
+	}
+	// The prefix twice over is the other process, and the chord is the
+	// prefix whatever the prefix is.
+	if !strings.Contains(tmuxConf("C-a"), "bind C-a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-o") {
+		t.Errorf("the prefix is not bound under itself:\n%s", tmuxConf("C-a"))
 	}
 	t.Setenv("CONN_PREFIX", "")
 	if prefix() != "C-Space" || prefixLabel(prefix()) != "C-SPACE" {

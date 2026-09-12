@@ -197,7 +197,10 @@ type model struct {
 	self   string          // this binary, for the hold
 	panes  map[string]pane // the server's panes by terminal, as last read
 	slot   string          // the terminal in the slot, as last read
-	note   string          // a word on the bottom row, until the next key
+	// The terminal that was in the slot before that one, which is where
+	// the other-process chord goes back to.
+	lastSlot string
+	note     string // a word on the bottom row, until the next key
 }
 
 func newModel(p palette) model {
@@ -485,7 +488,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openedMsg:
 		// The shell is in the slot; the table will have it in a moment,
 		// and the cursor goes to it then. Until then the watch reads soon.
-		m.slot, m.looking = msg.shell.pane.tty, false
+		m = m.slotted(msg.shell.pane.tty)
+		m.looking = false
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
 		m.watchGen++
 		return m, m.readWatch()
@@ -509,7 +513,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// row while the cursor sat on another — the sub-process looking
 		// picked out for being the one thing in the pane that is not
 		// what is in the slot.
-		m.slot, m.looking = msg.tty, false
+		m = m.slotted(msg.tty)
+		m.looking = false
 		if pid, at, ok := headOf(m.places, msg.tty); ok {
 			m.cursor, m.cursorAt = pid, at
 		}
@@ -633,6 +638,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// of its own, and it is the same key wherever it is pressed.
 	if k == "alt+p" {
 		return m.toProjects()
+	}
+	// The other process, which the prefix twice over sends. It is a key
+	// of its own for the same reason the list's is: on the list and the
+	// picker every letter is one being typed into the line.
+	if k == "alt+o" {
+		return m.toOther()
 	}
 	switch m.view {
 	case viewProjects:
@@ -856,6 +867,48 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 		m.filter, m.pcursor = m.filter+" ", 0
 	case utf8.RuneCountInString(k) == 1:
 		m.filter, m.pcursor = m.filter+k, 0
+	}
+	return m, nil
+}
+
+// slotted takes a terminal into the slot and remembers the one it is
+// replacing, so there is an other to go back to.
+//
+// Only a process is remembered. A hold standing in an empty slot and
+// the look are conn's own furniture rather than somewhere you were
+// working, and going back to one would be going back to nothing.
+func (m model) slotted(tty string) model {
+	if m.slot != "" && m.slot != tty && !m.panes[m.slot].hold {
+		m.lastSlot = m.slot
+	}
+	m.slot = tty
+	return m
+}
+
+// toOther goes to the process that was in the slot before the one in it
+// now, and takes the one in it now as the one to come back to — so
+// pressed twice it is where it started, and pressed while working is
+// the other thing you are working on. It is what the prefix twice over
+// sends, which is the shape that key has everywhere: the one you were
+// last in.
+//
+// The console is left on the way, in the rare case the chord is pressed
+// with it up: you cannot be in a pane while the console is over the
+// window, so this is a press from the rail, and the answer to it is a
+// process.
+func (m model) toOther() (tea.Model, tea.Cmd) {
+	switch {
+	case !m.inside:
+		m.note = "NOTHING CAN BE REACHED OUTSIDE CONN'S TMUX SERVER"
+	case m.lastSlot == "" || m.panes[m.lastSlot].id == "":
+		m.note = "NO OTHER PROCESS TO GO BACK TO"
+	default:
+		cmds := []tea.Cmd{m.reach(m.panes[m.lastSlot], m.lastSlot)}
+		if m.view == viewConsole {
+			m.view, m.entering = viewWatch, false
+			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }, ""))
+		}
+		return m, tea.Batch(cmds...)
 	}
 	return m, nil
 }

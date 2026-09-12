@@ -221,12 +221,22 @@ the next key answers it, `x`, `y` or `enter` confirming and anything else
 calling it off. A bare shell, with nothing running in it, is killed outright
 — asked more gently it just ignores the signal — and anything a shell runs
 is asked to end on its own, leaving the shell at its prompt rather than
-taking it too. Three chords live under `ctrl-space` (`CONN_PREFIX` names
+taking it too. Four chords live under `ctrl-space` (`CONN_PREFIX` names
 another prefix, in tmux's spelling): `ctrl-space -` puts focus on the
 watch from anywhere in the server, `ctrl-space p` puts it on the list from
 anywhere too — out of whatever you are working in and straight to the
-projects, without the watch in between — and `ctrl-space q` detaches, the
-same as `q` does from the watch itself, without first coming back to it.
+projects, without the watch in between — `ctrl-space ctrl-space` goes to the
+process you were last in, and `ctrl-space q` detaches, the same as `q` does
+from the watch itself, without first coming back to it.
+
+The prefix twice over is the other process: it puts back whatever was in the
+slot before the thing in it now, and takes the thing in it now as the one to
+come back to, so pressed twice it is where it started. It is the key for
+working two things at once — a shell and the agent you are asking about it,
+a build and the file it is failing on. conn's own furniture is never
+somewhere you were working: a hold standing in an empty slot and the look
+are not remembered, and going back never lands on one. `alt-o` does the same
+from the rail, the way `alt-p` opens the list, and is what the chord sends.
 tmux's own keys are otherwise unbound, so none of them are reachable
 through conn. The server keeps everything in it for the
 next `conn`; `conn down` takes the server down with everything in it,

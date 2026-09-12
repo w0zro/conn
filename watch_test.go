@@ -554,3 +554,76 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 		t.Errorf("the blink did not stop: ticking %v lit %v", stopped.ticking, stopped.lit)
 	}
 }
+
+// The prefix twice over goes to the process that was in the slot before
+// the one in it now, and takes the one in it now as the one to come back
+// to — so pressed twice it is where it started. conn's own furniture is
+// not somewhere you were working: a hold standing in an empty slot and
+// the look are not remembered, and going back never lands on one.
+func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.now = viewWatch, true, watchNow
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.panes = map[string]pane{
+		"ttys001": {id: "%1", tty: "ttys001"},
+		"ttys002": {id: "%2", tty: "ttys002"},
+		"ttys009": {id: "%9", tty: "ttys009", hold: true},
+	}
+	other := func(m model) (model, tea.Cmd) {
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'o'}))
+		return next.(model), cmd
+	}
+
+	// Nothing has been in the slot yet, so there is nowhere to go back
+	// to. The note is the whole of the answer — the only command it is
+	// worth is the one that puts it on the bar.
+	m, _ = other(m)
+	if m.note != "NO OTHER PROCESS TO GO BACK TO" {
+		t.Errorf("with nothing behind it: %q", m.note)
+	}
+
+	// A hold in the slot, then a process: the hold is not remembered.
+	m.note = ""
+	m.slot = "ttys009"
+	next, _ := m.Update(reachedMsg{"ttys001"})
+	m = next.(model)
+	if m.lastSlot != "" {
+		t.Errorf("the hold was remembered as somewhere to go back to: %q", m.lastSlot)
+	}
+
+	// A second process: the first is where going back leads.
+	next, _ = m.Update(reachedMsg{"ttys002"})
+	m = next.(model)
+	if m.slot != "ttys002" || m.lastSlot != "ttys001" {
+		t.Errorf("slot %q, other %q", m.slot, m.lastSlot)
+	}
+	m, cmd := other(m)
+	if cmd == nil {
+		t.Fatal("going back to the other process asked the server for nothing")
+	}
+	// Reaching answers with the terminal it put in the slot, and that
+	// swaps which is which: pressed again it is back where it started.
+	next, _ = m.Update(reachedMsg{"ttys001"})
+	m = next.(model)
+	if m.slot != "ttys001" || m.lastSlot != "ttys002" {
+		t.Errorf("after going back: slot %q, other %q", m.slot, m.lastSlot)
+	}
+
+	// A process that has gone is not somewhere to go back to.
+	gone := m
+	gone.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}}
+	gone.note = ""
+	gone, _ = other(gone)
+	if gone.note != "NO OTHER PROCESS TO GO BACK TO" {
+		t.Errorf("a pane that has gone: %q", gone.note)
+	}
+
+	// Outside the server nothing can be reached at all.
+	out := m
+	out.inside = false
+	out.note = ""
+	out, _ = other(out)
+	if out.note != "NOTHING CAN BE REACHED OUTSIDE CONN'S TMUX SERVER" {
+		t.Errorf("outside the server: %q", out.note)
+	}
+}

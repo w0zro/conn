@@ -813,7 +813,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// what wants me.
 		round := waitingRound(m.places)
 		if len(round) == 0 {
-			m.note = "NO AGENT IS WAITING ON YOU"
+			m.note = "NO AGENT IS WAITING"
 			return m, nil
 		}
 		next := round[0]
@@ -941,7 +941,7 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 	case !m.inside:
 		m.note = "NOTHING CAN BE REACHED OUTSIDE CONN'S TMUX SERVER"
 	case m.lastSlot == "" || m.panes[m.lastSlot].id == "":
-		m.note = "NO OTHER PROCESS TO GO BACK TO"
+		m.note = "NO OTHER HAND TO GO BACK TO"
 	default:
 		cmds := []tea.Cmd{m.reach(m.panes[m.lastSlot], m.lastSlot)}
 		if m.view == viewConsole {

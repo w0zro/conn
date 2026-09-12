@@ -348,7 +348,7 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 	m.places = []place{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}}}}
 	m.cursor, m.cursorAt = 11, 0
 	tab()
-	if m.cursor != 11 || m.note != "NO AGENT IS WAITING ON YOU" {
+	if m.cursor != 11 || m.note != "NO AGENT IS WAITING" {
 		t.Errorf("with nothing waiting: cursor %d, note %q", m.cursor, m.note)
 	}
 }

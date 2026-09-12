@@ -115,17 +115,21 @@ func (s *scratch) slot() string {
 // placeRows is how many processes the rail says stand at that place,
 // read off the place's own title line.
 func (s *scratch) placeRows() int {
-	for line := range strings.SplitSeq(s.rail(), "\n") {
+	// The rows under the scratch place's title, up to the blank line
+	// that begins the next place: a place's title carries no count.
+	lines := strings.Split(s.rail(), "\n")
+	for i, line := range lines {
 		if !strings.Contains(line, scratchPlace) {
 			continue
 		}
-		f := strings.Fields(line)
-		for i, w := range f {
-			if strings.HasPrefix(w, "PROCESS") && i > 0 {
-				n, _ := strconv.Atoi(f[i-1])
-				return n
+		n := 0
+		for _, r := range lines[i+1:] {
+			if strings.TrimSpace(r) == "" {
+				break
 			}
+			n++
 		}
+		return n
 	}
 	return 0
 }
@@ -570,7 +574,7 @@ func TestTabReachesTheWatchAsTab(t *testing.T) {
 
 	s.keys("Tab")
 	s.until("the watch to answer tab", func() bool {
-		return strings.Contains(s.rail(), "NO AGENT IS WAITING ON YOU")
+		return strings.Contains(s.rail(), "NO AGENT IS WAITING")
 	})
 }
 

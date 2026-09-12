@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -196,14 +195,11 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	place := func(bp watchPlace) {
 		d := canvas{p: p, width: width}
 		d.blank(0)
+		// The place's title alone. It carried a count of its rows on the
+		// right, which was the kernel's word for them and a figure the
+		// operator never asks for: the rows are right there under it.
 		l := d.line()
-		count := strconv.Itoa(len(bp.rows)) + " PROCESS"
-		if len(bp.rows) != 1 {
-			count += "ES"
-		}
-		l.add(p.parchment+p.bold, fit(bp.path, measure-utf8.RuneCountInString(count)-2, true))
-		l.to(measure - utf8.RuneCountInString(count))
-		l.add(p.gray, count)
+		l.add(p.parchment+p.bold, fit(bp.path, measure, true))
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()

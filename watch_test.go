@@ -42,7 +42,7 @@ func TestWatchLaysOut(t *testing.T) {
 		// A place is named by what is left of its path once the root the
 		// checkouts are kept under is taken off it; one outside every
 		// root is written from ~, whole.
-		"w0zro/conn", "2 PROCESSES", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
+		"w0zro/conn", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
 		"w0zro/vim.pro/conjurer", "47M 00S", "ACTIVE",
 		"~", "1D 01H", " STOPPED",
 		// A root at the margin, and the tree under it stepping in: the
@@ -582,7 +582,7 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	// to. The note is the whole of the answer — the only command it is
 	// worth is the one that puts it on the bar.
 	m, _ = other(m)
-	if m.note != "NO OTHER PROCESS TO GO BACK TO" {
+	if m.note != "NO OTHER HAND TO GO BACK TO" {
 		t.Errorf("with nothing behind it: %q", m.note)
 	}
 
@@ -618,7 +618,7 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	gone.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}}
 	gone.note = ""
 	gone, _ = other(gone)
-	if gone.note != "NO OTHER PROCESS TO GO BACK TO" {
+	if gone.note != "NO OTHER HAND TO GO BACK TO" {
 		t.Errorf("a pane that has gone: %q", gone.note)
 	}
 

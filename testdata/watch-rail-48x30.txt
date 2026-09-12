@@ -2,15 +2,15 @@
    ──────────────────────────────────────────
    KIND   COMMAND           AGE        STATUS
 
-   ~                              2 PROCESSES
+   ~
    SHELL  zsh               1D 02H     ACTIVE
      EDITOR vim notes.md    1D 01H   STOPPED
 
-   w0zro/conn                     2 PROCESSES
+   w0zro/conn
    SHELL  zsh               3H 00M     ACTIVE
      SHELL  zsh             1M 30S       IDLE
 
-   w0zro/vim.pro/conjurer         5 PROCESSES
+   w0zro/vim.pro/conjurer
    SHELL  zsh               2H 00M     ACTIVE
  ▸   AGENT  claude --resume 47M 00S    ACTIVE
        RUN    node /opt/cl… 46M 00S    ACTIVE

@@ -307,11 +307,24 @@ func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 	if a := readAsk(path); a.Tool != "" || a.Said != "Done. Shall I commit it?" {
 		t.Errorf("turn ended on a question: %+v", a)
 	}
-	// A question tool carries its question.
-	lines = append(lines, `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"AskUserQuestion","input":{"questions":[{"question":"Which one?","header":"Pick"}]}}]}}`)
+	// A turn's text and its tool use are separate records, and the ask
+	// is found across them; a question tool carries its question.
+	lines = append(lines,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"One thing to settle."}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"AskUserQuestion","input":{"questions":[{"question":"Which one?","header":"Pick"}]}}]}}`)
 	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
 	if a := readAsk(path); a.String() != "AskUserQuestion · Which one?" {
 		t.Errorf("a question tool: %+v", a)
+	}
+	// Answered, and the reading stops at the prompt that began the turn
+	// rather than reaching an older turn's words.
+	lines = append(lines,
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"the first"}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t3","name":"Read","input":{"file_path":"/a"}}]}}`,
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t3","content":"..."}]}}`)
+	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	if a := readAsk(path); a.Tool != "" || a.Said != "One thing to settle." {
+		t.Errorf("everything answered: %+v", a)
 	}
 	if a := readAsk(filepath.Join(dir, "none.jsonl")); a != (ask{}) {
 		t.Errorf("no transcript: %+v", a)

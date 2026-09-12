@@ -236,13 +236,16 @@ func askDetail(input map[string]json.RawMessage) string {
 
 // readAsk reads the end of a transcript for what the agent is waiting
 // on: the tool uses of its last turn, less the ones that have been
-// answered, or what it last said.
+// answered, or what it last said. A turn is written as several records,
+// the text and each tool use on a line of its own, so the reading
+// walks back through all of them, to the prompt that began the turn.
 func readAsk(path string) ask {
 	lines, err := tailLines(path, convoTail)
 	if err != nil {
 		return ask{}
 	}
 	answered := map[string]bool{}
+	var a ask
 	for i := len(lines) - 1; i >= 0; i-- {
 		var rec struct {
 			Type        string `json:"type"`
@@ -264,18 +267,21 @@ func readAsk(path string) ask {
 		}
 		switch rec.Type {
 		case "user":
-			if json.Unmarshal(rec.Message.Content, &items) == nil {
-				for _, it := range items {
-					if it.Type == "tool_result" {
-						answered[it.ToolUseID] = true
-					}
+			// A prompt typed by a person is a string and begins the
+			// turn; anything earlier is another turn. A list is tool
+			// results, which answer tool uses.
+			if json.Unmarshal(rec.Message.Content, &items) != nil {
+				return a
+			}
+			for _, it := range items {
+				if it.Type == "tool_result" {
+					answered[it.ToolUseID] = true
 				}
 			}
 		case "assistant":
 			if json.Unmarshal(rec.Message.Content, &items) != nil {
 				continue
 			}
-			var a ask
 			for _, it := range items {
 				switch it.Type {
 				case "tool_use":
@@ -283,18 +289,20 @@ func readAsk(path string) ask {
 						a.Tool, a.Detail = it.Name, askDetail(it.Input)
 					}
 				case "text":
-					if t := flatten(it.Text); t != "" {
+					if t := flatten(it.Text); t != "" && a.Said == "" {
 						a.Said = t
 					}
 				}
 			}
+			// A tool use with no answer is the ask; what was said
+			// around it is not.
 			if a.Tool != "" {
 				a.Said = ""
+				return a
 			}
-			return a
 		}
 	}
-	return ask{}
+	return a
 }
 
 // claudeSessions is what every claude instance says of itself, by the

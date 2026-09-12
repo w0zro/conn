@@ -77,11 +77,11 @@ func headOf(places []place, tty string) (pid, at int, ok bool) {
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
-func composeWatch(places []place, panes map[string]pane, slot string, home string, now time.Time, station, clock, err string) watchReport {
+func composeWatch(places []place, panes map[string]pane, slot string, roots []string, home string, now time.Time, station, clock, err string) watchReport {
 	b := watchReport{station: station, clock: clock, err: err}
 	head, _, marked := headOf(places, slot)
 	for _, pl := range places {
-		bp := watchPlace{path: tilde(pl.path, home)}
+		bp := watchPlace{path: placeName(pl.path, roots, home)}
 		if bp.path == "" {
 			bp.path = "NO PLACE"
 		}
@@ -95,6 +95,27 @@ func composeWatch(places []place, panes map[string]pane, slot string, home strin
 		b.places = append(b.places, bp)
 	}
 	return b
+}
+
+// placeName is what the watch writes over a block: what is left of the
+// path once the root the checkouts are kept under is taken off it.
+// ~/projects/w0zro/conn is w0zro/conn. The root is the same for every
+// project on the list and says nothing that tells one from another, and
+// it is said at the head of every block — the rail is forty-four columns
+// wide, and the part that tells them apart is the part that should have
+// them.
+//
+// A place outside every root is written from ~ and whole: there is
+// nothing shared to take off it, and where it is is the only thing the
+// line has to say. A root itself is written the same way, since what is
+// left of it after itself is nothing.
+func placeName(path string, roots []string, home string) string {
+	for _, root := range roots {
+		if path != root && within(path, root) {
+			return relName(root, path)
+		}
+	}
+	return tilde(path, home)
 }
 
 // The watch's columns, from the right: the status flush with the

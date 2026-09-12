@@ -46,6 +46,22 @@ func projectRoots(home string) []string {
 	return out
 }
 
+// realRoots is the roots as the process table has them. A root reached
+// through a symlink is one name for a directory and lsof answers with
+// the other, so the two are made the same name before anything is
+// compared against them. A root that is not there is left as it was
+// written: it names nothing either way.
+func realRoots(roots []string) []string {
+	out := make([]string, 0, len(roots))
+	for _, r := range roots {
+		if real, err := filepath.EvalSymlinks(r); err == nil {
+			r = real
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 // skipDirs are never entered. They hold what a package manager put
 // there, not the projects the list is for, and walking them is most of
 // what walking a root would cost.

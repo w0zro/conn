@@ -87,14 +87,13 @@ func (s *scratch) rail() string {
 	return out
 }
 
-// scratchPlace is the tail the rail keeps of the scratch root's
-// repository: the one place on the watch that is this test's own,
-// since the watch reads the whole machine's table and everything else
-// it finds there is somewhere else entirely. The head of the path is
-// elided, and is /private/tmp rather than the /tmp it was made under,
-// macOS having the one be a link to the other, so the tail is what a
-// test can hold to.
-const scratchPlace = "home/repo"
+// scratchPlace is what the rail calls the scratch root's repository:
+// the one place on the watch that is this test's own, since the watch
+// reads the whole machine's table and everything else it finds there is
+// somewhere else entirely. The watch names a place by what is left of
+// its path once the root is taken off, and the root here is the scratch
+// home, so the repository under it is called by its own name.
+const scratchPlace = "repo"
 
 // lookPid is the pid the look in the slot says it is about, or "" when
 // the slot is not a look or has not read yet.

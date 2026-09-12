@@ -50,6 +50,9 @@ var (
 	testIsProject = func(dir string) bool {
 		return dir == "/Users/w0zro/projects/w0zro/conn" || dir == "/Users/w0zro/projects/w0zro/vim.pro/conjurer"
 	}
+	// Where the checkouts are kept, which the watch names its places
+	// against.
+	testProjRoots = []string{"/Users/w0zro/projects"}
 )
 
 // The watch stands every process for its own work, nested under

@@ -168,6 +168,7 @@ type model struct {
 	uid         int
 	roots       func(string) string
 	isProject   func(string) bool
+	projRoots   []string // where the checkouts are kept, for naming places by
 
 	// The picker: a place's suspended conversations, as last read, what
 	// has narrowed them, and which of the rows the cursor is on.
@@ -192,7 +193,8 @@ type model struct {
 
 func newModel(p palette) model {
 	home, _ := os.UserHomeDir()
-	isProject := projectDirs(projectRoots(home))
+	roots := realRoots(projectRoots(home))
+	isProject := projectDirs(roots)
 	return model{
 		lit:  true,
 		told: -1, // nothing published yet; the first cursor is news
@@ -203,6 +205,7 @@ func newModel(p palette) model {
 		uid:       os.Getuid(),
 		roots:     placeRoots(isProject),
 		isProject: isProject,
+		projRoots: roots,
 	}
 }
 
@@ -218,7 +221,7 @@ func (m model) report() report {
 // watchReport is the watch's words as things stand.
 func (m model) watchReport() watchReport {
 	r := m.report()
-	w := composeWatch(m.places, m.panes, m.slot, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
+	w := composeWatch(m.places, m.panes, m.slot, m.projRoots, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
 	w.inside, w.note = m.inside, m.note
 	return w
 }

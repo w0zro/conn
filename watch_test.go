@@ -9,7 +9,7 @@ import (
 )
 
 func testWatch() watchReport {
-	return composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	return composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), nil, "", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 }
 
 // The watch at 120 by 40 is a file of record, as are the empty watch and
@@ -17,11 +17,11 @@ func testWatch() watchReport {
 func TestWatchMatchesTheGolden(t *testing.T) {
 	golden(t, "watch-120x40.txt", texts(drawWatch(testWatch(), 67040, 120, 40, plain)))
 	golden(t, "watch-cursor-100x9.txt", texts(drawWatch(testWatch(), 80002, 100, 9, plain)))
-	empty := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	empty := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	golden(t, "watch-empty-80x24.txt", texts(drawWatch(empty, 0, 80, 24, plain)))
-	failed := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
+	failed := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
 	golden(t, "watch-unread-80x24.txt", texts(drawWatch(failed, 0, 80, 24, plain)))
-	rail := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	rail := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	rail.inside = true
 	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
 }
@@ -37,8 +37,11 @@ func TestWatchLaysOut(t *testing.T) {
 	for _, s := range []string{
 		"CONN ", "W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z",
 		"KIND    COMMAND", "TTY", "AGE", "STATUS",
-		"~/projects/w0zro/conn", "2 PROCESSES", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
-		"~/projects/w0zro/vim.pro/conjurer", "47M 00S", "ACTIVE",
+		// A place is named by what is left of its path once the root the
+		// checkouts are kept under is taken off it; one outside every
+		// root is written from ~, whole.
+		"w0zro/conn", "2 PROCESSES", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
+		"w0zro/vim.pro/conjurer", "47M 00S", "ACTIVE",
 		"~", "1D 01H", " STOPPED",
 		// A root at the margin, and the tree under it stepping in: the
 		// agent its shell runs, the shell the agent runs, the go that
@@ -206,7 +209,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 // In the server, the keys say what can be done, a terminal the server
 // does not hold is faint, and a note takes the bottom row until a key.
 func TestTheWatchInsideTheServer(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	w.inside = true
 	rows := drawWatch(w, 67040, 120, 40, colored())
 	text := texts(rows)
@@ -290,7 +293,7 @@ func TestKeysInsideTheServer(t *testing.T) {
 // kept clear all the same, so a note has a place to land that does not
 // move the rows.
 func TestTheWatchSaysNoKeys(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
@@ -357,7 +360,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored()
 	held := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
-		"/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+		testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	held.inside = true
 	// The cursor is on a row conn holds a pane for, away from the rows
 	// under test, so none of them is giving up a rank of dimming to be
@@ -433,5 +436,34 @@ func TestTheRailDrawsToItsOwnWidth(t *testing.T) {
 	m.inside, m.width = true, 30
 	if got := m.cols(); got != 30 {
 		t.Errorf("a 30-column window drew to %d", got)
+	}
+}
+
+// A place is named by what is left of its path once the root the
+// checkouts are kept under is taken off it. The root is the same for
+// every project and says nothing that tells one from another, and it
+// was said at the head of every block on a rail forty-four columns
+// wide.
+func TestAPlaceIsNamedByWhatTellsItApart(t *testing.T) {
+	roots := []string{"/Users/w0zro/projects", "/srv/work"}
+	for _, c := range []struct{ path, want string }{
+		{"/Users/w0zro/projects/w0zro/conn", "w0zro/conn"},
+		{"/Users/w0zro/projects/w0zro/vim.pro/conjurer", "w0zro/vim.pro/conjurer"},
+		{"/srv/work/api", "api"},
+		// A root itself has nothing left of it after itself, and is
+		// written from ~ like anywhere else with nothing to take off.
+		{"/Users/w0zro/projects", "~/projects"},
+		// Outside every root, where it is is the whole of what the line
+		// has to say.
+		{"/Users/w0zro", "~"},
+		{"/private/tmp/scratch", "/private/tmp/scratch"},
+	} {
+		if got := placeName(c.path, roots, "/Users/w0zro"); got != c.want {
+			t.Errorf("%s is called %q, want %q", c.path, got, c.want)
+		}
+	}
+	// With no roots at all nothing is taken off anything.
+	if got := placeName("/Users/w0zro/projects/w0zro/conn", nil, "/Users/w0zro"); got != "~/projects/w0zro/conn" {
+		t.Errorf("with no roots the place is called %q", got)
 	}
 }

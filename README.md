@@ -7,7 +7,13 @@ for its own work, grouped under the project it works in. A project is a git
 repository, or — under the roots where your checkouts are kept — the folder
 that holds them, for work that is beside the checkouts rather than in one.
 Everything below a project is in it: conn's `docs` directory is conn's work,
-not a place of its own.
+not a place of its own. Each is titled by what tells it apart from the
+others, which is what is left of its path once the root is taken off:
+`~/projects/w0zro/conn` is `w0zro/conn`. The root is the same for every one
+of them and would be read again at the head of every block, on a rail
+forty-four columns wide. A place outside every root is written from `~` and
+whole — there is nothing shared to take off it, and where it is is the only
+thing its line has to say.
 
 Under a place they read as the tree they are: a shell, the agent it runs
 indented under it, the shell that agent asked for under that, and its `go

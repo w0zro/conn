@@ -388,6 +388,50 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 	}
 }
 
+// In the server, tab puts the waiting hand's pane in the slot and the
+// keys in it, so one press has the operator answering; a hand conn
+// holds no pane for is gone to on the rail and the row says why the
+// keys did not follow. The prefix then tab sends alt+tab, which does
+// the same from any view, putting the watch up on the way.
+func TestTabReachesTheWaitingHand(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.srv = viewWatch, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.places = []place{{path: "/w", entries: []entry{
+		{pid: 11, status: statusIdle, tty: "ttys001"},
+		{pid: 22, status: statusWaiting, tty: "ttys002", since: time.Now().Add(-time.Minute)},
+	}}}
+	m.panes = map[string]pane{"ttys002": {id: "%2", tty: "ttys002"}}
+	m.cursor = 11
+
+	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = next.(model)
+	if m.cursor != 22 || cmd == nil {
+		t.Fatalf("tab: cursor %d, cmd %v", m.cursor, cmd != nil)
+	}
+	// The command is the reach, which against no tmux answers with why.
+	if msg, ok := answered(cmd).(noteMsg); !ok || msg.note == "" {
+		t.Errorf("tab did not reach the pane: %v", answered(cmd))
+	}
+
+	// Not held: the cursor goes, the keys do not, and the row says so.
+	m.panes, m.cursor = nil, 11
+	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = next.(model)
+	if m.cursor != 22 || m.note != "NOT IN A PANE OF CONN'S SERVER" || answered(cmd) != nil {
+		t.Errorf("unheld: cursor %d, note %q, cmd %v", m.cursor, m.note, answered(cmd))
+	}
+
+	// From the console, by the chord: the watch comes up and the hand is
+	// reached.
+	m.panes = map[string]pane{"ttys002": {id: "%2", tty: "ttys002"}}
+	m.view, m.cursor = viewConsole, 11
+	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModAlt})
+	m = next.(model)
+	if m.view != viewWatch || m.cursor != 22 || cmd == nil {
+		t.Errorf("from the console: view %d, cursor %d, cmd %v", m.view, m.cursor, cmd != nil)
+	}
+}
+
 // a opens claude at the place under the cursor, the way s opens a shell
 // there; outside the server nothing can be opened, and off any place
 // there is nothing to open it at.

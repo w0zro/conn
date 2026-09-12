@@ -68,6 +68,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
 		"bind p select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-p",
 		"bind q detach-client",
+		"bind Tab select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-Tab",
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The bar stands on the raised ground, which is what a chosen row
 		// sits on: a surface of its own and not the last line of the pane
@@ -90,7 +91,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 4 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+	if strings.Count(conf, "\nbind ") != 5 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
 		t.Errorf("configuration binds more than the four chords, or ignores the prefix given:\n%s", conf)
 	}
 	// The prefix twice over is the other process, and the chord is the

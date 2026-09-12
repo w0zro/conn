@@ -646,6 +646,13 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "alt+o" {
 		return m.toOther()
 	}
+	// The hand that has waited longest, which the prefix then tab sends
+	// from anywhere: on the watch tab itself is the key, but on the list
+	// and the picker tab is nothing and on the console it is one of the
+	// any-keys, so the chord has a key of its own.
+	if k == "alt+tab" {
+		return m.toWaiting()
+	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
@@ -770,24 +777,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, m.openLook()
 		}
 	case k == "tab":
-		// The ring of what is waiting on you, longest held up first: the
-		// first press goes to the one that has waited longest, and each
-		// after it to the next, round and back. It is the one question
-		// the watch asks of you, so it gets the one key that means go to
-		// what wants me.
-		round := waitingRound(m.places)
-		if len(round) == 0 {
-			m.note = "NO AGENT IS WAITING"
-			return m, nil
-		}
-		next := round[0]
-		for i, e := range round {
-			if e.pid == m.cursor {
-				next = round[(i+1)%len(round)]
-				break
-			}
-		}
-		m.cursor, m.cursorAt = follow(m.places, next.pid, m.cursorAt)
+		return m.toWaiting()
 	case k == "p":
 		return m.toProjects()
 	}
@@ -911,6 +901,51 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 	return m, nil
+}
+
+// toWaiting goes to the hand that has waited longest: the cursor to its
+// row, its pane in the slot, and the keys in it, so one press has the
+// operator answering. Pressed again from the rail it goes round the
+// ring, longest first. It is what tab does on the watch and what the
+// prefix then tab sends from anywhere. From another view the watch is
+// put up on the way, since the answer is a pane, and from the console
+// the slot is given its side back, a pane being unreachable with the
+// console over the window.
+//
+// A hand conn holds no pane for is still gone to, on the rail, and the
+// row says why the keys did not follow.
+func (m model) toWaiting() (tea.Model, tea.Cmd) {
+	round := waitingRound(m.places)
+	if len(round) == 0 {
+		m.note = "NO AGENT IS WAITING"
+		return m, nil
+	}
+	next := round[0]
+	for i, e := range round {
+		if e.pid == m.cursor {
+			next = round[(i+1)%len(round)]
+			break
+		}
+	}
+	m.cursor, m.cursorAt = follow(m.places, next.pid, m.cursorAt)
+	var cmds []tea.Cmd
+	if m.view != viewWatch {
+		console := m.view == viewConsole
+		m.view, m.entering = viewWatch, false
+		m.watchGen++
+		cmds = append(cmds, m.readWatch())
+		if console && m.inside {
+			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }, ""))
+		}
+	}
+	switch {
+	case !m.inside:
+	case m.panes[next.tty].id == "":
+		m.note = "NOT IN A PANE OF CONN'S SERVER"
+	default:
+		cmds = append(cmds, m.reach(m.panes[next.tty], next.tty))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // toProjects opens the list, from wherever conn is, and walks the roots

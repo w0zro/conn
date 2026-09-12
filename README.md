@@ -147,14 +147,16 @@ conn and using a word conn has never heard, reads as alive like anything
 else. Guessing at the word is worse than having none: `IDLE` says at
 rest, nothing pending, yours when you want it, and none of that is known.
 
-**3-7. TAB.** `tab` goes to what is waiting on you: the first press to the
-agent that has been held up longest, each after it to the next, and round
-again from the end. An agent says when its status became what it is, and
-Claude writes that on a change rather than on a clock, so the stamp is
-the moment the wait began and the order is how long each has actually
-waited. One that cannot say goes last. It is still waiting, which is what
-the word is for, but it cannot claim a turn ahead of one that can prove
-it waited longer.
+**3-7. TAB.** `tab` goes to what is waiting: the cursor to the agent that
+has been held up longest, its pane into the slot, and the keys into it,
+so one press has the operator answering. Each press after it goes to the
+next, and round again from the end. An agent says when its status became
+what it is, and Claude writes that on a change rather than on a clock, so
+the stamp is the moment the wait began and the order is how long each
+has actually waited. One that cannot say goes last. It is still waiting,
+which is what the word is for, but it cannot claim a turn ahead of one
+that can prove it waited longer. A waiting agent conn holds no pane for
+is gone to on the rail, and the row says why the keys did not follow.
 
 **3-8. HELD AND REPORTED.** A row is also written by what conn can do with
 it, and in two ways, since they are not the same kind of saying. What
@@ -286,7 +288,7 @@ running in it, is killed outright; asked more gently it ignores the
 signal. Anything a shell runs is asked to end on its own, leaving the
 shell at its prompt rather than taking it too.
 
-**5-4. THE CHORDS.** Four chords live under `ctrl-space`; `CONN_PREFIX`
+**5-4. THE CHORDS.** Five chords live under `ctrl-space`; `CONN_PREFIX`
 names another prefix, in tmux's spelling.
 
 - `ctrl-space -` puts focus on the watch from anywhere in the server.
@@ -294,6 +296,8 @@ names another prefix, in tmux's spelling.
   you are working in and straight to the projects, without the watch in
   between.
 - `ctrl-space ctrl-space` goes to the hand you were last in.
+- `ctrl-space tab` goes to the hand that has waited longest, from
+  anywhere, the way `tab` does on the watch.
 - `ctrl-space q` detaches, the same as `q` does from the watch itself,
   without first coming back to it.
 

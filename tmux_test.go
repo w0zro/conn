@@ -243,8 +243,11 @@ func TestConnLightsTheBar(t *testing.T) {
 	// A question armed takes the next key whatever it is, and wears the
 	// owed color, which is the one thing waiting on you is said in.
 	m.view = viewWatch
-	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
-	if ask := m.ask(); ask != barAsk("CONFIRM") || !strings.Contains(ask, "bg="+scheme[1]) {
+	// The question itself stands beside the block, on the bar's own
+	// ground, with tmux's own character doubled so it is shown.
+	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
+	if ask := m.ask(); !strings.HasPrefix(ask, barAsk("CONFIRM")) || !strings.Contains(ask, "bg="+scheme[1]) ||
+		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+scheme[7]) {
 		t.Errorf("a question armed lights %q", ask)
 	}
 	m.kill = nil

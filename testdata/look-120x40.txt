@@ -2,9 +2,10 @@
    LOOK                                                                                                     PID 49212
    ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-   WAITING ON YOU
-   ASKING .... INPUT NEEDED
+   WAITING
+   ON ........ INPUT NEEDED
    FOR ....... 7M 00S
+   ASKS ...... AskUserQuestion · Is this session's lamp lit on the bar while this question waits?
 
    WHAT
    KIND ...... AGENT
@@ -37,4 +38,3 @@
 
    TREE
    PARENT .... SHELL zsh · 49200
-   RUNS ...... RUN caffeinate -i -t 300 · ACTIVE

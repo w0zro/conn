@@ -36,7 +36,8 @@ func lookSubj() lookSubject {
 		inside: true,
 		sess: sessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
-		convo: conversation{Branch: "main", Prompt: "i want the info to use the pane on the right"},
+		convo: conversation{Branch: "main", Prompt: "i want the info to use the pane on the right",
+			Ask: ask{Tool: "AskUserQuestion", Detail: "Is this session's lamp lit on the bar while this question waits?"}},
 		git: gitStanding{repo: true, branch: "main", dirty: 3,
 			commit: "263cf91", subject: "The look: what conn knows of a row",
 			when: watchNow.Add(-3 * time.Hour), upstream: "origin/main", ahead: 142},
@@ -53,7 +54,10 @@ func TestTheLookIsWhatItWas(t *testing.T) {
 // The page says the things the watch's columns have no room for, and
 // says them whole.
 func TestTheLookSaysWhatTheWatchCannot(t *testing.T) {
-	text := texts(drawLook(composeLook(lookSubj(), "/Users/w0zro", watchNow), 120, 40, plain))
+	// Tall enough for the whole page: the file of record above shows
+	// the cut at forty rows, and this reads what is said, not where the
+	// pane ends.
+	text := texts(drawLook(composeLook(lookSubj(), "/Users/w0zro", watchNow), 120, 48, plain))
 
 	// The command as it was written, not in conn's own upper case: it is
 	// a thing somebody might retype.
@@ -65,7 +69,7 @@ func TestTheLookSaysWhatTheWatchCannot(t *testing.T) {
 	if !strings.Contains(text, "INPUT NEEDED") {
 		t.Errorf("what the agent is stopped on is not on the page:\n%s", text)
 	}
-	if strings.Index(text, "WAITING ON YOU") > strings.Index(text, "WHAT") {
+	if strings.Index(text, "WAITING") > strings.Index(text, "WHAT") {
 		t.Errorf("the ask is not the first thing on the page:\n%s", text)
 	}
 	// And it is said once. The group above carries how long, so the
@@ -76,6 +80,7 @@ func TestTheLookSaysWhatTheWatchCannot(t *testing.T) {
 	}
 	for what, want := range map[string]string{
 		"how long it has waited":  "FOR ....... 7M 00S",
+		"what it is asking, whole": "AskUserQuestion · Is this session's lamp lit on the bar while this question waits?",
 		"its own directory":       "~/projects/w0zro/conn/tools",
 		"what the table says":     "SLEEPING · HAS THE TERMINAL",
 		"what it has spent":       "2M 14S SPENT",
@@ -109,7 +114,7 @@ func TestTheLookLeavesOutWhatThereIsNoneOf(t *testing.T) {
 	}
 	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
 
-	for _, gone := range []string{"WAITING ON YOU", "ASKING", "AGENT", "PLACE\n", "TREE", "CWD", "CPU"} {
+	for _, gone := range []string{"WAITING", "ASKS", "SAID", "AGENT", "PLACE\n", "TREE", "CWD", "CPU"} {
 		if strings.Contains(text, gone) {
 			t.Errorf("%q is on a page that has nothing to put under it:\n%s", gone, text)
 		}

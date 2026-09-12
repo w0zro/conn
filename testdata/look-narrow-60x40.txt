@@ -2,9 +2,11 @@
    LOOK                                         PID 49212
    ──────────────────────────────────────────────────────
 
-   WAITING ON YOU
-   ASKING .... INPUT NEEDED
+   WAITING
+   ON ........ INPUT NEEDED
    FOR ....... 7M 00S
+   ASKS ...... AskUserQuestion · Is this session's lamp
+               lit on the bar while this question waits?
 
    WHAT
    KIND ...... AGENT
@@ -36,5 +38,3 @@
    COMMIT .... 263cf91 · The look: what conn knows of a
                row
    COMMITTED . 3H 00M AGO
-   TRACKING .. ORIGIN/MAIN · 142 AHEAD
-

@@ -714,6 +714,13 @@ func barAsk(word string) string {
 	return barBlock(word, scheme[1])
 }
 
+// barSay is what conn says beside a block: on the bar's own ground, in
+// the parchment conn titles with, two spaces off the block. A hash is
+// tmux's own character on this line and is doubled to be shown.
+func barSay(text string) string {
+	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", borderHex, scheme[7], strings.ReplaceAll(text, "#", "##"))
+}
+
 // The lamp, one cell. A filled circle rather than a square: the squares
 // are what the pane borders are made of, and a lamp is not a border.
 const lamp = "●"

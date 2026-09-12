@@ -72,14 +72,16 @@ func TestKillSignalIsKillForAShellAndTermForWhatItRuns(t *testing.T) {
 }
 
 func TestKillPromptAndNote(t *testing.T) {
-	if got := killPrompt("claude", 4242, syscall.SIGTERM); got != "END CLAUDE 4242? X CONFIRMS, ANYTHING ELSE CANCELS" {
+	if got := killPrompt("claude", 4242, syscall.SIGTERM); got != "END CLAUDE 4242 · X CONFIRMS · ANY OTHER KEY CANCELS" {
 		t.Errorf("killPrompt, term: %q", got)
 	}
-	if got := killPrompt("sh", 4242, syscall.SIGKILL); got != "KILL SH 4242? X CONFIRMS, ANYTHING ELSE CANCELS" {
+	if got := killPrompt("sh", 4242, syscall.SIGKILL); got != "KILL SH 4242 · X CONFIRMS · ANY OTHER KEY CANCELS" {
 		t.Errorf("killPrompt, kill: %q", got)
 	}
+	// The notes answer in the verb the question asked with, and no
+	// signal's name reaches the row.
 	sent := killedMsg{command: "claude", pid: 4242, sig: syscall.SIGTERM}
-	if got := killNote(sent); got != "SENT SIGTERM TO CLAUDE 4242" {
+	if got := killNote(sent); got != "ASKED CLAUDE 4242 TO END" {
 		t.Errorf("killNote, sent: %q", got)
 	}
 	killed := killedMsg{command: "sh", pid: 4242, sig: syscall.SIGKILL}
@@ -87,7 +89,7 @@ func TestKillPromptAndNote(t *testing.T) {
 		t.Errorf("killNote, killed: %q", got)
 	}
 	failed := killedMsg{command: "claude", pid: 4242, sig: syscall.SIGTERM, err: errors.New("already gone")}
-	if got := killNote(failed); got != "COULD NOT KILL CLAUDE: ALREADY GONE" {
+	if got := killNote(failed); got != "COULD NOT END CLAUDE: ALREADY GONE" {
 		t.Errorf("killNote, failed: %q", got)
 	}
 }

@@ -347,9 +347,9 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	})
 
 	s.keys("x")
-	// The question conn asks is on the rail's foot, under the list and
-	// below the eye that pressed the key.
-	s.until("the kill armed", func() bool { return strings.Contains(s.rail(), "KILL") })
+	// The question conn asks is on the bar, beside CONFIRM, where the
+	// window's width holds the whole of it.
+	s.until("the kill armed", func() bool { return strings.Contains(s.bar(), "KILL") })
 	s.keys("x")
 
 	s.until("the shell's pane to die", func() bool { return s.paneDead("home.1") })
@@ -388,7 +388,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// right below it, the tree's next row down.
 	s.keys("j")
 	s.keys("x")
-	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.rail(), "END SLEEP 100") })
+	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.bar(), "END SLEEP 100") })
 	s.keys("x")
 
 	s.until("sleep to end and the shell to have the place to itself", func() bool {

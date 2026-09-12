@@ -29,6 +29,12 @@ type conversation struct {
 	When   time.Time // when it last moved
 	Branch string
 	Prompt string // the last thing its user asked of it
+	// What the instance is waiting on, read only for one that is, and
+	// the moment its status became what it is when that was read, so
+	// the transcript is read again when the standing changes and not
+	// on a beat.
+	Ask   ask
+	AskAt time.Time
 }
 
 // claudeConfigDir is where Claude Code keeps its state — the sessions
@@ -145,6 +151,149 @@ type sessionFile struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Kind    string `json:"kind"`
+	// Where the instance was started, which is where its transcript is
+	// filed, and when its process began, which is how a file left
+	// behind by a dead pid is told from the live one that now has it.
+	Cwd       string `json:"cwd"`
+	ProcStart string `json:"procStart"`
+}
+
+// procStartLayout is how Claude writes the moment its process began:
+// the C library's ctime, in local time.
+const procStartLayout = "Mon Jan _2 15:04:05 2006"
+
+// wroteBy says whether this file was written by a process that began
+// at the given moment. A session file is named by pid and outlives the
+// process that wrote it, and a pid comes round again; the file says
+// when its process began, and a process that began at another time is
+// another process. A file too old to say is believed only if its
+// status changed after the process began, since a file written before
+// a process existed cannot be about it.
+func (f sessionFile) wroteBy(started time.Time) bool {
+	if started.IsZero() {
+		return true
+	}
+	if f.ProcStart != "" {
+		at, err := time.ParseInLocation(procStartLayout, f.ProcStart, time.Local)
+		if err != nil {
+			return true
+		}
+		d := at.Sub(started)
+		return d > -2*time.Second && d < 2*time.Second
+	}
+	if f.StatusUpdatedAt > 0 {
+		return !time.UnixMilli(f.StatusUpdatedAt).Before(started.Truncate(time.Second))
+	}
+	return true
+}
+
+// An ask is what a waiting agent wants, in its own words, read off the
+// end of its transcript. The session file says only that it is stopped
+// and on what sort of thing, one phrase from a closed set; the
+// transcript has the thing itself: the tool it asked to use and has no
+// answer for yet, or, with nothing pending, the last thing it said,
+// which is the question when a turn ended on one.
+type ask struct {
+	Tool   string // the tool waiting on an answer, as Claude names it
+	Detail string // what it asked to do with it, in its own words
+	Said   string // the last thing it said, when nothing is pending
+}
+
+// String is the ask on one line: the tool and what it asked, or what
+// was said, or nothing.
+func (a ask) String() string {
+	switch {
+	case a.Tool != "" && a.Detail != "":
+		return a.Tool + " · " + a.Detail
+	case a.Tool != "":
+		return a.Tool
+	default:
+		return a.Said
+	}
+}
+
+// askDetail is what a tool call is about, in one line, from the
+// arguments Claude gave it: the question a question tool asks, or the
+// first of the arguments that says what the call is for.
+func askDetail(input map[string]json.RawMessage) string {
+	if raw, ok := input["questions"]; ok {
+		var qs []struct {
+			Question string `json:"question"`
+		}
+		if json.Unmarshal(raw, &qs) == nil && len(qs) > 0 && qs[0].Question != "" {
+			return flatten(qs[0].Question)
+		}
+	}
+	for _, k := range []string{"description", "prompt", "command", "file_path", "path", "url", "pattern", "query"} {
+		var v string
+		if raw, ok := input[k]; ok && json.Unmarshal(raw, &v) == nil && v != "" {
+			return flatten(v)
+		}
+	}
+	return ""
+}
+
+// readAsk reads the end of a transcript for what the agent is waiting
+// on: the tool uses of its last turn, less the ones that have been
+// answered, or what it last said.
+func readAsk(path string) ask {
+	lines, err := tailLines(path, convoTail)
+	if err != nil {
+		return ask{}
+	}
+	answered := map[string]bool{}
+	for i := len(lines) - 1; i >= 0; i-- {
+		var rec struct {
+			Type        string `json:"type"`
+			IsSidechain bool   `json:"isSidechain"`
+			Message     struct {
+				Content json.RawMessage `json:"content"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(lines[i], &rec) != nil || rec.IsSidechain {
+			continue
+		}
+		var items []struct {
+			Type      string                     `json:"type"`
+			ID        string                     `json:"id"`
+			ToolUseID string                     `json:"tool_use_id"`
+			Name      string                     `json:"name"`
+			Text      string                     `json:"text"`
+			Input     map[string]json.RawMessage `json:"input"`
+		}
+		switch rec.Type {
+		case "user":
+			if json.Unmarshal(rec.Message.Content, &items) == nil {
+				for _, it := range items {
+					if it.Type == "tool_result" {
+						answered[it.ToolUseID] = true
+					}
+				}
+			}
+		case "assistant":
+			if json.Unmarshal(rec.Message.Content, &items) != nil {
+				continue
+			}
+			var a ask
+			for _, it := range items {
+				switch it.Type {
+				case "tool_use":
+					if !answered[it.ID] && a.Tool == "" {
+						a.Tool, a.Detail = it.Name, askDetail(it.Input)
+					}
+				case "text":
+					if t := flatten(it.Text); t != "" {
+						a.Said = t
+					}
+				}
+			}
+			if a.Tool != "" {
+				a.Said = ""
+			}
+			return a
+		}
+	}
+	return ask{}
 }
 
 // claudeSessions is what every claude instance says of itself, by the
@@ -195,13 +344,14 @@ func claudeSessions() map[int]sessionFile {
 // file to read - another maker's, or one too old to write one - says
 // nothing of itself, and reads as alive like anything else.
 func agentStandings(procs []process) map[int]standing {
-	kind := map[int]string{}
+	byPid := map[int]process{}
 	for _, p := range procs {
-		kind[p.pid] = kindOf(p)
+		byPid[p.pid] = p
 	}
 	how := map[int]standing{}
 	for pid, s := range claudeSessions() {
-		if kind[pid] != kindAgent || s.Status == "" {
+		p, ok := byPid[pid]
+		if !ok || kindOf(p) != kindAgent || s.Status == "" || !s.wroteBy(p.started) {
 			continue
 		}
 		var since time.Time
@@ -231,17 +381,17 @@ func agentStandings(procs []process) map[int]standing {
 // wrote it, so a pid is only believed when the process table still has
 // it, standing as an agent.
 func liveConversations(places []place) map[string]bool {
-	pids := map[int]bool{}
+	began := map[int]time.Time{}
 	for _, pl := range places {
 		for _, e := range pl.entries {
 			if e.kind == kindAgent {
-				pids[e.pid] = true
+				began[e.pid] = e.started
 			}
 		}
 	}
 	live := map[string]bool{}
 	for pid, f := range claudeSessions() {
-		if pids[pid] && f.SessionID != "" {
+		if at, ok := began[pid]; ok && f.SessionID != "" && f.wroteBy(at) {
 			live[f.SessionID] = true
 		}
 	}

@@ -109,9 +109,17 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	// the page is cut off at the pane's height rather than scrolled —
 	// so the part that must not be cut is the part that goes at the top.
 	if e.asking != "" {
-		ask := lookGroup{title: "WAITING ON YOU"}
-		ask.add("asking", e.asking)
+		ask := lookGroup{title: "WAITING"}
+		ask.add("on", e.asking)
 		ask.add("for", age(e.since, now))
+		// The thing itself, in the agent's words: the tool it asked to
+		// use and what for, or what it last said, which is the question
+		// when a turn ended on one.
+		if s.convo.Ask.Tool != "" {
+			ask.addAsWritten("asks", s.convo.Ask.String())
+		} else {
+			ask.addAsWritten("said", s.convo.Ask.Said)
+		}
 		b.groups = append(b.groups, ask)
 	}
 

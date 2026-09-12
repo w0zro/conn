@@ -441,8 +441,10 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	if cmd != nil || m.kill == nil || m.kill.pid != 11 || m.kill.command != "claude" || m.kill.sig != syscall.SIGTERM {
 		t.Fatalf("arming: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
-	if !strings.Contains(m.note, "END CLAUDE 11?") {
-		t.Errorf("no question on the bottom row: %q", m.note)
+	// The question travels with the kill, to the bar, and the bottom
+	// row is left alone.
+	if !strings.Contains(m.kill.prompt, "END CLAUDE 11 ·") || m.note != "" {
+		t.Errorf("the question: kill %+v, note %q", m.kill, m.note)
 	}
 
 	// A bare shell — nothing running in it to lose — is armed for SIGKILL
@@ -451,7 +453,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	m.cursor, m.kill, m.note = 22, nil, ""
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.note, "KILL ZSH 22?") {
+	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.kill.prompt, "KILL ZSH 22 ·") {
 		t.Errorf("arming a shell: kill %+v, note %q", m.kill, m.note)
 	}
 
@@ -475,7 +477,7 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	m = next.(model)
-	if m.kill != nil || m.note != "KILL CANCELLED" || m.cursor != 11 {
+	if m.kill != nil || m.note != "CANCELLED" || m.cursor != 11 {
 		t.Errorf("cancelled: kill %v, note %q, cursor %d", m.kill, m.note, m.cursor)
 	}
 
@@ -498,7 +500,7 @@ func TestAKilledMsgNotesTheOutcomeAndRereads(t *testing.T) {
 	m.view = viewWatch
 	next, cmd := m.Update(killedMsg{command: "claude", pid: 11, sig: syscall.SIGTERM})
 	m = next.(model)
-	if m.note != "SENT SIGTERM TO CLAUDE 11" || cmd == nil {
+	if m.note != "ASKED CLAUDE 11 TO END" || cmd == nil {
 		t.Errorf("note %q, cmd %v", m.note, cmd != nil)
 	}
 }

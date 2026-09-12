@@ -281,3 +281,65 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 		}
 	}
 }
+
+// The ask is read off the end of the transcript: the tool use of the
+// last turn that has no result yet, with what it asked for, and with
+// nothing pending the last thing the agent said. A sidechain is
+// somebody else's turn and is passed over.
+func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "t.jsonl")
+	lines := []string{
+		`{"type":"user","message":{"content":"do the thing"}}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Running it."},{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"rm -rf build","description":"Delete the build directory"}}]}}`,
+	}
+	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	if a := readAsk(path); a.Tool != "Bash" || a.Detail != "Delete the build directory" || a.Said != "" {
+		t.Errorf("pending tool use: %+v", a)
+	}
+	// Answered, and the turn ends on a question in prose.
+	lines = append(lines,
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}`,
+		`{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"tool_use","id":"t9","name":"Read","input":{"file_path":"/x"}}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"Done.  Shall I\ncommit it?"}]}}`,
+	)
+	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	if a := readAsk(path); a.Tool != "" || a.Said != "Done. Shall I commit it?" {
+		t.Errorf("turn ended on a question: %+v", a)
+	}
+	// A question tool carries its question.
+	lines = append(lines, `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"AskUserQuestion","input":{"questions":[{"question":"Which one?","header":"Pick"}]}}]}}`)
+	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	if a := readAsk(path); a.String() != "AskUserQuestion · Which one?" {
+		t.Errorf("a question tool: %+v", a)
+	}
+	if a := readAsk(filepath.Join(dir, "none.jsonl")); a != (ask{}) {
+		t.Errorf("no transcript: %+v", a)
+	}
+}
+
+// A session file is named by pid and outlives its process, and a pid
+// comes round again. The file says when its process began, and is
+// believed only of a process that began then; a file too old to say is
+// believed only if its status changed after the process began.
+func TestASessionFileIsBelievedOnlyOfItsOwnProcess(t *testing.T) {
+	began := time.Date(2026, 9, 12, 2, 18, 49, 0, time.Local)
+	f := sessionFile{ProcStart: began.Format(procStartLayout)}
+	if !f.wroteBy(began) || !f.wroteBy(began.Add(time.Second)) {
+		t.Error("the file's own process is not believed")
+	}
+	if f.wroteBy(began.Add(time.Hour)) {
+		t.Error("a later process with the same pid is believed")
+	}
+	old := sessionFile{StatusUpdatedAt: began.Add(-time.Minute).UnixMilli()}
+	if old.wroteBy(began) {
+		t.Error("a status from before the process began is believed")
+	}
+	old.StatusUpdatedAt = began.Add(time.Minute).UnixMilli()
+	if !old.wroteBy(began) {
+		t.Error("a status from after the process began is not believed")
+	}
+	if !(sessionFile{}).wroteBy(began) || !f.wroteBy(time.Time{}) {
+		t.Error("with nothing to compare, the file is not believed")
+	}
+}

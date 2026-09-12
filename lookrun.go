@@ -225,9 +225,23 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 	// Which conversation an agent is carrying — the session file names
 	// it, and the transcript is where the branch and the last ask are.
 	if s.entry.kind == kindAgent {
-		if f := t.sess[pid]; f.SessionID != "" {
-			c := conversation{ID: f.SessionID, Dir: s.entry.cwd}
-			readConvoMeta(convoPath(s.entry.cwd, f.SessionID), &c)
+		if f := t.sess[pid]; f.SessionID != "" && f.wroteBy(s.entry.started) {
+			dir := s.entry.cwd
+			if f.Cwd != "" {
+				dir = f.Cwd
+			}
+			c := conversation{ID: f.SessionID, Dir: dir}
+			readConvoMeta(convoPath(dir, f.SessionID), &c)
+			// What it is waiting on is read for a waiting row, and read
+			// again only when its standing changed: the transcript is
+			// the same file until it does.
+			if s.entry.status == statusWaiting {
+				if was, ok := held.convo[pid]; ok && was.Ask != (ask{}) && was.AskAt.Equal(s.entry.since) {
+					c.Ask, c.AskAt = was.Ask, was.AskAt
+				} else {
+					c.Ask, c.AskAt = readAsk(convoPath(dir, f.SessionID)), s.entry.since
+				}
+			}
 			t.convo[pid] = c
 		}
 	}

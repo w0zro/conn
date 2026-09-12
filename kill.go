@@ -30,6 +30,7 @@ type pendingKill struct {
 	pid     int
 	command string
 	sig     syscall.Signal
+	prompt  string // the question, as the bar puts it
 }
 
 // killSignal is what x sends a kind of entry: SIGKILL for a bare
@@ -74,25 +75,31 @@ func signal(pid int, sig syscall.Signal) error {
 	return err
 }
 
-// killPrompt asks the question x arms, for the bottom row: kill, for a
-// bare shell that has nothing to lose by it, end for anything asked
-// more gently.
+// killPrompt asks the question x arms, for the bar beside CONFIRM,
+// where a whole window's width can hold it: kill, for a bare shell that
+// has nothing to lose by it, end for anything asked more gently.
 func killPrompt(command string, pid int, sig syscall.Signal) string {
 	verb := "end"
 	if sig == syscall.SIGKILL {
 		verb = "kill"
 	}
-	return strings.ToUpper(verb + " " + command + " " + strconv.Itoa(pid) + "? x confirms, anything else cancels")
+	return strings.ToUpper(verb + " " + command + " " + strconv.Itoa(pid) + " · x confirms · any other key cancels")
 }
 
 // killNote words a kill's outcome for the bottom row, in the same verb
-// its question asked with.
+// its question asked with. A signal's name is the kernel's word and
+// stays off the row: what was done is that the process was asked to
+// end, and whether it did is the watch's to say.
 func killNote(msg killedMsg) string {
+	verb := "end"
+	if msg.sig == syscall.SIGKILL {
+		verb = "kill"
+	}
 	if msg.err != nil {
-		return strings.ToUpper("could not kill " + msg.command + ": " + msg.err.Error())
+		return strings.ToUpper("could not " + verb + " " + msg.command + ": " + msg.err.Error())
 	}
 	if msg.sig == syscall.SIGKILL {
 		return strings.ToUpper("killed " + msg.command + " " + strconv.Itoa(msg.pid))
 	}
-	return strings.ToUpper("sent sigterm to " + msg.command + " " + strconv.Itoa(msg.pid))
+	return strings.ToUpper("asked " + msg.command + " " + strconv.Itoa(msg.pid) + " to end")
 }

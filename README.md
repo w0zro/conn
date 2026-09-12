@@ -34,12 +34,13 @@ its own rather than a chip. Only an agent says it, being the only thing that
 knows; an agent conn cannot ask — another maker's, or one too old to say —
 reads as alive like anything else.
 
-A row is also written by what conn can do with it, in three tiers. What is in
-the slot — the pane you are looking at right now — is in the orange, the
-whole row of it, since what the slot holds is a pane and not one process of
-it: a shell there and everything running under it are all what you are
-attached to. What conn holds a pane for is in the ink: not in the slot, but a
-row `enter` can put there. What conn can only report — a terminal it did not
+A row is also written by what conn can do with it, in three tiers. The head
+of what is in the slot — the pane you are looking at right now — is in the
+orange: one row, the process the pane was opened on, not the whole tree
+hanging under it. All of that tree is just as much in the slot, but a mark
+that ran down every row of it would be a block and not a mark, so the rest
+reads as what it also is: in a pane conn holds. Which is the ink, the tier
+for a row `enter` can put in the slot. What conn can only report — a terminal it did not
 open, and cannot attach to — is a rank down, again the whole row, since the
 other columns are the quiet gray already and dimming one of six says nothing.
 The row under the cursor gives a rank of the dimming back rather than the

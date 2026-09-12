@@ -50,18 +50,30 @@ type watchRow struct {
 
 // composeWatch words the places; panes says which terminals are the
 // server's, and slot which of them is on the right.
+//
+// A pane holds a whole tree, and all of it is equally in the slot, but
+// saying so on every row of it paints a block rather than a mark. Only
+// the head of that tree is marked shown — the first row of the slot's
+// terminal there is, which is the process the pane was opened on and
+// the one the rest hang under. What hangs under it reads as what it
+// is: in a pane conn holds, like any other row conn can reach.
 func composeWatch(places []place, panes map[string]pane, slot string, home string, now time.Time, station, clock, err string) watchReport {
 	b := watchReport{station: station, clock: clock, err: err}
+	marked := false
 	for _, pl := range places {
 		bp := watchPlace{path: tilde(pl.path, home)}
 		if bp.path == "" {
 			bp.path = "NO PLACE"
 		}
 		for _, e := range pl.entries {
+			shown := false
+			if slot != "" && e.tty == slot && !marked {
+				shown, marked = true, true
+			}
 			bp.rows = append(bp.rows, watchRow{
 				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
-				shown: slot != "" && e.tty == slot, depth: e.depth,
+				shown: shown, depth: e.depth,
 			})
 		}
 		b.places = append(b.places, bp)
@@ -152,16 +164,18 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		for _, r := range bp.rows {
 			l := d.line()
 			cursored := r.pid == cursor
-			// Three tiers, by what conn can do with the row. The one in
-			// the slot is the orange — it is what you are looking at, and
-			// the orange is "you, here" everywhere else in conn. What conn
-			// holds a pane for is the ink: it can be reached, put in the
-			// slot and come back to. What conn can only report is a rank
-			// down, the whole row and not the command alone, since the
-			// rest of the columns are the quiet gray already and dimming
-			// one of six says nothing. Outside its server conn holds
-			// nothing, so nothing is dimmed: the distinction would be
-			// every row.
+			// Three tiers, by what conn can do with the row. The head of
+			// what is in the slot is the orange — it is what you are
+			// looking at, and the orange is "you, here" everywhere else
+			// in conn — and it is one row, since a mark that ran down a
+			// whole pane's tree would be a block and not a mark. What
+			// conn holds a pane for is the ink: it can be reached, put in
+			// the slot and come back to. What conn can only report is a
+			// rank down, the whole row and not the command alone, since
+			// the rest of the columns are the quiet gray already and
+			// dimming one of six says nothing. Outside its server conn
+			// holds nothing, so nothing is dimmed: the distinction would
+			// be every row.
 			kind, command, ttyColor, ageColor, word := p.gray, p.ink, p.gray, p.gray, p.gray
 			switch {
 			case r.shown:

@@ -194,7 +194,9 @@ func TestAHomeWithoutItsSlotGetsOne(t *testing.T) {
 }
 
 // A slot whose pane died on remain-on-exit is revived, not resplit:
-// the rail never has to give up its width and take it back for it.
+// the rail never has to give up its width and take it back for it. With
+// nothing to reach, a hold takes the slot; with a hand to reach, that
+// hand does.
 func TestASlotWhosePaneDiedIsRevived(t *testing.T) {
 	m := model{p: plain, width: 48, height: 40, view: viewWatch, inside: true, srv: &server{tmux: "/nonexistent/tmux"}}
 	next, cmd := m.Update(watchMsg{slot: "ttys009", slotDead: true})
@@ -204,6 +206,39 @@ func TestASlotWhosePaneDiedIsRevived(t *testing.T) {
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
 		t.Errorf("a dead slot did not both tick and revive: %T", cmd())
+	}
+}
+
+// When what was in the slot ends, the slot takes the next hand conn
+// holds, from the cursor down and round again from the top; a hold,
+// the look and a dead pane are passed over, and with nothing to reach
+// there is nothing.
+func TestTheSlotTakesTheNextHandWhenItsOwnEnds(t *testing.T) {
+	m := model{p: plain, view: viewWatch, inside: true}
+	m.places = []place{{path: "/w", entries: []entry{
+		{pid: 1, tty: "ttys001"}, {pid: 2, tty: "ttys002"}, {pid: 3, tty: "ttys003"}, {pid: 4, tty: "ttys004"},
+	}}}
+	m.panes = map[string]pane{
+		"ttys001": {id: "%1", tty: "ttys001"},
+		"ttys002": {id: "%2", tty: "ttys002", dead: true},
+		"ttys003": {id: "%3", tty: "ttys003", hold: true},
+	}
+	m.cursor = 2
+	if e, ok := m.nextReachable(); !ok || e.pid != 1 {
+		t.Errorf("from the dead row, round again to the first: %+v %v", e, ok)
+	}
+	m.cursor = 1
+	if e, ok := m.nextReachable(); !ok || e.pid != 1 {
+		t.Errorf("the cursor's own row when it can be reached: %+v %v", e, ok)
+	}
+	m.panes["ttys004"] = pane{id: "%4", tty: "ttys004"}
+	m.cursor = 2
+	if e, ok := m.nextReachable(); !ok || e.pid != 4 {
+		t.Errorf("the next down before round again: %+v %v", e, ok)
+	}
+	m.panes = nil
+	if _, ok := m.nextReachable(); ok {
+		t.Error("with nothing held, something was reached")
 	}
 }
 

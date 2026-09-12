@@ -594,9 +594,17 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.watchTick(), m.openSlot())
 			// A slot whose pane died stays the shape it was; only what is
 			// in it is replaced, so the rail never has to give up its
-			// width and take it back.
+			// width and take it back. What replaces it is the next hand
+			// conn holds, from the cursor down and round again: the
+			// operator was working in the slot, and the work goes on in
+			// the one nearest to hand. Only with none to reach does the
+			// slot hold a placard.
 			case m.inside && msg.slotDead:
-				cmds = append(cmds, m.watchTick(), m.reviveSlot())
+				if e, ok := m.nextReachable(); ok {
+					cmds = append(cmds, m.watchTick(), m.reach(m.panes[e.tty], e.tty))
+				} else {
+					cmds = append(cmds, m.watchTick(), m.reviveSlot())
+				}
 			default:
 				cmds = append(cmds, m.watchTick())
 			}
@@ -1057,6 +1065,31 @@ func clamp(at, rows int) int {
 }
 
 // under is the entry and the place under the cursor.
+// nextReachable is the first hand at or after the cursor, round again
+// from the top, that conn holds a live pane for: what the slot takes
+// when what was in it ends. A hold, the look and a pane that has died
+// are not hands.
+func (m model) nextReachable() (entry, bool) {
+	var all []entry
+	for _, pl := range m.places {
+		all = append(all, pl.entries...)
+	}
+	start := 0
+	for i, e := range all {
+		if e.pid == m.cursor {
+			start = i
+			break
+		}
+	}
+	for k := range all {
+		e := all[(start+k)%len(all)]
+		if p := m.panes[e.tty]; p.id != "" && !p.hold && !p.look && !p.dead {
+			return e, true
+		}
+	}
+	return entry{}, false
+}
+
 func (m model) under() (entry, place, bool) {
 	for _, pl := range m.places {
 		for _, e := range pl.entries {

@@ -435,7 +435,8 @@ func (s *server) showLook(home, self string) error {
 // show puts a pane in the slot and focus on it. The pane that was in the
 // slot goes back to where this one came from, and its window takes the
 // slot's size so it keeps its shape; a hold that leaves the slot is
-// done with.
+// done with, and so is a pane whose process has ended, which
+// remain-on-exit kept only so the slot would hold its place.
 func (s *server) show(target pane) error {
 	slot, ok, err := s.slot()
 	if err != nil {
@@ -449,7 +450,7 @@ func (s *server) show(target pane) error {
 		if slot.width > 0 && slot.height > 0 {
 			args = append(args, ";", "resize-window", "-t", slot.id, "-x", strconv.Itoa(slot.width), "-y", strconv.Itoa(slot.height))
 		}
-		if slot.hold {
+		if slot.hold || slot.dead {
 			args = append(args, ";", "kill-pane", "-t", slot.id)
 		}
 		if _, err := s.run(args...); err != nil {

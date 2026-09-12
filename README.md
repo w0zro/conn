@@ -14,7 +14,10 @@ doing and which hand is waiting, so that the operator's attention, which
 is the one thing not in supply, goes where it is asked for.
 
 **1-2. THE HANDS.** The kernel's word is process, and it is too small for
-the thing being run. A hand is long-lived. It has a place it works, a
+the thing being run. The word here is hand, and where that could be read
+as the operator's own, station hand: the general worker on a station,
+who does what the place needs without being stood over. A hand is
+long-lived. It has a place it works, a
 tree of processes under it, and, if it is an agent, a conversation it is
 carrying and a state of mind that cannot be read off its processor time.
 Above all it can stop and wait on the operator. A compiler never waited

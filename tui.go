@@ -152,9 +152,6 @@ type model struct {
 	// already knows.
 	looking  bool
 	entering bool // the console is waiting on a reading to go to the watch
-	// The row conn last put on the bar, so it is written when it changes
-	// and not on every pass through Update.
-	saidIn string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -384,10 +381,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// until somebody presses j.
 		_, reading := msg.(watchMsg)
 		nm = nm.published(reading)
-		nm, said := nm.saying()
 		nm, blink := nm.blinked()
-		if said != nil || blink != nil {
-			return nm, tea.Batch(cmd, said, blink)
+		if blink != nil {
+			return nm, tea.Batch(cmd, blink)
 		}
 		return nm, cmd
 	}
@@ -415,60 +411,6 @@ func (m model) published(again bool) model {
 		tellCursor(cursorPath(m.head.session.home), pid)
 	}
 	return m
-}
-
-// saying puts the bar's row on the server, when it has changed since the
-// last telling. Going through here is the point: the slot changes hands
-// from several places and every one of them would otherwise have to
-// remember to say so.
-//
-// The bar is tmux's line and conn reaches it by setting an option, which
-// is a process — so it is written when the row changes, which is when
-// the slot changes hands or the thing in it comes to stand differently,
-// and never on a beat. The age in it is the coarse one for that reason:
-// a figure that ticked would be a process a second for as long as conn
-// was up.
-func (m model) saying() (model, tea.Cmd) {
-	if !m.inside || m.srv == nil {
-		return m, nil
-	}
-	in := m.slotRow()
-	if in == m.saidIn {
-		return m, nil
-	}
-	m.saidIn = in
-	srv := m.srv
-	return m, func() tea.Msg { _ = srv.say(in); return nil }
-}
-
-// slotRow is the row of the watch you are standing inside: the process
-// in the slot, in the watch's own words, with the place it works in —
-// which the watch says in a block's title and a row alone does not
-// carry. Nothing when the slot holds conn's own furniture, a hold in an
-// empty slot or the look, since neither is somewhere you are working.
-//
-// A pane holds a whole tree and the head of it is what the pane is, the
-// same row the slot's mark goes on, so that is the row the bar says.
-func (m model) slotRow() string {
-	if m.slot == "" || m.panes[m.slot].hold {
-		return ""
-	}
-	pid, _, ok := headOf(m.places, m.slot)
-	if !ok {
-		return ""
-	}
-	for _, pl := range m.places {
-		for _, e := range pl.entries {
-			if e.pid != pid {
-				continue
-			}
-			return barLine(
-				placeName(pl.path, m.projRoots, m.head.session.home),
-				e.kind, fit(e.command, barCommand, false),
-				about(m.now.Sub(e.started)), e.status)
-		}
-	}
-	return ""
 }
 
 func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {

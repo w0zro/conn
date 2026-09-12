@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 // The server's socket is under the state directory unless CONN_SOCKET
@@ -77,11 +76,6 @@ func TestTheConfigurationHolds(t *testing.T) {
 		// than commas so the conditional around it is not cut in two.
 		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
 		"#[bg=" + scheme[12] + " fg=" + hex(groundColor) + " bold] COPY ",
-		// The lamps are what only tmux can know; the row is conn's, and
-		// tmux drops it while the keys are on the rail, where the watch
-		// says all of it and more.
-		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_in}",
-		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
@@ -187,65 +181,24 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 	}
 }
 
-// The bar is the row you are standing inside, and conn writes it only
-// when it changes: setting an option on the server is a process, and the
-// slot changes hands rarely. It is nothing at all when the slot holds
-// conn's own furniture, since a hold in an empty slot is not somewhere
-// you are working.
-func TestTheBarIsTheRowYouAreIn(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.inside, m.now = viewWatch, true, watchNow
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.projRoots = testProjRoots
-	m.head.session.home = "/Users/w0zro"
-	m.panes = map[string]pane{
-		"ttys004": {id: "%1", tty: "ttys004"},
-		"ttys009": {id: "%9", tty: "ttys009", hold: true},
-	}
-	m.places = []place{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-		{pid: 11, kind: kindAgent, command: "claude --resume", tty: "ttys004",
-			started: watchNow.Add(-47 * time.Minute), status: statusWaiting},
-	}}}
-
-	// Nothing in the slot: nothing to say, and nothing written.
-	if _, cmd := m.saying(); cmd != nil {
-		t.Error("conn wrote a bar with nothing in the slot")
-	}
-
-	// A hold standing in an empty slot is conn's own furniture.
-	m.slot = "ttys009"
-	if row := m.slotRow(); row != "" {
-		t.Errorf("a hold in the slot is said to be somewhere you are: %q", row)
-	}
-
-	// The process: the place it works in, then the row as the watch has
-	// it, with the age in its largest unit alone.
-	m.slot = "ttys004"
-	row := m.slotRow()
-	for _, want := range []string{"w0zro/conn", kindAgent, "claude --resume", "47M", statusWaiting} {
-		if !strings.Contains(row, want) {
-			t.Errorf("the bar's row lacks %q:\n%s", want, row)
+// The bar is a format tmux reads for itself: no option of conn's on it,
+// so conn sets nothing and runs no process for it.
+func TestTheBarIsTmuxsToDrawAlone(t *testing.T) {
+	conf := tmuxConf("C-Space")
+	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_mode", "@conn_owed", "status-interval 1"} {
+		if strings.Contains(conf, gone) {
+			t.Errorf("the bar still asks conn for %q", gone)
 		}
 	}
-	next, cmd := m.saying()
-	if cmd == nil || next.saidIn != row {
-		t.Errorf("the row was not put on the bar: %q", next.saidIn)
-	}
-	// Said once. The same row again is not a second process.
-	if _, cmd := next.saying(); cmd != nil {
-		t.Error("the same row was written to the bar twice")
-	}
-	// A minute later the coarse age has not moved, so neither has the row.
-	later := next
-	later.now = watchNow.Add(30 * time.Second)
-	if _, cmd := later.saying(); cmd != nil {
-		t.Error("the bar was written again for a figure that had not changed")
-	}
-
-	// Outside the server there is no bar to write to.
-	out := m
-	out.inside = false
-	if _, cmd := out.saying(); cmd != nil {
-		t.Error("conn wrote a bar outside its server")
+	// What it does say is what only tmux can know, each mode wearing its
+	// color as a ground.
+	for _, want := range []string{
+		"#{?client_prefix,", "#{?pane_in_mode,",
+		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
+		"#[bg=" + scheme[12] + " fg=" + hex(groundColor) + " bold] COPY ",
+	} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("the bar lacks %q:\n%s", want, conf)
+		}
 	}
 }

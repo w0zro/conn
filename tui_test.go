@@ -277,6 +277,46 @@ func TestReachingFromInsideATreePutsTheCursorOnItsHead(t *testing.T) {
 	}
 }
 
+// tab goes to what is waiting on you: the first press to the one that
+// has waited longest, each after it to the next, and round again from
+// the end. Off the ring it starts at the front, so a cursor anywhere
+// else is one key from the thing that has waited longest.
+func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
+	at := func(s int) time.Time { return time.Now().Add(time.Duration(-s) * time.Second) }
+	m := newModel(plain)
+	m.view = viewWatch
+	m.places = []place{{path: "/w", entries: []entry{
+		{pid: 11, status: statusIdle},
+		{pid: 22, status: statusWaiting, since: at(60)},
+		{pid: 33, status: statusWorking},
+		{pid: 44, status: statusWaiting, since: at(600)},
+	}}}
+	m.cursor, m.cursorAt = 11, 0
+
+	tab := func() {
+		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		m = next.(model)
+	}
+	for i, want := range []int{44, 22, 44, 22} { // longest first, then round
+		tab()
+		if m.cursor != want {
+			t.Fatalf("tab %d put the cursor on %d, want %d", i+1, m.cursor, want)
+		}
+	}
+	// And the row it lands on is the row it means, not just the pid.
+	if e, _, ok := m.under(); !ok || e.status != statusWaiting {
+		t.Errorf("tab landed on %+v, which is not waiting", e)
+	}
+
+	// Nothing waiting is said rather than moved to.
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}}}}
+	m.cursor, m.cursorAt = 11, 0
+	tab()
+	if m.cursor != 11 || m.note != "NO AGENT IS WAITING ON YOU" {
+		t.Errorf("with nothing waiting: cursor %d, note %q", m.cursor, m.note)
+	}
+}
+
 // a opens claude at the place under the cursor, the way s opens a shell
 // there; outside the server nothing can be opened, and off any place
 // there is nothing to open it at.

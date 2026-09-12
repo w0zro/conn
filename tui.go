@@ -423,8 +423,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // watch c brings the console back over the whole window,
 // enter reaches the cursor's process, s opens a shell at its place, a
 // opens claude there instead, and alt+a opens the picker over what
-// claude left suspended there. x asks to end the cursor's process, and
-// arms the question rather than the ending: the next key answers it.
+// claude left suspended there. tab goes to what is waiting on you,
+// longest first, and round again. x asks to end the cursor's process,
+// and arms the question rather than the ending: the next key answers
+// it.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A kill x asked for takes the next key, whatever it is: x, y or
 	// enter confirms it, and anything else cancels — no other binding
@@ -524,6 +526,25 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		default:
 			return m.openResume(pl.path, []string{pl.path})
 		}
+	case k == "tab":
+		// The ring of what is waiting on you, longest held up first: the
+		// first press goes to the one that has waited longest, and each
+		// after it to the next, round and back. It is the one question
+		// the watch asks of you, so it gets the one key that means go to
+		// what wants me.
+		round := waitingRound(m.places)
+		if len(round) == 0 {
+			m.note = "NO AGENT IS WAITING ON YOU"
+			return m, nil
+		}
+		next := round[0]
+		for i, e := range round {
+			if e.pid == m.cursor {
+				next = round[(i+1)%len(round)]
+				break
+			}
+		}
+		m.cursor, m.cursorAt = follow(m.places, next.pid, m.cursorAt)
 	case k == "p":
 		m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
 		return m, m.scanProjects()

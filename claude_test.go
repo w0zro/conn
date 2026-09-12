@@ -200,3 +200,46 @@ func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
 		t.Fatalf("claudeSuspended = %+v, want only the one not vouched for as live", cs)
 	}
 }
+
+// An agent says when its status became what it is, and that is the
+// moment a wait is measured from. Claude writes the file on a change
+// rather than on a clock, so the stamp holds still between changes and
+// is the moment of the change itself. A file that says nothing of when
+// leaves it unsaid rather than guessing at now.
+func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
+	claude := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claude)
+	if err := os.MkdirAll(filepath.Join(claude, "sessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	since := time.UnixMilli(1789152626774)
+	write := func(pid int, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(claude, "sessions", strconv.Itoa(pid)+".json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(20, `{"pid":20,"sessionId":"a-1","status":"waiting","statusUpdatedAt":1789152626774}`)
+	write(21, `{"pid":21,"sessionId":"a-2","status":"waiting"}`) // says nothing of when
+	agent := func(pid int) process {
+		return process{pid: pid, uid: 501, tty: "ttys001", state: 'S', command: "claude", args: []string{"claude"},
+			started: watchNow.Add(-time.Hour), cwd: "/w"}
+	}
+
+	how := agentStandings([]process{agent(20), agent(21)})
+	if !how[20].waiting || !how[20].since.Equal(since) {
+		t.Errorf("an agent that says when it stopped stands %+v, want waiting since %v", how[20], since)
+	}
+	if !how[21].waiting || !how[21].since.IsZero() {
+		t.Errorf("an agent that says nothing of when stands %+v, and the moment should be unsaid", how[21])
+	}
+
+	// And the entry carries it, which is what orders the round.
+	for _, pl := range watch([]process{agent(20), agent(21)}, 501, func(string) string { return "/w" }, how) {
+		for _, e := range pl.entries {
+			if e.pid == 20 && !e.since.Equal(since) {
+				t.Errorf("the entry for pid 20 stands since %v, want %v", e.since, since)
+			}
+		}
+	}
+}

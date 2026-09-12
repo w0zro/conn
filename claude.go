@@ -90,6 +90,10 @@ const (
 type sessionFile struct {
 	SessionID string `json:"sessionId"`
 	Status    string `json:"status"`
+	// When the status last became what it is, in milliseconds since the
+	// epoch. Claude writes the file on a change rather than on a clock,
+	// so this is the moment of the change and holds still between them.
+	StatusUpdatedAt int64 `json:"statusUpdatedAt"`
 }
 
 // claudeSessions is what every claude instance says of itself, by the
@@ -149,13 +153,17 @@ func agentStandings(procs []process) map[int]standing {
 		if kind[pid] != kindAgent || s.Status == "" {
 			continue
 		}
+		var since time.Time
+		if s.StatusUpdatedAt > 0 {
+			since = time.UnixMilli(s.StatusUpdatedAt)
+		}
 		switch s.Status {
 		case busyStatus:
-			how[pid] = standing{working: true}
+			how[pid] = standing{working: true, since: since}
 		case waitingStatus:
-			how[pid] = standing{waiting: true}
+			how[pid] = standing{waiting: true, since: since}
 		default:
-			how[pid] = standing{idle: true}
+			how[pid] = standing{idle: true, since: since}
 		}
 	}
 	return how

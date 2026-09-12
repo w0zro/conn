@@ -32,6 +32,14 @@ word a shell at its prompt gets and for the same reason: at rest, nothing
 pending, yours when you want it. The difference is whether anything is held
 up, and only the thing that is held up is worth a word that carries.
 
+`tab` goes to what is waiting on you: the first press to the agent that has
+been held up longest, each after it to the next, and round again from the
+end. An agent says when its status became what it is, and Claude writes that
+on a change rather than on a clock, so the stamp is the moment the wait began
+and the order is how long each has actually waited. One that cannot say goes
+last — still waiting, which is what the word is for, but it cannot claim a
+turn ahead of one that can prove it waited longer.
+
 Nothing but an agent is ever called waiting here — a server waiting on a
 socket is waiting on the socket — so the word is only ever about a person. It
 is no fault, so it takes a color of its own rather than a chip. Only an agent

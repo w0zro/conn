@@ -513,3 +513,26 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 		t.Error("after conn down, the socket is not dark again")
 	}
 }
+
+// Tab is spelled "tab" by the time conn reads it, which is the thing a
+// binding can only learn from a real terminal: bubbletea answers a key
+// by its text where it has any, and a decoder that handed tab its own
+// tab character would spell it "\t" and miss the case entirely. Nothing
+// in a scratch server is waiting on anyone, so the note it writes is
+// the proof the key arrived and landed where it was meant to.
+func TestTabReachesTheWatchAsTab(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.keys("Space")
+	// The watch's first frame is not the settled window: conn is still
+	// splitting the slot off behind it, and a key sent into that goes
+	// nowhere. The slot being open is what says conn is listening.
+	s.until("the slot to open on the watch", func() bool {
+		return s.display("#{pane_width}") == railW && strings.Contains(s.rail(), "STATUS")
+	})
+
+	s.keys("Tab")
+	s.until("the watch to answer tab", func() bool {
+		return strings.Contains(s.rail(), "NO AGENT IS WAITING ON YOU")
+	})
+}

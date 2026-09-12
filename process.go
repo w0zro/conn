@@ -94,6 +94,11 @@ type standing struct {
 	working bool
 	waiting bool // stopped on something it asked of you
 	idle    bool // stopped with its turn over, asking nothing
+	// When it came to stand this way, where it says so; zero where it
+	// does not. Only an agent knows the moment it stopped, and only
+	// waiting is worth the moment: how long a thing has been held up on
+	// you is the order to answer it in.
+	since time.Time
 }
 
 // An entry is a row of the watch: one process, standing for its own
@@ -106,8 +111,9 @@ type entry struct {
 	tty     string
 	started time.Time
 	status  string
-	fault   bool // a status to be looked at: STOPPED, ENDED
-	depth   int  // how deep under its place's own root; the root at 0
+	fault   bool      // a status to be looked at: STOPPED, ENDED
+	depth   int       // how deep under its place's own root; the root at 0
+	since   time.Time // when it came to stand as it does, where that is known
 }
 
 // A place is a directory work is happening in, and the entries at it.
@@ -247,7 +253,8 @@ func watch(procs []process, uid int, rootOf func(string) string, how map[int]sta
 		walked[pid] = true
 		p := byPid[pid]
 		kind := kindOf(p)
-		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth}
+		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth,
+			since: how[p.pid].since}
 		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
 		if places[path] == nil {
 			places[path] = &place{path: path}
@@ -273,6 +280,35 @@ func watch(procs []process, uid int, rootOf func(string) string, how map[int]sta
 	// The newest work first, anywhere in a place's trees.
 	sort.SliceStable(out, func(i, j int) bool {
 		return placeNewest[out[i].path].After(placeNewest[out[j].path])
+	})
+	return out
+}
+
+// waitingRound is the order to answer the waiting in: longest held up
+// first. An agent that cannot say when it stopped goes last — it is
+// waiting, which is what the word is for, but it cannot claim a turn
+// ahead of one that can prove it waited longer. The order is the same
+// on every reading, so a key stepping through it steps through the
+// same ring; ties go by pid rather than by however the table came out.
+func waitingRound(places []place) []entry {
+	var out []entry
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			if e.status == statusWaiting {
+				out = append(out, e)
+			}
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		switch {
+		case a.since.IsZero() != b.since.IsZero():
+			return b.since.IsZero() // what cannot say goes last
+		case !a.since.Equal(b.since):
+			return a.since.Before(b.since)
+		default:
+			return a.pid < b.pid
+		}
 	})
 	return out
 }

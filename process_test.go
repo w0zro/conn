@@ -510,3 +510,33 @@ func TestProcIsParsed(t *testing.T) {
 		t.Errorf("proc tree: %+v", procs)
 	}
 }
+
+// The waiting are answered longest held up first. An agent that cannot
+// say when it stopped is waiting all the same, but it cannot claim a
+// turn ahead of one that can prove it waited longer, so it goes last;
+// two that stopped at the same moment go by pid, so the ring is the
+// same ring on every reading.
+func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
+	at := func(s int) time.Time { return watchNow.Add(time.Duration(-s) * time.Second) }
+	places := []place{
+		{path: "/a", entries: []entry{
+			{pid: 1, status: statusWorking, since: at(900)},
+			{pid: 2, status: statusWaiting, since: at(60)},
+			{pid: 3, status: statusIdle, since: at(900)},
+		}},
+		{path: "/b", entries: []entry{
+			{pid: 4, status: statusWaiting}, // says nothing of when
+			{pid: 5, status: statusWaiting, since: at(600)},
+			{pid: 7, status: statusWaiting, since: at(300)},
+			{pid: 6, status: statusWaiting, since: at(300)},
+		}},
+	}
+	var got []int
+	for _, e := range waitingRound(places) {
+		got = append(got, e.pid)
+	}
+	want := []int{5, 6, 7, 2, 4} // 600s, then the two at 300s by pid, then 60s, then the one that cannot say
+	if !slices.Equal(got, want) {
+		t.Errorf("the waiting round is %v, want %v", got, want)
+	}
+}

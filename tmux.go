@@ -647,18 +647,21 @@ set -g remain-on-exit on
 // is where a name belongs. It stood over the watch before, which made it
 // the watch's when it is every view's.
 //
-// The name holds the orange, so the mode beside it steps back a rank:
-// the word in the parchment conn titles with, on the window's own
-// ground, which is the ground the panes above are on. The bar stands on
-// the raised one, so a mode reads as a recess beside the name rather
-// than a second badge competing with it. Colors by family were tried
-// before this and were a code to learn — three grounds to know before
-// the word could be read, when the word was going to be read anyway.
+// The mode stands beside it as a word and not as a block. Two filled
+// rectangles of different colors touching read as two tabs, and there is
+// one thing here, not two: a badge and what it is saying. So the name
+// keeps the only ground on the row and the mode is the bar's own, in the
+// parchment conn titles with, two spaces off the badge.
+//
+// Colors by family were tried before this and were a code to learn —
+// three grounds to know before the word could be read, when the word was
+// going to be read anyway.
 //
 // A question armed is the exception. It is not a state you are in but a
 // thing waiting on you, and takes the next key whatever it is, so its
-// word is in the orange the name wears — the same recess, one rank up,
-// and no third color to learn.
+// word comes up into the orange the name wears. A word changing color is
+// quieter than a block changing color, which is right for a thing said
+// beside a badge rather than stamped into one.
 //
 // The rest of the row is the bar's own ground and nothing else.
 //
@@ -699,28 +702,32 @@ set -g window-status-current-format ""
 	return b.String()
 }
 
-// barName is conn's name as the bar wears it: the light ink knocked out
-// of the orange. The ink is the dark palette's whichever ground conn is
-// on — a badge is not part of the page's flow, and white on the orange
-// reads on either.
+// barName is conn's name as the bar wears it: the ground knocked out of
+// the orange, which is the chip conn stamps everywhere else. The ground
+// and not a fixed white, so it inverts with everything else — the
+// orange on paper is a dark brick, and black would go out on it.
 //
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
 // would read the style as the branches of the question.
 func barName() string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold] CONN ", cursorHex, hex(darkInk))
+	return fmt.Sprintf("#[bg=%s fg=%s bold] CONN ", cursorHex, hex(groundColor))
 }
 
-// barMode is a mode as the bar wears it: the word a rank below the name,
-// in the parchment, on the window's own ground.
+// barMode is a mode as the bar wears it: a word on the bar's own ground
+// and not a block of its own, two spaces off the badge.
 func barMode(word string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", hex(groundColor), scheme[7], word)
+	return barWord(word, scheme[7])
 }
 
 // barAsk is the one mode that is not a state you are in but a question
-// waiting on you: the same recess, the word a rank up in the orange.
+// waiting on you: the same word, come up into the orange.
 func barAsk(word string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", hex(groundColor), cursorHex, word)
+	return barWord(word, cursorHex)
+}
+
+func barWord(word, color string) string {
+	return fmt.Sprintf("#[bg=%s fg=%s bold]  %s", borderHex, color, word)
 }
 
 // say puts conn's two modes on the server — what its own keys are doing

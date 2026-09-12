@@ -26,8 +26,9 @@ var (
 // under a second. A key skips to the end; a key at the end continues to
 // the watch. The watch is what is running, by place, read again every
 // two seconds while it is up; j and k move the cursor, which follows
-// its process across readings; c brings the console back, and any key
-// there returns to the watch. The console is a page: in the server it
+// its process across readings, and tab takes it to whatever is waiting
+// on you, longest held up first and round again; c brings the console
+// back, and any key there returns to the watch. The console is a page: in the server it
 // takes the whole window while it is up, and the slot has its side
 // again on the way back to the watch. The words of both are said
 // again each second, from what was read and the clock as it stands.

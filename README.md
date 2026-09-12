@@ -165,44 +165,49 @@ cursor left where it was would pick out the one row in the pane that is not
 what is in the slot.
 
 Across the foot of the window, under the rail and the slot alike, is the
-bar, and it says what mode the keys are in. You are always in one: there is
-always an answer to what the next key will do, and the bar is where it is
-said.
+bar. It is tmux's status line, and it is an annunciator panel rather than a
+status line: dark at rest, lit by what would be worth turning for. It has
+two halves, each in a fixed place, so the eye learns where to glance and an
+empty place is itself a reading.
 
-A chord hanging is `PREFIX`, and it covers everything — whatever you were
-doing, the next key is one of the four. A pane in copy mode is `COPY`, its
-keys being its history's. A kill armed is `CONFIRM`, which takes the next
-key whatever it is and so covers the view it was armed in. Otherwise it is
-wherever the keys are: on the rail, the view it is showing — `CONSOLE`,
-`WATCH`, `LIST`, `PICKER` — and in the slot, the kind, the same word the
-watch's first column uses, so the mode says what sort of keys you are
-typing. conn's own panes in the slot are neither work nor a view and say
-what they are: `LOOK` for the page about a row, `HOLD` for an empty slot,
-each handing the keys back to the rail on any key at all.
+On the left, the keys, and only what cannot be seen from the rail. A chord
+hanging is `PREFIX`, and it covers everything — whatever you were doing, the
+next key is one of the four. A pane in copy mode is `COPY`, its keys being
+its history's. Both are the client's business and tmux's to know: a conn
+drawing in the rail knows nothing of the client, and no amount of drawing on
+the rail will tell you either. A kill armed is `CONFIRM`, which is not a
+state you are in but a question waiting on you, and takes the next key
+whatever it is. Nothing else lights the left. A word saying `WATCH` while
+you are looking at the watch is furniture, and a row that always says
+something is a row nobody reads.
 
-The first two are the half conn cannot see. A conn drawing in the rail knows
-nothing of the client — whether a chord waits on its second key, whether the
-pane has gone into copy mode — and no amount of drawing on the rail will
-tell you. tmux knows those and has them for nothing. The rest are conn's,
-and conn puts them in two options, one for the rail and one for the slot,
-which tmux chooses between by which pane the keys are in.
+Each is a block of its color with the word knocked out of it, flush to the
+edge of the screen: a block is not read but seen, and one that starts where
+the screen starts is seen first. The chord takes the orange, which is "you,
+here" everywhere in conn; copy mode the blue, being a state of the pane
+rather than a thing you are doing; the question the color a thing waiting
+on you is said in, so the two halves of the row speak one language.
 
-The bar begins with conn's name, at the edge of the screen: the ground
-knocked out of the orange, which is the chip conn stamps everywhere else. It
-is the one thing on the screen that is the program's own rather than the
-work's, and the bottom left of a window is where a name belongs. It stood
-over the watch before, which made it the watch's when it is every view's —
-so the watch begins with its rule and its columns now, and has the row back.
+On the right, the processes: one lamp for each row of the watch, in the
+watch's order, so a lamp's place on the row is a row's place on the list. A
+lamp is a rank of gray while its process is working, the faintest ink while
+it is idle or merely active — it keeps its place, since a lamp that vanished
+would shift the ones beside it — and the owed color, bold and blinking,
+while an agent is stopped on something it asked of you. The terminal does
+the blinking, so nothing here redraws on a beat; a terminal that will not
+blink shows it steady, which is the same lamp less insistent. Faults stay
+off the panel: a process you suspended yourself is not holding you up, and
+the watch has the chip.
 
-The mode stands beside it as a word and not as a block. Two filled
-rectangles of different colors touching read as two tabs, and there is one
-thing here rather than two: a badge, and what it is saying. So the name
-keeps the only ground on the row and the mode is the bar's own, in the
-parchment conn titles with, two spaces off the badge. The exception is the
-question, which is not a state you are in but a thing waiting on you:
-`CONFIRM` comes up into the orange the name wears. A word changing color is
-quieter than a block changing color, which is right for a thing said beside
-a badge rather than stamped into one.
+The bar is the one instrument conn has that works on peripheral vision. The
+rail cannot catch your eye, because when you are working your eyes are in
+the slot and the watch is beside them unread. A dark row that lights is seen
+without being looked at, and only while it is dark the rest of the time.
+
+conn writes the two things only it knows, the question and the lamps, each
+in an option of its own and each only when it changes: the question on a
+keypress, the lamps when a reading finds a process standing differently
+from the last. Never on a beat.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

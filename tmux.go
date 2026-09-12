@@ -621,73 +621,63 @@ set -g remain-on-exit on
 	return b.String()
 }
 
-// The bar is tmux's status line, and it says what mode the keys are in.
-// You are always in one: there is always an answer to what the next key
-// will do, and the bar is where it is said.
+// The bar is tmux's status line, and it is an annunciator panel: dark
+// at rest, lit by what would be worth turning for. It has two halves,
+// each in a fixed place, so the eye learns where to glance and an empty
+// place is itself a reading — the discipline of the 3270's operator
+// information area, where the wait symbol was always in the same cell.
 //
-// The modes, and what shadows what. A chord hanging covers everything —
-// whatever you were doing, the next key is one of conn's four. A pane in
-// copy mode covers the rest, its keys being the pane's history's. Then a
-// question conn has armed, which takes the next key whatever it is. Then
-// wherever the keys are: on the rail, in the view it is showing; in the
-// slot, in the work, and the word for that is the kind, the same one the
-// watch's first column uses.
+// On the left, the keys, and only what cannot be seen from the rail. A
+// chord hanging and a pane in copy mode are the client's business and
+// tmux's to know, and no amount of drawing on the rail will tell you
+// either; tmux has them for nothing. A question conn has armed is the
+// third, being not a state you are in but a thing waiting on you that
+// takes the next key whatever it is. Nothing else lights the left. A
+// word saying WATCH while you are looking at the watch is furniture, and
+// a row that always says something is a row nobody reads.
 //
-// Half of that conn cannot see. A conn drawing in the rail knows nothing
-// of the client — whether a chord is waiting on its second key, whether
-// the pane has gone into copy mode — and no amount of drawing on the
-// rail will tell you. tmux knows those two and has them for nothing. The
-// other half is conn's, and conn puts it in two options, one for the
-// rail and one for the slot, which tmux chooses between by which pane
-// the keys are in.
+// Each is a block of color with the word knocked out of it, flush to
+// the edge: a block is not read but seen, and one that starts where the
+// screen starts is seen first. The chord takes the orange, which is
+// "you, here" everywhere in conn; copy mode the blue, being a state of
+// the pane rather than a thing you are doing; the question the owed
+// color, which is what the right-hand side says a thing waiting on you
+// in, so the two halves of the row speak one language.
 //
-// The bar begins with conn's name, in the orange with the light ink
-// knocked out of it. It is the one thing on the screen that is the
-// program's own rather than the work's, and the bottom left of a window
-// is where a name belongs. It stood over the watch before, which made it
-// the watch's when it is every view's.
+// On the right, the processes: one lamp for each row of the watch, in
+// the watch's order, so a lamp's place on the row is a row's place on
+// the list. The Lisp machine's status line had a strip of run bars in
+// its corner, one per activity, flickering in the corner of the eye,
+// and this is that strip. A lamp is a rank of gray while its process
+// is working, the faintest ink while it is idle or merely active — it
+// keeps its place, since a lamp that vanished would shift the ones
+// beside it — and the owed color, bold and blinking, while an agent is
+// stopped on something it asked of you. The terminal does the blinking,
+// so nothing here redraws on a beat; a terminal that will not blink
+// shows it steady, which is the same lamp less insistent.
 //
-// The mode stands beside it as a word and not as a block. Two filled
-// rectangles of different colors touching read as two tabs, and there is
-// one thing here, not two: a badge and what it is saying. So the name
-// keeps the only ground on the row and the mode is the bar's own, in the
-// parchment conn titles with, two spaces off the badge.
-//
-// Colors by family were tried before this and were a code to learn —
-// three grounds to know before the word could be read, when the word was
-// going to be read anyway.
-//
-// A question armed is the exception. It is not a state you are in but a
-// thing waiting on you, and takes the next key whatever it is, so its
-// word comes up into the orange the name wears. A word changing color is
-// quieter than a block changing color, which is right for a thing said
-// beside a badge rather than stamped into one.
-//
-// The rest of the row is the bar's own ground and nothing else.
+// Faults stay off the panel. A process you suspended yourself is not
+// holding you up, and a lamp that is lit all day is a lamp nobody reads;
+// the watch has the chip.
 //
 // The row stands on the raised ground — the one a chosen row sits on
-// everywhere else in conn — and keeps it whether or not there is a mode
-// to show. A bar the color of the window reads as the last line of
-// whatever pane is over it, and a bar that comes and goes is not
-// somewhere to look.
+// everywhere else in conn — and keeps it whether or not anything is lit.
+// A bar the color of the window reads as the last line of whatever pane
+// is over it, and a bar that comes and goes is not somewhere to look.
 //
-// The mode begins at the edge. Everything conn draws is inset three
-// columns, but that is a margin for reading down a page of text, and a
-// block of color is not read: it is seen, and a block that starts where
-// the screen starts is seen first. The word keeps its own space inside
-// the block, so it is the color against the edge and not the letters.
-//
-// Nothing here is conn's to write. The whole bar is a format tmux reads
-// for itself, so conn sets no option and runs no process for it.
+// conn writes the two things only it knows, the question and the lamps,
+// each in an option of its own, and each only when it changes: the
+// question on a keypress, the lamps when a reading finds a process
+// standing differently from the last. Never on a beat.
 func bar() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
 set -g status-position bottom
 set -g status-justify left
 set -g status-left-length 200
-set -g status-right-length 0
-set -g status-right ""
-# Nothing on the bar is conn's, so nothing has to be re-read on a beat.
+set -g status-right-length 200
+# Nothing on the bar is read on a beat: the lamps and the question are
+# set when they change, and the terminal does the blinking.
 set -g status-interval 0
 # conn has no tabs, so the middle of the line is nothing.
 set -g window-status-format ""
@@ -695,47 +685,68 @@ set -g window-status-current-format ""
 `)
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
 	// Where the keys are, which is tmux's to know: the rail is the first
-	// pane of the home window and everything else is work.
+	// pane of the home window and everything else is work. A question is
+	// armed on the rail and answered there, so it shows only while the
+	// keys are on the rail to answer it.
 	onRail := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
-	fmt.Fprintf(&b, "set -g status-left \"%s#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_rail},#{@conn_slot}}}}\"\n",
-		barName(), barMode("PREFIX"), barMode("COPY"), onRail)
+	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_ask},}}}\"\n",
+		barBlock("PREFIX", cursorHex), barBlock("COPY", scheme[12]), onRail)
+	fmt.Fprintf(&b, "set -g status-right \"#{@conn_lamps}\"\n")
 	return b.String()
 }
 
-// barName is conn's name as the bar wears it: the ground knocked out of
-// the orange, which is the chip conn stamps everywhere else. The ground
-// and not a fixed white, so it inverts with everything else — the
-// orange on paper is a dark brick, and black would go out on it.
+// barBlock is a mode as the bar wears it: the ground knocked out of a
+// block of its color, flush to the edge, the word keeping its own space
+// inside. The ground and not a fixed white, so it inverts with
+// everything else — the orange on paper is a dark brick, and black would
+// go out on it.
 //
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
 // would read the style as the branches of the question.
-func barName() string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold] CONN ", cursorHex, hex(groundColor))
+func barBlock(word, color string) string {
+	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", color, hex(groundColor), word)
 }
 
-// barMode is a mode as the bar wears it: a word on the bar's own ground
-// and not a block of its own, two spaces off the badge.
-func barMode(word string) string {
-	return barWord(word, scheme[7])
-}
-
-// barAsk is the one mode that is not a state you are in but a question
-// waiting on you: the same word, come up into the orange.
+// barAsk is the question armed, as the bar wears it: a block in the owed
+// color, the same one the lamps say a thing waiting on you in.
 func barAsk(word string) string {
-	return barWord(word, cursorHex)
+	return barBlock(word, scheme[1])
 }
 
-func barWord(word, color string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold]  %s", borderHex, color, word)
+// The lamp, one cell. A filled circle rather than a square: the squares
+// are what the pane borders are made of, and a lamp is not a border.
+const lamp = "●"
+
+// barLamps is the right-hand side of the bar: one lamp for each row of
+// the watch, in the watch's order, each in the color of how its process
+// stands, and a space between them so they count. Nothing at all with
+// no rows, so a watch with nothing on it leaves the panel dark.
+func barLamps(places []place) string {
+	var b strings.Builder
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			var color, weight string
+			switch e.status {
+			case statusWaiting:
+				color, weight = scheme[1], " bold blink"
+			case statusWorking:
+				color, weight = grayHex, " nobold noblink"
+			default:
+				color, weight = faintHex, " nobold noblink"
+			}
+			fmt.Fprintf(&b, "#[fg=%s%s]%s ", color, weight, lamp)
+		}
+	}
+	return b.String()
 }
 
-// say puts conn's two modes on the server — what its own keys are doing
-// on the rail, and whose they are in the slot — and asks the clients to
-// draw, so the bar never lags the key that changed it.
-func (s *server) say(rail, slot string) error {
-	_, err := s.run("set-option", "-g", "@conn_rail", rail,
-		";", "set-option", "-g", "@conn_slot", slot,
+// say puts conn's two lamps on the server — the question it has armed,
+// if any, and how every process on the watch stands — and asks the
+// clients to draw, so the bar never lags what changed it.
+func (s *server) say(ask, lamps string) error {
+	_, err := s.run("set-option", "-g", "@conn_ask", ask,
+		";", "set-option", "-g", "@conn_lamps", lamps,
 		";", "refresh-client", "-S")
 	return err
 }

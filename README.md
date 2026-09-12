@@ -34,6 +34,19 @@ its own rather than a chip. Only an agent says it, being the only thing that
 knows; an agent conn cannot ask — another maker's, or one too old to say —
 reads as alive like anything else.
 
+A row is also written by what conn can do with it, in three tiers. What is in
+the slot — the pane you are looking at right now — is in the orange, the
+whole row of it, since what the slot holds is a pane and not one process of
+it: a shell there and everything running under it are all what you are
+attached to. What conn holds a pane for is in the ink: not in the slot, but a
+row `enter` can put there. What conn can only report — a terminal it did not
+open, and cannot attach to — is a rank down, again the whole row, since the
+other columns are the quiet gray already and dimming one of six says nothing.
+The row under the cursor gives a rank of the dimming back rather than the
+reading, faint on the cursor's raised ground being barely there at all.
+Outside its server conn holds nothing and dims nothing, the distinction there
+being every row.
+
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its
 home window is a rail on the left, which is the watch, and a slot on the

@@ -201,7 +201,10 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	rows := drawWatch(w, 67040, 120, 40, colored())
 	text := texts(rows)
 	p := colored()
-	if !strings.Contains(text, p.faint+"TTYS005") || !strings.Contains(text, p.gray+"TTYS007") {
+	// ttys005 is in no pane the server holds here, and is the cursor's
+	// row besides, so it reads at gray rather than faint; the slot's
+	// ttys007 is in the orange with the rest of its row.
+	if !strings.Contains(text, p.gray+"TTYS005") || !strings.Contains(text, p.orange+"TTYS007") {
 		t.Errorf("the terminals are not colored by reach:\n%s", text)
 	}
 	if !strings.Contains(text, p.orange+p.bold+"AGENT") || !strings.Contains(text, p.orange+p.bold+"ACTIVE") {
@@ -333,31 +336,47 @@ func TestTheCursorIsAGround(t *testing.T) {
 	}
 }
 
-// What conn holds is written in the ink and what it can only report is
-// dimmed a rank, so the rows it can act on read as its own. Outside the
-// server conn holds nothing, and dims nothing: the distinction would be
-// every row.
-func TestWhatConnHoldsIsInTheInk(t *testing.T) {
+// Three tiers, by what conn can do with a row: what is in the slot is
+// the orange, what conn holds a pane for is the ink, and what it can
+// only report is a rank down — the whole row of it, not the command
+// alone. Outside the server conn holds nothing, and dims nothing: the
+// distinction would be every row.
+func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored()
 	held := composeWatch(watch(testProcs, 501, testRoots, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
 		"/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	held.inside = true
-	text := texts(drawWatch(held, 67040, 120, 40, p))
-	// conn's own, which is the cursor's row and so bold as well, and the
-	// agent in a pane of the server: both in the ink.
-	if !strings.Contains(text, p.ink+p.bold+"zsh") {
+	// The cursor is on the slot's shell, away from the rows under test,
+	// so none of them is giving up a rank of dimming to be read.
+	text := texts(drawWatch(held, 70001, 120, 40, p))
+
+	// In the slot: the whole row in the orange, terminal and age with
+	// the rest of it, since what is in the slot is a pane and not one
+	// process of it.
+	for _, in := range []string{p.orange + "claude --resume", p.orange + "TTYS007", p.orange + p.bold + "AGENT"} {
+		if !strings.Contains(text, in) {
+			t.Errorf("the slot's row is not in the orange: %q missing\n%s", in, text)
+		}
+	}
+	// In a pane conn holds, but not the slot: the ink.
+	if !strings.Contains(text, p.ink+"zsh") {
 		t.Errorf("the shell conn holds is not in the ink:\n%s", text)
 	}
-	if !strings.Contains(text, p.ink+"claude --resume") {
-		t.Errorf("the agent conn holds is not in the ink:\n%s", text)
-	}
-	// The editor is in nobody's pane: a rank down.
-	if !strings.Contains(text, p.gray+"vim notes.md") {
-		t.Errorf("what conn cannot reach is not dimmed:\n%s", text)
+	// In nobody's pane: a rank down, and every column of it.
+	for _, in := range []string{p.faint + "vim notes.md", p.faint + "TTYS009", p.faint + "1D 01H"} {
+		if !strings.Contains(text, in) {
+			t.Errorf("what conn cannot reach is not dimmed: %q missing\n%s", in, text)
+		}
 	}
 	if strings.Contains(text, p.ink+"vim notes.md") {
 		t.Error("what conn cannot reach is written in the ink")
+	}
+	// The row under the cursor gives a rank of the dimming back rather
+	// than the reading: faint on the raised ground is barely there.
+	onIt := texts(drawWatch(held, 80002, 120, 40, p))
+	if !strings.Contains(onIt, p.gray+p.bold+"vim notes.md") {
+		t.Errorf("the dimmed row under the cursor is not read back up:\n%s", onIt)
 	}
 	// Outside the server, every command is the ink: conn can reach none
 	// of them, so dimming would say nothing.

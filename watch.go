@@ -151,19 +151,33 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()
-			command, kind, word := p.ink, p.gray, p.gray
-			if r.shown {
+			cursored := r.pid == cursor
+			// Three tiers, by what conn can do with the row. The one in
+			// the slot is the orange — it is what you are looking at, and
+			// the orange is "you, here" everywhere else in conn. What conn
+			// holds a pane for is the ink: it can be reached, put in the
+			// slot and come back to. What conn can only report is a rank
+			// down, the whole row and not the command alone, since the
+			// rest of the columns are the quiet gray already and dimming
+			// one of six says nothing. Outside its server conn holds
+			// nothing, so nothing is dimmed: the distinction would be
+			// every row.
+			kind, command, ttyColor, ageColor, word := p.gray, p.ink, p.gray, p.gray, p.gray
+			switch {
+			case r.shown:
 				kind, word = p.orange+p.bold, p.orange+p.bold
+				command, ttyColor, ageColor = p.orange, p.orange, p.orange
+			case b.inside && r.reach == "":
+				dim := p.faint
+				if cursored {
+					// Faint on the raised ground is barely there. The row
+					// under the cursor is the one being read, so it gives
+					// up a rank of the dimming rather than the reading.
+					dim = p.gray
+				}
+				kind, command, ttyColor, ageColor, word = dim, dim, dim, dim, dim
 			}
-			// What conn holds is written in the ink: its process is in a
-			// pane of the server, so it can be reached, put in the slot and
-			// come back to. What conn can only report is dimmed a rank. In
-			// a conn outside its server nothing can be reached, so nothing
-			// is dimmed for it.
-			if b.inside && r.reach == "" {
-				command = p.gray
-			}
-			if r.pid == cursor {
+			if cursored {
 				// The row under the cursor is the one on the raised ground,
 				// edge to edge; where there is no color to raise it, it takes
 				// a mark in the margin instead.
@@ -184,16 +198,10 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			l.add(command, fit(r.command, commandW-indent, false))
 			if !rail {
 				l.to(ttyCol)
-				// A terminal the server holds is in gray; one it does not,
-				// and so cannot be reached, is faint.
-				ttyColor := p.gray
-				if b.inside && r.reach == "" {
-					ttyColor = p.faint
-				}
 				l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
 			}
 			l.to(ageCol)
-			l.add(p.gray, r.age)
+			l.add(ageColor, r.age)
 			switch {
 			case r.fault:
 				l.to(measure - utf8.RuneCountInString(r.status) - 2)

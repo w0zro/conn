@@ -326,6 +326,11 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	if fault {
 		t.Error("an agent waiting on you is a fault")
 	}
+	// An agent stopped with its turn over holds nothing up, and reads
+	// the way anything else at rest does rather than asking for you.
+	if s, _ := statusOf(agent, kindAgent, false, standing{idle: true}); s != statusIdle {
+		t.Errorf("an agent with its turn over is %s, not idle", s)
+	}
 	if s, _ := statusOf(agent, kindAgent, false, standing{working: true, waiting: true}); s != statusWaiting {
 		t.Errorf("an agent that says both is %s, not waiting", s)
 	}

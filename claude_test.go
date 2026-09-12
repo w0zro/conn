@@ -108,23 +108,29 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 			started: watchNow.Add(-time.Hour), cwd: "/w"}
 	}
 	say(10, "busy")    // mid-turn
-	say(11, "idle")    // a turn it finished
-	say(12, "waiting") // stopped on something it wants from you
+	say(11, "idle")    // a turn it finished, asking nothing
+	say(12, "waiting") // stopped on something it put to you
 	say(13, "busy")    // a file its process did not outlive
 	say(14, "busy")    // a pid the table has, but not as an agent
 	say(15, "")        // a file saying nothing of the sort
-	procs := []process{agent(10), agent(11), agent(12), agent(15), agent(16),
+	say(17, "sulking") // a word conn has never heard; nothing is held up
+	procs := []process{agent(10), agent(11), agent(12), agent(15), agent(16), agent(17),
 		{pid: 14, uid: 501, tty: "ttys001", state: 'S', command: "node", args: []string{"node"},
 			started: watchNow.Add(-time.Hour), cwd: "/w"},
 	}
 
 	how := agentStandings(procs)
-	if !how[10].working || how[10].waiting {
+	if (how[10] != standing{working: true}) {
 		t.Errorf("a busy agent stands %+v", how[10])
 	}
-	for _, pid := range []int{11, 12} {
-		if !how[pid].waiting || how[pid].working {
-			t.Errorf("pid %d, having stopped, stands %+v", pid, how[pid])
+	// Stopped on an ask is not the same as stopped with nothing
+	// pending, and only the first is waiting.
+	if (how[12] != standing{waiting: true}) {
+		t.Errorf("an agent stopped on an ask stands %+v", how[12])
+	}
+	for _, pid := range []int{11, 17} {
+		if (how[pid] != standing{idle: true}) {
+			t.Errorf("pid %d, its turn over, stands %+v", pid, how[pid])
 		}
 	}
 	for _, pid := range []int{13, 14, 15, 16} {
@@ -140,8 +146,16 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 			got[e.pid] = e.status
 		}
 	}
-	if got[10] != statusWorking || got[11] != statusWaiting || got[12] != statusWaiting || got[16] != statusActive {
-		t.Errorf("the watch writes %v", got)
+	for pid, want := range map[int]string{
+		10: statusWorking, // mid-turn
+		12: statusWaiting, // stopped on an ask
+		11: statusIdle,    // turn over
+		17: statusIdle,    // a word conn does not know, holding nothing up
+		16: statusActive,  // an agent with nothing to say of itself
+	} {
+		if got[pid] != want {
+			t.Errorf("the watch writes %s for pid %d, want %s", got[pid], pid, want)
+		}
 	}
 }
 

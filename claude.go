@@ -71,9 +71,17 @@ func isSessionID(id string) bool {
 // claudeSuspended vetted are ever handed here.
 func resumeCommand(id string) string { return agentCommand + " --resume " + id }
 
-// busyStatus is what Claude Code calls an instance that is working.
-// Anything else it says of itself is an instance waiting on its user.
-const busyStatus = "busy"
+// What Claude Code calls itself, in the file it keeps per instance.
+// Busy is mid-turn. Waiting is stopped on something put to its user
+// and unable to go on without it, and comes with a waitingFor naming
+// the ask. Anything else - idle is the word it uses - is an instance
+// whose turn is over, asking nothing and holding nothing up. The three
+// were watched being written, across a turn and a prompt, rather than
+// guessed at.
+const (
+	busyStatus    = "busy"
+	waitingStatus = "waiting"
+)
 
 // sessionFile is the part conn reads of what Claude Code writes for
 // each instance it is running, at sessions/<pid>.json: which
@@ -121,15 +129,16 @@ func claudeSessions() map[int]sessionFile {
 // to be using says little, a model answering being barely any and
 // waiting on you none at all.
 //
-// An agent that has stopped working has stopped for a reason, and the
-// reason is you: there is nothing else it is waiting for. So anything
-// its file says other than busy is waiting, whatever the word it uses —
-// a turn it finished, a permission it wants, a question it asked.
+// An agent that has stopped has not necessarily stopped on anything:
+// a turn that is simply over asks nothing and holds nothing up, while
+// a permission or a question is a thing sitting there unanswered. Only
+// the second is worth a word that carries, so the two are kept apart
+// here rather than both being called waiting.
 //
 // A file can outlive the process that wrote it, so a pid counts only
 // where the table still has it standing as an agent; an agent with no
 // file to read - another maker's, or one too old to write one - says
-// neither, and reads as alive like anything else.
+// nothing of itself, and reads as alive like anything else.
 func agentStandings(procs []process) map[int]standing {
 	kind := map[int]string{}
 	for _, p := range procs {
@@ -140,7 +149,14 @@ func agentStandings(procs []process) map[int]standing {
 		if kind[pid] != kindAgent || s.Status == "" {
 			continue
 		}
-		how[pid] = standing{working: s.Status == busyStatus, waiting: s.Status != busyStatus}
+		switch s.Status {
+		case busyStatus:
+			how[pid] = standing{working: true}
+		case waitingStatus:
+			how[pid] = standing{waiting: true}
+		default:
+			how[pid] = standing{idle: true}
+		}
 	}
 	return how
 }

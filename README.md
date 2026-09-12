@@ -25,14 +25,19 @@ is not claimed up the tree: a shell whose child is working is active, and the
 row doing the work is the one that says so.
 
 `WAITING` is the other end of that question, and the one word on the watch
-that asks something of you: an agent that has stopped working stopped for a
-reason, and the reason is you — a turn it finished, a permission it wants, a
-question it asked. Nothing else is ever called waiting here: a shell at its
-prompt is idle, and a server waiting on a socket is waiting on the socket, so
-the word is only ever about a person. It is no fault, so it takes a color of
-its own rather than a chip. Only an agent says it, being the only thing that
-knows; an agent conn cannot ask — another maker's, or one too old to say —
-reads as alive like anything else.
+that asks something of you: an agent stopped on something it put to you and
+cannot go on without — a permission, a question, a dialog sitting there
+unanswered. An agent whose turn is simply over is `IDLE` instead, the same
+word a shell at its prompt gets and for the same reason: at rest, nothing
+pending, yours when you want it. The difference is whether anything is held
+up, and only the thing that is held up is worth a word that carries.
+
+Nothing but an agent is ever called waiting here — a server waiting on a
+socket is waiting on the socket — so the word is only ever about a person. It
+is no fault, so it takes a color of its own rather than a chip. Only an agent
+says any of this, being the only thing that knows its own mind; an agent conn
+cannot ask — another maker's, or one too old to say — reads as alive like
+anything else.
 
 A row is also written by what conn can do with it, and in two ways, since
 they are not the same kind of saying. What conn can only report — a terminal

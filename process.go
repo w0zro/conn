@@ -78,21 +78,22 @@ func kindOf(p process) string {
 // for a process that did something between one reading and the next.
 const (
 	statusWorking = "WORKING" // doing something, right now
-	statusWaiting = "WAITING" // an agent stopped, and waiting on you
+	statusWaiting = "WAITING" // an agent stopped on an ask it put to you
 	statusActive  = "ACTIVE"  // alive, and not doing anything
-	statusIdle    = "IDLE"    // a shell at its prompt
+	statusIdle    = "IDLE"    // a shell at its prompt, or an agent at rest
 	statusStopped = "STOPPED" // suspended
 	statusEnded   = "ENDED"   // finished, and not yet collected
 )
 
 // standing is what conn learned about a process past what the table
-// says of it: whether it is doing work, and whether it is waiting on
-// you. An agent answers both of itself, being the only thing here that
-// knows; anything else answers the first only, and by the processor
-// time it spent rather than by being asked.
+// says of it. Anything can be working, read off the processor time it
+// spent. Only an agent says more, being the only thing here that knows
+// its own mind: mid-turn, stopped on an ask it put to you, or stopped
+// with its turn over and nothing pending.
 type standing struct {
 	working bool
-	waiting bool
+	waiting bool // stopped on something it asked of you
+	idle    bool // stopped with its turn over, asking nothing
 }
 
 // An entry is a row of the watch: one process, standing for its own
@@ -328,12 +329,18 @@ func cpuOf(procs []process) map[int]time.Duration {
 // active, and the row doing the work is the one that says so.
 //
 // Waiting is the other end of the same question, and the only word
-// here that asks something of you: an agent that has stopped working
-// has stopped for a reason, and the reason is you. Nothing else on the
-// watch is ever called waiting - a shell at a prompt is idle, and a
-// server waiting on a socket is waiting on the socket - so the word is
-// only ever about a person. It is no fault, nothing having gone wrong,
-// so it is a word of its own rather than a chip.
+// here that asks something of you: an agent stopped on something it
+// put to you and cannot go on without — a permission, a question, a
+// dialog waiting to be answered. It is narrower than merely stopped.
+// An agent whose turn is simply over is idle, the same word a shell at
+// its prompt gets and for the same reason: at rest, nothing pending,
+// yours when you want it. The difference is whether anything is held
+// up, and only the one that is held up is worth a word that carries.
+//
+// Nothing but an agent is ever called waiting here - a server waiting
+// on a socket is waiting on the socket - so the word is only ever
+// about a person. It is no fault, nothing having gone wrong, so it is
+// a word of its own rather than a chip.
 func statusOf(p process, kind string, hasChildren bool, how standing) (string, bool) {
 	switch {
 	case p.state == 'T':
@@ -344,6 +351,8 @@ func statusOf(p process, kind string, hasChildren bool, how standing) (string, b
 		return statusWaiting, false
 	case how.working:
 		return statusWorking, false
+	case how.idle:
+		return statusIdle, false
 	case kind == kindShell && !hasChildren:
 		return statusIdle, false
 	default:

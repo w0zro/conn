@@ -430,43 +430,6 @@ func (m model) ask() string {
 	return ""
 }
 
-// askMsg is what a waiting agent wants, read for the row tab landed on.
-type askMsg struct {
-	pid  int
-	text string
-}
-
-// askOf reads what an agent is waiting on, off the loop: its session
-// file names the conversation and where it was had, and the transcript
-// there has the ask itself.
-func askOf(e entry) tea.Cmd {
-	pid, cwd := e.pid, e.cwd
-	return func() tea.Msg {
-		f := claudeSessions()[pid]
-		if f.SessionID == "" {
-			return askMsg{pid: pid}
-		}
-		if f.Cwd != "" {
-			cwd = f.Cwd
-		}
-		return askMsg{pid: pid, text: askNote(readAsk(convoPath(cwd, f.SessionID)))}
-	}
-}
-
-// askNote is an ask as the bottom row says it: what was asked for,
-// without the tool's name, since on a rail the thing itself is what the
-// columns have room for and the look has the rest.
-func askNote(a ask) string {
-	switch {
-	case a.Detail != "":
-		return a.Detail
-	case a.Tool != "":
-		return a.Tool
-	default:
-		return a.Said
-	}
-}
-
 // published tells the cursor where it is, when it has moved since the
 // last telling or when a reading is saying it again. The look follows
 // it; nothing else reads it.
@@ -633,13 +596,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// no-op once the stay it belongs to has moved on.
 		gen := m.watchGen
 		return m, tea.Tick(killGrace, func(time.Time) tea.Msg { return watchTickMsg{gen: gen} })
-	case askMsg:
-		// Said only while the cursor is still on the row it was read
-		// for; a reading that lands after the cursor moved on is about
-		// nothing the operator is looking at.
-		if m.view == viewWatch && m.cursor == msg.pid && msg.text != "" {
-			m.note = msg.text
-		}
 	case noteMsg:
 		m.note = msg.note
 	case tea.KeyPressMsg:
@@ -832,10 +788,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.cursor, m.cursorAt = follow(m.places, next.pid, m.cursorAt)
-		// What it wants, in its own words, on the bottom row until the
-		// next key: read off its transcript, which is a file and not a
-		// beat, once, for the one row tab landed on.
-		return m, askOf(next)
 	case k == "p":
 		return m.toProjects()
 	}

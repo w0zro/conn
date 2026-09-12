@@ -30,6 +30,7 @@ type gitStanding struct {
 	ahead    int
 	behind   int
 	upstream string
+	read     time.Time // when git was asked, for the look to know when to ask again
 }
 
 // gitWait is how long any one git reading is given. The look redraws on

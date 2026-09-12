@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -21,11 +23,26 @@ func readProcesses(uid int) ([]process, error) {
 	if err != nil {
 		return nil, err
 	}
-	dirs := parseLsof(listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-d", "cwd", "-F", "pcn"))
+	// A listing that did not come back is a reading that failed, and is
+	// said so rather than read as a table in which nothing has a
+	// directory: every place would be NO PLACE and the watch would be
+	// wholly wrong while looking wholly true.
+	out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-d", "cwd", "-F", "pcn")
+	if err != nil {
+		return nil, fmt.Errorf("lsof: %w", err)
+	}
+	dirs := parseLsof(out)
+	if len(dirs) == 0 {
+		return nil, errors.New("lsof answered for no process")
+	}
 	// The processor time each has used. kinfo_proc carries no such
 	// thing conn can rely on, so ps is asked, the way lsof is asked for
 	// the working directories.
-	cpu := parsePsTimes(listing("ps", "-axo", "pid=,time="))
+	out, err = listing("ps", "-axo", "pid=,time=")
+	if err != nil {
+		return nil, fmt.Errorf("ps: %w", err)
+	}
+	cpu := parsePsTimes(out)
 	ttys := ttyNames()
 	procs := make([]process, 0, len(kinfo))
 	for _, k := range kinfo {
@@ -106,16 +123,24 @@ const listingTimeout = 5 * time.Second
 
 // listing is what a program prints when asked for a list, kept even when
 // it exits in complaint: lsof exits nonzero when any one process denies
-// it, which says nothing of the ones that answered. WaitDelay is for the
-// process the timeout's kill does not take on.
-func listing(name string, args ...string) string {
+// it, which says nothing of the ones that answered. What is an error is
+// a program that is not there, or one that did not answer in time.
+// WaitDelay is for the process the timeout's kill does not take on.
+func listing(name string, args ...string) (string, error) {
+	return listingWithin(listingTimeout, name, args...)
+}
+
+func listingWithin(timeout time.Duration, name string, args ...string) (string, error) {
 	if _, err := exec.LookPath(name); err != nil {
-		return ""
+		return "", err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), listingTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.WaitDelay = 2 * time.Second
 	out, _ := cmd.Output()
-	return string(out)
+	if ctx.Err() != nil {
+		return "", fmt.Errorf("gave no answer in %s", timeout)
+	}
+	return string(out), nil
 }

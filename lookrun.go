@@ -36,9 +36,15 @@ import (
 // It has to be: nothing else stands between a key on the rail and the
 // page changing, so the poll is the whole of the wait, and a wait long
 // enough to see is a page that trails the cursor down the list.
+//
+// gitEvery is how often git is asked about a place the page is already
+// showing. Git is four processes a reading and the branch does not move
+// on a beat; the table is read every beat because a hand's standing
+// does, and that is one process.
 const (
 	lookBeat = 2 * time.Second
 	lookPoll = 50 * time.Millisecond
+	gitEvery = 30 * time.Second
 )
 
 type lookModel struct {
@@ -51,6 +57,7 @@ type lookModel struct {
 	report        lookReport
 	table         lookTable // what the page was last composed out of
 	read          time.Time // when the subject was last read in full
+	inflight      bool      // a reading is out and has not landed
 }
 
 // lookReadMsg carries a reading, and the pid it was of: several can be
@@ -89,6 +96,13 @@ func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.table = msg.table
 		if msg.pid == m.pid {
 			m.report = msg.report
+			m.inflight = false
+		}
+		// A page pinned to a pid that has gone has nothing left to read:
+		// the row will not come back, and a reading every beat forever
+		// to say so is a process every beat for nothing.
+		if !m.follow && m.report.gone {
+			return m, nil
 		}
 	case lookTickMsg:
 		// Where the cursor is, then whether that is news. A subject that
@@ -110,7 +124,10 @@ func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m.reading()
 			}
 		}
-		if time.Since(m.read) >= lookBeat {
+		// One reading at a time on the beat: git under its wait can take
+		// longer than a beat, and a second reading behind it would only
+		// queue a third.
+		if time.Since(m.read) >= lookBeat && !m.inflight {
 			return m.reading()
 		}
 		return m, m.tick()
@@ -137,7 +154,7 @@ func (m lookModel) tick() tea.Cmd {
 // The table the page holds goes with it, so what conn has already asked
 // of a place or a conversation is not asked again from nothing.
 func (m lookModel) reading() (lookModel, tea.Cmd) {
-	m.read = time.Now()
+	m.read, m.inflight = time.Now(), true
 	pid, srv, held := m.pid, m.srv, m.table
 	return m, tea.Batch(
 		func() tea.Msg {
@@ -245,7 +262,13 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 			t.convo[pid] = c
 		}
 	}
-	t.git[s.place.path] = readGit(s.place.path)
+	// What git says of the place, asked again only after its own while:
+	// a page left open on one row is the same place every beat.
+	if g, ok := t.git[s.place.path]; !ok || time.Since(g.read) >= gitEvery {
+		g = readGit(s.place.path)
+		g.read = time.Now()
+		t.git[s.place.path] = g
+	}
 	return t
 }
 

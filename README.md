@@ -246,7 +246,9 @@ So the row the cursor landed on is answered out of that at once, as true
 as the rail's own list beside it, and the reading on its way says it
 again newer. What git said of a place and which conversation a row was
 carrying are kept along with it, since a list walked down and back up is
-the same few places over and over and git is a process each time. A
+the same few places over and over and git is a process each time; a page
+left open on one row asks git again only after half a minute, and reads
+what a waiting agent wants again only when its standing changes. A
 reading that lands after the cursor has moved on is dropped rather than
 shown, so the page never flicks back to a row nobody is looking at; the
 table it came with is kept, being a reading of the machine and not of the

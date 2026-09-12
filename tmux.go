@@ -643,9 +643,9 @@ set -g remain-on-exit on
 // the edge: a block is not read but seen, and one that starts where the
 // screen starts is seen first. The chord takes the orange, which is
 // "you, here" everywhere in conn; copy mode the blue, being a state of
-// the pane rather than a thing you are doing; the question the owed
-// color, which is what the right-hand side says a thing waiting on you
-// in, so the two halves of the row speak one language.
+// the pane rather than a thing you are doing; the question the waiting
+// color, which is what the right-hand side says a hand waiting in, so
+// the two halves of the row speak one language.
 //
 // On the right, the processes: one lamp for each row of the watch, in
 // the watch's order, so a lamp's place on the row is a row's place on
@@ -654,7 +654,7 @@ set -g remain-on-exit on
 // and this is that strip. A lamp is a rank of gray while its process
 // is working, the faintest ink while it is idle or merely active — it
 // keeps its place, since a lamp that vanished would shift the ones
-// beside it — and the owed color, bold and blinking, while an agent is
+// beside it — and the waiting color, bold and blinking, while an agent is
 // stopped on something it asked of you. The terminal does the blinking,
 // so nothing here redraws on a beat; a terminal that will not blink
 // shows it steady, which is the same lamp less insistent.
@@ -711,8 +711,8 @@ func barBlock(word, color string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", color, hex(groundColor), word)
 }
 
-// barAsk is the question armed, as the bar wears it: a block in the owed
-// color, the same one the lamps say a thing waiting on you in.
+// barAsk is the question armed, as the bar wears it: a block in the waiting
+// color, the same one the lamps say a hand waiting in.
 func barAsk(word string) string {
 	return barBlock(word, scheme[1])
 }

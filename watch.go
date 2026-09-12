@@ -277,7 +277,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 				// worse than one that never blinked.
 				if b.lit {
 					l.to(measure - utf8.RuneCountInString(r.status))
-					l.add(p.owed+p.bold, r.status)
+					l.add(p.waiting+p.bold, r.status)
 				}
 			default:
 				l.to(measure - utf8.RuneCountInString(r.status))
@@ -324,7 +324,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			c.blank(0)
 		} else {
 			l := c.line()
-			l.add(p.owed, fit(b.note, measure, false))
+			l.add(p.waiting, fit(b.note, measure, false))
 			c.emit(l, 0, true)
 		}
 	}

@@ -242,7 +242,7 @@ func TestConnLightsTheBar(t *testing.T) {
 		}
 	}
 	// A question armed takes the next key whatever it is, and wears the
-	// owed color, which is the one thing waiting on you is said in.
+	// waiting color, which is the one thing waiting on you is said in.
 	m.view = viewWatch
 	// The question itself stands beside the block, on the bar's own
 	// ground, with tmux's own character doubled so it is shown.
@@ -255,7 +255,7 @@ func TestConnLightsTheBar(t *testing.T) {
 
 	// One lamp per row, in order: a shell at its prompt the faintest
 	// ink, an agent working a rank of gray, an agent waiting in the
-	// owed color and blinking, and a fault no different from rest.
+	// waiting color and blinking, and a fault no different from rest.
 	m.places = []place{
 		{path: "/w", entries: []entry{
 			{pid: 11, kind: kindShell, status: statusIdle},

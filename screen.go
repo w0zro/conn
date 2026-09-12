@@ -20,10 +20,10 @@ import (
 // The palette is the handoff's tokens. The plain palette has no
 // sequences at all: the console is text, for a pipe and for the tests.
 type palette struct {
-	ground, border, ink, gray, faint, orange, owed, parchment, bold, chip string
-	selection                                                             string // the ground a chosen row sits on
-	normal, end                                                           string // ink on the ground again; the row's end
-	plain                                                                 bool
+	ground, border, ink, gray, faint, orange, waiting, parchment, bold, chip string
+	selection                                                                string // the ground a chosen row sits on
+	normal, end                                                              string // ink on the ground again; the row's end
+	plain                                                                    bool
 }
 
 var plain = palette{plain: true}
@@ -48,7 +48,7 @@ func colored() palette {
 		gray:      ansiHex(38, grayHex),
 		faint:     ansiHex(38, faintHex),
 		orange:    ansiHex(38, cursorHex),
-		owed:      ansiHex(38, scheme[1]),
+		waiting:   ansiHex(38, scheme[1]),
 		parchment: ansiHex(38, scheme[7]),
 		bold:      "\x1b[1m",
 		chip:      ansiHex(48, cursorHex) + ansiHex(38, hex(groundColor)) + "\x1b[1m",
@@ -223,11 +223,11 @@ func body(r report, width int, own check, p palette) []row {
 		} else {
 			// UNCHECKED is not a pass the way NOMINAL is — there was
 			// nothing to check against — so it is said in the color
-			// something owed already is: not a fault, but worth a
+			// something waiting already is: not a fault, but worth a
 			// second look, which gray would let slide past.
 			word := p.gray
 			if k.status == unchecked {
-				word = p.owed
+				word = p.waiting
 			}
 			l.to(measure - utf8.RuneCountInString(k.status))
 			l.add(word, strings.ToUpper(k.status))

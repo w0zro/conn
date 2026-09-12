@@ -163,7 +163,7 @@ func drawResume(b resumeReport, cursor, width, height int, p palette) []row {
 			c.blank(0)
 		} else {
 			l := c.line()
-			l.add(p.owed, fit(b.note, measure, false))
+			l.add(p.waiting, fit(b.note, measure, false))
 			c.emit(l, 0, true)
 		}
 	}

@@ -347,7 +347,7 @@ language.
 watch, in the watch's order, so a lamp's place on the row is a row's
 place on the list. A lamp is a rank of gray while its hand is working,
 the faintest ink while it is idle or merely active, keeping its place so
-the lamps beside it do not shift, and the owed color, bold and blinking,
+the lamps beside it do not shift, and the waiting color, bold and blinking,
 while an agent is stopped on something it asked of you. The terminal does
 the blinking, so nothing here redraws on a beat; a terminal that will not
 blink shows it steady, which is the same lamp less insistent. Faults stay

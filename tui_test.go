@@ -344,10 +344,13 @@ func TestAOpensAnAgentAtThePlace(t *testing.T) {
 
 	m.places = nil
 	m.note = ""
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
 	m = next.(model)
-	if cmd != nil || m.note == "" {
-		t.Errorf("off any place: cmd %v, note %q", cmd != nil, m.note)
+	// Nothing is opened and nothing is waited for; the note is the whole
+	// of the answer, and the only command it is worth is the one that
+	// puts it on the bar.
+	if m.note == "" || m.awaited != 0 {
+		t.Errorf("off any place: note %q, awaited %d", m.note, m.awaited)
 	}
 }
 

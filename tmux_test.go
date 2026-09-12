@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -62,12 +63,20 @@ func TestPanesAreParsed(t *testing.T) {
 // binds two chords under it — - to the watch, q to detach; it carries
 // the look; a path with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
-	conf := tmuxConf("C-Space")
+	conf := tmuxConf("C-Space", "W0ZRO@STATION")
 	for _, s := range []string{
 		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
 		"bind p select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-p",
 		"bind q detach-client",
-		"set -g status off", "set -g mouse on", "unbind -n MouseDrag1Border",
+		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
+		`set -g status-style "bg=#2A2620,fg=#8B8272"`,
+		// The bar's clock is tmux's own job, with the percents doubled so
+		// they survive the strftime tmux runs over the line first.
+		`#(date -u +'%%H:%%M:%%S Z')`, "W0ZRO@STATION  ·  ",
+		// The chip: what only tmux can know, then what conn says of
+		// itself, then where the keys are.
+		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_mode}", "#{@conn_note}",
+		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
 		`set -g pane-border-style "fg=#2A2620,bg=#15130F"`,
@@ -79,7 +88,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 3 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+	if strings.Count(conf, "\nbind ") != 3 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a", "W0ZRO@STATION"), "C-Space") {
 		t.Errorf("configuration binds more than the three chords, or ignores the prefix given:\n%s", conf)
 	}
 	t.Setenv("CONN_PREFIX", "")
@@ -116,7 +125,7 @@ func TestTheTerminalIsAskedForTheGround(t *testing.T) {
 	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\" {
 		t.Errorf("colors given back: %q", oscOwnColors)
 	}
-	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf("C-Space"), want) {
+	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf("C-Space", "W0ZRO@STATION"), want) {
 		t.Errorf("the panes are not drawn in %s", want)
 	}
 }
@@ -146,7 +155,7 @@ func TestDownSaysWhatItEnded(t *testing.T) {
 // leans on — structure, what can be run, type — apart from each other,
 // in both the normal colors and the bright.
 func TestTheSixteenAreSixteen(t *testing.T) {
-	conf := tmuxConf(defaultPrefix)
+	conf := tmuxConf(defaultPrefix, barStation())
 	for i, c := range scheme {
 		if want := fmt.Sprintf("set -g pane-colours[%d] %q", i, c); !strings.Contains(conf, want) {
 			t.Errorf("configuration lacks %q", want)
@@ -164,5 +173,48 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 			t.Errorf("slot %d is slot %d again: %s", i, was, c)
 		}
 		seen[c] = i
+	}
+}
+
+// conn writes its half of the bar when the words change and not on a
+// beat: setting an option on the server is a process, and a note changes
+// on a keypress and rarely. The chip's mode goes with it, so the two
+// always say the same thing about the same moment.
+func TestConnSaysItsHalfOfTheBarWhenItChanges(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.srv = viewWatch, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+
+	// Nothing to say, and nothing said.
+	if _, cmd := m.saying(); cmd != nil {
+		t.Error("conn wrote an empty bar it had already written")
+	}
+
+	m.note = "NOTHING UNDER THE CURSOR"
+	next, cmd := m.saying()
+	if cmd == nil {
+		t.Fatal("a note conn had not said was not put on the bar")
+	}
+	if next.saidNote != m.note || next.saidMode != "" {
+		t.Errorf("conn did not remember what it said: %q %q", next.saidNote, next.saidMode)
+	}
+	// Said once. The same note again is not a second process.
+	if _, cmd := next.saying(); cmd != nil {
+		t.Error("the same note was written to the bar twice")
+	}
+
+	// A kill takes the next key whatever it is, which is a mode the chip
+	// shows, and it reaches the bar the same way.
+	armed := next
+	armed.kill = &pendingKill{pid: 49212, command: "zsh", sig: syscall.SIGTERM}
+	after, cmd := armed.saying()
+	if cmd == nil || after.saidMode != "CONFIRM" {
+		t.Errorf("the kill's mode did not reach the chip: %q", after.saidMode)
+	}
+
+	// Outside the server there is no bar to write to.
+	out := m
+	out.inside = false
+	if _, cmd := out.saying(); cmd != nil {
+		t.Error("conn wrote a bar outside its server")
 	}
 }

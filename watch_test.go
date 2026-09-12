@@ -9,7 +9,7 @@ import (
 )
 
 func testWatch() watchReport {
-	return composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), nil, "", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	return composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
 }
 
 // The watch at 120 by 40 is a file of record, as are the empty watch and
@@ -17,11 +17,11 @@ func testWatch() watchReport {
 func TestWatchMatchesTheGolden(t *testing.T) {
 	golden(t, "watch-120x40.txt", texts(drawWatch(testWatch(), 67040, 120, 40, plain)))
 	golden(t, "watch-cursor-100x9.txt", texts(drawWatch(testWatch(), 80002, 100, 9, plain)))
-	empty := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	empty := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
 	golden(t, "watch-empty-80x24.txt", texts(drawWatch(empty, 0, 80, 24, plain)))
-	failed := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
+	failed := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "the process table could not be read: lsof: not found")
 	golden(t, "watch-unread-80x24.txt", texts(drawWatch(failed, 0, 80, 24, plain)))
-	rail := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	rail := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
 	rail.inside = true
 	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
 }
@@ -35,8 +35,9 @@ func TestWatchLaysOut(t *testing.T) {
 	text := texts(rows)
 	measure, _, _ := columns(120)
 	for _, s := range []string{
-		"CONN ", "W0ZRO@STATION  ·  09-SEP-2026  03:00:00 Z",
-		"KIND    COMMAND", "TTY", "AGE", "STATUS",
+		// The name alone: the station and the clock stood against the
+		// right of this row and are the bar's now.
+		"CONN", "KIND    COMMAND", "TTY", "AGE", "STATUS",
 		// A place is named by what is left of its path once the root the
 		// checkouts are kept under is taken off it; one outside every
 		// root is written from ~, whole.
@@ -78,18 +79,19 @@ func TestWatchLaysOut(t *testing.T) {
 }
 
 // A watch taller than the terminal scrolls to keep the cursor in view
-// and says how many rows are above and below.
+// and says how many rows are above and below. Nine rows are nine rows of
+// it: the foot it used to keep against a note is the bar's now.
 func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 	rows := drawWatch(testWatch(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 12 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 11 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawWatch(testWatch(), 70301, 100, 9, plain)
 	text = texts(rows)
 	// The cursor's mark keeps the margin; the row it marks still steps
 	// in for the level it is at.
-	if len(rows) != 9 || !strings.Contains(text, "… 12 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
+	if len(rows) != 9 || !strings.Contains(text, "… 11 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawWatch(testWatch(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
@@ -217,7 +219,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 // In the server, the keys say what can be done, a terminal the server
 // does not hold is faint, and a note takes the bottom row until a key.
 func TestTheWatchInsideTheServer(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
 	w.inside = true
 	rows := drawWatch(w, 67040, 120, 40, colored())
 	text := texts(rows)
@@ -243,11 +245,6 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 			t.Errorf("rail row is %d wide: %q", w, r.text)
 		}
 	}
-	w.note = "NOT IN A PANE OF CONN'S SERVER"
-	rows = drawWatch(w, 67040, 120, 40, plain)
-	if !strings.Contains(rows[39].text, w.note) {
-		t.Errorf("the note is not on the bottom row:\n%s", texts(rows))
-	}
 }
 
 // Enter reaches the cursor's process when its terminal is a pane of the
@@ -263,8 +260,9 @@ func TestKeysInsideTheServer(t *testing.T) {
 		return cmd
 	}
 	// The cursor starts on home's shell, whose terminal the server does
-	// not hold.
-	if cmd := press("enter", tea.KeyEnter); cmd != nil || m.note != "NOT IN A PANE OF CONN'S SERVER" {
+	// not hold. The note is the whole of the answer — conn asks the
+	// server for nothing but the putting of it on the bar.
+	if press("enter", tea.KeyEnter); m.note != "NOT IN A PANE OF CONN'S SERVER" {
 		t.Errorf("enter on a process outside the server: %q", m.note)
 	}
 	// Down to the conjurer's tree, whose terminal is a pane of the
@@ -297,11 +295,11 @@ func TestKeysInsideTheServer(t *testing.T) {
 }
 
 // The watch says no keys. They are learned once; a legend on every row
-// of every reading is a thing to read past forever. The bottom row is
-// kept clear all the same, so a note has a place to land that does not
-// move the rows.
+// of every reading is a thing to read past forever. Nor does it keep a
+// row back for a note: what conn has to say is on the bar, and the foot
+// is the list's like every other row.
 func TestTheWatchSaysNoKeys(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
@@ -313,14 +311,12 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 			}
 		}
 	}
-	rows := drawWatch(w, 67040, 120, 40, plain)
-	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
-		t.Errorf("the bottom row is not kept clear: %q", rows[39].text)
-	}
-	w.note = "NOTHING UNDER THE CURSOR"
-	rows = drawWatch(w, 67040, 120, 40, plain)
-	if len(rows) != 40 || !strings.Contains(rows[39].text, w.note) {
-		t.Errorf("a note has no place to land: %q", rows[39].text)
+	// Nine rows of a watch that will not fit are nine rows of it: the
+	// foot carries the count of what is out of view, not a blank kept
+	// against a note that is no longer drawn here.
+	rows := drawWatch(w, 70301, 100, 9, plain)
+	if len(rows) != 9 || !strings.Contains(rows[8].text, "ABOVE") {
+		t.Errorf("the foot is not the list's: %q", rows[8].text)
 	}
 }
 
@@ -368,7 +364,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored()
 	held := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
-		testProjRoots, "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+		testProjRoots, "/Users/w0zro", watchNow, "")
 	held.inside = true
 	// The cursor is on a row conn holds a pane for, away from the rows
 	// under test, so none of them is giving up a rank of dimming to be

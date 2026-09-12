@@ -72,9 +72,8 @@ func TestResumeLayOut(t *testing.T) {
 		}
 	}
 	b := testResume("flaky")
-	b.note = "NO CONVERSATION UNDER THE CURSOR"
 	text = texts(drawResume(b, 0, 48, 30, plain))
-	if !strings.Contains(text, "1 OF 2") || !strings.Contains(text, "NO CONVERSATION UNDER") {
-		t.Errorf("narrowed, with a note:\n%s", text)
+	if !strings.Contains(text, "1 OF 2") {
+		t.Errorf("narrowed:\n%s", text)
 	}
 }

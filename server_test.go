@@ -54,7 +54,7 @@ func startScratch(t *testing.T) *scratch {
 	s := &scratch{t: t, srv: &server{tmux: tmux, socket: filepath.Join(dir, "sock")}, dir: dir}
 	t.Cleanup(func() { _, _ = s.srv.run("kill-server") })
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space")), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", "W0ZRO@STATION")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	home := filepath.Join(dir, "home")
@@ -186,6 +186,16 @@ func (s *scratch) parked(id string) bool {
 }
 
 // display is a tmux format, of the rail.
+// bar is the status line as tmux expands it: the chip, what conn has to
+// say, and the station. The clock is a job of tmux's and does not run
+// for a format asked for like this, which is no matter — what a test
+// wants from the bar is conn's half of it.
+func (s *scratch) bar() string {
+	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0",
+		"#{T:status-left}#{T:status-right}")
+	return strings.TrimSpace(out)
+}
+
 func (s *scratch) display(format string) string {
 	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0", format)
 	return strings.TrimSpace(out)
@@ -210,7 +220,7 @@ func (s *scratch) until(what string, cond func() bool) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	s.t.Fatalf("waited for %s\nrail:\n%s\npanes: %s", what, s.rail(), s.panes())
+	s.t.Fatalf("waited for %s\nrail:\n%s\nbar: %s\npanes: %s", what, s.rail(), s.bar(), s.panes())
 }
 
 // conn comes up in the home window: the console across it, then on a
@@ -339,7 +349,12 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	})
 
 	s.keys("x")
-	s.until("the kill armed", func() bool { return strings.Contains(s.rail(), "KILL") })
+	// The question conn asks is on the bar now, with CONFIRM in the chip
+	// beside it: the rail's foot is the list's.
+	s.until("the kill armed", func() bool { return strings.Contains(s.bar(), "KILL") })
+	if b := s.bar(); !strings.Contains(b, "CONFIRM") {
+		t.Errorf("the chip does not say the keys are the question's: %q", b)
+	}
 	s.keys("x")
 
 	s.until("the shell's pane to die", func() bool { return s.paneDead("home.1") })
@@ -378,7 +393,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// right below it, the tree's next row down.
 	s.keys("j")
 	s.keys("x")
-	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.rail(), "END SLEEP 100") })
+	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.bar(), "END SLEEP 100") })
 	s.keys("x")
 
 	s.until("sleep to end and the shell to have the place to itself", func() bool {
@@ -407,7 +422,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
 	applyMode(false)
-	confText := tmuxConf("C-Space")
+	confText := tmuxConf("C-Space", "W0ZRO@STATION")
 	applyMode(true) // the test binary goes back to the ground it had
 	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
 		t.Fatal(err)
@@ -493,7 +508,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	applyMode(dark)
 
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf(defaultPrefix)), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(defaultPrefix, barStation())), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(tmux, "-S", srv.socket, "-f", conf, "new-session", "-d",
@@ -559,7 +574,7 @@ func TestTabReachesTheWatchAsTab(t *testing.T) {
 
 	s.keys("Tab")
 	s.until("the watch to answer tab", func() bool {
-		return strings.Contains(s.rail(), "NO AGENT IS WAITING ON YOU")
+		return strings.Contains(s.bar(), "NO AGENT IS WAITING ON YOU")
 	})
 }
 

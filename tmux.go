@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -128,7 +129,7 @@ func (s *server) attach(self, home string, override *bool) (int, error) {
 	applyMode(dark)
 	refreshClaudeTheme(home)
 	conf := filepath.Join(filepath.Dir(s.socket), "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf(prefix())), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(prefix(), barStation())), 0o600); err != nil {
 		return 0, err
 	}
 	if asked {
@@ -565,7 +566,7 @@ var scheme = darkScheme
 // orange and a selection on the border color, and between the rail
 // and the slot a line in that color too, the same whichever side has
 // focus.
-func tmuxConf(prefix string) string {
+func tmuxConf(prefix, station string) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
 # Three chords under the prefix: to the watch, to the list, and to
@@ -576,7 +577,6 @@ unbind -a -T prefix
 bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0
 bind p select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-p
 bind q detach-client
-set -g status off
 set -g mouse on
 # The rail's width is conn's to hold; a drag of the border would only be
 # put back.
@@ -617,7 +617,83 @@ set -g remain-on-exit on
 	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
 	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
 	b.WriteString("set -g pane-border-indicators off\n")
+	b.WriteString(bar(station))
 	return b.String()
+}
+
+// The bar is tmux's status line, and it is conn's line: a chip for what
+// the keys are doing, what conn has to say, and who is at the station
+// and what time it is.
+//
+// It exists because there is state conn cannot see from inside its own
+// pane. Whether a chord is hanging, whether a pane is in copy mode, and
+// which pane the keys are in are the client's business and tmux's to
+// know, and a conn drawing in the rail can only guess at them. The line
+// spans the window, under the rail and the slot alike, so it can speak
+// for the pane the rail is not.
+//
+// It takes two rows the rail was spending on itself: the foot, which
+// held a note until the next key, and the right-hand side of the head,
+// which held the station and the clock. Both were the session's business
+// rather than the list's, and the rail's forty-four columns are the
+// list's now.
+//
+// conn writes its half into two options and asks the clients to draw —
+// once when the words change, which is rarely, rather than on a beat.
+// The clock is tmux's own: date is run every second by the status
+// interval, which costs conn nothing and keeps it out of a process a
+// second. It is written with the percents doubled, since tmux runs the
+// string through strftime before it runs the command, and a single
+// percent would be eaten on the way.
+func bar(station string) string {
+	var b strings.Builder
+	b.WriteString(`set -g status on
+set -g status-position bottom
+set -g status-interval 1
+set -g status-justify left
+set -g status-left-length 200
+set -g status-right-length 60
+# conn has no tabs, so the middle of the line is nothing.
+set -g window-status-format ""
+set -g window-status-current-format ""
+`)
+	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
+	// The chip, in the order the states shadow one another: a chord
+	// hanging covers everything, copy mode covers what conn has to say of
+	// itself, and with none of them the chip says where the keys are.
+	// conn's own words are the orange, which is "you, here" everywhere
+	// else in conn; a program's name is its own, in its own case, the way
+	// the look writes a command.
+	rail := fmt.Sprintf("#{?#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}},RAIL,#{pane_current_command}}", homeWindow)
+	chip := fmt.Sprintf("#{?client_prefix,#[fg=%s bold]PREFIX,"+
+		"#{?pane_in_mode,#[fg=%s bold]COPY,"+
+		"#{?#{!=:#{@conn_mode},},#[fg=%s bold]#{@conn_mode},"+
+		"#[fg=%s nobold]%s}}}", cursorHex, cursorHex, cursorHex, grayHex, rail)
+	fmt.Fprintf(&b, "set -g status-left \"%s#[fg=%s nobold]  #{@conn_note}\"\n", chip, scheme[1])
+	fmt.Fprintf(&b, "set -g status-right \"#[fg=%s]%s  ·  #(date -u +'%%%%H:%%%%M:%%%%S Z')\"\n", grayHex, station)
+	return b.String()
+}
+
+// say puts what conn has to say on the bar, with the mode its chip
+// shows, and asks the clients to draw it so the line never lags the key
+// that changed it.
+func (s *server) say(note, mode string) error {
+	_, err := s.run("set-option", "-g", "@conn_note", note,
+		";", "set-option", "-g", "@conn_mode", mode,
+		";", "refresh-client", "-S")
+	return err
+}
+
+// barStation is who is at the station as the bar says it, in conn's
+// upper case: the same words the console reads out.
+func barStation() string {
+	who := ""
+	if u, err := user.Current(); err == nil {
+		who = u.Username
+	}
+	host, _ := os.Hostname()
+	host, _, _ = strings.Cut(host, ".")
+	return strings.ToUpper(stationName(who, host))
 }
 
 // shellQuote quotes a path for a tmux command line.

@@ -200,12 +200,11 @@ func TestProjectsLayOut(t *testing.T) {
 			t.Errorf("a colored row paints %d columns", w)
 		}
 	}
-	// A note has the bottom row, and the filter is on the header's count.
+	// The filter is on the header's count.
 	b := testList("pro")
-	b.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
 	text = texts(drawProjects(b, 0, 48, 30, plain))
-	if !strings.Contains(text, "3 OF 10") || !strings.Contains(text, "NOTHING CAN BE OPENED") {
-		t.Errorf("narrowed, with a note:\n%s", text)
+	if !strings.Contains(text, "3 OF 10") {
+		t.Errorf("narrowed:\n%s", text)
 	}
 }
 

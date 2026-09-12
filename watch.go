@@ -28,11 +28,9 @@ import (
 
 // The watch's words, composed from the places as of a moment.
 type watchReport struct {
-	station, clock string
-	places         []watchPlace
-	err            string // why the table could not be read, when it could not
-	inside         bool   // conn is in its server, and rows can be reached
-	note           string // a word for the bottom row, until a key
+	places []watchPlace
+	err    string // why the table could not be read, when it could not
+	inside bool   // conn is in its server, and rows can be reached
 }
 
 type watchPlace struct {
@@ -78,8 +76,8 @@ func headOf(places []place, tty string) (pid, at int, ok bool) {
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
-func composeWatch(places []place, panes map[string]pane, slot string, roots []string, home string, now time.Time, station, clock, err string) watchReport {
-	b := watchReport{station: station, clock: clock, err: err}
+func composeWatch(places []place, panes map[string]pane, slot string, roots []string, home string, now time.Time, err string) watchReport {
+	b := watchReport{err: err}
 	head, _, marked := headOf(places, slot)
 	for _, pl := range places {
 		bp := watchPlace{path: placeName(pl.path, roots, home)}
@@ -152,18 +150,13 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		commandW = ageCol - 1 - kindCol
 	}
 
-	// The header: the name, and the station and clock against the right;
-	// a rule; the column heads. The view goes unlabeled: it is what conn
-	// is when it is up.
+	// The header: the name, a rule, the column heads. The view goes
+	// unlabeled: it is what conn is when it is up. The station and the
+	// clock stood against the right and are the bar's now — the session's
+	// business rather than the list's, and the columns want the room.
 	c.blank(0)
 	l := c.line()
 	l.add(p.orange+p.bold, "CONN")
-	right := strings.ToUpper(join("  ·  ", b.station, b.clock))
-	if rail {
-		_, right, _ = strings.Cut(strings.ToUpper(b.clock), "  ")
-	}
-	l.to(measure - utf8.RuneCountInString(right))
-	l.add(p.gray, right)
 	c.emit(l, 0, false)
 	c.rule(0, measure)
 	l = c.line()
@@ -182,7 +175,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 
 	// The places, in the order work began in them; or the reason there
 	// are none.
-	room := height - 1 // the bottom row is kept for a note
+	room := height
 	if height == 0 {
 		room = 1 << 30
 	}
@@ -297,19 +290,12 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
-	// The bottom row is a note's, when there is one, and otherwise the
-	// ground: the keys are learned once, and a legend on every row of
-	// every reading is a thing to read past forever.
+	// The foot held a note until the next key and is the bar's now, so
+	// the rows have it: the keys are learned once, and a legend on every
+	// row of every reading is a thing to read past forever.
 	if height > 0 {
-		for len(c.rows) < height-1 {
+		for len(c.rows) < height {
 			c.blank(0)
-		}
-		if b.note == "" {
-			c.blank(0)
-		} else {
-			l := c.line()
-			l.add(p.owed, fit(b.note, measure, false))
-			c.emit(l, 0, true)
 		}
 	}
 	return c.rows

@@ -19,6 +19,11 @@ var (
 	inkColor    = darkInk
 )
 
+// Across the foot of the window is the bar, which is tmux's status line
+// and conn's line: a chip for what the keys are doing, what conn has to
+// say, and the station and the clock. It is written in tmux.go; conn
+// puts its half of it there through saying, below.
+//
 // The program holds three views. The console comes on first: the header
 // at once, from what is known before anything is read; the station is
 // read meanwhile, and the readout comes on when it is in hand and its
@@ -147,6 +152,9 @@ type model struct {
 	// already knows.
 	looking  bool
 	entering bool // the console is waiting on a reading to go to the watch
+	// What conn last put on the bar, so it is written when the words
+	// change and not on every pass through Update.
+	saidNote, saidMode string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -220,18 +228,15 @@ func (m model) report() report {
 
 // watchReport is the watch's words as things stand.
 func (m model) watchReport() watchReport {
-	r := m.report()
-	w := composeWatch(m.places, m.panes, m.slot, m.projRoots, m.head.session.home, m.now, r.station, r.clock, m.watchErr)
-	w.inside, w.note = m.inside, m.note
+	w := composeWatch(m.places, m.panes, m.slot, m.projRoots, m.head.session.home, m.now, m.watchErr)
+	w.inside = m.inside
 	return w
 }
 
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	b := composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
-	b.note = m.note
-	return b
+	return composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
 }
 
 func (m model) projectRows() []project {
@@ -334,9 +339,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// back — comes back on the next beat rather than staying gone
 		// until somebody presses j.
 		_, reading := msg.(watchMsg)
-		return nm.published(reading), cmd
+		nm = nm.published(reading)
+		nm, said := nm.saying()
+		if said != nil {
+			return nm, tea.Batch(cmd, said)
+		}
+		return nm, cmd
 	}
 	return next, cmd
+}
+
+// saying puts what conn has to say on the bar, and the mode its chip
+// shows, when either has changed since the last telling. Going through
+// here is the point: a note is set from a dozen places and every one of
+// them would otherwise have to remember to say so.
+//
+// The bar is tmux's line and conn reaches it by setting an option on the
+// server, which is a process — so it is written when the words change,
+// which is on a keypress and rarely, and never on a beat. Off the loop,
+// since a process between a key and what it does is a key that feels
+// slow.
+func (m model) saying() (model, tea.Cmd) {
+	if !m.inside || m.srv == nil {
+		return m, nil
+	}
+	mode := ""
+	if m.kill != nil {
+		// The kill's question is the one thing conn does that takes the
+		// next key whatever it is, and the chip is where a mode that
+		// swallows keys belongs.
+		mode = "CONFIRM"
+	}
+	if m.note == m.saidNote && mode == m.saidMode {
+		return m, nil
+	}
+	m.saidNote, m.saidMode = m.note, mode
+	note, srv := m.note, m.srv
+	return m, func() tea.Msg { _ = srv.say(note, mode); return nil }
 }
 
 // published tells the cursor where it is, when it has moved since the
@@ -809,9 +848,7 @@ func (m model) resumeRows() []conversation {
 
 // resumeReport is the picker's words as things stand.
 func (m model) resumeReport() resumeReport {
-	b := composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
-	b.note = m.note
-	return b
+	return composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
 }
 
 // resumeKey answers a key on the picker, which is a line typed into the

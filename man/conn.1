@@ -1,7 +1,7 @@
 .\" Written from docs/index.html by go run ./tools/man; edit the manual, not this.
 .TH CONN 1 "" "conn 0.0" "User Commands"
 .SH NAME
-conn \- a station for one operator directing many hands on one machine
+conn \- a station for directing many hands on one machine
 .SH SYNOPSIS
 .B conn
 .br
@@ -19,15 +19,15 @@ conn \- a station for one operator directing many hands on one machine
 .br
 .B conn \-\-version
 .SH DESCRIPTION
-conn shows the processes running in each project, what each is doing, and which
-one is waiting for the operator, and puts the operator in front of any of them.
+The station shows what each hand is doing and which one is waiting, and puts the
+operator in front of it.
 .SH GENERAL
 .TP
 1-1.
 \fBPURPOSE.\fR This manual describes conn and its operation.
 .TP
 1-2.
-\fBSCOPE.\fR conn is a station for one operator directing many hands on one
+\fBSCOPE.\fR The station serves one operator directing many hands on one
 machine. It shows the processes running in each project, what each is doing, and
 which one is waiting for the operator, and it puts the operator in front of any
 of them. It does not edit files, run builds, or hold conversations. The hands
@@ -81,7 +81,7 @@ The word WAITING on the watch, blinking, and a lamp on the bar in the same color
 show the second; \fBtab\fR goes to it.
 .TP
 1-5.
-\fBCOMMANDS.\fR \fBconn\fR alone brings up the console and continues to the
+\fBCOMMANDS.\fR The command alone brings up the console and continues to the
 watch. Other commands are given by name after it. \fB\-\-light\fR and
 \fB\-\-dark\fR set the ground, ahead of a command if one is given.
 .PP

@@ -123,8 +123,8 @@ func claudeSessions() map[int]sessionFile {
 //
 // An agent that has stopped working has stopped for a reason, and the
 // reason is you: there is nothing else it is waiting for. So anything
-// its file says other than busy is owed, whatever the word — a turn it
-// finished, a permission it wants, a question it asked.
+// its file says other than busy is waiting, whatever the word it uses —
+// a turn it finished, a permission it wants, a question it asked.
 //
 // A file can outlive the process that wrote it, so a pid counts only
 // where the table still has it standing as an agent; an agent with no
@@ -140,7 +140,7 @@ func agentStandings(procs []process) map[int]standing {
 		if kind[pid] != kindAgent || s.Status == "" {
 			continue
 		}
-		how[pid] = standing{working: s.Status == busyStatus, owed: s.Status != busyStatus}
+		how[pid] = standing{working: s.Status == busyStatus, waiting: s.Status != busyStatus}
 	}
 	return how
 }

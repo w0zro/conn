@@ -78,7 +78,7 @@ func kindOf(p process) string {
 // for a process that did something between one reading and the next.
 const (
 	statusWorking = "WORKING" // doing something, right now
-	statusOwed    = "OWED"    // an agent done working and waiting on you
+	statusWaiting = "WAITING" // an agent stopped, and waiting on you
 	statusActive  = "ACTIVE"  // alive, and not doing anything
 	statusIdle    = "IDLE"    // a shell at its prompt
 	statusStopped = "STOPPED" // suspended
@@ -92,7 +92,7 @@ const (
 // time it spent rather than by being asked.
 type standing struct {
 	working bool
-	owed    bool
+	waiting bool
 }
 
 // An entry is a row of the watch: one process, standing for its own
@@ -327,10 +327,12 @@ func cpuOf(procs []process) map[int]time.Duration {
 // Work is not claimed up the tree - a shell whose child is working is
 // active, and the row doing the work is the one that says so.
 //
-// Owed is the other end of the same question, and the only word here
-// that asks something of you: an agent that has stopped working has
-// stopped for a reason, and the reason is you. It is not a fault -
-// nothing went wrong, and a row that says so is not a row in trouble -
+// Waiting is the other end of the same question, and the only word
+// here that asks something of you: an agent that has stopped working
+// has stopped for a reason, and the reason is you. Nothing else on the
+// watch is ever called waiting - a shell at a prompt is idle, and a
+// server waiting on a socket is waiting on the socket - so the word is
+// only ever about a person. It is no fault, nothing having gone wrong,
 // so it is a word of its own rather than a chip.
 func statusOf(p process, kind string, hasChildren bool, how standing) (string, bool) {
 	switch {
@@ -338,8 +340,8 @@ func statusOf(p process, kind string, hasChildren bool, how standing) (string, b
 		return statusStopped, true
 	case p.state == 'Z':
 		return statusEnded, true
-	case how.owed:
-		return statusOwed, false
+	case how.waiting:
+		return statusWaiting, false
 	case how.working:
 		return statusWorking, false
 	case kind == kindShell && !hasChildren:

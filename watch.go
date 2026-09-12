@@ -198,7 +198,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			case r.fault:
 				l.to(measure - utf8.RuneCountInString(r.status) - 2)
 				l.add(p.chip, " "+r.status+" ")
-			case r.status == statusOwed:
+			case r.status == statusWaiting:
 				// The one word here that asks something of you, and the
 				// only one worth finding without looking: it is not a
 				// fault, so it takes the color rather than the chip.

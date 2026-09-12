@@ -86,10 +86,11 @@ func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
 }
 
 // An agent says of itself whether it is working; having stopped, it
-// stopped for you, so anything its file says other than busy is owed.
+// stopped for you, so anything its file says other than busy is
+// waiting.
 // A file only counts against a pid the table still has standing as an
 // agent, and an agent with no file to read says neither.
-func TestAnAgentSaysWorkingOrOwedOfItself(t *testing.T) {
+func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	claude := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", claude)
 	if err := os.MkdirAll(filepath.Join(claude, "sessions"), 0o755); err != nil {
@@ -118,11 +119,11 @@ func TestAnAgentSaysWorkingOrOwedOfItself(t *testing.T) {
 	}
 
 	how := agentStandings(procs)
-	if !how[10].working || how[10].owed {
+	if !how[10].working || how[10].waiting {
 		t.Errorf("a busy agent stands %+v", how[10])
 	}
 	for _, pid := range []int{11, 12} {
-		if !how[pid].owed || how[pid].working {
+		if !how[pid].waiting || how[pid].working {
 			t.Errorf("pid %d, having stopped, stands %+v", pid, how[pid])
 		}
 	}
@@ -139,7 +140,7 @@ func TestAnAgentSaysWorkingOrOwedOfItself(t *testing.T) {
 			got[e.pid] = e.status
 		}
 	}
-	if got[10] != statusWorking || got[11] != statusOwed || got[12] != statusOwed || got[16] != statusActive {
+	if got[10] != statusWorking || got[11] != statusWaiting || got[12] != statusWaiting || got[16] != statusActive {
 		t.Errorf("the watch writes %v", got)
 	}
 }

@@ -295,15 +295,15 @@ func TestAProcessFirstSeenIsAskedAgainstItsOwnLife(t *testing.T) {
 
 // The word for a process is working when it is doing something, which
 // beats idle and is beaten by a fault: a stopped process is stopped
-// whatever it spent before it was. Owed beats working in turn — an
+// whatever it spent before it was. Waiting beats working in turn — an
 // agent that says both is one whose file was written between the two,
 // and the thing worth saying is that it wants you — and it is no
 // fault, since nothing went wrong.
-func TestTheWordsRankFaultThenOwedThenWorking(t *testing.T) {
+func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	var (
 		nothing = standing{}
 		busy    = standing{working: true}
-		owed    = standing{owed: true}
+		waits   = standing{waiting: true}
 	)
 	shell := process{state: 'S'}
 	if s, _ := statusOf(shell, kindShell, false, busy); s != statusWorking {
@@ -319,17 +319,17 @@ func TestTheWordsRankFaultThenOwedThenWorking(t *testing.T) {
 		t.Errorf("a run doing nothing is %s", s)
 	}
 	agent := process{state: 'S'}
-	s, fault := statusOf(agent, kindAgent, false, owed)
-	if s != statusOwed {
+	s, fault := statusOf(agent, kindAgent, false, waits)
+	if s != statusWaiting {
 		t.Errorf("an agent waiting on you is %s", s)
 	}
 	if fault {
 		t.Error("an agent waiting on you is a fault")
 	}
-	if s, _ := statusOf(agent, kindAgent, false, standing{working: true, owed: true}); s != statusOwed {
-		t.Errorf("an agent that says both is %s, not owed", s)
+	if s, _ := statusOf(agent, kindAgent, false, standing{working: true, waiting: true}); s != statusWaiting {
+		t.Errorf("an agent that says both is %s, not waiting", s)
 	}
-	if s, _ := statusOf(process{state: 'T'}, kindAgent, false, owed); s != statusStopped {
+	if s, _ := statusOf(process{state: 'T'}, kindAgent, false, waits); s != statusStopped {
 		t.Error("a stopped agent is not stopped")
 	}
 }

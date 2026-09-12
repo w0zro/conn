@@ -72,15 +72,24 @@ func isSessionID(id string) bool {
 func resumeCommand(id string) string { return agentCommand + " --resume " + id }
 
 // What Claude Code calls itself, in the file it keeps per instance.
-// Busy is mid-turn. Waiting is stopped on something put to its user
-// and unable to go on without it, and comes with a waitingFor naming
-// the ask. Anything else - idle is the word it uses - is an instance
-// whose turn is over, asking nothing and holding nothing up. The three
-// were watched being written, across a turn and a prompt, rather than
-// guessed at.
+// The vocabulary is closed at four, and these are all of them, read
+// off the validator the file is parsed by rather than off whichever
+// ones happened to be caught being written.
+//
+// Busy is mid-turn. Shell is a command of its own running, which is
+// work too, and work conn could not otherwise see: an agent waiting on
+// its own child spends no processor time, so a test suite running ten
+// minutes would read at rest the whole way. Claude Code's own status
+// line makes the same pair - busy and shell both come out as its word
+// for working - so this is its reading rather than a guess at it.
+// Waiting is stopped on something put to its user and unable to go on
+// without it. Idle is a turn that is over, asking nothing and holding
+// nothing up.
 const (
 	busyStatus    = "busy"
+	shellStatus   = "shell"
 	waitingStatus = "waiting"
+	idleStatus    = "idle"
 )
 
 // sessionFile is the part conn reads of what Claude Code writes for
@@ -158,13 +167,19 @@ func agentStandings(procs []process) map[int]standing {
 			since = time.UnixMilli(s.StatusUpdatedAt)
 		}
 		switch s.Status {
-		case busyStatus:
+		case busyStatus, shellStatus:
 			how[pid] = standing{working: true, since: since}
 		case waitingStatus:
 			how[pid] = standing{waiting: true, since: since}
-		default:
+		case idleStatus:
 			how[pid] = standing{idle: true, since: since}
 		}
+		// A word outside the four is a Claude newer than this conn, and
+		// conn says nothing of an agent it cannot understand — the same
+		// as an agent with no file at all, which is the honest answer
+		// and already has a word. Idle especially is not the answer to
+		// guess: it says at rest, nothing pending, yours when you want
+		// it, and none of that is known.
 	}
 	return how
 }

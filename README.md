@@ -19,7 +19,10 @@ next, and `ACTIVE` when it is only alive — a dev server waiting on a request
 and one answering it are not the same thing, and the column says which. An
 agent is asked rather than measured, since it knows whether it is mid-turn
 and the processor time it uses says little either way: a model answering is
-barely any, and waiting on you is none. Everything else is read off the
+barely any, waiting on you is none, and an agent sitting on a test suite of
+its own spends none either while the suite spends plenty. That last is work
+conn could not see any other way, so an agent with a command running under
+it is working, the same as one mid-turn. Everything else is read off the
 processor time it spent, against how long there was to spend it in. The work
 is not claimed up the tree: a shell whose child is working is active, and the
 row doing the work is the one that says so.
@@ -44,8 +47,10 @@ Nothing but an agent is ever called waiting here — a server waiting on a
 socket is waiting on the socket — so the word is only ever about a person. It
 is no fault, so it takes a color of its own rather than a chip. Only an agent
 says any of this, being the only thing that knows its own mind; an agent conn
-cannot ask — another maker's, or one too old to say — reads as alive like
-anything else.
+cannot ask — another maker's, one too old to say, or one newer than conn and
+using a word conn has never heard — reads as alive like anything else.
+Guessing at the word is worse than having none: `IDLE` says at rest, nothing
+pending, yours when you want it, and none of that is known.
 
 A row is also written by what conn can do with it, and in two ways, since
 they are not the same kind of saying. What conn can only report — a terminal

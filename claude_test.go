@@ -113,27 +113,30 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	say(13, "busy")    // a file its process did not outlive
 	say(14, "busy")    // a pid the table has, but not as an agent
 	say(15, "")        // a file saying nothing of the sort
-	say(17, "sulking") // a word conn has never heard; nothing is held up
-	procs := []process{agent(10), agent(11), agent(12), agent(15), agent(16), agent(17),
+	say(17, "sulking") // a word conn has never heard
+	say(18, "shell")   // a command running under it, which is work
+	procs := []process{agent(10), agent(11), agent(12), agent(15), agent(16), agent(17), agent(18),
 		{pid: 14, uid: 501, tty: "ttys001", state: 'S', command: "node", args: []string{"node"},
 			started: watchNow.Add(-time.Hour), cwd: "/w"},
 	}
 
 	how := agentStandings(procs)
-	if (how[10] != standing{working: true}) {
-		t.Errorf("a busy agent stands %+v", how[10])
+	for _, pid := range []int{10, 18} {
+		if (how[pid] != standing{working: true}) {
+			t.Errorf("pid %d, mid-turn or running a command, stands %+v", pid, how[pid])
+		}
 	}
 	// Stopped on an ask is not the same as stopped with nothing
 	// pending, and only the first is waiting.
 	if (how[12] != standing{waiting: true}) {
 		t.Errorf("an agent stopped on an ask stands %+v", how[12])
 	}
-	for _, pid := range []int{11, 17} {
-		if (how[pid] != standing{idle: true}) {
-			t.Errorf("pid %d, its turn over, stands %+v", pid, how[pid])
-		}
+	if (how[11] != standing{idle: true}) {
+		t.Errorf("an agent whose turn is over stands %+v", how[11])
 	}
-	for _, pid := range []int{13, 14, 15, 16} {
+	// 17 says a word conn does not know, which leaves it exactly where
+	// an agent with no file at all is: nothing said of it.
+	for _, pid := range []int{13, 14, 15, 16, 17} {
 		if (how[pid] != standing{}) {
 			t.Errorf("pid %d stands %+v, and nothing should be said of it", pid, how[pid])
 		}
@@ -148,9 +151,10 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	}
 	for pid, want := range map[int]string{
 		10: statusWorking, // mid-turn
+		18: statusWorking, // a command running under it
 		12: statusWaiting, // stopped on an ask
 		11: statusIdle,    // turn over
-		17: statusIdle,    // a word conn does not know, holding nothing up
+		17: statusActive,  // a word conn does not know, so nothing is claimed
 		16: statusActive,  // an agent with nothing to say of itself
 	} {
 		if got[pid] != want {

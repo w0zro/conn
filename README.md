@@ -2,9 +2,12 @@
 
 conn comes up on the loop, reads out the machine, runs its start-up checks,
 and gives its verdict; a key continues to the watch, which is what is
-running, by place: the processes of yours with a terminal, each standing for
-its own work, grouped under the place it works in — the repository, or the
-app or service inside it that carries a manifest of its own.
+running, by project: the processes of yours with a terminal, each standing
+for its own work, grouped under the project it works in. A project is a git
+repository, or — under the roots where your checkouts are kept — the folder
+that holds them, for work that is beside the checkouts rather than in one.
+Everything below a project is in it: conn's `docs` directory is conn's work,
+not a place of its own.
 
 Under a place they read as the tree they are: a shell, the agent it runs
 indented under it, the shell that agent asked for under that, and its `go

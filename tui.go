@@ -190,6 +190,8 @@ type model struct {
 }
 
 func newModel(p palette) model {
+	home, _ := os.UserHomeDir()
+	isProject := projectDirs(projectRoots(home))
 	return model{
 		lit:  true,
 		told: -1, // nothing published yet; the first cursor is news
@@ -198,8 +200,8 @@ func newModel(p palette) model {
 		now:       time.Now(),
 		p:         p,
 		uid:       os.Getuid(),
-		roots:     placeRoots(),
-		isProject: projectDirs(),
+		roots:     placeRoots(isProject),
+		isProject: isProject,
 	}
 }
 

@@ -205,7 +205,9 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 		return t
 	}
 	t.procs = procs
-	t.places = watch(procs, uid, placeRoots(), projectDirs(), agentStandings(procs))
+	home, _ := os.UserHomeDir()
+	isProject := projectDirs(projectRoots(home))
+	t.places = watch(procs, uid, placeRoots(isProject), isProject, agentStandings(procs))
 
 	// What conn holds for the rows' terminals, when there is a server to
 	// ask. Outside one there is nothing to say of panes.

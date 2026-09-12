@@ -438,8 +438,8 @@ func TestKindsAndCommands(t *testing.T) {
 	}
 }
 
-// placeRoots finds the .git above a directory, and answers the same the
-// second time without looking.
+// placeRoots finds the repository above a directory, and answers the
+// same the second time without looking.
 func TestPlaceRootsFindTheRepository(t *testing.T) {
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "repo")
@@ -450,12 +450,12 @@ func TestPlaceRootsFindTheRepository(t *testing.T) {
 	if err := os.MkdirAll(deep, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	roots := placeRoots()
+	roots := placeRoots(projectDirs(nil))
 	if got := roots(deep); got != repo {
 		t.Errorf("root of %s is %q", deep, got)
 	}
 	if got := roots(dir); got != dir {
-		t.Errorf("root of a directory outside any repository is %q", got)
+		t.Errorf("root of a directory outside any project is %q", got)
 	}
 	if err := os.RemoveAll(filepath.Join(repo, ".git")); err != nil {
 		t.Fatal(err)
@@ -468,38 +468,84 @@ func TestPlaceRootsFindTheRepository(t *testing.T) {
 	}
 }
 
-// A manifest between the work and its repository makes the place: the
-// monorepo's service is one, the repository's own manifest is not, and
-// outside a repository a manifest marks nothing.
-func TestPlaceRootsFindTheSubProject(t *testing.T) {
+// The watch sorts by project, and a project is a repository or the
+// folder under conn's roots that holds one. Everything below a project
+// is in it, whatever it carries: docs in conn, a service with a
+// manifest of its own in the monorepo it is part of.
+func TestPlaceRootsSortByProject(t *testing.T) {
 	dir := t.TempDir()
-	repo := filepath.Join(dir, "repo")
+	group := filepath.Join(dir, "w0zro")
+	repo := filepath.Join(group, "conn")
+	docs := filepath.Join(repo, "docs")
 	api := filepath.Join(repo, "services", "api")
-	for _, d := range []string{filepath.Join(repo, ".git"), filepath.Join(api, "internal"), filepath.Join(repo, "cmd", "conn"), filepath.Join(dir, "loose")} {
+	notes := filepath.Join(group, "notes")
+	for _, d := range []string{filepath.Join(repo, ".git"), docs, filepath.Join(api, "internal"), notes} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, f := range []string{filepath.Join(repo, "go.mod"), filepath.Join(api, "package.json"), filepath.Join(dir, "loose", "go.mod")} {
+	for _, f := range []string{filepath.Join(repo, "go.mod"), filepath.Join(docs, ".conn"), filepath.Join(api, "package.json")} {
 		if err := os.WriteFile(f, nil, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	roots := placeRoots()
-	if got := roots(filepath.Join(api, "internal")); got != api {
-		t.Errorf("the place under the service is %q", got)
-	}
-	if got := roots(api); got != api {
-		t.Errorf("the service is its own place, not %q", got)
-	}
-	if got := roots(filepath.Join(repo, "cmd", "conn")); got != repo {
-		t.Errorf("a directory with no manifest above it works at the repository, not %q", got)
-	}
+	roots := placeRoots(projectDirs([]string{dir}))
+
 	if got := roots(repo); got != repo {
-		t.Errorf("the repository's own manifest makes no sub-project: %q", got)
+		t.Errorf("the repository is its own place, not %q", got)
 	}
-	if got := roots(filepath.Join(dir, "loose")); got != filepath.Join(dir, "loose") {
-		t.Errorf("outside a repository a directory stands for itself, not %q", got)
+	if got := roots(docs); got != repo {
+		t.Errorf("docs works at %q, not in the repository it is part of", got)
+	}
+	if got := roots(filepath.Join(api, "internal")); got != repo {
+		t.Errorf("a service with a manifest of its own works at %q, not in its repository", got)
+	}
+	// Beside the checkouts rather than inside one: the folder that holds
+	// them is the project, since that is what the work there is about.
+	if got := roots(notes); got != group {
+		t.Errorf("a directory beside the checkouts works at %q, not at the folder holding them", got)
+	}
+	if got := roots(group); got != group {
+		t.Errorf("the folder holding the checkouts is its own place, not %q", got)
+	}
+	// A root is where the checkouts are kept, not a project — even with
+	// one sitting directly in it — so it stands for itself, and a shell
+	// there takes in nothing working under the other checkouts.
+	if err := os.MkdirAll(filepath.Join(dir, "loose", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := roots(dir); got != dir {
+		t.Errorf("the root itself works at %q", got)
+	}
+	if projectDirs([]string{dir})(dir) {
+		t.Error("the root is a project of its own")
+	}
+}
+
+// The folder rule is held in by conn's roots. Anywhere else a folder
+// with a checkout in it is just a folder — otherwise a home directory
+// with one repository under it would be a project, and a shell sitting
+// there would take in every daemon on the machine.
+func TestOnlyTheRootsHoldProjectsOfFolders(t *testing.T) {
+	dir := t.TempDir()
+	away := t.TempDir()
+	repo := filepath.Join(away, "checkouts", "repo")
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	is := projectDirs([]string{dir})
+	if !is(repo) {
+		t.Error("a repository outside the roots is no project")
+	}
+	if is(filepath.Join(away, "checkouts")) {
+		t.Error("a folder of checkouts outside the roots is a project")
+	}
+	roots := placeRoots(is)
+	if got := roots(filepath.Join(away, "checkouts")); got != filepath.Join(away, "checkouts") {
+		t.Errorf("it works at %q rather than standing for itself", got)
+	}
+	if got := roots(filepath.Join(repo, "deep")); got != repo {
+		t.Errorf("work in a repository outside the roots is placed at %q", got)
 	}
 }
 

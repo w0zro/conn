@@ -479,26 +479,17 @@ func commandLine(p process) string {
 	return strings.Join(parts, " ")
 }
 
-// manifests are the files that mark a directory as a project of its own:
-// a plan of conn's, then the file a package manager runs the project by,
-// since most projects run through one and the manifest is where that is
-// said.
-var manifests = []string{
-	".conn", "Procfile",
-	"package.json", "deno.json", "composer.json",
-	"go.mod", "Cargo.toml", "Gemfile", "mix.exs",
-	"pyproject.toml", "pom.xml", "build.gradle", "build.gradle.kts",
-}
-
-// hasManifest says whether a directory carries one of them.
-func hasManifest(dir string) bool {
-	for _, f := range manifests {
-		if _, err := os.Stat(filepath.Join(dir, f)); err == nil {
-			return true
-		}
-	}
-	return false
-}
+// A project is what the watch sorts by: a git repository, or a folder
+// under one of conn's roots that holds one. Everything else is in a
+// project rather than being one — docs in conn, services/api in the
+// monorepo, cmd in either — since a repository is the thing work is
+// about and a directory below it is part of that work.
+//
+// It was a repository or any directory carrying a manifest, which made
+// a place of every corner of a repository that happened to run through
+// a package manager of its own: conn's own docs directory carried a
+// plan and stood apart from conn on the watch, which is not two pieces
+// of work and should not have been two blocks.
 
 // within says whether a directory is at or under a root.
 func within(dir, root string) bool {
@@ -508,12 +499,34 @@ func within(dir, root string) bool {
 	return dir == root || strings.HasPrefix(dir, root+string(filepath.Separator))
 }
 
-// projectDirs says whether a directory is a project in its own right:
-// a repository, or a directory carrying a manifest - the two marks
-// placeRoots already reads, asked of one directory rather than up a
-// path. It remembers what it found, since the watch asks after the
-// same directories on every reading.
-func projectDirs() func(string) bool {
+// holdsRepo says whether a directory has a repository directly in it —
+// the folder the checkouts are kept in. Directly, because a walk of
+// everything below would make a project of every directory on the way
+// down to a checkout, and the one that holds them is the one that
+// stands for them.
+func holdsRepo(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if isRepo(filepath.Join(dir, e.Name())) {
+			return true
+		}
+	}
+	return false
+}
+
+// projectDirs says whether a directory is a project: a repository, or a
+// folder under one of conn's roots holding one. The roots are what keeps
+// the second half of that in hand — any folder anywhere with a checkout
+// somewhere below it would make a project of your home directory, and a
+// shell sitting there would take in every daemon on the machine with it.
+// A root is not itself a project, whatever is kept in it: it is where
+// the checkouts live, which is the same line the projects list draws
+// when it groups them. It remembers what it found, since the watch asks
+// after the same directories on every reading.
+func projectDirs(roots []string) func(string) bool {
 	known := map[string]bool{}
 	return func(dir string) bool {
 		if dir == "" {
@@ -522,10 +535,13 @@ func projectDirs() func(string) bool {
 		if is, ok := known[dir]; ok {
 			return is
 		}
-		is := hasManifest(dir)
+		is := isRepo(dir)
 		if !is {
-			if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-				is = true
+			for _, root := range roots {
+				if dir != root && within(dir, root) {
+					is = holdsRepo(dir)
+					break
+				}
 			}
 		}
 		known[dir] = is
@@ -533,20 +549,14 @@ func projectDirs() func(string) bool {
 	}
 }
 
-// placeRoots finds the place that holds a directory: the nearest ancestor
-// with a .git in it, and within that repository the nearest directory
-// from where the work happens up to it — not counting the repository
-// itself, whose own row already stands for its manifest — that carries a
-// manifest. A monorepo's apps and services are places of their own, and
-// the manifest is what says so. Outside every repository the directory
-// stands for itself.
+// placeRoots finds the place that holds a directory: the nearest project
+// at or above it — the repository the work is in, or the folder the
+// checkouts are kept in where the work is beside them rather than inside
+// one. A directory with no project above it stands for itself.
 //
-// The process makes the sub-project, and it is made from where the
-// process is, not from an index: a manifest git ignores, or one written
-// a minute ago, marks its directory the same as one a scan would have
-// listed. placeRoots remembers what it found, since the watch asks for
-// the same directories on every read.
-func placeRoots() func(string) string {
+// placeRoots remembers what it found, since the watch asks for the same
+// directories on every read.
+func placeRoots(isProject func(string) bool) func(string) string {
 	known := map[string]string{}
 	return func(dir string) string {
 		if dir == "" {
@@ -555,21 +565,15 @@ func placeRoots() func(string) string {
 		if root, ok := known[dir]; ok {
 			return root
 		}
-		root, sub, repo := dir, "", false
+		root := dir
 		for d := dir; ; d = filepath.Dir(d) {
-			if _, err := os.Stat(filepath.Join(d, ".git")); err == nil {
-				root, repo = d, true
+			if isProject(d) {
+				root = d
 				break
-			}
-			if sub == "" && hasManifest(d) {
-				sub = d
 			}
 			if filepath.Dir(d) == d {
 				break
 			}
-		}
-		if repo && sub != "" {
-			root = sub
 		}
 		known[dir] = root
 		return root

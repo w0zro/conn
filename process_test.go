@@ -57,11 +57,13 @@ var (
 
 // The watch stands every process for its own work, nested under
 // whatever runs it: claude's node and its bash, the bash's own go, a
-// shell over its idle sibling, another over its stopped vim. The
-// newest work anywhere in a tree brings it, and its place, to the top.
-// Nothing of root's, of another user's, without a terminal, or conn's
-// own — conn is the instrument and not the work, though something
-// under it, however unlikely, would still root a tree of its own.
+// shell over its idle sibling, another over its stopped vim. Everything
+// sits where it started, oldest first — the places by the work that
+// began there, the trees by their own roots, a row among its siblings
+// by itself. Nothing of root's, of another user's, without a terminal,
+// or conn's own — conn is the instrument and not the work, though
+// something under it, however unlikely, would still root a tree of its
+// own.
 func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	places := watch(testProcs, 501, testRoots, testIsProject, nil)
 	var got []string
@@ -70,16 +72,20 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
 	}
+	// Home's shell is a day old, conn's three hours, conjurer's two, so
+	// they stand in that order; under claude the node it started
+	// forty-six minutes ago comes before the bash it started twelve
+	// seconds ago.
 	want := []string{
-		"/Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL zsh ACTIVE",
-		" /Users/w0zro/projects/w0zro/vim.pro/conjurer AGENT claude --resume ACTIVE",
-		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL bash -c go test ./... ACTIVE",
-		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
-		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN node /opt/claude/mcp.js ACTIVE",
-		"/Users/w0zro/projects/w0zro/conn SHELL zsh ACTIVE",
-		" /Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 		"/Users/w0zro SHELL zsh ACTIVE",
 		" /Users/w0zro EDITOR vim notes.md STOPPED",
+		"/Users/w0zro/projects/w0zro/conn SHELL zsh ACTIVE",
+		" /Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
+		"/Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL zsh ACTIVE",
+		" /Users/w0zro/projects/w0zro/vim.pro/conjurer AGENT claude --resume ACTIVE",
+		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN node /opt/claude/mcp.js ACTIVE",
+		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL bash -c go test ./... ACTIVE",
+		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -138,14 +144,14 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	want = []string{
-		"SHELL bash -c go test ./... ACTIVE",
-		" RUN go test ./... ACTIVE",
-		"RUN node /opt/claude/mcp.js ACTIVE",
-		"SHELL zsh IDLE",
-		"SHELL zsh ACTIVE",
-		" SHELL zsh IDLE",
 		"SHELL zsh ACTIVE",
 		" EDITOR vim notes.md STOPPED",
+		"SHELL zsh ACTIVE",
+		" SHELL zsh IDLE",
+		"SHELL zsh IDLE",
+		"RUN node /opt/claude/mcp.js ACTIVE",
+		"SHELL bash -c go test ./... ACTIVE",
+		" RUN go test ./... ACTIVE",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -185,11 +191,13 @@ func TestTheWatchAdoptsWorkWithNoTerminal(t *testing.T) {
 			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
 	}
+	// The server that outlived its shell is the oldest thing at the
+	// place and stands first; home's shell began after all of it.
 	want := []string{
+		conn + " RUN python3 -m http.server 8137 ACTIVE",
 		conn + " SHELL zsh ACTIVE",
 		" " + conn + " AGENT claude ACTIVE",
 		"  " + conn + " RUN python3 -m http.server 8000 ACTIVE",
-		conn + " RUN python3 -m http.server 8137 ACTIVE",
 		"/Users/w0zro SHELL zsh IDLE",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -680,5 +688,73 @@ func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
 	want := []int{5, 6, 7, 2, 4} // 600s, then the two at 300s by pid, then 60s, then the one that cannot say
 	if !slices.Equal(got, want) {
 		t.Errorf("the waiting round is %v, want %v", got, want)
+	}
+}
+
+// The list holds still. Work appearing anywhere moves nothing that was
+// already there — not the row it hangs under, not that row's siblings,
+// not the place: it goes on the end of where it belongs and everything
+// above keeps its spot. It was the newest start anywhere in a subtree
+// that ordered all three, so a command an agent ran re-sorted the watch
+// out from under whoever was reading it.
+func TestTheWatchHoldsItsOrder(t *testing.T) {
+	rows := func(procs []process) []int {
+		var out []int
+		for _, pl := range watch(procs, 501, testRoots, testIsProject, nil) {
+			for _, e := range pl.entries {
+				out = append(out, e.pid)
+			}
+		}
+		return out
+	}
+	before := rows(testProcs)
+
+	// A command under the agent, a shell of its own in the oldest place,
+	// and a tree in a place the watch has never had: each is newer than
+	// everything on the list.
+	grown := append(append([]process{}, testProcs...),
+		process{pid: 70999, ppid: 70100, uid: 501, tty: "ttys007", state: 'R', command: "rg", args: []string{"rg", "conn"},
+			started: watchNow.Add(-time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+		process{pid: 80999, ppid: 1, uid: 501, tty: "ttys012", state: 'S', command: "zsh", args: []string{"-zsh"},
+			started: watchNow.Add(-2 * time.Second), cwd: "/Users/w0zro"},
+		process{pid: 90999, ppid: 1, uid: 501, tty: "ttys013", state: 'S', command: "zsh", args: []string{"-zsh"},
+			started: watchNow.Add(-3 * time.Second), cwd: "/private/tmp/scratch"},
+	)
+	after := rows(grown)
+
+	// Every row that was there is still there, in the order it was in.
+	var kept []int
+	was := map[int]bool{}
+	for _, pid := range before {
+		was[pid] = true
+	}
+	for _, pid := range after {
+		if was[pid] {
+			kept = append(kept, pid)
+		}
+	}
+	if !reflect.DeepEqual(kept, before) {
+		t.Errorf("the rows that were there moved:\n%v\nwere:\n%v", kept, before)
+	}
+	// And the new work is on the end of where it belongs: the command
+	// under the agent last among what the agent runs, the new shell last
+	// in the place it is in, the new place last of all.
+	if last := after[len(after)-1]; last != 90999 {
+		t.Errorf("a place the watch has never had stands before the others: last row is %d", last)
+	}
+	at := func(pid int) int {
+		for i, p := range after {
+			if p == pid {
+				return i
+			}
+		}
+		t.Fatalf("pid %d is not on the watch", pid)
+		return -1
+	}
+	if at(70999) < at(70301) {
+		t.Error("the agent's newest command stands before the ones it started earlier")
+	}
+	if at(80999) < at(80002) {
+		t.Error("a shell opened just now stands before what was already at its place")
 	}
 }

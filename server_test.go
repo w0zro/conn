@@ -258,9 +258,10 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 	})
 	s.until("the second shell's row", func() bool { return s.placeRows() > before })
 
-	// The cursor is on the newest shell, which is in the slot; j is the
-	// first, and enter brings it back.
-	s.keys("j")
+	// The cursor is on the shell just opened, which is in the slot and
+	// stands last, everything sitting where it started; k is the first
+	// of the two, and enter brings it back.
+	s.keys("k")
 	s.keys("Enter")
 	s.until("the first shell back in the slot", func() bool {
 		return strings.HasSuffix(s.paneAt("home.1"), ":"+slotFirst)

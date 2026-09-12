@@ -14,8 +14,9 @@ import (
 // kind, what it was started as, its terminal, how long it has been at
 // it, and the word for how it stands. A row under another indents,
 // its kind and command shifted in together, the rest of its columns
-// holding their own place. The newest work anywhere in a tree brings
-// it, and its place, to the top. A cursor is on one row, which is
+// holding their own place. Everything sits where it started and stays
+// there for as long as it lives, oldest first, so what is new goes on
+// the end and nothing above it moves. A cursor is on one row, which is
 // drawn on a raised ground from edge to edge, and the rows scroll to
 // keep it in view. What conn holds — a process in a pane of the
 // server, which can be reached — is written in the ink; work conn can
@@ -179,7 +180,8 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	l.add(p.gray, "STATUS")
 	c.emit(l, 0, false)
 
-	// The places, newest first; or the reason there are none.
+	// The places, in the order work began in them; or the reason there
+	// are none.
 	room := height - 1 // the bottom row is kept for a note
 	if height == 0 {
 		room = 1 << 30

@@ -20,8 +20,14 @@ indented under it, the shell that agent asked for under that, and its `go
 test` under that again. A whole tree belongs to one place, the directory its
 root stands in, whatever a process below it has since `cd`'d to. A shell is
 idle only bare, at its prompt; running anything, however far down, it is
-active the way what it runs is. The newest work anywhere in a tree brings it,
-and its place, to the top.
+active the way what it runs is. Everything sits where it started and stays
+there for as long as it lives: a place by the work that first began there, a
+tree by its own root, a row among its siblings by itself, oldest first. What
+is new goes on the end, so nothing above it moves and a row read twice is in
+the same spot. It was the newest work anywhere in a tree bringing it and its
+place to the top, which is a true thing to say about a list and a hard one to
+read — an agent running a command a second re-sorted the whole watch under
+the eye trying to follow it.
 
 A row reads `WORKING` when it was doing something between one reading and the
 next, and `ACTIVE` when it is only alive — a dev server waiting on a request

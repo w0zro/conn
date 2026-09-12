@@ -283,40 +283,41 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 	// following itself down forever.
 	walked := map[int]bool{}
 
-	// newest is the latest a pid or anything under it started: what
-	// orders a tree among its siblings, and a place among the others —
-	// fresh work under a shell open for hours still counts as fresh.
-	memo := map[int]time.Time{}
-	var newest func(pid int, seen map[int]bool) time.Time
-	newest = func(pid int, seen map[int]bool) time.Time {
-		if t, ok := memo[pid]; ok {
-			return t
-		}
-		if seen[pid] {
-			return byPid[pid].started
-		}
-		seen[pid] = true
-		t := byPid[pid].started
-		for _, c := range children[pid] {
-			if ct := newest(c, seen); ct.After(t) {
-				t = ct
+	// Where a thing sits is where it started, and it sits there for as
+	// long as it lives. A tree is placed by its own root's start, a row
+	// among its siblings by its own, and a place by the first work that
+	// began there — oldest first, so what is new goes on the end and
+	// nothing above it moves.
+	//
+	// It was the newest start anywhere in a subtree, which brought fresh
+	// work and its whole place to the top. That is a true thing to say
+	// about a list and a hard one to read: an agent running a command a
+	// second re-sorted the trees, their rows and the places under the
+	// eye trying to follow them, and a row read twice was rarely in the
+	// same spot. What is worth watching is found by looking, and looking
+	// wants the list to hold still.
+	//
+	// The pid breaks a tie, so two things started in the same instant
+	// come out the same way on every reading whatever order the table
+	// was read in.
+	startedAt := func(pid int) time.Time { return byPid[pid].started }
+	byStart := func(pids []int) {
+		sort.SliceStable(pids, func(i, j int) bool {
+			a, b := startedAt(pids[i]), startedAt(pids[j])
+			if a.Equal(b) {
+				return pids[i] < pids[j]
 			}
-		}
-		memo[pid] = t
-		return t
+			return a.Before(b)
+		})
 	}
-	newestOf := func(pid int) time.Time { return newest(pid, map[int]bool{}) }
-	sortNewest := func(pids []int) {
-		sort.SliceStable(pids, func(i, j int) bool { return newestOf(pids[i]).After(newestOf(pids[j])) })
-	}
-	sortNewest(roots)
+	byStart(roots)
 	for pid := range children {
-		sortNewest(children[pid])
+		byStart(children[pid])
 	}
 
 	places := map[string]*place{}
 	var order []string
-	placeNewest := map[string]time.Time{}
+	placeAt := map[string]time.Time{}
 	var walk func(pid, depth int, path string)
 	walk = func(pid, depth int, path string) {
 		if walked[pid] {
@@ -339,8 +340,8 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 	}
 	for _, rootPid := range roots {
 		path := rootOf(byPid[rootPid].cwd)
-		if t := newestOf(rootPid); t.After(placeNewest[path]) {
-			placeNewest[path] = t
+		if t := startedAt(rootPid); placeAt[path].IsZero() || t.Before(placeAt[path]) {
+			placeAt[path] = t
 		}
 		walk(rootPid, 0, path)
 	}
@@ -349,9 +350,14 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 	for _, path := range order {
 		out = append(out, *places[path])
 	}
-	// The newest work first, anywhere in a place's trees.
+	// A place sits where work there began, and the path breaks a tie the
+	// way the pid does among rows.
 	sort.SliceStable(out, func(i, j int) bool {
-		return placeNewest[out[i].path].After(placeNewest[out[j].path])
+		a, b := placeAt[out[i].path], placeAt[out[j].path]
+		if a.Equal(b) {
+			return out[i].path < out[j].path
+		}
+		return a.Before(b)
 	})
 	return out
 }

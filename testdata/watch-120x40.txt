@@ -3,20 +3,20 @@
    ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    KIND    COMMAND                                                                     TTY        AGE          STATUS
 
-   w0zro/vim.pro/conjurer                                                                                 5 PROCESSES
-   SHELL   zsh                                                                         TTYS007    2H 00M       ACTIVE
-     AGENT   claude --resume                                                           TTYS007    47M 00S      ACTIVE
-       SHELL   bash -c go test ./...                                                   TTYS007    12S          ACTIVE
-         RUN     go test ./...                                                         TTYS007    11S          ACTIVE
-       RUN     node /opt/claude/mcp.js                                                 TTYS007    46M 00S      ACTIVE
+   ~                                                                                                      2 PROCESSES
+   SHELL   zsh                                                                         TTYS009    1D 02H       ACTIVE
+     EDITOR  vim notes.md                                                              TTYS009    1D 01H     STOPPED
 
    w0zro/conn                                                                                             2 PROCESSES
    SHELL   zsh                                                                         TTYS004    3H 00M       ACTIVE
  ▸   SHELL   zsh                                                                       TTYS005    1M 30S         IDLE
 
-   ~                                                                                                      2 PROCESSES
-   SHELL   zsh                                                                         TTYS009    1D 02H       ACTIVE
-     EDITOR  vim notes.md                                                              TTYS009    1D 01H     STOPPED
+   w0zro/vim.pro/conjurer                                                                                 5 PROCESSES
+   SHELL   zsh                                                                         TTYS007    2H 00M       ACTIVE
+     AGENT   claude --resume                                                           TTYS007    47M 00S      ACTIVE
+       RUN     node /opt/claude/mcp.js                                                 TTYS007    46M 00S      ACTIVE
+       SHELL   bash -c go test ./...                                                   TTYS007    12S          ACTIVE
+         RUN     go test ./...                                                         TTYS007    11S          ACTIVE
 
 
 

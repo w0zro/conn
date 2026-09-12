@@ -581,6 +581,18 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 		t.Errorf("focus went to pane %s rather than staying on the rail", got)
 	}
 
+	// Reading down a list is i, j, i, j: each page replaces the last
+	// rather than filing it away, or a few minutes of reading would
+	// leave a window behind for every row looked at.
+	for i := 0; i < 3; i++ {
+		s.keys("j")
+		s.keys("i")
+		s.until("the next page", func() bool { return strings.Contains(s.slot(), "WHERE") })
+	}
+	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != "1" || n != "2" {
+		t.Errorf("reading down the list left %s windows and %s panes in home", w, n)
+	}
+
 	// Reaching something real is rid of it, the way it is rid of a hold.
 	s.openShell()
 	s.until("a shell to take the slot from the look", func() bool { return s.shellIn("home.1") })

@@ -166,6 +166,7 @@ type model struct {
 	projectsErr string
 	uid         int
 	roots       func(string) string
+	isProject   func(string) bool
 
 	// The picker: a place's suspended conversations, as last read, what
 	// has narrowed them, and which of the rows the cursor is on.
@@ -193,11 +194,12 @@ func newModel(p palette) model {
 		lit:  true,
 		told: -1, // nothing published yet; the first cursor is news
 
-		head:  station{build: readBuild(), session: readSession()},
-		now:   time.Now(),
-		p:     p,
-		uid:   os.Getuid(),
-		roots: placeRoots(),
+		head:      station{build: readBuild(), session: readSession()},
+		now:       time.Now(),
+		p:         p,
+		uid:       os.Getuid(),
+		roots:     placeRoots(),
+		isProject: projectDirs(),
 	}
 }
 
@@ -246,7 +248,7 @@ func readStationCmd() tea.Msg {
 // the slot, and composes the watch off them. It reads and does nothing
 // else; what the reading calls for is decided when it comes back.
 func (m model) readWatch() tea.Cmd {
-	gen, uid, roots := m.watchGen, m.uid, m.roots
+	gen, uid, roots, isProject := m.watchGen, m.uid, m.roots, m.isProject
 	was, wasAt := m.cpuWas, m.cpuAt
 	var srv *server
 	if m.inside {
@@ -267,7 +269,7 @@ func (m model) readWatch() tea.Cmd {
 			how[pid] = standing{working: true}
 		}
 		maps.Copy(how, agentStandings(procs))
-		msg := watchMsg{places: watch(procs, uid, roots, how), gen: gen, cpu: now, cpuAt: nowAt}
+		msg := watchMsg{places: watch(procs, uid, roots, isProject, how), gen: gen, cpu: now, cpuAt: nowAt}
 		if srv != nil {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
 				msg.noSlot = true

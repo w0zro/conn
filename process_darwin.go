@@ -45,7 +45,7 @@ func readProcesses(uid int) ([]process, error) {
 			p.cwd, p.command = d.cwd, d.command
 		}
 		p.cpu = cpu[p.pid]
-		if p.uid == uid && p.tty != "" {
+		if p.uid == uid {
 			if raw, err := unix.SysctlRaw("kern.procargs2", p.pid); err == nil {
 				p.args = parseProcargs(raw)
 			}

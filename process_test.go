@@ -16,7 +16,8 @@ import (
 // ttys004, a shell running conn. On ttys007, a shell running claude,
 // which runs a node of its own and a bash it asked for, which runs a go
 // test. On ttys009, a shell at its prompt, and one stopped vim. A root
-// process and one with no terminal, which the watch leaves out.
+// process, and one with no terminal working at / — no project, so
+// nothing adopts it and the watch leaves it out.
 var (
 	watchNow  = time.Date(2026, 9, 9, 3, 0, 0, 0, time.UTC)
 	testProcs = []process{
@@ -43,6 +44,12 @@ var (
 		}
 		return dir
 	}
+	// The two repositories are projects; home is a directory work
+	// happens in and nothing more, which is what keeps it from
+	// adopting the machine.
+	testIsProject = func(dir string) bool {
+		return dir == "/Users/w0zro/projects/w0zro/conn" || dir == "/Users/w0zro/projects/w0zro/vim.pro/conjurer"
+	}
 )
 
 // The watch stands every process for its own work, nested under
@@ -53,7 +60,7 @@ var (
 // own — conn is the instrument and not the work, though something
 // under it, however unlikely, would still root a tree of its own.
 func TestWatchStandsOneProcessForEachWork(t *testing.T) {
-	places := watch(testProcs, 501, testRoots, nil)
+	places := watch(testProcs, 501, testRoots, testIsProject, nil)
 	var got []string
 	for _, pl := range places {
 		for _, e := range pl.entries {
@@ -122,7 +129,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	got = got[:0]
-	for _, pl := range watch(without, 501, testRoots, nil) {
+	for _, pl := range watch(without, 501, testRoots, testIsProject, nil) {
 		for _, e := range pl.entries {
 			got = append(got, strings.Repeat(" ", e.depth)+e.kind+" "+e.command+" "+e.status)
 		}
@@ -140,8 +147,69 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if b := watch(nil, 501, testRoots, nil); len(b) != 0 {
+	if b := watch(nil, 501, testRoots, testIsProject, nil); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
+	}
+}
+
+// Work with no terminal is still work. A server the agent started and
+// one that outlived the shell that started it are both of the project,
+// and both stand as rows: the first under the agent that runs it, the
+// second rooting a tree of its own, since nothing of yours runs it any
+// more. What is merely on the machine stays off — a daemon working in
+// its own container under home, where a shell happens to sit, is not
+// in a project and is nobody's work. Neither is what conn is held in:
+// the tmux server has no terminal and works in the repository like
+// anything else there, and is off the watch with conn.
+func TestTheWatchAdoptsWorkWithNoTerminal(t *testing.T) {
+	const conn = "/Users/w0zro/projects/w0zro/conn"
+	procs := []process{
+		{pid: 1, ppid: 0, uid: 0, command: "launchd", started: watchNow.Add(-5 * 24 * time.Hour)},
+		{pid: 300, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-3 * time.Hour), cwd: conn},
+		{pid: 310, ppid: 300, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: watchNow.Add(-47 * time.Minute), cwd: conn},
+		{pid: 320, ppid: 310, uid: 501, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "8000"}, started: watchNow.Add(-30 * time.Second), cwd: conn + "/docs"},
+		{pid: 330, ppid: 1, uid: 501, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "8137"}, started: watchNow.Add(-26 * time.Hour), cwd: conn + "/docs"},
+		{pid: 400, ppid: 1, uid: 501, tty: "ttys009", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-2 * time.Hour), cwd: "/Users/w0zro"},
+		{pid: 410, ppid: 1, uid: 501, state: 'S', command: "weatherd", args: []string{"weatherd"}, started: watchNow.Add(-5 * time.Hour), cwd: "/Users/w0zro/Library/Containers/com.apple.weather.widget/Data"},
+		{pid: 500, ppid: 1, uid: 501, state: 'S', command: "tmux", args: []string{"tmux", "-S", "/Users/w0zro/.local/state/conn/tmux.sock", "new-session"}, started: watchNow.Add(-90 * time.Second), cwd: conn},
+		{pid: 510, ppid: 500, uid: 501, tty: "ttys003", state: 'S', command: "conn", args: []string{"conn"}, started: watchNow.Add(-89 * time.Second), cwd: conn},
+		{pid: 600, ppid: 1, uid: 502, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "9999"}, started: watchNow.Add(-time.Hour), cwd: conn + "/docs"},
+	}
+	places := watch(procs, 501, testRoots, testIsProject, nil)
+	var got []string
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
+		}
+	}
+	want := []string{
+		conn + " SHELL zsh ACTIVE",
+		" " + conn + " AGENT claude ACTIVE",
+		"  " + conn + " RUN python3 -m http.server 8000 ACTIVE",
+		conn + " RUN python3 -m http.server 8137 ACTIVE",
+		"/Users/w0zro SHELL zsh IDLE",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	on := map[int]bool{}
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			on[e.pid] = true
+		}
+	}
+	for _, c := range []struct {
+		pid int
+		why string
+	}{
+		{410, "a daemon under home, where no project is"},
+		{500, "the tmux server conn is held in"},
+		{510, "conn itself"},
+		{600, "another user's server in the project"},
+	} {
+		if on[c.pid] {
+			t.Errorf("%s is a row", c.why)
+		}
 	}
 }
 
@@ -157,7 +225,7 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
 	}
 	var pids []int
-	for _, pl := range watch(dup, 501, testRoots, nil) {
+	for _, pl := range watch(dup, 501, testRoots, testIsProject, nil) {
 		for _, e := range pl.entries {
 			pids = append(pids, e.pid)
 		}
@@ -175,7 +243,7 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 		{pid: 12, ppid: 1, uid: 501, tty: "ttys002", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
 	}
 	done := make(chan []place, 1)
-	go func() { done <- watch(cycle, 501, testRoots, nil) }()
+	go func() { done <- watch(cycle, 501, testRoots, testIsProject, nil) }()
 	select {
 	case places := <-done:
 		// The one process standing clear of the cycle is still read.

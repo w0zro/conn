@@ -143,7 +143,20 @@ type place struct {
 // nothing: what they run is work, and reads as theirs. The rule goes
 // by the program's name, so a conn on another socket, or an older conn
 // installed beside this one, is off the watch too.
-func watch(procs []process, uid int, rootOf func(string) string, how map[int]standing) []place {
+//
+// A terminal is how the watch tells your work from the machine's, and
+// it is most of it, but not all: a server you left running has no
+// terminal and is work all the same. So a process of yours without
+// one is adopted where it works inside a project you have terminal
+// work in - the dev server under the agent that started it, and the
+// one from last week that outlived its shell alike. The project is
+// what makes that safe. A place that is merely a directory adopts
+// nothing, since a shell sitting at home would otherwise take in
+// every daemon on the machine with it. What conn is held in is not
+// work either: the tmux server conn runs inside has no terminal and
+// works in the repository like anything else there, and is no more a
+// row than conn is.
+func watch(procs []process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]standing) []place {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
@@ -192,6 +205,59 @@ func watch(procs []process, uid int, rootOf func(string) string, how map[int]sta
 			pid = a.ppid
 		}
 		return 0, false
+	}
+	// The places terminal work has established, kept to those that are
+	// projects in their own right: work of yours in a project is what
+	// lets the watch speak for anything else running there.
+	worked := map[string]bool{}
+	for _, p := range procs {
+		if !candidate[p.pid] || covered(p) || p.cwd == "" {
+			continue
+		}
+		switch kindOf(p) {
+		case kindConn, kindHold:
+			continue
+		}
+		if root := rootOf(p.cwd); isProject(root) {
+			worked[root] = true
+		}
+	}
+	// conn's own scaffolding: whatever conn runs beneath. Only what is
+	// up for adoption is asked, so a process with a terminal still
+	// stands for itself - the shell you started conn from is your
+	// shell, and stays a row.
+	scaffolding := map[int]bool{}
+	for _, p := range procs {
+		switch kindOf(p) {
+		case kindConn, kindHold:
+		default:
+			continue
+		}
+		seen := map[int]bool{}
+		for pid := p.ppid; pid > 0 && !seen[pid]; {
+			seen[pid] = true
+			scaffolding[pid] = true
+			a, ok := byPid[pid]
+			if !ok {
+				break
+			}
+			pid = a.ppid
+		}
+	}
+	// A process of the user with no terminal, working inside one of
+	// those places, is adopted: from here it is a candidate like any
+	// other, hanging from whatever runs it, or rooting a tree of its
+	// own where nothing does.
+	for _, p := range procs {
+		if candidate[p.pid] || p.uid != uid || p.tty != "" || p.cwd == "" || scaffolding[p.pid] {
+			continue
+		}
+		for root := range worked {
+			if within(p.cwd, root) {
+				candidate[p.pid] = true
+				break
+			}
+		}
 	}
 	children := map[int][]int{}
 	var roots []int
@@ -432,6 +498,39 @@ func hasManifest(dir string) bool {
 		}
 	}
 	return false
+}
+
+// within says whether a directory is at or under a root.
+func within(dir, root string) bool {
+	if root == "" {
+		return false
+	}
+	return dir == root || strings.HasPrefix(dir, root+string(filepath.Separator))
+}
+
+// projectDirs says whether a directory is a project in its own right:
+// a repository, or a directory carrying a manifest - the two marks
+// placeRoots already reads, asked of one directory rather than up a
+// path. It remembers what it found, since the watch asks after the
+// same directories on every reading.
+func projectDirs() func(string) bool {
+	known := map[string]bool{}
+	return func(dir string) bool {
+		if dir == "" {
+			return false
+		}
+		if is, ok := known[dir]; ok {
+			return is
+		}
+		is := hasManifest(dir)
+		if !is {
+			if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+				is = true
+			}
+		}
+		known[dir] = is
+		return is
+	}
 }
 
 // placeRoots finds the place that holds a directory: the nearest ancestor

@@ -9,7 +9,7 @@ import (
 )
 
 func testWatch() watchReport {
-	return composeWatch(watch(testProcs, 501, testRoots, nil), nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	return composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 }
 
 // The watch at 120 by 40 is a file of record, as are the empty watch and
@@ -21,7 +21,7 @@ func TestWatchMatchesTheGolden(t *testing.T) {
 	golden(t, "watch-empty-80x24.txt", texts(drawWatch(empty, 0, 80, 24, plain)))
 	failed := composeWatch(nil, nil, "", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "the process table could not be read: lsof: not found")
 	golden(t, "watch-unread-80x24.txt", texts(drawWatch(failed, 0, 80, 24, plain)))
-	rail := composeWatch(watch(testProcs, 501, testRoots, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	rail := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	rail.inside = true
 	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
 }
@@ -98,7 +98,7 @@ func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 // process across readings; when the process goes it holds its row.
 func TestTheCursorFollowsItsProcess(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewWatch, uid: 501, roots: testRoots, now: watchNow}
-	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots, nil)})
+	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	// The rows read down the tree: the conjurer's shell, the claude it
 	// runs, the bash that one runs, its go, then the node beside the
@@ -123,7 +123,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	}
 	// A reading that still has the pid keeps the cursor on it, wherever
 	// in the rows it has moved to.
-	next, _ = m.Update(watchMsg{places: watch(testProcs, 501, testRoots, nil)})
+	next, _ = m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	if m.cursor != 70100 || m.cursorAt != 1 {
 		t.Errorf("the cursor left the pid it was on: %d at %d", m.cursor, m.cursorAt)
@@ -136,7 +136,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 			without = append(without, p)
 		}
 	}
-	next, _ = m.Update(watchMsg{places: watch(without, 501, testRoots, nil)})
+	next, _ = m.Update(watchMsg{places: watch(without, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	if m.cursorAt != 1 || m.cursor != 70301 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
@@ -164,7 +164,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	if strings.Contains(m.View().Content, "CONN  WATCH") || !strings.Contains(m.View().Content, "NOTHING ON WATCH") {
 		t.Errorf("the watch should be up, empty until read:\n%s", m.View().Content)
 	}
-	next, cmd = m.Update(watchMsg{places: watch(testProcs, 501, testRoots, nil), gen: m.watchGen})
+	next, cmd = m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil), gen: m.watchGen})
 	m = next.(model)
 	if cmd == nil || !strings.Contains(m.View().Content, "claude --resume") {
 		t.Errorf("the watch should show what was read and set the tick going:\n%s", m.View().Content)
@@ -196,7 +196,7 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 // In the server, the keys say what can be done, a terminal the server
 // does not hold is faint, and a note takes the bottom row until a key.
 func TestTheWatchInsideTheServer(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	w.inside = true
 	rows := drawWatch(w, 67040, 120, 40, colored())
 	text := texts(rows)
@@ -234,7 +234,7 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewWatch, uid: 501, roots: testRoots, now: watchNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
-	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots, nil), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
+	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: k})
@@ -280,7 +280,7 @@ func TestKeysInsideTheServer(t *testing.T) {
 // kept clear all the same, so a note has a place to land that does not
 // move the rows.
 func TestTheWatchSaysNoKeys(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
+	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", "/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
@@ -345,7 +345,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 // distinction would be every row.
 func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored()
-	held := composeWatch(watch(testProcs, 501, testRoots, nil),
+	held := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
 		"/Users/w0zro", watchNow, "w0zro@station", zulu(watchNow), "")
 	held.inside = true

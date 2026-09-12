@@ -144,7 +144,7 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 
 	// And the word the watch writes for each, end to end.
 	got := map[int]string{}
-	for _, pl := range watch(procs, 501, func(string) string { return "/w" }, how) {
+	for _, pl := range watch(procs, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.entries {
 			got[e.pid] = e.status
 		}
@@ -239,7 +239,7 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 	}
 
 	// And the entry carries it, which is what orders the round.
-	for _, pl := range watch([]process{agent(20), agent(21)}, 501, func(string) string { return "/w" }, how) {
+	for _, pl := range watch([]process{agent(20), agent(21)}, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.entries {
 			if e.pid == 20 && !e.since.Equal(since) {
 				t.Errorf("the entry for pid 20 stands since %v, want %v", e.since, since)

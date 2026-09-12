@@ -136,7 +136,7 @@ func lookOf(pid int, srv *server) lookReport {
 	if err != nil {
 		return lookReport{pid: pid, gone: true}
 	}
-	places := watch(procs, uid, placeRoots(), agentStandings(procs))
+	places := watch(procs, uid, placeRoots(), projectDirs(), agentStandings(procs))
 	s, ok := subjectOf(pid, places, procs)
 	if !ok {
 		return lookReport{pid: pid, gone: true}

@@ -44,15 +44,18 @@ word a shell at its prompt gets and for the same reason: at rest, nothing
 pending, yours when you want it. The difference is whether anything is held
 up, and only the thing that is held up is worth a word that carries.
 
-`i` opens the look in the slot and `i` again takes it away, leaving the hold
-an empty slot has — beside the watch rather than over it, so the
-row it is about stays on screen under the cursor. It then follows that
+`i` opens the look in the slot and `i` again takes it away — beside the
+watch rather than over it, so the row it is about stays on screen under the
+cursor. It then follows that
 cursor: `j` and `k` walk the list and the page walks with them, and `tab`
 carries it to whatever is waiting on you. One page serves the whole list,
 which is why `i` is pressed once and not once a row — and why the second press
-is free to mean close. Closing wants no row under the cursor: the page is
-there whatever the cursor is on, and refusing to shut it because the watch
-had emptied would leave it stuck. It is conn's own program
+is free to mean close. Where the row is one conn holds, closing goes to it:
+the page is a reading of that row and the row is right there in a pane, so
+read about it and then be in it, and what cannot be reached closes to the
+hold an empty slot has instead. Closing wants no row under the cursor at
+all: the page is there whatever the cursor is on, and refusing to shut it
+because the watch had emptied would leave it stuck. It is conn's own program
 in a pane of the server, `conn look`, the way the hold is, so the slot holds
 it like anything else and reaching a real process is rid of it. Focus stays
 on the rail: the page is a reading, not a place to be put, and every key that

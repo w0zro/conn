@@ -378,3 +378,49 @@ func TestIClosesThePageWithNothingUnderTheCursor(t *testing.T) {
 		t.Errorf("i on an empty watch with a page up said %q instead of closing it", m.note)
 	}
 }
+
+// Closing the page on a row conn holds goes to the row. The page is a
+// reading of that row and the row is right there in a pane — read about
+// it, then be in it — and an empty slot is a worse answer than the
+// thing the page was about.
+func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.looking, m.now = viewWatch, true, true, watchNow
+	m.places = []place{{path: "/w", entries: []entry{
+		{pid: 49212, tty: "ttys003"},
+		{pid: 49213, tty: "ttys004"},
+	}}}
+	m.cursor, m.cursorAt = 49212, 0
+	m.panes = map[string]pane{"ttys003": {id: "%7", tty: "ttys003"}}
+
+	t.Setenv("TMUX_PANE", "%0")
+	stub := filepath.Join(t.TempDir(), "tmux")
+	script := "#!/bin/sh\nshift 2\ncase \"$1\" in\n" +
+		"list-panes) printf '%%0\\t/dev/ttys001\\t44\\t40\\t\\t\\t\\n%%9\\t/dev/ttys009\\t80\\t40\\t1\\t\\t1\\n' ;;\n" +
+		"new-window|split-window) printf '%%9\\n' ;;\nesac\nexit 0\n"
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.srv = &server{tmux: stub, socket: "/tmp/none"}
+
+	press := func() tea.Msg {
+		t.Helper()
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
+		m = next.(model)
+		if cmd == nil {
+			t.Fatal("i asked the server for nothing")
+		}
+		return cmd()
+	}
+	if got := press(); got != (reachedMsg{"ttys003"}) {
+		t.Errorf("i on a page about a row conn holds answered %+v, not the row", got)
+	}
+
+	// A row conn only reports has nothing to go to, and the page comes
+	// down to the empty slot as before.
+	m.looking = true
+	m.cursor, m.cursorAt = 49213, 1
+	if got := press(); got != (lookedMsg{on: false}) {
+		t.Errorf("i on a page about a row conn cannot reach answered %+v", got)
+	}
+}

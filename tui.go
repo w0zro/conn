@@ -604,10 +604,18 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// the cursor: the page is there whatever the cursor is on, and
 		// refusing to close it because the watch has emptied would leave
 		// it stuck.
-		_, _, ok := m.under()
+		//
+		// Where the row is one conn holds, closing goes to it. The page
+		// is a reading of that row and the row is right there in a pane
+		// — read about it, then be in it — and an empty slot is a worse
+		// answer than the thing the page was about. What cannot be
+		// reached closes to the empty slot as before.
+		e, _, ok := m.under()
 		switch {
 		case !m.inside:
 			m.note = "NOTHING CAN BE SHOWN OUTSIDE CONN'S TMUX SERVER"
+		case m.looking && ok && m.panes[e.tty].id != "":
+			return m, m.reach(m.panes[e.tty], e.tty)
 		case m.looking:
 			return m, m.closeLook()
 		case !ok:

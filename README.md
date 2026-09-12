@@ -35,6 +35,23 @@ word a shell at its prompt gets and for the same reason: at rest, nothing
 pending, yours when you want it. The difference is whether anything is held
 up, and only the thing that is held up is worth a word that carries.
 
+`i` opens the look on the row under the cursor, and `i` or `esc` comes back.
+A row of the watch is six columns on a rail and most of what conn reads of a
+process does not fit in that, so it is dropped rather than shortened; the
+look is where the dropped part is said. The whole command rather than its
+head, and as it was written rather than in conn's upper case, since it is a
+thing somebody might retype. The directory the process is actually in, when
+that is not the place its tree belongs to. How long it has stood as it does,
+not only how it stands. Whether conn holds a pane for it. And, of an agent
+stopped on you, what it is stopped on — `input needed`, `dialog open`, a
+`sandbox request` — which is the one thing the watch has no column wide
+enough for and the whole reason to open the page on a waiting row. That
+group comes first: the page is cut off at the terminal's height rather than
+scrolled, so what must not be lost goes at the top. It is the console's own
+form — a label, a dotted leader, a value, grouped under a title — because
+the console says what the machine is and the look says what one row of it
+is, and they are the same instrument speaking.
+
 `tab` goes to what is waiting on you: the first press to the agent that has
 been held up longest, each after it to the next, and round again from the
 end. An agent says when its status became what it is, and Claude writes that

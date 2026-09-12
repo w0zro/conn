@@ -41,6 +41,11 @@ func readStation() station {
 type fact struct {
 	label, value string
 	path         bool
+	// The value is the world's text rather than conn's own vocabulary —
+	// a command line, something typed — and is kept as it was written.
+	// Paths are kept too, but they are kept and elided head-first,
+	// which is a path's own business and not this.
+	verbatim bool
 }
 
 // A check is a line of the start-up checks: what was checked, what was

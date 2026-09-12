@@ -103,6 +103,11 @@ type sessionFile struct {
 	// epoch. Claude writes the file on a change rather than on a clock,
 	// so this is the moment of the change and holds still between them.
 	StatusUpdatedAt int64 `json:"statusUpdatedAt"`
+	// What a waiting instance is stopped on, in its own words: a short
+	// phrase from a closed set — input needed, dialog open, goal
+	// proposal, sandbox request. The watch has no column wide enough
+	// for it; the look does.
+	WaitingFor string `json:"waitingFor"`
 }
 
 // claudeSessions is what every claude instance says of itself, by the
@@ -170,7 +175,7 @@ func agentStandings(procs []process) map[int]standing {
 		case busyStatus, shellStatus:
 			how[pid] = standing{working: true, since: since}
 		case waitingStatus:
-			how[pid] = standing{waiting: true, since: since}
+			how[pid] = standing{waiting: true, since: since, asking: s.WaitingFor}
 		case idleStatus:
 			how[pid] = standing{idle: true, since: since}
 		}

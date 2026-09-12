@@ -1,0 +1,22 @@
+
+   LOOK                                                                                                     PID 49212
+   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+   WAITING ON YOU
+   ASKING .... INPUT NEEDED
+
+   WHAT
+   KIND ...... AGENT
+   COMMAND ... claude --resume d81d7536-e545-4881-8daa-f1d291a03be1
+   PID ....... 49212
+   STATUS .... WAITING · FOR 7M 00S
+   UP ........ 1H 32M
+
+   WHERE
+   PLACE ..... ~/projects/w0zro/conn
+   CWD ....... ~/projects/w0zro/conn/tools
+   TTY ....... TTYS003
+   PANE ...... %2 · CAN BE REACHED
+
+
+

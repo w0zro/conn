@@ -92,8 +92,9 @@ const (
 // with its turn over and nothing pending.
 type standing struct {
 	working bool
-	waiting bool // stopped on something it asked of you
-	idle    bool // stopped with its turn over, asking nothing
+	waiting bool   // stopped on something it asked of you
+	idle    bool   // stopped with its turn over, asking nothing
+	asking  string // what a waiting agent is stopped on, in its own words
 	// When it came to stand this way, where it says so; zero where it
 	// does not. Only an agent knows the moment it stopped, and only
 	// waiting is worth the moment: how long a thing has been held up on
@@ -114,6 +115,11 @@ type entry struct {
 	fault   bool      // a status to be looked at: STOPPED, ENDED
 	depth   int       // how deep under its place's own root; the root at 0
 	since   time.Time // when it came to stand as it does, where that is known
+	// What the watch has no column for and the look reads: where the
+	// process itself is, whatever place its tree belongs to, and what an
+	// agent says it is stopped on.
+	cwd    string
+	asking string
 }
 
 // A place is a directory work is happening in, and the entries at it.
@@ -254,7 +260,7 @@ func watch(procs []process, uid int, rootOf func(string) string, how map[int]sta
 		p := byPid[pid]
 		kind := kindOf(p)
 		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth,
-			since: how[p.pid].since}
+			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking}
 		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
 		if places[path] == nil {
 			places[path] = &place{path: path}

@@ -536,3 +536,26 @@ func TestTabReachesTheWatchAsTab(t *testing.T) {
 		return strings.Contains(s.rail(), "NO AGENT IS WAITING ON YOU")
 	})
 }
+
+// i opens the look on the row under the cursor and comes back, in a
+// real terminal: the page is a view of its own in the rail, so the
+// thing to see is the rail's whole reading change and change back.
+func TestILooksAtTheCursorsRowAndComesBack(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.keys("Space")
+	s.until("the slot to open on the watch", func() bool {
+		return s.display("#{pane_width}") == railW && strings.Contains(s.rail(), "STATUS")
+	})
+
+	s.keys("i")
+	s.until("the look to open on a row", func() bool {
+		r := s.rail()
+		return strings.Contains(r, "LOOK") && strings.Contains(r, "PID ") && strings.Contains(r, "WHERE")
+	})
+	s.keys("i")
+	s.until("the watch to come back", func() bool {
+		r := s.rail()
+		return strings.Contains(r, "STATUS") && !strings.Contains(r, "LOOK")
+	})
+}

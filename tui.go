@@ -152,6 +152,9 @@ type model struct {
 	// already knows.
 	looking  bool
 	entering bool // the console is waiting on a reading to go to the watch
+	// The modes conn last put on the bar, so each is written when it
+	// changes and not on every pass through Update.
+	saidRail, saidSlot string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -381,13 +384,76 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// until somebody presses j.
 		_, reading := msg.(watchMsg)
 		nm = nm.published(reading)
+		nm, said := nm.saying()
 		nm, blink := nm.blinked()
-		if blink != nil {
-			return nm, tea.Batch(cmd, blink)
+		if said != nil || blink != nil {
+			return nm, tea.Batch(cmd, said, blink)
 		}
 		return nm, cmd
 	}
 	return next, cmd
+}
+
+// saying puts conn's two modes on the bar, when either has changed since
+// the last telling. Going through here is the point: a view is left from
+// a dozen places and every one of them would otherwise have to remember
+// to say so.
+//
+// The bar is tmux's line and conn reaches it by setting options, which
+// is a process — so the modes are written when they change, which is on
+// a keypress and rarely, and never on a beat.
+func (m model) saying() (model, tea.Cmd) {
+	if !m.inside || m.srv == nil {
+		return m, nil
+	}
+	rail, slot := m.modes()
+	if rail == m.saidRail && slot == m.saidSlot {
+		return m, nil
+	}
+	m.saidRail, m.saidSlot = rail, slot
+	srv := m.srv
+	return m, func() tea.Msg { _ = srv.say(rail, slot); return nil }
+}
+
+// modes are the two conn knows: what its own keys are doing on the rail,
+// and whose they are in the slot. tmux chooses between them by which
+// pane the keys are in, and covers both with a chord hanging or a pane
+// in copy mode, which are the client's to know and not conn's.
+//
+// A question conn has armed takes the next key whatever it is, so it
+// covers the view it was armed in — you are not on the watch any more,
+// you are in the question.
+func (m model) modes() (rail, slot string) {
+	switch {
+	case m.kill != nil:
+		rail = barAsk("CONFIRM")
+	case m.view == viewConsole:
+		rail = barMode("CONSOLE")
+	case m.view == viewProjects:
+		rail = barMode("LIST")
+	case m.view == viewResume:
+		rail = barMode("PICKER")
+	default:
+		rail = barMode("WATCH")
+	}
+	// In the slot, the kind: the word the watch's first column uses, so
+	// the mode says what sort of keys you are typing. conn's own panes
+	// there are neither work nor a view — a key hands the keys back to
+	// the rail — and say what they are instead.
+	switch p := m.panes[m.slot]; {
+	case m.slot == "":
+	case p.look:
+		slot = barMode("LOOK")
+	case p.hold:
+		slot = barMode("HOLD")
+	default:
+		if pid, _, ok := headOf(m.places, m.slot); ok {
+			if e, ok := rowOf(m.places, pid); ok {
+				slot = barMode(e.kind)
+			}
+		}
+	}
+	return rail, slot
 }
 
 // published tells the cursor where it is, when it has moved since the

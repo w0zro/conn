@@ -9,6 +9,30 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+// answered runs a command and hands back what it answered. A key that
+// changes a mode answers with a batch — the bar's telling beside
+// whatever the key itself asked for — and the bar's half answers
+// nothing, so flattening the batch leaves the one message that matters.
+func answered(cmd tea.Cmd) tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return msg
+	}
+	for _, c := range batch {
+		if c == nil {
+			continue
+		}
+		if m := c(); m != nil {
+			return m
+		}
+	}
+	return nil
+}
+
 // The console comes on in stages: the header at once, the readout when
 // the station is in hand and its beat has passed, the screen's check
 // alone, then the rest; a key skips to the end; a key at the end
@@ -350,8 +374,8 @@ func TestAOpensAnAgentAtThePlace(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("in the server, a opened nothing")
 	}
-	if msg, ok := cmd().(noteMsg); !ok || msg.note == "" {
-		t.Errorf("the tmux that cannot be run did not say so: %v", cmd())
+	if msg, ok := answered(cmd).(noteMsg); !ok || msg.note == "" {
+		t.Errorf("the tmux that cannot be run did not say so: %v", answered(cmd))
 	}
 
 	m.places = nil

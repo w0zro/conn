@@ -165,30 +165,40 @@ cursor left where it was would pick out the one row in the pane that is not
 what is in the slot.
 
 Across the foot of the window, under the rail and the slot alike, is the
-bar, and it says what mode the keys are in: `PREFIX` while a chord hangs,
-`COPY` in a pane in copy mode. Nothing else, for now.
+bar, and it says what mode the keys are in. You are always in one: there is
+always an answer to what the next key will do, and the bar is where it is
+said.
 
-That is the half of conn's state conn cannot see. A conn drawing in the rail
-knows nothing of the client — whether a chord is waiting on its second key,
-whether the pane you are in has gone into copy mode — and no amount of
-drawing on the rail will tell you. tmux knows, and this is the one row tmux
-draws. Nothing on it is conn's to write: the whole bar is a format tmux
-reads for itself, so conn sets no option and runs no process for it.
+A chord hanging is `PREFIX`, and it covers everything — whatever you were
+doing, the next key is one of the four. A pane in copy mode is `COPY`, its
+keys being its history's. A kill armed is `CONFIRM`, which takes the next
+key whatever it is and so covers the view it was armed in. Otherwise it is
+wherever the keys are: on the rail, the view it is showing — `CONSOLE`,
+`WATCH`, `LIST`, `PICKER` — and in the slot, the kind, the same word the
+watch's first column uses, so the mode says what sort of keys you are
+typing. conn's own panes in the slot are neither work nor a view and say
+what they are: `LOOK` for the page about a row, `HOLD` for an empty slot,
+each handing the keys back to the rail on any key at all.
 
-A mode wears its color as a ground rather than as ink, the way conn's chips
-do — the word knocked out of a block of it — since a mode is a state the
-keys are in and not a word about them, and a block of color is read without
-being read. The chord takes the orange, which is "you, here" everywhere in
-conn; copy mode takes the blue, being a state of the pane rather than a
-thing you are doing. The row stands on the raised ground a chosen row sits
-on everywhere else, and keeps it whether or not there is a mode to show: a
-bar the color of the window reads as the last line of whatever pane is over
-it, and a bar that comes and goes is not somewhere to look. The mode begins
-at the edge — everything else conn draws is inset three columns, but that is
-a margin for reading down a page, and a block of color is not read but seen,
-and a block that starts where the screen starts is seen first. The word
-keeps its own space inside the block, so what meets the edge is the color
-and not the letters.
+The first two are the half conn cannot see. A conn drawing in the rail knows
+nothing of the client — whether a chord waits on its second key, whether the
+pane has gone into copy mode — and no amount of drawing on the rail will
+tell you. tmux knows those and has them for nothing. The rest are conn's,
+and conn puts them in two options, one for the rail and one for the slot,
+which tmux chooses between by which pane the keys are in.
+
+A mode is a block cut into the bar: the word in the orange, on the window's
+own ground, which is the ground the panes above it are on. The bar stands on
+the raised ground a chosen row sits on everywhere else, so a mode reads as a
+recess in it rather than a tile laid on top. One color for all of them, and
+it is the orange, which is "you, here" everywhere in conn — a mode is where
+you are as much as the cursor is. The one exception is the question, which
+is not a state you are in but a thing waiting on you: `CONFIRM` is the same
+two colors the other way round, the orange as the ground and the word
+knocked out of it, so it is the one loud block among quiet ones without a
+third color being learned. The block begins at the edge of the screen, since
+a block of color is not read but seen, and one that starts where the screen
+starts is seen first.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

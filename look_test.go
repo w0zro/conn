@@ -220,7 +220,7 @@ func TestIPutsTheLookInTheSlot(t *testing.T) {
 	}
 	// A server that is not there is said on the bottom row rather than
 	// swallowed.
-	if n, ok := cmd().(noteMsg); !ok || !strings.Contains(n.note, "TMUX") {
+	if n, ok := answered(cmd).(noteMsg); !ok || !strings.Contains(n.note, "TMUX") {
 		t.Errorf("a server that is not there should be said: %+v", n)
 	}
 }
@@ -317,12 +317,12 @@ func TestIIsAToggle(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.srv = &server{tmux: stub, socket: "/tmp/none"}
-	answered := func(cmd tea.Cmd) tea.Msg {
+	asked := func(cmd tea.Cmd) tea.Msg {
 		t.Helper()
 		if cmd == nil {
 			t.Fatal("i asked the server for nothing")
 		}
-		return cmd()
+		return answered(cmd)
 	}
 	press := func() tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
@@ -331,7 +331,7 @@ func TestIIsAToggle(t *testing.T) {
 	}
 	// With no page up, i opens one, and conn knows it once tmux has
 	// done it rather than guessing ahead of the answer.
-	if got := answered(press()); got != (lookedMsg{on: true}) {
+	if got := asked(press()); got != (lookedMsg{on: true}) {
 		t.Errorf("i with no page up answered %+v, not a page going up", got)
 	}
 	if m.looking {
@@ -344,7 +344,7 @@ func TestIIsAToggle(t *testing.T) {
 	}
 
 	// With one up, i takes it down.
-	if got := answered(press()); got != (lookedMsg{on: false}) {
+	if got := asked(press()); got != (lookedMsg{on: false}) {
 		t.Errorf("i with a page up answered %+v, not a page coming down", got)
 	}
 	next, _ = m.Update(lookedMsg{on: false})
@@ -410,7 +410,7 @@ func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
 		if cmd == nil {
 			t.Fatal("i asked the server for nothing")
 		}
-		return cmd()
+		return answered(cmd)
 	}
 	if got := press(); got != (reachedMsg{"ttys003"}) {
 		t.Errorf("i on a page about a row conn holds answered %+v, not the row", got)

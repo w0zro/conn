@@ -621,21 +621,42 @@ set -g remain-on-exit on
 	return b.String()
 }
 
-// The bar is tmux's status line, and it says what mode the keys are in:
-// a chord hanging, a pane in copy mode. Nothing else, for now.
+// The bar is tmux's status line, and it says what mode the keys are in.
+// You are always in one: there is always an answer to what the next key
+// will do, and the bar is where it is said.
 //
-// That is the half of conn's state conn cannot see. A conn drawing in
-// the rail knows nothing of the client — whether a chord is waiting on
-// its second key, whether the pane you are in has gone into copy mode —
-// and no amount of drawing on the rail will tell you. tmux knows, and
-// this is the one row tmux draws.
+// The modes, and what shadows what. A chord hanging covers everything —
+// whatever you were doing, the next key is one of conn's four. A pane in
+// copy mode covers the rest, its keys being the pane's history's. Then a
+// question conn has armed, which takes the next key whatever it is. Then
+// wherever the keys are: on the rail, in the view it is showing; in the
+// slot, in the work, and the word for that is the kind, the same one the
+// watch's first column uses.
 //
-// A mode wears its color as a ground rather than as ink, the way conn's
-// chips do: the word knocked out of a block of it. A mode is a state the
-// keys are in and not a word about them, and a block of color is read
-// without being read. The chord takes the orange, which is "you, here"
-// everywhere in conn; copy mode takes the blue, being a state of the
-// pane rather than a thing you are doing.
+// Half of that conn cannot see. A conn drawing in the rail knows nothing
+// of the client — whether a chord is waiting on its second key, whether
+// the pane has gone into copy mode — and no amount of drawing on the
+// rail will tell you. tmux knows those two and has them for nothing. The
+// other half is conn's, and conn puts it in two options, one for the
+// rail and one for the slot, which tmux chooses between by which pane
+// the keys are in.
+//
+// A mode is a block cut into the bar: the word in the orange, on the
+// window's own ground, which is the ground the panes above are on. The
+// bar stands on the raised one, so a mode reads as a recess in it rather
+// than as a tile laid on top.
+//
+// One color for all of them, and it is the orange, which is "you, here"
+// everywhere in conn — a mode is where you are as much as the cursor is.
+// Colors by family were a code to learn: three grounds to know before
+// the word could be read, when the word was always going to be read
+// anyway.
+//
+// The one exception is a question armed, which is not a state you are in
+// but a thing waiting on you, and takes the next key whatever it is. It
+// is the same two colors the other way round — the orange as the ground
+// and the word knocked out of it — so it is the one loud block among
+// quiet ones without a third color being learned.
 //
 // The row stands on the raised ground — the one a chosen row sits on
 // everywhere else in conn — and keeps it whether or not there is a mode
@@ -666,15 +687,39 @@ set -g window-status-format ""
 set -g window-status-current-format ""
 `)
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
-	// The attributes of a style are parted by spaces and not by commas: a
-	// comma inside a style is a comma to the conditional around it, and
-	// tmux would read the style as the branches of the question.
-	mode := func(word, color string) string {
-		return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", color, hex(groundColor), word)
-	}
-	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,}}\"\n",
-		mode("PREFIX", cursorHex), mode("COPY", scheme[12]))
+	// Where the keys are, which is tmux's to know: the rail is the first
+	// pane of the home window and everything else is work.
+	onRail := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
+	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_rail},#{@conn_slot}}}}\"\n",
+		barMode("PREFIX"), barMode("COPY"), onRail)
 	return b.String()
+}
+
+// barMode is a mode as the bar wears it: the word in the orange on the
+// window's own ground, with a space either side so what meets the edge
+// of the screen is the block and not the letters.
+//
+// The attributes of a style are parted by spaces and not by commas: a
+// comma inside a style is a comma to the conditional around it, and tmux
+// would read the style as the branches of the question.
+func barMode(word string) string {
+	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", hex(groundColor), cursorHex, word)
+}
+
+// barAsk is the one mode that is not a state you are in but a question
+// waiting on you: the same two colors the other way round.
+func barAsk(word string) string {
+	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", cursorHex, hex(groundColor), word)
+}
+
+// say puts conn's two modes on the server — what its own keys are doing
+// on the rail, and whose they are in the slot — and asks the clients to
+// draw, so the bar never lags the key that changed it.
+func (s *server) say(rail, slot string) error {
+	_, err := s.run("set-option", "-g", "@conn_rail", rail,
+		";", "set-option", "-g", "@conn_slot", slot,
+		";", "refresh-client", "-S")
+	return err
 }
 
 // shellQuote quotes a path for a tmux command line.

@@ -71,6 +71,18 @@ func headOf(places []place, tty string) (pid, at int, ok bool) {
 	return 0, 0, false
 }
 
+// rowOf is an entry by its pid, wherever it stands.
+func rowOf(places []place, pid int) (entry, bool) {
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			if e.pid == pid {
+				return e, true
+			}
+		}
+	}
+	return entry{}, false
+}
+
 // composeWatch words the places; panes says which terminals are the
 // server's, and slot which of them is on the right.
 //

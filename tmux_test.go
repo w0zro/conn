@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -74,8 +75,8 @@ func TestTheConfigurationHolds(t *testing.T) {
 		`set -g status-style "bg=` + borderHex + `,fg=#8B8272"`,
 		// A mode wears its color as a ground, parted by spaces rather
 		// than commas so the conditional around it is not cut in two.
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
-		"#[bg=" + scheme[12] + " fg=" + hex(groundColor) + " bold] COPY ",
+		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] PREFIX ",
+		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] COPY ",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
@@ -181,11 +182,12 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 	}
 }
 
-// The bar is a format tmux reads for itself: no option of conn's on it,
-// so conn sets nothing and runs no process for it.
+// The bar takes the two modes only tmux can know for nothing, and reads
+// conn's own out of an option apiece, choosing between them by which
+// pane the keys are in.
 func TestTheBarIsTmuxsToDrawAlone(t *testing.T) {
 	conf := tmuxConf("C-Space")
-	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_mode", "@conn_owed", "status-interval 1"} {
+	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_owed", "status-interval 1"} {
 		if strings.Contains(conf, gone) {
 			t.Errorf("the bar still asks conn for %q", gone)
 		}
@@ -193,12 +195,98 @@ func TestTheBarIsTmuxsToDrawAlone(t *testing.T) {
 	// What it does say is what only tmux can know, each mode wearing its
 	// color as a ground.
 	for _, want := range []string{
-		"#{?client_prefix,", "#{?pane_in_mode,",
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
-		"#[bg=" + scheme[12] + " fg=" + hex(groundColor) + " bold] COPY ",
+		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_rail}", "#{@conn_slot}",
+		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
+		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] PREFIX ",
+		"#[bg=" + hex(groundColor) + " fg=" + cursorHex + " bold] COPY ",
 	} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("the bar lacks %q:\n%s", want, conf)
 		}
+	}
+}
+
+// You are always in some mode: there is always an answer to what the
+// next key will do. conn knows two of them — what its own keys are doing
+// on the rail, and whose they are in the slot — and writes each only
+// when it changes.
+func TestConnSaysTheModeItIsIn(t *testing.T) {
+	m := newModel(plain)
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.panes = map[string]pane{
+		"ttys004": {id: "%1", tty: "ttys004"},
+		"ttys008": {id: "%8", tty: "ttys008", hold: true},
+		"ttys009": {id: "%9", tty: "ttys009", hold: true, look: true},
+	}
+	m.places = []place{{path: "/w", entries: []entry{
+		{pid: 11, kind: kindAgent, command: "claude", tty: "ttys004"},
+	}}}
+	railIs := func(m model, want string) {
+		t.Helper()
+		if rail, _ := m.modes(); rail != want {
+			t.Errorf("the rail's mode is %q, want %q", rail, want)
+		}
+	}
+	slotIs := func(m model, word string) {
+		t.Helper()
+		if _, slot := m.modes(); slot != barMode(word) {
+			t.Errorf("the slot's mode is %q, want %s", slot, word)
+		}
+	}
+
+	// Every view conn's keys can be in.
+	railIs(m, barMode("CONSOLE"))
+	m.view = viewWatch
+	railIs(m, barMode("WATCH"))
+	m.view = viewProjects
+	railIs(m, barMode("LIST"))
+	m.view = viewResume
+	railIs(m, barMode("PICKER"))
+
+	// A question armed takes the next key whatever it is, so it covers
+	// the view it was armed in, and it stands apart from the families.
+	m.view = viewWatch
+	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
+	railIs(m, barAsk("CONFIRM"))
+	m.kill = nil
+
+	// In the slot, the kind — the word the watch's first column uses.
+	m.slot = "ttys004"
+	slotIs(m, kindAgent)
+	// conn's own panes there are neither work nor a view.
+	m.slot = "ttys009"
+	slotIs(m, "LOOK")
+	m.slot = "ttys008"
+	slotIs(m, "HOLD")
+	// A slot conn has no row for says nothing rather than guessing.
+	m.slot = "ttys004"
+	m.places = nil
+	if _, slot := m.modes(); slot != "" {
+		t.Errorf("a slot with no row behind it says %q", slot)
+	}
+
+	// Written when it changes, and not again for the same mode.
+	m.places = []place{{path: "/w", entries: []entry{{pid: 11, kind: kindShell, tty: "ttys004"}}}}
+	next, cmd := m.saying()
+	if cmd == nil {
+		t.Fatal("the mode conn had not said was not put on the bar")
+	}
+	if _, again := next.saying(); again != nil {
+		t.Error("the same mode was written to the bar twice")
+	}
+	// A question waiting on you is the one loud block among quiet ones:
+	// the same two colors the other way round, and no third to learn.
+	if barAsk("X") == barMode("X") {
+		t.Error("a question armed looks like a state you are in")
+	}
+	if !strings.Contains(barMode("X"), "fg="+cursorHex) || !strings.Contains(barAsk("X"), "bg="+cursorHex) {
+		t.Errorf("the two are not the one pair reversed:\n%s\n%s", barMode("X"), barAsk("X"))
+	}
+
+	// Outside the server there is no bar to write to.
+	out := m
+	out.inside = false
+	if _, cmd := out.saying(); cmd != nil {
+		t.Error("conn wrote a mode outside its server")
 	}
 }

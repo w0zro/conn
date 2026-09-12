@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,5 +183,62 @@ func TestTheLookFollowsTheCursorUnlessPinned(t *testing.T) {
 	next, _ = stale.Update(lookTickMsg{})
 	if got := next.(lookModel); got.read.Equal(stale.read) {
 		t.Error("a page past its beat did not read its subject again")
+	}
+}
+
+// The machine takes a tenth of a second to read and the cursor moves
+// faster than that, so the page answers the new row out of the table it
+// already holds — every row is in it — and the reading that follows
+// only says it again, newer.
+func TestTheLookAnswersFromTheTableInHand(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
+	path := cursorPath("/nowhere")
+
+	held := lookTable{
+		places: []place{{path: "/w", entries: []entry{
+			{pid: 11, kind: kindShell, command: "zsh", tty: "ttys001"},
+			{pid: 22, kind: kindRun, command: "go test ./...", tty: "ttys002"},
+		}}},
+		git: map[string]gitStanding{"/w": {repo: true, branch: "main"}},
+	}
+	m := lookModel{pid: 11, follow: true, cursor: path, p: plain, table: held,
+		report: lookReport{pid: 11}, read: time.Now()}
+
+	tellCursor(path, 22)
+	next, _ := m.Update(lookTickMsg{})
+	m = next.(lookModel)
+	if m.report.pid != 22 {
+		t.Errorf("the page is still about pid %d after the cursor moved", m.report.pid)
+	}
+	if text := texts(drawLook(m.report, 120, 40, plain)); !strings.Contains(text, "go test ./...") {
+		t.Errorf("the row the cursor landed on was not said out of the table in hand:\n%s", text)
+	}
+
+	// A row the table has never seen is a row that started since it was
+	// read, not a row that has gone: the page waits for the reading on
+	// its way rather than putting up a gravestone.
+	tellCursor(path, 33)
+	next, _ = m.Update(lookTickMsg{})
+	after := next.(lookModel)
+	if after.pid != 33 {
+		t.Errorf("the page did not follow the cursor to pid %d", after.pid)
+	}
+	if after.report.gone || after.report.pid != 22 {
+		t.Errorf("a row the table has not got put up %+v rather than holding the page", after.report)
+	}
+}
+
+// The table a reading was made from is about the machine, not about the
+// row it was read for, so a reading the cursor has moved past is dropped
+// while the table it came with is kept: the row the cursor went to is in
+// it too.
+func TestTheLookKeepsTheTableOfAReadingItDrops(t *testing.T) {
+	m := lookModel{pid: 22, follow: true, p: plain}
+	table := lookTable{places: []place{{path: "/w", entries: []entry{{pid: 11, kind: kindShell}}}}}
+
+	next, _ := m.Update(lookReadMsg{pid: 11, report: lookReport{pid: 11}, table: table})
+	if got := next.(lookModel).table.places; len(got) != 1 {
+		t.Errorf("the table of a dropped reading was dropped with it: %+v", got)
 	}
 }

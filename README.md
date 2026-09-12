@@ -52,14 +52,23 @@ works the watch is over there.
 The two are separate programs in separate panes, so the cursor travels
 between them as a few bytes in a file beside the socket — written when it
 moves and said again on every reading, so a file swept away comes back on the
-next beat. The page reads it three times a second, which is what it takes to
-keep up with `j` held down, and reads the table itself only when the subject
-actually changes or the beat comes round. A reading that lands after the
+next beat. The page reads it twenty times a second, that poll being the whole
+of the wait between a key on the rail and the page changing, and reads the
+table itself only when the subject actually changes or the beat comes round.
+It does not wait on that reading: the machine takes a tenth of a second to
+read, which is long enough to see, and the table read a moment ago holds
+every row of the machine rather than only the row it was read for — so the
+row the cursor landed on is answered out of that at once, as true as the
+rail's own list beside it, and the reading on its way says it again newer.
+What git said of a place and which conversation a row was carrying are kept
+along with it, since a list walked down and back up is the same few places
+over and over and git is a process each time. A reading that lands after the
 cursor has moved on is dropped rather than shown: the page never flicks back
-to a row nobody is looking at. Off the watch nothing is published — going to
-the list to open something does not unchoose the row you were reading, and
-the page goes on reading it. `conn look <pid>` by hand pins the page to one
-process instead.
+to a row nobody is looking at, though the table it came with is kept, being
+a reading of the machine and not of the row. Off the watch nothing is
+published — going to the list to open something does not unchoose the row you
+were reading, and the page goes on reading it. `conn look <pid>` by hand pins
+the page to one process instead.
 
 A row of the watch is six columns on a rail, and most of what conn reads of a
 process does not fit in that; it is dropped rather than shortened, which is

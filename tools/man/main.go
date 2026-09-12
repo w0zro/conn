@@ -95,7 +95,10 @@ func render(page, version string) (string, error) {
 		name = strings.ToLower(name[:1]) + name[1:]
 	}
 	b.WriteString(".SH NAME\nconn \\- " + name + "\n")
-	b.WriteString(".SH SYNOPSIS\n.B conn\n.br\n.B conn ls\n.br\n.B conn restart\n.br\n.B conn \\-h | \\-\\-help | \\-\\-version\n")
+	// The synopsis is the one line the manual does not carry: the
+	// program's name, which is true of it. Nothing else is written here
+	// that the manual does not say.
+	b.WriteString(".SH SYNOPSIS\n.B conn\n")
 
 	sub := subline.FindStringSubmatch(page)
 	if sub == nil {

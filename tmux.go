@@ -644,11 +644,21 @@ set -g remain-on-exit on
 // stands until the next one.
 //
 // On the right is the one question conn asks of you: an agent stopped on
-// something it put to you and cannot go on without. It blinks, and the
-// terminal does the blinking — conn sets the option when something
-// starts waiting and when it stops, and nothing here redraws on a beat.
-// A terminal that will not blink shows it steady, which is the same lamp
-// less insistent.
+// something it put to you and cannot go on without. It blinks, because a
+// lamp that blinks is the one thing on a screen that reaches the corner
+// of an eye.
+//
+// The blinking is the clock's, not conn's and not the terminal's. The
+// attribute was the obvious way and it does not work: the terminfo
+// advertises blink and tmux duly sends it, and a terminal is free to
+// draw it steady — Ghostty does. So the lamp is lit on an odd second and
+// dark on an even one, which tmux can say for itself: the status line is
+// run through strftime before the conditionals in it are read, so the
+// format can ask what second it is. tmux redraws the line each second to
+// do it, which costs no process at all — where conn blinking it would be
+// two a cycle for as long as anything waited. The beat is a second
+// either way, rather than the console's second and a half, because a
+// second is the finest tmux has.
 func bar() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
@@ -656,8 +666,9 @@ set -g status-position bottom
 set -g status-justify left
 set -g status-left-length 200
 set -g status-right-length 60
-# Nothing is drawn on a beat: every lamp is set when it changes.
-set -g status-interval 0
+# The line is drawn each second, which is what the waiting lamp blinks
+# on. Every lamp is set when it changes; the beat only re-reads them.
+set -g status-interval 1
 # conn has no tabs, so the middle of the line is nothing.
 set -g window-status-format ""
 set -g window-status-current-format ""
@@ -672,7 +683,8 @@ set -g window-status-current-format ""
 		"#{?pane_in_mode,#[fg=%s bold]COPY,"+
 		"#{?#{!=:#{@conn_mode},},#[fg=%s bold]#{@conn_mode},}}}", cursorHex, cursorHex, cursorHex)
 	fmt.Fprintf(&b, "set -g status-left \"%s#[fg=%s nobold]  #{@conn_note}\"\n", mode, scheme[1])
-	fmt.Fprintf(&b, "set -g status-right \"#[fg=%s bold blink]#{@conn_owed}\"\n", scheme[1])
+	// Lit on the odd second, dark on the even: the blink is the clock's.
+	fmt.Fprintf(&b, "set -g status-right \"#{?#{m:*[13579],%%S},#[fg=%s bold]#{@conn_owed},}\"\n", scheme[1])
 	return b.String()
 }
 

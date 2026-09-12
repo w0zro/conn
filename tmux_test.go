@@ -71,13 +71,14 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind q detach-client",
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The panel's ground is the window's own, so with nothing lit
-		// there is nothing to tell the row from the padding; and nothing
-		// on it is drawn on a beat.
-		`set -g status-style "bg=` + hex(groundColor) + `,fg=#8B8272"`, "set -g status-interval 0",
+		// there is nothing to tell the row from the padding.
+		`set -g status-style "bg=` + hex(groundColor) + `,fg=#8B8272"`,
 		// The lamps: what only tmux can know, then what conn says of
-		// itself, then the one question conn asks of you, which blinks.
+		// itself, then the one question conn asks of you. That one blinks
+		// on the clock's second — the line is drawn each second and the
+		// format asks which it is, so no process blinks it.
 		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_mode}", "#{@conn_note}",
-		"bold blink]#{@conn_owed}",
+		"set -g status-interval 1", "#{?#{m:*[13579],%S},", "]#{@conn_owed},}",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,

@@ -181,10 +181,14 @@ The bar is the only instrument conn has that works on peripheral vision. The
 rail cannot catch your eye: when you are working your eyes are in the slot,
 and the watch is beside them unread. A dark row that lights is seen without
 being looked at, which is what the row is worth — and it is only worth it
-while the row is dark the rest of the time. The waiting lamp blinks, and the
-terminal does the blinking: conn sets an option when something starts waiting
-and when it stops, and nothing on the bar redraws on a beat. A terminal that
-will not blink shows it steady, which is the same lamp less insistent.
+while the row is dark the rest of the time. The waiting lamp blinks, since a
+lamp that blinks is the one thing on a screen that reaches the corner of an
+eye. The blinking is the clock's: the lamp is lit on an odd second and dark
+on an even one, which tmux works out for itself — the status line is run
+through `strftime` before the conditionals in it are read, so the format can
+ask what second it is. The blink attribute was the obvious way and it does
+not work: the terminfo advertises blink, tmux duly sends it, and a terminal
+is free to draw it steady, as Ghostty does.
 
 Two rows the rail used to spend on itself are the bar's: the foot, which held
 a note until the next key, and the right-hand side of the head, which held

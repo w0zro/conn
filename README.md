@@ -181,13 +181,23 @@ see from inside its own pane: `PREFIX` while a chord hangs, and `COPY` in a
 pane in copy mode. They are the keys' business, and the keys are in this
 pane, which is the bar's subject too.
 
-It is dark while the keys are on the rail. There you are reading the watch,
-which says all of this and more, and a row labelling what you are already
-looking at is furniture. tmux decides that for itself from which pane is
-active, so conn is not asked. The bar's ground is the window's own, so with
-nothing on it there is nothing to tell the row from the padding around the
-client. conn writes it when the row changes — when the slot changes hands,
-or the thing in it comes to stand differently — and never on a beat.
+It says nothing while the keys are on the rail. There you are reading the
+watch, which says all of this and more, and a row labelling what you are
+already looking at is furniture. tmux decides that for itself from which
+pane is active, so conn is not asked. conn writes the row when it changes —
+when the slot changes hands, or the thing in it comes to stand differently —
+and never on a beat.
+
+The ground it stands on is its own: the raised ground a chosen row sits on
+everywhere else in conn. A bar the color of the window is read as the last
+line of whatever pane is over it, which is what it looked like. Each mode
+wears its color as a ground rather than as ink, the way conn's chips do —
+the word knocked out of a block of it — since a mode is a state the keys are
+in and a block of color is read without being read. The chord takes the
+orange, which is "you, here" everywhere in conn; copy mode takes the blue,
+being a state of the pane rather than a thing you are doing. The line begins
+where the rail's own text begins, so the bar's first character stands under
+the watch's.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

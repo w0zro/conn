@@ -636,14 +636,28 @@ set -g remain-on-exit on
 // watch's own words, with the place it works in, which the watch puts in
 // a block's title and a row alone does not carry.
 //
-// It is dark while the keys are on the rail. There you are reading the
-// watch, which says all of this and more, and a row labelling what you
-// are already looking at is the furniture again. tmux decides that for
-// itself from which pane is active, so conn is not asked.
+// It says nothing while the keys are on the rail. There you are reading
+// the watch, which says all of this and more, and a row labelling what
+// you are already looking at is the furniture again. tmux decides that
+// for itself from which pane is active, so conn is not asked.
 //
-// Beside it are the two things conn cannot see from inside its own pane:
-// a chord hanging and a pane in copy mode. They are the keys' business
-// and the keys are in this pane, which is the bar's subject too.
+// The row it stands on is its own. It is the ground a chosen row sits on
+// everywhere else in conn — the raised one — so the bar is a surface and
+// not a line of text that has drifted under the pane above it. A bar the
+// color of the window is a bar you read as the last line of whatever is
+// over it, which is what it looked like.
+//
+// Beside the row are the two things conn cannot see from inside its own
+// pane: a chord hanging and a pane in copy mode. They are the keys'
+// business and the keys are in this pane, which is the bar's subject
+// too. Each wears its color as a ground rather than as ink — a mode is a
+// state the keys are in, not a word about them, and a block of color is
+// read without being read. The orange is the chord's, since the orange
+// is "you, here" everywhere in conn; copy mode takes the blue, being a
+// state of the pane rather than a thing you are doing.
+//
+// The line begins where the rail's own text begins, so the bar's first
+// character stands under the watch's.
 func bar() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
@@ -659,15 +673,31 @@ set -g status-interval 1
 set -g window-status-format ""
 set -g window-status-current-format ""
 `)
-	// The window's own ground, so a bar with nothing on it is not a bar.
-	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", hex(groundColor), grayHex)
+	// The raised ground, which is what a chosen row sits on everywhere
+	// else in conn: the bar is a surface of its own and not the last line
+	// of whatever pane is over it.
+	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
+	// A mode wears its color as a ground, the way conn's chips do: the
+	// word knocked out of a block of it, and the bar's own ground back
+	// after. The attributes are parted by spaces and not by commas: a
+	// comma inside a style is a comma to the conditional around it, and
+	// tmux would read the style as the branches of the question.
+	mode := func(word, color string) string {
+		return fmt.Sprintf("#[bg=%s fg=%s bold] %s #[bg=%s fg=%s nobold]  ",
+			color, hex(groundColor), word, borderHex, grayHex)
+	}
 	// On the rail there is nothing to say: the watch is right there.
 	onRail := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
-	lamps := fmt.Sprintf("#{?client_prefix,#[fg=%s bold]PREFIX  ,#{?pane_in_mode,#[fg=%s bold]COPY  ,}}",
-		cursorHex, cursorHex)
-	fmt.Fprintf(&b, "set -g status-left \"%s#{?%s,,#{@conn_in}}\"\n", lamps, onRail)
+	lamps := fmt.Sprintf("#{?client_prefix,%s,#{?pane_in_mode,%s,}}",
+		mode("PREFIX", cursorHex), mode("COPY", scheme[12]))
+	fmt.Fprintf(&b, "set -g status-left \"%s%s#{?%s,,#{@conn_in}}\"\n", barMargin, lamps, onRail)
 	return b.String()
 }
+
+// barMargin is the blank the bar's line begins with, which is the blank
+// the rail's own rows begin with: the first character of the bar stands
+// under the first character of the watch.
+const barMargin = "   "
 
 // barCommand is how much of a command the bar carries. The row has the
 // window's width to spread over, but a command is the one thing on it

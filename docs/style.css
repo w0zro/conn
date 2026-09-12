@@ -93,13 +93,6 @@ b, strong { font-weight: 700; }
   gap: 42px;
   padding: 56px 24px 80px;
 }
-.end {
-  font: 400 10.5px var(--mono);
-  letter-spacing: 0.24em;
-  color: var(--muted);
-  margin: 0;
-  text-align: center;
-}
 
 /* A page: letter paper, a shadow onto the desk, and a scan's grain over
    everything on it. Each page in the stack lies a fraction of a degree

@@ -265,6 +265,8 @@ reached from it. The rail's width is conn's, not the terminal's: conn
 holds tmux to it and draws to it, so the first watch is painted in the
 shape the pane is about to be and the split that opens the slot has
 nothing to reflow. The server keeps everything in it for the next `conn`.
+An empty slot holds a placard, `VACANT`, and any key in it hands the keys
+back to the rail.
 
 **5-2. REACHING.** Coming back to the watch from the console, the rows of
 the last stay are still in hand, so it goes up at once with them. `s`

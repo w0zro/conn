@@ -6,11 +6,17 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// hold is what stands in the slot when no process does: the ground, and
-// a line saying how to put one there. A key in it hands focus back to
-// the rail. conn runs it as `conn hold`, in a pane of its own server.
+// hold is what stands in the slot when no hand does: the ground, and a
+// placard saying the position is vacant. A key in it hands focus back
+// to the rail. conn runs it as `conn hold`, in a pane of its own
+// server.
+//
+// It said how to fill the slot before, a sentence of instructions
+// shown on every empty slot forever, and cut off at the width of most
+// windows. Instructions live in the manual; a vacant position gets a
+// placard.
 
-const holdHint = "ON THE WATCH, S OPENS A SHELL AND ENTER REACHES A PROCESS · "
+const holdWord = "VACANT"
 
 type holdModel struct {
 	srv           *server
@@ -43,7 +49,7 @@ func (h holdModel) View() tea.View {
 		c.blank(0)
 	}
 	l := c.line()
-	l.add(h.p.faint, fit(holdHint+prefixLabel(prefix())+" - IS THE WATCH", max(h.width-2, 1), false))
+	l.add(h.p.faint, holdWord)
 	c.emit(l, 0, true)
 	for len(c.rows) < h.height {
 		c.blank(0)

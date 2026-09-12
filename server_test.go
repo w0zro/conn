@@ -633,7 +633,7 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 	// of it, and neither way costs a window.
 	s.keys("i")
 	s.until("the page to come down", func() bool {
-		return !strings.Contains(s.slot(), "LOOK") && strings.Contains(s.slot(), "OPENS A SHELL")
+		return !strings.Contains(s.slot(), "LOOK") && strings.Contains(s.slot(), holdWord)
 	})
 	s.keys("i")
 	s.until("the page to come back", func() bool { return strings.Contains(s.slot(), "WHERE") })

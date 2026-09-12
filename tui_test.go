@@ -668,3 +668,53 @@ func TestAStaleConvosAnswerIsDropped(t *testing.T) {
 		t.Errorf("the matching answer did not land: loading %v, %d convos", m.convosLoading, len(m.convos))
 	}
 }
+
+// The list has a key of its own that reaches it from every view, which
+// is what the prefix chord sends. p cannot serve: it is the list's key
+// on the watch, where it is a key, but on the list and the picker it is
+// a letter being typed into the line, and on the console it is one of
+// the any-keys that continue to the watch.
+func TestAltPOpensTheListFromAnywhere(t *testing.T) {
+	base := newModel(plain)
+	base.now, base.width, base.height = watchNow, 120, 40
+	for _, view := range []int{viewWatch, viewConsole, viewProjects, viewResume} {
+		m := base
+		m.view = view
+		m.filter, m.pcursor = "already typed", 3
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'p'}))
+		got := next.(model)
+		if got.view != viewProjects {
+			t.Errorf("from view %d, alt+p left conn on view %d", view, got.view)
+		}
+		if got.filter != "" || got.pcursor != 0 || !got.scanning {
+			t.Errorf("from view %d, alt+p did not open the list afresh: filter %q cursor %d scanning %v",
+				view, got.filter, got.pcursor, got.scanning)
+		}
+		if cmd == nil {
+			t.Errorf("from view %d, alt+p did not walk the roots", view)
+		}
+	}
+
+	// The console's wait on a reading is called off, or that reading
+	// would land a moment later and put the watch up over the list.
+	m := base
+	m.view, m.entering = viewConsole, true
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'p'}))
+	m = next.(model)
+	if m.entering {
+		t.Fatal("alt+p on the console left it waiting to go to the watch")
+	}
+	next, _ = m.Update(watchMsg{gen: m.watchGen})
+	if got := next.(model).view; got != viewProjects {
+		t.Errorf("the reading the console had asked for put view %d up over the list", got)
+	}
+
+	// The kill question still takes the next key, whatever it is.
+	armed := base
+	armed.view = viewWatch
+	armed.kill = &pendingKill{pid: 49212, command: "zsh", sig: syscall.SIGTERM}
+	next, _ = armed.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'p'}))
+	if got := next.(model); got.view != viewWatch || got.kill != nil {
+		t.Errorf("alt+p fired under an armed kill: view %d", got.view)
+	}
+}

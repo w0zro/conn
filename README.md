@@ -170,12 +170,14 @@ the next key answers it, `x`, `y` or `enter` confirming and anything else
 calling it off. A bare shell, with nothing running in it, is killed outright
 — asked more gently it just ignores the signal — and anything a shell runs
 is asked to end on its own, leaving the shell at its prompt rather than
-taking it too. Two chords live under `ctrl-space` (`CONN_PREFIX` names
+taking it too. Three chords live under `ctrl-space` (`CONN_PREFIX` names
 another prefix, in tmux's spelling): `ctrl-space -` puts focus on the
-watch from anywhere in the server, and `ctrl-space q` detaches from
-anywhere too, the same as `q` does from the watch itself — without first
-coming back to it. tmux's own keys are otherwise unbound, so none of them
-are reachable through conn. The server keeps everything in it for the
+watch from anywhere in the server, `ctrl-space p` puts it on the list from
+anywhere too — out of whatever you are working in and straight to the
+projects, without the watch in between — and `ctrl-space q` detaches, the
+same as `q` does from the watch itself, without first coming back to it.
+tmux's own keys are otherwise unbound, so none of them are reachable
+through conn. The server keeps everything in it for the
 next `conn`; `conn down` takes the server down with everything in it,
 and says what went, the way `docker compose down` does. Without tmux, conn
 shows the console and the watch and reaches nothing. On macOS the watch needs
@@ -196,6 +198,10 @@ the shell shows; on a group row that is a shell at the level the work is
 about, which is what the group row is for. `ctrl-a` opens claude there
 instead — plain `a` is a letter to type into the filter, so the list takes
 the chord `s` does not need. `esc` comes back without opening anything.
+`alt-p` opens the list from anywhere — from the list itself, the picker, the
+console — since `p` only means the list on the watch, where it is a key
+rather than a letter being typed or one of the any-keys that leave the
+console. It is what the prefix chord below sends.
 
 A conversation does not end when claude exits: the transcript it leaves is
 enough to pick it back up. `alt-a`, on the watch or the list — a group's

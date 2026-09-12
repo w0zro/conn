@@ -65,6 +65,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, s := range []string{
 		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
+		"bind p select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-p",
 		"bind q detach-client",
 		"set -g status off", "set -g mouse on", "unbind -n MouseDrag1Border",
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
@@ -78,8 +79,8 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 2 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
-		t.Errorf("configuration binds more than the two chords, or ignores the prefix given:\n%s", conf)
+	if strings.Count(conf, "\nbind ") != 3 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+		t.Errorf("configuration binds more than the three chords, or ignores the prefix given:\n%s", conf)
 	}
 	t.Setenv("CONN_PREFIX", "")
 	if prefix() != "C-Space" || prefixLabel(prefix()) != "C-SPACE" {

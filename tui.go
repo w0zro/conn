@@ -530,6 +530,15 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
+	// The list's own key, which reaches it from wherever conn is and is
+	// what the prefix chord sends. p cannot serve: it is the list's key
+	// on the watch, where it is a key, but on the list and the picker it
+	// is a letter being typed into the line, and on the console it is one
+	// of the any-keys that continue to the watch. So the chord has a key
+	// of its own, and it is the same key wherever it is pressed.
+	if k == "alt+p" {
+		return m.toProjects()
+	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
@@ -674,8 +683,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 		m.cursor, m.cursorAt = follow(m.places, next.pid, m.cursorAt)
 	case k == "p":
-		m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
-		return m, m.scanProjects()
+		return m.toProjects()
 	}
 	return m, nil
 }
@@ -755,6 +763,24 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 		m.filter, m.pcursor = m.filter+k, 0
 	}
 	return m, nil
+}
+
+// toProjects opens the list, from wherever conn is, and walks the roots
+// again for it: the list is what could be worked on rather than what is
+// being worked on, so it is read when it is asked for and not on a beat.
+//
+// From the console it gives the slot its side back, the way going to the
+// watch does — the list is a rail view like the watch — and it calls off
+// the console's wait on a reading, or that reading would land a moment
+// later and put the watch up over it.
+func (m model) toProjects() (tea.Model, tea.Cmd) {
+	console := m.view == viewConsole
+	m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
+	m.entering = false
+	if console && m.inside {
+		return m, tea.Batch(m.scanProjects(), m.serverCmd(func() error { return m.srv.narrow() }, ""))
+	}
+	return m, m.scanProjects()
 }
 
 // toWatch leaves the list for the watch, which starts reading again.

@@ -95,10 +95,21 @@ func render(page, version string) (string, error) {
 		name = strings.ToLower(name[:1]) + name[1:]
 	}
 	b.WriteString(".SH NAME\nconn \\- " + name + "\n")
-	// The synopsis is the one line the manual does not carry: the
-	// program's name, which is true of it. Nothing else is written here
-	// that the manual does not say.
-	b.WriteString(".SH SYNOPSIS\n.B conn\n")
+	// The synopsis is the manual's own table of commands, a line each;
+	// with none, the program's name, which is the one line true of it
+	// that the manual does not carry.
+	b.WriteString(".SH SYNOPSIS\n")
+	lines := synopsis(page)
+	if len(lines) == 0 {
+		lines = []string{"conn"}
+	}
+	for i, l := range lines {
+		if i > 0 {
+			b.WriteString(".br\n")
+		}
+		// A hyphen in an option is a minus to roff, as in bold text.
+		b.WriteString(".B " + strings.ReplaceAll(inline(l), "-", "\\-") + "\n")
+	}
 
 	sub := subline.FindStringSubmatch(page)
 	if sub == nil {
@@ -112,6 +123,28 @@ func render(page, version string) (string, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+var synopsisTable = regexp.MustCompile(`(?s)<div class="table synopsis">(.*?</div>)\s*</div>`)
+
+// synopsis is the first cell of every row of the manual's synopsis
+// table, which is what a man page's synopsis is: each way conn can be
+// called, one to a line.
+func synopsis(page string) []string {
+	m := synopsisTable.FindStringSubmatch(page)
+	if m == nil {
+		return nil
+	}
+	var out []string
+	for _, r := range row.FindAllStringSubmatch(m[1], -1) {
+		if r[1] != "" {
+			continue
+		}
+		if c := cell.FindStringSubmatch(r[2]); c != nil {
+			out = append(out, c[1])
+		}
+	}
+	return out
 }
 
 // sections is the body of every div.section on the page, in order — the

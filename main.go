@@ -100,6 +100,14 @@ func main() {
 		os.Exit(2)
 	}
 	if len(args) > 0 {
+		switch args[0] {
+		case "--help", "-h", "help":
+			fmt.Print(synopsis())
+			return
+		case "--version":
+			fmt.Println(join(" · ", "conn "+readBuild().tag, buildLine(readBuild())))
+			return
+		}
 		os.Exit(runCommand(args[0], args[1:]))
 	}
 	if !stdoutIsTerminal() {
@@ -206,18 +214,33 @@ func runCommand(name string, args []string) int {
 			return c.run(args)
 		}
 	}
-	fmt.Fprint(os.Stderr, usage(name))
+	fmt.Fprintf(os.Stderr, "conn: no such command: %s\n\n%s", name, synopsis())
 	return 2
 }
 
-// usage is what conn says of a name it does not know.
-func usage(name string) string {
+// A flag conn takes ahead of a command, and what it does, for the
+// synopsis; the flags themselves are read by parseModeFlags.
+var flags = []command{
+	{"--light", "say the ground is light, for a server coming up or one already up", nil},
+	{"--dark", "say the ground is dark", nil},
+	{"--help", "say this", nil},
+	{"--version", "say the build", nil},
+}
+
+// synopsis is every way conn can be called, one to a line, with what
+// each does: the commands that are offered, and the flags. It is what
+// --help says and what a name conn does not know is answered with, and
+// the manual's own table of commands is held to it by a test.
+func synopsis() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "conn: no such command: %s\n\nconn alone comes up on the console and the watch. The commands:\n", name)
+	fmt.Fprintf(&b, "  %-16s  %s\n", "conn", "the console, then the watch")
 	for _, c := range commands {
 		if c.use != "" {
-			fmt.Fprintf(&b, "  conn %-6s  %s\n", c.name, c.use)
+			fmt.Fprintf(&b, "  %-16s  %s\n", "conn "+c.name, c.use)
 		}
+	}
+	for _, f := range flags {
+		fmt.Fprintf(&b, "  %-16s  %s\n", "conn "+f.name, f.use)
 	}
 	return b.String()
 }

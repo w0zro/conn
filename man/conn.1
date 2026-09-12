@@ -1,12 +1,106 @@
 .\" Written from docs/index.html by go run ./tools/man; edit the manual, not this.
 .TH CONN 1 "" "conn 0.0" "User Commands"
 .SH NAME
-conn \- 
+conn \- the station from which one operator directs the work of many hands on one machine
 .SH SYNOPSIS
 .B conn
+.br
+.B conn down
+.br
+.B conn theme claude
+.br
+.B conn theme vim
+.br
+.B conn \-\-light
+.br
+.B conn \-\-dark
+.br
+.B conn \-\-help
+.br
+.B conn \-\-version
 .SH DESCRIPTION
-
-.SH 
+A hand is a process that works a place on the operator's behalf: a shell, an
+agent, a run. conn shows what each hand is doing and which hand is waiting, and
+puts the operator in front of the one that is.
+.SH GENERAL
 .TP
 1-1.
-
+\fBPURPOSE.\fR conn is the station from which one operator directs the work of
+many hands on one machine. A hand is a process that works a place on the
+operator's behalf: a shell, an agent, a run. Hands work without direction, and
+stop to ask for it. The station shows what each hand is doing and which hand is
+waiting, so that the operator's attention, which is the one thing not in supply,
+goes where it is asked for.
+.TP
+1-2.
+\fBTHE HANDS.\fR The kernel's word is process, and it is too small for the thing
+being run. The word here is hand, and where that could be read as the operator's
+own, station hand: the general worker on a station, who does what the place
+needs without being stood over. A hand is long-lived. It has a place it works, a
+tree of processes under it, and, if it is an agent, a conversation it is
+carrying and a state of mind that cannot be read off its processor time. Above
+all it can stop and wait on the operator. A compiler never waited on anyone.
+That one new fact is why the hands are the thing to watch, and why the question
+is no longer whether a thing is done but whether it needs you.
+.TP
+1-3.
+\fBFILES.\fR Tooling grew up around files and the things done to them, because
+the person did the work and a process was a brief event, run and watched to its
+end. The files are still where the work lands. They are now what the hands are
+working on, the way they used to be what the operator was working on, and the
+operator goes to them to review what a hand did or to read before answering it.
+An editor is a place visited from the station, not the place the operator lives.
+.TP
+1-4.
+\fBTHE TWO QUESTIONS.\fR Everything on the screen answers one of two questions
+the operator keeps asking: what is going on, and who needs me. The watch answers
+the first. The waiting word, its blink, \fBtab\fR, and the bar's lamps answer
+the second. Every other rule in this manual, the order that holds still, the
+words that are earned, the panel that stays dark, the one orange, exists so that
+those two answers can be taken in at a glance rather than read.
+.TP
+1-5.
+\fBTHE NAME.\fR The conn is the Navy's word for control of a ship's movement.
+The officer who has it does not work the ship; the hands do. The officer
+receives reports and gives orders. conn is named for that seat and not for the
+machine.
+.TP
+1-6.
+\fBWHAT IS SAID.\fR conn says only what it knows to be true, in a word it has
+earned, and says nothing where it knows nothing. A guess is worse than silence.
+Nothing is said twice and nothing is said of what there is none of. A row that
+always says something is a row nobody reads.
+.TP
+1-7.
+\fBCOMMANDS.\fR conn alone comes up on the console and continues to the watch.
+The rest are said by name after it. \fB\-\-light\fR and \fB\-\-dark\fR say the
+ground instead of asking the terminal, and go ahead of a command if there is
+one.
+.PP
+.I "SYNOPSIS"
+.RS
+.TP
+\fBconn\fR
+The console, then the watch.
+.TP
+\fBconn down\fR
+Takes the server down, with everything in it, and says what went.
+.TP
+\fBconn theme claude\fR
+Writes conn's theme for Claude Code, which draws its own colors.
+.TP
+\fBconn theme vim\fR
+Writes conn's colorscheme for nvim.
+.TP
+\fBconn \-\-light\fR
+Says the ground is light, for a server coming up or one already up.
+.TP
+\fBconn \-\-dark\fR
+Says the ground is dark.
+.TP
+\fBconn \-\-help\fR
+Says this table.
+.TP
+\fBconn \-\-version\fR
+Says the build.
+.RE

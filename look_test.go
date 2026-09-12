@@ -79,19 +79,19 @@ func TestTheLookSaysWhatTheWatchCannot(t *testing.T) {
 		t.Errorf("how long it has waited is on the page %d times:\n%s", n, text)
 	}
 	for what, want := range map[string]string{
-		"how long it has waited":  "FOR ....... 7M 00S",
+		"how long it has waited":   "FOR ....... 7M 00S",
 		"what it is asking, whole": "AskUserQuestion · Is this session's lamp lit on the bar while this question waits?",
-		"its own directory":       "~/projects/w0zro/conn/tools",
-		"what the table says":     "SLEEPING · HAS THE TERMINAL",
-		"what it has spent":       "2M 14S SPENT",
-		"which conversation":      "d81d7536-e545-4881-8daa-f1d291a03be1",
-		"what it goes by":         "CONN-2D",
-		"the last thing it asked": "i want the info to use the pane on the right",
-		"the branch and the tree": "MAIN · 3 CHANGED",
-		"the commit":              "263cf91",
-		"what it is tracking":     "ORIGIN/MAIN · 142 AHEAD",
-		"what runs it":            "SHELL zsh · 49200",
-		"what it runs":            "RUN caffeinate -i -t 300 · ACTIVE",
+		"its own directory":        "~/projects/w0zro/conn/tools",
+		"what the table says":      "SLEEPING · HAS THE TERMINAL",
+		"what it has spent":        "2M 14S SPENT",
+		"which conversation":       "d81d7536-e545-4881-8daa-f1d291a03be1",
+		"what it goes by":          "CONN-2D",
+		"the last thing it asked":  "i want the info to use the pane on the right",
+		"the branch and the tree":  "MAIN · 3 CHANGED",
+		"the commit":               "263cf91",
+		"what it is tracking":      "ORIGIN/MAIN · 142 AHEAD",
+		"what runs it":             "SHELL zsh · 49200",
+		"what it runs":             "RUN caffeinate -i -t 300 · ACTIVE",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%s (%q) is not on the page:\n%s", what, want, text)

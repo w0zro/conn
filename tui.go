@@ -96,6 +96,11 @@ type (
 		slotDead bool            // the slot's pane held on remain-on-exit, its process gone
 		err      string
 		gen      int
+		// The processor time every process had used as of this reading,
+		// and when it was taken: what the next reading asks against to
+		// tell work from waiting.
+		cpu   map[int]time.Duration
+		cpuAt time.Time
 	}
 	watchTickMsg struct{ gen int }     // the watch is due to be read again
 	openedMsg    struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
@@ -133,6 +138,11 @@ type model struct {
 	until    time.Time
 	watchErr string
 	watchGen int // which stay on the watch the ticks belong to
+	// The last reading's processor times, and when they were read: a
+	// process is working by what it has spent since, not by what it has
+	// spent altogether.
+	cpuWas map[int]time.Duration
+	cpuAt  time.Time
 	// The list: the projects as the roots were last walked, what has been
 	// typed to narrow them, and which of the rows the cursor is on.
 	projects    []project
@@ -221,6 +231,7 @@ func readStationCmd() tea.Msg {
 // else; what the reading calls for is decided when it comes back.
 func (m model) readWatch() tea.Cmd {
 	gen, uid, roots := m.watchGen, m.uid, m.roots
+	was, wasAt := m.cpuWas, m.cpuAt
 	var srv *server
 	if m.inside {
 		srv = m.srv
@@ -230,7 +241,15 @@ func (m model) readWatch() tea.Cmd {
 		if err != nil {
 			return watchMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
-		msg := watchMsg{places: watch(procs, uid, roots), gen: gen}
+		// What is working: an agent says so of itself, and anything else
+		// is read off what it spent on a processor since the last
+		// reading, which is why the reading before this one is kept.
+		now, nowAt := cpuOf(procs), time.Now()
+		busy := cpuWorking(was, wasAt, now, nowAt)
+		for pid := range agentsWorking(procs) {
+			busy[pid] = true
+		}
+		msg := watchMsg{places: watch(procs, uid, roots, busy), gen: gen, cpu: now, cpuAt: nowAt}
 		if srv != nil {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
 				msg.noSlot = true
@@ -325,6 +344,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.places, m.panes, m.slot, m.watchErr = msg.places, msg.panes, msg.slot, msg.err
+		if msg.cpu != nil {
+			m.cpuWas, m.cpuAt = msg.cpu, msg.cpuAt
+		}
 		// The shell conn opened is the cursor's once the reading has it;
 		// one that never comes is given up on when the wait is out.
 		if m.awaited != 0 {

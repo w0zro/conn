@@ -71,6 +71,68 @@ func isSessionID(id string) bool {
 // claudeSuspended vetted are ever handed here.
 func resumeCommand(id string) string { return agentCommand + " --resume " + id }
 
+// busyStatus is what Claude Code calls an instance that is working.
+// Anything else it says of itself is an instance waiting on its user.
+const busyStatus = "busy"
+
+// sessionFile is the part conn reads of what Claude Code writes for
+// each instance it is running, at sessions/<pid>.json: which
+// conversation the instance is carrying, and whether it is working on
+// it this moment. Small enough to read on every reading of the table.
+type sessionFile struct {
+	SessionID string `json:"sessionId"`
+	Status    string `json:"status"`
+}
+
+// claudeSessions is what every claude instance says of itself, by the
+// pid it says it is. A file here can outlive the process that wrote
+// it, so callers pair a pid with the process table before believing
+// anything of it.
+func claudeSessions() map[int]sessionFile {
+	entries, err := os.ReadDir(filepath.Join(claudeConfigDir(), "sessions"))
+	if err != nil {
+		return nil
+	}
+	out := map[int]sessionFile{}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimSuffix(name, ".json"))
+		if err != nil {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(claudeConfigDir(), "sessions", name))
+		if err != nil {
+			continue
+		}
+		var f sessionFile
+		if json.Unmarshal(b, &f) == nil {
+			out[pid] = f
+		}
+	}
+	return out
+}
+
+// agentsWorking is every agent that says it is working right now. An
+// agent is asked rather than measured: it knows whether it is mid-turn,
+// where the processor time it happens to be using says little - a
+// model answering is barely any, and waiting on you is none at all.
+func agentsWorking(procs []process) map[int]bool {
+	kind := map[int]string{}
+	for _, p := range procs {
+		kind[p.pid] = kindOf(p)
+	}
+	busy := map[int]bool{}
+	for pid, s := range claudeSessions() {
+		if kind[pid] == kindAgent && s.Status == busyStatus {
+			busy[pid] = true
+		}
+	}
+	return busy
+}
+
 // liveConversations is the id of every conversation a running claude
 // instance is carrying. A session file can outlive the process that
 // wrote it, so a pid is only believed when the process table still has
@@ -84,29 +146,9 @@ func liveConversations(places []place) map[string]bool {
 			}
 		}
 	}
-
-	entries, err := os.ReadDir(filepath.Join(claudeConfigDir(), "sessions"))
-	if err != nil {
-		return nil
-	}
 	live := map[string]bool{}
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".json") {
-			continue
-		}
-		pid, err := strconv.Atoi(strings.TrimSuffix(name, ".json"))
-		if err != nil || !pids[pid] {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(claudeConfigDir(), "sessions", name))
-		if err != nil {
-			continue
-		}
-		var f struct {
-			SessionID string `json:"sessionId"`
-		}
-		if json.Unmarshal(b, &f) == nil && f.SessionID != "" {
+	for pid, f := range claudeSessions() {
+		if pids[pid] && f.SessionID != "" {
 			live[f.SessionID] = true
 		}
 	}

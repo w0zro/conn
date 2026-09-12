@@ -98,7 +98,67 @@ func parseProcStat(line string, boot time.Time, hz int) (process, bool) {
 	if ticks, err := strconv.ParseInt(f[19], 10, 64); err == nil && hz > 0 && !boot.IsZero() {
 		p.started = boot.Add(time.Duration(ticks) * time.Second / time.Duration(hz))
 	}
+	// utime and stime, fields 14 and 15, which are f[11] and f[12] here:
+	// what the process has spent on a processor, in and out of the
+	// kernel, all of it since it started.
+	if hz > 0 {
+		user, uerr := strconv.ParseInt(f[11], 10, 64)
+		sys, serr := strconv.ParseInt(f[12], 10, 64)
+		if uerr == nil && serr == nil {
+			p.cpu = time.Duration(user+sys) * time.Second / time.Duration(hz)
+		}
+	}
 	return p, true
+}
+
+// parsePsTimes reads what `ps -axo pid=,time=` printed: a pid and the
+// processor time it has used, one process to a line.
+func parsePsTimes(out string) map[int]time.Duration {
+	times := map[int]time.Duration{}
+	for line := range strings.SplitSeq(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) != 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(f[0])
+		if err != nil {
+			continue
+		}
+		if d, ok := parsePsTime(f[1]); ok {
+			times[pid] = d
+		}
+	}
+	return times
+}
+
+// parsePsTime reads one of ps's elapsed times: seconds at the end,
+// minutes and then hours before it, and days off the front behind a
+// dash. The minutes can run past sixty on macOS, where nothing larger
+// is printed, so no field is held to its usual range.
+func parsePsTime(s string) (time.Duration, bool) {
+	var total time.Duration
+	if days, rest, ok := strings.Cut(s, "-"); ok {
+		n, err := strconv.ParseFloat(days, 64)
+		if err != nil {
+			return 0, false
+		}
+		total += time.Duration(n * float64(24*time.Hour))
+		s = rest
+	}
+	parts := strings.Split(s, ":")
+	if len(parts) > 3 {
+		return 0, false
+	}
+	// From the right: seconds, minutes, hours.
+	unit := []time.Duration{time.Second, time.Minute, time.Hour}
+	for i := range parts {
+		n, err := strconv.ParseFloat(parts[len(parts)-1-i], 64)
+		if err != nil {
+			return 0, false
+		}
+		total += time.Duration(n * float64(unit[i]))
+	}
+	return total, true
 }
 
 // linuxTTY names the terminal behind a tty_nr: a pseudo-terminal under

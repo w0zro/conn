@@ -23,6 +23,10 @@ type process struct {
 	command         string   // the program's name
 	args            []string // what it was started as, when that could be read
 	cwd             string
+	// cpu is all the processor time this process has used, which says
+	// nothing on its own: what it has used since the last reading is
+	// how the watch tells work from waiting.
+	cpu time.Duration
 }
 
 // The kinds of process the watch tells apart, by the program's name.
@@ -68,11 +72,13 @@ func kindOf(p process) string {
 	}
 }
 
-// The words an entry stands under. A live process is ACTIVE whether the
-// kernel caught it on a processor or asleep: the instant says nothing,
-// and macOS calls nearly everything runnable.
+// The words an entry stands under. Whether the kernel caught a process
+// on a processor or asleep says nothing by itself - macOS calls nearly
+// everything runnable - so alive alone is ACTIVE, and WORKING is kept
+// for a process that did something between one reading and the next.
 const (
-	statusActive  = "ACTIVE"  // alive, at its work
+	statusWorking = "WORKING" // doing something, right now
+	statusActive  = "ACTIVE"  // alive, and not doing anything
 	statusIdle    = "IDLE"    // a shell at its prompt
 	statusStopped = "STOPPED" // suspended
 	statusEnded   = "ENDED"   // finished, and not yet collected
@@ -113,7 +119,7 @@ type place struct {
 // nothing: what they run is work, and reads as theirs. The rule goes
 // by the program's name, so a conn on another socket, or an older conn
 // installed beside this one, is off the watch too.
-func watch(procs []process, uid int, rootOf func(string) string) []place {
+func watch(procs []process, uid int, rootOf func(string) string, busy map[int]bool) []place {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
@@ -230,7 +236,7 @@ func watch(procs []process, uid int, rootOf func(string) string) []place {
 		p := byPid[pid]
 		kind := kindOf(p)
 		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth}
-		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0)
+		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, busy[p.pid])
 		if places[path] == nil {
 			places[path] = &place{path: path}
 			order = append(order, path)
@@ -259,15 +265,62 @@ func watch(procs []process, uid int, rootOf func(string) string) []place {
 	return out
 }
 
+// workingShare is what a process has to have kept busy of one
+// processor, over the gap between two readings, to be working: a
+// twentieth of it. A share and not a figure, since the gap is not
+// fixed — a reading can come late, and a slow tick should not make
+// everything look busier than it is.
+const workingShare = 20
+
+// cpuWorking is every process that spent processor time between two
+// readings. What a process has used altogether says nothing — a server
+// up for a week has plenty and may be doing nothing at all — so it is
+// the difference that is asked, against how long there was to spend it
+// in. With no reading before this one, nothing is known to be working.
+func cpuWorking(was map[int]time.Duration, wasAt time.Time, now map[int]time.Duration, nowAt time.Time) map[int]bool {
+	busy := map[int]bool{}
+	elapsed := nowAt.Sub(wasAt)
+	if wasAt.IsZero() || elapsed <= 0 {
+		return busy
+	}
+	for pid, used := range now {
+		before, ok := was[pid]
+		if !ok {
+			continue
+		}
+		if spent := used - before; spent > 0 && spent*workingShare >= elapsed {
+			busy[pid] = true
+		}
+	}
+	return busy
+}
+
+// cpuOf is the processor time each process has used, to be held until
+// the next reading and asked against.
+func cpuOf(procs []process) map[int]time.Duration {
+	out := make(map[int]time.Duration, len(procs))
+	for _, p := range procs {
+		out[p.pid] = p.cpu
+	}
+	return out
+}
+
 // statusOf is the word for a process as it stands. A shell is only
 // idle bare, at its prompt; running anything, even nested many levels
-// down, it is active the way what it runs is.
-func statusOf(p process, kind string, hasChildren bool) (string, bool) {
+// down, it is active the way what it runs is. Working is narrower than
+// active and is the one worth watching: the process was doing
+// something between one reading and the next, which an agent says of
+// itself and anything else is read off the processor time it used.
+// Work is not claimed up the tree - a shell whose child is working is
+// active, and the row doing the work is the one that says so.
+func statusOf(p process, kind string, hasChildren, working bool) (string, bool) {
 	switch {
 	case p.state == 'T':
 		return statusStopped, true
 	case p.state == 'Z':
 		return statusEnded, true
+	case working:
+		return statusWorking, false
 	case kind == kindShell && !hasChildren:
 		return statusIdle, false
 	default:

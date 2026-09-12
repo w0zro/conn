@@ -14,6 +14,16 @@ idle only bare, at its prompt; running anything, however far down, it is
 active the way what it runs is. The newest work anywhere in a tree brings it,
 and its place, to the top.
 
+A row reads `WORKING` when it was doing something between one reading and the
+next, and `ACTIVE` when it is only alive — a dev server waiting on a request
+and one answering it are not the same thing, and the column says which. An
+agent is asked rather than measured, since it knows whether it is mid-turn
+and the processor time it uses says little either way: a model answering is
+barely any, and waiting on you is none. Everything else is read off the
+processor time it spent, against how long there was to spend it in. The work
+is not claimed up the tree: a shell whose child is working is active, and the
+row doing the work is the one that says so.
+
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its
 home window is a rail on the left, which is the watch, and a slot on the

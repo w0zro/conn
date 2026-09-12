@@ -22,6 +22,10 @@ func readProcesses(uid int) ([]process, error) {
 		return nil, err
 	}
 	dirs := parseLsof(listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-d", "cwd", "-F", "pcn"))
+	// The processor time each has used. kinfo_proc carries no such
+	// thing conn can rely on, so ps is asked, the way lsof is asked for
+	// the working directories.
+	cpu := parsePsTimes(listing("ps", "-axo", "pid=,time="))
 	ttys := ttyNames()
 	procs := make([]process, 0, len(kinfo))
 	for _, k := range kinfo {
@@ -40,6 +44,7 @@ func readProcesses(uid int) ([]process, error) {
 		if d, ok := dirs[p.pid]; ok {
 			p.cwd, p.command = d.cwd, d.command
 		}
+		p.cpu = cpu[p.pid]
 		if p.uid == uid && p.tty != "" {
 			if raw, err := unix.SysctlRaw("kern.procargs2", p.pid); err == nil {
 				p.args = parseProcargs(raw)

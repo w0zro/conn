@@ -53,7 +53,7 @@ var (
 // own — conn is the instrument and not the work, though something
 // under it, however unlikely, would still root a tree of its own.
 func TestWatchStandsOneProcessForEachWork(t *testing.T) {
-	places := watch(testProcs, 501, testRoots)
+	places := watch(testProcs, 501, testRoots, nil)
 	var got []string
 	for _, pl := range places {
 		for _, e := range pl.entries {
@@ -122,7 +122,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	got = got[:0]
-	for _, pl := range watch(without, 501, testRoots) {
+	for _, pl := range watch(without, 501, testRoots, nil) {
 		for _, e := range pl.entries {
 			got = append(got, strings.Repeat(" ", e.depth)+e.kind+" "+e.command+" "+e.status)
 		}
@@ -140,7 +140,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if b := watch(nil, 501, testRoots); len(b) != 0 {
+	if b := watch(nil, 501, testRoots, nil); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
 	}
 }
@@ -157,7 +157,7 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
 	}
 	var pids []int
-	for _, pl := range watch(dup, 501, testRoots) {
+	for _, pl := range watch(dup, 501, testRoots, nil) {
 		for _, e := range pl.entries {
 			pids = append(pids, e.pid)
 		}
@@ -175,7 +175,7 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 		{pid: 12, ppid: 1, uid: 501, tty: "ttys002", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
 	}
 	done := make(chan []place, 1)
-	go func() { done <- watch(cycle, 501, testRoots) }()
+	go func() { done <- watch(cycle, 501, testRoots, nil) }()
 	select {
 	case places := <-done:
 		// The one process standing clear of the cycle is still read.
@@ -199,6 +199,92 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the watch did not come back from a cycle in the table")
+	}
+}
+
+// ps prints a processor time as minutes and seconds, the minutes
+// running past sixty rather than becoming hours; hours and days show up
+// on other systems, and all of them read.
+func TestPsTimesAreParsed(t *testing.T) {
+	for _, c := range []struct {
+		in   string
+		want time.Duration
+		ok   bool
+	}{
+		{"0:00.00", 0, true},
+		{"0:00.39", 390 * time.Millisecond, true},
+		{"12:34.56", 12*time.Minute + 34*time.Second + 560*time.Millisecond, true},
+		{"583:40.70", 583*time.Minute + 40*time.Second + 700*time.Millisecond, true},
+		{"1:02:03", time.Hour + 2*time.Minute + 3*time.Second, true},
+		{"2-01:00:00", 49 * time.Hour, true},
+		{"nonsense", 0, false},
+		{"1:2:3:4", 0, false},
+	} {
+		got, ok := parsePsTime(c.in)
+		if ok != c.ok || got != c.want {
+			t.Errorf("%q: %v %v, want %v %v", c.in, got, ok, c.want, c.ok)
+		}
+	}
+	times := parsePsTimes("    1  63:35.26\n  333  26:21.76\n\ngarbage line here\n  334   0:00.39\n")
+	if len(times) != 3 || times[1] != 63*time.Minute+35*time.Second+260*time.Millisecond || times[334] != 390*time.Millisecond {
+		t.Errorf("a listing reads as %v", times)
+	}
+}
+
+// Work is what a process spent between two readings, not what it has
+// spent altogether: a server up for a week has plenty of the second and
+// may be doing nothing at all. With no reading before this one there is
+// nothing to ask against, and nothing is working.
+func TestWorkIsWhatWasSpentSinceTheLastReading(t *testing.T) {
+	was := map[int]time.Duration{
+		10: 5 * time.Hour,   // up for ages, and quiet since
+		11: 0,               // fresh, and busy since
+		12: time.Second,     // a little, but under the share
+		13: 2 * time.Second, // gone by the next reading
+	}
+	wasAt := watchNow
+	now := map[int]time.Duration{
+		10: 5 * time.Hour,
+		11: time.Second,
+		12: time.Second + 20*time.Millisecond,
+		14: time.Hour, // only appeared now; nothing to ask against
+	}
+	busy := cpuWorking(was, wasAt, now, wasAt.Add(2*time.Second))
+	if !busy[11] {
+		t.Error("a process that spent a second of two is not working")
+	}
+	for _, pid := range []int{10, 12, 13, 14} {
+		if busy[pid] {
+			t.Errorf("pid %d is working", pid)
+		}
+	}
+	// No reading before this one: nothing is known either way.
+	if b := cpuWorking(nil, time.Time{}, now, wasAt); len(b) != 0 {
+		t.Errorf("the first reading calls %v working", b)
+	}
+	// A reading that came back with no time between it and the last
+	// says nothing rather than dividing by it.
+	if b := cpuWorking(was, wasAt, now, wasAt); len(b) != 0 {
+		t.Errorf("no time passed and %v is working", b)
+	}
+}
+
+// The word for a process is working when it is doing something, which
+// beats idle and is beaten by a fault: a stopped process is stopped
+// whatever it spent before it was.
+func TestWorkingIsTheWordOverIdleAndUnderAFault(t *testing.T) {
+	shell := process{state: 'S'}
+	if s, _ := statusOf(shell, kindShell, false, true); s != statusWorking {
+		t.Errorf("a bare shell doing something is %s", s)
+	}
+	if s, _ := statusOf(shell, kindShell, false, false); s != statusIdle {
+		t.Errorf("a bare shell doing nothing is %s", s)
+	}
+	if s, _ := statusOf(process{state: 'T'}, kindRun, false, true); s != statusStopped {
+		t.Error("a stopped process that was working is not stopped")
+	}
+	if s, _ := statusOf(process{state: 'S'}, kindRun, true, false); s != statusActive {
+		t.Errorf("a run doing nothing is %s", s)
 	}
 }
 
@@ -332,7 +418,10 @@ func TestProcIsParsed(t *testing.T) {
 	boot := time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC)
 	line := "70301 (go (test)) R 70300 70300 70001 34823 70300 4194304 1 0 0 0 5 1 0 0 20 0 8 0 43200000 100 200 300"
 	p, ok := parseProcStat(line, boot, 100)
-	want := process{pid: 70301, command: "go (test)", state: 'R', ppid: 70300, pgid: 70300, tty: "pts/7", foreground: true, started: boot.Add(432000 * time.Second)}
+	// utime and stime are fields 14 and 15 — 5 and 1 here — and at a
+	// hundred ticks a second that is sixty milliseconds on a processor.
+	want := process{pid: 70301, command: "go (test)", state: 'R', ppid: 70300, pgid: 70300, tty: "pts/7", foreground: true,
+		started: boot.Add(432000 * time.Second), cpu: 60 * time.Millisecond}
 	if !ok || !reflect.DeepEqual(p, want) {
 		t.Errorf("stat: %+v %v, want %+v", p, ok, want)
 	}

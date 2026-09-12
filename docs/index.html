@@ -6,9 +6,9 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#15130F">
 <title>conn — operating manual</title>
-<meta name="description" content="The station from which one operator directs the work of many hands on one machine: the shells, agents and runs working each project, what each is doing, and which one is waiting. macOS and Linux, on tmux.">
+<meta name="description" content="A station for one operator directing many hands on one machine. conn shows the shells, agents, and runs working each project, what each is doing, and which is waiting on the operator. macOS and Linux, on tmux.">
 <meta property="og:title" content="conn">
-<meta property="og:description" content="The station from which one operator directs the work of many hands on one machine: the shells, agents and runs working each project, what each is doing, and which one is waiting. macOS and Linux, on tmux.">
+<meta property="og:description" content="A station for one operator directing many hands on one machine. conn shows the shells, agents, and runs working each project, what each is doing, and which is waiting on the operator. macOS and Linux, on tmux.">
 <meta property="og:url" content="https://conn.w0zro.com">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="conn">
@@ -45,8 +45,8 @@
     <p class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01</p>
     <h1>CONN</h1>
     <div class="banner">OPERATING MANUAL</div>
-    <p class="tagline">The station from which one operator directs the work of many hands on one machine.</p>
-    <p class="sub">A hand is a process that works a place on the operator's behalf: a shell, an agent, a run. conn shows what each hand is doing and which hand is waiting, and puts the operator in front of the one that is.</p>
+    <p class="tagline">A station for one operator directing many hands on one machine.</p>
+    <p class="sub">conn shows the hands working each place, what each is doing, and which is waiting on the operator, and puts the operator in front of one.</p>
     <div class="declassified">DECLASSIFIED<br><small>AUTH. <span>CHANGE v0.0.0</span></small></div>
   </div>
   <div class="install">
@@ -126,24 +126,34 @@
       <div class="section" id="general">
         <p class="kicker">SECTION 1</p>
         <h2>General</h2>
-        <p class="para"><span class="n">1-1.</span><b>PURPOSE.</b> conn is the station from which one operator directs the work of many hands on one machine. A hand is a process that works a place on the operator's behalf: a shell, an agent, a run. Hands work without direction, and stop to ask for it. The station shows what each hand is doing and which hand is waiting, so that the operator's attention, which is the one thing not in supply, goes where it is asked for.</p>
-        <p class="para"><span class="n">1-2.</span><b>THE HANDS.</b> The kernel's word is process, and it is too small for the thing being run. The word here is hand, and where that could be read as the operator's own, station hand: the general worker on a station, who does what the place needs without being stood over. A hand is long-lived. It has a place it works, a tree of processes under it, and, if it is an agent, a conversation it is carrying and a state of mind that cannot be read off its processor time. Above all it can stop and wait on the operator. A compiler never waited on anyone. That one new fact is why the hands are the thing to watch, and why the question is no longer whether a thing is done but whether it needs you.</p>
-        <p class="para"><span class="n">1-3.</span><b>FILES.</b> Tooling grew up around files and the things done to them, because the person did the work and a process was a brief event, run and watched to its end. The files are still where the work lands. They are now what the hands are working on, the way they used to be what the operator was working on, and the operator goes to them to review what a hand did or to read before answering it. An editor is a place visited from the station, not the place the operator lives.</p>
-        <p class="para"><span class="n">1-4.</span><b>THE TWO QUESTIONS.</b> Everything on the screen answers one of two questions the operator keeps asking: what is going on, and who needs me. The watch answers the first. The waiting word, its blink, <code>tab</code>, and the bar's lamps answer the second. Every other rule in this manual, the order that holds still, the words that are earned, the panel that stays dark, the one orange, exists so that those two answers can be taken in at a glance rather than read.</p>
-        <p class="para"><span class="n">1-5.</span><b>THE NAME.</b> The conn is the Navy's word for control of a ship's movement. The officer who has it does not work the ship; the hands do. The officer receives reports and gives orders. conn is named for that seat and not for the machine.</p>
-        <p class="para"><span class="n">1-6.</span><b>WHAT IS SAID.</b> conn says only what it knows to be true, in a word it has earned, and says nothing where it knows nothing. A guess is worse than silence. Nothing is said twice and nothing is said of what there is none of. A row that always says something is a row nobody reads.</p>
-        <p class="para"><span class="n">1-7.</span><b>COMMANDS.</b> conn alone comes up on the console and continues to the watch. The rest are said by name after it. <code>--light</code> and <code>--dark</code> say the ground instead of asking the terminal, and go ahead of a command if there is one.</p>
+        <p class="para"><span class="n">1-1.</span><b>PURPOSE.</b> This manual describes conn and its operation.</p>
+        <p class="para"><span class="n">1-2.</span><b>SCOPE.</b> conn is a station for one operator directing many hands on one machine. It shows the hands working each place, the standing of each, and which hand is waiting on the operator, and it puts the operator in front of a hand. It does not edit files, run builds, or hold conversations. The hands do.</p>
+        <p class="para"><span class="n">1-3.</span><b>DEFINITIONS.</b> Terms used in this manual.</p>
+        <div class="table narrow">
+          <div class="row"><span>Operator</span><span>The person at the station.</span></div>
+          <div class="row"><span>Hand</span><span>A process working a place for the operator: a shell, an agent, or a run. Also station hand.</span></div>
+          <div class="row"><span>Agent</span><span>A hand that holds a conversation and can stop to wait on the operator.</span></div>
+          <div class="row"><span>Place</span><span>A directory hands work in: a git repository, or a folder holding several.</span></div>
+          <div class="row"><span>Standing</span><span>What a hand is doing: WORKING, ACTIVE, IDLE, or WAITING.</span></div>
+          <div class="row"><span>Waiting</span><span>The standing of an agent stopped on something it has asked of the operator.</span></div>
+          <div class="row"><span>Rail</span><span>The pane on the left, forty-four columns wide, holding the watch and the other views.</span></div>
+          <div class="row"><span>Watch</span><span>The hands, by place, in the order they began.</span></div>
+          <div class="row"><span>Slot</span><span>The pane on the right, holding one hand.</span></div>
+          <div class="row"><span>Bar</span><span>The line at the foot of the window: an annunciator for the keys, and a lamp for each hand.</span></div>
+        </div>
+        <p class="para"><span class="n">1-4.</span><b>INDICATIONS.</b> The station indicates two things: what each hand is doing, and which hand is waiting. The watch and the bar's lamps indicate the first. WAITING on the watch, blinking, a lamp in the owed color, and <code>tab</code> indicate the second.</p>
+        <p class="para"><span class="n">1-5.</span><b>COMMANDS.</b> <code>conn</code> alone brings up the console and continues to the watch. Other commands are given by name after it. <code>--light</code> and <code>--dark</code> set the ground, ahead of a command if one is given.</p>
         <p class="caption">SYNOPSIS</p>
         <div class="table synopsis">
           <div class="row head"><span>COMMAND</span><span>DOES</span></div>
-          <div class="row"><span>conn</span><span>The console, then the watch.</span></div>
-          <div class="row"><span>conn down</span><span>Takes the server down, with everything in it, and says what went.</span></div>
-          <div class="row"><span>conn theme claude</span><span>Writes conn's theme for Claude Code, which draws its own colors.</span></div>
+          <div class="row"><span>conn</span><span>Brings up the console, then the watch.</span></div>
+          <div class="row"><span>conn down</span><span>Takes the server down with everything in it, and reports what went.</span></div>
+          <div class="row"><span>conn theme claude</span><span>Writes conn's theme for Claude Code.</span></div>
           <div class="row"><span>conn theme vim</span><span>Writes conn's colorscheme for nvim.</span></div>
-          <div class="row"><span>conn --light</span><span>Says the ground is light, for a server coming up or one already up.</span></div>
-          <div class="row"><span>conn --dark</span><span>Says the ground is dark.</span></div>
-          <div class="row"><span>conn --help</span><span>Says this table.</span></div>
-          <div class="row"><span>conn --version</span><span>Says the build.</span></div>
+          <div class="row"><span>conn --light</span><span>Sets the ground light.</span></div>
+          <div class="row"><span>conn --dark</span><span>Sets the ground dark.</span></div>
+          <div class="row"><span>conn --help</span><span>Prints this table.</span></div>
+          <div class="row"><span>conn --version</span><span>Prints the build.</span></div>
         </div>
       </div>
     </div>

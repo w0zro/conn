@@ -66,10 +66,40 @@ func isSessionID(id string) bool {
 	return true
 }
 
+// insideNote is what conn tells an agent it starts about where it is.
+// An agent that backgrounds a dev server leaves it with no terminal:
+// no pane to attach to, no scrollback to read, and its output wherever
+// the agent happened to send it. A window of its own costs the agent
+// nothing and makes the server a process like any other here — conn
+// shows it, you reach it, and its log is the pane you are looking at.
+//
+// conn says this to the agents it starts rather than writing it into
+// anybody's settings. It travels with conn, so a conn on another
+// machine tells its agents the same thing, and a machine conn is gone
+// from is as conn found it.
+func insideNote(socket string) string {
+	return "You are running inside conn, which holds this terminal as a tmux pane " +
+		"and watches the processes working this project. Start anything long-lived " +
+		"— a dev server, a file watcher, a build that stays up — in a window of its " +
+		"own rather than detached in the background:\n\n" +
+		"  tmux -S " + socket + " new-window -d -n NAME -c DIR 'COMMAND'\n\n" +
+		"It then holds a terminal of its own, so it stands on conn's watch as its " +
+		"own row, it can be attached to, and its output is the window's scrollback:\n\n" +
+		"  tmux -S " + socket + " capture-pane -p -t NAME\n\n" +
+		"Something you background instead holds no terminal and has no pane, and can " +
+		"only be read through whatever file its output was sent to."
+}
+
+// agentCommand is what conn runs to start an agent: the program, told
+// where it is.
+func agentCommand(socket string) string {
+	return agentProgram + " --append-system-prompt " + shellQuote(insideNote(socket))
+}
+
 // resumeCommand is the command that picks a suspended conversation back
-// up. The id travels onto a shell command line, so only ids
-// claudeSuspended vetted are ever handed here.
-func resumeCommand(id string) string { return agentCommand + " --resume " + id }
+// up, told the same. The id travels onto a shell command line, so only
+// ids claudeSuspended vetted are ever handed here.
+func resumeCommand(socket, id string) string { return agentCommand(socket) + " --resume " + id }
 
 // What Claude Code calls itself, in the file it keeps per instance.
 // The vocabulary is closed at four, and these are all of them, read

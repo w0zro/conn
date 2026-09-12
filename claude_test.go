@@ -4,9 +4,43 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
+
+// conn tells the agents it starts where they are, and the note travels
+// as one word on a shell command line: a socket with an apostrophe in
+// it must stay inside that word rather than break out of it and run as
+// something else. What the note says has to name the socket, since an
+// agent told to open a window and not told which server would be
+// guessing.
+func TestTheAgentIsToldWhereItIs(t *testing.T) {
+	const prefix = agentProgram + " --append-system-prompt "
+	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
+		got := agentCommand(socket)
+		if !strings.HasPrefix(got, prefix) {
+			t.Fatalf("agentCommand(%q) = %q", socket, got)
+		}
+		word := strings.TrimPrefix(got, prefix)
+		if !strings.HasPrefix(word, "'") || !strings.HasSuffix(word, "'") {
+			t.Errorf("the note is not one quoted word: %q", word)
+		}
+		note := strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(word, "'"), "'"), `'\''`, "'")
+		if note != insideNote(socket) {
+			t.Errorf("the note does not survive quoting:\n%s\nwant:\n%s", note, insideNote(socket))
+		}
+		for _, want := range []string{socket, "new-window", "capture-pane"} {
+			if !strings.Contains(note, want) {
+				t.Errorf("the note says nothing of %q:\n%s", want, note)
+			}
+		}
+	}
+	// Resuming a conversation is the same launch, carrying the id.
+	if got := resumeCommand("/s/conn.sock", "abc-123"); got != agentCommand("/s/conn.sock")+" --resume abc-123" {
+		t.Errorf("resumeCommand = %q", got)
+	}
+}
 
 func TestEncodePathDashesEveryThingThatIsNotAlnum(t *testing.T) {
 	if got := encodePath("/Users/w0zro/projects/conn"); got != "-Users-w0zro-projects-conn" {
@@ -27,7 +61,7 @@ func TestIsSessionIDAcceptsOnlyHexAndDashes(t *testing.T) {
 }
 
 func TestResumeCommandCarriesTheID(t *testing.T) {
-	if got := resumeCommand("abc-123"); got != "claude --resume abc-123" {
+	if got := resumeCommand("/s/conn.sock", "abc-123"); !strings.HasPrefix(got, "claude --append-system-prompt '") || !strings.HasSuffix(got, "' --resume abc-123") {
 		t.Errorf("resumeCommand = %q", got)
 	}
 }

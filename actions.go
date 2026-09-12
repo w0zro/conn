@@ -75,16 +75,16 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
-// agentCommand starts an agent. Claude is the only kind conn starts for
-// now, so a is its key everywhere a shell's is s.
-const agentCommand = "claude"
+// agentProgram is the agent conn starts. Claude is the only kind conn
+// starts for now, so a is its key everywhere a shell's is s.
+const agentProgram = "claude"
 
 // openAgent opens an agent at a place, off the loop, the way openShell
 // opens a shell there.
 func (m model) openAgent(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.openCmd(dir, agentCommand)
+		sh, err := srv.openCmd(dir, agentCommand(srv.socket))
 		if err != nil {
 			return noteMsg{strings.ToUpper(err.Error())}
 		}
@@ -120,7 +120,7 @@ func (m model) scanConvos(dirs []string) tea.Cmd {
 func (m model) openResumed(dir, id string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.openCmd(dir, resumeCommand(id))
+		sh, err := srv.openCmd(dir, resumeCommand(srv.socket, id))
 		if err != nil {
 			return noteMsg{strings.ToUpper(err.Error())}
 		}

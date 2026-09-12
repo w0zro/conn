@@ -520,7 +520,7 @@ func TestPlaceRootsSortByProject(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, f := range []string{filepath.Join(repo, "go.mod"), filepath.Join(docs, ".conn"), filepath.Join(api, "package.json")} {
+	for _, f := range []string{filepath.Join(repo, "go.mod"), filepath.Join(docs, "package.json"), filepath.Join(api, "package.json")} {
 		if err := os.WriteFile(f, nil, 0o644); err != nil {
 			t.Fatal(err)
 		}

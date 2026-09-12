@@ -516,9 +516,9 @@ func commandLine(p process) string {
 //
 // It was a repository or any directory carrying a manifest, which made
 // a place of every corner of a repository that happened to run through
-// a package manager of its own: conn's own docs directory carried a
-// plan and stood apart from conn on the watch, which is not two pieces
-// of work and should not have been two blocks.
+// a package manager of its own: conn's own docs directory stood apart
+// from conn on the watch, which is not two pieces of work and should
+// not have been two blocks.
 
 // within says whether a directory is at or under a root.
 func within(dir, root string) bool {

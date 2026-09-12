@@ -45,17 +45,17 @@ func TestInline(t *testing.T) {
 // Filled text is wrapped at its spaces, and a line that would begin
 // with a period is marked as text rather than read as a request.
 func TestWrap(t *testing.T) {
-	long := strings.Repeat("word ", 20) + ".conn is a plan"
+	long := strings.Repeat("word ", 20) + ".gitignore is a file"
 	got := wrap(long)
 	for line := range strings.SplitSeq(got, "\n") {
 		if len(line) > 80 {
 			t.Errorf("a line of %d bytes: %q", len(line), line)
 		}
 	}
-	if !strings.Contains(got, "\n\\&.conn") && !strings.Contains(got, " .conn") {
-		t.Errorf("wrap lost .conn: %q", got)
+	if !strings.Contains(got, "\n\\&.gitignore") && !strings.Contains(got, " .gitignore") {
+		t.Errorf("wrap lost .gitignore: %q", got)
 	}
-	if strings.Contains(got, "\n.conn") {
+	if strings.Contains(got, "\n.gitignore") {
 		t.Errorf("a line begins with a request: %q", got)
 	}
 }

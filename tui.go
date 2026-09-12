@@ -245,7 +245,7 @@ func (m model) readWatch() tea.Cmd {
 		// is read off what it spent on a processor since the last
 		// reading, which is why the reading before this one is kept.
 		now, nowAt := cpuOf(procs), time.Now()
-		busy := cpuWorking(was, wasAt, now, nowAt)
+		busy := cpuWorking(was, wasAt, procs, nowAt)
 		for pid := range agentsWorking(procs) {
 			busy[pid] = true
 		}

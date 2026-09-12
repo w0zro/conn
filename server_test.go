@@ -340,7 +340,12 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "sleep 100", "Enter"); err != nil {
 		t.Fatal(err)
 	}
-	s.until("sleep running in the slot", func() bool { return strings.Contains(s.rail(), "RUN") && strings.Contains(s.rail(), "sleep 100") })
+	// Two rows at the scratch's own place now: the shell, and the sleep
+	// under it. Counting there rather than anywhere on the rail, which
+	// is the whole machine's and has sleeps of its own on it.
+	s.until("sleep running in the slot", func() bool {
+		return s.placeRows() == 2 && strings.Contains(s.rail(), "sleep 100")
+	})
 
 	// The cursor stayed on the shell's own pid — it does not jump to a
 	// child that only just appeared under it — and sleep is nested
@@ -350,8 +355,8 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.rail(), "END SLEEP 100") })
 	s.keys("x")
 
-	s.until("sleep to end and the shell to take its row back", func() bool {
-		return strings.Contains(s.rail(), "SHELL") && !strings.Contains(s.rail(), "sleep")
+	s.until("sleep to end and the shell to have the place to itself", func() bool {
+		return s.placeRows() == 1
 	})
 	if s.paneDead("home.1") || !s.shellIn("home.1") {
 		t.Errorf("the shell did not survive ending what it ran")

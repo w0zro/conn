@@ -272,24 +272,26 @@ func watch(procs []process, uid int, rootOf func(string) string, busy map[int]bo
 // everything look busier than it is.
 const workingShare = 20
 
-// cpuWorking is every process that spent processor time between two
-// readings. What a process has used altogether says nothing — a server
-// up for a week has plenty and may be doing nothing at all — so it is
-// the difference that is asked, against how long there was to spend it
-// in. With no reading before this one, nothing is known to be working.
-func cpuWorking(was map[int]time.Duration, wasAt time.Time, now map[int]time.Duration, nowAt time.Time) map[int]bool {
+// cpuWorking is every process that spent processor time over the time
+// there was to spend it in. What a process has used altogether says
+// nothing on its own — a server up for a week has plenty and may be
+// doing nothing at all — so what is asked is the difference since the
+// last reading.
+//
+// A process the last reading did not have is asked against its own
+// life instead. Waiting for a second reading would be waiting forever
+// for the ones that matter most: a compiler is spawned, works, and is
+// gone well inside the gap between two readings, and would read as
+// merely alive for the one moment it was ever seen.
+func cpuWorking(was map[int]time.Duration, wasAt time.Time, procs []process, nowAt time.Time) map[int]bool {
 	busy := map[int]bool{}
-	elapsed := nowAt.Sub(wasAt)
-	if wasAt.IsZero() || elapsed <= 0 {
-		return busy
-	}
-	for pid, used := range now {
-		before, ok := was[pid]
-		if !ok {
-			continue
+	for _, p := range procs {
+		spent, over := p.cpu, nowAt.Sub(p.started)
+		if before, ok := was[p.pid]; ok && !wasAt.IsZero() {
+			spent, over = p.cpu-before, nowAt.Sub(wasAt)
 		}
-		if spent := used - before; spent > 0 && spent*workingShare >= elapsed {
-			busy[pid] = true
+		if over > 0 && spent > 0 && spent*workingShare >= over {
+			busy[p.pid] = true
 		}
 	}
 	return busy

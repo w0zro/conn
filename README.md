@@ -158,25 +158,38 @@ cursor left where it was would pick out the one row in the pane that is not
 what is in the slot.
 
 Across the foot of the window, under the rail and the slot alike, is the
-bar. It is tmux's status line and it is conn's line. On the left a chip says
-what the keys are doing: `PREFIX` while a chord hangs, `COPY` in a pane in
-copy mode, `CONFIRM` while a kill waits on its second key, and otherwise
-`RAIL`, or the name of the program the keys are in — in its own case, since
-that is the world's word and not conn's. Beside it is whatever conn has to
-say: the note that went wrong reaching something, the question a kill asks.
-On the right, who is at the station and the time in Zulu.
+bar. It is tmux's status line, and it is an annunciator panel rather than a
+status line: dark, saying nothing at all, until something lights it. Its
+ground is the window's own, so at rest there is nothing there to tell the row
+from the padding around the client.
 
-The bar exists because there is state conn cannot see from inside its own
-pane. Whether a chord is hanging, whether a pane is in copy mode, and which
-pane the keys are in are the client's business and tmux's to know, and the
-rail can only guess at them. The line spans the window, so it can speak for
-the pane the rail is not. It took two rows the rail was spending on itself:
-the foot, which held a note until the next key, and the right-hand side of
-the head, which held the station and the clock. Both were the session's
-business rather than the list's, and the rail's forty-four columns are all
-list now. conn writes its half into two tmux options when the words change,
-which is on a keypress and rarely; the clock is tmux's own, run every second
-by the status interval, so conn is not a process a second for the time.
+A row that always says something is a row nobody reads, and most of what a
+status line carries — where the keys are, who you are, what time it is — you
+already know or do not need. What conn puts there is what you would want to
+be interrupted for, and nothing else ever. On the left are lamps for what the
+keys are doing, which is the half conn cannot see from inside its own pane:
+`PREFIX` while a chord hangs, `COPY` in a pane in copy mode, `CONFIRM` while
+a kill waits on its second key. Beside them, whatever conn has to say — the
+note that went wrong reaching something, the question a kill asks — which
+stands until the next key. On the right is the one question conn asks of you:
+`WAITING`, the count when there is more than one, and how long the one held
+up longest has waited, in its largest unit alone. A figure read from the
+corner of the eye should hold still, and the watch has it to the second when
+you turn to deal with it.
+
+The bar is the only instrument conn has that works on peripheral vision. The
+rail cannot catch your eye: when you are working your eyes are in the slot,
+and the watch is beside them unread. A dark row that lights is seen without
+being looked at, which is what the row is worth — and it is only worth it
+while the row is dark the rest of the time. The waiting lamp blinks, and the
+terminal does the blinking: conn sets an option when something starts waiting
+and when it stops, and nothing on the bar redraws on a beat. A terminal that
+will not blink shows it steady, which is the same lamp less insistent.
+
+Two rows the rail used to spend on itself are the bar's: the foot, which held
+a note until the next key, and the right-hand side of the head, which held
+the station and the clock. Both were the session's business rather than the
+list's, and the rail's forty-four columns are all list now.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

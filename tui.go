@@ -4,6 +4,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -20,9 +21,8 @@ var (
 )
 
 // Across the foot of the window is the bar, which is tmux's status line
-// and conn's line: a chip for what the keys are doing, what conn has to
-// say, and the station and the clock. It is written in tmux.go; conn
-// puts its half of it there through saying, below.
+// and an annunciator panel: dark until a lamp lights it. It is written
+// in tmux.go; conn lights its half through saying, below.
 //
 // The program holds three views. The console comes on first: the header
 // at once, from what is known before anything is read; the station is
@@ -152,9 +152,9 @@ type model struct {
 	// already knows.
 	looking  bool
 	entering bool // the console is waiting on a reading to go to the watch
-	// What conn last put on the bar, so it is written when the words
-	// change and not on every pass through Update.
-	saidNote, saidMode string
+	// What conn last put on the bar, so a lamp is written when it changes
+	// and not on every pass through Update.
+	saidNote, saidMode, saidOwed string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -349,35 +349,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, cmd
 }
 
-// saying puts what conn has to say on the bar, and the mode its chip
-// shows, when either has changed since the last telling. Going through
-// here is the point: a note is set from a dozen places and every one of
-// them would otherwise have to remember to say so.
-//
-// The bar is tmux's line and conn reaches it by setting an option on the
-// server, which is a process — so it is written when the words change,
-// which is on a keypress and rarely, and never on a beat. Off the loop,
-// since a process between a key and what it does is a key that feels
-// slow.
-func (m model) saying() (model, tea.Cmd) {
-	if !m.inside || m.srv == nil {
-		return m, nil
-	}
-	mode := ""
-	if m.kill != nil {
-		// The kill's question is the one thing conn does that takes the
-		// next key whatever it is, and the chip is where a mode that
-		// swallows keys belongs.
-		mode = "CONFIRM"
-	}
-	if m.note == m.saidNote && mode == m.saidMode {
-		return m, nil
-	}
-	m.saidNote, m.saidMode = m.note, mode
-	note, srv := m.note, m.srv
-	return m, func() tea.Msg { _ = srv.say(note, mode); return nil }
-}
-
 // published tells the cursor where it is, when it has moved since the
 // last telling or when a reading is saying it again. The look follows
 // it; nothing else reads it.
@@ -399,6 +370,50 @@ func (m model) published(again bool) model {
 		tellCursor(cursorPath(m.head.session.home), pid)
 	}
 	return m
+}
+
+// saying lights the bar, when any of its lamps has changed since the
+// last telling. Going through here is the point: a note is set from a
+// dozen places and every one of them would otherwise have to remember to
+// say so.
+//
+// The bar is tmux's line and conn reaches it by setting options on the
+// server, which is a process — so the lamps are written when they
+// change and never on a beat. At rest nothing changes and nothing is
+// written at all, which is what a dark panel is worth. Off the loop,
+// since a process between a key and what it does is a key that feels
+// slow.
+func (m model) saying() (model, tea.Cmd) {
+	if !m.inside || m.srv == nil {
+		return m, nil
+	}
+	mode := ""
+	if m.kill != nil {
+		// The kill's question takes the next key whatever it is, which is
+		// a mode that swallows keys and belongs in a lamp.
+		mode = "CONFIRM"
+	}
+	owed := ""
+	if round := waitingRound(m.places); len(round) > 0 {
+		// The one question conn asks of you, and the only thing on the
+		// bar that is about the work rather than about the keys: how many
+		// are held up, and how long the one held up longest has waited.
+		// The count only when it is more than one, since WAITING 1 says
+		// nothing WAITING does not.
+		owed = "WAITING"
+		if len(round) > 1 {
+			owed += " " + strconv.Itoa(len(round))
+		}
+		if held := about(m.now.Sub(round[0].since)); held != "" && !round[0].since.IsZero() {
+			owed += "  ·  " + held
+		}
+	}
+	if m.note == m.saidNote && mode == m.saidMode && owed == m.saidOwed {
+		return m, nil
+	}
+	m.saidNote, m.saidMode, m.saidOwed = m.note, mode, owed
+	note, srv := m.note, m.srv
+	return m, func() tea.Msg { _ = srv.say(note, mode, owed); return nil }
 }
 
 func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {

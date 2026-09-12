@@ -90,20 +90,15 @@ const (
 )
 
 // compose words the station as of a moment.
-// stationName is who is at the station: the user and the host, with a
-// word standing in for each the machine will not say. The console reads
-// it out and the bar says it, and they say the same thing.
-func stationName(user, host string) string {
-	if user == "" {
-		user = "someone"
+func compose(st station, now time.Time) report {
+	who := st.session.user
+	if who == "" {
+		who = "someone"
 	}
+	host := st.session.host
 	if host == "" {
 		host = "somewhere"
 	}
-	return user + "@" + host
-}
-
-func compose(st station, now time.Time) report {
 	note := ""
 	if !st.build.exact {
 		note = "(devel)"
@@ -112,7 +107,7 @@ func compose(st station, now time.Time) report {
 		version: st.build.tag,
 		note:    note,
 		build:   buildLine(st.build),
-		station: stationName(st.session.user, st.session.host),
+		station: who + "@" + host,
 		term:    st.session.term,
 		clock:   zulu(now),
 		lit:     true,

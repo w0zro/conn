@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -615,6 +616,24 @@ func age(since, now time.Time) string {
 		return ""
 	}
 	return spell(now.Sub(since))
+}
+
+// about is a span in its largest unit alone, and nothing under a minute:
+// what the bar says of how long something has been held up on you. A
+// lamp read from the corner of the eye wants a figure that holds still —
+// one that ticks is a thing to watch rather than a thing to notice — and
+// the watch has it to the second when you turn to deal with it.
+func about(d time.Duration) string {
+	switch {
+	case d >= 24*time.Hour:
+		return strconv.Itoa(int(d.Hours())/24) + "D"
+	case d >= time.Hour:
+		return strconv.Itoa(int(d.Hours())) + "H"
+	case d >= time.Minute:
+		return strconv.Itoa(int(d.Minutes())) + "M"
+	default:
+		return ""
+	}
 }
 
 // spell writes a span the way the watch's age column does, for a span

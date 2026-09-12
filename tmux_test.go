@@ -6,6 +6,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // The server's socket is under the state directory unless CONN_SOCKET
@@ -63,19 +64,20 @@ func TestPanesAreParsed(t *testing.T) {
 // binds two chords under it — - to the watch, q to detach; it carries
 // the look; a path with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
-	conf := tmuxConf("C-Space", "W0ZRO@STATION")
+	conf := tmuxConf("C-Space")
 	for _, s := range []string{
 		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
 		"bind p select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-p",
 		"bind q detach-client",
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
-		`set -g status-style "bg=#2A2620,fg=#8B8272"`,
-		// The bar's clock is tmux's own job, with the percents doubled so
-		// they survive the strftime tmux runs over the line first.
-		`#(date -u +'%%H:%%M:%%S Z')`, "W0ZRO@STATION  ·  ",
-		// The chip: what only tmux can know, then what conn says of
-		// itself, then where the keys are.
+		// The panel's ground is the window's own, so with nothing lit
+		// there is nothing to tell the row from the padding; and nothing
+		// on it is drawn on a beat.
+		`set -g status-style "bg=` + hex(groundColor) + `,fg=#8B8272"`, "set -g status-interval 0",
+		// The lamps: what only tmux can know, then what conn says of
+		// itself, then the one question conn asks of you, which blinks.
 		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_mode}", "#{@conn_note}",
+		"bold blink]#{@conn_owed}",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
@@ -88,7 +90,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 3 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a", "W0ZRO@STATION"), "C-Space") {
+	if strings.Count(conf, "\nbind ") != 3 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
 		t.Errorf("configuration binds more than the three chords, or ignores the prefix given:\n%s", conf)
 	}
 	t.Setenv("CONN_PREFIX", "")
@@ -125,7 +127,7 @@ func TestTheTerminalIsAskedForTheGround(t *testing.T) {
 	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\" {
 		t.Errorf("colors given back: %q", oscOwnColors)
 	}
-	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf("C-Space", "W0ZRO@STATION"), want) {
+	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf("C-Space"), want) {
 		t.Errorf("the panes are not drawn in %s", want)
 	}
 }
@@ -155,7 +157,7 @@ func TestDownSaysWhatItEnded(t *testing.T) {
 // leans on — structure, what can be run, type — apart from each other,
 // in both the normal colors and the bright.
 func TestTheSixteenAreSixteen(t *testing.T) {
-	conf := tmuxConf(defaultPrefix, barStation())
+	conf := tmuxConf(defaultPrefix)
 	for i, c := range scheme {
 		if want := fmt.Sprintf("set -g pane-colours[%d] %q", i, c); !strings.Contains(conf, want) {
 			t.Errorf("configuration lacks %q", want)
@@ -176,17 +178,20 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 	}
 }
 
-// conn writes its half of the bar when the words change and not on a
-// beat: setting an option on the server is a process, and a note changes
-// on a keypress and rarely. The chip's mode goes with it, so the two
-// always say the same thing about the same moment.
-func TestConnSaysItsHalfOfTheBarWhenItChanges(t *testing.T) {
+// The panel is dark until something lights it, and conn writes a lamp
+// only when it changes: setting an option on the server is a process,
+// and at rest there is nothing to set. The lamp on the right is the one
+// question conn asks of you, and it says how long the longest has been
+// held up in its largest unit alone — a figure read from the corner of
+// the eye should hold still.
+func TestTheBarIsDarkUntilSomethingLightsIt(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.srv = viewWatch, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.now = watchNow
 
-	// Nothing to say, and nothing said.
+	// Nothing owed, nothing said, nothing written.
 	if _, cmd := m.saying(); cmd != nil {
-		t.Error("conn wrote an empty bar it had already written")
+		t.Error("conn wrote a panel with nothing on it")
 	}
 
 	m.note = "NOTHING UNDER THE CURSOR"
@@ -194,24 +199,55 @@ func TestConnSaysItsHalfOfTheBarWhenItChanges(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("a note conn had not said was not put on the bar")
 	}
-	if next.saidNote != m.note || next.saidMode != "" {
-		t.Errorf("conn did not remember what it said: %q %q", next.saidNote, next.saidMode)
+	if next.saidNote != m.note || next.saidMode != "" || next.saidOwed != "" {
+		t.Errorf("conn did not remember what it lit: %q %q %q", next.saidNote, next.saidMode, next.saidOwed)
 	}
-	// Said once. The same note again is not a second process.
 	if _, cmd := next.saying(); cmd != nil {
 		t.Error("the same note was written to the bar twice")
 	}
 
-	// A kill takes the next key whatever it is, which is a mode the chip
-	// shows, and it reaches the bar the same way.
+	// A kill takes the next key whatever it is, which is a mode that
+	// swallows keys and lights a lamp of its own.
 	armed := next
 	armed.kill = &pendingKill{pid: 49212, command: "zsh", sig: syscall.SIGTERM}
 	after, cmd := armed.saying()
 	if cmd == nil || after.saidMode != "CONFIRM" {
-		t.Errorf("the kill's mode did not reach the chip: %q", after.saidMode)
+		t.Errorf("the kill's mode did not light: %q", after.saidMode)
 	}
 
-	// Outside the server there is no bar to write to.
+	// One agent held up, and how long for.
+	held := func(m model, waits ...time.Duration) model {
+		var es []entry
+		for i, d := range waits {
+			es = append(es, entry{pid: 100 + i, kind: kindAgent, status: statusWaiting, since: m.now.Add(-d)})
+		}
+		m.places = []place{{path: "/w", entries: es}}
+		return m
+	}
+	one, _ := held(m, 4*time.Minute+12*time.Second).saying()
+	if one.saidOwed != "WAITING  ·  4M" {
+		t.Errorf("one agent held up four minutes lit %q", one.saidOwed)
+	}
+	// Under a minute the lamp is the whole of it: there is no figure
+	// worth putting on a panel yet.
+	fresh, _ := held(m, 9*time.Second).saying()
+	if fresh.saidOwed != "WAITING" {
+		t.Errorf("an agent held up nine seconds lit %q", fresh.saidOwed)
+	}
+	// More than one is counted, and the figure is the longest wait.
+	two, _ := held(m, time.Hour+30*time.Minute, 2*time.Minute).saying()
+	if two.saidOwed != "WAITING 2  ·  1H" {
+		t.Errorf("two agents held up lit %q", two.saidOwed)
+	}
+	// An agent that cannot say when it stopped is still waiting, and the
+	// lamp says so without a figure it does not have.
+	mute := m
+	mute.places = []place{{path: "/w", entries: []entry{{pid: 7, kind: kindAgent, status: statusWaiting}}}}
+	if lit, _ := mute.saying(); lit.saidOwed != "WAITING" {
+		t.Errorf("an agent with no moment behind it lit %q", lit.saidOwed)
+	}
+
+	// Outside the server there is no panel to light.
 	out := m
 	out.inside = false
 	if _, cmd := out.saying(); cmd != nil {

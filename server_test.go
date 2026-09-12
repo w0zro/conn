@@ -54,7 +54,7 @@ func startScratch(t *testing.T) *scratch {
 	s := &scratch{t: t, srv: &server{tmux: tmux, socket: filepath.Join(dir, "sock")}, dir: dir}
 	t.Cleanup(func() { _, _ = s.srv.run("kill-server") })
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", "W0ZRO@STATION")), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	home := filepath.Join(dir, "home")
@@ -422,7 +422,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
 	applyMode(false)
-	confText := tmuxConf("C-Space", "W0ZRO@STATION")
+	confText := tmuxConf("C-Space")
 	applyMode(true) // the test binary goes back to the ground it had
 	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
 		t.Fatal(err)
@@ -508,7 +508,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	applyMode(dark)
 
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf(defaultPrefix, barStation())), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(defaultPrefix)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(tmux, "-S", srv.socket, "-f", conf, "new-session", "-d",

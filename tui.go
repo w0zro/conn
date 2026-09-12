@@ -332,7 +332,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case reachedMsg:
 		// The pane is in the slot; conn knows it now and does not have to
 		// read the server to find out, so the row says so at once.
+		//
+		// A pane is the whole tree in it, so reaching one from a row
+		// down inside it reaches the head. The cursor goes there too:
+		// it was on the row that asked, but the row that answered is
+		// the head, and leaving the two apart would put the mark on one
+		// row while the cursor sat on another — the sub-process looking
+		// picked out for being the one thing in the pane that is not
+		// what is in the slot.
 		m.slot = msg.tty
+		if pid, at, ok := headOf(m.places, msg.tty); ok {
+			m.cursor, m.cursorAt = pid, at
+		}
 		m.watchGen++
 		return m, m.readWatch()
 	case blinkMsg:

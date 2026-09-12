@@ -50,13 +50,15 @@ The slot gets a mark rather than a tier: the kind of the head of what is in
 it, in the orange, and nothing else of the row. One cell is all a mark needs,
 a row is a lot of orange, and the status column is not the orange's to take —
 `WAITING` is already a color near enough to it that the two together say
-neither. What conn can only report — a terminal it did not
-open, and cannot attach to — is a rank down, again the whole row, since the
-other columns are the quiet gray already and dimming one of six says nothing.
-The row under the cursor gives a rank of the dimming back rather than the
-reading, faint on the cursor's raised ground being barely there at all.
-Outside its server conn holds nothing and dims nothing, the distinction there
-being every row.
+neither. The row under the cursor gives a rank of the dimming back rather
+than the reading, faint on the cursor's raised ground being barely there at
+all.
+
+A pane holds a whole tree, so `enter` on a row down inside one reaches the
+head — a pane is the only thing there is to attach to — and the cursor goes
+to the head with it. The row that asked is not the row that answered, and a
+cursor left where it was would pick out the one row in the pane that is not
+what is in the slot.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

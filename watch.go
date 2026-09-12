@@ -48,32 +48,48 @@ type watchRow struct {
 	depth                           int    // how deep under its place's own root
 }
 
+// headOf is the first row of a terminal in the places as read: the
+// process its pane was opened on, which everything else in that pane
+// hangs under. It is what the slot's mark goes on and what the cursor
+// belongs on once the pane is reached, and both ask here so that the
+// two can never disagree about which row the pane is. It answers the
+// row's place in the reading too, for the cursor to hold.
+func headOf(places []place, tty string) (pid, at int, ok bool) {
+	if tty == "" {
+		return 0, 0, false
+	}
+	i := 0
+	for _, pl := range places {
+		for _, e := range pl.entries {
+			if e.tty == tty {
+				return e.pid, i, true
+			}
+			i++
+		}
+	}
+	return 0, 0, false
+}
+
 // composeWatch words the places; panes says which terminals are the
 // server's, and slot which of them is on the right.
 //
 // A pane holds a whole tree, and all of it is equally in the slot, but
 // saying so on every row of it paints a block rather than a mark. Only
-// the head of that tree is marked shown — the first row of the slot's
-// terminal there is, which is the process the pane was opened on and
-// the one the rest hang under. What hangs under it reads as what it
-// is: in a pane conn holds, like any other row conn can reach.
+// the head of that tree is marked shown. What hangs under it reads as
+// what it is: in a pane conn holds, like any other row conn can reach.
 func composeWatch(places []place, panes map[string]pane, slot string, home string, now time.Time, station, clock, err string) watchReport {
 	b := watchReport{station: station, clock: clock, err: err}
-	marked := false
+	head, _, marked := headOf(places, slot)
 	for _, pl := range places {
 		bp := watchPlace{path: tilde(pl.path, home)}
 		if bp.path == "" {
 			bp.path = "NO PLACE"
 		}
 		for _, e := range pl.entries {
-			shown := false
-			if slot != "" && e.tty == slot && !marked {
-				shown, marked = true, true
-			}
 			bp.rows = append(bp.rows, watchRow{
 				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
-				shown: shown, depth: e.depth,
+				shown: marked && e.pid == head, depth: e.depth,
 			})
 		}
 		b.places = append(b.places, bp)

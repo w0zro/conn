@@ -245,6 +245,38 @@ func TestTheReachedRowIsTheSlotAtOnce(t *testing.T) {
 	}
 }
 
+// A pane is the whole tree in it, so reaching one from a row down
+// inside it reaches the head, and the cursor goes to the head too. The
+// row that asked is not the row that answered, and a cursor left on the
+// sub-process would pick out the one thing in the pane that is not what
+// is in the slot.
+func TestReachingFromInsideATreePutsTheCursorOnItsHead(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside = viewWatch, true
+	m.places = []place{{path: "/w", entries: []entry{
+		{pid: 9, tty: "ttys001"},
+		{pid: 11, tty: "ttys002"},           // the head: what the pane was opened on
+		{pid: 12, tty: "ttys002", depth: 1}, // the agent it runs
+		{pid: 13, tty: "ttys002", depth: 2}, // and what the agent runs
+	}}}
+	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
+	m.cursor, m.cursorAt = 13, 3 // down inside the tree
+
+	next, _ := m.Update(reachedMsg{"ttys002"})
+	m = next.(model)
+	if m.cursor != 11 || m.cursorAt != 1 {
+		t.Errorf("the cursor is on pid %d at row %d, not the head of the pane it reached", m.cursor, m.cursorAt)
+	}
+	// And the cursor and the mark are the same row, which is the point.
+	for _, pl := range m.watchReport().places {
+		for _, r := range pl.rows {
+			if r.shown != (r.pid == m.cursor) {
+				t.Errorf("pid %d: shown %v, cursor on %d", r.pid, r.shown, m.cursor)
+			}
+		}
+	}
+}
+
 // a opens claude at the place under the cursor, the way s opens a shell
 // there; outside the server nothing can be opened, and off any place
 // there is nothing to open it at.

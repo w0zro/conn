@@ -115,22 +115,34 @@ func claudeSessions() map[int]sessionFile {
 	return out
 }
 
-// agentsWorking is every agent that says it is working right now. An
-// agent is asked rather than measured: it knows whether it is mid-turn,
-// where the processor time it happens to be using says little - a
-// model answering is barely any, and waiting on you is none at all.
-func agentsWorking(procs []process) map[int]bool {
+// agentStandings is what every agent says of itself: working, or
+// stopped and waiting on you. An agent is asked rather than measured —
+// it knows whether it is mid-turn, where the processor time it happens
+// to be using says little, a model answering being barely any and
+// waiting on you none at all.
+//
+// An agent that has stopped working has stopped for a reason, and the
+// reason is you: there is nothing else it is waiting for. So anything
+// its file says other than busy is owed, whatever the word — a turn it
+// finished, a permission it wants, a question it asked.
+//
+// A file can outlive the process that wrote it, so a pid counts only
+// where the table still has it standing as an agent; an agent with no
+// file to read - another maker's, or one too old to write one - says
+// neither, and reads as alive like anything else.
+func agentStandings(procs []process) map[int]standing {
 	kind := map[int]string{}
 	for _, p := range procs {
 		kind[p.pid] = kindOf(p)
 	}
-	busy := map[int]bool{}
+	how := map[int]standing{}
 	for pid, s := range claudeSessions() {
-		if kind[pid] == kindAgent && s.Status == busyStatus {
-			busy[pid] = true
+		if kind[pid] != kindAgent || s.Status == "" {
+			continue
 		}
+		how[pid] = standing{working: s.Status == busyStatus, owed: s.Status != busyStatus}
 	}
-	return busy
+	return how
 }
 
 // liveConversations is the id of every conversation a running claude

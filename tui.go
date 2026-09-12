@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -241,15 +242,17 @@ func (m model) readWatch() tea.Cmd {
 		if err != nil {
 			return watchMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
-		// What is working: an agent says so of itself, and anything else
-		// is read off what it spent on a processor since the last
-		// reading, which is why the reading before this one is kept.
+		// How each process stands past what the table says: anything is
+		// working by the processor time it spent since the last reading,
+		// which is why that reading is kept, and an agent answers for
+		// itself instead - working, or waiting on you.
 		now, nowAt := cpuOf(procs), time.Now()
-		busy := cpuWorking(was, wasAt, procs, nowAt)
-		for pid := range agentsWorking(procs) {
-			busy[pid] = true
+		how := map[int]standing{}
+		for pid := range cpuWorking(was, wasAt, procs, nowAt) {
+			how[pid] = standing{working: true}
 		}
-		msg := watchMsg{places: watch(procs, uid, roots, busy), gen: gen, cpu: now, cpuAt: nowAt}
+		maps.Copy(how, agentStandings(procs))
+		msg := watchMsg{places: watch(procs, uid, roots, how), gen: gen, cpu: now, cpuAt: nowAt}
 		if srv != nil {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
 				msg.noSlot = true

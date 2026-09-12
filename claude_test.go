@@ -85,6 +85,65 @@ func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
 	}
 }
 
+// An agent says of itself whether it is working; having stopped, it
+// stopped for you, so anything its file says other than busy is owed.
+// A file only counts against a pid the table still has standing as an
+// agent, and an agent with no file to read says neither.
+func TestAnAgentSaysWorkingOrOwedOfItself(t *testing.T) {
+	claude := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claude)
+	if err := os.MkdirAll(filepath.Join(claude, "sessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	say := func(pid int, status string) {
+		t.Helper()
+		body := `{"pid":` + strconv.Itoa(pid) + `,"sessionId":"a-1","status":"` + status + `"}`
+		if err := os.WriteFile(filepath.Join(claude, "sessions", strconv.Itoa(pid)+".json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	agent := func(pid int) process {
+		return process{pid: pid, uid: 501, tty: "ttys001", state: 'S', command: "claude", args: []string{"claude"},
+			started: watchNow.Add(-time.Hour), cwd: "/w"}
+	}
+	say(10, "busy")    // mid-turn
+	say(11, "idle")    // a turn it finished
+	say(12, "waiting") // stopped on something it wants from you
+	say(13, "busy")    // a file its process did not outlive
+	say(14, "busy")    // a pid the table has, but not as an agent
+	say(15, "")        // a file saying nothing of the sort
+	procs := []process{agent(10), agent(11), agent(12), agent(15), agent(16),
+		{pid: 14, uid: 501, tty: "ttys001", state: 'S', command: "node", args: []string{"node"},
+			started: watchNow.Add(-time.Hour), cwd: "/w"},
+	}
+
+	how := agentStandings(procs)
+	if !how[10].working || how[10].owed {
+		t.Errorf("a busy agent stands %+v", how[10])
+	}
+	for _, pid := range []int{11, 12} {
+		if !how[pid].owed || how[pid].working {
+			t.Errorf("pid %d, having stopped, stands %+v", pid, how[pid])
+		}
+	}
+	for _, pid := range []int{13, 14, 15, 16} {
+		if (how[pid] != standing{}) {
+			t.Errorf("pid %d stands %+v, and nothing should be said of it", pid, how[pid])
+		}
+	}
+
+	// And the word the watch writes for each, end to end.
+	got := map[int]string{}
+	for _, pl := range watch(procs, 501, func(string) string { return "/w" }, how) {
+		for _, e := range pl.entries {
+			got[e.pid] = e.status
+		}
+	}
+	if got[10] != statusWorking || got[11] != statusOwed || got[12] != statusOwed || got[16] != statusActive {
+		t.Errorf("the watch writes %v", got)
+	}
+}
+
 // A conversation a live instance is carrying is not offered, whether or
 // not the session file naming it agrees: a pid the process table does
 // not have running claude cannot vouch for it.

@@ -78,11 +78,22 @@ func kindOf(p process) string {
 // for a process that did something between one reading and the next.
 const (
 	statusWorking = "WORKING" // doing something, right now
+	statusOwed    = "OWED"    // an agent done working and waiting on you
 	statusActive  = "ACTIVE"  // alive, and not doing anything
 	statusIdle    = "IDLE"    // a shell at its prompt
 	statusStopped = "STOPPED" // suspended
 	statusEnded   = "ENDED"   // finished, and not yet collected
 )
+
+// standing is what conn learned about a process past what the table
+// says of it: whether it is doing work, and whether it is waiting on
+// you. An agent answers both of itself, being the only thing here that
+// knows; anything else answers the first only, and by the processor
+// time it spent rather than by being asked.
+type standing struct {
+	working bool
+	owed    bool
+}
 
 // An entry is a row of the watch: one process, standing for its own
 // work, at its place in the tree the processes it is among actually
@@ -119,7 +130,7 @@ type place struct {
 // nothing: what they run is work, and reads as theirs. The rule goes
 // by the program's name, so a conn on another socket, or an older conn
 // installed beside this one, is off the watch too.
-func watch(procs []process, uid int, rootOf func(string) string, busy map[int]bool) []place {
+func watch(procs []process, uid int, rootOf func(string) string, how map[int]standing) []place {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
@@ -236,7 +247,7 @@ func watch(procs []process, uid int, rootOf func(string) string, busy map[int]bo
 		p := byPid[pid]
 		kind := kindOf(p)
 		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth}
-		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, busy[p.pid])
+		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
 		if places[path] == nil {
 			places[path] = &place{path: path}
 			order = append(order, path)
@@ -315,13 +326,21 @@ func cpuOf(procs []process) map[int]time.Duration {
 // itself and anything else is read off the processor time it used.
 // Work is not claimed up the tree - a shell whose child is working is
 // active, and the row doing the work is the one that says so.
-func statusOf(p process, kind string, hasChildren, working bool) (string, bool) {
+//
+// Owed is the other end of the same question, and the only word here
+// that asks something of you: an agent that has stopped working has
+// stopped for a reason, and the reason is you. It is not a fault -
+// nothing went wrong, and a row that says so is not a row in trouble -
+// so it is a word of its own rather than a chip.
+func statusOf(p process, kind string, hasChildren bool, how standing) (string, bool) {
 	switch {
 	case p.state == 'T':
 		return statusStopped, true
 	case p.state == 'Z':
 		return statusEnded, true
-	case working:
+	case how.owed:
+		return statusOwed, false
+	case how.working:
 		return statusWorking, false
 	case kind == kindShell && !hasChildren:
 		return statusIdle, false

@@ -24,6 +24,14 @@ processor time it spent, against how long there was to spend it in. The work
 is not claimed up the tree: a shell whose child is working is active, and the
 row doing the work is the one that says so.
 
+`OWED` is the other end of that question, and the one word on the watch that
+asks something of you: an agent that has stopped working stopped for a
+reason, and the reason is you — a turn it finished, a permission it wants, a
+question it asked. It is no fault, so it takes a color of its own rather than
+a chip. Only an agent says it, being the only thing here that knows; an agent
+conn cannot ask — another maker's, or one too old to say — reads as alive
+like anything else.
+
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its
 home window is a rail on the left, which is the watch, and a slot on the

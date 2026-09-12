@@ -295,20 +295,42 @@ func TestAProcessFirstSeenIsAskedAgainstItsOwnLife(t *testing.T) {
 
 // The word for a process is working when it is doing something, which
 // beats idle and is beaten by a fault: a stopped process is stopped
-// whatever it spent before it was.
-func TestWorkingIsTheWordOverIdleAndUnderAFault(t *testing.T) {
+// whatever it spent before it was. Owed beats working in turn — an
+// agent that says both is one whose file was written between the two,
+// and the thing worth saying is that it wants you — and it is no
+// fault, since nothing went wrong.
+func TestTheWordsRankFaultThenOwedThenWorking(t *testing.T) {
+	var (
+		nothing = standing{}
+		busy    = standing{working: true}
+		owed    = standing{owed: true}
+	)
 	shell := process{state: 'S'}
-	if s, _ := statusOf(shell, kindShell, false, true); s != statusWorking {
+	if s, _ := statusOf(shell, kindShell, false, busy); s != statusWorking {
 		t.Errorf("a bare shell doing something is %s", s)
 	}
-	if s, _ := statusOf(shell, kindShell, false, false); s != statusIdle {
+	if s, _ := statusOf(shell, kindShell, false, nothing); s != statusIdle {
 		t.Errorf("a bare shell doing nothing is %s", s)
 	}
-	if s, _ := statusOf(process{state: 'T'}, kindRun, false, true); s != statusStopped {
+	if s, _ := statusOf(process{state: 'T'}, kindRun, false, busy); s != statusStopped {
 		t.Error("a stopped process that was working is not stopped")
 	}
-	if s, _ := statusOf(process{state: 'S'}, kindRun, true, false); s != statusActive {
+	if s, _ := statusOf(process{state: 'S'}, kindRun, true, nothing); s != statusActive {
 		t.Errorf("a run doing nothing is %s", s)
+	}
+	agent := process{state: 'S'}
+	s, fault := statusOf(agent, kindAgent, false, owed)
+	if s != statusOwed {
+		t.Errorf("an agent waiting on you is %s", s)
+	}
+	if fault {
+		t.Error("an agent waiting on you is a fault")
+	}
+	if s, _ := statusOf(agent, kindAgent, false, standing{working: true, owed: true}); s != statusOwed {
+		t.Errorf("an agent that says both is %s, not owed", s)
+	}
+	if s, _ := statusOf(process{state: 'T'}, kindAgent, false, owed); s != statusStopped {
+		t.Error("a stopped agent is not stopped")
 	}
 }
 

@@ -194,10 +194,17 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			}
 			l.to(ageCol)
 			l.add(p.gray, r.age)
-			if r.fault {
+			switch {
+			case r.fault:
 				l.to(measure - utf8.RuneCountInString(r.status) - 2)
 				l.add(p.chip, " "+r.status+" ")
-			} else {
+			case r.status == statusOwed:
+				// The one word here that asks something of you, and the
+				// only one worth finding without looking: it is not a
+				// fault, so it takes the color rather than the chip.
+				l.to(measure - utf8.RuneCountInString(r.status))
+				l.add(p.owed+p.bold, r.status)
+			default:
 				l.to(measure - utf8.RuneCountInString(r.status))
 				l.add(word, r.status)
 			}

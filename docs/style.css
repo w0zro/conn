@@ -386,11 +386,15 @@ b, strong { font-weight: 700; }
 .table .row > span:last-child { flex: 1; }
 .table.keys .row > span:first-child { width: 150px; }
 .table.keys .row { padding: 3px 6px; }
+.table.chords .row > span:first-child { width: 210px; }
 .table.narrow .row > span:first-child { width: 120px; }
 .table.marks .row > span:first-child { width: 44px; color: var(--orange); font-weight: 700; }
 .table.marks .row > span.good { color: var(--green); }
 .table.three .row > span:nth-child(2) { flex: none; width: 110px; }
 .table.paths .row > span:first-child { width: 250px; }
+.table.steps { border-top: 0; border-bottom: 0; margin: 0 0 18px 28px; }
+.table.steps .row > span:first-child { width: 22px; }
+.table.steps .row:last-child { border-bottom: 0; }
 .table.record .row > span:first-child { width: 60px; font-weight: 400; }
 .table.record .row > span:nth-child(2) { flex: none; width: 100px; }
 .table.record .row.head span { font-weight: 700; }
@@ -415,6 +419,11 @@ b, strong { font-weight: 700; }
   padding: 0 24px;
 }
 .note p b { color: var(--ink-2); }
+.note.caution {
+  border: 1px solid var(--ink-2);
+  padding: 10px 0 12px;
+}
+.note.caution .label { color: var(--orange); }
 .extract {
   text-align: center;
   font: 400 10.5px var(--mono);

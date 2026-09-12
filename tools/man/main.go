@@ -57,13 +57,13 @@ var (
 	monthNames = strings.Fields("January February March April May June July August September October November December")
 
 	// The blocks a section is made of, in the manual's own markup.
-	opener = regexp.MustCompile(`<p class="kicker">|<h2>|<p class="para">|<p class="caption">|<div class="table[" ]|<div class="figure[" ]|<div class="cmd"|<div class="note">`)
+	opener = regexp.MustCompile(`<p class="kicker">|<h2>|<p class="para">|<p class="caption">|<div class="table[" ]|<div class="figure[" ]|<div class="cmd"|<div class="note[" ]`)
 	number = regexp.MustCompile(`^<span class="n">([^<]*)</span>`)
 	row    = regexp.MustCompile(`<div class="row( head)?">(.*?)</div>`)
 	cell   = regexp.MustCompile(`<span>(.*?)</span>`)
 	pre    = regexp.MustCompile(`(?s)<pre>(.*?)</pre>`)
 	code   = regexp.MustCompile(`<code>(.*?)</code>`)
-	noteP  = regexp.MustCompile(`(?s)<p>(.*?)</p>\s*</div>\s*$`)
+	noteP  = regexp.MustCompile(`(?s)<p class="label">(.*?)</p>\s*<p>(.*?)</p>\s*</div>\s*$`)
 	tags   = regexp.MustCompile(`<[^>]+>`)
 )
 
@@ -252,13 +252,14 @@ func blocks(b *strings.Builder, s string) error {
 			pp()
 			block(b, "$ "+m[1])
 			s = s[end:]
-		case strings.HasPrefix(s, `<div class="note">`):
+		case strings.HasPrefix(s, `<div class="note`):
+			// A note, or a caution: the label is the manual's own word.
 			end := divEnd(s, 0)
 			m := noteP.FindStringSubmatch(s[:end])
 			if m == nil {
-				return fmt.Errorf("a note without its text")
+				return fmt.Errorf("a note without its label and text")
 			}
-			b.WriteString(".TP\n\\fBNOTE\\fR\n" + wrap(inline(m[1])) + "\n")
+			b.WriteString(".TP\n\\fB" + inline(m[1]) + "\\fR\n" + wrap(inline(m[2])) + "\n")
 			fresh = false
 			s = s[end:]
 		}

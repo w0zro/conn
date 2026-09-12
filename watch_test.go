@@ -202,14 +202,15 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	text := texts(rows)
 	p := colored()
 	// ttys005 is in no pane the server holds here, and is the cursor's
-	// row besides, so it reads at gray rather than faint; the slot's
-	// ttys007 is in the orange with the rest of its row.
-	if !strings.Contains(text, p.gray+"TTYS005") || !strings.Contains(text, p.orange+"TTYS007") {
+	// row besides, so it reads at gray rather than faint; ttys007 is in
+	// a pane, so it reads at the plain gray of a row conn can reach.
+	if !strings.Contains(text, p.gray+"TTYS005") || !strings.Contains(text, p.gray+"TTYS007") {
 		t.Errorf("the terminals are not colored by reach:\n%s", text)
 	}
-	// The head of the slot's tree is its shell, not the agent under it.
-	if !strings.Contains(text, p.orange+p.bold+"SHELL") || !strings.Contains(text, p.orange+p.bold+"ACTIVE") {
-		t.Errorf("the row in the slot is not in orange:\n%s", text)
+	// The slot's mark is on the kind of its head, which is the shell,
+	// not the agent under it.
+	if !strings.Contains(text, p.orange+p.bold+"SHELL") {
+		t.Errorf("the slot's head is not marked:\n%s", text)
 	}
 	// In the rail there is no terminal column, and the rows close up.
 	railText := texts(drawWatch(w, 67040, 48, 30, plain))
@@ -353,21 +354,23 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	// read.
 	text := texts(drawWatch(held, 67040, 120, 40, p))
 
-	// The head of what is in the slot: that row in the orange, terminal
-	// and age with the rest of it.
-	for _, in := range []string{p.orange + "zsh", p.orange + "TTYS007", p.orange + p.bold + "SHELL"} {
-		if !strings.Contains(text, in) {
-			t.Errorf("the slot's head is not in the orange: %q missing\n%s", in, text)
+	// The slot is a mark: the kind of the head of what is in it, and
+	// nothing else. Not its command, not its terminal, not its status —
+	// a row is a lot of orange, and the status column is a color of its
+	// own already.
+	if !strings.Contains(text, p.orange+p.bold+"SHELL") {
+		t.Errorf("the slot's head is not marked:\n%s", text)
+	}
+	for _, notIn := range []string{p.orange + "zsh", p.orange + "TTYS007", p.orange + "ACTIVE", p.orange + "2H 00M"} {
+		if strings.Contains(text, notIn) {
+			t.Errorf("the orange ran past the kind: %q\n%s", notIn, text)
 		}
 	}
-	// One row of it, though: what hangs under the head is in the same
-	// pane and just as much in the slot, but marking all of it would be
-	// a block and not a mark, so it reads as what conn can reach.
+	// What hangs under the head is in the same pane and just as much in
+	// the slot; it reads as the other true thing about it, which is that
+	// conn holds a pane for it.
 	if !strings.Contains(text, p.ink+"claude --resume") {
 		t.Errorf("what hangs under the slot's head is not in the ink:\n%s", text)
-	}
-	if strings.Contains(text, p.orange+"claude --resume") {
-		t.Error("the whole of the slot's tree is in the orange")
 	}
 	// In nobody's pane: a rank down, and every column of it.
 	for _, in := range []string{p.faint + "vim notes.md", p.faint + "TTYS009", p.faint + "1D 01H"} {

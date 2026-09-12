@@ -34,13 +34,18 @@ its own rather than a chip. Only an agent says it, being the only thing that
 knows; an agent conn cannot ask — another maker's, or one too old to say —
 reads as alive like anything else.
 
-A row is also written by what conn can do with it, in three tiers. The head
-of what is in the slot — the pane you are looking at right now — is in the
-orange: one row, the process the pane was opened on, not the whole tree
-hanging under it. All of that tree is just as much in the slot, but a mark
-that ran down every row of it would be a block and not a mark, so the rest
-reads as what it also is: in a pane conn holds. Which is the ink, the tier
-for a row `enter` can put in the slot. What conn can only report — a terminal it did not
+A row is also written by what conn can do with it, and in two ways, since
+they are not the same kind of saying. What conn can only report — a terminal
+it did not open, and cannot attach to — is dimmed, every column of it, the
+other columns being the quiet gray already; what conn holds a pane for is in
+the ink, a row `enter` can put in the slot. Outside its server conn holds
+nothing and dims nothing, the distinction there being every row.
+
+The slot gets a mark rather than a tier: the kind of the head of what is in
+it, in the orange, and nothing else of the row. One cell is all a mark needs,
+a row is a lot of orange, and the status column is not the orange's to take —
+`WAITING` is already a color near enough to it that the two together say
+neither. What conn can only report — a terminal it did not
 open, and cannot attach to — is a rank down, again the whole row, since the
 other columns are the quiet gray already and dimming one of six says nothing.
 The row under the cursor gives a rank of the dimming back rather than the

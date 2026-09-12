@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -288,5 +290,91 @@ func TestEveryLookLabelFitsTheLeader(t *testing.T) {
 		} else if i != col {
 			t.Errorf("a value starts at column %d where the rest start at %d: %q", i, col, line)
 		}
+	}
+}
+
+// i is a toggle: the key for the page is the key a reader reaches for
+// to be rid of it. conn knows which way it goes without asking tmux,
+// since it put the page there itself, and a reading corrects it.
+func TestIIsAToggle(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.now = viewWatch, true, watchNow
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.places = []place{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
+	m.cursor, m.cursorAt = 49212, 0
+
+	// A tmux that answers for a home with a slot in it and does nothing
+	// else, so the command i built can be run for the answer it gives.
+	// Which way i went is read off that answer: both ways ask the
+	// server for something, so a test that only checked that one did
+	// would pass whichever way it went.
+	t.Setenv("TMUX_PANE", "%0")
+	stub := filepath.Join(t.TempDir(), "tmux")
+	script := "#!/bin/sh\nshift 2\ncase \"$1\" in\n" +
+		"list-panes) printf '%%0\\t/dev/ttys001\\t44\\t40\\t\\t\\t\\n%%9\\t/dev/ttys009\\t80\\t40\\t1\\t\\t1\\n' ;;\n" +
+		"new-window|split-window) printf '%%9\\n' ;;\nesac\nexit 0\n"
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m.srv = &server{tmux: stub, socket: "/tmp/none"}
+	answered := func(cmd tea.Cmd) tea.Msg {
+		t.Helper()
+		if cmd == nil {
+			t.Fatal("i asked the server for nothing")
+		}
+		return cmd()
+	}
+	press := func() tea.Cmd {
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
+		m = next.(model)
+		return cmd
+	}
+	// With no page up, i opens one, and conn knows it once tmux has
+	// done it rather than guessing ahead of the answer.
+	if got := answered(press()); got != (lookedMsg{on: true}) {
+		t.Errorf("i with no page up answered %+v, not a page going up", got)
+	}
+	if m.looking {
+		t.Error("conn called the page up before the server had put it there")
+	}
+	next, cmd := m.Update(lookedMsg{on: true})
+	m = next.(model)
+	if !m.looking || cmd == nil {
+		t.Errorf("the page going up left looking %v and did not read again", m.looking)
+	}
+
+	// With one up, i takes it down.
+	if got := answered(press()); got != (lookedMsg{on: false}) {
+		t.Errorf("i with a page up answered %+v, not a page coming down", got)
+	}
+	next, _ = m.Update(lookedMsg{on: false})
+	m = next.(model)
+	if m.looking {
+		t.Error("the page coming down left conn thinking it was still up")
+	}
+
+	// A reading is the truth, whatever conn thought.
+	next, _ = m.Update(watchMsg{gen: m.watchGen, places: m.places, slotLook: true})
+	m = next.(model)
+	if !m.looking {
+		t.Error("a reading that found the page in the slot was not believed")
+	}
+	// And a real pane taking the slot is not the page.
+	next, _ = m.Update(reachedMsg{"ttys003"})
+	if next.(model).looking {
+		t.Error("a process reaching the slot left conn thinking the page was there")
+	}
+}
+
+// Closing wants no row under the cursor. The page is up whatever the
+// cursor is on, and refusing to close it because the watch has emptied
+// would leave it stuck there.
+func TestIClosesThePageWithNothingUnderTheCursor(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.looking = viewWatch, true, true
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
+	m = next.(model)
+	if cmd == nil || m.note != "" {
+		t.Errorf("i on an empty watch with a page up said %q instead of closing it", m.note)
 	}
 }

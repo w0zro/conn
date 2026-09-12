@@ -37,11 +37,18 @@ func TestTheServerIsFoundBySocket(t *testing.T) {
 
 // list-panes, as tmux prints it for the format asked.
 func TestPanesAreParsed(t *testing.T) {
-	out := "%0\t/dev/ttys004\t48\t40\t\t\n%1\t/dev/ttys007\t138\t40\t1\t\n%5\t/dev/ttys008\t138\t40\t\t1\n\n"
+	out := "%0\t/dev/ttys004\t48\t40\t\t\t\n" +
+		"%1\t/dev/ttys007\t138\t40\t1\t\t\n" +
+		"%5\t/dev/ttys008\t138\t40\t\t1\t\n" +
+		// A look carries the hold's own mark as well as its own: it is
+		// furniture like a hold, and everything that acts on holds acts
+		// on it. Only i has to tell the two apart.
+		"%7\t/dev/ttys009\t138\t40\t1\t\t1\n\n"
 	want := map[string]pane{
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40},
 		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true},
 		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40, dead: true},
+		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, look: true},
 	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)

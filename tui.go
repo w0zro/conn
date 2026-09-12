@@ -30,7 +30,7 @@ var (
 // you, longest held up first and round again; i opens the look on the
 // row under the cursor — what conn knows of it past the six columns a
 // row has room for — which opens in the slot, beside the watch rather
-// than over it, and follows the cursor from there; c brings the console back, and any key there returns
+// than over it, follows the cursor from there, and closes on i again; c brings the console back, and any key there returns
 // to the watch. The console is a page: in the server it
 // takes the whole window while it is up, and the slot has its side
 // again on the way back to the watch. The words of both are said
@@ -99,6 +99,7 @@ type (
 		slot     string          // the terminal in the slot
 		noSlot   bool            // home has no slot beside the rail
 		slotDead bool            // the slot's pane held on remain-on-exit, its process gone
+		slotLook bool            // the slot holds the look, which i closes rather than opens
 		err      string
 		gen      int
 		// The processor time every process had used as of this reading,
@@ -110,6 +111,7 @@ type (
 	watchTickMsg struct{ gen int }     // the watch is due to be read again
 	openedMsg    struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
 	reachedMsg   struct{ tty string }  // a process was put in the slot
+	lookedMsg    struct{ on bool }     // the look was put in the slot, or taken out of it
 	blinkMsg     struct{ gen int }     // the chip's half is up
 	noteMsg      struct{ note string }
 	projectsMsg  struct { // the roots were walked
@@ -138,6 +140,12 @@ type model struct {
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
 	told     int // the cursor as last published for the look to follow
+	// Whether the look is in the slot, which is what makes i a toggle.
+	// conn sets it when it puts the page there or takes it away, and a
+	// reading corrects it — asking tmux on the keypress would be a
+	// process between the key and what it does, for something conn
+	// already knows.
+	looking bool
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -264,7 +272,7 @@ func (m model) readWatch() tea.Cmd {
 			if slot, ok, err := srv.slot(); err == nil && !ok {
 				msg.noSlot = true
 			} else if ok {
-				msg.slot, msg.slotDead = slot.tty, slot.dead
+				msg.slot, msg.slotDead, msg.slotLook = slot.tty, slot.dead, slot.look
 			}
 			msg.panes, _ = srv.panes()
 		}
@@ -374,8 +382,17 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openedMsg:
 		// The shell is in the slot; the table will have it in a moment,
 		// and the cursor goes to it then. Until then the watch reads soon.
-		m.slot = msg.shell.pane.tty
+		m.slot, m.looking = msg.shell.pane.tty, false
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
+		m.watchGen++
+		return m, m.readWatch()
+	case lookedMsg:
+		// The page is up, or down, and conn knows it without reading the
+		// server: the next i is a keypress away and has to decide which
+		// way it goes. The reading is taken again from here so a reading
+		// already in flight, which saw the slot as it was before, cannot
+		// land afterwards and say otherwise.
+		m.looking = msg.on
 		m.watchGen++
 		return m, m.readWatch()
 	case reachedMsg:
@@ -389,7 +406,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// row while the cursor sat on another — the sub-process looking
 		// picked out for being the one thing in the pane that is not
 		// what is in the slot.
-		m.slot = msg.tty
+		m.slot, m.looking = msg.tty, false
 		if pid, at, ok := headOf(m.places, msg.tty); ok {
 			m.cursor, m.cursorAt = pid, at
 		}
@@ -407,6 +424,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.places, m.panes, m.slot, m.watchErr = msg.places, msg.panes, msg.slot, msg.err
+		m.looking = msg.slotLook
 		if msg.cpu != nil {
 			m.cpuWas, m.cpuAt = msg.cpu, msg.cpuAt
 		}
@@ -577,10 +595,17 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m.openResume(pl.path, []string{pl.path})
 		}
 	case k == "i":
+		// i is the key for the page, and the key for the page is what a
+		// reader reaches for to be rid of it. Closing wants no row under
+		// the cursor: the page is there whatever the cursor is on, and
+		// refusing to close it because the watch has emptied would leave
+		// it stuck.
 		_, _, ok := m.under()
 		switch {
 		case !m.inside:
 			m.note = "NOTHING CAN BE SHOWN OUTSIDE CONN'S TMUX SERVER"
+		case m.looking:
+			return m, m.closeLook()
 		case !ok:
 			m.note = "NOTHING UNDER THE CURSOR"
 		default:

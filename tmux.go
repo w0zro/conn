@@ -246,16 +246,23 @@ func (s *server) hasHome() bool {
 }
 
 // A pane of the server: its id, which holds through swaps; the terminal
-// it holds; its size; whether it is a hold; and whether remain-on-exit
-// is the only thing keeping it up, its process already gone.
+// it holds; its size; whether it is conn's own furniture and whether
+// that furniture is a look; and whether remain-on-exit is the only
+// thing keeping it up, its process already gone.
+//
+// A look is furniture too — everything true of a hold is true of it, so
+// it carries the hold's own mark and everything that acts on holds acts
+// on it — but i has to tell the two apart to know whether it is opening
+// a page or closing one, and a mark of its own is how.
 type pane struct {
 	id, tty       string
 	width, height int
 	hold          bool
+	look          bool
 	dead          bool
 }
 
-const paneFormat = "#{pane_id}\t#{pane_tty}\t#{pane_width}\t#{pane_height}\t#{@conn_hold}\t#{pane_dead}"
+const paneFormat = "#{pane_id}\t#{pane_tty}\t#{pane_width}\t#{pane_height}\t#{@conn_hold}\t#{pane_dead}\t#{@conn_look}"
 
 // panes is every pane in the server, by the terminal it holds.
 func (s *server) panes() (map[string]pane, error) {
@@ -272,10 +279,11 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, "\t")
-		if len(f) != 6 || f[0] == "" {
+		if len(f) != 7 || f[0] == "" {
 			continue
 		}
-		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"), hold: f[4] == "1", dead: f[5] == "1"}
+		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
+			hold: f[4] == "1", dead: f[5] == "1", look: f[6] == "1"}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -337,6 +345,24 @@ func (s *server) reviveSlot(home, self string) error {
 	if !ok {
 		return s.splitSlot(home, self)
 	}
+	return s.holdSlot(home, self, slot)
+}
+
+// hideLook puts the slot back to a hold, which is what closing the look
+// leaves behind: the slot is conn's, and an empty one says so.
+func (s *server) hideLook(home, self string) error {
+	slot, ok, err := s.slot()
+	if err != nil || !ok {
+		return err
+	}
+	return s.holdSlot(home, self, slot)
+}
+
+// holdSlot puts a hold in the slot, in the slot's own shape, and is rid
+// of whatever was there. It is a swap rather than a split so nothing
+// about the window's layout moves, and the rail never has to give up
+// its width and take it back.
+func (s *server) holdSlot(home, self string, slot pane) error {
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, "exec "+shellQuote(self)+" hold")
 	if err != nil {
 		return err
@@ -368,6 +394,9 @@ func (s *server) showLook(home, self string) error {
 	}
 	look := strings.TrimSpace(id)
 	if _, err := s.run("set-option", "-p", "-t", look, "@conn_hold", "1"); err != nil {
+		return err
+	}
+	if _, err := s.run("set-option", "-p", "-t", look, "@conn_look", "1"); err != nil {
 		return err
 	}
 	slot, ok, err := s.slot()

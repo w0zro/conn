@@ -617,6 +617,19 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 		t.Errorf("reading down the list left %s windows and %s panes in home", w, n)
 	}
 
+	// i again takes it down, and leaves a hold where an empty slot says
+	// so. The key for the page is the key a reader reaches for to be rid
+	// of it, and neither way costs a window.
+	s.keys("i")
+	s.until("the page to come down", func() bool {
+		return !strings.Contains(s.slot(), "LOOK") && strings.Contains(s.slot(), "OPENS A SHELL")
+	})
+	s.keys("i")
+	s.until("the page to come back", func() bool { return strings.Contains(s.slot(), "WHERE") })
+	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != "1" || n != "2" {
+		t.Errorf("toggling left %s windows and %s panes in home", w, n)
+	}
+
 	// Reaching something real is rid of it, the way it is rid of a hold.
 	s.openShell()
 	s.until("a shell to take the slot from the look", func() bool { return s.shellIn("home.1") })

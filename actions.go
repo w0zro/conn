@@ -41,8 +41,25 @@ func (m model) reach(target pane, tty string) tea.Cmd {
 // every row read: focus stays on the rail, and j and k carry the page
 // along with them.
 func (m model) openLook() tea.Cmd {
-	home, self := m.head.session.home, m.self
-	return m.serverCmd(func() error { return m.srv.showLook(home, self) }, "")
+	home, self, srv := m.head.session.home, m.self, m.srv
+	return func() tea.Msg {
+		if err := srv.showLook(home, self); err != nil {
+			return noteMsg{strings.ToUpper(err.Error())}
+		}
+		return lookedMsg{on: true}
+	}
+}
+
+// closeLook takes the page out of the slot and leaves a hold in its
+// place, which is what an empty slot is.
+func (m model) closeLook() tea.Cmd {
+	home, self, srv := m.head.session.home, m.self, m.srv
+	return func() tea.Msg {
+		if err := srv.hideLook(home, self); err != nil {
+			return noteMsg{strings.ToUpper(err.Error())}
+		}
+		return lookedMsg{on: false}
+	}
 }
 
 // openShell opens a shell at a place, off the loop, and hands back what

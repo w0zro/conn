@@ -325,39 +325,64 @@ func TestWorkIsWhatWasSpentSinceTheLastReading(t *testing.T) {
 			t.Errorf("pid %d is working", pid)
 		}
 	}
-	// A reading that came back with no time between it and the last
-	// falls to each process's own life rather than dividing by nothing.
+	// A reading that came back with no time between it and the last has
+	// nothing to divide by, and says nothing of anything it had before.
 	if b := cpuWorking(was, wasAt, procs, wasAt); b[10] || b[12] {
 		t.Errorf("no time passed and %v is working", b)
 	}
 }
 
-// A process the last reading did not have is asked against its own
-// life: a compiler spawned, worked and gone inside one gap would
-// otherwise read as merely alive for the one moment it was ever seen,
-// which is most of what a build is made of.
-func TestAProcessFirstSeenIsAskedAgainstItsOwnLife(t *testing.T) {
-	nowAt := watchNow
+// A process born since the last reading is asked against its own life:
+// a compiler spawned, worked and gone inside one gap would otherwise
+// read as merely alive for the one moment it was ever seen, which is
+// most of what a build is made of. Its whole life is inside the gap,
+// which is what makes the two the same question.
+func TestAProcessBornInTheGapIsAskedAgainstItsOwnLife(t *testing.T) {
+	was := map[int]time.Duration{9: 0}
+	wasAt := watchNow
+	nowAt := wasAt.Add(2 * time.Second)
 	fresh := []process{
 		// Spawned a third of a second ago and has had a processor for
 		// nearly all of it: working.
 		{pid: 20, cpu: 300 * time.Millisecond, started: nowAt.Add(-330 * time.Millisecond)},
-		// Up for an hour and has used a second of it: not working.
-		{pid: 21, cpu: time.Second, started: nowAt.Add(-time.Hour)},
+		// Older than the last reading, which did not have it: there is
+		// no span of conn's to ask about, and its life is not one.
+		{pid: 21, cpu: time.Hour, started: wasAt.Add(-2 * time.Hour)},
 		// Just spawned and has done nothing yet.
 		{pid: 22, cpu: 0, started: nowAt.Add(-10 * time.Millisecond)},
+		// No start time to speak of, and not called working on the
+		// strength of it.
+		{pid: 23, cpu: time.Hour},
 	}
-	busy := cpuWorking(nil, time.Time{}, fresh, nowAt)
+	busy := cpuWorking(was, wasAt, fresh, nowAt)
 	if !busy[20] {
 		t.Error("a compiler burning its whole short life is not working")
 	}
-	if busy[21] || busy[22] {
-		t.Errorf("working: %v", busy)
+	for _, pid := range []int{21, 22, 23} {
+		if busy[pid] {
+			t.Errorf("pid %d is working: %v", pid, busy)
+		}
 	}
-	// A process with no start time to speak of is not called working on
-	// the strength of it.
-	if b := cpuWorking(nil, time.Time{}, []process{{pid: 23, cpu: time.Hour}}, nowAt); b[23] {
-		t.Error("a process with no start time reads as working")
+}
+
+// The first reading has nothing behind it to measure against, and says
+// nothing is working rather than dividing what a process has spent by a
+// life conn was not watching. conn comes up on a machine already
+// running: a dev server that compiled for two seconds and has idled
+// ever since read as working for the first beat and went quiet on the
+// second, which is a reading that lies at the moment the watch is read
+// hardest.
+func TestTheFirstReadingCallsNothingWorking(t *testing.T) {
+	nowAt := watchNow
+	procs := []process{
+		// Burned eight seconds of its twelve and has been asleep since.
+		{pid: 30, cpu: 8 * time.Second, started: nowAt.Add(-12 * time.Second)},
+		// Working right now, and still not said so: there is nothing
+		// to say it against.
+		{pid: 31, cpu: 300 * time.Millisecond, started: nowAt.Add(-330 * time.Millisecond)},
+	}
+	if busy := cpuWorking(nil, time.Time{}, procs, nowAt); len(busy) != 0 {
+		t.Errorf("with no reading behind it the watch calls %v working", busy)
 	}
 }
 

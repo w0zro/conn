@@ -398,17 +398,40 @@ const workingShare = 20
 // doing nothing at all — so what is asked is the difference since the
 // last reading.
 //
-// A process the last reading did not have is asked against its own
-// life instead. Waiting for a second reading would be waiting forever
-// for the ones that matter most: a compiler is spawned, works, and is
-// gone well inside the gap between two readings, and would read as
-// merely alive for the one moment it was ever seen.
+// A process born since that reading has no difference to ask for, and
+// is asked against its own life instead. Waiting for a second reading
+// would be waiting forever for the ones that matter most: a compiler
+// is spawned, works, and is gone well inside the gap between two
+// readings, and would read as merely alive for the one moment it was
+// ever seen. Its whole life is inside the gap, which is what makes the
+// two the same question.
+//
+// A process older than the last reading that the reading did not have
+// is not asked at all. There is no span of conn's to ask about: its
+// life is time conn was not watching, and the average over it says
+// what the process has been doing all along rather than what it is
+// doing now.
+//
+// The first reading has nothing behind it, so it says nothing is
+// working. That is the case above, for every row at once: conn comes
+// up on a machine already running, and a dev server that compiled for
+// two seconds and has idled ever since would read as working for the
+// first beat and correct itself on the second — a reading that lies,
+// at the one moment the watch is being read hardest.
 func cpuWorking(was map[int]time.Duration, wasAt time.Time, procs []process, nowAt time.Time) map[int]bool {
 	busy := map[int]bool{}
+	if wasAt.IsZero() {
+		return busy
+	}
 	for _, p := range procs {
-		spent, over := p.cpu, nowAt.Sub(p.started)
-		if before, ok := was[p.pid]; ok && !wasAt.IsZero() {
+		var spent, over time.Duration
+		switch before, ok := was[p.pid]; {
+		case ok:
 			spent, over = p.cpu-before, nowAt.Sub(wasAt)
+		case p.started.After(wasAt):
+			spent, over = p.cpu, nowAt.Sub(p.started)
+		default:
+			continue
 		}
 		if over > 0 && spent > 0 && spent*workingShare >= over {
 			busy[p.pid] = true

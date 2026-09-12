@@ -26,9 +26,15 @@ barely any, waiting on you is none, and an agent sitting on a test suite of
 its own spends none either while the suite spends plenty. That last is work
 conn could not see any other way, so an agent with a command running under
 it is working, the same as one mid-turn. Everything else is read off the
-processor time it spent, against how long there was to spend it in. The work
-is not claimed up the tree: a shell whose child is working is active, and the
-row doing the work is the one that says so.
+processor time it spent, against how long there was to spend it in. That
+span is one conn watched: the difference since its last reading, or — for a
+process born since — the short life it has had. A process older than that
+reading is not judged by a life conn was not there for, which is why the
+first reading after conn starts calls nothing working. Otherwise a dev
+server that compiled for two seconds an hour ago would come up `WORKING` and
+go quiet a beat later. The work is not claimed up the tree either: a shell
+whose child is working is active, and the row doing the work is the one that
+says so.
 
 `WAITING` is the other end of that question, and the one word on the watch
 that asks something of you: an agent stopped on something it put to you and

@@ -35,22 +35,38 @@ word a shell at its prompt gets and for the same reason: at rest, nothing
 pending, yours when you want it. The difference is whether anything is held
 up, and only the thing that is held up is worth a word that carries.
 
-`i` opens the look on the row under the cursor, and `i` or `esc` comes back.
-A row of the watch is six columns on a rail and most of what conn reads of a
-process does not fit in that, so it is dropped rather than shortened; the
-look is where the dropped part is said. The whole command rather than its
-head, and as it was written rather than in conn's upper case, since it is a
-thing somebody might retype. The directory the process is actually in, when
-that is not the place its tree belongs to. How long it has stood as it does,
-not only how it stands. Whether conn holds a pane for it. And, of an agent
-stopped on you, what it is stopped on — `input needed`, `dialog open`, a
-`sandbox request` — which is the one thing the watch has no column wide
-enough for and the whole reason to open the page on a waiting row. That
-group comes first: the page is cut off at the terminal's height rather than
-scrolled, so what must not be lost goes at the top. It is the console's own
-form — a label, a dotted leader, a value, grouped under a title — because
-the console says what the machine is and the look says what one row of it
-is, and they are the same instrument speaking.
+`i` opens the look on the row under the cursor, in the slot — beside the
+watch rather than over it, so the row it is about stays on screen under the
+cursor, and moving the cursor and pressing `i` again is how a list gets read
+down. It is conn's own program in a pane of the server, `conn look`, the way
+the hold is, so the slot holds it like anything else and reaching a real
+process is rid of it. Focus stays on the rail: the page is a reading, not a
+place to be put.
+
+A row of the watch is six columns on a rail, and most of what conn reads of a
+process does not fit in that; it is dropped rather than shortened, which is
+right for the watch and leaves the dropped part said nowhere. The look is
+where it is said. The whole command, as it was written rather than in conn's
+upper case, since it is a thing somebody might retype. The directory the
+process is in, when that is not the place its tree belongs to. What the
+process table calls it, and whether its group holds the terminal. How long it
+has been up and how much processor time it has actually spent, which is the
+measure behind `WORKING`. What runs it, and what it runs. Of an agent, which
+conversation it is carrying — the session, the branch, the last thing it was
+asked — and, stopped on you, what it is stopped on: `input needed`, `dialog
+open`, a `sandbox request`, the one thing the watch has no column wide enough
+for. That group is written first, ahead of what the row even is, since the
+page is cut off at the pane's height rather than scrolled and what must not
+be lost goes at the top. And of the place, what git says of it: the branch,
+whether the tree is clean, the last commit, how far it stands from what it
+tracks — a row stands for work, and the work is in a repository.
+
+Nothing is said twice and nothing is said of what there is none of: a shell
+has no conversation and gets no agent heading, a place that is no repository
+has no git to report, and a status with no moment behind it is not dated. It
+is the console's own form — a label, a dotted leader, a value, grouped under
+a title — because the console says what the machine is and the look says what
+one row of it is, and they are the same instrument speaking.
 
 `tab` goes to what is waiting on you: the first press to the agent that has
 been held up longest, each after it to the next, and round again from the

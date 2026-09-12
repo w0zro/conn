@@ -349,6 +349,56 @@ func (s *server) reviveSlot(home, self string) error {
 	return err
 }
 
+// showLook puts a look at a pid in the slot, and leaves focus on the
+// rail. It is furniture rather than work — it runs nothing of yours,
+// and reaching anything else is meant to be rid of it — so it is
+// marked the way a hold is: killed when a real pane takes the slot,
+// and respawned where it stands when the ground changes. Focus stays
+// where it was because the look is a reading, not a place to be: the
+// cursor goes on moving and the next i replaces the page.
+func (s *server) showLook(home, self string, pid int) error {
+	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
+		"exec "+shellQuote(self)+" look "+strconv.Itoa(pid))
+	if err != nil {
+		return err
+	}
+	look := strings.TrimSpace(id)
+	if _, err := s.run("set-option", "-p", "-t", look, "@conn_hold", "1"); err != nil {
+		return err
+	}
+	slot, ok, err := s.slot()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		// Nothing to swap into. Split one first — swapping against the
+		// rail instead would put the watch in the window the look came
+		// from and the look where the watch belongs.
+		if err := s.splitSlot(home, self); err != nil {
+			return err
+		}
+		if slot, ok, err = s.slot(); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("home has no slot")
+		}
+	}
+	args := []string{"swap-pane", "-d", "-s", look, "-t", slot.id}
+	if slot.width > 0 && slot.height > 0 {
+		args = append(args, ";", "resize-window", "-t", slot.id, "-x", strconv.Itoa(slot.width), "-y", strconv.Itoa(slot.height))
+	}
+	// What was in the slot goes back to a window of its own, still
+	// running, unless it was conn's own furniture and has nothing to go
+	// back to.
+	if slot.hold {
+		args = append(args, ";", "kill-pane", "-t", slot.id)
+	}
+	if _, err := s.run(args...); err != nil {
+		return err
+	}
+	return s.focusRail()
+}
+
 // show puts a pane in the slot and focus on it. The pane that was in the
 // slot goes back to where this one came from, and its window takes the
 // slot's size so it keeps its shape; a hold that leaves the slot is

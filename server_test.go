@@ -95,6 +95,12 @@ func (s *scratch) rail() string {
 // test can hold to.
 const scratchPlace = "home/repo"
 
+// slot is what the pane on the right shows.
+func (s *scratch) slot() string {
+	out, _ := s.srv.run("capture-pane", "-p", "-t", sessionName+":"+homeWindow+".1")
+	return out
+}
+
 // placeRows is how many processes the rail says stand at that place,
 // read off the place's own title line.
 func (s *scratch) placeRows() int {
@@ -171,6 +177,14 @@ func (s *scratch) parked(id string) bool {
 // display is a tmux format, of the rail.
 func (s *scratch) display(format string) string {
 	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0", format)
+	return strings.TrimSpace(out)
+}
+
+// active is a tmux format of the window's active pane, rather than of
+// the rail — which is what display asks, and cannot answer where focus
+// went.
+func (s *scratch) active(format string) string {
+	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow, format)
 	return strings.TrimSpace(out)
 }
 
@@ -537,10 +551,12 @@ func TestTabReachesTheWatchAsTab(t *testing.T) {
 	})
 }
 
-// i opens the look on the row under the cursor and comes back, in a
-// real terminal: the page is a view of its own in the rail, so the
-// thing to see is the rail's whole reading change and change back.
-func TestILooksAtTheCursorsRowAndComesBack(t *testing.T) {
+// i opens the look in the slot, and the watch stays on the rail with
+// the cursor still on the row the page is about — which is the whole
+// point of the page being over there. The rail keeps its width, so the
+// look arriving is a swap into the slot rather than a window laid out
+// afresh, and focus stays where the keys are.
+func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
 	s.keys("Space")
@@ -549,13 +565,26 @@ func TestILooksAtTheCursorsRowAndComesBack(t *testing.T) {
 	})
 
 	s.keys("i")
-	s.until("the look to open on a row", func() bool {
-		r := s.rail()
-		return strings.Contains(r, "LOOK") && strings.Contains(r, "PID ") && strings.Contains(r, "WHERE")
+	s.until("the look to open in the slot", func() bool {
+		return strings.Contains(s.slot(), "LOOK") && strings.Contains(s.slot(), "WHERE")
 	})
-	s.keys("i")
-	s.until("the watch to come back", func() bool {
-		r := s.rail()
-		return strings.Contains(r, "STATUS") && !strings.Contains(r, "LOOK")
-	})
+	// The watch did not give up its pane, or its width, to say this.
+	if r := s.rail(); !strings.Contains(r, "STATUS") || strings.Contains(r, "WHERE") {
+		t.Errorf("the rail is not still the watch:\n%s", r)
+	}
+	if w := s.display("#{pane_width}"); w != railW {
+		t.Errorf("the rail is %s wide, not %s", w, railW)
+	}
+	// And the keys are still the rail's: the look is a reading, not a
+	// place to be put.
+	if got := s.active("#{pane_index}"); got != "0" {
+		t.Errorf("focus went to pane %s rather than staying on the rail", got)
+	}
+
+	// Reaching something real is rid of it, the way it is rid of a hold.
+	s.openShell()
+	s.until("a shell to take the slot from the look", func() bool { return s.shellIn("home.1") })
+	if n := s.display("#{window_panes}"); n != "2" {
+		t.Errorf("home has %s panes; the look was filed away rather than dropped", n)
+	}
 }

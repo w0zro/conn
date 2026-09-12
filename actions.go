@@ -36,6 +36,14 @@ func (m model) reach(target pane, tty string) tea.Cmd {
 	}
 }
 
+// openLook puts the look at a pid in the slot, off the loop. Focus
+// stays on the rail: the page is a reading, and the cursor going on
+// moving is how a list gets read.
+func (m model) openLook(pid int) tea.Cmd {
+	home, self := m.head.session.home, m.self
+	return m.serverCmd(func() error { return m.srv.showLook(home, self, pid) }, "")
+}
+
 // openShell opens a shell at a place, off the loop, and hands back what
 // tmux said of it.
 func (m model) openShell(dir string) tea.Cmd {

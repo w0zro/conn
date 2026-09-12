@@ -28,9 +28,10 @@ var (
 // two seconds while it is up; j and k move the cursor, which follows
 // its process across readings; tab takes it to whatever is waiting on
 // you, longest held up first and round again; i opens the look on the
-// row under the cursor, which is what conn knows of it past the six
-// columns a row has room for; c brings the console back, and any key
-// there returns to the watch. The console is a page: in the server it
+// row under the cursor — what conn knows of it past the six columns a
+// row has room for — which opens in the slot, beside the watch rather
+// than over it; c brings the console back, and any key there returns
+// to the watch. The console is a page: in the server it
 // takes the whole window while it is up, and the slot has its side
 // again on the way back to the watch. The words of both are said
 // again each second, from what was read and the clock as it stands.
@@ -55,7 +56,6 @@ const (
 	viewWatch
 	viewProjects
 	viewResume
-	viewLook
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -137,7 +137,6 @@ type model struct {
 	places   []place
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
-	looking  int // the pid the look is open on, while it is up
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -377,7 +376,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
-		if m.view == viewWatch || m.view == viewLook {
+		if m.view == viewWatch {
 			switch {
 			// A home without its slot gets one; the next reading finds it.
 			case m.inside && msg.noSlot:
@@ -391,7 +390,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.watchTick()
 		}
 	case watchTickMsg:
-		if msg.gen != m.watchGen || (m.view != viewWatch && m.view != viewLook) {
+		if msg.gen != m.watchGen || m.view != viewWatch {
 			return m, nil
 		}
 		return m, m.readWatch()
@@ -453,8 +452,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m.projectKey(k)
 	case viewResume:
 		return m.resumeKey(k)
-	case viewLook:
-		return m.lookKey(k)
 	}
 	switch {
 	case k == "ctrl+c" || k == "q":
@@ -536,11 +533,14 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 	case k == "i":
 		e, _, ok := m.under()
-		if !ok {
+		switch {
+		case !m.inside:
+			m.note = "NOTHING CAN BE SHOWN OUTSIDE CONN'S TMUX SERVER"
+		case !ok:
 			m.note = "NOTHING UNDER THE CURSOR"
-			return m, nil
+		default:
+			return m, m.openLook(e.pid)
 		}
-		m.view, m.looking = viewLook, e.pid
 	case k == "tab":
 		// The ring of what is waiting on you, longest held up first: the
 		// first press goes to the one that has waited longest, and each
@@ -729,42 +729,6 @@ func clamp(at, rows int) int {
 	return min(max(at, 0), max(rows-1, 0))
 }
 
-// lookReport words the look on its subject as the last reading left
-// it. The subject is kept as a pid rather than as the row it was, so
-// the page is the row as it stands now — a status that changed, an ask
-// that arrived or was answered — rather than the row as it was when i
-// was pressed.
-func (m model) lookReport() lookReport {
-	for _, pl := range m.places {
-		for _, e := range pl.entries {
-			if e.pid == m.looking {
-				return composeLook(e, pl, m.panes[e.tty], m.inside, m.head.session.home, m.now)
-			}
-		}
-	}
-	return lookReport{pid: m.looking, gone: true}
-}
-
-// lookKey answers a key on the look: esc and i both come back to the
-// watch — i because the key that opened the page is the key a reader
-// reaches for to close it, and the page takes no other letter, so
-// there is nothing for it to collide with. q and ctrl+c detach, the
-// way they do from the watch: the look is a page of the watch, not a
-// place to be stuck in.
-func (m model) lookKey(k string) (tea.Model, tea.Cmd) {
-	switch k {
-	case "ctrl+c", "q":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() }, "")
-		}
-		return m, tea.Quit
-	case "esc", "i":
-		m.looking = 0
-		return m.toWatch()
-	}
-	return m, nil
-}
-
 // under is the entry and the place under the cursor.
 func (m model) under() (entry, place, bool) {
 	for _, pl := range m.places {
@@ -822,8 +786,6 @@ func (m model) View() tea.View {
 		rows = drawProjects(m.projectsReport(), m.pcursor, m.width, m.height, m.p)
 	case viewResume:
 		rows = drawResume(m.resumeReport(), m.rcursor, m.width, m.height, m.p)
-	case viewLook:
-		rows = drawLook(m.lookReport(), m.width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -162,8 +163,8 @@ type command struct {
 	run  func(args []string) int
 }
 
-// The commands. hold is conn's own, run in a pane of its server, and
-// is not offered.
+// The commands. hold and look are conn's own, run in a pane of its
+// server, and are not offered.
 var commands = []command{
 	{"down", "take the server down, with everything in it", func([]string) int {
 		home, _ := os.UserHomeDir()
@@ -172,6 +173,19 @@ var commands = []command{
 	{"theme", "write conn's theme for a program that draws its own: claude, vim", func(args []string) int {
 		home, _ := os.UserHomeDir()
 		return say(dressProgram(args, home, asks()))
+	}},
+	{"look", "", func(args []string) int {
+		home, _ := os.UserHomeDir()
+		pid := 0
+		if len(args) > 0 {
+			pid, _ = strconv.Atoi(args[0])
+		}
+		applyMode(serverMode(socketPath(home)))
+		if err := runLook(findServer(home), pid, colored()); err != nil {
+			fmt.Fprintf(os.Stderr, "conn look: %v\n", err)
+			return 1
+		}
+		return 0
 	}},
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()

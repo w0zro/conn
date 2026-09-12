@@ -482,7 +482,13 @@ func age(since, now time.Time) string {
 	if since.IsZero() {
 		return ""
 	}
-	d := now.Sub(since)
+	return spell(now.Sub(since))
+}
+
+// spell writes a span the way the watch's age column does, for a span
+// that is not the distance from a moment to now: processor time spent,
+// say, which has no moment to count from.
+func spell(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}

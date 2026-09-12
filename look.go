@@ -8,21 +8,47 @@ import (
 )
 
 // The look: what conn knows about a row, read without entering it. i on
-// the watch opens it on the row under the cursor, and esc or i again
-// comes back. A row of the watch is six columns wide and has to fit a
-// hundred of them on a rail; most of what conn reads of a process does
-// not fit in that and is dropped rather than shortened. The look is
-// where the dropped part is said — the whole command rather than its
-// head, the directory the process is actually in rather than the place
-// its tree belongs to, how long it has stood as it does rather than
-// only how it stands, and, of an agent stopped on you, what it is
-// stopped on.
+// the watch opens it, and it opens in the slot, beside the watch rather
+// than over it — the row it is about stays on screen under the cursor,
+// and moving the cursor and pressing i again is how you read down a
+// list. It is conn's own program in a pane of the server, `conn look`,
+// the way the hold is, so the slot holds it the way it holds anything
+// else and a real pane reaching the slot is rid of it.
+//
+// A row of the watch is six columns on a rail and most of what conn
+// reads of a process does not fit in that; it is dropped rather than
+// shortened, which is right for the watch and leaves the dropped part
+// said nowhere. This is where it is said. What the process is and was
+// started as, whole. Where it actually is, against the place its tree
+// belongs to. What runs it and what it runs. What it has spent. Of an
+// agent, which conversation it is carrying and what it is stopped on.
+// Of the place, what git says of it — the branch, whether the tree is
+// clean, what the last commit was — since a row stands for work and
+// the work is in a repository.
 //
 // It is a reading of facts, so it is written the way conn's other
 // reading of facts is: a label, a dotted leader, a value, grouped under
 // a title. The console says what the machine is in that form, and the
 // look says what one row of it is; they are the same instrument
 // speaking, and there is no reason for them to speak differently.
+
+// lookSubject is everything the page is composed from: the row as the
+// watch has it, the table's own record behind it, what stands around it
+// in the tree, and what the things conn can ask — claude, git — say of
+// it. The look's own program gathers this; composing is then all
+// wording and no reading, and can be held to by a test.
+type lookSubject struct {
+	entry    entry
+	proc     process // the table's record, for what a row does not carry
+	place    place
+	parent   entry   // what runs it, where anything conn can see does
+	children []entry // what it runs, in the order the tree has them
+	pane     pane
+	inside   bool
+	sess     sessionFile // what an agent says of itself, when conn can ask
+	convo    conversation
+	git      gitStanding
+}
 
 // lookReport is the look's words as things stand, about one row.
 type lookReport struct {
@@ -32,79 +58,216 @@ type lookReport struct {
 }
 
 // A lookGroup is a title and the facts under it. A group with no facts
-// is not drawn: an agent's group on a shell's row would be a heading
-// over nothing.
+// is not drawn: an agent's title over a shell's row would be a heading
+// over nothing, and a place that is no repository has no git to report.
 type lookGroup struct {
 	title string
 	facts []fact
 }
 
-// composeLook words one row. pane is what conn holds for the row's
-// terminal, and is empty for a terminal conn did not open; inside says
-// whether conn is in its server at all, since outside it holding
-// nothing is the ordinary case rather than something to say of the row.
-func composeLook(e entry, pl place, pane pane, inside bool, home string, now time.Time) lookReport {
+// labelW is the widest a label may be. The leader pads to factCol-1
+// and then adds a space, so a label that fills the field leaves one dot
+// and starts its value a column past every other value on the page. No
+// label here needs the room, and a page whose values do not line up is
+// a page nobody can run an eye down.
+const labelW = factCol - 3
+
+// add puts a fact in a group, and drops one with nothing to say: most
+// of what the page reports is absent on some row or other, and a label
+// with an empty value after it says less than no label at all.
+func (g *lookGroup) add(label, value string) {
+	if value != "" {
+		g.facts = append(g.facts, fact{label: label, value: value})
+	}
+}
+
+// addAsWritten is add for a value that is the world's text rather than
+// conn's vocabulary — a command, a prompt, a commit's subject — which
+// is kept in the case it was written in.
+func (g *lookGroup) addAsWritten(label, value string) {
+	if value != "" {
+		g.facts = append(g.facts, fact{label: label, value: value, verbatim: true})
+	}
+}
+
+// addPath is add for a path, which keeps its case and is elided from
+// the head when it has to be, the tail being the telling part.
+func (g *lookGroup) addPath(label, value string) {
+	if value != "" {
+		g.facts = append(g.facts, fact{label: label, value: value, path: true})
+	}
+}
+
+// composeLook words one row.
+func composeLook(s lookSubject, home string, now time.Time) lookReport {
+	e := s.entry
 	b := lookReport{pid: e.pid}
 
 	// What the agent is stopped on goes first, ahead of what the row
-	// is. It is the whole reason to open the page on a waiting row, the
-	// one thing the watch has no column wide enough for, and the page
-	// is cut off at the terminal's height rather than scrolled — so the
-	// part that must not be cut is the part that goes at the top.
+	// even is. It is the whole reason to open the page on a waiting
+	// row, the one thing the watch has no column wide enough for, and
+	// the page is cut off at the pane's height rather than scrolled —
+	// so the part that must not be cut is the part that goes at the top.
 	if e.asking != "" {
-		b.groups = append(b.groups, lookGroup{title: "WAITING ON YOU", facts: []fact{
-			{label: "asking", value: e.asking},
-		}})
+		ask := lookGroup{title: "WAITING ON YOU"}
+		ask.add("asking", e.asking)
+		ask.add("for", age(e.since, now))
+		b.groups = append(b.groups, ask)
 	}
 
 	what := lookGroup{title: "WHAT"}
-	what.facts = append(what.facts,
-		fact{label: "kind", value: e.kind},
-		fact{label: "command", value: e.command, verbatim: true},
-		fact{label: "pid", value: strconv.Itoa(e.pid)},
-	)
+	what.add("kind", e.kind)
+	what.addAsWritten("command", e.command)
+	what.add("pid", strconv.Itoa(e.pid))
 	// How it stands, and how long it has stood that way. Only an agent
-	// says the moment, so the rest read status alone; the clause is the
-	// answer to "how long has this been the case", which is the first
-	// thing asked of a row that is waiting on you.
+	// says the moment; a stopped or ended process gets no clause at all,
+	// since the moment conn holds for it is when an agent last changed
+	// what it says of itself, which has nothing to do with when
+	// something stopped it.
 	standing := e.status
-	// A stopped or ended process gets no clause: the moment conn has is
-	// the moment an agent last changed what it says of itself, which
-	// has nothing to do with when it was stopped, and dating one from
-	// the other would be a plain lie.
-	if !e.since.IsZero() && !e.fault {
+	// The clause is dropped where the group above already carries it:
+	// on a dense page a thing said twice reads as two things.
+	if !e.since.IsZero() && !e.fault && e.asking == "" {
 		standing += " · FOR " + age(e.since, now)
 	}
-	what.facts = append(what.facts,
-		fact{label: "status", value: standing},
-		fact{label: "up", value: age(e.started, now)},
-	)
+	what.add("status", standing)
+	what.add("state", stateWord(s.proc.state, s.proc.foreground))
+	what.add("up", join(" · ", age(e.started, now), "SINCE "+stamp(e.started)))
+	// What it has actually spent, which is the measure behind WORKING
+	// and is nowhere on the watch. Under a second is none worth saying.
+	if s.proc.cpu >= time.Second {
+		what.add("cpu", spell(s.proc.cpu)+" SPENT")
+	}
 	b.groups = append(b.groups, what)
 
 	where := lookGroup{title: "WHERE"}
-	where.facts = append(where.facts, fact{label: "place", value: tilde(pl.path, home), path: true})
+	where.addPath("place", tilde(s.place.path, home))
 	// The place is the tree's, and a process below the root can have
 	// cd'd anywhere since; where it actually is is worth saying only
 	// when it is somewhere else.
-	if e.cwd != "" && e.cwd != pl.path {
-		where.facts = append(where.facts, fact{label: "cwd", value: tilde(e.cwd, home), path: true})
+	if e.cwd != "" && e.cwd != s.place.path {
+		where.addPath("cwd", tilde(e.cwd, home))
 	}
-	where.facts = append(where.facts, fact{label: "tty", value: e.tty})
+	where.add("tty", e.tty)
 	switch {
-	case !inside:
+	case !s.inside:
 		// conn holds no panes outside its server, so saying this row is
 		// in none of them says nothing about the row.
-	case pane.id != "":
-		where.facts = append(where.facts, fact{label: "pane", value: pane.id + " · CAN BE REACHED"})
+	case s.pane.id != "":
+		where.add("pane", s.pane.id+" · CAN BE REACHED")
 	default:
-		where.facts = append(where.facts, fact{label: "pane", value: "NONE · CONN DID NOT OPEN IT"})
+		where.add("pane", "NONE · CONN DID NOT OPEN IT")
 	}
 	b.groups = append(b.groups, where)
+
+	// Which conversation an agent is carrying, and what it was last
+	// asked — the two things that say which of several claudes this one
+	// is, where the command line only says that it is one.
+	agent := lookGroup{title: "AGENT"}
+	agent.add("session", s.sess.SessionID)
+	agent.add("name", s.sess.Name)
+	agent.add("version", s.sess.Version)
+	agent.add("running", s.sess.Kind)
+	agent.add("branch", s.convo.Branch)
+	agent.addAsWritten("last ask", s.convo.Prompt)
+	b.groups = append(b.groups, agent)
+
+	// What git says of the place. A row stands for work, and the branch
+	// it is on and whether the tree is clean are the first two things
+	// anyone asks of work.
+	if s.git.repo {
+		g := lookGroup{title: "PLACE"}
+		branch := s.git.branch
+		if s.git.detached {
+			branch = "DETACHED"
+		}
+		if s.git.dirty > 0 {
+			branch = join(" · ", branch, strconv.Itoa(s.git.dirty)+" CHANGED")
+		} else {
+			branch = join(" · ", branch, "CLEAN")
+		}
+		g.add("branch", branch)
+		g.addAsWritten("commit", join(" · ", s.git.commit, s.git.subject))
+		g.add("committed", age(s.git.when, now)+" AGO")
+		// Against what it tracks, when it tracks anything: a branch with
+		// no upstream is not behind by nothing, there is nothing for it
+		// to be behind.
+		if s.git.upstream != "" {
+			var moves []string
+			if s.git.ahead > 0 {
+				moves = append(moves, strconv.Itoa(s.git.ahead)+" AHEAD")
+			}
+			if s.git.behind > 0 {
+				moves = append(moves, strconv.Itoa(s.git.behind)+" BEHIND")
+			}
+			if len(moves) == 0 {
+				moves = append(moves, "EVEN")
+			}
+			g.add("tracking", s.git.upstream+" · "+strings.Join(moves, ", "))
+		}
+		b.groups = append(b.groups, g)
+	}
+
+	// What stands around it. The watch draws the tree already, but it
+	// draws it indented across a whole place; here it is the one row's
+	// own line of descent, said plainly.
+	tree := lookGroup{title: "TREE"}
+	if s.parent.pid != 0 {
+		tree.addAsWritten("parent", s.parent.kind+" "+s.parent.command+" · "+strconv.Itoa(s.parent.pid))
+	}
+	for i, k := range s.children {
+		label := "runs"
+		if i > 0 {
+			label = ""
+		}
+		tree.facts = append(tree.facts, fact{
+			label:    label,
+			value:    k.kind + " " + k.command + " · " + k.status,
+			verbatim: true,
+		})
+	}
+	b.groups = append(b.groups, tree)
 
 	return b
 }
 
-// drawLook renders the look for a terminal of the given size.
+// stateWord is what the table's one letter for a process means, with
+// whether its group holds the terminal — which is the difference
+// between a thing you are talking to and a thing running behind it.
+func stateWord(state byte, foreground bool) string {
+	var word string
+	switch state {
+	case 'R':
+		word = "RUNNING"
+	case 'S':
+		word = "SLEEPING"
+	case 'I':
+		word = "IDLE"
+	case 'T':
+		word = "STOPPED"
+	case 'Z':
+		word = "ENDED"
+	case 'D':
+		word = "IN DISK WAIT"
+	default:
+		return ""
+	}
+	if foreground {
+		word += " · HAS THE TERMINAL"
+	}
+	return word
+}
+
+// stamp is a moment as the console writes one: the day and the time, in
+// Zulu, so two readings on two machines can be set beside each other.
+func stamp(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return strings.ToUpper(at.UTC().Format("02-Jan 15:04")) + " Z"
+}
+
+// drawLook renders the look for a pane of the given size.
 func drawLook(b lookReport, width, height int, p palette) []row {
 	width = max(width, railMinCols)
 	measure, _, _ := columns(width)
@@ -144,7 +307,7 @@ func drawLook(b lookReport, width, height int, p palette) []row {
 		for _, f := range g.facts {
 			for i, part := range wrapValue(cased(f.value, f.path || f.verbatim), measure-factCol-1) {
 				l := c.line()
-				if i == 0 {
+				if i == 0 && f.label != "" {
 					l.leader(strings.ToUpper(f.label), factCol-1, p.faint)
 				} else {
 					l.to(factCol)
@@ -157,8 +320,8 @@ func drawLook(b lookReport, width, height int, p palette) []row {
 	return padTo(c, height)
 }
 
-// padTo fills the page out to the terminal's height, so a short reading
-// does not leave the rail's old rows showing under it.
+// padTo fills the page out to the pane's height, so a short reading
+// does not leave older rows showing under it.
 func padTo(c canvas, height int) []row {
 	if height > 0 {
 		for len(c.rows) < height {

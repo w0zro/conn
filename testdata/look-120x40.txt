@@ -4,13 +4,16 @@
 
    WAITING ON YOU
    ASKING .... INPUT NEEDED
+   FOR ....... 7M 00S
 
    WHAT
    KIND ...... AGENT
    COMMAND ... claude --resume d81d7536-e545-4881-8daa-f1d291a03be1
    PID ....... 49212
-   STATUS .... WAITING · FOR 7M 00S
-   UP ........ 1H 32M
+   STATUS .... WAITING
+   STATE ..... SLEEPING · HAS THE TERMINAL
+   UP ........ 1H 32M · SINCE 09-SEP 01:28 Z
+   CPU ....... 2M 14S SPENT
 
    WHERE
    PLACE ..... ~/projects/w0zro/conn
@@ -18,5 +21,20 @@
    TTY ....... TTYS003
    PANE ...... %2 · CAN BE REACHED
 
+   AGENT
+   SESSION ... D81D7536-E545-4881-8DAA-F1D291A03BE1
+   NAME ...... CONN-2D
+   VERSION ... 2.1.267
+   RUNNING ... INTERACTIVE
+   BRANCH .... MAIN
+   LAST ASK .. i want the info to use the pane on the right
 
+   PLACE
+   BRANCH .... MAIN · 3 CHANGED
+   COMMIT .... 263cf91 · The look: what conn knows of a row
+   COMMITTED . 3H 00M AGO
+   TRACKING .. ORIGIN/MAIN · 142 AHEAD
 
+   TREE
+   PARENT .... SHELL zsh · 49200
+   RUNS ...... RUN caffeinate -i -t 300 · ACTIVE

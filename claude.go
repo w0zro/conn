@@ -108,6 +108,13 @@ type sessionFile struct {
 	// proposal, sandbox request. The watch has no column wide enough
 	// for it; the look does.
 	WaitingFor string `json:"waitingFor"`
+	// What else an instance says of itself, which the look reports and
+	// nothing else reads: the name it goes by, what it was built as,
+	// and whether it is somebody's own session or something running
+	// behind one.
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Kind    string `json:"kind"`
 }
 
 // claudeSessions is what every claude instance says of itself, by the

@@ -379,20 +379,20 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 		t.Errorf("tab landed on %+v, which is not waiting", e)
 	}
 
-	// Nothing waiting is said rather than moved to.
+	// With nothing waiting the cursor stays.
 	m.places = []place{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}}}}
 	m.cursor, m.cursorAt = 11, 0
 	tab()
-	if m.cursor != 11 || m.note != "NO AI IS WAITING" {
-		t.Errorf("with nothing waiting: cursor %d, note %q", m.cursor, m.note)
+	if m.cursor != 11 {
+		t.Errorf("with nothing waiting: cursor %d", m.cursor)
 	}
 }
 
 // In the server, tab puts the waiting hand's pane in the slot and the
 // keys in it, so one press has the operator answering; a hand conn
-// holds no pane for is gone to on the rail and the row says why the
-// keys did not follow. The prefix then tab sends alt+tab, which does
-// the same from any view, putting the watch up on the way.
+// holds no pane for is gone to on the rail and the keys stay. The
+// prefix then tab sends alt+tab, which does the same from any view,
+// putting the watch up on the way.
 func TestTabReachesTheWaitingHand(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.srv = viewWatch, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
@@ -408,17 +408,17 @@ func TestTabReachesTheWaitingHand(t *testing.T) {
 	if m.cursor != 22 || cmd == nil {
 		t.Fatalf("tab: cursor %d, cmd %v", m.cursor, cmd != nil)
 	}
-	// The command is the reach, which against no tmux answers with why.
-	if msg, ok := answered(cmd).(noteMsg); !ok || msg.note == "" {
-		t.Errorf("tab did not reach the pane: %v", answered(cmd))
+	// The command is the reach, which against no tmux reaches nothing.
+	if _, ok := answered(cmd).(reachedMsg); ok {
+		t.Error("tab reached a pane with no tmux to reach it with")
 	}
 
-	// Not held: the cursor goes, the keys do not, and the row says so.
+	// Not held: the cursor goes, the keys do not.
 	m.panes, m.cursor = nil, 11
 	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m = next.(model)
-	if m.cursor != 22 || m.note != "NOT IN A PANE OF CONN'S SERVER" || answered(cmd) != nil {
-		t.Errorf("unheld: cursor %d, note %q, cmd %v", m.cursor, m.note, answered(cmd))
+	if m.cursor != 22 || answered(cmd) != nil {
+		t.Errorf("unheld: cursor %d, cmd %v", m.cursor, answered(cmd))
 	}
 
 	// From the console, by the chord: the watch comes up and the hand is
@@ -443,29 +443,26 @@ func TestAOpensAnAgentAtThePlace(t *testing.T) {
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
 	m = next.(model)
-	if cmd != nil || m.note == "" {
-		t.Errorf("outside the server: cmd %v, note %q", cmd != nil, m.note)
+	if cmd != nil {
+		t.Error("outside the server, a opened something")
 	}
 
-	m.inside, m.srv, m.note = true, &server{tmux: "/nonexistent/tmux"}, ""
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
 	m = next.(model)
 	if cmd == nil {
 		t.Fatal("in the server, a opened nothing")
 	}
-	if msg, ok := answered(cmd).(noteMsg); !ok || msg.note == "" {
-		t.Errorf("the tmux that cannot be run did not say so: %v", answered(cmd))
+	if _, ok := answered(cmd).(openedMsg); ok {
+		t.Error("a shell opened with no tmux to open it in")
 	}
 
 	m.places = nil
-	m.note = ""
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
 	m = next.(model)
-	// Nothing is opened and nothing is waited for; the note is the whole
-	// of the answer, and the only command it is worth is the one that
-	// puts it on the bar.
-	if m.note == "" || m.awaited != 0 {
-		t.Errorf("off any place: note %q, awaited %d", m.note, m.awaited)
+	// Nothing is opened and nothing is waited for.
+	if m.awaited != 0 {
+		t.Errorf("off any place: awaited %d", m.awaited)
 	}
 }
 
@@ -481,11 +478,11 @@ func TestAltAOpensThePickerAtThePlace(t *testing.T) {
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
-	if cmd != nil || m.note == "" {
-		t.Errorf("outside the server: cmd %v, note %q", cmd != nil, m.note)
+	if cmd != nil || m.view != viewWatch {
+		t.Errorf("outside the server: cmd %v, view %d", cmd != nil, m.view)
 	}
 
-	m.inside, m.note = true, ""
+	m.inside = true
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
 	if m.view != viewResume || !m.convosLoading || cmd == nil {
@@ -499,11 +496,11 @@ func TestAltAOpensThePickerAtThePlace(t *testing.T) {
 	}
 
 	// A is unbound on the watch: nothing happens, the view holds.
-	m.view, m.note = viewWatch, ""
+	m.view = viewWatch
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
 	m = next.(model)
-	if m.view != viewWatch || cmd != nil || m.note != "" {
-		t.Errorf("A did something: view %d, cmd %v, note %q", m.view, cmd != nil, m.note)
+	if m.view != viewWatch || cmd != nil {
+		t.Errorf("A did something: view %d, cmd %v", m.view, cmd != nil)
 	}
 }
 
@@ -520,27 +517,26 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	if cmd != nil || m.kill == nil || m.kill.pid != 11 || m.kill.command != "claude" || m.kill.sig != syscall.SIGTERM {
 		t.Fatalf("arming: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
-	// The question travels with the kill, to the bar, and the bottom
-	// row is left alone.
-	if !strings.Contains(m.kill.prompt, "END CLAUDE 11 ·") || m.note != "" {
-		t.Errorf("the question: kill %+v, note %q", m.kill, m.note)
+	// The question travels with the kill, to the bar.
+	if !strings.Contains(m.kill.prompt, "END CLAUDE 11 ·") {
+		t.Errorf("the question: kill %+v", m.kill)
 	}
 
 	// A bare shell — nothing running in it to lose — is armed for SIGKILL
 	// instead, since it is proven to ignore the gentler signals.
 	m.places = []place{{path: "/w", entries: []entry{{pid: 22, kind: kindShell, command: "zsh"}}}}
-	m.cursor, m.kill, m.note = 22, nil, ""
+	m.cursor, m.kill = 22, nil
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
 	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.kill.prompt, "KILL ZSH 22 ·") {
-		t.Errorf("arming a shell: kill %+v, note %q", m.kill, m.note)
+		t.Errorf("arming a shell: kill %+v", m.kill)
 	}
 
-	m.places, m.kill, m.note = nil, nil, ""
+	m.places, m.kill = nil, nil
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if cmd != nil || m.kill != nil || m.note == "" {
-		t.Errorf("off any entry: cmd %v, kill %v, note %q", cmd != nil, m.kill, m.note)
+	if cmd != nil || m.kill != nil {
+		t.Errorf("off any entry: cmd %v, kill %v", cmd != nil, m.kill)
 	}
 }
 
@@ -556,8 +552,8 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	m = next.(model)
-	if m.kill != nil || m.note != "CANCELLED" || m.cursor != 11 {
-		t.Errorf("cancelled: kill %v, note %q, cursor %d", m.kill, m.note, m.cursor)
+	if m.kill != nil || m.cursor != 11 {
+		t.Errorf("cancelled: kill %v, cursor %d", m.kill, m.cursor)
 	}
 
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
@@ -572,15 +568,14 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 	}
 }
 
-// What a kill came to is said on the bottom row, and the table is read
-// again after a beat, so the row is not read a moment too soon.
-func TestAKilledMsgNotesTheOutcomeAndRereads(t *testing.T) {
+// After a kill the table is read again after a beat, so the row is not
+// read a moment too soon.
+func TestAKilledMsgRereads(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewWatch
-	next, cmd := m.Update(killedMsg{command: "claude", pid: 11, sig: syscall.SIGTERM})
-	m = next.(model)
-	if m.note != "ASKED CLAUDE 11 TO END" || cmd == nil {
-		t.Errorf("note %q, cmd %v", m.note, cmd != nil)
+	_, cmd := m.Update(killedMsg{command: "claude", pid: 11, sig: syscall.SIGTERM})
+	if cmd == nil {
+		t.Error("nothing is read again after a kill")
 	}
 }
 
@@ -641,16 +636,16 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 
 // Enter on a row opens a shell at that project and comes back to the
 // watch, where the shell will show. Outside the server nothing can be
-// opened, and the list says so on the bottom row.
+// opened, and the list holds.
 func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.projects, m.pcursor = viewProjects, testProjects, 3
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
-	if m.view != viewProjects || cmd != nil || m.note == "" {
-		t.Errorf("outside the server: view %d, note %q", m.view, m.note)
+	if m.view != viewProjects || cmd != nil {
+		t.Errorf("outside the server: view %d, cmd %v", m.view, cmd != nil)
 	}
-	m.inside, m.srv, m.note = true, &server{tmux: "/nonexistent/tmux"}, ""
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
 	if m.view != viewWatch || cmd == nil {
@@ -748,17 +743,17 @@ func TestResumeIsALineTypedInto(t *testing.T) {
 
 // Enter continues the conversation under the cursor in a shell running
 // claude --resume, and comes back to the watch, where the shell will
-// show; outside the server nothing can be opened, and the picker says
-// so on the bottom row.
+// show; outside the server nothing can be opened, and the picker
+// holds.
 func TestEnterContinuesTheConversationUnderTheCursor(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.convos, m.rcursor = viewResume, testConvos, 1
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
-	if m.view != viewResume || cmd != nil || m.note == "" {
-		t.Errorf("outside the server: view %d, note %q", m.view, m.note)
+	if m.view != viewResume || cmd != nil {
+		t.Errorf("outside the server: view %d, cmd %v", m.view, cmd != nil)
 	}
-	m.inside, m.srv, m.note = true, &server{tmux: "/nonexistent/tmux"}, ""
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
 	if m.view != viewWatch || cmd == nil {

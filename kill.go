@@ -23,7 +23,7 @@ import (
 //
 // x arms a kill rather than sending one: the next key either confirms
 // it — x, y or enter — or cancels it, whatever it is, so nothing else
-// binds while the question is on the bottom row.
+// binds while the question is on the bar.
 
 // pendingKill is a kill x has asked for and not yet answered.
 type pendingKill struct {
@@ -53,7 +53,6 @@ type killedMsg struct {
 	command string
 	pid     int
 	sig     syscall.Signal
-	err     error
 }
 
 // signal sends a process a signal, refusing what should never be
@@ -84,22 +83,4 @@ func killPrompt(command string, pid int, sig syscall.Signal) string {
 		verb = "kill"
 	}
 	return strings.ToUpper(verb + " " + command + " " + strconv.Itoa(pid) + " · x confirms · any other key cancels")
-}
-
-// killNote words a kill's outcome for the bottom row, in the same verb
-// its question asked with. A signal's name is the kernel's word and
-// stays off the row: what was done is that the process was asked to
-// end, and whether it did is the watch's to say.
-func killNote(msg killedMsg) string {
-	verb := "end"
-	if msg.sig == syscall.SIGKILL {
-		verb = "kill"
-	}
-	if msg.err != nil {
-		return strings.ToUpper("could not " + verb + " " + msg.command + ": " + msg.err.Error())
-	}
-	if msg.sig == syscall.SIGKILL {
-		return strings.ToUpper("killed " + msg.command + " " + strconv.Itoa(msg.pid))
-	}
-	return strings.ToUpper("asked " + msg.command + " " + strconv.Itoa(msg.pid) + " to end")
 }

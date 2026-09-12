@@ -117,8 +117,7 @@ type (
 	reachedMsg   struct{ tty string }  // a process was put in the slot
 	lookedMsg    struct{ on bool }     // the look was put in the slot, or taken out of it
 	blinkMsg     struct{ gen int }     // the chip's half is up
-	noteMsg      struct{ note string }
-	projectsMsg  struct { // the roots were walked
+	projectsMsg  struct {              // the roots were walked
 		projects []project
 		err      string
 	}
@@ -199,7 +198,6 @@ type model struct {
 	// The terminal that was in the slot before that one, which is where
 	// the other-process chord goes back to.
 	lastSlot string
-	note     string // a word on the bottom row, until the next key
 }
 
 func newModel(p palette) model {
@@ -235,16 +233,14 @@ func (m model) report() report {
 // watchReport is the watch's words as things stand.
 func (m model) watchReport() watchReport {
 	w := composeWatch(m.places, m.panes, m.slot, m.projRoots, m.head.session.home, m.now, m.watchErr)
-	w.inside, w.lit, w.note = m.inside, m.lit, m.note
+	w.inside, w.lit = m.inside, m.lit
 	return w
 }
 
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	b := composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
-	b.note = m.note
-	return b
+	return composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
 }
 
 func (m model) projectRows() []project {
@@ -254,7 +250,7 @@ func (m model) projectRows() []project {
 func (m model) Init() tea.Cmd {
 	cmds := []tea.Cmd{readStationCmd, m.nextStage(), nextSecond(m.now), m.nextBlink()}
 	if m.inside {
-		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }, ""))
+		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }))
 	}
 	return tea.Batch(cmds...)
 }
@@ -460,7 +456,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The rail holds its width through a resize of the window, once it
 		// is a rail: with the slot beside it, on the watch or the list.
 		if m.inside && m.view != viewConsole && m.slot != "" && m.width != railWidth {
-			return m, m.serverCmd(func() error { return m.srv.holdRail() }, "")
+			return m, m.serverCmd(func() error { return m.srv.holdRail() })
 		}
 	case stationMsg:
 		st := msg.station
@@ -547,7 +543,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.entering {
 			m.entering, m.view = false, viewWatch
 			if m.inside {
-				cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }, ""))
+				cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
 			}
 		}
 		if m.view == viewWatch {
@@ -590,16 +586,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.convos, m.convosLoading = msg.convos, false
 		m.rcursor = clamp(m.rcursor, len(m.resumeRows()))
 	case killedMsg:
-		m.note = killNote(msg)
 		// A beat for the signal to be acted on, so the row is not read a
 		// moment too soon, still there; the watchTick this reuses is a
-		// no-op once the stay it belongs to has moved on.
+		// no-op once the stay it belongs to has moved on. Whether the
+		// process ended is the watch's to say.
 		gen := m.watchGen
 		return m, tea.Tick(killGrace, func(time.Time) tea.Msg { return watchTickMsg{gen: gen} })
-	case noteMsg:
-		m.note = msg.note
 	case tea.KeyPressMsg:
-		m.note = ""
 		return m.key(msg.String())
 	}
 	return m, nil
@@ -619,17 +612,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A kill x asked for takes the next key, whatever it is: x, y or
 	// enter confirms it, and anything else cancels — no other binding
-	// fires while the question is on the bottom row.
+	// fires while the question is on the bar.
 	if m.kill != nil {
 		req := m.kill
 		m.kill = nil
-		switch k {
-		case "x", "y", "enter":
+		if k == "x" || k == "y" || k == "enter" {
 			return m, m.killEntry(req.pid, req.command, req.sig)
-		default:
-			m.note = "CANCELLED"
-			return m, nil
 		}
+		return m, nil
 	}
 	// The list's own key, which reaches it from wherever conn is and is
 	// what the prefix chord sends. p cannot serve: it is the list's key
@@ -662,7 +652,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c" || k == "q":
 		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() }, "")
+			return m, m.serverCmd(func() error { return m.srv.detach() })
 		}
 		return m, tea.Quit
 	case m.view == viewConsole && m.stage < lastStage(m.report()):
@@ -687,7 +677,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 		m.view = viewWatch
 		if m.inside {
-			return m, tea.Batch(m.readWatch(), m.serverCmd(func() error { return m.srv.narrow() }, ""))
+			return m, tea.Batch(m.readWatch(), m.serverCmd(func() error { return m.srv.narrow() }))
 		}
 		return m, m.readWatch()
 	case k == "c":
@@ -695,60 +685,33 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// one place, and the tick follows the view on its own.
 		m.view = viewConsole
 		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.wide() }, "")
+			return m, m.serverCmd(func() error { return m.srv.wide() })
 		}
 	case k == "j" || k == "down":
 		m.cursor, m.cursorAt = follow(m.places, 0, m.cursorAt+1)
 	case k == "k" || k == "up":
 		m.cursor, m.cursorAt = follow(m.places, 0, max(m.cursorAt-1, 0))
 	case k == "enter":
-		e, _, ok := m.under()
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE REACHED OUTSIDE CONN'S TMUX SERVER"
-		case !ok:
-			m.note = "NOTHING UNDER THE CURSOR"
-		case m.panes[e.tty].id == "":
-			m.note = "NOT IN A PANE OF CONN'S SERVER"
-		default:
+		if e, _, ok := m.under(); m.inside && ok && m.panes[e.tty].id != "" {
 			return m, m.reach(m.panes[e.tty], e.tty)
 		}
 	case k == "x":
 		e, _, ok := m.under()
 		if !ok {
-			m.note = "NOTHING UNDER THE CURSOR"
 			return m, nil
 		}
 		sig := killSignal(e.kind)
 		m.kill = &pendingKill{pid: e.pid, command: e.command, sig: sig, prompt: killPrompt(e.command, e.pid, sig)}
 	case k == "s":
-		_, pl, ok := m.under()
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
-		case !ok || pl.path == "":
-			m.note = "NO PLACE UNDER THE CURSOR"
-		default:
+		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m, m.openShell(pl.path)
 		}
 	case k == "a":
-		_, pl, ok := m.under()
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
-		case !ok || pl.path == "":
-			m.note = "NO PLACE UNDER THE CURSOR"
-		default:
+		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m, m.startAI(pl.path)
 		}
 	case k == "alt+a":
-		_, pl, ok := m.under()
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
-		case !ok || pl.path == "":
-			m.note = "NO PLACE UNDER THE CURSOR"
-		default:
+		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m.openResume(pl.path, []string{pl.path})
 		}
 	case k == "i":
@@ -766,14 +729,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		e, _, ok := m.under()
 		switch {
 		case !m.inside:
-			m.note = "NOTHING CAN BE SHOWN OUTSIDE CONN'S TMUX SERVER"
 		case m.looking && ok && m.panes[e.tty].id != "":
 			return m, m.reach(m.panes[e.tty], e.tty)
 		case m.looking:
 			return m, m.closeLook()
-		case !ok:
-			m.note = "NOTHING UNDER THE CURSOR"
-		default:
+		case ok:
 			return m, m.openLook()
 		}
 	case k == "tab":
@@ -803,42 +763,27 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c":
 		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() }, "")
+			return m, m.serverCmd(func() error { return m.srv.detach() })
 		}
 		return m, tea.Quit
 	case k == "esc":
 		return m.toWatch()
 	case k == "enter":
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
-		case m.pcursor >= len(rows):
-			m.note = "NO PROJECT UNDER THE CURSOR"
-		default:
+		if m.inside && m.pcursor < len(rows) {
 			path := rows[m.pcursor].path
 			mm, cmd := m.toWatch()
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openShell(path))
 		}
 	case k == "ctrl+a":
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
-		case m.pcursor >= len(rows):
-			m.note = "NO PROJECT UNDER THE CURSOR"
-		default:
+		if m.inside && m.pcursor < len(rows) {
 			path := rows[m.pcursor].path
 			mm, cmd := m.toWatch()
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.startAI(path))
 		}
 	case k == "alt+a":
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
-		case m.pcursor >= len(rows):
-			m.note = "NO PROJECT UNDER THE CURSOR"
-		default:
+		if m.inside && m.pcursor < len(rows) {
 			row := rows[m.pcursor]
 			return m.openResume(row.path, convoDirs(m.projects, row))
 		}
@@ -887,20 +832,15 @@ func (m model) slotted(tty string) model {
 // window, so this is a press from the rail, and the answer to it is a
 // process.
 func (m model) toOther() (tea.Model, tea.Cmd) {
-	switch {
-	case !m.inside:
-		m.note = "NOTHING CAN BE REACHED OUTSIDE CONN'S TMUX SERVER"
-	case m.lastSlot == "" || m.panes[m.lastSlot].id == "":
-		m.note = "NO OTHER HAND TO GO BACK TO"
-	default:
-		cmds := []tea.Cmd{m.reach(m.panes[m.lastSlot], m.lastSlot)}
-		if m.view == viewConsole {
-			m.view, m.entering = viewWatch, false
-			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }, ""))
-		}
-		return m, tea.Batch(cmds...)
+	if !m.inside || m.lastSlot == "" || m.panes[m.lastSlot].id == "" {
+		return m, nil
 	}
-	return m, nil
+	cmds := []tea.Cmd{m.reach(m.panes[m.lastSlot], m.lastSlot)}
+	if m.view == viewConsole {
+		m.view, m.entering = viewWatch, false
+		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // toWaiting goes to the hand that has waited longest: the cursor to its
@@ -913,11 +853,10 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 // console over the window.
 //
 // A hand conn holds no pane for is still gone to, on the rail, and the
-// row says why the keys did not follow.
+// keys stay where they are.
 func (m model) toWaiting() (tea.Model, tea.Cmd) {
 	round := waitingRound(m.places)
 	if len(round) == 0 {
-		m.note = "NO AI IS WAITING"
 		return m, nil
 	}
 	next := round[0]
@@ -935,14 +874,10 @@ func (m model) toWaiting() (tea.Model, tea.Cmd) {
 		m.watchGen++
 		cmds = append(cmds, m.readWatch())
 		if console && m.inside {
-			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }, ""))
+			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
 		}
 	}
-	switch {
-	case !m.inside:
-	case m.panes[next.tty].id == "":
-		m.note = "NOT IN A PANE OF CONN'S SERVER"
-	default:
+	if m.inside && m.panes[next.tty].id != "" {
 		cmds = append(cmds, m.reach(m.panes[next.tty], next.tty))
 	}
 	return m, tea.Batch(cmds...)
@@ -961,7 +896,7 @@ func (m model) toProjects() (tea.Model, tea.Cmd) {
 	m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
 	m.entering = false
 	if console && m.inside {
-		return m, tea.Batch(m.scanProjects(), m.serverCmd(func() error { return m.srv.narrow() }, ""))
+		return m, tea.Batch(m.scanProjects(), m.serverCmd(func() error { return m.srv.narrow() }))
 	}
 	return m, m.scanProjects()
 }
@@ -992,9 +927,7 @@ func (m model) resumeRows() []conversation {
 
 // resumeReport is the picker's words as things stand.
 func (m model) resumeReport() resumeReport {
-	b := composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
-	b.note = m.note
-	return b
+	return composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
 }
 
 // resumeKey answers a key on the picker, which is a line typed into the
@@ -1007,20 +940,13 @@ func (m model) resumeKey(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c":
 		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() }, "")
+			return m, m.serverCmd(func() error { return m.srv.detach() })
 		}
 		return m, tea.Quit
 	case k == "esc":
 		return m.toWatch()
 	case k == "enter":
-		switch {
-		case !m.inside:
-			m.note = "NOTHING CAN BE OPENED OUTSIDE CONN'S TMUX SERVER"
-		case m.convosLoading:
-			m.note = "STILL LOOKING"
-		case m.rcursor >= len(rows):
-			m.note = "NO CONVERSATION UNDER THE CURSOR"
-		default:
+		if m.inside && !m.convosLoading && m.rcursor < len(rows) {
 			c := rows[m.rcursor]
 			mm, cmd := m.toWatch()
 			m = mm.(model)

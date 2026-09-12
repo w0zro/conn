@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
@@ -10,18 +9,18 @@ import (
 // What the rail asks of the server, each off the loop as a command:
 // a process into the slot, a shell opened at a place, the slot opened
 // beside the rail, and the small ones — zoom, width, detach — through
-// serverCmd. What goes wrong is said on the bottom row.
+// serverCmd.
 
 // openSlot opens the slot beside the rail, with the hold in it.
 func (m model) openSlot() tea.Cmd {
 	home, self := m.head.session.home, m.self
-	return m.serverCmd(func() error { return m.srv.splitSlot(home, self) }, "")
+	return m.serverCmd(func() error { return m.srv.splitSlot(home, self) })
 }
 
 // reviveSlot puts a hold in a slot whose pane died, in its own shape.
 func (m model) reviveSlot() tea.Cmd {
 	home, self := m.head.session.home, m.self
-	return m.serverCmd(func() error { return m.srv.reviveSlot(home, self) }, "")
+	return m.serverCmd(func() error { return m.srv.reviveSlot(home, self) })
 }
 
 // reach puts a process in the slot, off the loop, and hands back the
@@ -29,8 +28,8 @@ func (m model) reviveSlot() tea.Cmd {
 func (m model) reach(target pane, tty string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		if err := srv.show(target); err != nil {
-			return noteMsg{strings.ToUpper(err.Error())}
+		if srv.show(target) != nil {
+			return nil
 		}
 		return reachedMsg{tty}
 	}
@@ -43,8 +42,8 @@ func (m model) reach(target pane, tty string) tea.Cmd {
 func (m model) openLook() tea.Cmd {
 	home, self, srv := m.head.session.home, m.self, m.srv
 	return func() tea.Msg {
-		if err := srv.showLook(home, self); err != nil {
-			return noteMsg{strings.ToUpper(err.Error())}
+		if srv.showLook(home, self) != nil {
+			return nil
 		}
 		return lookedMsg{on: true}
 	}
@@ -55,8 +54,8 @@ func (m model) openLook() tea.Cmd {
 func (m model) closeLook() tea.Cmd {
 	home, self, srv := m.head.session.home, m.self, m.srv
 	return func() tea.Msg {
-		if err := srv.hideLook(home, self); err != nil {
-			return noteMsg{strings.ToUpper(err.Error())}
+		if srv.hideLook(home, self) != nil {
+			return nil
 		}
 		return lookedMsg{on: false}
 	}
@@ -69,7 +68,7 @@ func (m model) openShell(dir string) tea.Cmd {
 	return func() tea.Msg {
 		sh, err := srv.open(dir)
 		if err != nil {
-			return noteMsg{strings.ToUpper(err.Error())}
+			return nil
 		}
 		return openedMsg{shell: sh}
 	}
@@ -86,7 +85,7 @@ func (m model) startAI(dir string) tea.Cmd {
 	return func() tea.Msg {
 		sh, err := srv.openCmd(dir, aiCommand(srv.socket))
 		if err != nil {
-			return noteMsg{strings.ToUpper(err.Error())}
+			return nil
 		}
 		return openedMsg{shell: sh}
 	}
@@ -122,7 +121,7 @@ func (m model) openResumed(dir, id string) tea.Cmd {
 	return func() tea.Msg {
 		sh, err := srv.openCmd(dir, resumeCommand(srv.socket, id))
 		if err != nil {
-			return noteMsg{strings.ToUpper(err.Error())}
+			return nil
 		}
 		return openedMsg{shell: sh}
 	}
@@ -131,7 +130,8 @@ func (m model) openResumed(dir, id string) tea.Cmd {
 // killEntry signals a process, off the loop.
 func (m model) killEntry(pid int, command string, sig syscall.Signal) tea.Cmd {
 	return func() tea.Msg {
-		return killedMsg{command: command, pid: pid, sig: sig, err: signal(pid, sig)}
+		_ = signal(pid, sig)
+		return killedMsg{command: command, pid: pid, sig: sig}
 	}
 }
 
@@ -147,13 +147,12 @@ func hasPid(places []place, pid int) bool {
 	return false
 }
 
-// serverCmd runs a server action off the loop; what goes wrong is said
-// on the bottom row.
-func (m model) serverCmd(act func() error, done string) tea.Cmd {
+// serverCmd runs a server action off the loop. What the server did is
+// on the window for the operator to see, and what it did not do has no
+// row of its own to be said on.
+func (m model) serverCmd(act func() error) tea.Cmd {
 	return func() tea.Msg {
-		if err := act(); err != nil {
-			return noteMsg{strings.ToUpper(err.Error())}
-		}
-		return noteMsg{done}
+		_ = act()
+		return nil
 	}
 }

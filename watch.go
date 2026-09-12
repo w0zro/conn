@@ -19,11 +19,9 @@ import (
 // drawn on a raised ground from edge to edge, and the rows scroll to
 // keep it in view. What conn holds — a process in a pane of the
 // server, which can be reached — is written in the ink; work conn can
-// only report is dimmed a rank. The bottom row is kept clear for a
-// note — what went wrong reaching something — and holds nothing
-// otherwise. In the rail, which is narrower than the console, the
-// terminal column is left off and the rest close up; the row on the
-// right, in the slot, is in orange.
+// only report is dimmed a rank. In the rail, which is narrower than
+// the console, the terminal column is left off and the rest close up;
+// the row on the right, in the slot, is in orange.
 
 // The watch's words, composed from the places as of a moment.
 type watchReport struct {
@@ -31,7 +29,6 @@ type watchReport struct {
 	err    string // why the table could not be read, when it could not
 	inside bool   // conn is in its server, and rows can be reached
 	lit    bool   // the annunciators' lit half; see the waiting word below
-	note   string // a word for the bottom row, until a key
 }
 
 type watchPlace struct {
@@ -186,7 +183,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 
 	// The places, in the order work began in them; or the reason there
 	// are none.
-	room := height - 1 // the bottom row is kept for a note
+	room := height
 	if height == 0 {
 		room = 1 << 30
 	}
@@ -309,23 +306,12 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
-	// The bottom row is a note's, when there is one, and otherwise the
-	// ground: the keys are learned once, and a legend on every row of
-	// every reading is a thing to read past forever. It is kept clear
-	// whether or not there is a note, so a note has a place to land that
-	// does not move the rows — and it is here, under the list, because
-	// the key it answers was pressed here and this is where the eye that
-	// pressed it is.
+	// The ground fills what the rows do not: the keys are learned once,
+	// and a legend on every row of every reading is a thing to read
+	// past forever.
 	if height > 0 {
-		for len(c.rows) < height-1 {
+		for len(c.rows) < height {
 			c.blank(0)
-		}
-		if b.note == "" {
-			c.blank(0)
-		} else {
-			l := c.line()
-			l.add(p.waiting, fit(b.note, measure, false))
-			c.emit(l, 0, true)
 		}
 	}
 	return c.rows

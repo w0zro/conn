@@ -25,7 +25,6 @@ type resumeReport struct {
 	rows    []conversation
 	total   int
 	filter  string
-	note    string
 }
 
 // composeResume words the picker: the filter's rows out of the whole
@@ -101,7 +100,7 @@ func drawResume(b resumeReport, cursor, width, height int, p palette) []row {
 	l.add(p.orange+p.bold, caret)
 	c.emit(l, 0, false)
 
-	room := height - 1 // the bottom row is kept for a note
+	room := height
 	if height == 0 {
 		room = 1 << 30
 	}
@@ -153,18 +152,10 @@ func drawResume(b resumeReport, cursor, width, height int, p palette) []row {
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
-	// The bottom row is a note's, when there is one, and the ground
-	// otherwise, as on the list.
+	// The ground fills what the rows do not, as on the list.
 	if height > 0 {
-		for len(c.rows) < height-1 {
+		for len(c.rows) < height {
 			c.blank(0)
-		}
-		if b.note == "" {
-			c.blank(0)
-		} else {
-			l := c.line()
-			l.add(p.waiting, fit(b.note, measure, false))
-			c.emit(l, 0, true)
 		}
 	}
 	return c.rows

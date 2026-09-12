@@ -51,7 +51,7 @@ func TestResumeMatchesTheGolden(t *testing.T) {
 // The picker's rows hold: the place it is for, the count against the
 // right, the filter on its own line, the branch and the age, a
 // conversation with nothing read of it named by its directory instead,
-// the cursor on one row, and the bottom row left for a note.
+// and the cursor on one row.
 func TestResumeLayOut(t *testing.T) {
 	rows := drawResume(testResume(""), 1, 48, 30, plain)
 	text := texts(rows)

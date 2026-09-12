@@ -156,7 +156,7 @@ the stamp is the moment the wait began and the order is how long each
 has actually waited. One that cannot say goes last. It is still waiting,
 which is what the word is for, but it cannot claim a turn ahead of one
 that can prove it waited longer. A waiting AI conn holds no pane for
-is gone to on the rail, and the row says why the keys did not follow.
+is gone to on the rail, and the keys stay where they are.
 
 **3-8. HELD AND REPORTED.** A row is also written by what conn can do with
 it, and in two ways, since they are not the same kind of saying. What

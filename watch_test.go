@@ -29,8 +29,7 @@ func TestWatchMatchesTheGolden(t *testing.T) {
 
 // The watch's columns hold: the status flush right, a root's kind at
 // the margin and what runs under it a level in per level, the path
-// from ~, the ages as of the clock, no legend on the bottom row, no
-// row past the width.
+// from ~, the ages as of the clock, no legend, no row past the width.
 func TestWatchLaysOut(t *testing.T) {
 	rows := drawWatch(testWatch(), 70100, 120, 40, plain)
 	text := texts(rows)
@@ -80,20 +79,19 @@ func TestWatchLaysOut(t *testing.T) {
 }
 
 // A watch taller than the terminal scrolls to keep the cursor in view
-// and says how many rows are above and below. The foot is kept for a
-// note and the name is the bar's, so nine rows of terminal are eight of
-// watch, one more of them list than before.
+// and says how many rows are above and below. The name is the bar's,
+// so nine rows of terminal are nine of watch.
 func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 	rows := drawWatch(testWatch(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 11 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 10 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawWatch(testWatch(), 70301, 100, 9, plain)
 	text = texts(rows)
 	// The cursor's mark keeps the margin; the row it marks still steps
 	// in for the level it is at.
-	if len(rows) != 9 || !strings.Contains(text, "… 11 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
+	if len(rows) != 9 || !strings.Contains(text, "… 10 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawWatch(testWatch(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
@@ -218,8 +216,8 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	}
 }
 
-// In the server, the keys say what can be done, a terminal the server
-// does not hold is faint, and a note takes the bottom row until a key.
+// In the server, the keys say what can be done, and a terminal the
+// server does not hold is faint.
 func TestTheWatchInsideTheServer(t *testing.T) {
 	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
 	w.inside = true
@@ -262,20 +260,19 @@ func TestKeysInsideTheServer(t *testing.T) {
 		return cmd
 	}
 	// The cursor starts on home's shell, whose terminal the server does
-	// not hold. The note is the whole of the answer — conn asks the
-	// server for nothing but the putting of it on the bar.
-	if press("enter", tea.KeyEnter); m.note != "NOT IN A PANE OF CONN'S SERVER" {
-		t.Errorf("enter on a process outside the server: %q", m.note)
+	// not hold: enter asks the server for nothing.
+	if cmd := press("enter", tea.KeyEnter); cmd != nil {
+		t.Error("enter on a process outside the server asked the server for something")
 	}
 	// Down to the conjurer's tree, whose terminal is a pane of the
-	// server: enter reaches it.
+	// server: enter reaches it, and against no tmux reaches nothing.
 	for range 4 {
 		press("j", 'j')
 	}
-	if cmd := press("enter", tea.KeyEnter); cmd == nil || m.note != "" {
-		t.Errorf("enter on a process in the server should reach it: %q", m.note)
-	} else if n, ok := cmd().(noteMsg); !ok || !strings.Contains(n.note, "TMUX") {
-		t.Errorf("a server that is not there should be said on the bottom row: %+v", n)
+	if cmd := press("enter", tea.KeyEnter); cmd == nil {
+		t.Error("enter on a process in the server should reach it")
+	} else if _, ok := cmd().(reachedMsg); ok {
+		t.Error("a pane was reached with no tmux to reach it with")
 	}
 	if cmd := press("s", 's'); cmd == nil {
 		t.Error("s should open a shell at the place")
@@ -286,8 +283,8 @@ func TestKeysInsideTheServer(t *testing.T) {
 		t.Error("q inside the server should not close conn")
 	}
 	m.inside = false
-	if cmd := press("enter", tea.KeyEnter); cmd != nil || !strings.Contains(m.note, "OUTSIDE") {
-		t.Errorf("enter outside the server: %q", m.note)
+	if cmd := press("enter", tea.KeyEnter); cmd != nil {
+		t.Error("enter outside the server asked the server for something")
 	}
 	if cmd := press("q", 'q'); cmd == nil {
 		t.Error("q outside the server should close conn")
@@ -297,10 +294,7 @@ func TestKeysInsideTheServer(t *testing.T) {
 }
 
 // The watch says no keys. They are learned once; a legend on every row
-// of every reading is a thing to read past forever. The bottom row is
-// kept clear all the same, so a note has a place to land that does not
-// move the rows — and it lands under the list, where the eye that
-// pressed the key is.
+// of every reading is a thing to read past forever.
 func TestTheWatchSaysNoKeys(t *testing.T) {
 	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
 	for _, inside := range []bool{false, true} {
@@ -314,14 +308,8 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 			}
 		}
 	}
-	rows := drawWatch(w, 67040, 120, 40, plain)
-	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
-		t.Errorf("the bottom row is not kept clear: %q", rows[39].text)
-	}
-	w.note = "NOTHING UNDER THE CURSOR"
-	rows = drawWatch(w, 67040, 120, 40, plain)
-	if len(rows) != 40 || !strings.Contains(rows[39].text, w.note) {
-		t.Errorf("a note has no place to land: %q", rows[39].text)
+	if rows := drawWatch(w, 67040, 120, 40, plain); len(rows) != 40 {
+		t.Errorf("the watch fills %d of 40 rows", len(rows))
 	}
 }
 
@@ -579,15 +567,13 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	}
 
 	// Nothing has been in the slot yet, so there is nowhere to go back
-	// to. The note is the whole of the answer — the only command it is
-	// worth is the one that puts it on the bar.
-	m, _ = other(m)
-	if m.note != "NO OTHER HAND TO GO BACK TO" {
-		t.Errorf("with nothing behind it: %q", m.note)
+	// to, and the server is asked for nothing.
+	m, cmd := other(m)
+	if cmd != nil {
+		t.Error("with nothing behind it, going back asked the server for something")
 	}
 
 	// A hold in the slot, then a process: the hold is not remembered.
-	m.note = ""
 	m.slot = "ttys009"
 	next, _ := m.Update(reachedMsg{"ttys001"})
 	m = next.(model)
@@ -601,7 +587,7 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	if m.slot != "ttys002" || m.lastSlot != "ttys001" {
 		t.Errorf("slot %q, other %q", m.slot, m.lastSlot)
 	}
-	m, cmd := other(m)
+	m, cmd = other(m)
 	if cmd == nil {
 		t.Fatal("going back to the other process asked the server for nothing")
 	}
@@ -616,18 +602,14 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	// A process that has gone is not somewhere to go back to.
 	gone := m
 	gone.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}}
-	gone.note = ""
-	gone, _ = other(gone)
-	if gone.note != "NO OTHER HAND TO GO BACK TO" {
-		t.Errorf("a pane that has gone: %q", gone.note)
+	if _, cmd := other(gone); cmd != nil {
+		t.Error("a pane that has gone was gone back to")
 	}
 
 	// Outside the server nothing can be reached at all.
 	out := m
 	out.inside = false
-	out.note = ""
-	out, _ = other(out)
-	if out.note != "NOTHING CAN BE REACHED OUTSIDE CONN'S TMUX SERVER" {
-		t.Errorf("outside the server: %q", out.note)
+	if _, cmd := other(out); cmd != nil {
+		t.Error("outside the server, going back asked the server for something")
 	}
 }

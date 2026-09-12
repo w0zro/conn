@@ -223,32 +223,31 @@ func TestIPutsTheLookInTheSlot(t *testing.T) {
 	if !strings.Contains(m.View().Content, "STATUS") {
 		t.Errorf("the watch is not still on the rail:\n%s", m.View().Content)
 	}
-	// A server that is not there is said on the bottom row rather than
-	// swallowed.
-	if n, ok := answered(cmd).(noteMsg); !ok || !strings.Contains(n.note, "TMUX") {
-		t.Errorf("a server that is not there should be said: %+v", n)
+	// Against a server that is not there, the page does not come up.
+	if _, ok := answered(cmd).(lookedMsg); ok {
+		t.Error("the look came up with no tmux to put it up with")
 	}
 }
 
-// Nothing under the cursor, and nowhere to put a page, are each said
-// rather than opening one about nothing.
-func TestISaysWhyItCannotLook(t *testing.T) {
+// With nothing under the cursor, or nowhere to put a page, i opens
+// nothing.
+func TestIOpensNothingAboutNothing(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside = viewWatch, true
-	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
-	if m.note != "NOTHING UNDER THE CURSOR" {
-		t.Errorf("i on an empty watch says %q", m.note)
+	if cmd != nil || m.looking {
+		t.Errorf("i on an empty watch: cmd %v, looking %v", cmd != nil, m.looking)
 	}
 
 	m = newModel(plain)
 	m.view, m.inside = viewWatch, false
 	m.places = []place{{path: "/w", entries: []entry{{pid: 7, tty: "ttys001"}}}}
 	m.cursor = 7
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
-	if !strings.Contains(m.note, "OUTSIDE CONN'S TMUX SERVER") {
-		t.Errorf("i outside the server says %q", m.note)
+	if cmd != nil || m.looking {
+		t.Errorf("i outside the server: cmd %v, looking %v", cmd != nil, m.looking)
 	}
 }
 
@@ -379,8 +378,8 @@ func TestIClosesThePageWithNothingUnderTheCursor(t *testing.T) {
 	m.view, m.inside, m.looking = viewWatch, true, true
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
-	if cmd == nil || m.note != "" {
-		t.Errorf("i on an empty watch with a page up said %q instead of closing it", m.note)
+	if cmd == nil {
+		t.Error("i on an empty watch with a page up did not close it")
 	}
 }
 

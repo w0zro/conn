@@ -176,7 +176,7 @@ func TestProjectsMatchTheGolden(t *testing.T) {
 
 // The list's rows hold: the count against the right, the filter on its
 // own line, a group's repositories indented under it, the cursor on one
-// row, no row past the width, and the bottom row left for a note.
+// row, and no row past the width.
 func TestProjectsLayOut(t *testing.T) {
 	rows := drawProjects(testList(""), 6, 48, 30, plain)
 	text := texts(rows)
@@ -189,8 +189,8 @@ func TestProjectsLayOut(t *testing.T) {
 			t.Errorf("the list lacks %q:\n%s", s, text)
 		}
 	}
-	if len(rows) != 30 || strings.TrimSpace(rows[29].text) != "" {
-		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
+	if len(rows) != 30 {
+		t.Errorf("%d rows", len(rows))
 	}
 	if strings.Count(text, "▸") != 1 {
 		t.Errorf("the cursor marks %d rows", strings.Count(text, "▸"))

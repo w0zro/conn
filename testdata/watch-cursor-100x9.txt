@@ -5,5 +5,5 @@
    ~
    SHELL   zsh                                                     TTYS009    1D 02H       ACTIVE
  ▸   EDITOR  vim notes.md                                          TTYS009    1D 01H     STOPPED
-   … 11 BELOW
 
+   … 10 BELOW

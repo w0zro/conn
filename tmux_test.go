@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -73,12 +72,11 @@ func TestTheConfigurationHolds(t *testing.T) {
 		// The panel's ground is the window's own, so with nothing lit
 		// there is nothing to tell the row from the padding.
 		`set -g status-style "bg=` + hex(groundColor) + `,fg=#8B8272"`,
-		// The lamps: what only tmux can know, then what conn says of
-		// itself, then the one question conn asks of you. That one blinks
-		// on the clock's second — the line is drawn each second and the
-		// format asks which it is, so no process blinks it.
-		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_mode}", "#{@conn_note}",
-		"set -g status-interval 1", "#{?#{m:*[13579],%S},", "]#{@conn_owed},}",
+		// The lamps are what only tmux can know; the row is conn's, and
+		// tmux drops it while the keys are on the rail, where the watch
+		// says all of it and more.
+		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_in}",
+		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
@@ -184,76 +182,62 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 	}
 }
 
-// The panel is dark until something lights it, and conn writes a lamp
-// only when it changes: setting an option on the server is a process,
-// and at rest there is nothing to set. The lamp on the right is the one
-// question conn asks of you, and it says how long the longest has been
-// held up in its largest unit alone — a figure read from the corner of
-// the eye should hold still.
-func TestTheBarIsDarkUntilSomethingLightsIt(t *testing.T) {
+// The bar is the row you are standing inside, and conn writes it only
+// when it changes: setting an option on the server is a process, and the
+// slot changes hands rarely. It is nothing at all when the slot holds
+// conn's own furniture, since a hold in an empty slot is not somewhere
+// you are working.
+func TestTheBarIsTheRowYouAreIn(t *testing.T) {
 	m := newModel(plain)
-	m.view, m.inside, m.srv = viewWatch, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.now = watchNow
+	m.view, m.inside, m.now = viewWatch, true, watchNow
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.projRoots = testProjRoots
+	m.head.session.home = "/Users/w0zro"
+	m.panes = map[string]pane{
+		"ttys004": {id: "%1", tty: "ttys004"},
+		"ttys009": {id: "%9", tty: "ttys009", hold: true},
+	}
+	m.places = []place{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
+		{pid: 11, kind: kindAgent, command: "claude --resume", tty: "ttys004",
+			started: watchNow.Add(-47 * time.Minute), status: statusWaiting},
+	}}}
 
-	// Nothing owed, nothing said, nothing written.
+	// Nothing in the slot: nothing to say, and nothing written.
 	if _, cmd := m.saying(); cmd != nil {
-		t.Error("conn wrote a panel with nothing on it")
+		t.Error("conn wrote a bar with nothing in the slot")
 	}
 
-	m.note = "NOTHING UNDER THE CURSOR"
-	next, cmd := m.saying()
-	if cmd == nil {
-		t.Fatal("a note conn had not said was not put on the bar")
-	}
-	if next.saidNote != m.note || next.saidMode != "" || next.saidOwed != "" {
-		t.Errorf("conn did not remember what it lit: %q %q %q", next.saidNote, next.saidMode, next.saidOwed)
-	}
-	if _, cmd := next.saying(); cmd != nil {
-		t.Error("the same note was written to the bar twice")
+	// A hold standing in an empty slot is conn's own furniture.
+	m.slot = "ttys009"
+	if row := m.slotRow(); row != "" {
+		t.Errorf("a hold in the slot is said to be somewhere you are: %q", row)
 	}
 
-	// A kill takes the next key whatever it is, which is a mode that
-	// swallows keys and lights a lamp of its own.
-	armed := next
-	armed.kill = &pendingKill{pid: 49212, command: "zsh", sig: syscall.SIGTERM}
-	after, cmd := armed.saying()
-	if cmd == nil || after.saidMode != "CONFIRM" {
-		t.Errorf("the kill's mode did not light: %q", after.saidMode)
-	}
-
-	// One agent held up, and how long for.
-	held := func(m model, waits ...time.Duration) model {
-		var es []entry
-		for i, d := range waits {
-			es = append(es, entry{pid: 100 + i, kind: kindAgent, status: statusWaiting, since: m.now.Add(-d)})
+	// The process: the place it works in, then the row as the watch has
+	// it, with the age in its largest unit alone.
+	m.slot = "ttys004"
+	row := m.slotRow()
+	for _, want := range []string{"w0zro/conn", kindAgent, "claude --resume", "47M", statusWaiting} {
+		if !strings.Contains(row, want) {
+			t.Errorf("the bar's row lacks %q:\n%s", want, row)
 		}
-		m.places = []place{{path: "/w", entries: es}}
-		return m
 	}
-	one, _ := held(m, 4*time.Minute+12*time.Second).saying()
-	if one.saidOwed != "WAITING  ·  4M" {
-		t.Errorf("one agent held up four minutes lit %q", one.saidOwed)
+	next, cmd := m.saying()
+	if cmd == nil || next.saidIn != row {
+		t.Errorf("the row was not put on the bar: %q", next.saidIn)
 	}
-	// Under a minute the lamp is the whole of it: there is no figure
-	// worth putting on a panel yet.
-	fresh, _ := held(m, 9*time.Second).saying()
-	if fresh.saidOwed != "WAITING" {
-		t.Errorf("an agent held up nine seconds lit %q", fresh.saidOwed)
+	// Said once. The same row again is not a second process.
+	if _, cmd := next.saying(); cmd != nil {
+		t.Error("the same row was written to the bar twice")
 	}
-	// More than one is counted, and the figure is the longest wait.
-	two, _ := held(m, time.Hour+30*time.Minute, 2*time.Minute).saying()
-	if two.saidOwed != "WAITING 2  ·  1H" {
-		t.Errorf("two agents held up lit %q", two.saidOwed)
-	}
-	// An agent that cannot say when it stopped is still waiting, and the
-	// lamp says so without a figure it does not have.
-	mute := m
-	mute.places = []place{{path: "/w", entries: []entry{{pid: 7, kind: kindAgent, status: statusWaiting}}}}
-	if lit, _ := mute.saying(); lit.saidOwed != "WAITING" {
-		t.Errorf("an agent with no moment behind it lit %q", lit.saidOwed)
+	// A minute later the coarse age has not moved, so neither has the row.
+	later := next
+	later.now = watchNow.Add(30 * time.Second)
+	if _, cmd := later.saying(); cmd != nil {
+		t.Error("the bar was written again for a figure that had not changed")
 	}
 
-	// Outside the server there is no panel to light.
+	// Outside the server there is no bar to write to.
 	out := m
 	out.inside = false
 	if _, cmd := out.saying(); cmd != nil {

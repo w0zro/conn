@@ -185,17 +185,15 @@ func (s *scratch) parked(id string) bool {
 	return false
 }
 
-// display is a tmux format, of the rail.
-// bar is the status line as tmux expands it: the chip, what conn has to
-// say, and the station. The clock is a job of tmux's and does not run
-// for a format asked for like this, which is no matter — what a test
-// wants from the bar is conn's half of it.
+// bar is the status line as tmux expands it: the lamps, and the row conn
+// has put there for whatever the slot holds.
 func (s *scratch) bar() string {
 	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0",
 		"#{T:status-left}#{T:status-right}")
 	return strings.TrimSpace(out)
 }
 
+// display is a tmux format, of the rail.
 func (s *scratch) display(format string) string {
 	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0", format)
 	return strings.TrimSpace(out)
@@ -349,12 +347,9 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	})
 
 	s.keys("x")
-	// The question conn asks is on the bar now, with CONFIRM in the chip
-	// beside it: the rail's foot is the list's.
-	s.until("the kill armed", func() bool { return strings.Contains(s.bar(), "KILL") })
-	if b := s.bar(); !strings.Contains(b, "CONFIRM") {
-		t.Errorf("the chip does not say the keys are the question's: %q", b)
-	}
+	// The question conn asks is on the rail's foot, under the list and
+	// below the eye that pressed the key.
+	s.until("the kill armed", func() bool { return strings.Contains(s.rail(), "KILL") })
 	s.keys("x")
 
 	s.until("the shell's pane to die", func() bool { return s.paneDead("home.1") })
@@ -393,7 +388,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// right below it, the tree's next row down.
 	s.keys("j")
 	s.keys("x")
-	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.bar(), "END SLEEP 100") })
+	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.rail(), "END SLEEP 100") })
 	s.keys("x")
 
 	s.until("sleep to end and the shell to have the place to itself", func() bool {
@@ -574,7 +569,7 @@ func TestTabReachesTheWatchAsTab(t *testing.T) {
 
 	s.keys("Tab")
 	s.until("the watch to answer tab", func() bool {
-		return strings.Contains(s.bar(), "NO AGENT IS WAITING ON YOU")
+		return strings.Contains(s.rail(), "NO AGENT IS WAITING ON YOU")
 	})
 }
 

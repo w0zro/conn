@@ -32,6 +32,7 @@ type watchReport struct {
 	err    string // why the table could not be read, when it could not
 	inside bool   // conn is in its server, and rows can be reached
 	lit    bool   // the annunciators' lit half; see the waiting word below
+	note   string // a word for the bottom row, until a key
 }
 
 type watchPlace struct {
@@ -176,7 +177,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 
 	// The places, in the order work began in them; or the reason there
 	// are none.
-	room := height
+	room := height - 1 // the bottom row is kept for a note
 	if height == 0 {
 		room = 1 << 30
 	}
@@ -302,12 +303,23 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
-	// The foot held a note until the next key and is the bar's now, so
-	// the rows have it: the keys are learned once, and a legend on every
-	// row of every reading is a thing to read past forever.
+	// The bottom row is a note's, when there is one, and otherwise the
+	// ground: the keys are learned once, and a legend on every row of
+	// every reading is a thing to read past forever. It is kept clear
+	// whether or not there is a note, so a note has a place to land that
+	// does not move the rows — and it is here, under the list, because
+	// the key it answers was pressed here and this is where the eye that
+	// pressed it is.
 	if height > 0 {
-		for len(c.rows) < height {
+		for len(c.rows) < height-1 {
 			c.blank(0)
+		}
+		if b.note == "" {
+			c.blank(0)
+		} else {
+			l := c.line()
+			l.add(p.owed, fit(b.note, measure, false))
+			c.emit(l, 0, true)
 		}
 	}
 	return c.rows

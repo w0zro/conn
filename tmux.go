@@ -621,82 +621,87 @@ set -g remain-on-exit on
 	return b.String()
 }
 
-// The bar is tmux's status line, and it is an annunciator panel rather
-// than a status line: dark, saying nothing at all, until something
-// lights it. A row that always says something is a row nobody reads, and
-// most of what a status line carries — where the keys are, who you are,
-// what time it is — you already know or do not need. What conn puts
-// there instead is what you would want to be interrupted for, and
-// nothing else ever.
+// The bar is tmux's status line, and its subject is the slot: the thing
+// you are in. Every other surface conn draws owns something — the
+// console is the machine, the watch is the work, the look is one row,
+// the list is the projects — and the bar held leftovers until it was
+// given this: a mode conn could not see, a note that had lost its home,
+// a lamp saying what the watch already said better. A row with no
+// subject reads as furniture however it is dressed.
 //
-// It is the only instrument conn has that works on peripheral vision.
-// The rail cannot catch your eye: when you are working your eyes are in
-// the slot, and the watch is beside them unread. The bar spans the
-// window under both, and a dark row that lights is seen without being
-// looked at. That is what the row is worth, and it is only worth it
-// while the row is dark the rest of the time — so its ground is the
-// window's own, and at rest there is nothing there to tell it from the
-// padding around the client.
+// The slot is what nothing else speaks for. The pane you work in has no
+// title, no header and no border label, and its identity changes under
+// you: a chord swaps it for the other process, s opens another. So the
+// bar is your row — the row of the watch you are standing inside, in the
+// watch's own words, with the place it works in, which the watch puts in
+// a block's title and a row alone does not carry.
 //
-// On the left are the lamps for what the keys are doing, which is the
-// half conn cannot see from inside its own pane — a chord hanging, a
-// pane in copy mode, a kill waiting on its second key — and beside them
-// what conn has to say, which is the answer to a key just pressed and
-// stands until the next one.
+// It is dark while the keys are on the rail. There you are reading the
+// watch, which says all of this and more, and a row labelling what you
+// are already looking at is the furniture again. tmux decides that for
+// itself from which pane is active, so conn is not asked.
 //
-// On the right is the one question conn asks of you: an agent stopped on
-// something it put to you and cannot go on without. It blinks, because a
-// lamp that blinks is the one thing on a screen that reaches the corner
-// of an eye.
-//
-// The blinking is the clock's, not conn's and not the terminal's. The
-// attribute was the obvious way and it does not work: the terminfo
-// advertises blink and tmux duly sends it, and a terminal is free to
-// draw it steady — Ghostty does. So the lamp is lit on an odd second and
-// dark on an even one, which tmux can say for itself: the status line is
-// run through strftime before the conditionals in it are read, so the
-// format can ask what second it is. tmux redraws the line each second to
-// do it, which costs no process at all — where conn blinking it would be
-// two a cycle for as long as anything waited. The beat is a second
-// either way, rather than the console's second and a half, because a
-// second is the finest tmux has.
+// Beside it are the two things conn cannot see from inside its own pane:
+// a chord hanging and a pane in copy mode. They are the keys' business
+// and the keys are in this pane, which is the bar's subject too.
 func bar() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
 set -g status-position bottom
 set -g status-justify left
 set -g status-left-length 200
-set -g status-right-length 60
-# The line is drawn each second, which is what the waiting lamp blinks
-# on. Every lamp is set when it changes; the beat only re-reads them.
+set -g status-right-length 0
+set -g status-right ""
+# The line is drawn each second so the lamps and the row are re-read
+# without conn being asked; both are set when they change.
 set -g status-interval 1
 # conn has no tabs, so the middle of the line is nothing.
 set -g window-status-format ""
 set -g window-status-current-format ""
 `)
-	// The window's own ground, so a panel with nothing lit is not a bar.
+	// The window's own ground, so a bar with nothing on it is not a bar.
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", hex(groundColor), grayHex)
-	// The mode lamps, in the order the states shadow one another: a chord
-	// hanging covers everything, copy mode covers what conn says of
-	// itself, and with none of them there is no lamp. conn's words are
-	// the orange, which is "you, here" everywhere else in conn.
-	mode := fmt.Sprintf("#{?client_prefix,#[fg=%s bold]PREFIX,"+
-		"#{?pane_in_mode,#[fg=%s bold]COPY,"+
-		"#{?#{!=:#{@conn_mode},},#[fg=%s bold]#{@conn_mode},}}}", cursorHex, cursorHex, cursorHex)
-	fmt.Fprintf(&b, "set -g status-left \"%s#[fg=%s nobold]  #{@conn_note}\"\n", mode, scheme[1])
-	// Lit on the odd second, dark on the even: the blink is the clock's.
-	fmt.Fprintf(&b, "set -g status-right \"#{?#{m:*[13579],%%S},#[fg=%s bold]#{@conn_owed},}\"\n", scheme[1])
+	// On the rail there is nothing to say: the watch is right there.
+	onRail := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
+	lamps := fmt.Sprintf("#{?client_prefix,#[fg=%s bold]PREFIX  ,#{?pane_in_mode,#[fg=%s bold]COPY  ,}}",
+		cursorHex, cursorHex)
+	fmt.Fprintf(&b, "set -g status-left \"%s#{?%s,,#{@conn_in}}\"\n", lamps, onRail)
 	return b.String()
 }
 
-// say lights the panel: what conn has to say, the mode its lamp shows,
-// and what is held up on you. It asks the clients to draw, so the bar
-// never lags the key that changed it.
-func (s *server) say(note, mode, owed string) error {
-	_, err := s.run("set-option", "-g", "@conn_note", note,
-		";", "set-option", "-g", "@conn_mode", mode,
-		";", "set-option", "-g", "@conn_owed", owed,
-		";", "refresh-client", "-S")
+// barCommand is how much of a command the bar carries. The row has the
+// window's width to spread over, but a command is the one thing on it
+// with no length to speak of — an agent's is a page — and what tells one
+// process from another is at the front of it.
+const barCommand = 60
+
+// barLine is the row conn puts on the bar, dressed the way the watch
+// dresses the same words: the place in the parchment it titles a block
+// with, the kind and the figures in the gray of the columns, the command
+// in the ink and in its own case, and the one word that asks something
+// of you in the color that asks.
+func barLine(place, kind, command, age, status string) string {
+	dot := fmt.Sprintf("#[fg=%s]  ·  ", grayHex)
+	word := grayHex
+	if status == statusWaiting {
+		word = scheme[1]
+	}
+	parts := []string{
+		fmt.Sprintf("#[fg=%s bold]%s#[nobold]", scheme[7], place),
+		fmt.Sprintf("#[fg=%s]%s", grayHex, kind),
+		fmt.Sprintf("#[fg=%s]%s", hex(inkColor), command),
+	}
+	if age != "" {
+		parts = append(parts, fmt.Sprintf("#[fg=%s]%s", grayHex, age))
+	}
+	parts = append(parts, fmt.Sprintf("#[fg=%s bold]%s#[nobold]", word, status))
+	return strings.Join(parts, dot)
+}
+
+// say puts the row conn has for the bar on the server, and asks the
+// clients to draw, so the bar never lags the key that changed it.
+func (s *server) say(in string) error {
+	_, err := s.run("set-option", "-g", "@conn_in", in, ";", "refresh-client", "-S")
 	return err
 }
 

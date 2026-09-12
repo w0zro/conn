@@ -165,42 +165,29 @@ cursor left where it was would pick out the one row in the pane that is not
 what is in the slot.
 
 Across the foot of the window, under the rail and the slot alike, is the
-bar. It is tmux's status line, and it is an annunciator panel rather than a
-status line: dark, saying nothing at all, until something lights it. Its
-ground is the window's own, so at rest there is nothing there to tell the row
-from the padding around the client.
+bar, and its subject is the slot: the thing you are in. Every other surface
+conn draws owns something — the console is the machine, the watch is the
+work, the look is one row, the list is the projects — and the slot is what
+nothing else speaks for. The pane you work in has no title, no header and no
+border label, and its identity changes under you: a chord swaps it for the
+other process, `s` opens another.
 
-A row that always says something is a row nobody reads, and most of what a
-status line carries — where the keys are, who you are, what time it is — you
-already know or do not need. What conn puts there is what you would want to
-be interrupted for, and nothing else ever. On the left are lamps for what the
-keys are doing, which is the half conn cannot see from inside its own pane:
-`PREFIX` while a chord hangs, `COPY` in a pane in copy mode, `CONFIRM` while
-a kill waits on its second key. Beside them, whatever conn has to say — the
-note that went wrong reaching something, the question a kill asks — which
-stands until the next key. On the right is the one question conn asks of you:
-`WAITING`, the count when there is more than one, and how long the one held
-up longest has waited, in its largest unit alone. A figure read from the
-corner of the eye should hold still, and the watch has it to the second when
-you turn to deal with it.
+So the bar is your row: the row of the watch you are standing inside, in the
+watch's own words, with the place it works in — which the watch says in a
+block's title and a row alone does not carry. The age is in its largest unit
+alone and nothing under a minute, so the row holds still; the watch has it
+to the second when you turn to it. Beside it are the two things conn cannot
+see from inside its own pane: `PREFIX` while a chord hangs, and `COPY` in a
+pane in copy mode. They are the keys' business, and the keys are in this
+pane, which is the bar's subject too.
 
-The bar is the only instrument conn has that works on peripheral vision. The
-rail cannot catch your eye: when you are working your eyes are in the slot,
-and the watch is beside them unread. A dark row that lights is seen without
-being looked at, which is what the row is worth — and it is only worth it
-while the row is dark the rest of the time. The waiting lamp blinks, since a
-lamp that blinks is the one thing on a screen that reaches the corner of an
-eye. The blinking is the clock's: the lamp is lit on an odd second and dark
-on an even one, which tmux works out for itself — the status line is run
-through `strftime` before the conditionals in it are read, so the format can
-ask what second it is. The blink attribute was the obvious way and it does
-not work: the terminfo advertises blink, tmux duly sends it, and a terminal
-is free to draw it steady, as Ghostty does.
-
-Two rows the rail used to spend on itself are the bar's: the foot, which held
-a note until the next key, and the right-hand side of the head, which held
-the station and the clock. Both were the session's business rather than the
-list's, and the rail's forty-four columns are all list now.
+It is dark while the keys are on the rail. There you are reading the watch,
+which says all of this and more, and a row labelling what you are already
+looking at is furniture. tmux decides that for itself from which pane is
+active, so conn is not asked. The bar's ground is the window's own, so with
+nothing on it there is nothing to tell the row from the padding around the
+client. conn writes it when the row changes — when the slot changes hands,
+or the thing in it comes to stand differently — and never on a beat.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

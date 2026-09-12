@@ -4,7 +4,6 @@ import (
 	"maps"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -153,9 +152,9 @@ type model struct {
 	// already knows.
 	looking  bool
 	entering bool // the console is waiting on a reading to go to the watch
-	// What conn last put on the bar, so a lamp is written when it changes
+	// The row conn last put on the bar, so it is written when it changes
 	// and not on every pass through Update.
-	saidNote, saidMode, saidOwed string
+	saidIn string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -236,14 +235,16 @@ func (m model) report() report {
 // watchReport is the watch's words as things stand.
 func (m model) watchReport() watchReport {
 	w := composeWatch(m.places, m.panes, m.slot, m.projRoots, m.head.session.home, m.now, m.watchErr)
-	w.inside, w.lit = m.inside, m.lit
+	w.inside, w.lit, w.note = m.inside, m.lit, m.note
 	return w
 }
 
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	return composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
+	b := composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
+	b.note = m.note
+	return b
 }
 
 func (m model) projectRows() []project {
@@ -416,48 +417,58 @@ func (m model) published(again bool) model {
 	return m
 }
 
-// saying lights the bar, when any of its lamps has changed since the
-// last telling. Going through here is the point: a note is set from a
-// dozen places and every one of them would otherwise have to remember to
-// say so.
+// saying puts the bar's row on the server, when it has changed since the
+// last telling. Going through here is the point: the slot changes hands
+// from several places and every one of them would otherwise have to
+// remember to say so.
 //
-// The bar is tmux's line and conn reaches it by setting options on the
-// server, which is a process — so the lamps are written when they
-// change and never on a beat. At rest nothing changes and nothing is
-// written at all, which is what a dark panel is worth. Off the loop,
-// since a process between a key and what it does is a key that feels
-// slow.
+// The bar is tmux's line and conn reaches it by setting an option, which
+// is a process — so it is written when the row changes, which is when
+// the slot changes hands or the thing in it comes to stand differently,
+// and never on a beat. The age in it is the coarse one for that reason:
+// a figure that ticked would be a process a second for as long as conn
+// was up.
 func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	mode := ""
-	if m.kill != nil {
-		// The kill's question takes the next key whatever it is, which is
-		// a mode that swallows keys and belongs in a lamp.
-		mode = "CONFIRM"
-	}
-	owed := ""
-	if round := waitingRound(m.places); len(round) > 0 {
-		// The one question conn asks of you, and the only thing on the
-		// bar that is about the work rather than about the keys: how many
-		// are held up, and how long the one held up longest has waited.
-		// The count only when it is more than one, since WAITING 1 says
-		// nothing WAITING does not.
-		owed = "WAITING"
-		if len(round) > 1 {
-			owed += " " + strconv.Itoa(len(round))
-		}
-		if held := about(m.now.Sub(round[0].since)); held != "" && !round[0].since.IsZero() {
-			owed += "  ·  " + held
-		}
-	}
-	if m.note == m.saidNote && mode == m.saidMode && owed == m.saidOwed {
+	in := m.slotRow()
+	if in == m.saidIn {
 		return m, nil
 	}
-	m.saidNote, m.saidMode, m.saidOwed = m.note, mode, owed
-	note, srv := m.note, m.srv
-	return m, func() tea.Msg { _ = srv.say(note, mode, owed); return nil }
+	m.saidIn = in
+	srv := m.srv
+	return m, func() tea.Msg { _ = srv.say(in); return nil }
+}
+
+// slotRow is the row of the watch you are standing inside: the process
+// in the slot, in the watch's own words, with the place it works in —
+// which the watch says in a block's title and a row alone does not
+// carry. Nothing when the slot holds conn's own furniture, a hold in an
+// empty slot or the look, since neither is somewhere you are working.
+//
+// A pane holds a whole tree and the head of it is what the pane is, the
+// same row the slot's mark goes on, so that is the row the bar says.
+func (m model) slotRow() string {
+	if m.slot == "" || m.panes[m.slot].hold {
+		return ""
+	}
+	pid, _, ok := headOf(m.places, m.slot)
+	if !ok {
+		return ""
+	}
+	for _, pl := range m.places {
+		for _, e := range pl.entries {
+			if e.pid != pid {
+				continue
+			}
+			return barLine(
+				placeName(pl.path, m.projRoots, m.head.session.home),
+				e.kind, fit(e.command, barCommand, false),
+				about(m.now.Sub(e.started)), e.status)
+		}
+	}
+	return ""
 }
 
 func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -957,7 +968,9 @@ func (m model) resumeRows() []conversation {
 
 // resumeReport is the picker's words as things stand.
 func (m model) resumeReport() resumeReport {
-	return composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
+	b := composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
+	b.note = m.note
+	return b
 }
 
 // resumeKey answers a key on the picker, which is a line typed into the

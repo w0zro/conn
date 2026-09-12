@@ -80,19 +80,19 @@ func TestWatchLaysOut(t *testing.T) {
 }
 
 // A watch taller than the terminal scrolls to keep the cursor in view
-// and says how many rows are above and below. Nine rows are nine rows of
-// it: the foot it used to keep against a note is the bar's now.
+// and says how many rows are above and below. The foot is kept for a
+// note, so nine rows of terminal are eight of watch.
 func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 	rows := drawWatch(testWatch(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 11 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 12 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawWatch(testWatch(), 70301, 100, 9, plain)
 	text = texts(rows)
 	// The cursor's mark keeps the margin; the row it marks still steps
 	// in for the level it is at.
-	if len(rows) != 9 || !strings.Contains(text, "… 11 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
+	if len(rows) != 9 || !strings.Contains(text, "… 12 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawWatch(testWatch(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
@@ -296,9 +296,10 @@ func TestKeysInsideTheServer(t *testing.T) {
 }
 
 // The watch says no keys. They are learned once; a legend on every row
-// of every reading is a thing to read past forever. Nor does it keep a
-// row back for a note: what conn has to say is on the bar, and the foot
-// is the list's like every other row.
+// of every reading is a thing to read past forever. The bottom row is
+// kept clear all the same, so a note has a place to land that does not
+// move the rows — and it lands under the list, where the eye that
+// pressed the key is.
 func TestTheWatchSaysNoKeys(t *testing.T) {
 	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
 	for _, inside := range []bool{false, true} {
@@ -312,12 +313,14 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 			}
 		}
 	}
-	// Nine rows of a watch that will not fit are nine rows of it: the
-	// foot carries the count of what is out of view, not a blank kept
-	// against a note that is no longer drawn here.
-	rows := drawWatch(w, 70301, 100, 9, plain)
-	if len(rows) != 9 || !strings.Contains(rows[8].text, "ABOVE") {
-		t.Errorf("the foot is not the list's: %q", rows[8].text)
+	rows := drawWatch(w, 67040, 120, 40, plain)
+	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
+		t.Errorf("the bottom row is not kept clear: %q", rows[39].text)
+	}
+	w.note = "NOTHING UNDER THE CURSOR"
+	rows = drawWatch(w, 67040, 120, 40, plain)
+	if len(rows) != 40 || !strings.Contains(rows[39].text, w.note) {
+		t.Errorf("a note has no place to land: %q", rows[39].text)
 	}
 }
 

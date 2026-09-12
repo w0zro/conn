@@ -183,9 +183,12 @@ conn; copy mode takes the blue, being a state of the pane rather than a
 thing you are doing. The row stands on the raised ground a chosen row sits
 on everywhere else, and keeps it whether or not there is a mode to show: a
 bar the color of the window reads as the last line of whatever pane is over
-it, and a bar that comes and goes is not somewhere to look. Its line begins
-where the rail's own rows begin, so its first character stands under the
-watch's.
+it, and a bar that comes and goes is not somewhere to look. The mode begins
+at the edge — everything else conn draws is inset three columns, but that is
+a margin for reading down a page, and a block of color is not read but seen,
+and a block that starts where the screen starts is seen first. The word
+keeps its own space inside the block, so what meets the edge is the color
+and not the letters.
 
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its

@@ -641,8 +641,13 @@ set -g remain-on-exit on
 // everywhere else in conn — and keeps it whether or not there is a mode
 // to show. A bar the color of the window reads as the last line of
 // whatever pane is over it, and a bar that comes and goes is not
-// somewhere to look. Its line begins where the rail's own rows begin, so
-// its first character stands under the watch's.
+// somewhere to look.
+//
+// The mode begins at the edge. Everything conn draws is inset three
+// columns, but that is a margin for reading down a page of text, and a
+// block of color is not read: it is seen, and a block that starts where
+// the screen starts is seen first. The word keeps its own space inside
+// the block, so it is the color against the edge and not the letters.
 //
 // Nothing here is conn's to write. The whole bar is a format tmux reads
 // for itself, so conn sets no option and runs no process for it.
@@ -667,15 +672,10 @@ set -g window-status-current-format ""
 	mode := func(word, color string) string {
 		return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", color, hex(groundColor), word)
 	}
-	fmt.Fprintf(&b, "set -g status-left \"%s#{?client_prefix,%s,#{?pane_in_mode,%s,}}\"\n",
-		barMargin, mode("PREFIX", cursorHex), mode("COPY", scheme[12]))
+	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,}}\"\n",
+		mode("PREFIX", cursorHex), mode("COPY", scheme[12]))
 	return b.String()
 }
-
-// barMargin is the blank the bar's line begins with, which is the blank
-// the rail's own rows begin with: the first character of the bar stands
-// under the first character of the watch.
-const barMargin = "   "
 
 // shellQuote quotes a path for a tmux command line.
 func shellQuote(s string) string {

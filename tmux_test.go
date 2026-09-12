@@ -71,7 +71,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		// The bar stands on the raised ground, which is what a chosen row
 		// sits on: a surface of its own and not the last line of the pane
 		// over it. Its text begins where the rail's does.
-		`set -g status-style "bg=` + borderHex + `,fg=#8B8272"`, `set -g status-left "   `,
+		`set -g status-style "bg=` + borderHex + `,fg=#8B8272"`,
 		// A mode wears its color as a ground, parted by spaces rather
 		// than commas so the conditional around it is not cut in two.
 		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",

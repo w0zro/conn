@@ -323,8 +323,11 @@ func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 // believed only of a process that began then; a file too old to say is
 // believed only if its status changed after the process began.
 func TestASessionFileIsBelievedOnlyOfItsOwnProcess(t *testing.T) {
-	began := time.Date(2026, 9, 12, 2, 18, 49, 0, time.Local)
-	f := sessionFile{ProcStart: began.Format(procStartLayout)}
+	// As read off a live machine in Pacific time: Claude writes the
+	// moment in UTC, and ps said 09:43:50 for the same process.
+	pacific, _ := time.LoadLocation("America/Los_Angeles")
+	began := time.Date(2026, 9, 12, 9, 43, 50, 0, pacific)
+	f := sessionFile{ProcStart: "Sat Sep 12 16:43:50 2026"}
 	if !f.wroteBy(began) || !f.wroteBy(began.Add(time.Second)) {
 		t.Error("the file's own process is not believed")
 	}

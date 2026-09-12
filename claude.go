@@ -159,7 +159,8 @@ type sessionFile struct {
 }
 
 // procStartLayout is how Claude writes the moment its process began:
-// the C library's ctime, in local time.
+// the C library's ctime, in UTC. Read off a live file against ps on a
+// Pacific machine: the file said 16:43:50 and ps said 09:43:50.
 const procStartLayout = "Mon Jan _2 15:04:05 2006"
 
 // wroteBy says whether this file was written by a process that began
@@ -174,7 +175,7 @@ func (f sessionFile) wroteBy(started time.Time) bool {
 		return true
 	}
 	if f.ProcStart != "" {
-		at, err := time.ParseInLocation(procStartLayout, f.ProcStart, time.Local)
+		at, err := time.ParseInLocation(procStartLayout, f.ProcStart, time.UTC)
 		if err != nil {
 			return true
 		}

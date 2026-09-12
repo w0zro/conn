@@ -145,7 +145,8 @@ type model struct {
 	// reading corrects it — asking tmux on the keypress would be a
 	// process between the key and what it does, for something conn
 	// already knows.
-	looking bool
+	looking  bool
+	entering bool // the console is waiting on a reading to go to the watch
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited  int
@@ -443,19 +444,31 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
+		// The reading the console was waiting on: the watch goes up with
+		// its rows already in it, drawn at the rail's width, and the slot
+		// opens beside a frame that is already the shape it will be.
+		var cmds []tea.Cmd
+		if m.entering {
+			m.entering, m.view = false, viewWatch
+			if m.inside {
+				cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }, ""))
+			}
+		}
 		if m.view == viewWatch {
 			switch {
 			// A home without its slot gets one; the next reading finds it.
 			case m.inside && msg.noSlot:
-				return m, tea.Batch(m.watchTick(), m.openSlot())
+				cmds = append(cmds, m.watchTick(), m.openSlot())
 			// A slot whose pane died stays the shape it was; only what is
 			// in it is replaced, so the rail never has to give up its
 			// width and take it back.
 			case m.inside && msg.slotDead:
-				return m, tea.Batch(m.watchTick(), m.reviveSlot())
+				cmds = append(cmds, m.watchTick(), m.reviveSlot())
+			default:
+				cmds = append(cmds, m.watchTick())
 			}
-			return m, m.watchTick()
 		}
+		return m, tea.Batch(cmds...)
 	case watchTickMsg:
 		if msg.gen != m.watchGen || m.view != viewWatch {
 			return m, nil
@@ -530,8 +543,23 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		m.stage = lastStage(m.report())
 		return m, nil
 	case m.view == viewConsole:
-		m.view = viewWatch
+		// The console holds until the watch has something to show. Going
+		// at once put an empty watch up, filled it a tenth of a second
+		// later when the table had been read, and moved it to the rail's
+		// width after that — three screens to arrive at one. The console
+		// is a still page and a moment more of it is not seen, where a
+		// watch assembling itself is.
+		//
+		// Only the first time. Coming back from the console the rows of
+		// the last stay are still in hand, a couple of seconds old, and
+		// the watch goes up with them at once while the reading on its
+		// way brings them up to date.
 		m.watchGen++
+		if len(m.places) == 0 && m.watchErr == "" {
+			m.entering = true
+			return m, m.readWatch()
+		}
+		m.view = viewWatch
 		if m.inside {
 			return m, tea.Batch(m.readWatch(), m.serverCmd(func() error { return m.srv.narrow() }, ""))
 		}
@@ -859,19 +887,38 @@ func (m model) advance() (tea.Model, tea.Cmd) {
 
 // View is the view that is up. The console shows as far as it has come
 // on: rows of a later stage are the ground until their turn.
+// cols is the width conn draws in, which is the rail's own where conn is
+// a rail. Inside the server, off the console, the rail is railWidth: conn
+// holds tmux to that (see the resize in WindowSizeMsg) rather than taking
+// whatever width it is given, so it draws to it as well instead of
+// waiting to be told the pane has become one. That is what makes going
+// to the watch one change of the screen — the frame conn paints is
+// already the shape the pane is about to be, so the split has nothing to
+// reflow and no frame is ever drawn to a width that is on its way out.
+//
+// Never wider than the terminal: a window narrower than the rail is
+// still the whole of what there is to draw in.
+func (m model) cols() int {
+	if m.inside && m.view != viewConsole {
+		return min(railWidth, m.width)
+	}
+	return m.width
+}
+
 func (m model) View() tea.View {
 	var rows []row
+	width := m.cols()
 	switch m.view {
 	case viewWatch:
-		rows = drawWatch(m.watchReport(), m.cursor, m.width, m.height, m.p)
+		rows = drawWatch(m.watchReport(), m.cursor, width, m.height, m.p)
 	case viewProjects:
-		rows = drawProjects(m.projectsReport(), m.pcursor, m.width, m.height, m.p)
+		rows = drawProjects(m.projectsReport(), m.pcursor, width, m.height, m.p)
 	case viewResume:
-		rows = drawResume(m.resumeReport(), m.rcursor, m.width, m.height, m.p)
+		rows = drawResume(m.resumeReport(), m.rcursor, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit
-		rows = screen(r, m.width, m.height, m.p)
+		rows = screen(r, width, m.height, m.p)
 	}
 	ground := rows[0].text // the first row is blank, on the ground, at the rows' width
 	texts := make([]string, 0, len(rows))

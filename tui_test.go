@@ -54,8 +54,8 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if lastStage(m.report()) != stageChecks+8 {
 		t.Errorf("last stage is %d", lastStage(m.report()))
 	}
-	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewWatch {
-		t.Errorf("a key at the end should continue to the watch")
+	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewConsole || !next.(model).entering {
+		t.Errorf("a key at the end should read the watch and hold the console for the answer")
 	}
 	before := m.report().clock
 	next, cmd = m.Update(clockMsg{})

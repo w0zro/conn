@@ -148,8 +148,15 @@ what is in the slot.
 conn holds a tmux server of its own, on a socket under `~/.local/state/conn`
 (or where `CONN_SOCKET` says), and the terminal is on it while conn is up. Its
 home window is a rail on the left, which is the watch, and a slot on the
-right, which is the process reached from it: `s` opens a shell at the place
-under the cursor and puts it in the slot, `a` opens claude there instead,
+right, which is the process reached from it. The rail's width is conn's, not
+the terminal's: conn holds tmux to it and draws to it, so the first watch is
+painted in the shape the pane is about to be and the split that opens the
+slot has nothing to reflow. The console holds until that first reading is in
+hand rather than putting an empty watch up and filling it — the console is a
+still page, and a moment more of it is not seen where a watch assembling
+itself is. Coming back to the watch from the console the rows of the last
+stay are still in hand, so it goes up at once with them: `s` opens a shell at
+the place under the cursor and puts it in the slot, `a` opens claude instead,
 `enter` puts the process under the cursor there, and what leaves the slot
 goes back to a window of its own, out of sight, where it keeps running. `x`
 asks to end the cursor's entry, arming the question rather than the ending:

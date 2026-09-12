@@ -158,14 +158,19 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	m.stage = lastStage(m.report())
 	next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
-	if m.view != viewWatch || cmd == nil {
-		t.Fatalf("a key at the end should go to the watch and read it")
+	if m.view != viewConsole || !m.entering || cmd == nil {
+		t.Fatalf("a key at the end should read the watch and hold the console for the answer")
 	}
-	if strings.Contains(m.View().Content, "CONN  WATCH") || !strings.Contains(m.View().Content, "NOTHING ON WATCH") {
-		t.Errorf("the watch should be up, empty until read:\n%s", m.View().Content)
+	// The console holds rather than putting an empty watch up: the watch
+	// arrives with its rows in it, in one change of the screen.
+	if !strings.Contains(m.View().Content, "START-UP CHECKS") {
+		t.Errorf("the console should still be up while the reading is on its way:\n%s", m.View().Content)
 	}
 	next, cmd = m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil), gen: m.watchGen})
 	m = next.(model)
+	if m.view != viewWatch || m.entering {
+		t.Fatalf("the reading the console was waiting on did not put the watch up")
+	}
 	if cmd == nil || !strings.Contains(m.View().Content, "claude --resume") {
 		t.Errorf("the watch should show what was read and set the tick going:\n%s", m.View().Content)
 	}
@@ -183,10 +188,15 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	if _, cmd := m.Update(watchTickMsg{gen: m.watchGen}); cmd != nil {
 		t.Error("a tick off the watch should be dropped")
 	}
+	// Coming back, the rows of the last stay are still in hand, so the
+	// watch goes up with them at once rather than holding for a reading.
 	next, cmd = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
-	if m.view != viewWatch || cmd == nil || m.watchGen != 2 {
+	if m.view != viewWatch || m.entering || cmd == nil || m.watchGen != 2 {
 		t.Errorf("a key on the finished console should return to the watch and read it afresh: gen %d", m.watchGen)
+	}
+	if !strings.Contains(m.View().Content, "claude --resume") {
+		t.Errorf("the watch came back empty rather than with the rows it had:\n%s", m.View().Content)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd == nil {
 		t.Error("q should close conn from the watch")
@@ -394,5 +404,34 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 		if !strings.Contains(out, in) {
 			t.Errorf("outside the server a command is not in the ink:\n%s", out)
 		}
+	}
+}
+
+// The rail is conn's width, not the terminal's. Inside the server, off
+// the console, conn draws to railWidth rather than to whatever the pane
+// happens to be at the moment — it holds tmux to that width anyway, and
+// drawing to it means the frame conn paints is already the shape the
+// pane is about to be, so the split that opens the slot has nothing to
+// reflow.
+func TestTheRailDrawsToItsOwnWidth(t *testing.T) {
+	m := model{p: plain, width: 140, height: 40, inside: true, view: viewWatch}
+	if got := m.cols(); got != railWidth {
+		t.Errorf("the rail drew to %d columns, not the rail's %d", got, railWidth)
+	}
+	// The console is the whole window, and takes the width it is given.
+	m.view = viewConsole
+	if got := m.cols(); got != 140 {
+		t.Errorf("the console drew to %d columns, not the window's 140", got)
+	}
+	// Outside the server there is no slot to leave room for.
+	m.view, m.inside = viewWatch, false
+	if got := m.cols(); got != 140 {
+		t.Errorf("outside the server the watch drew to %d columns", got)
+	}
+	// A window narrower than the rail is still the whole of what there
+	// is to draw in.
+	m.inside, m.width = true, 30
+	if got := m.cols(); got != 30 {
+		t.Errorf("a 30-column window drew to %d", got)
 	}
 }

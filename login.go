@@ -54,10 +54,10 @@ func readLogin() login {
 		s.shellVer = firstVersion(run(s.shell, "--version"))
 	}
 	s.tty = ttyName()
-	s.terminal = os.Getenv("TERM_PROGRAM")
-	s.terminalVer = os.Getenv("TERM_PROGRAM_VERSION")
 	s.tmux = os.Getenv("TMUX") != ""
-	s.sshFrom = sshOrigin()
+	client := tmuxEnvironment()
+	s.terminal, s.terminalVer = terminalProgram(client)
+	s.sshFrom = sshOrigin(client)
 	s.lang = join(" · ", os.Getenv("LANG"), os.Getenv("LC_ALL"))
 	s.zone = zoneName()
 	s.cwd, _ = os.Getwd()
@@ -240,6 +240,25 @@ func readStateDir(home string) stateDir {
 	}
 }
 
+// terminalProgram is the terminal conn is being looked at through, and
+// the version it gives for itself.
+//
+// Inside tmux, TERM_PROGRAM is tmux: the multiplexer announces itself
+// in the variable the terminal would have used. The row read TMUX 3.5A
+// · IN TMUX, which says tmux twice and never says what is drawing the
+// screen. What the attached client brought with it is asked for
+// instead, which conn's own server is told to keep current as clients
+// come and go. A terminal that announces nothing, or a tmux that was
+// not told to carry the answer, leaves the row with the one thing that
+// is true of it: that this is inside tmux.
+func terminalProgram(client map[string]string) (string, string) {
+	name, version := os.Getenv("TERM_PROGRAM"), os.Getenv("TERM_PROGRAM_VERSION")
+	if name != "tmux" {
+		return name, version
+	}
+	return client["TERM_PROGRAM"], client["TERM_PROGRAM_VERSION"]
+}
+
 // sshOrigin is the address this session is reached from over ssh, and
 // is blank where nothing says it is reached from anywhere.
 //
@@ -256,21 +275,38 @@ func readStateDir(home string) stateDir {
 // variable as each client attaches, and it is the client that is
 // either here or somewhere else. A server that answers -SSH_CONNECTION
 // is saying the variable is unset, which is the same silence.
-func sshOrigin() string {
-	if f := strings.Fields(os.Getenv("SSH_CONNECTION")); len(f) > 0 {
-		return f[0]
+func sshOrigin(client map[string]string) string {
+	origin := os.Getenv("SSH_CONNECTION")
+	if origin == "" {
+		origin = client["SSH_CONNECTION"]
 	}
-	socket, _, found := strings.Cut(os.Getenv("TMUX"), ",")
-	if !found || socket == "" {
-		return ""
-	}
-	out := run("tmux", "-S", socket, "show-environment", "SSH_CONNECTION")
-	value, ok := strings.CutPrefix(strings.TrimSpace(out), "SSH_CONNECTION=")
-	if !ok {
-		return ""
-	}
-	if f := strings.Fields(value); len(f) > 0 {
+	if f := strings.Fields(origin); len(f) > 0 {
 		return f[0]
 	}
 	return ""
+}
+
+// tmuxEnvironment is what the tmux server conn is inside holds, which
+// is what the client that last attached brought with it. It is asked
+// once and read for whatever the station wants of it, since it is a
+// process to ask and the answer is the whole environment either way.
+//
+// A variable the server has no value for is written with a leading
+// minus, which is tmux saying it is unset, and is left out here: that
+// is the same silence as never having asked. Outside tmux there is
+// nobody to ask and the answer is nothing.
+func tmuxEnvironment() map[string]string {
+	socket, _, found := strings.Cut(os.Getenv("TMUX"), ",")
+	if !found || socket == "" {
+		return nil
+	}
+	held := map[string]string{}
+	for _, line := range strings.Split(run("tmux", "-S", socket, "show-environment"), "\n") {
+		name, value, ok := strings.Cut(line, "=")
+		if !ok || strings.HasPrefix(name, "-") {
+			continue
+		}
+		held[name] = value
+	}
+	return held
 }

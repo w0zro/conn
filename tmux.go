@@ -602,6 +602,13 @@ set-environment -g COLORTERM truecolor
 set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 # A program in a pane can tell it is in conn, and dress accordingly.
 set-environment -g CONN 1
+# The terminal a client is attached from announces itself in
+# TERM_PROGRAM, which tmux then sets to its own name inside a pane. The
+# server is told to keep the client's own answer current as clients
+# come and go, so the console can say what is actually drawing the
+# screen rather than saying tmux twice. The list is added to rather
+# than set, since what is in it already is tmux's own business.
+set -ga update-environment " TERM_PROGRAM TERM_PROGRAM_VERSION"
 set -g allow-passthrough on
 set -g display-time 3000
 # A pane whose process ends stays instead of closing, so a killed shell

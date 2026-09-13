@@ -198,6 +198,7 @@ func (f sessionFile) wroteBy(started time.Time) bool {
 type ask struct {
 	Tool   string // the tool waiting on an answer, as Claude names it
 	Detail string // what it asked to do with it, in its own words
+	Doing  string // the same as the row says it: a verb and an object
 	Said   string // the last thing it said, when nothing is pending
 }
 
@@ -233,6 +234,105 @@ func askDetail(input map[string]json.RawMessage) string {
 		}
 	}
 	return ""
+}
+
+// doingWord is a tool call as the processes view's activity column says it: a
+// verb and an object, in the lower case a command is typed in. A file
+// is named by its base name, a command by itself, and anything else by
+// the tool's own name and what it was asked. A question put to the
+// operator is not an activity and gets no word.
+func doingWord(name string, input map[string]json.RawMessage) string {
+	field := func(k string) string {
+		var v string
+		if raw, ok := input[k]; ok && json.Unmarshal(raw, &v) == nil {
+			return flatten(v)
+		}
+		return ""
+	}
+	file := func() string {
+		for _, k := range []string{"file_path", "path", "notebook_path"} {
+			if v := field(k); v != "" {
+				return filepath.Base(v)
+			}
+		}
+		return ""
+	}
+	switch name {
+	case "Read":
+		return join(" ", "read", file())
+	case "Edit", "NotebookEdit", "MultiEdit":
+		return join(" ", "edit", file())
+	case "Write":
+		return join(" ", "write", file())
+	case "Bash":
+		return field("command")
+	case "Grep":
+		return join(" ", "grep", field("pattern"))
+	case "Glob":
+		return join(" ", "glob", field("pattern"))
+	case "Agent":
+		return join(" ", "agent", field("description"))
+	case "WebFetch":
+		return join(" ", "fetch", field("url"))
+	case "WebSearch":
+		return join(" ", "search", field("query"))
+	case "AskUserQuestion":
+		return ""
+	}
+	return join(" ", strings.ToLower(name), askDetail(input))
+}
+
+// A transcript as it was last read for a row's activity: its size and
+// its moment, and the word read off it. The file is the same file
+// until those change, and a working contact's transcript is read on
+// every beat otherwise.
+type activitySeen struct {
+	size int64
+	mod  time.Time
+	word string
+}
+
+// activities fills in what each working contact is doing, read off the
+// end of its transcript, and answers what to hold for the next
+// reading. Only a row that is WORKING is asked: an idle contact is
+// doing nothing, and a waiting one is stopped on a question, which is
+// not an activity and is not the row's to say.
+func activities(projects []project, was map[string]activitySeen) map[string]activitySeen {
+	next := map[string]activitySeen{}
+	var sessions map[int]sessionFile
+	for i := range projects {
+		for j := range projects[i].entries {
+			e := &projects[i].entries[j]
+			if e.kind != kindContact || e.status != statusWorking {
+				continue
+			}
+			if sessions == nil {
+				sessions = claudeSessions()
+			}
+			f, ok := sessions[e.pid]
+			if !ok || f.SessionID == "" || !f.wroteBy(e.started) {
+				continue
+			}
+			dir := e.cwd
+			if f.Cwd != "" {
+				dir = f.Cwd
+			}
+			path := sessionPath(dir, f.SessionID)
+			st, err := os.Stat(path)
+			if err != nil {
+				continue
+			}
+			seen := activitySeen{size: st.Size(), mod: st.ModTime()}
+			if w, ok := was[path]; ok && w.size == seen.size && w.mod.Equal(seen.mod) {
+				seen.word = w.word
+			} else {
+				seen.word = readAsk(path).Doing
+			}
+			e.doing = seen.word
+			next[path] = seen
+		}
+	}
+	return next
 }
 
 // readAsk reads the end of a transcript for what the contact is waiting
@@ -287,7 +387,7 @@ func readAsk(path string) ask {
 				switch it.Type {
 				case "tool_use":
 					if !answered[it.ID] && a.Tool == "" {
-						a.Tool, a.Detail = it.Name, askDetail(it.Input)
+						a.Tool, a.Detail, a.Doing = it.Name, askDetail(it.Input), doingWord(it.Name, it.Input)
 					}
 				case "text":
 					if t := flatten(it.Text); t != "" && a.Said == "" {

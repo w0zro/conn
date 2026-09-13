@@ -122,6 +122,9 @@ type entry struct {
 	// and what a contact says it is stopped on.
 	cwd    string
 	asking string
+	// What a working contact is doing, read off its transcript: the
+	// tool it has in flight, as a verb and an object.
+	doing string
 }
 
 // A project is a directory work is happening in, and the entries at it.

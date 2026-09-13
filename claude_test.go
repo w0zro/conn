@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -356,5 +357,82 @@ func TestASessionFileIsBelievedOnlyOfItsOwnProcess(t *testing.T) {
 	}
 	if !(sessionFile{}).wroteBy(began) || !f.wroteBy(time.Time{}) {
 		t.Error("with nothing to compare, the file is not believed")
+	}
+}
+
+// The activity column says a tool call as a verb and an object: a file
+// by its base name, a command by itself, a question not at all.
+func TestDoingWordIsAVerbAndAnObject(t *testing.T) {
+	raw := func(s string) map[string]json.RawMessage {
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(s), &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	for _, c := range []struct{ name, input, want string }{
+		{"Read", `{"file_path":"/w/conn/tui.go"}`, "read tui.go"},
+		{"Edit", `{"file_path":"/w/conn/tui.go","old_string":"a"}`, "edit tui.go"},
+		{"Write", `{"file_path":"/w/x.md","content":"..."}`, "write x.md"},
+		{"Bash", `{"command":"go test ./...","description":"Run the suite"}`, "go test ./..."},
+		{"Grep", `{"pattern":"since"}`, "grep since"},
+		{"Agent", `{"description":"Find the callers","prompt":"..."}`, "agent Find the callers"},
+		{"AskUserQuestion", `{"questions":[{"question":"Which?"}]}`, ""},
+		{"Unheard", `{"prompt":"do it"}`, "unheard do it"},
+	} {
+		if got := doingWord(c.name, raw(c.input)); got != c.want {
+			t.Errorf("doingWord(%s) = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// A working contact's row says the tool it has in flight, read off its
+// transcript; an idle one says nothing of the sort. The transcript is
+// read again only when the file has changed.
+func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
+	claude := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claude)
+	dir := "/w/conn"
+	if err := os.MkdirAll(filepath.Join(claude, "sessions"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(claude, "projects", encodePath(dir)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, pid := range []int{10, 11} {
+		body := `{"pid":` + strconv.Itoa(pid) + `,"sessionId":"s-` + strconv.Itoa(pid) + `","status":"busy","cwd":"` + dir + `"}`
+		if err := os.WriteFile(filepath.Join(claude, "sessions", strconv.Itoa(pid)+".json"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		lines := `{"type":"user","message":{"content":"do the thing"}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./..."}}]}}
+`
+		if err := os.WriteFile(sessionPath(dir, "s-"+strconv.Itoa(pid)), []byte(lines), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	projects := []project{{path: dir, entries: []entry{
+		{pid: 10, kind: kindContact, status: statusWorking, cwd: dir},
+		{pid: 11, kind: kindContact, status: statusIdle, cwd: dir},
+	}}}
+	was := activities(projects, nil)
+	if got := projects[0].entries[0].doing; got != "go test ./..." {
+		t.Errorf("the working contact is doing %q", got)
+	}
+	if got := projects[0].entries[1].doing; got != "" {
+		t.Errorf("the idle contact is doing %q", got)
+	}
+	if len(was) != 1 {
+		t.Errorf("%d transcripts were held, not the working one alone", len(was))
+	}
+	// The same file is not read again: the word held is answered.
+	for path := range was {
+		seen := was[path]
+		seen.word = "held"
+		was[path] = seen
+	}
+	activities(projects, was)
+	if got := projects[0].entries[0].doing; got != "held" {
+		t.Errorf("an unchanged transcript was read again: %q", got)
 	}
 }

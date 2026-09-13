@@ -43,7 +43,7 @@ func TestProcessesLaysOut(t *testing.T) {
 		// No name over it: that is the status line's now, at the bottom left
 		// of the window. The processes view begins with its rule and its
 		// columns.
-		"KIND    COMMAND", "TTY", "SINCE", "STATUS",
+		"KIND    ACTIVITY", "TTY", "SINCE", "STATUS",
 		// A project is named by what is left of its path once the root the
 		// checkouts are kept under is taken off it; one outside every
 		// root is written from ~, whole.

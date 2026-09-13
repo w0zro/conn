@@ -97,7 +97,7 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 		}
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, processRow{
-				pid: e.pid, kind: e.kind, command: e.asTyped(), tty: e.tty, since: sinceWord(e.since, now),
+				pid: e.pid, kind: e.kind, command: activityOf(e), tty: e.tty, since: sinceWord(e.since, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
 			})
@@ -107,13 +107,25 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 	return b
 }
 
+// activityOf is what a row's middle column says: for a working contact
+// the tool it has in flight, and for anything else its command as
+// typed, whose arguments are what it is doing. A contact with nothing
+// in flight says its command, which reads as the intelligence
+// composing.
+func activityOf(e entry) string {
+	if e.doing != "" {
+		return e.doing
+	}
+	return e.asTyped()
+}
+
 // projectName is what the processes view writes over a block: what is
 // left of the path once the root the checkouts are kept under is taken
 // off it. ~/projects/w0zro/conn is w0zro/conn. The root is the same for
-// every project shown and says nothing that tells one from
-// another, and it is said at the head of every block — the panel is
-// forty-four columns wide, and the part that tells them apart is the
-// part that should have them.
+// every project shown and says nothing that tells one from another, and
+// it is said at the head of every block — the panel is forty-four
+// columns wide, and the part that tells them apart is the part that
+// should have them.
 //
 // A project outside every root is written from ~ and whole: there is
 // nothing shared to take off it, and where it is is the only thing the
@@ -169,7 +181,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	l := c.line()
 	l.add(p.gray, "KIND")
 	l.to(kindCol)
-	l.add(p.gray, "COMMAND")
+	l.add(p.gray, "ACTIVITY")
 	if !panel {
 		l.to(ttyCol)
 		l.add(p.gray, "TTY")

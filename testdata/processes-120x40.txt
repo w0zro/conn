@@ -1,6 +1,6 @@
 
    ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   KIND    COMMAND                                                                         TTY        SINCE    STATUS
+   KIND    ACTIVITY                                                                        TTY        SINCE    STATUS
 
    ~
    SHELL   zsh                                                                             TTYS009             ACTIVE

@@ -1,6 +1,6 @@
 
    ──────────────────────────────────────────
-   KIND    COMMAND            SINCE    STATUS
+   KIND    ACTIVITY           SINCE    STATUS
 
    ~
    SHELL   zsh                         ACTIVE

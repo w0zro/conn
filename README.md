@@ -331,16 +331,25 @@ rather than a line of status: dark at rest, lit by what would be worth
 turning for. It has two halves, each at a fixed position, so the eye
 learns where to glance and an empty position is itself a reading.
 
-**6-2. THE KEYS.** On the left, the keys, and only what cannot be seen
-from the panel. A chord hanging is `PREFIX`, and it covers everything;
-whatever you were doing, the next key is one of the four. A pane in copy
-mode is `COPY`, its keys being its history's. Both belong to the client,
-and only tmux knows them: a conn drawing in the panel knows nothing of
-the client, and no amount of drawing on the panel will tell you either. A
-kill armed is `CONFIRM`, which is not a state you are in but a question
-waiting on you, and takes the next key whatever it is. Nothing else
-lights the left. A word saying `PROCESSES` while you are looking at the
-processes view is furniture.
+**6-2. THE KEYS.** On the left, where the keys are. A chord hanging is
+`PREFIX`, and it covers everything; whatever you were doing, the next key
+is one of the four. A pane in copy mode is `COPY`, where the keys walk
+the history instead. Only tmux knows those two: a conn drawing in the
+panel knows nothing of the client, and no amount of drawing on the panel
+will tell you either. A kill armed is `CONFIRM`, which is not a state you
+are in but a question waiting on you, and takes the next key whatever it
+is. Fourth is the panel view the keys are in, `PROCS`, `PROJECTS` or
+`SESSIONS`, which conn knows and tmux does not.
+
+The view's word was left off for a while, on the reasoning that a word
+saying `PROCS` while you are looking at the processes view is furniture.
+It is not. The three views are worked by different keys, and a letter
+that narrows the rows in projects and sessions runs a command in
+processes, so which of them has the keys is the same kind of state the
+other three words say. A question armed comes first: while it stands the
+view under it cannot be worked, and its word would be a lie. The position
+is dark when the keys are in the bay, and dark on the console, which
+covers the window and names itself.
 
 Each is a block of its color with the word knocked out of it, flush to
 the edge of the screen. A block is not read but seen, and one that starts
@@ -348,7 +357,9 @@ where the screen starts is seen first. The chord takes the orange, which
 is "you, here" everywhere in conn; copy mode the blue, being a state of
 the pane rather than a thing you are doing; the question the color a
 thing waiting on you is said in, so the two halves of the line speak one
-language.
+language. The view takes the gray conn writes its second rank of text in,
+the quietest of the four against either ground: the other three are
+conditions worth turning for, and this one is where you already are.
 
 **6-3. THE LAMPS.** On the right, the processes: one lamp for each row of
 the view, in the view's order, so a lamp's position on the line is a
@@ -367,10 +378,11 @@ eye, because when you are working your eyes are in the bay and the view
 is beside them unread. A dark line that lights is seen without being
 looked at, and only while it is dark the rest of the time.
 
-**6-5. COST.** conn writes the two things only it knows, the question and
-the lamps, each in an option of its own and each only when it changes:
-the question on a keypress, the lamps when a reading finds a process with
-a status different from the last. Never on a beat.
+**6-5. COST.** conn writes the two things only it knows, where its keys
+are and how every process stands, each in an option of its own and each
+only when it changes: the keys on a keypress, since only a key moves them
+between views or arms a question, and the lamps when a reading finds a
+process with a status different from the last. Never on a beat.
 
 ## SECTION 7. PROJECTS AND SESSIONS
 

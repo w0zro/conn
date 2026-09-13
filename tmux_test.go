@@ -197,7 +197,7 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_ask}", "#{@conn_lamps}",
+		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_lamps}",
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0",
 		// Each mode a block of its color, the ground knocked out of it:
@@ -209,11 +209,12 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 			t.Errorf("the status line lacks %q:\n%s", want, conf)
 		}
 	}
-	// Nothing lit at rest: with no chord, no copy mode and no question
-	// the left says nothing, and there is no name and no mode word.
+	// The conf itself names no mode of conn's: PREFIX and COPY are tmux's
+	// to know, and the word for the view is conn's, written into
+	// @conn_keys when it changes. The left is dark where that is empty.
 	left := conf[strings.Index(conf, "set -g status-left "):]
 	left = left[:strings.Index(left, "\n")]
-	for _, gone := range []string{"CONN", "WATCH", "CONSOLE", "RAIL"} {
+	for _, gone := range []string{"CONN", "PROCS", "PROJECTS", "SESSIONS", "CONSOLE"} {
 		if strings.Contains(left, gone) {
 			t.Errorf("the status line says %q at rest", gone)
 		}
@@ -235,21 +236,33 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
 	}}}
 
-	// Every view conn's keys can be in is dark: you can see where you are.
-	for _, v := range []int{viewConsole, viewProcesses, viewProjects, viewSessions} {
+	// Each panel view wears its own word, in the gray, and the console
+	// wears none: it covers the window and says which page it is itself.
+	for v, want := range map[int]string{
+		viewProcesses: "PROCS",
+		viewProjects:  "PROJECTS",
+		viewSessions:  "SESSIONS",
+	} {
 		m.view = v
-		if ask := m.ask(); ask != "" {
-			t.Errorf("the status line says %q with nothing asked", ask)
+		if keys := m.keys(); keys != statusLineBlock(want, grayHex) {
+			t.Errorf("the %s view lights %q, not %s", want, keys, want)
 		}
+	}
+	m.view = viewConsole
+	if keys := m.keys(); keys != "" {
+		t.Errorf("the console lights %q", keys)
 	}
 	// A question armed takes the next key whatever it is, and wears the
 	// waiting color, which is the one thing waiting on you is said in.
+	// It comes ahead of the view's word: while it stands, the view under
+	// it cannot be worked, and its word would be a lie.
 	m.view = viewProcesses
 	// The question itself stands beside the block, on the status line's
 	// own ground, with tmux's own character doubled so it is shown.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
-	if ask := m.ask(); !strings.HasPrefix(ask, statusLineAsk("CONFIRM")) || !strings.Contains(ask, "bg="+scheme[1]) ||
-		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+scheme[7]) {
+	if ask := m.keys(); !strings.HasPrefix(ask, statusLineAsk("CONFIRM")) || !strings.Contains(ask, "bg="+scheme[1]) ||
+		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+scheme[7]) ||
+		strings.Contains(ask, "PROCS") {
 		t.Errorf("a question armed lights %q", ask)
 	}
 	m.kill = nil

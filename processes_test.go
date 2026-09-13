@@ -566,6 +566,9 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 		"ttys002": {id: "%2", tty: "ttys002"},
 		"ttys009": {id: "%9", tty: "ttys009", hold: true},
 	}
+	// The status line already says what view this is, so the only thing
+	// a key can ask the server for here is the pane swap under test.
+	m.saidKeys = m.keys()
 	other := func(m model) (model, tea.Cmd) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'o'}))
 		return next.(model), cmd

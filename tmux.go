@@ -631,15 +631,21 @@ set -g remain-on-exit on
 // the 3270's operator information area, where the wait symbol was
 // always in the same cell.
 //
-// On the left, the keys, and only what cannot be seen from the panel. A
-// chord hanging and a pane in copy mode are the client's business and
-// tmux's to know, and no amount of drawing on the panel will tell you
-// either; tmux has them for nothing. A question conn has armed is the
-// third, being not a state you are in but a thing waiting on you that
-// takes the next key whatever it is. Nothing else lights the left. A
-// word saying WATCH while you are looking at the processes view is
-// furniture, and a row that always says something is a row nobody
-// reads.
+// On the left, where the keys are. A chord hanging and a pane in copy
+// mode are the client's business and tmux's to know, and no amount of
+// drawing on the panel will tell you either; tmux has them for nothing.
+// A question conn has armed is the third, being not a state you are in
+// but a thing waiting on you that takes the next key whatever it is.
+// The fourth is the panel view the keys are in — PROCS, PROJECTS,
+// SESSIONS — which conn knows and tmux does not.
+//
+// The view's word was left off for a while, on the reasoning that a
+// word saying PROCS while you are looking at the processes view is
+// furniture. It is not: the three views are worked by different keys,
+// and a letter that narrows the rows in two of them runs a command in
+// the third, so which one has the keys is exactly the kind of state the
+// other three words say. The position is dark when the keys are in the
+// bay, which is the reading that was wanted all along.
 //
 // Each is a block of color with the word knocked out of it, flush to
 // the edge: a block is not read but seen, and one that starts where the
@@ -647,7 +653,9 @@ set -g remain-on-exit on
 // "you, here" everywhere in conn; copy mode the blue, being a state of
 // the pane rather than a thing you are doing; the question the waiting
 // color, which is what the right-hand side says a process waiting in,
-// so the two halves of the row speak one language.
+// so the two halves of the row speak one language. The view takes the
+// gray, the quietest of the four, being where you already are rather
+// than something to turn for.
 //
 // On the right, the processes: one lamp for each row of the processes
 // view, in the processes view's order, so a lamp's position on the line
@@ -696,7 +704,7 @@ set -g window-status-current-format ""
 	// armed on the panel and answered there, so it shows only while the
 	// keys are on the panel to answer it.
 	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
-	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_ask},}}}\"\n",
+	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},}}}\"\n",
 		statusLineBlock("PREFIX", cursorHex), statusLineBlock("COPY", scheme[12]), onPanel)
 	fmt.Fprintf(&b, "set -g status-right \"#{@conn_lamps}\"\n")
 	return b.String()
@@ -720,6 +728,23 @@ func statusLineBlock(word, color string) string {
 // waiting in.
 func statusLineAsk(word string) string {
 	return statusLineBlock(word, scheme[1])
+}
+
+// statusLineView is the view the keys are in, as the status line wears
+// it: a block in the gray conn writes its second rank of text in. It is
+// the quietest of the four blocks against either ground, which is the
+// rank it wants — the other three are conditions worth turning for, and
+// this one is where you already are. A word with no block at all was
+// tried and reads as a caption rather than a position, and the position
+// is the whole point of the left of this line.
+//
+// No word is no block: the console takes the window, and a view conn
+// has no word for says nothing rather than something made up.
+func statusLineView(word string) string {
+	if word == "" {
+		return ""
+	}
+	return statusLineBlock(word, grayHex)
 }
 
 // statusLineSay is what conn says beside a block: on the status line's
@@ -758,11 +783,12 @@ func statusLineLamps(projects []project) string {
 	return b.String()
 }
 
-// say puts conn's two lamps on the server — the question it has armed,
-// if any, and how every process in the processes view stands — and asks
-// the clients to draw, so the status line never lags what changed it.
-func (s *server) say(ask, lamps string) error {
-	_, err := s.run("set-option", "-g", "@conn_ask", ask,
+// say puts conn's two halves of the status line on the server — what it
+// knows about its own keys, and how every process in the processes view
+// stands — and asks the clients to draw, so the status line never lags
+// what changed it.
+func (s *server) say(keys, lamps string) error {
+	_, err := s.run("set-option", "-g", "@conn_keys", keys,
 		";", "set-option", "-g", "@conn_lamps", lamps,
 		";", "refresh-client", "-S")
 	return err

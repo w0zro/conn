@@ -156,7 +156,7 @@ type model struct {
 	entering bool // the console is waiting on a reading to go to the processes view
 	// The modes conn last put on the status line, so each is written when
 	// it changes and not on every pass through Update.
-	saidAsk, saidLamps string
+	saidKeys, saidLamps string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited      int
@@ -408,27 +408,43 @@ func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	ask, lamps := m.ask(), statusLineLamps(m.projects)
-	if ask == m.saidAsk && lamps == m.saidLamps {
+	keys, lamps := m.keys(), statusLineLamps(m.projects)
+	if keys == m.saidKeys && lamps == m.saidLamps {
 		return m, nil
 	}
-	m.saidAsk, m.saidLamps = ask, lamps
+	m.saidKeys, m.saidLamps = keys, lamps
 	srv := m.srv
-	return m, func() tea.Msg { _ = srv.say(ask, lamps); return nil }
+	return m, func() tea.Msg { _ = srv.say(keys, lamps); return nil }
 }
 
-// ask is the one mode conn knows that lights the status line: a
-// question armed, which takes the next key whatever it is, with the
-// question itself beside the block. The status line spans the window,
-// which is why the question is here and not on the panel, whose
-// forty-four columns cut it before the part that says how to answer.
-// Every other mode of conn's keys is dark on the panel, since the
-// operator can see where they are.
-func (m model) ask() string {
+// The word each panel view wears on the status line. The console takes
+// none: it covers the whole window, and a page that fills the screen
+// does not need the foot of it to say which page it is.
+var viewWords = map[int]string{
+	viewProcesses: "PROCS",
+	viewProjects:  "PROJECTS",
+	viewSessions:  "SESSIONS",
+}
+
+// keys is what conn knows about its own keys, for the left of the
+// status line. Two things can be there, and a question armed comes
+// first: it takes the next key whatever it is, so while it stands the
+// view under it cannot be worked and the view's word would be a lie.
+// The question is on the status line rather than the panel because the
+// line spans the window, where the panel's forty-four columns cut the
+// question before the part that says how to answer it.
+//
+// Otherwise the word for the view the keys are in. The views are worked
+// by different keys — a letter narrows the rows in projects and
+// sessions and is a command in processes — so which one has the keys is
+// a state the operator is in, the same kind of thing PREFIX and COPY
+// say. tmux shows it only while the keys are on the panel, so a bay
+// with the keys in it leaves the position dark.
+func (m model) keys() string {
 	if m.kill != nil {
 		return statusLineAsk("CONFIRM") + statusLineSay(m.kill.prompt)
 	}
-	return ""
+	return statusLineView(viewWords[m.view])
 }
 
 // published tells the cursor where it is, when it has moved since the

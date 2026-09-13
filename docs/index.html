@@ -6,16 +6,16 @@
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#15130F">
 <title>conn — operating manual</title>
-<meta name="description" content="A station for one operator directing many hands on one machine. conn shows the shells, AIs, and commands running in each project, what each is doing, and which one is waiting for the operator. macOS and Linux, on tmux.">
+<meta name="description" content="A station for one operator directing many processes on one machine. The station shows the shells, contacts, and commands running in each project, what each is doing, and which one is waiting for the operator. macOS and Linux, on tmux.">
 <meta property="og:title" content="conn">
-<meta property="og:description" content="A station for one operator directing many hands on one machine. conn shows the shells, AIs, and commands running in each project, what each is doing, and which one is waiting for the operator. macOS and Linux, on tmux.">
+<meta property="og:description" content="A station for one operator directing many processes on one machine. The station shows the shells, contacts, and commands running in each project, what each is doing, and which one is waiting for the operator. macOS and Linux, on tmux.">
 <meta property="og:url" content="https://conn.w0zro.com">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="conn">
 <meta property="og:image" content="https://conn.w0zro.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="conn: the hands working each project, and which one is waiting.">
+<meta property="og:image:alt" content="conn: the processes working each project, and which one is waiting.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -45,8 +45,8 @@
     <p class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01</p>
     <h1>CONN</h1>
     <div class="banner">OPERATING MANUAL</div>
-    <p class="tagline">A station for directing many hands on one machine.</p>
-    <p class="sub">The station shows what each hand is doing and which one is waiting, and puts the operator in front of it.</p>
+    <p class="tagline">A station for directing many processes on one machine.</p>
+    <p class="sub">The station shows what each process is doing and which one is waiting, and puts the operator in front of it.</p>
     <div class="declassified">DECLASSIFIED<br><small>AUTH. <span>CHANGE v0.0.0</span></small></div>
   </div>
   <div class="install">
@@ -131,31 +131,32 @@
         <p class="kicker">SECTION 1</p>
         <h2>General</h2>
         <p class="para"><span class="n">1-1.</span><b>PURPOSE.</b> This manual describes conn and its operation.</p>
-        <p class="para"><span class="n">1-2.</span><b>SCOPE.</b> The station serves one operator directing many hands on one machine. It shows the processes running in each project, what each is doing, and which one is waiting for the operator, and it puts the operator in front of any of them. It does not edit files, run builds, or hold conversations. The hands do.</p>
+        <p class="para"><span class="n">1-2.</span><b>SCOPE.</b> The station serves one operator directing many processes on one machine. It shows the processes running in each project, what each is doing, and which one is waiting for the operator, and it puts the operator in front of any of them. It does not edit files, run builds, or hold sessions. The processes do.</p>
         <p class="para"><span class="n">1-3.</span><b>DEFINITIONS.</b> Terms used in this manual.</p>
         <div class="table narrow">
           <div class="row"><span>Operator</span><span>The person using conn.</span></div>
-          <div class="row"><span>Hand</span><span>A process conn watches: a shell, an AI, or a command a shell is running. Also called a station hand.</span></div>
-          <div class="row"><span>AI</span><span>An artificial intelligence: an assistant running in a terminal, such as Claude Code, that works a place and can stop to wait for the operator.</span></div>
-          <div class="row"><span>Place</span><span>The project directory a hand runs in: a git repository, or a folder that holds several repositories.</span></div>
-          <div class="row"><span>Standing</span><span>The state conn reports for a hand: WORKING, ACTIVE, IDLE, or WAITING.</span></div>
-          <div class="row"><span>Waiting</span><span>The standing of an AI that has stopped and needs an answer from the operator, such as a permission or a question.</span></div>
-          <div class="row"><span>Contact</span><span>A conversation with an AI, from raising it to ending it. Its record is the transcript.</span></div>
+          <div class="row"><span>Process</span><span>A shell, a contact, or a command a shell is running. The unit the station lists and reaches.</span></div>
+          <div class="row"><span>Contact</span><span>A process connected to a non-human intelligence: Claude Code running in a terminal. It works a project and can stop to wait for the operator.</span></div>
+          <div class="row"><span>Intelligence</span><span>The non-human intelligence at the other end of a contact. The station sees the contact and not the intelligence.</span></div>
+          <div class="row"><span>Session</span><span>The conversation a contact carries, from raising it to ending it. Its record is the transcript. A session outlives its contact and can be resumed.</span></div>
+          <div class="row"><span>Project</span><span>The directory a process runs in: a git repository, or a folder that holds several repositories.</span></div>
+          <div class="row"><span>Status</span><span>The state the station reports for a process: WORKING, ACTIVE, IDLE, or WAITING.</span></div>
+          <div class="row"><span>Waiting</span><span>The status of a contact that has stopped and needs an answer from the operator, such as a permission or a question.</span></div>
           <div class="row"><span>Console</span><span>The page conn comes up on. It reads out the machine and gives a verdict.</span></div>
-          <div class="row"><span>Rail</span><span>The left pane of the window, forty-four columns wide. The watch and the other views are shown there.</span></div>
-          <div class="row"><span>Watch</span><span>The list of hands, grouped by place, in the order they started.</span></div>
-          <div class="row"><span>Slot</span><span>The right pane of the window. It shows one hand.</span></div>
-          <div class="row"><span>Look</span><span>A page on one row of the watch, shown in the slot.</span></div>
-          <div class="row"><span>List</span><span>Every project under the roots, running or not, shown on the rail.</span></div>
-          <div class="row"><span>Picker</span><span>The conversations suspended at a place, shown on the rail.</span></div>
-          <div class="row"><span>Bar</span><span>The status line at the bottom of the window. It shows the state of the keys on the left and one lamp per hand on the right.</span></div>
+          <div class="row"><span>Panel</span><span>The left pane of the window, forty-four columns wide. It shows one of the three views and usually holds the keys.</span></div>
+          <div class="row"><span>Processes</span><span>The view listing every process at each project, in the order they started.</span></div>
+          <div class="row"><span>Projects</span><span>The view listing every project under the roots, running or not.</span></div>
+          <div class="row"><span>Sessions</span><span>The view listing the sessions at a project that can be resumed.</span></div>
+          <div class="row"><span>Bay</span><span>The right pane of the window. It holds one process.</span></div>
+          <div class="row"><span>Readout</span><span>A page of labeled values on one process, shown in the bay.</span></div>
+          <div class="row"><span>Status line</span><span>The line at the bottom of the window. It shows the state of the keys on the left and one lamp per process on the right.</span></div>
         </div>
-        <p class="para"><span class="n">1-4.</span><b>INDICATIONS.</b> The station indicates two things: what each hand is doing, and which hand is waiting. The watch and the lamps on the bar show the first. The word WAITING on the watch, blinking, and a lamp on the bar in the same color show the second; <code>tab</code> goes to it (4-3).</p>
-        <p class="para"><span class="n">1-5.</span><b>COMMANDS.</b> The command alone brings up the console and continues to the watch. Other commands are given by name after it. <code>--light</code> and <code>--dark</code> set the ground, ahead of a command if one is given.</p>
+        <p class="para"><span class="n">1-4.</span><b>INDICATIONS.</b> The station indicates two things: what each process is doing, and which process is waiting. The processes view and the lamps on the status line show the first. The word WAITING in the processes view, blinking, and a lamp on the status line in the same color show the second; <code>tab</code> goes to it (4-3).</p>
+        <p class="para"><span class="n">1-5.</span><b>COMMANDS.</b> The command alone brings up the console and continues to processes. Other commands are given by name after it. <code>--light</code> and <code>--dark</code> set the ground, ahead of a command if one is given.</p>
         <p class="caption">SYNOPSIS</p>
         <div class="table synopsis">
           <div class="row head"><span>COMMAND</span><span>DOES</span></div>
-          <div class="row"><span>conn</span><span>Brings up the console, then the watch.</span></div>
+          <div class="row"><span>conn</span><span>Brings up the console, then processes.</span></div>
           <div class="row"><span>conn down</span><span>Takes the server down with everything in it, and reports what went.</span></div>
           <div class="row"><span>conn theme claude</span><span>Writes conn's theme for Claude Code.</span></div>
           <div class="row"><span>conn theme vim</span><span>Writes conn's colorscheme for nvim.</span></div>
@@ -184,45 +185,45 @@
       <div class="section">
         <p class="kicker">SECTION 2</p>
         <h2>The Station</h2>
-        <p class="para"><span class="n">2-1.</span><b>ARRANGEMENT.</b> The station is one window of a tmux server that conn holds. The rail is on the left and the slot on the right. The bar runs under both. Figure 2-1 shows the arrangement.</p>
+        <p class="para"><span class="n">2-1.</span><b>ARRANGEMENT.</b> The station is one window of a tmux server that conn holds. The panel is on the left and the bay on the right. The status line runs under both. Figure 2-1 shows the arrangement.</p>
         <div class="figure wide"><pre><span class="c">┌──────────────────────────────┬─────────────────────────────┐</span>
-<span class="c">│</span> <span class="k">RAIL</span>                         <span class="c">│</span> <span class="k">SLOT</span>                        <span class="c">│</span>
+<span class="c">│</span> <span class="k">PANEL</span>                        <span class="c">│</span> <span class="k">BAY</span>                         <span class="c">│</span>
 <span class="c">│</span>                              <span class="c">│</span>                             <span class="c">│</span>
-<span class="c">│</span> KIND   COMMAND    AGE STATUS <span class="c">│</span> The hand reached from the   <span class="c">│</span>
-<span class="c">│</span>                              <span class="c">│</span> rail: a shell, an AI, a run <span class="c">│</span>
-<span class="c">│</span> w0zro/conn                   <span class="c">│</span> or the look. The keys are   <span class="c">│</span>
-<span class="c">│</span> SHELL  zsh        2H    IDLE <span class="c">│</span> here while a hand is.       <span class="c">│</span>
-<span class="c">│</span> ▸ AI   claude     1H WAITING <span class="c">│</span>                             <span class="c">│</span>
+<span class="c">│</span> KIND     COMMAND  AGE STATUS <span class="c">│</span> The process reached from    <span class="c">│</span>
+<span class="c">│</span>                              <span class="c">│</span> the panel: a shell, a       <span class="c">│</span>
+<span class="c">│</span> w0zro/conn                   <span class="c">│</span> contact, a run, or the      <span class="c">│</span>
+<span class="c">│</span> SHELL    zsh      2H    IDLE <span class="c">│</span> readout. The keys are here  <span class="c">│</span>
+<span class="c">│</span>▸ CONTACT claude   1H WAITING <span class="c">│</span> while a process is.         <span class="c">│</span>
 <span class="c">│</span>                              <span class="c">│</span>                             <span class="c">│</span>
 <span class="c">├──────────────────────────────┴─────────────────────────────┤</span>
-<span class="c">│</span> <span class="k">BAR</span>  PREFIX                                    ● ● ● ●   <span class="c">│</span>
+<span class="c">│</span> <span class="k">STATUS LINE</span>  PREFIX                              ● ● ● ●   <span class="c">│</span>
 <span class="c">└────────────────────────────────────────────────────────────┘</span></pre></div>
         <p class="caption">FIGURE 2-1. STATION ARRANGEMENT</p>
-        <p class="para"><span class="n">2-2.</span><b>THE SERVER.</b> conn holds a tmux server of its own. Its socket is under <code>~/.local/state/conn</code>, or where <code>CONN_SOCKET</code> says. The first <code>conn</code> brings the server up and puts the terminal on it. A later <code>conn</code> attaches to what is there. Everything in the server stays until the server is taken down (5-2). A hand that leaves the slot goes to a window of its own, out of sight, and keeps running.</p>
+        <p class="para"><span class="n">2-2.</span><b>THE SERVER.</b> The station holds a tmux server of its own. Its socket is under <code>~/.local/state/conn</code>, or where <code>CONN_SOCKET</code> says. The first <code>conn</code> brings the server up and puts the terminal on it. A later <code>conn</code> attaches to what is there. Everything in the server stays until the server is taken down (5-2). A process that leaves the bay goes to a window of its own, out of sight, and keeps running.</p>
         <p class="para"><span class="n">2-3.</span><b>COMING UP.</b> To bring up the station:</p>
         <div class="table steps">
           <div class="row"><span>1.</span><span>Type <code>conn</code>.</span></div>
           <div class="row"><span>2.</span><span>The console comes up. It reads out the machine, runs the start-up checks, and gives its verdict: ALL SYSTEMS NOMINAL, or the count of systems that are not.</span></div>
-          <div class="row"><span>3.</span><span>Press any key. The watch comes up on the rail and the slot opens beside it.</span></div>
+          <div class="row"><span>3.</span><span>Press any key. The processes view comes up on the panel and the bay opens beside it.</span></div>
         </div>
-        <p class="para"><span class="n">2-4.</span><b>THE CONSOLE.</b> <code>c</code> on the watch brings the console back over the whole window. Any key returns to the watch.</p>
-        <p class="para"><span class="n">2-5.</span><b>THE PREFIX.</b> Chords are given under <code>ctrl-space</code>. <code>CONN_PREFIX</code> names another prefix, in the spelling tmux uses. While a chord is open, PREFIX is lit on the bar. No other tmux key is bound.</p>
+        <p class="para"><span class="n">2-4.</span><b>THE CONSOLE.</b> <code>c</code> in the processes view brings the console back over the whole window. Any key returns to processes.</p>
+        <p class="para"><span class="n">2-5.</span><b>THE PREFIX.</b> Chords are given under <code>ctrl-space</code>. <code>CONN_PREFIX</code> names another prefix, in the spelling tmux uses. While a chord is open, PREFIX is lit on the status line. No other tmux key is bound.</p>
         <div class="table keys chords">
           <div class="row head"><span>CHORD</span><span>DOES</span></div>
-          <div class="row"><span>ctrl-space -</span><span>Puts the keys on the rail, from anywhere in the server.</span></div>
-          <div class="row"><span>ctrl-space p</span><span>Opens the list, from anywhere in the server (3-7).</span></div>
-          <div class="row"><span>ctrl-space tab</span><span>Goes to the AI that has waited longest (4-3).</span></div>
-          <div class="row"><span>ctrl-space ctrl-space</span><span>Goes to the hand that was last in the slot (4-4).</span></div>
+          <div class="row"><span>ctrl-space -</span><span>Puts the keys on the panel, from anywhere in the server.</span></div>
+          <div class="row"><span>ctrl-space p</span><span>Opens projects, from anywhere in the server (3-7).</span></div>
+          <div class="row"><span>ctrl-space tab</span><span>Goes to the contact that has waited longest (4-3).</span></div>
+          <div class="row"><span>ctrl-space ctrl-space</span><span>Goes to the process that was last in the bay (4-4).</span></div>
           <div class="row"><span>ctrl-space q</span><span>Detaches (2-6).</span></div>
         </div>
-        <p class="para"><span class="n">2-6.</span><b>STANDING DOWN.</b> <code>q</code> on the rail detaches the terminal from the server. <code>ctrl-space q</code> does the same from anywhere in it. The server and every hand in it keep running, and the next <code>conn</code> attaches to them. Ending the server is procedure 5-2.</p>
-        <p class="para"><span class="n">2-7.</span><b>WITHOUT TMUX.</b> Without tmux on the path, conn shows the console and the watch and reaches nothing. On macOS the watch needs <code>lsof</code>, which is how it reads where a process is working.</p>
+        <p class="para"><span class="n">2-6.</span><b>STANDING DOWN.</b> <code>q</code> on the panel detaches the terminal from the server. <code>ctrl-space q</code> does the same from anywhere in it. The server and every process in it keep running, and the next <code>conn</code> attaches to them. Ending the server is procedure 5-2.</p>
+        <p class="para"><span class="n">2-7.</span><b>WITHOUT TMUX.</b> Without tmux on the path, the station shows the console and the processes view and reaches nothing. On macOS the processes view needs <code>lsof</code> to read the working directory of a process.</p>
         <p class="para"><span class="n">2-8.</span><b>THE GROUND.</b> The server comes up on a dark or a light ground. The first time it rises it asks the terminal for its background and keeps the answer for the life of the server. <code>conn --light</code> and <code>conn --dark</code> set the ground instead, for a server coming up or one already up. Every pane takes the new ground.</p>
         <p class="para"><span class="n">2-9.</span><b>THEMES.</b> A program that draws its own colors takes none of the server's. <code>conn theme claude</code> writes a theme for Claude Code and offers to select it. <code>conn theme vim</code> writes a colorscheme for nvim, taken with <code>colorscheme conn</code>. Each is drawn on the ground the server is on.</p>
         <p class="para"><span class="n">2-10.</span><b>ENVIRONMENT.</b> The station reads three variables.</p>
         <div class="table narrow">
           <div class="row head"><span>VARIABLE</span><span>SAYS</span></div>
-          <div class="row"><span>CONN_ROOTS</span><span>Where the list looks for projects, as a path list. <code>~/projects</code> when unset.</span></div>
+          <div class="row"><span>CONN_ROOTS</span><span>The roots the projects view walks for repositories, as a path list. <code>~/projects</code> when unset.</span></div>
           <div class="row"><span>CONN_SOCKET</span><span>Where the server's socket is.</span></div>
           <div class="row"><span>CONN_PREFIX</span><span>The prefix for chords, in the spelling tmux uses. <code>C-Space</code> when unset.</span></div>
         </div>
@@ -246,50 +247,50 @@
       <div class="section">
         <p class="kicker">SECTION 3</p>
         <h2>Watch Procedures</h2>
-        <p class="para"><span class="n">3-1.</span><b>THE WATCH.</b> The watch lists the hands by place. A place is titled by its path below the root; a place outside every root is written from <code>~</code>. Under a place the hands are shown as a tree: a shell, and what it runs indented under it. Each row shows the kind, the command, the age, and the standing. On the console, which is wider, the terminal is shown too. A row keeps its position for as long as its hand lives, oldest first, and a new row goes on the end. With nothing running the watch says NOTHING ON WATCH.</p>
-        <p class="para"><span class="n">3-2.</span><b>STANDINGS.</b> The last column of a row is its standing.</p>
+        <p class="para"><span class="n">3-1.</span><b>PROCESSES.</b> The processes view lists every process at each project. A project is titled by its path below the root; a project outside every root is written from <code>~</code>. Under a project the processes are shown as a tree: a shell, and what it runs indented under it. Each row shows the kind, the command, the age, and the status. On the console, which is wider, the terminal is shown too. A row keeps its position for as long as its process lives, oldest first, and a new row goes on the end. With nothing running the view says NO PROCESSES.</p>
+        <p class="para"><span class="n">3-2.</span><b>STATUS.</b> The last column of a row is its status.</p>
         <div class="table narrow">
-          <div class="row head"><span>STANDING</span><span>MEANS</span></div>
-          <div class="row"><span>WORKING</span><span>Did something between one reading and the next. An AI is WORKING when it is mid-turn, or when a command is running under it.</span></div>
+          <div class="row head"><span>STATUS</span><span>MEANS</span></div>
+          <div class="row"><span>WORKING</span><span>Did something between one reading and the next. A contact is WORKING when it is mid-turn, or when a command is running under it.</span></div>
           <div class="row"><span>ACTIVE</span><span>Alive and doing nothing.</span></div>
-          <div class="row"><span>IDLE</span><span>A shell at its prompt, or an AI whose turn is over. Nothing is pending.</span></div>
-          <div class="row"><span>WAITING</span><span>An AI stopped on something it needs from the operator. The word blinks.</span></div>
+          <div class="row"><span>IDLE</span><span>A shell at its prompt, or a contact whose turn is over. Nothing is pending.</span></div>
+          <div class="row"><span>WAITING</span><span>A contact stopped on something it needs from the operator. The word blinks.</span></div>
           <div class="row"><span>STOPPED</span><span>Suspended. Shown as a chip.</span></div>
           <div class="row"><span>ENDED</span><span>Finished and not yet collected. Shown as a chip.</span></div>
         </div>
-        <p class="para"><span class="n">3-3.</span><b>WHO IS WAITING.</b> Only an AI that says its own standing is ever WAITING. Claude Code says it, and says when its standing changed. An AI conn cannot ask reads as WORKING or ACTIVE from the processor time it spends. conn does not guess.</p>
-        <p class="para"><span class="n">3-4.</span><b>KEYS ON THE WATCH.</b> The cursor is on one row. It follows its hand from one reading to the next.</p>
+        <p class="para"><span class="n">3-3.</span><b>WHO IS WAITING.</b> Only a contact that reports its own status is ever WAITING. Claude Code reports it, and reports when its status changed. A contact the station cannot ask reads as WORKING or ACTIVE from the processor time it spends.</p>
+        <p class="para"><span class="n">3-4.</span><b>KEYS.</b> The cursor is on one row. It follows its process from one reading to the next.</p>
         <div class="table keys">
           <div class="row head"><span>KEY</span><span>DOES</span></div>
           <div class="row"><span>j, k</span><span>Move the cursor. The arrows do the same.</span></div>
-          <div class="row"><span>enter</span><span>Puts the hand under the cursor in the slot, with the keys in it.</span></div>
-          <div class="row"><span>tab</span><span>Goes to the AI that has waited longest (4-3).</span></div>
-          <div class="row"><span>s</span><span>Opens a shell at the place under the cursor.</span></div>
-          <div class="row"><span>a</span><span>Raises an AI at the place under the cursor (4-2).</span></div>
-          <div class="row"><span>alt-a</span><span>Opens the picker over the conversations suspended at the place (4-5).</span></div>
-          <div class="row"><span>i</span><span>Opens the look on the row under the cursor. Pressed again, closes it (3-6).</span></div>
-          <div class="row"><span>x</span><span>Asks to end the hand under the cursor (4-6).</span></div>
-          <div class="row"><span>p</span><span>Opens the list (3-7).</span></div>
+          <div class="row"><span>enter</span><span>Puts the process under the cursor in the bay, with the keys in it.</span></div>
+          <div class="row"><span>tab</span><span>Goes to the contact that has waited longest (4-3).</span></div>
+          <div class="row"><span>s</span><span>Opens a shell at the project under the cursor.</span></div>
+          <div class="row"><span>a</span><span>Raises a contact at the project under the cursor (4-2).</span></div>
+          <div class="row"><span>alt-a</span><span>Opens sessions for the project under the cursor (4-5).</span></div>
+          <div class="row"><span>i</span><span>Opens the readout on the row under the cursor. Pressed again, closes it (3-6).</span></div>
+          <div class="row"><span>x</span><span>Asks to end the process under the cursor (4-6).</span></div>
+          <div class="row"><span>p</span><span>Opens projects (3-7).</span></div>
           <div class="row"><span>c</span><span>Brings the console back over the window (2-4).</span></div>
           <div class="row"><span>q</span><span>Detaches (2-6).</span></div>
         </div>
-        <p class="para"><span class="n">3-5.</span><b>HELD AND REPORTED.</b> A row conn holds a pane for is in the ink, and <code>enter</code> reaches it. A row conn can only report, a terminal it did not open, is dimmed. The cursor goes to it and nothing else does. The row in the slot carries its kind in orange. Outside the server every row is reported.</p>
-        <p class="para"><span class="n">3-6.</span><b>THE LOOK.</b> The look is a page on one row, shown in the slot. It says what the row has no room for: the whole command, the directory, the time up and the processor time spent, what runs it and what it runs; of an AI, the conversation it is carrying and what it is stopped on; of the place, what git says of it. To read a row:</p>
+        <p class="para"><span class="n">3-5.</span><b>HELD AND REPORTED.</b> A row the station holds a pane for is in the ink, and <code>enter</code> reaches it. A row the station can only report, a terminal it did not open, is dimmed. The cursor lands on it; no other key acts on it. The row in the bay carries its kind in orange. Outside the server every row is reported.</p>
+        <p class="para"><span class="n">3-6.</span><b>THE READOUT.</b> The readout is a page of labeled values on one process, shown in the bay. It carries what the row has no room for: the whole command, the directory, the time up and the processor time spent, what runs it and what it runs; of a contact, the session it carries and what it is stopped on; of the project, what git reports. To read a row:</p>
         <div class="table steps">
           <div class="row"><span>1.</span><span>Put the cursor on the row.</span></div>
-          <div class="row"><span>2.</span><span>Press <code>i</code>. The look opens in the slot. The keys stay on the rail.</span></div>
-          <div class="row"><span>3.</span><span><code>j</code> and <code>k</code> move the look with the cursor. <code>tab</code> carries it to the AI that is waiting.</span></div>
-          <div class="row"><span>4.</span><span>Press <code>i</code> again. The look closes. Where the row is one conn holds, its hand takes the slot.</span></div>
+          <div class="row"><span>2.</span><span>Press <code>i</code>. The readout opens in the bay. The keys stay on the panel.</span></div>
+          <div class="row"><span>3.</span><span><code>j</code> and <code>k</code> move the readout with the cursor. <code>tab</code> carries it to the contact that is waiting.</span></div>
+          <div class="row"><span>4.</span><span>Press <code>i</code> again. The readout closes. Where the row is one the station holds, its process takes the bay.</span></div>
         </div>
-        <div class="note"><p class="label">NOTE</p><p><code>conn look 1234</code>, from a shell in the server, pins the look to one process instead of the cursor.</p></div>
-        <p class="para"><span class="n">3-7.</span><b>THE LIST.</b> The list is every project under the roots, whether anything is running in it or not. A folder that holds several repositories is a row with them under it. To open a hand at a project:</p>
+        <div class="note"><p class="label">NOTE</p><p><code>conn readout 1234</code>, from a shell in the server, pins the readout to one process instead of the cursor.</p></div>
+        <p class="para"><span class="n">3-7.</span><b>PROJECTS.</b> The projects view lists every project under the roots, whether anything is running in it or not. A folder that holds several repositories is a row with them under it. To open a process at a project:</p>
         <div class="table steps">
-          <div class="row"><span>1.</span><span>Press <code>p</code> on the watch, <code>alt-p</code> from any view, or <code>ctrl-space p</code> from anywhere in the server.</span></div>
+          <div class="row"><span>1.</span><span>Press <code>p</code> in the processes view, <code>alt-p</code> from any view, or <code>ctrl-space p</code> from anywhere in the server.</span></div>
           <div class="row"><span>2.</span><span>Type to narrow the rows. <code>backspace</code> and <code>ctrl-u</code> edit the line. The arrows, or <code>ctrl-p</code> and <code>ctrl-n</code>, move the cursor.</span></div>
-          <div class="row"><span>3.</span><span>Press <code>enter</code>. A shell opens at the project and the watch returns with it in the slot. <code>ctrl-a</code> raises an AI there instead (4-2). <code>alt-a</code> opens the picker (4-5).</span></div>
-          <div class="row"><span>4.</span><span><code>esc</code> returns to the watch with nothing opened.</span></div>
+          <div class="row"><span>3.</span><span>Press <code>enter</code>. A shell opens at the project, and processes returns with it in the bay. <code>ctrl-a</code> raises a contact there instead (4-2). <code>alt-a</code> opens sessions (4-5).</span></div>
+          <div class="row"><span>4.</span><span><code>esc</code> returns to processes with nothing opened.</span></div>
         </div>
-        <p class="para"><span class="n">3-8.</span><b>THE BAR.</b> The bar is dark at rest. The left half lights for a state of the keys. The right half is one lamp per row of the watch, in the order of the watch.</p>
+        <p class="para"><span class="n">3-8.</span><b>THE STATUS LINE.</b> The status line is dark at rest. The left half lights for a state of the keys. The right half is one lamp per row of the processes view, in the order of the view.</p>
         <div class="table narrow">
           <div class="row head"><span>INDICATION</span><span>MEANS</span></div>
           <div class="row"><span>PREFIX</span><span>A chord is open. The next key is one of 2-5.</span></div>
@@ -319,39 +320,39 @@
       <div class="section">
         <p class="kicker">SECTION 4</p>
         <h2>Contact Procedures</h2>
-        <p class="para"><span class="n">4-1.</span><b>CONTACT.</b> A contact is a conversation with an AI, from raising it to ending it, and its record is the transcript the AI writes. conn raises Claude Code, and the procedures of this section are written for it. Another AI on the watch is a hand like any other: it is reached, put in the slot, and ended the same way. conn cannot ask it its standing, so it is never WAITING.</p>
-        <p class="para"><span class="n">4-2.</span><b>RAISING AN AI.</b> To start an AI at a place:</p>
+        <p class="para"><span class="n">4-1.</span><b>CONTACT.</b> A contact is a process connected to a non-human intelligence. The station raises Claude Code, and the procedures of this section are written for it. The station sees the contact and not the intelligence: what it lists, reaches, and ends is the process. A contact the station did not raise is a process like any other: it is reached, put in the bay, and ended the same way. The station cannot ask it its status, so it is never WAITING.</p>
+        <p class="para"><span class="n">4-2.</span><b>RAISING A CONTACT.</b> To raise a contact at a project:</p>
         <div class="table steps">
-          <div class="row"><span>1.</span><span>On the watch, put the cursor on any row of the place. Or open the list (3-7) and put the cursor on the project.</span></div>
-          <div class="row"><span>2.</span><span>Press <code>a</code>. On the list, press <code>ctrl-a</code>.</span></div>
-          <div class="row"><span>3.</span><span>A shell opens at the place running <code>claude</code>, takes the slot, and has the keys. Its row is on the watch under the place, kind AI.</span></div>
-          <div class="row"><span>4.</span><span>conn tells the AI where it is: that it runs in a pane of the station, and how to start anything long-lived in a window of its own, so the watch shows it and the operator can reach it.</span></div>
+          <div class="row"><span>1.</span><span>In the processes view, put the cursor on any row of the project. Or open projects (3-7) and put the cursor on the project.</span></div>
+          <div class="row"><span>2.</span><span>Press <code>a</code>. In projects, press <code>ctrl-a</code>.</span></div>
+          <div class="row"><span>3.</span><span>A shell opens at the project running <code>claude</code>, takes the bay, and has the keys. Its row is in the processes view under the project, kind CONTACT.</span></div>
+          <div class="row"><span>4.</span><span>The station tells the contact where it is: that it runs in a pane of the station, and how to start anything long-lived in a window of its own. A process started that way has a row and can be reached.</span></div>
         </div>
-        <div class="note"><p class="label">NOTE</p><p>What conn tells the AI travels with conn. Nothing is written into the settings of the AI.</p></div>
-        <p class="para"><span class="n">4-3.</span><b>ANSWERING AN AI.</b> When an AI stops on something it needs from the operator, its row reads WAITING, blinking, and its lamp on the bar blinks with it. To answer it:</p>
+        <div class="note"><p class="label">NOTE</p><p>What the station tells the contact travels with conn. Nothing is written into the settings of Claude Code.</p></div>
+        <p class="para"><span class="n">4-3.</span><b>ANSWERING A CONTACT.</b> When a contact stops on something it needs from the operator, its row reads WAITING, blinking, and its lamp on the status line blinks with it. To answer it:</p>
         <div class="table steps">
-          <div class="row"><span>1.</span><span>Press <code>tab</code> on the watch, or <code>ctrl-space tab</code> from anywhere in the server.</span></div>
-          <div class="row"><span>2.</span><span>The cursor goes to the AI that has waited longest. Its pane takes the slot and the keys land in it.</span></div>
+          <div class="row"><span>1.</span><span>Press <code>tab</code> in the processes view, or <code>ctrl-space tab</code> from anywhere in the server.</span></div>
+          <div class="row"><span>2.</span><span>The cursor goes to the contact that has waited longest. Its pane takes the bay and the keys land in it.</span></div>
           <div class="row"><span>3.</span><span>Answer it.</span></div>
           <div class="row"><span>4.</span><span>Press <code>tab</code> again for the next, longest first, and round again from the end.</span></div>
         </div>
-        <p class="para"><span class="n">4-4.</span><b>WORKING TWO HANDS.</b> <code>ctrl-space ctrl-space</code> goes to the hand that was last in the slot, and pressed again comes back. It is the key for a shell and the AI being asked about it, or a build and the file it fails on. A vacant slot and the look are not remembered. <code>alt-o</code> does the same from the rail.</p>
-        <p class="para"><span class="n">4-5.</span><b>RE-ESTABLISHING CONTACT.</b> A conversation does not end with the AI. Its record is enough to pick it back up. To continue one:</p>
+        <p class="para"><span class="n">4-4.</span><b>WORKING TWO PROCESSES.</b> <code>ctrl-space ctrl-space</code> goes to the process that was last in the bay, and pressed again comes back. A vacant bay and the readout are not remembered. <code>alt-o</code> does the same from the panel.</p>
+        <p class="para"><span class="n">4-5.</span><b>RESUMING A SESSION.</b> A session outlives its contact. Its transcript is kept, and a new contact can resume it. To resume one:</p>
         <div class="table steps">
-          <div class="row"><span>1.</span><span>On the watch, put the cursor on any row of the place. Or open the list and put the cursor on the project.</span></div>
-          <div class="row"><span>2.</span><span>Press <code>alt-a</code>. The picker lists the conversations suspended at the place, newest first, each by its branch, the last thing it was asked, and its age. Type to narrow the rows.</span></div>
-          <div class="row"><span>3.</span><span>Press <code>enter</code>. A shell opens running <code>claude --resume</code> on that conversation and takes the slot.</span></div>
-          <div class="row"><span>4.</span><span><code>esc</code> returns to the watch with nothing continued.</span></div>
+          <div class="row"><span>1.</span><span>In the processes view, put the cursor on any row of the project. Or open projects and put the cursor on the project.</span></div>
+          <div class="row"><span>2.</span><span>Press <code>alt-a</code>. The sessions view lists the sessions at the project, newest first, each by its branch, the last thing it was asked, and its age. Type to narrow the rows.</span></div>
+          <div class="row"><span>3.</span><span>Press <code>enter</code>. A shell opens running <code>claude --resume</code> on that session and takes the bay.</span></div>
+          <div class="row"><span>4.</span><span><code>esc</code> returns to processes with nothing resumed.</span></div>
         </div>
-        <div class="note"><p class="label">NOTE</p><p>A conversation a live AI is carrying is not listed. The picker checks the process table rather than the record alone.</p></div>
-        <p class="para"><span class="n">4-6.</span><b>ENDING AN AI.</b> To end an AI:</p>
+        <div class="note"><p class="label">NOTE</p><p>A session a live contact is carrying is not listed. The sessions view checks the process table as well as the transcripts.</p></div>
+        <p class="para"><span class="n">4-6.</span><b>ENDING A CONTACT.</b> To end a contact:</p>
         <div class="table steps">
           <div class="row"><span>1.</span><span>Put the cursor on its row and press <code>x</code>.</span></div>
-          <div class="row"><span>2.</span><span>CONFIRM lights on the bar, with the question beside it: END CLAUDE 1234 · X CONFIRMS · ANY OTHER KEY CANCELS.</span></div>
-          <div class="row"><span>3.</span><span>Press <code>x</code>, <code>y</code>, or <code>enter</code>. The AI is asked to end. The shell it ran in is left at its prompt. Any other key cancels.</span></div>
-          <div class="row"><span>4.</span><span>The watch reads again after a beat, and the row goes when the AI has.</span></div>
+          <div class="row"><span>2.</span><span>CONFIRM lights on the status line, with the question beside it: END CLAUDE 1234 · X CONFIRMS · ANY OTHER KEY CANCELS.</span></div>
+          <div class="row"><span>3.</span><span>Press <code>x</code>, <code>y</code>, or <code>enter</code>. The contact is asked to end. The shell it ran in is left at its prompt. Any other key cancels.</span></div>
+          <div class="row"><span>4.</span><span>The processes view reads again after a beat, and the row goes when the contact has.</span></div>
         </div>
-        <div class="note"><p class="label">NOTE</p><p>An AI ended this way keeps its record. Procedure 4-5 continues it.</p></div>
+        <div class="note"><p class="label">NOTE</p><p>A contact ended this way keeps its session. Procedure 4-5 resumes it.</p></div>
       </div>
     </div>
     <div class="foot">
@@ -372,16 +373,16 @@
       <div class="section">
         <p class="kicker">SECTION 5</p>
         <h2>Emergency Procedures</h2>
-        <p class="para"><span class="n">5-1.</span><b>A HAND THAT WILL NOT END.</b> <code>x</code> asks a hand to end with the signal a well-behaved command answers by saving and shutting down. A bare shell ignores that signal and is killed outright instead; there is nothing in it to save. A hand that ignores the request stays on the watch. Reach it with <code>enter</code> and end it from inside.</p>
+        <p class="para"><span class="n">5-1.</span><b>A PROCESS THAT WILL NOT END.</b> <code>x</code> sends the process under the cursor SIGTERM. A bare shell is sent SIGKILL instead. A process that ignores SIGTERM stays in the processes view. Reach it with <code>enter</code> and end it from inside.</p>
         <p class="para"><span class="n">5-2.</span><b>TAKING THE STATION DOWN.</b> To end the server and everything in it:</p>
-        <div class="note caution"><p class="label">CAUTION</p><p><code>conn down</code> ends every hand in the server: every shell, every AI, and every run, in the slot or out of sight in a window of its own. Work that is not saved is lost. A conversation can be re-established afterward (4-5). A run cannot.</p></div>
+        <div class="note caution"><p class="label">CAUTION</p><p><code>conn down</code> ends every process in the server: every shell, every contact, and every run, in the bay or out of sight in a window of its own. Work that is not saved is lost. A session can be resumed afterward (4-5). A run cannot.</p></div>
         <div class="table steps">
           <div class="row"><span>1.</span><span>From a terminal outside conn, or from a shell in it, type <code>conn down</code>.</span></div>
-          <div class="row"><span>2.</span><span>conn reports a line for each window it ended and one for the server.</span></div>
+          <div class="row"><span>2.</span><span>A line is printed for each window ended and one for the server.</span></div>
         </div>
-        <p class="para"><span class="n">5-3.</span><b>THE SLOT EMPTIES.</b> When the hand in the slot ends, the slot takes the next hand conn holds, from the cursor down and round again from the top. With none to take, it shows VACANT. Any key in it puts the keys on the rail.</p>
-        <p class="para"><span class="n">5-4.</span><b>THE KEYS ARE ELSEWHERE.</b> From any pane of the server, <code>ctrl-space -</code> puts the keys on the rail. From the rail, <code>enter</code> puts them in the slot.</p>
-        <p class="para"><span class="n">5-5.</span><b>THE WATCH CANNOT READ.</b> When the process table cannot be read, the watch shows the reason as a chip in place of its rows and reads again on the next beat. On macOS the usual reason is that <code>lsof</code> gave no answer in time.</p>
+        <p class="para"><span class="n">5-3.</span><b>THE BAY EMPTIES.</b> When the process in the bay ends, the bay takes the next process the station holds, from the cursor down and round again from the top. With none to take, it shows VACANT. Any key in it puts the keys on the panel.</p>
+        <p class="para"><span class="n">5-4.</span><b>THE KEYS ARE ELSEWHERE.</b> From any pane of the server, <code>ctrl-space -</code> puts the keys on the panel. From the panel, <code>enter</code> puts them in the bay.</p>
+        <p class="para"><span class="n">5-5.</span><b>THE PROCESSES CANNOT BE READ.</b> When the process table cannot be read, the processes view shows the reason as a chip in place of its rows and reads again on the next beat. On macOS the usual reason is that <code>lsof</code> gave no answer in time.</p>
       </div>
     </div>
     <div class="foot">

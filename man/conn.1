@@ -1,7 +1,7 @@
 .\" Written from docs/index.html by go run ./tools/man; edit the manual, not this.
 .TH CONN 1 "" "conn 0.0" "User Commands"
 .SH NAME
-conn \- a station for directing many hands on one machine
+conn \- a station for directing many processes on one machine
 .SH SYNOPSIS
 .B conn
 .br
@@ -19,19 +19,18 @@ conn \- a station for directing many hands on one machine
 .br
 .B conn \-\-version
 .SH DESCRIPTION
-The station shows what each hand is doing and which one is waiting, and puts the
-operator in front of it.
+The station shows what each process is doing and which one is waiting, and puts
+the operator in front of it.
 .SH GENERAL
 .TP
 1-1.
 \fBPURPOSE.\fR This manual describes conn and its operation.
 .TP
 1-2.
-\fBSCOPE.\fR The station serves one operator directing many hands on one
+\fBSCOPE.\fR The station serves one operator directing many processes on one
 machine. It shows the processes running in each project, what each is doing, and
 which one is waiting for the operator, and it puts the operator in front of any
-of them. It does not edit files, run builds, or hold conversations. The hands
-do.
+of them. It does not edit files, run builds, or hold sessions. The processes do.
 .TP
 1-3.
 \fBDEFINITIONS.\fR Terms used in this manual.
@@ -40,72 +39,77 @@ do.
 \fBOperator\fR
 The person using conn.
 .TP
-\fBHand\fR
-A process conn watches: a shell, an AI, or a command a shell is running. Also
-called a station hand.
-.TP
-\fBAI\fR
-An artificial intelligence: an assistant running in a terminal, such as Claude
-Code, that works a place and can stop to wait for the operator.
-.TP
-\fBPlace\fR
-The project directory a hand runs in: a git repository, or a folder that holds
-several repositories.
-.TP
-\fBStanding\fR
-The state conn reports for a hand: WORKING, ACTIVE, IDLE, or WAITING.
-.TP
-\fBWaiting\fR
-The standing of an AI that has stopped and needs an answer from the operator,
-such as a permission or a question.
+\fBProcess\fR
+A shell, a contact, or a command a shell is running. The unit the station lists
+and reaches.
 .TP
 \fBContact\fR
-A conversation with an AI, from raising it to ending it. Its record is the
-transcript.
+A process connected to a non-human intelligence: Claude Code running in a
+terminal. It works a project and can stop to wait for the operator.
+.TP
+\fBIntelligence\fR
+The non-human intelligence at the other end of a contact. The station sees the
+contact and not the intelligence.
+.TP
+\fBSession\fR
+The conversation a contact carries, from raising it to ending it. Its record is
+the transcript. A session outlives its contact and can be resumed.
+.TP
+\fBProject\fR
+The directory a process runs in: a git repository, or a folder that holds
+several repositories.
+.TP
+\fBStatus\fR
+The state the station reports for a process: WORKING, ACTIVE, IDLE, or WAITING.
+.TP
+\fBWaiting\fR
+The status of a contact that has stopped and needs an answer from the operator,
+such as a permission or a question.
 .TP
 \fBConsole\fR
 The page conn comes up on. It reads out the machine and gives a verdict.
 .TP
-\fBRail\fR
-The left pane of the window, forty-four columns wide. The watch and the other
-views are shown there.
+\fBPanel\fR
+The left pane of the window, forty-four columns wide. It shows one of the three
+views and usually holds the keys.
 .TP
-\fBWatch\fR
-The list of hands, grouped by place, in the order they started.
+\fBProcesses\fR
+The view listing every process at each project, in the order they started.
 .TP
-\fBSlot\fR
-The right pane of the window. It shows one hand.
+\fBProjects\fR
+The view listing every project under the roots, running or not.
 .TP
-\fBLook\fR
-A page on one row of the watch, shown in the slot.
+\fBSessions\fR
+The view listing the sessions at a project that can be resumed.
 .TP
-\fBList\fR
-Every project under the roots, running or not, shown on the rail.
+\fBBay\fR
+The right pane of the window. It holds one process.
 .TP
-\fBPicker\fR
-The conversations suspended at a place, shown on the rail.
+\fBReadout\fR
+A page of labeled values on one process, shown in the bay.
 .TP
-\fBBar\fR
-The status line at the bottom of the window. It shows the state of the keys on
-the left and one lamp per hand on the right.
+\fBStatus line\fR
+The line at the bottom of the window. It shows the state of the keys on the left
+and one lamp per process on the right.
 .RE
 .TP
 1-4.
-\fBINDICATIONS.\fR The station indicates two things: what each hand is doing,
-and which hand is waiting. The watch and the lamps on the bar show the first.
-The word WAITING on the watch, blinking, and a lamp on the bar in the same color
-show the second; \fBtab\fR goes to it (4-3).
+\fBINDICATIONS.\fR The station indicates two things: what each process is doing,
+and which process is waiting. The processes view and the lamps on the status
+line show the first. The word WAITING in the processes view, blinking, and a
+lamp on the status line in the same color show the second; \fBtab\fR goes to it
+(4-3).
 .TP
 1-5.
-\fBCOMMANDS.\fR The command alone brings up the console and continues to the
-watch. Other commands are given by name after it. \fB\-\-light\fR and
+\fBCOMMANDS.\fR The command alone brings up the console and continues to
+processes. Other commands are given by name after it. \fB\-\-light\fR and
 \fB\-\-dark\fR set the ground, ahead of a command if one is given.
 .PP
 .I "SYNOPSIS"
 .RS
 .TP
 \fBconn\fR
-Brings up the console, then the watch.
+Brings up the console, then processes.
 .TP
 \fBconn down\fR
 Takes the server down with everything in it, and reports what went.
@@ -132,22 +136,22 @@ Prints the build.
 .TP
 2-1.
 \fBARRANGEMENT.\fR The station is one window of a tmux server that conn holds.
-The rail is on the left and the slot on the right. The bar runs under both.
-Figure 2-1 shows the arrangement.
+The panel is on the left and the bay on the right. The status line runs under
+both. Figure 2-1 shows the arrangement.
 .PP
 .RS
 .nf
 ┌──────────────────────────────┬─────────────────────────────┐
-│ RAIL                         │ SLOT                        │
+│ PANEL                        │ BAY                         │
 │                              │                             │
-│ KIND   COMMAND    AGE STATUS │ The hand reached from the   │
-│                              │ rail: a shell, an AI, a run │
-│ w0zro/conn                   │ or the look. The keys are   │
-│ SHELL  zsh        2H    IDLE │ here while a hand is.       │
-│ ▸ AI   claude     1H WAITING │                             │
+│ KIND     COMMAND  AGE STATUS │ The process reached from    │
+│                              │ the panel: a shell, a       │
+│ w0zro/conn                   │ contact, a run, or the      │
+│ SHELL    zsh      2H    IDLE │ readout. The keys are here  │
+│▸ CONTACT claude   1H WAITING │ while a process is.         │
 │                              │                             │
 ├──────────────────────────────┴─────────────────────────────┤
-│ BAR  PREFIX                                    ● ● ● ●   │
+│ STATUS LINE  PREFIX                              ● ● ● ●   │
 └────────────────────────────────────────────────────────────┘
 .fi
 .RE
@@ -155,12 +159,12 @@ Figure 2-1 shows the arrangement.
 .I "FIGURE 2-1. STATION ARRANGEMENT"
 .TP
 2-2.
-\fBTHE SERVER.\fR conn holds a tmux server of its own. Its socket is under
-\fB~/.local/state/conn\fR, or where \fBCONN_SOCKET\fR says. The first \fBconn\fR
-brings the server up and puts the terminal on it. A later \fBconn\fR attaches to
-what is there. Everything in the server stays until the server is taken down
-(5-2). A hand that leaves the slot goes to a window of its own, out of sight,
-and keeps running.
+\fBTHE SERVER.\fR The station holds a tmux server of its own. Its socket is
+under \fB~/.local/state/conn\fR, or where \fBCONN_SOCKET\fR says. The first
+\fBconn\fR brings the server up and puts the terminal on it. A later \fBconn\fR
+attaches to what is there. Everything in the server stays until the server is
+taken down (5-2). A process that leaves the bay goes to a window of its own, out
+of sight, and keeps running.
 .TP
 2-3.
 \fBCOMING UP.\fR To bring up the station:
@@ -174,45 +178,46 @@ The console comes up. It reads out the machine, runs the start-up checks, and
 gives its verdict: ALL SYSTEMS NOMINAL, or the count of systems that are not.
 .TP
 \fB3.\fR
-Press any key. The watch comes up on the rail and the slot opens beside it.
+Press any key. The processes view comes up on the panel and the bay opens beside
+it.
 .RE
 .TP
 2-4.
-\fBTHE CONSOLE.\fR \fBc\fR on the watch brings the console back over the whole
-window. Any key returns to the watch.
+\fBTHE CONSOLE.\fR \fBc\fR in the processes view brings the console back over
+the whole window. Any key returns to processes.
 .TP
 2-5.
 \fBTHE PREFIX.\fR Chords are given under \fBctrl\-space\fR. \fBCONN_PREFIX\fR
 names another prefix, in the spelling tmux uses. While a chord is open, PREFIX
-is lit on the bar. No other tmux key is bound.
+is lit on the status line. No other tmux key is bound.
 .RS
 .TP
 \fBctrl\-space \-\fR
-Puts the keys on the rail, from anywhere in the server.
+Puts the keys on the panel, from anywhere in the server.
 .TP
 \fBctrl\-space p\fR
-Opens the list, from anywhere in the server (3-7).
+Opens projects, from anywhere in the server (3-7).
 .TP
 \fBctrl\-space tab\fR
-Goes to the AI that has waited longest (4-3).
+Goes to the contact that has waited longest (4-3).
 .TP
 \fBctrl\-space ctrl\-space\fR
-Goes to the hand that was last in the slot (4-4).
+Goes to the process that was last in the bay (4-4).
 .TP
 \fBctrl\-space q\fR
 Detaches (2-6).
 .RE
 .TP
 2-6.
-\fBSTANDING DOWN.\fR \fBq\fR on the rail detaches the terminal from the server.
-\fBctrl\-space q\fR does the same from anywhere in it. The server and every hand
-in it keep running, and the next \fBconn\fR attaches to them. Ending the server
-is procedure 5-2.
+\fBSTANDING DOWN.\fR \fBq\fR on the panel detaches the terminal from the server.
+\fBctrl\-space q\fR does the same from anywhere in it. The server and every
+process in it keep running, and the next \fBconn\fR attaches to them. Ending the
+server is procedure 5-2.
 .TP
 2-7.
-\fBWITHOUT TMUX.\fR Without tmux on the path, conn shows the console and the
-watch and reaches nothing. On macOS the watch needs \fBlsof\fR, which is how it
-reads where a process is working.
+\fBWITHOUT TMUX.\fR Without tmux on the path, the station shows the console and
+the processes view and reaches nothing. On macOS the processes view needs
+\fBlsof\fR to read the working directory of a process.
 .TP
 2-8.
 \fBTHE GROUND.\fR The server comes up on a dark or a light ground. The first
@@ -232,7 +237,8 @@ conn\fR. Each is drawn on the ground the server is on.
 .RS
 .TP
 \fBCONN_ROOTS\fR
-Where the list looks for projects, as a path list. \fB~/projects\fR when unset.
+The roots the projects view walks for repositories, as a path list.
+\fB~/projects\fR when unset.
 .TP
 \fBCONN_SOCKET\fR
 Where the server's socket is.
@@ -243,30 +249,30 @@ The prefix for chords, in the spelling tmux uses. \fBC\-Space\fR when unset.
 .SH WATCH PROCEDURES
 .TP
 3-1.
-\fBTHE WATCH.\fR The watch lists the hands by place. A place is titled by its
-path below the root; a place outside every root is written from \fB~\fR. Under a
-place the hands are shown as a tree: a shell, and what it runs indented under
-it. Each row shows the kind, the command, the age, and the standing. On the
-console, which is wider, the terminal is shown too. A row keeps its position for
-as long as its hand lives, oldest first, and a new row goes on the end. With
-nothing running the watch says NOTHING ON WATCH.
+\fBPROCESSES.\fR The processes view lists every process at each project. A
+project is titled by its path below the root; a project outside every root is
+written from \fB~\fR. Under a project the processes are shown as a tree: a
+shell, and what it runs indented under it. Each row shows the kind, the command,
+the age, and the status. On the console, which is wider, the terminal is shown
+too. A row keeps its position for as long as its process lives, oldest first,
+and a new row goes on the end. With nothing running the view says NO PROCESSES.
 .TP
 3-2.
-\fBSTANDINGS.\fR The last column of a row is its standing.
+\fBSTATUS.\fR The last column of a row is its status.
 .RS
 .TP
 \fBWORKING\fR
-Did something between one reading and the next. An AI is WORKING when it is
+Did something between one reading and the next. A contact is WORKING when it is
 mid-turn, or when a command is running under it.
 .TP
 \fBACTIVE\fR
 Alive and doing nothing.
 .TP
 \fBIDLE\fR
-A shell at its prompt, or an AI whose turn is over. Nothing is pending.
+A shell at its prompt, or a contact whose turn is over. Nothing is pending.
 .TP
 \fBWAITING\fR
-An AI stopped on something it needs from the operator. The word blinks.
+A contact stopped on something it needs from the operator. The word blinks.
 .TP
 \fBSTOPPED\fR
 Suspended. Shown as a chip.
@@ -276,42 +282,42 @@ Finished and not yet collected. Shown as a chip.
 .RE
 .TP
 3-3.
-\fBWHO IS WAITING.\fR Only an AI that says its own standing is ever WAITING.
-Claude Code says it, and says when its standing changed. An AI conn cannot ask
-reads as WORKING or ACTIVE from the processor time it spends. conn does not
-guess.
+\fBWHO IS WAITING.\fR Only a contact that reports its own status is ever
+WAITING. Claude Code reports it, and reports when its status changed. A contact
+the station cannot ask reads as WORKING or ACTIVE from the processor time it
+spends.
 .TP
 3-4.
-\fBKEYS ON THE WATCH.\fR The cursor is on one row. It follows its hand from one
-reading to the next.
+\fBKEYS.\fR The cursor is on one row. It follows its process from one reading to
+the next.
 .RS
 .TP
 \fBj, k\fR
 Move the cursor. The arrows do the same.
 .TP
 \fBenter\fR
-Puts the hand under the cursor in the slot, with the keys in it.
+Puts the process under the cursor in the bay, with the keys in it.
 .TP
 \fBtab\fR
-Goes to the AI that has waited longest (4-3).
+Goes to the contact that has waited longest (4-3).
 .TP
 \fBs\fR
-Opens a shell at the place under the cursor.
+Opens a shell at the project under the cursor.
 .TP
 \fBa\fR
-Raises an AI at the place under the cursor (4-2).
+Raises a contact at the project under the cursor (4-2).
 .TP
 \fBalt\-a\fR
-Opens the picker over the conversations suspended at the place (4-5).
+Opens sessions for the project under the cursor (4-5).
 .TP
 \fBi\fR
-Opens the look on the row under the cursor. Pressed again, closes it (3-6).
+Opens the readout on the row under the cursor. Pressed again, closes it (3-6).
 .TP
 \fBx\fR
-Asks to end the hand under the cursor (4-6).
+Asks to end the process under the cursor (4-6).
 .TP
 \fBp\fR
-Opens the list (3-7).
+Opens projects (3-7).
 .TP
 \fBc\fR
 Brings the console back over the window (2-4).
@@ -321,65 +327,65 @@ Detaches (2-6).
 .RE
 .TP
 3-5.
-\fBHELD AND REPORTED.\fR A row conn holds a pane for is in the ink, and
-\fBenter\fR reaches it. A row conn can only report, a terminal it did not open,
-is dimmed. The cursor goes to it and nothing else does. The row in the slot
-carries its kind in orange. Outside the server every row is reported.
+\fBHELD AND REPORTED.\fR A row the station holds a pane for is in the ink, and
+\fBenter\fR reaches it. A row the station can only report, a terminal it did not
+open, is dimmed. The cursor lands on it; no other key acts on it. The row in the
+bay carries its kind in orange. Outside the server every row is reported.
 .TP
 3-6.
-\fBTHE LOOK.\fR The look is a page on one row, shown in the slot. It says what
-the row has no room for: the whole command, the directory, the time up and the
-processor time spent, what runs it and what it runs; of an AI, the conversation
-it is carrying and what it is stopped on; of the place, what git says of it. To
-read a row:
+\fBTHE READOUT.\fR The readout is a page of labeled values on one process, shown
+in the bay. It carries what the row has no room for: the whole command, the
+directory, the time up and the processor time spent, what runs it and what it
+runs; of a contact, the session it carries and what it is stopped on; of the
+project, what git reports. To read a row:
 .RS
 .TP
 \fB1.\fR
 Put the cursor on the row.
 .TP
 \fB2.\fR
-Press \fBi\fR. The look opens in the slot. The keys stay on the rail.
+Press \fBi\fR. The readout opens in the bay. The keys stay on the panel.
 .TP
 \fB3.\fR
-\fBj\fR and \fBk\fR move the look with the cursor. \fBtab\fR carries it to the
-AI that is waiting.
+\fBj\fR and \fBk\fR move the readout with the cursor. \fBtab\fR carries it to
+the contact that is waiting.
 .TP
 \fB4.\fR
-Press \fBi\fR again. The look closes. Where the row is one conn holds, its hand
-takes the slot.
+Press \fBi\fR again. The readout closes. Where the row is one the station holds,
+its process takes the bay.
 .RE
 .TP
 \fBNOTE\fR
-\fBconn look 1234\fR, from a shell in the server, pins the look to one process
-instead of the cursor.
+\fBconn readout 1234\fR, from a shell in the server, pins the readout to one
+process instead of the cursor.
 .TP
 3-7.
-\fBTHE LIST.\fR The list is every project under the roots, whether anything is
-running in it or not. A folder that holds several repositories is a row with
-them under it. To open a hand at a project:
+\fBPROJECTS.\fR The projects view lists every project under the roots, whether
+anything is running in it or not. A folder that holds several repositories is a
+row with them under it. To open a process at a project:
 .RS
 .TP
 \fB1.\fR
-Press \fBp\fR on the watch, \fBalt\-p\fR from any view, or \fBctrl\-space p\fR
-from anywhere in the server.
+Press \fBp\fR in the processes view, \fBalt\-p\fR from any view, or
+\fBctrl\-space p\fR from anywhere in the server.
 .TP
 \fB2.\fR
 Type to narrow the rows. \fBbackspace\fR and \fBctrl\-u\fR edit the line. The
 arrows, or \fBctrl\-p\fR and \fBctrl\-n\fR, move the cursor.
 .TP
 \fB3.\fR
-Press \fBenter\fR. A shell opens at the project and the watch returns with it in
-the slot. \fBctrl\-a\fR raises an AI there instead (4-2). \fBalt\-a\fR opens the
-picker (4-5).
+Press \fBenter\fR. A shell opens at the project, and processes returns with it
+in the bay. \fBctrl\-a\fR raises a contact there instead (4-2). \fBalt\-a\fR
+opens sessions (4-5).
 .TP
 \fB4.\fR
-\fBesc\fR returns to the watch with nothing opened.
+\fBesc\fR returns to processes with nothing opened.
 .RE
 .TP
 3-8.
-\fBTHE BAR.\fR The bar is dark at rest. The left half lights for a state of the
-keys. The right half is one lamp per row of the watch, in the order of the
-watch.
+\fBTHE STATUS LINE.\fR The status line is dark at rest. The left half lights for
+a state of the keys. The right half is one lamp per row of the processes view,
+in the order of the view.
 .RS
 .TP
 \fBPREFIX\fR
@@ -403,50 +409,51 @@ The row is WAITING, in the color the word is.
 .SH CONTACT PROCEDURES
 .TP
 4-1.
-\fBCONTACT.\fR A contact is a conversation with an AI, from raising it to ending
-it, and its record is the transcript the AI writes. conn raises Claude Code, and
-the procedures of this section are written for it. Another AI on the watch is a
-hand like any other: it is reached, put in the slot, and ended the same way.
-conn cannot ask it its standing, so it is never WAITING.
+\fBCONTACT.\fR A contact is a process connected to a non-human intelligence. The
+station raises Claude Code, and the procedures of this section are written for
+it. The station sees the contact and not the intelligence: what it lists,
+reaches, and ends is the process. A contact the station did not raise is a
+process like any other: it is reached, put in the bay, and ended the same way.
+The station cannot ask it its status, so it is never WAITING.
 .TP
 4-2.
-\fBRAISING AN AI.\fR To start an AI at a place:
+\fBRAISING A CONTACT.\fR To raise a contact at a project:
 .RS
 .TP
 \fB1.\fR
-On the watch, put the cursor on any row of the place. Or open the list (3-7) and
-put the cursor on the project.
+In the processes view, put the cursor on any row of the project. Or open
+projects (3-7) and put the cursor on the project.
 .TP
 \fB2.\fR
-Press \fBa\fR. On the list, press \fBctrl\-a\fR.
+Press \fBa\fR. In projects, press \fBctrl\-a\fR.
 .TP
 \fB3.\fR
-A shell opens at the place running \fBclaude\fR, takes the slot, and has the
-keys. Its row is on the watch under the place, kind AI.
+A shell opens at the project running \fBclaude\fR, takes the bay, and has the
+keys. Its row is in the processes view under the project, kind CONTACT.
 .TP
 \fB4.\fR
-conn tells the AI where it is: that it runs in a pane of the station, and how to
-start anything long-lived in a window of its own, so the watch shows it and the
-operator can reach it.
+The station tells the contact where it is: that it runs in a pane of the
+station, and how to start anything long-lived in a window of its own. A process
+started that way has a row and can be reached.
 .RE
 .TP
 \fBNOTE\fR
-What conn tells the AI travels with conn. Nothing is written into the settings
-of the AI.
+What the station tells the contact travels with conn. Nothing is written into
+the settings of Claude Code.
 .TP
 4-3.
-\fBANSWERING AN AI.\fR When an AI stops on something it needs from the operator,
-its row reads WAITING, blinking, and its lamp on the bar blinks with it. To
-answer it:
+\fBANSWERING A CONTACT.\fR When a contact stops on something it needs from the
+operator, its row reads WAITING, blinking, and its lamp on the status line
+blinks with it. To answer it:
 .RS
 .TP
 \fB1.\fR
-Press \fBtab\fR on the watch, or \fBctrl\-space tab\fR from anywhere in the
-server.
+Press \fBtab\fR in the processes view, or \fBctrl\-space tab\fR from anywhere in
+the server.
 .TP
 \fB2.\fR
-The cursor goes to the AI that has waited longest. Its pane takes the slot and
-the keys land in it.
+The cursor goes to the contact that has waited longest. Its pane takes the bay
+and the keys land in it.
 .TP
 \fB3.\fR
 Answer it.
@@ -456,93 +463,92 @@ Press \fBtab\fR again for the next, longest first, and round again from the end.
 .RE
 .TP
 4-4.
-\fBWORKING TWO HANDS.\fR \fBctrl\-space ctrl\-space\fR goes to the hand that was
-last in the slot, and pressed again comes back. It is the key for a shell and
-the AI being asked about it, or a build and the file it fails on. A vacant slot
-and the look are not remembered. \fBalt\-o\fR does the same from the rail.
+\fBWORKING TWO PROCESSES.\fR \fBctrl\-space ctrl\-space\fR goes to the process
+that was last in the bay, and pressed again comes back. A vacant bay and the
+readout are not remembered. \fBalt\-o\fR does the same from the panel.
 .TP
 4-5.
-\fBRE\-ESTABLISHING CONTACT.\fR A conversation does not end with the AI. Its
-record is enough to pick it back up. To continue one:
+\fBRESUMING A SESSION.\fR A session outlives its contact. Its transcript is
+kept, and a new contact can resume it. To resume one:
 .RS
 .TP
 \fB1.\fR
-On the watch, put the cursor on any row of the place. Or open the list and put
-the cursor on the project.
+In the processes view, put the cursor on any row of the project. Or open
+projects and put the cursor on the project.
 .TP
 \fB2.\fR
-Press \fBalt\-a\fR. The picker lists the conversations suspended at the place,
-newest first, each by its branch, the last thing it was asked, and its age. Type
-to narrow the rows.
+Press \fBalt\-a\fR. The sessions view lists the sessions at the project, newest
+first, each by its branch, the last thing it was asked, and its age. Type to
+narrow the rows.
 .TP
 \fB3.\fR
-Press \fBenter\fR. A shell opens running \fBclaude \-\-resume\fR on that
-conversation and takes the slot.
+Press \fBenter\fR. A shell opens running \fBclaude \-\-resume\fR on that session
+and takes the bay.
 .TP
 \fB4.\fR
-\fBesc\fR returns to the watch with nothing continued.
+\fBesc\fR returns to processes with nothing resumed.
 .RE
 .TP
 \fBNOTE\fR
-A conversation a live AI is carrying is not listed. The picker checks the
-process table rather than the record alone.
+A session a live contact is carrying is not listed. The sessions view checks the
+process table as well as the transcripts.
 .TP
 4-6.
-\fBENDING AN AI.\fR To end an AI:
+\fBENDING A CONTACT.\fR To end a contact:
 .RS
 .TP
 \fB1.\fR
 Put the cursor on its row and press \fBx\fR.
 .TP
 \fB2.\fR
-CONFIRM lights on the bar, with the question beside it: END CLAUDE 1234 · X
-CONFIRMS · ANY OTHER KEY CANCELS.
+CONFIRM lights on the status line, with the question beside it: END CLAUDE 1234
+· X CONFIRMS · ANY OTHER KEY CANCELS.
 .TP
 \fB3.\fR
-Press \fBx\fR, \fBy\fR, or \fBenter\fR. The AI is asked to end. The shell it ran
-in is left at its prompt. Any other key cancels.
+Press \fBx\fR, \fBy\fR, or \fBenter\fR. The contact is asked to end. The shell
+it ran in is left at its prompt. Any other key cancels.
 .TP
 \fB4.\fR
-The watch reads again after a beat, and the row goes when the AI has.
+The processes view reads again after a beat, and the row goes when the contact
+has.
 .RE
 .TP
 \fBNOTE\fR
-An AI ended this way keeps its record. Procedure 4-5 continues it.
+A contact ended this way keeps its session. Procedure 4-5 resumes it.
 .SH EMERGENCY PROCEDURES
 .TP
 5-1.
-\fBA HAND THAT WILL NOT END.\fR \fBx\fR asks a hand to end with the signal a
-well-behaved command answers by saving and shutting down. A bare shell ignores
-that signal and is killed outright instead; there is nothing in it to save. A
-hand that ignores the request stays on the watch. Reach it with \fBenter\fR and
-end it from inside.
+\fBA PROCESS THAT WILL NOT END.\fR \fBx\fR sends the process under the cursor
+SIGTERM. A bare shell is sent SIGKILL instead. A process that ignores SIGTERM
+stays in the processes view. Reach it with \fBenter\fR and end it from inside.
 .TP
 5-2.
 \fBTAKING THE STATION DOWN.\fR To end the server and everything in it:
 .TP
 \fBCAUTION\fR
-\fBconn down\fR ends every hand in the server: every shell, every AI, and every
-run, in the slot or out of sight in a window of its own. Work that is not saved
-is lost. A conversation can be re-established afterward (4-5). A run cannot.
+\fBconn down\fR ends every process in the server: every shell, every contact,
+and every run, in the bay or out of sight in a window of its own. Work that is
+not saved is lost. A session can be resumed afterward (4-5). A run cannot.
 .RS
 .TP
 \fB1.\fR
 From a terminal outside conn, or from a shell in it, type \fBconn down\fR.
 .TP
 \fB2.\fR
-conn reports a line for each window it ended and one for the server.
+A line is printed for each window ended and one for the server.
 .RE
 .TP
 5-3.
-\fBTHE SLOT EMPTIES.\fR When the hand in the slot ends, the slot takes the next
-hand conn holds, from the cursor down and round again from the top. With none to
-take, it shows VACANT. Any key in it puts the keys on the rail.
+\fBTHE BAY EMPTIES.\fR When the process in the bay ends, the bay takes the next
+process the station holds, from the cursor down and round again from the top.
+With none to take, it shows VACANT. Any key in it puts the keys on the panel.
 .TP
 5-4.
 \fBTHE KEYS ARE ELSEWHERE.\fR From any pane of the server, \fBctrl\-space \-\fR
-puts the keys on the rail. From the rail, \fBenter\fR puts them in the slot.
+puts the keys on the panel. From the panel, \fBenter\fR puts them in the bay.
 .TP
 5-5.
-\fBTHE WATCH CANNOT READ.\fR When the process table cannot be read, the watch
-shows the reason as a chip in place of its rows and reads again on the next
-beat. On macOS the usual reason is that \fBlsof\fR gave no answer in time.
+\fBTHE PROCESSES CANNOT BE READ.\fR When the process table cannot be read, the
+processes view shows the reason as a chip in place of its rows and reads again
+on the next beat. On macOS the usual reason is that \fBlsof\fR gave no answer in
+time.

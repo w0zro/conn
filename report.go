@@ -189,9 +189,15 @@ func systemFacts(st station, now time.Time) []fact {
 	if up != "" {
 		up += " · UP SINCE " + m.booted.UTC().Format("02-Jan 15:04") + " Z"
 	}
+	// How many processes the machine is holding. It said RUNNING of
+	// every one of them, and almost none of them are: the kernel
+	// answers that every process in the table is runnable, and ps,
+	// which does tell them apart, found five of eight hundred actually
+	// running. The count is of what is there, which is what was ever
+	// read, and the word it cannot earn is not said.
 	processes := ""
 	if m.processes > 0 {
-		processes = strconv.Itoa(m.processes) + " RUNNING"
+		processes = strconv.Itoa(m.processes)
 	}
 	sip := ""
 	if m.sip != "" {

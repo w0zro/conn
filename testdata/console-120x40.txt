@@ -16,7 +16,7 @@
    SWAP ...... 3.7 GB USED OF 5 GB · ENCRYPTED              TIME ZONE . AMERICA/LOS_ANGELES · UTC-07:00 · 19:58 LO…
    VOLUME .... APFS · 995 GB                                CWD ....... ~/projects/w0zro/conn
    UPTIME .... 5D 02H 12M · UP SINCE 04-SEP 00:47 Z         PROCESS ... PID 67032 · PARENT 67031
-   PROCESSES . 747 RUNNING                                  ENV ....... 62 VARIABLES · PATH 23 ENTRIES
+   PROCESSES . 747                                          ENV ....... 62 VARIABLES · PATH 23 ENTRIES
    SIP ....... ENABLED                                      RUNTIME ... GO1.27.0 · DARWIN/ARM64 · 11 THREADS
                                                             BINARY .... ~/projects/w0zro/conn/conn · 5.2 MB
 

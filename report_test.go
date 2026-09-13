@@ -60,7 +60,7 @@ func TestStationIsWorded(t *testing.T) {
 		"SWAP":      "3.7 GB USED OF 5 GB · ENCRYPTED",
 		"VOLUME":    "apfs · 995 GB",
 		"UPTIME":    "5D 02H 12M · UP SINCE 04-Sep 00:47 Z",
-		"PROCESSES": "747 RUNNING",
+		"PROCESSES": "747",
 		"SIP":       "ENABLED",
 		"USER":      "w0zro · UID 501 · ADMIN",
 		"SHELL":     "zsh 5.9",

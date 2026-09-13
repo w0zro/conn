@@ -29,6 +29,7 @@ var (
 			terminal: "ghostty", terminalVer: "1.3.1",
 			lang: "en_US.UTF-8", zone: "America/Los_Angeles",
 			cwd: "/Users/w0zro/projects/w0zro/conn", pid: 67032, ppid: 67031,
+			sshFrom:  "10.0.0.5",
 			envCount: 62, pathCount: 23,
 			exe: "/Users/w0zro/projects/w0zro/conn/conn", exeSize: 5_500_000,
 			term:      "xterm-256color · truecolor",
@@ -65,7 +66,7 @@ func TestStationIsWorded(t *testing.T) {
 		"USER":      "w0zro · UID 501 · ADMIN",
 		"SHELL":     "zsh 5.9",
 		"TERMINAL":  "ghostty 1.3.1",
-		"SESSION":   "LOCAL",
+		"SESSION":   "SSH FROM 10.0.0.5",
 		"TIME ZONE": "America/Los_Angeles · UTC-07:00 · 19:58 LOCAL",
 		"CWD":       "~/projects/w0zro/conn",
 		"PROCESS":   "PID 67032 · PARENT 67031",
@@ -109,7 +110,11 @@ func TestAnEmptyStationIsWorded(t *testing.T) {
 	if r.station != "someone@somewhere" || r.version != "" || r.note != "(devel)" || r.build != "" {
 		t.Errorf("identification: %+v", r)
 	}
-	if len(r.system) != 0 || len(r.login) != 2 || r.login[0].label != "SESSION" || r.login[1].label != "TIME ZONE" {
+	// The one row left is the clock's own zone, which is read from the
+	// process rather than from the station. Where a session is reached
+	// from is not known of a station nothing was read of, and the row
+	// that used to call every such station LOCAL is not written.
+	if len(r.system) != 0 || len(r.login) != 1 || r.login[0].label != "TIME ZONE" {
 		t.Errorf("readout: %+v %+v", r.system, r.login)
 	}
 	for _, c := range r.checks {

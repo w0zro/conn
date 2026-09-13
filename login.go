@@ -57,9 +57,7 @@ func readLogin() login {
 	s.terminal = os.Getenv("TERM_PROGRAM")
 	s.terminalVer = os.Getenv("TERM_PROGRAM_VERSION")
 	s.tmux = os.Getenv("TMUX") != ""
-	if f := strings.Fields(os.Getenv("SSH_CONNECTION")); len(f) > 0 {
-		s.sshFrom = f[0]
-	}
+	s.sshFrom = sshOrigin()
 	s.lang = join(" · ", os.Getenv("LANG"), os.Getenv("LC_ALL"))
 	s.zone = zoneName()
 	s.cwd, _ = os.Getwd()
@@ -240,4 +238,39 @@ func readStateDir(home string) stateDir {
 			return s
 		}
 	}
+}
+
+// sshOrigin is the address this session is reached from over ssh, and
+// is blank where nothing says it is reached from anywhere.
+//
+// The row said LOCAL whenever SSH_CONNECTION was unset, which is not a
+// reading: a scrubbed environment, a shell under sudo and a pane that
+// outlived the client that made it all say nothing at all, and the row
+// called every one of them local. Nothing knowing where a session came
+// from is not the same as knowing it came from here.
+//
+// Inside tmux the environment conn was started with is the one the
+// server held at the time, which is frozen: a conn that came up on the
+// machine and is now being worked over ssh would still be reading the
+// morning's answer. The server is asked instead, since it updates that
+// variable as each client attaches, and it is the client that is
+// either here or somewhere else. A server that answers -SSH_CONNECTION
+// is saying the variable is unset, which is the same silence.
+func sshOrigin() string {
+	if f := strings.Fields(os.Getenv("SSH_CONNECTION")); len(f) > 0 {
+		return f[0]
+	}
+	socket, _, found := strings.Cut(os.Getenv("TMUX"), ",")
+	if !found || socket == "" {
+		return ""
+	}
+	out := run("tmux", "-S", socket, "show-environment", "SSH_CONNECTION")
+	value, ok := strings.CutPrefix(strings.TrimSpace(out), "SSH_CONNECTION=")
+	if !ok {
+		return ""
+	}
+	if f := strings.Fields(value); len(f) > 0 {
+		return f[0]
+	}
+	return ""
 }

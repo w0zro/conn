@@ -236,7 +236,7 @@ func sessionFacts(s login, now time.Time) []fact {
 	if s.tmux {
 		terminal = join(" · ", terminal, "IN TMUX")
 	}
-	sessionLine := "LOCAL"
+	sessionLine := ""
 	if s.sshFrom != "" {
 		sessionLine = "SSH FROM " + s.sshFrom
 	}

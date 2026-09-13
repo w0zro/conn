@@ -180,15 +180,19 @@ func body(r report, width int, own check, p palette) []row {
 	}
 	c.rule(stageHeader, measure)
 
-	// The readout: the system in the left column, the session in the
-	// right, each under its title.
+	// The readout: the machine in the left column, the session in the
+	// right, each under its title. The left column was titled SYSTEM
+	// until the host came off it, which left a row labelled SYSTEM
+	// directly under a title of the same word. The column is the
+	// machine and the row is the operating system on it, and now each
+	// says which it is.
 	factLine := func(l *line, col, width int, f fact) {
 		l.to(col)
 		l.leader(strings.ToUpper(f.label), col+factCol-1, p.faint)
 		l.add(p.ink, fit(cased(f.value, f.path), width-factCol-2, f.path))
 	}
 	l := c.line()
-	l.title(0, "SYSTEM")
+	l.title(0, "MACHINE")
 	l.title(rightCol, "SESSION")
 	c.emit(l, stageReadout, false)
 	for i := 0; i < max(len(r.system), len(r.login)); i++ {

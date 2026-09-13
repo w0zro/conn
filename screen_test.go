@@ -92,7 +92,7 @@ func TestConsoleLaysOut(t *testing.T) {
 	text := texts(rows)
 	for _, s := range []string{
 		"CONN 0.7.0 (devel)", "STATION  W0ZRO@STATION", "09-SEP-2026  02:58:41 Z", "4af550d · 09-SEP-2026 · MODIFIED",
-		"HOST ...... STATION", "CWD ....... ~/projects/w0zro/conn", "SHELL ..... ZSH 5.9",
+		"SYSTEM .... MACOS 26.6.2 (25G83)", "CWD ....... ~/projects/w0zro/conn", "SHELL ..... ZSH 5.9",
 		"SCREEN .... 120×40 · XTERM-256COLOR · TRUECOLOR", "STATE ..... ~/.local/state/conn",
 		"ALL SYSTEMS NOMINAL", prompt,
 	} {
@@ -128,7 +128,7 @@ func TestFaultsLightTheConsole(t *testing.T) {
 	st.volume.free = 6_800_000_000
 	rows := screen(compose(st, testNow), 120, 40, plain)
 	text := texts(rows)
-	if !strings.Contains(text, "6.8 GB FREE OF 995 GB") || !strings.Contains(text, " LOW") || !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
+	if !strings.Contains(text, "6.8 GB FREE") || !strings.Contains(text, " LOW") || !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
 		t.Errorf("fault not lit:\n%s", text)
 	}
 	measure, _, _ := columns(120)
@@ -329,7 +329,7 @@ func TestTheAlarmsBlink(t *testing.T) {
 	}
 	// The fault's own line keeps saying which system, and what it read;
 	// only the chip goes.
-	if !strings.Contains(texts(dark), "6.8 GB FREE OF 995 GB") {
+	if !strings.Contains(texts(dark), "6.8 GB FREE") {
 		t.Errorf("the fault's measurement went dark with its chip:\n%s", texts(dark))
 	}
 	// A check that is nominal does not blink.

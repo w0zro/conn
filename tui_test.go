@@ -60,7 +60,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	}
 	next, cmd = m.Update(stationMsg{testStation})
 	m = next.(model)
-	if cmd == nil || m.due || !has("HOST ...... STATION") || has("SCREEN") {
+	if cmd == nil || m.due || !has("SYSTEM .... MACOS 26.6.2 (25G83)") || has("SCREEN") {
 		t.Errorf("the readout should come on with the station:\n%s", view())
 	}
 	next, _ = m.Update(stageMsg{})

@@ -54,7 +54,6 @@ func TestStationIsWorded(t *testing.T) {
 		t.Errorf("station and clock: %q %q", r.station, r.clock)
 	}
 	want := map[string]string{
-		"HOST":      "station",
 		"SYSTEM":    "macOS 26.6.2 (25G83)",
 		"KERNEL":    "Darwin 25.6.0 · 16 KB PAGES",
 		"CPU":       "Apple M3 Pro · 11 CORES (5P + 6E)",
@@ -64,7 +63,7 @@ func TestStationIsWorded(t *testing.T) {
 		"UPTIME":    "5D 02H 12M · UP SINCE 04-Sep 00:47 Z",
 		"PROCESSES": "747",
 		"SIP":       "ENABLED",
-		"USER":      "w0zro · UID 501 · ADMIN",
+		"USER":      "UID 501 · ADMIN",
 		"SHELL":     "zsh 5.9",
 		"TERMINAL":  "ghostty 1.3.1",
 		"SESSION":   "SSH FROM 10.0.0.5",
@@ -87,8 +86,8 @@ func TestStationIsWorded(t *testing.T) {
 	if !got["CWD"].path || !got["BINARY"].path || got["SHELL"].path {
 		t.Error("the paths are not marked as paths, or a shell is")
 	}
-	if len(r.system) != 11 || len(r.login) != 12 {
-		t.Errorf("%d system, %d session facts", len(r.system), len(r.login))
+	if len(r.system) != 10 || len(r.login) != 12 {
+		t.Errorf("%d machine, %d session facts", len(r.system), len(r.login))
 	}
 	statuses := map[string]string{}
 	for _, c := range r.checks {

@@ -203,8 +203,10 @@ func systemFacts(st station, now time.Time) []fact {
 	if m.sip != "" {
 		sip = strings.ToUpper(m.sip)
 	}
+	// The host is not here. It is on the header, in the station's own
+	// name, and a column that said it again would be the second place
+	// to read one fact.
 	return kept([]fact{
-		{label: "HOST", value: st.login.host},
 		{label: "SYSTEM", value: system},
 		{label: "KERNEL", value: join(" · ", m.kernel, pageSize(m.page))},
 		{label: "MODEL", value: m.model},
@@ -221,9 +223,12 @@ func systemFacts(st station, now time.Time) []fact {
 // sessionFacts is who is at the station and how: the user, the shell,
 // the terminal, where and when, and the conn that is running.
 func sessionFacts(s login, now time.Time) []fact {
-	userLine := s.user
+	// Who, likewise, is on the header. What is left is what the header
+	// does not carry: which user that is to the kernel, and whether
+	// they can act as one.
+	userLine := ""
 	if s.uid != "" {
-		userLine = join(" · ", s.user, "UID "+s.uid)
+		userLine = "UID " + s.uid
 	}
 	if s.admin {
 		userLine = join(" · ", userLine, "ADMIN")
@@ -310,7 +315,9 @@ func diskCheck(v volume) check {
 	if v.total == 0 {
 		return check{label: "DISK", value: "UNREAD", status: unknown}
 	}
-	c := check{label: "DISK", value: gigabytes(v.free, 1e9) + " FREE OF " + gigabytes(v.total, 1e9), status: nominal}
+	// How much is left. How much there is altogether is the volume's
+	// own row, two columns to the left of this one.
+	c := check{label: "DISK", value: gigabytes(v.free, 1e9) + " FREE", status: nominal}
 	if v.free < min(max(v.total/diskLowShare, diskLowFloor), diskLowCeiling) {
 		c.status, c.fault = "LOW", true
 	}

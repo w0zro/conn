@@ -382,6 +382,14 @@ func networkCheck(n network, read bool) check {
 	if n.up == 0 {
 		return check{label: "NET", value: "NO INTERFACE UP", status: "DOWN", fault: true}
 	}
+	// An interface being up is a cable being in. Whether the machine
+	// can reach anything past its own link is whether it has somewhere
+	// to send what is not local, and that is a thing the kernel knows
+	// and will say. A table conn could not read leaves the older
+	// reading standing rather than claiming either way.
+	if n.routeRead && n.route == "" {
+		return check{label: "NET", value: fmt.Sprintf("%d UP · NO DEFAULT ROUTE", n.up), status: "DOWN", fault: true}
+	}
 	return check{label: "NET", value: fmt.Sprintf("%s · %d UP", n.first, n.up), status: nominal}
 }
 

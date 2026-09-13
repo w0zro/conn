@@ -206,6 +206,17 @@ func TestChecksHoldTheirThresholds(t *testing.T) {
 	if got := networkCheck(network{}, false); got.status != unknown {
 		t.Errorf("unread network: %+v", got)
 	}
+	// Links up and nowhere to send what is not local. A table conn
+	// could not read says nothing either way and leaves the reading.
+	if got := networkCheck(network{up: 2, first: "en0 10.0.0.2", routeRead: true}, true); !got.fault || got.status != "DOWN" {
+		t.Errorf("no default route: %+v", got)
+	}
+	if got := networkCheck(network{up: 2, first: "en0 10.0.0.2"}, true); got.fault {
+		t.Errorf("an unread route table faulted: %+v", got)
+	}
+	if got := networkCheck(network{up: 2, first: "en0 10.0.0.2", route: "en0", routeRead: true}, true); got.fault || got.value != "en0 10.0.0.2 · 2 UP" {
+		t.Errorf("a route out: %+v", got)
+	}
 
 	for _, c := range []struct {
 		p     power

@@ -79,3 +79,14 @@ func volumeType(path string) string {
 		return fmt.Sprintf("fs 0x%X", st.Type)
 	}
 }
+
+// defaultRoute is the interface the machine reaches everything else
+// through, and whether the table could be read at all. The kernel
+// keeps it in a file, so there is no process to run.
+func defaultRoute() (string, bool) {
+	out, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return "", false
+	}
+	return parseProcNetRoute(string(out)), true
+}

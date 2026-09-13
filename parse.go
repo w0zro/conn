@@ -260,3 +260,30 @@ func parseCSRUtil(text string) string {
 	}
 	return ""
 }
+
+// parseRouteGet is the interface holding the default route, off what
+// route -n get default prints on macOS. Nothing means the machine has
+// no way off itself, which route says by failing rather than by
+// printing an empty answer.
+func parseRouteGet(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		label, value, ok := strings.Cut(line, ":")
+		if ok && strings.TrimSpace(label) == "interface" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+// parseProcNetRoute is the interface holding the default route, off
+// the kernel's own table on Linux. The default is the row whose
+// destination is zero, and the interface is the row's first field.
+func parseProcNetRoute(text string) string {
+	for _, line := range strings.Split(text, "\n")[1:] {
+		f := strings.Fields(line)
+		if len(f) > 1 && f[1] == "00000000" {
+			return f[0]
+		}
+	}
+	return ""
+}

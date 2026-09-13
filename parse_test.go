@@ -170,3 +170,36 @@ This is an unsupported configuration, likely to break in the future and leave yo
 		}
 	}
 }
+
+// The default route, as each kernel gives it up: the interface the
+// machine reaches everything that is not local through.
+func TestTheDefaultRouteIsParsed(t *testing.T) {
+	darwin := `   route to: default
+destination: default
+       mask: default
+    gateway: 172.20.10.1
+  interface: en0
+      flags: <UP,GATEWAY,DONE,STATIC,PRCLONING,GLOBAL>
+`
+	if got := parseRouteGet(darwin); got != "en0" {
+		t.Errorf("route get: %q", got)
+	}
+	if got := parseRouteGet("route: writing to routing socket: not in table\n"); got != "" {
+		t.Errorf("no route at all: %q", got)
+	}
+
+	linux := "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n" +
+		"docker0\t000011AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0\n" +
+		"eth0\t00000000\t0101A8C0\t0003\t0\t0\t100\t00000000\t0\t0\t0\n"
+	if got := parseProcNetRoute(linux); got != "eth0" {
+		t.Errorf("proc route: %q", got)
+	}
+	// A machine with links and nowhere to send what is not local.
+	local := "Iface\tDestination\tGateway \tFlags\n" + "docker0\t000011AC\t00000000\t0001\n"
+	if got := parseProcNetRoute(local); got != "" {
+		t.Errorf("only a local route: %q", got)
+	}
+	if got := parseProcNetRoute(""); got != "" {
+		t.Errorf("no table: %q", got)
+	}
+}

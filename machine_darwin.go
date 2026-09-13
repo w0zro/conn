@@ -83,3 +83,14 @@ func volumeType(path string) string {
 	}
 	return unix.ByteSliceToString(st.Fstypename[:])
 }
+
+// defaultRoute is the interface the machine reaches everything else
+// through, and whether the table could be read at all. route answers
+// for the whole table in one call and names the interface outright.
+func defaultRoute() (string, bool) {
+	out := run("route", "-n", "get", "default")
+	if out == "" {
+		return "", false
+	}
+	return parseRouteGet(out), true
+}

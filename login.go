@@ -158,6 +158,14 @@ func firstVersion(out string) string {
 type network struct {
 	up    int
 	first string
+	// The interface the machine reaches everything else through, and
+	// whether the route table could be read at all. An interface with
+	// an address on it says only that a cable is in: a virtual bridge,
+	// a tunnel stub and a link on a stale lease all have one. Where
+	// the machine's packets actually leave by is the reading the check
+	// was always reaching for.
+	route     string
+	routeRead bool
 }
 
 // readNetwork reads the interfaces.
@@ -167,7 +175,8 @@ func readNetwork() (network, bool) {
 		return network{}, false
 	}
 	var n network
-	var firstV6 string
+	n.route, n.routeRead = defaultRoute()
+	var firstV6, onRoute string
 	for _, ifc := range ifaces {
 		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 {
 			continue
@@ -192,6 +201,12 @@ func readNetwork() (network, bool) {
 			continue
 		}
 		n.up++
+		if ifc.Name == n.route && onRoute == "" {
+			onRoute = join(" ", v4, v6)
+			if v4 != "" {
+				onRoute = v4
+			}
+		}
 		if n.first == "" && v4 != "" {
 			n.first = v4
 		}
@@ -201,6 +216,11 @@ func readNetwork() (network, bool) {
 	}
 	if n.first == "" {
 		n.first = firstV6
+	}
+	// The interface the route leaves by, where there is one, rather
+	// than whichever the machine happened to enumerate first.
+	if onRoute != "" {
+		n.first = onRoute
 	}
 	return n, true
 }

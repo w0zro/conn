@@ -190,8 +190,8 @@ func (s *scratch) parked(id string) bool {
 	return false
 }
 
-// statusLine is the status line as tmux expands it: the lamps, and the
-// row conn has put there for whatever the bay holds.
+// statusLine is the status line as tmux expands it: what conn has put
+// there for wherever its keys are.
 func (s *scratch) statusLine() string {
 	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0",
 		"#{T:status-left}#{T:status-right}")

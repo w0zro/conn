@@ -5,7 +5,7 @@
    WAITING
    ON ........ INPUT NEEDED
    FOR ....... 7M 00S
-   ASKS ...... AskUserQuestion · Is this session's lamp lit on the status line while this question waits?
+   ASKS ...... AskUserQuestion · Does the status line still say PROCS while this question waits?
 
    WHAT
    KIND ...... CONTACT

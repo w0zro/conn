@@ -89,16 +89,14 @@ The right pane of the window. It holds one process.
 A page of labeled values on one process, shown in the bay.
 .TP
 \fBStatus line\fR
-The line at the bottom of the window. It shows the state of the keys on the left
-and one lamp per process on the right.
+The line at the bottom of the window. It shows where the keys are, on the left.
 .RE
 .TP
 1-4.
 \fBINDICATIONS.\fR The station indicates two things: what each process is doing,
-and which process is waiting. The processes view and the lamps on the status
-line show the first. The word WAITING in the processes view, blinking, and a
-lamp on the status line in the same color show the second; \fBtab\fR goes to it
-(4-3).
+and which process is waiting. The processes view shows both: the status column
+shows the first, and the word WAITING, blinking, shows the second. \fBtab\fR
+goes to what is waiting from anywhere in the server (4-3).
 .TP
 1-5.
 \fBCOMMANDS.\fR The command alone brings up the console and continues to
@@ -151,7 +149,7 @@ both. Figure 2-1 shows the arrangement.
 │▸ CONTACT claude   1H WAITING │ while a process is.         │
 │                              │                             │
 ├──────────────────────────────┴─────────────────────────────┤
-│ STATUS LINE  PREFIX                              ● ● ● ●   │
+│ STATUS LINE  PROCS                                         │
 └────────────────────────────────────────────────────────────┘
 .fi
 .RE
@@ -383,10 +381,9 @@ opens sessions (4-5).
 .RE
 .TP
 3-8.
-\fBTHE STATUS LINE.\fR The status line is dark at rest. The left half says where
-the keys are. The right half is one lamp per row of the processes view, in the
-order of the view. The left half is dark while the keys are in the bay, and dark
-on the console.
+\fBTHE STATUS LINE.\fR The status line is dark at rest. The left says where the
+keys are. It is dark while the keys are in the bay, and dark on the console. The
+right is empty.
 .RS
 .TP
 \fBPREFIX\fR
@@ -407,15 +404,6 @@ The keys are on the panel, in projects (3-7).
 .TP
 \fBSESSIONS\fR
 The keys are on the panel, in sessions (4-5).
-.TP
-\fBLamp, gray\fR
-The row is WORKING.
-.TP
-\fBLamp, faint\fR
-The row is ACTIVE or IDLE.
-.TP
-\fBLamp, blinking\fR
-The row is WAITING, in the color the word is.
 .RE
 .SH CONTACT PROCEDURES
 .TP
@@ -454,8 +442,7 @@ the settings of Claude Code.
 .TP
 4-3.
 \fBANSWERING A CONTACT.\fR When a contact stops on something it needs from the
-operator, its row reads WAITING, blinking, and its lamp on the status line
-blinks with it. To answer it:
+operator, its row reads WAITING and the word blinks. To answer it:
 .RS
 .TP
 \fB1.\fR

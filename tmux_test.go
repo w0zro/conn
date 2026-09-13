@@ -185,19 +185,20 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 }
 
 // The status line is dark at rest and lit by what cannot be seen from
-// the panel: the two modes only tmux can know for nothing, and conn's
-// question, read out of an option, shown only while the keys are on the
-// panel to answer it. The lamps are read out of an option too, and
-// nothing on the line is re-read on a beat.
+// the panel: the two modes only tmux can know for nothing, and what
+// conn says of its own keys, read out of an option and shown only while
+// the keys are on the panel. The right of the line is empty, and
+// nothing on it is re-read on a beat.
 func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	conf := tmuxConf("C-Space")
-	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_owed", "@conn_rail", "@conn_slot", "status-interval 1"} {
+	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_rail", "@conn_slot", "@conn_lamps", "status-interval 1"} {
 		if strings.Contains(conf, gone) {
 			t.Errorf("the status line still asks conn for %q", gone)
 		}
 	}
 	for _, want := range []string{
-		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_lamps}",
+		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}",
+		"set -g status-right \"\"",
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0",
 		// Each mode a block of its color, the ground knocked out of it:
@@ -224,11 +225,9 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	}
 }
 
-// The left of the status line lights for a question armed and for
-// nothing else of conn's; the right is one lamp per row of the
-// processes view, in the processes view's order, in the color of how
-// each stands. Both are written when they change and not again for the
-// same reading.
+// The left of the status line says which view has the keys, or the
+// question armed over it, and nothing else of conn's. It is written
+// when it changes and not again for the same view.
 func TestConnLightsTheStatusLine(t *testing.T) {
 	m := newModel(plain)
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
@@ -267,9 +266,8 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	}
 	m.kill = nil
 
-	// One lamp per row, in order: a shell at its prompt the faintest
-	// ink, a contact working a rank of gray, a contact waiting in the
-	// waiting color and blinking, and a fault no different from rest.
+	// How the processes stand is the processes view's to say, in words,
+	// and nothing of it reaches the status line.
 	m.projects = []project{
 		{path: "/w", entries: []entry{
 			{pid: 11, kind: kindShell, status: statusIdle},
@@ -280,38 +278,36 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 			{pid: 22, kind: kindShell, status: statusStopped, fault: true},
 		}},
 	}
-	lamps := statusLineLamps(m.projects)
-	want := "#[fg=" + faintHex + " nobold noblink]" + lamp + " " +
-		"#[fg=" + grayHex + " nobold noblink]" + lamp + " " +
-		"#[fg=" + scheme[1] + " bold blink]" + lamp + " " +
-		"#[fg=" + faintHex + " nobold noblink]" + lamp + " "
-	if lamps != want {
-		t.Errorf("the lamps read\n%s\nwant\n%s", lamps, want)
-	}
-	if statusLineLamps(nil) != "" {
-		t.Errorf("a view with nothing on it lights %q", statusLineLamps(nil))
+	m.view = viewProcesses
+	waiting, _ := m.saying()
+	quiet := m
+	quiet.projects[1].entries[0].status = statusIdle
+	still, _ := quiet.saying()
+	if waiting.saidKeys != still.saidKeys {
+		t.Errorf("a contact waiting changed the status line: %q against %q", waiting.saidKeys, still.saidKeys)
 	}
 
-	// The first writing goes out whatever the server holds: the options
-	// outlive the conn that set them, and a reground respawns the panel
+	// The first writing goes out whatever the server holds: the option
+	// outlives the conn that set it, and a reground respawns the panel
 	// under a fresh one that has said nothing yet.
 	first := m
-	first.said, first.saidKeys, first.saidLamps = false, m.keys(), statusLineLamps(m.projects)
+	first.said, first.saidKeys = false, m.keys()
 	if _, cmd := first.saying(); cmd == nil {
 		t.Error("a conn that has said nothing yet left the status line as it found it")
 	}
 
-	// Written when it changes, and not again for the same reading.
+	// Written when it changes, and not again for the same view.
 	next, cmd := m.saying()
 	if cmd == nil {
-		t.Fatal("the lamps conn had not lit were not put on the status line")
+		t.Fatal("what conn had not said was not put on the status line")
 	}
 	if _, again := next.saying(); again != nil {
-		t.Error("the same lamps were written to the status line twice")
+		t.Error("the same word was written to the status line twice")
 	}
-	next.projects[1].entries[0].status = statusIdle
-	if _, changed := next.saying(); changed == nil {
-		t.Error("a process that stopped waiting did not go out on the status line")
+	moved := next
+	moved.view = viewProjects
+	if _, changed := moved.saying(); changed == nil {
+		t.Error("the keys moving to another view did not go out on the status line")
 	}
 
 	// Outside the server there is no status line to write to.

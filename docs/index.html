@@ -149,9 +149,9 @@
           <div class="row"><span>Sessions</span><span>The view listing the sessions at a project that can be resumed.</span></div>
           <div class="row"><span>Bay</span><span>The right pane of the window. It holds one process.</span></div>
           <div class="row"><span>Readout</span><span>A page of labeled values on one process, shown in the bay.</span></div>
-          <div class="row"><span>Status line</span><span>The line at the bottom of the window. It shows the state of the keys on the left and one lamp per process on the right.</span></div>
+          <div class="row"><span>Status line</span><span>The line at the bottom of the window. It shows where the keys are, on the left.</span></div>
         </div>
-        <p class="para"><span class="n">1-4.</span><b>INDICATIONS.</b> The station indicates two things: what each process is doing, and which process is waiting. The processes view and the lamps on the status line show the first. The word WAITING in the processes view, blinking, and a lamp on the status line in the same color show the second; <code>tab</code> goes to it (4-3).</p>
+        <p class="para"><span class="n">1-4.</span><b>INDICATIONS.</b> The station indicates two things: what each process is doing, and which process is waiting. The processes view shows both: the status column shows the first, and the word WAITING, blinking, shows the second. <code>tab</code> goes to what is waiting from anywhere in the server (4-3).</p>
         <p class="para"><span class="n">1-5.</span><b>COMMANDS.</b> The command alone brings up the console and continues to processes. Other commands are given by name after it. <code>--light</code> and <code>--dark</code> set the ground, ahead of a command if one is given.</p>
         <p class="caption">SYNOPSIS</p>
         <div class="table synopsis">
@@ -196,7 +196,7 @@
 <span class="c">│</span>▸ CONTACT claude   1H WAITING <span class="c">│</span> while a process is.         <span class="c">│</span>
 <span class="c">│</span>                              <span class="c">│</span>                             <span class="c">│</span>
 <span class="c">├──────────────────────────────┴─────────────────────────────┤</span>
-<span class="c">│</span> <span class="k">STATUS LINE</span>  PREFIX                              ● ● ● ●   <span class="c">│</span>
+<span class="c">│</span> <span class="k">STATUS LINE</span>  PROCS                                         <span class="c">│</span>
 <span class="c">└────────────────────────────────────────────────────────────┘</span></pre></div>
         <p class="caption">FIGURE 2-1. STATION ARRANGEMENT</p>
         <p class="para"><span class="n">2-2.</span><b>THE SERVER.</b> The station holds a tmux server of its own. Its socket is under <code>~/.local/state/conn</code>, or where <code>CONN_SOCKET</code> says. The first <code>conn</code> brings the server up and puts the terminal on it. A later <code>conn</code> attaches to what is there. Everything in the server stays until the server is taken down (5-2). A process that leaves the bay goes to a window of its own, out of sight, and keeps running.</p>
@@ -290,7 +290,7 @@
           <div class="row"><span>3.</span><span>Press <code>enter</code>. A shell opens at the project, and processes returns with it in the bay. <code>ctrl-a</code> raises a contact there instead (4-2). <code>alt-a</code> opens sessions (4-5).</span></div>
           <div class="row"><span>4.</span><span><code>esc</code> returns to processes with nothing opened.</span></div>
         </div>
-        <p class="para"><span class="n">3-8.</span><b>THE STATUS LINE.</b> The status line is dark at rest. The left half says where the keys are. The right half is one lamp per row of the processes view, in the order of the view. The left half is dark while the keys are in the bay, and dark on the console.</p>
+        <p class="para"><span class="n">3-8.</span><b>THE STATUS LINE.</b> The status line is dark at rest. The left says where the keys are. It is dark while the keys are in the bay, and dark on the console. The right is empty.</p>
         <div class="table narrow">
           <div class="row head"><span>INDICATION</span><span>MEANS</span></div>
           <div class="row"><span>PREFIX</span><span>A chord is open. The next key is one of 2-5.</span></div>
@@ -299,9 +299,6 @@
           <div class="row"><span>PROCS</span><span>The keys are on the panel, in the processes view.</span></div>
           <div class="row"><span>PROJECTS</span><span>The keys are on the panel, in projects (3-7).</span></div>
           <div class="row"><span>SESSIONS</span><span>The keys are on the panel, in sessions (4-5).</span></div>
-          <div class="row"><span>Lamp, gray</span><span>The row is WORKING.</span></div>
-          <div class="row"><span>Lamp, faint</span><span>The row is ACTIVE or IDLE.</span></div>
-          <div class="row"><span>Lamp, blinking</span><span>The row is WAITING, in the color the word is.</span></div>
         </div>
       </div>
     </div>
@@ -332,7 +329,7 @@
           <div class="row"><span>4.</span><span>The station tells the contact where it is: that it runs in a pane of the station, and how to start anything long-lived in a window of its own. A process started that way has a row and can be reached.</span></div>
         </div>
         <div class="note"><p class="label">NOTE</p><p>What the station tells the contact travels with conn. Nothing is written into the settings of Claude Code.</p></div>
-        <p class="para"><span class="n">4-3.</span><b>ANSWERING A CONTACT.</b> When a contact stops on something it needs from the operator, its row reads WAITING, blinking, and its lamp on the status line blinks with it. To answer it:</p>
+        <p class="para"><span class="n">4-3.</span><b>ANSWERING A CONTACT.</b> When a contact stops on something it needs from the operator, its row reads WAITING and the word blinks. To answer it:</p>
         <div class="table steps">
           <div class="row"><span>1.</span><span>Press <code>tab</code> in the processes view, or <code>ctrl-space tab</code> from anywhere in the server.</span></div>
           <div class="row"><span>2.</span><span>The cursor goes to the contact that has waited longest. Its pane takes the bay and the keys land in it.</span></div>

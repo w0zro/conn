@@ -657,33 +657,25 @@ set -g remain-on-exit on
 // teal, the hue furthest from the orange attention is said in, since
 // where you are is not a thing to turn for.
 //
-// On the right, the processes: one lamp for each row of the processes
-// view, in the processes view's order, so a lamp's position on the line
-// is a row's position in the view. The Lisp machine's status line had a
-// strip of run bars in its corner, one per activity, flickering in the
-// corner of the eye, and this is that strip. A lamp is a rank of gray
-// while its process is working, the faintest ink while it is idle or
-// merely active — it keeps its project, since a lamp that vanished
-// would shift the ones beside it — and the waiting color, bold and
-// blinking, while a contact is stopped on something it asked of you.
-// The terminal does the blinking, so nothing here redraws on a beat; a
-// terminal that will not blink shows it steady, which is the same lamp
-// less insistent.
+// The right is empty. It carried one lamp per row of the processes
+// view, a strip of them in the corner of the eye after the Lisp
+// machine's run bars, each in the color of how its process stood. A
+// row of dots says how many things are running and which one wants
+// you, which is what the processes view says in words a glance to the
+// left, and it says it in a shape that has to be counted against that
+// list to mean anything. The list is the reading; the dots were a
+// second, worse copy of it.
 //
-// Faults stay off the panel. A process you suspended yourself is not
-// holding you up, and a lamp that is lit all day is a lamp nobody
-// reads; the processes view has the chip.
-//
-// The row stands on the raised ground — the one a chosen row sits on
+// The line stands on the raised ground — the one a chosen row sits on
 // everywhere else in conn — and keeps it whether or not anything is
 // lit. A status line the color of the window reads as the last line of
 // whatever pane is over it, and a status line that comes and goes is
 // not somewhere to look.
 //
-// conn writes the two things only it knows, the question and the lamps,
-// each in an option of its own, and each only when it changes: the
-// question on a keypress, the lamps when a reading finds a process with
-// a status different from the last. Never on a beat.
+// conn writes the one thing only it knows, where its own keys are, into
+// an option of its own and only when it changes, which is on a
+// keypress: nothing but a key moves the keys between views or arms a
+// question. Never on a beat.
 func statusLine() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
@@ -691,8 +683,8 @@ set -g status-position bottom
 set -g status-justify left
 set -g status-left-length 200
 set -g status-right-length 200
-# Nothing on the status line is read on a beat: the lamps and the question are
-# set when they change, and the terminal does the blinking.
+# Nothing on the status line is read on a beat: conn sets its option when
+# what it says changes, and nothing else on the line changes at all.
 set -g status-interval 0
 # conn has no tabs, so the middle of the line is nothing.
 set -g window-status-format ""
@@ -706,7 +698,7 @@ set -g window-status-current-format ""
 	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
 	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},}}}\"\n",
 		statusLineBlock("PREFIX", cursorHex), statusLineBlock("COPY", scheme[12]), onPanel)
-	fmt.Fprintf(&b, "set -g status-right \"#{@conn_lamps}\"\n")
+	b.WriteString("set -g status-right \"\"\n")
 	return b.String()
 }
 
@@ -755,41 +747,10 @@ func statusLineSay(text string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", borderHex, scheme[7], strings.ReplaceAll(text, "#", "##"))
 }
 
-// The lamp, one cell. A filled circle rather than a square: the squares
-// are what the pane borders are made of, and a lamp is not a border.
-const lamp = "●"
-
-// statusLineLamps is the right-hand side of the status line: one lamp
-// for each row of the processes view, in the processes view's order,
-// each in the color of how its process stands, and a space between them
-// so they count. Nothing at all with no rows, so a view with nothing on
-// it leaves the panel dark.
-func statusLineLamps(projects []project) string {
-	var b strings.Builder
-	for _, pl := range projects {
-		for _, e := range pl.entries {
-			var color, weight string
-			switch e.status {
-			case statusWaiting:
-				color, weight = scheme[1], " bold blink"
-			case statusWorking:
-				color, weight = grayHex, " nobold noblink"
-			default:
-				color, weight = faintHex, " nobold noblink"
-			}
-			fmt.Fprintf(&b, "#[fg=%s%s]%s ", color, weight, lamp)
-		}
-	}
-	return b.String()
-}
-
-// say puts conn's two halves of the status line on the server — what it
-// knows about its own keys, and how every process in the processes view
-// stands — and asks the clients to draw, so the status line never lags
-// what changed it.
-func (s *server) say(keys, lamps string) error {
+// say puts what conn knows about its own keys on the server, and asks
+// the clients to draw, so the status line never lags what changed it.
+func (s *server) say(keys string) error {
 	_, err := s.run("set-option", "-g", "@conn_keys", keys,
-		";", "set-option", "-g", "@conn_lamps", lamps,
 		";", "refresh-client", "-S")
 	return err
 }

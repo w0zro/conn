@@ -37,7 +37,7 @@ func readoutSubj() readoutSubject {
 		sess: sessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
 		carried: session{Branch: "main", Prompt: "i want the info to use the pane on the right",
-			Ask: ask{Tool: "AskUserQuestion", Detail: "Is this session's lamp lit on the status line while this question waits?"}},
+			Ask: ask{Tool: "AskUserQuestion", Detail: "Does the status line still say PROCS while this question waits?"}},
 		git: gitStatus{repo: true, branch: "main", dirty: 3,
 			commit: "263cf91", subject: "The readout: what conn knows of a row",
 			when: processesNow.Add(-3 * time.Hour), upstream: "origin/main", ahead: 142},
@@ -80,7 +80,7 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 	}
 	for what, want := range map[string]string{
 		"how long it has waited":   "FOR ....... 7M 00S",
-		"what it is asking, whole": "AskUserQuestion · Is this session's lamp lit on the status line while this question waits?",
+		"what it is asking, whole": "AskUserQuestion · Does the status line still say PROCS while this question waits?",
 		"its own directory":        "~/projects/w0zro/conn/tools",
 		"what the table says":      "SLEEPING · HAS THE TERMINAL",
 		"what it has spent":        "2M 14S SPENT",

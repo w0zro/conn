@@ -20,8 +20,9 @@ var (
 )
 
 // Across the foot of the window is the status line, which is tmux's
-// status line and an annunciator panel: dark until a lamp lights it. It
-// is written in tmux.go; conn lights its half through saying, below.
+// status line and an annunciator panel: dark until something conn's
+// keys are doing lights it. It is written in tmux.go; conn lights its
+// half through saying, below.
 //
 // The program holds three views. The console comes on first: the header
 // at once, from what is known before anything is read; the station is
@@ -157,12 +158,12 @@ type model struct {
 	// The modes conn last put on the status line, so each is written when
 	// it changes and not on every pass through Update.
 	// Whether conn has written the status line once since it started.
-	// The options outlive the conn that set them — a reground respawns
-	// the panel, and the fresh conn inherits whatever the last one left
-	// — so an empty saidKeys means "not written yet", not "the server
-	// says nothing", and the first writing goes out whatever it holds.
-	said                bool
-	saidKeys, saidLamps string
+	// The option outlives the conn that set it — a reground respawns the
+	// panel, and the fresh conn inherits whatever the last one left — so
+	// an empty saidKeys means "not written yet", not "the server says
+	// nothing", and the first writing goes out whatever it holds.
+	said     bool
+	saidKeys string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited      int
@@ -400,27 +401,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, cmd
 }
 
-// saying puts conn's two lamps on the status line, when either has
-// changed since the last telling. Going through here is the point: a
-// question is armed and answered from a handful of keys and a process
-// changes how it stands on any reading, and every one of them would
-// otherwise have to remember to say so.
+// saying puts what conn knows about its own keys on the status line,
+// when it has changed since the last telling. Going through here is the
+// point: a question is armed and answered from a handful of keys and
+// the views are left and entered from as many more, and every one of
+// them would otherwise have to remember to say so.
 //
-// The status line is tmux's line and conn reaches it by setting
-// options, which is a process — so the lamps are written when they
-// change, which is on a keypress or a reading that found something
-// different, and never on a beat.
+// The status line is tmux's line and conn reaches it by setting an
+// option, which is a process — so it is written when what it says
+// changes, which is on a keypress, and never on a beat.
 func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	keys, lamps := m.keys(), statusLineLamps(m.projects)
-	if m.said && keys == m.saidKeys && lamps == m.saidLamps {
+	keys := m.keys()
+	if m.said && keys == m.saidKeys {
 		return m, nil
 	}
-	m.said, m.saidKeys, m.saidLamps = true, keys, lamps
+	m.said, m.saidKeys = true, keys
 	srv := m.srv
-	return m, func() tea.Msg { _ = srv.say(keys, lamps); return nil }
+	return m, func() tea.Msg { _ = srv.say(keys); return nil }
 }
 
 // The word each panel view wears on the status line. The console takes

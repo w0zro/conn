@@ -36,11 +36,11 @@ visited from the station, not where the operator lives.
 
 **1-4. THE TWO QUESTIONS.** Everything on the screen answers one of two
 questions the operator keeps asking: what is going on, and who needs me.
-The processes view answers the first. The waiting word, its blink, `tab`,
-and the lamps on the status line answer the second. Every other rule in
-this document, the order that holds still, the words that are earned, the
-status line that stays dark, the one orange, exists so that those two
-answers can be taken in at a glance rather than read.
+The processes view answers the first. The waiting word, its blink and
+`tab` answer the second. Every other rule in this document, the order
+that holds still, the words that are earned, the status line that stays
+dark, the one orange, exists so that those two answers can be taken in at
+a glance rather than read.
 
 **1-5. THE NAME.** The conn is the Navy's word for control of a ship's
 movement. The officer who has it does not work the ship; the crew does.
@@ -363,28 +363,25 @@ block sharing a hue with the chord and the question would claim it is.
 The teal is held down to the presence the chord's block has rather than
 the brightness its slot has, so it reads as a color and not as an alarm.
 
-**6-3. THE LAMPS.** On the right, the processes: one lamp for each row of
-the view, in the view's order, so a lamp's position on the line is a
-row's position in the view. A lamp is a rank of gray while its process is
-working, the faintest ink while it is idle or merely active, keeping its
-position so the lamps beside it do not shift, and the waiting color, bold
-and blinking, while a contact is stopped on something it asked of you.
-The terminal does the blinking, so nothing here redraws on a beat; a
-terminal that will not blink shows it steady, which is the same lamp less
-insistent. Faults stay off the line. A process you suspended yourself is
-not holding you up, and the view has the chip.
+**6-3. THE RIGHT IS EMPTY.** It carried one lamp per row of the processes
+view, a strip of them in the corner of the eye, each in the color of how
+its process stood and the waiting one blinking. A row of dots says how
+many things are running and which one wants you. The processes view says
+that in words a glance to the left, and says which row it is about, where
+a dot has to be counted against the list to mean anything at all. The
+list is the reading and the dots were a second, worse copy of it.
 
-**6-4. WHY A LINE THAT LIGHTS.** The status line is the one instrument
-conn has that works on peripheral vision. The panel cannot catch your
-eye, because when you are working your eyes are in the bay and the view
-is beside them unread. A dark line that lights is seen without being
-looked at, and only while it is dark the rest of the time.
+What goes with them is the one thing conn had that worked on peripheral
+vision: when you are working, your eyes are in the bay and the view is
+beside them unread, and a lamp that lit was seen without being looked at.
+What is left of that signal is the blinking word in the view and `tab`,
+which reaches the longest-waiting contact from anywhere in the server
+without reading anything first.
 
-**6-5. COST.** conn writes the two things only it knows, where its keys
-are and how every process stands, each in an option of its own and each
-only when it changes: the keys on a keypress, since only a key moves them
-between views or arms a question, and the lamps when a reading finds a
-process with a status different from the last. Never on a beat.
+**6-4. COST.** conn writes the one thing only it knows, where its own
+keys are, into an option of its own and only when it changes, which is on
+a keypress: nothing but a key moves the keys between views or arms a
+question. Never on a beat, and never on a reading.
 
 ## SECTION 7. PROJECTS AND SESSIONS
 

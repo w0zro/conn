@@ -78,7 +78,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if lines := strings.Split(view(), "\n"); !strings.Contains(lines[len(lines)-1], prompt) {
 		t.Errorf("the prompt is not on the bottom row:\n%s", view())
 	}
-	if lastStage(m.report()) != stageChecks+8 {
+	if lastStage(m.report()) != stageChecks+10 {
 		t.Errorf("last stage is %d", lastStage(m.report()))
 	}
 	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewConsole || !next.(model).entering {

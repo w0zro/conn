@@ -257,7 +257,7 @@ func TestTheVerdictCountsWhatWasNotRead(t *testing.T) {
 	if strings.Contains(text, "ALL SYSTEMS NOMINAL") {
 		t.Errorf("the console called an unchecked system nominal:\n%s", text)
 	}
-	if !strings.Contains(text, "7 NOMINAL · 1 UNCHECKED") {
+	if !strings.Contains(text, "9 NOMINAL · 1 UNCHECKED") {
 		t.Errorf("the console does not count what it did not read:\n%s", text)
 	}
 }

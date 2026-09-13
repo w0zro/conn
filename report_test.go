@@ -41,6 +41,9 @@ var (
 		network: network{up: 2, first: "en0 192.168.68.58"},
 		netRead: true,
 		state:   stateDir{path: "/Users/w0zro/.local/state/conn"},
+		// A macOS station needs both, and the console of record is the
+		// console this station prints.
+		tools: []tool{{name: "tmux", path: "/opt/homebrew/bin/tmux"}, {name: "lsof", path: "/usr/sbin/lsof"}},
 	}
 )
 

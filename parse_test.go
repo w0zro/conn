@@ -139,3 +139,34 @@ func TestVMStatIsParsed(t *testing.T) {
 		t.Error("nothing was read as a vm_stat")
 	}
 }
+
+// csrutil, on each machine it answers for. A protection set piece by
+// piece is the one that mattered: the word enabled is in its answer
+// several times over, and none of those times is the status.
+func TestCSRUtilIsParsed(t *testing.T) {
+	for _, c := range []struct {
+		name, text, want string
+	}{
+		{"on", "System Integrity Protection status: enabled.\n", "enabled"},
+		{"off", "System Integrity Protection status: disabled.\n", "disabled"},
+		{"custom", `System Integrity Protection status: unknown (Custom Configuration).
+
+Configuration:
+	Apple Internal: disabled
+	Kext Signing: enabled
+	Filesystem Protections: disabled
+	Debugging Restrictions: enabled
+	DTrace Restrictions: enabled
+	NVRAM Protections: enabled
+	BaseSystem Verification: enabled
+
+This is an unsupported configuration, likely to break in the future and leave your machine in an unknown state.
+`, "custom"},
+		{"unanswered", "", ""},
+		{"a word conn has never heard", "System Integrity Protection status: sideways.\n", ""},
+	} {
+		if got := parseCSRUtil(c.text); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}

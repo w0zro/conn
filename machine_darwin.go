@@ -71,12 +71,7 @@ func readMachine() machine {
 		m.processes = len(procs)
 	}
 	m.power = parsePmset(run("pmset", "-g", "batt"))
-	switch out := run("csrutil", "status"); {
-	case strings.Contains(out, "enabled"):
-		m.sip = "enabled"
-	case strings.Contains(out, "disabled"):
-		m.sip = "disabled"
-	}
+	m.sip = parseCSRUtil(run("csrutil", "status"))
 	return m
 }
 

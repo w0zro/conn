@@ -230,3 +230,33 @@ func parseVMStat(text string) (uint64, bool) {
 	}
 	return pages * page, true
 }
+
+// parseCSRUtil is what csrutil says of System Integrity Protection,
+// read off its status line and nothing else.
+//
+// The whole of the output was searched for the word enabled, and on a
+// machine whose protection is partly turned off that word is there
+// several times over. csrutil answers such a machine with a status of
+// unknown and then lists each protection and how it stands, so an
+// Apple Internal that is disabled under a Kext Signing that is enabled
+// read as a machine with its protection on. It has some of it on,
+// which is its own answer and now has its own word.
+func parseCSRUtil(text string) string {
+	_, rest, found := strings.Cut(text, "status:")
+	if !found {
+		return ""
+	}
+	line, _, _ := strings.Cut(rest, "\n")
+	switch word := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(line)), "."); {
+	case word == "enabled":
+		return "enabled"
+	case word == "disabled":
+		return "disabled"
+	case strings.HasPrefix(word, "unknown"):
+		// Unknown to csrutil, which is how it says a configuration
+		// somebody set piece by piece. conn has been told exactly what
+		// the machine is and says so.
+		return "custom"
+	}
+	return ""
+}

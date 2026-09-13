@@ -6,8 +6,8 @@ import (
 )
 
 // A listing that does not answer in time is an error, not an empty
-// table: the watch would otherwise read a machine on which nothing has
-// a directory as true.
+// table: the processes view would otherwise read a machine on which
+// nothing has a directory as true.
 func TestAListingThatDoesNotAnswerIsAnError(t *testing.T) {
 	if _, err := listingWithin(50*time.Millisecond, "sleep", "5"); err == nil {
 		t.Error("a listing that hung came back as a table")

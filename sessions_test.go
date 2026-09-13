@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-// testConvos is a place's suspended conversations as claudeSuspended
+// testSessions2 is a project's suspended sessions as claudeSuspended
 // would give them: newest first, one with nothing read of it yet.
 var testSessions2 = []session{
 	{ID: "aaaaaaaa-0000-0000-0000-000000000001", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour), Branch: "main", Prompt: "fix the flaky build test"},
@@ -18,7 +18,7 @@ func testSessions(filter string) sessionsReport {
 	return composeSessions(testSessions2, "/Users/w0zro/projects/w0zro/conn", filter, "/Users/w0zro", processesNow, false)
 }
 
-// A conversation answers the filter by its branch, the last thing it
+// A session answers the filter by its branch, the last thing it
 // was asked, or the directory it was had in.
 func TestMatchingSessionsAnswersByBranchPromptOrDir(t *testing.T) {
 	for _, c := range []struct {
@@ -37,8 +37,8 @@ func TestMatchingSessionsAnswersByBranchPromptOrDir(t *testing.T) {
 	}
 }
 
-// The picker at rest, filtered, loading, and with nothing found are
-// files of record.
+// The sessions view at rest, filtered, loading, and with nothing found
+// are files of record.
 func TestSessionsMatchesTheGolden(t *testing.T) {
 	golden(t, "sessions-48x30.txt", texts(drawSessions(testSessions(""), 0, 48, 30, plain)))
 	golden(t, "sessions-filtered-48x30.txt", texts(drawSessions(testSessions("flaky"), 0, 48, 30, plain)))
@@ -48,10 +48,10 @@ func TestSessionsMatchesTheGolden(t *testing.T) {
 	golden(t, "sessions-empty-48x30.txt", texts(drawSessions(empty, 0, 48, 30, plain)))
 }
 
-// The picker's rows hold: the place it is for, the count against the
-// right, the filter on its own line, the branch and the age, a
-// conversation with nothing read of it named by its directory instead,
-// and the cursor on one row.
+// The sessions view's rows hold: the project it is for, the count
+// against the right, the filter on its own line, the branch and the
+// age, a session with nothing read of it named by its directory
+// instead, and the cursor on one row.
 func TestSessionsLayOut(t *testing.T) {
 	rows := drawSessions(testSessions(""), 1, 48, 30, plain)
 	text := texts(rows)
@@ -60,7 +60,7 @@ func TestSessionsLayOut(t *testing.T) {
 		"main", "fix the flaky", "topic/resume", "2H 00M", "3D 00H",
 	} {
 		if !strings.Contains(text, s) {
-			t.Errorf("the picker lacks %q:\n%s", s, text)
+			t.Errorf("the sessions view lacks %q:\n%s", s, text)
 		}
 	}
 	if strings.Count(text, "▸") != 1 {

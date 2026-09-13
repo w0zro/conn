@@ -17,7 +17,7 @@ import (
 // which runs a node of its own and a bash it asked for, which runs a go
 // test. On ttys009, a shell at its prompt, and one stopped vim. A root
 // process, and one with no terminal working at / — no project, so
-// nothing adopts it and the watch leaves it out.
+// nothing adopts it and the processes view leaves it out.
 var (
 	processesNow = time.Date(2026, 9, 9, 3, 0, 0, 0, time.UTC)
 	testProcs    = []process{
@@ -50,20 +50,20 @@ var (
 	testIsProject = func(dir string) bool {
 		return dir == "/Users/w0zro/projects/w0zro/conn" || dir == "/Users/w0zro/projects/w0zro/vim.pro/conjurer"
 	}
-	// Where the checkouts are kept, which the watch names its places
-	// against.
+	// Where the checkouts are kept, which the processes view names its
+	// projects against.
 	testProjRoots = []string{"/Users/w0zro/projects"}
 )
 
-// The watch stands every process for its own work, nested under
-// whatever runs it: claude's node and its bash, the bash's own go, a
-// shell over its idle sibling, another over its stopped vim. Everything
-// sits where it started, oldest first — the places by the work that
-// began there, the trees by their own roots, a row among its siblings
-// by itself. Nothing of root's, of another user's, without a terminal,
-// or conn's own — conn is the instrument and not the work, though
-// something under it, however unlikely, would still root a tree of its
-// own.
+// The processes view stands every process for its own work, nested
+// under whatever runs it: claude's node and its bash, the bash's own
+// go, a shell over its idle sibling, another over its stopped vim.
+// Everything sits where it started, oldest first — the projects by the
+// work that began there, the trees by their own roots, a row among its
+// siblings by itself. Nothing of root's, of another user's, without a
+// terminal, or conn's own — conn is the instrument and not the work,
+// though something under it, however unlikely, would still root a tree
+// of its own.
 func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 	projects := projectsFrom(testProcs, 501, testRoots, testIsProject, nil)
 	var got []string
@@ -88,7 +88,7 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		t.Errorf("processes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 
 	find := func(pid int) entry {
@@ -99,7 +99,7 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 				}
 			}
 		}
-		t.Fatalf("pid %d is not on the watch", pid)
+		t.Fatalf("pid %d is not in the processes view", pid)
 		return entry{}
 	}
 	if e := find(80002); !e.fault {
@@ -115,14 +115,14 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 	if e := find(67040); e.status != statusIdle {
 		t.Errorf("a bare shell is %s, not idle", e.status)
 	}
-	// conn is in the table, at the same place as its own shell, and is
-	// not a row of it — nor is the tmux client it holds, which is
-	// conn's own doing and goes off the watch with it rather than
+	// conn is in the table, at the same directory as its own shell, and is
+	// not a row of it — nor is the tmux client it holds, which is conn's
+	// own doing and goes off the processes view with it rather than
 	// hanging from the shell above conn.
 	for _, pl := range projects {
 		for _, e := range pl.entries {
 			if e.kind == kindConn {
-				t.Error("conn is on its own watch")
+				t.Error("conn is in its own view")
 			}
 			if e.pid == 67033 {
 				t.Errorf("the tmux client conn holds is a row: %+v", e)
@@ -130,7 +130,7 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	// The go test and the node stand on their own once claude is gone,
-	// each a root of its own place's tree; the shell it left is idle.
+	// each a root of its own project's tree; the shell it left is idle.
 	var without []process
 	for _, p := range testProcs {
 		if p.pid != 70100 {
@@ -154,22 +154,22 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 		" RUN go test ./... ACTIVE",
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		t.Errorf("processes without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	if b := projectsFrom(nil, 501, testRoots, testIsProject, nil); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
 	}
 }
 
-// Work with no terminal is still work. A server the AI started and
+// Work with no terminal is still work. A server the contact started and
 // one that outlived the shell that started it are both of the project,
-// and both stand as rows: the first under the AI that runs it, the
+// and both stand as rows: the first under the contact that runs it, the
 // second rooting a tree of its own, since nothing of yours runs it any
 // more. What is merely on the machine stays off — a daemon working in
-// its own container under home, where a shell happens to sit, is not
-// in a project and is nobody's work. Neither is what conn is held in:
-// the tmux server has no terminal and works in the repository like
-// anything else there, and is off the watch with conn.
+// its own container under home, where a shell happens to sit, is not in
+// a project and is nobody's work. Neither is what conn is held in: the
+// tmux server has no terminal and works in the repository like anything
+// else there, and is off the processes view with conn.
 func TestTheProcessesViewAdoptsWorkWithNoTerminal(t *testing.T) {
 	const conn = "/Users/w0zro/projects/w0zro/conn"
 	procs := []process{
@@ -192,7 +192,7 @@ func TestTheProcessesViewAdoptsWorkWithNoTerminal(t *testing.T) {
 		}
 	}
 	// The server that outlived its shell is the oldest thing at the
-	// place and stands first; home's shell began after all of it.
+	// project and stands first; home's shell began after all of it.
 	want := []string{
 		conn + " RUN python3 -m http.server 8137 ACTIVE",
 		conn + " SHELL zsh ACTIVE",
@@ -201,7 +201,7 @@ func TestTheProcessesViewAdoptsWorkWithNoTerminal(t *testing.T) {
 		"/Users/w0zro SHELL zsh IDLE",
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+		t.Errorf("processes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	on := map[int]bool{}
 	for _, pl := range projects {
@@ -227,8 +227,8 @@ func TestTheProcessesViewAdoptsWorkWithNoTerminal(t *testing.T) {
 // The table is read a process at a time, so what comes back can be of
 // two moments: a pid listed twice, or one reused in between, leaving a
 // parent that is its own descendant. Either costs a row, not the
-// reading — the watch comes back, without looping and without saying
-// the same process twice.
+// reading — the processes view comes back, without looping and without
+// saying the same process twice.
 func TestATornTableCostsARowNotTheReading(t *testing.T) {
 	dup := []process{
 		{pid: 20, ppid: 1, uid: 501, tty: "ttys001", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: "/Users/w0zro"},
@@ -271,13 +271,13 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 			seen := map[int]bool{}
 			for _, e := range pl.entries {
 				if seen[e.pid] {
-					t.Errorf("pid %d is on the watch twice", e.pid)
+					t.Errorf("pid %d is in the processes view twice", e.pid)
 				}
 				seen[e.pid] = true
 			}
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("the watch did not come back from a cycle in the table")
+		t.Fatal("the processes view did not come back from a cycle in the table")
 	}
 }
 
@@ -381,8 +381,8 @@ func TestAProcessBornInTheGapIsAskedAgainstItsOwnLife(t *testing.T) {
 // life conn was not watching. conn comes up on a machine already
 // running: a dev server that compiled for two seconds and has idled
 // ever since read as working for the first beat and went quiet on the
-// second, which is a reading that lies at the moment the watch is read
-// hardest.
+// second, which is a reading that lies at the moment the processes view
+// is read hardest.
 func TestTheFirstReadingCallsNothingWorking(t *testing.T) {
 	nowAt := processesNow
 	procs := []process{
@@ -393,16 +393,16 @@ func TestTheFirstReadingCallsNothingWorking(t *testing.T) {
 		{pid: 31, cpu: 300 * time.Millisecond, started: nowAt.Add(-330 * time.Millisecond)},
 	}
 	if busy := cpuWorking(nil, time.Time{}, procs, nowAt); len(busy) != 0 {
-		t.Errorf("with no reading behind it the watch calls %v working", busy)
+		t.Errorf("with no reading behind it the processes view calls %v working", busy)
 	}
 }
 
 // The word for a process is working when it is doing something, which
 // beats idle and is beaten by a fault: a stopped process is stopped
-// whatever it spent before it was. Waiting beats working in turn — an
-// AI that says both is one whose file was written between the two,
-// and the thing worth saying is that it wants you — and it is no
-// fault, since nothing went wrong.
+// whatever it spent before it was. Waiting beats working in turn — a
+// contact that says both is one whose file was written between the two,
+// and the thing worth saying is that it wants you — and it is no fault,
+// since nothing went wrong.
 func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	var (
 		nothing = status{}
@@ -425,21 +425,21 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	contact := process{state: 'S'}
 	s, fault := statusOf(contact, kindContact, false, waits)
 	if s != statusWaiting {
-		t.Errorf("an AI waiting on you is %s", s)
+		t.Errorf("a contact waiting on you is %s", s)
 	}
 	if fault {
-		t.Error("an AI waiting on you is a fault")
+		t.Error("a contact waiting on you is a fault")
 	}
-	// An AI stopped with its turn over holds nothing up, and reads
-	// the way anything else at rest does rather than asking for you.
+	// A contact stopped with its turn over holds nothing up, and reads the
+	// way anything else at rest does rather than asking for you.
 	if s, _ := statusOf(contact, kindContact, false, status{idle: true}); s != statusIdle {
-		t.Errorf("an AI with its turn over is %s, not idle", s)
+		t.Errorf("a contact with its turn over is %s, not idle", s)
 	}
 	if s, _ := statusOf(contact, kindContact, false, status{working: true, waiting: true}); s != statusWaiting {
-		t.Errorf("an AI that says both is %s, not waiting", s)
+		t.Errorf("a contact that says both is %s, not waiting", s)
 	}
 	if s, _ := statusOf(process{state: 'T'}, kindContact, false, waits); s != statusStopped {
-		t.Error("a stopped AI is not stopped")
+		t.Error("a stopped contact is not stopped")
 	}
 }
 
@@ -474,7 +474,7 @@ func TestKindsAndCommands(t *testing.T) {
 	}
 }
 
-// placeRoots finds the repository above a directory, and answers the
+// rootFinder finds the repository above a directory, and answers the
 // same the second time without looking.
 func TestRootFinderFindsTheRepository(t *testing.T) {
 	dir := t.TempDir()
@@ -504,9 +504,9 @@ func TestRootFinderFindsTheRepository(t *testing.T) {
 	}
 }
 
-// The watch sorts by project, and a project is a repository or the
-// folder under conn's roots that holds one. Everything below a project
-// is in it, whatever it carries: docs in conn, a service with a
+// The processes view sorts by project, and a project is a repository or
+// the folder under conn's roots that holds one. Everything below a
+// project is in it, whatever it carries: docs in conn, a service with a
 // manifest of its own in the monorepo it is part of.
 func TestRootFinderSortsByProject(t *testing.T) {
 	dir := t.TempDir()
@@ -528,7 +528,7 @@ func TestRootFinderSortsByProject(t *testing.T) {
 	roots := rootFinder(projectDirs([]string{dir}))
 
 	if got := roots(repo); got != repo {
-		t.Errorf("the repository is its own place, not %q", got)
+		t.Errorf("the repository is its own project, not %q", got)
 	}
 	if got := roots(docs); got != repo {
 		t.Errorf("docs works at %q, not in the repository it is part of", got)
@@ -542,7 +542,7 @@ func TestRootFinderSortsByProject(t *testing.T) {
 		t.Errorf("a directory beside the checkouts works at %q, not at the folder holding them", got)
 	}
 	if got := roots(group); got != group {
-		t.Errorf("the folder holding the checkouts is its own place, not %q", got)
+		t.Errorf("the folder holding the checkouts is its own project, not %q", got)
 	}
 	// A root is where the checkouts are kept, not a project — even with
 	// one sitting directly in it — so it stands for itself, and a shell
@@ -661,7 +661,7 @@ func TestProcIsParsed(t *testing.T) {
 	}
 }
 
-// The waiting are answered longest held up first. An AI that cannot
+// The waiting are answered longest held up first. A contact that cannot
 // say when it stopped is waiting all the same, but it cannot claim a
 // turn ahead of one that can prove it waited longer, so it goes last;
 // two that stopped at the same moment go by pid, so the ring is the
@@ -693,10 +693,10 @@ func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
 
 // The list holds still. Work appearing anywhere moves nothing that was
 // already there — not the row it hangs under, not that row's siblings,
-// not the place: it goes on the end of where it belongs and everything
-// above keeps its spot. It was the newest start anywhere in a subtree
-// that ordered all three, so a command an AI ran re-sorted the watch
-// out from under whoever was reading it.
+// not the project: it goes on the end of where it belongs and
+// everything above keeps its spot. It was the newest start anywhere in
+// a subtree that ordered all three, so a command a contact ran
+// re-sorted the processes view out from under whoever was reading it.
 func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 	rows := func(procs []process) []int {
 		var out []int
@@ -709,9 +709,9 @@ func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 	}
 	before := rows(testProcs)
 
-	// A command under the AI, a shell of its own in the oldest place,
-	// and a tree in a place the watch has never had: each is newer than
-	// everything on the list.
+	// A command under the contact, a shell of its own in the oldest
+	// project, and a tree in a project the processes view has never had:
+	// each is newer than everything on the list.
 	grown := append(append([]process{}, testProcs...),
 		process{pid: 70999, ppid: 70100, uid: 501, tty: "ttys007", state: 'R', command: "rg", args: []string{"rg", "conn"},
 			started: processesNow.Add(-time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
@@ -737,10 +737,10 @@ func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 		t.Errorf("the rows that were there moved:\n%v\nwere:\n%v", kept, before)
 	}
 	// And the new work is on the end of where it belongs: the command
-	// under the AI last among what the AI runs, the new shell last
-	// in the place it is in, the new place last of all.
+	// under the contact last among what the contact runs, the new shell
+	// last in the project it is in, the new project last of all.
 	if last := after[len(after)-1]; last != 90999 {
-		t.Errorf("a place the watch has never had stands before the others: last row is %d", last)
+		t.Errorf("a project the processes view has never had stands before the others: last row is %d", last)
 	}
 	at := func(pid int) int {
 		for i, p := range after {
@@ -748,13 +748,13 @@ func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 				return i
 			}
 		}
-		t.Fatalf("pid %d is not on the watch", pid)
+		t.Fatalf("pid %d is not in the processes view", pid)
 		return -1
 	}
 	if at(70999) < at(70301) {
-		t.Error("the AI's newest command stands before the ones it started earlier")
+		t.Error("the contact's newest command stands before the ones it started earlier")
 	}
 	if at(80999) < at(80002) {
-		t.Error("a shell opened just now stands before what was already at its place")
+		t.Error("a shell opened just now stands before what was already in its project")
 	}
 }

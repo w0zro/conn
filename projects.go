@@ -11,16 +11,16 @@ import (
 	"unicode/utf8"
 )
 
-// The projects: every place work could happen, where the watch is every
-// place it is happening. They are found by walking the roots — where the
-// checkouts are kept — for repositories, and the shape of what is found
-// is the declaration: a folder holding two or more of them is the
-// project they collectively make, and gets a row of its own, since that
-// is the level the work is often about. A folder of one stays flat, so
-// nothing grows a header per repository.
+// The projects: every project work could happen, where the processes
+// view is every project it is happening in. They are found by walking
+// the roots — where the checkouts are kept — for repositories, and the
+// shape of what is found is the declaration: a folder holding two or
+// more of them is the project they collectively make, and gets a row of
+// its own, since that is the level the work is often about. A folder of
+// one stays flat, so nothing grows a header per repository.
 
-// A project is a place work could happen: a repository under one of the
-// roots, or the folder that groups two or more of them.
+// A project is a project work could happen: a repository under one of
+// the roots, or the folder that groups two or more of them.
 type projectRow struct {
 	name    string // what the list calls it: enough of the path to tell it apart
 	path    string
@@ -289,8 +289,8 @@ func relName(root, path string) string {
 // typed narrows the rows — a project answers by its own name and by the
 // name of the folder that groups it, which is where the work is often
 // called by — and the cursor is on one row, which enter opens a shell
-// at. The list is drawn on the same measure as the watch, in the rail
-// beside the slot.
+// at. The list is drawn on the same measure as the processes view, in
+// the panel beside the bay.
 
 // The list's words as things stand.
 type projectsReport struct {
@@ -350,7 +350,7 @@ func matching(ps []projectRow, filter string) []projectRow {
 	return out
 }
 
-// convoDirs is the directories a project's conversations could be filed
+// sessionDirs is the directories a project's sessions could be filed
 // under: its own, and for a group each repository beneath it in turn —
 // a transcript is filed by the exact directory it was had in, which for
 // a group is one of its repositories, not the folder that names them.
@@ -445,8 +445,8 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 				cursorRow = len(d.rows)
 			}
 			// A group is a title with its repositories under it, the way a
-			// place is on the watch; a repository that stands alone is a
-			// row at the margin like any other.
+			// project is in the processes view; a repository that stands alone
+			// is a row at the margin like any other.
 			switch {
 			case pr.repos > 0:
 				count := strconv.Itoa(pr.repos) + " REPO"
@@ -468,7 +468,7 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
-	// The ground fills what the rows do not, as on the watch.
+	// The ground fills what the rows do not, as in the processes view.
 	if height > 0 {
 		for len(c.rows) < height {
 			c.blank(0)

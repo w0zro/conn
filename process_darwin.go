@@ -25,8 +25,8 @@ func readProcesses(uid int) ([]process, error) {
 	}
 	// A listing that did not come back is a reading that failed, and is
 	// said so rather than read as a table in which nothing has a
-	// directory: every place would be NO PLACE and the watch would be
-	// wholly wrong while looking wholly true.
+	// directory: every project would be NO PROJECT and the processes view
+	// would be wholly wrong while looking wholly true.
 	out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-d", "cwd", "-F", "pcn")
 	if err != nil {
 		return nil, fmt.Errorf("lsof: %w", err)
@@ -117,8 +117,9 @@ func readTools() []tool {
 }
 
 // listingTimeout bounds a listing. lsof answers in tens of milliseconds
-// on a healthy machine; the bound is for the machine with a dead network
-// mount, where it hangs, and the watch must come back even so.
+// on a healthy machine; the bound is for the machine with a dead
+// network mount, where it hangs, and the processes view must come back
+// even so.
 const listingTimeout = 5 * time.Second
 
 // listing is what a program prints when asked for a list, kept even when

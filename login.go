@@ -40,7 +40,7 @@ type login struct {
 	threads     int    // the threads the runtime will run at once
 }
 
-// readSession reads the session from the process and its environment.
+// readLogin reads the session from the process and its environment.
 func readLogin() login {
 	s := login{pid: os.Getpid(), ppid: os.Getppid()}
 	if u, err := user.Current(); err == nil {

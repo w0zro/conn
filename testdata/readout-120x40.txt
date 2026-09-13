@@ -5,7 +5,7 @@
    WAITING
    ON ........ INPUT NEEDED
    FOR ....... 7M 00S
-   ASKS ...... AskUserQuestion · Is this session's lamp lit on the bar while this question waits?
+   ASKS ...... AskUserQuestion · Is this session's lamp lit on the status line while this question waits?
 
    WHAT
    KIND ...... CONTACT
@@ -32,7 +32,7 @@
 
    PROJECT
    BRANCH .... MAIN · 3 CHANGED
-   COMMIT .... 263cf91 · The look: what conn knows of a row
+   COMMIT .... 263cf91 · The readout: what conn knows of a row
    COMMITTED . 3H 00M AGO
    TRACKING .. ORIGIN/MAIN · 142 AHEAD
 

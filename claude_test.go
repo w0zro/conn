@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// conn tells the AIs it starts where they are, and the note travels
-// as one word on a shell command line: a socket with an apostrophe in
-// it must stay inside that word rather than break out of it and run as
-// something else. What the note says has to name the socket, since an
-// AI told to open a window and not told which server would be
-// guessing.
+// conn tells the contacts it starts where they are, and the note
+// travels as one word on a shell command line: a socket with an
+// apostrophe in it must stay inside that word rather than break out of
+// it and run as something else. What the note says has to name the
+// socket, since a contact told to open a window and not told which
+// server would be guessing.
 func TestTheAgentIsToldWhereItIs(t *testing.T) {
 	const prefix = contactProgram + " --append-system-prompt "
 	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
@@ -36,7 +36,7 @@ func TestTheAgentIsToldWhereItIs(t *testing.T) {
 			}
 		}
 	}
-	// Resuming a conversation is the same launch, carrying the id.
+	// Resuming a session is the same launch, carrying the id.
 	if got := resumeCommand("/s/conn.sock", "abc-123"); got != contactCommand("/s/conn.sock")+" --resume abc-123" {
 		t.Errorf("resumeCommand = %q", got)
 	}
@@ -67,7 +67,7 @@ func TestResumeCommandCarriesTheID(t *testing.T) {
 }
 
 // writeTranscript makes a project's transcript directory and a
-// conversation in it, with the given lines and modification time.
+// session in it, with the given lines and modification time.
 func writeTranscript(t *testing.T, claude, dir, id string, lines []string, when time.Time) {
 	t.Helper()
 	pdir := filepath.Join(claude, "projects", encodePath(dir))
@@ -87,7 +87,7 @@ func writeTranscript(t *testing.T, claude, dir, id string, lines []string, when 
 	}
 }
 
-// A conversation is read for its branch and the last thing it was
+// A session is read for its branch and the last thing it was
 // asked, oldest matching record losing to a newer one read first, since
 // the reader goes backwards from the end.
 func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
@@ -119,11 +119,10 @@ func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
 	}
 }
 
-// An AI says of itself whether it is working; having stopped, it
+// A contact says of itself whether it is working; having stopped, it
 // stopped for you, so anything its file says other than busy is
-// waiting.
-// A file only counts against a pid the table still has standing as an
-// AI, and an AI with no file to read says neither.
+// waiting. A file only counts against a pid the table still has status
+// as a contact, and a contact with no file to read says neither.
 func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	claude := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", claude)
@@ -145,7 +144,7 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	say(11, "idle")    // a turn it finished, asking nothing
 	say(12, "waiting") // stopped on something it put to you
 	say(13, "busy")    // a file its process did not outlive
-	say(14, "busy")    // a pid the table has, but not as an AI
+	say(14, "busy")    // a pid the table has, but not as a contact
 	say(15, "")        // a file saying nothing of the sort
 	say(17, "sulking") // a word conn has never heard
 	say(18, "shell")   // a command running under it, which is work
@@ -163,20 +162,20 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	// Stopped on an ask is not the same as stopped with nothing
 	// pending, and only the first is waiting.
 	if (how[12] != status{waiting: true}) {
-		t.Errorf("an AI stopped on an ask stands %+v", how[12])
+		t.Errorf("a contact stopped on an ask stands %+v", how[12])
 	}
 	if (how[11] != status{idle: true}) {
-		t.Errorf("an AI whose turn is over stands %+v", how[11])
+		t.Errorf("a contact whose turn is over stands %+v", how[11])
 	}
 	// 17 says a word conn does not know, which leaves it exactly where
-	// an AI with no file at all is: nothing said of it.
+	// a contact with no file at all is: nothing said of it.
 	for _, pid := range []int{13, 14, 15, 16, 17} {
 		if (how[pid] != status{}) {
 			t.Errorf("pid %d stands %+v, and nothing should be said of it", pid, how[pid])
 		}
 	}
 
-	// And the word the watch writes for each, end to end.
+	// And the word the processes view writes for each, end to end.
 	got := map[int]string{}
 	for _, pl := range projectsFrom(procs, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.entries {
@@ -189,15 +188,15 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 		12: statusWaiting, // stopped on an ask
 		11: statusIdle,    // turn over
 		17: statusActive,  // a word conn does not know, so nothing is claimed
-		16: statusActive,  // an AI with nothing to say of itself
+		16: statusActive,  // a contact with nothing to say of itself
 	} {
 		if got[pid] != want {
-			t.Errorf("the watch writes %s for pid %d, want %s", got[pid], pid, want)
+			t.Errorf("the processes view writes %s for pid %d, want %s", got[pid], pid, want)
 		}
 	}
 }
 
-// A conversation a live instance is carrying is not offered, whether or
+// A session a live instance is carrying is not offered, whether or
 // not the session file naming it agrees: a pid the process table does
 // not have running claude cannot vouch for it.
 func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
@@ -230,7 +229,7 @@ func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
 
 	projects := []project{{path: dir, entries: []entry{
 		{pid: 111, kind: kindContact},
-		{pid: 999, kind: kindShell}, // 999 is running, but not as an AI
+		{pid: 999, kind: kindShell}, // 999 is running, but not as a contact
 	}}}
 
 	cs := claudeSuspended([]string{dir}, projects)
@@ -239,7 +238,7 @@ func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
 	}
 }
 
-// An AI says when its status became what it is, and that is the
+// A contact says when its status became what it is, and that is the
 // moment a wait is measured from. Claude writes the file on a change
 // rather than on a clock, so the stamp holds still between changes and
 // is the moment of the change itself. A file that says nothing of when
@@ -266,10 +265,10 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 
 	how := contactStatuses([]process{contact(20), contact(21)})
 	if !how[20].waiting || !how[20].since.Equal(since) {
-		t.Errorf("an AI that says when it stopped stands %+v, want waiting since %v", how[20], since)
+		t.Errorf("a contact that says when it stopped stands %+v, want waiting since %v", how[20], since)
 	}
 	if !how[21].waiting || !how[21].since.IsZero() {
-		t.Errorf("an AI that says nothing of when stands %+v, and the moment should be unsaid", how[21])
+		t.Errorf("a contact that says nothing of when stands %+v, and the moment should be unsaid", how[21])
 	}
 
 	// And the entry carries it, which is what orders the round.
@@ -284,7 +283,7 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 
 // The ask is read off the end of the transcript: the tool use of the
 // last turn that has no result yet, with what it asked for, and with
-// nothing pending the last thing the AI said. A sidechain is
+// nothing pending the last thing the contact said. A sidechain is
 // somebody else's turn and is passed over.
 func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 	dir := t.TempDir()

@@ -19,40 +19,43 @@ var (
 	inkColor    = darkInk
 )
 
-// Across the foot of the window is the bar, which is tmux's status line
-// and an annunciator panel: dark until a lamp lights it. It is written
-// in tmux.go; conn lights its half through saying, below.
+// Across the foot of the window is the status line, which is tmux's
+// status line and an annunciator panel: dark until a lamp lights it. It
+// is written in tmux.go; conn lights its half through saying, below.
 //
 // The program holds three views. The console comes on first: the header
 // at once, from what is known before anything is read; the station is
-// read meanwhile, and the readout comes on when it is in hand and its
-// beat has passed, then the checks one by one, then the verdict, in
+// read meanwhile, and the readout comes on when it has been read and
+// its beat has passed, then the checks one by one, then the verdict, in
 // under a second. A key skips to the end; a key at the end continues to
-// the watch. The watch is what is running, by place, read again every
-// two seconds while it is up; j and k move the cursor, which follows
-// its process across readings; tab takes it to whatever is waiting on
-// you, longest held up first and round again; i opens the look on the
-// row under the cursor — what conn knows of it past the six columns a
-// row has room for — which opens in the slot, beside the watch rather
-// than over it, follows the cursor from there, and closes on i again; c brings the console back, and any key there returns
-// to the watch. The console is a page: in the server it
-// takes the whole window while it is up, and the slot has its side
-// again on the way back to the watch. The words of both are said
-// again each second, from what was read and the clock as it stands.
+// the processes view. The processes view is what is running, by
+// project, read again every two seconds while it is up; j and k move
+// the cursor, which follows its process across readings; tab takes it
+// to whatever is waiting on you, longest held up first and round again;
+// i opens the readout on the row under the cursor — what conn knows of
+// it past the six columns a row has room for — which opens in the bay,
+// beside the processes view rather than over it, follows the cursor
+// from there, and closes on i again; c brings the console back, and any
+// key there returns to the processes view. The console is a page: in
+// the server it takes the whole window while it is up, and the bay has
+// its side again on the way back to the processes view. The words of
+// both are said again each second, from what was read and the clock as
+// it stands.
 //
 // p is the list: every project the roots hold, whether anything is
 // running in it or not, walked as the view comes on. It is a line typed
 // into, so the keys the other views are worked by are characters there;
 // enter opens a shell at the row under the cursor and comes back to the
-// watch, where the shell shows, and esc comes back without opening
-// anything.
+// processes view, where the shell shows, and esc comes back without
+// opening anything.
 //
-// In conn's tmux server, conn is the rail on the left of the home
-// window; when the watch first comes on it opens the slot beside it,
-// with a hold in it, and opens it again should it close. Enter puts
-// the cursor's process in the slot, when it is in a pane of the server;
-// s opens a shell at the cursor's place there; q and ctrl+c detach, and
-// the server keeps on. Without the server, q and ctrl+c close conn.
+// In conn's tmux server, conn is the panel on the left of the home
+// window; when the processes view first comes on it opens the bay
+// beside it, with a hold in it, and opens it again should it close.
+// Enter puts the cursor's process in the bay, when it is in a pane of
+// the server; s opens a shell at the cursor's project there; q and
+// ctrl+c detach, and the server keeps on. Without the server, q and
+// ctrl+c close conn.
 
 // The views.
 const (
@@ -73,12 +76,12 @@ func (m model) stageDelay(stage int) time.Duration {
 	}
 }
 
-// watchEvery is how often the watch reads the process table at rest.
-// While it is waiting on a shell conn has just opened, it reads again as
-// soon as it can: a shell takes a moment to reach the table, and two
-// seconds of the cursor sitting on the old row is the shell feeling
-// slow to open. waitForOpened is how long that is worth doing before
-// the shell is given up on.
+// processesEvery is how often the processes view reads the process
+// table at rest. While it is waiting on a shell conn has just opened,
+// it reads again as soon as it can: a shell takes a moment to reach the
+// table, and two seconds of the cursor sitting on the old row is the
+// shell feeling slow to open. waitForOpened is how long that is worth
+// doing before the shell is given up on.
 const (
 	processesEvery = 2 * time.Second
 	processesSoon  = 150 * time.Millisecond
@@ -100,10 +103,10 @@ type (
 	processesMsg struct {          // the process table is read
 		projects   []project
 		panes      map[string]pane // the server's panes by terminal
-		bay        string          // the terminal in the slot
-		noBay      bool            // home has no slot beside the rail
-		bayDead    bool            // the slot's pane held on remain-on-exit, its process gone
-		bayReadout bool            // the slot holds the look, which i closes rather than opens
+		bay        string          // the terminal in the bay
+		noBay      bool            // home has no bay beside the panel
+		bayDead    bool            // the bay's pane held on remain-on-exit, its process gone
+		bayReadout bool            // the bay holds the readout, which i closes rather than opens
 		err        string
 		gen        int
 		// The processor time every process had used as of this reading,
@@ -112,16 +115,16 @@ type (
 		cpu   map[int]time.Duration
 		cpuAt time.Time
 	}
-	processesTickMsg struct{ gen int }     // the watch is due to be read again
+	processesTickMsg struct{ gen int }     // the processes view is due to be read again
 	openedMsg        struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
-	reachedMsg       struct{ tty string }  // a process was put in the slot
-	readoutMsg       struct{ on bool }     // the look was put in the slot, or taken out of it
+	reachedMsg       struct{ tty string }  // a process was put in the bay
+	readoutMsg       struct{ on bool }     // the readout was put in the bay, or taken out of it
 	blinkMsg         struct{ gen int }     // the chip's half is up
 	projectsMsg      struct {              // the roots were walked
 		projects []projectRow
 		err      string
 	}
-	sessionsMsg struct { // a place's suspended conversations were read
+	sessionsMsg struct { // a project's suspended sessions were read
 		dirs     []string
 		sessions []session
 	}
@@ -143,23 +146,23 @@ type model struct {
 	projects []project
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
-	told     int // the cursor as last published for the look to follow
-	// Whether the look is in the slot, which is what makes i a toggle.
+	told     int // the cursor as last published for the readout to follow
+	// Whether the readout is in the bay, which is what makes i a toggle.
 	// conn sets it when it puts the page there or takes it away, and a
 	// reading corrects it — asking tmux on the keypress would be a
 	// process between the key and what it does, for something conn
 	// already knows.
 	looking  bool
-	entering bool // the console is waiting on a reading to go to the watch
-	// The modes conn last put on the bar, so each is written when it
-	// changes and not on every pass through Update.
+	entering bool // the console is waiting on a reading to go to the processes view
+	// The modes conn last put on the status line, so each is written when
+	// it changes and not on every pass through Update.
 	saidAsk, saidLamps string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited      int
 	until        time.Time
 	processesErr string
-	processesGen int // which stay on the watch the ticks belong to
+	processesGen int // which stay in the processes view the ticks belong to
 	// The last reading's processor times, and when they were read: a
 	// process is working by what it has spent since, not by what it has
 	// spent altogether.
@@ -175,10 +178,10 @@ type model struct {
 	uid         int
 	roots       func(string) string
 	isProject   func(string) bool
-	projRoots   []string // where the checkouts are kept, for naming places by
+	projRoots   []string // where the checkouts are kept, for naming projects by
 
-	// The picker: a place's suspended conversations, as last read, what
-	// has narrowed them, and which of the rows the cursor is on.
+	// The sessions view: a project's suspended sessions, as last read,
+	// what has narrowed them, and which of the rows the cursor is on.
 	sessionsDirs    []string // the directories asked for; a stale answer's guard
 	sessionsProject string
 	sessions        []session
@@ -191,11 +194,11 @@ type model struct {
 	kill *pendingKill
 
 	srv    *server         // conn's tmux server, when there is one
-	inside bool            // this conn is the rail of the server's home window
+	inside bool            // this conn is the panel of the server's home window
 	self   string          // this binary, for the hold
 	panes  map[string]pane // the server's panes by terminal, as last read
-	bay    string          // the terminal in the slot, as last read
-	// The terminal that was in the slot before that one, which is where
+	bay    string          // the terminal in the bay, as last read
+	// The terminal that was in the bay before that one, which is where
 	// the other-process chord goes back to.
 	lastBay string
 }
@@ -230,7 +233,7 @@ func (m model) report() report {
 	return compose(m.head, m.now)
 }
 
-// watchReport is the watch's words as things stand.
+// processesReport is the processes view's words as things stand.
 func (m model) processesReport() processesReport {
 	w := composeProcesses(m.projects, m.panes, m.bay, m.projRoots, m.head.login.home, m.now, m.processesErr)
 	w.inside, w.lit = m.inside, m.lit
@@ -259,9 +262,10 @@ func readStationCmd() tea.Msg {
 	return stationMsg{readStation()}
 }
 
-// readWatch reads the process table, and in the server its panes and
-// the slot, and composes the watch off them. It reads and does nothing
-// else; what the reading calls for is decided when it comes back.
+// readProcesses reads the process table, and in the server its panes
+// and the bay, and composes the processes view off them. It reads and
+// does nothing else; what the reading calls for is decided when it
+// comes back.
 func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots, m.isProject
 	was, wasAt := m.cpuWas, m.cpuAt
@@ -276,7 +280,7 @@ func (m model) readProcesses() tea.Cmd {
 		}
 		// How each process stands past what the table says: anything is
 		// working by the processor time it spent since the last reading,
-		// which is why that reading is kept, and an AI answers for
+		// which is why that reading is kept, and a contact answers for
 		// itself instead - working, or waiting on you.
 		now, nowAt := cpuOf(procs), time.Now()
 		how := map[int]status{}
@@ -308,11 +312,11 @@ func nextSecond(now time.Time) tea.Cmd {
 }
 
 // annunciating says whether anything conn is drawing blinks as things
-// stand: the console's verdict while the console is up, and a row on the
-// watch that is waiting on you. Nothing else does — a fault on the watch
-// wears a chip and keeps it, since a process you suspended yourself is
-// not asking anything of you, and a word that blinks all day is a word
-// that is never seen.
+// stand: the console's verdict while the console is up, and a row in
+// the processes view that is waiting on you. Nothing else does — a
+// fault in the processes view wears a chip and keeps it, since a
+// process you suspended yourself is not asking anything of you, and a
+// word that blinks all day is a word that is never seen.
 func (m model) annunciating() bool {
 	switch m.view {
 	case viewConsole:
@@ -325,10 +329,10 @@ func (m model) annunciating() bool {
 }
 
 // blinked starts the blink's tick when something begins to annunciate
-// and lets it stop when nothing does, so a watch with nothing held up on
+// and lets it stop when nothing does, so a view with nothing held up on
 // it is not redrawn a second and a half at a time for nothing. Going
-// through here means no view has to remember to start it: what blinks is
-// decided in one place and the tick follows.
+// through here means no view has to remember to start it: what blinks
+// is decided in one project and the tick follows.
 func (m model) blinked() (model, tea.Cmd) {
 	want := m.annunciating()
 	if want == m.ticking {
@@ -355,8 +359,8 @@ func (m model) nextBlink() tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg { return blinkMsg{gen} })
 }
 
-// watchTick is when the watch reads again: soon while it waits on a
-// shell conn opened, and at its own pace otherwise.
+// processesTick is when the processes view reads again: soon while it
+// waits on a shell conn opened, and at its own pace otherwise.
 func (m model) processesTick() tea.Cmd {
 	gen, every := m.processesGen, processesEvery
 	if m.awaited != 0 {
@@ -368,9 +372,9 @@ func (m model) processesTick() tea.Cmd {
 // Update answers a message and, whatever came of it, publishes where
 // the cursor ended up. Every path that moves it — j and k, tab, a
 // reading that carried it along, the shell conn just opened — publishes
-// by going through here, which is the point of doing it in one place
+// by going through here, which is the point of doing it in one project
 // rather than at each of them: a move that forgot to say so would leave
-// the look reading a row nobody is looking at.
+// the readout reading a row nobody is looking at.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	if nm, ok := next.(model); ok {
@@ -390,16 +394,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, cmd
 }
 
-// saying puts conn's two lamps on the bar, when either has changed
-// since the last telling. Going through here is the point: a question
-// is armed and answered from a handful of keys and a process changes how
-// it stands on any reading, and every one of them would otherwise have
-// to remember to say so.
+// saying puts conn's two lamps on the status line, when either has
+// changed since the last telling. Going through here is the point: a
+// question is armed and answered from a handful of keys and a process
+// changes how it stands on any reading, and every one of them would
+// otherwise have to remember to say so.
 //
-// The bar is tmux's line and conn reaches it by setting options, which
-// is a process — so the lamps are written when they change, which is on
-// a keypress or a reading that found something different, and never on
-// a beat.
+// The status line is tmux's line and conn reaches it by setting
+// options, which is a process — so the lamps are written when they
+// change, which is on a keypress or a reading that found something
+// different, and never on a beat.
 func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
@@ -413,12 +417,13 @@ func (m model) saying() (model, tea.Cmd) {
 	return m, func() tea.Msg { _ = srv.say(ask, lamps); return nil }
 }
 
-// ask is the one mode conn knows that lights the bar: a question armed,
-// which takes the next key whatever it is, with the question itself
-// beside the block. The bar spans the window, which is why the question
-// is here and not on the rail, whose forty-four columns cut it before
-// the part that says how to answer. Every other mode of conn's keys is
-// dark on the panel, since the operator can see where they are.
+// ask is the one mode conn knows that lights the status line: a
+// question armed, which takes the next key whatever it is, with the
+// question itself beside the block. The status line spans the window,
+// which is why the question is here and not on the panel, whose
+// forty-four columns cut it before the part that says how to answer.
+// Every other mode of conn's keys is dark on the panel, since the
+// operator can see where they are.
 func (m model) ask() string {
 	if m.kill != nil {
 		return statusLineAsk("CONFIRM") + statusLineSay(m.kill.prompt)
@@ -427,14 +432,14 @@ func (m model) ask() string {
 }
 
 // published tells the cursor where it is, when it has moved since the
-// last telling or when a reading is saying it again. The look follows
-// it; nothing else reads it.
+// last telling or when a reading is saying it again. The readout
+// follows it; nothing else reads it.
 func (m model) published(again bool) model {
 	pid := m.cursor
-	// Off the watch there is no cursor on a process. The subject is not
-	// unchosen by going to the list to open something — the look goes
-	// on reading the row it was given — so nothing is said rather than
-	// a nothing said.
+	// Off the processes view there is no cursor on a process. The subject
+	// is not unchosen by going to the list to open something — the readout
+	// goes on reading the row it was given — so nothing is said rather
+	// than a nothing said.
 	//
 	// With no home there is nowhere to say it: the path would be a
 	// relative one, and conn does not write beside whatever directory
@@ -453,8 +458,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		// The rail holds its width through a resize of the window, once it
-		// is a rail: with the slot beside it, on the watch or the list.
+		// The panel holds its width through a resize of the window, once it
+		// is a panel: with the bay beside it, in the processes view or the
+		// list.
 		if m.inside && m.view != viewConsole && m.bay != "" && m.width != panelWidth {
 			return m, m.serverCmd(func() error { return m.srv.holdPanel() })
 		}
@@ -475,8 +481,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.now = time.Now()
 		return m, nextSecond(m.now)
 	case openedMsg:
-		// The shell is in the slot; the table will have it in a moment,
-		// and the cursor goes to it then. Until then the watch reads soon.
+		// The shell is in the bay; the table will have it in a moment, and
+		// the cursor goes to it then. Until then the processes view reads
+		// soon.
 		m = m.slotted(msg.shell.pane.tty)
 		m.looking = false
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
@@ -486,13 +493,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The page is up, or down, and conn knows it without reading the
 		// server: the next i is a keypress away and has to decide which
 		// way it goes. The reading is taken again from here so a reading
-		// already in flight, which saw the slot as it was before, cannot
+		// already in flight, which saw the bay as it was before, cannot
 		// land afterwards and say otherwise.
 		m.looking = msg.on
 		m.processesGen++
 		return m, m.readProcesses()
 	case reachedMsg:
-		// The pane is in the slot; conn knows it now and does not have to
+		// The pane is in the bay; conn knows it now and does not have to
 		// read the server to find out, so the row says so at once.
 		//
 		// A pane is the whole tree in it, so reaching one from a row
@@ -501,7 +508,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// the head, and leaving the two apart would put the mark on one
 		// row while the cursor sat on another — the sub-process looking
 		// picked out for being the one thing in the pane that is not
-		// what is in the slot.
+		// what is in the bay.
 		m = m.slotted(msg.tty)
 		m.looking = false
 		if pid, at, ok := headOf(m.projects, msg.tty); ok {
@@ -536,9 +543,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
-		// The reading the console was waiting on: the watch goes up with
-		// its rows already in it, drawn at the rail's width, and the slot
-		// opens beside a frame that is already the shape it will be.
+		// The reading the console was waiting on: the processes view goes up
+		// with its rows already in it, drawn at the panel's width, and the
+		// bay opens beside a frame that is already the shape it will be.
 		var cmds []tea.Cmd
 		if m.entering {
 			m.entering, m.view = false, viewProcesses
@@ -548,16 +555,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.view == viewProcesses {
 			switch {
-			// A home without its slot gets one; the next reading finds it.
+			// A home without its bay gets one; the next reading finds it.
 			case m.inside && msg.noBay:
 				cmds = append(cmds, m.processesTick(), m.openBay())
-			// A slot whose pane died stays the shape it was; only what is
-			// in it is replaced, so the rail never has to give up its
-			// width and take it back. What replaces it is the next hand
-			// conn holds, from the cursor down and round again: the
-			// operator was working in the slot, and the work goes on in
-			// the one nearest to hand. Only with none to reach does the
-			// slot hold a placard.
+			// A bay whose pane died stays the shape it was; only what is in it
+			// is replaced, so the panel never has to give up its width and take
+			// it back. What replaces it is the next process conn holds, from the
+			// cursor down and round again: the operator was working in the bay,
+			// and the work goes on in the one nearest to hand. Only with none to
+			// reach does the bay hold a placard.
 			case m.inside && msg.bayDead:
 				if e, ok := m.nextReachable(); ok {
 					cmds = append(cmds, m.processesTick(), m.reach(m.panes[e.tty], e.tty))
@@ -578,8 +584,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.walked, m.projectsErr, m.scanning = msg.projects, msg.err, false
 		m.pcursor = clamp(m.pcursor, len(m.projectRows()))
 	case sessionsMsg:
-		// Only the picker that asked for these dirs wants them; one opened
-		// on another place since has moved past the answer.
+		// Only the sessions view that asked for these dirs wants them; one
+		// opened on another project since has moved past the answer.
 		if !slices.Equal(msg.dirs, m.sessionsDirs) {
 			return m, nil
 		}
@@ -587,9 +593,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rcursor = clamp(m.rcursor, len(m.sessionsRows()))
 	case killedMsg:
 		// A beat for the signal to be acted on, so the row is not read a
-		// moment too soon, still there; the watchTick this reuses is a
+		// moment too soon, still there; the processesTick this reuses is a
 		// no-op once the stay it belongs to has moved on. Whether the
-		// process ended is the watch's to say.
+		// process ended is the processes view's to say.
 		gen := m.processesGen
 		return m, tea.Tick(killGrace, func(time.Time) tea.Msg { return processesTickMsg{gen: gen} })
 	case tea.KeyPressMsg:
@@ -600,19 +606,18 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // key answers a key: q and ctrl+c detach in the server and close conn
 // outside it, from anywhere; on the console a key skips the sequence,
-// then continues to the watch and gives the slot its side back; on the
-// watch c brings the console back over the whole window,
-// enter reaches the cursor's process, s opens a shell at its place, a
-// opens claude there instead, and alt+a opens the picker over what
-// claude left suspended there. tab goes to what is waiting on you,
-// longest first, and round again; i looks at the cursor's row. x asks
-// to end the cursor's process,
-// and arms the question rather than the ending: the next key answers
-// it.
+// then continues to the processes view and gives the bay its side back;
+// in the processes view c brings the console back over the whole
+// window, enter reaches the cursor's process, s opens a shell at its
+// project, a opens claude there instead, and alt+a opens the sessions
+// view over what claude left suspended there. tab goes to what is
+// waiting on you, longest first, and round again; i looks at the
+// cursor's row. x asks to end the cursor's process, and arms the
+// question rather than the ending: the next key answers it.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A kill x asked for takes the next key, whatever it is: x, y or
 	// enter confirms it, and anything else cancels — no other binding
-	// fires while the question is on the bar.
+	// fires while the question is on the status line.
 	if m.kill != nil {
 		req := m.kill
 		m.kill = nil
@@ -621,25 +626,26 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	// The list's own key, which reaches it from wherever conn is and is
-	// what the prefix chord sends. p cannot serve: it is the list's key
-	// on the watch, where it is a key, but on the list and the picker it
-	// is a letter being typed into the line, and on the console it is one
-	// of the any-keys that continue to the watch. So the chord has a key
-	// of its own, and it is the same key wherever it is pressed.
+	// The key that opens projects from wherever conn is, which is what
+	// the prefix chord sends. p cannot serve: it opens projects from the
+	// processes view, where it is a key, but in projects and in sessions
+	// it is a letter being typed into the line, and on the console it is
+	// one of the any-keys that continue to the processes view. So the
+	// chord has a key of its own, and it is the same key wherever it is
+	// pressed.
 	if k == "alt+p" {
 		return m.toProjects()
 	}
 	// The other process, which the prefix twice over sends. It is a key
-	// of its own for the same reason the list's is: on the list and the
-	// picker every letter is one being typed into the line.
+	// of its own for the same reason: in projects and in sessions every
+	// letter is one being typed into the line.
 	if k == "alt+o" {
 		return m.toOther()
 	}
-	// The hand that has waited longest, which the prefix then tab sends
-	// from anywhere: on the watch tab itself is the key, but on the list
-	// and the picker tab is nothing and on the console it is one of the
-	// any-keys, so the chord has a key of its own.
+	// The process that has waited longest, which the prefix then tab sends
+	// from anywhere: in the processes view tab itself is the key, but on
+	// the list and the sessions view tab is nothing and on the console it
+	// is one of the any-keys, so the chord has a key of its own.
 	if k == "alt+tab" {
 		return m.toWaiting()
 	}
@@ -659,16 +665,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		m.stage = lastStage(m.report())
 		return m, nil
 	case m.view == viewConsole:
-		// The console holds until the watch has something to show. Going
-		// at once put an empty watch up, filled it a tenth of a second
-		// later when the table had been read, and moved it to the rail's
-		// width after that — three screens to arrive at one. The console
-		// is a still page and a moment more of it is not seen, where a
-		// watch assembling itself is.
+		// The console holds until the processes view has something to show.
+		// Going at once put an empty view up, filled it a tenth of a second
+		// later when the table had been read, and moved it to the panel's
+		// width after that — three screens to arrive at one. The console is a
+		// still page and a moment more of it is not seen, where a view
+		// assembling itself is.
 		//
-		// Only the first time. Coming back from the console the rows of
-		// the last stay are still in hand, a couple of seconds old, and
-		// the watch goes up with them at once while the reading on its
+		// Only the first time. Coming back from the console the rows of the
+		// last stay are still held, a couple of seconds old, and the
+		// processes view goes up with them at once while the reading on its
 		// way brings them up to date.
 		m.processesGen++
 		if len(m.projects) == 0 && m.processesErr == "" {
@@ -682,7 +688,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m, m.readProcesses()
 	case k == "c":
 		// The blink is not started here: what annunciates is decided in
-		// one place, and the tick follows the view on its own.
+		// one project, and the tick follows the view on its own.
 		m.view = viewConsole
 		if m.inside {
 			return m, m.serverCmd(func() error { return m.srv.wide() })
@@ -716,16 +722,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 	case k == "i":
 		// i is the key for the page, and the key for the page is what a
-		// reader reaches for to be rid of it. Closing wants no row under
-		// the cursor: the page is there whatever the cursor is on, and
-		// refusing to close it because the watch has emptied would leave
-		// it stuck.
+		// reader reaches for to be rid of it. Closing wants no row under the
+		// cursor: the page is there whatever the cursor is on, and refusing
+		// to close it because the processes view has emptied would leave it
+		// stuck.
 		//
 		// Where the row is one conn holds, closing goes to it. The page
 		// is a reading of that row and the row is right there in a pane
-		// — read about it, then be in it — and an empty slot is a worse
+		// — read about it, then be in it — and an empty bay is a worse
 		// answer than the thing the page was about. What cannot be
-		// reached closes to the empty slot as before.
+		// reached closes to the empty bay as before.
 		e, _, ok := m.under()
 		switch {
 		case !m.inside:
@@ -744,20 +750,20 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// projectKey answers a key on the list, which is a line typed into: a
-// key that stands for a character goes to the filter, so the letters the
-// other views are worked by are themselves here. Up and down move the
-// cursor, and ctrl+n and ctrl+p do too, since a hand on a filter is a
-// hand that cannot reach j and k; enter opens a shell at the row under
-// the cursor and goes back to the watch, which is where the shell will
-// show, and ctrl+a opens claude there instead, since a plain a is a
-// letter to type; alt+a opens the picker over what claude left
-// suspended at the row, group included, the same way — not a plain A,
-// which would take a letter the filter can still be typed with, and
-// not ctrl+shift+a, which is not its own chord to any terminal at all,
-// alphabetic ctrl combinations being their letter's own case already;
-// esc goes back without opening anything, and ctrl+c is what it is
-// everywhere.
+// projectKey answers a key in projects, which is a line typed into: a
+// key that stands for a character goes to the filter, so the letters
+// the other views are worked by are themselves here. Up and down move
+// the cursor, and ctrl+n and ctrl+p do too, since a process on a filter
+// is a process that cannot reach j and k; enter opens a shell at the
+// row under the cursor and goes back to the processes view, which is
+// where the shell will show, and ctrl+a opens claude there instead,
+// since a plain a is a letter to type; alt+a opens the sessions view
+// over what claude left suspended at the row, group included, the same
+// way — not a plain A, which would take a letter the filter can still
+// be typed with, and not ctrl+shift+a, which is not its own chord to
+// any terminal at all, alphabetic ctrl combinations being their
+// letter's own case already; esc goes back without opening anything,
+// and ctrl+c is what it is everywhere.
 func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.projectRows()
 	switch {
@@ -806,11 +812,11 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// slotted takes a terminal into the slot and remembers the one it is
+// slotted takes a terminal into the bay and remembers the one it is
 // replacing, so there is an other to go back to.
 //
-// Only a process is remembered. A hold standing in an empty slot and
-// the look are conn's own furniture rather than somewhere you were
+// Only a process is remembered. A hold standing in an empty bay and
+// the readout are conn's own furniture rather than somewhere you were
 // working, and going back to one would be going back to nothing.
 func (m model) slotted(tty string) model {
 	if m.bay != "" && m.bay != tty && !m.panes[m.bay].hold {
@@ -820,7 +826,7 @@ func (m model) slotted(tty string) model {
 	return m
 }
 
-// toOther goes to the process that was in the slot before the one in it
+// toOther goes to the process that was in the bay before the one in it
 // now, and takes the one in it now as the one to come back to — so
 // pressed twice it is where it started, and pressed while working is
 // the other thing you are working on. It is what the prefix twice over
@@ -829,7 +835,7 @@ func (m model) slotted(tty string) model {
 //
 // The console is left on the way, in the rare case the chord is pressed
 // with it up: you cannot be in a pane while the console is over the
-// window, so this is a press from the rail, and the answer to it is a
+// window, so this is a press from the panel, and the answer to it is a
 // process.
 func (m model) toOther() (tea.Model, tea.Cmd) {
 	if !m.inside || m.lastBay == "" || m.panes[m.lastBay].id == "" {
@@ -843,17 +849,17 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// toWaiting goes to the hand that has waited longest: the cursor to its
-// row, its pane in the slot, and the keys in it, so one press has the
-// operator answering. Pressed again from the rail it goes round the
-// ring, longest first. It is what tab does on the watch and what the
-// prefix then tab sends from anywhere. From another view the watch is
-// put up on the way, since the answer is a pane, and from the console
-// the slot is given its side back, a pane being unreachable with the
-// console over the window.
+// toWaiting goes to the process that has waited longest: the cursor to
+// its row, its pane in the bay, and the keys in it, so one press has
+// the operator answering. Pressed again from the panel it goes round
+// the ring, longest first. It is what tab does in the processes view
+// and what the prefix then tab sends from anywhere. From another view
+// the processes view is put up on the way, since the answer is a pane,
+// and from the console the bay is given its side back, a pane being
+// unreachable with the console over the window.
 //
-// A hand conn holds no pane for is still gone to, on the rail, and the
-// keys stay where they are.
+// A process conn holds no pane for is still gone to, on the panel, and
+// the keys stay where they are.
 func (m model) toWaiting() (tea.Model, tea.Cmd) {
 	round := waitingRound(m.projects)
 	if len(round) == 0 {
@@ -887,10 +893,11 @@ func (m model) toWaiting() (tea.Model, tea.Cmd) {
 // again for it: the list is what could be worked on rather than what is
 // being worked on, so it is read when it is asked for and not on a beat.
 //
-// From the console it gives the slot its side back, the way going to the
-// watch does — the list is a rail view like the watch — and it calls off
-// the console's wait on a reading, or that reading would land a moment
-// later and put the watch up over it.
+// From the console it gives the bay its side back, the way going to the
+// processes view does — the list is a panel view like the processes
+// view — and it calls off the console's wait on a reading, or that
+// reading would land a moment later and put the processes view up over
+// it.
 func (m model) toProjects() (tea.Model, tea.Cmd) {
 	console := m.view == viewConsole
 	m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
@@ -901,17 +908,18 @@ func (m model) toProjects() (tea.Model, tea.Cmd) {
 	return m, m.scanProjects()
 }
 
-// toWatch leaves the list for the watch, which starts reading again.
+// toProcesses leaves the list for the processes view, which starts
+// reading again.
 func (m model) toProcesses() (tea.Model, tea.Cmd) {
 	m.view = viewProcesses
 	m.processesGen++
 	return m, m.readProcesses()
 }
 
-// openResume opens the picker over a place's suspended conversations:
-// place is what it is for, and dirs the directories a transcript could
-// be filed under, which for a group is a repository under it, not the
-// folder that names it.
+// openSessions opens the sessions view over a project's suspended
+// sessions: project is what it is for, and dirs the directories a
+// transcript could be filed under, which for a group is a repository
+// under it, not the folder that names it.
 func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) {
 	m.view = viewSessions
 	m.sessionsDirs, m.sessionsProject, m.sessionsLoading = dirs, project, true
@@ -919,22 +927,22 @@ func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) 
 	return m, m.scanSessions(dirs)
 }
 
-// resumeRows is the conversations the filter leaves, which the cursor
+// sessionsRows is the sessions the filter leaves, which the cursor
 // is an index into.
 func (m model) sessionsRows() []session {
 	return matchingSessions(m.sessions, m.rfilter)
 }
 
-// resumeReport is the picker's words as things stand.
+// sessionsReport is the sessions view's words as things stand.
 func (m model) sessionsReport() sessionsReport {
 	return composeSessions(m.sessions, m.sessionsProject, m.rfilter, m.head.login.home, m.now, m.sessionsLoading)
 }
 
-// resumeKey answers a key on the picker, which is a line typed into the
-// same way the list is: letters narrow it, up and down move the cursor
-// and ctrl+n and ctrl+p do too, enter continues the conversation under
-// the cursor and goes back to the watch, esc goes back without
-// continuing anything, and ctrl+c is what it is everywhere.
+// sessionsKey answers a key on the sessions view, which is a line typed
+// into the same way the list is: letters narrow it, up and down move
+// the cursor and ctrl+n and ctrl+p do too, enter continues the session
+// under the cursor and goes back to the processes view, esc goes back
+// without continuing anything, and ctrl+c is what it is everywhere.
 func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.sessionsRows()
 	switch {
@@ -977,11 +985,11 @@ func clamp(at, rows int) int {
 	return min(max(at, 0), max(rows-1, 0))
 }
 
-// under is the entry and the place under the cursor.
-// nextReachable is the first hand at or after the cursor, round again
-// from the top, that conn holds a live pane for: what the slot takes
-// when what was in it ends. A hold, the look and a pane that has died
-// are not hands.
+// under is the entry and the project under the cursor. nextReachable is
+// the first process at or after the cursor, round again from the top,
+// that conn holds a live pane for: what the bay takes when what was in
+// it ends. A hold, the readout and a pane that has died are not
+// processes.
 func (m model) nextReachable() (entry, bool) {
 	var all []entry
 	for _, pl := range m.projects {
@@ -1015,7 +1023,7 @@ func (m model) under() (entry, project, bool) {
 }
 
 // follow finds the cursor after the rows change: the row of its pid,
-// where that is still on watch, else the row where it was, held within
+// where that is still listed, else the row where it was, held within
 // the rows there are. It answers the pid and the row.
 func follow(projects []project, pid, at int) (int, int) {
 	var pids []int
@@ -1049,17 +1057,18 @@ func (m model) advance() (tea.Model, tea.Cmd) {
 }
 
 // View is the view that is up. The console shows as far as it has come
-// on: rows of a later stage are the ground until their turn.
-// cols is the width conn draws in, which is the rail's own where conn is
-// a rail. Inside the server, off the console, the rail is railWidth: conn
-// holds tmux to that (see the resize in WindowSizeMsg) rather than taking
-// whatever width it is given, so it draws to it as well instead of
-// waiting to be told the pane has become one. That is what makes going
-// to the watch one change of the screen — the frame conn paints is
-// already the shape the pane is about to be, so the split has nothing to
-// reflow and no frame is ever drawn to a width that is on its way out.
+// on: rows of a later stage are the ground until their turn. cols is
+// the width conn draws in, which is the panel's own where conn is a
+// panel. Inside the server, off the console, the panel is panelWidth:
+// conn holds tmux to that (see the resize in WindowSizeMsg) rather than
+// taking whatever width it is given, so it draws to it as well instead
+// of waiting to be told the pane has become one. That is what makes
+// going to the processes view one change of the screen — the frame conn
+// paints is already the shape the pane is about to be, so the split has
+// nothing to reflow and no frame is ever drawn to a width that is on
+// its way out.
 //
-// Never wider than the terminal: a window narrower than the rail is
+// Never wider than the terminal: a window narrower than the panel is
 // still the whole of what there is to draw in.
 func (m model) cols() int {
 	if m.inside && m.view != viewConsole {

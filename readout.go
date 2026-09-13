@@ -7,36 +7,38 @@ import (
 	"unicode/utf8"
 )
 
-// The look: what conn knows about a row, read without entering it. i on
-// the watch opens it, and it opens in the slot, beside the watch rather
-// than over it — the row it is about stays on screen under the cursor,
-// and moving the cursor and pressing i again is how you read down a
-// list. It is conn's own program in a pane of the server, `conn readout`,
-// the way the hold is, so the slot holds it the way it holds anything
-// else and a real pane reaching the slot is rid of it.
+// The readout: what conn knows about a row, read without entering it. i
+// on the processes view opens it, and it opens in the bay, beside the
+// processes view rather than over it — the row it is about stays on
+// screen under the cursor, and moving the cursor and pressing i again
+// is how you read down a list. It is conn's own program in a pane of
+// the server, `conn readout`, the way the hold is, so the bay holds it
+// the way it holds anything else and a real pane reaching the bay is
+// rid of it.
 //
-// A row of the watch is six columns on a rail and most of what conn
-// reads of a process does not fit in that; it is dropped rather than
-// shortened, which is right for the watch and leaves the dropped part
-// said nowhere. This is where it is said. What the process is and was
-// started as, whole. Where it actually is, against the place its tree
-// belongs to. What runs it and what it runs. What it has spent. Of an
-// AI, which conversation it is carrying and what it is stopped on.
-// Of the place, what git says of it — the branch, whether the tree is
-// clean, what the last commit was — since a row stands for work and
-// the work is in a repository.
+// A row of the processes view is six columns on a panel and most of
+// what conn reads of a process does not fit in that; it is dropped
+// rather than shortened, which is right for the processes view and
+// leaves the dropped part said nowhere. This is where it is said. What
+// the process is and was started as, whole. Where it actually is,
+// against the project its tree belongs to. What runs it and what it
+// runs. What it has spent. Of a contact, which session it is carrying
+// and what it is stopped on. Of the project, what git says of it — the
+// branch, whether the tree is clean, what the last commit was — since a
+// row stands for work and the work is in a repository.
 //
 // It is a reading of facts, so it is written the way conn's other
 // reading of facts is: a label, a dotted leader, a value, grouped under
 // a title. The console says what the machine is in that form, and the
-// look says what one row of it is; they are the same instrument
+// readout says what one row of it is; they are the same instrument
 // speaking, and there is no reason for them to speak differently.
 
-// lookSubject is everything the page is composed from: the row as the
-// watch has it, the table's own record behind it, what stands around it
-// in the tree, and what the things conn can ask — claude, git — say of
-// it. The look's own program gathers this; composing is then all
-// wording and no reading, and can be held to by a test.
+// readoutSubject is everything the page is composed from: the row as
+// the processes view has it, the table's own record behind it, what
+// stands around it in the tree, and what the things conn can ask —
+// claude, git — say of it. The readout's own program gathers this;
+// composing is then all wording and no reading, and can be held to by a
+// test.
 type readoutSubject struct {
 	entry    entry
 	proc     process // the table's record, for what a row does not carry
@@ -45,21 +47,22 @@ type readoutSubject struct {
 	children []entry // what it runs, in the order the tree has them
 	pane     pane
 	inside   bool
-	sess     sessionFile // what an AI says of itself, when conn can ask
+	sess     sessionFile // what a contact says of itself, when conn can ask
 	carried  session
 	git      gitStatus
 }
 
-// lookReport is the look's words as things stand, about one row.
+// readoutReport is the readout's words as things stand, about one row.
 type readoutReport struct {
 	pid    int
-	gone   bool // the row was there when the look opened, and is not now
+	gone   bool // the row was there when the readout opened, and is not now
 	groups []readoutGroup
 }
 
-// A lookGroup is a title and the facts under it. A group with no facts
-// is not drawn: an AI's title over a shell's row would be a heading
-// over nothing, and a place that is no repository has no git to report.
+// A readoutGroup is a title and the facts under it. A group with no
+// facts is not drawn: a contact's title over a shell's row would be a
+// heading over nothing, and a project that is no repository has no git
+// to report.
 type readoutGroup struct {
 	title string
 	facts []fact
@@ -98,21 +101,21 @@ func (g *readoutGroup) addPath(label, value string) {
 	}
 }
 
-// composeLook words one row.
+// composeReadout words one row.
 func composeReadout(s readoutSubject, home string, now time.Time) readoutReport {
 	e := s.entry
 	b := readoutReport{pid: e.pid}
 
-	// What the AI is stopped on goes first, ahead of what the row
-	// even is. It is the whole reason to open the page on a waiting
-	// row, the one thing the watch has no column wide enough for, and
-	// the page is cut off at the pane's height rather than scrolled —
-	// so the part that must not be cut is the part that goes at the top.
+	// What the contact is stopped on goes first, ahead of what the row
+	// even is. It is the whole reason to open the page on a waiting row,
+	// the one thing the processes view has no column wide enough for, and
+	// the page is cut off at the pane's height rather than scrolled — so
+	// the part that must not be cut is the part that goes at the top.
 	if e.asking != "" {
 		ask := readoutGroup{title: "WAITING"}
 		ask.add("on", e.asking)
 		ask.add("for", age(e.since, now))
-		// The thing itself, in the AI's words: the tool it asked to
+		// The thing itself, in the contact's words: the tool it asked to
 		// use and what for, or what it last said, which is the question
 		// when a turn ended on one.
 		if s.carried.Ask.Tool != "" {
@@ -127,9 +130,9 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	what.add("kind", e.kind)
 	what.addAsWritten("command", e.command)
 	what.add("pid", strconv.Itoa(e.pid))
-	// How it stands, and how long it has stood that way. Only an AI
+	// How it stands, and how long it has stood that way. Only a contact
 	// says the moment; a stopped or ended process gets no clause at all,
-	// since the moment conn holds for it is when an AI last changed
+	// since the moment conn holds for it is when a contact last changed
 	// what it says of itself, which has nothing to do with when
 	// something stopped it.
 	status := e.status
@@ -141,8 +144,9 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	what.add("status", status)
 	what.add("state", stateWord(s.proc.state, s.proc.foreground))
 	what.add("up", join(" · ", age(e.started, now), "SINCE "+stamp(e.started)))
-	// What it has actually spent, which is the measure behind WORKING
-	// and is nowhere on the watch. Under a second is none worth saying.
+	// What it has actually spent, which is the measure behind WORKING and
+	// is nowhere in the processes view. Under a second is none worth
+	// saying.
 	if s.proc.cpu >= time.Second {
 		what.add("cpu", spell(s.proc.cpu)+" SPENT")
 	}
@@ -150,7 +154,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 
 	where := readoutGroup{title: "WHERE"}
 	where.addPath("project", tilde(s.project.path, home))
-	// The place is the tree's, and a process below the root can have
+	// The project is the tree's, and a process below the root can have
 	// cd'd anywhere since; where it actually is is worth saying only
 	// when it is somewhere else.
 	if e.cwd != "" && e.cwd != s.project.path {
@@ -168,7 +172,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	}
 	b.groups = append(b.groups, where)
 
-	// Which conversation an AI is carrying, and what it was last
+	// Which session a contact is carrying, and what it was last
 	// asked — the two things that say which of several claudes this one
 	// is, where the command line only says that it is one.
 	contact := readoutGroup{title: "CONTACT"}
@@ -180,7 +184,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	contact.addAsWritten("last ask", s.carried.Prompt)
 	b.groups = append(b.groups, contact)
 
-	// What git says of the place. A row stands for work, and the branch
+	// What git says of the project. A row stands for work, and the branch
 	// it is on and whether the tree is clean are the first two things
 	// anyone asks of work.
 	if s.git.repo {
@@ -216,9 +220,9 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		b.groups = append(b.groups, g)
 	}
 
-	// What stands around it. The watch draws the tree already, but it
-	// draws it indented across a whole place; here it is the one row's
-	// own line of descent, said plainly.
+	// What stands around it. The processes view draws the tree already,
+	// but it draws it indented across a whole project; here it is the one
+	// row's own line of descent, said plainly.
 	tree := readoutGroup{title: "TREE"}
 	if s.parent.pid != 0 {
 		tree.addAsWritten("parent", s.parent.kind+" "+s.parent.command+" · "+strconv.Itoa(s.parent.pid))
@@ -275,7 +279,7 @@ func stamp(at time.Time) string {
 	return strings.ToUpper(at.UTC().Format("02-Jan 15:04")) + " Z"
 }
 
-// drawLook renders the look for a pane of the given size.
+// drawReadout renders the readout for a pane of the given size.
 func drawReadout(b readoutReport, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
@@ -302,7 +306,7 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	}
 
 	// The groups: a title, then a fact a line, the value wrapped rather
-	// than cut — the look is where what does not fit elsewhere is said,
+	// than cut — the readout is where what does not fit elsewhere is said,
 	// so cutting it here would leave it said nowhere.
 	for _, g := range b.groups {
 		if len(g.facts) == 0 {

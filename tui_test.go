@@ -9,10 +9,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// answered runs a command and hands back what it answered. A key that
-// changes a mode answers with a batch — the bar's telling beside
-// whatever the key itself asked for — and the bar's half answers
-// nothing, so flattening the batch leaves the one message that matters.
+// answered runs a command and processes back what it answered. A key
+// that changes a mode answers with a batch — the status line's telling
+// beside whatever the key itself asked for — and the status line's half
+// answers nothing, so flattening the batch leaves the one message that
+// matters.
 func answered(cmd tea.Cmd) tea.Msg {
 	if cmd == nil {
 		return nil
@@ -34,9 +35,9 @@ func answered(cmd tea.Cmd) tea.Msg {
 }
 
 // The console comes on in stages: the header at once, the readout when
-// the station is in hand and its beat has passed, the screen's check
+// the station has been read and its beat has passed, the screen's check
 // alone, then the rest; a key skips to the end; a key at the end
-// continues to the watch; the clock turns on the second.
+// continues to the processes view; the clock turns on the second.
 func TestProgramComesOnInStages(t *testing.T) {
 	// ticking as newModel leaves it: conn comes up on the console, which
 	// annunciates, and Init sets the blink going.
@@ -81,7 +82,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 		t.Errorf("last stage is %d", lastStage(m.report()))
 	}
 	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewConsole || !next.(model).entering {
-		t.Errorf("a key at the end should read the watch and hold the console for the answer")
+		t.Errorf("a key at the end should read the processes view and hold the console for the answer")
 	}
 	before := m.report().clock
 	next, cmd = m.Update(clockMsg{})
@@ -153,18 +154,18 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if m = next.(model); !m.lit || ok == nil {
 		t.Error("the chip did not come back")
 	}
-	// Off the console, with nothing on the watch waiting, the blink stops
-	// and rests lit; coming back to the console starts it again; a turn
-	// from an earlier run is dropped.
-	// The first key skips the console's stages to the end, the second
-	// leaves for the watch, and the watch is not up until its reading is.
+	// Off the console, with nothing in the processes view waiting, the
+	// blink stops and rests lit; coming back to the console starts it
+	// again; a turn from an earlier run is dropped. The first key skips
+	// the console's stages to the end, the second leaves for the processes
+	// view, and the processes view is not up until its reading is.
 	next, ok = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	next, ok = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	next, ok = m.Update(processesMsg{gen: m.processesGen})
 	if m = next.(model); m.view != viewProcesses || m.ticking {
-		t.Errorf("on a watch with nothing waiting the blink still ticks: view %d", m.view)
+		t.Errorf("on a view with nothing waiting the blink still ticks: view %d", m.view)
 	}
 	next, ok = m.Update(blinkMsg{gen: m.blinkGen})
 	if m = next.(model); !m.lit || ok != nil {
@@ -180,38 +181,38 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	}
 }
 
-// A reading that finds home without its slot has the slot opened; a
-// reading with the slot only ticks.
+// A reading that finds home without its bay has the bay opened; a
+// reading with the bay only ticks.
 func TestAHomeWithoutItsBayGetsOne(t *testing.T) {
 	m := model{p: plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &server{tmux: "/nonexistent/tmux"}}
 	_, cmd := m.Update(processesMsg{noBay: true})
 	if cmd == nil {
-		t.Fatal("no command for a home without its slot")
+		t.Fatal("no command for a home without its bay")
 	}
 	if _, cmd := m.Update(processesMsg{bay: "ttys009"}); cmd == nil {
-		t.Error("a home with its slot should still tick")
+		t.Error("a home with its bay should still tick")
 	}
 }
 
-// A slot whose pane died on remain-on-exit is revived, not resplit:
-// the rail never has to give up its width and take it back for it. With
-// nothing to reach, a hold takes the slot; with a hand to reach, that
-// hand does.
+// A bay whose pane died on remain-on-exit is revived, not resplit: the
+// panel never has to give up its width and take it back for it. With
+// nothing to reach, a hold takes the bay; with a process to reach, that
+// process does.
 func TestABayWhosePaneDiedIsRevived(t *testing.T) {
 	m := model{p: plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &server{tmux: "/nonexistent/tmux"}}
 	next, cmd := m.Update(processesMsg{bay: "ttys009", bayDead: true})
 	m = next.(model)
 	if cmd == nil {
-		t.Fatal("no command for a slot whose pane died")
+		t.Fatal("no command for a bay whose pane died")
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
-		t.Errorf("a dead slot did not both tick and revive: %T", cmd())
+		t.Errorf("a dead bay did not both tick and revive: %T", cmd())
 	}
 }
 
-// When what was in the slot ends, the slot takes the next hand conn
-// holds, from the cursor down and round again from the top; a hold,
-// the look and a dead pane are passed over, and with nothing to reach
+// When what was in the bay ends, the bay takes the next process conn
+// holds, from the cursor down and round again from the top; a hold, the
+// readout and a dead pane are passed over, and with nothing to reach
 // there is nothing.
 func TestTheBayTakesTheNextProcessWhenItsOwnEnds(t *testing.T) {
 	m := model{p: plain, view: viewProcesses, inside: true}
@@ -243,9 +244,10 @@ func TestTheBayTakesTheNextProcessWhenItsOwnEnds(t *testing.T) {
 }
 
 // A shell conn opens is the cursor's once the process table has it. The
-// slot is marked at once; until the reading brings the shell the watch
-// reads soon rather than at its pace, and the cursor stays where it was;
-// a shell that never comes is given up on when the wait is out.
+// bay is marked at once; until the reading brings the shell the
+// processes view reads soon rather than at its pace, and the cursor
+// stays where it was; a shell that never comes is given up on when the
+// wait is out.
 func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 	here := []project{{path: "/w", entries: []entry{{pid: 11}, {pid: 22}}}}
 	read := func(m model, projects []project) model {
@@ -259,7 +261,7 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 	next, cmd := m.Update(openedMsg{shell: shell{pane: pane{id: "%9", tty: "ttys009"}, pid: 4242}})
 	m = next.(model)
 	if cmd == nil || m.awaited != 4242 || m.bay != "ttys009" {
-		t.Errorf("after opening: cmd %v, awaited %d, slot %q", cmd != nil, m.awaited, m.bay)
+		t.Errorf("after opening: cmd %v, awaited %d, bay %q", cmd != nil, m.awaited, m.bay)
 	}
 	// A reading without it yet leaves the cursor, and the next read is soon.
 	m = read(m, here)
@@ -283,7 +285,7 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 	}
 }
 
-// Reaching a process puts it in the slot, and conn knows that without
+// Reaching a process puts it in the bay, and conn knows that without
 // reading the server back: the row says it is the one shown at once,
 // and the row that was shown stops saying so.
 func TestTheReachedRowIsTheBayAtOnce(t *testing.T) {
@@ -296,21 +298,21 @@ func TestTheReachedRowIsTheBayAtOnce(t *testing.T) {
 	next, cmd := m.Update(reachedMsg{"ttys002"})
 	m = next.(model)
 	if m.bay != "ttys002" {
-		t.Errorf("the slot is %q, not the reached terminal", m.bay)
+		t.Errorf("the bay is %q, not the reached terminal", m.bay)
 	}
 	if cmd == nil || m.processesGen == gen {
-		t.Error("the watch was not read again after reaching")
+		t.Error("the processes view was not read again after reaching")
 	}
-	// The watch says so: the reached row is shown, the one it replaced
-	// is not.
+	// The processes view says so: the reached row is shown, the one it
+	// replaced is not.
 	w := m.processesReport()
 	for _, pl := range w.projects {
 		for _, r := range pl.rows {
 			if r.tty == "ttys002" && !r.shown {
-				t.Error("the reached row does not read as the one in the slot")
+				t.Error("the reached row does not read as the one in the bay")
 			}
 			if r.tty == "ttys001" && r.shown {
-				t.Error("the row that left the slot still reads as shown")
+				t.Error("the row that left the bay still reads as shown")
 			}
 		}
 	}
@@ -320,15 +322,15 @@ func TestTheReachedRowIsTheBayAtOnce(t *testing.T) {
 // inside it reaches the head, and the cursor goes to the head too. The
 // row that asked is not the row that answered, and a cursor left on the
 // sub-process would pick out the one thing in the pane that is not what
-// is in the slot.
+// is in the bay.
 func TestReachingFromInsideATreePutsTheCursorOnItsHead(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside = viewProcesses, true
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 9, tty: "ttys001"},
 		{pid: 11, tty: "ttys002"},           // the head: what the pane was opened on
-		{pid: 12, tty: "ttys002", depth: 1}, // the AI it runs
-		{pid: 13, tty: "ttys002", depth: 2}, // and what the AI runs
+		{pid: 12, tty: "ttys002", depth: 1}, // the contact it runs
+		{pid: 13, tty: "ttys002", depth: 2}, // and what the contact runs
 	}}}
 	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
 	m.cursor, m.cursorAt = 13, 3 // down inside the tree
@@ -388,11 +390,11 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 	}
 }
 
-// In the server, tab puts the waiting hand's pane in the slot and the
-// keys in it, so one press has the operator answering; a hand conn
-// holds no pane for is gone to on the rail and the keys stay. The
+// In the server, tab puts the waiting contact's pane in the bay and the
+// keys in it, so one press has the operator answering; a process conn
+// holds no pane for is gone to on the panel and the keys stay. The
 // prefix then tab sends alt+tab, which does the same from any view,
-// putting the watch up on the way.
+// putting the processes view up on the way.
 func TestTabReachesTheWaitingContact(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.srv = viewProcesses, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
@@ -421,8 +423,8 @@ func TestTabReachesTheWaitingContact(t *testing.T) {
 		t.Errorf("unheld: cursor %d, cmd %v", m.cursor, answered(cmd))
 	}
 
-	// From the console, by the chord: the watch comes up and the hand is
-	// reached.
+	// From the console, by the chord: the processes view comes up and the
+	// process is reached.
 	m.panes = map[string]pane{"ttys002": {id: "%2", tty: "ttys002"}}
 	m.view, m.cursor = viewConsole, 11
 	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModAlt})
@@ -432,9 +434,9 @@ func TestTabReachesTheWaitingContact(t *testing.T) {
 	}
 }
 
-// a opens claude at the place under the cursor, the way s opens a shell
-// there; outside the server nothing can be opened, and off any place
-// there is nothing to open it at.
+// a opens claude at the project under the cursor, the way s opens a
+// shell there; outside the server nothing can be opened, and off any
+// project there is nothing to open it at.
 func TestAOpensAContactAtTheProject(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewProcesses
@@ -462,14 +464,14 @@ func TestAOpensAContactAtTheProject(t *testing.T) {
 	m = next.(model)
 	// Nothing is opened and nothing is waited for.
 	if m.awaited != 0 {
-		t.Errorf("off any place: awaited %d", m.awaited)
+		t.Errorf("off any project: awaited %d", m.awaited)
 	}
 }
 
-// alt+a opens the picker over what claude left suspended at the place
-// under the cursor, asking for that place's own directory alone. Plain
-// A is not bound to it — a shift chord costs the same as an alt one,
-// so there is no reason to answer to both.
+// alt+a opens the sessions view over what claude left suspended at the
+// project under the cursor, asking for that project's own directory
+// alone. Plain A is not bound to it — a shift chord costs the same as
+// an alt one, so there is no reason to answer to both.
 func TestAltAOpensSessionsAtTheProject(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewProcesses
@@ -492,10 +494,10 @@ func TestAltAOpensSessionsAtTheProject(t *testing.T) {
 		t.Errorf("convosDirs = %v", got)
 	}
 	if msg, ok := cmd().(sessionsMsg); !ok || len(msg.dirs) != 1 || msg.dirs[0] != "/w" {
-		t.Errorf("scanConvos did not ask for the place under the cursor: %v", cmd())
+		t.Errorf("scanConvos did not ask for the project under the cursor: %v", cmd())
 	}
 
-	// A is unbound on the watch: nothing happens, the view holds.
+	// A is unbound in the processes view: nothing happens, the view holds.
 	m.view = viewProcesses
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
 	m = next.(model)
@@ -517,7 +519,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	if cmd != nil || m.kill == nil || m.kill.pid != 11 || m.kill.command != "claude" || m.kill.sig != syscall.SIGTERM {
 		t.Fatalf("arming: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
-	// The question travels with the kill, to the bar.
+	// The question travels with the kill, to the status line.
 	if !strings.Contains(m.kill.prompt, "END CLAUDE 11 ·") {
 		t.Errorf("the question: kill %+v", m.kill)
 	}
@@ -579,10 +581,11 @@ func TestAKilledMsgRereads(t *testing.T) {
 	}
 }
 
-// p leaves the watch for the list and walks the roots; what is typed
-// narrows the rows and puts the cursor back at the top; the arrows and
-// ctrl+n and ctrl+p move it, held within the rows there are; esc comes
-// back to the watch, and the watch reads again.
+// p leaves the processes view for the list and walks the roots; what is
+// typed narrows the rows and puts the cursor back at the top; the
+// arrows and ctrl+n and ctrl+p move it, held within the rows there are;
+// esc comes back to the processes view, and the processes view reads
+// again.
 func TestTheListIsALineTypedInto(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.width, m.height = viewProcesses, 48, 30
@@ -599,7 +602,7 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 	if m.scanning || len(m.projectRows()) != len(testProjects) {
 		t.Errorf("with the roots walked: scanning %v, %d rows", m.scanning, len(m.projectRows()))
 	}
-	// The letters the watch is worked by are characters here.
+	// The letters the processes view is worked by are characters here.
 	for _, k := range []string{"c", "o", "n", "n"} {
 		m, _ = key(m, k)
 	}
@@ -635,8 +638,8 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 }
 
 // Enter on a row opens a shell at that project and comes back to the
-// watch, where the shell will show. Outside the server nothing can be
-// opened, and the list holds.
+// processes view, where the shell will show. Outside the server nothing
+// can be opened, and the list holds.
 func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.walked, m.pcursor = viewProjects, testProjects, 3
@@ -654,7 +657,7 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	// The shell is opened at the row the cursor was on: the tmux that
 	// cannot be run says so as a note, which is where the path shows.
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
-		t.Errorf("enter did not both read the watch and open the shell: %T", cmd())
+		t.Errorf("enter did not both read the processes view and open the shell: %T", cmd())
 	}
 }
 
@@ -672,16 +675,16 @@ func TestCtrlAOpensAnAgentAtTheProject(t *testing.T) {
 		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
-		t.Errorf("ctrl+a did not both read the watch and open the AI: %T", cmd())
+		t.Errorf("ctrl+a did not both read the processes view and open the contact: %T", cmd())
 	}
 }
 
-// alt+a opens the picker at the row's own directory, or, on a group,
-// at every repository under it too — a transcript is filed by the
-// exact directory it was had in, not the folder that names them. Plain
-// A is not bound to it, unlike ctrl+shift+a which never could be — a
-// shift chord costs the same as an alt one, so there is no reason to
-// give up typing a capital letter into the filter for it.
+// alt+a opens the sessions view at the row's own directory, or, on a
+// group, at every repository under it too — a transcript is filed by
+// the exact directory it was had in, not the folder that names them.
+// Plain A is not bound to it, unlike ctrl+shift+a which never could be
+// — a shift chord costs the same as an alt one, so there is no reason
+// to give up typing a capital letter into the filter for it.
 func TestAltAOpensSessionsFromProjects(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.walked, m.pcursor = viewProjects, testProjects, 0 // arboreum.io, a group of two
@@ -701,8 +704,8 @@ func TestAltAOpensSessionsFromProjects(t *testing.T) {
 		t.Errorf("convosDirs = %v, want %v", m.sessionsDirs, want)
 	}
 
-	// A is a letter to type here, the same as a is: the picker does not
-	// take it from the filter.
+	// A is a letter to type here, the same as a is: the sessions view does
+	// not take it from the filter.
 	m.view, m.filter = viewProjects, ""
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
 	m = next.(model)
@@ -711,9 +714,10 @@ func TestAltAOpensSessionsFromProjects(t *testing.T) {
 	}
 }
 
-// The picker is a line typed into, the same as the list: what is typed
-// narrows the rows and puts the cursor back at the top, backspace and
-// ctrl+u widen it again, and esc leaves without continuing anything.
+// The sessions view is a line typed into, the same as the list: what is
+// typed narrows the rows and puts the cursor back at the top, backspace
+// and ctrl+u widen it again, and esc leaves without continuing
+// anything.
 func TestSessionsIsALineTypedInto(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.sessions = viewSessions, testSessions2
@@ -741,10 +745,10 @@ func TestSessionsIsALineTypedInto(t *testing.T) {
 	}
 }
 
-// Enter continues the conversation under the cursor in a shell running
-// claude --resume, and comes back to the watch, where the shell will
-// show; outside the server nothing can be opened, and the picker
-// holds.
+// Enter continues the session under the cursor in a shell running
+// claude --resume, and comes back to the processes view, where the
+// shell will show; outside the server nothing can be opened, and the
+// sessions view holds.
 func TestEnterResumesTheSessionUnderTheCursor(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.sessions, m.rcursor = viewSessions, testSessions2, 1
@@ -760,13 +764,13 @@ func TestEnterResumesTheSessionUnderTheCursor(t *testing.T) {
 		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
-		t.Errorf("enter did not both read the watch and open the conversation: %T", cmd())
+		t.Errorf("enter did not both read the processes view and open the session: %T", cmd())
 	}
 }
 
-// A picker's listing that lands after it moved on to another place —
-// or closed — is dropped: only the one that asked for these dirs wants
-// them.
+// A sessions view's listing that lands after it moved on to another
+// project — or closed — is dropped: only the one that asked for these
+// dirs wants them.
 func TestAStaleSessionsAnswerIsDropped(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.sessionsDirs, m.sessionsLoading = viewSessions, []string{"/a"}, true
@@ -784,11 +788,11 @@ func TestAStaleSessionsAnswerIsDropped(t *testing.T) {
 	}
 }
 
-// The list has a key of its own that reaches it from every view, which
-// is what the prefix chord sends. p cannot serve: it is the list's key
-// on the watch, where it is a key, but on the list and the picker it is
-// a letter being typed into the line, and on the console it is one of
-// the any-keys that continue to the watch.
+// Projects has a key of its own that reaches it from every view, which
+// is what the prefix chord sends. p cannot serve: it opens projects
+// from the processes view, where it is a key, but in projects and in
+// sessions it is a letter being typed into the line, and on the console
+// it is one of the any-keys that continue to the processes view.
 func TestAltPOpensTheListFromAnywhere(t *testing.T) {
 	base := newModel(plain)
 	base.now, base.width, base.height = processesNow, 120, 40
@@ -810,14 +814,14 @@ func TestAltPOpensTheListFromAnywhere(t *testing.T) {
 		}
 	}
 
-	// The console's wait on a reading is called off, or that reading
-	// would land a moment later and put the watch up over the list.
+	// The console's wait on a reading is called off, or that reading would
+	// land a moment later and put the processes view up over the list.
 	m := base
 	m.view, m.entering = viewConsole, true
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'p'}))
 	m = next.(model)
 	if m.entering {
-		t.Fatal("alt+p on the console left it waiting to go to the watch")
+		t.Fatal("alt+p on the console left it waiting to go to the processes view")
 	}
 	next, _ = m.Update(processesMsg{gen: m.processesGen})
 	if got := next.(model).view; got != viewProjects {

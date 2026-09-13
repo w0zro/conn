@@ -55,11 +55,12 @@ func TestEachServerHasItsOwnCursor(t *testing.T) {
 	}
 }
 
-// The rail publishes wherever the cursor ends up, by whatever moved it
+// The panel publishes wherever the cursor ends up, by whatever moved it
 // — j and k, tab, a reading that carried it along — because every path
-// goes out through the one place that tells it. Off the watch there is
-// no cursor on a process, and the subject is not unchosen by going to
-// the list to open something, so nothing is said rather than a nothing.
+// goes out through the one project that tells it. Off the processes
+// view there is no cursor on a process, and the subject is not unchosen
+// by going to the list to open something, so nothing is said rather
+// than a nothing.
 func TestThePanelPublishesItsCursor(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
@@ -112,16 +113,16 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	tellCursor(path, 55)
 	next, _ = nowhere.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	if got := askCursor(path); got != 55 {
-		t.Errorf("a rail with no home published %d", got)
+		t.Errorf("a panel with no home published %d", got)
 	}
 
-	// On the list there is no process under the cursor; the look keeps
+	// On the list there is no process under the cursor; the readout keeps
 	// the subject it was given rather than being told a nothing.
 	tellCursor(path, 99)
 	m.view = viewProjects
 	press("j")
 	if got := askCursor(path); got != 99 {
-		t.Errorf("the list published %d over the watch's cursor", got)
+		t.Errorf("the list published %d over the processes view's cursor", got)
 	}
 }
 
@@ -212,7 +213,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 		t.Errorf("the page is still about pid %d after the cursor moved", m.report.pid)
 	}
 	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "go test ./...") {
-		t.Errorf("the row the cursor landed on was not said out of the table in hand:\n%s", text)
+		t.Errorf("the row the cursor landed on was not said out of the table already read:\n%s", text)
 	}
 
 	// A row the table has never seen is a row that started since it was

@@ -7,18 +7,19 @@ import (
 	"unicode/utf8"
 )
 
-// The picker: a place's suspended conversations, filtered the way the
-// project list is. A row is what a reader would recognize a
-// conversation by — its branch and the last thing it was asked — with
-// how long since it last moved against the right. Enter continues the
-// one under the cursor, in a shell like any other; esc abandons the
-// look without opening anything.
+// The sessions view: a project's suspended sessions, filtered the way
+// the project list is. A row is what a reader would recognize a session
+// by — its branch and the last thing it was asked — with how long since
+// it last moved against the right. Enter continues the one under the
+// cursor, in a shell like any other; esc abandons the readout without
+// opening anything.
 
-// resumeReport is the picker's words as things stand. A directory the
-// picker looked under and found nothing in — no conversations had, or
-// none yet read — is not an error; there is none for the picker to say.
+// sessionsReport is the sessions view's words as things stand. A
+// directory the sessions view looked under and found nothing in — no
+// sessions had, or none yet read — is not an error; there is none for
+// the sessions view to say.
 type sessionsReport struct {
-	project string // the place it was opened on, tilde'd
+	project string // the project it was opened on, tilde'd
 	home    string
 	now     time.Time
 	loading bool
@@ -27,8 +28,8 @@ type sessionsReport struct {
 	filter  string
 }
 
-// composeResume words the picker: the filter's rows out of the whole
-// place found.
+// composeSessions words the sessions view: the filter's rows out of the
+// whole number found.
 func composeSessions(sessions []session, project, filter, home string, now time.Time, loading bool) sessionsReport {
 	return sessionsReport{
 		project: tilde(project, home), home: home, now: now, loading: loading,
@@ -36,7 +37,7 @@ func composeSessions(sessions []session, project, filter, home string, now time.
 	}
 }
 
-// matchingConvos is the conversations a filter leaves: one answers by
+// matchingSessions is the sessions a filter leaves: one answers by
 // its branch, the last thing it was asked, or the directory it was had
 // in, the same three a reader would recognize it by.
 func matchingSessions(cs []session, filter string) []session {
@@ -55,21 +56,21 @@ func matchingSessions(cs []session, filter string) []session {
 	return out
 }
 
-// branchW is the picker's one column of its own: the branch, from the
-// margin. The age takes the measure's own ageW, flush with the right,
-// the way it does on the watch; the prompt takes what is left between
-// them.
+// branchW is the sessions view's one column of its own: the branch,
+// from the margin. The age takes the measure's own ageW, flush with the
+// right, the way it does in the processes view; the prompt takes what
+// is left between them.
 const branchW = 14
 
-// drawResume renders the picker for a terminal of the given size, with
-// the cursor on the given row.
+// drawSessions renders the sessions view for a terminal of the given
+// size, with the cursor on the given row.
 func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
 
 	// The header: the name of the view, and against the right the count
-	// — of everything found at the place, or of what the filter left out
+	// — of everything found at the project, or of what the filter left out
 	// of it.
 	c.blank(0)
 	l := c.line()
@@ -86,7 +87,8 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	c.emit(l, 0, false)
 	c.rule(0, measure)
 
-	// The place it is for, the way a place titles its block on the watch.
+	// The project it is for, the way a project titles its block in the
+	// processes view.
 	l = c.line()
 	l.add(p.parchment+p.bold, fit(b.project, measure, true))
 	c.emit(l, 0, false)
@@ -136,7 +138,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 			}
 			l.add(p.gray, fit(cv.Branch, branchW-1, false))
 			l.to(branchW)
-			// A conversation with nothing read of it is named by where it
+			// A session with nothing read of it is named by where it
 			// was had; one with a prompt is named by that instead, since it
 			// is the more of the two a reader would recognize it by.
 			prompt, path := cv.Prompt, false
@@ -152,7 +154,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
-	// The ground fills what the rows do not, as on the list.
+	// The ground fills what the rows do not, as in projects.
 	if height > 0 {
 		for len(c.rows) < height {
 			c.blank(0)

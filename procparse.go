@@ -11,7 +11,7 @@ import (
 )
 
 // The parsers behind the process table, pure over what the platform
-// hands over, and tested on every platform against captures.
+// processes over, and tested on every platform against captures.
 
 // parseLsof reads lsof -F pcn: for each process, a p line with its pid,
 // a c line with its command, and an n line with the path of the file

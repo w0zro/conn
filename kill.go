@@ -13,24 +13,24 @@ import (
 // an interactive shell — bash proven, zsh proven harder still — ignores
 // SIGTERM outright, and zsh ignores SIGHUP too, so a bare shell with
 // nothing running in it, the only entry a shell is ever its own, is
-// killed outright instead; there is nothing in it to give the chance
-// to save. Anything a shell is running — an editor, a build, an AI —
+// killed outright instead; there is nothing in it to give the chance to
+// save. Anything a shell is running — an editor, a build, a contact —
 // gets SIGTERM, the ask a well-behaved command answers by saving,
 // flushing and tearing its own children down, the way it would ending
-// on its own. The cursor's entry is already the leaf the watch covers
-// a shell with, so this is always the command alone: the shell it runs
-// in, if any, is left at its prompt rather than taken with it.
+// on its own. The cursor's entry is already the leaf the processes view
+// covers a shell with, so this is always the command alone: the shell
+// it runs in, if any, is left at its prompt rather than taken with it.
 //
 // x arms a kill rather than sending one: the next key either confirms
 // it — x, y or enter — or cancels it, whatever it is, so nothing else
-// binds while the question is on the bar.
+// binds while the question is on the status line.
 
 // pendingKill is a kill x has asked for and not yet answered.
 type pendingKill struct {
 	pid     int
 	command string
 	sig     syscall.Signal
-	prompt  string // the question, as the bar puts it
+	prompt  string // the question, as the status line puts it
 }
 
 // killSignal is what x sends a kind of entry: SIGKILL for a bare
@@ -74,9 +74,10 @@ func signal(pid int, sig syscall.Signal) error {
 	return err
 }
 
-// killPrompt asks the question x arms, for the bar beside CONFIRM,
-// where a whole window's width can hold it: kill, for a bare shell that
-// has nothing to lose by it, end for anything asked more gently.
+// killPrompt asks the question x arms, for the status line beside
+// CONFIRM, where a whole window's width can hold it: kill, for a bare
+// shell that has nothing to lose by it, end for anything asked more
+// gently.
 func killPrompt(command string, pid int, sig syscall.Signal) string {
 	verb := "end"
 	if sig == syscall.SIGKILL {

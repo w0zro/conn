@@ -6,24 +6,25 @@ import (
 	"unicode/utf8"
 )
 
-// The watch: what is running, by place. Under a short header, each
-// place work is happening in is a block — its path as a title, and a
-// row for each process that stands for its own work there, nested
-// under whatever runs it the way the processes actually are: its
+// The processes view: what is running, by project. Under a short
+// header, each project work is happening in is a block — its path as a
+// title, and a row for each process that stands for its own work there,
+// nested under whatever runs it the way the processes actually are: its
 // kind, what it was started as, its terminal, how long it has been at
-// it, and the word for how it stands. A row under another indents,
-// its kind and command shifted in together, the rest of its columns
-// holding their own place. Everything sits where it started and stays
-// there for as long as it lives, oldest first, so what is new goes on
-// the end and nothing above it moves. A cursor is on one row, which is
-// drawn on a raised ground from edge to edge, and the rows scroll to
-// keep it in view. What conn holds — a process in a pane of the
-// server, which can be reached — is written in the ink; work conn can
-// only report is dimmed a rank. In the rail, which is narrower than
-// the console, the terminal column is left off and the rest close up;
-// the row on the right, in the slot, is in orange.
+// it, and the word for how it stands. A row under another indents, its
+// kind and command shifted in together, the rest of its columns staying
+// where they are. Everything sits where it started and stays there
+// for as long as it lives, oldest first, so what is new goes on the end
+// and nothing above it moves. A cursor is on one row, which is drawn on
+// a raised ground from edge to edge, and the rows scroll to keep it in
+// view. What conn holds — a process in a pane of the server, which can
+// be reached — is written in the ink; work conn can only report is
+// dimmed a rank. In the panel, which is narrower than the console, the
+// terminal column is left off and the rest close up; the row on the
+// right, in the bay, is in orange.
 
-// The watch's words, composed from the places as of a moment.
+// The processes view's words, composed from the projects as of a
+// moment.
 type processesReport struct {
 	projects []projectBlock
 	err      string // why the table could not be read, when it could not
@@ -41,13 +42,13 @@ type processRow struct {
 	kind, command, tty, age, status string
 	fault                           bool
 	reach                           string // the pane that holds it, in conn's server
-	shown                           bool   // it is in the slot, on the right
-	depth                           int    // how deep under its place's own root
+	shown                           bool   // it is in the bay, on the right
+	depth                           int    // how deep under its project's own root
 }
 
-// headOf is the first row of a terminal in the places as read: the
+// headOf is the first row of a terminal in the projects as read: the
 // process its pane was opened on, which everything else in that pane
-// hangs under. It is what the slot's mark goes on and what the cursor
+// hangs under. It is what the bay's mark goes on and what the cursor
 // belongs on once the pane is reached, and both ask here so that the
 // two can never disagree about which row the pane is. It answers the
 // row's place in the reading too, for the cursor to hold.
@@ -79,10 +80,10 @@ func rowOf(projects []project, pid int) (entry, bool) {
 	return entry{}, false
 }
 
-// composeWatch words the places; panes says which terminals are the
-// server's, and slot which of them is on the right.
+// composeProcesses words the projects; panes says which terminals are
+// the server's, and bay which of them is on the right.
 //
-// A pane holds a whole tree, and all of it is equally in the slot, but
+// A pane holds a whole tree, and all of it is equally in the bay, but
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
@@ -106,15 +107,15 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 	return b
 }
 
-// placeName is what the watch writes over a block: what is left of the
-// path once the root the checkouts are kept under is taken off it.
-// ~/projects/w0zro/conn is w0zro/conn. The root is the same for every
-// project on the list and says nothing that tells one from another, and
-// it is said at the head of every block — the rail is forty-four columns
-// wide, and the part that tells them apart is the part that should have
-// them.
+// projectName is what the processes view writes over a block: what is
+// left of the path once the root the checkouts are kept under is taken
+// off it. ~/projects/w0zro/conn is w0zro/conn. The root is the same for
+// every project shown and says nothing that tells one from
+// another, and it is said at the head of every block — the panel is
+// forty-four columns wide, and the part that tells them apart is the
+// part that should have them.
 //
-// A place outside every root is written from ~ and whole: there is
+// A project outside every root is written from ~ and whole: there is
 // nothing shared to take off it, and where it is is the only thing the
 // line has to say. A root itself is written the same way, since what is
 // left of it after itself is nothing.
@@ -127,10 +128,10 @@ func projectName(path string, roots []string, home string) string {
 	return tilde(path, home)
 }
 
-// The watch's columns, from the right: the status flush with the
-// measure, the age and the terminal before it, and the command taking
-// what is left after the kind. Under minCols the watch is a rail: the
-// terminal column goes, the kind and the age close up.
+// The processes view's columns, from the right: the status flush with
+// the measure, the age and the terminal before it, and the command
+// taking what is left after the kind. Under minCols the processes view
+// is a panel: the terminal column goes, the kind and the age close up.
 const (
 	kindW        = 8
 	ttyW         = 10
@@ -141,8 +142,8 @@ const (
 	treeIndent   = 2 // columns a row gives up per level under its root
 )
 
-// drawWatch renders the watch for a terminal of the given size, with
-// the cursor on the row of the given pid.
+// drawProcesses renders the processes view for a terminal of the given
+// size, with the cursor on the row of the given pid.
 func drawProcesses(b processesReport, cursor int, width, height int, p palette) []row {
 	panel := width < minCols
 	width = max(width, panelMinCols)
@@ -160,11 +161,11 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		commandW = ageCol - 1 - kindCol
 	}
 
-	// The header: a rule and the column heads. The view goes unlabeled:
-	// it is what conn is when it is up. The name stood over this row and
-	// is the bar's now, at the bottom left of the window where a name
-	// belongs — it is the whole program's and not the watch's, and the
-	// watch is the one view that was carrying it for all of them.
+	// The header: a rule and the column heads. The view goes unlabeled: it
+	// is what conn is when it is up. The name stood over this row and the
+	// status line carries it now, at the bottom left of the window where a
+	// name belongs — it names the whole program rather than this one view,
+	// which was carrying it for all of them.
 	c.blank(0)
 	c.rule(0, measure)
 	l := c.line()
@@ -181,7 +182,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	l.add(p.gray, "STATUS")
 	c.emit(l, 0, false)
 
-	// The places, in the order work began in them; or the reason there
+	// The projects, in the order work began in them; or the reason there
 	// are none.
 	room := height
 	if height == 0 {
@@ -192,7 +193,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	project := func(bp projectBlock) {
 		d := canvas{p: p, width: width}
 		d.blank(0)
-		// The place's title alone. It carried a count of its rows on the
+		// The project's title alone. It carried a count of its rows on the
 		// right, which was the kernel's word for them and a figure the
 		// operator never asks for: the rows are right there under it.
 		l := d.line()
@@ -210,8 +211,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			// conn holds nothing, so nothing is dimmed: the distinction
 			// would be every row.
 			//
-			// The slot is a mark, and one cell of one row is all a mark
-			// needs: the kind of the head of what is in the slot, in the
+			// The bay is a mark, and one cell of one row is all a mark
+			// needs: the kind of the head of what is in the bay, in the
 			// orange, which is "you, here" everywhere else in conn. A
 			// row is a lot of orange, and the status column especially
 			// is not the orange's to take — WAITING is already a color

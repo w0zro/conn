@@ -41,9 +41,9 @@ func TestPanesAreParsed(t *testing.T) {
 	out := "%0\t/dev/ttys004\t48\t40\t\t\t\n" +
 		"%1\t/dev/ttys007\t138\t40\t1\t\t\n" +
 		"%5\t/dev/ttys008\t138\t40\t\t1\t\n" +
-		// A look carries the hold's own mark as well as its own: it is
-		// furniture like a hold, and everything that acts on holds acts
-		// on it. Only i has to tell the two apart.
+		// A readout carries the hold's own mark as well as its own: it is
+		// furniture like a hold, and everything that acts on holds acts on
+		// it. Only i has to tell the two apart.
 		"%7\t/dev/ttys009\t138\t40\t1\t\t1\n\n"
 	want := map[string]pane{
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40},
@@ -60,8 +60,8 @@ func TestPanesAreParsed(t *testing.T) {
 }
 
 // The configuration sets the prefix, empties tmux's prefix table, and
-// binds two chords under it — - to the watch, q to detach; it carries
-// the look; a path with a quote in it survives quoting.
+// binds two chords under it — - to the processes view, q to detach; it
+// carries the readout; a path with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, s := range []string{
@@ -70,9 +70,9 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind q detach-client",
 		"bind Tab select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-Tab",
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
-		// The bar stands on the raised ground, which is what a chosen row
-		// sits on: a surface of its own and not the last line of the pane
-		// over it. Its text begins where the rail's does.
+		// The status line stands on the raised ground, which is what a chosen
+		// row sits on: a surface of its own and not the last line of the pane
+		// over it. Its text begins where the panel's does.
 		`set -g status-style "bg=` + borderHex + `,fg=#8B8272"`,
 		// A mode is a block of its color with the ground knocked out of
 		// it. The attributes are parted by spaces rather than commas so
@@ -184,16 +184,16 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 	}
 }
 
-// The bar is dark at rest and lit by what cannot be seen from the rail:
-// the two modes only tmux can know for nothing, and conn's question,
-// read out of an option, shown only while the keys are on the rail to
-// answer it. The lamps are read out of an option too, and nothing on the
-// line is re-read on a beat.
+// The status line is dark at rest and lit by what cannot be seen from
+// the panel: the two modes only tmux can know for nothing, and conn's
+// question, read out of an option, shown only while the keys are on the
+// panel to answer it. The lamps are read out of an option too, and
+// nothing on the line is re-read on a beat.
 func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_owed", "@conn_rail", "@conn_slot", "status-interval 1"} {
 		if strings.Contains(conf, gone) {
-			t.Errorf("the bar still asks conn for %q", gone)
+			t.Errorf("the status line still asks conn for %q", gone)
 		}
 	}
 	for _, want := range []string{
@@ -206,7 +206,7 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 		"#[bg=" + scheme[12] + " fg=" + hex(groundColor) + " bold] COPY ",
 	} {
 		if !strings.Contains(conf, want) {
-			t.Errorf("the bar lacks %q:\n%s", want, conf)
+			t.Errorf("the status line lacks %q:\n%s", want, conf)
 		}
 	}
 	// Nothing lit at rest: with no chord, no copy mode and no question
@@ -215,18 +215,19 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	left = left[:strings.Index(left, "\n")]
 	for _, gone := range []string{"CONN", "WATCH", "CONSOLE", "RAIL"} {
 		if strings.Contains(left, gone) {
-			t.Errorf("the bar says %q at rest", gone)
+			t.Errorf("the status line says %q at rest", gone)
 		}
 	}
 	if !strings.HasSuffix(left, ",}}}\"") {
-		t.Errorf("the left of the bar is not dark at rest: %s", left)
+		t.Errorf("the left of the status line is not dark at rest: %s", left)
 	}
 }
 
-// The left of the bar lights for a question armed and for nothing else
-// of conn's; the right is one lamp per row of the watch, in the watch's
-// order, in the color of how each stands. Both are written when they
-// change and not again for the same reading.
+// The left of the status line lights for a question armed and for
+// nothing else of conn's; the right is one lamp per row of the
+// processes view, in the processes view's order, in the color of how
+// each stands. Both are written when they change and not again for the
+// same reading.
 func TestConnLightsTheStatusLine(t *testing.T) {
 	m := newModel(plain)
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
@@ -238,14 +239,14 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	for _, v := range []int{viewConsole, viewProcesses, viewProjects, viewSessions} {
 		m.view = v
 		if ask := m.ask(); ask != "" {
-			t.Errorf("the bar says %q with nothing asked", ask)
+			t.Errorf("the status line says %q with nothing asked", ask)
 		}
 	}
 	// A question armed takes the next key whatever it is, and wears the
 	// waiting color, which is the one thing waiting on you is said in.
 	m.view = viewProcesses
-	// The question itself stands beside the block, on the bar's own
-	// ground, with tmux's own character doubled so it is shown.
+	// The question itself stands beside the block, on the status line's
+	// own ground, with tmux's own character doubled so it is shown.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
 	if ask := m.ask(); !strings.HasPrefix(ask, statusLineAsk("CONFIRM")) || !strings.Contains(ask, "bg="+scheme[1]) ||
 		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+scheme[7]) {
@@ -254,7 +255,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	m.kill = nil
 
 	// One lamp per row, in order: a shell at its prompt the faintest
-	// ink, an AI working a rank of gray, an AI waiting in the
+	// ink, a contact working a rank of gray, a contact waiting in the
 	// waiting color and blinking, and a fault no different from rest.
 	m.projects = []project{
 		{path: "/w", entries: []entry{
@@ -275,26 +276,26 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		t.Errorf("the lamps read\n%s\nwant\n%s", lamps, want)
 	}
 	if statusLineLamps(nil) != "" {
-		t.Errorf("a watch with nothing on it lights %q", statusLineLamps(nil))
+		t.Errorf("a view with nothing on it lights %q", statusLineLamps(nil))
 	}
 
 	// Written when it changes, and not again for the same reading.
 	next, cmd := m.saying()
 	if cmd == nil {
-		t.Fatal("the lamps conn had not lit were not put on the bar")
+		t.Fatal("the lamps conn had not lit were not put on the status line")
 	}
 	if _, again := next.saying(); again != nil {
-		t.Error("the same lamps were written to the bar twice")
+		t.Error("the same lamps were written to the status line twice")
 	}
 	next.projects[1].entries[0].status = statusIdle
 	if _, changed := next.saying(); changed == nil {
-		t.Error("a process that stopped waiting did not go out on the bar")
+		t.Error("a process that stopped waiting did not go out on the status line")
 	}
 
-	// Outside the server there is no bar to write to.
+	// Outside the server there is no status line to write to.
 	out := m
 	out.inside = false
 	if _, cmd := out.saying(); cmd != nil {
-		t.Error("conn wrote to the bar outside its server")
+		t.Error("conn wrote to the status line outside its server")
 	}
 }

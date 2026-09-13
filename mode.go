@@ -88,14 +88,14 @@ const (
 )
 
 // The border, and the grounds that go with it: a pane's edge, a
-// selection, the bar behind what you said. On dark this is scheme[0],
-// which is the darkest thing there is and so the quietest edge. On
-// light it cannot be: light's scheme[0] is black, and black is what a
-// program writing ANSI-0 means by ordinary text — Claude Code writes
-// the unchanged lines of a diff in it. A border pale enough to be an
-// edge on paper is #D8D0BD, which is 1.27:1 against lightGround and
-// unreadable as text, so the two part company here rather than in the
-// sixteen.
+// selection, the band behind what you said. On dark this is scheme[0],
+// which is the darkest thing there is and so the quietest
+// edge. On light it cannot be: light's scheme[0] is black, and black is
+// what a program writing ANSI-0 means by ordinary text — Claude Code
+// writes the unchanged lines of a diff in it. A border pale enough to
+// be an edge on paper is #D8D0BD, which is 1.27:1 against lightGround
+// and unreadable as text, so the two part company here rather than in
+// the sixteen.
 const (
 	darkBorderHex  = "#2A2620"
 	lightBorderHex = "#D8D0BD"

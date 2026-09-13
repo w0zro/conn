@@ -21,7 +21,8 @@ import (
 // and stays in lockstep with the palette by construction; a token that
 // wants one of conn's own colors is written from the same table the
 // palette comes from. Only the grounds no slot has a name for — the
-// washes under a diff, the bar behind a message — are spelled out.
+// washes under a diff, the band behind a message — are spelled
+// out.
 //
 // Claude Code's own syntax coloring is not a theme's to set: it is a
 // fixed map onto the sixteen, which conn has already dressed. Code in a

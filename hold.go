@@ -6,13 +6,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// hold is what stands in the slot when no hand does: the ground, and a
-// placard saying the position is vacant. A key in it hands focus back
-// to the rail. conn runs it as `conn hold`, in a pane of its own
+// hold is what stands in the bay when no process does: the ground, and
+// a placard saying the position is vacant. A key in it processes focus
+// back to the panel. conn runs it as `conn hold`, in a pane of its own
 // server.
 //
-// It said how to fill the slot before, a sentence of instructions
-// shown on every empty slot forever, and cut off at the width of most
+// It said how to fill the bay before, a sentence of instructions
+// shown on every empty bay forever, and cut off at the width of most
 // windows. Instructions live in the manual; a vacant position gets a
 // placard.
 

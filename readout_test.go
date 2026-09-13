@@ -10,10 +10,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// lookSubj is a waiting AI with everything the page has to say about
-// one: a long command, a status it has stood in for a while, a
-// directory of its own under its place, a pane conn holds, what it runs
-// and what runs it, a conversation, and a place with a git standing.
+// readoutSubj is a waiting contact with everything the page has to say
+// about one: a long command, a status it has stood in for a while, a
+// directory of its own under its project, a pane conn holds, what it
+// runs and what runs it, a session, and a project with a git status.
 func readoutSubj() readoutSubject {
 	e := entry{
 		pid: 49212, kind: kindContact,
@@ -37,22 +37,22 @@ func readoutSubj() readoutSubject {
 		sess: sessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
 		carried: session{Branch: "main", Prompt: "i want the info to use the pane on the right",
-			Ask: ask{Tool: "AskUserQuestion", Detail: "Is this session's lamp lit on the bar while this question waits?"}},
+			Ask: ask{Tool: "AskUserQuestion", Detail: "Is this session's lamp lit on the status line while this question waits?"}},
 		git: gitStatus{repo: true, branch: "main", dirty: 3,
-			commit: "263cf91", subject: "The look: what conn knows of a row",
+			commit: "263cf91", subject: "The readout: what conn knows of a row",
 			when: processesNow.Add(-3 * time.Hour), upstream: "origin/main", ahead: 142},
 	}
 }
 
-// The look at both widths is the file of record.
+// The readout at both widths is the file of record.
 func TestTheReadoutIsWhatItWas(t *testing.T) {
 	b := composeReadout(readoutSubj(), "/Users/w0zro", processesNow)
 	golden(t, "readout-120x40.txt", texts(drawReadout(b, 120, 40, plain)))
 	golden(t, "readout-narrow-60x40.txt", texts(drawReadout(b, 60, 40, plain)))
 }
 
-// The page says the things the watch's columns have no room for, and
-// says them whole.
+// The page says the things the processes view's columns have no room
+// for, and says them whole.
 func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 	// Tall enough for the whole page: the file of record above shows
 	// the cut at forty rows, and this reads what is said, not where the
@@ -67,7 +67,7 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 	// The ask is the reason to open the page on a waiting row at all, so
 	// it comes before what the row is, where a cut page cannot lose it.
 	if !strings.Contains(text, "INPUT NEEDED") {
-		t.Errorf("what the AI is stopped on is not on the page:\n%s", text)
+		t.Errorf("what the contact is stopped on is not on the page:\n%s", text)
 	}
 	if strings.Index(text, "WAITING") > strings.Index(text, "WHAT") {
 		t.Errorf("the ask is not the first thing on the page:\n%s", text)
@@ -80,11 +80,11 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 	}
 	for what, want := range map[string]string{
 		"how long it has waited":   "FOR ....... 7M 00S",
-		"what it is asking, whole": "AskUserQuestion · Is this session's lamp lit on the bar while this question waits?",
+		"what it is asking, whole": "AskUserQuestion · Is this session's lamp lit on the status line while this question waits?",
 		"its own directory":        "~/projects/w0zro/conn/tools",
 		"what the table says":      "SLEEPING · HAS THE TERMINAL",
 		"what it has spent":        "2M 14S SPENT",
-		"which conversation":       "d81d7536-e545-4881-8daa-f1d291a03be1",
+		"which session":            "d81d7536-e545-4881-8daa-f1d291a03be1",
 		"what it goes by":          "CONN-2D",
 		"the last thing it asked":  "i want the info to use the pane on the right",
 		"the branch and the tree":  "MAIN · 3 CHANGED",
@@ -100,9 +100,9 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 }
 
 // A row with nothing more to say says nothing more: a shell has no ask
-// and no conversation, so it gets neither group, and a heading over
-// nothing is not drawn. A process sitting in its tree's own place is
-// not told it is there twice.
+// and no session, so it gets neither group, and a heading over nothing
+// is not drawn. A process sitting in its tree's own project is not told
+// it is there twice.
 func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 	s := readoutSubject{
 		entry: entry{pid: 88, kind: kindShell, command: "zsh", tty: "ttys009",
@@ -142,15 +142,15 @@ func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 	}
 }
 
-// A stopped process is not dated from an AI's own clock: the moment
-// conn holds is when the AI last changed what it says of itself,
+// A stopped process is not dated from a contact's own clock: the moment
+// conn holds is when the contact last changed what it says of itself,
 // which is not when anything stopped it.
 func TestTheReadoutDoesNotDateAFaultFromTheContactsClock(t *testing.T) {
 	s := readoutSubj()
 	s.entry.status, s.entry.fault, s.entry.asking = statusStopped, true, ""
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
 	if strings.Contains(text, "STOPPED · FOR") {
-		t.Errorf("a stopped row was dated from the AI's clock:\n%s", text)
+		t.Errorf("a stopped row was dated from the contact's clock:\n%s", text)
 	}
 }
 
@@ -168,10 +168,11 @@ func TestTheReadoutSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
 	}
 }
 
-// subjectOf reads the line of descent off the tree the watch wrote: the
-// nearest row above at a shallower depth runs this one, and the rows
-// below it one level deeper are what it runs. A grandchild is not a
-// child, and the next row at the same depth is a sibling, not kin.
+// subjectOf reads the line of descent off the tree the processes view
+// wrote: the nearest row above at a shallower depth runs this one, and
+// the rows below it one level deeper are what it runs. A grandchild is
+// not a child, and the next row at the same depth is a sibling, not
+// kin.
 func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 	pl := project{path: "/w", entries: []entry{
 		{pid: 1, kind: kindShell, command: "zsh", depth: 0},
@@ -202,8 +203,9 @@ func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 	}
 }
 
-// i asks the server to put the page in the slot; it does not take the
-// watch's own pane, which is the whole point of it being over there.
+// i asks the server to put the page in the bay; it does not take the
+// processes view's own pane, which is the whole point of it being over
+// there.
 func TestIPutsTheReadoutInTheBay(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.now = viewProcesses, true, processesNow
@@ -217,15 +219,16 @@ func TestIPutsTheReadoutInTheBay(t *testing.T) {
 		t.Fatal("i asked the server for nothing")
 	}
 	if m.view != viewProcesses {
-		t.Errorf("i took the watch's own pane: view %d", m.view)
+		t.Errorf("i took the processes view's own pane: view %d", m.view)
 	}
-	// The rail keeps drawing the watch while the page is in the slot.
+	// The panel keeps drawing the processes view while the page is in the
+	// bay.
 	if !strings.Contains(m.View().Content, "STATUS") {
-		t.Errorf("the watch is not still on the rail:\n%s", m.View().Content)
+		t.Errorf("the processes view is not still on the panel:\n%s", m.View().Content)
 	}
 	// Against a server that is not there, the page does not come up.
 	if _, ok := answered(cmd).(readoutMsg); ok {
-		t.Error("the look came up with no tmux to put it up with")
+		t.Error("the readout came up with no tmux to put it up with")
 	}
 }
 
@@ -237,7 +240,7 @@ func TestIOpensNothingAboutNothing(t *testing.T) {
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
 	if cmd != nil || m.looking {
-		t.Errorf("i on an empty watch: cmd %v, looking %v", cmd != nil, m.looking)
+		t.Errorf("i on an empty view: cmd %v, looking %v", cmd != nil, m.looking)
 	}
 
 	m = newModel(plain)
@@ -307,7 +310,7 @@ func TestIIsAToggle(t *testing.T) {
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
 	m.cursor, m.cursorAt = 49212, 0
 
-	// A tmux that answers for a home with a slot in it and does nothing
+	// A tmux that answers for a home with a bay in it and does nothing
 	// else, so the command i built can be run for the answer it gives.
 	// Which way i went is read off that answer: both ways ask the
 	// server for something, so a test that only checked that one did
@@ -361,31 +364,31 @@ func TestIIsAToggle(t *testing.T) {
 	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects, bayReadout: true})
 	m = next.(model)
 	if !m.looking {
-		t.Error("a reading that found the page in the slot was not believed")
+		t.Error("a reading that found the page in the bay was not believed")
 	}
-	// And a real pane taking the slot is not the page.
+	// And a real pane taking the bay is not the page.
 	next, _ = m.Update(reachedMsg{"ttys003"})
 	if next.(model).looking {
-		t.Error("a process reaching the slot left conn thinking the page was there")
+		t.Error("a process reaching the bay left conn thinking the page was there")
 	}
 }
 
 // Closing wants no row under the cursor. The page is up whatever the
-// cursor is on, and refusing to close it because the watch has emptied
-// would leave it stuck there.
+// cursor is on, and refusing to close it because the processes view has
+// emptied would leave it stuck there.
 func TestIClosesThePageWithNothingUnderTheCursor(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.looking = viewProcesses, true, true
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
 	if cmd == nil {
-		t.Error("i on an empty watch with a page up did not close it")
+		t.Error("i on an empty view with a page up did not close it")
 	}
 }
 
 // Closing the page on a row conn holds goes to the row. The page is a
 // reading of that row and the row is right there in a pane — read about
-// it, then be in it — and an empty slot is a worse answer than the
+// it, then be in it — and an empty bay is a worse answer than the
 // thing the page was about.
 func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
 	m := newModel(plain)
@@ -421,7 +424,7 @@ func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
 	}
 
 	// A row conn only reports has nothing to go to, and the page comes
-	// down to the empty slot as before.
+	// down to the empty bay as before.
 	m.looking = true
 	m.cursor, m.cursorAt = 49213, 1
 	if got := press(); got != (readoutMsg{on: false}) {

@@ -163,7 +163,7 @@ func TestConnWritesTheThemeAndOffersOnce(t *testing.T) {
 		t.Errorf("conn set the theme with nobody to ask: %q", msg)
 	}
 
-	// A settings file that names the theme in more than one place is not
+	// A settings file that names the theme in more than one project is not
 	// conn's to edit by guessing which.
 	home = write(t, `{"theme": "dark", "somethingElse": {"theme": "of its own"}}`)
 	if err := useClaudeTheme(home); err == nil {

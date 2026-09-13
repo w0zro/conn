@@ -12,7 +12,8 @@ import (
 
 // A process, as the kernel describes it: who runs it, what terminal it
 // holds, where it is working, what it was started as and when. The
-// platform files read the table; the watch is composed from it.
+// platform files read the table; the processes view is composed from
+// it.
 type process struct {
 	pid, ppid, pgid int
 	uid             int
@@ -25,19 +26,19 @@ type process struct {
 	cwd             string
 	// cpu is all the processor time this process has used, which says
 	// nothing on its own: what it has used since the last reading is
-	// how the watch tells work from waiting.
+	// how the processes view tells work from waiting.
 	cpu time.Duration
 }
 
-// The kinds of process the watch tells apart, by the program's name.
-// Everything else is a run: a build, a test, a server, a script.
+// The kinds of process the processes view tells apart, by the program's
+// name. Everything else is a run: a build, a test, a server, a script.
 const (
 	kindShell   = "SHELL"
 	kindContact = "CONTACT"
 	kindEditor  = "EDITOR"
-	kindConn    = "CONN" // conn itself; not on the watch
+	kindConn    = "CONN" // conn itself; not in the processes view
 	kindRun     = "RUN"
-	kindHold    = "HOLD" // conn standing in an empty slot; not on the watch
+	kindHold    = "HOLD" // conn standing in an empty bay; not in the processes view
 )
 
 var (
@@ -78,33 +79,33 @@ func kindOf(p process) string {
 // for a process that did something between one reading and the next.
 const (
 	statusWorking = "WORKING" // doing something, right now
-	statusWaiting = "WAITING" // an AI stopped on an ask it put to you
+	statusWaiting = "WAITING" // a contact stopped on an ask it put to you
 	statusActive  = "ACTIVE"  // alive, and not doing anything
-	statusIdle    = "IDLE"    // a shell at its prompt, or an AI at rest
+	statusIdle    = "IDLE"    // a shell at its prompt, or a contact at rest
 	statusStopped = "STOPPED" // suspended
 	statusEnded   = "ENDED"   // finished, and not yet collected
 )
 
-// standing is what conn learned about a process past what the table
+// status is what conn learned about a process past what the table
 // says of it. Anything can be working, read off the processor time it
-// spent. Only an AI says more, being the only thing here that knows
+// spent. Only a contact says more, being the only thing here that knows
 // its own mind: mid-turn, stopped on an ask it put to you, or stopped
 // with its turn over and nothing pending.
 type status struct {
 	working bool
 	waiting bool   // stopped on something it asked of you
 	idle    bool   // stopped with its turn over, asking nothing
-	asking  string // what a waiting AI is stopped on, in its own words
+	asking  string // what a waiting contact is stopped on, in its own words
 	// When it came to stand this way, where it says so; zero where it
-	// does not. Only an AI knows the moment it stopped, and only
+	// does not. Only a contact knows the moment it stopped, and only
 	// waiting is worth the moment: how long a thing has been held up on
 	// you is the order to answer it in.
 	since time.Time
 }
 
-// An entry is a row of the watch: one process, standing for its own
-// work, at its place in the tree the processes it is among actually
-// are.
+// An entry is a row of the processes view: one process, standing for
+// its own work, at its project in the tree the processes it is among
+// actually are.
 type entry struct {
 	pid     int
 	kind    string
@@ -113,49 +114,50 @@ type entry struct {
 	started time.Time
 	status  string
 	fault   bool      // a status to be looked at: STOPPED, ENDED
-	depth   int       // how deep under its place's own root; the root at 0
+	depth   int       // how deep under its project's own root; the root at 0
 	since   time.Time // when it came to stand as it does, where that is known
-	// What the watch has no column for and the look reads: where the
-	// process itself is, whatever place its tree belongs to, and what an
-	// AI says it is stopped on.
+	// What the processes view has no column for and the readout reads:
+	// where the process itself is, whatever project its tree belongs to,
+	// and what a contact says it is stopped on.
 	cwd    string
 	asking string
 }
 
-// A place is a directory work is happening in, and the entries at it.
+// A project is a directory work is happening in, and the entries at it.
 type project struct {
-	path    string // as read; the watch writes it from ~
+	path    string // as read; the processes view writes it from ~
 	entries []entry
 }
 
-// watch composes the places from the process table: the processes of
-// one user with a terminal, each standing for its own work, nested
-// under whatever candidate process runs it — the tree they actually
-// are, rather than one leaf apiece. rootOf turns a working directory
-// into the place that holds it; a whole tree is one place's, the root's
-// own directory, whatever a process under it has since cd'd to.
+// projectsFrom composes the projects from the process table: the
+// processes of one user with a terminal, each standing for its own
+// work, nested under whatever candidate process runs it — the tree they
+// actually are, rather than one leaf apiece. rootOf turns a working
+// directory into the project that holds it; a whole tree is one
+// project's, the root's own directory, whatever a process under it has
+// since cd'd to.
 //
-// conn is not on the watch, and neither is what it holds. It is the
-// instrument, not the work — the one conn you are looking at, the conn
-// behind it holding the terminal, and the hold standing in an empty
-// slot alike — and it covers what runs under it, so the tmux client it
-// holds is no more a row than conn is. An AI and an editor cover
-// nothing: what they run is work, and reads as theirs. The rule goes
-// by the program's name, so a conn on another socket, or an older conn
-// installed beside this one, is off the watch too.
+// conn is not in the processes view, and neither is what it holds. It
+// is the instrument, not the work — the one conn you are looking at,
+// the conn behind it holding the terminal, and the hold standing in an
+// empty bay alike — and it covers what runs under it, so the tmux
+// client it holds is no more a row than conn is. A contact and an
+// editor cover nothing: what they run is work, and reads as theirs. The
+// rule goes by the program's name, so a conn on another socket, or an
+// older conn installed beside this one, is off the processes view too.
 //
-// A terminal is how the watch tells your work from the machine's, and
-// it is most of it, but not all: a server you left running has no
-// terminal and is work all the same. So a process of yours without
-// one is adopted where it works inside a project you have terminal
-// work in - the dev server under the AI that started it, and the
-// one from last week that outlived its shell alike. The project is
-// what makes that safe. A place that is merely a directory adopts
-// nothing, since a shell sitting at home would otherwise take in
-// every daemon on the machine with it. What conn is held in is not
-// work either: the tmux server conn runs inside has no terminal and
-// works in the repository like anything else there, and is no more a
-// row than conn is.
+// A terminal is how the processes view tells your work from the
+// machine's, and it is most of it, but not all: a server you left
+// running has no terminal and is work all the same. So a process of
+// yours without one is adopted where it works inside a project you have
+// terminal work in - the dev server under the contact that started it,
+// and the one from last week that outlived its shell alike. The project
+// is what makes that safe. A project that is merely a directory adopts
+// nothing, since a shell sitting at home would otherwise take in every
+// daemon on the machine with it. What conn is held in is not work
+// either: the tmux server conn runs inside has no terminal and works in
+// the repository like anything else there, and is no more a row than
+// conn is.
 func projectsFrom(procs []process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]status) []project {
 	byPid := map[int]process{}
 	for _, p := range procs {
@@ -166,9 +168,9 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	for _, p := range procs {
 		candidate[p.pid] = p.uid == uid && p.tty != ""
 	}
-	// covered says whether conn stands anywhere above a process: the
-	// tmux client conn holds is conn's own doing, not work of yours,
-	// and goes off the watch with it rather than hanging from whatever
+	// covered says whether conn stands anywhere above a process: the tmux
+	// client conn holds is conn's own doing, not work of yours, and goes
+	// off the processes view with it rather than hanging from whatever
 	// happens to be above conn.
 	covered := func(p process) bool {
 		seen := map[int]bool{}
@@ -206,9 +208,9 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		}
 		return 0, false
 	}
-	// The places terminal work has established, kept to those that are
+	// The projects terminal work has established, kept to those that are
 	// projects in their own right: work of yours in a project is what
-	// lets the watch speak for anything else running there.
+	// lets the processes view speak for anything else running there.
 	worked := map[string]bool{}
 	for _, p := range procs {
 		if !candidate[p.pid] || covered(p) || p.cwd == "" {
@@ -245,7 +247,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		}
 	}
 	// A process of the user with no terminal, working inside one of
-	// those places, is adopted: from here it is a candidate like any
+	// those projects, is adopted: from here it is a candidate like any
 	// other, hanging from whatever runs it, or rooting a tree of its
 	// own where nothing does.
 	for _, p := range procs {
@@ -285,14 +287,14 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 
 	// Where a thing sits is where it started, and it sits there for as
 	// long as it lives. A tree is placed by its own root's start, a row
-	// among its siblings by its own, and a place by the first work that
+	// among its siblings by its own, and a project by the first work that
 	// began there — oldest first, so what is new goes on the end and
 	// nothing above it moves.
 	//
 	// It was the newest start anywhere in a subtree, which brought fresh
-	// work and its whole place to the top. That is a true thing to say
-	// about a list and a hard one to read: an AI running a command a
-	// second re-sorted the trees, their rows and the places under the
+	// work and its whole project to the top. That is a true thing to say
+	// about a list and a hard one to read: a contact running a command a
+	// second re-sorted the trees, their rows and the projects under the
 	// eye trying to follow them, and a row read twice was rarely in the
 	// same spot. What is worth watching is found by looking, and looking
 	// wants the list to hold still.
@@ -350,7 +352,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	for _, path := range order {
 		out = append(out, *projects[path])
 	}
-	// A place sits where work there began, and the path breaks a tie the
+	// A project sits where work there began, and the path breaks a tie the
 	// way the pid does among rows.
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := projectAt[out[i].path], projectAt[out[j].path]
@@ -363,7 +365,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 }
 
 // waitingRound is the order to answer the waiting in: longest held up
-// first. An AI that cannot say when it stopped goes last — it is
+// first. A contact that cannot say when it stopped goes last — it is
 // waiting, which is what the word is for, but it cannot claim a turn
 // ahead of one that can prove it waited longer. The order is the same
 // on every reading, so a key stepping through it steps through the
@@ -423,7 +425,7 @@ const workingShare = 20
 // up on a machine already running, and a dev server that compiled for
 // two seconds and has idled ever since would read as working for the
 // first beat and correct itself on the second — a reading that lies,
-// at the one moment the watch is being read hardest.
+// at the one moment the processes view is being read hardest.
 func cpuWorking(was map[int]time.Duration, wasAt time.Time, procs []process, nowAt time.Time) map[int]bool {
 	busy := map[int]bool{}
 	if wasAt.IsZero() {
@@ -460,21 +462,21 @@ func cpuOf(procs []process) map[int]time.Duration {
 // idle bare, at its prompt; running anything, even nested many levels
 // down, it is active the way what it runs is. Working is narrower than
 // active and is the one worth watching: the process was doing
-// something between one reading and the next, which an AI says of
+// something between one reading and the next, which a contact says of
 // itself and anything else is read off the processor time it used.
 // Work is not claimed up the tree - a shell whose child is working is
 // active, and the row doing the work is the one that says so.
 //
 // Waiting is the other end of the same question, and the only word
-// here that asks something of you: an AI stopped on something it
+// here that asks something of you: a contact stopped on something it
 // put to you and cannot go on without — a permission, a question, a
 // dialog waiting to be answered. It is narrower than merely stopped.
-// An AI whose turn is simply over is idle, the same word a shell at
+// A contact whose turn is simply over is idle, the same word a shell at
 // its prompt gets and for the same reason: at rest, nothing pending,
 // yours when you want it. The difference is whether anything is held
 // up, and only the one that is held up is worth a word that carries.
 //
-// Nothing but an AI is ever called waiting here - a server waiting
+// Nothing but a contact is ever called waiting here - a server waiting
 // on a socket is waiting on the socket - so the word is only ever
 // about a person. It is no fault, nothing having gone wrong, so it is
 // a word of its own rather than a chip.
@@ -508,17 +510,17 @@ func commandLine(p process) string {
 	return strings.Join(parts, " ")
 }
 
-// A project is what the watch sorts by: a git repository, or a folder
-// under one of conn's roots that holds one. Everything else is in a
-// project rather than being one — docs in conn, services/api in the
-// monorepo, cmd in either — since a repository is the thing work is
+// A project is what the processes view sorts by: a git repository, or a
+// folder under one of conn's roots that holds one. Everything else is
+// in a project rather than being one — docs in conn, services/api in
+// the monorepo, cmd in either — since a repository is the thing work is
 // about and a directory below it is part of that work.
 //
 // It was a repository or any directory carrying a manifest, which made
-// a place of every corner of a repository that happened to run through
-// a package manager of its own: conn's own docs directory stood apart
-// from conn on the watch, which is not two pieces of work and should
-// not have been two blocks.
+// a project of every corner of a repository that happened to run
+// through a package manager of its own: conn's own docs directory stood
+// apart from conn in the processes view, which is not two pieces of
+// work and should not have been two blocks.
 
 // within says whether a directory is at or under a root.
 func within(dir, root string) bool {
@@ -547,14 +549,15 @@ func holdsRepo(dir string) bool {
 }
 
 // projectDirs says whether a directory is a project: a repository, or a
-// folder under one of conn's roots holding one. The roots are what keeps
-// the second half of that in hand — any folder anywhere with a checkout
-// somewhere below it would make a project of your home directory, and a
-// shell sitting there would take in every daemon on the machine with it.
-// A root is not itself a project, whatever is kept in it: it is where
-// the checkouts live, which is the same line the projects list draws
-// when it groups them. It remembers what it found, since the watch asks
-// after the same directories on every reading.
+// folder under one of conn's roots holding one. The roots are what
+// keeps the second half of that honest — any folder anywhere with a
+// checkout somewhere below it would make a project of your home
+// directory, and a shell sitting there would take in every daemon on
+// the machine with it. A root is not itself a project, whatever is kept
+// in it: it is where the checkouts live, which is the same line the
+// projects list draws when it groups them. It remembers what it found,
+// since the processes view asks after the same directories on every
+// reading.
 func projectDirs(roots []string) func(string) bool {
 	known := map[string]bool{}
 	return func(dir string) bool {
@@ -578,13 +581,13 @@ func projectDirs(roots []string) func(string) bool {
 	}
 }
 
-// placeRoots finds the place that holds a directory: the nearest project
-// at or above it — the repository the work is in, or the folder the
-// checkouts are kept in where the work is beside them rather than inside
-// one. A directory with no project above it stands for itself.
+// rootFinder finds the project that holds a directory: the nearest
+// project at or above it — the repository the work is in, or the folder
+// the checkouts are kept in where the work is beside them rather than
+// inside one. A directory with no project above it stands for itself.
 //
-// placeRoots remembers what it found, since the watch asks for the same
-// directories on every read.
+// rootFinder remembers what it found, since the processes view asks for
+// the same directories on every read.
 func rootFinder(isProject func(string) bool) func(string) string {
 	known := map[string]string{}
 	return func(dir string) string {
@@ -617,9 +620,9 @@ func age(since, now time.Time) string {
 	return spell(now.Sub(since))
 }
 
-// spell writes a span the way the watch's age column does, for a span
-// that is not the distance from a moment to now: processor time spent,
-// say, which has no moment to count from.
+// spell writes a span the way the processes view's age column does, for
+// a span that is not the distance from a moment to now: processor time
+// spent, say, which has no moment to count from.
 func spell(d time.Duration) string {
 	if d < 0 {
 		d = 0

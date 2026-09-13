@@ -8,19 +8,19 @@ import (
 	"time"
 )
 
-// What git says of a place, for the look. A row stands for work, and
-// the work is in a repository; the branch it is on and whether the tree
-// is clean are the first two things anyone asks of it, and neither is
-// anywhere else in conn.
+// What git says of a project, for the readout. A row stands for work,
+// and the work is in a repository; the branch it is on and whether the
+// tree is clean are the first two things anyone asks of it, and neither
+// is anywhere else in conn.
 //
 // git is a process like any other and a slow disk makes it a slow one,
 // so every reading here is given a deadline and comes back empty rather
-// than late. A place that is not a repository at all is the ordinary
+// than late. A project that is not a repository at all is the ordinary
 // case for a row running somewhere else, and says nothing.
 
-// gitStanding is a place's own state as git tells it.
+// gitStatus is a project's own state as git tells it.
 type gitStatus struct {
-	repo     bool // the place is a work tree at all
+	repo     bool // the project is a work tree at all
 	branch   string
 	detached bool   // on no branch, at a commit
 	dirty    int    // paths changed, staged or not
@@ -30,12 +30,12 @@ type gitStatus struct {
 	ahead    int
 	behind   int
 	upstream string
-	read     time.Time // when git was asked, for the look to know when to ask again
+	read     time.Time // when git was asked, for the readout to know when to ask again
 }
 
-// gitWait is how long any one git reading is given. The look redraws on
-// a tick, so a reading that does not land in time is one the next tick
-// takes again rather than one anybody waits for.
+// gitWait is how long any one git reading is given. The readout redraws
+// on a tick, so a reading that does not land in time is one the next
+// tick takes again rather than one anybody waits for.
 const gitWait = 2 * time.Second
 
 // readGit is what git says of a directory. Everything is read in one

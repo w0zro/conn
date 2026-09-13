@@ -8,10 +8,11 @@ import (
 	"strings"
 )
 
-// The parsers: pure functions from what a platform hands over — the text
-// a program prints, the bytes a sysctl returns, the files under /proc and
-// /sys — to the machine's fields. Nothing here touches the machine, so
-// every one of them is tested on every platform, against captures.
+// The parsers: pure functions from what a platform hands over — the
+// text a program prints, the bytes a sysctl returns, the files under
+// /proc and /sys — to the machine's fields. Nothing here touches the
+// machine, so every one of them is tested on every platform, against
+// captures.
 
 // parsePmset reads what pmset -g batt prints: what the machine draws
 // from and, with a battery, its charge, state and time left.

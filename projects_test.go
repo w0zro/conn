@@ -163,7 +163,7 @@ func testList(filter string) projectsReport {
 	return composeProjects(testProjects, filter, []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
 }
 
-// The list in the rail, the list narrowed, and the list with nothing
+// The list in the panel, the list narrowed, and the list with nothing
 // found yet are files of record.
 func TestProjectsMatchTheGolden(t *testing.T) {
 	golden(t, "projects-48x30.txt", texts(drawProjects(testList(""), 0, 48, 30, plain)))

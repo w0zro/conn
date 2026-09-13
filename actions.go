@@ -6,25 +6,25 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// What the rail asks of the server, each off the loop as a command:
-// a process into the slot, a shell opened at a place, the slot opened
-// beside the rail, and the small ones — zoom, width, detach — through
+// What the panel asks of the server, each off the loop as a command:
+// a process into the bay, a shell opened at a project, the bay opened
+// beside the panel, and the small ones — zoom, width, detach — through
 // serverCmd.
 
-// openSlot opens the slot beside the rail, with the hold in it.
+// openBay opens the bay beside the panel, with the hold in it.
 func (m model) openBay() tea.Cmd {
 	home, self := m.head.login.home, m.self
 	return m.serverCmd(func() error { return m.srv.splitBay(home, self) })
 }
 
-// reviveSlot puts a hold in a slot whose pane died, in its own shape.
+// reviveBay puts a hold in a bay whose pane died, in its own shape.
 func (m model) reviveBay() tea.Cmd {
 	home, self := m.head.login.home, m.self
 	return m.serverCmd(func() error { return m.srv.reviveBay(home, self) })
 }
 
-// reach puts a process in the slot, off the loop, and hands back the
-// terminal that is in the slot once it is there.
+// reach puts a process in the bay, off the loop, and processes back the
+// terminal that is in the bay once it is there.
 func (m model) reach(target pane, tty string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
@@ -35,9 +35,9 @@ func (m model) reach(target pane, tty string) tea.Cmd {
 	}
 }
 
-// openLook puts the look in the slot, off the loop. It follows the
-// rail's cursor from there, so this is asked once and not again for
-// every row read: focus stays on the rail, and j and k carry the page
+// openReadout puts the readout in the bay, off the loop. It follows the
+// panel's cursor from there, so this is asked once and not again for
+// every row read: focus stays on the panel, and j and k carry the page
 // along with them.
 func (m model) openReadout() tea.Cmd {
 	home, self, srv := m.head.login.home, m.self, m.srv
@@ -49,8 +49,8 @@ func (m model) openReadout() tea.Cmd {
 	}
 }
 
-// closeLook takes the page out of the slot and leaves a hold in its
-// place, which is what an empty slot is.
+// closeReadout takes the page out of the bay and leaves a hold in its
+// place, which is what an empty bay is.
 func (m model) closeReadout() tea.Cmd {
 	home, self, srv := m.head.login.home, m.self, m.srv
 	return func() tea.Msg {
@@ -61,8 +61,8 @@ func (m model) closeReadout() tea.Cmd {
 	}
 }
 
-// openShell opens a shell at a place, off the loop, and hands back what
-// tmux said of it.
+// openShell opens a shell at a project, off the loop, and processes
+// back what tmux said of it.
 func (m model) openShell(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
@@ -74,12 +74,12 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
-// aiProgram is the AI conn starts. Claude is the only kind conn
-// starts for now, so a is its key everywhere a shell's is s.
+// contactProgram is the contact conn starts. Claude is the only kind
+// conn starts for now, so a is its key everywhere a shell's is s.
 const contactProgram = "claude"
 
-// startAI opens an AI at a place, off the loop, the way openShell
-// opens a shell there.
+// startContact opens a contact at a project, off the loop, the way
+// openShell opens a shell there.
 func (m model) startContact(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
@@ -104,9 +104,9 @@ func (m model) scanProjects() tea.Cmd {
 	}
 }
 
-// scanConvos reads a place's suspended conversations off the loop, the
-// process table as it stood when the picker opened, so a leftover
-// session file cannot be mistaken for one still going.
+// scanSessions reads a project's suspended sessions off the loop, the
+// process table as it stood when the sessions view opened, so a
+// leftover session file cannot be mistaken for one still going.
 func (m model) scanSessions(dirs []string) tea.Cmd {
 	projects := m.projects
 	return func() tea.Msg {
@@ -114,8 +114,8 @@ func (m model) scanSessions(dirs []string) tea.Cmd {
 	}
 }
 
-// openResumed opens a shell that picks a suspended conversation back
-// up, off the loop, the way startAI opens a fresh one.
+// openResumed opens a shell that picks a suspended session back
+// up, off the loop, the way startContact opens a fresh one.
 func (m model) openResumed(dir, id string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {

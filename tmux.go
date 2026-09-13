@@ -13,14 +13,14 @@ import (
 
 // conn holds a tmux server of its own. The first conn brings it up with
 // one window, home, running conn, and attaches; a later conn attaches
-// to what is there. Home is a rail on the left, which is the watch, and
-// a slot on the right, which is the process reached from it. Work lives
-// in the server as windows of its own, out of sight; reaching a process
-// swaps its pane into the slot and the slot's last pane back out to
-// where it came from, so a process stays when the client goes. q
-// detaches; the server and everything in it keep on. The conn that
-// attached stays behind the client, to give the terminal its own colors
-// back when the client returns, which tmux does not.
+// to what is there. Home is a panel on the left, which is the processes
+// view, and a bay on the right, which is the process reached from it.
+// Work lives in the server as windows of its own, out of sight;
+// reaching a process swaps its pane into the bay and the bay's last
+// pane back out to where it came from, so a process stays when the
+// client goes. q detaches; the server and everything in it keep on. The
+// conn that attached stays behind the client, to give the terminal its
+// own colors back when the client returns, which tmux does not.
 //
 // The socket is under the state directory, or where CONN_SOCKET says,
 // which is how a test brings up a server of its own.
@@ -28,7 +28,7 @@ import (
 const (
 	sessionName   = "conn"
 	homeWindow    = "home"
-	panelWidth    = 44 // the rail's columns; the slot has the rest
+	panelWidth    = 44 // the panel's columns; the bay has the rest
 	defaultPrefix = "C-Space"
 )
 
@@ -98,10 +98,10 @@ func (s *server) run(args ...string) (string, error) {
 	return string(out), nil
 }
 
-// attach brings the server up if it is down, with the watch window
-// running conn, and puts this terminal on it until the client detaches
-// or the server ends. It answers how the client exited; an error is one
-// of its own, before the client had the terminal.
+// attach brings the server up if it is down, with the processes view
+// window running conn, and puts this terminal on it until the client
+// detaches or the server ends. It answers how the client exited; an
+// error is one of its own, before the client had the terminal.
 //
 // The server's ground is what a mode file beside the socket says, or
 // the terminal's own the first time a server rises, written down so it
@@ -169,14 +169,14 @@ func (s *server) attach(self, home string, override *bool) (int, error) {
 }
 
 // reground puts a server already up onto the ground the mode file now
-// says. Sourcing the configuration again is what tmux has in place of
+// says. Sourcing the configuration again is what tmux has instead of
 // re-reading -f: every set -g in it lands on the live server, so each
 // pane takes the new sixteen and the new ground without going down.
 //
 // The panes conn draws itself are the exception. They are conn, and
 // conn reads the mode once, when it starts; the palette each is
 // painting from is the one it rose on. So they are started again — the
-// rail, and a hold if one is standing in the slot — and read the mode
+// panel, and a hold if one is standing in the bay — and read the mode
 // afresh. A pane with work in it draws in its own colors and keeps
 // them; what it asks for by name it now gets from the new sixteen.
 func (s *server) reground(conf string) error {
@@ -247,13 +247,13 @@ func (s *server) hasHome() bool {
 
 // A pane of the server: its id, which holds through swaps; the terminal
 // it holds; its size; whether it is conn's own furniture and whether
-// that furniture is a look; and whether remain-on-exit is the only
+// that furniture is a readout; and whether remain-on-exit is the only
 // thing keeping it up, its process already gone.
 //
-// A look is furniture too — everything true of a hold is true of it, so
-// it carries the hold's own mark and everything that acts on holds acts
-// on it — but i has to tell the two apart to know whether it is opening
-// a page or closing one, and a mark of its own is how.
+// A readout is furniture too — everything true of a hold is true of it,
+// so it carries the hold's own mark and everything that acts on holds
+// acts on it — but i has to tell the two apart to know whether it is
+// opening a page or closing one, and a mark of its own is how.
 type pane struct {
 	id, tty       string
 	width, height int
@@ -262,7 +262,7 @@ type pane struct {
 	dead          bool
 }
 
-const paneFormat = "#{pane_id}\t#{pane_tty}\t#{pane_width}\t#{pane_height}\t#{@conn_hold}\t#{pane_dead}\t#{@conn_look}"
+const paneFormat = "#{pane_id}\t#{pane_tty}\t#{pane_width}\t#{pane_height}\t#{@conn_hold}\t#{pane_dead}\t#{@conn_readout}"
 
 // panes is every pane in the server, by the terminal it holds.
 func (s *server) panes() (map[string]pane, error) {
@@ -291,12 +291,12 @@ func parsePanes(out string) map[string]pane {
 	return panes
 }
 
-// The rail is the pane this conn runs in; tmux names it in TMUX_PANE.
+// The panel is the pane this conn runs in; tmux names it in TMUX_PANE.
 func (s *server) panel() string {
 	return os.Getenv("TMUX_PANE")
 }
 
-// slot is the pane beside the rail in the home window, when there is
+// bay is the pane beside the panel in the home window, when there is
 // one.
 func (s *server) bay() (pane, bool, error) {
 	out, err := s.run("list-panes", "-t", s.panel(), "-F", paneFormat)
@@ -311,8 +311,8 @@ func (s *server) bay() (pane, bool, error) {
 	return pane{}, false, nil
 }
 
-// splitSlot opens the slot beside the rail, with a hold in it, and sets
-// the rail to its width. Focus stays on the rail.
+// splitBay opens the bay beside the panel, with a hold in it, and sets
+// the panel to its width. Focus stays on the panel.
 func (s *server) splitBay(home, self string) error {
 	id, err := s.run("split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "-t", s.panel(), "-c", home, "exec "+shellQuote(self)+" hold")
 	if err != nil {
@@ -324,19 +324,19 @@ func (s *server) splitBay(home, self string) error {
 	return s.holdPanel()
 }
 
-// holdRail sets the rail to its width. tmux keeps the panes in
-// proportion when the window is resized, so the rail is put back each
+// holdPanel sets the panel to its width. tmux keeps the panes in
+// proportion when the window is resized, so the panel is put back each
 // time it is not its width.
 func (s *server) holdPanel() error {
 	_, err := s.run("resize-pane", "-t", s.panel(), "-x", strconv.Itoa(panelWidth))
 	return err
 }
 
-// reviveSlot puts a hold in a slot whose pane has died: remain-on-exit
-// kept it there, its process gone, so this is a swap into the slot's
+// reviveBay puts a hold in a bay whose pane has died: remain-on-exit
+// kept it there, its process gone, so this is a swap into the bay's
 // own shape rather than a split — nothing about the window's layout
-// moves. Without a slot at all, which a swap has nothing to land in,
-// it falls back to splitSlot.
+// moves. Without a bay at all, which a swap has nothing to land in,
+// it falls back to splitBay.
 func (s *server) reviveBay(home, self string) error {
 	bay, ok, err := s.bay()
 	if err != nil {
@@ -348,8 +348,8 @@ func (s *server) reviveBay(home, self string) error {
 	return s.holdBay(home, self, bay)
 }
 
-// hideLook puts the slot back to a hold, which is what closing the look
-// leaves behind: the slot is conn's, and an empty one says so.
+// hideReadout puts the bay back to a hold, which is what closing the
+// readout leaves behind: the bay is conn's, and an empty one says so.
 func (s *server) hideReadout(home, self string) error {
 	bay, ok, err := s.bay()
 	if err != nil || !ok {
@@ -358,9 +358,9 @@ func (s *server) hideReadout(home, self string) error {
 	return s.holdBay(home, self, bay)
 }
 
-// holdSlot puts a hold in the slot, in the slot's own shape, and is rid
+// holdBay puts a hold in the bay, in the bay's own shape, and is rid
 // of whatever was there. It is a swap rather than a split so nothing
-// about the window's layout moves, and the rail never has to give up
+// about the window's layout moves, and the panel never has to give up
 // its width and take it back.
 func (s *server) holdBay(home, self string, bay pane) error {
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, "exec "+shellQuote(self)+" hold")
@@ -375,17 +375,17 @@ func (s *server) holdBay(home, self string, bay pane) error {
 	return err
 }
 
-// showLook puts the look in the slot, and leaves focus on the rail. It
-// is furniture rather than work — it runs nothing of yours, and
-// reaching anything else is meant to be rid of it — so it is marked the
-// way a hold is: killed when a real pane takes the slot, and respawned
-// where it stands when the ground changes. Focus stays where it was
-// because the look is a reading, not a place to be.
+// showReadout puts the readout in the bay, and leaves focus on the
+// panel. It is furniture rather than work — it runs nothing of yours,
+// and reaching anything else is meant to be rid of it — so it is marked
+// the way a hold is: killed when a real pane takes the bay, and
+// respawned where it stands when the ground changes. Focus stays where
+// it was because the readout is a reading, not a project to be.
 //
-// It is opened on no pid, which is the look's word for "whatever the
-// rail's cursor is on". One page then serves the whole list, j and k
+// It is opened on no pid, which is the readout's word for "whatever the
+// panel's cursor is on". One page then serves the whole list, j and k
 // carrying it along, where a page opened per row would spawn a window a
-// keystroke and blank the slot between each.
+// keystroke and blank the bay between each.
 func (s *server) showReadout(home, self string) error {
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
 		"exec "+shellQuote(self)+" readout")
@@ -396,7 +396,7 @@ func (s *server) showReadout(home, self string) error {
 	if _, err := s.run("set-option", "-p", "-t", readout, "@conn_hold", "1"); err != nil {
 		return err
 	}
-	if _, err := s.run("set-option", "-p", "-t", readout, "@conn_look", "1"); err != nil {
+	if _, err := s.run("set-option", "-p", "-t", readout, "@conn_readout", "1"); err != nil {
 		return err
 	}
 	bay, ok, err := s.bay()
@@ -404,23 +404,23 @@ func (s *server) showReadout(home, self string) error {
 		return err
 	}
 	if !ok {
-		// Nothing to swap into. Split one first — swapping against the
-		// rail instead would put the watch in the window the look came
-		// from and the look where the watch belongs.
+		// Nothing to swap into. Split one first — swapping against the panel
+		// instead would put the processes view in the window the readout came
+		// from and the readout where the processes view belongs.
 		if err := s.splitBay(home, self); err != nil {
 			return err
 		}
 		if bay, ok, err = s.bay(); err != nil {
 			return err
 		} else if !ok {
-			return fmt.Errorf("home has no slot")
+			return fmt.Errorf("home has no bay")
 		}
 	}
 	args := []string{"swap-pane", "-d", "-s", readout, "-t", bay.id}
 	if bay.width > 0 && bay.height > 0 {
 		args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
 	}
-	// What was in the slot goes back to a window of its own, still
+	// What was in the bay goes back to a window of its own, still
 	// running, unless it was conn's own furniture and has nothing to go
 	// back to.
 	if bay.hold {
@@ -432,18 +432,18 @@ func (s *server) showReadout(home, self string) error {
 	return s.focusPanel()
 }
 
-// show puts a pane in the slot and focus on it. The pane that was in the
-// slot goes back to where this one came from, and its window takes the
-// slot's size so it keeps its shape; a hold that leaves the slot is
+// show puts a pane in the bay and focus on it. The pane that was in the
+// bay goes back to where this one came from, and its window takes the
+// bay's size so it keeps its shape; a hold that leaves the bay is
 // done with, and so is a pane whose process has ended, which
-// remain-on-exit kept only so the slot would hold its place.
+// remain-on-exit kept only so the bay would hold its project.
 func (s *server) show(target pane) error {
 	bay, ok, err := s.bay()
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("home has no slot")
+		return fmt.Errorf("home has no bay")
 	}
 	if target.id != bay.id {
 		args := []string{"swap-pane", "-d", "-s", target.id, "-t", bay.id}
@@ -471,7 +471,7 @@ type shell struct {
 }
 
 // open opens a shell at a directory, in a window of its own, and shows
-// it in the slot.
+// it in the bay.
 func (s *server) open(dir string) (shell, error) {
 	return s.openCmd(dir, "")
 }
@@ -502,10 +502,10 @@ func parseOpened(out string) shell {
 	return sh
 }
 
-// wide gives the rail the whole window, which is what the console
-// wants: it is a page, not a rail. narrow gives the slot its side back.
+// wide gives the panel the whole window, which is what the console
+// wants: it is a page, not a panel. narrow gives the bay its side back.
 // tmux has one key for both, so each looks first at how the window
-// stands; on a home with no slot yet there is nothing to zoom and both
+// stands; on a home with no bay yet there is nothing to zoom and both
 // are nothing.
 func (s *server) wide() error { return s.zoom(true) }
 
@@ -523,7 +523,7 @@ func (s *server) zoom(on bool) error {
 	return err
 }
 
-// focusRail puts focus on the rail.
+// focusPanel puts focus on the panel.
 func (s *server) focusPanel() error {
 	_, err := s.run("select-pane", "-t", s.panel())
 	return err
@@ -537,7 +537,7 @@ func (s *server) detach() error {
 
 // The terminal's chrome, beyond the ground and the ink the console is
 // drawn in: the orange for the cursor, and the console's border color,
-// which draws the line between the rail and the slot and sits behind a
+// which draws the line between the panel and the bay and sits behind a
 // selection. Dark until applyMode says otherwise; see mode.go.
 var (
 	cursorHex = darkCursorHex
@@ -555,22 +555,22 @@ var (
 var scheme = darkScheme
 
 // tmuxConf is the server's configuration: the prefix with its chords,
-// and the look. tmux's own prefix table is emptied, so none of its
-// keys or actions are reachable through conn; prefix then - puts focus
-// on the watch from wherever the keys are, and prefix then q detaches
-// the way q does from the watch itself, without first coming back to
-// it. The look is the console's: every pane on the ground, in the ink,
-// with the sixteen colors a program asks for by name drawn from conn's
-// scheme, with CONN set in the server so a program that draws in its
-// own hex can tell where it is and dress to match, the cursor in the
-// orange and a selection on the border color, and between the rail
-// and the slot a line in that color too, the same whichever side has
-// focus.
+// and how every pane is drawn. tmux's own prefix table is emptied, so
+// none of its keys or actions are reachable through conn; prefix then -
+// puts focus in the processes view from wherever the keys are, and
+// prefix then q detaches the way q does from the processes view itself,
+// without first coming back to it. The drawing is the console's: every
+// pane on the ground, in the ink, with the sixteen colors a program
+// asks for by name drawn from conn's scheme, with CONN set in the
+// server so a program that draws in its own hex can tell where it is
+// and dress to match, the cursor in the orange and a selection on the
+// border color, and between the panel and the bay a line in that color
+// too, the same whichever side has focus.
 func tmuxConf(prefix string) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
-# Five chords under the prefix: to the watch, to the list, to the other
-# hand, to the hand that has waited longest, and to detach; tmux's own
+# Five chords under the prefix: to the processes view, to the list, to the other
+# process, to the one that has waited longest, and to detach; tmux's own
 # are unbound.
 set -g prefix ` + prefix + `
 set -g prefix2 None
@@ -581,7 +581,7 @@ bind ` + prefix + ` select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; s
 bind Tab select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-Tab
 bind q detach-client
 set -g mouse on
-# The rail's width is conn's to hold; a drag of the border would only be
+# The panel's width is conn's to hold; a drag of the border would only be
 # put back.
 unbind -n MouseDrag1Border
 set -g history-limit 10000
@@ -605,8 +605,8 @@ set-environment -g CONN 1
 set -g allow-passthrough on
 set -g display-time 3000
 # A pane whose process ends stays instead of closing, so a killed shell
-# does not collapse the window to the rail alone before conn re-splits
-# it: the slot holds its place, dead, until conn puts a hold there.
+# does not collapse the window to the panel alone before conn re-splits
+# it: the bay holds its project, dead, until conn puts a hold there.
 set -g remain-on-exit on
 `)
 	ground, ink := hex(groundColor), hex(inkColor)
@@ -624,54 +624,58 @@ set -g remain-on-exit on
 	return b.String()
 }
 
-// The bar is tmux's status line, and it is an annunciator panel: dark
-// at rest, lit by what would be worth turning for. It has two halves,
-// each in a fixed place, so the eye learns where to glance and an empty
-// place is itself a reading — the discipline of the 3270's operator
-// information area, where the wait symbol was always in the same cell.
+// The status line is tmux's status line, and it is an annunciator
+// panel: dark at rest, lit by what would be worth turning for. It has
+// two halves, each at a fixed position, so the eye learns where to
+// glance and an empty position is itself a reading — the discipline of
+// the 3270's operator information area, where the wait symbol was
+// always in the same cell.
 //
-// On the left, the keys, and only what cannot be seen from the rail. A
+// On the left, the keys, and only what cannot be seen from the panel. A
 // chord hanging and a pane in copy mode are the client's business and
-// tmux's to know, and no amount of drawing on the rail will tell you
+// tmux's to know, and no amount of drawing on the panel will tell you
 // either; tmux has them for nothing. A question conn has armed is the
 // third, being not a state you are in but a thing waiting on you that
 // takes the next key whatever it is. Nothing else lights the left. A
-// word saying WATCH while you are looking at the watch is furniture, and
-// a row that always says something is a row nobody reads.
+// word saying WATCH while you are looking at the processes view is
+// furniture, and a row that always says something is a row nobody
+// reads.
 //
 // Each is a block of color with the word knocked out of it, flush to
 // the edge: a block is not read but seen, and one that starts where the
 // screen starts is seen first. The chord takes the orange, which is
 // "you, here" everywhere in conn; copy mode the blue, being a state of
 // the pane rather than a thing you are doing; the question the waiting
-// color, which is what the right-hand side says a hand waiting in, so
-// the two halves of the row speak one language.
+// color, which is what the right-hand side says a process waiting in,
+// so the two halves of the row speak one language.
 //
-// On the right, the processes: one lamp for each row of the watch, in
-// the watch's order, so a lamp's place on the row is a row's place on
-// the list. The Lisp machine's status line had a strip of run bars in
-// its corner, one per activity, flickering in the corner of the eye,
-// and this is that strip. A lamp is a rank of gray while its process
-// is working, the faintest ink while it is idle or merely active — it
-// keeps its place, since a lamp that vanished would shift the ones
-// beside it — and the waiting color, bold and blinking, while an AI is
-// stopped on something it asked of you. The terminal does the blinking,
-// so nothing here redraws on a beat; a terminal that will not blink
-// shows it steady, which is the same lamp less insistent.
+// On the right, the processes: one lamp for each row of the processes
+// view, in the processes view's order, so a lamp's position on the line
+// is a row's position in the view. The Lisp machine's status line had a
+// strip of run bars in its corner, one per activity, flickering in the
+// corner of the eye, and this is that strip. A lamp is a rank of gray
+// while its process is working, the faintest ink while it is idle or
+// merely active — it keeps its project, since a lamp that vanished
+// would shift the ones beside it — and the waiting color, bold and
+// blinking, while a contact is stopped on something it asked of you.
+// The terminal does the blinking, so nothing here redraws on a beat; a
+// terminal that will not blink shows it steady, which is the same lamp
+// less insistent.
 //
 // Faults stay off the panel. A process you suspended yourself is not
-// holding you up, and a lamp that is lit all day is a lamp nobody reads;
-// the watch has the chip.
+// holding you up, and a lamp that is lit all day is a lamp nobody
+// reads; the processes view has the chip.
 //
 // The row stands on the raised ground — the one a chosen row sits on
-// everywhere else in conn — and keeps it whether or not anything is lit.
-// A bar the color of the window reads as the last line of whatever pane
-// is over it, and a bar that comes and goes is not somewhere to look.
+// everywhere else in conn — and keeps it whether or not anything is
+// lit. A status line the color of the window reads as the last line of
+// whatever pane is over it, and a status line that comes and goes is
+// not somewhere to look.
 //
 // conn writes the two things only it knows, the question and the lamps,
 // each in an option of its own, and each only when it changes: the
-// question on a keypress, the lamps when a reading finds a process
-// standing differently from the last. Never on a beat.
+// question on a keypress, the lamps when a reading finds a process with
+// a status different from the last. Never on a beat.
 func statusLine() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
@@ -679,7 +683,7 @@ set -g status-position bottom
 set -g status-justify left
 set -g status-left-length 200
 set -g status-right-length 200
-# Nothing on the bar is read on a beat: the lamps and the question are
+# Nothing on the status line is read on a beat: the lamps and the question are
 # set when they change, and the terminal does the blinking.
 set -g status-interval 0
 # conn has no tabs, so the middle of the line is nothing.
@@ -687,10 +691,10 @@ set -g window-status-format ""
 set -g window-status-current-format ""
 `)
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
-	// Where the keys are, which is tmux's to know: the rail is the first
+	// Where the keys are, which is tmux's to know: the panel is the first
 	// pane of the home window and everything else is work. A question is
-	// armed on the rail and answered there, so it shows only while the
-	// keys are on the rail to answer it.
+	// armed on the panel and answered there, so it shows only while the
+	// keys are on the panel to answer it.
 	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
 	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_ask},}}}\"\n",
 		statusLineBlock("PREFIX", cursorHex), statusLineBlock("COPY", scheme[12]), onPanel)
@@ -698,11 +702,11 @@ set -g window-status-current-format ""
 	return b.String()
 }
 
-// barBlock is a mode as the bar wears it: the ground knocked out of a
-// block of its color, flush to the edge, the word keeping its own space
-// inside. The ground and not a fixed white, so it inverts with
-// everything else — the orange on paper is a dark brick, and black would
-// go out on it.
+// statusLineBlock is a mode as the status line wears it: the ground
+// knocked out of a block of its color, flush to the edge, the word
+// keeping its own space inside. The ground and not a fixed white, so it
+// inverts with everything else — the orange on paper is a dark brick,
+// and black would go out on it.
 //
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
@@ -711,15 +715,17 @@ func statusLineBlock(word, color string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", color, hex(groundColor), word)
 }
 
-// barAsk is the question armed, as the bar wears it: a block in the waiting
-// color, the same one the lamps say a hand waiting in.
+// statusLineAsk is the question armed, as the status line wears it: a
+// block in the waiting color, the same one the lamps say a process
+// waiting in.
 func statusLineAsk(word string) string {
 	return statusLineBlock(word, scheme[1])
 }
 
-// barSay is what conn says beside a block: on the bar's own ground, in
-// the parchment conn titles with, two spaces off the block. A hash is
-// tmux's own character on this line and is doubled to be shown.
+// statusLineSay is what conn says beside a block: on the status line's
+// own ground, in the parchment conn titles with, two spaces off the
+// block. A hash is tmux's own character on this line and is doubled to
+// be shown.
 func statusLineSay(text string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", borderHex, scheme[7], strings.ReplaceAll(text, "#", "##"))
 }
@@ -728,10 +734,11 @@ func statusLineSay(text string) string {
 // are what the pane borders are made of, and a lamp is not a border.
 const lamp = "●"
 
-// barLamps is the right-hand side of the bar: one lamp for each row of
-// the watch, in the watch's order, each in the color of how its process
-// stands, and a space between them so they count. Nothing at all with
-// no rows, so a watch with nothing on it leaves the panel dark.
+// statusLineLamps is the right-hand side of the status line: one lamp
+// for each row of the processes view, in the processes view's order,
+// each in the color of how its process stands, and a space between them
+// so they count. Nothing at all with no rows, so a view with nothing on
+// it leaves the panel dark.
 func statusLineLamps(projects []project) string {
 	var b strings.Builder
 	for _, pl := range projects {
@@ -752,8 +759,8 @@ func statusLineLamps(projects []project) string {
 }
 
 // say puts conn's two lamps on the server — the question it has armed,
-// if any, and how every process on the watch stands — and asks the
-// clients to draw, so the bar never lags what changed it.
+// if any, and how every process in the processes view stands — and asks
+// the clients to draw, so the status line never lags what changed it.
 func (s *server) say(ask, lamps string) error {
 	_, err := s.run("set-option", "-g", "@conn_ask", ask,
 		";", "set-option", "-g", "@conn_lamps", lamps,

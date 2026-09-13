@@ -13,15 +13,15 @@ import (
 	"time"
 )
 
-// Claude Code leaves a suspended conversation's transcript behind when
-// its instance exits: <claude>/projects/<encoded cwd>/<session id>.jsonl.
-// It is enough to pick the conversation back up, which is what A offers:
-// every one of them at a place, newest first, filtered the way the list
-// is, and not offering one a live instance already has — vetted against
-// the process table, so a session file an ended instance left behind
-// cannot hide one still going.
+// Claude Code leaves a suspended session's transcript behind when its
+// instance exits: <claude>/projects/<encoded cwd>/<session id>.jsonl.
+// It is enough to pick the session back up, which is what A offers:
+// every one of them at a project, newest first, filtered the way the
+// list is, and not offering one a live instance already has — vetted
+// against the process table, so a session file an ended instance left
+// behind cannot hide one still going.
 
-// conversation is a talk claude had in a directory and could pick back
+// session is a talk claude had in a directory and could pick back
 // up: its transcript is on disk, and no live instance is carrying it.
 type session struct {
 	ID     string
@@ -31,16 +31,16 @@ type session struct {
 	Prompt string // the last thing its user asked of it
 	// What the instance is waiting on, read only for one that is, and
 	// the moment its status became what it is when that was read, so
-	// the transcript is read again when the standing changes and not
+	// the transcript is read again when the status changes and not
 	// on a beat.
 	Ask   ask
 	AskAt time.Time
 }
 
 // claudeConfigDir is where Claude Code keeps its state — the sessions
-// and the transcripts the picker reads, distinct from claudeDir in
-// theme.go, which is that same directory's name relative to home, for
-// what conn writes there.
+// and the transcripts the sessions view reads, distinct from claudeDir
+// in theme.go, which is that same directory's name relative to home,
+// for what conn writes there.
 func claudeConfigDir() string {
 	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
 		return d
@@ -72,16 +72,17 @@ func isSessionID(id string) bool {
 	return true
 }
 
-// insideNote is what conn tells an AI it starts about where it is.
-// An AI that backgrounds a dev server leaves it with no terminal:
+// insideNote is what conn tells a contact it starts about where it is.
+// A contact that backgrounds a dev server leaves it with no terminal:
 // no pane to attach to, no scrollback to read, and its output wherever
-// the AI happened to send it. A window of its own costs the AI
-// nothing and makes the server a process like any other here — conn
-// shows it, you reach it, and its log is the pane you are looking at.
+// the contact happened to send it. A window of its own costs the
+// contact nothing and makes the server a process like any other here —
+// conn shows it, you reach it, and its log is the pane you are looking
+// at.
 //
-// conn says this to the AIs it starts rather than writing it into
+// conn says this to the contacts it starts rather than writing it into
 // anybody's settings. It travels with conn, so a conn on another
-// machine tells its AIs the same thing, and a machine conn is gone
+// machine tells its contacts the same thing, and a machine conn is gone
 // from is as conn found it.
 func insideNote(socket string) string {
 	return "You are running inside conn, which holds this terminal as a tmux pane " +
@@ -96,13 +97,13 @@ func insideNote(socket string) string {
 		"only be read through whatever file its output was sent to."
 }
 
-// aiCommand is what conn runs to start an AI: the program, told
-// where it is.
+// contactCommand is what conn runs to start a contact: the program,
+// told where it is.
 func contactCommand(socket string) string {
 	return contactProgram + " --append-system-prompt " + shellQuote(insideNote(socket))
 }
 
-// resumeCommand is the command that picks a suspended conversation back
+// resumeCommand is the command that picks a suspended session back
 // up, told the same. The id travels onto a shell command line, so only
 // ids claudeSuspended vetted are ever handed here.
 func resumeCommand(socket, id string) string { return contactCommand(socket) + " --resume " + id }
@@ -113,7 +114,7 @@ func resumeCommand(socket, id string) string { return contactCommand(socket) + "
 // ones happened to be caught being written.
 //
 // Busy is mid-turn. Shell is a command of its own running, which is
-// work too, and work conn could not otherwise see: an AI waiting on
+// work too, and work conn could not otherwise see: a contact waiting on
 // its own child spends no processor time, so a test suite running ten
 // minutes would read at rest the whole way. Claude Code's own status
 // line makes the same pair - busy and shell both come out as its word
@@ -130,7 +131,7 @@ const (
 
 // sessionFile is the part conn reads of what Claude Code writes for
 // each instance it is running, at sessions/<pid>.json: which
-// conversation the instance is carrying, and whether it is working on
+// session the instance is carrying, and whether it is working on
 // it this moment. Small enough to read on every reading of the table.
 type sessionFile struct {
 	SessionID string `json:"sessionId"`
@@ -140,11 +141,11 @@ type sessionFile struct {
 	// so this is the moment of the change and holds still between them.
 	StatusUpdatedAt int64 `json:"statusUpdatedAt"`
 	// What a waiting instance is stopped on, in its own words: a short
-	// phrase from a closed set — input needed, dialog open, goal
-	// proposal, sandbox request. The watch has no column wide enough
-	// for it; the look does.
+	// phrase from a closed set — input needed, dialog open, goal proposal,
+	// sandbox request. The processes view has no column wide enough for
+	// it; the readout does.
 	WaitingFor string `json:"waitingFor"`
-	// What else an instance says of itself, which the look reports and
+	// What else an instance says of itself, which the readout reports and
 	// nothing else reads: the name it goes by, what it was built as,
 	// and whether it is somebody's own session or something running
 	// behind one.
@@ -188,9 +189,9 @@ func (f sessionFile) wroteBy(started time.Time) bool {
 	return true
 }
 
-// An ask is what a waiting AI wants, in its own words, read off the
-// end of its transcript. The session file says only that it is stopped
-// and on what sort of thing, one phrase from a closed set; the
+// An ask is what a waiting contact wants, in its own words, read off
+// the end of its transcript. The session file says only that it is
+// stopped and on what sort of thing, one phrase from a closed set; the
 // transcript has the thing itself: the tool it asked to use and has no
 // answer for yet, or, with nothing pending, the last thing it said,
 // which is the question when a turn ended on one.
@@ -234,7 +235,7 @@ func askDetail(input map[string]json.RawMessage) string {
 	return ""
 }
 
-// readAsk reads the end of a transcript for what the AI is waiting
+// readAsk reads the end of a transcript for what the contact is waiting
 // on: the tool uses of its last turn, less the ones that have been
 // answered, or what it last said. A turn is written as several records,
 // the text and each tool use on a line of its own, so the reading
@@ -336,20 +337,20 @@ func claudeSessions() map[int]sessionFile {
 	return out
 }
 
-// aiStandings is what every AI says of itself: working, or
-// stopped and waiting on you. An AI is asked rather than measured —
+// contactStatuses is what every contact says of itself: working, or
+// stopped and waiting on you. A contact is asked rather than measured —
 // it knows whether it is mid-turn, where the processor time it happens
 // to be using says little, a model answering being barely any and
 // waiting on you none at all.
 //
-// An AI that has stopped has not necessarily stopped on anything:
+// A contact that has stopped has not necessarily stopped on anything:
 // a turn that is simply over asks nothing and holds nothing up, while
 // a permission or a question is a thing sitting there unanswered. Only
 // the second is worth a word that carries, so the two are kept apart
 // here rather than both being called waiting.
 //
 // A file can outlive the process that wrote it, so a pid counts only
-// where the table still has it standing as an AI; an AI with no
+// where the table still has it status as a contact; a contact with no
 // file to read - another maker's, or one too old to write one - says
 // nothing of itself, and reads as alive like anything else.
 func contactStatuses(procs []process) map[int]status {
@@ -376,8 +377,8 @@ func contactStatuses(procs []process) map[int]status {
 			how[pid] = status{idle: true, since: since}
 		}
 		// A word outside the four is a Claude newer than this conn, and
-		// conn says nothing of an AI it cannot understand — the same
-		// as an AI with no file at all, which is the honest answer
+		// conn says nothing of a contact it cannot understand — the same
+		// as a contact with no file at all, which is the honest answer
 		// and already has a word. Idle especially is not the answer to
 		// guess: it says at rest, nothing pending, yours when you want
 		// it, and none of that is known.
@@ -385,10 +386,10 @@ func contactStatuses(procs []process) map[int]status {
 	return how
 }
 
-// liveConversations is the id of every conversation a running claude
+// liveSessions is the id of every session a running claude
 // instance is carrying. A session file can outlive the process that
 // wrote it, so a pid is only believed when the process table still has
-// it, standing as an AI.
+// it, status as a contact.
 func liveSessions(projects []project) map[string]bool {
 	began := map[int]time.Time{}
 	for _, pl := range projects {
@@ -407,12 +408,13 @@ func liveSessions(projects []project) map[string]bool {
 	return live
 }
 
-// convoTail is how much of a transcript's end is read for the picker:
-// enough to reach back past a tool-heavy turn to the last prompt, small
-// enough that a directory of them is read on a keystroke.
+// sessionTail is how much of a transcript's end is read for the
+// sessions view: enough to reach back past a tool-heavy turn to the
+// last prompt, small enough that a directory of them is read on a
+// keystroke.
 const sessionTail = 256 * 1024
 
-// claudeSuspended lists the conversations at rest under the given
+// claudeSuspended lists the sessions at rest under the given
 // directories, newest first, excluding the ones a live instance is
 // carrying.
 func claudeSuspended(dirs []string, projects []project) []session {
@@ -420,7 +422,7 @@ func claudeSuspended(dirs []string, projects []project) []session {
 	root := filepath.Join(claudeConfigDir(), "projects")
 
 	// Claude encodes directories lossily, so two of them can share a
-	// transcript directory; each conversation is taken once, for the
+	// transcript directory; each session is taken once, for the
 	// first directory that reached it.
 	seen := map[string]bool{}
 	var out []session
@@ -453,7 +455,8 @@ func claudeSuspended(dirs []string, projects []project) []session {
 	return out
 }
 
-// transcriptLine is the part of a transcript record the picker reads.
+// transcriptLine is the part of a transcript record the sessions view
+// reads.
 type transcriptLine struct {
 	Type        string `json:"type"`
 	IsSidechain bool   `json:"isSidechain"`
@@ -465,7 +468,7 @@ type transcriptLine struct {
 	} `json:"message"`
 }
 
-// readConvoMeta fills in what a reader recognizes a conversation by:
+// readSessionMeta fills in what a reader recognizes a session by:
 // the branch it was on and the last thing asked of it. It reads
 // backwards from the end and takes the first answer it finds — many
 // files are read on one keystroke, so it stops as soon as it has both.

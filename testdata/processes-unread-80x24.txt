@@ -1,6 +1,6 @@
 
    ──────────────────────────────────────────────────────────────────────────
-   KIND    COMMAND                             TTY        AGE          STATUS
+   KIND    COMMAND                                 TTY        SINCE    STATUS
 
               THE PROCESS TABLE COULD NOT BE READ: LSOF: NOT FOUND
 

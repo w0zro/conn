@@ -10,18 +10,18 @@ import (
 // header, each project work is happening in is a block — its path as a
 // title, and a row for each process that stands for its own work there,
 // nested under whatever runs it the way the processes actually are: its
-// kind, what it was started as, its terminal, how long it has been at
-// it, and the word for how it stands. A row under another indents, its
-// kind and command shifted in together, the rest of its columns staying
-// where they are. Everything sits where it started and stays there
-// for as long as it lives, oldest first, so what is new goes on the end
-// and nothing above it moves. A cursor is on one row, which is drawn on
-// a raised ground from edge to edge, and the rows scroll to keep it in
-// view. What conn holds — a process in a pane of the server, which can
-// be reached — is written in the ink; work conn can only report is
-// dimmed a rank. In the panel, which is narrower than the console, the
-// terminal column is left off and the rest close up; the row on the
-// right, in the bay, is in orange.
+// kind, what it is doing, its terminal, how long it has stood as it
+// does, and the word for how it stands. A row under another indents,
+// its kind and command shifted in together, the rest of its columns
+// staying where they are. Everything sits where it started and stays
+// there for as long as it lives, oldest first, so what is new goes on
+// the end and nothing above it moves. A cursor is on one row, which is
+// drawn on a raised ground from edge to edge, and the rows scroll to
+// keep it in view. What conn holds — a process in a pane of the server,
+// which can be reached — is written in the ink; work conn can only
+// report is dimmed a rank. In the panel, which is narrower than the
+// console, the terminal column is left off and the rest close up; the
+// row on the right, in the bay, is in orange.
 
 // The processes view's words, composed from the projects as of a
 // moment.
@@ -38,12 +38,12 @@ type projectBlock struct {
 }
 
 type processRow struct {
-	pid                             int
-	kind, command, tty, age, status string
-	fault                           bool
-	reach                           string // the pane that holds it, in conn's server
-	shown                           bool   // it is in the bay, on the right
-	depth                           int    // how deep under its project's own root
+	pid                               int
+	kind, command, tty, since, status string
+	fault                             bool
+	reach                             string // the pane that holds it, in conn's server
+	shown                             bool   // it is in the bay, on the right
+	depth                             int    // how deep under its project's own root
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -97,7 +97,7 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 		}
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, processRow{
-				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
+				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, since: sinceWord(e.since, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
 			})
@@ -129,15 +129,14 @@ func projectName(path string, roots []string, home string) string {
 }
 
 // The processes view's columns, from the right: the status flush with
-// the measure, the age and the terminal before it, and the command
-// taking what is left after the kind. Under minCols the processes view
-// is a panel: the terminal column goes, the kind and the age close up.
+// the measure, the time in that status and the terminal before it, and
+// the command taking what is left after the kind. Under minCols the
+// view is a panel: the terminal column goes, and the kind closes up.
 const (
 	kindW        = 8
 	ttyW         = 10
-	ageW         = 9
+	sinceW       = 5
 	panelKindW   = 8
-	panelAgeW    = 7
 	panelMinCols = 40
 	treeIndent   = 2 // columns a row gives up per level under its root
 )
@@ -150,15 +149,14 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
 	statusCol := measure - statusW
-	ageCol := statusCol - 1 - ageW
-	ttyCol := ageCol - 1 - ttyW
+	sinceCol := statusCol - 1 - sinceW
+	ttyCol := sinceCol - 1 - ttyW
 	commandW := ttyCol - 1 - kindW
 	kindCol := kindW
 	if panel {
-		ageCol = statusCol - 1 - panelAgeW
 		ttyCol = -1
 		kindCol = panelKindW
-		commandW = ageCol - 1 - kindCol
+		commandW = sinceCol - 1 - kindCol
 	}
 
 	// The header: a rule and the column heads. The view goes unlabeled: it
@@ -176,8 +174,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		l.to(ttyCol)
 		l.add(p.gray, "TTY")
 	}
-	l.to(ageCol)
-	l.add(p.gray, "AGE")
+	l.to(sinceCol)
+	l.add(p.gray, "SINCE")
 	l.to(statusCol + statusW - len("STATUS"))
 	l.add(p.gray, "STATUS")
 	c.emit(l, 0, false)
@@ -217,7 +215,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			// row is a lot of orange, and the status column especially
 			// is not the orange's to take — WAITING is already a color
 			// close to it, and the two together say neither.
-			kind, command, ttyColor, ageColor, word := p.gray, p.ink, p.gray, p.gray, p.gray
+			kind, command, ttyColor, sinceColor, word := p.gray, p.ink, p.gray, p.gray, p.gray
 			switch {
 			case r.shown:
 				kind = p.orange + p.bold
@@ -229,7 +227,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 					// up a rank of the dimming rather than the reading.
 					dim = p.gray
 				}
-				kind, command, ttyColor, ageColor, word = dim, dim, dim, dim, dim
+				kind, command, ttyColor, sinceColor, word = dim, dim, dim, dim, dim
 			}
 			if cursored {
 				// The row under the cursor is the one on the raised ground,
@@ -254,8 +252,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				l.to(ttyCol)
 				l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
 			}
-			l.to(ageCol)
-			l.add(ageColor, r.age)
+			l.to(sinceCol)
+			l.add(sinceColor, r.since)
 			switch {
 			case r.fault:
 				l.to(measure - utf8.RuneCountInString(r.status) - 2)

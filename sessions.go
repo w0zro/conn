@@ -57,10 +57,15 @@ func matchingSessions(cs []session, filter string) []session {
 }
 
 // branchW is the sessions view's one column of its own: the branch,
-// from the margin. The age takes the measure's own ageW, flush with the
-// right, the way it does in the processes view; the prompt takes what
-// is left between them.
-const branchW = 14
+// from the margin. The age takes a column of its own, flush with the
+// right; the prompt takes what is left between them. It keeps two units
+// where the processes view's own column went to one: a session is
+// picked from a list of them by how long ago it was had, which is a
+// thing to compare rather than to glance at.
+const (
+	branchW      = 14
+	sessionsAgeW = 9 // the widest age, in two units
+)
 
 // drawSessions renders the sessions view for a terminal of the given
 // size, with the cursor on the given row.
@@ -125,7 +130,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 		say(p.gray, "NOTHING SUSPENDED HERE")
 	default:
 		d.blank(0)
-		ageCol := measure - ageW
+		ageCol := measure - sessionsAgeW
 		promptW := ageCol - 1 - branchW
 		for i, cv := range b.rows {
 			l := d.line()

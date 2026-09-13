@@ -1,6 +1,6 @@
 
    ──────────────────────────────────────────────────────────────────────────
-   KIND    COMMAND                             TTY        AGE          STATUS
+   KIND    COMMAND                                 TTY        SINCE    STATUS
 
                                   NO PROCESSES
 

@@ -1,21 +1,21 @@
 
    ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   KIND    COMMAND                                                                     TTY        AGE          STATUS
+   KIND    COMMAND                                                                         TTY        SINCE    STATUS
 
    ~
-   SHELL   zsh                                                                         TTYS009    1D 02H       ACTIVE
-     EDITOR  vim notes.md                                                              TTYS009    1D 01H     STOPPED
+   SHELL   zsh                                                                             TTYS009             ACTIVE
+     EDITOR  vim notes.md                                                                  TTYS009           STOPPED
 
    w0zro/conn
-   SHELL   zsh                                                                         TTYS004    3H 00M       ACTIVE
- ▸   SHELL   zsh                                                                       TTYS005    1M 30S         IDLE
+   SHELL   zsh                                                                             TTYS004             ACTIVE
+ ▸   SHELL   zsh                                                                           TTYS005               IDLE
 
    w0zro/vim.pro/conjurer
-   SHELL   zsh                                                                         TTYS007    2H 00M       ACTIVE
-     CONTACT claude --resume                                                           TTYS007    47M 00S      ACTIVE
-       RUN     node /opt/claude/mcp.js                                                 TTYS007    46M 00S      ACTIVE
-       SHELL   bash -c go test ./...                                                   TTYS007    12S          ACTIVE
-         RUN     go test ./...                                                         TTYS007    11S          ACTIVE
+   SHELL   zsh                                                                             TTYS007             ACTIVE
+     CONTACT claude --resume                                                               TTYS007    7M      WORKING
+       RUN     node /opt/claude/mcp.js                                                     TTYS007             ACTIVE
+       SHELL   bash -c go test ./...                                                       TTYS007             ACTIVE
+         RUN     go test ./...                                                             TTYS007             ACTIVE
 
 
 

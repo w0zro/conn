@@ -9,8 +9,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+// The claude on ttys007 says of itself that it has been working for
+// seven minutes; nothing else has a moment, the way a first reading
+// has none.
 func testProcesses() processesReport {
-	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	how := map[int]status{70100: {working: true, since: processesNow.Add(-7 * time.Minute)}}
+	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
 }
 
 // The processes view at 120 by 40 is a file of record, as are the empty
@@ -29,8 +33,8 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 
 // The processes view's columns hold: the status flush right, a root's
 // kind at the margin and what runs under it a level in per level, the
-// path from ~, the ages as of the clock, no legend, no row past the
-// width.
+// path from ~, the time in status where a moment is known, no legend,
+// no row past the width.
 func TestProcessesLaysOut(t *testing.T) {
 	rows := drawProcesses(testProcesses(), 70100, 120, 40, plain)
 	text := texts(rows)
@@ -39,13 +43,13 @@ func TestProcessesLaysOut(t *testing.T) {
 		// No name over it: that is the status line's now, at the bottom left
 		// of the window. The processes view begins with its rule and its
 		// columns.
-		"KIND    COMMAND", "TTY", "AGE", "STATUS",
+		"KIND    COMMAND", "TTY", "SINCE", "STATUS",
 		// A project is named by what is left of its path once the root the
 		// checkouts are kept under is taken off it; one outside every
 		// root is written from ~, whole.
-		"w0zro/conn", "SHELL   zsh", "TTYS005", "1M 30S", "IDLE",
-		"w0zro/vim.pro/conjurer", "47M 00S", "ACTIVE",
-		"~", "1D 01H", " STOPPED",
+		"w0zro/conn", "SHELL   zsh", "TTYS005", "IDLE",
+		"w0zro/vim.pro/conjurer", "7M      WORKING", "ACTIVE",
+		"~", " STOPPED",
 		// A root at the margin, and the tree under it stepping in: the
 		// contact its shell runs, the shell the contact runs, the go that one
 		// runs. The cursor's mark sits in the margin regardless.
@@ -375,7 +379,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	if !strings.Contains(text, p.orange+p.bold+"SHELL") {
 		t.Errorf("the bay's head is not marked:\n%s", text)
 	}
-	for _, notIn := range []string{p.orange + "zsh", p.orange + "TTYS007", p.orange + "ACTIVE", p.orange + "2H 00M"} {
+	for _, notIn := range []string{p.orange + "zsh", p.orange + "TTYS007", p.orange + "ACTIVE"} {
 		if strings.Contains(text, notIn) {
 			t.Errorf("the orange ran past the kind: %q\n%s", notIn, text)
 		}
@@ -387,7 +391,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 		t.Errorf("what hangs under the bay's head is not in the ink:\n%s", text)
 	}
 	// In nobody's pane: a rank down, and every column of it.
-	for _, in := range []string{p.faint + "vim notes.md", p.faint + "TTYS009", p.faint + "1D 01H"} {
+	for _, in := range []string{p.faint + "vim notes.md", p.faint + "TTYS009"} {
 		if !strings.Contains(text, in) {
 			t.Errorf("what conn cannot reach is not dimmed: %q missing\n%s", in, text)
 		}

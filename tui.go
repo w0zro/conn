@@ -115,6 +115,9 @@ type (
 		// tell work from waiting.
 		cpu   map[int]time.Duration
 		cpuAt time.Time
+		// Each row as this reading saw it stand, and since when: what
+		// the next reading dates a row's status against.
+		stood map[int]stood
 	}
 	processesTickMsg struct{ gen int }     // the processes view is due to be read again
 	openedMsg        struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
@@ -174,6 +177,7 @@ type model struct {
 	// process is working by what it has spent since, not by what it has
 	// spent altogether.
 	cpuWas map[int]time.Duration
+	stood  map[int]stood
 	cpuAt  time.Time
 	// The list: the projects as the roots were last walked, what has been
 	// typed to narrow them, and which of the rows the cursor is on.
@@ -275,7 +279,7 @@ func readStationCmd() tea.Msg {
 // comes back.
 func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots, m.isProject
-	was, wasAt := m.cpuWas, m.cpuAt
+	was, wasAt, stoodWas := m.cpuWas, m.cpuAt, m.stood
 	var srv *server
 	if m.inside {
 		srv = m.srv
@@ -295,7 +299,8 @@ func (m model) readProcesses() tea.Cmd {
 			how[pid] = status{working: true}
 		}
 		maps.Copy(how, contactStatuses(procs))
-		msg := processesMsg{projects: projectsFrom(procs, uid, roots, isProject, how), gen: gen, cpu: now, cpuAt: nowAt}
+		projects := projectsFrom(procs, uid, roots, isProject, how)
+		msg := processesMsg{projects: projects, gen: gen, cpu: now, cpuAt: nowAt, stood: sinceSeen(projects, stoodWas, wasAt, nowAt)}
 		if srv != nil {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
@@ -552,7 +557,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
 		m.looking = msg.bayReadout
 		if msg.cpu != nil {
-			m.cpuWas, m.cpuAt = msg.cpu, msg.cpuAt
+			m.cpuWas, m.cpuAt, m.stood = msg.cpu, msg.cpuAt, msg.stood
 		}
 		// The shell conn opened is the cursor's once the reading has it;
 		// one that never comes is given up on when the wait is out.

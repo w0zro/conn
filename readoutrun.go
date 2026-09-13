@@ -186,6 +186,10 @@ type readoutTable struct {
 	sess     map[int]sessionFile
 	git      map[string]gitStatus // what git said of a project, by its path
 	carried  map[int]session      // which session a row was carrying
+	// Each row as this reading saw it stand, and when it was taken, so
+	// the next reading can date a row's status the way the panel does.
+	stood  map[int]stood
+	readAt time.Time
 }
 
 // readoutOf is the page for a pid as things stand and the table it was
@@ -228,6 +232,8 @@ func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
 	home, _ := os.UserHomeDir()
 	isProject := projectDirs(projectRoots(home))
 	t.projects = projectsFrom(procs, uid, rootFinder(isProject), isProject, contactStatuses(procs))
+	t.readAt = time.Now()
+	t.stood = sinceSeen(t.projects, held.stood, held.readAt, t.readAt)
 
 	// What conn holds for the rows' terminals, when there is a server to
 	// ask. Outside one there is nothing to say of panes.

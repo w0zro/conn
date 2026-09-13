@@ -758,3 +758,78 @@ func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 		t.Error("a shell opened just now stands before what was already in its project")
 	}
 }
+
+// The since column says its span in one unit, the largest that
+// applies.
+func TestBriefIsOneUnit(t *testing.T) {
+	for _, c := range []struct {
+		d    time.Duration
+		want string
+	}{
+		{3*24*time.Hour + 2*time.Hour, "3D"},
+		{2*time.Hour + 59*time.Minute, "2H"},
+		{47*time.Minute + 9*time.Second, "47M"},
+		{24 * time.Second, "24S"},
+		{0, "0S"},
+	} {
+		if got := brief(c.d); got != c.want {
+			t.Errorf("brief(%v) = %q, want %q", c.d, got, c.want)
+		}
+	}
+	if sinceWord(time.Time{}, processesNow) != "" {
+		t.Error("a row with no moment got a word")
+	}
+}
+
+// A row is dated by conn's own eye where it does not date itself: the
+// first reading dates nothing, a row whose status changed is dated at
+// the reading that saw it change, one born between readings is dated
+// from its birth, one standing as it did keeps its date, and a contact
+// keeps the moment it says itself. A pid come round again is a new
+// process, not the old one's status carried on.
+func TestSinceSeenDatesARowByItsOwnEye(t *testing.T) {
+	t0 := processesNow
+	row := func(pid int, status string, started, since time.Time) entry {
+		return entry{pid: pid, status: status, started: started, since: since}
+	}
+	first := []project{{path: "/w", entries: []entry{
+		row(1, statusIdle, t0.Add(-time.Hour), time.Time{}),
+		row(2, statusWorking, t0.Add(-time.Hour), t0.Add(-7*time.Minute)),
+	}}}
+	was := sinceSeen(first, nil, time.Time{}, t0)
+	if !first[0].entries[0].since.IsZero() {
+		t.Errorf("the first reading dated a shell: %v", first[0].entries[0].since)
+	}
+	if !first[0].entries[1].since.Equal(t0.Add(-7 * time.Minute)) {
+		t.Errorf("a contact lost its own moment: %v", first[0].entries[1].since)
+	}
+
+	t1 := t0.Add(2 * time.Second)
+	second := []project{{path: "/w", entries: []entry{
+		row(1, statusActive, t0.Add(-time.Hour), time.Time{}), // changed
+		row(2, statusWorking, t0.Add(-time.Hour), t0.Add(-7*time.Minute)),
+		row(3, statusActive, t0.Add(time.Second), time.Time{}), // born between
+	}}}
+	was = sinceSeen(second, was, t0, t1)
+	e := second[0].entries
+	if !e[0].since.Equal(t1) {
+		t.Errorf("a changed row is dated %v, not the reading that saw it", e[0].since)
+	}
+	if !e[2].since.Equal(t0.Add(time.Second)) {
+		t.Errorf("a row born between readings is dated %v, not its birth", e[2].since)
+	}
+
+	t2 := t1.Add(2 * time.Second)
+	third := []project{{path: "/w", entries: []entry{
+		row(1, statusActive, t0.Add(-time.Hour), time.Time{}),  // as it was
+		row(3, statusActive, t1.Add(time.Second), time.Time{}), // the pid come round again
+	}}}
+	sinceSeen(third, was, t1, t2)
+	e = third[0].entries
+	if !e[0].since.Equal(t1) {
+		t.Errorf("a row standing as it did was redated: %v", e[0].since)
+	}
+	if !e[1].since.Equal(t1.Add(time.Second)) {
+		t.Errorf("a pid come round again took the old process's date: %v", e[1].since)
+	}
+}

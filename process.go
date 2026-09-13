@@ -620,6 +620,75 @@ func age(since, now time.Time) string {
 	return spell(now.Sub(since))
 }
 
+// sinceWord is how long a row has stood as it does, for the processes
+// view's column: the one largest unit that applies, and nothing where
+// the moment is not known. Two units were four columns of precision the
+// column is not read for; the number is glanced at, against the status
+// beside it.
+func sinceWord(since, now time.Time) string {
+	if since.IsZero() {
+		return ""
+	}
+	return brief(now.Sub(since))
+}
+
+// brief writes a span in its one largest unit.
+func brief(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d >= 24*time.Hour:
+		return fmt.Sprintf("%dD", int(d.Hours())/24)
+	case d >= time.Hour:
+		return fmt.Sprintf("%dH", int(d.Hours()))
+	case d >= time.Minute:
+		return fmt.Sprintf("%dM", int(d.Minutes()))
+	default:
+		return fmt.Sprintf("%dS", int(d.Seconds()))
+	}
+}
+
+// stood is a row as conn last saw it stand: its status, when it took
+// it, and when its process began, so a pid come round again is not
+// taken for the process that had it.
+type stood struct {
+	status  string
+	at      time.Time
+	started time.Time
+}
+
+// sinceSeen fills in when each row came to stand as it does, where the
+// row does not say so itself, and answers what to hold for the next
+// reading. A contact says its own moment and keeps it. Anything else is
+// dated by conn's own eye: a row whose status differs from the last
+// reading changed between the two, and is dated now; one born since the
+// last reading has stood as it does since it began; one that stands as
+// it did keeps the moment it had. What conn was not watching it has no
+// moment for, and says nothing: the first reading dates nothing, and a
+// shell idle since before conn came up stays undated until it changes.
+func sinceSeen(projects []project, was map[int]stood, wasAt, now time.Time) map[int]stood {
+	next := map[int]stood{}
+	for i := range projects {
+		for j := range projects[i].entries {
+			e := &projects[i].entries[j]
+			if e.since.IsZero() {
+				prev, ok := was[e.pid]
+				switch {
+				case ok && prev.started.Equal(e.started) && prev.status == e.status:
+					e.since = prev.at
+				case ok && prev.started.Equal(e.started):
+					e.since = now
+				case !wasAt.IsZero() && e.started.After(wasAt):
+					e.since = e.started
+				}
+			}
+			next[e.pid] = stood{status: e.status, at: e.since, started: e.started}
+		}
+	}
+	return next
+}
+
 // spell writes a span the way the processes view's age column does, for
 // a span that is not the distance from a moment to now: processor time
 // spent, say, which has no moment to count from.

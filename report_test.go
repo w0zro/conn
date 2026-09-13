@@ -14,7 +14,8 @@ var (
 		machine: machine{
 			system: "macOS 26.6.2", systemBuild: "25G83", kernel: "Darwin 25.6.0",
 			model: "Mac15,6", processor: "Apple M3 Pro", cpus: 11, perfCores: 5, effCores: 6,
-			memory: 18 << 30, available: 77, swapTotal: 5 << 30, swapUsed: 3<<30 + 700<<20, swapEncrypt: true,
+			memory: 18 << 30, available: 77, pressure: pressureNormal,
+			swapTotal: 5 << 30, swapUsed: 3<<30 + 700<<20, swapEncrypt: true,
 			booted:    time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC),
 			load:      [3]float64{1.85, 2.07, 1.99},
 			processes: 747,
@@ -141,8 +142,24 @@ func TestChecksHoldTheirThresholds(t *testing.T) {
 		t.Error("an unread volume is not unknown")
 	}
 
+	// A kernel that keeps its own verdict is reported and not
+	// second-guessed, however much memory is left beside it.
 	m := testStation.machine
 	m.available = 9
+	if got := memoryCheck(m); got.fault || got.value != "NORMAL PRESSURE" {
+		t.Errorf("memory under a normal kernel: %+v", got)
+	}
+	m.pressure = pressureWarning
+	if got := memoryCheck(m); !got.fault || got.status != "WARNING" {
+		t.Errorf("memory under pressure: %+v", got)
+	}
+	m.pressure = pressureCritical
+	if got := memoryCheck(m); !got.fault || got.status != "CRITICAL" {
+		t.Errorf("memory under critical pressure: %+v", got)
+	}
+
+	// Without a verdict of the kernel's, the check is what is left.
+	m.pressure = ""
 	if got := memoryCheck(m); !got.fault || got.status != "LOW" {
 		t.Errorf("memory at 9%%: %+v", got)
 	}

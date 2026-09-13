@@ -184,3 +184,49 @@ func readLinuxFiles(root string, m *machine) {
 	}
 	m.power = readPowerSupply(filepath.Join(root, "sys/class/power_supply"))
 }
+
+// parseVMStat is the memory free for new work, in bytes, as vm_stat
+// counts the pages: the pages nothing holds, the pages whose owner has
+// not touched them lately and the pager can take back, and the pages
+// read ahead on a guess and dropped the moment they are wanted
+// elsewhere. Everything else resident belongs to work that is running,
+// and handing it to new work means taking it from that.
+//
+// macOS answers for free, purgeable and speculative through sysctl but
+// not for inactive, which is the largest of the reclaimable classes, so
+// the whole count is read here rather than three quarters of it asked
+// for. Purgeable pages are counted inside active and inactive rather
+// than beside them, and adding them would count them twice.
+//
+// A class missing is a reading that did not happen: the answer is no
+// rather than a sum of whatever was there.
+func parseVMStat(text string) (uint64, bool) {
+	_, rest, found := strings.Cut(text, "page size of ")
+	if !found {
+		return 0, false
+	}
+	size, _, _ := strings.Cut(rest, " ")
+	page, err := strconv.ParseUint(size, 10, 64)
+	if err != nil || page == 0 {
+		return 0, false
+	}
+	free := map[string]bool{"Pages free": true, "Pages inactive": true, "Pages speculative": true}
+	var pages uint64
+	read := 0
+	for _, line := range strings.Split(text, "\n") {
+		label, count, ok := strings.Cut(line, ":")
+		if !ok || !free[strings.TrimSpace(label)] {
+			continue
+		}
+		n, err := strconv.ParseUint(strings.Trim(strings.TrimSpace(count), "."), 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		pages += n
+		read++
+	}
+	if read != len(free) {
+		return 0, false
+	}
+	return pages * page, true
+}

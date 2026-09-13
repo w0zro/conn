@@ -197,7 +197,7 @@ func TestUncheckedStandsOutFromNominal(t *testing.T) {
 	// A check the machine would not answer is no more a reading than
 	// one there was nothing to check against, and is said the same.
 	st = testStation
-	st.machine.memory = 0 // MEMORY went unanswered
+	st.volume = volume{} // DISK went unanswered
 	text = texts(screen(compose(st, testNow), 120, 40, p))
 	if !strings.Contains(text, p.waiting+"UNKNOWN") {
 		t.Errorf("UNKNOWN is not painted waiting:\n%s", stripEscapes(text))

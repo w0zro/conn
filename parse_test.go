@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -103,5 +104,38 @@ func TestLinuxTextIsParsed(t *testing.T) {
 	}
 	if p := readPowerSupply(filepath.Join(t.TempDir(), "none")); p != (power{percent: -1}) {
 		t.Errorf("no power_supply: %+v", p)
+	}
+}
+
+// vm_stat is how much of the machine's memory is free for new work on
+// macOS, which is the one reading sysctl will not give whole.
+func TestVMStatIsParsed(t *testing.T) {
+	out, err := os.ReadFile(filepath.Join("testdata", "vm_stat.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out)
+	free, ok := parseVMStat(text)
+	if !ok {
+		t.Fatal("a whole vm_stat was not read")
+	}
+	// The three classes of the capture, at its own page size.
+	want := (73427 + 416068 + 25514) * uint64(16384)
+	if free != want {
+		t.Errorf("free memory: %d, want %d", free, want)
+	}
+
+	// A class missing is no reading at all, rather than a sum of what
+	// was there: a machine that answered for two classes of three has
+	// not said how much memory is free.
+	short := strings.ReplaceAll(text, "Pages inactive", "Pages dormant")
+	if _, ok := parseVMStat(short); ok {
+		t.Error("vm_stat without an inactive count was read anyway")
+	}
+	if _, ok := parseVMStat("Pages free: 1.\nPages inactive: 2.\nPages speculative: 3.\n"); ok {
+		t.Error("vm_stat with no page size was read anyway")
+	}
+	if _, ok := parseVMStat(""); ok {
+		t.Error("nothing was read as a vm_stat")
 	}
 }

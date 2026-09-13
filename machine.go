@@ -25,6 +25,7 @@ type machine struct {
 	rosetta     bool   // running translated, on Apple silicon
 	memory      uint64 // bytes
 	available   int    // percent of memory free for new work; -1 unread
+	pressure    string // the kernel's own word for how memory stands; blank where it publishes none
 	swapTotal   uint64
 	swapUsed    uint64
 	swapEncrypt bool
@@ -35,6 +36,17 @@ type machine struct {
 	sip         string // enabled or disabled, where the system has it
 	page        int    // the kernel's page, in bytes
 }
+
+// The kernel's own word for how memory stands, where it publishes one.
+// conn reports the verdict rather than judging the numbers itself: the
+// kernel is the one that acts on it, the way a contact is asked how it
+// stands rather than measured. A level conn has never heard of is not
+// guessed at, and leaves the field blank.
+const (
+	pressureNormal   = "normal"
+	pressureWarning  = "warning"
+	pressureCritical = "critical"
+)
 
 // power is what the machine runs on and how the battery stands.
 type power struct {

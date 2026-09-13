@@ -311,8 +311,24 @@ func diskCheck(v volume) check {
 	return c
 }
 
-// memoryCheck is the memory available to new work: LOW under a tenth.
+// memoryCheck is how memory stands. Where the kernel keeps a verdict of
+// its own it is reported and not second-guessed: it is the kernel that
+// will act on the pressure, and a percentage conn judged for itself
+// would be a second opinion over the one that matters. The system
+// column already says how much is left, so the check says the thing the
+// column cannot.
+//
+// Where no verdict is published the check is the memory left for new
+// work, LOW under a tenth.
 func memoryCheck(m machine) check {
+	switch m.pressure {
+	case pressureNormal:
+		return check{label: "MEMORY", value: "NORMAL PRESSURE", status: nominal}
+	case pressureWarning:
+		return check{label: "MEMORY", value: "UNDER PRESSURE", status: "WARNING", fault: true}
+	case pressureCritical:
+		return check{label: "MEMORY", value: "UNDER PRESSURE", status: "CRITICAL", fault: true}
+	}
 	if m.available < 0 || m.memory == 0 {
 		return check{label: "MEMORY", value: "UNREAD", status: unknown}
 	}

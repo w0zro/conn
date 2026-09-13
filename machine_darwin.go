@@ -35,8 +35,24 @@ func readMachine() machine {
 		m.rosetta = true
 	}
 	m.memory, _ = unix.SysctlUint64("hw.memsize")
-	if level, err := unix.SysctlUint32("kern.memorystatus_level"); err == nil {
-		m.available = int(level)
+	// kern.memorystatus_level stood here and was read as the memory
+	// available to new work. It is not that: it counts the pages work
+	// is actively holding among the available ones, and read 83 on a
+	// machine with a sixteenth of its memory free and most of its swap
+	// in use. The classes are counted instead, which is what the label
+	// has always claimed.
+	if free, ok := parseVMStat(run("vm_stat")); ok && m.memory > 0 {
+		m.available = int(free * 100 / m.memory)
+	}
+	if level, err := unix.SysctlUint32("kern.memorystatus_vm_pressure_level"); err == nil {
+		switch level {
+		case 1:
+			m.pressure = pressureNormal
+		case 2:
+			m.pressure = pressureWarning
+		case 4:
+			m.pressure = pressureCritical
+		}
 	}
 	if raw, err := unix.SysctlRaw("vm.swapusage"); err == nil {
 		if total, used, encrypted, ok := parseSwapUsage(raw); ok {

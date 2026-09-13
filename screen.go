@@ -132,7 +132,11 @@ func screen(r report, width, height int, p palette) []row {
 	if own.fault {
 		return small(own, width, height, need, p)
 	}
-	rows := body(r, max(width, minCols), own, p)
+	cols := max(width, minCols)
+	if height == 0 {
+		cols = wide(r, own)
+	}
+	rows := body(r, cols, own, p)
 	if height > 0 {
 		c := canvas{p: p, width: max(width, minCols), rows: rows}
 		for len(c.rows) < height-1 {
@@ -353,6 +357,35 @@ func screenCheck(term string, width, height, need int) check {
 		return check{label: "SCREEN", value: value, status: "SMALL", fault: true}
 	}
 	return check{label: "SCREEN", value: value, status: nominal}
+}
+
+// wide is the width at which nothing on the page is elided, for a page
+// going somewhere that has no width of its own.
+//
+// A terminal is a fixed number of columns and the page is cut to them,
+// which is the terminal's business and nobody loses anything: the
+// operator is looking at the screen and can widen it. A pipe is not a
+// screen. What comes out of it is filed, pasted into a report, read by
+// somebody who was not here, and a page rendered at eighty columns
+// because eighty was the floor arrives with the kernel, the uptime,
+// the swap and the path of the binary each cut off mid-value. Those
+// are the readings the page exists to carry.
+//
+// The arithmetic is the layout's, backwards. A fact sits in one of two
+// columns of half the measure, its value past the label and a space; a
+// check runs from the margin to the leaders, which stop short of the
+// widest status.
+func wide(r report, own check) int {
+	measure := minCols - 2*margin
+	for _, side := range [][]fact{r.system, r.login} {
+		for _, f := range side {
+			measure = max(measure, 2*(utf8.RuneCountInString(cased(f.value, f.path))+factCol+2))
+		}
+	}
+	for _, k := range append([]check{own}, r.checks...) {
+		measure = max(measure, utf8.RuneCountInString(cased(k.value, k.path))+checkCol+statusW+4)
+	}
+	return measure + 2*margin
 }
 
 // A canvas takes rows of one width in one palette.

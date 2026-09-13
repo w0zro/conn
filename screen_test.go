@@ -58,6 +58,30 @@ func TestFaultedConsolesMatchTheGolden(t *testing.T) {
 	golden(t, "console-small-100x12.txt", texts(screen(compose(st, testNow), 100, 12, plain)))
 }
 
+// Off a terminal the page keeps every value whole. There is no screen
+// to cut it to and nobody watching who could widen one: what comes out
+// of the pipe is filed or pasted into a report, and a reading elided
+// to fit a width nobody chose is a reading lost.
+func TestThePipedConsoleElidesNothing(t *testing.T) {
+	st := testStation
+	st.login.exe = "/Users/w0zro/Library/Caches/go-build/3c/3c7f8105cf5abd1baa5f58b9cf8c907eed6bf5ff84596c80c85d92931375d3fa-d/conn"
+	st.machine.kernel = "Darwin 25.6.0 and then some words to push it past eighty columns"
+	text := texts(screen(compose(st, testNow), 0, 0, plain))
+	if strings.Contains(text, "…") {
+		t.Errorf("the piped console elided something:\n%s", text)
+	}
+	// A path keeps its own case; every other value is set in capitals.
+	for _, want := range []string{"~" + st.login.exe[len("/Users/w0zro"):], "16 KB PAGES"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the piped console lost %q:\n%s", want, text)
+		}
+	}
+	// A terminal is a width somebody chose, and the page is cut to it.
+	if narrow := texts(screen(compose(st, testNow), 80, 40, plain)); !strings.Contains(narrow, "…") {
+		t.Error("an eighty column terminal elided nothing")
+	}
+}
+
 // The layout holds where the eye checks it: the session column at half
 // the measure, every status flush with its right edge, a path in its own
 // case, no row past the width.

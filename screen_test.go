@@ -194,6 +194,48 @@ func TestUncheckedStandsOutFromNominal(t *testing.T) {
 	if !strings.Contains(text, p.gray+"NOMINAL") {
 		t.Errorf("NOMINAL is not painted gray:\n%s", stripEscapes(text))
 	}
+	// A check the machine would not answer is no more a reading than
+	// one there was nothing to check against, and is said the same.
+	st = testStation
+	st.machine.memory = 0 // MEMORY went unanswered
+	text = texts(screen(compose(st, testNow), 120, 40, p))
+	if !strings.Contains(text, p.waiting+"UNKNOWN") {
+		t.Errorf("UNKNOWN is not painted waiting:\n%s", stripEscapes(text))
+	}
+}
+
+// The verdict says every system is nominal only when every system was
+// read and passed. A check with nothing to check against, or one the
+// machine would not answer, is counted beside the ones that passed:
+// conn took no reading there, and a word that called it nominal would
+// be claiming one.
+func TestTheVerdictCountsWhatWasNotRead(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		t    tally
+		want string
+	}{
+		{"every one read and passed", tally{nominal: 10}, "ALL SYSTEMS NOMINAL"},
+		{"one with nothing to check against", tally{nominal: 9, unchecked: 1}, "9 NOMINAL · 1 UNCHECKED"},
+		{"one unanswered", tally{nominal: 9, unknown: 1}, "9 NOMINAL · 1 UNKNOWN"},
+		{"one of each", tally{nominal: 8, unchecked: 1, unknown: 1}, "8 NOMINAL · 1 UNCHECKED · 1 UNKNOWN"},
+		{"nothing read at all", tally{unknown: 10}, "10 UNKNOWN"},
+	} {
+		if got := c.t.verdict(); got != c.want {
+			t.Errorf("%s: the verdict reads %q, want %q", c.name, got, c.want)
+		}
+	}
+	// Read off a console rather than a tally by hand: the machine
+	// answers everything but its core count, so LOAD alone is unchecked.
+	st := testStation
+	st.machine.cpus = 0
+	text := stripEscapes(texts(screen(compose(st, testNow), 120, 40, plain)))
+	if strings.Contains(text, "ALL SYSTEMS NOMINAL") {
+		t.Errorf("the console called an unchecked system nominal:\n%s", text)
+	}
+	if !strings.Contains(text, "7 NOMINAL · 1 UNCHECKED") {
+		t.Errorf("the console does not count what it did not read:\n%s", text)
+	}
 }
 
 // stripEscapes drops the color sequences, leaving the cells.

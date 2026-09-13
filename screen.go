@@ -13,7 +13,7 @@ import (
 // rule, the readout — the system on the left, the session on the right;
 // the start-up checks, one status column against the right edge; and
 // under a second rule the verdict, pulled tight — the count of faults as
-// a chip, or the word that all is well. On a terminal the bottom row
+// a chip, or what the checks came to. On a terminal the bottom row
 // waits on a key. Uppercase throughout, by design; a path keeps its own
 // case, since its case is part of it.
 
@@ -205,15 +205,15 @@ func body(r report, width int, own check, p palette) []row {
 	l = c.line()
 	l.title(0, "START-UP CHECKS")
 	c.emit(l, stageChecks, false)
-	faults := 0
+	var stood tally
 	for i, k := range append([]check{own}, r.checks...) {
 		l := c.line()
 		l.leader(strings.ToUpper(k.label), checkCol-1, p.gray)
 		l.add(p.ink, fit(cased(k.value, k.path), leaderEnd-checkCol-2, k.path))
 		l.add("", " ")
 		l.add(p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
+		stood.count(k)
 		if k.fault {
-			faults++
 			// A fault's chip is an annunciator too, and blinks with the
 			// verdict: what is wrong and how many are the same alarm.
 			if r.lit {
@@ -221,12 +221,13 @@ func body(r report, width int, own check, p palette) []row {
 				l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
 			}
 		} else {
-			// UNCHECKED is not a pass the way NOMINAL is — there was
-			// nothing to check against — so it is said in the color
-			// something waiting already is: not a fault, but worth a
-			// second look, which gray would let slide past.
+			// Neither UNCHECKED nor UNKNOWN is a pass the way NOMINAL is
+			// — one had nothing to check against, the other went
+			// unanswered — so both are said in the color something
+			// waiting already is: not a fault, but worth a second look,
+			// which gray would let slide past.
 			word := p.gray
-			if k.status == unchecked {
+			if k.status == unchecked || k.status == unknown {
 				word = p.waiting
 			}
 			l.to(measure - utf8.RuneCountInString(k.status))
@@ -235,8 +236,8 @@ func body(r report, width int, own check, p palette) []row {
 		c.emit(l, stageChecks+i, false)
 	}
 
-	// The verdict: a rule, then the count of faults as a chip, or the
-	// word that all is well. The chip is an annunciator and blinks, a
+	// The verdict: a rule, then the count of faults as a chip, or what
+	// the checks came to. The chip is an annunciator and blinks, a
 	// second lit against half of one dark, and the faults' own chips
 	// blink with it; on the dark half those cells are the ground, and
 	// nothing around them moves.
@@ -245,17 +246,56 @@ func body(r report, width int, own check, p palette) []row {
 	c.rule(last, measure)
 	l = c.line()
 	switch {
-	case faults == 0:
-		l.add(p.gray, "ALL SYSTEMS NOMINAL")
+	case stood.faults == 0:
+		l.add(p.gray, stood.verdict())
 	case !r.lit:
 		// dark this second
-	case faults > 1:
-		l.add(p.chip, " "+strconv.Itoa(faults)+" SYSTEMS NOT NOMINAL ")
+	case stood.faults > 1:
+		l.add(p.chip, " "+strconv.Itoa(stood.faults)+" SYSTEMS NOT NOMINAL ")
 	default:
 		l.add(p.chip, " 1 SYSTEM NOT NOMINAL ")
 	}
 	c.emit(l, last, true)
 	return c.rows
+}
+
+// A tally is what the start-up checks came to, by the word each stands
+// under.
+type tally struct{ faults, nominal, unchecked, unknown int }
+
+func (t *tally) count(k check) {
+	switch {
+	case k.fault:
+		t.faults++
+	case k.status == nominal:
+		t.nominal++
+	case k.status == unchecked:
+		t.unchecked++
+	case k.status == unknown:
+		t.unknown++
+	}
+}
+
+// verdict is what the checks came to when none of them failed. All
+// nominal is the one case worth a sentence, and it says every system,
+// which it has earned. Anything left unchecked or unanswered is
+// counted beside the ones that passed instead: a system conn had
+// nothing to check against is not a system conn found nominal, and a
+// line that called it one would be claiming a reading it never took.
+func (t tally) verdict() string {
+	if t.unchecked == 0 && t.unknown == 0 {
+		return "ALL SYSTEMS NOMINAL"
+	}
+	var said []string
+	for _, c := range []struct {
+		n    int
+		word string
+	}{{t.nominal, nominal}, {t.unchecked, unchecked}, {t.unknown, unknown}} {
+		if c.n > 0 {
+			said = append(said, strconv.Itoa(c.n)+" "+c.word)
+		}
+	}
+	return strings.Join(said, " · ")
 }
 
 // small is the console for a terminal the body will not fit: the mark

@@ -61,7 +61,17 @@ reading of the processes is ready rather than putting up an empty view
 and filling it: the console is a still page, and a moment more of it is
 not seen, where a view assembling itself would be.
 
-**2-2. WITHOUT TMUX.** Without tmux, conn shows the console and the
+**2-2. THE VERDICT.** A fault is the count of them, as a chip that
+blinks. With none, the verdict is what the checks came to: `ALL SYSTEMS
+NOMINAL` where every one of them was read and passed, and otherwise a
+count for each word they stand under, `9 NOMINAL · 1 UNCHECKED`. A check
+with nothing to check against is `UNCHECKED` and one the machine would
+not answer is `UNKNOWN`. Neither is a fault, and neither is a pass: conn
+took no reading there, and a line that said every system was nominal
+would be claiming one it never took. Both are said in the color
+something waiting is said in, so the row and the count agree.
+
+**2-3. WITHOUT TMUX.** Without tmux, conn shows the console and the
 processes view and reaches nothing. On macOS the processes view needs
 `lsof`, which is how a process's working directory is read there; Linux
 keeps it on /proc.

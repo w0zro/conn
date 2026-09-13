@@ -31,7 +31,8 @@ type machine struct {
 	swapEncrypt bool
 	booted      time.Time
 	load        [3]float64
-	processes   int // how many processes the machine holds, of any state
+	loadRead    bool // the load was read; it can honestly be zero
+	processes   int  // how many processes the machine holds, of any state
 	power       power
 	sip         string // enabled or disabled, where the system has it
 	page        int    // the kernel's page, in bytes

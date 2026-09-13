@@ -348,7 +348,11 @@ func memoryCheck(m machine) check {
 // loadCheck is the load average against the processors: HIGH when the
 // last minute's exceeds them.
 func loadCheck(m machine) check {
-	if m.load == [3]float64{} {
+	// Whether the machine answered, and not whether the answer was
+	// zero. A machine with nothing running on it has a load of exactly
+	// zero and has answered; reading that as a machine that would not
+	// answer called the quietest reading there is no reading at all.
+	if !m.loadRead {
 		return check{label: "LOAD", value: "UNREAD", status: unknown}
 	}
 	load := fmt.Sprintf("%.2f %.2f %.2f", m.load[0], m.load[1], m.load[2])

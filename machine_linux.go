@@ -28,6 +28,7 @@ func readMachine() machine {
 		for i := range m.load {
 			m.load[i] = float64(si.Loads[i]) / 65536
 		}
+		m.loadRead = true
 		m.processes = int(si.Procs)
 	}
 	readLinuxFiles("/", &m)

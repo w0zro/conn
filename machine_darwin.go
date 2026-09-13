@@ -64,7 +64,7 @@ func readMachine() machine {
 	}
 	if raw, err := unix.SysctlRaw("vm.loadavg"); err == nil {
 		if load, ok := parseLoadavg(raw); ok {
-			m.load = load
+			m.load, m.loadRead = load, true
 		}
 	}
 	if procs, err := unix.SysctlKinfoProcSlice("kern.proc.all"); err == nil {

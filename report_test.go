@@ -18,6 +18,7 @@ var (
 			swapTotal: 5 << 30, swapUsed: 3<<30 + 700<<20, swapEncrypt: true,
 			booted:    time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC),
 			load:      [3]float64{1.85, 2.07, 1.99},
+			loadRead:  true,
 			processes: 747,
 			power:     power{source: "battery", percent: 81, state: "discharging", remaining: "9:04"},
 			sip:       "enabled",
@@ -185,6 +186,16 @@ func TestChecksHoldTheirThresholds(t *testing.T) {
 	m.cpus = 0
 	if got := loadCheck(m); got.fault || got.status != unchecked {
 		t.Errorf("load with no core count: %+v", got)
+	}
+	// A machine with nothing running on it answered, and said zero.
+	m = testStation.machine
+	m.load = [3]float64{}
+	if got := loadCheck(m); got.fault || got.status != nominal || got.value != "0.00 0.00 0.00 · 11 CORES" {
+		t.Errorf("load of nothing at all: %+v", got)
+	}
+	m.loadRead = false
+	if got := loadCheck(m); got.status != unknown {
+		t.Errorf("load unread: %+v", got)
 	}
 
 	if got := networkCheck(network{}, true); !got.fault || got.status != "DOWN" {

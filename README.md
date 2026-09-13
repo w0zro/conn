@@ -351,17 +351,20 @@ view under it cannot be worked, and its word would be a lie. The position
 is dark when the keys are in the bay, and dark on the console, which
 covers the window and names itself.
 
-Each is a block of its color with the word knocked out of it, flush to
+Each is a block of the orange with the word knocked out of it, flush to
 the edge of the screen. A block is not read but seen, and one that starts
-where the screen starts is seen first. The chord takes the orange, which
-is "you, here" everywhere in conn; copy mode the blue, being a state of
-the pane rather than a thing you are doing; the question the color a
-thing waiting on you is said in, so the two halves of the line speak one
-language. The view takes the teal, the hue furthest from the orange
-attention is said in: where you are is not a thing to turn for, and a
-block sharing a hue with the chord and the question would claim it is.
-The teal is held down to the presence the chord's block has rather than
-the brightness its slot has, so it reads as a color and not as an alarm.
+where the screen starts is seen first. All four take the one color: all
+four say the same fact, that the keys are here and doing this, and the
+orange is what "you, here" is said in everywhere else in conn, the cursor
+and the kind of the row the bay holds alike. The word inside says which
+mode it is, and says it more plainly than a hue can.
+
+A color apiece was tried first: copy mode in the blue, being a state of
+the pane; the question in the color a thing waiting on you is said in;
+the view in a teal held down to the orange's own presence. It made four
+colors to learn and then read, in the one position on the screen whose
+whole job is to be seen rather than read. What the position has to carry
+is lit or dark. The word answers the rest.
 
 **6-3. THE RIGHT IS EMPTY.** It carried one lamp per row of the processes
 view, a strip of them in the corner of the eye, each in the color of how

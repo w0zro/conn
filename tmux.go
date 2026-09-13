@@ -647,15 +647,12 @@ set -g remain-on-exit on
 // other three words say. The position is dark when the keys are in the
 // bay, which is the reading that was wanted all along.
 //
-// Each is a block of color with the word knocked out of it, flush to
-// the edge: a block is not read but seen, and one that starts where the
-// screen starts is seen first. The chord takes the orange, which is
-// "you, here" everywhere in conn; copy mode the blue, being a state of
-// the pane rather than a thing you are doing; the question the waiting
-// color, which is what the right-hand side says a process waiting in,
-// so the two halves of the row speak one language. The view takes the
-// teal, the hue furthest from the orange attention is said in, since
-// where you are is not a thing to turn for.
+// Each is a block of the orange with the word knocked out of it, flush
+// to the edge: a block is not read but seen, and one that starts where
+// the screen starts is seen first. All four take the one color, since
+// all four say the same fact — the keys are here, doing this — and the
+// orange is what "you, here" is said in everywhere else in conn. The
+// word inside says which, and says it more plainly than a hue can.
 //
 // The right is empty. It carried one lamp per row of the processes
 // view, a strip of them in the corner of the eye after the Lisp
@@ -697,46 +694,35 @@ set -g window-status-current-format ""
 	// keys are on the panel to answer it.
 	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
 	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},}}}\"\n",
-		statusLineBlock("PREFIX", cursorHex), statusLineBlock("COPY", scheme[12]), onPanel)
+		statusLineBlock("PREFIX"), statusLineBlock("COPY"), onPanel)
 	b.WriteString("set -g status-right \"\"\n")
 	return b.String()
 }
 
 // statusLineBlock is a mode as the status line wears it: the ground
-// knocked out of a block of its color, flush to the edge, the word
+// knocked out of a block of the orange, flush to the edge, the word
 // keeping its own space inside. The ground and not a fixed white, so it
 // inverts with everything else — the orange on paper is a dark brick,
 // and black would go out on it.
 //
+// One color for every mode. The orange is "you, here" everywhere else
+// in conn — the cursor is drawn in it, and so is the kind of the row
+// the bay holds — and where the keys are is the same fact about the
+// same operator. A color apiece was tried: copy mode in the blue, the
+// question in the waiting color, the view in a teal. It made four
+// colors the eye had to learn and then read, in a position whose whole
+// job is to be seen rather than read, and the word in the block says
+// which mode it is more plainly than a hue ever did. What the position
+// has to carry is lit or dark, and the word answers the rest.
+//
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
 // would read the style as the branches of the question.
-func statusLineBlock(word, color string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", color, hex(groundColor), word)
-}
-
-// statusLineAsk is the question armed, as the status line wears it: a
-// block in the waiting color, the same one the lamps say a process
-// waiting in.
-func statusLineAsk(word string) string {
-	return statusLineBlock(word, scheme[1])
-}
-
-// statusLineView is the view the keys are in, as the status line wears
-// it: a block in the teal, which is the hue furthest from the orange
-// this line says attention in. Where you are is not a thing to turn
-// for, and a block that shares a hue with the chord and the question
-// would claim it is. The teal is held to the presence the other blocks
-// have rather than the brightness its slot has, so it reads as a color
-// and not as an alarm; see darkViewHex in mode.go.
-//
-// No word is no block: the console takes the window, and a view conn
-// has no word for says nothing rather than something made up.
-func statusLineView(word string) string {
+func statusLineBlock(word string) string {
 	if word == "" {
 		return ""
 	}
-	return statusLineBlock(word, viewHex)
+	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", cursorHex, hex(groundColor), word)
 }
 
 // statusLineSay is what conn says beside a block: on the status line's

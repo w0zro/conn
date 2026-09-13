@@ -46,10 +46,6 @@ const darkFaintHex = "#5C564A"
 
 var faintHex = darkFaintHex
 
-// viewHex is the teal the status line wears the view's word in; see
-// darkViewHex in mode.go. Dark until applyMode says otherwise.
-var viewHex = darkViewHex
-
 // Where Claude Code keeps what conn writes and what it reads back.
 const (
 	claudeDir      = ".claude"

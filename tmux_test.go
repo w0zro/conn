@@ -78,7 +78,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		// it. The attributes are parted by spaces rather than commas so
 		// the conditional around a mode is not cut in two.
 		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
-		"#[bg=" + scheme[12] + " fg=" + hex(groundColor) + " bold] COPY ",
+		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
@@ -201,10 +201,9 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 		"set -g status-right \"\"",
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0",
-		// Each mode a block of its color, the ground knocked out of it:
-		// the chord in the orange, copy mode in the blue.
+		// Every mode a block of the orange, the ground knocked out of it.
 		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
-		"#[bg=" + scheme[12] + " fg=" + hex(groundColor) + " bold] COPY ",
+		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
 	} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("the status line lacks %q:\n%s", want, conf)
@@ -235,15 +234,15 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
 	}}}
 
-	// Each panel view wears its own word, in the teal, and the console
-	// wears none: it covers the window and says which page it is itself.
+	// Each panel view wears its own word, and the console wears none: it
+	// covers the window and says which page it is itself.
 	for v, want := range map[int]string{
 		viewProcesses: "PROCS",
 		viewProjects:  "PROJECTS",
 		viewSessions:  "SESSIONS",
 	} {
 		m.view = v
-		if keys := m.keys(); keys != statusLineBlock(want, viewHex) {
+		if keys := m.keys(); keys != statusLineBlock(want) {
 			t.Errorf("the %s view lights %q, not %s", want, keys, want)
 		}
 	}
@@ -259,7 +258,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// The question itself stands beside the block, on the status line's
 	// own ground, with tmux's own character doubled so it is shown.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
-	if ask := m.keys(); !strings.HasPrefix(ask, statusLineAsk("CONFIRM")) || !strings.Contains(ask, "bg="+scheme[1]) ||
+	if ask := m.keys(); !strings.HasPrefix(ask, statusLineBlock("CONFIRM")) || !strings.Contains(ask, "bg="+cursorHex) ||
 		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+scheme[7]) ||
 		strings.Contains(ask, "PROCS") {
 		t.Errorf("a question armed lights %q", ask)

@@ -100,14 +100,13 @@ func TestApplyModeSwitchesTheGround(t *testing.T) {
 		t.Errorf("light scheme is not lightScheme: %v", scheme)
 	}
 	// Every diff wash and band moves with the ground too, not just the
-	// sixteen and the two grounds, and so does the teal the status line
-	// says the view in.
+	// sixteen and the two grounds, and so does the faint conn dims with.
 	if diffAddedBg != lightDiffAddedBg || diffRemovedBg != lightDiffRemovedBg ||
 		diffAddedDim != lightDiffAddedDim || diffRemovedDim != lightDiffRemovedDim ||
 		diffAddedWord != lightDiffAddedWord || diffRemovedWord != lightDiffRemovedWord ||
 		messageHoverBg != lightMessageHoverBg || toolBg != lightToolBg ||
-		faintHex != lightFaintHex || viewHex != lightViewHex {
-		t.Error("a wash, a band or the view's teal was left on the dark ground")
+		faintHex != lightFaintHex {
+		t.Error("a wash, a band or the faint was left on the dark ground")
 	}
 }
 
@@ -174,37 +173,16 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 				c.name, c.slot, c.scheme[c.slot], r, c.ground, readable)
 		}
 	}
-	// The status line's blocks knock the ground out of a color, so the
-	// word is only as readable as the block stands off the ground it is
-	// drawn against. Each is held to what reading a word takes.
+	// Every mode on the status line is a block of the orange with the
+	// ground knocked out of it, so the word is only as readable as the
+	// orange stands off the ground it is drawn against.
 	for _, c := range []struct{ name, hex, ground string }{
-		{"dark view teal", darkViewHex, hex(darkGround)},
-		{"light view teal", lightViewHex, hex(lightGround)},
-		{"dark chord orange", darkCursorHex, hex(darkGround)},
-		{"light chord orange", lightCursorHex, hex(lightGround)},
-		{"dark question", darkScheme[1], hex(darkGround)},
-		{"light question", lightScheme[1], hex(lightGround)},
-		{"dark copy blue", darkScheme[12], hex(darkGround)},
-		{"light copy blue", lightScheme[12], hex(lightGround)},
+		{"dark", darkCursorHex, hex(darkGround)},
+		{"light", lightCursorHex, hex(lightGround)},
 	} {
 		if r := contrast(c.hex, c.ground); r < readable {
 			t.Errorf("the %s block (%s) is %.2f:1 on %s; the word knocked out of it takes %.1f:1",
 				c.name, c.hex, r, c.ground, readable)
-		}
-	}
-	// The view is where you already are, not a thing to turn for, so its
-	// block stands off the ground no harder than the chord's does.
-	for _, c := range []struct {
-		name       string
-		view, loud string
-		ground     string
-	}{
-		{"dark", darkViewHex, darkScheme[12], hex(darkGround)},
-		{"light", lightViewHex, lightScheme[12], hex(lightGround)},
-	} {
-		if contrast(c.view, c.ground) >= contrast(c.loud, c.ground) {
-			t.Errorf("%s: the view's teal is %.2f:1 and copy mode's blue %.2f:1; the view is the quieter of the two",
-				c.name, contrast(c.view, c.ground), contrast(c.loud, c.ground))
 		}
 	}
 	// The gray a program dims with is meant to be quieter than text,

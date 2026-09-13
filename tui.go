@@ -448,9 +448,9 @@ var viewWords = map[int]string{
 // with the keys in it leaves the position dark.
 func (m model) keys() string {
 	if m.kill != nil {
-		return statusLineAsk("CONFIRM") + statusLineSay(m.kill.prompt)
+		return statusLineBlock("CONFIRM") + statusLineSay(m.kill.prompt)
 	}
-	return statusLineView(viewWords[m.view])
+	return statusLineBlock(viewWords[m.view])
 }
 
 // published tells the cursor where it is, when it has moved since the

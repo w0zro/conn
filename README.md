@@ -7,42 +7,43 @@ section, so that a decision can be found again.
 ## SECTION 1. GENERAL
 
 **1-1. PURPOSE.** conn is the station from which one operator directs the
-work of many hands on one machine. A hand is a process that works a place
-on the operator's behalf: a shell, an AI, a run. Hands work without
-direction, and stop to ask for it. The station shows what each hand is
-doing and which hand is waiting, so that the operator's attention, which
-is the one thing not in supply, goes where it is asked for.
+work of many processes on one machine. A process works a project on the
+operator's behalf: a shell, a contact, a run. Processes work without
+direction, and stop to ask for it. The station shows what each process is
+doing and which process is waiting, so that the operator's attention,
+which is the one thing not in supply, goes where it is asked for.
 
-**1-2. THE HANDS.** The kernel's word is process, and it is too small for
-the thing being run. The word here is hand, and where that could be read
-as the operator's own, station hand: the general worker on a station,
-who does what the place needs without being stood over. A hand is
-long-lived. It has a place it works, a
-tree of processes under it, and, if it is an AI, a conversation it is
-carrying and a state of mind that cannot be read off its processor time.
-Above all it can stop and wait on the operator. A compiler never waited
-on anyone. That one new fact is why the hands are the thing to watch, and
-why the question is no longer whether a thing is done but whether it
-needs you.
+**1-2. THE PROCESSES.** The kernel's word is process, and it is the word
+here. What has changed is not the word but the thing: one kind of process
+now has a mind at the other end. A contact is a process connected to a
+non-human intelligence, Claude Code in a terminal, and the station only
+ever sees the contact: the process, the tree under it, the transcript it
+writes. A process is long-lived. It has a project it works, a tree of
+processes under it, and, if it is a contact, a session it is carrying and
+a state of mind that cannot be read off its processor time. Above all it
+can stop and wait on the operator. A compiler never waited on anyone.
+That one new fact is why the processes are the thing to watch, and why
+the question is no longer whether a thing is done but whether it needs
+you.
 
 **1-3. FILES.** Tooling grew up around files and the things done to them,
 because the person did the work and a process was a brief event, run and
 watched to its end. The files are still where the work lands. They are
-now what the hands are working on, the way they used to be what the
+now what the processes are working on, the way they used to be what the
 operator was working on, and the operator goes to them to review what a
-hand did or to read before answering it. An editor is a place visited
-from the station, not the place the operator lives.
+process did or to read before answering it. An editor is somewhere
+visited from the station, not where the operator lives.
 
 **1-4. THE TWO QUESTIONS.** Everything on the screen answers one of two
 questions the operator keeps asking: what is going on, and who needs me.
-The watch answers the first. The waiting word, its blink, `tab`, and the
-bar's lamps answer the second. Every other rule in this document, the
-order that holds still, the words that are earned, the panel that stays
-dark, the one orange, exists so that those two answers can be taken in at
-a glance rather than read.
+The processes view answers the first. The waiting word, its blink, `tab`,
+and the lamps on the status line answer the second. Every other rule in
+this document, the order that holds still, the words that are earned, the
+status line that stays dark, the one orange, exists so that those two
+answers can be taken in at a glance rather than read.
 
 **1-5. THE NAME.** The conn is the Navy's word for control of a ship's
-movement. The officer who has it does not work the ship; the hands do.
+movement. The officer who has it does not work the ship; the crew does.
 The officer receives reports and gives orders. conn is named for that
 seat and not for the machine.
 
@@ -55,60 +56,63 @@ none of. A row that always says something is a row nobody reads.
 
 **2-1. THE CONSOLE.** conn comes up on the console. It reads out the
 machine, runs its start-up checks, and gives its verdict. Any key
-continues to the watch. The console holds until the first reading of the
-watch is in hand rather than putting up an empty watch and filling it:
-the console is a still page, and a moment more of it is not seen, where a
-watch assembling itself would be.
+continues to the processes view. The console holds until the first
+reading of the processes is ready rather than putting up an empty view
+and filling it: the console is a still page, and a moment more of it is
+not seen, where a view assembling itself would be.
 
-**2-2. WITHOUT TMUX.** Without tmux, conn shows the console and the watch
-and reaches nothing. On macOS the watch needs `lsof`, which is how a
-process's working directory is read there; Linux keeps it on /proc.
+**2-2. WITHOUT TMUX.** Without tmux, conn shows the console and the
+processes view and reaches nothing. On macOS the processes view needs
+`lsof`, which is how a process's working directory is read there; Linux
+keeps it on /proc.
 
-## SECTION 3. THE WATCH
+## SECTION 3. THE PROCESSES VIEW
 
-**3-1. WHAT IT SHOWS.** The watch is what is running, by place: the
-operator's processes with a terminal, each standing for its own work,
+**3-1. WHAT IT SHOWS.** The processes view is what is running, by project:
+the operator's processes with a terminal, each standing for its own work,
 grouped under the project it works in. A project is a git repository, or,
 under the roots where checkouts are kept, the folder that holds several,
 for work that is beside the checkouts rather than in one. Everything
 below a project is in it; conn's `docs` directory is conn's work, not a
-place of its own.
+project of its own.
 
-**3-2. TITLES.** A place is titled by what tells it apart from the others,
-which is what is left of its path once the root is taken off:
+**3-2. TITLES.** A project is titled by what tells it apart from the
+others, which is what is left of its path once the root is taken off:
 `~/projects/w0zro/conn` is `w0zro/conn`. The root is the same for every
-place and would otherwise be read again at the head of every block, on a
-rail forty-four columns wide. A place outside every root is written from
-`~` and whole. There is nothing shared to take off it, and where it is is
-the only thing its line has to say.
+project and would otherwise be read again at the head of every block, on
+a panel forty-four columns wide. A project outside every root is written
+from `~` and whole. There is nothing shared to take off it, and where it
+is is the only thing its line has to say.
 
-**3-3. THE TREE.** Under a place the hands read as the tree they are: a
-shell, the AI it runs indented under it, the shell that AI asked for
-under that, and its `go test` under that again. A whole tree belongs to
-one place, the directory its root stands in, whatever a process below it
-has since changed directory to. A shell is idle only bare, at its prompt.
-Running anything, however far down, it is active the way what it runs is.
+**3-3. THE TREE.** Under a project the processes read as the tree they
+are: a shell, the contact it runs indented under it, the shell that
+contact asked for under that, and its `go test` under that again. A whole
+tree belongs to one project, the directory its root stands in, whatever a
+process below it has since changed directory to. A shell is idle only
+bare, at its prompt. Running anything, however far down, it is active the
+way what it runs is.
 
 **3-4. ORDER.** Everything sits where it started and stays there for as
-long as it lives: a place by the work that first began there, a tree by
+long as it lives: a project by the work that first began there, a tree by
 its own root, a row among its siblings by itself, oldest first. What is
 new goes on the end, so nothing above it moves and a row read twice is in
 the same spot. Sorting by the newest work was tried and rejected. It is a
-true thing to say about a list and a hard one to read: an AI running a
-command a second re-sorted the whole watch under the eye trying to follow
-it.
+true thing to say about a list and a hard one to read: a contact running
+a command a second re-sorted the whole view under the eye trying to
+follow it.
 
 **3-5. WORKING AND ACTIVE.** A row reads `WORKING` when it was doing
 something between one reading and the next, and `ACTIVE` when it is only
 alive. A dev server waiting on a request and one answering it are not the
 same thing, and the column says which.
 
-An AI is asked rather than measured. It knows whether it is mid-turn,
-and the processor time it uses says little either way: a model answering
-spends barely any, waiting on the operator spends none, and an AI
-sitting on a test suite of its own spends none while the suite spends
-plenty. That last is work conn could not see any other way, so an AI
-with a command running under it is working, the same as one mid-turn.
+A contact is asked rather than measured. It knows whether it is mid-turn,
+and the processor time it uses says little either way: the intelligence
+answering spends barely any, waiting on the operator spends none, and a
+contact sitting on a test suite of its own spends none while the suite
+spends plenty. That last is work conn could not see any other way, so a
+contact with a command running under it is working, the same as one
+mid-turn.
 
 Everything else is read off the processor time it spent, against how long
 there was to spend it in. That span is one conn watched: the difference
@@ -121,165 +125,167 @@ claimed up the tree: a shell whose child is working is active, and the
 row doing the work is the one that says so.
 
 **3-6. WAITING.** `WAITING` is the other end of the same question, and the
-one word on the watch that asks something of the operator. It is an AI
-stopped on something it put to you and cannot go on without: a
-permission, a question, a dialog sitting there unanswered. It blinks,
-which is the one thing on a screen that reaches the corner of an eye.
-Reading down a list of rows that all say something, the row that wants
-you is the row that moves. On the dark half its cells are the ground and
-nothing around them moves, the way the console's verdict goes dark; a
-word that jumped its neighbours about would be worse than one that never
-blinked.
+one word in the processes view that asks something of the operator. It
+is a contact stopped on something it put to you and cannot go on
+without: a permission, a question, a dialog sitting there unanswered. It
+blinks, which is the one thing on a screen that reaches the corner of an
+eye. Reading down a list of rows that all say something, the row that
+wants you is the row that moves. On the dark half its cells are the
+ground and nothing around them moves, the way the console's verdict goes
+dark; a word that jumped its neighbours about would be worse than one
+that never blinked.
 
-Nothing else on the watch blinks. A fault wears a chip and keeps it, since
-a process you suspended yourself is not asking anything of you. An AI
-whose turn is simply over is `IDLE`, the same word a shell at its prompt
-gets and for the same reason: at rest, nothing pending, yours when you
-want it. The difference is whether anything is held up, and only the
-thing that is held up is worth a word that carries.
+Nothing else in the processes view blinks. A fault wears a chip and keeps
+it, since a process you suspended yourself is not asking anything of you.
+A contact whose turn is simply over is `IDLE`, the same word a shell at
+its prompt gets and for the same reason: at rest, nothing pending, yours
+when you want it. The difference is whether anything is held up, and only
+the thing that is held up is worth a word that carries.
 
-Nothing but an AI is ever called waiting. A server waiting on a socket
-is waiting on the socket, so the word is only ever about a person. It is
-no fault, so it takes a color of its own rather than a chip. Only an AI
-says any of this, being the only thing that knows its own mind. An AI
-conn cannot ask, another maker's, one too old to say, or one newer than
-conn and using a word conn has never heard, reads as alive like anything
-else. Guessing at the word is worse than having none: `IDLE` says at
-rest, nothing pending, yours when you want it, and none of that is known.
+Nothing but a contact is ever called waiting. A server waiting on a
+socket is waiting on the socket, so the word is only ever about a person.
+It is no fault, so it takes a color of its own rather than a chip. Only a
+contact says any of this, being the only thing that knows its own mind. A
+contact conn cannot ask, another maker's, one too old to say, or one
+newer than conn and using a word conn has never heard, reads as alive
+like anything else. Guessing at the word is worse than having none:
+`IDLE` says at rest, nothing pending, yours when you want it, and none of
+that is known.
 
-**3-7. TAB.** `tab` goes to what is waiting: the cursor to the AI that
-has been held up longest, its pane into the slot, and the keys into it,
-so one press has the operator answering. Each press after it goes to the
-next, and round again from the end. An AI says when its status became
-what it is, and Claude writes that on a change rather than on a clock, so
-the stamp is the moment the wait began and the order is how long each
-has actually waited. One that cannot say goes last. It is still waiting,
-which is what the word is for, but it cannot claim a turn ahead of one
-that can prove it waited longer. A waiting AI conn holds no pane for
-is gone to on the rail, and the keys stay where they are.
+**3-7. TAB.** `tab` goes to what is waiting: the cursor to the contact
+that has been held up longest, its pane into the bay, and the keys into
+it, so one press has the operator answering. Each press after it goes to
+the next, and round again from the end. A contact says when its status
+became what it is, and Claude writes that on a change rather than on a
+clock, so the stamp is the moment the wait began and the order is how
+long each has actually waited. One that cannot say goes last. It is still
+waiting, which is what the word is for, but it cannot claim a turn ahead
+of one that can prove it waited longer. A waiting contact conn holds no
+pane for is gone to on the panel, and the keys stay where they are.
 
 **3-8. HELD AND REPORTED.** A row is also written by what conn can do with
 it, and in two ways, since they are not the same kind of saying. What
 conn can only report, a terminal it did not open and cannot attach to, is
 dimmed, every column of it, the other columns being the quiet gray
 already. What conn holds a pane for is in the ink, a row `enter` can put
-in the slot. Outside its server conn holds nothing and dims nothing, the
+in the bay. Outside its server conn holds nothing and dims nothing, the
 distinction there being every row.
 
-**3-9. THE SLOT'S MARK.** The row in the slot gets a mark rather than a
+**3-9. THE BAY'S MARK.** The row in the bay gets a mark rather than a
 tier: the kind of the head of what is in it, in the orange, and nothing
 else of the row. One cell is all a mark needs, a row is a lot of orange,
-and the status column is not the orange's to take. `WAITING` is already a
-color near enough to it that the two together would say neither. The row
-under the cursor gives a rank of the dimming back rather than the
-reading, faint on the cursor's raised ground being barely there at all.
+and the status column is not for the orange to take. `WAITING` is
+already a color near enough to it that the two together would say
+neither. The row under the cursor gives a rank of the dimming back rather
+than the reading, faint on the cursor's raised ground being barely there
+at all.
 
 **3-10. REACHING A TREE.** A pane holds a whole tree, so `enter` on a row
 down inside one reaches the head, a pane being the only thing there is to
 attach to, and the cursor goes to the head with it. The row that asked is
 not the row that answered, and a cursor left where it was would pick out
-the one row in the pane that is not what is in the slot.
+the one row in the pane that is not what is in the bay.
 
-## SECTION 4. THE LOOK
+## SECTION 4. THE READOUT
 
-**4-1. OPENING AND CLOSING.** `i` opens the look in the slot and `i` again
-takes it away. It stands beside the watch rather than over it, so the row
-it is about stays on screen under the cursor. It then follows that
-cursor: `j` and `k` walk the list and the page walks with them, and `tab`
-carries it to whatever is waiting on you. One page serves the whole list,
-which is why `i` is pressed once and not once a row, and why the second
-press is free to mean close.
+**4-1. OPENING AND CLOSING.** `i` opens the readout in the bay and `i`
+again takes it away. It stands beside the processes view rather than over
+it, so the row it is about stays on screen under the cursor. It then
+follows that cursor: `j` and `k` walk the rows and the page walks with
+them, and `tab` carries it to whatever is waiting on you. One page serves
+the whole view, which is why `i` is pressed once and not once a row, and
+why the second press is free to mean close.
 
 Where the row is one conn holds, closing goes to it: the page is a
 reading of that row and the row is right there in a pane, so read about
 it and then be in it. What cannot be reached closes to the hold an empty
-slot has instead. Closing wants no row under the cursor at all. The page
+bay has instead. Closing wants no row under the cursor at all. The page
 is there whatever the cursor is on, and refusing to shut it because the
-watch had emptied would leave it stuck. The look is conn's own program in
-a pane of the server, `conn look`, the way the hold is, so the slot holds
-it like anything else and reaching a real process is rid of it. Focus
-stays on the rail: the page is a reading, not a place to be put, and
-every key that works the watch is over there.
+view had emptied would leave it stuck. The readout is conn's own program
+in a pane of the server, `conn readout`, the way the hold is, so the bay
+holds it like anything else and reaching a real process is rid of it.
+Focus stays on the panel: the page is a reading, not somewhere to be put,
+and every key that works the view is over there.
 
-**4-2. WHAT IT SAYS.** A row of the watch is six columns on a rail, and
-most of what conn reads of a process does not fit in that. It is dropped
-rather than shortened, which is right for the watch and leaves the
-dropped part said nowhere. The look is where it is said.
+**4-2. WHAT IT SAYS.** A row of the processes view is six columns on a
+panel, and most of what conn reads of a process does not fit in that. It
+is dropped rather than shortened, which is right for the view and leaves
+the dropped part said nowhere. The readout is where it is said.
 
 - The whole command, as it was written rather than in conn's upper case,
   since it is a thing somebody might retype.
-- The directory the process is in, when that is not the place its tree
+- The directory the process is in, when that is not the project its tree
   belongs to.
 - What the process table calls it, and whether its group holds the
   terminal.
 - How long it has been up and how much processor time it has actually
   spent, which is the measure behind `WORKING`.
 - What runs it, and what it runs.
-- Of an AI, which conversation it is carrying: the session, the
-  branch, the last thing it was asked. Stopped on you, what it is stopped
-  on: `input needed`, `dialog open`, a `sandbox request`, the one thing
-  the watch has no column wide enough for. That group is written first,
-  ahead of what the row even is, since the page is cut off at the pane's
-  height rather than scrolled and what must not be lost goes at the top.
-- Of the place, what git says of it: the branch, whether the tree is
+- Of a contact, which session it is carrying: its id, the branch, the
+  last thing it was asked. Stopped on you, what it is stopped on: `input
+  needed`, `dialog open`, a `sandbox request`, the one thing the view has
+  no column wide enough for. That group is written first, ahead of what
+  the row even is, since the page is cut off at the pane's height rather
+  than scrolled and what must not be lost goes at the top.
+- Of the project, what git says of it: the branch, whether the tree is
   clean, the last commit, how far it stands from what it tracks. A row
   stands for work, and the work is in a repository.
 
 Nothing is said twice and nothing is said of what there is none of. A
-shell has no conversation and gets no AI heading, a place that is no
+shell has no session and gets no CONTACT heading, a project that is no
 repository has no git to report, and a status with no moment behind it is
 not dated. The form is the console's own, a label, a dotted leader, a
 value, grouped under a title, because the console says what the machine
-is and the look says what one row of it is, and they are the same
+is and the readout says what one row of it is, and they are the same
 instrument speaking.
 
-**4-3. HOW IT READS.** The watch and the look are separate programs in
-separate panes, so the cursor travels between them as a few bytes in a
-file beside the socket, written when it moves and said again on every
-reading, so a file swept away comes back on the next beat. The page reads
-it twenty times a second, that poll being the whole of the wait between a
-key on the rail and the page changing, and reads the process table itself
-only when the subject actually changes or the beat comes round.
+**4-3. HOW IT READS.** The processes view and the readout are separate
+programs in separate panes, so the cursor travels between them as a few
+bytes in a file beside the socket, written when it moves and said again
+on every reading, so a file swept away comes back on the next beat. The
+page reads it twenty times a second, that poll being the whole of the
+wait between a key on the panel and the page changing, and reads the
+process table itself only when the subject actually changes or the beat
+comes round.
 
 It does not wait on that reading. The machine takes a tenth of a second
 to read, which is long enough to see, and the table read a moment ago
 holds every row of the machine rather than only the row it was read for.
 So the row the cursor landed on is answered out of that at once, as true
-as the rail's own list beside it, and the reading on its way says it
-again newer. What git said of a place and which conversation a row was
-carrying are kept along with it, since a list walked down and back up is
-the same few places over and over and git is a process each time; a page
-left open on one row asks git again only after half a minute, and reads
-what a waiting AI wants again only when its standing changes. A
-reading that lands after the cursor has moved on is dropped rather than
-shown, so the page never flicks back to a row nobody is looking at; the
-table it came with is kept, being a reading of the machine and not of the
-row. Off the watch nothing is published. Going to the list to open
-something does not unchoose the row you were reading, and the page goes
-on reading it. `conn look <pid>` by hand pins the page to one process
-instead.
+as the view beside it, and the reading on its way says it again newer.
+What git said of a project and which session a row was carrying are kept
+along with it, since a list walked down and back up is the same few
+projects over and over and git is a process each time; a page left open
+on one row asks git again only after half a minute, and reads what a
+waiting contact wants again only when its status changes. A reading that
+lands after the cursor has moved on is dropped rather than shown, so the
+page never flicks back to a row nobody is looking at; the table it came
+with is kept, being a reading of the machine and not of the row. Off the
+processes view nothing is published. Going to projects to open something
+does not unchoose the row you were reading, and the page goes on reading
+it. `conn readout <pid>`, typed, pins the page to one process instead.
 
-## SECTION 5. THE SERVER, THE SLOT AND THE KEYS
+## SECTION 5. THE SERVER, THE BAY AND THE KEYS
 
 **5-1. THE SERVER.** conn holds a tmux server of its own, on a socket
 under `~/.local/state/conn` (or where `CONN_SOCKET` says), and the
-terminal is on it while conn is up. Its home window is a rail on the
-left, which is the watch, and a slot on the right, which is the hand
-reached from it. The rail's width is conn's, not the terminal's: conn
-holds tmux to it and draws to it, so the first watch is painted in the
-shape the pane is about to be and the split that opens the slot has
-nothing to reflow. The server keeps everything in it for the next `conn`.
-When the hand in the slot ends, the slot takes the next hand conn holds,
-from the cursor down and round again from the top. Only with none to
-reach does the slot hold a placard, `VACANT`, and any key in it hands the
-keys back to the rail.
+terminal is on it while conn is up. Its home window is a panel on the
+left, which shows the processes view, and a bay on the right, which holds
+the process reached from it. conn sets the panel's width, not the
+terminal: conn holds tmux to it and draws to it, so the first view is
+painted in the shape the pane is about to be and the split that opens the
+bay has nothing to reflow. The server keeps everything in it for the next
+`conn`. When the process in the bay ends, the bay takes the next process
+conn holds, from the cursor down and round again from the top. Only with
+none to reach does the bay hold a placard, `VACANT`, and any key in it
+puts the keys back on the panel.
 
-**5-2. REACHING.** Coming back to the watch from the console, the rows of
-the last stay are still in hand, so it goes up at once with them. `s`
-opens a shell at the place under the cursor and puts it in the slot, `a`
-opens claude instead, and `enter` puts the hand under the cursor there.
-What leaves the slot goes back to a window of its own, out of sight,
-where it keeps running.
+**5-2. REACHING.** Coming back to the processes view from the console, the
+rows of the last stay are still held, so it goes up at once with them.
+`s` opens a shell at the project under the cursor and puts it in the bay,
+`a` opens claude instead, and `enter` puts the process under the cursor
+there. What leaves the bay goes back to a window of its own, out of
+sight, where it keeps running.
 
 **5-3. ENDING.** `x` asks to end the cursor's entry. It arms the question
 rather than the ending: the next key answers it, `x`, `y` or `enter`
@@ -291,112 +297,114 @@ shell at its prompt rather than taking it too.
 **5-4. THE CHORDS.** Five chords live under `ctrl-space`; `CONN_PREFIX`
 names another prefix, in tmux's spelling.
 
-- `ctrl-space -` puts focus on the watch from anywhere in the server.
-- `ctrl-space p` puts it on the list from anywhere too, out of whatever
-  you are working in and straight to the projects, without the watch in
-  between.
-- `ctrl-space ctrl-space` goes to the hand you were last in.
-- `ctrl-space tab` goes to the hand that has waited longest, from
-  anywhere, the way `tab` does on the watch.
-- `ctrl-space q` detaches, the same as `q` does from the watch itself,
-  without first coming back to it.
+- `ctrl-space -` puts focus on the processes view from anywhere in the
+  server.
+- `ctrl-space p` puts it on projects from anywhere too, out of whatever
+  you are working in and straight to the projects, without the processes
+  view in between.
+- `ctrl-space ctrl-space` goes to the process you were last in.
+- `ctrl-space tab` goes to the contact that has waited longest, from
+  anywhere, the way `tab` does in the processes view.
+- `ctrl-space q` detaches, the same as `q` does from the processes view
+  itself, without first coming back to it.
 
-The prefix twice over is the other hand. It puts back whatever was in the
-slot before the thing in it now, and takes the thing in it now as the one
-to come back to, so pressed twice it is where it started. It is the key
-for working two things at once: a shell and the AI you are asking
-about it, a build and the file it is failing on. conn's own furniture is
-never somewhere you were working. A hold standing in an empty slot and
-the look are not remembered, and going back never lands on one. `alt-o`
-does the same from the rail, the way `alt-p` opens the list, and is what
-the chord sends. tmux's own keys are otherwise unbound, so none of them
-are reachable through conn.
+The prefix twice over is the other process. It puts back whatever was in
+the bay before the thing in it now, and takes the thing in it now as the
+one to come back to, so pressed twice it is where it started. It is the
+key for working two things at once: a shell and the contact you are
+asking about it, a build and the file it is failing on. conn's own
+furniture is never somewhere you were working. A hold standing in an
+empty bay and the readout are not remembered, and going back never lands
+on one. `alt-o` does the same from the panel, the way `alt-p` opens
+projects, and is what the chord sends. tmux's own keys are otherwise
+unbound, so none of them are reachable through conn.
 
 **5-5. DOWN.** `conn down` takes the server down with everything in it,
 and says what went, a line for each window and one for the server, the
 way `docker compose down` does.
 
-## SECTION 6. THE BAR
+## SECTION 6. THE STATUS LINE
 
-**6-1. AN ANNUNCIATOR.** Across the foot of the window, under the rail and
-the slot alike, is the bar. It is tmux's status line, and it is an
-annunciator panel rather than a status line: dark at rest, lit by what
-would be worth turning for. It has two halves, each in a fixed place, so
-the eye learns where to glance and an empty place is itself a reading.
+**6-1. AN ANNUNCIATOR.** Across the foot of the window, under the panel
+and the bay alike, is the status line, tmux's own. It is an annunciator
+rather than a line of status: dark at rest, lit by what would be worth
+turning for. It has two halves, each at a fixed position, so the eye
+learns where to glance and an empty position is itself a reading.
 
 **6-2. THE KEYS.** On the left, the keys, and only what cannot be seen
-from the rail. A chord hanging is `PREFIX`, and it covers everything;
+from the panel. A chord hanging is `PREFIX`, and it covers everything;
 whatever you were doing, the next key is one of the four. A pane in copy
-mode is `COPY`, its keys being its history's. Both are the client's
-business and tmux's to know: a conn drawing in the rail knows nothing of
-the client, and no amount of drawing on the rail will tell you either. A
+mode is `COPY`, its keys being its history's. Both belong to the client,
+and only tmux knows them: a conn drawing in the panel knows nothing of
+the client, and no amount of drawing on the panel will tell you either. A
 kill armed is `CONFIRM`, which is not a state you are in but a question
 waiting on you, and takes the next key whatever it is. Nothing else
-lights the left. A word saying `WATCH` while you are looking at the watch
-is furniture.
+lights the left. A word saying `PROCESSES` while you are looking at the
+processes view is furniture.
 
 Each is a block of its color with the word knocked out of it, flush to
 the edge of the screen. A block is not read but seen, and one that starts
 where the screen starts is seen first. The chord takes the orange, which
 is "you, here" everywhere in conn; copy mode the blue, being a state of
 the pane rather than a thing you are doing; the question the color a
-thing waiting on you is said in, so the two halves of the row speak one
+thing waiting on you is said in, so the two halves of the line speak one
 language.
 
-**6-3. THE LAMPS.** On the right, the hands: one lamp for each row of the
-watch, in the watch's order, so a lamp's place on the row is a row's
-place on the list. A lamp is a rank of gray while its hand is working,
-the faintest ink while it is idle or merely active, keeping its place so
-the lamps beside it do not shift, and the waiting color, bold and blinking,
-while an AI is stopped on something it asked of you. The terminal does
-the blinking, so nothing here redraws on a beat; a terminal that will not
-blink shows it steady, which is the same lamp less insistent. Faults stay
-off the panel. A process you suspended yourself is not holding you up,
-and the watch has the chip.
+**6-3. THE LAMPS.** On the right, the processes: one lamp for each row of
+the view, in the view's order, so a lamp's position on the line is a
+row's position in the view. A lamp is a rank of gray while its process is
+working, the faintest ink while it is idle or merely active, keeping its
+position so the lamps beside it do not shift, and the waiting color, bold
+and blinking, while a contact is stopped on something it asked of you.
+The terminal does the blinking, so nothing here redraws on a beat; a
+terminal that will not blink shows it steady, which is the same lamp less
+insistent. Faults stay off the line. A process you suspended yourself is
+not holding you up, and the view has the chip.
 
-**6-4. WHY A PANEL.** The bar is the one instrument conn has that works on
-peripheral vision. The rail cannot catch your eye, because when you are
-working your eyes are in the slot and the watch is beside them unread. A
-dark row that lights is seen without being looked at, and only while it
-is dark the rest of the time.
+**6-4. WHY A LINE THAT LIGHTS.** The status line is the one instrument
+conn has that works on peripheral vision. The panel cannot catch your
+eye, because when you are working your eyes are in the bay and the view
+is beside them unread. A dark line that lights is seen without being
+looked at, and only while it is dark the rest of the time.
 
 **6-5. COST.** conn writes the two things only it knows, the question and
 the lamps, each in an option of its own and each only when it changes:
-the question on a keypress, the lamps when a reading finds a hand
-standing differently from the last. Never on a beat.
+the question on a keypress, the lamps when a reading finds a process with
+a status different from the last. Never on a beat.
 
-## SECTION 7. THE LIST AND THE PICKER
+## SECTION 7. PROJECTS AND SESSIONS
 
-**7-1. THE LIST.** `p` is the list: every project the roots hold, whether
-anything is running in it or not. conn walks `CONN_ROOTS`, or
+**7-1. PROJECTS.** `p` opens projects: every project the roots hold,
+whether anything is running in it or not. conn walks `CONN_ROOTS`, or
 `~/projects` when it says nothing, for repositories, and the shape of
 what it finds is the declaration. A folder holding two or more of them is
 the project they collectively make, and gets a row of its own with its
 repositories under it, by their own names; a folder of one stays flat.
 
-The list is a line typed into, so the letters the watch is worked by are
-characters there. What is typed narrows the rows, and a project answers
-by its own name and by the name of the folder that groups it. `enter`
-opens a shell at the row under the cursor and comes back to the watch,
-where the shell shows; on a group row that is a shell at the level the
-work is about, which is what the group row is for. `ctrl-a` opens claude
-there instead; plain `a` is a letter to type into the filter, so the list
-takes the chord `s` does not need. `esc` comes back without opening
-anything. `alt-p` opens the list from anywhere, from the list itself, the
-picker, the console, since `p` only means the list on the watch, where it
-is a key rather than a letter being typed or one of the any-keys that
-leave the console. It is what the prefix chord sends.
+The projects view is a line typed into, so the letters the processes view
+is worked by are characters there. What is typed narrows the rows, and a
+project answers by its own name and by the name of the folder that groups
+it. `enter` opens a shell at the row under the cursor and comes back to
+the processes view, where the shell shows; on a group row that is a shell
+at the level the work is about, which is what the group row is for.
+`ctrl-a` opens claude there instead; plain `a` is a letter to type into
+the filter, so the view takes the chord `s` does not need. `esc` comes
+back without opening anything. `alt-p` opens projects from anywhere, from
+the projects view itself, sessions, the console, since `p` only means
+projects in the processes view, where it is a key rather than a letter
+being typed or one of the any-keys that leave the console. It is what the
+prefix chord sends.
 
-**7-2. THE PICKER.** A conversation does not end when claude exits; the
-transcript it leaves is enough to pick it back up. `alt-a`, on the watch
-or the list, a group's own row and all, opens a picker over what is
-suspended at that place, beside `ctrl-a`'s own chord for a fresh
-conversation. Newest first, each answering by its branch, the last thing
-it was asked, or where it was had. It is a line typed into like the list.
-`enter` continues the one under the cursor in a shell running `claude
---resume`, and `esc` comes back without continuing anything. A
-conversation a live instance is already carrying is left off, checked
-against the process table rather than trusted on the file's word alone.
+**7-2. SESSIONS.** A session does not end when claude exits; the
+transcript it leaves is enough to resume it. `alt-a`, in the processes
+view or projects, a group's own row and all, opens sessions over what is
+suspended at that project, beside `ctrl-a`'s own chord for a fresh
+session. Newest first, each answering by its branch, the last thing it
+was asked, or where it was had. It is a line typed into like projects.
+`enter` resumes the one under the cursor in a shell running `claude
+--resume`, and `esc` comes back without resuming anything. A session a
+live contact is already carrying is left off, checked against the
+process table rather than trusted on the file's word alone.
 
 ## SECTION 8. COLORS
 
@@ -413,8 +421,8 @@ for. conn does not follow the system after.
 ground instead of asking the terminal, ahead of a command name if there
 is one (`conn --light theme claude`). Either says it whenever it is
 given: a server already up is put on the other ground where it stands, no
-`conn down` in between. Every pane takes the new sixteen, the rail and a
-hold in the slot come back drawn on the new ground, and a pane with work
+`conn down` in between. Every pane takes the new sixteen, the panel and a
+hold in the bay come back drawn on the new ground, and a pane with work
 in it keeps the colors it writes itself; what it asks for by name it gets
 from the new sixteen like everything else.
 
@@ -430,21 +438,21 @@ conn theme vim      # ~/.config/nvim/colors/conn.vim
 ```
 
 nvim takes its colorscheme with `colorscheme conn`. Every color in it
-carries the slot it is as well as its hex, so it holds up where sixteen
-is all a terminal was given, and a ground that is no slot takes the
-pane's own.
+carries which of the sixteen it is as well as its hex, so it holds up
+where sixteen is all a terminal was given, and a ground that is none of
+the sixteen takes the pane's own.
 
 `conn theme claude` writes its file, on `dark-ansi` or `light-ansi`
-according to the server's own ground. The theme names a slot wherever a
-token has a slot-shaped meaning, so most of it follows the pane's own
-sixteen; only the grounds no slot has a name for, the washes under a diff
-and the bar behind a message, are spelled out. Claude Code's syntax
-coloring is not a theme's to set. It is a fixed map onto those same
-sixteen, so code in a pane is conn's colors already. conn writes the file
-and says where. It offers to select the theme only when Claude Code is on
-one it came with, or on none; a custom theme is somebody's own doing, and
-conn says what it is and leaves it. Selecting it by hand is `/theme` in a
-session.
+according to the server's own ground. The theme names one of the sixteen
+wherever a token has that shape of meaning, so most of it follows the
+pane's own sixteen; only the grounds none of the sixteen has a name for,
+the washes under a diff and the band behind a message, are spelled out.
+Claude Code's syntax coloring is not for a theme to set. It is a fixed
+map onto those same sixteen, so code in a pane is conn's colors already.
+conn writes the file and says where. It offers to select the theme only
+when Claude Code is on one it came with, or on none; a custom theme is
+somebody's own doing, and conn says what it is and leaves it. Selecting
+it yourself is `/theme` in a session.
 
 **8-4. THE ENVIRONMENT.** The server says the terminal does truecolor
 twice over: `COLORTERM`, and `CLAUDE_CODE_TMUX_TRUECOLOR` for Claude

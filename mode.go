@@ -111,6 +111,19 @@ const lightGrayHex = "#6F6656"
 // the comment on darkFaintHex.
 const lightFaintHex = "#867C6A"
 
+// The teal the status line says which view has the keys in, on each
+// ground. The scheme's own cyan serves on light (slot 6, 5.17:1 against
+// lightGround), but its dark counterpart is a pale #7FC7BD at 9.55:1,
+// which as a block standing at the corner of the eye all day is louder
+// than the question and the chord it sits beside. The dark one is that
+// hue held down to the presence the gray it replaced had: just above
+// the gray (4.89:1) and level with the chord's orange (5.33:1), and
+// nowhere near copy mode's blue (9.53:1). A color, not an alarm.
+const (
+	darkViewHex  = "#49978D"
+	lightViewHex = "#0D6B70"
+)
+
 // The grounds no slot has a name for, light: the same washes and bars
 // theme.go names dark, in the light ground's own temperature. A wash
 // this pale needs more room from the ground than the same wash does on
@@ -142,6 +155,7 @@ func applyMode(dark bool) {
 		cursorHex, borderHex = darkCursorHex, darkBorderHex
 		grayHex = darkGrayHex
 		faintHex = darkFaintHex
+		viewHex = darkViewHex
 		diffAddedBg, diffRemovedBg = darkDiffAddedBg, darkDiffRemovedBg
 		diffAddedDim, diffRemovedDim = darkDiffAddedDim, darkDiffRemovedDim
 		diffAddedWord, diffRemovedWord = darkDiffAddedWord, darkDiffRemovedWord
@@ -154,6 +168,7 @@ func applyMode(dark bool) {
 	cursorHex, borderHex = lightCursorHex, lightBorderHex
 	grayHex = lightGrayHex
 	faintHex = lightFaintHex
+	viewHex = lightViewHex
 	diffAddedBg, diffRemovedBg = lightDiffAddedBg, lightDiffRemovedBg
 	diffAddedDim, diffRemovedDim = lightDiffAddedDim, lightDiffRemovedDim
 	diffAddedWord, diffRemovedWord = lightDiffAddedWord, lightDiffRemovedWord

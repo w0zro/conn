@@ -236,7 +236,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
 	}}}
 
-	// Each panel view wears its own word, in the gray, and the console
+	// Each panel view wears its own word, in the teal, and the console
 	// wears none: it covers the window and says which page it is itself.
 	for v, want := range map[int]string{
 		viewProcesses: "PROCS",
@@ -244,7 +244,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		viewSessions:  "SESSIONS",
 	} {
 		m.view = v
-		if keys := m.keys(); keys != statusLineBlock(want, grayHex) {
+		if keys := m.keys(); keys != statusLineBlock(want, viewHex) {
 			t.Errorf("the %s view lights %q, not %s", want, keys, want)
 		}
 	}
@@ -290,6 +290,15 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	}
 	if statusLineLamps(nil) != "" {
 		t.Errorf("a view with nothing on it lights %q", statusLineLamps(nil))
+	}
+
+	// The first writing goes out whatever the server holds: the options
+	// outlive the conn that set them, and a reground respawns the panel
+	// under a fresh one that has said nothing yet.
+	first := m
+	first.said, first.saidKeys, first.saidLamps = false, m.keys(), statusLineLamps(m.projects)
+	if _, cmd := first.saying(); cmd == nil {
+		t.Error("a conn that has said nothing yet left the status line as it found it")
 	}
 
 	// Written when it changes, and not again for the same reading.

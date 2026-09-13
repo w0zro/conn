@@ -654,8 +654,8 @@ set -g remain-on-exit on
 // the pane rather than a thing you are doing; the question the waiting
 // color, which is what the right-hand side says a process waiting in,
 // so the two halves of the row speak one language. The view takes the
-// gray, the quietest of the four, being where you already are rather
-// than something to turn for.
+// teal, the hue furthest from the orange attention is said in, since
+// where you are is not a thing to turn for.
 //
 // On the right, the processes: one lamp for each row of the processes
 // view, in the processes view's order, so a lamp's position on the line
@@ -731,12 +731,12 @@ func statusLineAsk(word string) string {
 }
 
 // statusLineView is the view the keys are in, as the status line wears
-// it: a block in the gray conn writes its second rank of text in. It is
-// the quietest of the four blocks against either ground, which is the
-// rank it wants — the other three are conditions worth turning for, and
-// this one is where you already are. A word with no block at all was
-// tried and reads as a caption rather than a position, and the position
-// is the whole point of the left of this line.
+// it: a block in the teal, which is the hue furthest from the orange
+// this line says attention in. Where you are is not a thing to turn
+// for, and a block that shares a hue with the chord and the question
+// would claim it is. The teal is held to the presence the other blocks
+// have rather than the brightness its slot has, so it reads as a color
+// and not as an alarm; see darkViewHex in mode.go.
 //
 // No word is no block: the console takes the window, and a view conn
 // has no word for says nothing rather than something made up.
@@ -744,7 +744,7 @@ func statusLineView(word string) string {
 	if word == "" {
 		return ""
 	}
-	return statusLineBlock(word, grayHex)
+	return statusLineBlock(word, viewHex)
 }
 
 // statusLineSay is what conn says beside a block: on the status line's

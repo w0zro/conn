@@ -156,6 +156,12 @@ type model struct {
 	entering bool // the console is waiting on a reading to go to the processes view
 	// The modes conn last put on the status line, so each is written when
 	// it changes and not on every pass through Update.
+	// Whether conn has written the status line once since it started.
+	// The options outlive the conn that set them — a reground respawns
+	// the panel, and the fresh conn inherits whatever the last one left
+	// — so an empty saidKeys means "not written yet", not "the server
+	// says nothing", and the first writing goes out whatever it holds.
+	said                bool
 	saidKeys, saidLamps string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
@@ -409,10 +415,10 @@ func (m model) saying() (model, tea.Cmd) {
 		return m, nil
 	}
 	keys, lamps := m.keys(), statusLineLamps(m.projects)
-	if keys == m.saidKeys && lamps == m.saidLamps {
+	if m.said && keys == m.saidKeys && lamps == m.saidLamps {
 		return m, nil
 	}
-	m.saidKeys, m.saidLamps = keys, lamps
+	m.said, m.saidKeys, m.saidLamps = true, keys, lamps
 	srv := m.srv
 	return m, func() tea.Msg { _ = srv.say(keys, lamps); return nil }
 }

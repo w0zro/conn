@@ -357,9 +357,11 @@ where the screen starts is seen first. The chord takes the orange, which
 is "you, here" everywhere in conn; copy mode the blue, being a state of
 the pane rather than a thing you are doing; the question the color a
 thing waiting on you is said in, so the two halves of the line speak one
-language. The view takes the gray conn writes its second rank of text in,
-the quietest of the four against either ground: the other three are
-conditions worth turning for, and this one is where you already are.
+language. The view takes the teal, the hue furthest from the orange
+attention is said in: where you are is not a thing to turn for, and a
+block sharing a hue with the chord and the question would claim it is.
+The teal is held down to the presence the chord's block has rather than
+the brightness its slot has, so it reads as a color and not as an alarm.
 
 **6-3. THE LAMPS.** On the right, the processes: one lamp for each row of
 the view, in the view's order, so a lamp's position on the line is a

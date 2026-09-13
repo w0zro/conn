@@ -111,7 +111,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	nowhere := m
 	nowhere.head.login.home, nowhere.told = "", -1
 	tellCursor(path, 55)
-	next, _ = nowhere.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
+	nowhere.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	if got := askCursor(path); got != 55 {
 		t.Errorf("a panel with no home published %d", got)
 	}

@@ -629,7 +629,8 @@ func tailLines(path string, max int64) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	// Read-only: there is nothing a failed close could tell anyone.
+	defer func() { _ = f.Close() }()
 
 	info, err := f.Stat()
 	if err != nil {

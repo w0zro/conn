@@ -159,11 +159,11 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	// again; a turn from an earlier run is dropped. The first key skips
 	// the console's stages to the end, the second leaves for the processes
 	// view, and the processes view is not up until its reading is.
-	next, ok = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	next, _ = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
-	next, ok = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	next, _ = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
-	next, ok = m.Update(processesMsg{gen: m.processesGen})
+	next, _ = m.Update(processesMsg{gen: m.processesGen})
 	if m = next.(model); m.view != viewProcesses || m.ticking {
 		t.Errorf("on a view with nothing waiting the blink still ticks: view %d", m.view)
 	}
@@ -200,8 +200,7 @@ func TestAHomeWithoutItsBayGetsOne(t *testing.T) {
 // process does.
 func TestABayWhosePaneDiedIsRevived(t *testing.T) {
 	m := model{p: plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &server{tmux: "/nonexistent/tmux"}}
-	next, cmd := m.Update(processesMsg{bay: "ttys009", bayDead: true})
-	m = next.(model)
+	_, cmd := m.Update(processesMsg{bay: "ttys009", bayDead: true})
 	if cmd == nil {
 		t.Fatal("no command for a bay whose pane died")
 	}
@@ -460,7 +459,7 @@ func TestAOpensAContactAtTheProject(t *testing.T) {
 	}
 
 	m.projects = nil
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
 	m = next.(model)
 	// Nothing is opened and nothing is waited for.
 	if m.awaited != 0 {
@@ -528,7 +527,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	// instead, since it is proven to ignore the gentler signals.
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 22, kind: kindShell, command: "zsh"}}}}
 	m.cursor, m.kill = 22, nil
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
 	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.kill.prompt, "KILL ZSH 22 ·") {
 		t.Errorf("arming a shell: kill %+v", m.kill)
@@ -552,14 +551,14 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 	m.cursor = 11
 
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	m = next.(model)
 	if m.kill != nil || m.cursor != 11 {
 		t.Errorf("cancelled: kill %v, cursor %d", m.kill, m.cursor)
 	}
 
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
 	if m.kill != nil || cmd == nil {
 		t.Fatalf("confirmed: kill %v, cmd %v", m.kill, cmd != nil)

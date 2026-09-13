@@ -293,7 +293,7 @@ func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 		`{"type":"user","message":{"content":"do the thing"}}`,
 		`{"type":"assistant","message":{"content":[{"type":"text","text":"Running it."},{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"rm -rf build","description":"Delete the build directory"}}]}}`,
 	}
-	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	write(t, path, strings.Join(lines, "\n")+"\n")
 	if a := readAsk(path); a.Tool != "Bash" || a.Detail != "Delete the build directory" || a.Said != "" {
 		t.Errorf("pending tool use: %+v", a)
 	}
@@ -303,7 +303,7 @@ func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 		`{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"tool_use","id":"t9","name":"Read","input":{"file_path":"/x"}}]}}`,
 		`{"type":"assistant","message":{"content":[{"type":"text","text":"Done.  Shall I\ncommit it?"}]}}`,
 	)
-	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	write(t, path, strings.Join(lines, "\n")+"\n")
 	if a := readAsk(path); a.Tool != "" || a.Said != "Done. Shall I commit it?" {
 		t.Errorf("turn ended on a question: %+v", a)
 	}
@@ -312,7 +312,7 @@ func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 	lines = append(lines,
 		`{"type":"assistant","message":{"content":[{"type":"text","text":"One thing to settle."}]}}`,
 		`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"AskUserQuestion","input":{"questions":[{"question":"Which one?","header":"Pick"}]}}]}}`)
-	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	write(t, path, strings.Join(lines, "\n")+"\n")
 	if a := readAsk(path); a.String() != "AskUserQuestion · Which one?" {
 		t.Errorf("a question tool: %+v", a)
 	}
@@ -322,7 +322,7 @@ func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"the first"}]}}`,
 		`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t3","name":"Read","input":{"file_path":"/a"}}]}}`,
 		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t3","content":"..."}]}}`)
-	os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	write(t, path, strings.Join(lines, "\n")+"\n")
 	if a := readAsk(path); a.Tool != "" || a.Said != "One thing to settle." {
 		t.Errorf("everything answered: %+v", a)
 	}
@@ -434,5 +434,13 @@ func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
 	activities(projects, was)
 	if got := projects[0].entries[0].doing; got != "held" {
 		t.Errorf("an unchanged transcript was read again: %q", got)
+	}
+}
+
+// write puts a fixture on disk, or says why the test cannot go on.
+func write(t *testing.T, path, text string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -250,7 +250,8 @@ func detectDark() bool {
 	if err != nil {
 		return true
 	}
-	defer term.Restore(fd, state)
+	// Nothing to be done if the terminal will not go back.
+	defer func() { _ = term.Restore(fd, state) }()
 
 	if _, err := os.Stdout.WriteString("\x1b]11;?\x1b\\"); err != nil {
 		return true

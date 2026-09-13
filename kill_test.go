@@ -42,7 +42,7 @@ func TestSignalEndsALiveProcess(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer cmd.Process.Kill()
+	defer func() { _ = cmd.Process.Kill() }()
 
 	if err := signal(cmd.Process.Pid, syscall.SIGTERM); err != nil {
 		t.Fatalf("signal: %v", err)

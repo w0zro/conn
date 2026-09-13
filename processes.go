@@ -68,18 +68,6 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 	return 0, 0, false
 }
 
-// rowOf is an entry by its pid, wherever it stands.
-func rowOf(projects []project, pid int) (entry, bool) {
-	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if e.pid == pid {
-				return e, true
-			}
-		}
-	}
-	return entry{}, false
-}
-
 // composeProcesses words the projects; panes says which terminals are
 // the server's, and bay which of them is on the right.
 //

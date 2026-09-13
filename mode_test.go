@@ -131,7 +131,9 @@ func TestTheLightSchemeIsSixteenToo(t *testing.T) {
 func contrast(a, b string) float64 {
 	lum := func(h string) float64 {
 		var r, g, bl int
-		fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &bl)
+		if _, err := fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &bl); err != nil {
+			return 0
+		}
 		part := func(v int) float64 {
 			c := float64(v) / 255
 			if c <= 0.03928 {

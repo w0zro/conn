@@ -110,6 +110,7 @@ type entry struct {
 	pid     int
 	kind    string
 	command string // what it was started as, the program by its base name
+	typed   string // the same less what conn itself added, which is what was typed
 	tty     string
 	started time.Time
 	status  string
@@ -328,7 +329,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		walked[pid] = true
 		p := byPid[pid]
 		kind := kindOf(p)
-		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth,
+		e := entry{pid: p.pid, kind: kind, command: commandLine(p), typed: typedLine(p), tty: p.tty, started: p.started, depth: depth,
 			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking}
 		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
 		if projects[path] == nil {
@@ -503,11 +504,59 @@ func statusOf(p process, kind string, hasChildren bool, how status) (string, boo
 // name and its arguments, or the program's name alone when the arguments
 // could not be read.
 func commandLine(p process) string {
+	return strings.Join(commandWords(p, false), " ")
+}
+
+// typedLine is the command as the operator typed it: the same words
+// less the argument conn adds when it starts a contact. A contact conn
+// raised read on the watch as claude --app…, which was conn showing the
+// operator the noise conn itself had made. The readout keeps the whole
+// line, being where the whole of anything goes.
+func typedLine(p process) string {
+	return strings.Join(commandWords(p, true), " ")
+}
+
+// ownFlag is the argument conn adds to a contact's command line, and
+// takes a value of its own.
+const ownFlag = "--append-system-prompt"
+
+func commandWords(p process, lessOwn bool) []string {
 	if len(p.args) == 0 {
-		return strings.TrimPrefix(filepath.Base(p.command), "-")
+		return []string{strings.TrimPrefix(filepath.Base(p.command), "-")}
 	}
-	parts := append([]string{strings.TrimPrefix(filepath.Base(p.args[0]), "-")}, p.args[1:]...)
-	return strings.Join(parts, " ")
+	words := []string{strings.TrimPrefix(filepath.Base(p.args[0]), "-")}
+	for i := 1; i < len(p.args); i++ {
+		a := p.args[i]
+		if lessOwn {
+			if a == ownFlag {
+				i++
+				continue
+			}
+			if strings.HasPrefix(a, ownFlag+"=") {
+				continue
+			}
+		}
+		words = append(words, a)
+	}
+	return words
+}
+
+// asTyped is the command as typed, or as written where nothing was
+// read of what was typed.
+func (e entry) asTyped() string {
+	if e.typed != "" {
+		return e.typed
+	}
+	return e.command
+}
+
+// program is a command line's first word: what a process is called by
+// where the whole line is too much, as on the kill's question.
+func program(command string) string {
+	if f := strings.Fields(command); len(f) > 0 {
+		return f[0]
+	}
+	return command
 }
 
 // A project is what the processes view sorts by: a git repository, or a

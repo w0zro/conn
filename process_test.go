@@ -833,3 +833,23 @@ func TestSinceSeenDatesARowByItsOwnEye(t *testing.T) {
 		t.Errorf("a pid come round again took the old process's date: %v", e[1].since)
 	}
 }
+
+// The row's command is what was typed: the argument conn adds when it
+// raises a contact is left off, in either spelling, and the readout's
+// line keeps it. The kill's question names the program alone.
+func TestTheRowSaysWhatWasTyped(t *testing.T) {
+	raised := process{command: "claude", args: []string{"claude", "--append-system-prompt", "You are running inside conn", "--resume", "abc"}}
+	if got := typedLine(raised); got != "claude --resume abc" {
+		t.Errorf("typedLine = %q", got)
+	}
+	if got := commandLine(raised); got != "claude --append-system-prompt You are running inside conn --resume abc" {
+		t.Errorf("commandLine = %q", got)
+	}
+	joined := process{command: "claude", args: []string{"claude", "--append-system-prompt=note"}}
+	if got := typedLine(joined); got != "claude" {
+		t.Errorf("typedLine with the value joined = %q", got)
+	}
+	if got := program("go test ./..."); got != "go" {
+		t.Errorf("program = %q", got)
+	}
+}

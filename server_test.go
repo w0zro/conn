@@ -393,7 +393,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// right below it, the tree's next row down.
 	s.keys("j")
 	s.keys("x")
-	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.statusLine(), "END SLEEP 100") })
+	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.statusLine(), "END SLEEP ") })
 	s.keys("x")
 
 	s.until("sleep to end and the shell to have the project to itself", func() bool {

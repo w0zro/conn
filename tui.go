@@ -734,7 +734,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		sig := killSignal(e.kind)
-		m.kill = &pendingKill{pid: e.pid, command: e.command, sig: sig, prompt: killPrompt(e.command, e.pid, sig)}
+		// The question names the program: a contact's whole command
+		// line is the note conn handed it, and a question that long is
+		// not read.
+		name := program(e.asTyped())
+		m.kill = &pendingKill{pid: e.pid, command: name, sig: sig, prompt: killPrompt(name, e.pid, sig)}
 	case k == "s":
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m, m.openShell(pl.path)

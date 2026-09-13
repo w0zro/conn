@@ -97,7 +97,7 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 		}
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, processRow{
-				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, since: sinceWord(e.since, now),
+				pid: e.pid, kind: e.kind, command: e.asTyped(), tty: e.tty, since: sinceWord(e.since, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
 			})

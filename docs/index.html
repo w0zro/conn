@@ -45,8 +45,8 @@
     <p class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01</p>
     <h1>CONN</h1>
     <div class="banner">OPERATING MANUAL</div>
-    <p class="tagline">A station for directing many processes on one machine.</p>
-    <p class="sub">The station shows what each process is doing and which one is waiting, and puts the operator in front of it.</p>
+    <p class="tagline"></p>
+    <p class="sub"></p>
     <div class="declassified">DECLASSIFIED<br><small>AUTH. <span>CHANGE v0.0.0</span></small></div>
   </div>
   <div class="install">
@@ -115,280 +115,23 @@
         <p class="label">CONTENTS</p>
         <ol>
           <li><a href="#general"><span class="n">1</span><span>General</span><span class="dots"></span><span>1-1</span></a></li>
-          <li><a href="#station"><span class="n">2</span><span>The Station</span><span class="dots"></span><span>2-1</span></a></li>
-          <li><a href="#processes"><span class="n">3</span><span>Process Procedures</span><span class="dots"></span><span>3-1</span></a></li>
         </ol>
       </div>
       <div>
         <ol>
-          <li><a href="#contact"><span class="n">4</span><span>Contact Procedures</span><span class="dots"></span><span>4-1</span></a></li>
-          <li><a href="#emergency"><span class="n">5</span><span>Emergency Procedures</span><span class="dots"></span><span>5-1</span></a></li>
         </ol>
       </div>
     </div>
     <div class="body">
       <div class="section" id="general">
         <p class="kicker">SECTION 1</p>
-        <h2>General</h2>
-        <p class="para"><span class="n">1-1.</span><b>PURPOSE.</b> This manual describes conn and its operation.</p>
-        <p class="para"><span class="n">1-2.</span><b>SCOPE.</b> The station serves one operator directing many processes on one machine. It shows the processes running in each project, what each is doing, and which one is waiting for the operator, and it puts the operator in front of any of them. It does not edit files, run builds, or hold sessions. The processes do.</p>
-        <p class="para"><span class="n">1-3.</span><b>DEFINITIONS.</b> Terms used in this manual.</p>
-        <div class="table narrow">
-          <div class="row"><span>Operator</span><span>The person using conn.</span></div>
-          <div class="row"><span>Process</span><span>A shell, a contact, or a command a shell is running. The unit the station lists and reaches.</span></div>
-          <div class="row"><span>Contact</span><span>A process connected to a non-human intelligence: Claude Code running in a terminal. It works a project and can stop to wait for the operator.</span></div>
-          <div class="row"><span>Intelligence</span><span>The non-human intelligence at the other end of a contact. The station sees the contact and not the intelligence.</span></div>
-          <div class="row"><span>Session</span><span>The conversation a contact carries, from raising it to ending it. Its record is the transcript. A session outlives its contact and can be resumed.</span></div>
-          <div class="row"><span>Project</span><span>The directory a process runs in: a git repository, or a folder that holds several repositories.</span></div>
-          <div class="row"><span>Status</span><span>The state the station reports for a process: WORKING, ACTIVE, IDLE, or WAITING.</span></div>
-          <div class="row"><span>Waiting</span><span>The status of a contact that has stopped and needs an answer from the operator, such as a permission or a question.</span></div>
-          <div class="row"><span>Console</span><span>The page conn comes up on. It reads out the machine and gives a verdict.</span></div>
-          <div class="row"><span>Panel</span><span>The left pane of the window, forty-four columns wide. It shows one of the three views and usually holds the keys.</span></div>
-          <div class="row"><span>Processes</span><span>The view listing every process at each project, in the order they started.</span></div>
-          <div class="row"><span>Projects</span><span>The view listing every project under the roots, running or not.</span></div>
-          <div class="row"><span>Sessions</span><span>The view listing the sessions at a project that can be resumed.</span></div>
-          <div class="row"><span>Bay</span><span>The right pane of the window. It holds one process.</span></div>
-          <div class="row"><span>Readout</span><span>A page of labeled values on one process, shown in the bay.</span></div>
-          <div class="row"><span>Status line</span><span>The line at the bottom of the window. It shows where the keys are, on the left.</span></div>
-        </div>
-        <p class="para"><span class="n">1-4.</span><b>INDICATIONS.</b> The station indicates two things: what each process is doing, and which process is waiting. The processes view shows both: the status column shows the first, and the word WAITING, blinking, shows the second. <code>tab</code> goes to what is waiting from anywhere in the server (4-3).</p>
-        <p class="para"><span class="n">1-5.</span><b>COMMANDS.</b> The command alone brings up the console and continues to processes. Other commands are given by name after it. <code>--light</code> and <code>--dark</code> set the ground, ahead of a command if one is given.</p>
-        <p class="caption">SYNOPSIS</p>
-        <div class="table synopsis">
-          <div class="row head"><span>COMMAND</span><span>DOES</span></div>
-          <div class="row"><span>conn</span><span>Brings up the console, then processes.</span></div>
-          <div class="row"><span>conn down</span><span>Takes the server down with everything in it, and reports what went.</span></div>
-          <div class="row"><span>conn theme claude</span><span>Writes conn's theme for Claude Code.</span></div>
-          <div class="row"><span>conn theme vim</span><span>Writes conn's colorscheme for nvim.</span></div>
-          <div class="row"><span>conn --light</span><span>Sets the ground light.</span></div>
-          <div class="row"><span>conn --dark</span><span>Sets the ground dark.</span></div>
-          <div class="row"><span>conn --help</span><span>Prints this table.</span></div>
-          <div class="row"><span>conn --version</span><span>Prints the build.</span></div>
-        </div>
+        <h2></h2>
+        <p class="para"><span class="n">1-1.</span></p>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
       <div class="folio"><span>TM-CONN-01</span><b>1-1</b><span>CHANGE v0.0.0</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 2-1 -->
-<section class="page" id="station" aria-label="Page 2-1">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-1</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
-        <p class="kicker">SECTION 2</p>
-        <h2>The Station</h2>
-        <p class="para"><span class="n">2-1.</span><b>ARRANGEMENT.</b> The station is one window of a tmux server that conn holds. The panel is on the left and the bay on the right. The status line runs under both. Figure 2-1 shows the arrangement.</p>
-        <div class="figure wide"><pre><span class="c">┌──────────────────────────────────┬─────────────────────────┐</span>
-<span class="c">│</span> <span class="k">PANEL</span>                            <span class="c">│</span> <span class="k">BAY</span>                     <span class="c">│</span>
-<span class="c">│</span>                                  <span class="c">│</span>                         <span class="c">│</span>
-<span class="c">│</span> KIND    ACTIVITY  SINCE    STATUS<span class="c">│</span> The process reached     <span class="c">│</span>
-<span class="c">│</span>                                  <span class="c">│</span> from the panel: a       <span class="c">│</span>
-<span class="c">│</span> w0zro/conn                       <span class="c">│</span> shell, a contact, a     <span class="c">│</span>
-<span class="c">│</span> SHELL   zsh                  IDLE<span class="c">│</span> run, or the readout.    <span class="c">│</span>
-<span class="c">│</span>▸CONTACT go test      1H   WORKING<span class="c">│</span> The keys are here       <span class="c">│</span>
-<span class="c">│</span>                                  <span class="c">│</span> while a process is.     <span class="c">│</span>
-<span class="c">│</span>                                  <span class="c">│</span>                         <span class="c">│</span>
-<span class="c">├──────────────────────────────────┴─────────────────────────┤</span>
-<span class="c">│</span> <span class="k">STATUS LINE</span>  PROCS                                         <span class="c">│</span>
-<span class="c">└────────────────────────────────────────────────────────────┘</span></pre></div>
-        <p class="caption">FIGURE 2-1. STATION ARRANGEMENT</p>
-        <p class="para"><span class="n">2-2.</span><b>THE SERVER.</b> The station holds a tmux server of its own. Its socket is under <code>~/.local/state/conn</code>, or where <code>CONN_SOCKET</code> says. The first <code>conn</code> brings the server up and puts the terminal on it. A later <code>conn</code> attaches to what is there. Everything in the server stays until the server is taken down (5-2). A process that leaves the bay goes to a window of its own, out of sight, and keeps running.</p>
-        <p class="para"><span class="n">2-3.</span><b>COMING UP.</b> To bring up the station:</p>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>Type <code>conn</code>.</span></div>
-          <div class="row"><span>2.</span><span>The console comes up. It reads out the machine, runs the start-up checks, and gives its verdict: the count of systems that are not nominal, if any; ALL SYSTEMS NOMINAL if every check was read and passed; otherwise the count of each word the checks stand under.</span></div>
-          <div class="row"><span>3.</span><span>Press any key. The processes view comes up on the panel and the bay opens beside it.</span></div>
-        </div>
-        <p class="para"><span class="n">2-4.</span><b>THE CONSOLE.</b> <code>c</code> in the processes view brings the console back over the whole window. Any key returns to processes.</p>
-        <p class="para"><span class="n">2-5.</span><b>THE PREFIX.</b> Chords are given under <code>ctrl-space</code>. <code>CONN_PREFIX</code> names another prefix, in the spelling tmux uses. While a chord is open, PREFIX is lit on the status line. No other tmux key is bound.</p>
-        <div class="table keys chords">
-          <div class="row head"><span>CHORD</span><span>DOES</span></div>
-          <div class="row"><span>ctrl-space -</span><span>Puts the keys on the panel, from anywhere in the server.</span></div>
-          <div class="row"><span>ctrl-space p</span><span>Opens projects, from anywhere in the server (3-7).</span></div>
-          <div class="row"><span>ctrl-space tab</span><span>Goes to the contact that has waited longest (4-3).</span></div>
-          <div class="row"><span>ctrl-space ctrl-space</span><span>Goes to the process that was last in the bay (4-4).</span></div>
-          <div class="row"><span>ctrl-space q</span><span>Detaches (2-6).</span></div>
-        </div>
-        <p class="para"><span class="n">2-6.</span><b>STANDING DOWN.</b> <code>q</code> on the panel detaches the terminal from the server. <code>ctrl-space q</code> does the same from anywhere in it. The server and every process in it keep running, and the next <code>conn</code> attaches to them. Ending the server is procedure 5-2.</p>
-        <p class="para"><span class="n">2-7.</span><b>WITHOUT TMUX.</b> Without tmux on the path, the station shows the console and the processes view and reaches nothing. On macOS the processes view needs <code>lsof</code> to read the working directory of a process.</p>
-        <p class="para"><span class="n">2-8.</span><b>THE GROUND.</b> The server comes up on a dark or a light ground. The first time it rises it asks the terminal for its background and keeps the answer for the life of the server. <code>conn --light</code> and <code>conn --dark</code> set the ground instead, for a server coming up or one already up. Every pane takes the new ground.</p>
-        <p class="para"><span class="n">2-9.</span><b>THEMES.</b> A program that draws its own colors takes none of the server's. <code>conn theme claude</code> writes a theme for Claude Code and offers to select it. <code>conn theme vim</code> writes a colorscheme for nvim, taken with <code>colorscheme conn</code>. Each is drawn on the ground the server is on.</p>
-        <p class="para"><span class="n">2-10.</span><b>ENVIRONMENT.</b> The station reads three variables.</p>
-        <div class="table narrow">
-          <div class="row head"><span>VARIABLE</span><span>SAYS</span></div>
-          <div class="row"><span>CONN_ROOTS</span><span>The roots the projects view walks for repositories, as a path list. <code>~/projects</code> when unset.</span></div>
-          <div class="row"><span>CONN_SOCKET</span><span>Where the server's socket is.</span></div>
-          <div class="row"><span>CONN_PREFIX</span><span>The prefix for chords, in the spelling tmux uses. <code>C-Space</code> when unset.</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>2-1</b><span>CHANGE v0.0.0</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 3-1 -->
-<section class="page" id="processes" aria-label="Page 3-1">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-1</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
-        <p class="kicker">SECTION 3</p>
-        <h2>Process Procedures</h2>
-        <p class="para"><span class="n">3-1.</span><b>PROCESSES.</b> The processes view lists every process at each project. A project is titled by its path below the root; a project outside every root is written from <code>~</code>. Under a project the processes are shown as a tree: a shell, and what it runs indented under it. Each row shows the kind, the activity, the time it has stood in its status, and the status itself. The activity is the command as it was typed, less anything conn added to it; for a contact that is WORKING it is the tool the contact has in flight. A row conn has no moment for says nothing in the SINCE column. On the console, which is wider, the terminal is shown too. A row keeps its position for as long as its process lives, oldest first, and a new row goes on the end. With nothing running the view says NO PROCESSES.</p>
-        <p class="para"><span class="n">3-2.</span><b>STATUS.</b> The last column of a row is its status.</p>
-        <div class="table narrow">
-          <div class="row head"><span>STATUS</span><span>MEANS</span></div>
-          <div class="row"><span>WORKING</span><span>Did something between one reading and the next. A contact is WORKING when it is mid-turn, or when a command is running under it.</span></div>
-          <div class="row"><span>ACTIVE</span><span>Alive and doing nothing.</span></div>
-          <div class="row"><span>IDLE</span><span>A shell at its prompt, or a contact whose turn is over. Nothing is pending.</span></div>
-          <div class="row"><span>WAITING</span><span>A contact stopped on something it needs from the operator. The word blinks.</span></div>
-          <div class="row"><span>STOPPED</span><span>Suspended. Shown as a chip.</span></div>
-          <div class="row"><span>ENDED</span><span>Finished and not yet collected. Shown as a chip.</span></div>
-        </div>
-        <p class="para"><span class="n">3-3.</span><b>WHO IS WAITING.</b> Only a contact that reports its own status is ever WAITING. Claude Code reports it, and reports when its status changed. A contact the station cannot ask reads as WORKING or ACTIVE from the processor time it spends.</p>
-        <p class="para"><span class="n">3-4.</span><b>KEYS.</b> The cursor is on one row. It follows its process from one reading to the next.</p>
-        <div class="table keys">
-          <div class="row head"><span>KEY</span><span>DOES</span></div>
-          <div class="row"><span>j, k</span><span>Move the cursor. The arrows do the same.</span></div>
-          <div class="row"><span>enter</span><span>Puts the process under the cursor in the bay, with the keys in it.</span></div>
-          <div class="row"><span>tab</span><span>Goes to the contact that has waited longest (4-3).</span></div>
-          <div class="row"><span>s</span><span>Opens a shell at the project under the cursor.</span></div>
-          <div class="row"><span>a</span><span>Raises a contact at the project under the cursor (4-2).</span></div>
-          <div class="row"><span>alt-a</span><span>Opens sessions for the project under the cursor (4-5).</span></div>
-          <div class="row"><span>i</span><span>Opens the readout on the row under the cursor. Pressed again, closes it (3-6).</span></div>
-          <div class="row"><span>x</span><span>Asks to end the process under the cursor (4-6).</span></div>
-          <div class="row"><span>p</span><span>Opens projects (3-7).</span></div>
-          <div class="row"><span>c</span><span>Brings the console back over the window (2-4).</span></div>
-          <div class="row"><span>q</span><span>Detaches (2-6).</span></div>
-        </div>
-        <p class="para"><span class="n">3-5.</span><b>HELD AND REPORTED.</b> A row the station holds a pane for is in the ink, and <code>enter</code> reaches it. A row the station can only report, a terminal it did not open, is dimmed. The cursor lands on it; no other key acts on it. The row in the bay carries its kind in orange. Outside the server every row is reported.</p>
-        <p class="para"><span class="n">3-6.</span><b>THE READOUT.</b> The readout is a page of labeled values on one process, shown in the bay. It carries what the row has no room for: the whole command, the directory, the time up and the processor time spent, what runs it and what it runs; of a contact, the session it carries and what it is stopped on; of the project, what git reports. To read a row:</p>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>Put the cursor on the row.</span></div>
-          <div class="row"><span>2.</span><span>Press <code>i</code>. The readout opens in the bay. The keys stay on the panel.</span></div>
-          <div class="row"><span>3.</span><span><code>j</code> and <code>k</code> move the readout with the cursor. <code>tab</code> carries it to the contact that is waiting.</span></div>
-          <div class="row"><span>4.</span><span>Press <code>i</code> again. The readout closes. Where the row is one the station holds, its process takes the bay.</span></div>
-        </div>
-        <div class="note"><p class="label">NOTE</p><p><code>conn readout 1234</code>, from a shell in the server, pins the readout to one process instead of the cursor.</p></div>
-        <p class="para"><span class="n">3-7.</span><b>PROJECTS.</b> The projects view lists every project under the roots, whether anything is running in it or not. A folder that holds several repositories is a row with them under it. To open a process at a project:</p>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>Press <code>p</code> in the processes view, <code>alt-p</code> from any view, or <code>ctrl-space p</code> from anywhere in the server.</span></div>
-          <div class="row"><span>2.</span><span>Type to narrow the rows. <code>backspace</code> and <code>ctrl-u</code> edit the line. The arrows, or <code>ctrl-p</code> and <code>ctrl-n</code>, move the cursor.</span></div>
-          <div class="row"><span>3.</span><span>Press <code>enter</code>. A shell opens at the project, and processes returns with it in the bay. <code>ctrl-a</code> raises a contact there instead (4-2). <code>alt-a</code> opens sessions (4-5).</span></div>
-          <div class="row"><span>4.</span><span><code>esc</code> returns to processes with nothing opened.</span></div>
-        </div>
-        <p class="para"><span class="n">3-8.</span><b>THE STATUS LINE.</b> The status line is dark at rest. The left says where the keys are, as a block of the orange with the word knocked out of it. Every indication below wears the same block; the word says which. It is dark while the keys are in the bay, and dark on the console. The right is empty.</p>
-        <div class="table narrow">
-          <div class="row head"><span>INDICATION</span><span>MEANS</span></div>
-          <div class="row"><span>PREFIX</span><span>A chord is open. The next key is one of 2-5.</span></div>
-          <div class="row"><span>COPY</span><span>The pane with the keys is in copy mode.</span></div>
-          <div class="row"><span>CONFIRM</span><span>A kill is armed. The question stands beside it (4-6). It covers the word for the view.</span></div>
-          <div class="row"><span>PROCS</span><span>The keys are on the panel, in the processes view.</span></div>
-          <div class="row"><span>PROJECTS</span><span>The keys are on the panel, in projects (3-7).</span></div>
-          <div class="row"><span>SESSIONS</span><span>The keys are on the panel, in sessions (4-5).</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>3-1</b><span>CHANGE v0.0.0</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 4-1 -->
-<section class="page" id="contact" aria-label="Page 4-1">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
-        <p class="kicker">SECTION 4</p>
-        <h2>Contact Procedures</h2>
-        <p class="para"><span class="n">4-1.</span><b>CONTACT.</b> A contact is a process connected to a non-human intelligence. The station raises Claude Code, and the procedures of this section are written for it. The station sees the contact and not the intelligence: what it lists, reaches, and ends is the process. A contact the station did not raise is a process like any other: it is reached, put in the bay, and ended the same way. The station cannot ask it its status, so it is never WAITING.</p>
-        <p class="para"><span class="n">4-2.</span><b>RAISING A CONTACT.</b> To raise a contact at a project:</p>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>In the processes view, put the cursor on any row of the project. Or open projects (3-7) and put the cursor on the project.</span></div>
-          <div class="row"><span>2.</span><span>Press <code>a</code>. In projects, press <code>ctrl-a</code>.</span></div>
-          <div class="row"><span>3.</span><span>A shell opens at the project running <code>claude</code>, takes the bay, and has the keys. Its row is in the processes view under the project, kind CONTACT.</span></div>
-          <div class="row"><span>4.</span><span>The station tells the contact where it is: that it runs in a pane of the station, and how to start anything long-lived in a window of its own. A process started that way has a row and can be reached.</span></div>
-        </div>
-        <div class="note"><p class="label">NOTE</p><p>What the station tells the contact travels with conn. Nothing is written into the settings of Claude Code.</p></div>
-        <p class="para"><span class="n">4-3.</span><b>ANSWERING A CONTACT.</b> When a contact stops on something it needs from the operator, its row reads WAITING and the word blinks. To answer it:</p>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>Press <code>tab</code> in the processes view, or <code>ctrl-space tab</code> from anywhere in the server.</span></div>
-          <div class="row"><span>2.</span><span>The cursor goes to the contact that has waited longest. Its pane takes the bay and the keys land in it.</span></div>
-          <div class="row"><span>3.</span><span>Answer it.</span></div>
-          <div class="row"><span>4.</span><span>Press <code>tab</code> again for the next, longest first, and round again from the end.</span></div>
-        </div>
-        <p class="para"><span class="n">4-4.</span><b>WORKING TWO PROCESSES.</b> <code>ctrl-space ctrl-space</code> goes to the process that was last in the bay, and pressed again comes back. A vacant bay and the readout are not remembered. <code>alt-o</code> does the same from the panel.</p>
-        <p class="para"><span class="n">4-5.</span><b>RESUMING A SESSION.</b> A session outlives its contact. Its transcript is kept, and a new contact can resume it. To resume one:</p>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>In the processes view, put the cursor on any row of the project. Or open projects and put the cursor on the project.</span></div>
-          <div class="row"><span>2.</span><span>Press <code>alt-a</code>. The sessions view lists the sessions at the project, newest first, each by its branch, the last thing it was asked, and its age. Type to narrow the rows.</span></div>
-          <div class="row"><span>3.</span><span>Press <code>enter</code>. A shell opens running <code>claude --resume</code> on that session and takes the bay.</span></div>
-          <div class="row"><span>4.</span><span><code>esc</code> returns to processes with nothing resumed.</span></div>
-        </div>
-        <div class="note"><p class="label">NOTE</p><p>A session a live contact is carrying is not listed. The sessions view checks the process table as well as the transcripts.</p></div>
-        <p class="para"><span class="n">4-6.</span><b>ENDING A CONTACT.</b> To end a contact:</p>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>Put the cursor on its row and press <code>x</code>.</span></div>
-          <div class="row"><span>2.</span><span>CONFIRM lights on the status line, with the question beside it: END CLAUDE 1234 · X CONFIRMS · ANY OTHER KEY CANCELS.</span></div>
-          <div class="row"><span>3.</span><span>Press <code>x</code>, <code>y</code>, or <code>enter</code>. The contact is asked to end. The shell it ran in is left at its prompt. Any other key cancels.</span></div>
-          <div class="row"><span>4.</span><span>The processes view reads again after a beat, and the row goes when the contact has.</span></div>
-        </div>
-        <div class="note"><p class="label">NOTE</p><p>A contact ended this way keeps its session. Procedure 4-5 resumes it.</p></div>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>4-1</b><span>CHANGE v0.0.0</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- PAGE 5-1 -->
-<section class="page" id="emergency" aria-label="Page 5-1">
-  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
-  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
-  <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 5-1</span></div>
-    <div class="rule"></div>
-    <div class="body">
-      <div class="section">
-        <p class="kicker">SECTION 5</p>
-        <h2>Emergency Procedures</h2>
-        <p class="para"><span class="n">5-1.</span><b>A PROCESS THAT WILL NOT END.</b> <code>x</code> sends the process under the cursor SIGTERM. A bare shell is sent SIGKILL instead. A process that ignores SIGTERM stays in the processes view. Reach it with <code>enter</code> and end it from inside.</p>
-        <p class="para"><span class="n">5-2.</span><b>TAKING THE STATION DOWN.</b> To end the server and everything in it:</p>
-        <div class="note caution"><p class="label">CAUTION</p><p><code>conn down</code> ends every process in the server: every shell, every contact, and every run, in the bay or out of sight in a window of its own. Work that is not saved is lost. A session can be resumed afterward (4-5). A run cannot.</p></div>
-        <div class="table steps">
-          <div class="row"><span>1.</span><span>From a terminal outside conn, or from a shell in it, type <code>conn down</code>.</span></div>
-          <div class="row"><span>2.</span><span>A line is printed for each window ended and one for the server.</span></div>
-        </div>
-        <p class="para"><span class="n">5-3.</span><b>THE BAY EMPTIES.</b> When the process in the bay ends, the bay takes the next process the station holds, from the cursor down and round again from the top. With none to take, it shows VACANT. Any key in it puts the keys on the panel.</p>
-        <p class="para"><span class="n">5-4.</span><b>THE KEYS ARE ELSEWHERE.</b> From any pane of the server, <code>ctrl-space -</code> puts the keys on the panel. From the panel, <code>enter</code> puts them in the bay.</p>
-        <p class="para"><span class="n">5-5.</span><b>THE PROCESSES CANNOT BE READ.</b> When the process table cannot be read, the processes view shows the reason as a chip in place of its rows and reads again on the next beat. On macOS the usual reason is that <code>lsof</code> gave no answer in time.</p>
-      </div>
-    </div>
-    <div class="foot">
-      <div class="rule"></div>
-      <div class="folio"><span>TM-CONN-01</span><b>5-1</b><span>CHANGE v0.0.0</span></div>
     </div>
   </div>
 </section>

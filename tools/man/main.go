@@ -86,6 +86,9 @@ func render(page, version string) (string, error) {
 	fmt.Fprintf(&b, ".\\\" Written from docs/index.html by go run ./tools/man; edit the manual, not this.\n")
 	fmt.Fprintf(&b, ".TH CONN 1 \"%s\" \"conn %s\" \"User Commands\"\n", date, strings.TrimPrefix(version, "v"))
 
+	// A cover with no tagline is a cover that has lost a piece of itself
+	// and is an error; a tagline standing empty is the manual saying
+	// nothing yet, and the page says nothing in its place.
 	line := tagline.FindStringSubmatch(page)
 	if line == nil {
 		return "", fmt.Errorf("the cover has no tagline")
@@ -93,8 +96,8 @@ func render(page, version string) (string, error) {
 	name := strings.TrimSuffix(inline(line[1]), ".")
 	if name != "" {
 		name = strings.ToLower(name[:1]) + name[1:]
+		b.WriteString(".SH NAME\nconn \\- " + name + "\n")
 	}
-	b.WriteString(".SH NAME\nconn \\- " + name + "\n")
 	// The synopsis is the manual's own table of commands, a line each;
 	// with none, the program's name, which is the one line true of it
 	// that the manual does not carry.
@@ -115,7 +118,9 @@ func render(page, version string) (string, error) {
 	if sub == nil {
 		return "", fmt.Errorf("the cover has no description")
 	}
-	b.WriteString(".SH DESCRIPTION\n" + wrap(inline(sub[1])) + "\n")
+	if d := inline(sub[1]); d != "" {
+		b.WriteString(".SH DESCRIPTION\n" + wrap(d) + "\n")
+	}
 
 	for _, s := range sections(page) {
 		if err := blocks(&b, s); err != nil {
@@ -217,8 +222,13 @@ func blocks(b *strings.Builder, s string) error {
 				if m := number.FindStringSubmatch(body); m != nil {
 					tag, body = m[1], body[len(m[0]):]
 				}
-				b.WriteString(".TP\n" + tag + "\n" + wrap(inline(body)) + "\n")
-				fresh = false
+				// A numbered paragraph with nothing in it is a slot the
+				// manual has not filled; the page leaves it out rather
+				// than tagging an empty line with its number.
+				if text := inline(body); text != "" {
+					b.WriteString(".TP\n" + tag + "\n" + wrap(text) + "\n")
+					fresh = false
+				}
 			case strings.HasPrefix(s, `<p class="caption">`):
 				pp()
 				b.WriteString(".I \"" + inline(body) + "\"\n")
@@ -226,8 +236,12 @@ func blocks(b *strings.Builder, s string) error {
 			s = s[end:]
 		case strings.HasPrefix(s, "<h2>"):
 			end := strings.Index(s, "</h2>")
-			b.WriteString(".SH " + strings.ToUpper(inline(s[4:end])) + "\n")
-			fresh = true
+			// A section with no title yet gets no heading: roff would
+			// set a bare .SH and rule a line under nothing.
+			if title := inline(s[4:end]); title != "" {
+				b.WriteString(".SH " + strings.ToUpper(title) + "\n")
+				fresh = true
+			}
 			s = s[end:]
 		case strings.HasPrefix(s, `<div class="table`):
 			end := divEnd(s, 0)

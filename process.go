@@ -41,9 +41,21 @@ const (
 	kindHold    = "HOLD" // conn standing in an empty bay; not in the processes view
 )
 
+// A name is a contact's when the name means an agent and means little
+// else. The word carries more here than the other kinds do — it says
+// there is a mind at the other end, that the row can stop and wait on
+// you, and that tab is for it — so a name that is as likely to be
+// something ordinary has not earned it, and the thing it names is a
+// run like any other program conn does not recognise.
+//
+// goose was here and is gone: it is a database migration tool as much
+// as it is an agent, and goose up in a repository is the commoner of
+// the two. ollama was here and is gone: it names a model runner whose
+// processes are a server and a download, and conn would have called a
+// daemon a contact.
 var (
 	shells   = []string{"zsh", "bash", "fish", "sh", "dash", "nu", "tcsh", "ksh"}
-	contacts = []string{"claude", "codex", "gemini", "aider", "opencode", "goose", "amp", "copilot", "ollama"}
+	contacts = []string{"claude", "codex", "gemini", "aider", "opencode", "amp", "copilot"}
 	editors  = []string{"vim", "nvim", "vi", "hx", "helix", "emacs", "nano", "micro", "kak"}
 )
 

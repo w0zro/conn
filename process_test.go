@@ -853,3 +853,24 @@ func TestTheRowSaysWhatWasTyped(t *testing.T) {
 		t.Errorf("program = %q", got)
 	}
 }
+
+// A name is a contact's when it means an agent and means little else.
+// The word says there is a mind at the other end and that the row can
+// stop and wait on you, which is more than the other kinds claim.
+func TestOnlyAnAgentsNameIsAContacts(t *testing.T) {
+	kind := func(args ...string) string {
+		return kindOf(process{command: args[0], args: args})
+	}
+	for _, name := range []string{"claude", "codex", "gemini", "aider", "opencode", "amp", "copilot"} {
+		if got := kind(name); got != kindContact {
+			t.Errorf("%s: %s, want %s", name, got, kindContact)
+		}
+	}
+	// goose migrates a database at least as often as it agents, and
+	// ollama's own processes are a server and a download.
+	for _, c := range [][]string{{"goose", "up"}, {"ollama", "serve"}, {"ollama", "run", "llama3"}} {
+		if got := kind(c...); got != kindRun {
+			t.Errorf("%v: %s, want %s", c, got, kindRun)
+		}
+	}
+}

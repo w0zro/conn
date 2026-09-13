@@ -17,34 +17,34 @@ import (
 // resumeReport is the picker's words as things stand. A directory the
 // picker looked under and found nothing in — no conversations had, or
 // none yet read — is not an error; there is none for the picker to say.
-type resumeReport struct {
-	place   string // the place it was opened on, tilde'd
+type sessionsReport struct {
+	project string // the place it was opened on, tilde'd
 	home    string
 	now     time.Time
 	loading bool
-	rows    []conversation
+	rows    []session
 	total   int
 	filter  string
 }
 
 // composeResume words the picker: the filter's rows out of the whole
 // place found.
-func composeResume(convos []conversation, place, filter, home string, now time.Time, loading bool) resumeReport {
-	return resumeReport{
-		place: tilde(place, home), home: home, now: now, loading: loading,
-		rows: matchingConvos(convos, filter), total: len(convos), filter: filter,
+func composeSessions(sessions []session, project, filter, home string, now time.Time, loading bool) sessionsReport {
+	return sessionsReport{
+		project: tilde(project, home), home: home, now: now, loading: loading,
+		rows: matchingSessions(sessions, filter), total: len(sessions), filter: filter,
 	}
 }
 
 // matchingConvos is the conversations a filter leaves: one answers by
 // its branch, the last thing it was asked, or the directory it was had
 // in, the same three a reader would recognize it by.
-func matchingConvos(cs []conversation, filter string) []conversation {
+func matchingSessions(cs []session, filter string) []session {
 	f := strings.ToLower(strings.TrimSpace(filter))
 	if f == "" {
 		return cs
 	}
-	var out []conversation
+	var out []session
 	for _, c := range cs {
 		if strings.Contains(strings.ToLower(c.Prompt), f) ||
 			strings.Contains(strings.ToLower(c.Branch), f) ||
@@ -63,8 +63,8 @@ const branchW = 14
 
 // drawResume renders the picker for a terminal of the given size, with
 // the cursor on the given row.
-func drawResume(b resumeReport, cursor, width, height int, p palette) []row {
-	width = max(width, railMinCols)
+func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row {
+	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
 
@@ -88,7 +88,7 @@ func drawResume(b resumeReport, cursor, width, height int, p palette) []row {
 
 	// The place it is for, the way a place titles its block on the watch.
 	l = c.line()
-	l.add(p.parchment+p.bold, fit(b.place, measure, true))
+	l.add(p.parchment+p.bold, fit(b.project, measure, true))
 	c.emit(l, 0, false)
 
 	// The line typed into: the word, and the filter with the caret after

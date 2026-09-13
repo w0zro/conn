@@ -63,7 +63,7 @@ func TestKillSignalIsKillForAShellAndTermForWhatItRuns(t *testing.T) {
 	if got := killSignal(kindShell); got != syscall.SIGKILL {
 		t.Errorf("killSignal(shell) = %v", got)
 	}
-	for _, kind := range []string{kindAI, kindEditor, kindRun} {
+	for _, kind := range []string{kindContact, kindEditor, kindRun} {
 		if got := killSignal(kind); got != syscall.SIGTERM {
 			t.Errorf("killSignal(%s) = %v", kind, got)
 		}

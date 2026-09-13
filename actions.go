@@ -12,15 +12,15 @@ import (
 // serverCmd.
 
 // openSlot opens the slot beside the rail, with the hold in it.
-func (m model) openSlot() tea.Cmd {
-	home, self := m.head.session.home, m.self
-	return m.serverCmd(func() error { return m.srv.splitSlot(home, self) })
+func (m model) openBay() tea.Cmd {
+	home, self := m.head.login.home, m.self
+	return m.serverCmd(func() error { return m.srv.splitBay(home, self) })
 }
 
 // reviveSlot puts a hold in a slot whose pane died, in its own shape.
-func (m model) reviveSlot() tea.Cmd {
-	home, self := m.head.session.home, m.self
-	return m.serverCmd(func() error { return m.srv.reviveSlot(home, self) })
+func (m model) reviveBay() tea.Cmd {
+	home, self := m.head.login.home, m.self
+	return m.serverCmd(func() error { return m.srv.reviveBay(home, self) })
 }
 
 // reach puts a process in the slot, off the loop, and hands back the
@@ -39,25 +39,25 @@ func (m model) reach(target pane, tty string) tea.Cmd {
 // rail's cursor from there, so this is asked once and not again for
 // every row read: focus stays on the rail, and j and k carry the page
 // along with them.
-func (m model) openLook() tea.Cmd {
-	home, self, srv := m.head.session.home, m.self, m.srv
+func (m model) openReadout() tea.Cmd {
+	home, self, srv := m.head.login.home, m.self, m.srv
 	return func() tea.Msg {
-		if srv.showLook(home, self) != nil {
+		if srv.showReadout(home, self) != nil {
 			return nil
 		}
-		return lookedMsg{on: true}
+		return readoutMsg{on: true}
 	}
 }
 
 // closeLook takes the page out of the slot and leaves a hold in its
 // place, which is what an empty slot is.
-func (m model) closeLook() tea.Cmd {
-	home, self, srv := m.head.session.home, m.self, m.srv
+func (m model) closeReadout() tea.Cmd {
+	home, self, srv := m.head.login.home, m.self, m.srv
 	return func() tea.Msg {
-		if srv.hideLook(home, self) != nil {
+		if srv.hideReadout(home, self) != nil {
 			return nil
 		}
-		return lookedMsg{on: false}
+		return readoutMsg{on: false}
 	}
 }
 
@@ -76,14 +76,14 @@ func (m model) openShell(dir string) tea.Cmd {
 
 // aiProgram is the AI conn starts. Claude is the only kind conn
 // starts for now, so a is its key everywhere a shell's is s.
-const aiProgram = "claude"
+const contactProgram = "claude"
 
 // startAI opens an AI at a place, off the loop, the way openShell
 // opens a shell there.
-func (m model) startAI(dir string) tea.Cmd {
+func (m model) startContact(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.openCmd(dir, aiCommand(srv.socket))
+		sh, err := srv.openCmd(dir, contactCommand(srv.socket))
 		if err != nil {
 			return nil
 		}
@@ -94,7 +94,7 @@ func (m model) startAI(dir string) tea.Cmd {
 // scanProjects walks the roots off the loop; what it found, or why it
 // could not, comes back as a message.
 func (m model) scanProjects() tea.Cmd {
-	roots := projectRoots(m.head.session.home)
+	roots := projectRoots(m.head.login.home)
 	return func() tea.Msg {
 		ps, err := findProjects(roots)
 		if err != nil {
@@ -107,10 +107,10 @@ func (m model) scanProjects() tea.Cmd {
 // scanConvos reads a place's suspended conversations off the loop, the
 // process table as it stood when the picker opened, so a leftover
 // session file cannot be mistaken for one still going.
-func (m model) scanConvos(dirs []string) tea.Cmd {
-	places := m.places
+func (m model) scanSessions(dirs []string) tea.Cmd {
+	projects := m.projects
 	return func() tea.Msg {
-		return convosMsg{dirs: dirs, convos: claudeSuspended(dirs, places)}
+		return sessionsMsg{dirs: dirs, sessions: claudeSuspended(dirs, projects)}
 	}
 }
 
@@ -136,8 +136,8 @@ func (m model) killEntry(pid int, command string, sig syscall.Signal) tea.Cmd {
 }
 
 // hasPid says whether a process is among what was read.
-func hasPid(places []place, pid int) bool {
-	for _, pl := range places {
+func hasPid(projects []project, pid int) bool {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			if e.pid == pid {
 				return true

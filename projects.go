@@ -21,7 +21,7 @@ import (
 
 // A project is a place work could happen: a repository under one of the
 // roots, or the folder that groups two or more of them.
-type project struct {
+type projectRow struct {
 	name    string // what the list calls it: enough of the path to tell it apart
 	path    string
 	grouped bool // a repository under a group, listed beneath it
@@ -83,8 +83,8 @@ var skipDirs = map[string]bool{
 // the same environment rides between machines, and a checkout that is
 // only on the other one should not empty the list. Only every root
 // failing is an error, so a lone mistyped root still says so.
-func findProjects(roots []string) ([]project, error) {
-	var repos []project
+func findProjects(roots []string) ([]projectRow, error) {
+	var repos []projectRow
 	rootOf := map[string]string{} // a repository's path, to the root it was found under
 	seen := map[string]bool{}
 	var firstErr error
@@ -107,7 +107,7 @@ func findProjects(roots []string) ([]project, error) {
 			}
 			seen[path] = true
 			rootOf[path] = root
-			repos = append(repos, project{name: relName(root, path), path: path})
+			repos = append(repos, projectRow{name: relName(root, path), path: path})
 		}
 	}
 	if !walked && firstErr != nil {
@@ -175,7 +175,7 @@ func isCacheDir(dir string) bool {
 // they make one project, and there is no file to drop anywhere to say
 // so. A repository in a group goes by its own directory name, since the
 // header above it already says the rest.
-func deriveGroups(repos []project, rootOf map[string]string) []project {
+func deriveGroups(repos []projectRow, rootOf map[string]string) []projectRow {
 	isRoot := map[string]bool{}
 	for _, root := range rootOf {
 		isRoot[root] = true
@@ -186,7 +186,7 @@ func deriveGroups(repos []project, rootOf map[string]string) []project {
 			siblings[parent] = append(siblings[parent], i)
 		}
 	}
-	var groups []project
+	var groups []projectRow
 	for parent, idx := range siblings {
 		if len(idx) < 2 {
 			continue
@@ -196,13 +196,13 @@ func deriveGroups(repos []project, rootOf map[string]string) []project {
 			repos[i].grouped = true
 		}
 		root := rootOf[repos[idx[0]].path]
-		groups = append(groups, project{name: relName(root, parent), path: parent, repos: len(idx)})
+		groups = append(groups, projectRow{name: relName(root, parent), path: parent, repos: len(idx)})
 	}
 	return groups
 }
 
 // groupRoots is each group's root, taken from a repository of its own.
-func groupRoots(groups, repos []project, rootOf map[string]string) map[string]string {
+func groupRoots(groups, repos []projectRow, rootOf map[string]string) map[string]string {
 	roots := map[string]string{}
 	for _, g := range groups {
 		for _, r := range repos {
@@ -218,7 +218,7 @@ func groupRoots(groups, repos []project, rootOf map[string]string) map[string]st
 // qualify puts the root's own name before the names that two roots both
 // offered: with a checkout at work and one at home, the root's name is
 // the only thing that tells an api here from an api there.
-func qualify(ps []project, rootOf map[string]string) {
+func qualify(ps []projectRow, rootOf map[string]string) {
 	byName := map[string][]int{}
 	for i, p := range ps {
 		byName[p.name] = append(byName[p.name], i)
@@ -243,9 +243,9 @@ func qualify(ps []project, rootOf map[string]string) {
 // order lays the projects out as the list draws them: the groups and
 // the repositories that stand alone together by name, and each group's
 // repositories under it.
-func order(groups, repos []project) []project {
-	under := map[string][]project{}
-	var top []project
+func order(groups, repos []projectRow) []projectRow {
+	under := map[string][]projectRow{}
+	var top []projectRow
 	for _, r := range repos {
 		if r.grouped {
 			under[filepath.Dir(r.path)] = append(under[filepath.Dir(r.path)], r)
@@ -255,7 +255,7 @@ func order(groups, repos []project) []project {
 	}
 	top = append(top, groups...)
 	slices.SortFunc(top, byName)
-	out := make([]project, 0, len(repos)+len(groups))
+	out := make([]projectRow, 0, len(repos)+len(groups))
 	for _, p := range top {
 		out = append(out, p)
 		if p.repos > 0 {
@@ -269,7 +269,7 @@ func order(groups, repos []project) []project {
 
 // byName orders projects by name, case aside, and by path between two
 // that share one.
-func byName(a, b project) int {
+func byName(a, b projectRow) int {
 	return cmp.Or(cmp.Compare(strings.ToLower(a.name), strings.ToLower(b.name)), cmp.Compare(a.path, b.path))
 }
 
@@ -295,16 +295,16 @@ func relName(root, path string) string {
 // The list's words as things stand.
 type projectsReport struct {
 	filter   string
-	rows     []project // the projects the filter left, in the order they draw
-	total    int       // how many there are before it
-	roots    []string  // where conn looked, from ~, for when it found nothing
+	rows     []projectRow // the projects the filter left, in the order they draw
+	total    int          // how many there are before it
+	roots    []string     // where conn looked, from ~, for when it found nothing
 	scanning bool
 	err      string
 }
 
 // composeProjects words the list: the filter's rows out of the whole,
 // and the count of both.
-func composeProjects(ps []project, filter string, roots []string, home string, scanning bool, err string) projectsReport {
+func composeProjects(ps []projectRow, filter string, roots []string, home string, scanning bool, err string) projectsReport {
 	b := projectsReport{filter: filter, rows: matching(ps, filter), total: len(ps), scanning: scanning, err: err}
 	for _, root := range roots {
 		b.roots = append(b.roots, tilde(root, home))
@@ -317,13 +317,13 @@ func composeProjects(ps []project, filter string, roots []string, home string, s
 // often called by; a group answers by its name and by its
 // repositories', and carries down the ones that answered. A group's
 // count is what is under it, so the number says what is drawn.
-func matching(ps []project, filter string) []project {
+func matching(ps []projectRow, filter string) []projectRow {
 	f := strings.ToLower(strings.TrimSpace(filter))
 	if f == "" {
 		return ps
 	}
-	hit := func(p project) bool { return strings.Contains(strings.ToLower(p.name), f) }
-	var out []project
+	hit := func(p projectRow) bool { return strings.Contains(strings.ToLower(p.name), f) }
+	var out []projectRow
 	for i := 0; i < len(ps); {
 		p := ps[i]
 		if p.repos == 0 {
@@ -333,7 +333,7 @@ func matching(ps []project, filter string) []project {
 			i++
 			continue
 		}
-		var kids []project
+		var kids []projectRow
 		j := i + 1
 		for ; j < len(ps) && ps[j].grouped; j++ {
 			if hit(p) || hit(ps[j]) {
@@ -354,7 +354,7 @@ func matching(ps []project, filter string) []project {
 // under: its own, and for a group each repository beneath it in turn —
 // a transcript is filed by the exact directory it was had in, which for
 // a group is one of its repositories, not the folder that names them.
-func convoDirs(all []project, p project) []string {
+func sessionDirs(all []projectRow, p projectRow) []string {
 	dirs := []string{p.path}
 	if p.repos == 0 {
 		return dirs
@@ -380,7 +380,7 @@ const (
 // drawProjects renders the list for a terminal of the given size, with
 // the cursor on the given row.
 func drawProjects(b projectsReport, cursor, width, height int, p palette) []row {
-	width = max(width, railMinCols)
+	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
 

@@ -15,7 +15,7 @@ import (
 // tested against a station on file, and re-said as the clock turns.
 type station struct {
 	machine machine
-	session session
+	login   login
 	build   build
 	volume  volume
 	network network
@@ -27,11 +27,11 @@ type station struct {
 // readStation reads the station. Nothing here waits on the network; the
 // programs it runs answer from disk and are given a moment each.
 func readStation() station {
-	st := station{build: readBuild(), session: readSession()}
+	st := station{build: readBuild(), login: readLogin()}
 	st.machine = readMachine()
-	st.volume = readVolume(st.session.home)
+	st.volume = readVolume(st.login.home)
 	st.network, st.netRead = readNetwork()
-	st.state = readStateDir(st.session.home)
+	st.state = readStateDir(st.login.home)
 	st.tools = readTools()
 	return st
 }
@@ -71,7 +71,7 @@ const (
 // can fail at. The screen adds its own check, since it knows its size.
 type report struct {
 	version, note, build, station, term, clock string
-	system, session                            []fact
+	system, login                              []fact
 	checks                                     []check
 	// The verdict's chip is an annunciator: lit on one second, dark on
 	// the next, while the console is up. Everywhere else — a pipe, a
@@ -91,11 +91,11 @@ const (
 
 // compose words the station as of a moment.
 func compose(st station, now time.Time) report {
-	who := st.session.user
+	who := st.login.user
 	if who == "" {
 		who = "someone"
 	}
-	host := st.session.host
+	host := st.login.host
 	if host == "" {
 		host = "somewhere"
 	}
@@ -108,14 +108,14 @@ func compose(st station, now time.Time) report {
 		note:    note,
 		build:   buildLine(st.build),
 		station: who + "@" + host,
-		term:    st.session.term,
+		term:    st.login.term,
 		clock:   zulu(now),
 		lit:     true,
 	}
 	r.system = systemFacts(st, now)
-	r.session = sessionFacts(st.session, now)
+	r.login = sessionFacts(st.login, now)
 	r.checks = []check{
-		stateCheck(st.state, st.session.home),
+		stateCheck(st.state, st.login.home),
 		diskCheck(st.volume),
 		memoryCheck(st.machine),
 		loadCheck(st.machine),
@@ -198,7 +198,7 @@ func systemFacts(st station, now time.Time) []fact {
 		sip = strings.ToUpper(m.sip)
 	}
 	return kept([]fact{
-		{label: "HOST", value: st.session.host},
+		{label: "HOST", value: st.login.host},
 		{label: "SYSTEM", value: system},
 		{label: "KERNEL", value: join(" · ", m.kernel, pageSize(m.page))},
 		{label: "MODEL", value: m.model},
@@ -214,7 +214,7 @@ func systemFacts(st station, now time.Time) []fact {
 
 // sessionFacts is who is at the station and how: the user, the shell,
 // the terminal, where and when, and the conn that is running.
-func sessionFacts(s session, now time.Time) []fact {
+func sessionFacts(s login, now time.Time) []fact {
 	userLine := s.user
 	if s.uid != "" {
 		userLine = join(" · ", s.user, "UID "+s.uid)

@@ -189,7 +189,7 @@ var commands = []command{
 			pid, _ = strconv.Atoi(args[0])
 		}
 		applyMode(serverMode(socketPath(home)))
-		if err := runLook(findServer(home), pid, home, colored()); err != nil {
+		if err := runReadout(findServer(home), pid, home, colored()); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
 		}

@@ -22,7 +22,7 @@ var (
 			sip:       "enabled",
 			page:      16384,
 		},
-		session: session{
+		login: login{
 			user: "w0zro", uid: "501", admin: true, host: "station", home: "/Users/w0zro",
 			shell: "/bin/zsh", shellVer: "5.9", tty: "ttys004",
 			terminal: "ghostty", terminalVer: "1.3.1",
@@ -73,7 +73,7 @@ func TestStationIsWorded(t *testing.T) {
 		"BINARY":    "~/projects/w0zro/conn/conn · 5.2 MB",
 	}
 	got := map[string]fact{}
-	for _, f := range append(r.system, r.session...) {
+	for _, f := range append(r.system, r.login...) {
 		got[f.label] = f
 	}
 	for label, value := range want {
@@ -84,8 +84,8 @@ func TestStationIsWorded(t *testing.T) {
 	if !got["CWD"].path || !got["BINARY"].path || got["SHELL"].path {
 		t.Error("the paths are not marked as paths, or a shell is")
 	}
-	if len(r.system) != 11 || len(r.session) != 12 {
-		t.Errorf("%d system, %d session facts", len(r.system), len(r.session))
+	if len(r.system) != 11 || len(r.login) != 12 {
+		t.Errorf("%d system, %d session facts", len(r.system), len(r.login))
 	}
 	statuses := map[string]string{}
 	for _, c := range r.checks {
@@ -108,8 +108,8 @@ func TestAnEmptyStationIsWorded(t *testing.T) {
 	if r.station != "someone@somewhere" || r.version != "" || r.note != "(devel)" || r.build != "" {
 		t.Errorf("identification: %+v", r)
 	}
-	if len(r.system) != 0 || len(r.session) != 2 || r.session[0].label != "SESSION" || r.session[1].label != "TIME ZONE" {
-		t.Errorf("readout: %+v %+v", r.system, r.session)
+	if len(r.system) != 0 || len(r.login) != 2 || r.login[0].label != "SESSION" || r.login[1].label != "TIME ZONE" {
+		t.Errorf("readout: %+v %+v", r.system, r.login)
 	}
 	for _, c := range r.checks {
 		if c.fault || (c.status != unknown && c.status != unchecked && c.label != "STATE") {
@@ -248,8 +248,8 @@ func TestTheStationCanBeRead(t *testing.T) {
 	if r.station == "" || strings.HasPrefix(r.station, "someone@") {
 		t.Errorf("no station: %q", r.station)
 	}
-	if len(r.system) < 6 || len(r.session) < 8 {
-		t.Errorf("readout thin: %d system, %d session\n%+v\n%+v", len(r.system), len(r.session), r.system, r.session)
+	if len(r.system) < 6 || len(r.login) < 8 {
+		t.Errorf("readout thin: %d system, %d session\n%+v\n%+v", len(r.system), len(r.login), r.system, r.login)
 	}
 	if len(r.checks) != 7+len(st.tools) {
 		t.Errorf("%d checks, not %d: %+v", len(r.checks), 7+len(st.tools), r.checks)
@@ -259,7 +259,7 @@ func TestTheStationCanBeRead(t *testing.T) {
 			t.Errorf("check incomplete: %+v", c)
 		}
 	}
-	if st.machine.page == 0 || st.machine.kernel == "" || st.session.goVersion == "" {
+	if st.machine.page == 0 || st.machine.kernel == "" || st.login.goVersion == "" {
 		t.Errorf("the machine was not read: %+v", st.machine)
 	}
 }

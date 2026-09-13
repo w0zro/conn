@@ -24,19 +24,19 @@ import (
 // the row on the right, in the slot, is in orange.
 
 // The watch's words, composed from the places as of a moment.
-type watchReport struct {
-	places []watchPlace
-	err    string // why the table could not be read, when it could not
-	inside bool   // conn is in its server, and rows can be reached
-	lit    bool   // the annunciators' lit half; see the waiting word below
+type processesReport struct {
+	projects []projectBlock
+	err      string // why the table could not be read, when it could not
+	inside   bool   // conn is in its server, and rows can be reached
+	lit      bool   // the annunciators' lit half; see the waiting word below
 }
 
-type watchPlace struct {
+type projectBlock struct {
 	path string
-	rows []watchRow
+	rows []processRow
 }
 
-type watchRow struct {
+type processRow struct {
 	pid                             int
 	kind, command, tty, age, status string
 	fault                           bool
@@ -51,12 +51,12 @@ type watchRow struct {
 // belongs on once the pane is reached, and both ask here so that the
 // two can never disagree about which row the pane is. It answers the
 // row's place in the reading too, for the cursor to hold.
-func headOf(places []place, tty string) (pid, at int, ok bool) {
+func headOf(projects []project, tty string) (pid, at int, ok bool) {
 	if tty == "" {
 		return 0, 0, false
 	}
 	i := 0
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			if e.tty == tty {
 				return e.pid, i, true
@@ -68,8 +68,8 @@ func headOf(places []place, tty string) (pid, at int, ok bool) {
 }
 
 // rowOf is an entry by its pid, wherever it stands.
-func rowOf(places []place, pid int) (entry, bool) {
-	for _, pl := range places {
+func rowOf(projects []project, pid int) (entry, bool) {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			if e.pid == pid {
 				return e, true
@@ -86,22 +86,22 @@ func rowOf(places []place, pid int) (entry, bool) {
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
-func composeWatch(places []place, panes map[string]pane, slot string, roots []string, home string, now time.Time, err string) watchReport {
-	b := watchReport{err: err}
-	head, _, marked := headOf(places, slot)
-	for _, pl := range places {
-		bp := watchPlace{path: placeName(pl.path, roots, home)}
+func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, home string, now time.Time, err string) processesReport {
+	b := processesReport{err: err}
+	head, _, marked := headOf(projects, bay)
+	for _, pl := range projects {
+		bp := projectBlock{path: projectName(pl.path, roots, home)}
 		if bp.path == "" {
 			bp.path = "NO PROJECT"
 		}
 		for _, e := range pl.entries {
-			bp.rows = append(bp.rows, watchRow{
+			bp.rows = append(bp.rows, processRow{
 				pid: e.pid, kind: e.kind, command: e.command, tty: e.tty, age: age(e.started, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
 			})
 		}
-		b.places = append(b.places, bp)
+		b.projects = append(b.projects, bp)
 	}
 	return b
 }
@@ -118,7 +118,7 @@ func composeWatch(places []place, panes map[string]pane, slot string, roots []st
 // nothing shared to take off it, and where it is is the only thing the
 // line has to say. A root itself is written the same way, since what is
 // left of it after itself is nothing.
-func placeName(path string, roots []string, home string) string {
+func projectName(path string, roots []string, home string) string {
 	for _, root := range roots {
 		if path != root && within(path, root) {
 			return relName(root, path)
@@ -132,20 +132,20 @@ func placeName(path string, roots []string, home string) string {
 // what is left after the kind. Under minCols the watch is a rail: the
 // terminal column goes, the kind and the age close up.
 const (
-	kindW       = 8
-	ttyW        = 10
-	ageW        = 9
-	railKindW   = 8
-	railAgeW    = 7
-	railMinCols = 40
-	treeIndent  = 2 // columns a row gives up per level under its root
+	kindW        = 8
+	ttyW         = 10
+	ageW         = 9
+	panelKindW   = 8
+	panelAgeW    = 7
+	panelMinCols = 40
+	treeIndent   = 2 // columns a row gives up per level under its root
 )
 
 // drawWatch renders the watch for a terminal of the given size, with
 // the cursor on the row of the given pid.
-func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
-	rail := width < minCols
-	width = max(width, railMinCols)
+func drawProcesses(b processesReport, cursor int, width, height int, p palette) []row {
+	panel := width < minCols
+	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
 	statusCol := measure - statusW
@@ -153,10 +153,10 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	ttyCol := ageCol - 1 - ttyW
 	commandW := ttyCol - 1 - kindW
 	kindCol := kindW
-	if rail {
-		ageCol = statusCol - 1 - railAgeW
+	if panel {
+		ageCol = statusCol - 1 - panelAgeW
 		ttyCol = -1
-		kindCol = railKindW
+		kindCol = panelKindW
 		commandW = ageCol - 1 - kindCol
 	}
 
@@ -171,7 +171,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	l.add(p.gray, "KIND")
 	l.to(kindCol)
 	l.add(p.gray, "COMMAND")
-	if !rail {
+	if !panel {
 		l.to(ttyCol)
 		l.add(p.gray, "TTY")
 	}
@@ -189,7 +189,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 	}
 	var body []row
 	cursorRow := -1
-	place := func(bp watchPlace) {
+	project := func(bp projectBlock) {
 		d := canvas{p: p, width: width}
 		d.blank(0)
 		// The place's title alone. It carried a count of its rows on the
@@ -249,7 +249,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 			l.add(kind, fit(r.kind, kindCol-1, false))
 			l.to(kindCol + indent)
 			l.add(command, fit(r.command, commandW-indent, false))
-			if !rail {
+			if !panel {
 				l.to(ttyCol)
 				l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
 			}
@@ -292,7 +292,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		l.add(p.chip, " "+strings.ToUpper(b.err)+" ")
 		d.emit(l, 0, true)
 		body = d.rows
-	case len(b.places) == 0:
+	case len(b.projects) == 0:
 		d := canvas{p: p, width: width}
 		d.blank(0)
 		l := d.line()
@@ -300,8 +300,8 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		d.emit(l, 0, true)
 		body = d.rows
 	default:
-		for _, bp := range b.places {
-			place(bp)
+		for _, bp := range b.projects {
+			project(bp)
 		}
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)

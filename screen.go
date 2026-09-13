@@ -187,13 +187,13 @@ func body(r report, width int, own check, p palette) []row {
 	l.title(0, "SYSTEM")
 	l.title(rightCol, "SESSION")
 	c.emit(l, stageReadout, false)
-	for i := 0; i < max(len(r.system), len(r.session)); i++ {
+	for i := 0; i < max(len(r.system), len(r.login)); i++ {
 		l := c.line()
 		if i < len(r.system) {
 			factLine(l, 0, rightCol, r.system[i])
 		}
-		if i < len(r.session) {
-			factLine(l, rightCol, measure-rightCol, r.session[i])
+		if i < len(r.login) {
+			factLine(l, rightCol, measure-rightCol, r.login[i])
 		}
 		c.emit(l, stageReadout, false)
 	}

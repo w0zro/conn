@@ -42,22 +42,22 @@ import (
 // on a beat; the table is read every beat because a hand's standing
 // does, and that is one process.
 const (
-	lookBeat = 2 * time.Second
-	lookPoll = 50 * time.Millisecond
-	gitEvery = 30 * time.Second
+	readoutBeat = 2 * time.Second
+	readoutPoll = 50 * time.Millisecond
+	gitEvery    = 30 * time.Second
 )
 
-type lookModel struct {
+type readoutModel struct {
 	srv           *server
 	pid           int
 	follow        bool   // the subject is the rail's cursor, not a pid given
 	cursor        string // where the rail publishes it
 	width, height int
 	p             palette
-	report        lookReport
-	table         lookTable // what the page was last composed out of
-	read          time.Time // when the subject was last read in full
-	inflight      bool      // a reading is out and has not landed
+	report        readoutReport
+	table         readoutTable // what the page was last composed out of
+	read          time.Time    // when the subject was last read in full
+	inflight      bool         // a reading is out and has not landed
 }
 
 // lookReadMsg carries a reading, and the pid it was of: several can be
@@ -65,29 +65,29 @@ type lookModel struct {
 // the subject has changed again is stale and dropped. The table it was
 // made from is not dropped with it — that is a reading of the machine
 // rather than of the row, and it is as good for one row as another.
-type lookReadMsg struct {
+type readoutReadMsg struct {
 	pid    int
-	report lookReport
-	table  lookTable
+	report readoutReport
+	table  readoutTable
 }
 
-func runLook(srv *server, pid int, home string, p palette) error {
-	m := lookModel{srv: srv, pid: pid, follow: pid == 0, cursor: cursorPath(home), p: p,
-		report: lookReport{pid: pid}}
+func runReadout(srv *server, pid int, home string, p palette) error {
+	m := readoutModel{srv: srv, pid: pid, follow: pid == 0, cursor: cursorPath(home), p: p,
+		report: readoutReport{pid: pid}}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
 }
 
-func (m lookModel) Init() tea.Cmd {
+func (m readoutModel) Init() tea.Cmd {
 	_, cmd := m.reading()
 	return cmd
 }
 
-func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-	case lookReadMsg:
+	case readoutReadMsg:
 		// A reading of a subject that has since moved on is no longer
 		// about anything, and putting it up would be a page flicking
 		// back to a row the cursor has left. The table is kept whatever
@@ -104,7 +104,7 @@ func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.follow && m.report.gone {
 			return m, nil
 		}
-	case lookTickMsg:
+	case readoutTickMsg:
 		// Where the cursor is, then whether that is news. A subject that
 		// changed is read at once; one that has not is read on the beat,
 		// so a page nobody is moving still keeps up with its row.
@@ -118,7 +118,7 @@ func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// out would leave the page on the row the cursor just
 				// left — while the table read a moment ago has the new
 				// row in it, as true as the rail's own list is.
-				if r, ok := lookPage(pid, m.table); ok {
+				if r, ok := readoutPage(pid, m.table); ok {
 					m.report = r
 				}
 				return m.reading()
@@ -127,22 +127,22 @@ func (m lookModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// One reading at a time on the beat: git under its wait can take
 		// longer than a beat, and a second reading behind it would only
 		// queue a third.
-		if time.Since(m.read) >= lookBeat && !m.inflight {
+		if time.Since(m.read) >= readoutBeat && !m.inflight {
 			return m.reading()
 		}
 		return m, m.tick()
 	case tea.KeyPressMsg:
 		if m.srv != nil {
-			return m, func() tea.Msg { _ = m.srv.focusRail(); return nil }
+			return m, func() tea.Msg { _ = m.srv.focusPanel(); return nil }
 		}
 	}
 	return m, nil
 }
 
-type lookTickMsg struct{}
+type readoutTickMsg struct{}
 
-func (m lookModel) tick() tea.Cmd {
-	return tea.Tick(lookPoll, func(time.Time) tea.Msg { return lookTickMsg{} })
+func (m readoutModel) tick() tea.Cmd {
+	return tea.Tick(readoutPoll, func(time.Time) tea.Msg { return readoutTickMsg{} })
 }
 
 // reading gathers the subject and words it, off the loop: the process
@@ -153,13 +153,13 @@ func (m lookModel) tick() tea.Cmd {
 //
 // The table the page holds goes with it, so what conn has already asked
 // of a place or a conversation is not asked again from nothing.
-func (m lookModel) reading() (lookModel, tea.Cmd) {
+func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 	m.read, m.inflight = time.Now(), true
 	pid, srv, held := m.pid, m.srv, m.table
 	return m, tea.Batch(
 		func() tea.Msg {
-			report, table := lookOf(pid, srv, held)
-			return lookReadMsg{pid: pid, report: report, table: table}
+			report, table := readoutOf(pid, srv, held)
+			return readoutReadMsg{pid: pid, report: report, table: table}
 		},
 		m.tick(),
 	)
@@ -175,27 +175,27 @@ func (m lookModel) reading() (lookModel, tea.Cmd) {
 // The page holds the last one, because the cursor moves faster than the
 // machine can be read and every row the cursor can land on is already
 // in the table that was read for the row it is leaving.
-type lookTable struct {
-	procs  []process
-	places []place
-	panes  map[string]pane
-	inside bool // there was a server to ask about panes
-	sess   map[int]sessionFile
-	git    map[string]gitStanding // what git said of a place, by its path
-	convo  map[int]conversation   // which conversation a row was carrying
+type readoutTable struct {
+	procs    []process
+	projects []project
+	panes    map[string]pane
+	inside   bool // there was a server to ask about panes
+	sess     map[int]sessionFile
+	git      map[string]gitStatus // what git said of a place, by its path
+	carried  map[int]session      // which conversation a row was carrying
 }
 
 // lookOf is the page for a pid as things stand and the table it was
 // read from, or the page that says the row has gone. A pid of nothing
 // is a page waiting on a cursor that has not said where it is yet.
-func lookOf(pid int, srv *server, held lookTable) (lookReport, lookTable) {
+func readoutOf(pid int, srv *server, held readoutTable) (readoutReport, readoutTable) {
 	if pid == 0 {
-		return lookReport{}, held
+		return readoutReport{}, held
 	}
-	t := lookGather(pid, srv, held)
-	r, ok := lookPage(pid, t)
+	t := readoutGather(pid, srv, held)
+	r, ok := readoutPage(pid, t)
 	if !ok {
-		return lookReport{pid: pid, gone: true}, t
+		return readoutReport{pid: pid, gone: true}, t
 	}
 	return r, t
 }
@@ -205,15 +205,15 @@ func lookOf(pid int, srv *server, held lookTable) (lookReport, lookTable) {
 // what it was told of the rows read before, since a list walked down
 // and back up again is the same few places over and over and git is a
 // process each time.
-func lookGather(pid int, srv *server, held lookTable) lookTable {
+func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
 	// Copied rather than written into, because the page goes on reading
 	// the table it holds while this one is being made.
-	t := lookTable{git: maps.Clone(held.git), convo: maps.Clone(held.convo)}
+	t := readoutTable{git: maps.Clone(held.git), carried: maps.Clone(held.carried)}
 	if t.git == nil {
-		t.git = map[string]gitStanding{}
+		t.git = map[string]gitStatus{}
 	}
-	if t.convo == nil {
-		t.convo = map[int]conversation{}
+	if t.carried == nil {
+		t.carried = map[int]session{}
 	}
 
 	uid := os.Getuid()
@@ -224,7 +224,7 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 	t.procs = procs
 	home, _ := os.UserHomeDir()
 	isProject := projectDirs(projectRoots(home))
-	t.places = watch(procs, uid, placeRoots(isProject), isProject, aiStandings(procs))
+	t.projects = projectsFrom(procs, uid, rootFinder(isProject), isProject, contactStatuses(procs))
 
 	// What conn holds for the rows' terminals, when there is a server to
 	// ask. Outside one there is nothing to say of panes.
@@ -235,39 +235,39 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 	}
 	t.sess = claudeSessions()
 
-	s, ok := subjectOf(pid, t.places, t.procs)
+	s, ok := subjectOf(pid, t.projects, t.procs)
 	if !ok {
 		return t
 	}
 	// Which conversation an AI is carrying — the session file names
 	// it, and the transcript is where the branch and the last ask are.
-	if s.entry.kind == kindAI {
+	if s.entry.kind == kindContact {
 		if f := t.sess[pid]; f.SessionID != "" && f.wroteBy(s.entry.started) {
 			dir := s.entry.cwd
 			if f.Cwd != "" {
 				dir = f.Cwd
 			}
-			c := conversation{ID: f.SessionID, Dir: dir}
-			readConvoMeta(convoPath(dir, f.SessionID), &c)
+			c := session{ID: f.SessionID, Dir: dir}
+			readSessionMeta(sessionPath(dir, f.SessionID), &c)
 			// What it is waiting on is read for a waiting row, and read
 			// again only when its standing changed: the transcript is
 			// the same file until it does.
 			if s.entry.status == statusWaiting {
-				if was, ok := held.convo[pid]; ok && was.Ask != (ask{}) && was.AskAt.Equal(s.entry.since) {
+				if was, ok := held.carried[pid]; ok && was.Ask != (ask{}) && was.AskAt.Equal(s.entry.since) {
 					c.Ask, c.AskAt = was.Ask, was.AskAt
 				} else {
-					c.Ask, c.AskAt = readAsk(convoPath(dir, f.SessionID)), s.entry.since
+					c.Ask, c.AskAt = readAsk(sessionPath(dir, f.SessionID)), s.entry.since
 				}
 			}
-			t.convo[pid] = c
+			t.carried[pid] = c
 		}
 	}
 	// What git says of the place, asked again only after its own while:
 	// a page left open on one row is the same place every beat.
-	if g, ok := t.git[s.place.path]; !ok || time.Since(g.read) >= gitEvery {
-		g = readGit(s.place.path)
+	if g, ok := t.git[s.project.path]; !ok || time.Since(g.read) >= gitEvery {
+		g = readGit(s.project.path)
 		g.read = time.Now()
-		t.git[s.place.path] = g
+		t.git[s.project.path] = g
 	}
 	return t
 }
@@ -277,36 +277,36 @@ func lookGather(pid int, srv *server, held lookTable) lookTable {
 // rather than that it has gone: of a table just read that is a row that
 // ended, but of the table in hand it may only be a row that started
 // since, and the reading on its way will have it.
-func lookPage(pid int, t lookTable) (lookReport, bool) {
-	s, ok := subjectOf(pid, t.places, t.procs)
+func readoutPage(pid int, t readoutTable) (readoutReport, bool) {
+	s, ok := subjectOf(pid, t.projects, t.procs)
 	if !ok {
-		return lookReport{}, false
+		return readoutReport{}, false
 	}
 	if t.inside {
 		s.pane, s.inside = t.panes[s.entry.tty], true
 	}
-	if s.entry.kind == kindAI {
-		s.sess, s.convo = t.sess[pid], t.convo[pid]
+	if s.entry.kind == kindContact {
+		s.sess, s.carried = t.sess[pid], t.carried[pid]
 	}
-	s.git = t.git[s.place.path]
+	s.git = t.git[s.project.path]
 
 	home, _ := os.UserHomeDir()
-	return composeLook(s, home, time.Now()), true
+	return composeReadout(s, home, time.Now()), true
 }
 
 // subjectOf finds a pid among the places and gathers what stands around
 // it: the table's own record, its place, what runs it and what it runs.
-func subjectOf(pid int, places []place, procs []process) (lookSubject, bool) {
+func subjectOf(pid int, projects []project, procs []process) (readoutSubject, bool) {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
 	}
-	for _, pl := range places {
+	for _, pl := range projects {
 		for i, e := range pl.entries {
 			if e.pid != pid {
 				continue
 			}
-			s := lookSubject{entry: e, proc: byPid[pid], place: pl}
+			s := readoutSubject{entry: e, proc: byPid[pid], project: pl}
 			// The tree is written depth first, so what runs this row is
 			// the nearest row above it that is a level shallower, and
 			// what it runs is the rows below it until the depth comes
@@ -328,16 +328,16 @@ func subjectOf(pid int, places []place, procs []process) (lookSubject, bool) {
 			return s, true
 		}
 	}
-	return lookSubject{}, false
+	return readoutSubject{}, false
 }
 
 // convoPath is where claude files a conversation had in a directory.
-func convoPath(dir, id string) string {
+func sessionPath(dir, id string) string {
 	return filepath.Join(claudeConfigDir(), "projects", encodePath(dir), id+".jsonl")
 }
 
-func (m lookModel) View() tea.View {
-	rows := drawLook(m.report, max(m.width, 1), m.height, m.p)
+func (m readoutModel) View() tea.View {
+	rows := drawReadout(m.report, max(m.width, 1), m.height, m.p)
 	texts := make([]string, len(rows))
 	for i, r := range rows {
 		texts[i] = r.text

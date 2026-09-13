@@ -32,18 +32,18 @@ type process struct {
 // The kinds of process the watch tells apart, by the program's name.
 // Everything else is a run: a build, a test, a server, a script.
 const (
-	kindShell  = "SHELL"
-	kindAI     = "CONTACT"
-	kindEditor = "EDITOR"
-	kindConn   = "CONN" // conn itself; not on the watch
-	kindRun    = "RUN"
-	kindHold   = "HOLD" // conn standing in an empty slot; not on the watch
+	kindShell   = "SHELL"
+	kindContact = "CONTACT"
+	kindEditor  = "EDITOR"
+	kindConn    = "CONN" // conn itself; not on the watch
+	kindRun     = "RUN"
+	kindHold    = "HOLD" // conn standing in an empty slot; not on the watch
 )
 
 var (
-	shells  = []string{"zsh", "bash", "fish", "sh", "dash", "nu", "tcsh", "ksh"}
-	ais     = []string{"claude", "codex", "gemini", "aider", "opencode", "goose", "amp", "copilot", "ollama"}
-	editors = []string{"vim", "nvim", "vi", "hx", "helix", "emacs", "nano", "micro", "kak"}
+	shells   = []string{"zsh", "bash", "fish", "sh", "dash", "nu", "tcsh", "ksh"}
+	contacts = []string{"claude", "codex", "gemini", "aider", "opencode", "goose", "amp", "copilot", "ollama"}
+	editors  = []string{"vim", "nvim", "vi", "hx", "helix", "emacs", "nano", "micro", "kak"}
 )
 
 // kindOf is the kind of a process, from the name of its program. A
@@ -63,8 +63,8 @@ func kindOf(p process) string {
 		return kindConn
 	case slices.Contains(shells, name):
 		return kindShell
-	case slices.Contains(ais, name):
-		return kindAI
+	case slices.Contains(contacts, name):
+		return kindContact
 	case slices.Contains(editors, name):
 		return kindEditor
 	default:
@@ -90,7 +90,7 @@ const (
 // spent. Only an AI says more, being the only thing here that knows
 // its own mind: mid-turn, stopped on an ask it put to you, or stopped
 // with its turn over and nothing pending.
-type standing struct {
+type status struct {
 	working bool
 	waiting bool   // stopped on something it asked of you
 	idle    bool   // stopped with its turn over, asking nothing
@@ -123,7 +123,7 @@ type entry struct {
 }
 
 // A place is a directory work is happening in, and the entries at it.
-type place struct {
+type project struct {
 	path    string // as read; the watch writes it from ~
 	entries []entry
 }
@@ -156,7 +156,7 @@ type place struct {
 // work either: the tmux server conn runs inside has no terminal and
 // works in the repository like anything else there, and is no more a
 // row than conn is.
-func watch(procs []process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]standing) []place {
+func projectsFrom(procs []process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]status) []project {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
@@ -315,9 +315,9 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 		byStart(children[pid])
 	}
 
-	places := map[string]*place{}
+	projects := map[string]*project{}
 	var order []string
-	placeAt := map[string]time.Time{}
+	projectAt := map[string]time.Time{}
 	var walk func(pid, depth int, path string)
 	walk = func(pid, depth int, path string) {
 		if walked[pid] {
@@ -329,31 +329,31 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 		e := entry{pid: p.pid, kind: kind, command: commandLine(p), tty: p.tty, started: p.started, depth: depth,
 			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking}
 		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
-		if places[path] == nil {
-			places[path] = &place{path: path}
+		if projects[path] == nil {
+			projects[path] = &project{path: path}
 			order = append(order, path)
 		}
-		places[path].entries = append(places[path].entries, e)
+		projects[path].entries = append(projects[path].entries, e)
 		for _, c := range children[pid] {
 			walk(c, depth+1, path)
 		}
 	}
 	for _, rootPid := range roots {
 		path := rootOf(byPid[rootPid].cwd)
-		if t := startedAt(rootPid); placeAt[path].IsZero() || t.Before(placeAt[path]) {
-			placeAt[path] = t
+		if t := startedAt(rootPid); projectAt[path].IsZero() || t.Before(projectAt[path]) {
+			projectAt[path] = t
 		}
 		walk(rootPid, 0, path)
 	}
 
-	out := make([]place, 0, len(places))
+	out := make([]project, 0, len(projects))
 	for _, path := range order {
-		out = append(out, *places[path])
+		out = append(out, *projects[path])
 	}
 	// A place sits where work there began, and the path breaks a tie the
 	// way the pid does among rows.
 	sort.SliceStable(out, func(i, j int) bool {
-		a, b := placeAt[out[i].path], placeAt[out[j].path]
+		a, b := projectAt[out[i].path], projectAt[out[j].path]
 		if a.Equal(b) {
 			return out[i].path < out[j].path
 		}
@@ -368,9 +368,9 @@ func watch(procs []process, uid int, rootOf func(string) string, isProject func(
 // ahead of one that can prove it waited longer. The order is the same
 // on every reading, so a key stepping through it steps through the
 // same ring; ties go by pid rather than by however the table came out.
-func waitingRound(places []place) []entry {
+func waitingRound(projects []project) []entry {
 	var out []entry
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			if e.status == statusWaiting {
 				out = append(out, e)
@@ -478,7 +478,7 @@ func cpuOf(procs []process) map[int]time.Duration {
 // on a socket is waiting on the socket - so the word is only ever
 // about a person. It is no fault, nothing having gone wrong, so it is
 // a word of its own rather than a chip.
-func statusOf(p process, kind string, hasChildren bool, how standing) (string, bool) {
+func statusOf(p process, kind string, hasChildren bool, how status) (string, bool) {
 	switch {
 	case p.state == 'T':
 		return statusStopped, true
@@ -585,7 +585,7 @@ func projectDirs(roots []string) func(string) bool {
 //
 // placeRoots remembers what it found, since the watch asks for the same
 // directories on every read.
-func placeRoots(isProject func(string) bool) func(string) string {
+func rootFinder(isProject func(string) bool) func(string) string {
 	known := map[string]string{}
 	return func(dir string) string {
 		if dir == "" {

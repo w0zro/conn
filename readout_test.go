@@ -14,20 +14,20 @@ import (
 // one: a long command, a status it has stood in for a while, a
 // directory of its own under its place, a pane conn holds, what it runs
 // and what runs it, a conversation, and a place with a git standing.
-func lookSubj() lookSubject {
+func readoutSubj() readoutSubject {
 	e := entry{
-		pid: 49212, kind: kindAI,
+		pid: 49212, kind: kindContact,
 		command: "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1",
-		tty:     "ttys003", started: watchNow.Add(-92 * time.Minute),
-		status: statusWaiting, since: watchNow.Add(-7 * time.Minute),
+		tty:     "ttys003", started: processesNow.Add(-92 * time.Minute),
+		status: statusWaiting, since: processesNow.Add(-7 * time.Minute),
 		cwd: "/Users/w0zro/projects/w0zro/conn/tools", asking: "input needed",
 		depth: 1,
 	}
-	return lookSubject{
+	return readoutSubject{
 		entry: e,
 		proc: process{pid: e.pid, state: 'S', foreground: true,
 			started: e.started, cpu: 2*time.Minute + 14*time.Second},
-		place: place{path: "/Users/w0zro/projects/w0zro/conn"},
+		project: project{path: "/Users/w0zro/projects/w0zro/conn"},
 		parent: entry{pid: 49200, kind: kindShell, command: "zsh",
 			tty: "ttys003", status: statusActive},
 		children: []entry{{pid: 49300, kind: kindRun, command: "caffeinate -i -t 300",
@@ -36,28 +36,28 @@ func lookSubj() lookSubject {
 		inside: true,
 		sess: sessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
-		convo: conversation{Branch: "main", Prompt: "i want the info to use the pane on the right",
+		carried: session{Branch: "main", Prompt: "i want the info to use the pane on the right",
 			Ask: ask{Tool: "AskUserQuestion", Detail: "Is this session's lamp lit on the bar while this question waits?"}},
-		git: gitStanding{repo: true, branch: "main", dirty: 3,
+		git: gitStatus{repo: true, branch: "main", dirty: 3,
 			commit: "263cf91", subject: "The look: what conn knows of a row",
-			when: watchNow.Add(-3 * time.Hour), upstream: "origin/main", ahead: 142},
+			when: processesNow.Add(-3 * time.Hour), upstream: "origin/main", ahead: 142},
 	}
 }
 
 // The look at both widths is the file of record.
-func TestTheLookIsWhatItWas(t *testing.T) {
-	b := composeLook(lookSubj(), "/Users/w0zro", watchNow)
-	golden(t, "look-120x40.txt", texts(drawLook(b, 120, 40, plain)))
-	golden(t, "look-narrow-60x40.txt", texts(drawLook(b, 60, 40, plain)))
+func TestTheReadoutIsWhatItWas(t *testing.T) {
+	b := composeReadout(readoutSubj(), "/Users/w0zro", processesNow)
+	golden(t, "readout-120x40.txt", texts(drawReadout(b, 120, 40, plain)))
+	golden(t, "readout-narrow-60x40.txt", texts(drawReadout(b, 60, 40, plain)))
 }
 
 // The page says the things the watch's columns have no room for, and
 // says them whole.
-func TestTheLookSaysWhatTheWatchCannot(t *testing.T) {
+func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 	// Tall enough for the whole page: the file of record above shows
 	// the cut at forty rows, and this reads what is said, not where the
 	// pane ends.
-	text := texts(drawLook(composeLook(lookSubj(), "/Users/w0zro", watchNow), 120, 48, plain))
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 120, 48, plain))
 
 	// The command as it was written, not in conn's own upper case: it is
 	// a thing somebody might retype.
@@ -103,16 +103,16 @@ func TestTheLookSaysWhatTheWatchCannot(t *testing.T) {
 // and no conversation, so it gets neither group, and a heading over
 // nothing is not drawn. A process sitting in its tree's own place is
 // not told it is there twice.
-func TestTheLookLeavesOutWhatThereIsNoneOf(t *testing.T) {
-	s := lookSubject{
+func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
+	s := readoutSubject{
 		entry: entry{pid: 88, kind: kindShell, command: "zsh", tty: "ttys009",
-			started: watchNow.Add(-time.Hour), status: statusIdle,
+			started: processesNow.Add(-time.Hour), status: statusIdle,
 			cwd: "/Users/w0zro/projects/w0zro/conn"},
-		proc:   process{pid: 88, state: 'S'},
-		place:  place{path: "/Users/w0zro/projects/w0zro/conn"},
-		inside: true,
+		proc:    process{pid: 88, state: 'S'},
+		project: project{path: "/Users/w0zro/projects/w0zro/conn"},
+		inside:  true,
 	}
-	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
 
 	for _, gone := range []string{"WAITING", "ASKS", "SAID", "CONTACT", "PROJECT\n", "TREE", "CWD", "CPU"} {
 		if strings.Contains(text, gone) {
@@ -133,10 +133,10 @@ func TestTheLookLeavesOutWhatThereIsNoneOf(t *testing.T) {
 
 // Outside the server conn holds no panes at all, so saying a row is in
 // none of them says nothing about the row.
-func TestTheLookSaysNothingOfPanesOutsideTheServer(t *testing.T) {
-	s := lookSubj()
+func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
+	s := readoutSubj()
 	s.inside, s.pane = false, pane{}
-	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
 	if strings.Contains(text, "PANE") {
 		t.Errorf("outside the server the page still spoke of panes:\n%s", text)
 	}
@@ -145,10 +145,10 @@ func TestTheLookSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 // A stopped process is not dated from an AI's own clock: the moment
 // conn holds is when the AI last changed what it says of itself,
 // which is not when anything stopped it.
-func TestTheLookDoesNotDateAFaultFromTheAgentsClock(t *testing.T) {
-	s := lookSubj()
+func TestTheReadoutDoesNotDateAFaultFromTheContactsClock(t *testing.T) {
+	s := readoutSubj()
 	s.entry.status, s.entry.fault, s.entry.asking = statusStopped, true, ""
-	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
 	if strings.Contains(text, "STOPPED · FOR") {
 		t.Errorf("a stopped row was dated from the AI's clock:\n%s", text)
 	}
@@ -156,10 +156,10 @@ func TestTheLookDoesNotDateAFaultFromTheAgentsClock(t *testing.T) {
 
 // A branch with nothing to track is not behind by nothing — there is
 // nothing for it to be behind — so it says neither.
-func TestTheLookSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
-	s := lookSubj()
+func TestTheReadoutSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
+	s := readoutSubj()
 	s.git.upstream, s.git.ahead, s.git.dirty = "", 0, 0
-	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
 	if strings.Contains(text, "TRACKING") {
 		t.Errorf("a branch with no upstream was given one:\n%s", text)
 	}
@@ -173,15 +173,15 @@ func TestTheLookSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
 // below it one level deeper are what it runs. A grandchild is not a
 // child, and the next row at the same depth is a sibling, not kin.
 func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
-	pl := place{path: "/w", entries: []entry{
+	pl := project{path: "/w", entries: []entry{
 		{pid: 1, kind: kindShell, command: "zsh", depth: 0},
-		{pid: 2, kind: kindAI, command: "claude", depth: 1},
+		{pid: 2, kind: kindContact, command: "claude", depth: 1},
 		{pid: 3, kind: kindRun, command: "go test", depth: 2},
 		{pid: 4, kind: kindRun, command: "compile", depth: 3}, // a grandchild
 		{pid: 5, kind: kindRun, command: "caffeinate", depth: 2},
 		{pid: 6, kind: kindShell, command: "zsh", depth: 0}, // another tree
 	}}
-	s, ok := subjectOf(2, []place{pl}, nil)
+	s, ok := subjectOf(2, []project{pl}, nil)
 	if !ok {
 		t.Fatal("pid 2 was not found")
 	}
@@ -196,7 +196,7 @@ func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 		t.Errorf("claude runs %v, want [3 5] — the grandchild is not a child", kids)
 	}
 	// A root has nothing above it, and the next tree is not its child.
-	s, _ = subjectOf(6, []place{pl}, nil)
+	s, _ = subjectOf(6, []project{pl}, nil)
 	if s.parent.pid != 0 || len(s.children) != 0 {
 		t.Errorf("a bare root stands under %d with %d children", s.parent.pid, len(s.children))
 	}
@@ -204,11 +204,11 @@ func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 
 // i asks the server to put the page in the slot; it does not take the
 // watch's own pane, which is the whole point of it being over there.
-func TestIPutsTheLookInTheSlot(t *testing.T) {
+func TestIPutsTheReadoutInTheBay(t *testing.T) {
 	m := newModel(plain)
-	m.view, m.inside, m.now = viewWatch, true, watchNow
+	m.view, m.inside, m.now = viewProcesses, true, processesNow
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.places = []place{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
+	m.projects = []project{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
 	m.cursor, m.cursorAt = 49212, 0
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
@@ -216,7 +216,7 @@ func TestIPutsTheLookInTheSlot(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("i asked the server for nothing")
 	}
-	if m.view != viewWatch {
+	if m.view != viewProcesses {
 		t.Errorf("i took the watch's own pane: view %d", m.view)
 	}
 	// The rail keeps drawing the watch while the page is in the slot.
@@ -224,7 +224,7 @@ func TestIPutsTheLookInTheSlot(t *testing.T) {
 		t.Errorf("the watch is not still on the rail:\n%s", m.View().Content)
 	}
 	// Against a server that is not there, the page does not come up.
-	if _, ok := answered(cmd).(lookedMsg); ok {
+	if _, ok := answered(cmd).(readoutMsg); ok {
 		t.Error("the look came up with no tmux to put it up with")
 	}
 }
@@ -233,7 +233,7 @@ func TestIPutsTheLookInTheSlot(t *testing.T) {
 // nothing.
 func TestIOpensNothingAboutNothing(t *testing.T) {
 	m := newModel(plain)
-	m.view, m.inside = viewWatch, true
+	m.view, m.inside = viewProcesses, true
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
 	if cmd != nil || m.looking {
@@ -241,8 +241,8 @@ func TestIOpensNothingAboutNothing(t *testing.T) {
 	}
 
 	m = newModel(plain)
-	m.view, m.inside = viewWatch, false
-	m.places = []place{{path: "/w", entries: []entry{{pid: 7, tty: "ttys001"}}}}
+	m.view, m.inside = viewProcesses, false
+	m.projects = []project{{path: "/w", entries: []entry{{pid: 7, tty: "ttys001"}}}}
 	m.cursor = 7
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
@@ -253,8 +253,8 @@ func TestIOpensNothingAboutNothing(t *testing.T) {
 
 // A row that ends while its page is up says so rather than going blank
 // or holding the last thing it read.
-func TestTheLookSaysWhenItsRowIsGone(t *testing.T) {
-	text := texts(drawLook(lookReport{pid: 49212, gone: true}, 120, 40, plain))
+func TestTheReadoutSaysWhenItsRowIsGone(t *testing.T) {
+	text := texts(drawReadout(readoutReport{pid: 49212, gone: true}, 120, 40, plain))
 	if !strings.Contains(text, "NO LONGER LISTED") {
 		t.Errorf("a page whose row went says:\n%s", text)
 	}
@@ -266,10 +266,10 @@ func TestTheLookSaysWhenItsRowIsGone(t *testing.T) {
 // Every label fits inside the leader's field. One that does not leaves
 // a single dot and starts its value a column past every other value on
 // the page, which is the one thing a column of facts must not do.
-func TestEveryLookLabelFitsTheLeader(t *testing.T) {
+func TestEveryReadoutLabelFitsTheLeader(t *testing.T) {
 	seen := map[string]bool{}
-	for _, s := range []lookSubject{lookSubj(), {entry: entry{pid: 1, kind: kindShell}, inside: true}} {
-		for _, g := range composeLook(s, "/Users/w0zro", watchNow).groups {
+	for _, s := range []readoutSubject{readoutSubj(), {entry: entry{pid: 1, kind: kindShell}, inside: true}} {
+		for _, g := range composeReadout(s, "/Users/w0zro", processesNow).groups {
 			for _, f := range g.facts {
 				seen[f.label] = true
 				if len(f.label) > labelW {
@@ -282,7 +282,7 @@ func TestEveryLookLabelFitsTheLeader(t *testing.T) {
 		t.Errorf("only %d labels were seen; the check is not reaching the page", len(seen))
 	}
 	// And the values do line up, which is what the width is for.
-	text := texts(drawLook(composeLook(lookSubj(), "/Users/w0zro", watchNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 120, 40, plain))
 	col := -1
 	for _, line := range strings.Split(text, "\n") {
 		i := strings.Index(line, ". ")
@@ -302,9 +302,9 @@ func TestEveryLookLabelFitsTheLeader(t *testing.T) {
 // since it put the page there itself, and a reading corrects it.
 func TestIIsAToggle(t *testing.T) {
 	m := newModel(plain)
-	m.view, m.inside, m.now = viewWatch, true, watchNow
+	m.view, m.inside, m.now = viewProcesses, true, processesNow
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.places = []place{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
+	m.projects = []project{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
 	m.cursor, m.cursorAt = 49212, 0
 
 	// A tmux that answers for a home with a slot in it and does nothing
@@ -335,30 +335,30 @@ func TestIIsAToggle(t *testing.T) {
 	}
 	// With no page up, i opens one, and conn knows it once tmux has
 	// done it rather than guessing ahead of the answer.
-	if got := asked(press()); got != (lookedMsg{on: true}) {
+	if got := asked(press()); got != (readoutMsg{on: true}) {
 		t.Errorf("i with no page up answered %+v, not a page going up", got)
 	}
 	if m.looking {
 		t.Error("conn called the page up before the server had put it there")
 	}
-	next, cmd := m.Update(lookedMsg{on: true})
+	next, cmd := m.Update(readoutMsg{on: true})
 	m = next.(model)
 	if !m.looking || cmd == nil {
 		t.Errorf("the page going up left looking %v and did not read again", m.looking)
 	}
 
 	// With one up, i takes it down.
-	if got := asked(press()); got != (lookedMsg{on: false}) {
+	if got := asked(press()); got != (readoutMsg{on: false}) {
 		t.Errorf("i with a page up answered %+v, not a page coming down", got)
 	}
-	next, _ = m.Update(lookedMsg{on: false})
+	next, _ = m.Update(readoutMsg{on: false})
 	m = next.(model)
 	if m.looking {
 		t.Error("the page coming down left conn thinking it was still up")
 	}
 
 	// A reading is the truth, whatever conn thought.
-	next, _ = m.Update(watchMsg{gen: m.watchGen, places: m.places, slotLook: true})
+	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects, bayReadout: true})
 	m = next.(model)
 	if !m.looking {
 		t.Error("a reading that found the page in the slot was not believed")
@@ -375,7 +375,7 @@ func TestIIsAToggle(t *testing.T) {
 // would leave it stuck there.
 func TestIClosesThePageWithNothingUnderTheCursor(t *testing.T) {
 	m := newModel(plain)
-	m.view, m.inside, m.looking = viewWatch, true, true
+	m.view, m.inside, m.looking = viewProcesses, true, true
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
 	m = next.(model)
 	if cmd == nil {
@@ -389,8 +389,8 @@ func TestIClosesThePageWithNothingUnderTheCursor(t *testing.T) {
 // thing the page was about.
 func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
 	m := newModel(plain)
-	m.view, m.inside, m.looking, m.now = viewWatch, true, true, watchNow
-	m.places = []place{{path: "/w", entries: []entry{
+	m.view, m.inside, m.looking, m.now = viewProcesses, true, true, processesNow
+	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 49212, tty: "ttys003"},
 		{pid: 49213, tty: "ttys004"},
 	}}}
@@ -424,7 +424,7 @@ func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
 	// down to the empty slot as before.
 	m.looking = true
 	m.cursor, m.cursorAt = 49213, 1
-	if got := press(); got != (lookedMsg{on: false}) {
+	if got := press(); got != (readoutMsg{on: false}) {
 		t.Errorf("i on a page about a row conn cannot reach answered %+v", got)
 	}
 }

@@ -57,9 +57,9 @@ var (
 // The views.
 const (
 	viewConsole = iota
-	viewWatch
+	viewProcesses
 	viewProjects
-	viewResume
+	viewSessions
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -80,9 +80,9 @@ func (m model) stageDelay(stage int) time.Duration {
 // slow to open. waitForOpened is how long that is worth doing before
 // the shell is given up on.
 const (
-	watchEvery    = 2 * time.Second
-	watchSoon     = 150 * time.Millisecond
-	waitForOpened = 3 * time.Second
+	processesEvery = 2 * time.Second
+	processesSoon  = 150 * time.Millisecond
+	waitForOpened  = 3 * time.Second
 )
 
 // The console's alarms blink like annunciators on a panel: lit for a
@@ -94,36 +94,36 @@ const (
 )
 
 type (
-	stageMsg   struct{}          // the next stage is due
-	clockMsg   struct{}          // the second has turned
-	stationMsg struct{ station } // the station is read
-	watchMsg   struct {          // the process table is read
-		places   []place
-		panes    map[string]pane // the server's panes by terminal
-		slot     string          // the terminal in the slot
-		noSlot   bool            // home has no slot beside the rail
-		slotDead bool            // the slot's pane held on remain-on-exit, its process gone
-		slotLook bool            // the slot holds the look, which i closes rather than opens
-		err      string
-		gen      int
+	stageMsg     struct{}          // the next stage is due
+	clockMsg     struct{}          // the second has turned
+	stationMsg   struct{ station } // the station is read
+	processesMsg struct {          // the process table is read
+		projects   []project
+		panes      map[string]pane // the server's panes by terminal
+		bay        string          // the terminal in the slot
+		noBay      bool            // home has no slot beside the rail
+		bayDead    bool            // the slot's pane held on remain-on-exit, its process gone
+		bayReadout bool            // the slot holds the look, which i closes rather than opens
+		err        string
+		gen        int
 		// The processor time every process had used as of this reading,
 		// and when it was taken: what the next reading asks against to
 		// tell work from waiting.
 		cpu   map[int]time.Duration
 		cpuAt time.Time
 	}
-	watchTickMsg struct{ gen int }     // the watch is due to be read again
-	openedMsg    struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
-	reachedMsg   struct{ tty string }  // a process was put in the slot
-	lookedMsg    struct{ on bool }     // the look was put in the slot, or taken out of it
-	blinkMsg     struct{ gen int }     // the chip's half is up
-	projectsMsg  struct {              // the roots were walked
-		projects []project
+	processesTickMsg struct{ gen int }     // the watch is due to be read again
+	openedMsg        struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
+	reachedMsg       struct{ tty string }  // a process was put in the slot
+	readoutMsg       struct{ on bool }     // the look was put in the slot, or taken out of it
+	blinkMsg         struct{ gen int }     // the chip's half is up
+	projectsMsg      struct {              // the roots were walked
+		projects []projectRow
 		err      string
 	}
-	convosMsg struct { // a place's suspended conversations were read
-		dirs   []string
-		convos []conversation
+	sessionsMsg struct { // a place's suspended conversations were read
+		dirs     []string
+		sessions []session
 	}
 )
 
@@ -140,7 +140,7 @@ type model struct {
 	lit      bool // the annunciators are showing this half of the blink
 	blinkGen int  // which run of the blink a turn belongs to
 	ticking  bool // the blink's tick is in flight, because something annunciates
-	places   []place
+	projects []project
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
 	told     int // the cursor as last published for the look to follow
@@ -156,10 +156,10 @@ type model struct {
 	saidAsk, saidLamps string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
-	awaited  int
-	until    time.Time
-	watchErr string
-	watchGen int // which stay on the watch the ticks belong to
+	awaited      int
+	until        time.Time
+	processesErr string
+	processesGen int // which stay on the watch the ticks belong to
 	// The last reading's processor times, and when they were read: a
 	// process is working by what it has spent since, not by what it has
 	// spent altogether.
@@ -167,7 +167,7 @@ type model struct {
 	cpuAt  time.Time
 	// The list: the projects as the roots were last walked, what has been
 	// typed to narrow them, and which of the rows the cursor is on.
-	projects    []project
+	walked      []projectRow
 	filter      string
 	pcursor     int
 	scanning    bool
@@ -179,12 +179,12 @@ type model struct {
 
 	// The picker: a place's suspended conversations, as last read, what
 	// has narrowed them, and which of the rows the cursor is on.
-	convosDirs    []string // the directories asked for; a stale answer's guard
-	convosPlace   string
-	convos        []conversation
-	convosLoading bool
-	rfilter       string
-	rcursor       int
+	sessionsDirs    []string // the directories asked for; a stale answer's guard
+	sessionsProject string
+	sessions        []session
+	sessionsLoading bool
+	rfilter         string
+	rcursor         int
 
 	// kill is a kill x has asked for and not yet answered; nothing else
 	// binds while it is not nil.
@@ -194,10 +194,10 @@ type model struct {
 	inside bool            // this conn is the rail of the server's home window
 	self   string          // this binary, for the hold
 	panes  map[string]pane // the server's panes by terminal, as last read
-	slot   string          // the terminal in the slot, as last read
+	bay    string          // the terminal in the slot, as last read
 	// The terminal that was in the slot before that one, which is where
 	// the other-process chord goes back to.
-	lastSlot string
+	lastBay string
 }
 
 func newModel(p palette) model {
@@ -211,11 +211,11 @@ func newModel(p palette) model {
 		ticking: true,
 		told:    -1, // nothing published yet; the first cursor is news
 
-		head:      station{build: readBuild(), session: readSession()},
+		head:      station{build: readBuild(), login: readLogin()},
 		now:       time.Now(),
 		p:         p,
 		uid:       os.Getuid(),
-		roots:     placeRoots(isProject),
+		roots:     rootFinder(isProject),
 		isProject: isProject,
 		projRoots: roots,
 	}
@@ -231,8 +231,8 @@ func (m model) report() report {
 }
 
 // watchReport is the watch's words as things stand.
-func (m model) watchReport() watchReport {
-	w := composeWatch(m.places, m.panes, m.slot, m.projRoots, m.head.session.home, m.now, m.watchErr)
+func (m model) processesReport() processesReport {
+	w := composeProcesses(m.projects, m.panes, m.bay, m.projRoots, m.head.login.home, m.now, m.processesErr)
 	w.inside, w.lit = m.inside, m.lit
 	return w
 }
@@ -240,11 +240,11 @@ func (m model) watchReport() watchReport {
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	return composeProjects(m.projects, m.filter, projectRoots(m.head.session.home), m.head.session.home, m.scanning, m.projectsErr)
+	return composeProjects(m.walked, m.filter, projectRoots(m.head.login.home), m.head.login.home, m.scanning, m.projectsErr)
 }
 
-func (m model) projectRows() []project {
-	return matching(m.projects, m.filter)
+func (m model) projectRows() []projectRow {
+	return matching(m.walked, m.filter)
 }
 
 func (m model) Init() tea.Cmd {
@@ -262,8 +262,8 @@ func readStationCmd() tea.Msg {
 // readWatch reads the process table, and in the server its panes and
 // the slot, and composes the watch off them. It reads and does nothing
 // else; what the reading calls for is decided when it comes back.
-func (m model) readWatch() tea.Cmd {
-	gen, uid, roots, isProject := m.watchGen, m.uid, m.roots, m.isProject
+func (m model) readProcesses() tea.Cmd {
+	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots, m.isProject
 	was, wasAt := m.cpuWas, m.cpuAt
 	var srv *server
 	if m.inside {
@@ -272,24 +272,24 @@ func (m model) readWatch() tea.Cmd {
 	return func() tea.Msg {
 		procs, err := readProcesses(uid)
 		if err != nil {
-			return watchMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
+			return processesMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
 		// How each process stands past what the table says: anything is
 		// working by the processor time it spent since the last reading,
 		// which is why that reading is kept, and an AI answers for
 		// itself instead - working, or waiting on you.
 		now, nowAt := cpuOf(procs), time.Now()
-		how := map[int]standing{}
+		how := map[int]status{}
 		for pid := range cpuWorking(was, wasAt, procs, nowAt) {
-			how[pid] = standing{working: true}
+			how[pid] = status{working: true}
 		}
-		maps.Copy(how, aiStandings(procs))
-		msg := watchMsg{places: watch(procs, uid, roots, isProject, how), gen: gen, cpu: now, cpuAt: nowAt}
+		maps.Copy(how, contactStatuses(procs))
+		msg := processesMsg{projects: projectsFrom(procs, uid, roots, isProject, how), gen: gen, cpu: now, cpuAt: nowAt}
 		if srv != nil {
-			if slot, ok, err := srv.slot(); err == nil && !ok {
-				msg.noSlot = true
+			if bay, ok, err := srv.bay(); err == nil && !ok {
+				msg.noBay = true
 			} else if ok {
-				msg.slot, msg.slotDead, msg.slotLook = slot.tty, slot.dead, slot.look
+				msg.bay, msg.bayDead, msg.bayReadout = bay.tty, bay.dead, bay.readout
 			}
 			msg.panes, _ = srv.panes()
 		}
@@ -317,8 +317,8 @@ func (m model) annunciating() bool {
 	switch m.view {
 	case viewConsole:
 		return true
-	case viewWatch:
-		return len(waitingRound(m.places)) > 0
+	case viewProcesses:
+		return len(waitingRound(m.projects)) > 0
 	default:
 		return false
 	}
@@ -357,12 +357,12 @@ func (m model) nextBlink() tea.Cmd {
 
 // watchTick is when the watch reads again: soon while it waits on a
 // shell conn opened, and at its own pace otherwise.
-func (m model) watchTick() tea.Cmd {
-	gen, every := m.watchGen, watchEvery
+func (m model) processesTick() tea.Cmd {
+	gen, every := m.processesGen, processesEvery
 	if m.awaited != 0 {
-		every = watchSoon
+		every = processesSoon
 	}
-	return tea.Tick(every, func(time.Time) tea.Msg { return watchTickMsg{gen} })
+	return tea.Tick(every, func(time.Time) tea.Msg { return processesTickMsg{gen} })
 }
 
 // Update answers a message and, whatever came of it, publishes where
@@ -378,7 +378,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// gone missing — a state directory swept, a server that came
 		// back — comes back on the next beat rather than staying gone
 		// until somebody presses j.
-		_, reading := msg.(watchMsg)
+		_, reading := msg.(processesMsg)
 		nm = nm.published(reading)
 		nm, said := nm.saying()
 		nm, blink := nm.blinked()
@@ -404,7 +404,7 @@ func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	ask, lamps := m.ask(), barLamps(m.places)
+	ask, lamps := m.ask(), statusLineLamps(m.projects)
 	if ask == m.saidAsk && lamps == m.saidLamps {
 		return m, nil
 	}
@@ -421,7 +421,7 @@ func (m model) saying() (model, tea.Cmd) {
 // dark on the panel, since the operator can see where they are.
 func (m model) ask() string {
 	if m.kill != nil {
-		return barAsk("CONFIRM") + barSay(m.kill.prompt)
+		return statusLineAsk("CONFIRM") + statusLineSay(m.kill.prompt)
 	}
 	return ""
 }
@@ -439,12 +439,12 @@ func (m model) published(again bool) model {
 	// With no home there is nowhere to say it: the path would be a
 	// relative one, and conn does not write beside whatever directory
 	// it happens to have been started in.
-	if m.view != viewWatch || !m.inside || m.head.session.home == "" {
+	if m.view != viewProcesses || !m.inside || m.head.login.home == "" {
 		return m
 	}
 	if pid != m.told || again {
 		m.told = pid
-		tellCursor(cursorPath(m.head.session.home), pid)
+		tellCursor(cursorPath(m.head.login.home), pid)
 	}
 	return m
 }
@@ -455,8 +455,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		// The rail holds its width through a resize of the window, once it
 		// is a rail: with the slot beside it, on the watch or the list.
-		if m.inside && m.view != viewConsole && m.slot != "" && m.width != railWidth {
-			return m, m.serverCmd(func() error { return m.srv.holdRail() })
+		if m.inside && m.view != viewConsole && m.bay != "" && m.width != panelWidth {
+			return m, m.serverCmd(func() error { return m.srv.holdPanel() })
 		}
 	case stationMsg:
 		st := msg.station
@@ -480,17 +480,17 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.slotted(msg.shell.pane.tty)
 		m.looking = false
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
-		m.watchGen++
-		return m, m.readWatch()
-	case lookedMsg:
+		m.processesGen++
+		return m, m.readProcesses()
+	case readoutMsg:
 		// The page is up, or down, and conn knows it without reading the
 		// server: the next i is a keypress away and has to decide which
 		// way it goes. The reading is taken again from here so a reading
 		// already in flight, which saw the slot as it was before, cannot
 		// land afterwards and say otherwise.
 		m.looking = msg.on
-		m.watchGen++
-		return m, m.readWatch()
+		m.processesGen++
+		return m, m.readProcesses()
 	case reachedMsg:
 		// The pane is in the slot; conn knows it now and does not have to
 		// read the server to find out, so the row says so at once.
@@ -504,11 +504,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// what is in the slot.
 		m = m.slotted(msg.tty)
 		m.looking = false
-		if pid, at, ok := headOf(m.places, msg.tty); ok {
+		if pid, at, ok := headOf(m.projects, msg.tty); ok {
 			m.cursor, m.cursorAt = pid, at
 		}
-		m.watchGen++
-		return m, m.readWatch()
+		m.processesGen++
+		return m, m.readProcesses()
 	case blinkMsg:
 		if msg.gen != m.blinkGen || !m.annunciating() {
 			m.lit = true
@@ -516,12 +516,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.lit = !m.lit
 		return m, m.nextBlink()
-	case watchMsg:
-		if msg.gen != m.watchGen {
+	case processesMsg:
+		if msg.gen != m.processesGen {
 			return m, nil
 		}
-		m.places, m.panes, m.slot, m.watchErr = msg.places, msg.panes, msg.slot, msg.err
-		m.looking = msg.slotLook
+		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
+		m.looking = msg.bayReadout
 		if msg.cpu != nil {
 			m.cpuWas, m.cpuAt = msg.cpu, msg.cpuAt
 		}
@@ -529,28 +529,28 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// one that never comes is given up on when the wait is out.
 		if m.awaited != 0 {
 			switch {
-			case hasPid(m.places, m.awaited):
+			case hasPid(m.projects, m.awaited):
 				m.cursor, m.awaited = m.awaited, 0
 			case time.Now().After(m.until):
 				m.awaited = 0
 			}
 		}
-		m.cursor, m.cursorAt = follow(m.places, m.cursor, m.cursorAt)
+		m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
 		// The reading the console was waiting on: the watch goes up with
 		// its rows already in it, drawn at the rail's width, and the slot
 		// opens beside a frame that is already the shape it will be.
 		var cmds []tea.Cmd
 		if m.entering {
-			m.entering, m.view = false, viewWatch
+			m.entering, m.view = false, viewProcesses
 			if m.inside {
 				cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
 			}
 		}
-		if m.view == viewWatch {
+		if m.view == viewProcesses {
 			switch {
 			// A home without its slot gets one; the next reading finds it.
-			case m.inside && msg.noSlot:
-				cmds = append(cmds, m.watchTick(), m.openSlot())
+			case m.inside && msg.noBay:
+				cmds = append(cmds, m.processesTick(), m.openBay())
 			// A slot whose pane died stays the shape it was; only what is
 			// in it is replaced, so the rail never has to give up its
 			// width and take it back. What replaces it is the next hand
@@ -558,40 +558,40 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// operator was working in the slot, and the work goes on in
 			// the one nearest to hand. Only with none to reach does the
 			// slot hold a placard.
-			case m.inside && msg.slotDead:
+			case m.inside && msg.bayDead:
 				if e, ok := m.nextReachable(); ok {
-					cmds = append(cmds, m.watchTick(), m.reach(m.panes[e.tty], e.tty))
+					cmds = append(cmds, m.processesTick(), m.reach(m.panes[e.tty], e.tty))
 				} else {
-					cmds = append(cmds, m.watchTick(), m.reviveSlot())
+					cmds = append(cmds, m.processesTick(), m.reviveBay())
 				}
 			default:
-				cmds = append(cmds, m.watchTick())
+				cmds = append(cmds, m.processesTick())
 			}
 		}
 		return m, tea.Batch(cmds...)
-	case watchTickMsg:
-		if msg.gen != m.watchGen || m.view != viewWatch {
+	case processesTickMsg:
+		if msg.gen != m.processesGen || m.view != viewProcesses {
 			return m, nil
 		}
-		return m, m.readWatch()
+		return m, m.readProcesses()
 	case projectsMsg:
-		m.projects, m.projectsErr, m.scanning = msg.projects, msg.err, false
+		m.walked, m.projectsErr, m.scanning = msg.projects, msg.err, false
 		m.pcursor = clamp(m.pcursor, len(m.projectRows()))
-	case convosMsg:
+	case sessionsMsg:
 		// Only the picker that asked for these dirs wants them; one opened
 		// on another place since has moved past the answer.
-		if !slices.Equal(msg.dirs, m.convosDirs) {
+		if !slices.Equal(msg.dirs, m.sessionsDirs) {
 			return m, nil
 		}
-		m.convos, m.convosLoading = msg.convos, false
-		m.rcursor = clamp(m.rcursor, len(m.resumeRows()))
+		m.sessions, m.sessionsLoading = msg.sessions, false
+		m.rcursor = clamp(m.rcursor, len(m.sessionsRows()))
 	case killedMsg:
 		// A beat for the signal to be acted on, so the row is not read a
 		// moment too soon, still there; the watchTick this reuses is a
 		// no-op once the stay it belongs to has moved on. Whether the
 		// process ended is the watch's to say.
-		gen := m.watchGen
-		return m, tea.Tick(killGrace, func(time.Time) tea.Msg { return watchTickMsg{gen: gen} })
+		gen := m.processesGen
+		return m, tea.Tick(killGrace, func(time.Time) tea.Msg { return processesTickMsg{gen: gen} })
 	case tea.KeyPressMsg:
 		return m.key(msg.String())
 	}
@@ -646,8 +646,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
-	case viewResume:
-		return m.resumeKey(k)
+	case viewSessions:
+		return m.sessionsKey(k)
 	}
 	switch {
 	case k == "ctrl+c" || k == "q":
@@ -670,16 +670,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// the last stay are still in hand, a couple of seconds old, and
 		// the watch goes up with them at once while the reading on its
 		// way brings them up to date.
-		m.watchGen++
-		if len(m.places) == 0 && m.watchErr == "" {
+		m.processesGen++
+		if len(m.projects) == 0 && m.processesErr == "" {
 			m.entering = true
-			return m, m.readWatch()
+			return m, m.readProcesses()
 		}
-		m.view = viewWatch
+		m.view = viewProcesses
 		if m.inside {
-			return m, tea.Batch(m.readWatch(), m.serverCmd(func() error { return m.srv.narrow() }))
+			return m, tea.Batch(m.readProcesses(), m.serverCmd(func() error { return m.srv.narrow() }))
 		}
-		return m, m.readWatch()
+		return m, m.readProcesses()
 	case k == "c":
 		// The blink is not started here: what annunciates is decided in
 		// one place, and the tick follows the view on its own.
@@ -688,9 +688,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, m.serverCmd(func() error { return m.srv.wide() })
 		}
 	case k == "j" || k == "down":
-		m.cursor, m.cursorAt = follow(m.places, 0, m.cursorAt+1)
+		m.cursor, m.cursorAt = follow(m.projects, 0, m.cursorAt+1)
 	case k == "k" || k == "up":
-		m.cursor, m.cursorAt = follow(m.places, 0, max(m.cursorAt-1, 0))
+		m.cursor, m.cursorAt = follow(m.projects, 0, max(m.cursorAt-1, 0))
 	case k == "enter":
 		if e, _, ok := m.under(); m.inside && ok && m.panes[e.tty].id != "" {
 			return m, m.reach(m.panes[e.tty], e.tty)
@@ -708,11 +708,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 	case k == "a":
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
-			return m, m.startAI(pl.path)
+			return m, m.startContact(pl.path)
 		}
 	case k == "alt+a":
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
-			return m.openResume(pl.path, []string{pl.path})
+			return m.openSessions(pl.path, []string{pl.path})
 		}
 	case k == "i":
 		// i is the key for the page, and the key for the page is what a
@@ -732,9 +732,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		case m.looking && ok && m.panes[e.tty].id != "":
 			return m, m.reach(m.panes[e.tty], e.tty)
 		case m.looking:
-			return m, m.closeLook()
+			return m, m.closeReadout()
 		case ok:
-			return m, m.openLook()
+			return m, m.openReadout()
 		}
 	case k == "tab":
 		return m.toWaiting()
@@ -767,25 +767,25 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	case k == "esc":
-		return m.toWatch()
+		return m.toProcesses()
 	case k == "enter":
 		if m.inside && m.pcursor < len(rows) {
 			path := rows[m.pcursor].path
-			mm, cmd := m.toWatch()
+			mm, cmd := m.toProcesses()
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openShell(path))
 		}
 	case k == "ctrl+a":
 		if m.inside && m.pcursor < len(rows) {
 			path := rows[m.pcursor].path
-			mm, cmd := m.toWatch()
+			mm, cmd := m.toProcesses()
 			m = mm.(model)
-			return m, tea.Batch(cmd, m.startAI(path))
+			return m, tea.Batch(cmd, m.startContact(path))
 		}
 	case k == "alt+a":
 		if m.inside && m.pcursor < len(rows) {
 			row := rows[m.pcursor]
-			return m.openResume(row.path, convoDirs(m.projects, row))
+			return m.openSessions(row.path, sessionDirs(m.walked, row))
 		}
 	case k == "up" || k == "ctrl+p":
 		m.pcursor = clamp(m.pcursor-1, len(rows))
@@ -813,10 +813,10 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 // the look are conn's own furniture rather than somewhere you were
 // working, and going back to one would be going back to nothing.
 func (m model) slotted(tty string) model {
-	if m.slot != "" && m.slot != tty && !m.panes[m.slot].hold {
-		m.lastSlot = m.slot
+	if m.bay != "" && m.bay != tty && !m.panes[m.bay].hold {
+		m.lastBay = m.bay
 	}
-	m.slot = tty
+	m.bay = tty
 	return m
 }
 
@@ -832,12 +832,12 @@ func (m model) slotted(tty string) model {
 // window, so this is a press from the rail, and the answer to it is a
 // process.
 func (m model) toOther() (tea.Model, tea.Cmd) {
-	if !m.inside || m.lastSlot == "" || m.panes[m.lastSlot].id == "" {
+	if !m.inside || m.lastBay == "" || m.panes[m.lastBay].id == "" {
 		return m, nil
 	}
-	cmds := []tea.Cmd{m.reach(m.panes[m.lastSlot], m.lastSlot)}
+	cmds := []tea.Cmd{m.reach(m.panes[m.lastBay], m.lastBay)}
 	if m.view == viewConsole {
-		m.view, m.entering = viewWatch, false
+		m.view, m.entering = viewProcesses, false
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
 	}
 	return m, tea.Batch(cmds...)
@@ -855,7 +855,7 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 // A hand conn holds no pane for is still gone to, on the rail, and the
 // keys stay where they are.
 func (m model) toWaiting() (tea.Model, tea.Cmd) {
-	round := waitingRound(m.places)
+	round := waitingRound(m.projects)
 	if len(round) == 0 {
 		return m, nil
 	}
@@ -866,13 +866,13 @@ func (m model) toWaiting() (tea.Model, tea.Cmd) {
 			break
 		}
 	}
-	m.cursor, m.cursorAt = follow(m.places, next.pid, m.cursorAt)
+	m.cursor, m.cursorAt = follow(m.projects, next.pid, m.cursorAt)
 	var cmds []tea.Cmd
-	if m.view != viewWatch {
+	if m.view != viewProcesses {
 		console := m.view == viewConsole
-		m.view, m.entering = viewWatch, false
-		m.watchGen++
-		cmds = append(cmds, m.readWatch())
+		m.view, m.entering = viewProcesses, false
+		m.processesGen++
+		cmds = append(cmds, m.readProcesses())
 		if console && m.inside {
 			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
 		}
@@ -902,32 +902,32 @@ func (m model) toProjects() (tea.Model, tea.Cmd) {
 }
 
 // toWatch leaves the list for the watch, which starts reading again.
-func (m model) toWatch() (tea.Model, tea.Cmd) {
-	m.view = viewWatch
-	m.watchGen++
-	return m, m.readWatch()
+func (m model) toProcesses() (tea.Model, tea.Cmd) {
+	m.view = viewProcesses
+	m.processesGen++
+	return m, m.readProcesses()
 }
 
 // openResume opens the picker over a place's suspended conversations:
 // place is what it is for, and dirs the directories a transcript could
 // be filed under, which for a group is a repository under it, not the
 // folder that names it.
-func (m model) openResume(place string, dirs []string) (tea.Model, tea.Cmd) {
-	m.view = viewResume
-	m.convosDirs, m.convosPlace, m.convosLoading = dirs, place, true
-	m.convos, m.rfilter, m.rcursor = nil, "", 0
-	return m, m.scanConvos(dirs)
+func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) {
+	m.view = viewSessions
+	m.sessionsDirs, m.sessionsProject, m.sessionsLoading = dirs, project, true
+	m.sessions, m.rfilter, m.rcursor = nil, "", 0
+	return m, m.scanSessions(dirs)
 }
 
 // resumeRows is the conversations the filter leaves, which the cursor
 // is an index into.
-func (m model) resumeRows() []conversation {
-	return matchingConvos(m.convos, m.rfilter)
+func (m model) sessionsRows() []session {
+	return matchingSessions(m.sessions, m.rfilter)
 }
 
 // resumeReport is the picker's words as things stand.
-func (m model) resumeReport() resumeReport {
-	return composeResume(m.convos, m.convosPlace, m.rfilter, m.head.session.home, m.now, m.convosLoading)
+func (m model) sessionsReport() sessionsReport {
+	return composeSessions(m.sessions, m.sessionsProject, m.rfilter, m.head.login.home, m.now, m.sessionsLoading)
 }
 
 // resumeKey answers a key on the picker, which is a line typed into the
@@ -935,8 +935,8 @@ func (m model) resumeReport() resumeReport {
 // and ctrl+n and ctrl+p do too, enter continues the conversation under
 // the cursor and goes back to the watch, esc goes back without
 // continuing anything, and ctrl+c is what it is everywhere.
-func (m model) resumeKey(k string) (tea.Model, tea.Cmd) {
-	rows := m.resumeRows()
+func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
+	rows := m.sessionsRows()
 	switch {
 	case k == "ctrl+c":
 		if m.inside {
@@ -944,11 +944,11 @@ func (m model) resumeKey(k string) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	case k == "esc":
-		return m.toWatch()
+		return m.toProcesses()
 	case k == "enter":
-		if m.inside && !m.convosLoading && m.rcursor < len(rows) {
+		if m.inside && !m.sessionsLoading && m.rcursor < len(rows) {
 			c := rows[m.rcursor]
-			mm, cmd := m.toWatch()
+			mm, cmd := m.toProcesses()
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openResumed(c.Dir, c.ID))
 		}
@@ -984,7 +984,7 @@ func clamp(at, rows int) int {
 // are not hands.
 func (m model) nextReachable() (entry, bool) {
 	var all []entry
-	for _, pl := range m.places {
+	for _, pl := range m.projects {
 		all = append(all, pl.entries...)
 	}
 	start := 0
@@ -996,30 +996,30 @@ func (m model) nextReachable() (entry, bool) {
 	}
 	for k := range all {
 		e := all[(start+k)%len(all)]
-		if p := m.panes[e.tty]; p.id != "" && !p.hold && !p.look && !p.dead {
+		if p := m.panes[e.tty]; p.id != "" && !p.hold && !p.readout && !p.dead {
 			return e, true
 		}
 	}
 	return entry{}, false
 }
 
-func (m model) under() (entry, place, bool) {
-	for _, pl := range m.places {
+func (m model) under() (entry, project, bool) {
+	for _, pl := range m.projects {
 		for _, e := range pl.entries {
 			if e.pid == m.cursor {
 				return e, pl, true
 			}
 		}
 	}
-	return entry{}, place{}, false
+	return entry{}, project{}, false
 }
 
 // follow finds the cursor after the rows change: the row of its pid,
 // where that is still on watch, else the row where it was, held within
 // the rows there are. It answers the pid and the row.
-func follow(places []place, pid, at int) (int, int) {
+func follow(projects []project, pid, at int) (int, int) {
 	var pids []int
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			pids = append(pids, e.pid)
 		}
@@ -1063,7 +1063,7 @@ func (m model) advance() (tea.Model, tea.Cmd) {
 // still the whole of what there is to draw in.
 func (m model) cols() int {
 	if m.inside && m.view != viewConsole {
-		return min(railWidth, m.width)
+		return min(panelWidth, m.width)
 	}
 	return m.width
 }
@@ -1072,12 +1072,12 @@ func (m model) View() tea.View {
 	var rows []row
 	width := m.cols()
 	switch m.view {
-	case viewWatch:
-		rows = drawWatch(m.watchReport(), m.cursor, width, m.height, m.p)
+	case viewProcesses:
+		rows = drawProcesses(m.processesReport(), m.cursor, width, m.height, m.p)
 	case viewProjects:
 		rows = drawProjects(m.projectsReport(), m.pcursor, width, m.height, m.p)
-	case viewResume:
-		rows = drawResume(m.resumeReport(), m.rcursor, width, m.height, m.p)
+	case viewSessions:
+		rows = drawSessions(m.sessionsReport(), m.rcursor, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit

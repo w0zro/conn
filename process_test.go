@@ -19,22 +19,22 @@ import (
 // process, and one with no terminal working at / — no project, so
 // nothing adopts it and the watch leaves it out.
 var (
-	watchNow  = time.Date(2026, 9, 9, 3, 0, 0, 0, time.UTC)
-	testProcs = []process{
-		{pid: 1, ppid: 0, uid: 0, command: "launchd", started: watchNow.Add(-5 * 24 * time.Hour)},
-		{pid: 500, ppid: 1, uid: 501, command: "distnoted", state: 'S', started: watchNow.Add(-4 * 24 * time.Hour), cwd: "/"},
-		{pid: 67031, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-3 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/conn"},
-		{pid: 67032, ppid: 67031, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "conn", args: []string{"./conn"}, started: watchNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
-		{pid: 67033, ppid: 67032, uid: 501, tty: "ttys004", state: 'S', command: "tmux", args: []string{"tmux", "-S", "/Users/w0zro/.local/state/conn/sock", "attach"}, started: watchNow.Add(-89 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
-		{pid: 67040, ppid: 67031, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
-		{pid: 70001, ppid: 1, uid: 501, tty: "ttys007", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-2 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
-		{pid: 70100, ppid: 70001, uid: 501, tty: "ttys007", foreground: true, state: 'S', command: "claude", args: []string{"claude", "--resume"}, started: watchNow.Add(-47 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
-		{pid: 70212, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "node", args: []string{"node", "/opt/claude/mcp.js"}, started: watchNow.Add(-46 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
-		{pid: 70300, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "bash", args: []string{"bash", "-c", "go test ./..."}, started: watchNow.Add(-12 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
-		{pid: 70301, ppid: 70300, uid: 501, tty: "ttys007", state: 'R', command: "go", args: []string{"go", "test", "./..."}, started: watchNow.Add(-11 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
-		{pid: 80001, ppid: 1, uid: 501, tty: "ttys009", foreground: true, state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-26 * time.Hour), cwd: "/Users/w0zro"},
-		{pid: 80002, ppid: 80001, uid: 501, tty: "ttys009", state: 'T', command: "vim", args: []string{"vim", "notes.md"}, started: watchNow.Add(-25 * time.Hour), cwd: "/Users/w0zro"},
-		{pid: 90000, ppid: 1, uid: 502, tty: "ttys011", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/other"},
+	processesNow = time.Date(2026, 9, 9, 3, 0, 0, 0, time.UTC)
+	testProcs    = []process{
+		{pid: 1, ppid: 0, uid: 0, command: "launchd", started: processesNow.Add(-5 * 24 * time.Hour)},
+		{pid: 500, ppid: 1, uid: 501, command: "distnoted", state: 'S', started: processesNow.Add(-4 * 24 * time.Hour), cwd: "/"},
+		{pid: 67031, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-3 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 67032, ppid: 67031, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "conn", args: []string{"./conn"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 67033, ppid: 67032, uid: 501, tty: "ttys004", state: 'S', command: "tmux", args: []string{"tmux", "-S", "/Users/w0zro/.local/state/conn/sock", "attach"}, started: processesNow.Add(-89 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 67040, ppid: 67031, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 70001, ppid: 1, uid: 501, tty: "ttys007", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-2 * time.Hour), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+		{pid: 70100, ppid: 70001, uid: 501, tty: "ttys007", foreground: true, state: 'S', command: "claude", args: []string{"claude", "--resume"}, started: processesNow.Add(-47 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+		{pid: 70212, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "node", args: []string{"node", "/opt/claude/mcp.js"}, started: processesNow.Add(-46 * time.Minute), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+		{pid: 70300, ppid: 70100, uid: 501, tty: "ttys007", state: 'S', command: "bash", args: []string{"bash", "-c", "go test ./..."}, started: processesNow.Add(-12 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
+		{pid: 70301, ppid: 70300, uid: 501, tty: "ttys007", state: 'R', command: "go", args: []string{"go", "test", "./..."}, started: processesNow.Add(-11 * time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer/internal"},
+		{pid: 80001, ppid: 1, uid: 501, tty: "ttys009", foreground: true, state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-26 * time.Hour), cwd: "/Users/w0zro"},
+		{pid: 80002, ppid: 80001, uid: 501, tty: "ttys009", state: 'T', command: "vim", args: []string{"vim", "notes.md"}, started: processesNow.Add(-25 * time.Hour), cwd: "/Users/w0zro"},
+		{pid: 90000, ppid: 1, uid: 502, tty: "ttys011", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: "/Users/other"},
 	}
 	testRoots = func(dir string) string {
 		for _, root := range []string{"/Users/w0zro/projects/w0zro/conn", "/Users/w0zro/projects/w0zro/vim.pro/conjurer"} {
@@ -64,10 +64,10 @@ var (
 // or conn's own — conn is the instrument and not the work, though
 // something under it, however unlikely, would still root a tree of its
 // own.
-func TestWatchStandsOneProcessForEachWork(t *testing.T) {
-	places := watch(testProcs, 501, testRoots, testIsProject, nil)
+func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
+	projects := projectsFrom(testProcs, 501, testRoots, testIsProject, nil)
 	var got []string
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
@@ -92,7 +92,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	}
 
 	find := func(pid int) entry {
-		for _, pl := range places {
+		for _, pl := range projects {
 			for _, e := range pl.entries {
 				if e.pid == pid {
 					return e
@@ -119,7 +119,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	// not a row of it — nor is the tmux client it holds, which is
 	// conn's own doing and goes off the watch with it rather than
 	// hanging from the shell above conn.
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			if e.kind == kindConn {
 				t.Error("conn is on its own watch")
@@ -138,7 +138,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		}
 	}
 	got = got[:0]
-	for _, pl := range watch(without, 501, testRoots, testIsProject, nil) {
+	for _, pl := range projectsFrom(without, 501, testRoots, testIsProject, nil) {
 		for _, e := range pl.entries {
 			got = append(got, strings.Repeat(" ", e.depth)+e.kind+" "+e.command+" "+e.status)
 		}
@@ -156,7 +156,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("watch without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	if b := watch(nil, 501, testRoots, testIsProject, nil); len(b) != 0 {
+	if b := projectsFrom(nil, 501, testRoots, testIsProject, nil); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
 	}
 }
@@ -170,23 +170,23 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 // in a project and is nobody's work. Neither is what conn is held in:
 // the tmux server has no terminal and works in the repository like
 // anything else there, and is off the watch with conn.
-func TestTheWatchAdoptsWorkWithNoTerminal(t *testing.T) {
+func TestTheProcessesViewAdoptsWorkWithNoTerminal(t *testing.T) {
 	const conn = "/Users/w0zro/projects/w0zro/conn"
 	procs := []process{
-		{pid: 1, ppid: 0, uid: 0, command: "launchd", started: watchNow.Add(-5 * 24 * time.Hour)},
-		{pid: 300, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-3 * time.Hour), cwd: conn},
-		{pid: 310, ppid: 300, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: watchNow.Add(-47 * time.Minute), cwd: conn},
-		{pid: 320, ppid: 310, uid: 501, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "8000"}, started: watchNow.Add(-30 * time.Second), cwd: conn + "/docs"},
-		{pid: 330, ppid: 1, uid: 501, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "8137"}, started: watchNow.Add(-26 * time.Hour), cwd: conn + "/docs"},
-		{pid: 400, ppid: 1, uid: 501, tty: "ttys009", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-2 * time.Hour), cwd: "/Users/w0zro"},
-		{pid: 410, ppid: 1, uid: 501, state: 'S', command: "weatherd", args: []string{"weatherd"}, started: watchNow.Add(-5 * time.Hour), cwd: "/Users/w0zro/Library/Containers/com.apple.weather.widget/Data"},
-		{pid: 500, ppid: 1, uid: 501, state: 'S', command: "tmux", args: []string{"tmux", "-S", "/Users/w0zro/.local/state/conn/tmux.sock", "new-session"}, started: watchNow.Add(-90 * time.Second), cwd: conn},
-		{pid: 510, ppid: 500, uid: 501, tty: "ttys003", state: 'S', command: "conn", args: []string{"conn"}, started: watchNow.Add(-89 * time.Second), cwd: conn},
-		{pid: 600, ppid: 1, uid: 502, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "9999"}, started: watchNow.Add(-time.Hour), cwd: conn + "/docs"},
+		{pid: 1, ppid: 0, uid: 0, command: "launchd", started: processesNow.Add(-5 * 24 * time.Hour)},
+		{pid: 300, ppid: 1, uid: 501, tty: "ttys004", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-3 * time.Hour), cwd: conn},
+		{pid: 310, ppid: 300, uid: 501, tty: "ttys004", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: processesNow.Add(-47 * time.Minute), cwd: conn},
+		{pid: 320, ppid: 310, uid: 501, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "8000"}, started: processesNow.Add(-30 * time.Second), cwd: conn + "/docs"},
+		{pid: 330, ppid: 1, uid: 501, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "8137"}, started: processesNow.Add(-26 * time.Hour), cwd: conn + "/docs"},
+		{pid: 400, ppid: 1, uid: 501, tty: "ttys009", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-2 * time.Hour), cwd: "/Users/w0zro"},
+		{pid: 410, ppid: 1, uid: 501, state: 'S', command: "weatherd", args: []string{"weatherd"}, started: processesNow.Add(-5 * time.Hour), cwd: "/Users/w0zro/Library/Containers/com.apple.weather.widget/Data"},
+		{pid: 500, ppid: 1, uid: 501, state: 'S', command: "tmux", args: []string{"tmux", "-S", "/Users/w0zro/.local/state/conn/tmux.sock", "new-session"}, started: processesNow.Add(-90 * time.Second), cwd: conn},
+		{pid: 510, ppid: 500, uid: 501, tty: "ttys003", state: 'S', command: "conn", args: []string{"conn"}, started: processesNow.Add(-89 * time.Second), cwd: conn},
+		{pid: 600, ppid: 1, uid: 502, state: 'S', command: "python3", args: []string{"python3", "-m", "http.server", "9999"}, started: processesNow.Add(-time.Hour), cwd: conn + "/docs"},
 	}
-	places := watch(procs, 501, testRoots, testIsProject, nil)
+	projects := projectsFrom(procs, 501, testRoots, testIsProject, nil)
 	var got []string
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
@@ -204,7 +204,7 @@ func TestTheWatchAdoptsWorkWithNoTerminal(t *testing.T) {
 		t.Errorf("watch:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	on := map[int]bool{}
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			on[e.pid] = true
 		}
@@ -231,12 +231,12 @@ func TestTheWatchAdoptsWorkWithNoTerminal(t *testing.T) {
 // the same process twice.
 func TestATornTableCostsARowNotTheReading(t *testing.T) {
 	dup := []process{
-		{pid: 20, ppid: 1, uid: 501, tty: "ttys001", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
-		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
-		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 20, ppid: 1, uid: 501, tty: "ttys001", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: "/Users/w0zro"},
+		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: processesNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 21, ppid: 20, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: processesNow.Add(-time.Minute), cwd: "/Users/w0zro"},
 	}
 	var pids []int
-	for _, pl := range watch(dup, 501, testRoots, testIsProject, nil) {
+	for _, pl := range projectsFrom(dup, 501, testRoots, testIsProject, nil) {
 		for _, e := range pl.entries {
 			pids = append(pids, e.pid)
 		}
@@ -245,21 +245,21 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 		t.Errorf("a pid listed twice reads as %v", pids)
 	}
 	cycle := []process{
-		{pid: 10, ppid: 11, uid: 501, tty: "ttys001", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
-		{pid: 11, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "bash", args: []string{"bash"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 10, ppid: 11, uid: 501, tty: "ttys001", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: "/Users/w0zro"},
+		{pid: 11, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "bash", args: []string{"bash"}, started: processesNow.Add(-time.Minute), cwd: "/Users/w0zro"},
 		// Two more under one of them, so the ordering of that one's
 		// children is something that has to be worked out at all.
-		{pid: 13, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
-		{pid: 14, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "vim", args: []string{"vim"}, started: watchNow.Add(-time.Minute), cwd: "/Users/w0zro"},
-		{pid: 12, ppid: 1, uid: 501, tty: "ttys002", state: 'S', command: "zsh", args: []string{"-zsh"}, started: watchNow.Add(-time.Hour), cwd: "/Users/w0zro"},
+		{pid: 13, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "go", args: []string{"go", "build"}, started: processesNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 14, ppid: 10, uid: 501, tty: "ttys001", state: 'S', command: "vim", args: []string{"vim"}, started: processesNow.Add(-time.Minute), cwd: "/Users/w0zro"},
+		{pid: 12, ppid: 1, uid: 501, tty: "ttys002", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: "/Users/w0zro"},
 	}
-	done := make(chan []place, 1)
-	go func() { done <- watch(cycle, 501, testRoots, testIsProject, nil) }()
+	done := make(chan []project, 1)
+	go func() { done <- projectsFrom(cycle, 501, testRoots, testIsProject, nil) }()
 	select {
-	case places := <-done:
+	case projects := <-done:
 		// The one process standing clear of the cycle is still read.
 		var pids []int
-		for _, pl := range places {
+		for _, pl := range projects {
 			for _, e := range pl.entries {
 				pids = append(pids, e.pid)
 			}
@@ -267,7 +267,7 @@ func TestATornTableCostsARowNotTheReading(t *testing.T) {
 		if !slices.Contains(pids, 12) {
 			t.Errorf("the process outside the cycle was lost: %v", pids)
 		}
-		for _, pl := range places {
+		for _, pl := range projects {
 			seen := map[int]bool{}
 			for _, e := range pl.entries {
 				if seen[e.pid] {
@@ -320,7 +320,7 @@ func TestWorkIsWhatWasSpentSinceTheLastReading(t *testing.T) {
 		12: time.Second,     // a little, but under the share
 		13: 2 * time.Second, // gone by the next reading
 	}
-	wasAt := watchNow
+	wasAt := processesNow
 	nowAt := wasAt.Add(2 * time.Second)
 	procs := []process{
 		{pid: 10, cpu: 5 * time.Hour, started: wasAt.Add(-5 * 24 * time.Hour)},
@@ -350,7 +350,7 @@ func TestWorkIsWhatWasSpentSinceTheLastReading(t *testing.T) {
 // which is what makes the two the same question.
 func TestAProcessBornInTheGapIsAskedAgainstItsOwnLife(t *testing.T) {
 	was := map[int]time.Duration{9: 0}
-	wasAt := watchNow
+	wasAt := processesNow
 	nowAt := wasAt.Add(2 * time.Second)
 	fresh := []process{
 		// Spawned a third of a second ago and has had a processor for
@@ -384,7 +384,7 @@ func TestAProcessBornInTheGapIsAskedAgainstItsOwnLife(t *testing.T) {
 // second, which is a reading that lies at the moment the watch is read
 // hardest.
 func TestTheFirstReadingCallsNothingWorking(t *testing.T) {
-	nowAt := watchNow
+	nowAt := processesNow
 	procs := []process{
 		// Burned eight seconds of its twelve and has been asleep since.
 		{pid: 30, cpu: 8 * time.Second, started: nowAt.Add(-12 * time.Second)},
@@ -405,9 +405,9 @@ func TestTheFirstReadingCallsNothingWorking(t *testing.T) {
 // fault, since nothing went wrong.
 func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	var (
-		nothing = standing{}
-		busy    = standing{working: true}
-		waits   = standing{waiting: true}
+		nothing = status{}
+		busy    = status{working: true}
+		waits   = status{waiting: true}
 	)
 	shell := process{state: 'S'}
 	if s, _ := statusOf(shell, kindShell, false, busy); s != statusWorking {
@@ -422,8 +422,8 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	if s, _ := statusOf(process{state: 'S'}, kindRun, true, nothing); s != statusActive {
 		t.Errorf("a run doing nothing is %s", s)
 	}
-	AI := process{state: 'S'}
-	s, fault := statusOf(AI, kindAI, false, waits)
+	contact := process{state: 'S'}
+	s, fault := statusOf(contact, kindContact, false, waits)
 	if s != statusWaiting {
 		t.Errorf("an AI waiting on you is %s", s)
 	}
@@ -432,13 +432,13 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	}
 	// An AI stopped with its turn over holds nothing up, and reads
 	// the way anything else at rest does rather than asking for you.
-	if s, _ := statusOf(AI, kindAI, false, standing{idle: true}); s != statusIdle {
+	if s, _ := statusOf(contact, kindContact, false, status{idle: true}); s != statusIdle {
 		t.Errorf("an AI with its turn over is %s, not idle", s)
 	}
-	if s, _ := statusOf(AI, kindAI, false, standing{working: true, waiting: true}); s != statusWaiting {
+	if s, _ := statusOf(contact, kindContact, false, status{working: true, waiting: true}); s != statusWaiting {
 		t.Errorf("an AI that says both is %s, not waiting", s)
 	}
-	if s, _ := statusOf(process{state: 'T'}, kindAI, false, waits); s != statusStopped {
+	if s, _ := statusOf(process{state: 'T'}, kindContact, false, waits); s != statusStopped {
 		t.Error("a stopped AI is not stopped")
 	}
 }
@@ -451,7 +451,7 @@ func TestKindsAndCommands(t *testing.T) {
 		command string
 	}{
 		{process{command: "zsh", args: []string{"-zsh"}}, kindShell, "zsh"},
-		{process{command: "node", args: []string{"/usr/local/bin/claude", "--resume"}}, kindAI, "claude --resume"},
+		{process{command: "node", args: []string{"/usr/local/bin/claude", "--resume"}}, kindContact, "claude --resume"},
 		{process{command: "nvim"}, kindEditor, "nvim"},
 		{process{command: "conn", args: []string{"/Users/w0zro/.local/bin/conn"}}, kindConn, "conn"},
 		{process{command: "go", args: []string{"go", "test", "./..."}}, kindRun, "go test ./..."},
@@ -459,24 +459,24 @@ func TestKindsAndCommands(t *testing.T) {
 		{process{command: "conn", args: []string{"/usr/local/bin/conn", "hold"}}, kindHold, "conn hold"},
 		// A written title: the name is the first word of it, and the
 		// whole of it is what the process was started as.
-		{process{command: "claude", args: []string{"claude bg-spare", "--bg-spare", "/tmp/1a39b95b.claim.sock"}}, kindAI, "claude bg-spare --bg-spare /tmp/1a39b95b.claim.sock"},
+		{process{command: "claude", args: []string{"claude bg-spare", "--bg-spare", "/tmp/1a39b95b.claim.sock"}}, kindContact, "claude bg-spare --bg-spare /tmp/1a39b95b.claim.sock"},
 	} {
 		if kind, cmd := kindOf(c.p), commandLine(c.p); kind != c.kind || cmd != c.command {
 			t.Errorf("%+v: %s %q, want %s %q", c.p, kind, cmd, c.kind, c.command)
 		}
 	}
-	if age(watchNow.Add(-3*24*time.Hour-2*time.Hour), watchNow) != "3D 02H" ||
-		age(watchNow.Add(-2*time.Hour-5*time.Minute), watchNow) != "2H 05M" ||
-		age(watchNow.Add(-47*time.Minute-9*time.Second), watchNow) != "47M 09S" ||
-		age(watchNow.Add(-11*time.Second), watchNow) != "11S" ||
-		age(time.Time{}, watchNow) != "" {
-		t.Errorf("ages: %q %q %q %q", age(watchNow.Add(-3*24*time.Hour-2*time.Hour), watchNow), age(watchNow.Add(-2*time.Hour-5*time.Minute), watchNow), age(watchNow.Add(-47*time.Minute-9*time.Second), watchNow), age(watchNow.Add(-11*time.Second), watchNow))
+	if age(processesNow.Add(-3*24*time.Hour-2*time.Hour), processesNow) != "3D 02H" ||
+		age(processesNow.Add(-2*time.Hour-5*time.Minute), processesNow) != "2H 05M" ||
+		age(processesNow.Add(-47*time.Minute-9*time.Second), processesNow) != "47M 09S" ||
+		age(processesNow.Add(-11*time.Second), processesNow) != "11S" ||
+		age(time.Time{}, processesNow) != "" {
+		t.Errorf("ages: %q %q %q %q", age(processesNow.Add(-3*24*time.Hour-2*time.Hour), processesNow), age(processesNow.Add(-2*time.Hour-5*time.Minute), processesNow), age(processesNow.Add(-47*time.Minute-9*time.Second), processesNow), age(processesNow.Add(-11*time.Second), processesNow))
 	}
 }
 
 // placeRoots finds the repository above a directory, and answers the
 // same the second time without looking.
-func TestPlaceRootsFindTheRepository(t *testing.T) {
+func TestRootFinderFindsTheRepository(t *testing.T) {
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "repo")
 	deep := filepath.Join(repo, "a", "b")
@@ -486,7 +486,7 @@ func TestPlaceRootsFindTheRepository(t *testing.T) {
 	if err := os.MkdirAll(deep, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	roots := placeRoots(projectDirs(nil))
+	roots := rootFinder(projectDirs(nil))
 	if got := roots(deep); got != repo {
 		t.Errorf("root of %s is %q", deep, got)
 	}
@@ -508,7 +508,7 @@ func TestPlaceRootsFindTheRepository(t *testing.T) {
 // folder under conn's roots that holds one. Everything below a project
 // is in it, whatever it carries: docs in conn, a service with a
 // manifest of its own in the monorepo it is part of.
-func TestPlaceRootsSortByProject(t *testing.T) {
+func TestRootFinderSortsByProject(t *testing.T) {
 	dir := t.TempDir()
 	group := filepath.Join(dir, "w0zro")
 	repo := filepath.Join(group, "conn")
@@ -525,7 +525,7 @@ func TestPlaceRootsSortByProject(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	roots := placeRoots(projectDirs([]string{dir}))
+	roots := rootFinder(projectDirs([]string{dir}))
 
 	if got := roots(repo); got != repo {
 		t.Errorf("the repository is its own place, not %q", got)
@@ -576,7 +576,7 @@ func TestOnlyTheRootsHoldProjectsOfFolders(t *testing.T) {
 	if is(filepath.Join(away, "checkouts")) {
 		t.Error("a folder of checkouts outside the roots is a project")
 	}
-	roots := placeRoots(is)
+	roots := rootFinder(is)
 	if got := roots(filepath.Join(away, "checkouts")); got != filepath.Join(away, "checkouts") {
 		t.Errorf("it works at %q rather than standing for itself", got)
 	}
@@ -667,8 +667,8 @@ func TestProcIsParsed(t *testing.T) {
 // two that stopped at the same moment go by pid, so the ring is the
 // same ring on every reading.
 func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
-	at := func(s int) time.Time { return watchNow.Add(time.Duration(-s) * time.Second) }
-	places := []place{
+	at := func(s int) time.Time { return processesNow.Add(time.Duration(-s) * time.Second) }
+	projects := []project{
 		{path: "/a", entries: []entry{
 			{pid: 1, status: statusWorking, since: at(900)},
 			{pid: 2, status: statusWaiting, since: at(60)},
@@ -682,7 +682,7 @@ func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
 		}},
 	}
 	var got []int
-	for _, e := range waitingRound(places) {
+	for _, e := range waitingRound(projects) {
 		got = append(got, e.pid)
 	}
 	want := []int{5, 6, 7, 2, 4} // 600s, then the two at 300s by pid, then 60s, then the one that cannot say
@@ -697,10 +697,10 @@ func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
 // above keeps its spot. It was the newest start anywhere in a subtree
 // that ordered all three, so a command an AI ran re-sorted the watch
 // out from under whoever was reading it.
-func TestTheWatchHoldsItsOrder(t *testing.T) {
+func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 	rows := func(procs []process) []int {
 		var out []int
-		for _, pl := range watch(procs, 501, testRoots, testIsProject, nil) {
+		for _, pl := range projectsFrom(procs, 501, testRoots, testIsProject, nil) {
 			for _, e := range pl.entries {
 				out = append(out, e.pid)
 			}
@@ -714,11 +714,11 @@ func TestTheWatchHoldsItsOrder(t *testing.T) {
 	// everything on the list.
 	grown := append(append([]process{}, testProcs...),
 		process{pid: 70999, ppid: 70100, uid: 501, tty: "ttys007", state: 'R', command: "rg", args: []string{"rg", "conn"},
-			started: watchNow.Add(-time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
+			started: processesNow.Add(-time.Second), cwd: "/Users/w0zro/projects/w0zro/vim.pro/conjurer"},
 		process{pid: 80999, ppid: 1, uid: 501, tty: "ttys012", state: 'S', command: "zsh", args: []string{"-zsh"},
-			started: watchNow.Add(-2 * time.Second), cwd: "/Users/w0zro"},
+			started: processesNow.Add(-2 * time.Second), cwd: "/Users/w0zro"},
 		process{pid: 90999, ppid: 1, uid: 501, tty: "ttys013", state: 'S', command: "zsh", args: []string{"-zsh"},
-			started: watchNow.Add(-3 * time.Second), cwd: "/private/tmp/scratch"},
+			started: processesNow.Add(-3 * time.Second), cwd: "/private/tmp/scratch"},
 	)
 	after := rows(grown)
 

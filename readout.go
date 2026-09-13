@@ -37,30 +37,30 @@ import (
 // in the tree, and what the things conn can ask — claude, git — say of
 // it. The look's own program gathers this; composing is then all
 // wording and no reading, and can be held to by a test.
-type lookSubject struct {
+type readoutSubject struct {
 	entry    entry
 	proc     process // the table's record, for what a row does not carry
-	place    place
+	project  project
 	parent   entry   // what runs it, where anything conn can see does
 	children []entry // what it runs, in the order the tree has them
 	pane     pane
 	inside   bool
 	sess     sessionFile // what an AI says of itself, when conn can ask
-	convo    conversation
-	git      gitStanding
+	carried  session
+	git      gitStatus
 }
 
 // lookReport is the look's words as things stand, about one row.
-type lookReport struct {
+type readoutReport struct {
 	pid    int
 	gone   bool // the row was there when the look opened, and is not now
-	groups []lookGroup
+	groups []readoutGroup
 }
 
 // A lookGroup is a title and the facts under it. A group with no facts
 // is not drawn: an AI's title over a shell's row would be a heading
 // over nothing, and a place that is no repository has no git to report.
-type lookGroup struct {
+type readoutGroup struct {
 	title string
 	facts []fact
 }
@@ -75,7 +75,7 @@ const labelW = factCol - 3
 // add puts a fact in a group, and drops one with nothing to say: most
 // of what the page reports is absent on some row or other, and a label
 // with an empty value after it says less than no label at all.
-func (g *lookGroup) add(label, value string) {
+func (g *readoutGroup) add(label, value string) {
 	if value != "" {
 		g.facts = append(g.facts, fact{label: label, value: value})
 	}
@@ -84,7 +84,7 @@ func (g *lookGroup) add(label, value string) {
 // addAsWritten is add for a value that is the world's text rather than
 // conn's vocabulary — a command, a prompt, a commit's subject — which
 // is kept in the case it was written in.
-func (g *lookGroup) addAsWritten(label, value string) {
+func (g *readoutGroup) addAsWritten(label, value string) {
 	if value != "" {
 		g.facts = append(g.facts, fact{label: label, value: value, verbatim: true})
 	}
@@ -92,16 +92,16 @@ func (g *lookGroup) addAsWritten(label, value string) {
 
 // addPath is add for a path, which keeps its case and is elided from
 // the head when it has to be, the tail being the telling part.
-func (g *lookGroup) addPath(label, value string) {
+func (g *readoutGroup) addPath(label, value string) {
 	if value != "" {
 		g.facts = append(g.facts, fact{label: label, value: value, path: true})
 	}
 }
 
 // composeLook words one row.
-func composeLook(s lookSubject, home string, now time.Time) lookReport {
+func composeReadout(s readoutSubject, home string, now time.Time) readoutReport {
 	e := s.entry
-	b := lookReport{pid: e.pid}
+	b := readoutReport{pid: e.pid}
 
 	// What the AI is stopped on goes first, ahead of what the row
 	// even is. It is the whole reason to open the page on a waiting
@@ -109,21 +109,21 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	// the page is cut off at the pane's height rather than scrolled —
 	// so the part that must not be cut is the part that goes at the top.
 	if e.asking != "" {
-		ask := lookGroup{title: "WAITING"}
+		ask := readoutGroup{title: "WAITING"}
 		ask.add("on", e.asking)
 		ask.add("for", age(e.since, now))
 		// The thing itself, in the AI's words: the tool it asked to
 		// use and what for, or what it last said, which is the question
 		// when a turn ended on one.
-		if s.convo.Ask.Tool != "" {
-			ask.addAsWritten("asks", s.convo.Ask.String())
+		if s.carried.Ask.Tool != "" {
+			ask.addAsWritten("asks", s.carried.Ask.String())
 		} else {
-			ask.addAsWritten("said", s.convo.Ask.Said)
+			ask.addAsWritten("said", s.carried.Ask.Said)
 		}
 		b.groups = append(b.groups, ask)
 	}
 
-	what := lookGroup{title: "WHAT"}
+	what := readoutGroup{title: "WHAT"}
 	what.add("kind", e.kind)
 	what.addAsWritten("command", e.command)
 	what.add("pid", strconv.Itoa(e.pid))
@@ -132,13 +132,13 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	// since the moment conn holds for it is when an AI last changed
 	// what it says of itself, which has nothing to do with when
 	// something stopped it.
-	standing := e.status
+	status := e.status
 	// The clause is dropped where the group above already carries it:
 	// on a dense page a thing said twice reads as two things.
 	if !e.since.IsZero() && !e.fault && e.asking == "" {
-		standing += " · FOR " + age(e.since, now)
+		status += " · FOR " + age(e.since, now)
 	}
-	what.add("status", standing)
+	what.add("status", status)
 	what.add("state", stateWord(s.proc.state, s.proc.foreground))
 	what.add("up", join(" · ", age(e.started, now), "SINCE "+stamp(e.started)))
 	// What it has actually spent, which is the measure behind WORKING
@@ -148,12 +148,12 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	}
 	b.groups = append(b.groups, what)
 
-	where := lookGroup{title: "WHERE"}
-	where.addPath("project", tilde(s.place.path, home))
+	where := readoutGroup{title: "WHERE"}
+	where.addPath("project", tilde(s.project.path, home))
 	// The place is the tree's, and a process below the root can have
 	// cd'd anywhere since; where it actually is is worth saying only
 	// when it is somewhere else.
-	if e.cwd != "" && e.cwd != s.place.path {
+	if e.cwd != "" && e.cwd != s.project.path {
 		where.addPath("cwd", tilde(e.cwd, home))
 	}
 	where.add("tty", e.tty)
@@ -171,20 +171,20 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	// Which conversation an AI is carrying, and what it was last
 	// asked — the two things that say which of several claudes this one
 	// is, where the command line only says that it is one.
-	AI := lookGroup{title: "CONTACT"}
-	AI.add("session", s.sess.SessionID)
-	AI.add("name", s.sess.Name)
-	AI.add("version", s.sess.Version)
-	AI.add("running", s.sess.Kind)
-	AI.add("branch", s.convo.Branch)
-	AI.addAsWritten("last ask", s.convo.Prompt)
-	b.groups = append(b.groups, AI)
+	contact := readoutGroup{title: "CONTACT"}
+	contact.add("session", s.sess.SessionID)
+	contact.add("name", s.sess.Name)
+	contact.add("version", s.sess.Version)
+	contact.add("running", s.sess.Kind)
+	contact.add("branch", s.carried.Branch)
+	contact.addAsWritten("last ask", s.carried.Prompt)
+	b.groups = append(b.groups, contact)
 
 	// What git says of the place. A row stands for work, and the branch
 	// it is on and whether the tree is clean are the first two things
 	// anyone asks of work.
 	if s.git.repo {
-		g := lookGroup{title: "PROJECT"}
+		g := readoutGroup{title: "PROJECT"}
 		branch := s.git.branch
 		if s.git.detached {
 			branch = "DETACHED"
@@ -219,7 +219,7 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	// What stands around it. The watch draws the tree already, but it
 	// draws it indented across a whole place; here it is the one row's
 	// own line of descent, said plainly.
-	tree := lookGroup{title: "TREE"}
+	tree := readoutGroup{title: "TREE"}
 	if s.parent.pid != 0 {
 		tree.addAsWritten("parent", s.parent.kind+" "+s.parent.command+" · "+strconv.Itoa(s.parent.pid))
 	}
@@ -276,8 +276,8 @@ func stamp(at time.Time) string {
 }
 
 // drawLook renders the look for a pane of the given size.
-func drawLook(b lookReport, width, height int, p palette) []row {
-	width = max(width, railMinCols)
+func drawReadout(b readoutReport, width, height int, p palette) []row {
+	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
 

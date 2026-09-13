@@ -49,7 +49,7 @@ func TestPanesAreParsed(t *testing.T) {
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40},
 		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true},
 		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40, dead: true},
-		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, look: true},
+		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, readout: true},
 	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)
@@ -189,7 +189,7 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 // read out of an option, shown only while the keys are on the rail to
 // answer it. The lamps are read out of an option too, and nothing on the
 // line is re-read on a beat.
-func TestTheBarIsTmuxsToDrawAlone(t *testing.T) {
+func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_owed", "@conn_rail", "@conn_slot", "status-interval 1"} {
 		if strings.Contains(conf, gone) {
@@ -227,15 +227,15 @@ func TestTheBarIsTmuxsToDrawAlone(t *testing.T) {
 // of conn's; the right is one lamp per row of the watch, in the watch's
 // order, in the color of how each stands. Both are written when they
 // change and not again for the same reading.
-func TestConnLightsTheBar(t *testing.T) {
+func TestConnLightsTheStatusLine(t *testing.T) {
 	m := newModel(plain)
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.places = []place{{path: "/w", entries: []entry{
-		{pid: 11, kind: kindAI, command: "claude", tty: "ttys004", status: statusWaiting},
+	m.projects = []project{{path: "/w", entries: []entry{
+		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
 	}}}
 
 	// Every view conn's keys can be in is dark: you can see where you are.
-	for _, v := range []int{viewConsole, viewWatch, viewProjects, viewResume} {
+	for _, v := range []int{viewConsole, viewProcesses, viewProjects, viewSessions} {
 		m.view = v
 		if ask := m.ask(); ask != "" {
 			t.Errorf("the bar says %q with nothing asked", ask)
@@ -243,11 +243,11 @@ func TestConnLightsTheBar(t *testing.T) {
 	}
 	// A question armed takes the next key whatever it is, and wears the
 	// waiting color, which is the one thing waiting on you is said in.
-	m.view = viewWatch
+	m.view = viewProcesses
 	// The question itself stands beside the block, on the bar's own
 	// ground, with tmux's own character doubled so it is shown.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
-	if ask := m.ask(); !strings.HasPrefix(ask, barAsk("CONFIRM")) || !strings.Contains(ask, "bg="+scheme[1]) ||
+	if ask := m.ask(); !strings.HasPrefix(ask, statusLineAsk("CONFIRM")) || !strings.Contains(ask, "bg="+scheme[1]) ||
 		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+scheme[7]) {
 		t.Errorf("a question armed lights %q", ask)
 	}
@@ -256,17 +256,17 @@ func TestConnLightsTheBar(t *testing.T) {
 	// One lamp per row, in order: a shell at its prompt the faintest
 	// ink, an AI working a rank of gray, an AI waiting in the
 	// waiting color and blinking, and a fault no different from rest.
-	m.places = []place{
+	m.projects = []project{
 		{path: "/w", entries: []entry{
 			{pid: 11, kind: kindShell, status: statusIdle},
-			{pid: 12, kind: kindAI, status: statusWorking, depth: 1},
+			{pid: 12, kind: kindContact, status: statusWorking, depth: 1},
 		}},
 		{path: "/x", entries: []entry{
-			{pid: 21, kind: kindAI, status: statusWaiting},
+			{pid: 21, kind: kindContact, status: statusWaiting},
 			{pid: 22, kind: kindShell, status: statusStopped, fault: true},
 		}},
 	}
-	lamps := barLamps(m.places)
+	lamps := statusLineLamps(m.projects)
 	want := "#[fg=" + faintHex + " nobold noblink]" + lamp + " " +
 		"#[fg=" + grayHex + " nobold noblink]" + lamp + " " +
 		"#[fg=" + scheme[1] + " bold blink]" + lamp + " " +
@@ -274,8 +274,8 @@ func TestConnLightsTheBar(t *testing.T) {
 	if lamps != want {
 		t.Errorf("the lamps read\n%s\nwant\n%s", lamps, want)
 	}
-	if barLamps(nil) != "" {
-		t.Errorf("a watch with nothing on it lights %q", barLamps(nil))
+	if statusLineLamps(nil) != "" {
+		t.Errorf("a watch with nothing on it lights %q", statusLineLamps(nil))
 	}
 
 	// Written when it changes, and not again for the same reading.
@@ -286,7 +286,7 @@ func TestConnLightsTheBar(t *testing.T) {
 	if _, again := next.saying(); again != nil {
 		t.Error("the same lamps were written to the bar twice")
 	}
-	next.places[1].entries[0].status = statusIdle
+	next.projects[1].entries[0].status = statusIdle
 	if _, changed := next.saying(); changed == nil {
 		t.Error("a process that stopped waiting did not go out on the bar")
 	}

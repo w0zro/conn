@@ -23,7 +23,7 @@ import (
 
 // conversation is a talk claude had in a directory and could pick back
 // up: its transcript is on disk, and no live instance is carrying it.
-type conversation struct {
+type session struct {
 	ID     string
 	Dir    string    // where it was had, which is where resuming belongs
 	When   time.Time // when it last moved
@@ -98,14 +98,14 @@ func insideNote(socket string) string {
 
 // aiCommand is what conn runs to start an AI: the program, told
 // where it is.
-func aiCommand(socket string) string {
-	return aiProgram + " --append-system-prompt " + shellQuote(insideNote(socket))
+func contactCommand(socket string) string {
+	return contactProgram + " --append-system-prompt " + shellQuote(insideNote(socket))
 }
 
 // resumeCommand is the command that picks a suspended conversation back
 // up, told the same. The id travels onto a shell command line, so only
 // ids claudeSuspended vetted are ever handed here.
-func resumeCommand(socket, id string) string { return aiCommand(socket) + " --resume " + id }
+func resumeCommand(socket, id string) string { return contactCommand(socket) + " --resume " + id }
 
 // What Claude Code calls itself, in the file it keeps per instance.
 // The vocabulary is closed at four, and these are all of them, read
@@ -240,7 +240,7 @@ func askDetail(input map[string]json.RawMessage) string {
 // the text and each tool use on a line of its own, so the reading
 // walks back through all of them, to the prompt that began the turn.
 func readAsk(path string) ask {
-	lines, err := tailLines(path, convoTail)
+	lines, err := tailLines(path, sessionTail)
 	if err != nil {
 		return ask{}
 	}
@@ -352,15 +352,15 @@ func claudeSessions() map[int]sessionFile {
 // where the table still has it standing as an AI; an AI with no
 // file to read - another maker's, or one too old to write one - says
 // nothing of itself, and reads as alive like anything else.
-func aiStandings(procs []process) map[int]standing {
+func contactStatuses(procs []process) map[int]status {
 	byPid := map[int]process{}
 	for _, p := range procs {
 		byPid[p.pid] = p
 	}
-	how := map[int]standing{}
+	how := map[int]status{}
 	for pid, s := range claudeSessions() {
 		p, ok := byPid[pid]
-		if !ok || kindOf(p) != kindAI || s.Status == "" || !s.wroteBy(p.started) {
+		if !ok || kindOf(p) != kindContact || s.Status == "" || !s.wroteBy(p.started) {
 			continue
 		}
 		var since time.Time
@@ -369,11 +369,11 @@ func aiStandings(procs []process) map[int]standing {
 		}
 		switch s.Status {
 		case busyStatus, shellStatus:
-			how[pid] = standing{working: true, since: since}
+			how[pid] = status{working: true, since: since}
 		case waitingStatus:
-			how[pid] = standing{waiting: true, since: since, asking: s.WaitingFor}
+			how[pid] = status{waiting: true, since: since, asking: s.WaitingFor}
 		case idleStatus:
-			how[pid] = standing{idle: true, since: since}
+			how[pid] = status{idle: true, since: since}
 		}
 		// A word outside the four is a Claude newer than this conn, and
 		// conn says nothing of an AI it cannot understand — the same
@@ -389,11 +389,11 @@ func aiStandings(procs []process) map[int]standing {
 // instance is carrying. A session file can outlive the process that
 // wrote it, so a pid is only believed when the process table still has
 // it, standing as an AI.
-func liveConversations(places []place) map[string]bool {
+func liveSessions(projects []project) map[string]bool {
 	began := map[int]time.Time{}
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
-			if e.kind == kindAI {
+			if e.kind == kindContact {
 				began[e.pid] = e.started
 			}
 		}
@@ -410,20 +410,20 @@ func liveConversations(places []place) map[string]bool {
 // convoTail is how much of a transcript's end is read for the picker:
 // enough to reach back past a tool-heavy turn to the last prompt, small
 // enough that a directory of them is read on a keystroke.
-const convoTail = 256 * 1024
+const sessionTail = 256 * 1024
 
 // claudeSuspended lists the conversations at rest under the given
 // directories, newest first, excluding the ones a live instance is
 // carrying.
-func claudeSuspended(dirs []string, places []place) []conversation {
-	live := liveConversations(places)
+func claudeSuspended(dirs []string, projects []project) []session {
+	live := liveSessions(projects)
 	root := filepath.Join(claudeConfigDir(), "projects")
 
 	// Claude encodes directories lossily, so two of them can share a
 	// transcript directory; each conversation is taken once, for the
 	// first directory that reached it.
 	seen := map[string]bool{}
-	var out []conversation
+	var out []session
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(filepath.Join(root, encodePath(dir)))
 		if err != nil {
@@ -439,8 +439,8 @@ func claudeSuspended(dirs []string, places []place) []conversation {
 				continue
 			}
 			seen[id] = true
-			c := conversation{ID: id, Dir: dir, When: info.ModTime()}
-			readConvoMeta(filepath.Join(root, encodePath(dir), e.Name()), &c)
+			c := session{ID: id, Dir: dir, When: info.ModTime()}
+			readSessionMeta(filepath.Join(root, encodePath(dir), e.Name()), &c)
 			out = append(out, c)
 		}
 	}
@@ -469,8 +469,8 @@ type transcriptLine struct {
 // the branch it was on and the last thing asked of it. It reads
 // backwards from the end and takes the first answer it finds — many
 // files are read on one keystroke, so it stops as soon as it has both.
-func readConvoMeta(path string, c *conversation) {
-	lines, err := tailLines(path, convoTail)
+func readSessionMeta(path string, c *session) {
+	lines, err := tailLines(path, sessionTail)
 	if err != nil {
 		return
 	}

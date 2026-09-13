@@ -14,7 +14,7 @@ import (
 // railW is the rail's width, as tmux reports a pane's: the tests ask
 // tmux rather than assume it, so a change to railWidth does not also
 // mean hunting down what was typed against it.
-var railW = strconv.Itoa(railWidth)
+var panelW = strconv.Itoa(panelWidth)
 
 // The server, against tmux itself. The test builds conn, brings a tmux
 // server up on a scratch socket with conn in its home window, the way
@@ -82,7 +82,7 @@ func (s *scratch) keys(keys ...string) {
 }
 
 // rail is what the rail shows.
-func (s *scratch) rail() string {
+func (s *scratch) panel() string {
 	out, _ := s.srv.run("capture-pane", "-p", "-t", sessionName+":"+homeWindow+".0")
 	return out
 }
@@ -93,33 +93,33 @@ func (s *scratch) rail() string {
 // somewhere else entirely. The watch names a place by what is left of
 // its path once the root is taken off, and the root here is the scratch
 // home, so the repository under it is called by its own name.
-const scratchPlace = "repo"
+const scratchProject = "repo"
 
 // lookPid is the pid the look in the slot says it is about, or "" when
 // the slot is not a look or has not read yet.
-var lookPidRe = regexp.MustCompile(`PID (\d+)`)
+var readoutPidRe = regexp.MustCompile(`PID (\d+)`)
 
-func (s *scratch) lookPidOf() string {
-	if m := lookPidRe.FindStringSubmatch(s.slot()); m != nil {
+func (s *scratch) readoutPidOf() string {
+	if m := readoutPidRe.FindStringSubmatch(s.bay()); m != nil {
 		return m[1]
 	}
 	return ""
 }
 
 // slot is what the pane on the right shows.
-func (s *scratch) slot() string {
+func (s *scratch) bay() string {
 	out, _ := s.srv.run("capture-pane", "-p", "-t", sessionName+":"+homeWindow+".1")
 	return out
 }
 
 // placeRows is how many processes the rail says stand at that place,
 // read off the place's own title line.
-func (s *scratch) placeRows() int {
+func (s *scratch) projectRows() int {
 	// The rows under the scratch place's title, up to the blank line
 	// that begins the next place: a place's title carries no count.
-	lines := strings.Split(s.rail(), "\n")
+	lines := strings.Split(s.panel(), "\n")
 	for i, line := range lines {
-		if !strings.Contains(line, scratchPlace) {
+		if !strings.Contains(line, scratchProject) {
 			continue
 		}
 		n := 0
@@ -144,7 +144,7 @@ func (s *scratch) openShell() {
 	s.t.Helper()
 	s.keys("p")
 	s.until("the list to find the scratch repository", func() bool {
-		return strings.Contains(s.rail(), "PROJECTS") && strings.Contains(s.rail(), "repo")
+		return strings.Contains(s.panel(), "PROJECTS") && strings.Contains(s.panel(), "repo")
 	})
 	s.keys("Enter")
 }
@@ -191,7 +191,7 @@ func (s *scratch) parked(id string) bool {
 
 // bar is the status line as tmux expands it: the lamps, and the row conn
 // has put there for whatever the slot holds.
-func (s *scratch) bar() string {
+func (s *scratch) statusLine() string {
 	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0",
 		"#{T:status-left}#{T:status-right}")
 	return strings.TrimSpace(out)
@@ -222,7 +222,7 @@ func (s *scratch) until(what string, cond func() bool) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	s.t.Fatalf("waited for %s\nrail:\n%s\nbar: %s\npanes: %s", what, s.rail(), s.bar(), s.panes())
+	s.t.Fatalf("waited for %s\nrail:\n%s\nbar: %s\npanes: %s", what, s.panel(), s.statusLine(), s.panes())
 }
 
 // conn comes up in the home window: the console across it, then on a
@@ -231,16 +231,16 @@ func (s *scratch) until(what string, cond func() bool) {
 // and the first parks in a window of its own; enter on the first brings
 // it back; c zooms the console over the window and a key gives the slot
 // its side again; the rail holds its width when the window is resized.
-func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
+func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
-	if !strings.Contains(s.rail(), "START-UP CHECKS") || s.display("#{pane_width}") != "160" {
-		t.Errorf("the console should have the whole window:\n%s", s.rail())
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	if !strings.Contains(s.panel(), "START-UP CHECKS") || s.display("#{pane_width}") != "160" {
+		t.Errorf("the console should have the whole window:\n%s", s.panel())
 	}
 
 	s.keys("Space")
 	s.until("the slot to open", func() bool {
-		return s.display("#{pane_width}") == railW && strings.Contains(s.panes(), "home.1:conn:")
+		return s.display("#{pane_width}") == panelW && strings.Contains(s.panes(), "home.1:conn:")
 	})
 	if hold := s.display("#{window_panes}"); hold != "2" {
 		t.Errorf("home has %s panes", hold)
@@ -248,27 +248,27 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 
 	s.openShell()
 	s.until("a shell in the slot", func() bool {
-		return s.shellIn("home.1") && strings.Contains(s.rail(), scratchPlace)
+		return s.shellIn("home.1") && strings.Contains(s.panel(), scratchProject)
 	})
 	if strings.Contains(s.panes(), "conn:") && strings.Count(s.panes(), "conn:") > 1 {
 		t.Errorf("the hold should be gone once a shell is in the slot: %s", s.panes())
 	}
 	first := s.display("#{pane_id}")
-	slotFirst, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".1", "#{pane_id}")
-	slotFirst = strings.TrimSpace(slotFirst)
-	if first == slotFirst {
+	bayFirst, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".1", "#{pane_id}")
+	bayFirst = strings.TrimSpace(bayFirst)
+	if first == bayFirst {
 		t.Fatalf("the rail and the slot are one pane: %s", s.panes())
 	}
 
 	// The tree shows whatever else this machine is running too, so the
 	// count to wait for is a rise from where it stood at the scratch's
 	// own place, not a fixed number anywhere on the rail.
-	before := s.placeRows()
+	before := s.projectRows()
 	s.openShell()
 	s.until("a second shell, with the first parked", func() bool {
-		return s.shellIn("home.1") && s.parked(slotFirst)
+		return s.shellIn("home.1") && s.parked(bayFirst)
 	})
-	s.until("the second shell's row", func() bool { return s.placeRows() > before })
+	s.until("the second shell's row", func() bool { return s.projectRows() > before })
 
 	// The cursor is on the shell just opened, which is in the slot and
 	// stands last, everything sitting where it started; k is the first
@@ -276,33 +276,33 @@ func TestTheServerHoldsTheRailAndTheSlot(t *testing.T) {
 	s.keys("k")
 	s.keys("Enter")
 	s.until("the first shell back in the slot", func() bool {
-		return strings.HasSuffix(s.paneAt("home.1"), ":"+slotFirst)
+		return strings.HasSuffix(s.paneAt("home.1"), ":"+bayFirst)
 	})
 
 	s.keys("c")
 	s.until("the console zoomed over the window", func() bool {
-		return s.display("#{window_zoomed_flag}") == "1" && strings.Contains(s.rail(), "START-UP CHECKS")
+		return s.display("#{window_zoomed_flag}") == "1" && strings.Contains(s.panel(), "START-UP CHECKS")
 	})
 	s.keys("Space")
 	s.until("the slot to have its side again", func() bool {
-		return s.display("#{window_zoomed_flag}") == "0" && s.display("#{pane_width}") == railW
+		return s.display("#{window_zoomed_flag}") == "0" && s.display("#{pane_width}") == panelW
 	})
 
 	if _, err := s.srv.run("resize-window", "-x", "200", "-y", "40"); err != nil {
 		t.Fatal(err)
 	}
-	s.until("the rail to hold its width", func() bool { return s.display("#{pane_width}") == railW })
+	s.until("the rail to hold its width", func() bool { return s.display("#{pane_width}") == panelW })
 }
 
 // A shell that dies in the slot does not take the rail's width from
 // it first: remain-on-exit holds the dead pane in the slot's own
 // shape, so there is no moment the window is the rail alone, and conn
 // swaps a hold into the dead pane once it reads that it is one.
-func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
+func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
-	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
+	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == panelW })
 
 	s.openShell()
 	s.until("a shell in the slot", func() bool { return s.shellIn("home.1") })
@@ -319,14 +319,14 @@ func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
 	if n := s.display("#{window_panes}"); n != "2" {
 		t.Errorf("home has %s panes with a dead shell in the slot", n)
 	}
-	if w := s.display("#{pane_width}"); w != railW {
+	if w := s.display("#{pane_width}"); w != panelW {
 		t.Errorf("the rail gave up its width to a dead shell: %s", w)
 	}
 
 	s.until("a hold to take the dead pane's place", func() bool {
 		return strings.Contains(s.panes(), "home.1:conn:")
 	})
-	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != railW {
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
 		t.Errorf("the revival changed the window's shape: %s panes, %s wide", n, w)
 	}
 }
@@ -337,9 +337,9 @@ func TestADeadSlotIsRevivedInPlaceNotResplit(t *testing.T) {
 // never having given the rail's width up for it.
 func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
-	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
+	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == panelW })
 
 	// The tree now shows whatever else this machine is running too, so
 	// the row to wait for is a rise from where the count stood, and the
@@ -347,20 +347,20 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	// it on its own poll, not this test's.
 	s.openShell()
 	s.until("a shell in the slot", func() bool {
-		return s.shellIn("home.1") && s.placeRows() == 1
+		return s.shellIn("home.1") && s.projectRows() == 1
 	})
 
 	s.keys("x")
 	// The question conn asks is on the bar, beside CONFIRM, where the
 	// window's width holds the whole of it.
-	s.until("the kill armed", func() bool { return strings.Contains(s.bar(), "KILL") })
+	s.until("the kill armed", func() bool { return strings.Contains(s.statusLine(), "KILL") })
 	s.keys("x")
 
 	s.until("the shell's pane to die", func() bool { return s.paneDead("home.1") })
 	s.until("a hold to take its place", func() bool {
 		return strings.Contains(s.panes(), "home.1:conn:")
 	})
-	if w := s.display("#{pane_width}"); w != railW {
+	if w := s.display("#{pane_width}"); w != panelW {
 		t.Errorf("the rail gave up its width to the kill: %s", w)
 	}
 }
@@ -370,9 +370,9 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 // it too; a kill of an entry is always the command alone.
 func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
-	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == railW })
+	s.until("the slot to open", func() bool { return s.display("#{pane_width}") == panelW })
 
 	s.openShell()
 	s.until("a shell in the slot", func() bool { return s.shellIn("home.1") })
@@ -384,7 +384,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// under it. Counting there rather than anywhere on the rail, which
 	// is the whole machine's and has sleeps of its own on it.
 	s.until("sleep running in the slot", func() bool {
-		return s.placeRows() == 2 && strings.Contains(s.rail(), "sleep 100")
+		return s.projectRows() == 2 && strings.Contains(s.panel(), "sleep 100")
 	})
 
 	// The cursor stayed on the shell's own pid — it does not jump to a
@@ -392,11 +392,11 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// right below it, the tree's next row down.
 	s.keys("j")
 	s.keys("x")
-	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.bar(), "END SLEEP 100") })
+	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.statusLine(), "END SLEEP 100") })
 	s.keys("x")
 
 	s.until("sleep to end and the shell to have the place to itself", func() bool {
-		return s.placeRows() == 1
+		return s.projectRows() == 1
 	})
 	if s.paneDead("home.1") || !s.shellIn("home.1") {
 		t.Errorf("the shell did not survive ending what it ran")
@@ -409,7 +409,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 // from it — no conn down in between.
 func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	// The scratch server rose on dark, the ground of a terminal that
 	// says nothing. tmux answers a color in its own case.
 	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, darkScheme[0]) {
@@ -445,7 +445,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	// The rail came back, and came back conn: respawned it comes up on
 	// the console, whose own identification carries the name.
 	s.until("the rail to come back", func() bool {
-		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.rail(), "CONN 0.7.0")
+		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.panel(), "CONN 0.7.0")
 	})
 }
 
@@ -453,7 +453,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 // conn down finds nothing.
 func TestDownEndsTheScratchServer(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	msg, ok := takeDown(s.srv, filepath.Join(s.dir, "home"))
 	if !ok || !strings.Contains(msg, "Window home") || !strings.Contains(msg, "Server ") || !strings.Contains(msg, "ended") {
 		t.Errorf("down: %v %q", ok, msg)
@@ -560,24 +560,24 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 // point of the page being over there. The rail keeps its width, so the
 // look arriving is a swap into the slot rather than a window laid out
 // afresh, and focus stays where the keys are.
-func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
+func TestIReadsOutTheCursorsRowInTheBay(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.rail(), prompt) })
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
 	s.until("the slot to open on the watch", func() bool {
-		return s.display("#{pane_width}") == railW && strings.Contains(s.rail(), "STATUS")
+		return s.display("#{pane_width}") == panelW && strings.Contains(s.panel(), "STATUS")
 	})
 
 	s.keys("i")
 	s.until("the look to open in the slot", func() bool {
-		return strings.Contains(s.slot(), "READOUT") && strings.Contains(s.slot(), "WHERE")
+		return strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), "WHERE")
 	})
 	// The watch did not give up its pane, or its width, to say this.
-	if r := s.rail(); !strings.Contains(r, "STATUS") || strings.Contains(r, "WHERE") {
+	if r := s.panel(); !strings.Contains(r, "STATUS") || strings.Contains(r, "WHERE") {
 		t.Errorf("the rail is not still the watch:\n%s", r)
 	}
-	if w := s.display("#{pane_width}"); w != railW {
-		t.Errorf("the rail is %s wide, not %s", w, railW)
+	if w := s.display("#{pane_width}"); w != panelW {
+		t.Errorf("the rail is %s wide, not %s", w, panelW)
 	}
 	// And the keys are still the rail's: the look is a reading, not a
 	// place to be put.
@@ -589,18 +589,18 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 	// so the one page serves the whole list and no key but j is
 	// pressed. A page left on the row the cursor has walked away from
 	// would be a page about nothing anybody is looking at.
-	was := s.lookPidOf()
+	was := s.readoutPidOf()
 	if was == "" {
-		t.Fatalf("the page says no pid:\n%s", s.slot())
+		t.Fatalf("the page says no pid:\n%s", s.bay())
 	}
 	s.keys("j")
 	s.until("the page to follow the cursor down", func() bool {
-		got := s.lookPidOf()
+		got := s.readoutPidOf()
 		return got != "" && got != was
 	})
-	moved := s.lookPidOf()
+	moved := s.readoutPidOf()
 	s.keys("k")
-	s.until("the page to follow it back", func() bool { return s.lookPidOf() == was })
+	s.until("the page to follow it back", func() bool { return s.readoutPidOf() == was })
 	t.Logf("the page followed %s → %s → %s", was, moved, was)
 
 	// Following costs nothing in panes: it is one page changing subject,
@@ -614,10 +614,10 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 	// of it, and neither way costs a window.
 	s.keys("i")
 	s.until("the page to come down", func() bool {
-		return !strings.Contains(s.slot(), "READOUT") && strings.Contains(s.slot(), holdWord)
+		return !strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), holdWord)
 	})
 	s.keys("i")
-	s.until("the page to come back", func() bool { return strings.Contains(s.slot(), "WHERE") })
+	s.until("the page to come back", func() bool { return strings.Contains(s.bay(), "WHERE") })
 	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != "1" || n != "2" {
 		t.Errorf("toggling left %s windows and %s panes in home", w, n)
 	}

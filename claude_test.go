@@ -16,9 +16,9 @@ import (
 // AI told to open a window and not told which server would be
 // guessing.
 func TestTheAgentIsToldWhereItIs(t *testing.T) {
-	const prefix = aiProgram + " --append-system-prompt "
+	const prefix = contactProgram + " --append-system-prompt "
 	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
-		got := aiCommand(socket)
+		got := contactCommand(socket)
 		if !strings.HasPrefix(got, prefix) {
 			t.Fatalf("aiCommand(%q) = %q", socket, got)
 		}
@@ -37,7 +37,7 @@ func TestTheAgentIsToldWhereItIs(t *testing.T) {
 		}
 	}
 	// Resuming a conversation is the same launch, carrying the id.
-	if got := resumeCommand("/s/conn.sock", "abc-123"); got != aiCommand("/s/conn.sock")+" --resume abc-123" {
+	if got := resumeCommand("/s/conn.sock", "abc-123"); got != contactCommand("/s/conn.sock")+" --resume abc-123" {
 		t.Errorf("resumeCommand = %q", got)
 	}
 }
@@ -137,9 +137,9 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	AI := func(pid int) process {
+	contact := func(pid int) process {
 		return process{pid: pid, uid: 501, tty: "ttys001", state: 'S', command: "claude", args: []string{"claude"},
-			started: watchNow.Add(-time.Hour), cwd: "/w"}
+			started: processesNow.Add(-time.Hour), cwd: "/w"}
 	}
 	say(10, "busy")    // mid-turn
 	say(11, "idle")    // a turn it finished, asking nothing
@@ -149,36 +149,36 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	say(15, "")        // a file saying nothing of the sort
 	say(17, "sulking") // a word conn has never heard
 	say(18, "shell")   // a command running under it, which is work
-	procs := []process{AI(10), AI(11), AI(12), AI(15), AI(16), AI(17), AI(18),
+	procs := []process{contact(10), contact(11), contact(12), contact(15), contact(16), contact(17), contact(18),
 		{pid: 14, uid: 501, tty: "ttys001", state: 'S', command: "node", args: []string{"node"},
-			started: watchNow.Add(-time.Hour), cwd: "/w"},
+			started: processesNow.Add(-time.Hour), cwd: "/w"},
 	}
 
-	how := aiStandings(procs)
+	how := contactStatuses(procs)
 	for _, pid := range []int{10, 18} {
-		if (how[pid] != standing{working: true}) {
+		if (how[pid] != status{working: true}) {
 			t.Errorf("pid %d, mid-turn or running a command, stands %+v", pid, how[pid])
 		}
 	}
 	// Stopped on an ask is not the same as stopped with nothing
 	// pending, and only the first is waiting.
-	if (how[12] != standing{waiting: true}) {
+	if (how[12] != status{waiting: true}) {
 		t.Errorf("an AI stopped on an ask stands %+v", how[12])
 	}
-	if (how[11] != standing{idle: true}) {
+	if (how[11] != status{idle: true}) {
 		t.Errorf("an AI whose turn is over stands %+v", how[11])
 	}
 	// 17 says a word conn does not know, which leaves it exactly where
 	// an AI with no file at all is: nothing said of it.
 	for _, pid := range []int{13, 14, 15, 16, 17} {
-		if (how[pid] != standing{}) {
+		if (how[pid] != status{}) {
 			t.Errorf("pid %d stands %+v, and nothing should be said of it", pid, how[pid])
 		}
 	}
 
 	// And the word the watch writes for each, end to end.
 	got := map[int]string{}
-	for _, pl := range watch(procs, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
+	for _, pl := range projectsFrom(procs, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.entries {
 			got[e.pid] = e.status
 		}
@@ -228,12 +228,12 @@ func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
 	write(111, "11111111-1111-1111-1111-111111111111")
 	write(999, "22222222-2222-2222-2222-222222222222")
 
-	places := []place{{path: dir, entries: []entry{
-		{pid: 111, kind: kindAI},
+	projects := []project{{path: dir, entries: []entry{
+		{pid: 111, kind: kindContact},
 		{pid: 999, kind: kindShell}, // 999 is running, but not as an AI
 	}}}
 
-	cs := claudeSuspended([]string{dir}, places)
+	cs := claudeSuspended([]string{dir}, projects)
 	if len(cs) != 1 || cs[0].ID != "22222222-2222-2222-2222-222222222222" {
 		t.Fatalf("claudeSuspended = %+v, want only the one not vouched for as live", cs)
 	}
@@ -259,12 +259,12 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 	}
 	write(20, `{"pid":20,"sessionId":"a-1","status":"waiting","statusUpdatedAt":1789152626774}`)
 	write(21, `{"pid":21,"sessionId":"a-2","status":"waiting"}`) // says nothing of when
-	AI := func(pid int) process {
+	contact := func(pid int) process {
 		return process{pid: pid, uid: 501, tty: "ttys001", state: 'S', command: "claude", args: []string{"claude"},
-			started: watchNow.Add(-time.Hour), cwd: "/w"}
+			started: processesNow.Add(-time.Hour), cwd: "/w"}
 	}
 
-	how := aiStandings([]process{AI(20), AI(21)})
+	how := contactStatuses([]process{contact(20), contact(21)})
 	if !how[20].waiting || !how[20].since.Equal(since) {
 		t.Errorf("an AI that says when it stopped stands %+v, want waiting since %v", how[20], since)
 	}
@@ -273,7 +273,7 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 	}
 
 	// And the entry carries it, which is what orders the round.
-	for _, pl := range watch([]process{AI(20), AI(21)}, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
+	for _, pl := range projectsFrom([]process{contact(20), contact(21)}, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.entries {
 			if e.pid == 20 && !e.since.Equal(since) {
 				t.Errorf("the entry for pid 20 stands since %v, want %v", e.since, since)

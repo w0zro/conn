@@ -37,7 +37,7 @@ func (h holdModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.width, h.height = msg.Width, msg.Height
 	case tea.KeyPressMsg:
 		if h.srv != nil {
-			return h, func() tea.Msg { _ = h.srv.focusRail(); return nil }
+			return h, func() tea.Msg { _ = h.srv.focusPanel(); return nil }
 		}
 	}
 	return h, nil

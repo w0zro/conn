@@ -13,7 +13,7 @@ import (
 // A session is who is at the station and how, as read: the user, the
 // shell, the terminal, where conn was started from and what it is
 // running as. A blank field leaves its line off the readout.
-type session struct {
+type login struct {
 	user        string
 	uid         string
 	admin       bool
@@ -41,8 +41,8 @@ type session struct {
 }
 
 // readSession reads the session from the process and its environment.
-func readSession() session {
-	s := session{pid: os.Getpid(), ppid: os.Getppid()}
+func readLogin() login {
+	s := login{pid: os.Getpid(), ppid: os.Getppid()}
 	if u, err := user.Current(); err == nil {
 		s.user, s.uid, s.admin = u.Username, u.Uid, isAdmin(u)
 	}

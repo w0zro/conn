@@ -19,7 +19,7 @@ import (
 // case for a row running somewhere else, and says nothing.
 
 // gitStanding is a place's own state as git tells it.
-type gitStanding struct {
+type gitStatus struct {
 	repo     bool // the place is a work tree at all
 	branch   string
 	detached bool   // on no branch, at a commit
@@ -40,17 +40,17 @@ const gitWait = 2 * time.Second
 
 // readGit is what git says of a directory. Everything is read in one
 // call where git will give it in one, since each is a process.
-func readGit(dir string) gitStanding {
+func readGit(dir string) gitStatus {
 	if dir == "" {
-		return gitStanding{}
+		return gitStatus{}
 	}
-	var g gitStanding
+	var g gitStatus
 
 	// One call for the head: the branch, the hash, the subject and the
 	// date. %D is empty on a detached head, which is how that is known.
 	out, err := gitOut(dir, "log", "-1", "--no-color", "--format=%h%x00%s%x00%cI%x00%D")
 	if err != nil {
-		return gitStanding{}
+		return gitStatus{}
 	}
 	g.repo = true
 	if f := strings.Split(strings.TrimRight(out, "\n"), "\x00"); len(f) == 4 {

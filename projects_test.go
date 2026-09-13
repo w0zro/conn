@@ -18,7 +18,7 @@ func mkRepo(t *testing.T, path string) {
 
 // names is what the list would read down its rows, a group's
 // repositories marked as such.
-func names(ps []project) []string {
+func names(ps []projectRow) []string {
 	out := make([]string, 0, len(ps))
 	for _, p := range ps {
 		switch {
@@ -146,7 +146,7 @@ func equal(a, b []string) bool {
 // testProjects is a list as the roots would give it: two groups, the
 // repositories that stand alone among them, and one name qualified by
 // the root it came from.
-var testProjects = []project{
+var testProjects = []projectRow{
 	{name: "arboreum.io", path: "/Users/w0zro/projects/arboreum.io", repos: 2},
 	{name: "content", path: "/Users/w0zro/projects/arboreum.io/content", grouped: true},
 	{name: "welcome", path: "/Users/w0zro/projects/arboreum.io/welcome", grouped: true},

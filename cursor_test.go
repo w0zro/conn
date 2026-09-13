@@ -60,17 +60,17 @@ func TestEachServerHasItsOwnCursor(t *testing.T) {
 // goes out through the one place that tells it. Off the watch there is
 // no cursor on a process, and the subject is not unchosen by going to
 // the list to open something, so nothing is said rather than a nothing.
-func TestTheRailPublishesItsCursor(t *testing.T) {
+func TestThePanelPublishesItsCursor(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 
 	m := newModel(plain)
-	m.view, m.inside, m.now = viewWatch, true, watchNow
-	m.head.session.home = dir
-	m.places = []place{{path: "/w", entries: []entry{
+	m.view, m.inside, m.now = viewProcesses, true, processesNow
+	m.head.login.home = dir
+	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 11, tty: "ttys001", status: statusIdle},
-		{pid: 22, tty: "ttys002", status: statusWaiting, since: watchNow.Add(-time.Minute)},
+		{pid: 22, tty: "ttys002", status: statusWaiting, since: processesNow.Add(-time.Minute)},
 		{pid: 33, tty: "ttys003", status: statusIdle},
 	}}}
 	m.cursor, m.cursorAt = 11, 0
@@ -97,7 +97,7 @@ func TestTheRailPublishesItsCursor(t *testing.T) {
 	// missing comes back on the next beat rather than staying gone
 	// until somebody presses a key.
 	tellCursor(path, 0)
-	next, _ = m.Update(watchMsg{gen: m.watchGen, places: []place{{path: "/w", entries: []entry{
+	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: []project{{path: "/w", entries: []entry{
 		{pid: 22, tty: "ttys002", status: statusIdle},
 	}}}})
 	m = next.(model)
@@ -108,7 +108,7 @@ func TestTheRailPublishesItsCursor(t *testing.T) {
 	// With no home there is nowhere to publish, and conn does not write
 	// beside whatever directory it was started in.
 	nowhere := m
-	nowhere.head.session.home, nowhere.told = "", -1
+	nowhere.head.login.home, nowhere.told = "", -1
 	tellCursor(path, 55)
 	next, _ = nowhere.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	if got := askCursor(path); got != 55 {
@@ -128,17 +128,17 @@ func TestTheRailPublishesItsCursor(t *testing.T) {
 // A reading of a subject the cursor has since left is no longer about
 // anything: putting it up would be the page flicking back to a row
 // nobody is looking at.
-func TestTheLookDropsAReadingItHasMovedPast(t *testing.T) {
-	m := lookModel{pid: 22, follow: true, p: plain}
-	stale := lookReport{pid: 11, groups: []lookGroup{{title: "STALE"}}}
-	fresh := lookReport{pid: 22, groups: []lookGroup{{title: "FRESH"}}}
+func TestTheReadoutDropsAReadingItHasMovedPast(t *testing.T) {
+	m := readoutModel{pid: 22, follow: true, p: plain}
+	stale := readoutReport{pid: 11, groups: []readoutGroup{{title: "STALE"}}}
+	fresh := readoutReport{pid: 22, groups: []readoutGroup{{title: "FRESH"}}}
 
-	next, _ := m.Update(lookReadMsg{pid: 11, report: stale})
-	if got := next.(lookModel).report; len(got.groups) != 0 {
+	next, _ := m.Update(readoutReadMsg{pid: 11, report: stale})
+	if got := next.(readoutModel).report; len(got.groups) != 0 {
 		t.Errorf("a reading of pid 11 landed on a page about 22: %+v", got)
 	}
-	next, _ = m.Update(lookReadMsg{pid: 22, report: fresh})
-	if got := next.(lookModel).report; len(got.groups) != 1 || got.groups[0].title != "FRESH" {
+	next, _ = m.Update(readoutReadMsg{pid: 22, report: fresh})
+	if got := next.(readoutModel).report; len(got.groups) != 1 || got.groups[0].title != "FRESH" {
 		t.Errorf("the reading of the subject did not land: %+v", got)
 	}
 }
@@ -146,15 +146,15 @@ func TestTheLookDropsAReadingItHasMovedPast(t *testing.T) {
 // Following is what i opens: with no pid the page is about whatever the
 // cursor is on, and a cursor that moves moves the page. A pid given by
 // hand pins it, and the cursor does not move it.
-func TestTheLookFollowsTheCursorUnlessPinned(t *testing.T) {
+func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 	tellCursor(path, 77)
 
-	m := lookModel{pid: 11, follow: true, cursor: path, p: plain, read: time.Now()}
-	next, cmd := m.Update(lookTickMsg{})
-	m = next.(lookModel)
+	m := readoutModel{pid: 11, follow: true, cursor: path, p: plain, read: time.Now()}
+	next, cmd := m.Update(readoutTickMsg{})
+	m = next.(readoutModel)
 	if m.pid != 77 {
 		t.Errorf("the page is on pid %d, not where the cursor went", m.pid)
 	}
@@ -162,26 +162,26 @@ func TestTheLookFollowsTheCursorUnlessPinned(t *testing.T) {
 		t.Error("a subject that moved was not read again")
 	}
 
-	pinned := lookModel{pid: 11, follow: false, cursor: path, p: plain, read: time.Now()}
-	next, _ = pinned.Update(lookTickMsg{})
-	if got := next.(lookModel).pid; got != 11 {
+	pinned := readoutModel{pid: 11, follow: false, cursor: path, p: plain, read: time.Now()}
+	next, _ = pinned.Update(readoutTickMsg{})
+	if got := next.(readoutModel).pid; got != 11 {
 		t.Errorf("a pinned page moved to pid %d", got)
 	}
 
 	// A cursor that has not moved is not read again on every poll — only
 	// on the beat — or the table and git would be read three times a
 	// second for a page nobody is moving.
-	steady := lookModel{pid: 77, follow: true, cursor: path, p: plain, read: time.Now()}
+	steady := readoutModel{pid: 77, follow: true, cursor: path, p: plain, read: time.Now()}
 	before := steady.read
-	next, _ = steady.Update(lookTickMsg{})
-	if got := next.(lookModel); !got.read.Equal(before) {
+	next, _ = steady.Update(readoutTickMsg{})
+	if got := next.(readoutModel); !got.read.Equal(before) {
 		t.Error("a page whose cursor did not move read its subject again anyway")
 	}
 	// Once the beat has passed it reads regardless, so a page nobody is
 	// moving still keeps up with its row.
-	stale := lookModel{pid: 77, follow: true, cursor: path, p: plain, read: time.Now().Add(-2 * lookBeat)}
-	next, _ = stale.Update(lookTickMsg{})
-	if got := next.(lookModel); got.read.Equal(stale.read) {
+	stale := readoutModel{pid: 77, follow: true, cursor: path, p: plain, read: time.Now().Add(-2 * readoutBeat)}
+	next, _ = stale.Update(readoutTickMsg{})
+	if got := next.(readoutModel); got.read.Equal(stale.read) {
 		t.Error("a page past its beat did not read its subject again")
 	}
 }
@@ -190,28 +190,28 @@ func TestTheLookFollowsTheCursorUnlessPinned(t *testing.T) {
 // faster than that, so the page answers the new row out of the table it
 // already holds — every row is in it — and the reading that follows
 // only says it again, newer.
-func TestTheLookAnswersFromTheTableInHand(t *testing.T) {
+func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 
-	held := lookTable{
-		places: []place{{path: "/w", entries: []entry{
+	held := readoutTable{
+		projects: []project{{path: "/w", entries: []entry{
 			{pid: 11, kind: kindShell, command: "zsh", tty: "ttys001"},
 			{pid: 22, kind: kindRun, command: "go test ./...", tty: "ttys002"},
 		}}},
-		git: map[string]gitStanding{"/w": {repo: true, branch: "main"}},
+		git: map[string]gitStatus{"/w": {repo: true, branch: "main"}},
 	}
-	m := lookModel{pid: 11, follow: true, cursor: path, p: plain, table: held,
-		report: lookReport{pid: 11}, read: time.Now()}
+	m := readoutModel{pid: 11, follow: true, cursor: path, p: plain, table: held,
+		report: readoutReport{pid: 11}, read: time.Now()}
 
 	tellCursor(path, 22)
-	next, _ := m.Update(lookTickMsg{})
-	m = next.(lookModel)
+	next, _ := m.Update(readoutTickMsg{})
+	m = next.(readoutModel)
 	if m.report.pid != 22 {
 		t.Errorf("the page is still about pid %d after the cursor moved", m.report.pid)
 	}
-	if text := texts(drawLook(m.report, 120, 40, plain)); !strings.Contains(text, "go test ./...") {
+	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "go test ./...") {
 		t.Errorf("the row the cursor landed on was not said out of the table in hand:\n%s", text)
 	}
 
@@ -219,8 +219,8 @@ func TestTheLookAnswersFromTheTableInHand(t *testing.T) {
 	// read, not a row that has gone: the page waits for the reading on
 	// its way rather than putting up a gravestone.
 	tellCursor(path, 33)
-	next, _ = m.Update(lookTickMsg{})
-	after := next.(lookModel)
+	next, _ = m.Update(readoutTickMsg{})
+	after := next.(readoutModel)
 	if after.pid != 33 {
 		t.Errorf("the page did not follow the cursor to pid %d", after.pid)
 	}
@@ -233,12 +233,12 @@ func TestTheLookAnswersFromTheTableInHand(t *testing.T) {
 // row it was read for, so a reading the cursor has moved past is dropped
 // while the table it came with is kept: the row the cursor went to is in
 // it too.
-func TestTheLookKeepsTheTableOfAReadingItDrops(t *testing.T) {
-	m := lookModel{pid: 22, follow: true, p: plain}
-	table := lookTable{places: []place{{path: "/w", entries: []entry{{pid: 11, kind: kindShell}}}}}
+func TestTheReadoutKeepsTheTableOfAReadingItDrops(t *testing.T) {
+	m := readoutModel{pid: 22, follow: true, p: plain}
+	table := readoutTable{projects: []project{{path: "/w", entries: []entry{{pid: 11, kind: kindShell}}}}}
 
-	next, _ := m.Update(lookReadMsg{pid: 11, report: lookReport{pid: 11}, table: table})
-	if got := next.(lookModel).table.places; len(got) != 1 {
+	next, _ := m.Update(readoutReadMsg{pid: 11, report: readoutReport{pid: 11}, table: table})
+	if got := next.(readoutModel).table.projects; len(got) != 1 {
 		t.Errorf("the table of a dropped reading was dropped with it: %+v", got)
 	}
 }

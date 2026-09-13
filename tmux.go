@@ -28,7 +28,7 @@ import (
 const (
 	sessionName   = "conn"
 	homeWindow    = "home"
-	railWidth     = 44 // the rail's columns; the slot has the rest
+	panelWidth    = 44 // the rail's columns; the slot has the rest
 	defaultPrefix = "C-Space"
 )
 
@@ -258,7 +258,7 @@ type pane struct {
 	id, tty       string
 	width, height int
 	hold          bool
-	look          bool
+	readout       bool
 	dead          bool
 }
 
@@ -283,7 +283,7 @@ func parsePanes(out string) map[string]pane {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
-			hold: f[4] == "1", dead: f[5] == "1", look: f[6] == "1"}
+			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1"}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -292,19 +292,19 @@ func parsePanes(out string) map[string]pane {
 }
 
 // The rail is the pane this conn runs in; tmux names it in TMUX_PANE.
-func (s *server) rail() string {
+func (s *server) panel() string {
 	return os.Getenv("TMUX_PANE")
 }
 
 // slot is the pane beside the rail in the home window, when there is
 // one.
-func (s *server) slot() (pane, bool, error) {
-	out, err := s.run("list-panes", "-t", s.rail(), "-F", paneFormat)
+func (s *server) bay() (pane, bool, error) {
+	out, err := s.run("list-panes", "-t", s.panel(), "-F", paneFormat)
 	if err != nil {
 		return pane{}, false, err
 	}
 	for _, p := range parsePanes(out) {
-		if p.id != s.rail() {
+		if p.id != s.panel() {
 			return p, true, nil
 		}
 	}
@@ -313,22 +313,22 @@ func (s *server) slot() (pane, bool, error) {
 
 // splitSlot opens the slot beside the rail, with a hold in it, and sets
 // the rail to its width. Focus stays on the rail.
-func (s *server) splitSlot(home, self string) error {
-	id, err := s.run("split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "-t", s.rail(), "-c", home, "exec "+shellQuote(self)+" hold")
+func (s *server) splitBay(home, self string) error {
+	id, err := s.run("split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "-t", s.panel(), "-c", home, "exec "+shellQuote(self)+" hold")
 	if err != nil {
 		return err
 	}
 	if _, err := s.run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_hold", "1"); err != nil {
 		return err
 	}
-	return s.holdRail()
+	return s.holdPanel()
 }
 
 // holdRail sets the rail to its width. tmux keeps the panes in
 // proportion when the window is resized, so the rail is put back each
 // time it is not its width.
-func (s *server) holdRail() error {
-	_, err := s.run("resize-pane", "-t", s.rail(), "-x", strconv.Itoa(railWidth))
+func (s *server) holdPanel() error {
+	_, err := s.run("resize-pane", "-t", s.panel(), "-x", strconv.Itoa(panelWidth))
 	return err
 }
 
@@ -337,32 +337,32 @@ func (s *server) holdRail() error {
 // own shape rather than a split — nothing about the window's layout
 // moves. Without a slot at all, which a swap has nothing to land in,
 // it falls back to splitSlot.
-func (s *server) reviveSlot(home, self string) error {
-	slot, ok, err := s.slot()
+func (s *server) reviveBay(home, self string) error {
+	bay, ok, err := s.bay()
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return s.splitSlot(home, self)
+		return s.splitBay(home, self)
 	}
-	return s.holdSlot(home, self, slot)
+	return s.holdBay(home, self, bay)
 }
 
 // hideLook puts the slot back to a hold, which is what closing the look
 // leaves behind: the slot is conn's, and an empty one says so.
-func (s *server) hideLook(home, self string) error {
-	slot, ok, err := s.slot()
+func (s *server) hideReadout(home, self string) error {
+	bay, ok, err := s.bay()
 	if err != nil || !ok {
 		return err
 	}
-	return s.holdSlot(home, self, slot)
+	return s.holdBay(home, self, bay)
 }
 
 // holdSlot puts a hold in the slot, in the slot's own shape, and is rid
 // of whatever was there. It is a swap rather than a split so nothing
 // about the window's layout moves, and the rail never has to give up
 // its width and take it back.
-func (s *server) holdSlot(home, self string, slot pane) error {
+func (s *server) holdBay(home, self string, bay pane) error {
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, "exec "+shellQuote(self)+" hold")
 	if err != nil {
 		return err
@@ -371,7 +371,7 @@ func (s *server) holdSlot(home, self string, slot pane) error {
 	if _, err := s.run("set-option", "-p", "-t", hold, "@conn_hold", "1"); err != nil {
 		return err
 	}
-	_, err = s.run("swap-pane", "-d", "-s", hold, "-t", slot.id, ";", "kill-pane", "-t", slot.id)
+	_, err = s.run("swap-pane", "-d", "-s", hold, "-t", bay.id, ";", "kill-pane", "-t", bay.id)
 	return err
 }
 
@@ -386,20 +386,20 @@ func (s *server) holdSlot(home, self string, slot pane) error {
 // rail's cursor is on". One page then serves the whole list, j and k
 // carrying it along, where a page opened per row would spawn a window a
 // keystroke and blank the slot between each.
-func (s *server) showLook(home, self string) error {
+func (s *server) showReadout(home, self string) error {
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
 		"exec "+shellQuote(self)+" readout")
 	if err != nil {
 		return err
 	}
-	look := strings.TrimSpace(id)
-	if _, err := s.run("set-option", "-p", "-t", look, "@conn_hold", "1"); err != nil {
+	readout := strings.TrimSpace(id)
+	if _, err := s.run("set-option", "-p", "-t", readout, "@conn_hold", "1"); err != nil {
 		return err
 	}
-	if _, err := s.run("set-option", "-p", "-t", look, "@conn_look", "1"); err != nil {
+	if _, err := s.run("set-option", "-p", "-t", readout, "@conn_look", "1"); err != nil {
 		return err
 	}
-	slot, ok, err := s.slot()
+	bay, ok, err := s.bay()
 	if err != nil {
 		return err
 	}
@@ -407,29 +407,29 @@ func (s *server) showLook(home, self string) error {
 		// Nothing to swap into. Split one first — swapping against the
 		// rail instead would put the watch in the window the look came
 		// from and the look where the watch belongs.
-		if err := s.splitSlot(home, self); err != nil {
+		if err := s.splitBay(home, self); err != nil {
 			return err
 		}
-		if slot, ok, err = s.slot(); err != nil {
+		if bay, ok, err = s.bay(); err != nil {
 			return err
 		} else if !ok {
 			return fmt.Errorf("home has no slot")
 		}
 	}
-	args := []string{"swap-pane", "-d", "-s", look, "-t", slot.id}
-	if slot.width > 0 && slot.height > 0 {
-		args = append(args, ";", "resize-window", "-t", slot.id, "-x", strconv.Itoa(slot.width), "-y", strconv.Itoa(slot.height))
+	args := []string{"swap-pane", "-d", "-s", readout, "-t", bay.id}
+	if bay.width > 0 && bay.height > 0 {
+		args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
 	}
 	// What was in the slot goes back to a window of its own, still
 	// running, unless it was conn's own furniture and has nothing to go
 	// back to.
-	if slot.hold {
-		args = append(args, ";", "kill-pane", "-t", slot.id)
+	if bay.hold {
+		args = append(args, ";", "kill-pane", "-t", bay.id)
 	}
 	if _, err := s.run(args...); err != nil {
 		return err
 	}
-	return s.focusRail()
+	return s.focusPanel()
 }
 
 // show puts a pane in the slot and focus on it. The pane that was in the
@@ -438,20 +438,20 @@ func (s *server) showLook(home, self string) error {
 // done with, and so is a pane whose process has ended, which
 // remain-on-exit kept only so the slot would hold its place.
 func (s *server) show(target pane) error {
-	slot, ok, err := s.slot()
+	bay, ok, err := s.bay()
 	if err != nil {
 		return err
 	}
 	if !ok {
 		return fmt.Errorf("home has no slot")
 	}
-	if target.id != slot.id {
-		args := []string{"swap-pane", "-d", "-s", target.id, "-t", slot.id}
-		if slot.width > 0 && slot.height > 0 {
-			args = append(args, ";", "resize-window", "-t", slot.id, "-x", strconv.Itoa(slot.width), "-y", strconv.Itoa(slot.height))
+	if target.id != bay.id {
+		args := []string{"swap-pane", "-d", "-s", target.id, "-t", bay.id}
+		if bay.width > 0 && bay.height > 0 {
+			args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
 		}
-		if slot.hold || slot.dead {
-			args = append(args, ";", "kill-pane", "-t", slot.id)
+		if bay.hold || bay.dead {
+			args = append(args, ";", "kill-pane", "-t", bay.id)
 		}
 		if _, err := s.run(args...); err != nil {
 			return err
@@ -512,20 +512,20 @@ func (s *server) wide() error { return s.zoom(true) }
 func (s *server) narrow() error { return s.zoom(false) }
 
 func (s *server) zoom(on bool) error {
-	out, err := s.run("display-message", "-p", "-t", s.rail(), "#{window_zoomed_flag}")
+	out, err := s.run("display-message", "-p", "-t", s.panel(), "#{window_zoomed_flag}")
 	if err != nil {
 		return err
 	}
 	if (strings.TrimSpace(out) == "1") == on {
 		return nil
 	}
-	_, err = s.run("resize-pane", "-Z", "-t", s.rail())
+	_, err = s.run("resize-pane", "-Z", "-t", s.panel())
 	return err
 }
 
 // focusRail puts focus on the rail.
-func (s *server) focusRail() error {
-	_, err := s.run("select-pane", "-t", s.rail())
+func (s *server) focusPanel() error {
+	_, err := s.run("select-pane", "-t", s.panel())
 	return err
 }
 
@@ -620,7 +620,7 @@ set -g remain-on-exit on
 	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
 	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
 	b.WriteString("set -g pane-border-indicators off\n")
-	b.WriteString(bar())
+	b.WriteString(statusLine())
 	return b.String()
 }
 
@@ -672,7 +672,7 @@ set -g remain-on-exit on
 // each in an option of its own, and each only when it changes: the
 // question on a keypress, the lamps when a reading finds a process
 // standing differently from the last. Never on a beat.
-func bar() string {
+func statusLine() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
 set -g status-position bottom
@@ -691,9 +691,9 @@ set -g window-status-current-format ""
 	// pane of the home window and everything else is work. A question is
 	// armed on the rail and answered there, so it shows only while the
 	// keys are on the rail to answer it.
-	onRail := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
+	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
 	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_ask},}}}\"\n",
-		barBlock("PREFIX", cursorHex), barBlock("COPY", scheme[12]), onRail)
+		statusLineBlock("PREFIX", cursorHex), statusLineBlock("COPY", scheme[12]), onPanel)
 	fmt.Fprintf(&b, "set -g status-right \"#{@conn_lamps}\"\n")
 	return b.String()
 }
@@ -707,20 +707,20 @@ set -g window-status-current-format ""
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
 // would read the style as the branches of the question.
-func barBlock(word, color string) string {
+func statusLineBlock(word, color string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", color, hex(groundColor), word)
 }
 
 // barAsk is the question armed, as the bar wears it: a block in the waiting
 // color, the same one the lamps say a hand waiting in.
-func barAsk(word string) string {
-	return barBlock(word, scheme[1])
+func statusLineAsk(word string) string {
+	return statusLineBlock(word, scheme[1])
 }
 
 // barSay is what conn says beside a block: on the bar's own ground, in
 // the parchment conn titles with, two spaces off the block. A hash is
 // tmux's own character on this line and is doubled to be shown.
-func barSay(text string) string {
+func statusLineSay(text string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", borderHex, scheme[7], strings.ReplaceAll(text, "#", "##"))
 }
 
@@ -732,9 +732,9 @@ const lamp = "●"
 // the watch, in the watch's order, each in the color of how its process
 // stands, and a space between them so they count. Nothing at all with
 // no rows, so a watch with nothing on it leaves the panel dark.
-func barLamps(places []place) string {
+func statusLineLamps(projects []project) string {
 	var b strings.Builder
-	for _, pl := range places {
+	for _, pl := range projects {
 		for _, e := range pl.entries {
 			var color, weight string
 			switch e.status {

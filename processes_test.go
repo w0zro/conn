@@ -9,29 +9,29 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func testWatch() watchReport {
-	return composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
+func testProcesses() processesReport {
+	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
 }
 
 // The watch at 120 by 40 is a file of record, as are the empty watch and
 // the one that could not be read.
-func TestWatchMatchesTheGolden(t *testing.T) {
-	golden(t, "watch-120x40.txt", texts(drawWatch(testWatch(), 67040, 120, 40, plain)))
-	golden(t, "watch-cursor-100x9.txt", texts(drawWatch(testWatch(), 80002, 100, 9, plain)))
-	empty := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
-	golden(t, "watch-empty-80x24.txt", texts(drawWatch(empty, 0, 80, 24, plain)))
-	failed := composeWatch(nil, nil, "", testProjRoots, "/Users/w0zro", watchNow, "the process table could not be read: lsof: not found")
-	golden(t, "watch-unread-80x24.txt", texts(drawWatch(failed, 0, 80, 24, plain)))
-	rail := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
-	rail.inside = true
-	golden(t, "watch-rail-48x30.txt", texts(drawWatch(rail, 70100, 48, 30, plain)))
+func TestProcessesMatchesTheGolden(t *testing.T) {
+	golden(t, "processes-120x40.txt", texts(drawProcesses(testProcesses(), 67040, 120, 40, plain)))
+	golden(t, "processes-cursor-100x9.txt", texts(drawProcesses(testProcesses(), 80002, 100, 9, plain)))
+	empty := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	golden(t, "processes-empty-80x24.txt", texts(drawProcesses(empty, 0, 80, 24, plain)))
+	failed := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found")
+	golden(t, "processes-unread-80x24.txt", texts(drawProcesses(failed, 0, 80, 24, plain)))
+	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "")
+	panel.inside = true
+	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, plain)))
 }
 
 // The watch's columns hold: the status flush right, a root's kind at
 // the margin and what runs under it a level in per level, the path
 // from ~, the ages as of the clock, no legend, no row past the width.
-func TestWatchLaysOut(t *testing.T) {
-	rows := drawWatch(testWatch(), 70100, 120, 40, plain)
+func TestProcessesLaysOut(t *testing.T) {
+	rows := drawProcesses(testProcesses(), 70100, 120, 40, plain)
 	text := texts(rows)
 	measure, _, _ := columns(120)
 	for _, s := range []string{
@@ -68,7 +68,7 @@ func TestWatchLaysOut(t *testing.T) {
 			t.Errorf("status is not flush with %d: %q", margin+measure, r.text)
 		}
 	}
-	for i, r := range drawWatch(testWatch(), 70100, 120, 40, colored()) {
+	for i, r := range drawProcesses(testProcesses(), 70100, 120, 40, colored()) {
 		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != 120 {
 			t.Errorf("colored row %d paints %d columns", i, w)
 		}
@@ -81,20 +81,20 @@ func TestWatchLaysOut(t *testing.T) {
 // A watch taller than the terminal scrolls to keep the cursor in view
 // and says how many rows are above and below. The name is the bar's,
 // so nine rows of terminal are nine of watch.
-func TestAWatchThatWillNotFitScrolls(t *testing.T) {
-	rows := drawWatch(testWatch(), 80001, 100, 9, plain)
+func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
+	rows := drawProcesses(testProcesses(), 80001, 100, 9, plain)
 	text := texts(rows)
 	if len(rows) != 9 || !strings.Contains(text, "… 10 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
-	rows = drawWatch(testWatch(), 70301, 100, 9, plain)
+	rows = drawProcesses(testProcesses(), 70301, 100, 9, plain)
 	text = texts(rows)
 	// The cursor's mark keeps the margin; the row it marks still steps
 	// in for the level it is at.
 	if len(rows) != 9 || !strings.Contains(text, "… 10 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
-	if piped := drawWatch(testWatch(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
+	if piped := drawProcesses(testProcesses(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
 		t.Errorf("off a terminal:\n%s", texts(piped))
 	}
 }
@@ -102,8 +102,8 @@ func TestAWatchThatWillNotFitScrolls(t *testing.T) {
 // The cursor moves with j and k, stays within the rows, and follows its
 // process across readings; when the process goes it holds its row.
 func TestTheCursorFollowsItsProcess(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewWatch, uid: 501, roots: testRoots, now: watchNow}
-	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil)})
+	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: testRoots, now: processesNow}
+	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	// The rows read oldest first: home's shell and the vim it holds
 	// stopped, then conn's two shells, then the conjurer's tree — its
@@ -129,7 +129,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	}
 	// A reading that still has the pid keeps the cursor on it, wherever
 	// in the rows it has moved to.
-	next, _ = m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil)})
+	next, _ = m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	if m.cursor != 80002 || m.cursorAt != 1 {
 		t.Errorf("the cursor left the pid it was on: %d at %d", m.cursor, m.cursorAt)
@@ -149,12 +149,12 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 			without = append(without, p)
 		}
 	}
-	next, _ = m.Update(watchMsg{places: watch(without, 501, testRoots, testIsProject, nil)})
+	next, _ = m.Update(processesMsg{projects: projectsFrom(without, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	if m.cursorAt != 5 || m.cursor != 70212 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
 	}
-	next, _ = m.Update(watchMsg{})
+	next, _ = m.Update(processesMsg{})
 	m = next.(model)
 	if m.cursor != 0 || strings.Contains(m.View().Content, "▸") {
 		t.Errorf("an empty watch has a cursor: %d", m.cursor)
@@ -164,8 +164,8 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 // A key at the end of the console goes to the watch, which reads the
 // table and reads it again on its tick; c brings the console back, and a
 // stale tick is dropped.
-func TestTheKeyContinuesToTheWatch(t *testing.T) {
-	m := model{head: station{build: testStation.build, session: testStation.session}, now: watchNow, p: plain, width: 120, height: 40, uid: 501, roots: testRoots}
+func TestTheKeyContinuesToProcesses(t *testing.T) {
+	m := model{head: station{build: testStation.build, login: testStation.login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501, roots: testRoots}
 	st := testStation
 	m.st = &st
 	m.stage = lastStage(m.report())
@@ -179,18 +179,18 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	if !strings.Contains(m.View().Content, "START-UP CHECKS") {
 		t.Errorf("the console should still be up while the reading is on its way:\n%s", m.View().Content)
 	}
-	next, cmd = m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil), gen: m.watchGen})
+	next, cmd = m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil), gen: m.processesGen})
 	m = next.(model)
-	if m.view != viewWatch || m.entering {
+	if m.view != viewProcesses || m.entering {
 		t.Fatalf("the reading the console was waiting on did not put the watch up")
 	}
 	if cmd == nil || !strings.Contains(m.View().Content, "claude --resume") {
 		t.Errorf("the watch should show what was read and set the tick going:\n%s", m.View().Content)
 	}
-	if _, cmd := m.Update(watchTickMsg{gen: m.watchGen - 1}); cmd != nil {
+	if _, cmd := m.Update(processesTickMsg{gen: m.processesGen - 1}); cmd != nil {
 		t.Error("a stale tick should be dropped")
 	}
-	if _, cmd := m.Update(watchTickMsg{gen: m.watchGen}); cmd == nil {
+	if _, cmd := m.Update(processesTickMsg{gen: m.processesGen}); cmd == nil {
 		t.Error("the tick should read the watch again")
 	}
 	next, _ = m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
@@ -198,15 +198,15 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 	if m.view != viewConsole || !strings.Contains(m.View().Content, "START-UP CHECKS") {
 		t.Errorf("c should bring the console back:\n%s", m.View().Content)
 	}
-	if _, cmd := m.Update(watchTickMsg{gen: m.watchGen}); cmd != nil {
+	if _, cmd := m.Update(processesTickMsg{gen: m.processesGen}); cmd != nil {
 		t.Error("a tick off the watch should be dropped")
 	}
 	// Coming back, the rows of the last stay are still in hand, so the
 	// watch goes up with them at once rather than holding for a reading.
 	next, cmd = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
-	if m.view != viewWatch || m.entering || cmd == nil || m.watchGen != 2 {
-		t.Errorf("a key on the finished console should return to the watch and read it afresh: gen %d", m.watchGen)
+	if m.view != viewProcesses || m.entering || cmd == nil || m.processesGen != 2 {
+		t.Errorf("a key on the finished console should return to the watch and read it afresh: gen %d", m.processesGen)
 	}
 	if !strings.Contains(m.View().Content, "claude --resume") {
 		t.Errorf("the watch came back empty rather than with the rows it had:\n%s", m.View().Content)
@@ -218,10 +218,10 @@ func TestTheKeyContinuesToTheWatch(t *testing.T) {
 
 // In the server, the keys say what can be done, and a terminal the
 // server does not hold is faint.
-func TestTheWatchInsideTheServer(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
+func TestTheProcessesViewInsideTheServer(t *testing.T) {
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "")
 	w.inside = true
-	rows := drawWatch(w, 67040, 120, 40, colored())
+	rows := drawProcesses(w, 67040, 120, 40, colored())
 	text := texts(rows)
 	p := colored()
 	// ttys005 is in no pane the server holds here, and is the cursor's
@@ -236,11 +236,11 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 		t.Errorf("the slot's head is not marked:\n%s", text)
 	}
 	// In the rail there is no terminal column, and the rows close up.
-	railText := texts(drawWatch(w, 67040, 48, 30, plain))
-	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "CONTACT claude --resu") {
-		t.Errorf("the rail:\n%s", railText)
+	panelText := texts(drawProcesses(w, 67040, 48, 30, plain))
+	if strings.Contains(panelText, "TTY") || !strings.Contains(panelText, "CONTACT claude --resu") {
+		t.Errorf("the rail:\n%s", panelText)
 	}
-	for _, r := range drawWatch(w, 67040, 48, 30, plain) {
+	for _, r := range drawProcesses(w, 67040, 48, 30, plain) {
 		if w := utf8.RuneCountInString(r.text); w > 48 {
 			t.Errorf("rail row is %d wide: %q", w, r.text)
 		}
@@ -251,8 +251,8 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 // server, n opens a shell at its place, and q detaches; each says why
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewWatch, uid: 501, roots: testRoots, now: watchNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
-	next, _ := m.Update(watchMsg{places: watch(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
+	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: testRoots, now: processesNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
+	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: k})
@@ -295,12 +295,12 @@ func TestKeysInsideTheServer(t *testing.T) {
 
 // The watch says no keys. They are learned once; a legend on every row
 // of every reading is a thing to read past forever.
-func TestTheWatchSaysNoKeys(t *testing.T) {
-	w := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", watchNow, "")
+func TestTheProcessesViewSaysNoKeys(t *testing.T) {
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "")
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
-			text := stripEscapes(texts(drawWatch(w, 67040, size[0], size[1], plain)))
+			text := stripEscapes(texts(drawProcesses(w, 67040, size[0], size[1], plain)))
 			for _, key := range []string{"MOVE", "REACHES", "OPENS", "DETACHES", "CLOSES", "CONSOLE"} {
 				if strings.Contains(text, key) {
 					t.Errorf("inside=%v at %dx%d the watch still says %q:\n%s", inside, size[0], size[1], key, text)
@@ -308,7 +308,7 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 			}
 		}
 	}
-	if rows := drawWatch(w, 67040, 120, 40, plain); len(rows) != 40 {
+	if rows := drawProcesses(w, 67040, 120, 40, plain); len(rows) != 40 {
 		t.Errorf("the watch fills %d of 40 rows", len(rows))
 	}
 }
@@ -319,7 +319,7 @@ func TestTheWatchSaysNoKeys(t *testing.T) {
 // the record still says which one it is.
 func TestTheCursorIsAGround(t *testing.T) {
 	p := colored()
-	rows := drawWatch(testWatch(), 67040, 120, 40, p)
+	rows := drawProcesses(testProcesses(), 67040, 120, 40, p)
 	on := 0
 	for _, r := range rows {
 		if strings.Contains(r.text, p.selection) {
@@ -342,7 +342,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 		t.Error("the cursor is still a mark where it has a ground")
 	}
 	// In plain text there is no ground to raise, so the mark stays.
-	plainRows := texts(drawWatch(testWatch(), 67040, 120, 40, plain))
+	plainRows := texts(drawProcesses(testProcesses(), 67040, 120, 40, plain))
 	if !strings.Contains(plainRows, "▸   SHELL   zsh") {
 		t.Errorf("the plain watch lost its cursor:\n%s", plainRows)
 	}
@@ -355,14 +355,14 @@ func TestTheCursorIsAGround(t *testing.T) {
 // distinction would be every row.
 func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored()
-	held := composeWatch(watch(testProcs, 501, testRoots, testIsProject, nil),
+	held := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
-		testProjRoots, "/Users/w0zro", watchNow, "")
+		testProjRoots, "/Users/w0zro", processesNow, "")
 	held.inside = true
 	// The cursor is on a row conn holds a pane for, away from the rows
 	// under test, so none of them is giving up a rank of dimming to be
 	// read.
-	text := texts(drawWatch(held, 67040, 120, 40, p))
+	text := texts(drawProcesses(held, 67040, 120, 40, p))
 
 	// The slot is a mark: the kind of the head of what is in it, and
 	// nothing else. Not its command, not its terminal, not its status —
@@ -393,13 +393,13 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	}
 	// The row under the cursor gives a rank of the dimming back rather
 	// than the reading: faint on the raised ground is barely there.
-	onIt := texts(drawWatch(held, 80002, 120, 40, p))
+	onIt := texts(drawProcesses(held, 80002, 120, 40, p))
 	if !strings.Contains(onIt, p.gray+p.bold+"vim notes.md") {
 		t.Errorf("the dimmed row under the cursor is not read back up:\n%s", onIt)
 	}
 	// Outside the server, every command is the ink: conn can reach none
 	// of them, so dimming would say nothing.
-	out := texts(drawWatch(testWatch(), 67040, 120, 40, p))
+	out := texts(drawProcesses(testProcesses(), 67040, 120, 40, p))
 	for _, in := range []string{p.ink + p.bold + "zsh", p.ink + "claude --resume", p.ink + "vim notes.md"} {
 		if !strings.Contains(out, in) {
 			t.Errorf("outside the server a command is not in the ink:\n%s", out)
@@ -413,10 +413,10 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 // drawing to it means the frame conn paints is already the shape the
 // pane is about to be, so the split that opens the slot has nothing to
 // reflow.
-func TestTheRailDrawsToItsOwnWidth(t *testing.T) {
-	m := model{p: plain, width: 140, height: 40, inside: true, view: viewWatch}
-	if got := m.cols(); got != railWidth {
-		t.Errorf("the rail drew to %d columns, not the rail's %d", got, railWidth)
+func TestThePanelDrawsToItsOwnWidth(t *testing.T) {
+	m := model{p: plain, width: 140, height: 40, inside: true, view: viewProcesses}
+	if got := m.cols(); got != panelWidth {
+		t.Errorf("the rail drew to %d columns, not the rail's %d", got, panelWidth)
 	}
 	// The console is the whole window, and takes the width it is given.
 	m.view = viewConsole
@@ -424,7 +424,7 @@ func TestTheRailDrawsToItsOwnWidth(t *testing.T) {
 		t.Errorf("the console drew to %d columns, not the window's 140", got)
 	}
 	// Outside the server there is no slot to leave room for.
-	m.view, m.inside = viewWatch, false
+	m.view, m.inside = viewProcesses, false
 	if got := m.cols(); got != 140 {
 		t.Errorf("outside the server the watch drew to %d columns", got)
 	}
@@ -441,7 +441,7 @@ func TestTheRailDrawsToItsOwnWidth(t *testing.T) {
 // every project and says nothing that tells one from another, and it
 // was said at the head of every block on a rail forty-four columns
 // wide.
-func TestAPlaceIsNamedByWhatTellsItApart(t *testing.T) {
+func TestAProjectIsNamedByWhatTellsItApart(t *testing.T) {
 	roots := []string{"/Users/w0zro/projects", "/srv/work"}
 	for _, c := range []struct{ path, want string }{
 		{"/Users/w0zro/projects/w0zro/conn", "w0zro/conn"},
@@ -455,12 +455,12 @@ func TestAPlaceIsNamedByWhatTellsItApart(t *testing.T) {
 		{"/Users/w0zro", "~"},
 		{"/private/tmp/scratch", "/private/tmp/scratch"},
 	} {
-		if got := placeName(c.path, roots, "/Users/w0zro"); got != c.want {
+		if got := projectName(c.path, roots, "/Users/w0zro"); got != c.want {
 			t.Errorf("%s is called %q, want %q", c.path, got, c.want)
 		}
 	}
 	// With no roots at all nothing is taken off anything.
-	if got := placeName("/Users/w0zro/projects/w0zro/conn", nil, "/Users/w0zro"); got != "~/projects/w0zro/conn" {
+	if got := projectName("/Users/w0zro/projects/w0zro/conn", nil, "/Users/w0zro"); got != "~/projects/w0zro/conn" {
 		t.Errorf("with no roots the place is called %q", got)
 	}
 }
@@ -472,28 +472,28 @@ func TestAPlaceIsNamedByWhatTellsItApart(t *testing.T) {
 // nothing around them moves — a word that jumped its neighbours about
 // would be worse than one that never blinked.
 func TestTheWaitingWordBlinks(t *testing.T) {
-	held := []place{{path: "/w", entries: []entry{
+	held := []project{{path: "/w", entries: []entry{
 		{pid: 11, kind: kindShell, command: "zsh", status: statusActive},
-		{pid: 12, kind: kindAI, command: "claude", status: statusWaiting, depth: 1, since: watchNow.Add(-time.Minute)},
+		{pid: 12, kind: kindContact, command: "claude", status: statusWaiting, depth: 1, since: processesNow.Add(-time.Minute)},
 	}}}
-	b := composeWatch(held, nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
+	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
 
 	b.lit = true
-	on := texts(drawWatch(b, 0, 60, 12, plain))
+	on := texts(drawProcesses(b, 0, 60, 12, plain))
 	if !strings.Contains(on, statusWaiting) {
 		t.Errorf("the lit half has no word:\n%s", on)
 	}
 	b.lit = false
-	off := texts(drawWatch(b, 0, 60, 12, plain))
+	off := texts(drawProcesses(b, 0, 60, 12, plain))
 	if strings.Contains(off, statusWaiting) {
 		t.Errorf("the dark half still says it:\n%s", off)
 	}
 	// Only the word goes. Every row is the same shape on both halves, so
 	// nothing around it moves.
 	b.lit = true
-	onRows := drawWatch(b, 0, 60, 12, plain)
+	onRows := drawProcesses(b, 0, 60, 12, plain)
 	b.lit = false
-	offRows := drawWatch(b, 0, 60, 12, plain)
+	offRows := drawProcesses(b, 0, 60, 12, plain)
 	if len(onRows) != len(offRows) {
 		t.Fatalf("the halves are %d rows and %d", len(onRows), len(offRows))
 	}
@@ -504,11 +504,11 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 	}
 	// What is merely active does not blink, and neither does a fault: a
 	// process you suspended yourself is not asking anything of you.
-	steady := composeWatch([]place{{path: "/w", entries: []entry{
+	steady := composeProcesses([]project{{path: "/w", entries: []entry{
 		{pid: 21, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
-	}}}, nil, "", testProjRoots, "/Users/w0zro", watchNow, "")
+	}}}, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
 	steady.lit = false
-	if !strings.Contains(texts(drawWatch(steady, 0, 60, 12, plain)), statusStopped) {
+	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, plain)), statusStopped) {
 		t.Error("a fault went dark with the blink")
 	}
 }
@@ -521,12 +521,12 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 	if !m.annunciating() {
 		t.Error("the console does not annunciate")
 	}
-	m.view = viewWatch
-	m.places = []place{{path: "/w", entries: []entry{{pid: 11, status: statusActive}}}}
+	m.view = viewProcesses
+	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, status: statusActive}}}}
 	if m.annunciating() {
 		t.Error("a watch with nothing waiting annunciates")
 	}
-	m.places[0].entries = append(m.places[0].entries, entry{pid: 12, status: statusWaiting, since: watchNow})
+	m.projects[0].entries = append(m.projects[0].entries, entry{pid: 12, status: statusWaiting, since: processesNow})
 	if !m.annunciating() {
 		t.Error("a row waiting on you does not annunciate")
 	}
@@ -540,7 +540,7 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 	if _, again := next.blinked(); again != nil {
 		t.Error("the blink was started twice over")
 	}
-	next.places = nil
+	next.projects = nil
 	stopped, cmd := next.blinked()
 	if stopped.ticking || !stopped.lit || cmd != nil {
 		t.Errorf("the blink did not stop: ticking %v lit %v", stopped.ticking, stopped.lit)
@@ -554,7 +554,7 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 // the look are not remembered, and going back never lands on one.
 func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	m := newModel(plain)
-	m.view, m.inside, m.now = viewWatch, true, watchNow
+	m.view, m.inside, m.now = viewProcesses, true, processesNow
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.panes = map[string]pane{
 		"ttys001": {id: "%1", tty: "ttys001"},
@@ -574,18 +574,18 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	}
 
 	// A hold in the slot, then a process: the hold is not remembered.
-	m.slot = "ttys009"
+	m.bay = "ttys009"
 	next, _ := m.Update(reachedMsg{"ttys001"})
 	m = next.(model)
-	if m.lastSlot != "" {
-		t.Errorf("the hold was remembered as somewhere to go back to: %q", m.lastSlot)
+	if m.lastBay != "" {
+		t.Errorf("the hold was remembered as somewhere to go back to: %q", m.lastBay)
 	}
 
 	// A second process: the first is where going back leads.
 	next, _ = m.Update(reachedMsg{"ttys002"})
 	m = next.(model)
-	if m.slot != "ttys002" || m.lastSlot != "ttys001" {
-		t.Errorf("slot %q, other %q", m.slot, m.lastSlot)
+	if m.bay != "ttys002" || m.lastBay != "ttys001" {
+		t.Errorf("slot %q, other %q", m.bay, m.lastBay)
 	}
 	m, cmd = other(m)
 	if cmd == nil {
@@ -595,8 +595,8 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	// swaps which is which: pressed again it is back where it started.
 	next, _ = m.Update(reachedMsg{"ttys001"})
 	m = next.(model)
-	if m.slot != "ttys001" || m.lastSlot != "ttys002" {
-		t.Errorf("after going back: slot %q, other %q", m.slot, m.lastSlot)
+	if m.bay != "ttys001" || m.lastBay != "ttys002" {
+		t.Errorf("after going back: slot %q, other %q", m.bay, m.lastBay)
 	}
 
 	// A process that has gone is not somewhere to go back to.

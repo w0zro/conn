@@ -299,6 +299,42 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 // it first: remain-on-exit holds the dead pane in the bay's own
 // shape, so there is no moment the window is the panel alone, and conn
 // swaps a hold into the dead pane once it reads that it is one.
+// A window of work whose work has ended is done, and goes with it.
+// remain-on-exit belongs to the bay, so that a pane dying there does
+// not collapse the layout under conn; set for the whole server it also
+// held every parked window standing after its shell exited, dead,
+// where nothing in conn ever showed it and nothing short of conn down
+// ever cleared it.
+func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.keys("Space")
+	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
+
+	s.openShell()
+	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
+	first, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".1", "#{pane_id}")
+	first = strings.TrimSpace(first)
+
+	// A second shell takes the bay and parks the first in a window of
+	// its own, which is where work waits when it is not in front of you.
+	s.openShell()
+	s.until("the first shell parked in a window of its own", func() bool { return s.parked(first) })
+
+	if _, err := s.srv.run("send-keys", "-t", first, "exit", "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	s.until("the parked window to go with its shell", func() bool {
+		return !strings.Contains(s.panes(), ":"+first)
+	})
+
+	// And the bay is still the bay. What ended was somewhere else, and
+	// home neither collapsed nor gave up the panel's width.
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
+		t.Errorf("home changed shape when a parked window went: %s panes, %s wide", n, w)
+	}
+}
+
 func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })

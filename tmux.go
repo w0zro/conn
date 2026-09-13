@@ -321,6 +321,16 @@ func (s *server) splitBay(home, self string) error {
 	if _, err := s.run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_hold", "1"); err != nil {
 		return err
 	}
+	// A pane in this window whose process ends stays instead of
+	// closing, so a killed shell does not collapse the window to the
+	// panel alone before conn re-splits it: the bay holds its project,
+	// dead, until conn puts a hold there. It is the window's option
+	// and not the server's, since the bay is the only place conn has a
+	// layout to protect. Everywhere else a window whose work has ended
+	// is a window that is done.
+	if _, err := s.run("set-option", "-w", "-t", strings.TrimSpace(id), "remain-on-exit", "on"); err != nil {
+		return err
+	}
 	return s.holdPanel()
 }
 
@@ -611,10 +621,12 @@ set-environment -g CONN 1
 set -ga update-environment " TERM_PROGRAM TERM_PROGRAM_VERSION"
 set -g allow-passthrough on
 set -g display-time 3000
-# A pane whose process ends stays instead of closing, so a killed shell
-# does not collapse the window to the panel alone before conn re-splits
-# it: the bay holds its project, dead, until conn puts a hold there.
-set -g remain-on-exit on
+# remain-on-exit is not set here. It is for the bay, and it is set on
+# the home window, where the bay is, when conn opens it. Set for the
+# whole server it also kept every window of work standing after its
+# work ended: a pane parked out of the bay whose process finished left
+# a dead window that nothing in conn ever showed and nothing but conn
+# down ever cleared.
 `)
 	ground, ink := hex(groundColor), hex(inkColor)
 	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)

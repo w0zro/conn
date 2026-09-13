@@ -388,7 +388,7 @@ func (s *server) holdSlot(home, self string, slot pane) error {
 // keystroke and blank the slot between each.
 func (s *server) showLook(home, self string) error {
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
-		"exec "+shellQuote(self)+" look")
+		"exec "+shellQuote(self)+" readout")
 	if err != nil {
 		return err
 	}

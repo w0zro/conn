@@ -89,8 +89,8 @@ func insideNote(socket string) string {
 		"— a dev server, a file watcher, a build that stays up — in a window of its " +
 		"own rather than detached in the background:\n\n" +
 		"  tmux -S " + socket + " new-window -d -n NAME -c DIR 'COMMAND'\n\n" +
-		"It then holds a terminal of its own, so it stands on conn's watch as its " +
-		"own row, it can be attached to, and its output is the window's scrollback:\n\n" +
+		"It then holds a terminal of its own, so conn lists it as a process " +
+		"of its own, it can be attached to, and its output is the window's scrollback:\n\n" +
 		"  tmux -S " + socket + " capture-pane -p -t NAME\n\n" +
 		"Something you background instead holds no terminal and has no pane, and can " +
 		"only be read through whatever file its output was sent to."

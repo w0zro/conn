@@ -82,7 +82,7 @@ func TestWatchStandsOneProcessForEachWork(t *testing.T) {
 		"/Users/w0zro/projects/w0zro/conn SHELL zsh ACTIVE",
 		" /Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 		"/Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL zsh ACTIVE",
-		" /Users/w0zro/projects/w0zro/vim.pro/conjurer AI claude --resume ACTIVE",
+		" /Users/w0zro/projects/w0zro/vim.pro/conjurer CONTACT claude --resume ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN node /opt/claude/mcp.js ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL bash -c go test ./... ACTIVE",
 		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
@@ -196,7 +196,7 @@ func TestTheWatchAdoptsWorkWithNoTerminal(t *testing.T) {
 	want := []string{
 		conn + " RUN python3 -m http.server 8137 ACTIVE",
 		conn + " SHELL zsh ACTIVE",
-		" " + conn + " AI claude ACTIVE",
+		" " + conn + " CONTACT claude ACTIVE",
 		"  " + conn + " RUN python3 -m http.server 8000 ACTIVE",
 		"/Users/w0zro SHELL zsh IDLE",
 	}

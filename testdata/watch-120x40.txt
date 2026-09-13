@@ -12,7 +12,7 @@
 
    w0zro/vim.pro/conjurer
    SHELL   zsh                                                                         TTYS007    2H 00M       ACTIVE
-     AI      claude --resume                                                           TTYS007    47M 00S      ACTIVE
+     CONTACT claude --resume                                                           TTYS007    47M 00S      ACTIVE
        RUN     node /opt/claude/mcp.js                                                 TTYS007    46M 00S      ACTIVE
        SHELL   bash -c go test ./...                                                   TTYS007    12S          ACTIVE
          RUN     go test ./...                                                         TTYS007    11S          ACTIVE

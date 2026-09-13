@@ -1,21 +1,21 @@
 
    ──────────────────────────────────────────
-   KIND   COMMAND           AGE        STATUS
+   KIND    COMMAND          AGE        STATUS
 
    ~
-   SHELL  zsh               1D 02H     ACTIVE
-     EDITOR vim notes.md    1D 01H   STOPPED
+   SHELL   zsh              1D 02H     ACTIVE
+     EDITOR  vim notes.md   1D 01H   STOPPED
 
    w0zro/conn
-   SHELL  zsh               3H 00M     ACTIVE
-     SHELL  zsh             1M 30S       IDLE
+   SHELL   zsh              3H 00M     ACTIVE
+     SHELL   zsh            1M 30S       IDLE
 
    w0zro/vim.pro/conjurer
-   SHELL  zsh               2H 00M     ACTIVE
- ▸   AI     claude --resume 47M 00S    ACTIVE
-       RUN    node /opt/cl… 46M 00S    ACTIVE
-       SHELL  bash -c go t… 12S        ACTIVE
-         RUN    go test ./… 11S        ACTIVE
+   SHELL   zsh              2H 00M     ACTIVE
+ ▸   CONTACT claude --resu… 47M 00S    ACTIVE
+       RUN     node /opt/c… 46M 00S    ACTIVE
+       SHELL   bash -c go … 12S        ACTIVE
+         RUN     go test .… 11S        ACTIVE
 
 
 

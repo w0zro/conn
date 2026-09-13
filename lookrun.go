@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// conn look <pid> — the look's own program, run in a pane of conn's
+// conn readout <pid> — the look's own program, run in a pane of conn's
 // server the way the hold is. It reads for itself rather than being
 // told: the rail's reading is the rail's, the page wants more of it
 // than a row carries, and a pane that reads its own subject keeps
@@ -25,7 +25,7 @@ import (
 // page is about whatever the cursor is on, so j and k read down the
 // list with the page keeping up rather than leaving it on a row nobody
 // is looking at any more. With a pid it stays on that pid, which is
-// what `conn look 123` by hand is for.
+// what `conn readout 123`, typed, is for.
 
 // lookBeat is how often the page reads its subject again. The watch's
 // own beat: the two are readings of the same table and there is no

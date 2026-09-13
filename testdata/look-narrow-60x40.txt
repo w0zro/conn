@@ -1,5 +1,5 @@
 
-   LOOK                                         PID 49212
+   READOUT                                      PID 49212
    ──────────────────────────────────────────────────────
 
    WAITING
@@ -9,7 +9,7 @@
                lit on the bar while this question waits?
 
    WHAT
-   KIND ...... AI
+   KIND ...... CONTACT
    COMMAND ... claude --resume
                d81d7536-e545-4881-8daa-f1d291a03be1
    PID ....... 49212
@@ -19,12 +19,12 @@
    CPU ....... 2M 14S SPENT
 
    WHERE
-   PLACE ..... ~/projects/w0zro/conn
+   PROJECT ... ~/projects/w0zro/conn
    CWD ....... ~/projects/w0zro/conn/tools
    TTY ....... TTYS003
    PANE ...... %2 · CAN BE REACHED
 
-   AI
+   CONTACT
    SESSION ... D81D7536-E545-4881-8DAA-F1D291A03BE1
    NAME ...... CONN-2D
    VERSION ... 2.1.267
@@ -33,7 +33,7 @@
    LAST ASK .. i want the info to use the pane on the
                right
 
-   PLACE
+   PROJECT
    BRANCH .... MAIN · 3 CHANGED
    COMMIT .... 263cf91 · The look: what conn knows of a
                row

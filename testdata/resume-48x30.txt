@@ -1,5 +1,5 @@
 
-   RESUME                         2 SUSPENDED
+   SESSIONS                       2 SUSPENDED
    ──────────────────────────────────────────
    ~/projects/w0zro/conn
    FIND  ▏

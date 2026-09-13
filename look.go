@@ -11,7 +11,7 @@ import (
 // the watch opens it, and it opens in the slot, beside the watch rather
 // than over it — the row it is about stays on screen under the cursor,
 // and moving the cursor and pressing i again is how you read down a
-// list. It is conn's own program in a pane of the server, `conn look`,
+// list. It is conn's own program in a pane of the server, `conn readout`,
 // the way the hold is, so the slot holds it the way it holds anything
 // else and a real pane reaching the slot is rid of it.
 //
@@ -149,7 +149,7 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	b.groups = append(b.groups, what)
 
 	where := lookGroup{title: "WHERE"}
-	where.addPath("place", tilde(s.place.path, home))
+	where.addPath("project", tilde(s.place.path, home))
 	// The place is the tree's, and a process below the root can have
 	// cd'd anywhere since; where it actually is is worth saying only
 	// when it is somewhere else.
@@ -171,7 +171,7 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	// Which conversation an AI is carrying, and what it was last
 	// asked — the two things that say which of several claudes this one
 	// is, where the command line only says that it is one.
-	AI := lookGroup{title: "AI"}
+	AI := lookGroup{title: "CONTACT"}
 	AI.add("session", s.sess.SessionID)
 	AI.add("name", s.sess.Name)
 	AI.add("version", s.sess.Version)
@@ -184,7 +184,7 @@ func composeLook(s lookSubject, home string, now time.Time) lookReport {
 	// it is on and whether the tree is clean are the first two things
 	// anyone asks of work.
 	if s.git.repo {
-		g := lookGroup{title: "PLACE"}
+		g := lookGroup{title: "PROJECT"}
 		branch := s.git.branch
 		if s.git.detached {
 			branch = "DETACHED"
@@ -286,7 +286,7 @@ func drawLook(b lookReport, width, height int, p palette) []row {
 	// cannot be mistaken for another row.
 	c.blank(0)
 	l := c.line()
-	l.add(p.orange+p.bold, "LOOK")
+	l.add(p.orange+p.bold, "READOUT")
 	right := "PID " + strconv.Itoa(b.pid)
 	l.to(measure - utf8.RuneCountInString(right))
 	l.add(p.gray, right)
@@ -296,7 +296,7 @@ func drawLook(b lookReport, width, height int, p palette) []row {
 	if b.gone {
 		c.blank(0)
 		l := c.line()
-		l.add(p.chip, " THE ROW IS NO LONGER ON WATCH ")
+		l.add(p.chip, " THE ROW IS NO LONGER LISTED ")
 		c.emit(l, 0, false)
 		return padTo(c, height)
 	}

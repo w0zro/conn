@@ -92,7 +92,7 @@ func composeWatch(places []place, panes map[string]pane, slot string, roots []st
 	for _, pl := range places {
 		bp := watchPlace{path: placeName(pl.path, roots, home)}
 		if bp.path == "" {
-			bp.path = "NO PLACE"
+			bp.path = "NO PROJECT"
 		}
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, watchRow{
@@ -135,7 +135,7 @@ const (
 	kindW       = 8
 	ttyW        = 10
 	ageW        = 9
-	railKindW   = 7
+	railKindW   = 8
 	railAgeW    = 7
 	railMinCols = 40
 	treeIndent  = 2 // columns a row gives up per level under its root
@@ -296,7 +296,7 @@ func drawWatch(b watchReport, cursor int, width, height int, p palette) []row {
 		d := canvas{p: p, width: width}
 		d.blank(0)
 		l := d.line()
-		l.add(p.gray, "NOTHING ON WATCH")
+		l.add(p.gray, "NO PROCESSES")
 		d.emit(l, 0, true)
 		body = d.rows
 	default:

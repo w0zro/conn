@@ -73,7 +73,7 @@ func drawResume(b resumeReport, cursor, width, height int, p palette) []row {
 	// of it.
 	c.blank(0)
 	l := c.line()
-	l.add(p.orange+p.bold, "RESUME")
+	l.add(p.orange+p.bold, "SESSIONS")
 	right := strconv.Itoa(b.total) + " SUSPENDED"
 	switch {
 	case b.loading && b.total == 0:

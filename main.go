@@ -182,7 +182,7 @@ var commands = []command{
 		home, _ := os.UserHomeDir()
 		return say(dressProgram(args, home, asks()))
 	}},
-	{"look", "", func(args []string) int {
+	{"readout", "", func(args []string) int {
 		home, _ := os.UserHomeDir()
 		pid := 0
 		if len(args) > 0 {
@@ -190,7 +190,7 @@ var commands = []command{
 		}
 		applyMode(serverMode(socketPath(home)))
 		if err := runLook(findServer(home), pid, home, colored()); err != nil {
-			fmt.Fprintf(os.Stderr, "conn look: %v\n", err)
+			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
 		}
 		return 0
@@ -233,7 +233,7 @@ var flags = []command{
 // the manual's own table of commands is held to it by a test.
 func synopsis() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "  %-16s  %s\n", "conn", "the console, then the watch")
+	fmt.Fprintf(&b, "  %-16s  %s\n", "conn", "the console, then processes")
 	for _, c := range commands {
 		if c.use != "" {
 			fmt.Fprintf(&b, "  %-16s  %s\n", "conn "+c.name, c.use)

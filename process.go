@@ -33,7 +33,7 @@ type process struct {
 // Everything else is a run: a build, a test, a server, a script.
 const (
 	kindShell  = "SHELL"
-	kindAI     = "AI"
+	kindAI     = "CONTACT"
 	kindEditor = "EDITOR"
 	kindConn   = "CONN" // conn itself; not on the watch
 	kindRun    = "RUN"

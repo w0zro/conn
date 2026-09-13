@@ -51,7 +51,7 @@ func TestWatchLaysOut(t *testing.T) {
 		"\n       SHELL   bash -c go test ./...",
 		"\n         RUN     go test ./...",
 		"\n     EDITOR  vim notes.md",
-		" ▸   AI      claude --resume",
+		" ▸   CONTACT claude --resume",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("watch lacks %q:\n%s", s, text)
@@ -237,7 +237,7 @@ func TestTheWatchInsideTheServer(t *testing.T) {
 	}
 	// In the rail there is no terminal column, and the rows close up.
 	railText := texts(drawWatch(w, 67040, 48, 30, plain))
-	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "AI     claude --resume") {
+	if strings.Contains(railText, "TTY") || !strings.Contains(railText, "CONTACT claude --resu") {
 		t.Errorf("the rail:\n%s", railText)
 	}
 	for _, r := range drawWatch(w, 67040, 48, 30, plain) {

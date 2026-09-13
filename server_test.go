@@ -570,7 +570,7 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 
 	s.keys("i")
 	s.until("the look to open in the slot", func() bool {
-		return strings.Contains(s.slot(), "LOOK") && strings.Contains(s.slot(), "WHERE")
+		return strings.Contains(s.slot(), "READOUT") && strings.Contains(s.slot(), "WHERE")
 	})
 	// The watch did not give up its pane, or its width, to say this.
 	if r := s.rail(); !strings.Contains(r, "STATUS") || strings.Contains(r, "WHERE") {
@@ -614,7 +614,7 @@ func TestILooksAtTheCursorsRowInTheSlot(t *testing.T) {
 	// of it, and neither way costs a window.
 	s.keys("i")
 	s.until("the page to come down", func() bool {
-		return !strings.Contains(s.slot(), "LOOK") && strings.Contains(s.slot(), holdWord)
+		return !strings.Contains(s.slot(), "READOUT") && strings.Contains(s.slot(), holdWord)
 	})
 	s.keys("i")
 	s.until("the page to come back", func() bool { return strings.Contains(s.slot(), "WHERE") })

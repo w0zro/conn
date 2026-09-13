@@ -114,7 +114,7 @@ func TestTheLookLeavesOutWhatThereIsNoneOf(t *testing.T) {
 	}
 	text := texts(drawLook(composeLook(s, "/Users/w0zro", watchNow), 120, 40, plain))
 
-	for _, gone := range []string{"WAITING", "ASKS", "SAID", "AI", "PLACE\n", "TREE", "CWD", "CPU"} {
+	for _, gone := range []string{"WAITING", "ASKS", "SAID", "CONTACT", "PROJECT\n", "TREE", "CWD", "CPU"} {
 		if strings.Contains(text, gone) {
 			t.Errorf("%q is on a page that has nothing to put under it:\n%s", gone, text)
 		}
@@ -255,7 +255,7 @@ func TestIOpensNothingAboutNothing(t *testing.T) {
 // or holding the last thing it read.
 func TestTheLookSaysWhenItsRowIsGone(t *testing.T) {
 	text := texts(drawLook(lookReport{pid: 49212, gone: true}, 120, 40, plain))
-	if !strings.Contains(text, "NO LONGER ON WATCH") {
+	if !strings.Contains(text, "NO LONGER LISTED") {
 		t.Errorf("a page whose row went says:\n%s", text)
 	}
 	if !strings.Contains(text, "PID 49212") {

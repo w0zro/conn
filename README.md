@@ -111,7 +111,42 @@ true thing to say about a list and a hard one to read: a contact running
 a command a second re-sorted the whole view under the eye trying to
 follow it.
 
-**3-5. WORKING AND ACTIVE.** A row reads `WORKING` when it was doing
+**3-5. ACTIVITY.** The middle column says what a row is doing, which is
+the first question asked of it. For a shell and a run the command as
+typed already says it: the arguments are the activity. The column drops
+what conn itself put on the line, the note appended when conn raises a
+contact, since a row reading `claude --app…` is conn showing the operator
+the noise conn made. The readout keeps the whole line, being where the
+whole of anything goes.
+
+For a contact that is `WORKING` the column says the tool the contact has
+in flight, read off the end of its transcript as a verb and an object:
+`read tui.go`, `go test ./...`, `grep since`. A contact with nothing in
+flight says its command, which reads as the intelligence composing. An
+idle contact is doing nothing. A waiting one is stopped on a question,
+which is not an activity and is not the row's to say; the question is in
+the bay, where `tab` goes. The transcript is read again only when its
+size or its moment has changed, so a contact working quietly costs a
+stat a beat and not a read.
+
+**3-6. SINCE.** The last column but one is the time the row has stood as
+it does. It said how long the process had existed, which is trivia: how
+long a shell has been open is not a thing anyone asks. How long a row has
+stood as it does is asked constantly, and for a contact that is `WAITING`
+it is the number the station turns on, the one `tab` already orders by.
+It is one unit and not two. Two bought four columns of precision at a
+glance, which the column is not read for.
+
+A contact says its own moment. Everything else conn dates by its own eye:
+a row whose status differs from the last reading changed between the two
+and is dated at that reading, one born since the last reading is dated
+from its birth, and one standing as it did keeps the date it had. What
+conn was not watching it has no moment for and says nothing, so the first
+reading dates nothing and a shell idle since before conn came up stays
+blank until it changes. The readout dates its rows the same way, from its
+own beat.
+
+**3-7. WORKING AND ACTIVE.** A row reads `WORKING` when it was doing
 something between one reading and the next, and `ACTIVE` when it is only
 alive. A dev server waiting on a request and one answering it are not the
 same thing, and the column says which.
@@ -134,7 +169,7 @@ hour ago would come up `WORKING` and go quiet a beat later. Work is not
 claimed up the tree: a shell whose child is working is active, and the
 row doing the work is the one that says so.
 
-**3-6. WAITING.** `WAITING` is the other end of the same question, and the
+**3-8. WAITING.** `WAITING` is the other end of the same question, and the
 one word in the processes view that asks something of the operator. It
 is a contact stopped on something it put to you and cannot go on
 without: a permission, a question, a dialog sitting there unanswered. It
@@ -162,7 +197,7 @@ like anything else. Guessing at the word is worse than having none:
 `IDLE` says at rest, nothing pending, yours when you want it, and none of
 that is known.
 
-**3-7. TAB.** `tab` goes to what is waiting: the cursor to the contact
+**3-9. TAB.** `tab` goes to what is waiting: the cursor to the contact
 that has been held up longest, its pane into the bay, and the keys into
 it, so one press has the operator answering. Each press after it goes to
 the next, and round again from the end. A contact says when its status
@@ -173,7 +208,7 @@ waiting, which is what the word is for, but it cannot claim a turn ahead
 of one that can prove it waited longer. A waiting contact conn holds no
 pane for is gone to on the panel, and the keys stay where they are.
 
-**3-8. HELD AND REPORTED.** A row is also written by what conn can do with
+**3-10. HELD AND REPORTED.** A row is also written by what conn can do with
 it, and in two ways, since they are not the same kind of saying. What
 conn can only report, a terminal it did not open and cannot attach to, is
 dimmed, every column of it, the other columns being the quiet gray
@@ -181,7 +216,7 @@ already. What conn holds a pane for is in the ink, a row `enter` can put
 in the bay. Outside its server conn holds nothing and dims nothing, the
 distinction there being every row.
 
-**3-9. THE BAY'S MARK.** The row in the bay gets a mark rather than a
+**3-11. THE BAY'S MARK.** The row in the bay gets a mark rather than a
 tier: the kind of the head of what is in it, in the orange, and nothing
 else of the row. One cell is all a mark needs, a row is a lot of orange,
 and the status column is not for the orange to take. `WAITING` is
@@ -190,7 +225,7 @@ neither. The row under the cursor gives a rank of the dimming back rather
 than the reading, faint on the cursor's raised ground being barely there
 at all.
 
-**3-10. REACHING A TREE.** A pane holds a whole tree, so `enter` on a row
+**3-12. REACHING A TREE.** A pane holds a whole tree, so `enter` on a row
 down inside one reaches the head, a pane being the only thing there is to
 attach to, and the cursor goes to the head with it. The row that asked is
 not the row that answered, and a cursor left where it was would pick out

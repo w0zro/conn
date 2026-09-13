@@ -186,16 +186,17 @@
         <p class="kicker">SECTION 2</p>
         <h2>The Station</h2>
         <p class="para"><span class="n">2-1.</span><b>ARRANGEMENT.</b> The station is one window of a tmux server that conn holds. The panel is on the left and the bay on the right. The status line runs under both. Figure 2-1 shows the arrangement.</p>
-        <div class="figure wide"><pre><span class="c">┌──────────────────────────────┬─────────────────────────────┐</span>
-<span class="c">│</span> <span class="k">PANEL</span>                        <span class="c">│</span> <span class="k">BAY</span>                         <span class="c">│</span>
-<span class="c">│</span>                              <span class="c">│</span>                             <span class="c">│</span>
-<span class="c">│</span> KIND     COMMAND  AGE STATUS <span class="c">│</span> The process reached from    <span class="c">│</span>
-<span class="c">│</span>                              <span class="c">│</span> the panel: a shell, a       <span class="c">│</span>
-<span class="c">│</span> w0zro/conn                   <span class="c">│</span> contact, a run, or the      <span class="c">│</span>
-<span class="c">│</span> SHELL    zsh      2H    IDLE <span class="c">│</span> readout. The keys are here  <span class="c">│</span>
-<span class="c">│</span>▸ CONTACT claude   1H WAITING <span class="c">│</span> while a process is.         <span class="c">│</span>
-<span class="c">│</span>                              <span class="c">│</span>                             <span class="c">│</span>
-<span class="c">├──────────────────────────────┴─────────────────────────────┤</span>
+        <div class="figure wide"><pre><span class="c">┌──────────────────────────────────┬─────────────────────────┐</span>
+<span class="c">│</span> <span class="k">PANEL</span>                            <span class="c">│</span> <span class="k">BAY</span>                     <span class="c">│</span>
+<span class="c">│</span>                                  <span class="c">│</span>                         <span class="c">│</span>
+<span class="c">│</span> KIND    ACTIVITY  SINCE    STATUS<span class="c">│</span> The process reached     <span class="c">│</span>
+<span class="c">│</span>                                  <span class="c">│</span> from the panel: a       <span class="c">│</span>
+<span class="c">│</span> w0zro/conn                       <span class="c">│</span> shell, a contact, a     <span class="c">│</span>
+<span class="c">│</span> SHELL   zsh                  IDLE<span class="c">│</span> run, or the readout.    <span class="c">│</span>
+<span class="c">│</span>▸CONTACT go test      1H   WORKING<span class="c">│</span> The keys are here       <span class="c">│</span>
+<span class="c">│</span>                                  <span class="c">│</span> while a process is.     <span class="c">│</span>
+<span class="c">│</span>                                  <span class="c">│</span>                         <span class="c">│</span>
+<span class="c">├──────────────────────────────────┴─────────────────────────┤</span>
 <span class="c">│</span> <span class="k">STATUS LINE</span>  PROCS                                         <span class="c">│</span>
 <span class="c">└────────────────────────────────────────────────────────────┘</span></pre></div>
         <p class="caption">FIGURE 2-1. STATION ARRANGEMENT</p>
@@ -247,7 +248,7 @@
       <div class="section">
         <p class="kicker">SECTION 3</p>
         <h2>Process Procedures</h2>
-        <p class="para"><span class="n">3-1.</span><b>PROCESSES.</b> The processes view lists every process at each project. A project is titled by its path below the root; a project outside every root is written from <code>~</code>. Under a project the processes are shown as a tree: a shell, and what it runs indented under it. Each row shows the kind, the command, the age, and the status. On the console, which is wider, the terminal is shown too. A row keeps its position for as long as its process lives, oldest first, and a new row goes on the end. With nothing running the view says NO PROCESSES.</p>
+        <p class="para"><span class="n">3-1.</span><b>PROCESSES.</b> The processes view lists every process at each project. A project is titled by its path below the root; a project outside every root is written from <code>~</code>. Under a project the processes are shown as a tree: a shell, and what it runs indented under it. Each row shows the kind, the activity, the time it has stood in its status, and the status itself. The activity is the command as it was typed, less anything conn added to it; for a contact that is WORKING it is the tool the contact has in flight. A row conn has no moment for says nothing in the SINCE column. On the console, which is wider, the terminal is shown too. A row keeps its position for as long as its process lives, oldest first, and a new row goes on the end. With nothing running the view says NO PROCESSES.</p>
         <p class="para"><span class="n">3-2.</span><b>STATUS.</b> The last column of a row is its status.</p>
         <div class="table narrow">
           <div class="row head"><span>STATUS</span><span>MEANS</span></div>

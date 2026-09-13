@@ -139,16 +139,17 @@ both. Figure 2-1 shows the arrangement.
 .PP
 .RS
 .nf
-┌──────────────────────────────┬─────────────────────────────┐
-│ PANEL                        │ BAY                         │
-│                              │                             │
-│ KIND     COMMAND  AGE STATUS │ The process reached from    │
-│                              │ the panel: a shell, a       │
-│ w0zro/conn                   │ contact, a run, or the      │
-│ SHELL    zsh      2H    IDLE │ readout. The keys are here  │
-│▸ CONTACT claude   1H WAITING │ while a process is.         │
-│                              │                             │
-├──────────────────────────────┴─────────────────────────────┤
+┌──────────────────────────────────┬─────────────────────────┐
+│ PANEL                            │ BAY                     │
+│                                  │                         │
+│ KIND    ACTIVITY  SINCE    STATUS│ The process reached     │
+│                                  │ from the panel: a       │
+│ w0zro/conn                       │ shell, a contact, a     │
+│ SHELL   zsh                  IDLE│ run, or the readout.    │
+│▸CONTACT go test      1H   WORKING│ The keys are here       │
+│                                  │ while a process is.     │
+│                                  │                         │
+├──────────────────────────────────┴─────────────────────────┤
 │ STATUS LINE  PROCS                                         │
 └────────────────────────────────────────────────────────────┘
 .fi
@@ -252,10 +253,14 @@ The prefix for chords, in the spelling tmux uses. \fBC\-Space\fR when unset.
 \fBPROCESSES.\fR The processes view lists every process at each project. A
 project is titled by its path below the root; a project outside every root is
 written from \fB~\fR. Under a project the processes are shown as a tree: a
-shell, and what it runs indented under it. Each row shows the kind, the command,
-the age, and the status. On the console, which is wider, the terminal is shown
-too. A row keeps its position for as long as its process lives, oldest first,
-and a new row goes on the end. With nothing running the view says NO PROCESSES.
+shell, and what it runs indented under it. Each row shows the kind, the
+activity, the time it has stood in its status, and the status itself. The
+activity is the command as it was typed, less anything conn added to it; for a
+contact that is WORKING it is the tool the contact has in flight. A row conn has
+no moment for says nothing in the SINCE column. On the console, which is wider,
+the terminal is shown too. A row keeps its position for as long as its process
+lives, oldest first, and a new row goes on the end. With nothing running the
+view says NO PROCESSES.
 .TP
 3-2.
 \fBSTATUS.\fR The last column of a row is its status.

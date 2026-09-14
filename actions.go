@@ -49,18 +49,6 @@ func (m model) openReadout() tea.Cmd {
 	}
 }
 
-// closeReadout takes the page out of the bay and leaves a hold in its
-// place, which is what an empty bay is.
-func (m model) closeReadout() tea.Cmd {
-	home, self, srv := m.head.login.home, m.self, m.srv
-	return func() tea.Msg {
-		if srv.hideReadout(home, self) != nil {
-			return nil
-		}
-		return readoutMsg{on: false}
-	}
-}
-
 // openShell opens a shell at a project, off the loop, and processes
 // back what tmux said of it.
 func (m model) openShell(dir string) tea.Cmd {

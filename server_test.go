@@ -29,12 +29,6 @@ type scratch struct {
 	t   *testing.T
 	srv *server
 	dir string
-	// The panes sleepers made, by the id tmux gave each. A pane is what
-	// is killed and not the window it stands in: tmux renames a window
-	// after whatever is running in it, and conn swaps panes between
-	// windows all day, so neither the name nor the window it started in
-	// still names it by the time the test is done with it.
-	sleeps []string
 }
 
 func startScratch(t *testing.T) *scratch {
@@ -121,23 +115,11 @@ func (s *scratch) readoutPidOf() string {
 func (s *scratch) sleepers(n int) {
 	s.t.Helper()
 	for i := 0; i < n; i++ {
-		id, err := s.srv.run("new-window", "-d", "-P", "-F", "#{pane_id}",
-			"-c", filepath.Join(s.dir, "home", "repo"), "sleep 120")
-		if err != nil {
+		if _, err := s.srv.run("new-window", "-d",
+			"-c", filepath.Join(s.dir, "home", "repo"), "sleep 120"); err != nil {
 			s.t.Fatal(err)
 		}
-		s.sleeps = append(s.sleeps, strings.TrimSpace(id))
 	}
-}
-
-// endSleepers kills the panes sleepers made, leaving the processes view
-// with nothing of the test's own in it again.
-func (s *scratch) endSleepers() {
-	s.t.Helper()
-	for _, id := range s.sleeps {
-		_, _ = s.srv.run("kill-pane", "-t", id)
-	}
-	s.sleeps = nil
 }
 
 // bayPane is the id of whatever pane is in the bay.
@@ -696,7 +678,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 // the whole point of the page being over there. The panel keeps its
 // width, so the readout arriving is a swap into the bay rather than a
 // window laid out afresh, and focus stays where the keys are.
-func TestIReadsOutTheCursorsRowInTheBay(t *testing.T) {
+func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
@@ -757,34 +739,17 @@ func TestIReadsOutTheCursorsRowInTheBay(t *testing.T) {
 		t.Errorf("reading down the list left %s windows and %s panes in home, not %s and 2", w, n, windows)
 	}
 
-	// i is the key for the page and the key a reader reaches for to be
-	// rid of it. On a row conn holds a pane for, being rid of it is
-	// being in the row: read about it, then be in it. Neither way costs
-	// a window.
-	// Where the page closes to depends on the row it was about, and
-	// which row that is depends on the machine: a held row is closed
-	// onto, an unreachable one closes to a hold. What is true either
-	// way is that the page is gone.
+	// No key takes the page away, because none puts it there: i is a
+	// letter like any other now, and the page is simply what the
+	// workspace holds in this view.
 	s.keys("i")
-	s.until("the page to come down", func() bool { return !strings.Contains(s.bay(), "READOUT") })
-	s.keys("i")
-	s.until("the page to come back", func() bool { return strings.Contains(s.bay(), "WHERE") })
-	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != windows || n != "2" {
-		t.Errorf("toggling left %s windows and %s panes in home, not %s and 2", w, n, windows)
+	s.until("the sleepers' rows to be walked again", func() bool { return s.readoutPidOf() != "" })
+	if !strings.Contains(s.bay(), "READOUT") {
+		t.Errorf("a key took the page away:\n%s", s.bay())
 	}
 
-	// With nothing under the cursor left to reach, closing leaves the
-	// hold an empty bay says so with. The page shuts whatever the
-	// cursor is on, or a view that had emptied would leave it stuck
-	// open.
-	s.endSleepers()
-	s.until("the sleepers' rows to go", func() bool { return s.projectRows() == 0 })
-	s.keys("i")
-	s.until("the page to come down to a hold", func() bool {
-		return !strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), holdWord)
-	})
-
-	// Reaching something real is rid of it, the way it is rid of a hold.
+	// Going into a process is what takes it: the workspace holds that
+	// instead, and it costs no window of its own.
 	s.openShell()
 	s.until("a shell to take the bay from the readout", func() bool { return s.shellIn("home.1") })
 	if n := s.display("#{window_panes}"); n != "2" {

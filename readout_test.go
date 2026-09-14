@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -204,57 +202,6 @@ func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 	}
 }
 
-// i asks the server to put the page in the bay; it does not take the
-// processes view's own pane, which is the whole point of it being over
-// there.
-func TestIPutsTheReadoutInTheBay(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.inside, m.now = viewProcesses, true, processesNow
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.projects = []project{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
-	m.cursor, m.cursorAt = 49212, 0
-
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-	m = next.(model)
-	if cmd == nil {
-		t.Fatal("i asked the server for nothing")
-	}
-	if m.view != viewProcesses {
-		t.Errorf("i took the processes view's own pane: view %d", m.view)
-	}
-	// The panel keeps drawing the processes view while the page is in the
-	// bay.
-	if !strings.Contains(m.View().Content, "STATUS") {
-		t.Errorf("the processes view is not still on the panel:\n%s", m.View().Content)
-	}
-	// Against a server that is not there, the page does not come up.
-	if _, ok := answered(cmd).(readoutMsg); ok {
-		t.Error("the readout came up with no tmux to put it up with")
-	}
-}
-
-// With nothing under the cursor, or nowhere to put a page, i opens
-// nothing.
-func TestIOpensNothingAboutNothing(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.inside = viewProcesses, true
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-	m = next.(model)
-	if cmd != nil || m.looking {
-		t.Errorf("i on an empty view: cmd %v, looking %v", cmd != nil, m.looking)
-	}
-
-	m = newModel(plain)
-	m.view, m.inside = viewProcesses, false
-	m.projects = []project{{path: "/w", entries: []entry{{pid: 7, tty: "ttys001"}}}}
-	m.cursor = 7
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-	m = next.(model)
-	if cmd != nil || m.looking {
-		t.Errorf("i outside the server: cmd %v, looking %v", cmd != nil, m.looking)
-	}
-}
-
 // A row that ends while its page is up says so rather than going blank
 // or holding the last thing it read.
 func TestTheReadoutSaysWhenItsRowIsGone(t *testing.T) {
@@ -298,138 +245,6 @@ func TestEveryReadoutLabelFitsTheLeader(t *testing.T) {
 		} else if i != col {
 			t.Errorf("a value starts at column %d where the rest start at %d: %q", i, col, line)
 		}
-	}
-}
-
-// i is a toggle: the key for the page is the key a reader reaches for
-// to be rid of it. conn knows which way it goes without asking tmux,
-// since it put the page there itself, and a reading corrects it.
-func TestIIsAToggle(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.inside, m.now = viewProcesses, true, processesNow
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.projects = []project{{path: "/w", entries: []entry{{pid: 49212, tty: "ttys003"}}}}
-	m.cursor, m.cursorAt = 49212, 0
-
-	// A tmux that answers for a home with a bay in it and does nothing
-	// else, so the command i built can be run for the answer it gives.
-	// Which way i went is read off that answer: both ways ask the
-	// server for something, so a test that only checked that one did
-	// would pass whichever way it went.
-	t.Setenv("TMUX_PANE", "%0")
-	stub := filepath.Join(t.TempDir(), "tmux")
-	script := "#!/bin/sh\nshift 2\ncase \"$1\" in\n" +
-		"list-panes) printf '%%0 /dev/ttys001 44 40   \\n%%9 /dev/ttys009 80 40 1  1\\n' ;;\n" +
-		"new-window|split-window) printf '%%9\\n' ;;\nesac\nexit 0\n"
-	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	m.srv = &server{tmux: stub, socket: "/tmp/none"}
-	asked := func(cmd tea.Cmd) tea.Msg {
-		t.Helper()
-		if cmd == nil {
-			t.Fatal("i asked the server for nothing")
-		}
-		return answered(cmd)
-	}
-	press := func() tea.Cmd {
-		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-		m = next.(model)
-		return cmd
-	}
-	// With no page up, i opens one, and conn knows it once tmux has
-	// done it rather than guessing ahead of the answer.
-	if got := asked(press()); got != (readoutMsg{on: true}) {
-		t.Errorf("i with no page up answered %+v, not a page going up", got)
-	}
-	if m.looking {
-		t.Error("conn called the page up before the server had put it there")
-	}
-	next, cmd := m.Update(readoutMsg{on: true})
-	m = next.(model)
-	if !m.looking || cmd == nil {
-		t.Errorf("the page going up left looking %v and did not read again", m.looking)
-	}
-
-	// With one up, i takes it down.
-	if got := asked(press()); got != (readoutMsg{on: false}) {
-		t.Errorf("i with a page up answered %+v, not a page coming down", got)
-	}
-	next, _ = m.Update(readoutMsg{on: false})
-	m = next.(model)
-	if m.looking {
-		t.Error("the page coming down left conn thinking it was still up")
-	}
-
-	// A reading is the truth, whatever conn thought.
-	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects, bayReadout: true})
-	m = next.(model)
-	if !m.looking {
-		t.Error("a reading that found the page in the bay was not believed")
-	}
-	// And a real pane taking the bay is not the page.
-	next, _ = m.Update(reachedMsg{"ttys003"})
-	if next.(model).looking {
-		t.Error("a process reaching the bay left conn thinking the page was there")
-	}
-}
-
-// Closing wants no row under the cursor. The page is up whatever the
-// cursor is on, and refusing to close it because the processes view has
-// emptied would leave it stuck there.
-func TestIClosesThePageWithNothingUnderTheCursor(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.inside, m.looking = viewProcesses, true, true
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-	m = next.(model)
-	if cmd == nil {
-		t.Error("i on an empty view with a page up did not close it")
-	}
-}
-
-// Closing the page on a row conn holds goes to the row. The page is a
-// reading of that row and the row is right there in a pane — read about
-// it, then be in it — and an empty bay is a worse answer than the
-// thing the page was about.
-func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
-	m := newModel(plain)
-	m.view, m.inside, m.looking, m.now = viewProcesses, true, true, processesNow
-	m.projects = []project{{path: "/w", entries: []entry{
-		{pid: 49212, tty: "ttys003"},
-		{pid: 49213, tty: "ttys004"},
-	}}}
-	m.cursor, m.cursorAt = 49212, 0
-	m.panes = map[string]pane{"ttys003": {id: "%7", tty: "ttys003"}}
-
-	t.Setenv("TMUX_PANE", "%0")
-	stub := filepath.Join(t.TempDir(), "tmux")
-	script := "#!/bin/sh\nshift 2\ncase \"$1\" in\n" +
-		"list-panes) printf '%%0 /dev/ttys001 44 40   \\n%%9 /dev/ttys009 80 40 1  1\\n' ;;\n" +
-		"new-window|split-window) printf '%%9\\n' ;;\nesac\nexit 0\n"
-	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	m.srv = &server{tmux: stub, socket: "/tmp/none"}
-
-	press := func() tea.Msg {
-		t.Helper()
-		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-		m = next.(model)
-		if cmd == nil {
-			t.Fatal("i asked the server for nothing")
-		}
-		return answered(cmd)
-	}
-	if got := press(); got != (reachedMsg{"ttys003"}) {
-		t.Errorf("i on a page about a row conn holds answered %+v, not the row", got)
-	}
-
-	// A row conn only reports has nothing to go to, and the page comes
-	// down to the empty bay as before.
-	m.looking = true
-	m.cursor, m.cursorAt = 49213, 1
-	if got := press(); got != (readoutMsg{on: false}) {
-		t.Errorf("i on a page about a row conn cannot reach answered %+v", got)
 	}
 }
 
@@ -534,39 +349,6 @@ func TestTokensAreShort(t *testing.T) {
 	}
 }
 
-// The page is reachable from wherever the keys are, which the prefix
-// then i sends. In the processes view i itself is the key; in the list
-// and in the sessions view i is a letter being typed, so the chord has
-// a key of its own, and it brings the panel back to the view the
-// cursor it is about lives in.
-func TestAltIOpensThePageFromAnyView(t *testing.T) {
-	panel := func(view int) model {
-		m := newModel(plain)
-		m.inside, m.view = true, view
-		m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-		m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
-		m.cursor = 11
-		return m
-	}
-	for _, view := range []int{viewProcesses, viewProjects, viewSessions} {
-		next, cmd := panel(view).Update(tea.KeyPressMsg(tea.Key{Text: "alt+i"}))
-		if m := next.(model); m.view != viewProcesses || cmd == nil {
-			t.Errorf("from view %d: view %d, cmd %v", view, m.view, cmd != nil)
-		}
-	}
-	// And it closes what it opened, the way i does.
-	m := panel(viewProcesses)
-	m.looking = true
-	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+i"})); cmd == nil {
-		t.Error("a page that is up was not closed")
-	}
-	// A letter is still a letter where one is being typed.
-	next, _ := panel(viewProjects).Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-	if m := next.(model); m.filter != "i" {
-		t.Errorf("a plain i stopped being a letter in the list: filter %q", m.filter)
-	}
-}
-
 // The page is what the workspace holds while the keys are on the panel
 // in the processes view. The keys arriving ask for it, going into a
 // process takes them away and the process takes the workspace, and the
@@ -616,22 +398,13 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 		t.Errorf("the keys coming back did not bring the page: focused %v, looking %v", m.focused, m.looking)
 	}
 
-	// i shuts it, and it stays shut while the keys are on this view;
-	// leaving the view and coming back forgets the closing. On a row
-	// conn holds a pane for, i goes into the row instead — read about
-	// it, then be in it — so the cursor is put on one it does not.
+	// There is no key for the page and none is needed: i is a letter
+	// like any other, and nothing the operator can press takes the page
+	// away. What takes it away is going into a process, which is the
+	// workspace holding that instead.
 	m.cursor = 11
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-	m = next.(model)
-	if !m.shut {
-		t.Error("i did not shut the page")
-	}
-	m.looking = false
-	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); next.(model).looking {
-		t.Error("a reading undid the closing")
-	}
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "p"}))
-	if next, _ = next.(model).Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape})); next.(model).shut {
-		t.Error("coming back to the view did not forget the closing")
+	if m = next.(model); !m.looking {
+		t.Error("i took the page away")
 	}
 }

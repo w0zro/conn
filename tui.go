@@ -158,12 +158,6 @@ type model struct {
 	// process between the key and what it does, for something conn
 	// already knows.
 	looking bool
-	// The operator closed the page with i and it stays closed while the
-	// keys are on this view. The page is what the workspace holds in
-	// the processes view, so without this a close would be undone by
-	// the next thing that moved the keys here, and i would do nothing
-	// anybody could see. Leaving the view forgets it.
-	shut bool
 	// Whether the keys are on the panel. conn is told by the terminal
 	// when they arrive and when they leave, and knows on its own when
 	// its own reaching sent them away, so a terminal that reports no
@@ -732,12 +726,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "alt+j" || k == "alt+k" {
 		return m.toReachable(k == "alt+j")
 	}
-	// The page about the row under the cursor, which the prefix then i
-	// sends. In the processes view i itself is the key; in the list and
-	// in the sessions view it is a letter being typed.
-	if k == "alt+i" {
-		return m.toggleReadout()
-	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
@@ -809,8 +797,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m, m.startContact(pl.path)
 		}
-	case k == "i":
-		return m.toggleReadout()
 	case k == "tab":
 		return m.toWaiting()
 	case k == "p":
@@ -1084,47 +1070,9 @@ func (m model) toProjects() (tea.Model, tea.Cmd) {
 func (m model) toProcesses() (tea.Model, tea.Cmd) {
 	// Coming to the view fresh, the page is what the workspace holds
 	// again: a close is for the stay it was made in.
-	m.view, m.shut = viewProcesses, false
+	m.view = viewProcesses
 	m.processesGen++
 	return m, m.readProcesses()
-}
-
-// toggleReadout is the page: i in the processes view, and what the
-// prefix then i sends from anywhere else in the server. The page is a
-// reading of the processes view's cursor, so the panel comes back to
-// the view that cursor is in before it says anything about it.
-//
-// i is the key for the page, and the key for the page is what a reader
-// reaches for to be rid of it. Closing wants no row under the cursor:
-// the page is there whatever the cursor is on, and refusing to close it
-// because the view had emptied would leave it stuck.
-//
-// Where the row is one conn holds, closing goes to it. The page is a
-// reading of that row and the row is right there in a pane — read about
-// it, then be in it — and an empty bay is a worse answer than the thing
-// the page was about. What cannot be reached closes to the empty bay.
-func (m model) toggleReadout() (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-	if m.view != viewProcesses {
-		mm, cmd := m.toProcesses()
-		m, cmds = mm.(model), append(cmds, cmd)
-	}
-	e, _, ok := m.under()
-	switch {
-	case !m.inside:
-	case m.looking && ok && reachable(m.panes[e.tty]):
-		// Read about it, then be in it. Going into the row is not
-		// shutting the page: the keys leave the panel, and they will
-		// bring it back when they come back.
-		cmds = append(cmds, m.reach(m.panes[e.tty], e.tty))
-	case m.looking:
-		m.shut = true
-		cmds = append(cmds, m.closeReadout())
-	case ok:
-		m.shut = false
-		cmds = append(cmds, m.openReadout())
-	}
-	return m, tea.Batch(cmds...)
 }
 
 // keepingPage puts the page in the workspace, the page being what the
@@ -1139,7 +1087,7 @@ func (m model) toggleReadout() (tea.Model, tea.Cmd) {
 // waited for, so the reading a moment later does not ask for a second
 // page on top of the first.
 func (m model) keepingPage() (tea.Model, tea.Cmd) {
-	if !m.inside || m.view != viewProcesses || m.looking || m.shut || !m.focused {
+	if !m.inside || m.view != viewProcesses || m.looking || !m.focused {
 		return m, nil
 	}
 	if _, _, ok := m.under(); !ok {

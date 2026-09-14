@@ -701,6 +701,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "alt+j" || k == "alt+k" {
 		return m.toReachable(k == "alt+j")
 	}
+	// The page about the row under the cursor, which the prefix then i
+	// sends. In the processes view i itself is the key; in the list and
+	// in the sessions view it is a letter being typed.
+	if k == "alt+i" {
+		return m.toggleReadout()
+	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
@@ -773,27 +779,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, m.startContact(pl.path)
 		}
 	case k == "i":
-		// i is the key for the page, and the key for the page is what a
-		// reader reaches for to be rid of it. Closing wants no row under the
-		// cursor: the page is there whatever the cursor is on, and refusing
-		// to close it because the processes view has emptied would leave it
-		// stuck.
-		//
-		// Where the row is one conn holds, closing goes to it. The page
-		// is a reading of that row and the row is right there in a pane
-		// — read about it, then be in it — and an empty bay is a worse
-		// answer than the thing the page was about. What cannot be
-		// reached closes to the empty bay as before.
-		e, _, ok := m.under()
-		switch {
-		case !m.inside:
-		case m.looking && ok && m.panes[e.tty].id != "":
-			return m, m.reach(m.panes[e.tty], e.tty)
-		case m.looking:
-			return m, m.closeReadout()
-		case ok:
-			return m, m.openReadout()
-		}
+		return m.toggleReadout()
 	case k == "tab":
 		return m.toWaiting()
 	case k == "p":
@@ -1068,6 +1054,39 @@ func (m model) toProcesses() (tea.Model, tea.Cmd) {
 	m.view = viewProcesses
 	m.processesGen++
 	return m, m.readProcesses()
+}
+
+// toggleReadout is the page: i in the processes view, and what the
+// prefix then i sends from anywhere else in the server. The page is a
+// reading of the processes view's cursor, so the panel comes back to
+// the view that cursor is in before it says anything about it.
+//
+// i is the key for the page, and the key for the page is what a reader
+// reaches for to be rid of it. Closing wants no row under the cursor:
+// the page is there whatever the cursor is on, and refusing to close it
+// because the view had emptied would leave it stuck.
+//
+// Where the row is one conn holds, closing goes to it. The page is a
+// reading of that row and the row is right there in a pane — read about
+// it, then be in it — and an empty bay is a worse answer than the thing
+// the page was about. What cannot be reached closes to the empty bay.
+func (m model) toggleReadout() (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	if m.view != viewProcesses {
+		mm, cmd := m.toProcesses()
+		m, cmds = mm.(model), append(cmds, cmd)
+	}
+	e, _, ok := m.under()
+	switch {
+	case !m.inside:
+	case m.looking && ok && m.panes[e.tty].id != "":
+		cmds = append(cmds, m.reach(m.panes[e.tty], e.tty))
+	case m.looking:
+		cmds = append(cmds, m.closeReadout())
+	case ok:
+		cmds = append(cmds, m.openReadout())
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // atProject is the project the panel has under its eye and the

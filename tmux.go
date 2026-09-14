@@ -603,11 +603,11 @@ var scheme = darkScheme
 func tmuxConf(prefix string) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
-# Ten chords under the prefix: to the processes view, to the list, to the
+# Eleven chords under the prefix: to the processes view, to the list, to the
 # other process, to the one that has waited longest, down and up the ones
-# that can be reached at all, to a shell, to a contact and to the sessions
-# at the project the panel is looking at, and to detach; tmux's own are
-# unbound.
+# that can be reached at all, to the page about the row under the cursor,
+# to a shell, to a contact and to the sessions at the project the panel is
+# looking at, and to detach; tmux's own are unbound.
 set -g prefix ` + prefix + `
 set -g prefix2 None
 unbind -a -T prefix
@@ -617,6 +617,7 @@ bind ` + prefix + ` select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; s
 bind Tab select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-Tab
 bind j select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-j
 bind k select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-k
+bind i select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-i
 bind s select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-s
 bind a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 C-a
 bind M-a set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-a

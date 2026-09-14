@@ -35,6 +35,11 @@ type session struct {
 	// on a beat.
 	Ask   ask
 	AskAt time.Time
+	// What answered last and what it was carrying, off the end of the
+	// transcript: the model by the name the API knows it by, and the
+	// tokens that turn was given to read.
+	Model   string
+	Carried int
 }
 
 // claudeConfigDir is where Claude Code keeps its state — the sessions
@@ -570,7 +575,30 @@ type transcriptLine struct {
 	LastPrompt  string `json:"lastPrompt"`
 	Message     struct {
 		Content json.RawMessage `json:"content"`
+		// What answered, and what it carried. Only an assistant record
+		// has either: the model by the name the API knows it by, and
+		// the tokens that turn was given to read — what was sent, what
+		// was cached for it, and what it read back out of the cache.
+		Model string `json:"model"`
+		Usage struct {
+			Input     int `json:"input_tokens"`
+			CacheRead int `json:"cache_read_input_tokens"`
+			CacheMade int `json:"cache_creation_input_tokens"`
+		} `json:"usage"`
 	} `json:"message"`
+}
+
+// carried is the tokens an assistant turn was given to read: the ones
+// sent with it and the ones it read out of the cache. It is what the
+// contact is hauling, which is the readable half of the question
+// people ask about a context window. The other half, how large the
+// window is, is nowhere Claude Code writes: the field exists in its
+// own statistics cache and is zero for every model in it, so conn
+// would have to carry a table of its own and would be wrong the week
+// a model shipped.
+func (l transcriptLine) carried() int {
+	u := l.Message.Usage
+	return u.Input + u.CacheRead + u.CacheMade
 }
 
 // readSessionMeta fills in what a reader recognizes a session by:
@@ -599,7 +627,14 @@ func readSessionMeta(path string, c *session) {
 		if c.Prompt == "" && rec.Type == "user" && !rec.IsMeta {
 			c.Prompt = userPrompt(rec.Message.Content)
 		}
-		if c.Branch != "" && c.Prompt != "" {
+		// The model that answered last, and what that turn carried.
+		// Both are read off the same record, which is the latest
+		// assistant turn: a session can change model part way through,
+		// and what is running now is the last one that ran.
+		if c.Model == "" && rec.Type == "assistant" && rec.Message.Model != "" {
+			c.Model, c.Carried = rec.Message.Model, rec.carried()
+		}
+		if c.Branch != "" && c.Prompt != "" && c.Model != "" {
 			return
 		}
 	}

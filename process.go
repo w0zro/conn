@@ -54,10 +54,33 @@ const (
 // processes are a server and a download, and conn would have called a
 // daemon a contact.
 var (
-	shells   = []string{"zsh", "bash", "fish", "sh", "dash", "nu", "tcsh", "ksh"}
-	contacts = []string{"claude", "codex", "gemini", "aider", "opencode", "amp", "copilot"}
-	editors  = []string{"vim", "nvim", "vi", "hx", "helix", "emacs", "nano", "micro", "kak"}
+	shells  = []string{"zsh", "bash", "fish", "sh", "dash", "nu", "tcsh", "ksh"}
+	editors = []string{"vim", "nvim", "vi", "hx", "helix", "emacs", "nano", "micro", "kak"}
 )
+
+// Who a contact is with: the agent the program is, and whose it is.
+// The station sees a process called claude and nothing else; that it
+// is Claude Code, and Anthropic's, is a fact about the program conn
+// matched by name, the same kind of thing as knowing zsh is a shell.
+// A maker conn is not sure of is left off rather than guessed at: the
+// agent's own name is the part that answers the question.
+type agent struct{ name, maker string }
+
+var contacts = map[string]agent{
+	"claude":   {"Claude Code", "Anthropic"},
+	"codex":    {"Codex", "OpenAI"},
+	"gemini":   {"Gemini CLI", "Google"},
+	"copilot":  {"Copilot CLI", "GitHub"},
+	"amp":      {"Amp", "Sourcegraph"},
+	"opencode": {"OpenCode", "SST"},
+	"aider":    {"Aider", ""},
+}
+
+// isContact says whether a program's name is an agent's.
+func isContact(name string) bool {
+	_, ok := contacts[name]
+	return ok
+}
 
 // kindOf is the kind of a process, from the name of its program. A
 // program that writes its own title puts its name first and what it is
@@ -76,7 +99,7 @@ func kindOf(p process) string {
 		return kindConn
 	case slices.Contains(shells, name):
 		return kindShell
-	case slices.Contains(contacts, name):
+	case isContact(name):
 		return kindContact
 	case slices.Contains(editors, name):
 		return kindEditor

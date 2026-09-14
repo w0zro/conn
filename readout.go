@@ -188,6 +188,25 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// asked — the two things that say which of several claudes this one
 	// is, where the command line only says that it is one.
 	contact := readoutGroup{title: "CONTACT"}
+	// Who the contact is with. The station sees a process and a
+	// transcript; this says what is at the other end of it and whose
+	// it is, which is the first thing anybody asks of a thing that
+	// answers back.
+	if a, ok := contacts[program(e.asTyped())]; ok {
+		contact.add("with", join(" · ", a.name, a.maker))
+	}
+	// Which model is answering, by the name the API knows it by. A
+	// session can change model part way through, so this is the one
+	// that answered last and not the one it was raised on.
+	contact.add("model", s.carried.Model)
+	// What that turn was given to read: what was sent with it and what
+	// it read back out of the cache. It is what the contact is hauling,
+	// and the readable half of the question people ask about a context
+	// window. How large the window is is nowhere Claude Code writes it
+	// down, so conn does not say.
+	if s.carried.Carried > 0 {
+		contact.add("context", tokens(s.carried.Carried)+" CARRIED")
+	}
 	// A resumed contact names its session on its own command line, an
 	// inch above, and this would be the second place to read one id.
 	if !strings.Contains(e.asTyped(), s.sess.SessionID) {
@@ -409,4 +428,17 @@ func wrapValue(s string, width int) []string {
 		s = strings.TrimLeft(s[cut:], " ")
 	}
 	return append(out, s)
+}
+
+// tokens is a count of tokens, in the largest unit that keeps it short:
+// 572K rather than 571,592, which is a number nobody reads and a
+// precision nobody has a use for.
+func tokens(n int) string {
+	switch {
+	case n >= 1_000_000:
+		return strconv.Itoa(n/100_000/10) + "." + strconv.Itoa(n/100_000%10) + "M"
+	case n >= 1_000:
+		return strconv.Itoa(n/1_000) + "K"
+	}
+	return strconv.Itoa(n)
 }

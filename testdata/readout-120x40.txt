@@ -22,6 +22,9 @@
    PANE ...... %2 · CAN BE REACHED
 
    CONTACT
+   WITH ...... CLAUDE CODE · ANTHROPIC
+   MODEL ..... CLAUDE-OPUS-5
+   CONTEXT ... 571K CARRIED
    NAME ...... CONN-2D
    VERSION ... 2.1.267
    LAST ASK .. i want the info to use the pane on the right
@@ -35,6 +38,3 @@
    TREE
    PARENT .... SHELL zsh · 49200
    RUNS ...... RUN caffeinate · 49300 · ACTIVE
-
-
-

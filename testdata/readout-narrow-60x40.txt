@@ -25,6 +25,9 @@
    PANE ...... %2 · CAN BE REACHED
 
    CONTACT
+   WITH ...... CLAUDE CODE · ANTHROPIC
+   MODEL ..... CLAUDE-OPUS-5
+   CONTEXT ... 571K CARRIED
    NAME ...... CONN-2D
    VERSION ... 2.1.267
    LAST ASK .. i want the info to use the pane on the
@@ -35,6 +38,3 @@
    COMMIT .... 263cf91 · The readout: what conn knows
                of a row
    COMMITTED . 3H 00M AGO
-   TRACKING .. ORIGIN/MAIN · 142 AHEAD
-
-   TREE

@@ -37,6 +37,7 @@ func readoutSubj() readoutSubject {
 		sess: sessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
 		carried: session{Branch: "main", Prompt: "i want the info to use the pane on the right",
+			Model: "claude-opus-5", Carried: 571_592,
 			Ask: ask{Tool: "AskUserQuestion", Detail: "Does the status line still say PROCS while this question waits?"}},
 		git: gitStatus{repo: true, branch: "main", dirty: 3,
 			commit: "263cf91", subject: "The readout: what conn knows of a row",
@@ -481,5 +482,87 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	text = texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
 	if !strings.Contains(text, "RUNNING ... BG-SPARE") || !strings.Contains(text, "BRANCH .... TOPIC/RESUME") {
 		t.Errorf("what is not ordinary went unsaid:\n%s", text)
+	}
+}
+
+// Who the contact is with, what is answering, and what it is hauling.
+// The station sees a process and a transcript; these say what is at the
+// other end of it.
+func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 120, 60, plain))
+	for what, want := range map[string]string{
+		"the agent and whose it is": "WITH ...... CLAUDE CODE · ANTHROPIC",
+		"what is answering":         "MODEL ..... CLAUDE-OPUS-5",
+		"what it is hauling":        "CONTEXT ... 571K CARRIED",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("%s (%q) is not on the page:\n%s", what, want, text)
+		}
+	}
+
+	// A contact conn cannot read says none of it rather than guessing.
+	s := readoutSubj()
+	s.carried.Model, s.carried.Carried = "", 0
+	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
+	for _, gone := range []string{"MODEL ...", "CONTEXT ..."} {
+		if strings.Contains(quiet, gone) {
+			t.Errorf("%q is on the page for a contact that said nothing:\n%s", gone, quiet)
+		}
+	}
+	// Whose it is is known from the program's own name, which conn has
+	// whether the contact answers for itself or not.
+	if !strings.Contains(quiet, "WITH ...... CLAUDE CODE · ANTHROPIC") {
+		t.Errorf("who it is with went unsaid:\n%s", quiet)
+	}
+
+	// A maker conn is not sure of is left off; the agent's own name is
+	// the part that answers the question.
+	s = readoutSubj()
+	s.entry.command, s.entry.typed = "aider --model sonnet", ""
+	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain)); !strings.Contains(got, "WITH ...... AIDER\n") {
+		t.Errorf("an agent with no maker named:\n%s", got)
+	}
+}
+
+// Tokens are said in the largest unit that keeps them short: a reader
+// has no use for the last three digits of half a million.
+func TestTokensAreShort(t *testing.T) {
+	for n, want := range map[int]string{0: "0", 999: "999", 1_000: "1K", 571_592: "571K", 1_000_000: "1.0M", 1_450_000: "1.4M"} {
+		if got := tokens(n); got != want {
+			t.Errorf("tokens(%d) = %q, want %q", n, got, want)
+		}
+	}
+}
+
+// The page is reachable from wherever the keys are, which the prefix
+// then i sends. In the processes view i itself is the key; in the list
+// and in the sessions view i is a letter being typed, so the chord has
+// a key of its own, and it brings the panel back to the view the
+// cursor it is about lives in.
+func TestAltIOpensThePageFromAnyView(t *testing.T) {
+	panel := func(view int) model {
+		m := newModel(plain)
+		m.inside, m.view = true, view
+		m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+		m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
+		m.cursor = 11
+		return m
+	}
+	for _, view := range []int{viewProcesses, viewProjects, viewSessions} {
+		next, cmd := panel(view).Update(tea.KeyPressMsg(tea.Key{Text: "alt+i"}))
+		if m := next.(model); m.view != viewProcesses || cmd == nil {
+			t.Errorf("from view %d: view %d, cmd %v", view, m.view, cmd != nil)
+		}
+	}
+	// And it closes what it opened, the way i does.
+	m := panel(viewProcesses)
+	m.looking = true
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+i"})); cmd == nil {
+		t.Error("a page that is up was not closed")
+	}
+	// A letter is still a letter where one is being typed.
+	next, _ := panel(viewProjects).Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
+	if m := next.(model); m.filter != "i" {
+		t.Errorf("a plain i stopped being a letter in the list: filter %q", m.filter)
 	}
 }

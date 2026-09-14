@@ -31,6 +31,11 @@ type gitStatus struct {
 	behind   int
 	upstream string
 	read     time.Time // when git was asked, for the readout to know when to ask again
+	// Why there is no reading, where conn asked and got none: git not
+	// on the machine, or git not answering in time. Blank where git
+	// answered, which covers a directory that is simply no repository —
+	// that is an answer, and the answer is that there is nothing here.
+	problem string
 }
 
 // gitWait is how long any one git reading is given. The readout redraws
@@ -45,11 +50,24 @@ func readGit(dir string) gitStatus {
 		return gitStatus{}
 	}
 	var g gitStatus
+	// Whether conn could ask at all. A machine with no git answers
+	// nothing about any project on it, and saying nothing of a
+	// repository because the tool is missing is a different silence
+	// from saying nothing because there is no repository.
+	if lookPath("git") == "" {
+		g.problem = "NOT ON PATH"
+		return g
+	}
 
 	// One call for the head: the branch, the hash, the subject and the
 	// date. %D is empty on a detached head, which is how that is known.
-	out, err := gitOut(dir, "log", "-1", "--no-color", "--format=%h%x00%s%x00%cI%x00%D")
+	out, err, late := gitOut(dir, "log", "-1", "--no-color", "--format=%h%x00%s%x00%cI%x00%D")
+	if late {
+		g.problem = "NO ANSWER IN " + brief(gitWait)
+		return g
+	}
 	if err != nil {
+		// git answered, and the answer is that this is no repository.
 		return gitStatus{}
 	}
 	g.repo = true
@@ -59,7 +77,7 @@ func readGit(dir string) gitStatus {
 	}
 	// The branch from git itself rather than teased out of %D, which
 	// names tags and remotes in the same breath.
-	if b, err := gitOut(dir, "symbolic-ref", "--short", "HEAD"); err == nil {
+	if b, err, _ := gitOut(dir, "symbolic-ref", "--short", "HEAD"); err == nil {
 		g.branch = strings.TrimSpace(b)
 	} else {
 		g.detached = true
@@ -68,7 +86,7 @@ func readGit(dir string) gitStatus {
 	// How far the tree has moved past the head. --porcelain is one line
 	// a path, staged and unstaged alike, which is the count wanted:
 	// how much is not committed.
-	if st, err := gitOut(dir, "status", "--porcelain"); err == nil {
+	if st, err, _ := gitOut(dir, "status", "--porcelain"); err == nil {
 		for _, l := range strings.Split(strings.TrimRight(st, "\n"), "\n") {
 			if l != "" {
 				g.dirty++
@@ -79,9 +97,9 @@ func readGit(dir string) gitStatus {
 	// And how far it has moved from what it tracks, when it tracks
 	// anything. A branch with no upstream is not behind by nothing —
 	// there is nothing for it to be behind — so it says neither.
-	if up, err := gitOut(dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"); err == nil {
+	if up, err, _ := gitOut(dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"); err == nil {
 		g.upstream = strings.TrimSpace(up)
-		if counts, err := gitOut(dir, "rev-list", "--left-right", "--count", "HEAD..."+g.upstream); err == nil {
+		if counts, err, _ := gitOut(dir, "rev-list", "--left-right", "--count", "HEAD..."+g.upstream); err == nil {
 			if f := strings.Fields(counts); len(f) == 2 {
 				g.ahead, _ = strconv.Atoi(f[0])
 				g.behind, _ = strconv.Atoi(f[1])
@@ -94,10 +112,15 @@ func readGit(dir string) gitStatus {
 // gitOut runs one git reading in a directory, under the deadline. The
 // deadline is the context's: WaitDelay alone would not bound the run,
 // since it only starts counting once the context is already done.
-func gitOut(dir string, args ...string) (string, error) {
+//
+// It says whether it was the deadline
+// that ended it rather than git itself. A git that did not answer and a
+// git that answered "no repository here" both come back as a failure,
+// and the readout has to tell the reader which it was.
+func gitOut(dir string, args ...string) (out string, err error, late bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitWait)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	out, err := cmd.Output()
-	return string(out), err
+	b, err := cmd.Output()
+	return string(b), err, ctx.Err() != nil
 }

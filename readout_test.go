@@ -408,3 +408,44 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 		t.Error("i took the page away")
 	}
 }
+
+// A readout reads a channel, and says so when the channel reads
+// nothing. A directory that is no repository has no state to report
+// and the page says nothing of it, which is the page saying nothing of
+// what there is none of; a git conn went to ask and could not is a
+// reading conn tried for and did not get, and that is the page's to
+// say. The two looked the same from here until git could tell them
+// apart: both failed, both exited the same way.
+func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
+	// A directory with no repository in it says nothing about one.
+	s := readoutSubj()
+	s.git = gitStatus{}
+	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
+	if strings.Contains(quiet, "PROJECT\n") && strings.Contains(quiet, "GIT ...") {
+		t.Errorf("a directory that is no repository was reported as unread:\n%s", quiet)
+	}
+
+	// A git conn could not ask says which way it could not.
+	for _, why := range []string{"NOT ON PATH", "NO ANSWER IN 2S"} {
+		s = readoutSubj()
+		s.git = gitStatus{problem: why}
+		got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
+		if !strings.Contains(got, "GIT ....... "+why) {
+			t.Errorf("a git that could not be asked (%q) went unsaid:\n%s", why, got)
+		}
+	}
+
+	// A contact that gives no account of itself says that, rather than
+	// leaving a group with one row in it and no reason.
+	s = readoutSubj()
+	s.sess, s.carried = sessionFile{}, session{}
+	got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
+	if !strings.Contains(got, "SAYS ...... NOTHING CONN CAN READ") {
+		t.Errorf("a contact conn cannot ask went unsaid:\n%s", got)
+	}
+	// And a row that is no contact at all has no such channel to read.
+	s.entry.kind, s.entry.command, s.entry.typed = kindRun, "sleep 300", ""
+	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain)); strings.Contains(got, "CONTACT") {
+		t.Errorf("a run was given a contact group:\n%s", got)
+	}
+}

@@ -238,11 +238,33 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		contact.add("branch", s.carried.Branch)
 	}
 	contact.addAsWritten("last ask", s.carried.Prompt)
+	// A contact that gives no account of itself. conn reads what Claude
+	// Code writes down about the instance it is running; another
+	// maker's agent writes nothing conn knows how to read, and neither
+	// does a claude old enough to predate the file. The group would
+	// otherwise be one row saying who it is with and then nothing,
+	// which reads as a page that gave up rather than a channel with
+	// nothing on it.
+	if e.kind == kindContact && s.sess.SessionID == "" {
+		contact.add("says", "NOTHING CONN CAN READ")
+	}
 	b.groups = append(b.groups, contact)
 
 	// What git says of the project. A row stands for work, and the branch
 	// it is on and whether the tree is clean are the first two things
 	// anyone asks of work.
+	// A channel with nothing on it says so. A directory that is no
+	// repository has nothing to report and the group does not appear,
+	// which is the page saying nothing of what there is none of; a git
+	// conn could not ask is a reading conn went for and did not get,
+	// and that is the group's to say rather than to swallow. The two
+	// looked the same from here until git.go learned to tell them
+	// apart.
+	if s.git.problem != "" {
+		g := readoutGroup{title: "PROJECT"}
+		g.add("git", s.git.problem)
+		b.groups = append(b.groups, g)
+	}
 	if s.git.repo {
 		g := readoutGroup{title: "PROJECT"}
 		branch := s.git.branch

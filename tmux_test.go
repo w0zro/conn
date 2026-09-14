@@ -38,13 +38,13 @@ func TestTheServerIsFoundBySocket(t *testing.T) {
 
 // list-panes, as tmux prints it for the format asked.
 func TestPanesAreParsed(t *testing.T) {
-	out := "%0\t/dev/ttys004\t48\t40\t\t\t\n" +
-		"%1\t/dev/ttys007\t138\t40\t1\t\t\n" +
-		"%5\t/dev/ttys008\t138\t40\t\t1\t\n" +
+	out := "%0 /dev/ttys004 48 40   \n" +
+		"%1 /dev/ttys007 138 40 1  \n" +
+		"%5 /dev/ttys008 138 40  1 \n" +
 		// A readout carries the hold's own mark as well as its own: it is
 		// furniture like a hold, and everything that acts on holds acts on
 		// it. Only i has to tell the two apart.
-		"%7\t/dev/ttys009\t138\t40\t1\t\t1\n\n"
+		"%7 /dev/ttys009 138 40 1  1\n\n"
 	want := map[string]pane{
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40},
 		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true},
@@ -147,7 +147,12 @@ func TestTheTerminalIsAskedForTheGround(t *testing.T) {
 // conn down says what it ended, a line for each window and one for the
 // server, the columns aligned; a window's path is written from ~.
 func TestDownSaysWhatItEnded(t *testing.T) {
-	ws := parseWindows("home\t/Users/w0zro\nzsh\t/Users/w0zro/projects/w0zro/conn\nclaude\t/Users/w0zro/projects/w0zro/vim.pro\n")
+	ws := parseWindows("home /Users/w0zro\nzsh /Users/w0zro/projects/w0zro/conn\nclaude /Users/w0zro/projects/w0zro/vim.pro\n")
+	// The name is one token and the path is whatever is left of the
+	// line, so a path with a space in it arrives whole.
+	if w := parseWindows("claude /Users/w0zro/my notes\n"); len(w) != 1 || w[0].path != "/Users/w0zro/my notes" {
+		t.Errorf("a path with a space in it: %+v", w)
+	}
 	if len(ws) != 3 || ws[1] != (window{name: "zsh", path: "/Users/w0zro/projects/w0zro/conn"}) {
 		t.Errorf("windows: %+v", ws)
 	}
@@ -320,5 +325,23 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	out.inside = false
 	if _, cmd := out.saying(); cmd != nil {
 		t.Error("conn wrote to the status line outside its server")
+	}
+}
+
+// Every format conn hands tmux is printable ASCII. tmux sanitizes what
+// it prints to something that is not a terminal, and what counts as
+// printable is the locale's: in the C locale it turns a tab in the
+// answer into an underscore, and conn read no panes at all. A space
+// tells the fields apart in every locale there is.
+func TestNoFormatAsksTmuxForAControlCharacter(t *testing.T) {
+	for _, f := range []string{paneFormat, openFormat, windowFormat, statusLine(), tmuxConf("C-Space")} {
+		for i, r := range f {
+			if r == '\n' || r == '\t' && f == tmuxConf("C-Space") {
+				continue // the configuration is a file of lines, not a format
+			}
+			if r < 0x20 || r == 0x7f {
+				t.Errorf("a format asks tmux for %q at %d: %q", r, i, f)
+			}
+		}
 	}
 }

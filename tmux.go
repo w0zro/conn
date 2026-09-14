@@ -262,7 +262,24 @@ type pane struct {
 	dead          bool
 }
 
-const paneFormat = "#{pane_id}\t#{pane_tty}\t#{pane_width}\t#{pane_height}\t#{@conn_hold}\t#{pane_dead}\t#{@conn_readout}"
+// What conn asks tmux for, and how it reads the answer back. The
+// fields are separated by a space and not by a tab, because tmux
+// sanitizes its output when it prints to something that is not a
+// terminal, and what counts as printable is the locale's business: in
+// the C locale, which is what a container and a bare service manager
+// leave you in, tmux turns every tab in the answer into an underscore.
+// conn then read no panes at all, could not find its own bay, and the
+// whole of the server layer stopped working on a machine that had done
+// nothing wrong. Every field asked for here is one token — an id, a
+// device, a number, a flag conn itself set — so a space tells them
+// apart and never appears inside one. A field with nothing in it is an
+// empty string between two spaces and keeps its place, which is why
+// these are split and not fielded.
+const (
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout}"
+	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
+	windowFormat = "#{window_name} #{pane_current_path}"
+)
 
 // panes is every pane in the server, by the terminal it holds.
 func (s *server) panes() (map[string]pane, error) {
@@ -278,7 +295,7 @@ func (s *server) panes() (map[string]pane, error) {
 func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
-		f := strings.Split(l, "\t")
+		f := strings.Split(l, " ")
 		if len(f) != 7 || f[0] == "" {
 			continue
 		}
@@ -489,7 +506,7 @@ func (s *server) open(dir string) (shell, error) {
 // openCmd is open, running a command instead of the directory's own
 // shell — what a opens claude with.
 func (s *server) openCmd(dir, cmd string) (shell, error) {
-	args := []string{"new-window", "-d", "-P", "-F", "#{pane_id}\t#{pane_pid}\t#{pane_tty}", "-c", dir}
+	args := []string{"new-window", "-d", "-P", "-F", openFormat, "-c", dir}
 	if cmd != "" {
 		args = append(args, cmd)
 	}
@@ -503,7 +520,7 @@ func (s *server) openCmd(dir, cmd string) (shell, error) {
 
 // parseOpened reads what new-window printed for the pane it made.
 func parseOpened(out string) shell {
-	f := strings.Split(strings.TrimSpace(out), "\t")
+	f := strings.Split(strings.TrimSpace(out), " ")
 	for len(f) < 3 {
 		f = append(f, "")
 	}
@@ -787,7 +804,7 @@ type window struct {
 
 // windows is every window in the server.
 func (s *server) windows() ([]window, error) {
-	out, err := s.run("list-windows", "-a", "-F", "#{window_name}\t#{pane_current_path}")
+	out, err := s.run("list-windows", "-a", "-F", windowFormat)
 	if err != nil {
 		return nil, err
 	}
@@ -798,7 +815,9 @@ func (s *server) windows() ([]window, error) {
 func parseWindows(out string) []window {
 	var ws []window
 	for _, l := range strings.Split(out, "\n") {
-		name, path, ok := strings.Cut(l, "\t")
+		// The name is one token and the path is whatever is left, so a
+		// path with a space in it arrives whole.
+		name, path, ok := strings.Cut(l, " ")
 		if !ok {
 			continue
 		}

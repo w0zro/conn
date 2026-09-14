@@ -1,6 +1,8 @@
 package main
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -294,8 +296,20 @@ func TestTheStationCanBeRead(t *testing.T) {
 	if r.station == "" || strings.HasPrefix(r.station, "someone@") {
 		t.Errorf("no station: %q", r.station)
 	}
-	if len(r.system) < 6 || len(r.login) < 8 {
-		t.Errorf("readout thin: %d system, %d session\n%+v\n%+v", len(r.system), len(r.login), r.system, r.login)
+	// Counting the rows held conn to a machine that answered for
+	// everything. The rows a machine can decline to answer for are the
+	// ones it has nothing to say about — no terminal, no terminal
+	// program that names itself, no ssh it was reached over — and a
+	// bare container is not a station conn read badly. What every
+	// machine can answer is named instead.
+	must := map[string]bool{"USER": true, "TIME ZONE": true, "CWD": true,
+		"PROCESS": true, "ENV": true, "RUNTIME": true, "BINARY": true}
+	for _, f := range r.login {
+		delete(must, f.label)
+	}
+	if len(must) > 0 || len(r.system) < 6 {
+		t.Errorf("readout thin: %d system, session went unread: %v\n%+v\n%+v",
+			len(r.system), slices.Sorted(maps.Keys(must)), r.system, r.login)
 	}
 	if len(r.checks) != 7+len(st.tools) {
 		t.Errorf("%d checks, not %d: %+v", len(r.checks), 7+len(st.tools), r.checks)

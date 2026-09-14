@@ -29,6 +29,12 @@ type scratch struct {
 	t   *testing.T
 	srv *server
 	dir string
+	// The panes sleepers made, by the id tmux gave each. A pane is what
+	// is killed and not the window it stands in: tmux renames a window
+	// after whatever is running in it, and conn swaps panes between
+	// windows all day, so neither the name nor the window it started in
+	// still names it by the time the test is done with it.
+	sleeps []string
 }
 
 func startScratch(t *testing.T) *scratch {
@@ -105,6 +111,33 @@ func (s *scratch) readoutPidOf() string {
 		return m[1]
 	}
 	return ""
+}
+
+// sleepers puts processes of the test's own in the scratch project,
+// each in a window of its own so each has a terminal and reads as a
+// row. The machine a test runs on is not a fixture: this one has one
+// repository and whatever conn is holding, and a test that needs rows
+// to read has to bring them.
+func (s *scratch) sleepers(n int) {
+	s.t.Helper()
+	for i := 0; i < n; i++ {
+		id, err := s.srv.run("new-window", "-d", "-P", "-F", "#{pane_id}",
+			"-c", filepath.Join(s.dir, "home", "repo"), "sleep 120")
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		s.sleeps = append(s.sleeps, strings.TrimSpace(id))
+	}
+}
+
+// endSleepers kills the panes sleepers made, leaving the processes view
+// with nothing of the test's own in it again.
+func (s *scratch) endSleepers() {
+	s.t.Helper()
+	for _, id := range s.sleeps {
+		_, _ = s.srv.run("kill-pane", "-t", id)
+	}
+	s.sleeps = nil
 }
 
 // bayPane is the id of whatever pane is in the bay.
@@ -542,10 +575,13 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	if dark, ok := readModeFile(srv.socket); !ok || dark {
 		t.Errorf("the mode file was not put on light: dark %v, found %v", dark, ok)
 	}
-	// The panel came back, and came back conn: respawned it comes up on
-	// the console, whose own identification carries the name.
+	// The panel came back, and came back conn: respawned, it comes up
+	// on the console and runs it through to the end. The version it
+	// says is not the thing to look for — it moves with every release,
+	// and a shallow checkout with no tags has none to say — so what is
+	// waited for is the page finishing.
 	s.until("the panel to come back", func() bool {
-		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.panel(), "CONN 0.7.0")
+		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.panel(), prompt)
 	})
 }
 
@@ -668,6 +704,16 @@ func TestIReadsOutTheCursorsRowInTheBay(t *testing.T) {
 		return s.display("#{pane_width}") == panelW && strings.Contains(s.panel(), "STATUS")
 	})
 
+	// Rows of the test's own to read and to walk between. The page needs
+	// something under the cursor and j needs somewhere to go, and what
+	// the machine running the test happens to have is not that: a
+	// container has nothing at all in it but conn.
+	s.sleepers(2)
+	s.until("the sleepers' rows on the panel", func() bool { return s.projectRows() >= 2 })
+	// The windows they stand in are the baseline the counts below are
+	// against: what those assert is that reading the list costs none.
+	windows := s.display("#{session_windows}")
+
 	s.keys("i")
 	s.until("the readout to open in the bay", func() bool {
 		return strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), "WHERE")
@@ -706,22 +752,36 @@ func TestIReadsOutTheCursorsRowInTheBay(t *testing.T) {
 
 	// Following costs nothing in panes: it is one page changing subject,
 	// not a page per row.
-	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != "1" || n != "2" {
-		t.Errorf("reading down the list left %s windows and %s panes in home", w, n)
+	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != windows || n != "2" {
+		t.Errorf("reading down the list left %s windows and %s panes in home, not %s and 2", w, n, windows)
 	}
 
-	// i again takes it down, and leaves a hold where an empty bay says
-	// so. The key for the page is the key a reader reaches for to be rid
-	// of it, and neither way costs a window.
+	// i is the key for the page and the key a reader reaches for to be
+	// rid of it. On a row conn holds a pane for, being rid of it is
+	// being in the row: read about it, then be in it. Neither way costs
+	// a window.
+	// Where the page closes to depends on the row it was about, and
+	// which row that is depends on the machine: a held row is closed
+	// onto, an unreachable one closes to a hold. What is true either
+	// way is that the page is gone.
 	s.keys("i")
-	s.until("the page to come down", func() bool {
-		return !strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), holdWord)
-	})
+	s.until("the page to come down", func() bool { return !strings.Contains(s.bay(), "READOUT") })
 	s.keys("i")
 	s.until("the page to come back", func() bool { return strings.Contains(s.bay(), "WHERE") })
-	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != "1" || n != "2" {
-		t.Errorf("toggling left %s windows and %s panes in home", w, n)
+	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != windows || n != "2" {
+		t.Errorf("toggling left %s windows and %s panes in home, not %s and 2", w, n, windows)
 	}
+
+	// With nothing under the cursor left to reach, closing leaves the
+	// hold an empty bay says so with. The page shuts whatever the
+	// cursor is on, or a view that had emptied would leave it stuck
+	// open.
+	s.endSleepers()
+	s.until("the sleepers' rows to go", func() bool { return s.projectRows() == 0 })
+	s.keys("i")
+	s.until("the page to come down to a hold", func() bool {
+		return !strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), holdWord)
+	})
 
 	// Reaching something real is rid of it, the way it is rid of a hold.
 	s.openShell()

@@ -318,7 +318,7 @@ func TestIIsAToggle(t *testing.T) {
 	t.Setenv("TMUX_PANE", "%0")
 	stub := filepath.Join(t.TempDir(), "tmux")
 	script := "#!/bin/sh\nshift 2\ncase \"$1\" in\n" +
-		"list-panes) printf '%%0\\t/dev/ttys001\\t44\\t40\\t\\t\\t\\n%%9\\t/dev/ttys009\\t80\\t40\\t1\\t\\t1\\n' ;;\n" +
+		"list-panes) printf '%%0 /dev/ttys001 44 40   \\n%%9 /dev/ttys009 80 40 1  1\\n' ;;\n" +
 		"new-window|split-window) printf '%%9\\n' ;;\nesac\nexit 0\n"
 	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -403,7 +403,7 @@ func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
 	t.Setenv("TMUX_PANE", "%0")
 	stub := filepath.Join(t.TempDir(), "tmux")
 	script := "#!/bin/sh\nshift 2\ncase \"$1\" in\n" +
-		"list-panes) printf '%%0\\t/dev/ttys001\\t44\\t40\\t\\t\\t\\n%%9\\t/dev/ttys009\\t80\\t40\\t1\\t\\t1\\n' ;;\n" +
+		"list-panes) printf '%%0 /dev/ttys001 44 40   \\n%%9 /dev/ttys009 80 40 1  1\\n' ;;\n" +
 		"new-window|split-window) printf '%%9\\n' ;;\nesac\nexit 0\n"
 	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
 		t.Fatal(err)

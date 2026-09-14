@@ -157,7 +157,18 @@ type model struct {
 	// reading corrects it — asking tmux on the keypress would be a
 	// process between the key and what it does, for something conn
 	// already knows.
-	looking  bool
+	looking bool
+	// The operator closed the page with i and it stays closed while the
+	// keys are on this view. The page is what the workspace holds in
+	// the processes view, so without this a close would be undone by
+	// the next thing that moved the keys here, and i would do nothing
+	// anybody could see. Leaving the view forgets it.
+	shut bool
+	// Whether the keys are on the panel. conn is told by the terminal
+	// when they arrive and when they leave, and knows on its own when
+	// its own reaching sent them away, so a terminal that reports no
+	// focus does not leave conn guessing where they are.
+	focused  bool
 	entering bool // the console is waiting on a reading to go to the processes view
 	// The modes conn last put on the status line, so each is written when
 	// it changes and not on every pass through Update.
@@ -225,7 +236,8 @@ func newModel(p palette) model {
 	roots := realRoots(projectRoots(home))
 	isProject := projectDirs(roots)
 	return model{
-		lit: true,
+		lit:     true,
+		focused: true, // conn comes up with the keys in the panel
 		// conn comes up on the console, which annunciates, and Init sets
 		// the blink going with everything else.
 		ticking: true,
@@ -519,7 +531,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// the cursor goes to it then. Until then the processes view reads
 		// soon.
 		m = m.slotted(msg.shell.pane.tty)
-		m.looking = false
+		m.looking, m.focused = false, false
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
 		m.processesGen++
 		return m, m.readProcesses()
@@ -532,7 +544,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.looking = msg.on
 		m.processesGen++
 		return m, m.readProcesses()
+	case tea.FocusMsg:
+		m.focused = true
+		return m.keepingPage()
+	case tea.BlurMsg:
+		// The keys have gone to the workspace, which means into a
+		// process: what is in there is that process, put there by
+		// whatever sent the keys.
+		m.focused = false
 	case reachedMsg:
+		// The keys went with the pane. conn did that itself and does not
+		// wait to be told, so a terminal reporting no focus still leaves
+		// the workspace holding the process rather than taking the page
+		// back on the next reading.
+		m.focused = false
 		// The pane is in the bay; conn knows it now and does not have to
 		// read the server to find out, so the row says so at once.
 		//
@@ -607,6 +632,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				cmds = append(cmds, m.processesTick())
 			}
+			// And the page is what the workspace holds while the keys
+			// are here, so a view just come on, or one that has just
+			// got its first row, has it without anybody asking.
+			mm, cmd := m.keepingPage()
+			m = mm.(model)
+			cmds = append(cmds, cmd)
 		}
 		return m, tea.Batch(cmds...)
 	case processesTickMsg:
@@ -756,7 +787,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case k == "k" || k == "up":
 		m.cursor, m.cursorAt = follow(m.projects, 0, max(m.cursorAt-1, 0))
 	case k == "enter":
-		if e, _, ok := m.under(); m.inside && ok && m.panes[e.tty].id != "" {
+		if e, _, ok := m.under(); m.inside && ok && reachable(m.panes[e.tty]) {
 			return m, m.reach(m.panes[e.tty], e.tty)
 		}
 	case k == "x":
@@ -920,7 +951,7 @@ func (m model) goTo(next entry) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
 		}
 	}
-	if m.inside && m.panes[next.tty].id != "" {
+	if m.inside && reachable(m.panes[next.tty]) {
 		cmds = append(cmds, m.reach(m.panes[next.tty], next.tty))
 	}
 	return m, tea.Batch(cmds...)
@@ -939,7 +970,7 @@ func (m model) reachableRound() (round []entry, at []int) {
 	for _, pl := range m.projects {
 		for _, e := range pl.entries {
 			p := m.panes[e.tty]
-			if p.id != "" && !p.hold && !p.readout && !p.dead && !seen[e.tty] {
+			if reachable(p) && !seen[e.tty] {
 				seen[e.tty] = true
 				round, at = append(round, e), append(at, i)
 			}
@@ -1051,7 +1082,9 @@ func (m model) toProjects() (tea.Model, tea.Cmd) {
 // toProcesses leaves the list for the processes view, which starts
 // reading again.
 func (m model) toProcesses() (tea.Model, tea.Cmd) {
-	m.view = viewProcesses
+	// Coming to the view fresh, the page is what the workspace holds
+	// again: a close is for the stay it was made in.
+	m.view, m.shut = viewProcesses, false
 	m.processesGen++
 	return m, m.readProcesses()
 }
@@ -1079,14 +1112,41 @@ func (m model) toggleReadout() (tea.Model, tea.Cmd) {
 	e, _, ok := m.under()
 	switch {
 	case !m.inside:
-	case m.looking && ok && m.panes[e.tty].id != "":
+	case m.looking && ok && reachable(m.panes[e.tty]):
+		// Read about it, then be in it. Going into the row is not
+		// shutting the page: the keys leave the panel, and they will
+		// bring it back when they come back.
 		cmds = append(cmds, m.reach(m.panes[e.tty], e.tty))
 	case m.looking:
+		m.shut = true
 		cmds = append(cmds, m.closeReadout())
 	case ok:
+		m.shut = false
 		cmds = append(cmds, m.openReadout())
 	}
 	return m, tea.Batch(cmds...)
+}
+
+// keepingPage puts the page in the workspace, the page being what the
+// workspace holds: the keys are on the panel, the panel is in the
+// processes view, and there is a row to be about. The operator is
+// reading the list and the page is the reading; nothing is pressed for
+// it.
+//
+// It is asked on the keys arriving and on every reading, so a view
+// just come on, or one that has just got its first row, gets the page
+// without the operator doing anything. looking is set here rather than
+// waited for, so the reading a moment later does not ask for a second
+// page on top of the first.
+func (m model) keepingPage() (tea.Model, tea.Cmd) {
+	if !m.inside || m.view != viewProcesses || m.looking || m.shut || !m.focused {
+		return m, nil
+	}
+	if _, _, ok := m.under(); !ok {
+		return m, nil
+	}
+	m.looking = true
+	return m, m.openReadout()
 }
 
 // atProject is the project the panel has under its eye and the
@@ -1227,7 +1287,7 @@ func (m model) nextReachable() (entry, bool) {
 	}
 	for k := range all {
 		e := all[(start+k)%len(all)]
-		if p := m.panes[e.tty]; p.id != "" && !p.hold && !p.readout && !p.dead {
+		if p := m.panes[e.tty]; reachable(p) {
 			return e, true
 		}
 	}
@@ -1329,6 +1389,11 @@ func (m model) View() tea.View {
 	}
 	v := tea.NewView(strings.Join(texts, "\n"))
 	v.AltScreen = true
+	// conn is told when the keys arrive in its pane and when they
+	// leave, which is how the workspace beside it knows to hold the
+	// page: the keys coming back to the panel is the operator asking
+	// what a row is, and nothing else announces that.
+	v.ReportFocus = true
 	v.BackgroundColor = groundColor
 	v.ForegroundColor = inkColor
 	v.WindowTitle = "conn"

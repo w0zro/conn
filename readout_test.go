@@ -566,3 +566,72 @@ func TestAltIOpensThePageFromAnyView(t *testing.T) {
 		t.Errorf("a plain i stopped being a letter in the list: filter %q", m.filter)
 	}
 }
+
+// The page is what the workspace holds while the keys are on the panel
+// in the processes view. The keys arriving ask for it, going into a
+// process takes them away and the process takes the workspace, and the
+// keys coming back bring the page back — about the row the cursor is
+// on, which after reaching something is that something.
+func TestThePageFollowsTheKeys(t *testing.T) {
+	panel := func() model {
+		m := newModel(plain)
+		m.inside, m.view, m.focused = true, viewProcesses, true
+		m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+		m.projects = []project{{path: "/w", entries: []entry{
+			{pid: 11, tty: "ttys001"}, {pid: 12, tty: "ttys002"},
+		}}}
+		m.panes = map[string]pane{"ttys002": {id: "%2", tty: "ttys002"}}
+		m.cursor = 11
+		return m
+	}
+
+	// A reading with the keys here and a row to be about asks for it.
+	m := panel()
+	next, cmd := m.Update(processesMsg{gen: m.processesGen, projects: m.projects})
+	if m = next.(model); !m.looking || cmd == nil {
+		t.Errorf("the page did not take the workspace: looking %v, cmd %v", m.looking, cmd != nil)
+	}
+	// And not twice: the reading after it finds the page already there.
+	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); !next.(model).looking {
+		t.Error("a second reading lost the page")
+	}
+
+	// Going into a process takes the keys, and the workspace is that
+	// process: the next reading does not pull the page back over it.
+	m = panel()
+	m.looking = true
+	next, _ = m.Update(reachedMsg{"ttys002"})
+	m = next.(model)
+	if m.focused {
+		t.Error("reaching a process left the keys on the panel")
+	}
+	m.looking = false
+	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); next.(model).looking {
+		t.Error("the page took the workspace back from a process the operator is in")
+	}
+
+	// The keys coming back bring it back.
+	next, cmd = m.Update(tea.FocusMsg{})
+	if m = next.(model); !m.focused || !m.looking || cmd == nil {
+		t.Errorf("the keys coming back did not bring the page: focused %v, looking %v", m.focused, m.looking)
+	}
+
+	// i shuts it, and it stays shut while the keys are on this view;
+	// leaving the view and coming back forgets the closing. On a row
+	// conn holds a pane for, i goes into the row instead — read about
+	// it, then be in it — so the cursor is put on one it does not.
+	m.cursor = 11
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
+	m = next.(model)
+	if !m.shut {
+		t.Error("i did not shut the page")
+	}
+	m.looking = false
+	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); next.(model).looking {
+		t.Error("a reading undid the closing")
+	}
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "p"}))
+	if next, _ = next.(model).Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape})); next.(model).shut {
+		t.Error("coming back to the view did not forget the closing")
+	}
+}

@@ -173,12 +173,20 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		where.addPath("cwd", tilde(e.cwd, home))
 	}
 	where.add("tty", e.tty)
+	// Whether conn can put you in front of this row, by the one rule
+	// that decides it everywhere: enter, the ring, and the bay taking
+	// the next thing when its own ends all ask the same question, and
+	// the page answers it the same way.
 	switch {
 	case !s.inside:
 		// conn holds no panes outside its server, so saying this row is
 		// in none of them says nothing about the row.
-	case s.pane.id != "":
+	case reachable(s.pane):
 		where.add("pane", s.pane.id+" · CAN BE REACHED")
+	case s.pane.dead:
+		where.add("pane", s.pane.id+" · ITS PANE HAS ENDED")
+	case s.pane.id != "":
+		where.add("pane", s.pane.id+" · CANNOT BE REACHED")
 	default:
 		where.add("pane", "NONE · CONN DID NOT OPEN IT")
 	}

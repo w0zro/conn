@@ -714,8 +714,9 @@ func TestIReadsOutTheCursorsRowInTheBay(t *testing.T) {
 	// against: what those assert is that reading the list costs none.
 	windows := s.display("#{session_windows}")
 
-	s.keys("i")
-	s.until("the readout to open in the bay", func() bool {
+	// Nothing is pressed for the page: it is what the workspace holds
+	// while the keys are on the panel in this view.
+	s.until("the readout to take the workspace", func() bool {
 		return strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), "WHERE")
 	})
 	// The processes view did not give up its pane, or its width, to say
@@ -788,5 +789,38 @@ func TestIReadsOutTheCursorsRowInTheBay(t *testing.T) {
 	s.until("a shell to take the bay from the readout", func() bool { return s.shellIn("home.1") })
 	if n := s.display("#{window_panes}"); n != "2" {
 		t.Errorf("home has %s panes; the readout was filed away rather than dropped", n)
+	}
+}
+
+// The workspace holds the page while the keys are on the panel. Going
+// into a process puts that process there and the keys with it; bringing
+// the keys back to the processes view brings the page back, about the
+// row the cursor is on, which after reaching something is that
+// something. Nothing is pressed for it.
+func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.keys("Space")
+	s.until("the workspace to open", func() bool { return s.display("#{pane_width}") == panelW })
+
+	// A row of the test's own to be about, and the page comes up for it
+	// without anybody asking.
+	s.sleepers(1)
+	s.until("the sleeper's row on the panel", func() bool { return s.projectRows() >= 1 })
+	s.until("the page to take the workspace", func() bool { return strings.Contains(s.bay(), "READOUT") })
+
+	// Going into a process puts the process there instead.
+	s.openShell()
+	s.until("a shell in the workspace", func() bool {
+		return s.shellIn("home.1") && !strings.Contains(s.bay(), "READOUT")
+	})
+
+	// The keys coming back bring the page back. That half cannot be
+	// driven here: the keys arriving is a focus event, a tmux server
+	// with no client attached sends none, and a test has no terminal to
+	// attach one from. What the rule does with the keys is held at the
+	// model, where the message can be handed over directly.
+	if w, n := s.display("#{pane_width}"), s.display("#{window_panes}"); w != panelW || n != "2" {
+		t.Errorf("home changed shape: %s wide, %s panes", w, n)
 	}
 }

@@ -308,6 +308,16 @@ func parsePanes(out string) map[string]pane {
 	return panes
 }
 
+// reachable says whether conn can put a pane in front of you: it holds
+// one, that pane has work in it rather than conn's own furniture, and
+// the process in it has not ended. It is the one rule, so that what
+// enter does, what the ring steps through, what the bay takes when its
+// own ends, and what the page reports cannot drift apart into four
+// slightly different answers to one question.
+func reachable(p pane) bool {
+	return p.id != "" && !p.hold && !p.readout && !p.dead
+}
+
 // The panel is the pane this conn runs in; tmux names it in TMUX_PANE.
 func (s *server) panel() string {
 	return os.Getenv("TMUX_PANE")

@@ -260,20 +260,28 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				l.add(p.chip, " "+r.status+" ")
 			case r.status == statusWaiting:
 				// The one word here that asks something of you, and the
-				// only one worth finding without looking: it is not a
-				// fault, so it takes the color rather than the chip, and
-				// it blinks, which is the one thing on a screen that
+				// only one worth finding without looking. It is stamped
+				// the way the console stamps a fault and the status line
+				// stamps the keys: a block of the orange with the word
+				// knocked out of it. A block is not read but seen, and
+				// the thing that wants you should be seen before it is
+				// read.
+				//
+				// And it blinks, on the console's own cadence and off
+				// the same turn, which is the one thing on a screen that
 				// reaches the corner of an eye. Reading down a list of
 				// rows that all say something, the row that wants you is
-				// the row that moves.
+				// the row that moves. A fault beside it wears the same
+				// stamp and holds still, which is the difference between
+				// a thing to look at and a thing to answer.
 				//
 				// On the dark half the cells are the ground and nothing
 				// around them moves, the way the console's verdict goes
 				// dark: a word that jumped its neighbours about would be
 				// worse than one that never blinked.
 				if b.lit {
-					l.to(measure - utf8.RuneCountInString(r.status))
-					l.add(p.waiting+p.bold, r.status)
+					l.to(measure - utf8.RuneCountInString(r.status) - 2)
+					l.add(p.chip, " "+r.status+" ")
 				}
 			default:
 				l.to(measure - utf8.RuneCountInString(r.status))

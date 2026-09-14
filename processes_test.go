@@ -625,3 +625,53 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 		t.Error("outside the server, going back asked the server for something")
 	}
 }
+
+// The word that asks something of you is stamped the way the console
+// stamps a fault and the status line stamps the keys: a block of the
+// orange with the word knocked out of it. A block is not read but
+// seen, and the thing that wants you should be seen before it is read.
+// A fault beside it wears the same stamp and holds still; the blink is
+// the difference between a thing to look at and a thing to answer.
+func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
+	held := []project{{path: "/w", entries: []entry{
+		{pid: 11, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-time.Minute)},
+		{pid: 12, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
+	}}}
+	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	p := colored()
+
+	b.lit = true
+	lit := texts(drawProcesses(b, 0, 80, 12, p))
+	for what, want := range map[string]string{
+		"the word that asks":  p.chip + " " + statusWaiting + " ",
+		"the fault beside it": p.chip + " " + statusStopped + " ",
+	} {
+		if !strings.Contains(lit, want) {
+			t.Errorf("%s is not stamped:\n%s", what, stripEscapes(lit))
+		}
+	}
+	// The stamp is the console's own, not a second orange of its own.
+	if !strings.Contains(screenChipOf(t), p.chip) {
+		t.Error("the console and the processes view stamp in different colors")
+	}
+
+	// Dark, the asking word is gone and the fault is still there: one
+	// is answered, the other is only looked at.
+	b.lit = false
+	dark := texts(drawProcesses(b, 0, 80, 12, p))
+	if strings.Contains(dark, statusWaiting) {
+		t.Errorf("the dark half still says it:\n%s", stripEscapes(dark))
+	}
+	if !strings.Contains(dark, p.chip+" "+statusStopped+" ") {
+		t.Errorf("the fault blinked with it:\n%s", stripEscapes(dark))
+	}
+}
+
+// screenChipOf is the console's own stamp, read off a console with a
+// fault on it, so the two are compared rather than assumed.
+func screenChipOf(t *testing.T) string {
+	t.Helper()
+	st := testStation
+	st.volume.free = 6_800_000_000
+	return texts(screen(compose(st, testNow), 120, 40, colored()))
+}

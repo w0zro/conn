@@ -72,20 +72,21 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
 	}
-	// Home's shell is a day old, conn's three hours, conjurer's two, so
-	// they stand in that order; under claude the node it started
-	// forty-six minutes ago comes before the bash it started twelve
-	// seconds ago.
+	// Home's shell is a day old and conjurer's two hours; conn's own
+	// project is left with the shell on ttys005, ninety seconds old,
+	// because the three-hour shell on ttys004 is the one conn was
+	// started from and is conn's own lineage rather than work. Under
+	// claude the node it started forty-six minutes ago comes before the
+	// bash it started twelve seconds ago.
 	want := []string{
 		"/Users/w0zro SHELL zsh ACTIVE",
 		" /Users/w0zro EDITOR vim notes.md STOPPED",
-		"/Users/w0zro/projects/w0zro/conn SHELL zsh ACTIVE",
-		" /Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 		"/Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL zsh ACTIVE",
 		" /Users/w0zro/projects/w0zro/vim.pro/conjurer CONTACT claude --resume ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN node /opt/claude/mcp.js ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL bash -c go test ./... ACTIVE",
 		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
+		"/Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("processes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -146,12 +147,11 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 	want = []string{
 		"SHELL zsh ACTIVE",
 		" EDITOR vim notes.md STOPPED",
-		"SHELL zsh ACTIVE",
-		" SHELL zsh IDLE",
 		"SHELL zsh IDLE",
 		"RUN node /opt/claude/mcp.js ACTIVE",
 		"SHELL bash -c go test ./... ACTIVE",
 		" RUN go test ./... ACTIVE",
+		"SHELL zsh IDLE",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("processes without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -872,5 +872,47 @@ func TestOnlyAnAgentsNameIsAContacts(t *testing.T) {
 		if got := kind(c...); got != kindRun {
 			t.Errorf("%v: %s, want %s", c, got, kindRun)
 		}
+	}
+}
+
+// conn is not standing on a row of its own. It takes the terminal
+// over, so the shell it was started from is blocked behind it for as
+// long as it runs, in whatever directory it happened to be in, which
+// for most people is home: a shell doing nothing, at a project nobody
+// is working in, which cannot be gone to because going to it is what
+// conn already is. Whatever stands between that shell and conn goes
+// with it — a go run in development, a wrapper script, a login shell.
+func TestConnIsNotStandingOnARowOfItsOwn(t *testing.T) {
+	// The lineage a development conn actually has: login, the shell,
+	// go run, the binary it built, and the client conn holds. Beside it,
+	// a job suspended in that shell before conn was started, which is
+	// work and is waiting for somebody.
+	procs := []process{
+		{pid: 100, ppid: 1, uid: 501, tty: "ttys002", state: 'S', command: "login", args: []string{"login", "-flp", "w0zro"}, cwd: "/Users/w0zro"},
+		{pid: 101, ppid: 100, uid: 501, tty: "ttys002", state: 'S', command: "zsh", args: []string{"-zsh"}, cwd: "/Users/w0zro"},
+		{pid: 102, ppid: 101, uid: 501, tty: "ttys002", state: 'T', command: "vim", args: []string{"vim", "notes.md"}, cwd: "/Users/w0zro"},
+		{pid: 103, ppid: 101, uid: 501, tty: "ttys002", state: 'S', command: "go", args: []string{"go", "run", "."}, cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 104, ppid: 103, uid: 501, tty: "ttys002", state: 'S', command: "conn", args: []string{"/tmp/go-build/conn"}, cwd: "/Users/w0zro/projects/w0zro/conn"},
+		{pid: 105, ppid: 104, uid: 501, tty: "ttys002", state: 'S', command: "tmux", args: []string{"tmux", "-S", "/x/sock", "attach"}, cwd: "/Users/w0zro/projects/w0zro/conn"},
+		// The panel, inside the server, whose parent holds no terminal.
+		{pid: 200, ppid: 199, uid: 501, tty: "ttys000", state: 'S', command: "conn", args: []string{"/tmp/go-build/conn"}, cwd: "/Users/w0zro"},
+		// And a shell of the operator's own, in the server, which is work.
+		{pid: 201, ppid: 199, uid: 501, tty: "ttys003", state: 'S', command: "zsh", args: []string{"-zsh"}, cwd: "/Users/w0zro/projects/w0zro/conn"},
+	}
+	var got []string
+	for _, pl := range projectsFrom(procs, 501, testRoots, testIsProject, nil) {
+		for _, e := range pl.entries {
+			got = append(got, strings.Repeat(" ", e.depth)+e.kind+" "+e.command+" "+strconv.Itoa(e.pid))
+		}
+	}
+	// The login, the shell, the go run, both conns and the client are
+	// all gone. What is left is the suspended editor and the shell in
+	// the server. The editor roots itself, its shell having gone.
+	want := []string{
+		"EDITOR vim notes.md 102",
+		"SHELL zsh 201",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("rows:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

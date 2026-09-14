@@ -90,14 +90,15 @@ func TestProcessesLaysOut(t *testing.T) {
 func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	rows := drawProcesses(testProcesses(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 10 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 9 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
-	rows = drawProcesses(testProcesses(), 70301, 100, 9, plain)
+	rows = drawProcesses(testProcesses(), 67040, 100, 9, plain)
 	text = texts(rows)
 	// The cursor's mark keeps the margin; the row it marks still steps
-	// in for the level it is at.
-	if len(rows) != 9 || !strings.Contains(text, "… 10 ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
+	// in for the level it is at, and the last row stands at its own
+	// project's root.
+	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawProcesses(testProcesses(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
@@ -125,7 +126,10 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	press("j")
 	press("j")
 	press("j")
-	if m.cursor != 67040 || m.cursorAt != 3 {
+	// Three rows down from home's shell is claude: the editor under it,
+	// then conjurer's shell, then the contact. conn's own project now
+	// stands last, holding the one shell conn was not started from.
+	if m.cursor != 70100 || m.cursorAt != 3 {
 		t.Errorf("after three j the cursor is on %d at %d", m.cursor, m.cursorAt)
 	}
 	press("k")
@@ -143,10 +147,10 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	// Down to claude itself, and then claude gone: what it ran stands on
 	// its own, and the cursor, with no pid of its own left to follow,
 	// holds the row it was at — which the node it started now has.
-	for range 4 {
+	for range 2 {
 		press("j")
 	}
-	if m.cursor != 70100 || m.cursorAt != 5 {
+	if m.cursor != 70100 || m.cursorAt != 3 {
 		t.Errorf("the cursor is on %d at %d, not on claude", m.cursor, m.cursorAt)
 	}
 	var without []process
@@ -157,7 +161,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	}
 	next, _ = m.Update(processesMsg{projects: projectsFrom(without, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
-	if m.cursorAt != 5 || m.cursor != 70212 {
+	if m.cursorAt != 3 || m.cursor != 70212 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
 	}
 	next, _ = m.Update(processesMsg{})
@@ -332,8 +336,9 @@ func TestTheCursorIsAGround(t *testing.T) {
 	for _, r := range rows {
 		if strings.Contains(r.text, p.selection) {
 			on++
-			// The bay's shell is a level in, under the panel's own.
-			if !strings.HasPrefix(stripEscapes(r.text), "     SHELL   zsh") {
+			// conn's own project holds one row, the shell conn was not
+			// started from, and it stands at the root of its tree.
+			if !strings.HasPrefix(stripEscapes(r.text), "   SHELL   zsh") {
 				t.Errorf("the raised row is not the cursor's: %q", stripEscapes(r.text))
 			}
 			// Raised from edge to edge: the row never falls back to the
@@ -351,7 +356,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 	}
 	// In plain text there is no ground to raise, so the mark stays.
 	plainRows := texts(drawProcesses(testProcesses(), 67040, 120, 40, plain))
-	if !strings.Contains(plainRows, "▸   SHELL   zsh") {
+	if !strings.Contains(plainRows, "▸ SHELL   zsh") {
 		t.Errorf("the plain view lost its cursor:\n%s", plainRows)
 	}
 }

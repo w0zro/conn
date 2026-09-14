@@ -202,10 +202,47 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	for _, p := range procs {
 		byPid[p.pid] = p
 	}
-	// A candidate is a process of the user with a terminal.
+	// holding is what conn is standing on: the shell the operator typed
+	// conn into, and whatever stands between that shell and conn — a go
+	// run in development, a wrapper script, a login shell under it.
+	//
+	// conn takes the terminal over, so that shell is blocked behind it
+	// for as long as conn runs, in whatever directory it happened to be
+	// in, which for most people is home. It was a row: a shell doing
+	// nothing, at a project nobody is working in, which cannot be gone
+	// to because going to it is what conn already is. It is part of the
+	// instrument the same as the client conn holds, and the only
+	// difference between the two is which side of conn they stand on.
+	//
+	// The walk climbs from each conn and stops the moment the terminal
+	// changes, which is where the lineage leaves the terminal conn was
+	// launched from. A job the operator suspended in that shell before
+	// starting conn is not on the way up from conn and stays a row,
+	// which is right: it is work, and it is waiting for them.
+	holding := map[int]bool{}
+	for _, p := range procs {
+		if p.uid != uid || p.tty == "" {
+			continue
+		}
+		if k := kindOf(p); k != kindConn && k != kindHold {
+			continue
+		}
+		seen := map[int]bool{}
+		for pid := p.ppid; pid > 0 && !seen[pid]; {
+			seen[pid] = true
+			a, ok := byPid[pid]
+			if !ok || a.tty != p.tty {
+				break
+			}
+			holding[a.pid] = true
+			pid = a.ppid
+		}
+	}
+	// A candidate is a process of the user with a terminal, that conn is
+	// not itself standing on.
 	candidate := map[int]bool{}
 	for _, p := range procs {
-		candidate[p.pid] = p.uid == uid && p.tty != ""
+		candidate[p.pid] = p.uid == uid && p.tty != "" && !holding[p.pid]
 	}
 	// covered says whether conn stands anywhere above a process: the tmux
 	// client conn holds is conn's own doing, not work of yours, and goes

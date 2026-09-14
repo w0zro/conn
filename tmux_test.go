@@ -66,14 +66,14 @@ func TestTheConfigurationHolds(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, s := range []string{
 		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
-		"bind p select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-p",
+		`bind p set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-p`,
 		"bind q detach-client",
 		"bind Tab select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-Tab",
 		"bind j select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-j",
 		"bind k select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-k",
 		"bind s select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-s",
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 C-a",
-		"bind M-a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-a",
+		`bind M-a set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-a`,
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane

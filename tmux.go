@@ -535,7 +535,14 @@ func (s *server) zoom(on bool) error {
 
 // focusPanel puts focus on the panel.
 func (s *server) focusPanel() error {
-	_, err := s.run("select-pane", "-t", s.panel())
+	return s.focusPane(s.panel())
+}
+
+// focusPane puts the keys in a pane by its id. Where the pane is gone
+// tmux says so and nothing moves, which is the right answer: the pane
+// the keys came from can have ended while the list was up.
+func (s *server) focusPane(id string) error {
+	_, err := s.run("select-pane", "-t", id)
 	return err
 }
 
@@ -588,14 +595,14 @@ set -g prefix ` + prefix + `
 set -g prefix2 None
 unbind -a -T prefix
 bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0
-bind p select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-p
+bind p set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-p
 bind ` + prefix + ` select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-o
 bind Tab select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-Tab
 bind j select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-j
 bind k select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-k
 bind s select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-s
 bind a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 C-a
-bind M-a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-a
+bind M-a set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-a
 bind q detach-client
 set -g mouse on
 # The panel's width is conn's to hold; a drag of the border would only be

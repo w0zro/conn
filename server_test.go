@@ -356,6 +356,9 @@ func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	s.openShell()
 	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
 	first := s.bayPane()
+	// The key opens at the project the cursor stands on, and the cursor
+	// does not reach the shell until the reading that has it does.
+	s.until("the shell's row on the panel", func() bool { return s.projectRows() >= 1 })
 
 	s.keys("M-s")
 	s.until("a second shell in the bay, with the first parked", func() bool {
@@ -384,6 +387,9 @@ func TestTheRingKeyWalksToTheOtherHeldProcess(t *testing.T) {
 	s.until("a second shell, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
 	})
+	// The ring steps from where the cursor stands, and the cursor does
+	// not reach the second shell until the reading that has it does.
+	s.until("both shells' rows on the panel", func() bool { return s.projectRows() >= 2 })
 
 	s.keys("M-j")
 	s.until("the other held shell to come round into the bay", func() bool { return s.bayPane() == first })

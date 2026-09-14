@@ -174,6 +174,10 @@ type model struct {
 	until        time.Time
 	processesErr string
 	processesGen int // which stay in the processes view the ticks belong to
+	// The pane the keys were in when a chord brought them to the panel,
+	// for a view there is something to cancel out of. Blank where the
+	// keys were already here.
+	from string
 	// The last reading's processor times, and when they were read: a
 	// process is working by what it has spent since, not by what it has
 	// spent altogether.
@@ -664,6 +668,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// chord has a key of its own, and it is the same key wherever it is
 	// pressed.
 	if k == "alt+p" {
+		m.from = m.cameFrom()
 		return m.toProjects()
 	}
 	// The other process, which the prefix twice over sends. It is a key
@@ -792,6 +797,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case k == "tab":
 		return m.toWaiting()
 	case k == "p":
+		// Pressed here, so there is nowhere to go back to.
+		m.from = ""
 		return m.toProjects()
 	}
 	return m, nil
@@ -820,7 +827,7 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	case k == "esc":
-		return m.toProcesses()
+		return m.backFrom()
 	case k == "enter":
 		if m.inside && m.pcursor < len(rows) {
 			path := rows[m.pcursor].path
@@ -999,6 +1006,43 @@ func (m model) toReachable(down bool) (tea.Model, tea.Cmd) {
 	return m.goTo(next)
 }
 
+// cameFrom is the pane the keys were in when a chord brought them to
+// the panel, and nothing where they were already here. A chord writes
+// it as it fires, because by the time conn reads the key the panel is
+// the pane with the keys and nothing on this side can tell where they
+// came from. It is read once and cleared, so a chord that was answered
+// rather than cancelled leaves nothing behind for the next one.
+func (m model) cameFrom() string {
+	if !m.inside || m.srv == nil {
+		return ""
+	}
+	out, err := m.srv.run("show-options", "-gqv", "@conn_from")
+	if err != nil {
+		return ""
+	}
+	_, _ = m.srv.run("set-option", "-gu", "@conn_from")
+	if from := strings.TrimSpace(out); from != m.srv.panel() {
+		return from
+	}
+	return ""
+}
+
+// backFrom is the cancel. The panel comes back to the processes view,
+// and where a chord brought the keys here out of another pane they go
+// back to it: cancelling is putting things as they were, and the pane
+// the operator was working in is part of how they were.
+func (m model) backFrom() (tea.Model, tea.Cmd) {
+	from := m.from
+	m.from = ""
+	mm, cmd := m.toProcesses()
+	m = mm.(model)
+	if from == "" || !m.inside {
+		return m, cmd
+	}
+	srv := m.srv
+	return m, tea.Batch(cmd, m.serverCmd(func() error { return srv.focusPane(from) }))
+}
+
 // toProjects opens the list, from wherever conn is, and walks the roots
 // again for it: the list is what could be worked on rather than what is
 // being worked on, so it is read when it is asked for and not on a beat.
@@ -1062,6 +1106,7 @@ func (m model) openAt(k string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if k == "alt+a" {
+		m.from = m.cameFrom()
 		return m.openSessions(path, dirs)
 	}
 	var cmds []tea.Cmd
@@ -1111,7 +1156,7 @@ func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 	case k == "esc":
-		return m.toProcesses()
+		return m.backFrom()
 	case k == "enter":
 		if m.inside && !m.sessionsLoading && m.rcursor < len(rows) {
 			c := rows[m.rcursor]

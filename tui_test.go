@@ -980,3 +980,50 @@ func TestTheRingWalksOnlyWhatCanBeReached(t *testing.T) {
 		t.Errorf("with no panes the cursor moved to %d", got)
 	}
 }
+
+// A chord brings the keys to the panel out of whatever pane they were
+// in. Cancelling puts them back: esc from the list and from the
+// sessions view returns to the processes view, and to the pane the
+// chord came from. Pressed on the panel there is nowhere to go back to.
+func TestCancellingAChordGivesTheKeysBack(t *testing.T) {
+	m := newModel(plain)
+	m.inside, m.view, m.srv = true, viewProjects, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+
+	// Cancelling a visit a chord brought about asks for the pane back.
+	m.from = "%7"
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "esc"}))
+	m = next.(model)
+	if m.view != viewProcesses || m.from != "" {
+		t.Errorf("esc from the list: view %d, from %q", m.view, m.from)
+	}
+	if cmd == nil {
+		t.Fatal("esc from a chord's list asked for nothing")
+	}
+	// Two commands: the reading, and the keys going back.
+	batch, ok := cmd().(tea.BatchMsg)
+	if !ok || len(batch) != 2 {
+		t.Errorf("esc from a chord's list: %T", cmd())
+	}
+
+	// The sessions view cancels the same way.
+	m.view, m.from = viewSessions, "%7"
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "esc"}))
+	if m = next.(model); m.view != viewProcesses || cmd == nil {
+		t.Errorf("esc from a chord's sessions view: view %d, cmd %v", m.view, cmd != nil)
+	}
+
+	// With nothing to go back to, esc only comes back to the view.
+	m.view, m.from = viewProjects, ""
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "esc"}))
+	m = next.(model)
+	if _, batched := cmd().(tea.BatchMsg); batched {
+		t.Error("esc with nowhere to go back to asked for the keys anyway")
+	}
+
+	// p is pressed on the panel, so it leaves nothing to go back to.
+	m.view, m.from = viewProcesses, "%7"
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "p"}))
+	if m = next.(model); m.view != viewProjects || m.from != "" {
+		t.Errorf("p on the panel: view %d, from %q", m.view, m.from)
+	}
+}

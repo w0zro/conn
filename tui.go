@@ -689,6 +689,13 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "alt+s" || k == "ctrl+a" || k == "alt+a" {
 		return m.openAt(k)
 	}
+	// Down and up the processes conn can put in the bay, which the
+	// prefix then j and then k send. In the processes view j and k walk
+	// every row, this walks only what there is somewhere to be sent to;
+	// in the list and in the sessions view they are letters being typed.
+	if k == "alt+j" || k == "alt+k" {
+		return m.toReachable(k == "alt+j")
+	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
@@ -900,6 +907,15 @@ func (m model) toWaiting() (tea.Model, tea.Cmd) {
 			break
 		}
 	}
+	return m.goTo(next)
+}
+
+// goTo puts the cursor on a row and the operator in front of it: the
+// panel comes back to the processes view if it is somewhere else, and
+// the row's pane goes into the bay with the keys, where conn holds
+// one. A row conn only reports is gone to on the panel, and the keys
+// stay where they are, there being nothing to put them in.
+func (m model) goTo(next entry) (tea.Model, tea.Cmd) {
 	m.cursor, m.cursorAt = follow(m.projects, next.pid, m.cursorAt)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
@@ -915,6 +931,72 @@ func (m model) toWaiting() (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.reach(m.panes[next.tty], next.tty))
 	}
 	return m, tea.Batch(cmds...)
+}
+
+// reachableRound is every pane conn holds that has work in it, said as
+// the one row that stands for it: the head of the tree, since a pane
+// holds a whole tree and there is one thing in it to be put in the
+// bay. It is the ring alt+j walks down and alt+k up, in the order the
+// view stands the rows in, with where each sits among all the rows, so
+// that a cursor anywhere in the list knows which way is next. A hold,
+// the readout and a pane whose process has ended are not work.
+func (m model) reachableRound() (round []entry, at []int) {
+	seen := map[string]bool{}
+	i := 0
+	for _, pl := range m.projects {
+		for _, e := range pl.entries {
+			p := m.panes[e.tty]
+			if p.id != "" && !p.hold && !p.readout && !p.dead && !seen[e.tty] {
+				seen[e.tty] = true
+				round, at = append(round, e), append(at, i)
+			}
+			i++
+		}
+	}
+	return round, at
+}
+
+// toReachable goes to the next process conn can actually put in front
+// of you, down the view with alt+j and up it with alt+k, round again
+// from either end. Rows conn only reports are stepped over rather than
+// landed on: the keys are going with the cursor, and a row there is no
+// pane for is nowhere to send them. With nothing to reach it does
+// nothing, which is every row outside conn's own server.
+func (m model) toReachable(down bool) (tea.Model, tea.Cmd) {
+	round, at := m.reachableRound()
+	if len(round) == 0 {
+		return m, nil
+	}
+	// Where the cursor stands among all the rows, which is not where it
+	// stands in the ring: it can be on a row conn cannot reach, or on a
+	// row inside a tree whose head is the ring's member.
+	here, i := -1, 0
+	for _, pl := range m.projects {
+		for _, e := range pl.entries {
+			if e.pid == m.cursor {
+				here = i
+			}
+			i++
+		}
+	}
+	next := round[0]
+	if down {
+		for j, k := range at {
+			if k > here {
+				next = round[j]
+				break
+			}
+		}
+	} else {
+		next = round[len(round)-1]
+		for j := len(at) - 1; j >= 0; j-- {
+			if at[j] < here {
+				next = round[j]
+				break
+			}
+		}
+	}
+	return m.goTo(next)
 }
 
 // toProjects opens the list, from wherever conn is, and walks the roots

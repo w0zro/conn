@@ -904,3 +904,79 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 		t.Errorf("a plain s stopped being a letter in the list: filter %q", m.filter)
 	}
 }
+
+// Down and up the processes conn can actually put in front of you,
+// which the prefix then j and then k send. A row conn only reports is
+// stepped over: the keys travel with the cursor, and a row there is no
+// pane for is nowhere to send them. A tree is one stop, not one a row,
+// since the pane holds the whole of it.
+func TestTheRingWalksOnlyWhatCanBeReached(t *testing.T) {
+	m := newModel(plain)
+	m.inside, m.view = true, viewProcesses
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.projects = []project{
+		{path: "/a", entries: []entry{
+			{pid: 10, tty: "ttys001", kind: kindShell},   // reached
+			{pid: 11, tty: "ttys002", kind: kindShell},   // only reported
+			{pid: 12, tty: "ttys003", kind: kindContact}, // reached, and a tree
+			{pid: 13, tty: "ttys003", kind: kindRun, depth: 1},
+			{pid: 14, tty: "ttys004", kind: kindShell}, // a hold, which is conn's own
+		}},
+	}
+	m.panes = map[string]pane{
+		"ttys001": {id: "%1", tty: "ttys001"},
+		"ttys003": {id: "%3", tty: "ttys003"},
+		"ttys004": {id: "%4", tty: "ttys004", hold: true},
+	}
+
+	round, at := m.reachableRound()
+	if len(round) != 2 || round[0].pid != 10 || round[1].pid != 12 || at[0] != 0 || at[1] != 2 {
+		t.Fatalf("the ring is not the two panes with work in them: %+v at %v", round, at)
+	}
+
+	press := func(m model, k string) model {
+		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		return next.(model)
+	}
+	// Down from the first reaches the tree's head, not the row under it.
+	m.cursor = 10
+	if got := press(m, "alt+j").cursor; got != 12 {
+		t.Errorf("down from the first: cursor %d", got)
+	}
+	// And round again from the end, both ways.
+	m.cursor = 12
+	if got := press(m, "alt+j").cursor; got != 10 {
+		t.Errorf("down from the last: cursor %d", got)
+	}
+	m.cursor = 10
+	if got := press(m, "alt+k").cursor; got != 12 {
+		t.Errorf("up from the first: cursor %d", got)
+	}
+	// From a row conn cannot reach, which is between the two.
+	m.cursor = 11
+	if got := press(m, "alt+j").cursor; got != 12 {
+		t.Errorf("down from a row conn only reports: cursor %d", got)
+	}
+	if got := press(m, "alt+k").cursor; got != 10 {
+		t.Errorf("up from a row conn only reports: cursor %d", got)
+	}
+	// From inside a tree, up is the head of the tree it is inside.
+	m.cursor = 13
+	if got := press(m, "alt+k").cursor; got != 12 {
+		t.Errorf("up from inside a tree: cursor %d", got)
+	}
+
+	// The ring carries the keys with it: the pane goes into the bay,
+	// which against no tmux is a reach that reaches nothing.
+	m.cursor = 10
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+j"})); cmd == nil {
+		t.Error("the ring moved the cursor without putting the pane in the bay")
+	}
+
+	// With nothing conn holds there is nowhere to go, which is every row
+	// outside conn's own server.
+	m.panes = nil
+	if got := press(m, "alt+j").cursor; got != 10 {
+		t.Errorf("with no panes the cursor moved to %d", got)
+	}
+}

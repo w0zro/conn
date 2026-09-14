@@ -107,6 +107,12 @@ func (s *scratch) readoutPidOf() string {
 	return ""
 }
 
+// bayPane is the id of whatever pane is in the bay.
+func (s *scratch) bayPane() string {
+	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".1", "#{pane_id}")
+	return strings.TrimSpace(out)
+}
+
 // bay is what the pane on the right shows.
 func (s *scratch) bay() string {
 	out, _ := s.srv.run("capture-pane", "-p", "-t", sessionName+":"+homeWindow+".1")
@@ -335,33 +341,54 @@ func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
 	}
 }
 
-// The chords open at the project the panel is looking at, from a pane
-// the panel is not in. Pressed from the bay, where the keys are while
-// work is being done, the prefix then s puts a shell at that project in
-// the bay, which is the whole point of a chord: what the panel can do
-// is reachable without first going to the panel.
-func TestAChordOpensAShellFromTheBay(t *testing.T) {
+// The key the prefix then s sends, which opens a shell at the project
+// the panel is looking at and puts it in the bay. The prefix half
+// cannot be driven here: send-keys writes to the pane and never
+// reaches tmux's key table, and a scratch server has no client
+// attached to press a prefix at. What the chord is bound to send is
+// held by the configuration; this is what happens when it lands.
+func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
-	// A shell first, so the keys are in the bay and the panel's cursor
-	// stands at the scratch project.
 	s.openShell()
 	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
-	before := s.projectRows()
+	first := s.bayPane()
 
-	// The prefix, then s, sent to the bay rather than to the panel.
-	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "C-Space"); err != nil {
-		t.Fatal(err)
+	s.keys("M-s")
+	s.until("a second shell in the bay, with the first parked", func() bool {
+		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
+	})
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
+		t.Errorf("the key changed the window's shape: %s panes, %s wide", n, w)
 	}
-	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "s"); err != nil {
-		t.Fatal(err)
-	}
-	s.until("a second shell opened by the chord", func() bool { return s.projectRows() > before })
-	if !s.shellIn("home.1") {
-		t.Errorf("the chord's shell is not in the bay: %s", s.panes())
+}
+
+// The key the prefix then j sends, which walks to the next process
+// conn holds and puts it in the bay. With two shells open and the
+// second in the bay, it brings the first back: the ring is the panes
+// there are, and from the last of them it comes round to the first.
+func TestTheRingKeyWalksToTheOtherHeldProcess(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.keys("Space")
+	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
+
+	s.openShell()
+	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
+	first := s.bayPane()
+
+	s.openShell()
+	s.until("a second shell, with the first parked", func() bool {
+		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
+	})
+
+	s.keys("M-j")
+	s.until("the other held shell to come round into the bay", func() bool { return s.bayPane() == first })
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
+		t.Errorf("the ring changed the window's shape: %s panes, %s wide", n, w)
 	}
 }
 

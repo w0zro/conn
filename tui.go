@@ -679,6 +679,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "alt+tab" {
 		return m.toWaiting()
 	}
+	// A shell, a contact, and the sessions suspended at the project the
+	// panel is looking at, each from anywhere in the server: what the
+	// prefix then s, then a, and then alt-a send. Each is a key of its
+	// own for the reason the three above are — in the list and in the
+	// sessions view a plain s or a is a letter being typed into the
+	// line — and ctrl+a is the key the list already opened a contact
+	// with, so it becomes the one key for it rather than a second one.
+	if k == "alt+s" || k == "ctrl+a" || k == "alt+a" {
+		return m.openAt(k)
+	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
@@ -750,10 +760,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m, m.startContact(pl.path)
 		}
-	case k == "alt+a":
-		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
-			return m.openSessions(pl.path, []string{pl.path})
-		}
 	case k == "i":
 		// i is the key for the page, and the key for the page is what a
 		// reader reaches for to be rid of it. Closing wants no row under the
@@ -814,18 +820,6 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 			mm, cmd := m.toProcesses()
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openShell(path))
-		}
-	case k == "ctrl+a":
-		if m.inside && m.pcursor < len(rows) {
-			path := rows[m.pcursor].path
-			mm, cmd := m.toProcesses()
-			m = mm.(model)
-			return m, tea.Batch(cmd, m.startContact(path))
-		}
-	case k == "alt+a":
-		if m.inside && m.pcursor < len(rows) {
-			row := rows[m.pcursor]
-			return m.openSessions(row.path, sessionDirs(m.walked, row))
 		}
 	case k == "up" || k == "ctrl+p":
 		m.pcursor = clamp(m.pcursor-1, len(rows))
@@ -948,6 +942,55 @@ func (m model) toProcesses() (tea.Model, tea.Cmd) {
 	m.view = viewProcesses
 	m.processesGen++
 	return m, m.readProcesses()
+}
+
+// atProject is the project the panel has under its eye and the
+// directories a session of its own could be filed under: the cursor's
+// project in the processes view, the row's in the list, where a group
+// answers for the repositories under it, and in the sessions view the
+// project those sessions are already about. The console is looking at
+// the machine and not at a project, and answers nothing.
+func (m model) atProject() (string, []string, bool) {
+	switch m.view {
+	case viewProcesses:
+		if _, pl, ok := m.under(); ok && pl.path != "" {
+			return pl.path, []string{pl.path}, true
+		}
+	case viewProjects:
+		if rows := m.projectRows(); m.pcursor < len(rows) {
+			row := rows[m.pcursor]
+			return row.path, sessionDirs(m.walked, row), true
+		}
+	case viewSessions:
+		if m.sessionsProject != "" {
+			return m.sessionsProject, m.sessionsDirs, true
+		}
+	}
+	return "", nil, false
+}
+
+// openAt opens a shell, a contact or the sessions view at whatever
+// project the panel is looking at. A shell and a contact show in the
+// processes view, so the panel comes back to it for them, the way the
+// list has always come back for what it opened; the sessions view is
+// somewhere to be and is gone to.
+func (m model) openAt(k string) (tea.Model, tea.Cmd) {
+	path, dirs, ok := m.atProject()
+	if !m.inside || !ok {
+		return m, nil
+	}
+	if k == "alt+a" {
+		return m.openSessions(path, dirs)
+	}
+	var cmds []tea.Cmd
+	if m.view != viewProcesses {
+		mm, cmd := m.toProcesses()
+		m, cmds = mm.(model), append(cmds, cmd)
+	}
+	if k == "ctrl+a" {
+		return m, tea.Batch(append(cmds, m.startContact(path))...)
+	}
+	return m, tea.Batch(append(cmds, m.openShell(path))...)
 }
 
 // openSessions opens the sessions view over a project's suspended

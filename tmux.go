@@ -579,9 +579,10 @@ var scheme = darkScheme
 func tmuxConf(prefix string) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
-# Five chords under the prefix: to the processes view, to the list, to the other
-# process, to the one that has waited longest, and to detach; tmux's own
-# are unbound.
+# Eight chords under the prefix: to the processes view, to the list, to the
+# other process, to the one that has waited longest, to a shell, to a contact
+# and to the sessions at the project the panel is looking at, and to detach;
+# tmux's own are unbound.
 set -g prefix ` + prefix + `
 set -g prefix2 None
 unbind -a -T prefix
@@ -589,6 +590,9 @@ bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0
 bind p select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-p
 bind ` + prefix + ` select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-o
 bind Tab select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-Tab
+bind s select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-s
+bind a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 C-a
+bind M-a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-a
 bind q detach-client
 set -g mouse on
 # The panel's width is conn's to hold; a drag of the border would only be

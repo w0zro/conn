@@ -836,3 +836,71 @@ func TestAltPOpensTheListFromAnywhere(t *testing.T) {
 		t.Errorf("alt+p fired under an armed kill: view %d", got.view)
 	}
 }
+
+// A shell, a contact and the sessions at the project the panel is
+// looking at, each reachable from anywhere in the server. They are the
+// keys the prefix then s, then a and then alt-a send, and each has to
+// mean the one thing in every view the panel can be in, since in the
+// list and in the sessions view a plain s or a is a letter being typed.
+func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
+	panel := func(view int) model {
+		m := newModel(plain)
+		m.inside, m.view = true, view
+		m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
+		m.cursor = 11
+		m.walked = []projectRow{{path: "/w/repo", name: "repo"}}
+		m.sessionsProject, m.sessionsDirs = "/w/had", []string{"/w/had"}
+		return m
+	}
+	press := func(m model, k string) (model, tea.Cmd) {
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		return next.(model), cmd
+	}
+
+	// The processes view answers with the cursor's project, and stays
+	// where it is: the shell it opens shows in the view it is already on.
+	m, cmd := press(panel(viewProcesses), "alt+s")
+	if m.view != viewProcesses || cmd == nil {
+		t.Errorf("a shell from the processes view: view %d, cmd %v", m.view, cmd != nil)
+	}
+	if m, cmd = press(panel(viewProcesses), "ctrl+a"); m.view != viewProcesses || cmd == nil {
+		t.Errorf("a contact from the processes view: view %d, cmd %v", m.view, cmd != nil)
+	}
+
+	// The list answers with the row under its cursor and comes back to
+	// the processes view, which is where what it opened will show.
+	if m, cmd = press(panel(viewProjects), "alt+s"); m.view != viewProcesses || cmd == nil {
+		t.Errorf("a shell from the list: view %d, cmd %v", m.view, cmd != nil)
+	}
+	if m, cmd = press(panel(viewProjects), "ctrl+a"); m.view != viewProcesses || cmd == nil {
+		t.Errorf("a contact from the list: view %d, cmd %v", m.view, cmd != nil)
+	}
+
+	// The sessions view answers with the project those sessions are
+	// already about, so a shell can be opened beside what is being read.
+	if m, cmd = press(panel(viewSessions), "alt+s"); m.view != viewProcesses || cmd == nil {
+		t.Errorf("a shell from the sessions view: view %d, cmd %v", m.view, cmd != nil)
+	}
+
+	// alt+a goes to the sessions view rather than coming back, since it
+	// is somewhere to be and not something to open.
+	if m, _ = press(panel(viewProcesses), "alt+a"); m.view != viewSessions || m.sessionsProject != "/w" {
+		t.Errorf("sessions from the processes view: view %d, at %q", m.view, m.sessionsProject)
+	}
+	if m, _ = press(panel(viewProjects), "alt+a"); m.view != viewSessions || m.sessionsProject != "/w/repo" {
+		t.Errorf("sessions from the list: view %d, at %q", m.view, m.sessionsProject)
+	}
+
+	// The console is looking at the machine and not at a project, and
+	// the keys have nothing to open. A plain s or a is still a letter
+	// wherever a letter is being typed.
+	if m, cmd = press(panel(viewConsole), "alt+s"); cmd != nil {
+		t.Error("a shell was opened from the console")
+	}
+	if m, _ = press(panel(viewProjects), "a"); m.filter != "a" {
+		t.Errorf("a plain a stopped being a letter in the list: filter %q", m.filter)
+	}
+	if m, _ = press(panel(viewProjects), "s"); m.filter != "s" {
+		t.Errorf("a plain s stopped being a letter in the list: filter %q", m.filter)
+	}
+}

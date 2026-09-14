@@ -335,6 +335,36 @@ func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
 	}
 }
 
+// The chords open at the project the panel is looking at, from a pane
+// the panel is not in. Pressed from the bay, where the keys are while
+// work is being done, the prefix then s puts a shell at that project in
+// the bay, which is the whole point of a chord: what the panel can do
+// is reachable without first going to the panel.
+func TestAChordOpensAShellFromTheBay(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.keys("Space")
+	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
+
+	// A shell first, so the keys are in the bay and the panel's cursor
+	// stands at the scratch project.
+	s.openShell()
+	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
+	before := s.projectRows()
+
+	// The prefix, then s, sent to the bay rather than to the panel.
+	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "C-Space"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "s"); err != nil {
+		t.Fatal(err)
+	}
+	s.until("a second shell opened by the chord", func() bool { return s.projectRows() > before })
+	if !s.shellIn("home.1") {
+		t.Errorf("the chord's shell is not in the bay: %s", s.panes())
+	}
+}
+
 func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })

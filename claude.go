@@ -122,6 +122,11 @@ func resumeCommand(socket, id string) string { return contactCommand(socket) + "
 // Waiting is stopped on something put to its user and unable to go on
 // without it. Idle is a turn that is over, asking nothing and holding
 // nothing up.
+// interactiveSession is what Claude Code calls a session somebody is
+// working in, as against one running behind another. It is the ordinary
+// case and the readout says nothing of it.
+const interactiveSession = "interactive"
+
 const (
 	busyStatus    = "busy"
 	shellStatus   = "shell"

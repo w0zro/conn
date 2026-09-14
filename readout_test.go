@@ -91,7 +91,7 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 		"the commit":               "263cf91",
 		"what it is tracking":      "ORIGIN/MAIN · 142 AHEAD",
 		"what runs it":             "SHELL zsh · 49200",
-		"what it runs":             "RUN caffeinate -i -t 300 · ACTIVE",
+		"what it runs":             "RUN caffeinate · 49300 · ACTIVE",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%s (%q) is not on the page:\n%s", what, want, text)
@@ -429,5 +429,57 @@ func TestIClosesOntoTheProcessItCanReach(t *testing.T) {
 	m.cursor, m.cursorAt = 49213, 1
 	if got := press(); got != (readoutMsg{on: false}) {
 		t.Errorf("i on a page about a row conn cannot reach answered %+v", got)
+	}
+}
+
+// The page is about one row, and says of that row what the processes
+// view has no room for. What it does not say is everything conn
+// already knows it put there itself, everything a neighbouring row
+// would say on its own page, and anything the page has said once.
+func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
+	s := readoutSubj()
+	// A contact conn raised carries the note conn appends to it: a
+	// thousand characters of conn's own prose, with newlines through
+	// it. The processes view has always dropped it and so does this.
+	s.entry.typed = s.entry.command
+	s.entry.command = "claude --append-system-prompt " + insideNote("/tmp/sock") + " --resume d81d7536-e545-4881-8daa-f1d291a03be1"
+	// A shell a contact runs carries the environment snapshot it was
+	// started with, which is a screen of somebody else's quoting.
+	s.children = append(s.children, entry{pid: 49301, kind: kindShell, tty: "ttys003",
+		command: "zsh -c source /Users/w0zro/.claude/shell-snapshots/snapshot-zsh-1789.sh 2>/dev/null || true && eval 'go build'",
+		status:  statusActive, depth: 2})
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
+
+	for what, gone := range map[string]string{
+		"the note conn appended":      "running inside conn",
+		"a child's whole line":        "shell-snapshots",
+		"the session, said twice":     "SESSION ...",
+		"the branch the project says": "BRANCH .... MAIN\n",
+		"the ordinary kind":           "RUNNING ... INTERACTIVE",
+	} {
+		if strings.Contains(text, gone) {
+			t.Errorf("%s (%q) is on the page:\n%s", what, gone, text)
+		}
+	}
+	// What is left of each is the part somebody would act on.
+	for what, want := range map[string]string{
+		"the command as typed": "COMMAND ... claude --resume d81d7536-e545-4881-8daa-f1d291a03be1",
+		"the child by program": "SHELL zsh · 49301 · ACTIVE",
+		"the session, once":    "d81d7536-e545-4881-8daa-f1d291a03be1",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("%s (%q) is not on the page:\n%s", what, want, text)
+		}
+	}
+	if n := strings.Count(text, "d81d7536-e545-4881-8daa-f1d291a03be1"); n != 1 {
+		t.Errorf("the session id is on the page %d times:\n%s", n, text)
+	}
+
+	// A session running behind another is not the ordinary case and is
+	// worth its line; so is a branch the project has since left.
+	s.sess.Kind, s.carried.Branch = "bg-spare", "topic/resume"
+	text = texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
+	if !strings.Contains(text, "RUNNING ... BG-SPARE") || !strings.Contains(text, "BRANCH .... TOPIC/RESUME") {
+		t.Errorf("what is not ordinary went unsaid:\n%s", text)
 	}
 }

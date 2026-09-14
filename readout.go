@@ -88,7 +88,12 @@ func (g *readoutGroup) add(label, value string) {
 // conn's vocabulary — a command, a prompt, a commit's subject — which
 // is kept in the case it was written in.
 func (g *readoutGroup) addAsWritten(label, value string) {
-	if value != "" {
+	// The page folds its own lines to the pane's width. A value that
+	// came with newlines of its own — a command with a here-document in
+	// it, a prompt somebody wrote over three lines — would otherwise
+	// start those lines at column nothing, under the leaders rather
+	// than beside them.
+	if value = flatten(value); value != "" {
 		g.facts = append(g.facts, fact{label: label, value: value, verbatim: true})
 	}
 }
@@ -128,8 +133,15 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 
 	what := readoutGroup{title: "WHAT"}
 	what.add("kind", e.kind)
-	what.addAsWritten("command", e.command)
-	what.add("pid", strconv.Itoa(e.pid))
+	// The command as it was written, which is a thing somebody might
+	// retype — and so without the note conn appends when it raises a
+	// contact. That note is a thousand characters of conn's own prose
+	// with newlines through it, and printing it here was conn showing
+	// the operator the noise conn made, at length, above everything the
+	// page is actually for. The processes view has always dropped it.
+	what.addAsWritten("command", e.asTyped())
+	// The pid is on the header, an inch above this, and is not said
+	// again here.
 	// How it stands, and how long it has stood that way. Only a contact
 	// says the moment; a stopped or ended process gets no clause at all,
 	// since the moment conn holds for it is when a contact last changed
@@ -176,11 +188,28 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// asked — the two things that say which of several claudes this one
 	// is, where the command line only says that it is one.
 	contact := readoutGroup{title: "CONTACT"}
-	contact.add("session", s.sess.SessionID)
+	// A resumed contact names its session on its own command line, an
+	// inch above, and this would be the second place to read one id.
+	if !strings.Contains(e.asTyped(), s.sess.SessionID) {
+		contact.add("session", s.sess.SessionID)
+	}
 	contact.add("name", s.sess.Name)
 	contact.add("version", s.sess.Version)
-	contact.add("running", s.sess.Kind)
-	contact.add("branch", s.carried.Branch)
+	// What sort of session it is, said only when it is not somebody's
+	// own. Every contact conn can put you in front of is interactive,
+	// so a row saying so on every one of them is a row nobody reads;
+	// one running behind another session is worth the line, and is the
+	// answer to a claude in the list nobody remembers starting.
+	if s.sess.Kind != interactiveSession {
+		contact.add("running", s.sess.Kind)
+	}
+	// The branch the session recorded, where that is not the branch the
+	// project is on now. The same word under two titles reads as two
+	// facts; a contact working a branch the project has since left is
+	// the case worth a line of its own.
+	if !strings.EqualFold(s.carried.Branch, s.git.branch) {
+		contact.add("branch", s.carried.Branch)
+	}
 	contact.addAsWritten("last ask", s.carried.Prompt)
 	b.groups = append(b.groups, contact)
 
@@ -223,9 +252,15 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// What stands around it. The processes view draws the tree already,
 	// but it draws it indented across a whole project; here it is the one
 	// row's own line of descent, said plainly.
+	// A relative is named by what it is and what program it is, and not
+	// by its whole command line. A shell a contact runs carries the
+	// environment snapshot it was started with, which is a screen of
+	// somebody else's shell quoting, and four of them buried the page
+	// that was meant to be about this row. The whole line of any of
+	// them is on that row's own page, an i away.
 	tree := readoutGroup{title: "TREE"}
 	if s.parent.pid != 0 {
-		tree.addAsWritten("parent", s.parent.kind+" "+s.parent.command+" · "+strconv.Itoa(s.parent.pid))
+		tree.addAsWritten("parent", s.parent.kind+" "+program(s.parent.asTyped())+" · "+strconv.Itoa(s.parent.pid))
 	}
 	for i, k := range s.children {
 		label := "runs"
@@ -234,7 +269,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		}
 		tree.facts = append(tree.facts, fact{
 			label:    label,
-			value:    k.kind + " " + k.command + " · " + k.status,
+			value:    k.kind + " " + program(k.asTyped()) + " · " + strconv.Itoa(k.pid) + " · " + k.status,
 			verbatim: true,
 		})
 	}

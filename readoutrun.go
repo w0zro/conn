@@ -230,7 +230,8 @@ func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
 	}
 	t.procs = procs
 	home, _ := os.UserHomeDir()
-	isProject := projectDirs(projectRoots(home))
+	roots, _ := projectRoots(home)
+	isProject := projectDirs(roots)
 	t.projects = projectsFrom(procs, uid, rootFinder(isProject), isProject, contactStatuses(procs))
 	t.readAt = time.Now()
 	t.stood = sinceSeen(t.projects, held.stood, held.readAt, t.readAt)

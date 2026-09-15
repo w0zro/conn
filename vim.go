@@ -342,14 +342,6 @@ func writeVimColorscheme(home string) (string, error) {
 	return path, os.WriteFile(path, []byte(vimColorscheme()), 0o644)
 }
 
-// configHome is where configuration goes: XDG_CONFIG_HOME, or ~/.config.
-func configHome(home string) string {
-	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
-		return dir
-	}
-	return filepath.Join(home, ".config")
-}
-
 // dressVim writes the colorscheme and says how nvim is to reach for it,
 // which is nvim's own business and the user's: conn writes the colors.
 func dressVim(home string) (string, bool) {

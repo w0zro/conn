@@ -50,19 +50,52 @@ func (p projectRow) words() string {
 	return p.name
 }
 
-// roots are the directories conn looks for projects under: CONN_ROOTS,
-// a list in the path list separator's spelling, or ~/projects. A root
-// that is not on this machine is still a root; the walk decides whether
-// it is there, not the environment.
-func projectRoots(home string) []string {
-	list := os.Getenv("CONN_ROOTS")
-	if list == "" {
-		return []string{filepath.Join(home, "projects")}
+// roots are the directories conn looks for projects under, in the order
+// conn asks for them: CONN_ROOTS, a list in the path list separator's
+// spelling; then the roots the config file names; then ~/projects. The
+// environment is asked first because it is the nearer word — a conn
+// started for one job, ahead of the file that says what is usually
+// meant. A root that is not on this machine is still a root; the walk
+// decides whether it is there, not the environment.
+//
+// A config file that will not parse is an error, and the error is
+// answered with the roots conn would have had without it: the operator
+// hears about the file, and conn is still a working conn meanwhile.
+func projectRoots(home string) ([]string, error) {
+	if out := splitRoots(os.Getenv("CONN_ROOTS"), home); len(out) > 0 {
+		return out, nil
 	}
+	c, err := readConfig(home)
+	if err != nil {
+		return defaultRoots(home), err
+	}
+	if out := cleanRoots(c.Roots, home); len(out) > 0 {
+		return out, nil
+	}
+	return defaultRoots(home), nil
+}
+
+// defaultRoots is where conn looks when nothing says otherwise.
+func defaultRoots(home string) []string {
+	return []string{filepath.Join(home, "projects")}
+}
+
+// splitRoots is a list of roots as the environment writes one, in the
+// path list separator's spelling.
+func splitRoots(list, home string) []string {
+	if list == "" {
+		return nil
+	}
+	return cleanRoots(filepath.SplitList(list), home)
+}
+
+// cleanRoots is the roots as conn will walk them: the blanks dropped,
+// and a leading ~ made the home it stands for.
+func cleanRoots(roots []string, home string) []string {
 	var out []string
-	for _, d := range filepath.SplitList(list) {
+	for _, d := range roots {
 		if d = strings.TrimSpace(d); d != "" {
-			out = append(out, d)
+			out = append(out, expandHome(d, home))
 		}
 	}
 	return out

@@ -80,10 +80,16 @@ func (m model) startContact(dir string) tea.Cmd {
 }
 
 // scanProjects walks the roots off the loop; what it found, or why it
-// could not, comes back as a message.
+// could not, comes back as a message. A config file that will not parse
+// is said instead of the walk, and ahead of it: the roots being walked
+// are then not the ones the operator asked for, and that is the first
+// thing to know.
 func (m model) scanProjects() tea.Cmd {
-	roots := projectRoots(m.head.login.home)
+	roots, cfgErr := projectRoots(m.head.login.home)
 	return func() tea.Msg {
+		if cfgErr != nil {
+			return projectsMsg{err: "THE CONFIG COULD NOT BE READ: " + cfgErr.Error()}
+		}
 		ps, err := findProjects(roots)
 		if err != nil {
 			return projectsMsg{err: "THE ROOTS COULD NOT BE WALKED: " + err.Error()}

@@ -108,16 +108,28 @@ func TestRootsThatBothOfferANameSayWhichIsWhich(t *testing.T) {
 }
 
 // The roots come from the environment, and are ~/projects when it says
-// nothing.
+// nothing and there is no file to say otherwise.
 func TestTheRootsComeFromTheEnvironment(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // no config file of the machine's own
 	t.Setenv("CONN_ROOTS", "")
-	if got := projectRoots("/Users/w0zro"); len(got) != 1 || got[0] != "/Users/w0zro/projects" {
+	if got := roots(t, "/Users/w0zro"); len(got) != 1 || got[0] != "/Users/w0zro/projects" {
 		t.Errorf("the roots are %q", got)
 	}
 	t.Setenv("CONN_ROOTS", "/work"+string(filepath.ListSeparator)+"/Users/w0zro/projects")
-	if got := projectRoots("/Users/w0zro"); len(got) != 2 || got[0] != "/work" || got[1] != "/Users/w0zro/projects" {
+	if got := roots(t, "/Users/w0zro"); len(got) != 2 || got[0] != "/work" || got[1] != "/Users/w0zro/projects" {
 		t.Errorf("the roots are %q", got)
 	}
+}
+
+// roots is the roots for a home that was meant to be read without
+// trouble; a test that is about the trouble asks projectRoots itself.
+func roots(t *testing.T, home string) []string {
+	t.Helper()
+	out, err := projectRoots(home)
+	if err != nil {
+		t.Fatalf("the roots could not be read: %v", err)
+	}
+	return out
 }
 
 // real is a directory as the walk answers it, symlinks resolved: on

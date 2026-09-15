@@ -251,7 +251,11 @@ type model struct {
 
 func newModel(p palette) model {
 	home, _ := os.UserHomeDir()
-	roots := realRoots(projectRoots(home))
+	// A config that will not parse is the view's to report, not the
+	// model's to come up on: newModel takes the roots it is left with
+	// and the first scan says what is wrong with the file.
+	configured, _ := projectRoots(home)
+	roots := realRoots(configured)
 	isProject := projectDirs(roots)
 	return model{
 		lit:     true,
@@ -297,7 +301,8 @@ func (m model) listRows() []projectRow {
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	return composeProjects(m.listRows(), m.filter, projectRoots(m.head.login.home), m.head.login.home, m.scanning, m.projectsErr)
+	roots, _ := projectRoots(m.head.login.home)
+	return composeProjects(m.listRows(), m.filter, roots, m.head.login.home, m.scanning, m.projectsErr)
 }
 
 func (m model) projectRows() []projectRow {

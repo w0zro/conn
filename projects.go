@@ -19,13 +19,35 @@ import (
 // its own, since that is the level the work is often about. A folder of
 // one stays flat, so nothing grows a header per repository.
 
-// A project is a project work could happen: a repository under one of
-// the roots, or the folder that groups two or more of them.
+// A row of the list. Most are projects: a repository under one of the
+// roots, or the folder that groups two or more of them. A row with a
+// pid is not a project but a process running in the one above it, and
+// carries that project's path as well, so every key that acts on the
+// project the panel is looking at reaches the same place from either
+// row.
 type projectRow struct {
 	name    string // what the list calls it: enough of the path to tell it apart
 	path    string
 	grouped bool // a repository under a group, listed beneath it
 	repos   int  // a group's repositories; none for a repository
+	// A process listed under its project: the terminal the row is
+	// reached by, what kind of thing it is, what it is doing, and
+	// whether it is waiting on the operator.
+	pid     int
+	tty     string
+	kind    string
+	doing   string
+	waiting bool
+	nest    int // how many steps in from the margin the row is drawn
+}
+
+// words are what a row answers a filter with: a project by its name,
+// and a process by what it is and what it is doing.
+func (p projectRow) words() string {
+	if p.pid != 0 {
+		return p.kind + " " + p.doing
+	}
+	return p.name
 }
 
 // roots are the directories conn looks for projects under: CONN_ROOTS,
@@ -284,19 +306,86 @@ func relName(root, path string) string {
 	return filepath.ToSlash(rel)
 }
 
+// withProcesses puts the processes running in each project under it, so
+// that the list is the machine and not only the disk: every project
+// work could happen in, and in each of them the work happening now.
+//
+// Only the processes conn holds a live pane for. The list is how you
+// get to a process, and one conn can only report has nowhere to go —
+// on a machine with forty of them, rows that do nothing are most of the
+// length. The processes view is still the census.
+//
+// Work happening where the walk found no project — a shell in a
+// directory under no root, which is most of what an operator has open
+// besides their checkouts — would otherwise be the one thing this mode
+// could not reach. It gets a heading of its own, named the way the
+// processes view names it, at the foot of the list: it is not a project
+// and has no place in the order the walk put the projects in.
+func withProcesses(ps []projectRow, projects []project, panes map[string]pane, roots []string, home string) []projectRow {
+	under := map[string][]projectRow{}
+	for _, pl := range projects {
+		for _, e := range pl.entries {
+			if !reachable(panes[e.tty]) {
+				continue
+			}
+			under[pl.path] = append(under[pl.path], projectRow{
+				path: pl.path, pid: e.pid, tty: e.tty, kind: e.kind,
+				doing: activityOf(e), waiting: e.status == statusWaiting,
+			})
+		}
+	}
+	out := make([]projectRow, 0, len(ps))
+	listed := map[string]bool{}
+	for _, p := range ps {
+		out = append(out, p)
+		listed[p.path] = true
+		nest := 1
+		if p.grouped {
+			nest = 2
+		}
+		for _, r := range under[p.path] {
+			r.nest = nest
+			out = append(out, r)
+		}
+	}
+	var elsewhere []projectRow
+	for _, pl := range projects {
+		if listed[pl.path] || len(under[pl.path]) == 0 {
+			continue
+		}
+		name := projectName(pl.path, roots, home)
+		if name == "" {
+			name = "NO PROJECT"
+		}
+		elsewhere = append(elsewhere, projectRow{name: name, path: pl.path})
+	}
+	slices.SortFunc(elsewhere, byName)
+	for _, p := range elsewhere {
+		out = append(out, p)
+		for _, r := range under[p.path] {
+			r.nest = 1
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // The list is the projects as a page: a line to type into, and under it
-// every project, each group with its repositories beneath it. What is
-// typed narrows the rows — a project answers by its own name and by the
-// name of the folder that groups it, which is where the work is often
-// called by — and the cursor is on one row, which enter opens a shell
-// at. The list is drawn on the same measure as the processes view, in
-// the panel beside the bay.
+// every project, each group with its repositories beneath it and the
+// processes running in each beneath that. What is typed narrows the
+// rows — a project answers by its own name and by the name of the
+// folder that groups it, which is where the work is often called by,
+// and a process by what it is and what it is doing — and the cursor is
+// on one row, which enter opens a shell at, or goes into where the row
+// is a process. The list is drawn on the same measure as the processes
+// view, in the panel beside the bay.
 
 // The list's words as things stand.
 type projectsReport struct {
 	filter   string
-	rows     []projectRow // the projects the filter left, in the order they draw
-	total    int          // how many there are before it
+	rows     []projectRow // the rows the filter left, in the order they draw
+	total    int          // the projects there are before it
+	left     int          // the projects among the rows it left
 	roots    []string     // where conn looked, from ~, for when it found nothing
 	scanning bool
 	err      string
@@ -304,50 +393,115 @@ type projectsReport struct {
 
 // composeProjects words the list: the filter's rows out of the whole,
 // and the count of both.
+//
+// The count is of projects and not of rows. The mode is the projects;
+// the processes are what hangs under them, the way they do in the
+// processes view, and a number that grew every time a shell was opened
+// would be answering a question nobody asked of this header.
 func composeProjects(ps []projectRow, filter string, roots []string, home string, scanning bool, err string) projectsReport {
-	b := projectsReport{filter: filter, rows: matching(ps, filter), total: len(ps), scanning: scanning, err: err}
+	rows := matching(ps, filter)
+	b := projectsReport{filter: filter, rows: rows, total: countProjects(ps), left: countProjects(rows), scanning: scanning, err: err}
 	for _, root := range roots {
 		b.roots = append(b.roots, tilde(root, home))
 	}
 	return b
 }
 
-// matching is the projects a filter leaves. A repository answers by its
-// own name and by its group's, since a group is what a piece of work is
-// often called by; a group answers by its name and by its
-// repositories', and carries down the ones that answered. A group's
-// count is what is under it, so the number says what is drawn.
+// matching is what a filter leaves of the list. Nothing is ever listed
+// without the project it is in above it, and a row that answers carries
+// down everything under it: a group is what a piece of work is often
+// called by, and asking for it is asking for its repositories and for
+// what is running in them. A group's count is what is under it, so the
+// number says what is drawn.
 func matching(ps []projectRow, filter string) []projectRow {
 	f := strings.ToLower(strings.TrimSpace(filter))
 	if f == "" {
 		return ps
 	}
-	hit := func(p projectRow) bool { return strings.Contains(strings.ToLower(p.name), f) }
 	var out []projectRow
+	for _, u := range units(ps) {
+		out = append(out, leftOf(u, f)...)
+	}
+	return out
+}
+
+// units slices the list into what belongs together: each row at the
+// margin — a project that stands alone, or a group — with everything
+// listed under it.
+func units(ps []projectRow) [][]projectRow {
+	var out [][]projectRow
 	for i := 0; i < len(ps); {
-		p := ps[i]
-		if p.repos == 0 {
-			if hit(p) {
-				out = append(out, p)
+		j := i + 1
+		for ; j < len(ps) && (ps[j].grouped || ps[j].pid != 0); j++ {
+		}
+		out = append(out, ps[i:j])
+		i = j
+	}
+	return out
+}
+
+// leftOf is what a filter leaves of one unit: the whole of it where the
+// row at the margin answers, and otherwise that row over whatever under
+// it answered — each repository in turn on the same terms, so a
+// process brings its repository up with it and a repository brings its
+// processes down.
+func leftOf(u []projectRow, f string) []projectRow {
+	hit := func(p projectRow) bool { return strings.Contains(strings.ToLower(p.words()), f) }
+	head := u[0]
+	if hit(head) {
+		return u
+	}
+	var kept []projectRow
+	for i := 1; i < len(u); {
+		if u[i].pid != 0 { // a process of the row at the margin's own
+			if hit(u[i]) {
+				kept = append(kept, u[i])
 			}
 			i++
 			continue
 		}
-		var kids []projectRow
-		j := i + 1
-		for ; j < len(ps) && ps[j].grouped; j++ {
-			if hit(p) || hit(ps[j]) {
-				kids = append(kids, ps[j])
-			}
+		j := i + 1 // a repository and the processes under it
+		for ; j < len(u) && u[j].pid != 0; j++ {
 		}
-		if len(kids) > 0 {
-			p.repos = len(kids)
-			out = append(out, p)
-			out = append(out, kids...)
+		switch sub := u[i:j]; {
+		case hit(sub[0]):
+			kept = append(kept, sub...)
+		default:
+			var procs []projectRow
+			for _, r := range sub[1:] {
+				if hit(r) {
+					procs = append(procs, r)
+				}
+			}
+			if len(procs) > 0 {
+				kept = append(kept, sub[0])
+				kept = append(kept, procs...)
+			}
 		}
 		i = j
 	}
-	return out
+	if len(kept) == 0 {
+		return nil
+	}
+	head.repos = 0
+	for _, r := range kept {
+		if r.grouped {
+			head.repos++
+		}
+	}
+	return append([]projectRow{head}, kept...)
+}
+
+// countProjects is how many of the rows are projects rather than the
+// processes running in them.
+func countProjects(rows []projectRow) int {
+	n := 0
+	for _, r := range rows {
+		if r.pid == 0 {
+			n++
+		}
+	}
+	return n
 }
 
 // sessionDirs is the directories a project's sessions could be filed
@@ -394,7 +548,7 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	case b.scanning && b.total == 0:
 		right = "" // nothing has been found yet, and none is not a count
 	case b.filter != "":
-		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
+		right = strconv.Itoa(b.left) + " OF " + strconv.Itoa(b.total)
 	}
 	l.to(measure - utf8.RuneCountInString(right))
 	l.add(p.gray, right)
@@ -448,6 +602,28 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 			// project is in the processes view; a repository that stands alone
 			// is a row at the margin like any other.
 			switch {
+			case pr.pid != 0:
+				// A process under its project, in the columns the processes
+				// view puts it in. WAITING is stamped where a group's count
+				// goes: it is the one thing that would have you come to this
+				// list to get somewhere rather than to start something, and
+				// the block is what conn stamps everywhere else it means you.
+				// It does not blink here — the blink is the station saying so
+				// while you are looking elsewhere, and in the list you are
+				// looking for it.
+				in := pr.nest * nestW
+				doingW := measure - in - kindW
+				if pr.waiting {
+					doingW -= len(statusWaiting) + 3
+				}
+				l.to(in)
+				l.add(p.gray, fit(pr.kind, kindW-1, false))
+				l.to(in + kindW)
+				l.add(p.ink, fit(pr.doing, doingW, false))
+				if pr.waiting {
+					l.to(measure - len(statusWaiting) - 2)
+					l.add(p.chip, " "+statusWaiting+" ")
+				}
 			case pr.repos > 0:
 				count := strconv.Itoa(pr.repos) + " REPO"
 				if pr.repos != 1 {

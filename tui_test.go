@@ -1073,3 +1073,98 @@ func TestTheMotionsReachTheEndsAndTheMiddle(t *testing.T) {
 		t.Errorf("with nothing running: cursor %d", m.cursor)
 	}
 }
+
+// The list holds the processes running in each project, so enter on one
+// of those rows goes into it — its pane in the bay and the keys in it,
+// the way enter does on the row in the processes view — where enter on
+// a project row starts a shell there. That is what makes p and the
+// prefix and p the way to a process on a machine with more of them than
+// there are rows to draw.
+func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	rows := m.projectRows()
+
+	at := func(pid int) int {
+		for i, r := range rows {
+			if r.pid == pid {
+				return i
+			}
+		}
+		t.Fatalf("no row for %d in %v", pid, rowNames(rows))
+		return 0
+	}
+	// The contact waiting in conn: the view goes back to the processes
+	// view, which is where a pane in the bay shows, and the pane is
+	// reached rather than a shell being opened.
+	m.pcursor = at(11)
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	got := next.(model)
+	if got.view != viewProcesses || cmd == nil {
+		t.Fatalf("on a process row: view %d, cmd %v", got.view, cmd != nil)
+	}
+	// Against no tmux the reach reaches nothing, and nothing else was
+	// started in its place.
+	if _, ok := answered(cmd).(openedMsg); ok {
+		t.Error("enter on a process row opened a shell instead of going into it")
+	}
+
+	// The shell conn holds no pane for is not a row at all, so there is
+	// no way to press enter on one.
+	for _, r := range rows {
+		if r.pid == 44 {
+			t.Error("the list holds a process conn cannot reach")
+		}
+	}
+
+	// The heading for work off every project is still a directory, and
+	// enter starts a shell there like any other row. Only work conn could
+	// not place at all is a heading and not a place, and enter on it
+	// opens nothing.
+	m.pcursor = at(55) - 1
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if got = next.(model); got.view != viewProcesses {
+		t.Errorf("on ~/Downloads the panel stayed at view %d", got.view)
+	}
+	m.projects = []project{{entries: []entry{{pid: 66, kind: "SHELL", command: "zsh", tty: "ttys006"}}}}
+	m.panes = map[string]pane{"ttys006": {id: "%6", tty: "ttys006"}}
+	m.view, m.pcursor = viewProjects, len(m.projectRows())-2 // the NO PROJECT heading
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if got = next.(model); got.view != viewProjects || answered(cmd) != nil {
+		t.Errorf("on NO PROJECT: view %d, %T", got.view, answered(cmd))
+	}
+}
+
+// The list is read for as long as it is up, so its cursor cannot be an
+// index alone: it holds the row it was on — a process by its pid, a
+// project by its path — as processes come and go under it.
+func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
+	m.pcursor = 0
+	for i, r := range m.projectRows() {
+		if r.pid == 22 { // the shell in conn, below the contact waiting there
+			m.pcursor = i
+		}
+	}
+	was := m.pcursor
+
+	// The contact above it ends, and every row below moves up one.
+	thinner := append([]project{{path: testRunning[0].path, entries: testRunning[0].entries[1:]}}, testRunning[1:]...)
+	next, _ := m.Update(processesMsg{gen: m.processesGen, projects: thinner, panes: testPanes})
+	m = next.(model)
+	if m.pcursor != was-1 {
+		t.Fatalf("the cursor is on row %d, want %d", m.pcursor, was-1)
+	}
+	if row, ok := m.atCursor(); !ok || row.pid != 22 {
+		t.Errorf("the cursor stands on %+v, not the shell it was on", row)
+	}
+
+	// And the process it was on ending leaves it where that row was.
+	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: nil, panes: nil})
+	m = next.(model)
+	if row, ok := m.atCursor(); !ok || row.name != "conn" {
+		t.Errorf("with the process gone the cursor stands on %+v", row)
+	}
+}

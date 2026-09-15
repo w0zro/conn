@@ -240,3 +240,142 @@ func TestAListThatWillNotFitScrolls(t *testing.T) {
 		t.Errorf("at 48x10 with the cursor on the last row:\n%s", text)
 	}
 }
+
+// testRunning is the machine as a reading would give it against
+// testProjects: work in one of a group's repositories, work in a
+// project that stands alone, a process conn holds no pane for, and a
+// shell where the walk found no project at all.
+var testRunning = []project{
+	{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
+		{pid: 11, kind: "CONTACT", command: "claude", doing: "READ tui.go", tty: "ttys001", status: statusWaiting},
+		{pid: 22, kind: "SHELL", command: "zsh", tty: "ttys002", status: statusIdle},
+	}},
+	{path: "/Users/w0zro/projects/compose-demo", entries: []entry{
+		{pid: 33, kind: "COMMAND", command: "docker compose up", tty: "ttys003", status: statusWorking},
+		{pid: 44, kind: "SHELL", command: "zsh", tty: "ttys004", status: statusIdle},
+	}},
+	{path: "/Users/w0zro/Downloads", entries: []entry{
+		{pid: 55, kind: "SHELL", command: "zsh", tty: "ttys005", status: statusIdle},
+	}},
+}
+
+// testPanes holds every terminal of testRunning but ttys004, which is
+// the process conn can only report.
+var testPanes = map[string]pane{
+	"ttys001": {id: "%1", tty: "ttys001"},
+	"ttys002": {id: "%2", tty: "ttys002"},
+	"ttys003": {id: "%3", tty: "ttys003"},
+	"ttys005": {id: "%5", tty: "ttys005"},
+}
+
+func testLive() []projectRow {
+	return withProcesses(testProjects, testRunning, testPanes, []string{"/Users/w0zro/projects"}, "/Users/w0zro")
+}
+
+// rowNames is what the list reads down its rows, a group's
+// repositories and the processes under a project marked by their nest.
+func rowNames(ps []projectRow) []string {
+	out := make([]string, 0, len(ps))
+	for _, p := range ps {
+		switch {
+		case p.pid != 0:
+			out = append(out, strings.Repeat("  ", p.nest)+p.kind+" "+p.doing)
+		case p.repos > 0:
+			out = append(out, p.name+"/")
+		case p.grouped:
+			out = append(out, "  "+p.name)
+		default:
+			out = append(out, p.name)
+		}
+	}
+	return out
+}
+
+// The list is the machine and not only the disk: every project work
+// could happen in, and under each of them the processes conn holds a
+// pane for. A process it can only report is not a row — there is
+// nowhere for the list to go with it — and work happening where the
+// walk found no project gets a heading of its own at the foot, so the
+// mode that reaches everything has no hole in it.
+func TestTheListHoldsWhatIsRunningInEachProject(t *testing.T) {
+	want := []string{
+		"arboreum.io/", "  content", "  welcome",
+		"compose-demo", "  COMMAND docker compose up",
+		"experiments/one-off", "work/api",
+		"w0zro/", "  conn", "    CONTACT READ tui.go", "    SHELL zsh",
+		"  quickfix-pro", "  vim.pro",
+		"~/Downloads", "  SHELL zsh",
+	}
+	if got := rowNames(testLive()); !equal(got, want) {
+		t.Errorf("the list reads\n%q\nnot\n%q", got, want)
+	}
+	// A process carries its project's path, so every key that acts on
+	// the project the panel is looking at reaches the same place from
+	// either row.
+	for _, r := range testLive() {
+		if r.pid == 11 && r.path != "/Users/w0zro/projects/w0zro/conn" {
+			t.Errorf("the contact's row is at %q", r.path)
+		}
+	}
+	// With nothing running the list is the projects, as it was.
+	if got := rowNames(withProcesses(testProjects, nil, nil, nil, "/Users/w0zro")); !equal(got, names(testProjects)) {
+		t.Errorf("with nothing running: %q", got)
+	}
+}
+
+// The filter reaches the processes too: a project carries down what is
+// running in it, and a process brings its project — and its group —
+// up with it, since nothing is listed without the project it is in
+// above it.
+func TestTheFilterReachesTheProcesses(t *testing.T) {
+	for _, c := range []struct {
+		filter string
+		want   []string
+	}{
+		// A project carries down what is running in it.
+		{"conn", []string{"w0zro/", "  conn", "    CONTACT READ tui.go", "    SHELL zsh"}},
+		// A process brings its repository and its group up with it.
+		{"tui.go", []string{"w0zro/", "  conn", "    CONTACT READ tui.go"}},
+		// And so does one under a project that stands alone.
+		{"docker", []string{"compose-demo", "  COMMAND docker compose up"}},
+		// A kind is words a process answers to as much as its command is.
+		{"contact", []string{"w0zro/", "  conn", "    CONTACT READ tui.go"}},
+		{"nothing at all", nil},
+	} {
+		if got := rowNames(matching(testLive(), c.filter)); !equal(got, c.want) {
+			t.Errorf("%q leaves\n%q\nnot\n%q", c.filter, got, c.want)
+		}
+	}
+	// A group narrowed by what is running in one of its repositories
+	// still counts the repositories that are drawn.
+	got := matching(testLive(), "tui.go")
+	if len(got) != 3 || got[0].repos != 1 {
+		t.Errorf("the group says %+v", got[0])
+	}
+	// The header counts projects and not rows: the mode is the projects,
+	// and a number that grew every time a shell was opened would be
+	// answering a question nobody asked of it.
+	b := composeProjects(testLive(), "conn", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
+	if b.total != 11 || b.left != 2 {
+		t.Errorf("the count says %d of %d", b.left, b.total)
+	}
+}
+
+// The list with the machine in it is a file of record, and it holds the
+// measure at the width the panel actually is: a process row carries a
+// kind, an activity and, where it is waiting, the block that says so,
+// which is the most any row of this list has ever had to fit.
+func TestTheLiveListMatchesTheGolden(t *testing.T) {
+	b := composeProjects(testLive(), "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
+	golden(t, "projects-live-48x30.txt", texts(drawProjects(b, 9, 48, 30, plain)))
+	for _, r := range drawProjects(b, 9, panelWidth, 30, colored()) {
+		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != panelWidth {
+			t.Fatalf("a colored row paints %d columns, not %d:\n%q", w, panelWidth, r.text)
+		}
+	}
+	for _, r := range drawProjects(b, 9, panelWidth, 30, plain) {
+		if strings.Contains(r.text, "WAITING") && !strings.Contains(r.text, "CONTACT") {
+			t.Errorf("the block landed on its own row: %q", r.text)
+		}
+	}
+}

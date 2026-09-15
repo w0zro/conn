@@ -269,14 +269,57 @@ func (m model) processesReport() processesReport {
 	return w
 }
 
+// listRows is the list as it stands before any filter: the projects the
+// walk found, each with the processes conn holds a pane for in it under
+// it, and the work happening off every project at the foot.
+func (m model) listRows() []projectRow {
+	return withProcesses(m.walked, m.projects, m.panes, m.projRoots, m.head.login.home)
+}
+
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	return composeProjects(m.walked, m.filter, projectRoots(m.head.login.home), m.head.login.home, m.scanning, m.projectsErr)
+	return composeProjects(m.listRows(), m.filter, projectRoots(m.head.login.home), m.head.login.home, m.scanning, m.projectsErr)
 }
 
 func (m model) projectRows() []projectRow {
-	return matching(m.walked, m.filter)
+	return matching(m.listRows(), m.filter)
+}
+
+// atCursor is the row the list's cursor stands on, where there is one,
+// and followRow finds that row again once a reading has changed the
+// list under it: a process by its pid and a project by its path, and
+// where neither is still listed, the place it was. The list is read
+// live now, so a cursor that were only an index would walk on its own
+// as processes come and go.
+func (m model) atCursor() (projectRow, bool) {
+	rows := m.projectRows()
+	if m.pcursor >= len(rows) {
+		return projectRow{}, false
+	}
+	return rows[m.pcursor], true
+}
+
+func followRow(rows []projectRow, was projectRow, at int) int {
+	if was.pid != 0 {
+		for i, r := range rows {
+			if r.pid == was.pid {
+				return i
+			}
+		}
+	}
+	// The process has ended. Its project is where the operator was
+	// looking, and a process row carries that project's path, so the
+	// cursor falls back to the row the work was under rather than to
+	// whatever has moved up into its place.
+	if was.path != "" {
+		for i, r := range rows {
+			if r.pid == 0 && r.path == was.path {
+				return i
+			}
+		}
+	}
+	return clamp(at, len(rows))
 }
 
 func (m model) Init() tea.Cmd {
@@ -586,6 +629,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.processesGen {
 			return m, nil
 		}
+		// The row the list's cursor was on, before the reading replaces
+		// the rows it is an index into.
+		wasRow, hadRow := m.atCursor()
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
 		m.looking = msg.bayReadout
 		if msg.cpu != nil {
@@ -639,15 +685,32 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = mm.(model)
 			cmds = append(cmds, cmd)
 		}
+		// The list holds live processes too, so it is read for as long as
+		// it is up: a row that says a process is there is a row enter is
+		// about to go into, and one read minutes ago is a promise the
+		// machine may not keep.
+		if m.view == viewProjects {
+			cmds = append(cmds, m.processesTick())
+			if rows := m.projectRows(); hadRow {
+				m.pcursor = followRow(rows, wasRow, m.pcursor)
+			} else {
+				m.pcursor = clamp(m.pcursor, len(rows))
+			}
+		}
 		return m, tea.Batch(cmds...)
 	case processesTickMsg:
-		if msg.gen != m.processesGen || m.view != viewProcesses {
+		if msg.gen != m.processesGen || (m.view != viewProcesses && m.view != viewProjects) {
 			return m, nil
 		}
 		return m, m.readProcesses()
 	case projectsMsg:
+		wasRow, hadRow := m.atCursor()
 		m.walked, m.projectsErr, m.scanning = msg.projects, msg.err, false
-		m.pcursor = clamp(m.pcursor, len(m.projectRows()))
+		if rows := m.projectRows(); hadRow {
+			m.pcursor = followRow(rows, wasRow, m.pcursor)
+		} else {
+			m.pcursor = clamp(m.pcursor, len(rows))
+		}
 	case sessionsMsg:
 		// Only the sessions view that asked for these dirs wants them; one
 		// opened on another project since has moved past the answer.
@@ -861,12 +924,28 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	case k == "esc":
 		return m.backFrom()
 	case k == "enter":
-		if m.inside && m.pcursor < len(rows) {
-			path := rows[m.pcursor].path
-			mm, cmd := m.toProcesses()
-			m = mm.(model)
-			return m, tea.Batch(cmd, m.openShell(path))
+		if !m.inside || m.pcursor >= len(rows) {
+			return m, nil
 		}
+		row := rows[m.pcursor]
+		// A process row is somewhere to go, not something to start: enter
+		// puts its pane in the bay and the keys in it, the way enter does
+		// on the row in the processes view. That is the whole of what this
+		// mode is for on a machine with more processes than rows.
+		if row.pid != 0 {
+			if reachable(m.panes[row.tty]) {
+				mm, cmd := m.toProcesses()
+				m = mm.(model)
+				return m, tea.Batch(cmd, m.reach(m.panes[row.tty], row.tty))
+			}
+			return m, nil
+		}
+		if row.path == "" {
+			return m, nil // work off every project: a heading, not a place
+		}
+		mm, cmd := m.toProcesses()
+		m = mm.(model)
+		return m, tea.Batch(cmd, m.openShell(row.path))
 	case k == "up" || k == "ctrl+p":
 		m.pcursor = clamp(m.pcursor-1, len(rows))
 	case k == "down" || k == "ctrl+n":
@@ -1088,10 +1167,15 @@ func (m model) toProjects() (tea.Model, tea.Cmd) {
 	console := m.view == viewConsole
 	m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
 	m.entering = false
+	// The walk, and the reading: the list holds the processes running in
+	// each project as well as the projects, and the reading goes on for
+	// as long as it is up.
+	m.processesGen++
+	cmds := []tea.Cmd{m.scanProjects(), m.readProcesses()}
 	if console && m.inside {
-		return m, tea.Batch(m.scanProjects(), m.serverCmd(func() error { return m.srv.narrow() }))
+		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
 	}
-	return m, m.scanProjects()
+	return m, tea.Batch(cmds...)
 }
 
 // toProcesses leaves the list for the processes view, which starts
@@ -1139,8 +1223,7 @@ func (m model) atProject() (string, []string, bool) {
 			return pl.path, []string{pl.path}, true
 		}
 	case viewProjects:
-		if rows := m.projectRows(); m.pcursor < len(rows) {
-			row := rows[m.pcursor]
+		if row, ok := m.atCursor(); ok && row.path != "" {
 			return row.path, sessionDirs(m.walked, row), true
 		}
 	case viewSessions:

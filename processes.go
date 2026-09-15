@@ -28,6 +28,7 @@ import (
 type processesReport struct {
 	projects []projectBlock
 	err      string // why the table could not be read, when it could not
+	stalled  bool   // docker went quiet; its rows are as last seen
 	inside   bool   // conn is in its server, and rows can be reached
 	lit      bool   // the annunciators' lit half; see the waiting word below
 }
@@ -75,8 +76,8 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
-func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, home string, now time.Time, err string) processesReport {
-	b := processesReport{err: err}
+func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, home string, now time.Time, err string, stalled bool) processesReport {
+	b := processesReport{err: err, stalled: stalled}
 	head, _, marked := headOf(projects, bay)
 	for _, pl := range projects {
 		bp := projectBlock{path: projectName(pl.path, roots, home)}
@@ -316,6 +317,29 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		}
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
+
+	// Docker having gone quiet is said under the rows it is about. The
+	// services are still listed — what docker last said stands, which is
+	// better than dropping them — but a row that may be minutes stale
+	// reading as though it were this second is the one thing the view
+	// must not do. It is a note and not a fault: nothing is wrong, and
+	// there is nothing to answer.
+	//
+	// It goes here rather than on the status line. The right of that line
+	// is empty on purpose, and what was taken off it was a second copy of
+	// this list; a word about how these rows were come by belongs beside
+	// them, where the eye already is.
+	if b.stalled {
+		d := canvas{p: p, width: width}
+		d.blank(0)
+		l := d.line()
+		// Short enough for the panel's own measure, which is what this
+		// view is usually read at: a note cut off mid-word says less
+		// than no note.
+		l.add(p.faint, fit("DOCKER NOT ANSWERING · AS LAST SEEN", measure, false))
+		d.emit(l, 0, false)
+		c.rows = append(c.rows, d.rows...)
+	}
 
 	// The ground fills what the rows do not: the keys are learned once,
 	// and a legend on every row of every reading is a thing to read

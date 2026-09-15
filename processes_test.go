@@ -14,7 +14,7 @@ import (
 // has none.
 func testProcesses() processesReport {
 	how := map[int]status{70100: {working: true, since: processesNow.Add(-7 * time.Minute)}}
-	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
 }
 
 // The processes view at 120 by 40 is a file of record, as are the empty
@@ -22,11 +22,11 @@ func testProcesses() processesReport {
 func TestProcessesMatchesTheGolden(t *testing.T) {
 	golden(t, "processes-120x40.txt", texts(drawProcesses(testProcesses(), 67040, 120, 40, plain)))
 	golden(t, "processes-cursor-100x9.txt", texts(drawProcesses(testProcesses(), 80002, 100, 9, plain)))
-	empty := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	empty := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	golden(t, "processes-empty-80x24.txt", texts(drawProcesses(empty, 0, 80, 24, plain)))
-	failed := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found")
+	failed := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false)
 	golden(t, "processes-unread-80x24.txt", texts(drawProcesses(failed, 0, 80, 24, plain)))
-	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "")
+	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	panel.inside = true
 	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, plain)))
 }
@@ -245,7 +245,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 // In the server, the keys say what can be done, and a terminal the
 // server does not hold is faint.
 func TestTheProcessesViewInsideTheServer(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "")
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	w.inside = true
 	rows := drawProcesses(w, 67040, 120, 40, colored())
 	text := texts(rows)
@@ -322,7 +322,7 @@ func TestKeysInsideTheServer(t *testing.T) {
 // The processes view says no keys. They are learned once; a legend on
 // every row of every reading is a thing to read past forever.
 func TestTheProcessesViewSaysNoKeys(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "")
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
@@ -384,7 +384,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored()
 	held := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
-		testProjRoots, "/Users/w0zro", processesNow, "")
+		testProjRoots, "/Users/w0zro", processesNow, "", false)
 	held.inside = true
 	// The cursor is on a row conn holds a pane for, away from the rows
 	// under test, so none of them is giving up a rank of dimming to be
@@ -503,7 +503,7 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 		{pid: 11, kind: kindShell, command: "zsh", status: statusActive},
 		{pid: 12, kind: kindContact, command: "claude", status: statusWaiting, depth: 1, since: processesNow.Add(-time.Minute)},
 	}}}
-	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
 
 	b.lit = true
 	on := texts(drawProcesses(b, 0, 60, 12, plain))
@@ -533,7 +533,7 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 	// process you suspended yourself is not asking anything of you.
 	steady := composeProcesses([]project{{path: "/w", entries: []entry{
 		{pid: 21, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
-	}}}, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	}}}, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	steady.lit = false
 	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, plain)), statusStopped) {
 		t.Error("a fault went dark with the blink")
@@ -656,7 +656,7 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 		{pid: 11, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-time.Minute)},
 		{pid: 12, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
 	}}}
-	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "")
+	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	p := colored()
 
 	b.lit = true

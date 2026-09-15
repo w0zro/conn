@@ -94,10 +94,11 @@ var docker struct {
 //
 // A daemon that is down, or no docker at all, is an empty list: nothing
 // is running in a container. A daemon that does not answer in time is a
-// different thing, and what it last said stands.
-func readContainers(now time.Time) []container {
+// different thing, and what it last said stands — the second answer
+// says which, so the view can admit the rows are as last seen.
+func readContainers() ([]container, bool) {
 	if dockerPath == "" {
-		return nil
+		return nil, false
 	}
 	out, err := dockerSays(dockerWait, "ps", "-a", "--format", "{{json .}}")
 	docker.Lock()
@@ -107,14 +108,17 @@ func readContainers(now time.Time) []container {
 		if errors.As(err, &exit) {
 			// Refused, in its own time: the daemon is down, or the
 			// client could not reach it. Nothing is running in a
-			// container that conn can see.
+			// container that conn can see, and that is an answer rather
+			// than a silence.
 			docker.last = nil
-			return nil
+			return nil, false
 		}
-		return docker.last
+		// It did not answer in time. What it last said stands, and the
+		// view says so rather than quietly showing yesterday's rows.
+		return docker.last, true
 	}
-	docker.last = parseContainers(out, now)
-	return docker.last
+	docker.last = parseContainers(out, time.Now())
+	return docker.last, false
 }
 
 // dockerSays runs the docker client and answers what it printed. An exit

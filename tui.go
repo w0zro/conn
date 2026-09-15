@@ -232,6 +232,15 @@ type model struct {
 	// The terminal that was in the bay before that one, which is where
 	// the other-process chord goes back to.
 	lastBay string
+
+	// What docker last said, and the feed that says it. The containers
+	// are read beside the process table rather than in it, so a reading
+	// merges what is already here and never waits on the daemon; stalled
+	// is docker having gone quiet, which the view admits rather than
+	// showing yesterday's rows as though they were today's.
+	containers    []container
+	dockerFeed    *dockerFeed
+	dockerStalled bool
 	// The last terminal the workspace held that was work: where esc
 	// goes back into. It is not the bay, because while the keys are on
 	// the panel the page is in the bay and the work has been put back
@@ -273,7 +282,7 @@ func (m model) report() report {
 
 // processesReport is the processes view's words as things stand.
 func (m model) processesReport() processesReport {
-	w := composeProcesses(m.projects, m.panes, m.bay, m.projRoots, m.head.login.home, m.now, m.processesErr)
+	w := composeProcesses(m.projects, m.panes, m.bay, m.projRoots, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
 	w.inside, w.lit = m.inside, m.lit
 	return w
 }
@@ -332,7 +341,7 @@ func followRow(rows []projectRow, was projectRow, at int) int {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{readStationCmd, m.nextStage(), nextSecond(m.now), m.nextBlink()}
+	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
 	if m.inside {
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }))
 	}
@@ -349,6 +358,7 @@ func readStationCmd() tea.Msg {
 // comes back.
 func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots, m.isProject
+	containers := m.containers
 	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
 	var srv *server
 	if m.inside {
@@ -372,8 +382,11 @@ func (m model) readProcesses() tea.Cmd {
 		projects := projectsFrom(procs, uid, roots, isProject, how)
 		// And what docker is holding up, which the table cannot show: a
 		// container is not a process of this machine, and compose says
-		// where each belongs by the directory it was started for.
-		projects = attachContainers(projects, readContainers(nowAt), roots)
+		// where each belongs by the directory it was started for. What
+		// docker last said is already here — the feed brings it as it
+		// happens — so this costs the reading nothing and waits on no
+		// daemon.
+		projects = attachContainers(projects, containers, roots)
 		msg := processesMsg{projects: projects, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas)}
 		if srv != nil {
@@ -591,6 +604,19 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
 		m.processesGen++
 		return m, m.readProcesses()
+	case dockerReadyMsg:
+		// The feed is running; from here conn waits on its word rather
+		// than asking docker anything on a beat.
+		m.dockerFeed = msg.feed
+		return m, nextDocker(m.dockerFeed)
+	case dockerMsg:
+		// Docker's word, held for the next reading to merge. The rows
+		// are drawn again at once rather than on the next beat, which is
+		// the whole point of a feed: a container is on its row as it
+		// starts, not up to two seconds later.
+		m.containers, m.dockerStalled = msg.containers, msg.stalled
+		m.processesGen++
+		return m, tea.Batch(m.readProcesses(), nextDocker(m.dockerFeed))
 	case readoutMsg:
 		// The page is up, or down, and conn knows it without reading the
 		// server: the next i is a keypress away and has to decide which
@@ -836,8 +862,15 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c" || k == "q":
 		if m.inside {
+			// A detach leaves the server and this conn standing, so the
+			// feed keeps its stream: there is something still watching.
 			return m, m.serverCmd(func() error { return m.srv.detach() })
 		}
+		// Going for good takes the feed's stream with it. docker events
+		// is a child conn started, and a child outlives the parent that
+		// abandons it — it would sit reparented to init until the next
+		// container event pushed a write down a pipe nobody holds.
+		m.dockerFeed.close()
 		return m, tea.Quit
 	case m.view == viewConsole && m.stage < lastStage(m.report()):
 		m.stage = lastStage(m.report())

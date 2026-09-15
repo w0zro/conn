@@ -1,12 +1,10 @@
-
-   ──────────────────────────────────────────
-   KIND    ACTIVITY           SINCE    STATUS
-
    ~
+
    SHELL   zsh                         ACTIVE
      EDITOR  vim notes.md            STOPPED
 
    w0zro/vim.pro/conjurer
+
    SHELL   zsh                         ACTIVE
  ▸   CONTACT claude --resume           ACTIVE
        RUN     node /opt/cla…          ACTIVE
@@ -14,7 +12,9 @@
          RUN     go test ./.…          ACTIVE
 
    w0zro/conn
+
    SHELL   zsh                           IDLE
+
 
 
 

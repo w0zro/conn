@@ -159,26 +159,18 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		commandW = sinceCol - 1 - kindCol
 	}
 
-	// The header: a rule and the column heads. The view goes unlabeled: it
-	// is what conn is when it is up. The name stood over this row and the
-	// status line carries it now, at the bottom left of the window where a
-	// name belongs — it names the whole program rather than this one view,
-	// which was carrying it for all of them.
-	c.blank(0)
-	c.rule(0, measure)
-	l := c.line()
-	l.add(p.gray, "KIND")
-	l.to(kindCol)
-	l.add(p.gray, "ACTIVITY")
-	if !panel {
-		l.to(ttyCol)
-		l.add(p.gray, "TTY")
-	}
-	l.to(sinceCol)
-	l.add(p.gray, "SINCE")
-	l.to(statusCol + statusW - len("STATUS"))
-	l.add(p.gray, "STATUS")
-	c.emit(l, 0, false)
+	// No rule and no column heads. The view goes unlabeled — it is what
+	// conn is when it is up — and its columns were labeled anyway, which
+	// is the same furniture one level down. Four heads named a table the
+	// eye learns in a glance: a kind word, what the process is doing, how
+	// long, and how it stands. ACTIVITY was eight columns of label over
+	// fourteen columns of column, which is a sign the label is the thing
+	// being read. They cost three rows off the top of a panel that has
+	// forty, and the first project's name says more than all four.
+	//
+	// So the list begins at the top of the pane, where the pane beside it
+	// begins. A panel that started a row down from its neighbour read as
+	// a thing that had not finished loading.
 
 	// The projects, in the order work began in them; or the reason there
 	// are none.
@@ -188,15 +180,24 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	}
 	var body []row
 	cursorRow := -1
-	project := func(bp projectBlock) {
+	project := func(bp projectBlock, first bool) {
 		d := canvas{p: p, width: width}
-		d.blank(0)
+		// A row of air before each project, to set it off from the one
+		// above — except the first, which has the top of the pane above
+		// it and nothing to be set off from.
+		if !first {
+			d.blank(0)
+		}
 		// The project's title alone. It carried a count of its rows on the
 		// right, which was the kernel's word for them and a figure the
 		// operator never asks for: the rows are right there under it.
 		l := d.line()
 		l.add(p.parchment+p.bold, fit(bp.path, measure, true))
 		d.emit(l, 0, false)
+		// And a row under it. The title is a heading, not the first row of
+		// the table, and with the rows closed up against it the eye read
+		// the block as five rows of which one was oddly bright.
+		d.blank(0)
 		for _, r := range bp.rows {
 			l := d.line()
 			cursored := r.pid == cursor
@@ -307,8 +308,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		d.emit(l, 0, true)
 		body = d.rows
 	default:
-		for _, bp := range b.projects {
-			project(bp)
+		for i, bp := range b.projects {
+			project(bp, i == 0)
 		}
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)

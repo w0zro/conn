@@ -144,8 +144,14 @@ func (s *scratch) projectRows() int {
 		if !strings.Contains(line, scratchProject) {
 			continue
 		}
+		// The title has a row of air under it, and then its rows, up to
+		// the blank that begins the next project.
+		rows := lines[i+1:]
+		if len(rows) > 0 && strings.TrimSpace(rows[0]) == "" {
+			rows = rows[1:]
+		}
 		n := 0
-		for _, r := range lines[i+1:] {
+		for _, r := range rows {
 			if strings.TrimSpace(r) == "" {
 				break
 			}
@@ -209,6 +215,15 @@ func (s *scratch) parked(id string) bool {
 		}
 	}
 	return false
+}
+
+// inProcesses says whether the keys are on the panel in the processes
+// view. It asks the status line, which is conn's own word for the view
+// its keys are in — not the panel's layout. A test keyed to a word the
+// header happened to hold breaks the day the header goes, which is how
+// four of these came to fail at once.
+func (s *scratch) inProcesses() bool {
+	return strings.Contains(s.statusLine(), "PROCS")
 }
 
 // statusLine is the status line as tmux expands it: what conn has put
@@ -683,7 +698,7 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
 	s.until("the bay to open in the processes view", func() bool {
-		return s.display("#{pane_width}") == panelW && strings.Contains(s.panel(), "STATUS")
+		return s.display("#{pane_width}") == panelW && s.inProcesses()
 	})
 
 	// Rows of the test's own to read and to walk between. The page needs
@@ -703,7 +718,7 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	})
 	// The processes view did not give up its pane, or its width, to say
 	// this.
-	if r := s.panel(); !strings.Contains(r, "STATUS") || strings.Contains(r, "WHERE") {
+	if r := s.panel(); !s.inProcesses() || strings.Contains(r, "WHERE") {
 		t.Errorf("the panel is not still the processes view:\n%s", r)
 	}
 	if w := s.display("#{pane_width}"); w != panelW {
@@ -847,7 +862,7 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 	s.keys("p")
 	s.until("the list from the panel", func() bool { return strings.Contains(s.panel(), "PROJECTS") })
 	s.keys("Escape")
-	s.until("the processes view", func() bool { return strings.Contains(s.panel(), "STATUS") })
+	s.until("the processes view", func() bool { return s.inProcesses() })
 	if got := s.bayPane(); got != bay {
 		t.Errorf("esc from a list opened on the panel moved the workspace to %s", got)
 	}

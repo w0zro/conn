@@ -1,9 +1,9 @@
-
-   ──────────────────────────────────────────────────────────────────────────────────────────────
-   KIND    ACTIVITY                                                    TTY        SINCE    STATUS
-
    ~
+
    SHELL   zsh                                                         TTYS009             ACTIVE
  ▸   EDITOR  vim notes.md                                              TTYS009           STOPPED
 
-   … 9 BELOW
+   w0zro/vim.pro/conjurer
+
+   SHELL   zsh                                                         TTYS007             ACTIVE
+   … 8 BELOW

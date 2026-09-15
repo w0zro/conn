@@ -1,12 +1,10 @@
-
-   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   KIND    ACTIVITY                                                                        TTY        SINCE    STATUS
-
    ~
+
    SHELL   zsh                                                                             TTYS009             ACTIVE
      EDITOR  vim notes.md                                                                  TTYS009           STOPPED
 
    w0zro/vim.pro/conjurer
+
    SHELL   zsh                                                                             TTYS007             ACTIVE
      CONTACT claude --resume                                                               TTYS007    7M      WORKING
        RUN     node /opt/claude/mcp.js                                                     TTYS007             ACTIVE
@@ -14,7 +12,9 @@
          RUN     go test ./...                                                             TTYS007             ACTIVE
 
    w0zro/conn
+
  ▸ SHELL   zsh                                                                             TTYS005               IDLE
+
 
 
 

@@ -880,6 +880,19 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 		t.Errorf("a contact from the list: view %d, cmd %v", m.view, cmd != nil)
 	}
 
+	// ctrl+s is the pair to ctrl+a and answers the same way. a and s are
+	// the two things conn starts, and in the list and the sessions view
+	// both are letters being typed into the line, so each needs a chord
+	// of its own; ctrl+a had one and s did not. It answers in every view
+	// rather than in the list alone, a key being worth more for meaning
+	// the same thing wherever it is pressed.
+	for _, view := range []int{viewProcesses, viewProjects, viewSessions} {
+		m, cmd = press(panel(view), "ctrl+s")
+		if m.view != viewProcesses || cmd == nil {
+			t.Errorf("a shell by ctrl+s from view %d: view %d, cmd %v", view, m.view, cmd != nil)
+		}
+	}
+
 	// The sessions view answers with the project those sessions are
 	// already about, so a shell can be opened beside what is being read.
 	if m, cmd = press(panel(viewSessions), "alt+s"); m.view != viewProcesses || cmd == nil {

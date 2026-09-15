@@ -789,3 +789,66 @@ func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
 		t.Errorf("home changed shape: %s wide, %s panes", w, n)
 	}
 }
+
+// Cancelling the list puts the operator back where the chord came from,
+// and putting them back means reaching that pane, not selecting it.
+// By the time the cancel comes the pane is not in the workspace: the
+// page takes the workspace while the keys are on the panel, and what it
+// displaced went to a window of its own. Selecting a pane there does
+// select it — in a window the client is not looking at, which is
+// nothing happening at all.
+//
+// The page cannot be the one to park it here, for the reason the rule
+// above gives: that turn is a focus event and this server has no client
+// to send one. A second shell parks the first just as well, and being
+// parked is the whole of what the cancel has to deal with. The prefix
+// half cannot be driven either; what the binding writes down before it
+// sends its key is written here in its place.
+func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.keys("Space")
+	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
+
+	s.openShell()
+	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
+	first := s.bayPane()
+	s.until("the shell's row on the panel", func() bool { return s.projectRows() >= 1 })
+
+	s.openShell()
+	s.until("a second shell, with the first parked", func() bool {
+		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
+	})
+
+	// The chord, as the binding fires it out of the first shell's pane.
+	if _, err := s.srv.run("set-option", "-g", "@conn_from", first); err != nil {
+		t.Fatal(err)
+	}
+	s.keys("M-p")
+	s.until("the list", func() bool { return strings.Contains(s.panel(), "PROJECTS") })
+
+	// esc brings the view back and the shell with it: out of its own
+	// window, into the workspace, with the keys in it.
+	s.keys("Escape")
+	s.until("the shell back in the workspace", func() bool { return s.bayPane() == first })
+	if s.parked(first) {
+		t.Error("the shell stayed in a window of its own")
+	}
+	if got := s.active("#{pane_id}"); got != first {
+		t.Errorf("the keys are in %s, not the shell the chord came from", got)
+	}
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
+		t.Errorf("the cancel changed the window's shape: %s panes, %s wide", n, w)
+	}
+
+	// p on the panel is not a chord and leaves nothing to go back to:
+	// the cancel is the view alone, and nothing is put anywhere.
+	bay := s.bayPane()
+	s.keys("p")
+	s.until("the list from the panel", func() bool { return strings.Contains(s.panel(), "PROJECTS") })
+	s.keys("Escape")
+	s.until("the processes view", func() bool { return strings.Contains(s.panel(), "STATUS") })
+	if got := s.bayPane(); got != bay {
+		t.Errorf("esc from a list opened on the panel moved the workspace to %s", got)
+	}
+}

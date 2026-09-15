@@ -555,9 +555,11 @@ func (s *server) focusPanel() error {
 	return s.focusPane(s.panel())
 }
 
-// focusPane puts the keys in a pane by its id. Where the pane is gone
-// tmux says so and nothing moves, which is the right answer: the pane
-// the keys came from can have ended while the list was up.
+// focusPane puts the keys in a pane by its id, which reaches only a
+// pane of the window the client is looking at — so it is the panel's
+// own way back, and not a way to somewhere else. Putting the keys in a
+// process means reaching it: show brings the pane into the workspace
+// first, and the window the client is on is the one it was already on.
 func (s *server) focusPane(id string) error {
 	_, err := s.run("select-pane", "-t", id)
 	return err

@@ -1161,6 +1161,18 @@ func (m model) cameFrom() string {
 // and where a chord brought the keys here out of another pane they go
 // back to it: cancelling is putting things as they were, and the pane
 // the operator was working in is part of how they were.
+//
+// Going back to it is reaching it, not selecting it. The pane is not
+// where it was: the page takes the workspace while the keys are on the
+// panel, and what the page displaced went back to a window of its own.
+// Selecting it by id there does select it — in a window the client is
+// not looking at, which is nothing happening at all. Reaching it puts
+// it back in the workspace first, which is where the operator left it.
+//
+// A chord pressed on the panel leaves nothing to go back to, and the
+// cancel is the view alone: you were not in a pane, so there is no pane
+// to be put back in. Work that ended while the list was up is the same
+// answer for the same reason.
 func (m model) backFrom() (tea.Model, tea.Cmd) {
 	from := m.from
 	m.from = ""
@@ -1169,8 +1181,24 @@ func (m model) backFrom() (tea.Model, tea.Cmd) {
 	if from == "" || !m.inside {
 		return m, cmd
 	}
-	srv := m.srv
-	return m, tea.Batch(cmd, m.serverCmd(func() error { return srv.focusPane(from) }))
+	p, tty, ok := m.paneByID(from)
+	if !ok || !reachable(p) {
+		return m, cmd
+	}
+	return m, tea.Batch(cmd, m.reach(p, tty))
+}
+
+// paneByID is the pane conn holds under that id, and the terminal it is
+// on. conn holds its panes by terminal, a terminal being what a row
+// is; a chord names the pane it fired from by id, which is what tmux
+// knows of it.
+func (m model) paneByID(id string) (pane, string, bool) {
+	for tty, p := range m.panes {
+		if p.id == id {
+			return p, tty, true
+		}
+	}
+	return pane{}, "", false
 }
 
 // backIn puts the keys back in the process they came out of, which is

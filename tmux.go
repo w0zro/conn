@@ -260,6 +260,12 @@ type pane struct {
 	hold          bool
 	readout       bool
 	dead          bool
+	// The container this pane is watching, where it is one conn opened
+	// for a service — its logs, or a shell inside it. A container has no
+	// terminal of its own, so this is how its row comes to have one: the
+	// pane conn opened for it stands in for the terminal it has not got,
+	// and from there the row is reached and left like any other.
+	container string
 }
 
 // What conn asks tmux for, and how it reads the answer back. The
@@ -276,7 +282,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -296,11 +302,11 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 7 || f[0] == "" {
+		if len(f) != 8 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
-			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1"}
+			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1", container: f[7]}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -515,6 +521,28 @@ func (s *server) openCmd(dir, cmd string) (shell, error) {
 		return shell{}, err
 	}
 	sh := parseOpened(out)
+	return sh, s.show(sh.pane)
+}
+
+// openWatching opens a pane conn made to watch a container, marked with
+// the container it is watching. The mark is what makes the pane the
+// terminal the container's row stands on, and what keeps the watcher
+// itself off the view: a docker logs listed beside the service it is
+// showing would be the same thing twice.
+func (s *server) openWatching(dir, cmd, id string) (shell, error) {
+	args := []string{"new-window", "-d", "-P", "-F", openFormat, "-c", dir}
+	if cmd != "" {
+		args = append(args, cmd)
+	}
+	out, err := s.run(args...)
+	if err != nil {
+		return shell{}, err
+	}
+	sh := parseOpened(out)
+	if _, err := s.run("set-option", "-p", "-t", sh.pane.id, "@conn_container", id); err != nil {
+		return shell{}, err
+	}
+	sh.pane.container = id
 	return sh, s.show(sh.pane)
 }
 

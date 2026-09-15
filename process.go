@@ -160,6 +160,9 @@ type entry struct {
 	// What a working contact is doing, read off its transcript: the
 	// tool it has in flight, as a verb and an object.
 	doing string
+	// The container this row is, where it is one: the id docker knows it
+	// by, which the keys act on. A process row carries nothing here.
+	container string
 }
 
 // A project is a directory work is happening in, and the entries at it.

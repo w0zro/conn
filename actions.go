@@ -150,3 +150,67 @@ func (m model) serverCmd(act func() error) tea.Cmd {
 		return nil
 	}
 }
+
+// watchContainer puts a container's output in the workspace: docker's own
+// record of what it wrote, followed while it runs.
+//
+// A container has no shell to enter and no terminal to take over. What it
+// has is stdout, which docker keeps whether the container is running or
+// long dead — the worker's last words survive it, and those are the ones
+// worth having. So the pane conn opens is a reader, and the row it
+// belongs to is reached and left like any other from there.
+//
+// The reading is held open after the log ends. docker logs --follow
+// blocks only while there is something to follow: on a container that
+// has stopped it prints what there is and returns at once, and the pane
+// would be gone before it could be put in the workspace — which is what
+// happened the first time this was tried. A container that dies while
+// you are watching it ends the same way. So the log is followed and then
+// the pane waits, and the last words stay up to be read.
+func (m model) watchContainer(e entry) tea.Cmd {
+	srv, dir, id := m.srv, e.cwd, e.container
+	cmd := shellQuote(dockerPath) + " logs --tail 2000 --follow " + shellQuote(id) + " 2>&1; " + holdOpen
+	return func() tea.Msg {
+		sh, err := srv.openWatching(dir, cmd, id)
+		if err != nil {
+			return nil
+		}
+		return openedMsg{shell: sh}
+	}
+}
+
+// shellInContainer opens a shell inside a container, which is what s
+// means on a row that is one: a shell here, where here is the container
+// rather than the directory it was started for. bash is preferred and sh
+// is the fallback, since the smaller images carry only the one.
+//
+// A container that is not running has no shell to give, and docker says
+// so in a line. The pane is held open for that line the way it is held
+// for a log that has ended: an error that flashes past is an error
+// nobody read.
+func (m model) shellInContainer(e entry) tea.Cmd {
+	srv, dir, id := m.srv, e.cwd, e.container
+	cmd := shellQuote(dockerPath) + " exec -it " + shellQuote(id) + " sh -c " +
+		shellQuote(pickShell) + " 2>&1; " + holdOpen
+	return func() tea.Msg {
+		sh, err := srv.openWatching(dir, cmd, id)
+		if err != nil {
+			return nil
+		}
+		return openedMsg{shell: sh}
+	}
+}
+
+// holdOpen keeps a pane standing after what it was opened for has
+// finished. cat with nothing to read waits on the terminal for as long
+// as the pane is there, which is exactly as long as wanted: the operator
+// leaves by going somewhere else, and the pane goes when its work is
+// replaced in the workspace.
+const holdOpen = "exec cat"
+
+// pickShell is run inside the container to choose its shell. bash is
+// tested for rather than tried, because exec replaces the shell and a
+// failed exec ends it: exec bash || exec sh never reaches the fallback,
+// and on an image with no bash — which is most of the small ones — it
+// exits 127 rather than giving you the sh that was there all along.
+const pickShell = "command -v bash >/dev/null 2>&1 && exec bash || exec sh"

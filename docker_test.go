@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // What docker ps --format '{{json .}}' says of a compose project: two
@@ -169,7 +171,7 @@ func TestContainersStandUnderTheComposeThatRunsThem(t *testing.T) {
 				cwd: "/Users/w0zro/projects/compose-demo"},
 		},
 	}}
-	out := attachContainers(projects, containersFor(t), dockerRoots)
+	out := attachContainers(projects, containersFor(t), dockerRoots, nil)
 	if len(out) != 1 {
 		t.Fatalf("%d projects, want 1: the stray belongs to none and is not filed", len(out))
 	}
@@ -207,7 +209,7 @@ func TestDetachedContainersRootTheirOwnProject(t *testing.T) {
 		entries: []entry{{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001",
 			cwd: "/Users/w0zro/projects/w0zro/conn"}},
 	}}
-	out := attachContainers(projects, containersFor(t), dockerRoots)
+	out := attachContainers(projects, containersFor(t), dockerRoots, nil)
 	if len(out) != 2 {
 		t.Fatalf("%d projects, want 2: the compose demo is a project docker alone is working in", len(out))
 	}
@@ -249,8 +251,75 @@ func TestAProjectStoppedWholeIsNotListed(t *testing.T) {
 			cs[i].state, cs[i].exit = "exited", "0"
 		}
 	}
-	out := attachContainers(nil, cs, dockerRoots)
+	out := attachContainers(nil, cs, dockerRoots, nil)
 	if len(out) != 0 {
 		t.Errorf("a project with nothing running left %d projects: %+v", len(out), out)
+	}
+}
+
+// A container's row is reached like any other once conn has opened a
+// pane for it: the pane stands in for the terminal a container has not
+// got, and from there enter, the ring and esc all work unchanged.
+func TestAContainerTakesThePaneConnOpenedForIt(t *testing.T) {
+	cs := containersFor(t)
+	paneOf := map[string]string{cs[0].id: "ttys009"}
+	out := attachContainers(nil, cs, dockerRoots, paneOf)
+	if len(out) != 1 {
+		t.Fatalf("%d projects, want 1", len(out))
+	}
+	var web, worker entry
+	for _, e := range out[0].entries {
+		switch {
+		case strings.HasPrefix(e.command, "web"):
+			web = e
+		case strings.HasPrefix(e.command, "worker"):
+			worker = e
+		}
+	}
+	if web.tty != "ttys009" {
+		t.Errorf("web stands on terminal %q, not the pane conn opened", web.tty)
+	}
+	if web.container != cs[0].id {
+		t.Errorf("web's row carries container %q", web.container)
+	}
+	// One conn has opened nothing for has no terminal, which is what
+	// says the row can only be reported.
+	if worker.tty != "" {
+		t.Errorf("the worker claims terminal %q with no pane opened", worker.tty)
+	}
+	if worker.container == "" {
+		t.Error("the worker's row carries no container for the keys to act on")
+	}
+}
+
+// enter on a container opens its output; enter again, once there is a
+// pane, goes into it the way enter goes into anything. s opens a shell
+// inside the container rather than at the directory it was started for.
+func TestEnterAndSActOnTheContainer(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside = viewProcesses, true
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.said, m.saidKeys = true, m.keys()
+	m.projects = []project{{path: "/p", entries: []entry{
+		{pid: -99, kind: kindService, command: "web · :8438", container: "abc123", cwd: "/p", status: statusActive},
+	}}}
+	m.cursor = -99
+
+	press := func(k string) tea.Cmd {
+		_, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		return cmd
+	}
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); cmd == nil {
+		t.Error("enter on a container asked for nothing")
+	}
+	if press("s") == nil {
+		t.Error("s on a container asked for nothing")
+	}
+
+	// With no container and no pane there is nothing to ask for, so
+	// neither key invents one.
+	m.projects[0].entries[0].container = ""
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); cmd != nil {
+		t.Error("enter opened something for a row that is neither reachable nor a container")
 	}
 }

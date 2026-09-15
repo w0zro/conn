@@ -364,7 +364,11 @@ func (c container) activity() string {
 // to no project. It is left out rather than filed somewhere invented: a
 // docker run from anywhere is not work at a place, and a row under a
 // project it has nothing to do with would be a lie about where it is.
-func attachContainers(projects []project, cs []container, rootOf func(string) string) []project {
+// paneOf says which terminal conn has opened for a container, by its id:
+// a container has none of its own, so the pane conn opened to watch it
+// stands in for one. With that the row is reached, left and walked to
+// like every other — the whole of what having a terminal means here.
+func attachContainers(projects []project, cs []container, rootOf func(string) string, paneOf map[string]string) []project {
 	// A stopped container is listed while its project is: a sibling still
 	// running, or a compose working in its directory. A service that died
 	// beside the others is exactly what wants noticing. A project stopped
@@ -402,7 +406,7 @@ func attachContainers(projects []project, cs []container, rootOf func(string) st
 	for _, pl := range projects {
 		if rows := at[pl.path]; len(rows) > 0 {
 			filled[pl.path] = true
-			pl.entries = placeContainers(pl, rows)
+			pl.entries = placeContainers(pl, rows, paneOf)
 		}
 		out = append(out, pl)
 	}
@@ -417,7 +421,7 @@ func attachContainers(projects []project, cs []container, rootOf func(string) st
 			continue
 		}
 		pl := project{path: path}
-		pl.entries = placeContainers(pl, at[path])
+		pl.entries = placeContainers(pl, at[path], paneOf)
 		out = append(out, pl)
 	}
 	return out
@@ -438,13 +442,14 @@ func composeRuns(projects []project, path, dir, service string) bool {
 // placeContainers puts a project's containers among its rows: each under
 // the compose that runs it where there is one, and at the foot of the
 // project where there is not.
-func placeContainers(pl project, cs []container) []entry {
+func placeContainers(pl project, cs []container, paneOf map[string]string) []entry {
 	entries := pl.entries
 	for _, c := range cs {
 		e := entry{
 			pid: containerPID(c.id), kind: kindService,
 			command: c.activity(), typed: c.activity(),
 			started: c.since, since: c.since, cwd: c.dir,
+			container: c.id, tty: paneOf[c.id],
 		}
 		e.status, e.fault = containerStatus(c)
 		if i := composeAt(project{path: pl.path, entries: entries}, pl.path, c.dir, c.service); i >= 0 {

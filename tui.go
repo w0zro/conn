@@ -384,6 +384,30 @@ func (m model) readProcesses() tea.Cmd {
 			how[pid] = status{working: true}
 		}
 		maps.Copy(how, contactStatuses(procs))
+		// The panes come first, because a pane conn opened to watch a
+		// container is two things to the reading at once: the terminal
+		// that container's row will stand on, and a process that must
+		// not stand for itself. A docker logs beside the service it is
+		// showing would be the same thing listed twice.
+		var panes map[string]pane
+		if srv != nil {
+			panes, _ = srv.panes()
+		}
+		paneOf, watching := map[string]string{}, map[string]bool{}
+		for tty, p := range panes {
+			if p.container != "" {
+				paneOf[p.container], watching[tty] = tty, true
+			}
+		}
+		if len(watching) > 0 {
+			kept := procs[:0]
+			for _, p := range procs {
+				if !watching[p.tty] {
+					kept = append(kept, p)
+				}
+			}
+			procs = kept
+		}
 		projects := projectsFrom(procs, uid, roots, isProject, how)
 		// And what docker is holding up, which the table cannot show: a
 		// container is not a process of this machine, and compose says
@@ -391,8 +415,8 @@ func (m model) readProcesses() tea.Cmd {
 		// docker last said is already here — the feed brings it as it
 		// happens — so this costs the reading nothing and waits on no
 		// daemon.
-		projects = attachContainers(projects, containers, roots)
-		msg := processesMsg{projects: projects, gen: gen, cpu: now, cpuAt: nowAt,
+		projects = attachContainers(projects, containers, roots, paneOf)
+		msg := processesMsg{projects: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas)}
 		if srv != nil {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
@@ -400,7 +424,6 @@ func (m model) readProcesses() tea.Cmd {
 			} else if ok {
 				msg.bay, msg.bayDead, msg.bayReadout = bay.tty, bay.dead, bay.readout
 			}
-			msg.panes, _ = srv.panes()
 		}
 		return msg
 	}
@@ -926,8 +949,20 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// is the one gg and G are the ends of.
 		m.cursor, m.cursorAt = follow(m.projects, 0, rowsIn(m.projects)/2)
 	case k == "enter":
-		if e, _, ok := m.under(); m.inside && ok && reachable(m.panes[e.tty]) {
+		e, _, ok := m.under()
+		if !m.inside || !ok {
+			return m, nil
+		}
+		// A row conn already holds a pane for is gone into; that is enter
+		// everywhere. A container has no pane until one is opened for it,
+		// and what there is to be in front of is what it has written, so
+		// the first enter opens its output and the next goes back into
+		// the pane holding it.
+		switch {
+		case reachable(m.panes[e.tty]):
 			return m, m.reach(m.panes[e.tty], e.tty)
+		case e.container != "":
+			return m, m.watchContainer(e)
 		}
 	case k == "esc":
 		return m.backIn()
@@ -943,8 +978,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		name := program(e.asTyped())
 		m.kill = &pendingKill{pid: e.pid, command: name, sig: sig, prompt: killPrompt(name, e.pid, sig)}
 	case k == "s":
-		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
-			return m, m.openShell(pl.path)
+		// A shell here. On a container, here is inside it: the row stands
+		// for a machine of its own, and the directory it was started for
+		// is not where its work is going on.
+		if e, pl, ok := m.under(); m.inside && ok {
+			if e.container != "" {
+				return m, m.shellInContainer(e)
+			}
+			if pl.path != "" {
+				return m, m.openShell(pl.path)
+			}
 		}
 	case k == "a":
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {

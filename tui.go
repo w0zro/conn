@@ -277,11 +277,16 @@ func newModel(p palette) model {
 
 // report is the console's words as things stand: from the station once
 // it is read, from the header's part of it before.
+// report is the console's words as things stand, as the terminal in
+// hand can hold them: the stages are counted off the report the screen
+// will actually draw, so a console that gave up its per-root lines does
+// not go on ticking through stages that have no row.
 func (m model) report() report {
+	st := m.head
 	if m.st != nil {
-		return compose(*m.st, m.now)
+		st = *m.st
 	}
-	return compose(m.head, m.now)
+	return fitted(compose(st, m.now), m.height)
 }
 
 // processesReport is the processes view's words as things stand.
@@ -894,7 +899,15 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// sessions view a plain s or a is a letter being typed into the
 	// line — and ctrl+a is the key the list already opened a contact
 	// with, so it becomes the one key for it rather than a second one.
-	if k == "alt+s" || k == "ctrl+a" || k == "alt+a" {
+	//
+	// ctrl+s is the pair to ctrl+a, and is here for the same reason the
+	// pair is worth having: a and s are the two things conn starts, and
+	// a hand that has learned ctrl+a should not have to reach for a
+	// different chord to get the other. Enter on a project row in the
+	// list opens a shell there too, which is no argument against it —
+	// the list is typed into, and a key that means one thing wherever
+	// it is pressed is worth more than the saving of not having it.
+	if k == "alt+s" || k == "ctrl+s" || k == "ctrl+a" || k == "alt+a" {
 		return m.openAt(k)
 	}
 	// Down and up the processes conn can put in the bay, which the

@@ -102,6 +102,7 @@ func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 // point Claude Code at it only when nothing of the user's own is in the
 // way.
 func TestConnWritesTheThemeAndOffersOnce(t *testing.T) {
+	holdMode(t) // dressProgram puts conn on the ground its server is on
 	yes := func(string) bool { return true }
 	write := func(t *testing.T, settings string) string {
 		t.Helper()
@@ -188,8 +189,8 @@ func TestRefreshClaudeThemeKeepsTheFileCurrent(t *testing.T) {
 	if _, err := writeClaudeTheme(home); err != nil {
 		t.Fatal(err)
 	}
+	holdMode(t)
 	applyMode(false)
-	t.Cleanup(func() { applyMode(true) })
 	refreshClaudeTheme(home)
 	b, err := os.ReadFile(filepath.Join(home, ".claude", "themes", "conn.json"))
 	if err != nil || !strings.Contains(string(b), `"base": "light-ansi"`) {
@@ -200,6 +201,7 @@ func TestRefreshClaudeThemeKeepsTheFileCurrent(t *testing.T) {
 // conn dresses the programs it has a theme for, and says so for any
 // other.
 func TestConnDressesWhatItHasAThemeFor(t *testing.T) {
+	holdMode(t) // dressProgram puts conn on the ground its server is on
 	home := t.TempDir()
 	for _, args := range [][]string{{}, {"emacs"}, {"claude", "dark"}} {
 		if _, ok := dressProgram(args, home, nil); ok {

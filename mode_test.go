@@ -74,11 +74,23 @@ func TestAskDark(t *testing.T) {
 	}
 }
 
-// applyMode puts every color on one ground or the other, and nothing
-// else touches these package vars mid-test, so a light call is always
-// undone before another test reads the dark defaults.
+// holdMode keeps the ground the test binary is on. applyMode sets the
+// colors package-wide and conn calls it once at start, where a test
+// binary runs every test in the one process: a test that puts conn on
+// the other ground leaves it there for whatever runs next, and the
+// tests that read the dark defaults run later in the file order. The
+// hazard is worth naming because it is not always visible at the call
+// — dressProgram applies a mode of its own on the way to writing a
+// theme — so a test that touches the ground at all takes this.
+func holdMode(t *testing.T) {
+	t.Helper()
+	was := darkMode
+	t.Cleanup(func() { applyMode(was) })
+}
+
+// applyMode puts every color on one ground or the other.
 func TestApplyModeSwitchesTheGround(t *testing.T) {
-	t.Cleanup(func() { applyMode(true) })
+	holdMode(t)
 
 	applyMode(true)
 	if hex(groundColor) != "#15130F" || hex(inkColor) != "#E6DFD0" || cursorHex != "#E85D2F" ||
@@ -95,6 +107,9 @@ func TestApplyModeSwitchesTheGround(t *testing.T) {
 		borderHex != "#D8D0BD" || grayHex != "#6F6656" || themeBase != "light-ansi" || vimBackground != "light" {
 		t.Errorf("light: ground=%s ink=%s cursor=%s border=%s gray=%s base=%s vim=%s",
 			hex(groundColor), hex(inkColor), cursorHex, borderHex, grayHex, themeBase, vimBackground)
+	}
+	if darkMode {
+		t.Error("applyMode does not say which ground it put conn on")
 	}
 	if scheme != lightScheme {
 		t.Errorf("light scheme is not lightScheme: %v", scheme)
@@ -284,5 +299,40 @@ func TestModeFileRoundTrip(t *testing.T) {
 	}
 	if !serverMode(socket) {
 		t.Error("a cleared mode file does not fall back to dark")
+	}
+}
+
+// holdMode puts the ground back where it found it, which is the point
+// of taking it rather than calling applyMode(true) by hand: a test that
+// restores to dark is right only for as long as dark is what it was.
+func TestHoldModePutsTheGroundBack(t *testing.T) {
+	holdMode(t)
+	for _, was := range []bool{true, false} {
+		applyMode(was)
+		t.Run("", func(t *testing.T) {
+			holdMode(t)
+			applyMode(!was)
+		})
+		if darkMode != was {
+			t.Errorf("a test on %v ground left it on %v", was, darkMode)
+		}
+	}
+}
+
+// dressProgram writes a theme for the ground the server on this machine
+// is on, which means it applies a mode: a caller that had conn on the
+// other ground does not have it any more. Nothing at the call says so,
+// which is why the tests that make it take holdMode, and this is that
+// reason written down where it can fail.
+func TestDressingAProgramSetsTheGround(t *testing.T) {
+	holdMode(t)
+	applyMode(false)
+	// A home with no server beside it has no mode file, and a ground
+	// that was never asked for is dark.
+	if _, ok := dressProgram([]string{"vim"}, t.TempDir(), nil); !ok {
+		t.Fatal("the colorscheme was not written")
+	}
+	if !darkMode {
+		t.Error("dressProgram left conn on the ground its caller chose")
 	}
 }

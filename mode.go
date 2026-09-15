@@ -34,6 +34,14 @@ import (
 // are not a border and a quieter border; a program writing ANSI-0
 // expects to be read.
 
+// darkMode is the ground conn is on, as applyMode last left it. The
+// ground is package-wide — scheme, the hexes, themeBase and the rest
+// are all set from it at once — and nothing else names which one is in
+// force, so a caller that needs to put it back has to read the answer
+// out of one of the colors. It is dark until applyMode says otherwise,
+// which is what every terminal was before conn learned to ask.
+var darkMode = true
+
 // The two grounds and the two inks.
 var (
 	darkGround  = color.RGBA{R: 21, G: 19, B: 15, A: 255}
@@ -132,10 +140,14 @@ const (
 	lightToolBg          = "#E6DFCF"
 )
 
-// applyMode puts every color conn draws from onto one ground. It is
-// called once, before anything reads scheme, groundColor, cursorHex, or
-// any of the rest.
+// applyMode puts every color conn draws from onto one ground. In conn
+// it is called once, before anything reads scheme, groundColor,
+// cursorHex, or any of the rest. A test binary is one process running
+// every test, so a test that calls it — or calls something that calls
+// it, which dressProgram does on its way to writing a theme — leaves
+// the ground it chose standing for whatever runs next; see holdMode.
 func applyMode(dark bool) {
+	darkMode = dark
 	if dark {
 		groundColor, inkColor = darkGround, darkInk
 		scheme = darkScheme

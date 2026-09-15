@@ -138,6 +138,7 @@ func TestTheVimSchemeAgreesWithTheRest(t *testing.T) {
 
 // conn writes the colorscheme where nvim looks for one, and says so.
 func TestConnWritesTheVimColorscheme(t *testing.T) {
+	holdMode(t) // dressProgram puts conn on the ground its server is on
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", "")
 	msg, ok := dressProgram([]string{"vim"}, home, nil)

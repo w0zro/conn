@@ -570,6 +570,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 // the mode file says the new one, and the panel comes back painting
 // from it — no conn down in between.
 func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
+	holdMode(t)
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	// The scratch server rose on dark, the ground of a terminal that
@@ -584,7 +585,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
 	applyMode(false)
 	confText := tmuxConf("C-Space")
-	applyMode(true) // the test binary goes back to the ground it had
+	applyMode(true) // the rest of this test reads the dark table
 	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -641,7 +642,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	if tmux == "" {
 		t.Skip("tmux is not installed")
 	}
-	t.Cleanup(func() { applyMode(true) })
+	holdMode(t)
 
 	dir, err := os.MkdirTemp("/tmp", "conn-test-")
 	if err != nil {

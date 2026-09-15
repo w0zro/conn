@@ -352,12 +352,13 @@ func TestTheFilterReachesTheProcesses(t *testing.T) {
 	if len(got) != 3 || got[0].repos != 1 {
 		t.Errorf("the group says %+v", got[0])
 	}
-	// The header counts projects and not rows: the mode is the projects,
-	// and a number that grew every time a shell was opened would be
-	// answering a question nobody asked of it.
+	// The header counts every row: a process running in a project is as
+	// much a row to be found here as the project is, and a number that
+	// counted only the projects would disagree with what the operator
+	// can see.
 	b := composeProjects(testLive(), "conn", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
-	if b.total != 11 || b.left != 2 {
-		t.Errorf("the count says %d of %d", b.left, b.total)
+	if b.total != 15 || len(b.rows) != 4 {
+		t.Errorf("the count says %d of %d", len(b.rows), b.total)
 	}
 }
 

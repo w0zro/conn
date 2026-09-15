@@ -384,8 +384,7 @@ func withProcesses(ps []projectRow, projects []project, panes map[string]pane, r
 type projectsReport struct {
 	filter   string
 	rows     []projectRow // the rows the filter left, in the order they draw
-	total    int          // the projects there are before it
-	left     int          // the projects among the rows it left
+	total    int          // how many there are before it
 	roots    []string     // where conn looked, from ~, for when it found nothing
 	scanning bool
 	err      string
@@ -394,13 +393,13 @@ type projectsReport struct {
 // composeProjects words the list: the filter's rows out of the whole,
 // and the count of both.
 //
-// The count is of projects and not of rows. The mode is the projects;
-// the processes are what hangs under them, the way they do in the
-// processes view, and a number that grew every time a shell was opened
-// would be answering a question nobody asked of this header.
+// The count is of rows and not of projects. The header answers how much
+// of the list is in front of you and how much the typing cut, and a
+// process running in a project is as much a row to be found here as the
+// project is — counting only the projects would have the number
+// disagreeing with what the operator can see.
 func composeProjects(ps []projectRow, filter string, roots []string, home string, scanning bool, err string) projectsReport {
-	rows := matching(ps, filter)
-	b := projectsReport{filter: filter, rows: rows, total: countProjects(ps), left: countProjects(rows), scanning: scanning, err: err}
+	b := projectsReport{filter: filter, rows: matching(ps, filter), total: len(ps), scanning: scanning, err: err}
 	for _, root := range roots {
 		b.roots = append(b.roots, tilde(root, home))
 	}
@@ -492,18 +491,6 @@ func leftOf(u []projectRow, f string) []projectRow {
 	return append([]projectRow{head}, kept...)
 }
 
-// countProjects is how many of the rows are projects rather than the
-// processes running in them.
-func countProjects(rows []projectRow) int {
-	n := 0
-	for _, r := range rows {
-		if r.pid == 0 {
-			n++
-		}
-	}
-	return n
-}
-
 // sessionDirs is the directories a project's sessions could be filed
 // under: its own, and for a group each repository beneath it in turn —
 // a transcript is filed by the exact directory it was had in, which for
@@ -548,7 +535,7 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	case b.scanning && b.total == 0:
 		right = "" // nothing has been found yet, and none is not a count
 	case b.filter != "":
-		right = strconv.Itoa(b.left) + " OF " + strconv.Itoa(b.total)
+		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
 	l.to(measure - utf8.RuneCountInString(right))
 	l.add(p.gray, right)

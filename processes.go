@@ -168,9 +168,11 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	// being read. They cost three rows off the top of a panel that has
 	// forty, and the first project's name says more than all four.
 	//
-	// So the list begins at the top of the pane, where the pane beside it
-	// begins. A panel that started a row down from its neighbour read as
-	// a thing that had not finished loading.
+	// What is left at the top is the first project's name, a row down, and
+	// that row is the point: the heads and their rule were furniture and
+	// sat flush against the pane's edge, where furniture belongs. A name
+	// is the first thing there is to read, and reading does not start
+	// hard against an edge.
 
 	// The projects, in the order work began in them; or the reason there
 	// are none.
@@ -180,14 +182,15 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	}
 	var body []row
 	cursorRow := -1
-	project := func(bp projectBlock, first bool) {
+	project := func(bp projectBlock) {
 		d := canvas{p: p, width: width}
-		// A row of air before each project, to set it off from the one
-		// above — except the first, which has the top of the pane above
-		// it and nothing to be set off from.
-		if !first {
-			d.blank(0)
-		}
+		// A row of air before each project, the first included. Furniture
+		// can sit on the edge of a pane — a rule is an edge, and the head
+		// row that used to be here was flush for that reason. A project's
+		// name is not furniture, it is the first thing there is to read,
+		// and a thing to be read does not start hard against the top of
+		// the pane.
+		d.blank(0)
 		// The project's title alone. It carried a count of its rows on the
 		// right, which was the kernel's word for them and a figure the
 		// operator never asks for: the rows are right there under it.
@@ -308,8 +311,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		d.emit(l, 0, true)
 		body = d.rows
 	default:
-		for i, bp := range b.projects {
-			project(bp, i == 0)
+		for _, bp := range b.projects {
+			project(bp)
 		}
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)

@@ -1,3 +1,4 @@
+
    ~
 
    SHELL   zsh                         ACTIVE
@@ -14,7 +15,6 @@
    w0zro/conn
 
    SHELL   zsh                           IDLE
-
 
 
 

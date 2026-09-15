@@ -1,3 +1,4 @@
+
    ~
 
    SHELL   zsh                                                         TTYS009             ACTIVE
@@ -5,5 +6,4 @@
 
    w0zro/vim.pro/conjurer
 
-   SHELL   zsh                                                         TTYS007             ACTIVE
-   … 8 BELOW
+   … 9 BELOW

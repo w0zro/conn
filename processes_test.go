@@ -62,14 +62,19 @@ func TestProcessesLaysOut(t *testing.T) {
 			t.Errorf("the view lacks %q:\n%s", s, text)
 		}
 	}
-	// The view begins at the top of the pane, where the pane beside it
-	// begins: the first row is the first project's name, not air and not
-	// a rule. And the name has a row under it, being a heading and not
-	// the first row of its own table.
-	if got := strings.TrimSpace(rows[0].text); got != "~" {
-		t.Errorf("the first row is %q, not the first project's name", got)
+	// No rule and no column heads at the top; the first project's name is
+	// the first thing there is, with a row of air above it and a row
+	// below. Above, because a name is read and reading does not start
+	// hard against the edge of a pane — the heads that used to sit there
+	// were furniture, which can. Below, because the name is a heading and
+	// not the first row of its own table.
+	if got := strings.TrimSpace(rows[0].text); got != "" {
+		t.Errorf("the first row is %q, not a row of air", got)
 	}
-	if got := strings.TrimSpace(rows[1].text); got != "" {
+	if got := strings.TrimSpace(rows[1].text); got != "~" {
+		t.Errorf("the second row is %q, not the first project's name", got)
+	}
+	if got := strings.TrimSpace(rows[2].text); got != "" {
 		t.Errorf("the name has no row of air under it: %q", got)
 	}
 	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
@@ -99,7 +104,7 @@ func TestProcessesLaysOut(t *testing.T) {
 func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	rows := drawProcesses(testProcesses(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 8 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 9 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawProcesses(testProcesses(), 67040, 100, 9, plain)

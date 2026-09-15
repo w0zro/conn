@@ -370,6 +370,10 @@ func (m model) readProcesses() tea.Cmd {
 		}
 		maps.Copy(how, contactStatuses(procs))
 		projects := projectsFrom(procs, uid, roots, isProject, how)
+		// And what docker is holding up, which the table cannot show: a
+		// container is not a process of this machine, and compose says
+		// where each belongs by the directory it was started for.
+		projects = attachContainers(projects, readContainers(nowAt), roots)
 		msg := processesMsg{projects: projects, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas)}
 		if srv != nil {

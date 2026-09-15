@@ -1,0 +1,256 @@
+package main
+
+import (
+	"strings"
+	"testing"
+	"time"
+)
+
+// What docker ps --format '{{json .}}' says of a compose project: two
+// services publishing a port, one of them with a health check, a worker
+// that exited badly, and a container docker run started, which compose
+// wrote no directory on.
+const dockerPS = `{"ID":"9f1c2d3e4a5b","Names":"compose-demo-web-1","Image":"nginx:alpine","State":"running","Status":"Up 3 minutes (healthy)","Ports":"0.0.0.0:8438->80/tcp, [::]:8438->80/tcp","Labels":"com.docker.compose.project=compose-demo,com.docker.compose.service=web,com.docker.compose.project.working_dir=/Users/w0zro/projects/compose-demo,maintainer=NGINX Docker Maintainers <docker-maint@nginx.com>"}
+{"ID":"1a2b3c4d5e6f","Names":"compose-demo-cache-1","Image":"redis:alpine","State":"running","Status":"Up 3 minutes","Ports":"0.0.0.0:6390->6379/tcp","Labels":"com.docker.compose.project=compose-demo,com.docker.compose.service=cache,com.docker.compose.project.working_dir=/Users/w0zro/projects/compose-demo"}
+{"ID":"abcdef012345","Names":"compose-demo-worker-1","Image":"alpine","State":"exited","Status":"Exited (3) 8 seconds ago","Ports":"","Labels":"com.docker.compose.project=compose-demo,com.docker.compose.service=worker,com.docker.compose.project.working_dir=/Users/w0zro/projects/compose-demo"}
+{"ID":"ffee11223344","Names":"stray","Image":"postgres","State":"running","Status":"Up 2 hours","Ports":"0.0.0.0:5432->5432/tcp","Labels":""}
+`
+
+var dockerNow = time.Date(2026, 9, 15, 20, 0, 0, 0, time.UTC)
+
+func containersFor(t *testing.T) []container {
+	t.Helper()
+	cs := parseContainers([]byte(dockerPS), dockerNow)
+	if len(cs) != 4 {
+		t.Fatalf("parsed %d containers, want 4", len(cs))
+	}
+	return cs
+}
+
+// docker ps is read a container to a line: the service and project off
+// the labels compose wrote, the host side of the ports it publishes, and
+// the status broken into the pieces the row needs — what it exited with,
+// what its health check says, and how long ago that became true.
+func TestDockerPsIsReadIntoContainers(t *testing.T) {
+	cs := containersFor(t)
+
+	web := cs[0]
+	if web.service != "web" || web.project != "compose-demo" {
+		t.Errorf("web is service %q of project %q", web.service, web.project)
+	}
+	if web.dir != "/Users/w0zro/projects/compose-demo" {
+		t.Errorf("web's directory is %q", web.dir)
+	}
+	// Both families publish the same host port, and it is one port.
+	if got := strings.Join(web.ports, ","); got != "8438" {
+		t.Errorf("web publishes %q", got)
+	}
+	if web.health != "healthy" || web.exit != "" || !web.running() {
+		t.Errorf("web: health %q exit %q state %q", web.health, web.exit, web.state)
+	}
+	// The maintainer's label holds a comma of its own; it must not eat
+	// the labels that matter, which are read before it.
+	if web.image != "nginx:alpine" {
+		t.Errorf("web's image is %q", web.image)
+	}
+	if got := web.activity(); got != "web · :8438" {
+		t.Errorf("web's row says %q", got)
+	}
+
+	// docker says an age; conn says a moment, so the column is written
+	// the way every other row's is.
+	if got := dockerNow.Sub(web.since); got != 3*time.Minute {
+		t.Errorf("web has stood for %v, not three minutes", got)
+	}
+
+	worker := cs[2]
+	if worker.exit != "3" || worker.running() {
+		t.Errorf("worker: exit %q state %q", worker.exit, worker.state)
+	}
+	if got := dockerNow.Sub(worker.since); got != 8*time.Second {
+		t.Errorf("worker exited %v ago, not eight seconds", got)
+	}
+	// A worker with no published port is named alone.
+	if got := worker.activity(); got != "worker" {
+		t.Errorf("worker's row says %q", got)
+	}
+
+	// A container compose did not start has no directory and no service
+	// of its own, so its name stands for it.
+	if stray := cs[3]; stray.dir != "" || stray.service != "stray" {
+		t.Errorf("the stray: dir %q service %q", stray.dir, stray.service)
+	}
+}
+
+// The status column says a container in the words it already uses, and a
+// health check failing is a thing to look at: the service is up and
+// answering wrongly, which is the case nobody notices unaided. An exit of
+// zero is an ending and no fault; any other code is the fault it is.
+func TestAContainersStatusIsSaidInTheColumnsOwnWords(t *testing.T) {
+	for _, c := range []struct {
+		container
+		status string
+		fault  bool
+	}{
+		{container{state: "running"}, statusActive, false},
+		{container{state: "running", health: "healthy"}, statusActive, false},
+		{container{state: "running", health: "starting"}, "STARTING", false},
+		{container{state: "running", health: "unhealthy"}, "UNHEALTHY", true},
+		{container{state: "restarting"}, "RESTARTING", true},
+		{container{state: "paused"}, statusStopped, true},
+		{container{state: "exited", exit: "0"}, statusEnded, false},
+		{container{state: "exited", exit: "3"}, "EXIT 3", true},
+	} {
+		status, fault := containerStatus(c.container)
+		if status != c.status || fault != c.fault {
+			t.Errorf("%+v: %q fault=%v, want %q fault=%v", c.container, status, fault, c.status, c.fault)
+		}
+	}
+}
+
+// A container goes by a number below zero, where no process is, read off
+// its id so the cursor holds its row from one reading to the next.
+func TestAContainerHoldsItsRowByItsID(t *testing.T) {
+	a, b := containerPID("9f1c2d3e4a5b"), containerPID("1a2b3c4d5e6f")
+	if a >= 0 || b >= 0 {
+		t.Errorf("containers took pids %d and %d, which a process could hold", a, b)
+	}
+	if a == b {
+		t.Error("two containers share a row")
+	}
+	if containerPID("9f1c2d3e4a5b") != a {
+		t.Error("a container's number moved between readings")
+	}
+}
+
+// docker's ages, read back to durations. The health in parentheses comes
+// after the age and is not part of it; an exit's age is the words before
+// "ago".
+func TestDockerAgesAreRead(t *testing.T) {
+	for _, c := range []struct {
+		status string
+		want   time.Duration
+		ok     bool
+	}{
+		{"Up 3 minutes (healthy)", 3 * time.Minute, true},
+		{"Up About an hour", time.Hour, true},
+		{"Up Less than a second", time.Second, true},
+		{"Exited (1) 3 minutes ago", 3 * time.Minute, true},
+		{"Exited (0) 2 hours ago", 2 * time.Hour, true},
+		{"Created", 0, false},
+	} {
+		got, ok := ageOf(c.status)
+		if got != c.want || ok != c.ok {
+			t.Errorf("%q: %v %v, want %v %v", c.status, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+// dockerRoots stands in for the root finder: the compose demo is its own
+// project, and so is conn.
+func dockerRoots(dir string) string {
+	for _, root := range []string{"/Users/w0zro/projects/compose-demo", "/Users/w0zro/projects/w0zro/conn"} {
+		if dir == root || strings.HasPrefix(dir, root+"/") {
+			return root
+		}
+	}
+	return dir
+}
+
+// Where a compose is running in a shell, its containers stand under it:
+// the row that says docker compose up had nothing beneath it, and the
+// services it is running are what it is doing.
+func TestContainersStandUnderTheComposeThatRunsThem(t *testing.T) {
+	projects := []project{{
+		path: "/Users/w0zro/projects/compose-demo",
+		entries: []entry{
+			{pid: 100, kind: kindShell, command: "zsh", tty: "ttys003", cwd: "/Users/w0zro/projects/compose-demo"},
+			{pid: 101, kind: kindRun, command: "docker compose up", tty: "ttys003", depth: 1,
+				cwd: "/Users/w0zro/projects/compose-demo"},
+		},
+	}}
+	out := attachContainers(projects, containersFor(t), dockerRoots)
+	if len(out) != 1 {
+		t.Fatalf("%d projects, want 1: the stray belongs to none and is not filed", len(out))
+	}
+	rows := out[0].entries
+	var got []string
+	for _, e := range rows {
+		got = append(got, strings.Repeat("  ", e.depth)+e.kind+" "+e.command)
+	}
+	want := []string{
+		"SHELL zsh",
+		"  RUN docker compose up",
+		"    SERVICE cache · :6390",
+		"    SERVICE web · :8438",
+		"    SERVICE worker",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("the rows read:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	// The dead worker is listed beside its siblings, and says so.
+	for _, e := range rows {
+		if strings.HasPrefix(e.command, "worker") && (e.status != "EXIT 3" || !e.fault) {
+			t.Errorf("the worker reads %q fault=%v", e.status, e.fault)
+		}
+	}
+}
+
+// Left detached there is no compose to stand under, and the project may
+// have no processes at all — which is the case the process table cannot
+// show, and the one that had conn saying nothing was running.
+func TestDetachedContainersRootTheirOwnProject(t *testing.T) {
+	// Work in another project, so the reading is not empty; nothing at
+	// all in the compose demo.
+	projects := []project{{
+		path: "/Users/w0zro/projects/w0zro/conn",
+		entries: []entry{{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001",
+			cwd: "/Users/w0zro/projects/w0zro/conn"}},
+	}}
+	out := attachContainers(projects, containersFor(t), dockerRoots)
+	if len(out) != 2 {
+		t.Fatalf("%d projects, want 2: the compose demo is a project docker alone is working in", len(out))
+	}
+	if out[0].path != "/Users/w0zro/projects/w0zro/conn" {
+		t.Errorf("the worked project lost its place to %q", out[0].path)
+	}
+	demo := out[1]
+	if demo.path != "/Users/w0zro/projects/compose-demo" {
+		t.Fatalf("the second project is %q", demo.path)
+	}
+	var got []string
+	for _, e := range demo.entries {
+		if e.depth != 0 {
+			t.Errorf("%s stands at depth %d with no compose above it", e.command, e.depth)
+		}
+		got = append(got, e.command)
+	}
+	want := "cache · :6390, web · :8438, worker"
+	if strings.Join(got, ", ") != want {
+		t.Errorf("the rows read %q, want %q", strings.Join(got, ", "), want)
+	}
+	// A container conn holds no pane for is a row it can only report,
+	// which is what the terminal being blank says.
+	for _, e := range demo.entries {
+		if e.tty != "" {
+			t.Errorf("%s claims terminal %q", e.command, e.tty)
+		}
+	}
+}
+
+// A project stopped whole is over. Its containers are not a list of
+// yesterday's failures to read again every day, so they go; a service
+// that died while its siblings run is exactly what wants noticing, and
+// stays.
+func TestAProjectStoppedWholeIsNotListed(t *testing.T) {
+	cs := containersFor(t)
+	for i := range cs {
+		if cs[i].project == "compose-demo" {
+			cs[i].state, cs[i].exit = "exited", "0"
+		}
+	}
+	out := attachContainers(nil, cs, dockerRoots)
+	if len(out) != 0 {
+		t.Errorf("a project with nothing running left %d projects: %+v", len(out), out)
+	}
+}

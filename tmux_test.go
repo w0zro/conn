@@ -78,6 +78,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind k select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-k",
 		"bind s select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-s",
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 C-a",
+		"bind + select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-+",
 		`bind M-a set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-a`,
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
@@ -102,7 +103,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 10 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+	if strings.Count(conf, "\nbind ") != 11 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
 		t.Errorf("configuration binds more than the ten chords, or ignores the prefix given:\n%s", conf)
 	}
 	// The prefix twice over is the other process, and the chord is the

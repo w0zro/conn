@@ -276,11 +276,10 @@ func newModel(p palette) model {
 }
 
 // report is the console's words as things stand: from the station once
-// it is read, from the header's part of it before.
-// report is the console's words as things stand, as the terminal in
-// hand can hold them: the stages are counted off the report the screen
-// will actually draw, so a console that gave up its per-root lines does
-// not go on ticking through stages that have no row.
+// it is read, from the header's part of it before, and as the terminal
+// in hand can hold them. The stages are counted off the report the
+// screen will actually draw, so a console that gave up its per-root
+// lines does not go on ticking through stages that have no row.
 func (m model) report() report {
 	st := m.head
 	if m.st != nil {
@@ -909,6 +908,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// it is pressed is worth more than the saving of not having it.
 	if k == "alt+s" || k == "ctrl+s" || k == "ctrl+a" || k == "alt+a" {
 		return m.openAt(k)
+	}
+	// conn's own configuration in an editor, which the prefix then +
+	// sends. It is a key of its own for the reason the others are: in
+	// the list and in the sessions view a plain + is a character being
+	// typed into the line.
+	if k == "alt++" {
+		if m.srv == nil {
+			return m, nil // no server, and nowhere to put an editor
+		}
+		return m, m.editConfig()
 	}
 	// Down and up the processes conn can put in the bay, which the
 	// prefix then j and then k send. In the processes view j and k walk

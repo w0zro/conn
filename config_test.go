@@ -176,3 +176,75 @@ func TestEveryStatusFitsItsColumn(t *testing.T) {
 		}
 	}
 }
+
+// The editor is the operator's own, and vi where they have named none.
+func TestTheEditorIsTheOperatorsOwn(t *testing.T) {
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "")
+	if got := editor(); got != "vi" {
+		t.Errorf("with nothing named the editor is %q", got)
+	}
+	t.Setenv("EDITOR", "nvim")
+	if got := editor(); got != "nvim" {
+		t.Errorf("EDITOR names %q", got)
+	}
+	t.Setenv("VISUAL", "emacs")
+	if got := editor(); got != "emacs" {
+		t.Errorf("VISUAL is not taken first: %q", got)
+	}
+}
+
+// Editing a config there is none of makes one, carrying the roots conn
+// is walking as it stands: what opens says what conn is doing. What it
+// wrote is a file conn reads back as the same roots, which is the whole
+// point of writing it rather than an empty buffer.
+func TestEditingMakesTheFileWhereThereIsNone(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("CONN_ROOTS", "")
+	home := t.TempDir()
+	path, err := openableConfig(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != configPath(home) {
+		t.Errorf("the file was made at %q", path)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"~/projects"`) {
+		t.Errorf("the file conn wrote does not name the roots it walks:\n%s", b)
+	}
+	got := roots(t, home)
+	if len(got) != 1 || got[0] != filepath.Join(home, "projects") {
+		t.Errorf("conn reads back %q from the file it wrote", got)
+	}
+}
+
+// A file the operator already has is theirs, and editing it opens what
+// is there rather than anything conn would have written.
+func TestEditingLeavesAFileThatIsThereAlone(t *testing.T) {
+	body := `{"roots": ["/theirs"]}`
+	home := writeConfig(t, body)
+	if _, err := openableConfig(home); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(configPath(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != body {
+		t.Errorf("conn wrote over a file that was there:\n%s", b)
+	}
+}
+
+// The command puts the operator in the file, with a path a shell takes
+// back whole however it is spelt.
+func TestTheEditCommandNamesTheFile(t *testing.T) {
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "nvim")
+	if got := editConfigCommand("/a path/config.json"); got != `nvim '/a path/config.json'` {
+		t.Errorf("the command reads %q", got)
+	}
+}

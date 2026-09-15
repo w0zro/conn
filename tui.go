@@ -33,11 +33,14 @@ var (
 // project, read again every two seconds while it is up; j and k move
 // the cursor, which follows its process across readings; tab takes it
 // to whatever is waiting on you, longest held up first and round again;
-// i opens the readout on the row under the cursor — what conn knows of
-// it past the six columns a row has room for — which opens in the bay,
-// beside the processes view rather than over it, follows the cursor
-// from there, and closes on i again; c brings the console back, and any
-// key there returns to the processes view. The console is a page: in
+// enter goes into the row under the cursor and esc goes back into the
+// one you came out of, so a look down the list and back costs nothing;
+// the page is the readout on the row under the cursor — what conn knows
+// of it past the six columns a row has room for — which the workspace
+// holds while the keys are on the panel, beside the processes view
+// rather than over it, following the cursor from there, with nothing
+// pressed for it; c brings the console back, and any key there returns
+// to the processes view. The console is a page: in
 // the server it takes the whole window while it is up, and the bay has
 // its side again on the way back to the processes view. The words of
 // both are said again each second, from what was read and the clock as
@@ -229,6 +232,12 @@ type model struct {
 	// The terminal that was in the bay before that one, which is where
 	// the other-process chord goes back to.
 	lastBay string
+	// The last terminal the workspace held that was work: where esc
+	// goes back into. It is not the bay, because while the keys are on
+	// the panel the page is in the bay and the work has been put back
+	// in a window of its own; it is what the bay held before the page
+	// borrowed it, which is the process the operator was last in.
+	lastIn string
 }
 
 func newModel(p palette) model {
@@ -634,6 +643,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasRow, hadRow := m.atCursor()
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
 		m.looking = msg.bayReadout
+		// Work in the workspace is what esc goes back into, so a conn
+		// that came up to a bay it did not fill itself still knows where
+		// the operator was. The page and a hold are conn's own furniture
+		// and leave standing whatever the bay held before them.
+		if reachable(msg.panes[msg.bay]) {
+			m.lastIn = msg.bay
+		}
 		if msg.cpu != nil {
 			m.cpuWas, m.cpuAt, m.stood, m.acts = msg.cpu, msg.cpuAt, msg.stood, msg.acts
 		}
@@ -736,14 +752,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // outside it, from anywhere; on the console a key skips the sequence,
 // then continues to the processes view and gives the bay its side back;
 // in the processes view c brings the console back over the whole
-// window, enter reaches the cursor's process, s opens a shell at its
-// project, a opens claude there instead, and alt+a opens the sessions
-// view over what claude left suspended there. tab goes to what is
-// waiting on you, longest first, and round again; i looks at the
-// cursor's row. x asks to end the cursor's process, and arms the
-// question rather than the ending: the next key answers it. gg, G and M
-// are the ends of the list and the middle of it, where j and k are its
-// steps: a table long enough to scroll is not walked to its end.
+// window, enter reaches the cursor's process, esc goes back into the
+// last process the workspace held, s opens a shell at its project, a
+// opens claude there instead, and alt+a opens the sessions view over
+// what claude left suspended there. tab goes to what is waiting on you,
+// longest first, and round again. x asks to end the cursor's process,
+// and arms the question rather than the ending: the next key answers
+// it. gg, G and M are the ends of the list and the middle of it, where
+// j and k are its steps: a table long enough to scroll is not walked to
+// its end.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A kill x asked for takes the next key, whatever it is: x, y or
 	// enter confirms it, and anything else cancels — no other binding
@@ -870,6 +887,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if e, _, ok := m.under(); m.inside && ok && reachable(m.panes[e.tty]) {
 			return m, m.reach(m.panes[e.tty], e.tty)
 		}
+	case k == "esc":
+		return m.backIn()
 	case k == "x":
 		e, _, ok := m.under()
 		if !ok {
@@ -975,7 +994,7 @@ func (m model) slotted(tty string) model {
 	if m.bay != "" && m.bay != tty && !m.panes[m.bay].hold {
 		m.lastBay = m.bay
 	}
-	m.bay = tty
+	m.bay, m.lastIn = tty, tty
 	return m
 }
 
@@ -1152,6 +1171,32 @@ func (m model) backFrom() (tea.Model, tea.Cmd) {
 	}
 	srv := m.srv
 	return m, tea.Batch(cmd, m.serverCmd(func() error { return srv.focusPane(from) }))
+}
+
+// backIn puts the keys back in the process they came out of, which is
+// the last one the workspace held. Walking the rows is reading, not
+// moving: the cursor goes down the list while the work stands where it
+// was, and esc is how the reading ends. Without it the way back is to
+// find the row the work is on and press enter, which is the operator
+// doing by hand what conn already knows.
+//
+// It is the cursor that is ignored here, deliberately. enter goes to
+// the row you are looking at; esc goes to the process you were in. A
+// glance down the list and back costs nothing, and lands where it
+// started however far the cursor wandered.
+//
+// With nothing to go back into — a bay that has only ever held a hold,
+// work that has since ended, every row outside conn's own server — it
+// does nothing, and the cursor stays where the operator left it.
+func (m model) backIn() (tea.Model, tea.Cmd) {
+	if !m.inside || m.lastIn == "" {
+		return m, nil
+	}
+	p, ok := m.panes[m.lastIn]
+	if !ok || !reachable(p) {
+		return m, nil
+	}
+	return m, m.reach(p, m.lastIn)
 }
 
 // toProjects opens the list, from wherever conn is, and walks the roots

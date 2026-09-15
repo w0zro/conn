@@ -1,6 +1,7 @@
 package main
 
 import (
+	"maps"
 	"strings"
 	"syscall"
 	"testing"
@@ -1167,4 +1168,97 @@ func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
 	if row, ok := m.atCursor(); !ok || row.name != "conn" {
 		t.Errorf("with the process gone the cursor stands on %+v", row)
 	}
+}
+
+// esc in the processes view goes back into the last process the
+// workspace held. Walking the rows is reading, not moving: the page
+// takes the bay while the keys are on the panel and the work goes back
+// to a window of its own, so what to come back to is remembered rather
+// than read off the bay. The cursor is not consulted — enter is for the
+// row you are looking at, esc for the process you came out of.
+func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.projects, m.panes = viewProcesses, testRunning, testPanes
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	// The status line has been said once already, so what a key asks for
+	// here is the key's own asking and not the line's first telling.
+	m.said, m.saidKeys = true, m.keys()
+
+	press := func(m model, k string) (model, tea.Cmd) {
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		return next.(model), cmd
+	}
+	// Nothing has been worked in yet, so there is nowhere to go back to
+	// and esc asks for nothing.
+	if got, cmd := press(m, "esc"); cmd != nil || got.lastIn != "" {
+		t.Errorf("esc with nothing worked in: lastIn %q, cmd %v", got.lastIn, cmd != nil)
+	}
+
+	// Going into the contact is what makes it the one to come back to.
+	next, _ := m.Update(reachedMsg{"ttys001"})
+	m = next.(model)
+	if m.lastIn != "ttys001" {
+		t.Fatalf("after reaching, lastIn is %q", m.lastIn)
+	}
+
+	// The keys come to the panel and the page takes the bay: the work is
+	// out of the bay but it is still where the operator was.
+	m.focused = true
+	next, _ = m.Update(processesMsg{
+		gen:      m.processesGen,
+		projects: testRunning,
+		panes:    withPane(testPanes, pane{id: "%9", tty: "ttys009", hold: true, readout: true}),
+		bay:      "ttys009",
+	})
+	if m = next.(model); m.lastIn != "ttys001" {
+		t.Errorf("the page took the bay and lastIn with it: %q", m.lastIn)
+	}
+
+	// And a hold standing in an empty bay is conn's own furniture too.
+	next, _ = m.Update(processesMsg{
+		gen:      m.processesGen,
+		projects: testRunning,
+		panes:    withPane(testPanes, pane{id: "%8", tty: "ttys008", hold: true}),
+		bay:      "ttys008",
+	})
+	if m = next.(model); m.lastIn != "ttys001" {
+		t.Errorf("a hold took lastIn: %q", m.lastIn)
+	}
+
+	// The cursor walks the list; the work stands where it was.
+	was := m.cursor
+	for range 3 {
+		m, _ = press(m, "j")
+	}
+	if m.cursor == was {
+		t.Fatal("j did not move the cursor")
+	}
+	got, cmd := press(m, "esc")
+	if cmd == nil {
+		t.Error("esc asked for nothing with a process to go back into")
+	}
+	if got.cursor != m.cursor {
+		t.Errorf("esc moved the cursor to %d", got.cursor)
+	}
+	if got.lastIn != "ttys001" {
+		t.Errorf("esc went back into %q", got.lastIn)
+	}
+
+	// Work that has since ended is nowhere to go: conn holds no pane for
+	// it, and esc does nothing rather than reaching at a gone id.
+	m.lastIn = "ttys004" // the process conn can only report
+	if _, cmd := press(m, "esc"); cmd != nil {
+		t.Error("esc reached for a process conn holds no pane for")
+	}
+	m.lastIn, m.panes = "ttys001", withPane(testPanes, pane{id: "%1", tty: "ttys001", dead: true})
+	if _, cmd := press(m, "esc"); cmd != nil {
+		t.Error("esc reached into a pane whose process has ended")
+	}
+}
+
+// withPane is testPanes with one more pane in it, the map left alone.
+func withPane(panes map[string]pane, p pane) map[string]pane {
+	out := maps.Clone(panes)
+	out[p.tty] = p
+	return out
 }

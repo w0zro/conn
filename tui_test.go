@@ -1027,3 +1027,49 @@ func TestCancellingAChordGivesTheKeysBack(t *testing.T) {
 		t.Errorf("p on the panel: view %d, from %q", m.view, m.from)
 	}
 }
+
+// gg, G and M are the ends of the list and its middle, where j and k
+// are its steps. They count process rows across every project, the rows
+// j and k walk, and not the titles above them; the first g of gg is
+// nothing on its own, and any other key after it is simply that key.
+func TestTheMotionsReachTheEndsAndTheMiddle(t *testing.T) {
+	m := newModel(plain)
+	m.view = viewProcesses
+	m.projects = []project{
+		{path: "/w", entries: []entry{{pid: 11}, {pid: 22}}},
+		{path: "/x", entries: []entry{{pid: 33}, {pid: 44}, {pid: 55}}},
+	}
+	m.cursor, m.cursorAt = 11, 0
+
+	press := func(k string) {
+		next, _ := m.Update(tea.KeyPressMsg{Code: rune(k[0]), Text: k})
+		m = next.(model)
+	}
+	for _, c := range []struct {
+		keys []string
+		want int
+	}{
+		{[]string{"G"}, 55},      // the last row, across the projects
+		{[]string{"M"}, 33},      // the middle of the five
+		{[]string{"g", "g"}, 11}, // the first, and only on the second g
+		{[]string{"G", "g"}, 55}, // a lone g moves nothing
+		{[]string{"g", "j"}, 22}, // and the key after it is its own
+		{[]string{"g", "g", "G"}, 55},
+	} {
+		m.cursor, m.cursorAt = 11, 0
+		for _, k := range c.keys {
+			press(k)
+		}
+		if m.cursor != c.want {
+			t.Errorf("%v put the cursor on %d, want %d", c.keys, m.cursor, c.want)
+		}
+	}
+
+	// With nothing running there is nowhere to go and nothing to answer.
+	m.projects, m.cursor, m.cursorAt = nil, 0, 0
+	press("G")
+	press("M")
+	if m.cursor != 0 {
+		t.Errorf("with nothing running: cursor %d", m.cursor)
+	}
+}

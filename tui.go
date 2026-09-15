@@ -214,6 +214,12 @@ type model struct {
 	// kill is a kill x has asked for and not yet answered; nothing else
 	// binds while it is not nil.
 	kill *pendingKill
+	// firstG is a g that has been pressed and is nothing on its own: the
+	// first half of gg, waiting to see whether the next key is its
+	// second. Unlike a kill it asks nothing and says nothing — a motion
+	// half typed is not a question — so any other key simply goes on to
+	// be the key it is.
+	firstG bool
 
 	srv    *server         // conn's tmux server, when there is one
 	inside bool            // this conn is the panel of the server's home window
@@ -672,7 +678,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // view over what claude left suspended there. tab goes to what is
 // waiting on you, longest first, and round again; i looks at the
 // cursor's row. x asks to end the cursor's process, and arms the
-// question rather than the ending: the next key answers it.
+// question rather than the ending: the next key answers it. gg, G and M
+// are the ends of the list and the middle of it, where j and k are its
+// steps: a table long enough to scroll is not walked to its end.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A kill x asked for takes the next key, whatever it is: x, y or
 	// enter confirms it, and anything else cancels — no other binding
@@ -683,6 +691,15 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if k == "x" || k == "y" || k == "enter" {
 			return m, m.killEntry(req.pid, req.command, req.sig)
 		}
+		return m, nil
+	}
+	// The second g of gg, which is the only key the first one waits for.
+	// Every other key clears it and goes on to do what it does, so a g
+	// pressed and thought better of costs nothing.
+	half := m.firstG
+	m.firstG = false
+	if half && k == "g" {
+		m.cursor, m.cursorAt = follow(m.projects, 0, 0)
 		return m, nil
 	}
 	// The key that opens projects from wherever conn is, which is what
@@ -774,6 +791,18 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		m.cursor, m.cursorAt = follow(m.projects, 0, m.cursorAt+1)
 	case k == "k" || k == "up":
 		m.cursor, m.cursorAt = follow(m.projects, 0, max(m.cursorAt-1, 0))
+	case k == "g":
+		// Nothing yet: g is the half of a motion, and what it means is
+		// decided by the key after it.
+		m.firstG = true
+	case k == "G":
+		m.cursor, m.cursorAt = follow(m.projects, 0, rowsIn(m.projects)-1)
+	case k == "M":
+		// The middle of the list, not of the screen as it is in vim. The
+		// cursor is an index into every process row and knows nothing of
+		// where the view is scrolled to, and the middle of what there is
+		// is the one gg and G are the ends of.
+		m.cursor, m.cursorAt = follow(m.projects, 0, rowsIn(m.projects)/2)
 	case k == "enter":
 		if e, _, ok := m.under(); m.inside && ok && reachable(m.panes[e.tty]) {
 			return m, m.reach(m.panes[e.tty], e.tty)
@@ -1273,6 +1302,17 @@ func follow(projects []project, pid, at int) (int, int) {
 	}
 	at = min(max(at, 0), len(pids)-1)
 	return pids[at], at
+}
+
+// rowsIn is how many process rows the projects hold: what a motion to
+// the end or the middle of them counts against. It counts the processes
+// and not the titles above them, which is the list j and k walk.
+func rowsIn(projects []project) int {
+	n := 0
+	for _, pl := range projects {
+		n += len(pl.entries)
+	}
+	return n
 }
 
 // advance brings the next stage on and sets the one after it going.

@@ -323,3 +323,91 @@ func TestEnterAndSActOnTheContainer(t *testing.T) {
 		t.Error("enter opened something for a row that is neither reachable nor a container")
 	}
 }
+
+// The page for a container is composed from what docker said, not from
+// the process table, which has no record of it. It is named by its id,
+// since the number conn files it under is conn's own bookkeeping.
+func TestTheServicePageIsComposedFromDocker(t *testing.T) {
+	now := time.Date(2026, 9, 15, 22, 0, 0, 0, time.UTC)
+	c := container{
+		id: "94e3da190ba7", name: "compose-demo-web-1", service: "web", project: "compose-demo",
+		image: "nginx:alpine", state: "running", status: "Up 3 minutes (healthy)", health: "healthy",
+		dir: "/Users/w0zro/projects/compose-demo", ports: []string{"8438"}, since: now.Add(-3 * time.Minute),
+	}
+	b := composeReadout(readoutSubject{container: &c, inside: true}, "/Users/w0zro", now)
+	if b.name != c.id {
+		t.Errorf("the page is headed %q, not the container's id", b.name)
+	}
+	text := texts(drawReadout(b, 60, 24, plain))
+	for _, want := range []string{
+		"94e3da190ba7", // the header, in place of a pid conn invented
+		"IMAGE ..... NGINX:ALPINE",
+		"UP 3 MINUTES (HEALTHY)", // docker's own sentence, which says it best
+		"HEALTH .... HEALTHY",
+		"COMPOSE ... COMPOSE-DEMO",
+		"NAME ...... COMPOSE-DEMO-WEB-1",
+		"PORTS ..... LOCALHOST:8438",
+		"ENTER OPENS ITS LOG",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the page lacks %q:\n%s", want, text)
+		}
+	}
+	// Nothing from the process page, which asks the table things it
+	// cannot answer for a container.
+	for _, unwanted := range []string{"PID ", "STATE ", "CPU ", "COMMAND "} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("the page still says %q:\n%s", unwanted, text)
+		}
+	}
+
+	// A service that went wrong says so past docker's sentence, since
+	// that buries it: Exited (3) reads as a fact, not as a fault.
+	c.state, c.exit, c.health, c.status = "exited", "3", "", "Exited (3) 8 seconds ago"
+	text = texts(drawReadout(composeReadout(readoutSubject{container: &c, inside: true}, "/Users/w0zro", now), 60, 24, plain))
+	if !strings.Contains(text, "WRONG ..... EXIT 3") {
+		t.Errorf("a dead service does not say what went wrong:\n%s", text)
+	}
+}
+
+// x on a container asks docker to stop it, and says stop rather than
+// kill: there is no process here to signal. One already stopped is left
+// alone, the question being about nothing.
+func TestXStopsAContainer(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside = viewProcesses, true
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.projects = []project{{path: "/p", entries: []entry{
+		{pid: -99, kind: kindService, command: "web · :8438", container: "abc123", cwd: "/p", status: statusActive},
+		{pid: -98, kind: kindService, command: "worker", container: "def456", cwd: "/p", status: statusEnded},
+	}}}
+	m.containers = []container{{id: "abc123", service: "web"}, {id: "def456", service: "worker"}}
+
+	m.cursor = -99
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if m.kill == nil || m.kill.container != "abc123" {
+		t.Fatalf("x armed %+v", m.kill)
+	}
+	if !strings.Contains(m.kill.prompt, "STOP WEB") {
+		t.Errorf("the question reads %q", m.kill.prompt)
+	}
+	if strings.Contains(m.kill.prompt, "KILL") || strings.Contains(m.kill.prompt, "-99") {
+		t.Errorf("the question talks of killing or of a pid: %q", m.kill.prompt)
+	}
+	// By the service, not by the row's label, which carries the ports.
+	if strings.Contains(m.kill.prompt, ":8438") {
+		t.Errorf("the question asks about an address: %q", m.kill.prompt)
+	}
+	// Confirming asks docker rather than signalling anything.
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"})); cmd == nil {
+		t.Error("confirming the stop asked for nothing")
+	}
+
+	// A service already gone is not asked about.
+	m.kill, m.cursor = nil, -98
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	if got := next.(model); got.kill != nil {
+		t.Errorf("x armed a question on a service already stopped: %+v", got.kill)
+	}
+}

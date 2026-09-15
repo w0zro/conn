@@ -31,6 +31,10 @@ type pendingKill struct {
 	command string
 	sig     syscall.Signal
 	prompt  string // the question, as the status line puts it
+	// The container to stop, where the row is one. A container is not a
+	// process of this machine and has no pid to signal: docker holds it,
+	// and docker is asked to let it go.
+	container string
 }
 
 // killSignal is what x sends a kind of entry: SIGKILL for a bare
@@ -84,4 +88,13 @@ func killPrompt(command string, pid int, sig syscall.Signal) string {
 		verb = "kill"
 	}
 	return strings.ToUpper(verb + " " + command + " " + strconv.Itoa(pid) + " · x confirms · any other key cancels")
+}
+
+// stopPrompt is the question for a container. It says stop, which is
+// docker's own word and the true one: docker asks the container to go
+// and waits before insisting, where a kill is a signal and an instant.
+// And it names the service rather than a pid, a container having none
+// that means anything here.
+func stopPrompt(service string) string {
+	return strings.ToUpper("stop " + service + " · x confirms · any other key cancels")
 }

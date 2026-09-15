@@ -592,9 +592,29 @@ func (m model) published(again bool) model {
 	}
 	if pid != m.told || again {
 		m.told = pid
-		tellCursor(cursorPath(m.head.login.home), pid)
+		tellCursor(cursorPath(m.head.login.home), pid, m.containerAt(pid))
 	}
 	return m
+}
+
+// containerAt is the container a row stands for, where it is one, as the
+// panel has it from docker. It goes to the readout with the cursor
+// because the readout has no other way to learn it: every other row it
+// can look up in the process table, and a container is not there.
+func (m model) containerAt(pid int) *container {
+	for _, pl := range m.projects {
+		for _, e := range pl.entries {
+			if e.pid != pid || e.container == "" {
+				continue
+			}
+			for i := range m.containers {
+				if m.containers[i].id == e.container {
+					return &m.containers[i]
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -827,6 +847,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		req := m.kill
 		m.kill = nil
 		if k == "x" || k == "y" || k == "enter" {
+			if req.container != "" {
+				return m, m.stopContainer(req.container, req.command)
+			}
 			return m, m.killEntry(req.pid, req.command, req.sig)
 		}
 		return m, nil
@@ -969,6 +992,25 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case k == "x":
 		e, _, ok := m.under()
 		if !ok {
+			return m, nil
+		}
+		// A container is stopped rather than signalled: there is no
+		// process here to send anything to, and docker's stop asks it to
+		// go before insisting. One already stopped is left alone — the
+		// question would be about nothing, and the row is kept only so
+		// the service that died beside its siblings can be seen.
+		if e.container != "" {
+			if e.status == statusEnded || e.fault {
+				return m, nil
+			}
+			// By its service, which is what it is called here. The row's
+			// own label carries the ports it publishes, and a question
+			// that reads STOP CACHE · :6390 is asking about an address.
+			name := e.command
+			if c := m.containerAt(e.pid); c != nil {
+				name = c.service
+			}
+			m.kill = &pendingKill{container: e.container, command: name, prompt: stopPrompt(name)}
 			return m, nil
 		}
 		sig := killSignal(e.kind)

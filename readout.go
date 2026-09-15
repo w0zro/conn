@@ -50,11 +50,18 @@ type readoutSubject struct {
 	sess     sessionFile // what a contact says of itself, when conn can ask
 	carried  session
 	git      gitStatus
+	// What docker says of this row, where the row is a container. It
+	// comes from the panel rather than from anything read here; see
+	// tellCursor.
+	container *container
 }
 
 // readoutReport is the readout's words as things stand, about one row.
 type readoutReport struct {
-	pid    int
+	pid int
+	// What the header calls the row, where a pid is not what it is known
+	// by: a container's id.
+	name   string
 	gone   bool // the row was there when the readout opened, and is not now
 	groups []readoutGroup
 }
@@ -129,6 +136,14 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 			ask.addAsWritten("said", s.carried.Ask.Said)
 		}
 		b.groups = append(b.groups, ask)
+	}
+
+	// A container is not a process, and the groups below ask the process
+	// table things it has no answer for — a kernel state, a start, a
+	// processor time. What there is to say of it is what docker says,
+	// and it is said here instead.
+	if s.container != nil {
+		return composeService(b, *s.container, s.pane, s.inside, home, now)
 	}
 
 	what := readoutGroup{title: "WHAT"}
@@ -376,6 +391,13 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	l := c.line()
 	l.add(p.orange+p.bold, "READOUT")
 	right := "PID " + strconv.Itoa(b.pid)
+	// A container is known by its id. The number conn files it under is
+	// its own bookkeeping — below zero, where no process is, so the
+	// cursor can hold the row between readings — and saying it here
+	// would be conn showing the operator conn's own filing.
+	if b.name != "" {
+		right = b.name
+	}
 	l.to(measure - utf8.RuneCountInString(right))
 	l.add(p.gray, right)
 	c.emit(l, 0, false)
@@ -471,4 +493,70 @@ func tokens(n int) string {
 		return strconv.Itoa(n/1_000) + "K"
 	}
 	return strconv.Itoa(n)
+}
+
+// composeService words the page for a container. It is its own composing
+// rather than a few clauses bolted onto the process page, because almost
+// nothing carries over: a container has no kernel state, no processor
+// time, no parent that started it and no terminal of its own. What it
+// has is an image, a service name its siblings are named beside, ports
+// it publishes on the host, and a health check that may disagree with
+// the fact that it is running.
+func composeService(b readoutReport, c container, p pane, inside bool, home string, now time.Time) readoutReport {
+	b.name = c.id
+
+	what := readoutGroup{title: "WHAT"}
+	what.add("kind", kindService)
+	what.add("service", c.service)
+	what.add("image", c.image)
+	// docker's own sentence, which says the state and its age together
+	// and says them better than conn would by taking them apart: Up 3
+	// minutes (healthy), Exited (3) 8 seconds ago.
+	what.addAsWritten("status", strings.ToUpper(c.status))
+	// And what the row made of it, which is the word the processes view
+	// used and the reason it wears a mark or does not.
+	word, fault := containerStatus(c)
+	if fault {
+		what.add("wrong", word)
+	}
+	// A health check disagreeing with a container that is up is the
+	// whole reason to have one, and the sentence above buries it in
+	// parentheses.
+	if c.health != "" {
+		what.add("health", strings.ToUpper(c.health))
+	}
+	if !c.since.IsZero() {
+		// Docker gives how long ago the status became true, which for a
+		// running container is when it started and for a stopped one is
+		// when it stopped. Neither is "up", so neither is called it.
+		what.add("since", age(c.since, now)+" · "+stamp(c.since))
+	}
+	b.groups = append(b.groups, what)
+
+	where := readoutGroup{title: "WHERE"}
+	where.addPath("project", tilde(c.dir, home))
+	// The compose project, which is what its siblings share and what
+	// docker compose down would take with it.
+	if c.project != "" {
+		where.add("compose", c.project)
+	}
+	where.add("name", c.name)
+	// Where you would go to reach it, which is the one thing a service
+	// has that a process row has no column for.
+	if len(c.ports) > 0 {
+		where.add("ports", "LOCALHOST:"+strings.Join(c.ports, " · LOCALHOST:"))
+	}
+	// A container has no terminal. The pane is the one conn opened to
+	// watch it, when it has, and that is what enter goes into.
+	switch {
+	case !inside:
+	case reachable(p):
+		where.add("pane", p.id+" · CAN BE REACHED")
+	case p.dead:
+		where.add("pane", p.id+" · ITS PANE HAS ENDED")
+	default:
+		where.add("pane", "NONE · ENTER OPENS ITS LOG")
+	}
+	b.groups = append(b.groups, where)
+	return b
 }

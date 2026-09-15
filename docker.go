@@ -51,6 +51,12 @@ const (
 // said stands meanwhile.
 const dockerWait = 3 * time.Second
 
+// dockerStopWait is longer, because stopping is not asking: docker gives
+// the container ten seconds to go of its own accord before it insists,
+// and a wait that gave up first would leave conn saying nothing happened
+// while it was happening.
+const dockerStopWait = 20 * time.Second
+
 // kindService is what a container's row is called. It is not a RUN: a run
 // is a program on this machine with a terminal above it somewhere, and a
 // service is a thing docker is holding up on your behalf.
@@ -526,4 +532,40 @@ func composeNames(e entry) []string {
 		}
 	}
 	return names
+}
+
+// containerWire is a container as it crosses between conn's programs.
+// The panel talks to docker and the readout draws the page, and they are
+// separate processes, so what the panel knows has to be written down for
+// the other to read. conn's own fields are unexported and encoding/json
+// carries only exported ones, so this is that shape — kept beside the
+// type it mirrors, rather than a second definition of a container to
+// keep in step with this one.
+type containerWire struct {
+	ID, Name, Service, Project string
+	Image, State, Status, Exit string
+	Health, Dir                string
+	Ports                      []string
+	Since                      time.Time
+}
+
+func (c container) MarshalJSON() ([]byte, error) {
+	return json.Marshal(containerWire{
+		ID: c.id, Name: c.name, Service: c.service, Project: c.project,
+		Image: c.image, State: c.state, Status: c.status, Exit: c.exit,
+		Health: c.health, Dir: c.dir, Ports: c.ports, Since: c.since,
+	})
+}
+
+func (c *container) UnmarshalJSON(b []byte) error {
+	var w containerWire
+	if err := json.Unmarshal(b, &w); err != nil {
+		return err
+	}
+	*c = container{
+		id: w.ID, name: w.Name, service: w.Service, project: w.Project,
+		image: w.Image, state: w.State, status: w.Status, exit: w.Exit,
+		health: w.Health, dir: w.Dir, ports: w.Ports, since: w.Since,
+	}
+	return nil
 }

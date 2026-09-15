@@ -214,3 +214,19 @@ const holdOpen = "exec cat"
 // and on an image with no bash — which is most of the small ones — it
 // exits 127 rather than giving you the sh that was there all along.
 const pickShell = "command -v bash >/dev/null 2>&1 && exec bash || exec sh"
+
+// stopContainer asks docker to let a container go, off the loop. It is
+// docker's stop and not a signal: there is no process on this machine to
+// send one to, and docker asks the container to end and waits before
+// insisting, which is what a service expects of a shutdown.
+func (m model) stopContainer(id, service string) tea.Cmd {
+	feed := m.dockerFeed
+	return func() tea.Msg {
+		_, _ = dockerSays(dockerStopWait, "stop", id)
+		// The feed hears of it from docker's own events, but a stop
+		// asked for here is worth asking about at once rather than
+		// waiting to be told.
+		feed.ask()
+		return killedMsg{command: service, pid: 0}
+	}
+}

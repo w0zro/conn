@@ -18,21 +18,21 @@ func TestTheCursorTravelsAsAPid(t *testing.T) {
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 
-	if got := askCursor(path); got != 0 {
+	if got, _ := askCursor(path); got != 0 {
 		t.Errorf("with nothing published the cursor reads %d", got)
 	}
-	tellCursor(path, 49212)
-	if got := askCursor(path); got != 49212 {
+	tellCursor(path, 49212, nil)
+	if got, _ := askCursor(path); got != 49212 {
 		t.Errorf("the cursor reads %d, not what was published", got)
 	}
-	tellCursor(path, 3)
-	if got := askCursor(path); got != 3 {
+	tellCursor(path, 3, nil)
+	if got, _ := askCursor(path); got != 3 {
 		t.Errorf("the cursor reads %d after moving", got)
 	}
 	if err := os.WriteFile(path, []byte("not a pid"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := askCursor(path); got != 0 {
+	if got, _ := askCursor(path); got != 0 {
 		t.Errorf("rubbish reads as pid %d rather than as no cursor", got)
 	}
 }
@@ -48,10 +48,12 @@ func TestEachServerHasItsOwnCursor(t *testing.T) {
 	if one == two {
 		t.Fatalf("both servers publish to %s", one)
 	}
-	tellCursor(one, 11)
-	tellCursor(two, 22)
-	if askCursor(one) != 11 || askCursor(two) != 22 {
-		t.Errorf("the two cursors are %d and %d", askCursor(one), askCursor(two))
+	tellCursor(one, 11, nil)
+	tellCursor(two, 22, nil)
+	one11, _ := askCursor(one)
+	two22, _ := askCursor(two)
+	if one11 != 11 || two22 != 22 {
+		t.Errorf("the two cursors are %d and %d", one11, two22)
 	}
 }
 
@@ -80,48 +82,49 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
 		m = next.(model)
 	}
+	published := func() int { pid, _ := askCursor(path); return pid }
 	press("j")
-	if m.cursor != 22 || askCursor(path) != 22 {
-		t.Errorf("after j the cursor is %d and %d was published", m.cursor, askCursor(path))
+	if m.cursor != 22 || published() != 22 {
+		t.Errorf("after j the cursor is %d and %d was published", m.cursor, published())
 	}
 	press("k")
-	if m.cursor != 11 || askCursor(path) != 11 {
-		t.Errorf("after k the cursor is %d and %d was published", m.cursor, askCursor(path))
+	if m.cursor != 11 || published() != 11 {
+		t.Errorf("after k the cursor is %d and %d was published", m.cursor, published())
 	}
 	// tab moves it too, and says so by the same road.
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	m = next.(model)
-	if m.cursor != 22 || askCursor(path) != 22 {
-		t.Errorf("after tab the cursor is %d and %d was published", m.cursor, askCursor(path))
+	if m.cursor != 22 || published() != 22 {
+		t.Errorf("after tab the cursor is %d and %d was published", m.cursor, published())
 	}
 	// A reading says it again whether or not it moved, so a file gone
 	// missing comes back on the next beat rather than staying gone
 	// until somebody presses a key.
-	tellCursor(path, 0)
+	tellCursor(path, 0, nil)
 	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: []project{{path: "/w", entries: []entry{
 		{pid: 22, tty: "ttys002", status: statusIdle},
 	}}}})
 	m = next.(model)
-	if askCursor(path) != 22 {
-		t.Errorf("a reading published %d, not where the cursor stands", askCursor(path))
+	if published() != 22 {
+		t.Errorf("a reading published %d, not where the cursor stands", published())
 	}
 
 	// With no home there is nowhere to publish, and conn does not write
 	// beside whatever directory it was started in.
 	nowhere := m
 	nowhere.head.login.home, nowhere.told = "", -1
-	tellCursor(path, 55)
+	tellCursor(path, 55, nil)
 	nowhere.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
-	if got := askCursor(path); got != 55 {
+	if got, _ := askCursor(path); got != 55 {
 		t.Errorf("a panel with no home published %d", got)
 	}
 
 	// On the list there is no process under the cursor; the readout keeps
 	// the subject it was given rather than being told a nothing.
-	tellCursor(path, 99)
+	tellCursor(path, 99, nil)
 	m.view = viewProjects
 	press("j")
-	if got := askCursor(path); got != 99 {
+	if got, _ := askCursor(path); got != 99 {
 		t.Errorf("the list published %d over the processes view's cursor", got)
 	}
 }
@@ -151,7 +154,7 @@ func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
-	tellCursor(path, 77)
+	tellCursor(path, 77, nil)
 
 	m := readoutModel{pid: 11, follow: true, cursor: path, p: plain, read: time.Now()}
 	next, cmd := m.Update(readoutTickMsg{})
@@ -206,7 +209,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	m := readoutModel{pid: 11, follow: true, cursor: path, p: plain, table: held,
 		report: readoutReport{pid: 11}, read: time.Now()}
 
-	tellCursor(path, 22)
+	tellCursor(path, 22, nil)
 	next, _ := m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
 	if m.report.pid != 22 {
@@ -219,7 +222,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	// A row the table has never seen is a row that started since it was
 	// read, not a row that has gone: the page waits for the reading on
 	// its way rather than putting up a gravestone.
-	tellCursor(path, 33)
+	tellCursor(path, 33, nil)
 	next, _ = m.Update(readoutTickMsg{})
 	after := next.(readoutModel)
 	if after.pid != 33 {

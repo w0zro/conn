@@ -49,8 +49,12 @@ const (
 )
 
 type readoutModel struct {
-	srv           *server
-	pid           int
+	srv *server
+	pid int
+	// The container the subject is, where the panel said it is one. A
+	// container is not in the process table, so the page is composed
+	// from what the panel published rather than from anything read here.
+	container     *container
 	follow        bool   // the subject is the panel's cursor, not a pid given
 	cursor        string // where the panel publishes it
 	width, height int
@@ -111,8 +115,8 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// changed is read at once; one that has not is read on the beat,
 		// so a page nobody is moving still keeps up with its row.
 		if m.follow {
-			if pid := askCursor(m.cursor); pid != 0 && pid != m.pid {
-				m.pid = pid
+			if pid, c := askCursor(m.cursor); pid != 0 && pid != m.pid {
+				m.pid, m.container = pid, c
 				// The row is answered now, out of the table already
 				// read, and the reading only replaces that answer with
 				// a newer one. Reading the machine takes a tenth of a
@@ -120,7 +124,7 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// out would leave the page on the row the cursor just
 				// left — while the table read a moment ago has the new
 				// row in it, as true as the panel's own list is.
-				if r, ok := readoutPage(pid, m.table); ok {
+				if r, ok := readoutPage(pid, c, m.table); ok {
 					m.report = r
 				}
 				return m.reading()
@@ -157,10 +161,10 @@ func (m readoutModel) tick() tea.Cmd {
 // of a project or a session is not asked again from nothing.
 func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 	m.read, m.inflight = time.Now(), true
-	pid, srv, held := m.pid, m.srv, m.table
+	pid, srv, held, c := m.pid, m.srv, m.table, m.container
 	return m, tea.Batch(
 		func() tea.Msg {
-			report, table := readoutOf(pid, srv, held)
+			report, table := readoutOf(pid, c, srv, held)
 			return readoutReadMsg{pid: pid, report: report, table: table}
 		},
 		m.tick(),
@@ -195,12 +199,12 @@ type readoutTable struct {
 // readoutOf is the page for a pid as things stand and the table it was
 // read from, or the page that says the row has gone. A pid of nothing
 // is a page waiting on a cursor that has not said where it is yet.
-func readoutOf(pid int, srv *server, held readoutTable) (readoutReport, readoutTable) {
+func readoutOf(pid int, c *container, srv *server, held readoutTable) (readoutReport, readoutTable) {
 	if pid == 0 {
 		return readoutReport{}, held
 	}
 	t := readoutGather(pid, srv, held)
-	r, ok := readoutPage(pid, t)
+	r, ok := readoutPage(pid, c, t)
 	if !ok {
 		return readoutReport{pid: pid, gone: true}, t
 	}
@@ -287,11 +291,19 @@ func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
 // rather than that it has gone: of a table just read that is a row that
 // ended, but of the table already read it may only be a row that
 // started since, and the reading on its way will have it.
-func readoutPage(pid int, t readoutTable) (readoutReport, bool) {
+func readoutPage(pid int, c *container, t readoutTable) (readoutReport, bool) {
 	s, ok := subjectOf(pid, t.projects, t.procs)
 	if !ok {
-		return readoutReport{}, false
+		// A container is in none of this: it is not a process, so the
+		// table has no record of it and the projects made from the table
+		// hold no row for it. What the panel published is the whole of
+		// what there is to say, and it is enough.
+		if c == nil {
+			return readoutReport{}, false
+		}
+		s = readoutSubject{project: project{path: c.dir}}
 	}
+	s.container = c
 	if t.inside {
 		s.pane, s.inside = t.panes[s.entry.tty], true
 	}

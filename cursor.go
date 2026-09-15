@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"strconv"
 	"strings"
@@ -31,21 +32,40 @@ func cursorPath(home string) string { return socketPath(home) + ".cursor" }
 // on this and nothing is broken by its failing: a readout that cannot
 // read the cursor holds the subject it has, which is the same thing it
 // does between one move and the next.
-func tellCursor(path string, pid int) {
-	_ = os.WriteFile(path, []byte(strconv.Itoa(pid)), 0o600)
+func tellCursor(path string, pid int, c *container) {
+	line := strconv.Itoa(pid)
+	// A container is said here in full, because the page has no other
+	// way to learn it. Every other row the readout can look up for
+	// itself — the process table holds it — but a container is docker's
+	// to know, and only the panel is talking to docker. Publishing what
+	// the panel already has keeps that one conversation in one process,
+	// where a readout asking docker on its own beat would be a second.
+	if c != nil {
+		if b, err := json.Marshal(c); err == nil {
+			line += "\n" + string(b)
+		}
+	}
+	_ = os.WriteFile(path, []byte(line), 0o600)
 }
 
 // askCursor is the pid the panel's cursor is on, or 0 where there is
 // none to read — no file yet, a panel that never published, a server
 // that is not this one.
-func askCursor(path string) int {
+func askCursor(path string) (int, *container) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return 0
+		return 0, nil
 	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	head, rest, _ := strings.Cut(string(b), "\n")
+	pid, err := strconv.Atoi(strings.TrimSpace(head))
 	if err != nil {
-		return 0
+		return 0, nil
 	}
-	return pid
+	if rest = strings.TrimSpace(rest); rest != "" {
+		var c container
+		if json.Unmarshal([]byte(rest), &c) == nil && c.id != "" {
+			return pid, &c
+		}
+	}
+	return pid, nil
 }

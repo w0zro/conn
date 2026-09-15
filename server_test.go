@@ -739,9 +739,6 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	// container has nothing at all in it but conn.
 	s.sleepers(2)
 	s.until("the sleepers' rows on the panel", func() bool { return s.projectRows() >= 2 })
-	// The windows they stand in are the baseline the counts below are
-	// against: what those assert is that reading the list costs none.
-	windows := s.display("#{session_windows}")
 
 	// Nothing is pressed for the page: it is what the workspace holds
 	// while the keys are on the panel in this view.
@@ -761,6 +758,15 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	if got := s.active("#{pane_index}"); got != "0" {
 		t.Errorf("focus went to pane %s rather than staying on the panel", got)
 	}
+
+	// The baseline for the counts below, taken here and not earlier.
+	// What they assert is that reading down the list costs no window, so
+	// the number to hold against is the one the view settles at with the
+	// page already up. Taken before that, it can catch the window the
+	// page is made in — showReadout opens one, swaps the page into the
+	// workspace and kills what it displaced — and a baseline one too
+	// high fails against a steady state that was never wrong.
+	windows := s.display("#{session_windows}")
 
 	// Reading down the list is j and k: the page follows the cursor,
 	// so the one page serves the whole list and no key but j is

@@ -1140,8 +1140,20 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 // the readout are conn's own furniture rather than somewhere you were
 // working, and going back to one would be going back to nothing.
 func (m model) slotted(tty string) model {
-	if m.bay != "" && m.bay != tty && !m.panes[m.bay].hold {
-		m.lastBay = m.bay
+	// The other is the work before this work, and it is read off lastIn
+	// rather than off the bay. The bay is not where the last thing you
+	// were in has been since you left it: the page takes the workspace
+	// the moment the keys reach the panel, so by the time anything is
+	// opened or reached the bay is the page, and a rule that refused to
+	// remember furniture — rightly — never remembered anything at all.
+	// The chord did nothing for the whole of the page's life.
+	//
+	// lastIn is only ever work, being set here and, on a reading, only
+	// for a bay that can be reached. So one holds what you are in and
+	// the other what you were in before it, and the page cannot get
+	// between them.
+	if m.lastIn != "" && m.lastIn != tty {
+		m.lastBay = m.lastIn
 	}
 	m.bay, m.lastIn = tty, tty
 	return m
@@ -1159,7 +1171,10 @@ func (m model) slotted(tty string) model {
 // window, so this is a press from the panel, and the answer to it is a
 // process.
 func (m model) toOther() (tea.Model, tea.Cmd) {
-	if !m.inside || m.lastBay == "" || m.panes[m.lastBay].id == "" {
+	// Asked as reachable and not merely as held, the way every other
+	// road into a pane asks it: a pane whose process has ended is an id
+	// conn still has and nowhere to be sent.
+	if !m.inside || m.lastBay == "" || !reachable(m.panes[m.lastBay]) {
 		return m, nil
 	}
 	cmds := []tea.Cmd{m.reach(m.panes[m.lastBay], m.lastBay)}

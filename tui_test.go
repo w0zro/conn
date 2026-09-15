@@ -1278,3 +1278,62 @@ func withPane(panes map[string]pane, p pane) map[string]pane {
 	out[p.tty] = p
 	return out
 }
+
+// The other process is the work before this work. The page sits in the
+// workspace between every two things you go into — it takes it the
+// moment the keys reach the panel — so a rule that read the other off
+// the bay read the page, refused it as the furniture it is, and
+// remembered nothing at all. The chord then did nothing for as long as
+// the page existed, on every row and not only on a service's.
+func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
+	m := newModel(plain)
+	m.inside, m.view = true, viewProcesses
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.panes = map[string]pane{
+		"ttysa": {id: "%1", tty: "ttysa"},
+		"ttysb": {id: "%2", tty: "ttysb"},
+		"ttysp": {id: "%9", tty: "ttysp", hold: true, readout: true},
+	}
+	page := func(m model) model {
+		// The keys come back to the panel and the page takes the
+		// workspace, which is what happens between any two things.
+		next, _ := m.Update(processesMsg{gen: m.processesGen, panes: m.panes, bay: "ttysp", bayReadout: true})
+		return next.(model)
+	}
+	into := func(m model, tty string) model {
+		next, _ := m.Update(reachedMsg{tty})
+		return next.(model)
+	}
+
+	m = into(m, "ttysa")
+	m = page(m)
+	m = into(m, "ttysb")
+	if m.lastBay != "ttysa" {
+		t.Fatalf("the other is %q, not the work before this work", m.lastBay)
+	}
+	if m.lastIn != "ttysb" {
+		t.Errorf("the work is %q", m.lastIn)
+	}
+
+	// And the chord goes there, rather than finding nothing to go to.
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+o"}))
+	if cmd == nil {
+		t.Error("the other-process chord asked for nothing")
+	}
+	_ = next
+
+	// Pressed again it is where it started: going into the other makes
+	// the one just left the other in its turn.
+	m = page(m)
+	m = into(m, "ttysa")
+	if m.lastBay != "ttysb" {
+		t.Errorf("after going back, the other is %q", m.lastBay)
+	}
+
+	// Work whose pane has ended is nowhere to be sent, and is asked the
+	// way every other road into a pane asks it.
+	m.panes["ttysb"] = pane{id: "%2", tty: "ttysb", dead: true}
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+o"})); cmd != nil {
+		t.Error("the chord reached into a pane whose process has ended")
+	}
+}

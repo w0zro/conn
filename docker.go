@@ -374,7 +374,7 @@ func (c container) activity() string {
 // a container has none of its own, so the pane conn opened to watch it
 // stands in for one. With that the row is reached, left and walked to
 // like every other — the whole of what having a terminal means here.
-func attachContainers(projects []project, cs []container, rootOf func(string) string, paneOf map[string]string) []project {
+func attachContainers(projects []project, cs []container, rootOf func(string) string, paneOf, shellIn map[string]string) []project {
 	// A stopped container is listed while its project is: a sibling still
 	// running, or a compose working in its directory. A service that died
 	// beside the others is exactly what wants noticing. A project stopped
@@ -412,7 +412,7 @@ func attachContainers(projects []project, cs []container, rootOf func(string) st
 	for _, pl := range projects {
 		if rows := at[pl.path]; len(rows) > 0 {
 			filled[pl.path] = true
-			pl.entries = placeContainers(pl, rows, paneOf)
+			pl.entries = placeContainers(pl, rows, paneOf, shellIn)
 		}
 		out = append(out, pl)
 	}
@@ -427,7 +427,7 @@ func attachContainers(projects []project, cs []container, rootOf func(string) st
 			continue
 		}
 		pl := project{path: path}
-		pl.entries = placeContainers(pl, at[path], paneOf)
+		pl.entries = placeContainers(pl, at[path], paneOf, shellIn)
 		out = append(out, pl)
 	}
 	return out
@@ -448,8 +448,8 @@ func composeRuns(projects []project, path, dir, service string) bool {
 // placeContainers puts a project's containers among its rows: each under
 // the compose that runs it where there is one, and at the foot of the
 // project where there is not.
-func placeContainers(pl project, cs []container, paneOf map[string]string) []entry {
-	entries := pl.entries
+func placeContainers(pl project, cs []container, paneOf, shellIn map[string]string) []entry {
+	entries := slices.Clone(pl.entries)
 	for _, c := range cs {
 		e := entry{
 			pid: containerPID(c.id), kind: kindService,
@@ -458,6 +458,10 @@ func placeContainers(pl project, cs []container, paneOf map[string]string) []ent
 			container: c.id, tty: paneOf[c.id],
 		}
 		e.status, e.fault = containerStatus(c)
+		// The shells conn opened inside this container come out of the
+		// project's own rows, to go back under the service below.
+		var shells []entry
+		entries, shells = liftShells(entries, shellIn, c.id)
 		if i := composeAt(project{path: pl.path, entries: entries}, pl.path, c.dir, c.service); i >= 0 {
 			e.depth = entries[i].depth + 1
 			// After the compose's own subtree, so the containers of one
@@ -467,12 +471,58 @@ func placeContainers(pl project, cs []container, paneOf map[string]string) []ent
 			for j < len(entries) && entries[j].depth > entries[i].depth {
 				j++
 			}
-			entries = slices.Insert(entries, j, e)
+			entries = slices.Insert(entries, j, append([]entry{e}, nest(shells, c, e.depth)...)...)
 			continue
 		}
 		entries = append(entries, e)
+		entries = append(entries, nest(shells, c, e.depth)...)
 	}
 	return entries
+}
+
+// liftShells takes the rows running in a shell conn opened inside this
+// container out of the list, and answers what is left and what was
+// taken. A pane's whole tree shares its terminal, so asking by terminal
+// takes the shell and anything under it in one go.
+func liftShells(entries []entry, shellIn map[string]string, id string) (kept, shells []entry) {
+	kept = make([]entry, 0, len(entries))
+	for _, row := range entries {
+		if row.tty != "" && shellIn[row.tty] == id {
+			shells = append(shells, row)
+			continue
+		}
+		kept = append(kept, row)
+	}
+	return kept, shells
+}
+
+// nest is the lifted rows as they stand under their service: the shell
+// itself named for the container it is inside, since docker exec is
+// what conn typed and not what the operator asked for, and whatever the
+// shell is running kept at its own remove below it.
+//
+// The rows carry no container of their own. A shell inside a service is
+// the operator's work, not another handle on the service, and a key
+// that stops a container should not be armed from a row that is only
+// standing in one.
+func nest(shells []entry, c container, depth int) []entry {
+	if len(shells) == 0 {
+		return nil
+	}
+	root := shells[0].depth
+	for _, row := range shells {
+		root = min(root, row.depth)
+	}
+	out := make([]entry, 0, len(shells))
+	for _, row := range shells {
+		row.depth = row.depth - root + depth + 1
+		if row.depth == depth+1 {
+			row.kind, row.typed = kindShell, "sh in "+c.service
+			row.command = row.typed
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 // composeAt is where in a project's rows the compose that runs a service

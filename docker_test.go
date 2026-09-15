@@ -171,7 +171,7 @@ func TestContainersStandUnderTheComposeThatRunsThem(t *testing.T) {
 				cwd: "/Users/w0zro/projects/compose-demo"},
 		},
 	}}
-	out := attachContainers(projects, containersFor(t), dockerRoots, nil)
+	out := attachContainers(projects, containersFor(t), dockerRoots, nil, nil)
 	if len(out) != 1 {
 		t.Fatalf("%d projects, want 1: the stray belongs to none and is not filed", len(out))
 	}
@@ -209,7 +209,7 @@ func TestDetachedContainersRootTheirOwnProject(t *testing.T) {
 		entries: []entry{{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001",
 			cwd: "/Users/w0zro/projects/w0zro/conn"}},
 	}}
-	out := attachContainers(projects, containersFor(t), dockerRoots, nil)
+	out := attachContainers(projects, containersFor(t), dockerRoots, nil, nil)
 	if len(out) != 2 {
 		t.Fatalf("%d projects, want 2: the compose demo is a project docker alone is working in", len(out))
 	}
@@ -251,7 +251,7 @@ func TestAProjectStoppedWholeIsNotListed(t *testing.T) {
 			cs[i].state, cs[i].exit = "exited", "0"
 		}
 	}
-	out := attachContainers(nil, cs, dockerRoots, nil)
+	out := attachContainers(nil, cs, dockerRoots, nil, nil)
 	if len(out) != 0 {
 		t.Errorf("a project with nothing running left %d projects: %+v", len(out), out)
 	}
@@ -263,7 +263,7 @@ func TestAProjectStoppedWholeIsNotListed(t *testing.T) {
 func TestAContainerTakesThePaneConnOpenedForIt(t *testing.T) {
 	cs := containersFor(t)
 	paneOf := map[string]string{cs[0].id: "ttys009"}
-	out := attachContainers(nil, cs, dockerRoots, paneOf)
+	out := attachContainers(nil, cs, dockerRoots, paneOf, nil)
 	if len(out) != 1 {
 		t.Fatalf("%d projects, want 1", len(out))
 	}
@@ -409,5 +409,56 @@ func TestXStopsAContainer(t *testing.T) {
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	if got := next.(model); got.kill != nil {
 		t.Errorf("x armed a question on a service already stopped: %+v", got.kill)
+	}
+}
+
+// A shell conn opened inside a container is the operator's own work: it
+// is listed, it stands under the service it is inside, and it does not
+// take the slot the service's terminal is in. Both panes carry the same
+// container id, on different marks, and the one that stands for the
+// service is the one reading it — otherwise the row points at whichever
+// of the two was ranged over last, and enter stops going back to the
+// log once a shell has been opened.
+func TestAShellInAContainerStandsUnderItAndNotInItsSlot(t *testing.T) {
+	cs := containersFor(t)
+	id := cs[0].id
+	pl := project{path: dockerRoots(cs[0].dir), entries: []entry{
+		{pid: 900, kind: kindRun, command: "docker exec -it " + id + " sh", typed: "docker exec",
+			tty: "ttys012", cwd: cs[0].dir},
+	}}
+	out := attachContainers([]project{pl}, cs, dockerRoots,
+		map[string]string{id: "ttys009"}, map[string]string{"ttys012": id})
+	if len(out) != 1 {
+		t.Fatalf("%d projects, want 1", len(out))
+	}
+	var service, shell entry
+	var at int
+	for i, e := range out[0].entries {
+		switch {
+		case e.container == id:
+			service, at = e, i
+		case e.pid == 900:
+			shell = e
+		}
+	}
+	if service.tty != "ttys009" {
+		t.Errorf("the service's terminal is %q, not the pane reading it", service.tty)
+	}
+	if shell.pid == 0 {
+		t.Fatalf("the shell is not listed: %+v", out[0].entries)
+	}
+	if shell.kind != kindShell || shell.typed != "sh in "+cs[0].service {
+		t.Errorf("the shell reads %s %q", shell.kind, shell.typed)
+	}
+	if shell.depth != service.depth+1 {
+		t.Errorf("the shell is at depth %d, the service at %d", shell.depth, service.depth)
+	}
+	if at+1 >= len(out[0].entries) || out[0].entries[at+1].pid != 900 {
+		t.Errorf("the shell does not stand under its service:\n%+v", out[0].entries)
+	}
+	// The shell is not a second handle on the container: a key that
+	// stops a service must not be armed from a row that is only in one.
+	if shell.container != "" {
+		t.Errorf("the shell carries container %q", shell.container)
 	}
 }

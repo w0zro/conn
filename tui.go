@@ -397,10 +397,20 @@ func (m model) readProcesses() tea.Cmd {
 		if srv != nil {
 			panes, _ = srv.panes()
 		}
-		paneOf, watching := map[string]string{}, map[string]bool{}
+		// A pane reading a service stands in for that service's
+		// terminal and is kept off the view, since a docker logs listed
+		// beside the service it is showing is the same thing twice. A
+		// pane holding a shell inside a container is neither: it is the
+		// operator's own work, it is listed, and it is filed under the
+		// service it is inside rather than taking the slot the service's
+		// terminal is in.
+		paneOf, shellIn, watching := map[string]string{}, map[string]string{}, map[string]bool{}
 		for tty, p := range panes {
 			if p.container != "" {
 				paneOf[p.container], watching[tty] = tty, true
+			}
+			if p.shellIn != "" {
+				shellIn[tty] = p.shellIn
 			}
 		}
 		if len(watching) > 0 {
@@ -419,7 +429,7 @@ func (m model) readProcesses() tea.Cmd {
 		// docker last said is already here — the feed brings it as it
 		// happens — so this costs the reading nothing and waits on no
 		// daemon.
-		projects = attachContainers(projects, containers, roots, paneOf)
+		projects = attachContainers(projects, containers, roots, paneOf, shellIn)
 		msg := processesMsg{projects: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas)}
 		if srv != nil {

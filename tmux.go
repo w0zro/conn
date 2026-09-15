@@ -261,11 +261,19 @@ type pane struct {
 	readout       bool
 	dead          bool
 	// The container this pane is watching, where it is one conn opened
-	// for a service — its logs, or a shell inside it. A container has no
-	// terminal of its own, so this is how its row comes to have one: the
-	// pane conn opened for it stands in for the terminal it has not got,
-	// and from there the row is reached and left like any other.
+	// to read a service's output. A container has no terminal of its
+	// own, so this is how its row comes to have one: the pane conn
+	// opened for it stands in for the terminal it has not got, and from
+	// there the row is reached and left like any other.
+	//
+	// Exactly one pane stands for a service this way. A shell conn
+	// opened inside the container is marked shellIn instead, because it
+	// is not the service being read — it is work of the operator's own
+	// that happens to be running in there, and a second pane claiming
+	// to be the service's terminal would leave the row pointing at
+	// whichever of the two a map ranged over last.
 	container string
+	shellIn   string
 }
 
 // What conn asks tmux for, and how it reads the answer back. The
@@ -282,7 +290,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -302,11 +310,12 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 8 || f[0] == "" {
+		if len(f) != 9 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
-			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1", container: f[7]}
+			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1",
+			container: f[7], shellIn: f[8]}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -530,6 +539,31 @@ func (s *server) openCmd(dir, cmd string) (shell, error) {
 // itself off the view: a docker logs listed beside the service it is
 // showing would be the same thing twice.
 func (s *server) openWatching(dir, cmd, id string) (shell, error) {
+	sh, err := s.openMarked(dir, cmd, "@conn_container", id)
+	if err != nil {
+		return shell{}, err
+	}
+	sh.pane.container = id
+	return sh, s.show(sh.pane)
+}
+
+// openShellIn opens a pane running a shell inside a container. It is
+// marked as a shell in that container and not as the container's own
+// terminal: the service is read in one pane and worked in from another,
+// and only the reader stands in for the terminal the service has not
+// got.
+func (s *server) openShellIn(dir, cmd, id string) (shell, error) {
+	sh, err := s.openMarked(dir, cmd, "@conn_shell_in", id)
+	if err != nil {
+		return shell{}, err
+	}
+	sh.pane.shellIn = id
+	return sh, s.show(sh.pane)
+}
+
+// openMarked opens a pane running a command and sets one option on it,
+// which is how conn remembers what it opened a pane for.
+func (s *server) openMarked(dir, cmd, option, value string) (shell, error) {
 	args := []string{"new-window", "-d", "-P", "-F", openFormat, "-c", dir}
 	if cmd != "" {
 		args = append(args, cmd)
@@ -539,11 +573,10 @@ func (s *server) openWatching(dir, cmd, id string) (shell, error) {
 		return shell{}, err
 	}
 	sh := parseOpened(out)
-	if _, err := s.run("set-option", "-p", "-t", sh.pane.id, "@conn_container", id); err != nil {
+	if _, err := s.run("set-option", "-p", "-t", sh.pane.id, option, value); err != nil {
 		return shell{}, err
 	}
-	sh.pane.container = id
-	return sh, s.show(sh.pane)
+	return sh, nil
 }
 
 // parseOpened reads what new-window printed for the pane it made.

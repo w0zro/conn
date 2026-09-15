@@ -212,12 +212,17 @@ func (m model) watchContainer(e entry) tea.Cmd {
 // so in a line. The pane is held open for that line the way it is held
 // for a log that has ended: an error that flashes past is an error
 // nobody read.
+//
+// It is held on the failure only. A log ends and there is still the log
+// to read, but a shell you typed exit in has nothing left to show, and
+// holding that pane open left you sitting in a cat that echoed what you
+// typed and looked for all the world like a shell that had hung.
 func (m model) shellInContainer(e entry) tea.Cmd {
 	srv, dir, id := m.srv, e.cwd, e.container
 	cmd := shellQuote(dockerPath) + " exec -it " + shellQuote(id) + " sh -c " +
-		shellQuote(pickShell) + " 2>&1; " + holdOpen
+		shellQuote(pickShell) + " 2>&1 || " + holdOpen
 	return func() tea.Msg {
-		sh, err := srv.openWatching(dir, cmd, id)
+		sh, err := srv.openShellIn(dir, cmd, id)
 		if err != nil {
 			return nil
 		}
@@ -230,6 +235,10 @@ func (m model) shellInContainer(e entry) tea.Cmd {
 // as the pane is there, which is exactly as long as wanted: the operator
 // leaves by going somewhere else, and the pane goes when its work is
 // replaced in the workspace.
+//
+// It is for a pane with something left to read in it — a log that ended,
+// an error docker printed. A pane whose work is over and has left
+// nothing behind should go, and a shell is that.
 const holdOpen = "exec cat"
 
 // pickShell is run inside the container to choose its shell. bash is

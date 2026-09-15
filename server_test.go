@@ -137,29 +137,59 @@ func (s *scratch) bay() string {
 // projectRows is how many processes the panel says stand at that
 // project, read off the project's own title line.
 func (s *scratch) projectRows() int {
-	// The rows under the scratch project's title, up to the blank line
-	// that begins the next project: a project's title carries no count.
+	return len(s.projectRowLines())
+}
+
+// projectRowLines is the scratch project's rows as the panel draws
+// them, up to the blank that begins the next project.
+//
+// Only in the processes view. The list names the same project and puts
+// the same processes under it, in a layout of its own — dense, with no
+// blank between a project and its rows and none between one project and
+// the next — so a count taken there answers a different question in the
+// same units. openShell presses enter and returns without waiting for
+// the view to come back, so the list is on the panel often enough for a
+// careless count to be the list's; that is how a baseline taken here
+// once came to be measured against the wrong view.
+func (s *scratch) projectRowLines() []string {
+	if !s.inProcesses() {
+		return nil
+	}
 	lines := strings.Split(s.panel(), "\n")
 	for i, line := range lines {
-		if !strings.Contains(line, scratchProject) {
+		// The title line, and not a row that merely says the word: a
+		// project is named alone on its line.
+		if strings.TrimSpace(line) != scratchProject {
 			continue
 		}
-		// The title has a row of air under it, and then its rows, up to
-		// the blank that begins the next project.
+		// The title has a row of air under it, and then its rows.
 		rows := lines[i+1:]
 		if len(rows) > 0 && strings.TrimSpace(rows[0]) == "" {
 			rows = rows[1:]
 		}
-		n := 0
+		var out []string
 		for _, r := range rows {
 			if strings.TrimSpace(r) == "" {
 				break
 			}
+			out = append(out, r)
+		}
+		return out
+	}
+	return nil
+}
+
+// shellRows is how many of the scratch project's rows are shells, which
+// is what a test that opened shells is asking about. It steps over a
+// tree's inner rows and over whatever else the machine is running.
+func (s *scratch) shellRows() int {
+	n := 0
+	for _, r := range s.projectRowLines() {
+		if strings.HasPrefix(strings.TrimSpace(r), "SHELL") {
 			n++
 		}
-		return n
 	}
-	return 0
+	return n
 }
 
 // openShell opens a shell at the scratch root's own repository, from
@@ -285,7 +315,7 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 
 	s.openShell()
 	s.until("a shell in the bay", func() bool {
-		return s.shellIn("home.1") && strings.Contains(s.panel(), scratchProject)
+		return s.shellIn("home.1") && s.projectRows() >= 1
 	})
 	if strings.Contains(s.panes(), "conn:") && strings.Count(s.panes(), "conn:") > 1 {
 		t.Errorf("the hold should be gone once a shell is in the bay: %s", s.panes())
@@ -297,15 +327,17 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 		t.Fatalf("the panel and the bay are one pane: %s", s.panes())
 	}
 
-	// The tree shows whatever else this machine is running too, so the
-	// count to wait for is a rise from where it stood at the scratch's own
-	// project, not a fixed number anywhere on the panel.
-	before := s.projectRows()
+	// Both shells stand at the scratch's own project, so what to wait for
+	// is the two of them by name. A rise in the row count was the older
+	// way to ask, and it asked against a number taken a moment earlier —
+	// which is only the same number if the panel is in the same view and
+	// the project is holding nothing else transient. Counting the shells
+	// is the thing the test is actually about, and it needs no baseline.
 	s.openShell()
 	s.until("a second shell, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.parked(bayFirst)
 	})
-	s.until("the second shell's row", func() bool { return s.projectRows() > before })
+	s.until("the second shell's row", func() bool { return s.shellRows() >= 2 })
 
 	// The cursor is on the shell just opened, which is in the bay and
 	// stands last, everything sitting where it started; k is the first

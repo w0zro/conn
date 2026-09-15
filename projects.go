@@ -62,17 +62,8 @@ func (p projectRow) words() string {
 // answered with the roots conn would have had without it: the operator
 // hears about the file, and conn is still a working conn meanwhile.
 func projectRoots(home string) ([]string, error) {
-	if out := splitRoots(os.Getenv("CONN_ROOTS"), home); len(out) > 0 {
-		return out, nil
-	}
-	c, err := readConfig(home)
-	if err != nil {
-		return defaultRoots(home), err
-	}
-	if out := cleanRoots(c.Roots, home); len(out) > 0 {
-		return out, nil
-	}
-	return defaultRoots(home), nil
+	roots, _, err := resolveRoots(home)
+	return roots, err
 }
 
 // defaultRoots is where conn looks when nothing says otherwise.

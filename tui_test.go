@@ -79,7 +79,10 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if lines := strings.Split(view(), "\n"); !strings.Contains(lines[len(lines)-1], prompt) {
 		t.Errorf("the prompt is not on the bottom row:\n%s", view())
 	}
-	if lastStage(m.report()) != stageChecks+10 {
+	// Seven checks conn always makes, the config file's own, the roots
+	// on the one line this terminal has room for, and two tools; the
+	// screen's own check and the verdict are the two stages past them.
+	if lastStage(m.report()) != stageChecks+12 {
 		t.Errorf("last stage is %d", lastStage(m.report()))
 	}
 	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewConsole || !next.(model).entering {

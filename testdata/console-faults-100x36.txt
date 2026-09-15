@@ -7,7 +7,7 @@
     ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝
 
    SCREEN 100×36 · XTERM-256COLOR · TRUECOLOR                                              SMALL
-   NEEDS 80×38
+   NEEDS 80×40
 
 
 

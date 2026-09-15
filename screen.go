@@ -127,6 +127,7 @@ func rowsNeeded(r report) int {
 // height. Off a terminal, height is 0, and the rows are the body alone.
 // A terminal too small for the body gets the small console instead.
 func screen(r report, width, height int, p palette) []row {
+	r = fitted(r, height)
 	need := rowsNeeded(r)
 	own := screenCheck(r.term, width, height, need)
 	if own.fault {
@@ -148,6 +149,66 @@ func screen(r report, width, height int, p palette) []row {
 		rows = c.rows
 	}
 	return rows
+}
+
+// fitted is the report as a terminal of this height can hold it. The
+// roots are a line each, which is how a root that is not there says so
+// on its own account; where the rows for that are not there they become
+// one line carrying all of them, under the worst word any of them
+// earned. The console already cuts a value to the width it was given,
+// and this is the same bargain in the other direction — better a
+// console that says less than one that refuses to draw because a root
+// was added. Off a terminal, height is 0 and nothing is given up.
+//
+// It is idempotent: a report already fitted is returned as it is.
+func fitted(r report, height int) report {
+	if height <= 0 || rowsNeeded(r) <= height {
+		return r
+	}
+	return joinRoots(r)
+}
+
+// joinRoots is the report with its ROOT lines made one ROOTS line. The
+// paths are joined the way conn joins values, and the status is the
+// worst of them: the line stands for all of them, so it cannot say
+// NOMINAL while one of them is missing.
+func joinRoots(r report) report {
+	var paths []string
+	var worst check
+	var at, n int
+	for i, k := range r.checks {
+		if k.label != rootLabel {
+			continue
+		}
+		if n == 0 {
+			at, worst = i, k
+		}
+		n++
+		paths = append(paths, k.value)
+		if worse(k, worst) {
+			worst = k
+		}
+	}
+	if n < 2 {
+		return r // one root is already one line, and none is no line
+	}
+	joined := check{label: rootsLabel, value: strings.Join(paths, " · "), path: true,
+		status: worst.status, fault: worst.fault}
+	checks := make([]check, 0, len(r.checks)-n+1)
+	checks = append(checks, r.checks[:at]...)
+	checks = append(checks, joined)
+	checks = append(checks, r.checks[at+n:]...)
+	r.checks = checks
+	return r
+}
+
+// worse says whether a check stands worse than another: a fault beats
+// anything, and anything that is not nominal beats nominal.
+func worse(k, than check) bool {
+	if k.fault != than.fault {
+		return k.fault
+	}
+	return than.status == nominal && k.status != nominal
 }
 
 // body is the console proper, at a width no less than minCols, with the
@@ -235,7 +296,8 @@ func body(r report, width int, own check, p palette) []row {
 			// waiting already is: not a fault, but worth a second look,
 			// which gray would let slide past.
 			word := p.gray
-			if k.status == unchecked || k.status == unknown {
+			if k.status == unchecked || k.status == unknown ||
+				k.status == notWritten || k.status == noRoots || k.status == missing {
 				word = p.waiting
 			}
 			l.to(measure - utf8.RuneCountInString(k.status))

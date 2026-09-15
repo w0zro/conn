@@ -149,11 +149,21 @@ func TestFaultsLightTheConsole(t *testing.T) {
 // for it. Off a terminal there is no screen to check, and no prompt.
 func TestSmallAndPipedConsoles(t *testing.T) {
 	r := compose(testStation, testNow)
-	need := rowsNeeded(r)
-	for _, c := range []struct{ w, h int }{{60, 24}, {100, 12}, {100, need - 1}, {79, 50}, {20, 5}} {
+	// The height below which nothing the console can give up will make
+	// it fit: the roots already joined into their one line. A height
+	// between this and the report's own is not small — it is a console
+	// that gave up the per-root lines; see fitted.
+	// A console short of rows gives up its per-root lines before it
+	// gives up altogether, so what it says it needs is the joined
+	// height. A console small for want of width is not short of rows at
+	// all, and asks for the height it would really have used.
+	need, tall := rowsNeeded(joinRoots(r)), rowsNeeded(r)
+	for _, c := range []struct{ w, h, need int }{
+		{60, 24, need}, {100, 12, need}, {100, need - 1, need}, {79, 50, tall}, {20, 5, need},
+	} {
 		rows := screen(r, c.w, c.h, plain)
 		text := texts(rows)
-		if !strings.Contains(text, " SMALL") || !strings.Contains(text, "NEEDS 80×"+strconv.Itoa(need)) {
+		if !strings.Contains(text, " SMALL") || !strings.Contains(text, "NEEDS 80×"+strconv.Itoa(c.need)) {
 			t.Errorf("%dx%d is not called small:\n%s", c.w, c.h, text)
 		}
 		if len(rows) != c.h {
@@ -257,7 +267,7 @@ func TestTheVerdictCountsWhatWasNotRead(t *testing.T) {
 	if strings.Contains(text, "ALL SYSTEMS NOMINAL") {
 		t.Errorf("the console called an unchecked system nominal:\n%s", text)
 	}
-	if !strings.Contains(text, "9 NOMINAL · 1 UNCHECKED") {
+	if !strings.Contains(text, "11 NOMINAL · 1 UNCHECKED") {
 		t.Errorf("the console does not count what it did not read:\n%s", text)
 	}
 }

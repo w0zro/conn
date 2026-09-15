@@ -76,3 +76,88 @@ func expandHome(path, home string) string {
 	}
 	return path // ~someone else: not conn's to guess at
 }
+
+// Which of the three answers the roots were taken from, for the console
+// to say where what it is showing came from.
+type rootSource int
+
+const (
+	rootsDefault rootSource = iota
+	rootsEnv
+	rootsFile
+)
+
+// resolveRoots is projectRoots with the source it took them from.
+func resolveRoots(home string) ([]string, rootSource, error) {
+	if out := splitRoots(os.Getenv("CONN_ROOTS"), home); len(out) > 0 {
+		return out, rootsEnv, nil
+	}
+	c, err := readConfig(home)
+	if err != nil {
+		return defaultRoots(home), rootsDefault, err
+	}
+	if out := cleanRoots(c.Roots, home); len(out) > 0 {
+		return out, rootsFile, nil
+	}
+	return defaultRoots(home), rootsDefault, nil
+}
+
+// A configState is conn's configuration as the console found it: the
+// file and how it read, and the roots in force with what each one turned
+// out to be on this machine.
+type configState struct {
+	path    string
+	present bool
+	err     error
+	// names is whether the file named roots conn understands. A file
+	// that is there, parses, and names none is the quiet mistake this
+	// has: conn goes on with the defaults and nothing says the file was
+	// wasted. It is read whether or not the file is what is in force,
+	// since the environment standing in front of it does not make an
+	// unread file any less of a mistake.
+	names  bool
+	source rootSource
+	roots  []rootState
+}
+
+// A rootState is one configured directory and what is actually there.
+type rootState struct {
+	path    string
+	problem string // "", rootMissing, rootNotDir
+}
+
+const (
+	rootMissing = "missing"
+	rootNotDir  = "not a dir"
+)
+
+// readConfigState reads the configuration the way the console reports
+// it: the file, the roots it settled on, and a look at each root, since
+// a root that is not there is the mistake this is most often made with.
+func readConfigState(home string) configState {
+	s := configState{path: configPath(home)}
+	if _, err := os.Stat(s.path); err == nil {
+		s.present = true
+	}
+	c, err := readConfig(home)
+	s.err = err
+	s.names = len(cleanRoots(c.Roots, home)) > 0
+	var roots []string
+	roots, s.source, _ = resolveRoots(home)
+	for _, r := range roots {
+		s.roots = append(s.roots, rootStateOf(r))
+	}
+	return s
+}
+
+// rootStateOf is what a configured directory turned out to be.
+func rootStateOf(path string) rootState {
+	info, err := os.Stat(path)
+	switch {
+	case err != nil:
+		return rootState{path: path, problem: rootMissing}
+	case !info.IsDir():
+		return rootState{path: path, problem: rootNotDir}
+	}
+	return rootState{path: path}
+}

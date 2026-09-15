@@ -43,6 +43,10 @@ var (
 		network: network{up: 2, first: "en0 192.168.68.58"},
 		netRead: true,
 		state:   stateDir{path: "/Users/w0zro/.local/state/conn"},
+		config: configState{
+			path: "/Users/w0zro/.config/conn/config.json", present: true, names: true, source: rootsFile,
+			roots: []rootState{{path: "/Users/w0zro/projects"}, {path: "/Users/w0zro/work/checkouts"}},
+		},
 		// A macOS station needs both, and the console of record is the
 		// console this station prints.
 		tools: []tool{{name: "tmux", path: "/opt/homebrew/bin/tmux"}, {name: "lsof", path: "/usr/sbin/lsof"}},
@@ -123,7 +127,9 @@ func TestAnEmptyStationIsWorded(t *testing.T) {
 		t.Errorf("readout: %+v %+v", r.system, r.login)
 	}
 	for _, c := range r.checks {
-		if c.fault || (c.status != unknown && c.status != unchecked && c.label != "STATE") {
+		// STATE and CONFIG are conn's own paths, read from the process
+		// rather than from the station, and answer whatever was read.
+		if c.fault || (c.status != unknown && c.status != unchecked && c.label != "STATE" && c.label != "CONFIG") {
 			t.Errorf("%+v", c)
 		}
 	}
@@ -311,8 +317,11 @@ func TestTheStationCanBeRead(t *testing.T) {
 		t.Errorf("readout thin: %d system, session went unread: %v\n%+v\n%+v",
 			len(r.system), slices.Sorted(maps.Keys(must)), r.system, r.login)
 	}
-	if len(r.checks) != 7+len(st.tools) {
-		t.Errorf("%d checks, not %d: %+v", len(r.checks), 7+len(st.tools), r.checks)
+	// Seven checks conn always makes, the config file's own, a line for
+	// every root configured, and one per tool the platform needs.
+	want := 8 + len(st.config.roots) + len(st.tools)
+	if len(r.checks) != want {
+		t.Errorf("%d checks, not %d: %+v", len(r.checks), want, r.checks)
 	}
 	for _, c := range r.checks {
 		if c.label == "" || c.value == "" || c.status == "" {

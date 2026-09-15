@@ -91,3 +91,88 @@ func TestAFileThatWillNotParseIsSaid(t *testing.T) {
 		t.Errorf("a config that could not be read left the roots %q", got)
 	}
 }
+
+// The console says where conn's configuration is and how it read. A
+// machine with no file is not a fault; a file that will not parse is.
+func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
+	t.Setenv("CONN_ROOTS", "")
+	for _, c := range []struct {
+		what   string
+		body   string // "" writes no file at all
+		status string
+		fault  bool
+	}{
+		{"a file that names roots", `{"roots": ["~"]}`, nominal, false},
+		{"a file that names none", `{"roots": []}`, noRoots, false},
+		{"a file of nothing conn knows", `{"projectsDir": "~/projects"}`, noRoots, false},
+		{"a file that will not parse", `{"roots": [`, notRead, true},
+		{"no file at all", "", notWritten, false},
+	} {
+		home := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		if c.body != "" {
+			path := configPath(home)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(c.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		k := configCheck(readConfigState(home), home)
+		if k.status != c.status || k.fault != c.fault {
+			t.Errorf("%s reads %q (fault %v), not %q (fault %v)", c.what, k.status, k.fault, c.status, c.fault)
+		}
+	}
+}
+
+// The environment standing in front of the file is said on the file's
+// own line: the roots below it are then not the ones in it.
+func TestTheConsoleSaysWhenTheEnvironmentIsInForce(t *testing.T) {
+	home := writeConfig(t, `{"roots": ["/from/the/file"]}`)
+	t.Setenv("CONN_ROOTS", "/from/the/environment")
+	k := configCheck(readConfigState(home), home)
+	if !strings.Contains(k.value, "CONN_ROOTS IN FORCE") {
+		t.Errorf("the line does not say the environment is in force: %q", k.value)
+	}
+	if k.status != nominal {
+		t.Errorf("a file that reads fine is %q", k.status)
+	}
+}
+
+// A root gets a line of its own, and says what it turned out to be
+// here. A root that is not on this machine is not a fault; something
+// that is not a directory at all is.
+func TestEveryRootGetsALine(t *testing.T) {
+	t.Setenv("CONN_ROOTS", "")
+	home := writeConfig(t, `{"roots": ["~", "~/nowhere", "~/afile"]}`)
+	if err := os.WriteFile(filepath.Join(home, "afile"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ks := rootChecks(readConfigState(home), home)
+	if len(ks) != 3 {
+		t.Fatalf("the roots take %d lines, not 3", len(ks))
+	}
+	for i, want := range []struct {
+		status string
+		fault  bool
+	}{{nominal, false}, {missing, false}, {"NOT A DIR", true}} {
+		if ks[i].status != want.status || ks[i].fault != want.fault {
+			t.Errorf("root %d reads %q (fault %v), not %q (fault %v)", i, ks[i].status, ks[i].fault, want.status, want.fault)
+		}
+		if ks[i].label != "ROOT" {
+			t.Errorf("root %d is labelled %q", i, ks[i].label)
+		}
+	}
+}
+
+// Every status is right-aligned in a column statusW wide, and one that
+// does not fit runs into the dots that lead to it. The words conn has
+// are held to the column here, where the console is not being read.
+func TestEveryStatusFitsItsColumn(t *testing.T) {
+	for _, status := range []string{nominal, unknown, unchecked, notWritten, noRoots, missing, notRead, "NOT A DIR", "READ ONLY", "NO PATH"} {
+		if len(status) > statusW {
+			t.Errorf("%q is %d wide, and the column is %d", status, len(status), statusW)
+		}
+	}
+}

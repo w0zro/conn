@@ -21,6 +21,7 @@ type station struct {
 	network network
 	netRead bool
 	state   stateDir
+	config  configState
 	tools   []tool // what the platform needs past the kernel
 }
 
@@ -32,6 +33,7 @@ func readStation() station {
 	st.volume = readVolume(st.login.home)
 	st.network, st.netRead = readNetwork()
 	st.state = readStateDir(st.login.home)
+	st.config = readConfigState(st.login.home)
 	st.tools = readTools()
 	return st
 }
@@ -63,6 +65,30 @@ const (
 	nominal   = "NOMINAL"
 	unknown   = "UNKNOWN"
 	unchecked = "UNCHECKED"
+	// A config file that was never written, one that names no roots,
+	// and a root that is not there. None is a fault: a machine is
+	// allowed to have no config file, an empty one is allowed to be
+	// empty, and a config carried between machines names roots that are
+	// only on some of them. All three are worth the second look gray
+	// would not get them — a config that reads NOMINAL while doing
+	// nothing is the mistake nobody finds.
+	//
+	// Every status is held to statusW, which is the column the words
+	// are right-aligned in; see screen.go.
+	notWritten = "NO FILE"
+	noRoots    = "NO ROOTS"
+	missing    = "MISSING"
+	// A file that is there and that conn could not use: it would not
+	// parse, or it would not open. Which of the two is in the error
+	// itself, said where there is room for a sentence.
+	notRead = "NOT READ"
+)
+
+// What the roots are labelled: a line each, or the one line they become
+// on a terminal with no room for that; see fitted.
+const (
+	rootLabel  = "ROOT"
+	rootsLabel = "ROOTS"
 )
 
 // A report is the station worded for the console: the identification
@@ -116,13 +142,17 @@ func compose(st station, now time.Time) report {
 	r.login = sessionFacts(st.login, now)
 	r.checks = []check{
 		stateCheck(st.state, st.login.home),
+		configCheck(st.config, st.login.home),
+	}
+	r.checks = append(r.checks, rootChecks(st.config, st.login.home)...)
+	r.checks = append(r.checks, []check{
 		diskCheck(st.volume),
 		memoryCheck(st.machine),
 		loadCheck(st.machine),
 		networkCheck(st.network, st.netRead),
 		powerCheck(st.machine.power),
 		clockCheck(st.build, now),
-	}
+	}...)
 	for _, t := range st.tools {
 		r.checks = append(r.checks, toolCheck(t))
 	}
@@ -305,6 +335,53 @@ func stateCheck(s stateDir, home string) check {
 		c.status, c.fault = "NO PATH", true
 	}
 	return c
+}
+
+// configCheck is conn's own configuration file: where it is, and
+// whether it read. A machine with no file is the ordinary case and no
+// fault — every default stands — but the line still names the path, so
+// the reader knows where to put one. A file that is there and will not
+// parse is a fault: somebody wrote it meaning it to be read.
+//
+// Where the roots actually came from is said here rather than on the
+// roots themselves, which would be the same word on every one of them.
+// The environment in force is worth saying beside the file it is
+// standing in front of: the roots below are then not the file's.
+func configCheck(c configState, home string) check {
+	k := check{label: "CONFIG", value: tilde(c.path, home), path: true, status: nominal}
+	if c.source == rootsEnv {
+		k.value = join(" · ", k.value, "CONN_ROOTS IN FORCE")
+	}
+	switch {
+	case c.err != nil:
+		k.status, k.fault = notRead, true
+	case !c.present:
+		k.status = notWritten
+	case !c.names:
+		k.status = noRoots
+	}
+	return k
+}
+
+// rootChecks is the directories conn looks for projects under, a line
+// each so that every one can say what it turned out to be. A root that
+// is not on this machine is not a fault — a configuration carried
+// between machines names roots that are only on some of them — but it
+// is not nominal either, and says so in the color a second look is
+// asked for in.
+func rootChecks(c configState, home string) []check {
+	out := make([]check, 0, len(c.roots))
+	for _, r := range c.roots {
+		k := check{label: rootLabel, value: tilde(r.path, home), path: true, status: nominal}
+		switch r.problem {
+		case rootMissing:
+			k.status = missing
+		case rootNotDir:
+			k.status, k.fault = "NOT A DIR", true
+		}
+		out = append(out, k)
+	}
+	return out
 }
 
 // diskCheck is the room on the volume under home. It is LOW under a

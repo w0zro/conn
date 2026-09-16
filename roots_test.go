@@ -167,8 +167,8 @@ func TestTheConsoleGoesToTheAskingViewWithNoRoots(t *testing.T) {
 	}
 	// It opens on the home, which certainly exists, so the first thing
 	// shown is a list rather than nothing.
-	if m.rootTyped != "~/" {
-		t.Errorf("the line opens on %q", m.rootTyped)
+	if m.asking.text != "~/" {
+		t.Errorf("the line opens on %q", m.asking.text)
 	}
 }
 
@@ -186,8 +186,8 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 		next, _ := m.rootsKey(k)
 		m = next.(model)
 	}
-	if m.rootTyped != "~/work" {
-		t.Fatalf("the line reads %q", m.rootTyped)
+	if m.asking.text != "~/work" {
+		t.Fatalf("the line reads %q", m.asking.text)
 	}
 	next, cmd := m.rootsKey("enter")
 	m = next.(model)
@@ -226,14 +226,14 @@ func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	// ~/pro answers with two; the cursor is on the first.
 	next, _ := m.rootsKey("tab")
 	m = next.(model)
-	if m.rootTyped != "~/projects/" {
-		t.Fatalf("tab filled the line with %q", m.rootTyped)
+	if m.asking.text != "~/projects/" {
+		t.Fatalf("tab filled the line with %q", m.asking.text)
 	}
 	if m.view != viewRoots {
 		t.Error("tab answered the question instead of filling it in")
 	}
 	// And the line now looks inside what it named.
-	if got := composeRoots(m.rootTyped, home); len(got.rows) != 1 || got.rows[0] != "~/projects/conn" {
+	if got := composeRoots(m.asking.text, home); len(got.rows) != 1 || got.rows[0] != "~/projects/conn" {
 		t.Errorf("after tab the line answers with %q", got.rows)
 	}
 	// The cursor walks what answers, and tab takes the one it is on.
@@ -246,7 +246,7 @@ func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	next, _ = m.rootsKey("down")
 	m = next.(model)
 	next, _ = m.rootsKey("tab")
-	if got := next.(model).rootTyped; got != "~/prospect/" {
+	if got := next.(model).asking.text; got != "~/prospect/" {
 		t.Errorf("tab on the second row filled the line with %q", got)
 	}
 }

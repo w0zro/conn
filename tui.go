@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -208,11 +207,10 @@ type model struct {
 	stood  map[int]stood
 	acts   map[string]activitySeen
 	cpuAt  time.Time
-	// The list: the projects as the roots were last walked, what has been
-	// typed to narrow them, and which of the rows the cursor is on.
+	// The list: the projects as the roots were last walked, and the line
+	// typed into to narrow them, with the cursor among the rows it leaves.
 	walked      []projectRow
-	filter      string
-	pcursor     int
+	find        typed
 	scanning    bool
 	projectsErr string
 	uid         int
@@ -227,20 +225,18 @@ type model struct {
 	sessionsProject string
 	sessions        []session
 	sessionsLoading bool
-	rfilter         string
-	rcursor         int
+	rfind           typed // the line typed into, and the cursor among the rows it leaves
 	// The manual: where the keys were when prefix ? fired, and the row
 	// that was under the cursor, so that leaving it puts both back.
 	// See leftHelp.
 	helpFrom   string
 	helpCursor int
 
-	// The asking view: the path being typed, and which of the
-	// directories answering it the cursor is on. rootErr is what went
-	// wrong saving, where something did.
-	rootTyped  string
-	rootCursor int
-	rootErr    string
+	// The asking view: the path being typed, with the cursor among the
+	// directories answering it, and what went wrong saving, where
+	// something did.
+	asking  typed
+	rootErr string
 
 	// kill is a kill x has asked for and not yet answered; nothing else
 	// binds while it is not nil.
@@ -359,11 +355,11 @@ func (m model) listRows() []projectRow {
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	return composeProjects(m.listRows(), m.filter, m.configRoots, m.head.login.home, m.scanning, m.projectsErr)
+	return composeProjects(m.listRows(), m.find.text, m.configRoots, m.head.login.home, m.scanning, m.projectsErr)
 }
 
 func (m model) projectRows() []projectRow {
-	return matching(m.listRows(), m.filter)
+	return matching(m.listRows(), m.find.text)
 }
 
 // atCursor is the row the list's cursor stands on, where there is one,
@@ -374,10 +370,10 @@ func (m model) projectRows() []projectRow {
 // as processes come and go.
 func (m model) atCursor() (projectRow, bool) {
 	rows := m.projectRows()
-	if m.pcursor >= len(rows) {
+	if m.find.at >= len(rows) {
 		return projectRow{}, false
 	}
-	return rows[m.pcursor], true
+	return rows[m.find.at], true
 }
 
 func followRow(rows []projectRow, was projectRow, at int) int {
@@ -934,9 +930,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.view == viewProjects {
 			cmds = append(cmds, m.processesTick())
 			if rows := m.projectRows(); hadRow {
-				m.pcursor = followRow(rows, wasRow, m.pcursor)
+				m.find.at = followRow(rows, wasRow, m.find.at)
 			} else {
-				m.pcursor = clamp(m.pcursor, len(rows))
+				m.find.at = clamp(m.find.at, len(rows))
 			}
 		}
 		return m, tea.Batch(cmds...)
@@ -949,9 +945,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasRow, hadRow := m.atCursor()
 		m.walked, m.projectsErr, m.scanning = msg.projects, msg.err, false
 		if rows := m.projectRows(); hadRow {
-			m.pcursor = followRow(rows, wasRow, m.pcursor)
+			m.find.at = followRow(rows, wasRow, m.find.at)
 		} else {
-			m.pcursor = clamp(m.pcursor, len(rows))
+			m.find.at = clamp(m.find.at, len(rows))
 		}
 	case sessionsMsg:
 		// Only the sessions view that asked for these dirs wants them; one
@@ -960,7 +956,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.sessions, m.sessionsLoading = msg.sessions, false
-		m.rcursor = clamp(m.rcursor, len(m.sessionsRows()))
+		m.rfind.at = clamp(m.rfind.at, len(m.sessionsRows()))
 	case killedMsg:
 		// A beat for the signal to be acted on, so the row is not read a
 		// moment too soon, still there; the processesTick this reuses is a
@@ -1282,23 +1278,22 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// projectKey answers a key in projects, which is a line typed into: a
-// key that stands for a character goes to the filter, so the letters
-// the other views are worked by are themselves here. Up and down move
-// the cursor, and ctrl+n and ctrl+p do too, since a hand on a filter
-// is a hand that cannot reach j and k; enter opens a shell at the
-// row under the cursor and goes back to the processes view, which is
-// where the shell will show, and ctrl+a opens claude there instead,
-// since a plain a is a letter to type; alt+a opens the sessions view
-// over what claude left suspended at the row, group included, the same
-// way — not a plain A, which would take a letter the filter can still
-// be typed with, and not ctrl+shift+a, which is not its own chord to
-// any terminal at all, alphabetic ctrl combinations being their
-// letter's own case already; esc goes back without opening anything,
-// and ctrl+c is what it is everywhere.
+// projectKey answers a key in projects, which is a line typed into;
+// see typed for the keys every such line has. What is the list's own:
+// enter opens a shell at the row under the cursor and goes back to the
+// processes view, which is where the shell will show, or goes into the
+// row where it is a process; ctrl+a opens claude there instead, since
+// a plain a is a letter to type; alt+a opens the sessions view over
+// what claude left suspended at the row, group included, the same way
+// — not a plain A, which would take a letter the line can still be
+// typed with, and not ctrl+shift+a, which is not its own chord to any
+// terminal at all, alphabetic ctrl combinations being their letter's
+// own case already; esc goes back without opening anything, and ctrl+c
+// is what it is everywhere.
 func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.projectRows()
 	switch {
+	case m.find.edit(k, len(rows)):
 	case k == "ctrl+c":
 		if m.inside {
 			return m, m.serverCmd(func() error { return m.srv.detach() })
@@ -1307,10 +1302,10 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	case k == "esc":
 		return m.backFrom()
 	case k == "enter":
-		if !m.inside || m.pcursor >= len(rows) {
+		if !m.inside || m.find.at >= len(rows) {
 			return m, nil
 		}
-		row := rows[m.pcursor]
+		row := rows[m.find.at]
 		// A process row is somewhere to go, not something to start: enter
 		// puts its pane in the bay and the keys in it, the way enter does
 		// on the row in the processes view. That is the whole of what this
@@ -1329,21 +1324,6 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 		mm, cmd := m.toProcesses()
 		m = mm.(model)
 		return m, tea.Batch(cmd, m.openShell(row.path))
-	case k == "up" || k == "ctrl+p":
-		m.pcursor = clamp(m.pcursor-1, len(rows))
-	case k == "down" || k == "ctrl+n":
-		m.pcursor = clamp(m.pcursor+1, len(rows))
-	case k == "backspace":
-		if r := []rune(m.filter); len(r) > 0 {
-			m.filter = string(r[:len(r)-1])
-		}
-		m.pcursor = 0
-	case k == "ctrl+u":
-		m.filter, m.pcursor = "", 0
-	case k == "space":
-		m.filter, m.pcursor = m.filter+" ", 0
-	case utf8.RuneCountInString(k) == 1:
-		m.filter, m.pcursor = m.filter+k, 0
 	}
 	return m, nil
 }
@@ -1617,7 +1597,8 @@ func (m model) backIn() (tea.Model, tea.Cmd) {
 // it.
 func (m model) toProjects() (tea.Model, tea.Cmd) {
 	console := m.view == viewConsole
-	m.view, m.filter, m.pcursor, m.scanning = viewProjects, "", 0, true
+	m.view, m.scanning = viewProjects, true
+	m.find.clear()
 	m.entering = false
 	// The walk, and the reading: the list holds the processes running in
 	// each project as well as the projects, and the reading goes on for
@@ -1723,29 +1704,31 @@ func (m model) openAt(k string) (tea.Model, tea.Cmd) {
 func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) {
 	m.view = viewSessions
 	m.sessionsDirs, m.sessionsProject, m.sessionsLoading = dirs, project, true
-	m.sessions, m.rfilter, m.rcursor = nil, "", 0
+	m.sessions = nil
+	m.rfind.clear()
 	return m, m.scanSessions(dirs)
 }
 
 // sessionsRows is the sessions the filter leaves, which the cursor
 // is an index into.
 func (m model) sessionsRows() []session {
-	return matchingSessions(m.sessions, m.rfilter)
+	return matchingSessions(m.sessions, m.rfind.text)
 }
 
 // sessionsReport is the sessions view's words as things stand.
 func (m model) sessionsReport() sessionsReport {
-	return composeSessions(m.sessions, m.sessionsProject, m.rfilter, m.head.login.home, m.now, m.sessionsLoading)
+	return composeSessions(m.sessions, m.sessionsProject, m.rfind.text, m.head.login.home, m.now, m.sessionsLoading)
 }
 
 // sessionsKey answers a key on the sessions view, which is a line typed
-// into the same way the list is: letters narrow it, up and down move
-// the cursor and ctrl+n and ctrl+p do too, enter continues the session
-// under the cursor and goes back to the processes view, esc goes back
-// without continuing anything, and ctrl+c is what it is everywhere.
+// into the same way the list is; see typed. What is the view's own:
+// enter continues the session under the cursor and goes back to the
+// processes view, esc goes back without continuing anything, and ctrl+c
+// is what it is everywhere.
 func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
 	rows := m.sessionsRows()
 	switch {
+	case m.rfind.edit(k, len(rows)):
 	case k == "ctrl+c":
 		if m.inside {
 			return m, m.serverCmd(func() error { return m.srv.detach() })
@@ -1754,27 +1737,12 @@ func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
 	case k == "esc":
 		return m.backFrom()
 	case k == "enter":
-		if m.inside && !m.sessionsLoading && m.rcursor < len(rows) {
-			c := rows[m.rcursor]
+		if m.inside && !m.sessionsLoading && m.rfind.at < len(rows) {
+			c := rows[m.rfind.at]
 			mm, cmd := m.toProcesses()
 			m = mm.(model)
 			return m, tea.Batch(cmd, m.openResumed(c.Dir, c.ID))
 		}
-	case k == "up" || k == "ctrl+p":
-		m.rcursor = clamp(m.rcursor-1, len(rows))
-	case k == "down" || k == "ctrl+n":
-		m.rcursor = clamp(m.rcursor+1, len(rows))
-	case k == "backspace":
-		if r := []rune(m.rfilter); len(r) > 0 {
-			m.rfilter = string(r[:len(r)-1])
-		}
-		m.rcursor = 0
-	case k == "ctrl+u":
-		m.rfilter, m.rcursor = "", 0
-	case k == "space":
-		m.rfilter, m.rcursor = m.rfilter+" ", 0
-	case utf8.RuneCountInString(k) == 1:
-		m.rfilter, m.rcursor = m.rfilter+k, 0
 	}
 	return m, nil
 }
@@ -1895,11 +1863,11 @@ func (m model) View() tea.View {
 	case viewProcesses:
 		rows = drawProcesses(m.processesReport(), m.cursor, width, m.height, m.p)
 	case viewProjects:
-		rows = drawProjects(m.projectsReport(), m.pcursor, width, m.height, m.p)
+		rows = drawProjects(m.projectsReport(), m.find.at, width, m.height, m.p)
 	case viewSessions:
-		rows = drawSessions(m.sessionsReport(), m.rcursor, width, m.height, m.p)
+		rows = drawSessions(m.sessionsReport(), m.rfind.at, width, m.height, m.p)
 	case viewRoots:
-		rows = drawRoots(composeRoots(m.rootTyped, m.head.login.home), m.rootCursor, width, m.height, m.p)
+		rows = drawRoots(composeRoots(m.asking.text, m.head.login.home), m.asking.at, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit
@@ -1935,46 +1903,38 @@ func (m model) View() tea.View {
 // is where checkouts usually are and is a directory that certainly
 // exists, so the first thing shown is a list rather than nothing.
 func (m model) toRoots() (tea.Model, tea.Cmd) {
-	m.view, m.rootTyped, m.rootCursor, m.rootErr = viewRoots, "~/", 0, ""
+	m.view, m.asking, m.rootErr = viewRoots, typed{text: "~/"}, ""
 	return m, nil
 }
 
-// rootsKey is the asking view's keys. The line is typed into, up and
-// down walk what answers it, tab fills the line in with the one under
-// the cursor, and enter takes it: the config is written and conn is
-// working from it before the view is gone.
+// rootsKey is the asking view's keys. The line is typed into like the
+// list's; see typed. What is the view's own: tab fills the line in
+// with the directory under the cursor, and enter takes it — the config
+// is written and conn is working from it before the view is gone. A
+// line that changes takes what went wrong saving off the view with it,
+// since the error was about what was typed and that is not what is
+// typed now.
 func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
-	b := composeRoots(m.rootTyped, m.head.login.home)
+	b := composeRoots(m.asking.text, m.head.login.home)
 	switch {
+	case m.asking.edit(k, len(b.rows)):
+		if m.asking.text != b.typed {
+			m.rootErr = ""
+		}
 	case k == "ctrl+c":
 		if m.inside {
 			return m, m.serverCmd(func() error { return m.srv.detach() })
 		}
 		return m, tea.Quit
-	case k == "up" || k == "ctrl+p":
-		m.rootCursor = clamp(m.rootCursor-1, len(b.rows))
-	case k == "down" || k == "ctrl+n":
-		m.rootCursor = clamp(m.rootCursor+1, len(b.rows))
 	case k == "tab":
 		// Filling the line in is not answering: what is typed becomes
 		// the directory under the cursor, with a separator after it, so
 		// the next keystroke is already looking inside it.
-		if m.rootCursor < len(b.rows) {
-			m.rootTyped, m.rootCursor = b.rows[m.rootCursor]+"/", 0
+		if m.asking.at < len(b.rows) {
+			m.asking.text, m.asking.at = b.rows[m.asking.at]+"/", 0
 		}
 	case k == "enter":
 		return m.takeRoot(b)
-	case k == "backspace":
-		if r := []rune(m.rootTyped); len(r) > 0 {
-			m.rootTyped = string(r[:len(r)-1])
-		}
-		m.rootCursor, m.rootErr = 0, ""
-	case k == "ctrl+u":
-		m.rootTyped, m.rootCursor, m.rootErr = "", 0, ""
-	case k == "space":
-		m.rootTyped, m.rootCursor = m.rootTyped+" ", 0
-	case utf8.RuneCountInString(k) == 1:
-		m.rootTyped, m.rootCursor, m.rootErr = m.rootTyped+k, 0, ""
 	}
 	return m, nil
 }
@@ -1986,11 +1946,11 @@ func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
 // that happened to be listed under it.
 func (m model) takeRoot(b rootsReport) (tea.Model, tea.Cmd) {
 	home := m.head.login.home
-	root := strings.TrimSpace(m.rootTyped)
+	root := strings.TrimSpace(m.asking.text)
 	if typedIsADir(root, home) {
 		// what was typed names a directory of its own: take it
-	} else if m.rootCursor < len(b.rows) {
-		root = b.rows[m.rootCursor]
+	} else if m.asking.at < len(b.rows) {
+		root = b.rows[m.asking.at]
 	}
 	if root == "" {
 		return m, nil

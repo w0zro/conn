@@ -1,0 +1,30 @@
+
+   w0zro/app
+
+   RUN     web · npm run dev           ACTIVE
+     RUN     npm run dev               ACTIVE
+   RUN     api · go run ./cm…           ENDED
+ ▸ RUN     worker · make run             DOWN
+
+   w0zro/conn
+
+   SHELL   zsh                           IDLE
+    .CONN: LINE 2: WANT NAME [DIR]: COMMAND
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

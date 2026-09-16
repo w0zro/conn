@@ -29,6 +29,34 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	panel.inside = true
 	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, plain)))
+	// A project's declarations: one up, in a pane marked as its own and
+	// relabelled; one ended, holding its pane and dimmed; one down; and
+	// a project whose file would not read, saying so under its rows.
+	app := "/Users/w0zro/projects/w0zro/app"
+	declared := map[string]declared{
+		app: {list: []declaration{
+			{name: "web", command: "npm run dev"},
+			{name: "api", command: "go run ./cmd/api", dir: "api"},
+			{name: "worker", command: "make run"},
+		}},
+		"/Users/w0zro/projects/w0zro/conn": {err: ".conn: line 2: want name [dir]: command"},
+	}
+	procs := append([]process{},
+		process{pid: 900, ppid: 1, uid: 501, tty: "ttys020", state: 'S', command: "sh", args: []string{"sh", "-c", "npm run dev"}, started: processesNow.Add(-time.Hour), cwd: app},
+		process{pid: 901, ppid: 900, uid: 501, tty: "ttys020", state: 'S', command: "node", args: []string{"npm", "run", "dev"}, started: processesNow.Add(-time.Hour), cwd: app},
+		process{pid: 910, ppid: 1, uid: 501, tty: "ttys021", state: 'S', command: "cat", args: []string{"cat"}, started: processesNow.Add(-time.Hour), cwd: app + "/api"},
+		process{pid: 67040, ppid: 1, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+	)
+	panes := map[string]pane{
+		"ttys020": {id: "%20", tty: "ttys020", declared: markDeclared(app, "web")},
+		"ttys021": {id: "%21", tty: "ttys021", declared: markDeclared(app, "api"), exit: "0"},
+		"ttys005": {id: "%0", tty: "ttys005"},
+	}
+	isProject := func(dir string) bool { return dir == app || testIsProject(dir) }
+	projects := attachDeclared(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), declared, panes)
+	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	shown.inside = true
+	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, declaredPID(app, "worker"), 48, 30, plain)))
 }
 
 // The processes view's columns hold: the status flush right, a root's

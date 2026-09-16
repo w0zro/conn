@@ -114,7 +114,10 @@ type (
 		bayHelp    bool            // the bay holds the manual, and the panel says HELP
 		bayActive  bool            // the keys are in the bay, by tmux's own word
 		err        string
-		gen        int
+		// The projects' .conn files as this reading found them, kept on
+		// the model for the next reading to stat against; see declared.go.
+		declared map[string]declared
+		gen      int
 		// The processor time every process had used as of this reading,
 		// and when it was taken: what the next reading asks against to
 		// tell work from waiting.
@@ -265,7 +268,9 @@ type model struct {
 	// merges what is already here and never waits on the daemon; stalled
 	// is docker having gone quiet, which the view admits rather than
 	// showing yesterday's rows as though they were today's.
-	containers    []container
+	containers []container
+	// The projects' .conn files as last read; see declared.go.
+	declared      map[string]declared
 	dockerFeed    *dockerFeed
 	dockerStalled bool
 	// The last terminal the workspace held that was work: where esc
@@ -403,7 +408,11 @@ func followRow(rows []projectRow, was projectRow, at int) int {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
+	// The roots are walked as conn comes up, and not only when the list
+	// is opened: the processes view lists what every project declares
+	// should be working it, which is read from the projects the walk
+	// finds.
+	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink(), m.scanProjects()}
 	if m.inside {
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }))
 	}
@@ -422,6 +431,7 @@ func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots.rootOf, m.roots.isProject
 	home, configured := m.head.login.home, m.roots.configured
 	containers := m.containers
+	walked, declared := m.walked, m.declared
 	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
 	var srv *server
 	if m.inside {
@@ -499,9 +509,14 @@ func (m model) readProcesses() tea.Cmd {
 		// happens — so this costs the reading nothing and waits on no
 		// daemon.
 		projects = attachContainers(projects, containers, roots, paneOf, shellIn)
+		// And what the projects declare should be working them, which
+		// the table has no word for until it is: a stat per project,
+		// and a read where a file changed.
+		declared = refreshDeclared(declared, declaredPaths(projects, walked, isProject))
+		projects = attachDeclared(projects, declared, panes)
 		msg := processesMsg{projects: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
-			records: records, rooted: rerooted}
+			records: records, rooted: rerooted, declared: declared}
 		if srv != nil {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
@@ -887,7 +902,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.rooted(*msg.rooted)
 		}
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
-		m.records = msg.records
+		m.records, m.declared = msg.records, msg.declared
 		m.looking, m.helping = msg.bayReadout, msg.bayHelp
 		// Where the keys are, by the server's own word. conn is told by
 		// the terminal when they leave, and knows on its own when its
@@ -932,6 +947,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// with its rows already in it, drawn at the panel's width, and the
 		// bay opens beside a frame that is already the shape it will be.
 		var cmds []tea.Cmd
+		// On new roots the walk is made again, so the projects the
+		// reading asks for a .conn follow the roots rather than the
+		// list's last opening.
+		if msg.rooted != nil {
+			cmds = append(cmds, m.scanProjects())
+		}
 		if m.entering {
 			m.entering, m.view = false, viewProcesses
 			if m.inside {

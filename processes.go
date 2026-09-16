@@ -38,6 +38,7 @@ type processesReport struct {
 type projectBlock struct {
 	path string
 	rows []processRow
+	note string // what is wrong with the project's .conn, where something is
 }
 
 type processRow struct {
@@ -47,6 +48,7 @@ type processRow struct {
 	reach                             string // the pane that holds it, in conn's server
 	shown                             bool   // it is in the bay, on the right
 	depth                             int    // how deep under its project's own root
+	over                              bool   // a declared process whose pane holds only its last output
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -86,11 +88,13 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 		if bp.path == "" {
 			bp.path = "NO PROJECT"
 		}
+		bp.note = pl.note
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, processRow{
 				pid: e.pid, kind: e.kind, command: activityOf(e), tty: e.tty, since: sinceWord(e.since, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
+				over: e.declared != "" && panes[e.tty].exit != "",
 			})
 		}
 		b.projects = append(b.projects, bp)
@@ -226,7 +230,10 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			switch {
 			case r.shown:
 				kind = p.orange + p.bold
-			case b.inside && r.reach == "":
+			case b.inside && (r.reach == "" || r.over):
+				// A row conn can only report, or a declared process
+				// that has ended and holds its pane for its output:
+				// reachable, and over.
 				dim := p.faint
 				if cursored {
 					// Faint on the raised ground is barely there. The row
@@ -294,6 +301,14 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				l.to(measure - utf8.RuneCountInString(r.status))
 				l.add(word, r.status)
 			}
+			d.emit(l, 0, false)
+		}
+		// What is wrong with the project's .conn, under its rows, as a
+		// fault is stamped: the file was written to be read, and a
+		// project that shows none of what it declares should say why.
+		if bp.note != "" {
+			l := d.line()
+			l.add(p.chip, " "+fit(strings.ToUpper(bp.note), measure-2, false)+" ")
 			d.emit(l, 0, false)
 		}
 		body = append(body, d.rows...)

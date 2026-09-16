@@ -250,3 +250,60 @@ func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 		t.Errorf("tab on the second row filled the line with %q", got)
 	}
 }
+
+// The file is edited from inside conn, and the list already walked it
+// fresh each time; the processes view kept naming projects by the roots
+// conn came up on until a restart. A reading takes the file as it now
+// stands, and the model goes onto the roots the reading was made on
+// with it, so the rows and the roots they are named by are never of two
+// files.
+func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("CONN_ROOTS", "")
+	home := tree(t, "work", "work/conn", "elsewhere", "elsewhere/api")
+	m := model{head: station{login: login{home: home}}, p: plain, uid: os.Getuid()}
+	m = m.rooted(rootOn([]string{filepath.Join(home, "work")}))
+
+	// The file as conn came up on it: nothing to report.
+	if err := saveRoots(home, []string{filepath.Join(home, "work")}); err != nil {
+		t.Fatal(err)
+	}
+	msg, ok := m.readProcesses()().(processesMsg)
+	if !ok || msg.err != "" {
+		t.Fatalf("the reading came back %+v", msg)
+	}
+	if msg.rooted != nil {
+		t.Errorf("a file that did not change rerooted conn onto %q", msg.rooted.configured)
+	}
+
+	// The file edited under a running conn: the reading finds it and
+	// says so, and the model goes onto the new roots.
+	if err := saveRoots(home, []string{filepath.Join(home, "elsewhere")}); err != nil {
+		t.Fatal(err)
+	}
+	msg, ok = m.readProcesses()().(processesMsg)
+	if !ok || msg.err != "" {
+		t.Fatalf("the reading came back %+v", msg)
+	}
+	if msg.rooted == nil || len(msg.rooted.configured) != 1 || msg.rooted.configured[0] != filepath.Join(home, "elsewhere") {
+		t.Fatalf("the reading did not find the file changed: %+v", msg.rooted)
+	}
+	m.processesGen = msg.gen
+	next, _ := m.Update(msg)
+	m = next.(model)
+	if len(m.configRoots) != 1 || m.configRoots[0] != filepath.Join(home, "elsewhere") {
+		t.Errorf("the model is still on %q", m.configRoots)
+	}
+	// The finder works on the roots as the table names them, symlinks
+	// resolved, so it is asked with a path of that kind.
+	real, _ := filepath.EvalSymlinks(filepath.Join(home, "elsewhere", "api"))
+	if m.roots(real) != real {
+		t.Error("the reading does not name projects by the new root")
+	}
+
+	// And the list says where conn is looking from the same roots,
+	// without reading the file again to draw.
+	if got := m.projectsReport().roots; len(got) != 1 || got[0] != "~/elsewhere" {
+		t.Errorf("the list says conn is looking under %q", got)
+	}
+}

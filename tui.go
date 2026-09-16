@@ -124,6 +124,10 @@ type (
 		// the next reading dates a row's status against.
 		stood map[int]stood
 		acts  map[string]activitySeen
+		// The roots the reading found the file naming, where they are
+		// not the ones conn was on: the reading was made on these, and
+		// the model goes onto them with it.
+		rooted *rooting
 	}
 	processesTickMsg struct{ gen int }     // the processes view is due to be read again
 	openedMsg        struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
@@ -216,6 +220,7 @@ type model struct {
 	roots       func(string) string
 	isProject   func(string) bool
 	projRoots   []string // where the checkouts are kept, for naming projects by
+	configRoots []string // the same as they were configured, to tell a change by
 
 	// The sessions view: a project's suspended sessions, as last read,
 	// what has narrowed them, and which of the rows the cursor is on.
@@ -279,9 +284,7 @@ func newModel(p palette) model {
 	// model's to come up on: newModel takes the roots it is left with
 	// and the first scan says what is wrong with the file.
 	configured, _ := projectRoots(home)
-	roots := realRoots(configured)
-	isProject := projectDirs(roots)
-	return model{
+	m := model{
 		lit:     true,
 		focused: true, // conn comes up with the keys in the panel
 		// conn comes up on the console, which annunciates, and Init sets
@@ -289,14 +292,42 @@ func newModel(p palette) model {
 		ticking: true,
 		told:    -1, // nothing published yet; the first cursor is news
 
-		head:      station{build: readBuild(), login: readLogin()},
-		now:       time.Now(),
-		p:         p,
-		uid:       os.Getuid(),
-		roots:     rootFinder(isProject),
-		isProject: isProject,
-		projRoots: roots,
+		head: station{build: readBuild(), login: readLogin()},
+		now:  time.Now(),
+		p:    p,
+		uid:  os.Getuid(),
 	}
+	return m.rooted(rootOn(configured))
+}
+
+// A rooting is conn on a set of roots: the directories as they were
+// configured, the same as the process table names them, and the two
+// finders built on them — which directories are projects, and which
+// project holds a directory. The finders remember what they found, so
+// a rooting is built once for a set of roots and kept until the set
+// changes.
+type rooting struct {
+	configured, real []string
+	isProject        func(string) bool
+	rootOf           func(string) string
+}
+
+// rootOn is the rooting for a set of configured roots.
+func rootOn(configured []string) rooting {
+	r := rooting{configured: configured, real: realRoots(configured)}
+	r.isProject = projectDirs(r.real)
+	r.rootOf = rootFinder(r.isProject)
+	return r
+}
+
+// rooted puts conn on a rooting. It is where conn comes up, where the
+// asking view was answered, and where a reading found the file changed
+// under it: the roots are what the processes view names projects by,
+// and a view naming them by roots the operator has since edited is a
+// view that stopped reading the file it says it reads.
+func (m model) rooted(r rooting) model {
+	m.configRoots, m.projRoots, m.isProject, m.roots = r.configured, r.real, r.isProject, r.rootOf
+	return m
 }
 
 // report is the console's words as things stand: from the station once
@@ -329,8 +360,7 @@ func (m model) listRows() []projectRow {
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	roots, _ := projectRoots(m.head.login.home)
-	return composeProjects(m.listRows(), m.filter, roots, m.head.login.home, m.scanning, m.projectsErr)
+	return composeProjects(m.listRows(), m.filter, m.configRoots, m.head.login.home, m.scanning, m.projectsErr)
 }
 
 func (m model) projectRows() []projectRow {
@@ -391,6 +421,7 @@ func readStationCmd() tea.Msg {
 // comes back.
 func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots, m.isProject
+	home, configured := m.head.login.home, m.configRoots
 	containers := m.containers
 	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
 	var srv *server
@@ -401,6 +432,20 @@ func (m model) readProcesses() tea.Cmd {
 		procs, err := readProcesses(uid)
 		if err != nil {
 			return processesMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
+		}
+		// The roots as the file names them now. The operator edits the
+		// file from inside conn, and the list walks it fresh; the
+		// reading names projects by the same file, and takes it as it
+		// now stands rather than as it stood when conn came up. A file
+		// that will not parse changes nothing: the list says so, and
+		// conn is not going to name projects by a guess at what it was
+		// about to say.
+		var rerooted *rooting
+		if home != "" {
+			if now, err := projectRoots(home); err == nil && !slices.Equal(now, configured) {
+				r := rootOn(now)
+				rerooted, roots, isProject = &r, r.rootOf, r.isProject
+			}
 		}
 		// How each process stands past what the table says: anything is
 		// working by the processor time it spent since the last reading,
@@ -455,7 +500,8 @@ func (m model) readProcesses() tea.Cmd {
 		// daemon.
 		projects = attachContainers(projects, containers, roots, paneOf, shellIn)
 		msg := processesMsg{projects: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
-			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas)}
+			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
+			rooted: rerooted}
 		if srv != nil {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
@@ -801,6 +847,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The row the list's cursor was on, before the reading replaces
 		// the rows it is an index into.
 		wasRow, hadRow := m.atCursor()
+		// The reading was made on the roots it found the file naming;
+		// the model goes onto them with it, so the rows and the roots
+		// they are named by are never of two files.
+		if msg.rooted != nil {
+			m = m.rooted(*msg.rooted)
+		}
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
 		m.looking, m.helping = msg.bayReadout, msg.bayHelp
 		// Work in the workspace is what esc goes back into, so a conn
@@ -1952,9 +2004,7 @@ func (m model) takeRoot(b rootsReport) (tea.Model, tea.Cmd) {
 	// conn works from it now, not on the next start: the roots the
 	// reading names projects by are the ones just written, and the walk
 	// and the table are asked again against them.
-	m.projRoots = realRoots([]string{full})
-	m.isProject = projectDirs(m.projRoots)
-	m.roots = rootFinder(m.isProject)
+	m = m.rooted(rootOn([]string{full}))
 	m.view, m.processesGen = viewProcesses, m.processesGen+1
 	cmds := []tea.Cmd{m.readProcesses(), m.scanProjects()}
 	if m.inside {

@@ -69,8 +69,8 @@ func (m model) openShell(dir string) tea.Cmd {
 // so what opens says what conn is doing rather than nothing at all.
 //
 // Nothing is reloaded when the editor closes. conn reads the roots
-// afresh on every walk, so the next one takes the file as it now
-// stands, and the walk is what the roots are for.
+// afresh on every walk and on every reading of the table, so the next
+// of either takes the file as it now stands.
 func (m model) editConfig() tea.Cmd {
 	home, srv := m.head.login.home, m.srv
 	return func() tea.Msg {

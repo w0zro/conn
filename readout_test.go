@@ -23,8 +23,8 @@ func readoutSubj() readoutSubject {
 	}
 	return readoutSubject{
 		entry: e,
-		proc: process{pid: e.pid, state: 'S', foreground: true,
-			started: e.started, cpu: 2*time.Minute + 14*time.Second},
+		proc: record{pid: e.pid, state: 'S', foreground: true,
+			cpu: 2*time.Minute + 14*time.Second},
 		project: project{path: "/Users/w0zro/projects/w0zro/conn"},
 		parent: entry{pid: 49200, kind: kindShell, command: "zsh",
 			tty: "ttys003", status: statusActive},
@@ -107,7 +107,7 @@ func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 		entry: entry{pid: 88, kind: kindShell, command: "zsh", tty: "ttys009",
 			started: processesNow.Add(-time.Hour), status: statusIdle,
 			cwd: "/Users/w0zro/projects/w0zro/conn"},
-		proc:    process{pid: 88, state: 'S'},
+		proc:    record{pid: 88, state: 'S'},
 		project: project{path: "/Users/w0zro/projects/w0zro/conn"},
 		inside:  true,
 	}

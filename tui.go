@@ -123,6 +123,8 @@ type (
 		// the next reading dates a row's status against.
 		stood map[int]stood
 		acts  map[string]activitySeen
+		// The table's record behind each row, for the page; see cursor.go.
+		records map[int]record
 		// The roots the reading found the file naming, where they are
 		// not the ones conn was on: the reading was made on these, and
 		// the model goes onto them with it.
@@ -161,6 +163,9 @@ type model struct {
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
 	told     int // the cursor as last published for the readout to follow
+	// The table's record behind each row as last read, published with
+	// the rows for the page; see cursor.go.
+	records map[int]record
 	// Whether the readout is in the bay, so the page is not asked for
 	// twice. conn sets it when it puts the page there or takes it away,
 	// and a reading corrects it — asking tmux on every reading would be
@@ -487,6 +492,7 @@ func (m model) readProcesses() tea.Cmd {
 			procs = kept
 		}
 		projects := projectsFrom(procs, uid, roots, isProject, how)
+		records := recordsOf(procs, projects)
 		// And what docker is holding up, which the table cannot show: a
 		// container is not a process of this machine, and compose says
 		// where each belongs by the directory it was started for. What
@@ -496,7 +502,7 @@ func (m model) readProcesses() tea.Cmd {
 		projects = attachContainers(projects, containers, roots, paneOf, shellIn)
 		msg := processesMsg{projects: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
-			rooted: rerooted}
+			records: records, rooted: rerooted}
 		if srv != nil {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
@@ -696,35 +702,47 @@ func (m model) published(again bool) model {
 	}
 	if pid != m.told || again {
 		m.told = pid
-		// The row goes with the pid, as the panel shows it, so the page
-		// says of it what the panel says; see cursor.go.
-		var row *entry
-		if e, _, ok := m.under(); ok {
-			row = &e
-		}
-		tellCursor(cursorPath(m.head.login.home), pid, row, m.containerAt(pid))
+		// The reading goes with the pid, as the panel shows it, so the
+		// page says what the panel says and asks the machine nothing;
+		// see cursor.go.
+		tellCursor(cursorPath(m.head.login.home), pid, &reading{
+			projects: m.projects, records: m.records, panes: m.panes,
+			inside: m.inside, containers: m.containers,
+		})
 	}
 	return m
 }
 
 // containerAt is the container a row stands for, where it is one, as the
-// panel has it from docker. It goes to the readout with the cursor
-// because the readout has no other way to learn it: every other row it
-// can look up in the process table, and a container is not there.
+// panel has it from docker.
 func (m model) containerAt(pid int) *container {
 	for _, pl := range m.projects {
 		for _, e := range pl.entries {
-			if e.pid != pid || e.container == "" {
-				continue
-			}
-			for i := range m.containers {
-				if m.containers[i].id == e.container {
-					return &m.containers[i]
-				}
+			if e.pid == pid {
+				return reading{containers: m.containers}.containerOf(e)
 			}
 		}
 	}
 	return nil
+}
+
+// recordsOf is the table's record behind each row, for the page: what
+// the page reads of a process that the row does not carry, kept for
+// the rows alone rather than for the whole table.
+func recordsOf(procs []process, projects []project) map[int]record {
+	byPid := map[int]process{}
+	for _, p := range procs {
+		byPid[p.pid] = p
+	}
+	out := map[int]record{}
+	for _, pl := range projects {
+		for _, e := range pl.entries {
+			if p, ok := byPid[e.pid]; ok {
+				out[e.pid] = recordOf(p)
+			}
+		}
+	}
+	return out
 }
 
 func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -849,6 +867,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.rooted(*msg.rooted)
 		}
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
+		m.records = msg.records
 		m.looking, m.helping = msg.bayReadout, msg.bayHelp
 		// Work in the workspace is what esc goes back into, so a conn
 		// that came up to a bay it did not fill itself still knows where

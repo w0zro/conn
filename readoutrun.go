@@ -11,10 +11,13 @@ import (
 )
 
 // conn readout <pid> — the readout's own program, run in a pane of
-// conn's server the way the hold is. It reads for itself rather than
-// being told: the panel's reading is the panel's, the page wants more
-// of it than a row carries, and a pane that reads its own subject keeps
-// saying the truth while the panel is busy elsewhere.
+// conn's server the way the hold is. It reads the panel's reading of
+// the machine rather than the machine: the panel publishes what it
+// shows beside its cursor (see cursor.go), and the page says the row
+// the panel says, with what stands around it, and asks the machine
+// nothing. What it asks for itself is about one row only — what a
+// contact says of its session, and what git says of the project — and
+// those it asks on its own beat and keeps.
 //
 // A key passes focus back to the panel, the way the hold does. There
 // is nothing to do on the page — it is a reading — and the keys that
@@ -27,21 +30,20 @@ import (
 // on a row nobody is looking at any more. With a pid it stays on that
 // pid, which is what `conn readout 123`, typed, is for.
 
-// readoutBeat is how often the page reads its subject again. The
-// processes view's own beat: the two are readings of the same table and
-// there is no reason for one to be staler than the other.
+// readoutBeat is how often the page asks again after what is about the
+// one row: the contact's session and, under its own longer while, git.
+// The processes view's own beat, so the page is no staler than the
+// panel about the things the panel does not carry.
 //
-// readoutPoll is how often it asks where the cursor is, which is a read
-// of a few bytes rather than the whole table and can afford to be
-// quick. It has to be: nothing else stands between a key on the panel
-// and the page changing, so the poll is the whole of the wait, and a
-// wait long enough to see is a page that trails the cursor down the
-// list.
+// readoutPoll is how often it asks what the panel has said, which is a
+// read of a small file and can afford to be quick. It has to be:
+// nothing else stands between a key on the panel and the page
+// changing, so the poll is the whole of the wait, and a wait long
+// enough to see is a page that trails the cursor down the list.
 //
 // gitEvery is how often git is asked about a project the page is
 // already showing. Git is four processes a reading and the branch does
-// not move on a beat; the table is read every beat because a process's
-// status does, and that is one process.
+// not move on a beat.
 const (
 	readoutBeat = 2 * time.Second
 	readoutPoll = 50 * time.Millisecond
@@ -49,16 +51,8 @@ const (
 )
 
 type readoutModel struct {
-	srv *server
-	pid int
-	// The container the subject is, where the panel said it is one. A
-	// container is not in the process table, so the page is composed
-	// from what the panel published rather than from anything read here.
-	container *container
-	// The row as the panel shows it, where the panel said. The page
-	// reads the machine for what stands around the row, and takes the
-	// row itself from the panel; see cursor.go.
-	row           *entry
+	srv           *server
+	pid           int
 	follow        bool   // the subject is the panel's cursor, not a pid given
 	cursor        string // where the panel publishes it
 	note          string // what the panel last said there, to tell a change by
@@ -66,20 +60,21 @@ type readoutModel struct {
 	p             palette
 	report        readoutReport
 	table         readoutTable // what the page was last composed out of
-	read          time.Time    // when the subject was last read in full
-	inflight      bool         // a reading is out and has not landed
+	read          time.Time    // when the subject was last asked after in full
+	inflight      bool         // an asking is out and has not landed
 }
 
-// readoutReadMsg carries a reading, and the pid it was of: several can
+// readoutReadMsg carries an asking, and the pid it was of: several can
 // be in flight at once when the cursor is moving, and one that lands
 // after the subject has changed again is stale and dropped. The table
-// it was made from is not dropped with it — that is a reading of the
-// machine rather than of the row, and it is as good for one row as
-// another.
+// it was made from is not dropped with it — what git and claude said
+// is as good for the next row as for the one it was asked for, and is
+// kept.
 type readoutReadMsg struct {
 	pid    int
 	report readoutReport
 	table  readoutTable
+	ok     bool // the subject was found, and the report is about it
 }
 
 func runReadout(srv *server, pid int, home string, p palette) error {
@@ -99,53 +94,57 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case readoutReadMsg:
-		// A reading of a subject that has since moved on is no longer
+		// An asking about a subject that has since moved on is no longer
 		// about anything, and putting it up would be a page flicking
-		// back to a row the cursor has left. The table is kept whatever
-		// row it was read for: it is the machine, and the next row the
-		// cursor lands on is in it too.
-		m.table = msg.table
+		// back to a row the cursor has left. What was asked is kept
+		// whatever row it was asked for.
+		m.table.sess, m.table.git, m.table.carried = msg.table.sess, msg.table.git, msg.table.carried
 		if msg.pid == m.pid {
-			m.report = msg.report
+			if msg.ok {
+				m.report = msg.report
+			}
 			m.inflight = false
 		}
-		// A page pinned to a pid that has gone has nothing left to read:
-		// the row will not come back, and a reading every beat forever
-		// to say so is a process every beat for nothing.
+		// A page pinned to a pid that has gone has nothing left to ask
+		// after: the row will not come back.
 		if !m.follow && m.report.gone {
 			return m, nil
 		}
 	case readoutTickMsg:
-		// What the panel says, then whether that is news. A subject that
-		// changed is read at once; one that has not is read on the beat,
-		// so a page nobody is moving still keeps up with its row.
-		if m.follow {
-			if note := readCursor(m.cursor); note != m.note {
-				m.note = note
-				if pid, row, c := parseCursor(note); pid != 0 {
-					moved := pid != m.pid
-					m.pid, m.row, m.container = pid, row, c
-					// The row is answered now, out of the table already
-					// read, and the reading only replaces that answer
-					// with a newer one. Reading the machine takes a
-					// tenth of a second, which is long enough to see,
-					// and waiting it out would leave the page on the
-					// row the cursor just left — while the table read a
-					// moment ago has the new row in it, as true as the
-					// panel's own list is. A row that stayed put and
-					// changed its word is answered the same way: the
-					// panel said so, and the page says it now.
-					if r, ok := readoutPage(pid, row, c, m.table); ok {
-						m.report = r
-					}
-					if moved {
-						return m.reading()
-					}
-				}
+		// What the panel says, then whether that is news. The reading
+		// the panel published is taken as the machine; a subject that
+		// moved is asked after at once, and one that has not is asked
+		// after on the beat, so a page nobody is moving still keeps up
+		// with its row.
+		if note := readCursor(m.cursor); note != m.note {
+			m.note = note
+			pid, r := parseCursor(note)
+			if r != nil {
+				m.table = m.table.on(*r)
+			}
+			moved := false
+			if m.follow && pid != 0 && pid != m.pid {
+				m.pid, moved = pid, true
+			}
+			// The row is answered now, out of what the panel said, and
+			// the asking only adds to that answer what is about the row
+			// alone. A row that stayed put and changed its word is
+			// answered the same way: the panel said so, and the page
+			// says it now. A row the panel's reading has not got is a
+			// row that has gone, since the panel's cursor is always in
+			// the panel's own reading and a pinned pid is the only kind
+			// that can be missing from it.
+			if page, ok := readoutPage(m.pid, m.table); ok {
+				m.report = page
+			} else if m.table.published && m.pid != 0 {
+				m.report = readoutReport{pid: m.pid, gone: true}
+			}
+			if moved {
+				return m.reading()
 			}
 		}
-		// One reading at a time on the beat: git under its wait can take
-		// longer than a beat, and a second reading behind it would only
+		// One asking at a time on the beat: git under its wait can take
+		// longer than a beat, and a second asking behind it would only
 		// queue a third.
 		if time.Since(m.read) >= readoutBeat && !m.inflight {
 			return m.reading()
@@ -165,119 +164,78 @@ func (m readoutModel) tick() tea.Cmd {
 	return tea.Tick(readoutPoll, func(time.Time) tea.Msg { return readoutTickMsg{} })
 }
 
-// reading gathers the subject and words it, off the loop: the process
-// table, the tree the row sits in, what claude says of it, and what git
-// says of its project are each a reading, and git is a process besides.
-// It marks the model as having read, so the two go together and neither
-// can be done without the other.
+// reading asks after the subject and words the page, off the loop:
+// what claude says of the row's session and what git says of its
+// project are each an asking, and git is a process besides. It marks
+// the model as having asked, so the two go together and neither can be
+// done without the other.
 //
-// The table the page holds goes with it, so what conn has already asked
-// of a project or a session is not asked again from nothing.
+// The table the page holds goes with it, so what conn has already
+// asked of a project or a session is not asked again from nothing.
 func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 	m.read, m.inflight = time.Now(), true
-	pid, srv, held, row, c := m.pid, m.srv, m.table, m.row, m.container
+	pid, held := m.pid, m.table
 	return m, tea.Batch(
 		func() tea.Msg {
-			report, table := readoutOf(pid, row, c, srv, held)
-			return readoutReadMsg{pid: pid, report: report, table: table}
+			report, table, ok := readoutOf(pid, held)
+			return readoutReadMsg{pid: pid, report: report, table: table, ok: ok}
 		},
 		m.tick(),
 	)
 }
 
-// readoutTable is what a page is composed out of: the process table and
-// the projects conn makes of it, what conn's server holds of panes,
-// what claude says of its sessions — readings of the whole machine, the
-// same for every row — and beside them what git and claude's
-// transcripts have said of the rows read so far, which are askings
-// about one row and are kept rather than thrown away with the page they
-// were for.
-//
-// The page holds the last one, because the cursor moves faster than the
-// machine can be read and every row the cursor can land on is already
-// in the table that was read for the row it is leaving.
+// readoutTable is what a page is composed out of: the panel's reading
+// of the machine, the same for every row — the rows, the record behind
+// each, the panes, the containers — and beside it what claude and git
+// have said of the rows asked after so far, which are askings about
+// one row and are kept rather than thrown away with the page they were
+// for.
 type readoutTable struct {
-	procs    []process
-	projects []project
-	panes    map[string]pane
-	inside   bool // there was a server to ask about panes
-	sess     map[int]sessionFile
-	git      map[string]gitStatus // what git said of a project, by its path
-	carried  map[int]session      // which session a row was carrying
-	// Each row as this reading saw it stand, and when it was taken, so
-	// the next reading can date a row's status the way the panel does;
-	// and the processor time each had used, to tell work from waiting
-	// the way the panel does.
-	stood  map[int]stood
-	cpu    map[int]time.Duration
-	readAt time.Time
+	reading
+	published bool // the panel has published a reading at all
+	sess      map[int]sessionFile
+	git       map[string]gitStatus // what git said of a project, by its path
+	carried   map[int]session      // which session a row was carrying
+}
+
+// on is the table with the panel's latest reading for its machine, and
+// the askings kept.
+func (t readoutTable) on(r reading) readoutTable {
+	t.reading, t.published = r, true
+	return t
 }
 
 // readoutOf is the page for a pid as things stand and the table it was
-// read from, or the page that says the row has gone. A pid of nothing
-// is a page waiting on a cursor that has not said where it is yet.
-func readoutOf(pid int, row *entry, c *container, srv *server, held readoutTable) (readoutReport, readoutTable) {
+// composed from, and whether the subject was found in it at all. A pid
+// of nothing is a page waiting on a cursor that has not said where it
+// is yet.
+func readoutOf(pid int, held readoutTable) (readoutReport, readoutTable, bool) {
 	if pid == 0 {
-		return readoutReport{}, held
+		return readoutReport{}, held, false
 	}
-	t := readoutGather(pid, srv, held)
-	r, ok := readoutPage(pid, row, c, t)
-	if !ok {
-		return readoutReport{pid: pid, gone: true}, t
-	}
-	return r, t
+	t := readoutGather(pid, held)
+	r, ok := readoutPage(pid, t)
+	return r, t, ok
 }
 
-// readoutGather reads the machine, and then asks what only the row's
-// own project and session can answer. What it is told of those joins
-// what it was told of the rows read before, since a list walked down
-// and back up again is the same few projects over and over and git is a
-// process each time.
-func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
+// readoutGather asks what only the row's own project and session can
+// answer. What it is told of those joins what it was told of the rows
+// asked after before, since a list walked down and back up again is
+// the same few projects over and over and git is a process each time.
+func readoutGather(pid int, held readoutTable) readoutTable {
 	// Copied rather than written into, because the page goes on reading
 	// the table it holds while this one is being made.
-	t := readoutTable{git: maps.Clone(held.git), carried: maps.Clone(held.carried)}
+	t := held
+	t.git, t.carried = maps.Clone(held.git), maps.Clone(held.carried)
 	if t.git == nil {
 		t.git = map[string]gitStatus{}
 	}
 	if t.carried == nil {
 		t.carried = map[int]session{}
 	}
-
-	uid := os.Getuid()
-	procs, err := readProcesses(uid)
-	if err != nil {
-		return t
-	}
-	t.procs = procs
-	home, _ := os.UserHomeDir()
-	roots, _ := projectRoots(home)
-	isProject := projectDirs(roots)
-	// How the rows stand, read the way the panel reads it: work off
-	// the processor time spent since the last reading, and a contact
-	// off its own word. The subject's own row comes from the panel
-	// (see readoutPage); this is for the rows around it, which the
-	// tree names with their status.
-	t.readAt = time.Now()
-	how := map[int]status{}
-	for pid := range cpuWorking(held.cpu, held.readAt, procs, t.readAt) {
-		how[pid] = status{working: true}
-	}
-	maps.Copy(how, contactStatuses(procs))
-	t.cpu = cpuOf(procs)
-	t.projects = projectsFrom(procs, uid, rootFinder(isProject), isProject, how)
-	t.stood = sinceSeen(t.projects, held.stood, held.readAt, t.readAt)
-
-	// What conn holds for the rows' terminals, when there is a server to
-	// ask. Outside one there is nothing to say of panes.
-	if srv != nil {
-		if panes, err := srv.panes(); err == nil {
-			t.panes, t.inside = panes, true
-		}
-	}
 	t.sess = claudeSessions()
 
-	s, ok := subjectOf(pid, t.projects, t.procs)
+	s, ok := subjectOf(pid, t.projects, t.records)
 	if !ok {
 		return t
 	}
@@ -314,32 +272,16 @@ func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
 	return t
 }
 
-// readoutPage words one row out of a table, whether that table was just
-// read or is the one the page already had. It says the row is not there
-// rather than that it has gone: of a table just read that is a row that
-// ended, but of the table already read it may only be a row that
-// started since, and the reading on its way will have it.
-func readoutPage(pid int, row *entry, c *container, t readoutTable) (readoutReport, bool) {
-	s, ok := subjectOf(pid, t.projects, t.procs)
+// readoutPage words one row out of a table. It says whether the row is
+// there to be worded: a row the panel's reading has not got is not on
+// the page, and what that means — gone, or not yet said — is the
+// caller's to decide.
+func readoutPage(pid int, t readoutTable) (readoutReport, bool) {
+	s, ok := subjectOf(pid, t.projects, t.records)
 	if !ok {
-		// A container is in none of this: it is not a process, so the
-		// table has no record of it and the projects made from the table
-		// hold no row for it. What the panel published is the whole of
-		// what there is to say, and it is enough.
-		if c == nil {
-			return readoutReport{}, false
-		}
-		s = readoutSubject{project: project{path: c.dir}}
+		return readoutReport{}, false
 	}
-	// The row itself is the panel's, where the panel said it: what the
-	// row is doing and how long it has stood so are the panel's
-	// readings, and the page says the row as the panel shows it rather
-	// than a second reading of the same row that could disagree. The
-	// table still says what stands around it.
-	if row != nil && row.pid == pid {
-		s.entry = *row
-	}
-	s.container = c
+	s.container = t.containerOf(s.entry)
 	if t.inside {
 		s.pane, s.inside = t.panes[s.entry.tty], true
 	}
@@ -355,17 +297,13 @@ func readoutPage(pid int, row *entry, c *container, t readoutTable) (readoutRepo
 // subjectOf finds a pid among the projects and gathers what stands
 // around it: the table's own record, its project, what runs it and what
 // it runs.
-func subjectOf(pid int, projects []project, procs []process) (readoutSubject, bool) {
-	byPid := map[int]process{}
-	for _, p := range procs {
-		byPid[p.pid] = p
-	}
+func subjectOf(pid int, projects []project, records map[int]record) (readoutSubject, bool) {
 	for _, pl := range projects {
 		for i, e := range pl.entries {
 			if e.pid != pid {
 				continue
 			}
-			s := readoutSubject{entry: e, proc: byPid[pid], project: pl}
+			s := readoutSubject{entry: e, proc: records[pid], project: pl}
 			// The tree is written depth first, so what runs this row is
 			// the nearest row above it that is a level shallower, and
 			// what it runs is the rows below it until the depth comes

@@ -42,7 +42,7 @@ import (
 // test.
 type readoutSubject struct {
 	entry    entry
-	proc     process // the table's record, for what a row does not carry
+	proc     record // the table's record, for what a row does not carry
 	project  project
 	parent   entry   // what runs it, where anything conn can see does
 	children []entry // what it runs, in the order the tree has them
@@ -51,9 +51,8 @@ type readoutSubject struct {
 	sess     sessionFile // what a contact says of itself, when conn can ask
 	carried  session
 	git      gitStatus
-	// What docker says of this row, where the row is a container. It
-	// comes from the panel rather than from anything read here; see
-	// tellCursor.
+	// What docker says of this row, where the row is a container, as
+	// the panel published it; see cursor.go.
 	container *container
 }
 

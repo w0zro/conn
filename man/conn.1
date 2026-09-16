@@ -4,6 +4,24 @@
 conn \- a station for one operator directing many processes on one machine
 .SH SYNOPSIS
 .B conn
+.br
+.B conn down
+.br
+.B conn theme claude
+.br
+.B conn theme vim
+.br
+.B conn \-\-light
+.br
+.B conn \-\-dark
+.br
+.B conn \-\-help
+.br
+.B conn \-\-version
+.SH DESCRIPTION
+The station shows the shells, contacts, and commands running in each project,
+what each is doing, and which one is waiting for the operator. macOS and Linux,
+on tmux.
 .SH GENERAL
 .TP
 1-1.
@@ -15,16 +33,113 @@ is waiting on the operator. The workspace holds the one process the operator is
 in. Keys move between them.
 .TP
 1-2.
+A contact is a process with an agent at the other end: Claude Code, or another
+conn knows by name. A contact works without direction and stops to ask for it.
+The station shows which one has stopped, and \fBtab\fR goes to the one that has
+waited longest.
+.TP
+1-3.
 conn finds projects by walking the roots it was given: the directories named in
-\fB~/.config/conn/config.json\fR, or in \fBCONN_ROOTS\fR, which is read first.
-It is told these and infers nothing; a conn that has been told nothing asks
-before it goes on.
-.SH KEYS
+\fB~/.config/conn/config.json\fR, or in \fBCONN_ROOTS\fR, which is read first. A
+project is a repository under a root, or a folder under one that holds two or
+more. conn is told the roots and infers nothing; a conn that has been told
+nothing asks before it goes on.
+.TP
+1-4.
+The installation procedure on the cover puts the binary in \fB~/.local/bin\fR
+and this manual beside it, where \fBman conn\fR finds it. conn needs tmux on the
+path. On macOS it also needs lsof, which is how it reads where a process is
+working; Linux reads /proc. Without tmux, conn shows the console and the
+processes view and can reach nothing.
+.SH OPERATION
 .TP
 2-1.
+conn comes up on the console: a readout of the machine and the session, the
+start-up checks, and the verdict. A check that found something wrong is a fault,
+and the verdict counts them; with none it says so. Any key continues to the
+processes view; from there \fBc\fR brings the console back.
+.TP
+2-2.
+The processes view is what is running, by project. Each project work is
+happening in is a block, and each process there is a row, nested under whatever
+runs it. A row says its kind, what it is doing, how long it has stood as it
+does, and the word for how it stands. Nothing moves once placed: what is new
+goes on the end. A row conn holds in a pane of its server is written in the ink
+and can be entered; work conn can only report is dimmed.
+.PP
+.I "Kinds"
+.RS
+.TP
+\fBSHELL\fR
+A shell. Bare, it is idle; running anything, it is active as what it runs is.
+.TP
+\fBCONTACT\fR
+An agent, and the one kind that can wait on the operator.
+.TP
+\fBEDITOR\fR
+An editor.
+.TP
+\fBRUN\fR
+Anything else: a build, a test, a server, a script.
+.TP
+\fBSERVICE\fR
+A docker container, filed under the project compose started it for.
+.RE
+.PP
+.I "Words"
+.RS
+.TP
+\fBWORKING\fR
+Doing something now. A contact says what: the tool it has in flight.
+.TP
+\fBWAITING\fR
+A contact stopped on a question it put to the operator.
+.TP
+\fBACTIVE\fR
+Alive, and not doing anything.
+.TP
+\fBIDLE\fR
+A shell at its prompt, or a contact at rest.
+.TP
+\fBSTOPPED\fR
+Suspended.
+.TP
+\fBENDED\fR
+Finished, and not yet collected.
+.RE
+.TP
+2-3.
+While the keys are on the panel, the workspace holds the readout on the row
+under the cursor: the whole command, where the process is working, what runs it
+and what it runs, what it has spent, what a contact is stopped on, and what git
+says of the project. It follows the cursor. \fBenter\fR puts the process in the
+workspace instead, with the keys in it, and \fBesc\fR goes back into the process
+last worked in.
+.TP
+2-4.
+\fBp\fR is the projects list: every project under the roots, whether anything is
+running in it or not. Typing narrows it. \fBenter\fR opens a shell at the row
+under the cursor, \fBctrl\-a\fR starts a contact there, \fBalt\-a\fR lists the
+sessions a contact left suspended there, and \fBesc\fR goes back. In the
+sessions list, \fBenter\fR picks the session under the cursor back up.
+.TP
+2-5.
+\fBx\fR asks to end the process under the cursor, on the status line. \fBx\fR,
+\fBy\fR or \fBenter\fR answers yes and any other key withdraws the question. A
+bare shell is killed outright; anything a shell runs is sent SIGTERM; a service
+is stopped with docker stop. The shell a process ran in is left at its prompt.
+.TP
+2-6.
+A service has no pane, so \fBenter\fR on one opens its output, and \fBenter\fR
+again goes into the pane holding that; \fBs\fR on one opens a shell inside the
+container.
+.SH KEYS
+.TP
+3-1.
 A chord is the prefix — \fBctrl\-space\fR, or what \fBCONN_PREFIX\fR names —
 followed by one key. A chord works from anywhere in the station, including from
-inside a process, because tmux takes it before the process does.
+inside a process, because tmux takes it before the process does. The status line
+says PREFIX while one is pending.
 .PP
 .I "Chords"
 .RS
@@ -67,19 +182,11 @@ This manual, in the workspace, with the keys in it.
 Detach. The station keeps running.
 .RE
 .TP
-2-2.
+3-2.
 The panel's own keys work while the panel has them, and are listed here as the
-processes view takes them. In the projects list and the sessions view a letter
-is typed into the line instead: there, enter takes the row under the cursor and
-esc goes back.
-.TP
-2-3.
-While this manual is up the keys are in it, and the status line says HELP. It
-scrolls with \fBj\fR and \fBk\fR, a screen at a time with \fBspace\fR and
-\fBb\fR, and to either end with \fBg\fR and \fBG\fR. \fBesc\fR leaves it and
-puts the keys back where they were when it was asked for — in the workspace,
-or on the panel; \fBprefix \-\fR leaves it for the processes view whichever it
-was.
+processes view takes them. In the projects list and the sessions list a letter
+is typed into the line instead: there, \fBenter\fR takes the row under the
+cursor and \fBesc\fR goes back.
 .PP
 .I "The panel"
 .RS
@@ -110,7 +217,7 @@ A shell at the project. On a service, a shell inside the container.
 A contact at the project.
 .TP
 \fBx\fR
-End it: a signal to a process, docker stop to a service.
+End it: a signal to a process, docker stop to a service. Asks first.
 .TP
 \fBtab\fR
 The process that has waited longest.
@@ -123,4 +230,77 @@ The console.
 .TP
 \fBq\fR
 Detach.
+.RE
+.TP
+3-3.
+While this manual is up the keys are in it, and the status line says HELP. It
+scrolls with \fBj\fR and \fBk\fR, a screen at a time with \fBspace\fR and
+\fBb\fR, and to either end with \fBg\fR and \fBG\fR. \fBesc\fR leaves it and
+puts the keys back where they were when it was asked for — in the workspace,
+or on the panel; \fBprefix \-\fR leaves it for the processes view whichever it
+was.
+.SH COMMANDS AND CONFIGURATION
+.TP
+4-1.
+conn is called as follows. A second conn, run while the station is up, attaches
+to it.
+.RS
+.TP
+\fBconn\fR
+The console, then the processes view.
+.TP
+\fBconn down\fR
+Take the server down, with everything in it.
+.TP
+\fBconn theme claude\fR
+Write conn's palette as a theme for Claude Code, which draws its own colors.
+.TP
+\fBconn theme vim\fR
+Write it as a colorscheme for nvim, which does the same.
+.TP
+\fBconn \-\-light\fR
+Say the ground is light, for a server coming up or one already up.
+.TP
+\fBconn \-\-dark\fR
+Say the ground is dark.
+.TP
+\fBconn \-\-help\fR
+Say this.
+.TP
+\fBconn \-\-version\fR
+Say the build.
+.RE
+.TP
+4-2.
+conn comes up dark, or light when the terminal says its own ground is light. The
+choice is made when the server comes up and holds for its life; \fBconn down\fR
+and conn again asks afresh. Everything in a pane of the server draws in conn's
+palette by asking the terminal for a color by name. Claude Code and nvim write
+their own hex instead, and \fBconn theme\fR writes each a theme from the same
+palette.
+.TP
+4-3.
+The configuration file is \fB~/.config/conn/config.json\fR, and \fBprefix +\fR
+opens it in \fBVISUAL\fR, \fBEDITOR\fR, or vi. It holds one key.
+.RS
+.TP
+\fBroots\fR
+The directories conn looks for projects under, as a list of paths. A leading ~
+is the home.
+.RE
+.TP
+4-4.
+The environment says what one run of conn should do differently from what the
+file says is usual.
+.RS
+.TP
+\fBCONN_ROOTS\fR
+The roots for this run, separated the way PATH is. Read ahead of the file.
+.TP
+\fBCONN_PREFIX\fR
+The prefix, in tmux's spelling. C-Space unless set.
+.TP
+\fBCONN_SOCKET\fR
+The socket of the server, for a second station on one machine. Under
+~/.local/state/conn unless set.
 .RE

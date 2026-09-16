@@ -1148,17 +1148,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// prefix then s, then a, and then alt-a send. Each is a key of its
 	// own for the reason the three above are — in the list and in the
 	// sessions view a plain s or a is a letter being typed into the
-	// line. A contact is alt+c: it was ctrl+a, and ctrl+a is the start
-	// of the line to readline, which is what the line is edited with.
+	// line.
 	//
-	// ctrl+s is the pair to alt+s, and is here because a and s are the
-	// two things conn starts, and a hand on the line should not have to
-	// reach for a different chord to get the other. Enter on a project
-	// row in the list opens a shell there too, which is no argument
-	// against it — the list is typed into, and a key that means one
-	// thing wherever it is pressed is worth more than the saving of not
-	// having it.
-	if k == "alt+s" || k == "ctrl+s" || k == "alt+c" || k == "alt+a" {
+	// In a line typed into, ctrl is readline's and alt is conn's. The
+	// line is edited the way readline edits one, and a ctrl key there
+	// means what it means to readline — ctrl+a the start of the line,
+	// not a contact, which it was; ctrl+s a search, not a shell, which
+	// it was — so conn's own verbs on a line are all on alt, and the
+	// alt key is the one the chord sends, so a hand learns one key for
+	// one thing wherever it is pressed.
+	if k == "alt+s" || k == "alt+c" || k == "alt+a" {
 		return m.openAt(k)
 	}
 	// Everything the project the panel is looking at declares and does

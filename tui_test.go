@@ -905,16 +905,11 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 		t.Errorf("a contact from the list: view %d, cmd %v", m.view, cmd != nil)
 	}
 
-	// ctrl+s is the pair to alt+s and answers the same way. a and s are
-	// the two things conn starts, and in the list and the sessions view
-	// both are letters being typed into the line, so each needs a chord
-	// of its own. It answers in every view rather than in the list
-	// alone, a key being worth more for meaning the same thing wherever
-	// it is pressed.
+	// In a line typed into, ctrl is readline's: ctrl+s opened a shell
+	// once, and opens nothing now, in the list or anywhere.
 	for _, view := range []int{viewProcesses, viewProjects, viewSessions} {
-		m, cmd = press(panel(view), "ctrl+s")
-		if m.view != viewProcesses || cmd == nil {
-			t.Errorf("a shell by ctrl+s from view %d: view %d, cmd %v", view, m.view, cmd != nil)
+		if m, cmd = press(panel(view), "ctrl+s"); cmd != nil && m.view == viewProcesses && view != viewProcesses {
+			t.Errorf("ctrl+s from view %d opened a shell", view)
 		}
 	}
 

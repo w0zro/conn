@@ -1447,3 +1447,45 @@ func TestXOnADeclaredRow(t *testing.T) {
 		t.Errorf("x on an up row: kill %+v", m.kill)
 	}
 }
+
+// z shows the whole tree and the fold of it again, at once from the
+// reading held, and the status line says TREE while the tree is up.
+// The reading comes folded at rest and whole once z has been pressed,
+// and the tree is kept whole either way for the page.
+func TestZShowsTheWholeTree(t *testing.T) {
+	tree := []project{{path: "/w", entries: []entry{
+		{pid: 1, kind: kindShell, typed: "zsh", status: statusActive},
+		{pid: 2, kind: kindRun, typed: "go test ./...", status: statusActive, depth: 1},
+	}}}
+	m := newModel(plain)
+	m.view = viewProcesses
+	next, _ := m.Update(processesMsg{projects: fold(tree), tree: tree})
+	m = next.(model)
+	if rowsIn(m.projects) != 1 || len(m.tree[0].entries) != 2 || m.full {
+		t.Fatalf("at rest: %d rows shown of %d, full %v", rowsIn(m.projects), len(m.tree[0].entries), m.full)
+	}
+	if strings.Contains(m.keys(), treeWord) {
+		t.Error("the line says TREE at rest")
+	}
+	press := func(k string) {
+		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		m = next.(model)
+	}
+	press("z")
+	if !m.full || rowsIn(m.projects) != 2 || !strings.Contains(m.keys(), treeWord) {
+		t.Errorf("after z: full %v, %d rows, line %q", m.full, rowsIn(m.projects), m.keys())
+	}
+	press("j")
+	if m.cursor != 2 {
+		t.Errorf("the cursor did not reach the row the tree showed: %d", m.cursor)
+	}
+	press("z")
+	if m.full || rowsIn(m.projects) != 1 || m.cursor != 1 {
+		t.Errorf("after z again: full %v, %d rows, cursor %d", m.full, rowsIn(m.projects), m.cursor)
+	}
+	// The reading folds at rest, and does not once the tree is asked for.
+	m.full = true
+	if cmd := m.readProcesses(); cmd == nil {
+		t.Fatal("no reading")
+	}
+}

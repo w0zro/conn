@@ -57,6 +57,12 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, "/Users/w0zro", processesNow, "", false)
 	shown.inside = true
 	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, declaredPID(app, "worker"), 48, 30, plain)))
+	// The panel at rest: the same processes, folded. The shell over
+	// claude keeps the contact and the shell says what else it runs;
+	// the stopped vim stays for being a fault.
+	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	quiet.inside = true
+	golden(t, "processes-quiet-48x30.txt", texts(drawProcesses(quiet, 70100, 48, 30, plain)))
 }
 
 // The processes view's columns hold: the status flush right, a root's

@@ -1,0 +1,30 @@
+
+   ~
+
+   SHELL   zsh                         ACTIVE
+     EDITOR  vim notes.md            STOPPED
+
+   w0zro/conn
+
+   SHELL   zsh                           IDLE
+
+   w0zro/vim.pro/conjurer
+
+   SHELL   zsh                         ACTIVE
+ ▸   CONTACT claude --resume           ACTIVE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

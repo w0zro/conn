@@ -118,7 +118,9 @@ type (
 		// The projects' .conn files as this reading found them, kept on
 		// the model for the next reading to stat against; see declared.go.
 		declared map[string]declared
-		gen      int
+		// The projects whole, where projects is the fold of them.
+		tree []project
+		gen  int
 		// The processor time every process had used as of this reading,
 		// and when it was taken: what the next reading asks against to
 		// tell work from waiting.
@@ -272,7 +274,11 @@ type model struct {
 	// showing yesterday's rows as though they were today's.
 	containers []container
 	// The projects' .conn files as last read; see declared.go.
-	declared      map[string]declared
+	declared map[string]declared
+	// The processes as read, whole, and whether the view shows them
+	// so: at rest it shows the fold of them; see fold.go.
+	tree          []project
+	full          bool
 	dockerFeed    *dockerFeed
 	dockerStalled bool
 	// The last terminal the workspace held that was work: where esc
@@ -433,7 +439,7 @@ func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots.rootOf, m.roots.isProject
 	home, configured := m.head.login.home, m.roots.configured
 	containers := m.containers
-	walked, declared := m.walked, m.declared
+	walked, declared, full := m.walked, m.declared, m.full
 	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
 	var srv *server
 	if m.inside {
@@ -516,9 +522,12 @@ func (m model) readProcesses() tea.Cmd {
 		// and a read where a file changed.
 		declared = refreshDeclared(declared, declaredPaths(projects, walked, isProject))
 		projects = attachDeclared(projects, declared, panes)
-		msg := processesMsg{projects: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
+		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
 			records: records, rooted: rerooted, declared: declared}
+		if !full {
+			msg.projects = fold(projects)
+		}
 		if srv != nil {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
@@ -682,8 +691,17 @@ func (m model) keys() string {
 	if m.helping && m.view == viewProcesses {
 		return statusLineBlock(helpWord)
 	}
+	// The whole tree is a way of looking at the processes view rather
+	// than a view of its own, and the line says so while it is on.
+	if m.full && m.view == viewProcesses {
+		return statusLineBlock(treeWord)
+	}
 	return statusLineBlock(viewWords[m.view])
 }
+
+// treeWord is what the line says while the processes view shows the
+// whole tree.
+const treeWord = "TREE"
 
 // helpWord is what the line says while the manual is up.
 const helpWord = "HELP"
@@ -722,8 +740,14 @@ func (m model) published(again bool) model {
 		// The reading goes with the subject, as the panel shows it, so
 		// the page says what the panel says and asks the machine
 		// nothing; see cursor.go.
+		// The tree whole, whatever the panel is showing of it: the page
+		// says what runs a row and what it runs, folded or not.
+		projects := m.tree
+		if len(projects) == 0 {
+			projects = m.projects
+		}
 		tellCursor(cursorPath(m.head.login.home), at, &reading{
-			projects: m.projects, records: m.records, panes: m.panes,
+			projects: projects, records: m.records, panes: m.panes,
 			inside: m.inside, containers: m.containers,
 		})
 	}
@@ -912,7 +936,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.rooted(*msg.rooted)
 		}
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
-		m.records, m.declared = msg.records, msg.declared
+		m.records, m.declared, m.tree = msg.records, msg.declared, msg.tree
 		m.looking, m.helping = msg.bayReadout, msg.bayHelp
 		// Where the keys are, by the server's own word. conn is told by
 		// the terminal when they leave, and knows on its own when its
@@ -1286,6 +1310,19 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		m.firstG = true
 	case k == "G":
 		m.cursor, m.cursorAt = follow(m.projects, 0, rowsIn(m.projects)-1)
+	case k == "z":
+		// The whole tree, or the fold of it again. The rows are re-made
+		// from the reading held, so the change is at once; the cursor
+		// keeps its pid where the pid is still shown, and its row
+		// otherwise.
+		m.full = !m.full
+		if len(m.tree) > 0 {
+			m.projects = m.tree
+			if !m.full {
+				m.projects = fold(m.tree)
+			}
+			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
+		}
 	case k == "M":
 		// The middle of the list, not of the screen as it is in vim. The
 		// cursor is an index into every process row and knows nothing of
@@ -1836,9 +1873,14 @@ func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// childOf is the first row under a pane's head: what the head runs.
+// childOf is the first row under a pane's head: what the head runs,
+// in the tree whole, since the fold may have taken it off the panel.
 func (m model) childOf(head entry) (entry, bool) {
-	for _, pl := range m.projects {
+	projects := m.tree
+	if len(projects) == 0 {
+		projects = m.projects
+	}
+	for _, pl := range projects {
 		for i, e := range pl.entries {
 			if e.pid != head.pid {
 				continue

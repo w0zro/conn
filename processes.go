@@ -103,13 +103,17 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 }
 
 // activityOf is what a row's middle column says: for a working contact
-// the tool it has in flight, and for anything else its command as
-// typed, whose arguments are what it is doing. A contact with nothing
+// the tool it has in flight, for a shell whose rows are folded what it
+// runs, and for anything else its command as typed, whose arguments
+// are what it is doing. A contact with nothing
 // in flight says its command, which reads as the intelligence
 // composing.
 func activityOf(e entry) string {
 	if e.doing != "" {
 		return e.doing
+	}
+	if e.under != "" {
+		return e.under
 	}
 	return e.asTyped()
 }

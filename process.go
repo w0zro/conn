@@ -167,6 +167,11 @@ type entry struct {
 	// The declaration this row is, or stands for, as its pane is marked;
 	// see declared.go. A process row carries nothing here.
 	declared string
+	// What runs under a shell whose rows are folded, for its activity
+	// column; see fold.go. underShell says it is a shell itself, and a
+	// command found later under it is taken instead.
+	under      string
+	underShell bool
 }
 
 // A project is a directory work is happening in, and the entries at it.

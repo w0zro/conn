@@ -252,12 +252,13 @@ type paneWire struct {
 	ID, TTY                   string
 	Width, Height             int
 	Hold, Readout, Dead, Help bool
+	Active                    bool
 	Container, ShellIn        string
 }
 
 func (p pane) MarshalJSON() ([]byte, error) {
 	return json.Marshal(paneWire{ID: p.id, TTY: p.tty, Width: p.width, Height: p.height,
-		Hold: p.hold, Readout: p.readout, Dead: p.dead, Help: p.help,
+		Hold: p.hold, Readout: p.readout, Dead: p.dead, Help: p.help, Active: p.active,
 		Container: p.container, ShellIn: p.shellIn})
 }
 
@@ -267,7 +268,7 @@ func (p *pane) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*p = pane{id: w.ID, tty: w.TTY, width: w.Width, height: w.Height,
-		hold: w.Hold, readout: w.Readout, dead: w.Dead, help: w.Help,
+		hold: w.Hold, readout: w.Readout, dead: w.Dead, help: w.Help, active: w.Active,
 		container: w.Container, shellIn: w.ShellIn}
 	return nil
 }

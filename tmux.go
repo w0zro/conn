@@ -280,6 +280,12 @@ type pane struct {
 	// well, so everything that steps over furniture steps over it, and
 	// this says which furniture it is.
 	help bool
+	// Whether this is its window's active pane, which is tmux's word
+	// for where the keys are in that window. The panel is told by the
+	// terminal when the keys leave it and knows on its own when its
+	// reaching sent them away; this is the same fact read off the
+	// server, for a reading that lands between the two.
+	active bool
 }
 
 // What conn asks tmux for, and how it reads the answer back. The
@@ -296,7 +302,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{pane_active}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -316,12 +322,12 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 10 || f[0] == "" {
+		if len(f) != 11 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
 			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1",
-			container: f[7], shellIn: f[8], help: f[9] == "1"}
+			container: f[7], shellIn: f[8], help: f[9] == "1", active: f[10] == "1"}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -485,6 +491,12 @@ func (s *server) showReadout(home, self string) error {
 // bay's size so it keeps its shape; a hold that leaves the bay is
 // done with, and so is a pane whose process has ended, which
 // remain-on-exit kept only so the bay would hold its project.
+//
+// The swap and the select are one command to tmux, so there is no
+// moment at which the pane is in the bay and the keys are still on the
+// panel. There was one, and a reading that landed in it saw a bay with
+// no page in it under a panel that still had the keys, and put the
+// page back over the process the operator had just gone into.
 func (s *server) show(target pane) error {
 	bay, ok, err := s.bay()
 	if err != nil {
@@ -493,19 +505,18 @@ func (s *server) show(target pane) error {
 	if !ok {
 		return fmt.Errorf("home has no bay")
 	}
+	var args []string
 	if target.id != bay.id {
-		args := []string{"swap-pane", "-d", "-s", target.id, "-t", bay.id}
+		args = []string{"swap-pane", "-d", "-s", target.id, "-t", bay.id}
 		if bay.width > 0 && bay.height > 0 {
 			args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
 		}
 		if bay.hold || bay.dead {
 			args = append(args, ";", "kill-pane", "-t", bay.id)
 		}
-		if _, err := s.run(args...); err != nil {
-			return err
-		}
+		args = append(args, ";")
 	}
-	_, err = s.run("select-pane", "-t", target.id)
+	_, err = s.run(append(args, "select-pane", "-t", target.id)...)
 	return err
 }
 

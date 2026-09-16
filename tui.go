@@ -112,6 +112,7 @@ type (
 		bayDead    bool            // the bay's pane held on remain-on-exit, its process gone
 		bayReadout bool            // the bay holds the readout, so the page is up
 		bayHelp    bool            // the bay holds the manual, and the panel says HELP
+		bayActive  bool            // the keys are in the bay, by tmux's own word
 		err        string
 		gen        int
 		// The processor time every process had used as of this reading,
@@ -505,6 +506,7 @@ func (m model) readProcesses() tea.Cmd {
 				msg.noBay = true
 			} else if ok {
 				msg.bay, msg.bayDead, msg.bayReadout, msg.bayHelp = bay.tty, bay.dead, bay.readout, bay.help
+				msg.bayActive = bay.active
 			}
 		}
 		return msg
@@ -866,6 +868,17 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
 		m.records = msg.records
 		m.looking, m.helping = msg.bayReadout, msg.bayHelp
+		// Where the keys are, by the server's own word. conn is told by
+		// the terminal when they leave, and knows on its own when its
+		// reaching sent them away, but a reading can land between the
+		// reaching and the word of it: it then saw a bay with a process
+		// in it and no page, under a panel it still believed had the
+		// keys, and put the page back over the process. The reading
+		// carries tmux's answer, so a bay that has the keys is a panel
+		// that does not, whatever conn has yet been told.
+		if msg.bayActive {
+			m.focused = false
+		}
 		// Work in the workspace is what esc goes back into, so a conn
 		// that came up to a bay it did not fill itself still knows where
 		// the operator was. The page and a hold are conn's own furniture

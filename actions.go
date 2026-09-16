@@ -1,7 +1,6 @@
 package main
 
 import (
-	"path/filepath"
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
@@ -56,29 +55,6 @@ func (m model) openShell(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
 		sh, err := srv.open(dir)
-		if err != nil {
-			return nil
-		}
-		return openedMsg{shell: sh}
-	}
-}
-
-// editConfig puts the operator in conn's own configuration file, in a
-// pane of the workspace like any other work. The file is made first
-// where there is none, carrying the roots conn is walking as it stands,
-// so what opens says what conn is doing rather than nothing at all.
-//
-// Nothing is reloaded when the editor closes. conn reads the roots
-// afresh on every walk and on every reading of the table, so the next
-// of either takes the file as it now stands.
-func (m model) editConfig() tea.Cmd {
-	home, srv := m.head.login.home, m.srv
-	return func() tea.Msg {
-		path, err := openableConfig(home)
-		if err != nil {
-			return projectsMsg{err: "THE CONFIG COULD NOT BE OPENED: " + err.Error()}
-		}
-		sh, err := srv.openCmd(filepath.Dir(path), editConfigCommand(path))
 		if err != nil {
 			return nil
 		}

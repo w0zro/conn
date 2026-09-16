@@ -1105,16 +1105,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	// conn's own configuration in an editor, which the prefix then +
-	// sends. It is a key of its own for the reason the others are: in
-	// the list and in the sessions view a plain + is a character being
-	// typed into the line.
-	if k == "alt++" {
-		if m.srv == nil {
-			return m, nil // no server, and nowhere to put an editor
-		}
-		return m, m.editConfig()
-	}
 	// The manual, which the prefix then ? sends. It goes to the
 	// processes view first: the manual stands in the workspace, and the
 	// workspace is what that view is a panel beside.

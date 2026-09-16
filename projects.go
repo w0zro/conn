@@ -437,10 +437,10 @@ func composeProjectsAt(ps []projectRow, filter string, roots []string, home stri
 	b := projectsReport{filter: filter, rows: matching(ps, filter), total: len(ps), scanning: scanning, err: err}
 	// Nowhere to look is not a walk that failed. conn has not been told
 	// where the work is kept, which is the operator's to say and conn's
-	// to ask for, so the chip says the thing to do rather than reporting
-	// an empty list as though it were an answer.
+	// to ask for, so the chip says so rather than reporting an empty
+	// list as though it were an answer.
 	if len(roots) == 0 && b.err == "" {
-		b.err = "conn has no roots · prefix + writes one"
+		b.err = "conn has no roots"
 	}
 	for _, root := range roots {
 		b.roots = append(b.roots, tilde(root, home))

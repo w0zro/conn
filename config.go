@@ -162,53 +162,6 @@ func rootStateOf(path string) rootState {
 	return rootState{path: path}
 }
 
-// editor is the program the operator edits with: VISUAL, then EDITOR,
-// then vi, which is the one a machine can be relied on to have.
-func editor() string {
-	for _, name := range []string{"VISUAL", "EDITOR"} {
-		if e := strings.TrimSpace(os.Getenv(name)); e != "" {
-			return e
-		}
-	}
-	return "vi"
-}
-
-// seedConfig is the file conn writes for an operator who has none:
-// the roots conn is walking as it stands, so that opening it shows what
-// conn is actually doing rather than an empty buffer to guess at.
-func seedConfig(roots []string, home string) []byte {
-	c := config{Roots: make([]string, 0, len(roots))}
-	for _, r := range roots {
-		c.Roots = append(c.Roots, tilde(r, home))
-	}
-	b, _ := json.MarshalIndent(c, "", "  ")
-	return append(b, '\n')
-}
-
-// openableConfig is the config file with something in it to edit: the
-// path, made if it was not there. conn reads the file and does not
-// write it, and this is not conn writing it — it is conn making the
-// file the operator asked to edit, once, before handing it over.
-func openableConfig(home string) (string, error) {
-	path := configPath(home)
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
-	roots, _, _ := resolveRoots(home)
-	if err := os.WriteFile(path, seedConfig(roots, home), 0o644); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-// editConfigCommand is what conn runs to put the operator in the file.
-func editConfigCommand(path string) string {
-	return editor() + " " + shellQuote(path)
-}
-
 // saveRoots writes the roots into the config file, keeping whatever
 // else is in it. conn reads this file and does not otherwise write it,
 // and this is the one place that does, because conn asked for the

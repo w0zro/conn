@@ -210,7 +210,6 @@
           <div class="row"><span>prefix s</span><span>A shell at the project the panel is looking at.</span></div>
           <div class="row"><span>prefix a</span><span>A contact at that project.</span></div>
           <div class="row"><span>prefix alt-a</span><span>The sessions suspended at that project.</span></div>
-          <div class="row"><span>prefix +</span><span>conn's configuration file, in an editor.</span></div>
           <div class="row"><span>prefix ?</span><span>This manual, in the workspace, with the keys in it.</span></div>
           <div class="row"><span>prefix q</span><span>Detach. The station keeps running.</span></div>
         </div>
@@ -266,7 +265,7 @@
           <div class="row"><span>conn --version</span><span>Say the build.</span></div>
         </div>
         <p class="para"><span class="n">4-2.</span> conn comes up dark, or light when the terminal says its own ground is light. The choice is made when the server comes up and holds for its life; <b>conn down</b> and conn again asks afresh. Everything in a pane of the server draws in conn's palette by asking the terminal for a color by name. Claude Code and nvim write their own hex instead, and <b>conn theme</b> writes each a theme from the same palette.</p>
-        <p class="para"><span class="n">4-3.</span> The configuration file is <b>~/.config/conn/config.json</b>, and <b>prefix +</b> opens it in <b>VISUAL</b>, <b>EDITOR</b>, or vi. It holds one key.</p>
+        <p class="para"><span class="n">4-3.</span> The configuration file is <b>~/.config/conn/config.json</b>. It holds one key.</p>
         <div class="table narrow">
           <div class="row head"><span>KEY</span><span>VALUE</span></div>
           <div class="row"><span>roots</span><span>The directories conn looks for projects under, as a list of paths. A leading ~ is the home.</span></div>

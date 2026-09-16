@@ -180,80 +180,6 @@ func TestEveryStatusFitsItsColumn(t *testing.T) {
 	}
 }
 
-// The editor is the operator's own, and vi where they have named none.
-func TestTheEditorIsTheOperatorsOwn(t *testing.T) {
-	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", "")
-	if got := editor(); got != "vi" {
-		t.Errorf("with nothing named the editor is %q", got)
-	}
-	t.Setenv("EDITOR", "nvim")
-	if got := editor(); got != "nvim" {
-		t.Errorf("EDITOR names %q", got)
-	}
-	t.Setenv("VISUAL", "emacs")
-	if got := editor(); got != "emacs" {
-		t.Errorf("VISUAL is not taken first: %q", got)
-	}
-}
-
-// Editing a config there is none of makes one, carrying the roots conn
-// is walking as it stands: what opens says what conn is doing. What it
-// wrote is a file conn reads back as the same roots, which is the whole
-// point of writing it rather than an empty buffer.
-func TestEditingMakesTheFileWhereThereIsNone(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("CONN_ROOTS", "")
-	home := t.TempDir()
-	path, err := openableConfig(home)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if path != configPath(home) {
-		t.Errorf("the file was made at %q", path)
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// conn has no roots to carry into it and does not invent any: what
-	// opens is the shape to fill in, and the console goes on saying NO
-	// ROOTS until it has been.
-	if !strings.Contains(string(b), `"roots": []`) {
-		t.Errorf("the file conn wrote is not an empty roots list:\n%s", b)
-	}
-	if got := roots(t, home); len(got) != 0 {
-		t.Errorf("conn reads back %q from the file it wrote", got)
-	}
-}
-
-// A file the operator already has is theirs, and editing it opens what
-// is there rather than anything conn would have written.
-func TestEditingLeavesAFileThatIsThereAlone(t *testing.T) {
-	body := `{"roots": ["/theirs"]}`
-	home := writeConfig(t, body)
-	if _, err := openableConfig(home); err != nil {
-		t.Fatal(err)
-	}
-	b, err := os.ReadFile(configPath(home))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(b) != body {
-		t.Errorf("conn wrote over a file that was there:\n%s", b)
-	}
-}
-
-// The command puts the operator in the file, with a path a shell takes
-// back whole however it is spelt.
-func TestTheEditCommandNamesTheFile(t *testing.T) {
-	t.Setenv("VISUAL", "")
-	t.Setenv("EDITOR", "nvim")
-	if got := editConfigCommand("/a path/config.json"); got != `nvim '/a path/config.json'` {
-		t.Errorf("the command reads %q", got)
-	}
-}
-
 // Told nowhere to look, the projects view says so and says what to do.
 // An empty list is not an answer here — it is the same empty list a
 // machine with no checkouts would show, and the two are not the same
@@ -262,9 +188,6 @@ func TestTheProjectsViewSaysWhenConnHasNoRoots(t *testing.T) {
 	b := composeProjects(nil, "", nil, "/Users/w0zro", false, "")
 	if !strings.Contains(b.err, "no roots") {
 		t.Errorf("the view says %q", b.err)
-	}
-	if !strings.Contains(b.err, "prefix + writes one") {
-		t.Errorf("the view does not say how to fix it: %q", b.err)
 	}
 	// The panel is what this is read in, and it is narrow. A chip wider
 	// than the pane it is drawn in runs off the edge.

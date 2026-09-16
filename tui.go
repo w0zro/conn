@@ -225,12 +225,15 @@ type model struct {
 	sessionsLoading bool
 	rfilter         string
 	rcursor         int
+	// The manual: where the keys were when prefix ? fired, and the row
+	// that was under the cursor, so that leaving it puts both back.
+	// See leftHelp.
+	helpFrom   string
+	helpCursor int
+
 	// The asking view: the path being typed, and which of the
 	// directories answering it the cursor is on. rootErr is what went
 	// wrong saving, where something did.
-	// Where the keys were when prefix ? fired, so that leaving the
-	// manual puts them back there. See leftHelp.
-	helpFrom   string
 	rootTyped  string
 	rootCursor int
 	rootErr    string
@@ -1013,6 +1016,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			// that does not put the keys back, and forgetting is what
 			// makes it that.
 			m.helping, m.helpFrom = false, ""
+			m = m.tookBackRow()
 			return m, tea.Batch(m.reviveBay(), m.processesTick())
 		}
 		return m, nil
@@ -1056,7 +1060,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// the workspace by a reading landing in the middle of that —
 		// the page goes up wherever a row is under the cursor, and it is
 		// this that takes the row out from under it.
-		m.helping, m.cursor = true, 0
+		// The row is kept rather than dropped. No row is under the
+		// cursor while the manual is up, but the operator has not
+		// unchosen it: they asked a question about the station and are
+		// coming back to whatever they were looking at.
+		m.helping, m.helpCursor, m.cursor = true, m.cursor, 0
 		return m, tea.Batch(cmd, m.openHelp())
 	}
 	// Down and up the processes conn can put in the bay, which the
@@ -1978,6 +1986,10 @@ func (m model) leftHelp(found bool) (tea.Model, tea.Cmd) {
 	m.helping = false
 	from := m.helpFrom
 	m.helpFrom = ""
+	// The row the operator was on comes back with them. follow lets it
+	// go on the next reading if the process has ended meanwhile, which
+	// is what it does for a row nobody ever left.
+	m = m.tookBackRow()
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
@@ -2001,4 +2013,15 @@ func (m model) leftHelp(found bool) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, toPanel
+}
+
+// tookBackRow puts the cursor back on the row the manual was asked
+// from. Nothing happens where there was none: a manual asked for with
+// no row under the cursor leaves with none, which is the same answer.
+func (m model) tookBackRow() model {
+	if m.helpCursor == 0 {
+		return m
+	}
+	m.cursor, m.helpCursor = m.helpCursor, 0
+	return m.published(false)
 }

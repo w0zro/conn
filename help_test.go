@@ -318,3 +318,45 @@ func TestLeavingTheManualWithNothingToGoBackTo(t *testing.T) {
 		t.Error("the workspace was left as it was")
 	}
 }
+
+// The row under the cursor comes back with the operator. Asking the
+// manual a question is not unchoosing what they were looking at, and
+// coming back to the view with a different row picked out would be conn
+// deciding they had.
+func TestTheRowComesBackFromTheManual(t *testing.T) {
+	projects := []project{{path: "/w", entries: []entry{
+		{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}, {pid: 33, tty: "ttys003"},
+	}}}
+	m := model{view: viewProcesses, inside: true, srv: &server{}, projects: projects,
+		cursor: 22, cursorAt: 1}
+	next, _ := m.key("alt+?")
+	m = next.(model)
+	if m.cursor != 0 {
+		t.Errorf("a row is still under the cursor while the manual is up: %d", m.cursor)
+	}
+	if m.helpCursor != 22 {
+		t.Errorf("the row was dropped rather than kept: %d", m.helpCursor)
+	}
+	// A reading while the manual is up does not hand a row back either.
+	next, _ = m.Update(processesMsg{projects: projects, gen: m.processesGen, bayHelp: true})
+	m = next.(model)
+	if m.cursor != 0 {
+		t.Errorf("the reading put a row under the cursor: %d", m.cursor)
+	}
+	// And leaving gives it back, the same row and not the same place in
+	// the list: a process that ended while the manual was up would have
+	// left another row standing where it was.
+	next, _ = m.key("alt+esc")
+	if got := next.(model); got.cursor != 22 || got.helpCursor != 0 {
+		t.Errorf("leaving came back to row %d (kept %d), want 22", got.cursor, got.helpCursor)
+	}
+}
+
+// Asked with no row under the cursor, the manual leaves with none.
+func TestNoRowGoesInAndNoneComesBack(t *testing.T) {
+	m := model{view: viewProcesses, inside: true, srv: &server{}, helping: true}
+	next, _ := m.key("alt+esc")
+	if got := next.(model); got.cursor != 0 || got.helpCursor != 0 {
+		t.Errorf("leaving invented row %d", got.cursor)
+	}
+}

@@ -208,3 +208,41 @@ func openableConfig(home string) (string, error) {
 func editConfigCommand(path string) string {
 	return editor() + " " + shellQuote(path)
 }
+
+// saveRoots writes the roots into the config file, keeping whatever
+// else is in it. conn reads this file and does not otherwise write it,
+// and this is the one place that does, because conn asked for the
+// answer and the operator gave it: the alternative is telling somebody
+// the path to a file and the spelling of a key and sending them away to
+// type it themselves.
+//
+// What conn does not understand is carried through untouched. A file
+// may hold settings from a conn older or newer than this one, and a
+// save that dropped them would be conn deciding they did not matter.
+// The keys are written in the order Go writes a map, which is sorted;
+// the file is small and the order is not what it is for.
+func saveRoots(home string, roots []string) error {
+	path := configPath(home)
+	fields := map[string]json.RawMessage{}
+	if b, err := os.ReadFile(path); err == nil {
+		// A file that will not parse is not merged into. conn cannot
+		// tell what is in it, so it cannot keep it, and overwriting is
+		// how somebody's file is lost.
+		if err := json.Unmarshal(b, &fields); err != nil {
+			return fmt.Errorf("%s will not parse, and conn will not write over it", tilde(path, home))
+		}
+	}
+	list, err := json.Marshal(roots)
+	if err != nil {
+		return err
+	}
+	fields["roots"] = list
+	out, err := json.MarshalIndent(fields, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(out, '\n'), 0o644)
+}

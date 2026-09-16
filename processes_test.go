@@ -189,7 +189,11 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 // reads the table and reads it again on its tick; c brings the console
 // back, and a stale tick is dropped.
 func TestTheKeyContinuesToProcesses(t *testing.T) {
-	m := model{head: station{build: testStation.build, login: testStation.login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501, roots: testRoots}
+	m := model{head: station{build: testStation.build, login: testStation.login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501, roots: testRoots,
+		// A conn that has been told where the work is. One that has not
+		// goes to the asking view instead of the processes view, which is
+		// its own test.
+		projRoots: []string{"/Users/w0zro/projects"}}
 	st := testStation
 	m.st = &st
 	m.stage = lastStage(m.report())

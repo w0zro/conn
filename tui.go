@@ -67,6 +67,7 @@ const (
 	viewProcesses
 	viewProjects
 	viewSessions
+	viewRoots // conn has not been told where the work is, and is asking
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -213,6 +214,12 @@ type model struct {
 	sessionsLoading bool
 	rfilter         string
 	rcursor         int
+	// The asking view: the path being typed, and which of the
+	// directories answering it the cursor is on. rootErr is what went
+	// wrong saving, where something did.
+	rootTyped  string
+	rootCursor int
+	rootErr    string
 
 	// kill is a kill x has asked for and not yet answered; nothing else
 	// binds while it is not nil.
@@ -941,6 +948,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m.projectKey(k)
 	case viewSessions:
 		return m.sessionsKey(k)
+	case viewRoots:
+		return m.rootsKey(k)
 	}
 	switch {
 	case k == "ctrl+c" || k == "q":
@@ -970,6 +979,14 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// last stay are still held, a couple of seconds old, and the
 		// processes view goes up with them at once while the reading on its
 		// way brings them up to date.
+		// Told nowhere to look, conn cannot show the processes view at
+		// all: it is every project work is happening in, and there are
+		// no projects. So it asks, here, where going on from the console
+		// would otherwise arrive at an empty list that means three
+		// different things.
+		if len(m.projRoots) == 0 {
+			return m.toRoots()
+		}
 		m.processesGen++
 		if len(m.projects) == 0 && m.processesErr == "" {
 			m.entering = true
@@ -1688,6 +1705,8 @@ func (m model) View() tea.View {
 		rows = drawProjects(m.projectsReport(), m.pcursor, width, m.height, m.p)
 	case viewSessions:
 		rows = drawSessions(m.sessionsReport(), m.rcursor, width, m.height, m.p)
+	case viewRoots:
+		rows = drawRoots(composeRoots(m.rootTyped, m.head.login.home), m.rootCursor, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit
@@ -1716,4 +1735,98 @@ func (m model) View() tea.View {
 	v.ForegroundColor = inkColor
 	v.WindowTitle = "conn"
 	return v
+}
+
+// toRoots is the asking view, which conn goes to instead of the
+// processes view when it has no roots. It comes up on the home, which
+// is where checkouts usually are and is a directory that certainly
+// exists, so the first thing shown is a list rather than nothing.
+func (m model) toRoots() (tea.Model, tea.Cmd) {
+	m.view, m.rootTyped, m.rootCursor, m.rootErr = viewRoots, "~/", 0, ""
+	return m, nil
+}
+
+// rootsKey is the asking view's keys. The line is typed into, up and
+// down walk what answers it, tab fills the line in with the one under
+// the cursor, and enter takes it: the config is written and conn is
+// working from it before the view is gone.
+func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
+	b := composeRoots(m.rootTyped, m.head.login.home)
+	switch {
+	case k == "ctrl+c":
+		if m.inside {
+			return m, m.serverCmd(func() error { return m.srv.detach() })
+		}
+		return m, tea.Quit
+	case k == "up" || k == "ctrl+p":
+		m.rootCursor = clamp(m.rootCursor-1, len(b.rows))
+	case k == "down" || k == "ctrl+n":
+		m.rootCursor = clamp(m.rootCursor+1, len(b.rows))
+	case k == "tab":
+		// Filling the line in is not answering: what is typed becomes
+		// the directory under the cursor, with a separator after it, so
+		// the next keystroke is already looking inside it.
+		if m.rootCursor < len(b.rows) {
+			m.rootTyped, m.rootCursor = b.rows[m.rootCursor]+"/", 0
+		}
+	case k == "enter":
+		return m.takeRoot(b)
+	case k == "backspace":
+		if r := []rune(m.rootTyped); len(r) > 0 {
+			m.rootTyped = string(r[:len(r)-1])
+		}
+		m.rootCursor, m.rootErr = 0, ""
+	case k == "ctrl+u":
+		m.rootTyped, m.rootCursor, m.rootErr = "", 0, ""
+	case k == "space":
+		m.rootTyped, m.rootCursor = m.rootTyped+" ", 0
+	case utf8.RuneCountInString(k) == 1:
+		m.rootTyped, m.rootCursor, m.rootErr = m.rootTyped+k, 0, ""
+	}
+	return m, nil
+}
+
+// takeRoot writes the root the operator settled on and puts conn to
+// work on it. The root is what the cursor is on where the line has not
+// been typed past it, and what was typed otherwise: somebody who typed
+// a whole path and pressed enter meant that path, not the first thing
+// that happened to be listed under it.
+func (m model) takeRoot(b rootsReport) (tea.Model, tea.Cmd) {
+	home := m.head.login.home
+	root := strings.TrimSpace(m.rootTyped)
+	if typedIsADir(root, home) {
+		// what was typed names a directory of its own: take it
+	} else if m.rootCursor < len(b.rows) {
+		root = b.rows[m.rootCursor]
+	}
+	if root == "" {
+		return m, nil
+	}
+	full := expandHome(root, home)
+	if err := saveRoots(home, []string{tilde(full, home)}); err != nil {
+		m.rootErr = err.Error()
+		return m, nil
+	}
+	// conn works from it now, not on the next start: the roots the
+	// reading names projects by are the ones just written, and the walk
+	// and the table are asked again against them.
+	m.projRoots = realRoots([]string{full})
+	m.isProject = projectDirs(m.projRoots)
+	m.roots = rootFinder(m.isProject)
+	m.view, m.processesGen = viewProcesses, m.processesGen+1
+	cmds := []tea.Cmd{m.readProcesses(), m.scanProjects()}
+	if m.inside {
+		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// typedIsADir says whether what was typed already names a directory, so
+// that a path typed in full is taken as it stands.
+func typedIsADir(typed, home string) bool {
+	if strings.TrimSpace(typed) == "" {
+		return false
+	}
+	info, err := os.Stat(expandHome(strings.TrimSpace(typed), home))
+	return err == nil && info.IsDir()
 }

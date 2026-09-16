@@ -50,25 +50,27 @@ func (p projectRow) words() string {
 	return p.name
 }
 
-// roots are the directories conn looks for projects under, in the order
-// conn asks for them: CONN_ROOTS, a list in the path list separator's
-// spelling; then the roots the config file names; then ~/projects. The
-// environment is asked first because it is the nearer word — a conn
-// started for one job, ahead of the file that says what is usually
-// meant. A root that is not on this machine is still a root; the walk
-// decides whether it is there, not the environment.
+// roots are the directories conn looks for projects under: CONN_ROOTS,
+// a list in the path list separator's spelling, and otherwise the ones
+// the config file names. The environment is asked first because it is
+// the nearer word — a conn started for one job, on one set of roots,
+// ahead of the file that says what is usually meant. A root that is not
+// on this machine is still a root; the walk decides whether it is
+// there, not the environment.
 //
-// A config file that will not parse is an error, and the error is
-// answered with the roots conn would have had without it: the operator
-// hears about the file, and conn is still a working conn meanwhile.
+// Told neither, conn has no roots and walks nothing. There was a
+// ~/projects underneath this and there is not any more: a default is a
+// guess at where somebody keeps their work, and a wrong guess is
+// invisible, because conn walks the wrong tree and every line of the
+// console still reads nominal. Where conn has not been told, it says so
+// and waits, which is something the operator can see and put right.
+//
+// A config file that will not parse is an error and no roots. The file
+// was meant to be read, it could not be, and conn is not going to
+// invent what it was probably about to say.
 func projectRoots(home string) ([]string, error) {
 	roots, _, err := resolveRoots(home)
 	return roots, err
-}
-
-// defaultRoots is where conn looks when nothing says otherwise.
-func defaultRoots(home string) []string {
-	return []string{filepath.Join(home, "projects")}
 }
 
 // splitRoots is a list of roots as the environment writes one, in the
@@ -424,6 +426,13 @@ type projectsReport struct {
 // disagreeing with what the operator can see.
 func composeProjects(ps []projectRow, filter string, roots []string, home string, scanning bool, err string) projectsReport {
 	b := projectsReport{filter: filter, rows: matching(ps, filter), total: len(ps), scanning: scanning, err: err}
+	// Nowhere to look is not a walk that failed. conn has not been told
+	// where the work is kept, which is the operator's to say and conn's
+	// to ask for, so the chip says the thing to do rather than reporting
+	// an empty list as though it were an answer.
+	if len(roots) == 0 && b.err == "" {
+		b.err = "conn has no roots · prefix + writes one"
+	}
 	for _, root := range roots {
 		b.roots = append(b.roots, tilde(root, home))
 	}

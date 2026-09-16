@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // writeConfig puts a config file where conn will look for it, under a
@@ -65,13 +66,15 @@ func TestTheEnvironmentIsAskedBeforeTheFile(t *testing.T) {
 	}
 }
 
-// A file that names no roots leaves conn where it would have been
-// without a file at all: ~/projects.
-func TestAFileThatNamesNoRootsLeavesTheDefault(t *testing.T) {
+// A file that names no roots leaves conn with none. There is no
+// ~/projects underneath: conn walks where it was told and nowhere else,
+// because a guess that is wrong is a conn quietly reading the wrong
+// tree with nothing on the console to say so.
+func TestAFileThatNamesNoRootsLeavesConnWithNone(t *testing.T) {
 	t.Setenv("CONN_ROOTS", "")
 	home := writeConfig(t, `{"roots": []}`)
-	if got := roots(t, home); len(got) != 1 || got[0] != filepath.Join(home, "projects") {
-		t.Errorf("the roots are %q", got)
+	if got := roots(t, home); len(got) != 0 {
+		t.Errorf("the roots are %q, and should be none", got)
 	}
 }
 
@@ -87,7 +90,7 @@ func TestAFileThatWillNotParseIsSaid(t *testing.T) {
 	if !strings.Contains(err.Error(), "config.json") {
 		t.Errorf("the error does not name the file: %v", err)
 	}
-	if len(got) != 1 || got[0] != filepath.Join(home, "projects") {
+	if len(got) != 0 {
 		t.Errorf("a config that could not be read left the roots %q", got)
 	}
 }
@@ -106,7 +109,7 @@ func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 		{"a file that names none", `{"roots": []}`, noRoots, true},
 		{"a file of nothing conn knows", `{"projectsDir": "~/projects"}`, noRoots, true},
 		{"a file that will not parse", `{"roots": [`, notRead, true},
-		{"no file at all", "", notWritten, false},
+		{"no file at all", "", notWritten, true},
 	} {
 		home := t.TempDir()
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -213,11 +216,13 @@ func TestEditingMakesTheFileWhereThereIsNone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), `"~/projects"`) {
-		t.Errorf("the file conn wrote does not name the roots it walks:\n%s", b)
+	// conn has no roots to carry into it and does not invent any: what
+	// opens is the shape to fill in, and the console goes on saying NO
+	// ROOTS until it has been.
+	if !strings.Contains(string(b), `"roots": []`) {
+		t.Errorf("the file conn wrote is not an empty roots list:\n%s", b)
 	}
-	got := roots(t, home)
-	if len(got) != 1 || got[0] != filepath.Join(home, "projects") {
+	if got := roots(t, home); len(got) != 0 {
 		t.Errorf("conn reads back %q from the file it wrote", got)
 	}
 }
@@ -246,5 +251,35 @@ func TestTheEditCommandNamesTheFile(t *testing.T) {
 	t.Setenv("EDITOR", "nvim")
 	if got := editConfigCommand("/a path/config.json"); got != `nvim '/a path/config.json'` {
 		t.Errorf("the command reads %q", got)
+	}
+}
+
+// Told nowhere to look, the projects view says so and says what to do.
+// An empty list is not an answer here — it is the same empty list a
+// machine with no checkouts would show, and the two are not the same
+// thing at all.
+func TestTheProjectsViewSaysWhenConnHasNoRoots(t *testing.T) {
+	b := composeProjects(nil, "", nil, "/Users/w0zro", false, "")
+	if !strings.Contains(b.err, "no roots") {
+		t.Errorf("the view says %q", b.err)
+	}
+	if !strings.Contains(b.err, "prefix + writes one") {
+		t.Errorf("the view does not say how to fix it: %q", b.err)
+	}
+	// The panel is what this is read in, and it is narrow. A chip wider
+	// than the pane it is drawn in runs off the edge.
+	for _, row := range drawProjects(b, 0, panelWidth, 12, plain) {
+		if n := utf8.RuneCountInString(row.text); n > panelWidth {
+			t.Errorf("a row is %d wide in a %d panel: %q", n, panelWidth, row.text)
+		}
+	}
+	// A walk that failed has its own words, and keeps them.
+	b = composeProjects(nil, "", nil, "/Users/w0zro", false, "THE ROOTS COULD NOT BE WALKED: NO SUCH DIRECTORY")
+	if !strings.Contains(b.err, "COULD NOT BE WALKED") {
+		t.Errorf("the walk's own trouble was overwritten: %q", b.err)
+	}
+	// With roots, the view says nothing of its own.
+	if b := composeProjects(nil, "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, ""); b.err != "" {
+		t.Errorf("a conn with roots says %q", b.err)
 	}
 }

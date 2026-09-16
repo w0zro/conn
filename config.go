@@ -82,7 +82,7 @@ func expandHome(path, home string) string {
 type rootSource int
 
 const (
-	rootsDefault rootSource = iota
+	rootsNone rootSource = iota
 	rootsEnv
 	rootsFile
 )
@@ -94,12 +94,12 @@ func resolveRoots(home string) ([]string, rootSource, error) {
 	}
 	c, err := readConfig(home)
 	if err != nil {
-		return defaultRoots(home), rootsDefault, err
+		return nil, rootsNone, err
 	}
 	if out := cleanRoots(c.Roots, home); len(out) > 0 {
 		return out, rootsFile, nil
 	}
-	return defaultRoots(home), rootsDefault, nil
+	return nil, rootsNone, nil
 }
 
 // A configState is conn's configuration as the console found it: the

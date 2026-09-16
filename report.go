@@ -65,24 +65,19 @@ const (
 	nominal   = "NOMINAL"
 	unknown   = "UNKNOWN"
 	unchecked = "UNCHECKED"
-	// A config file that was never written, and a root that is not
-	// there. Neither is a fault: a machine is allowed to have no config
-	// file, and a config carried between machines names roots that are
-	// only on some of them. Both are worth the second look gray would
-	// not get them.
+	// A root that is not there is not a fault: a config carried between
+	// machines names roots that are only on some of them. It is not
+	// nominal either, and takes the color a second look is asked for in.
 	//
 	// Every status is held to statusW, which is the column the words
 	// are right-aligned in; see screen.go.
+	missing = "MISSING"
+	// No file, and a file naming no roots conn understands, are both
+	// faults, and for one reason: conn has been told nothing and so
+	// walks nothing. It is the whole of what conn needs to be told, and
+	// there is nothing else it can be inferred from.
 	notWritten = "NO FILE"
-	missing    = "MISSING"
-	// A file that is there and names no roots conn understands is a
-	// fault, and takes the chip. Somebody wrote that file meaning conn
-	// to read it, and conn is walking ~/projects instead — which on the
-	// machine this was found on happened to be the same directory the
-	// file was asking for, so nothing looked wrong and nothing was.
-	// Somewhere else it is conn quietly walking the wrong tree, and
-	// there is no second symptom to catch it by.
-	noRoots = "NO ROOTS"
+	noRoots    = "NO ROOTS"
 	// A file that is there and that conn could not use: it would not
 	// parse, or it would not open. Which of the two is in the error
 	// itself, said where there is room for a sentence.
@@ -357,11 +352,17 @@ func configCheck(c configState, home string) check {
 	if c.source == rootsEnv {
 		k.value = join(" · ", k.value, "CONN_ROOTS IN FORCE")
 	}
+	// A station nothing was read of has no config to report on, and a
+	// fault is a claim conn cannot back up.
+	if c.path == "" {
+		k.status = unchecked
+		return k
+	}
 	switch {
 	case c.err != nil:
 		k.status, k.fault = notRead, true
 	case !c.present:
-		k.status = notWritten
+		k.status, k.fault = notWritten, true
 	case !c.names:
 		k.status, k.fault = noRoots, true
 	}

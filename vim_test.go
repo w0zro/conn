@@ -163,3 +163,42 @@ func TestConnWritesTheVimColorscheme(t *testing.T) {
 		t.Errorf("XDG_CONFIG_HOME was not used: %v", err)
 	}
 }
+
+// The colorscheme follows the ground the server settles on. conn writes
+// it once, on whichever ground conn theme vim was run under; a server
+// that comes up on the other one catches the file up, so the next nvim
+// started in conn is drawn on the ground conn is actually on rather
+// than the one it was on the day the file was written.
+func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
+	holdMode(t)
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", "")
+	path := filepath.Join(home, ".config", "nvim", "colors", "conn.vim")
+
+	// Never written: refreshing writes nothing. conn theme vim is what
+	// puts the file there, and a machine that never asked for one is not
+	// given one behind its back.
+	applyMode(true)
+	refreshVimColorscheme(home)
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("refreshVimColorscheme wrote a file conn theme vim never had")
+	}
+
+	// Written on dark; the server comes up light; the file catches up.
+	if _, err := writeVimColorscheme(home); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(path); err != nil || !strings.Contains(string(b), "set background=dark") {
+		t.Fatalf("the file was not written dark: %v", err)
+	}
+	applyMode(false)
+	refreshVimColorscheme(home)
+	b, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(b), "set background=light") {
+		t.Fatalf("the file did not follow the ground to light: %v", err)
+	}
+	// The ground is not only the word: the colors go with it.
+	if strings.Contains(string(b), hex(darkGround)) {
+		t.Error("the light colorscheme still carries the dark ground")
+	}
+}

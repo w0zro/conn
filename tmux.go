@@ -127,6 +127,7 @@ func (s *server) attach(self, home string, override *bool) (int, error) {
 	}
 	applyMode(dark)
 	refreshClaudeTheme(home)
+	refreshVimColorscheme(home)
 	conf := filepath.Join(filepath.Dir(s.socket), "tmux.conf")
 	if err := os.WriteFile(conf, []byte(tmuxConf(prefix())), 0o600); err != nil {
 		return 0, err

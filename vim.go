@@ -342,6 +342,25 @@ func writeVimColorscheme(home string) (string, error) {
 	return path, os.WriteFile(path, []byte(vimColorscheme()), 0o644)
 }
 
+// refreshVimColorscheme rewrites the colorscheme if it has already been
+// written once, so a server that settles on a ground never leaves the
+// file behind on the ground it was last written under. It writes
+// nothing where `conn theme vim` has never run — that command is still
+// what puts the file there the first time.
+//
+// An nvim already open keeps the colors it loaded; nvim reads a
+// colorscheme once. The next one started in conn takes the new ground,
+// which is what a ground that is fixed for a server's life needs: the
+// ground changes when the server does, and the editors opened after it
+// are the ones there are.
+func refreshVimColorscheme(home string) {
+	path := filepath.Join(configHome(home), "nvim", "colors", "conn.vim")
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	_, _ = writeVimColorscheme(home)
+}
+
 // dressVim writes the colorscheme and says how nvim is to reach for it,
 // which is nvim's own business and the user's: conn writes the colors.
 func dressVim(home string) (string, bool) {

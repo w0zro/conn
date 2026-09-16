@@ -7,6 +7,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // x asks a process to end. What it is asked with depends on what it is:
@@ -22,8 +24,16 @@ import (
 // it runs in, if any, is left at its prompt rather than taken with it.
 //
 // x arms a kill rather than sending one: the next key either confirms
-// it — x, y or enter — or cancels it, whatever it is, so nothing else
-// binds while the question is on the status line.
+// it — y — or cancels it, whatever it is, so nothing else binds while
+// the question is on the status line. That is tmux's own confirmation,
+// the one a hand that has killed a pane there already knows.
+//
+// The question is the command conn is about to run, spelled as it
+// would be typed: kill with the signal by name, docker stop, tmux's
+// kill-pane. It says what ending a process is — a signal — which
+// signal conn chose for this one and so why a bare shell gets a
+// different one, and the spelling to do it by hand. A question that
+// said end or kill in conn's own words hid all three.
 
 // pendingKill is a kill x has asked for and not yet answered.
 type pendingKill struct {
@@ -83,29 +93,46 @@ func signal(pid int, sig syscall.Signal) error {
 }
 
 // killPrompt asks the question x arms, for the status line beside
-// CONFIRM, where a whole window's width can hold it: kill, for a bare
-// shell that has nothing to lose by it, end for anything asked more
-// gently.
+// CONFIRM, where a whole window's width can hold it: the kill command
+// with its signal, and beside it the program it is about, which the
+// command does not say.
 func killPrompt(command string, pid int, sig syscall.Signal) string {
-	verb := "end"
-	if sig == syscall.SIGKILL {
-		verb = "kill"
+	return question("kill -"+signalName(sig)+" "+strconv.Itoa(pid), command)
+}
+
+// signalName is a signal as kill spells it: TERM, KILL.
+func signalName(sig syscall.Signal) string {
+	switch sig {
+	case syscall.SIGKILL:
+		return "KILL"
+	case syscall.SIGTERM:
+		return "TERM"
+	case syscall.SIGINT:
+		return "INT"
+	case syscall.SIGHUP:
+		return "HUP"
 	}
-	return strings.ToUpper(verb + " " + command + " " + strconv.Itoa(pid) + " · x confirms · any other key cancels")
+	return strings.ToUpper(strings.TrimPrefix(unix.SignalName(sig), "SIG"))
 }
 
 // closePrompt is the question for a declared process that has ended
-// and holds its pane: close, since what goes is the pane and its
-// output, the process being over already.
-func closePrompt(name string) string {
-	return strings.ToUpper("close " + name + " · x confirms · any other key cancels")
+// and holds its pane: tmux's own kill-pane, since what goes is the
+// pane and its output, the process being over already.
+func closePrompt(pane, name string) string {
+	return question("kill-pane "+pane, name)
 }
 
-// stopPrompt is the question for a container. It says stop, which is
-// docker's own word and the true one: docker asks the container to go
-// and waits before insisting, where a kill is a signal and an instant.
-// And it names the service rather than a pid, a container having none
-// that means anything here.
-func stopPrompt(service string) string {
-	return strings.ToUpper("stop " + service + " · x confirms · any other key cancels")
+// stopPrompt is the question for a container: docker stop, which asks
+// the container to go and waits before insisting, where a kill is a
+// signal and an instant. The id is what docker is told; the service is
+// what the row is called.
+func stopPrompt(id, service string) string {
+	return question("docker stop "+id, service)
+}
+
+// question is a command about to be run, as tmux puts one: the
+// command, what it is about where the command does not say, and y or
+// n. The command keeps the case it would be typed in.
+func question(command, about string) string {
+	return join(" · ", command, about) + "? (y/n)"
 }

@@ -515,8 +515,8 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	s.keys("x")
 	// The question conn asks is on the status line, beside CONFIRM, where
 	// the window's width holds the whole of it.
-	s.until("the kill armed", func() bool { return strings.Contains(s.statusLine(), "KILL") })
-	s.keys("x")
+	s.until("the kill armed", func() bool { return strings.Contains(s.statusLine(), "kill -KILL") })
+	s.keys("y")
 
 	s.until("the shell's pane to die", func() bool { return s.paneDead("home.1") })
 	s.until("a hold to take its project", func() bool {
@@ -553,8 +553,10 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// The cursor stayed on the shell's own pid, and x on the shell's
 	// row is x on what it runs: the question names sleep.
 	s.keys("x")
-	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.statusLine(), "END SLEEP ") })
-	s.keys("x")
+	s.until("the kill armed, naming sleep", func() bool {
+		return strings.Contains(s.statusLine(), "kill -TERM") && strings.Contains(s.statusLine(), " sleep? (y/n)")
+	})
+	s.keys("y")
 
 	s.until("sleep to end and the shell to be bare again", func() bool {
 		return s.projectRows() == 1 && !strings.Contains(s.panel(), "sleep 100")
@@ -972,8 +974,10 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.until("quick's pane in the bay", func() bool { return s.bayPane() == quick })
 
 	s.keys("x")
-	s.until("the close armed, naming quick", func() bool { return strings.Contains(s.statusLine(), "CLOSE QUICK ") })
-	s.keys("x")
+	s.until("the close armed, naming quick", func() bool {
+		return strings.Contains(s.statusLine(), "kill-pane") && strings.Contains(s.statusLine(), " quick? (y/n)")
+	})
+	s.keys("y")
 	s.until("the pane gone and quick down again", func() bool {
 		id, _ := marked("quick")
 		return id == "" && rowSays("quick", "DOWN") && rowSays("sleeper", "ACTIVE")

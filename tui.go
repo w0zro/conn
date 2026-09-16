@@ -1093,17 +1093,16 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // what claude left suspended there. tab goes to what is waiting on you,
 // longest first, and round again. x asks to end the cursor's process,
 // and arms the question rather than the ending: the next key answers
-// it. gg, G and M are the ends of the list and the middle of it, where
-// j and k are its steps: a table long enough to scroll is not walked to
-// its end.
+// it. gg and G are the ends of the list, where j and k are its steps: a
+// table long enough to scroll is not walked to its end.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
-	// A kill x asked for takes the next key, whatever it is: x, y or
-	// enter confirms it, and anything else cancels — no other binding
-	// fires while the question is on the status line.
+	// A kill x asked for takes the next key, whatever it is: y confirms
+	// it, and anything else cancels, as tmux's own confirmation goes —
+	// no other binding fires while the question is on the status line.
 	if m.kill != nil {
 		req := m.kill
 		m.kill = nil
-		if k == "x" || k == "y" || k == "enter" {
+		if k == "y" {
 			if req.container != "" {
 				return m, m.stopContainer(req.container, req.command)
 			}
@@ -1323,12 +1322,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			}
 			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
 		}
-	case k == "M":
-		// The middle of the list, not of the screen as it is in vim. The
-		// cursor is an index into every process row and knows nothing of
-		// where the view is scrolled to, and the middle of what there is
-		// is the one gg and G are the ends of.
-		m.cursor, m.cursorAt = follow(m.projects, 0, rowsIn(m.projects)/2)
 	case k == "enter":
 		e, _, ok := m.under()
 		if !m.inside || !ok {
@@ -1373,7 +1366,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			if c := m.containerAt(e.pid); c != nil {
 				name = c.service
 			}
-			m.kill = &pendingKill{container: e.container, command: name, prompt: stopPrompt(name)}
+			m.kill = &pendingKill{container: e.container, command: name, prompt: stopPrompt(e.container, name)}
 			return m, nil
 		}
 		if e.declared != "" {
@@ -1874,7 +1867,7 @@ func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
 	case e.tty == "":
 		return m, nil
 	case m.panes[e.tty].exit != "":
-		m.kill = &pendingKill{pane: m.panes[e.tty].id, command: name, prompt: closePrompt(name)}
+		m.kill = &pendingKill{pane: m.panes[e.tty].id, command: name, prompt: closePrompt(m.panes[e.tty].id, name)}
 		return m, nil
 	}
 	pid := e.pid

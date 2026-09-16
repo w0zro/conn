@@ -143,11 +143,13 @@ left suspended there, \fBalt\-u\fR brings up what the project declares, and
 the cursor back up.
 .TP
 2-5.
-\fBx\fR asks to end the process under the cursor, on the status line. \fBx\fR,
-\fBy\fR or \fBenter\fR answers yes and any other key withdraws the question. A
-bare shell is killed outright; anything a shell runs is sent SIGTERM, from its
-own row or from the shell's row that says it; a service is stopped with docker
-stop. The shell a process ran in is left at its prompt.
+\fBx\fR asks to end the process under the cursor, on the status line, and the
+question is the command conn is about to run: \fBkill \-TERM\fR for anything a
+shell runs, from its own row or from the shell's row that says it; \fBkill
+\-KILL\fR for a bare shell, which ignores the gentler signal; \fBdocker stop\fR
+for a service; tmux's \fBkill\-pane\fR for a pane held after its process ended.
+\fBy\fR answers yes and any other key withdraws the question, as tmux's own
+confirmation goes. The shell a process ran in is left at its prompt.
 .TP
 2-6.
 A service has no pane, so \fBenter\fR on one opens its output, and \fBenter\fR
@@ -228,9 +230,6 @@ The first row.
 .TP
 \fBG\fR
 The last row.
-.TP
-\fBM\fR
-The middle row.
 .TP
 \fBz\fR
 The whole tree, and the quiet view again.

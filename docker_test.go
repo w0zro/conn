@@ -389,10 +389,10 @@ func TestXStopsAContainer(t *testing.T) {
 	if m.kill == nil || m.kill.container != "abc123" {
 		t.Fatalf("x armed %+v", m.kill)
 	}
-	if !strings.Contains(m.kill.prompt, "STOP WEB") {
+	if !strings.Contains(m.kill.prompt, "docker stop abc123 · web?") {
 		t.Errorf("the question reads %q", m.kill.prompt)
 	}
-	if strings.Contains(m.kill.prompt, "KILL") || strings.Contains(m.kill.prompt, "-99") {
+	if strings.Contains(m.kill.prompt, "kill") || strings.Contains(m.kill.prompt, "-99") {
 		t.Errorf("the question talks of killing or of a pid: %q", m.kill.prompt)
 	}
 	// By the service, not by the row's label, which carries the ports.
@@ -400,7 +400,7 @@ func TestXStopsAContainer(t *testing.T) {
 		t.Errorf("the question asks about an address: %q", m.kill.prompt)
 	}
 	// Confirming asks docker rather than signalling anything.
-	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"})); cmd == nil {
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "y"})); cmd == nil {
 		t.Error("confirming the stop asked for nothing")
 	}
 

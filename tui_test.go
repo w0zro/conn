@@ -524,7 +524,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 		t.Fatalf("arming: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
 	// The question travels with the kill, to the status line.
-	if !strings.Contains(m.kill.prompt, "END CLAUDE 11 ·") {
+	if !strings.Contains(m.kill.prompt, "kill -TERM 11 · claude?") {
 		t.Errorf("the question: kill %+v", m.kill)
 	}
 
@@ -534,7 +534,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	m.cursor, m.kill = 22, nil
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.kill.prompt, "KILL ZSH 22 ·") {
+	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.kill.prompt, "kill -KILL 22 · zsh?") {
 		t.Errorf("arming a shell: kill %+v", m.kill)
 	}
 
@@ -550,7 +550,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	m.cursor, m.kill = 30, nil
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.pid != 32 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "END GO 32 ·") {
+	if m.kill == nil || m.kill.pid != 32 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "kill -TERM 32 · go?") {
 		t.Errorf("arming a folded shell: kill %+v", m.kill)
 	}
 
@@ -578,8 +578,16 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 		t.Errorf("cancelled: kill %v, cursor %d", m.kill, m.cursor)
 	}
 
+	// x again is any other key, and withdraws it: the confirmation is
+	// tmux's, and y is the yes.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if m.kill != nil || cmd != nil {
+		t.Errorf("x on the question: kill %v, cmd %v", m.kill, cmd != nil)
+	}
+	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "y"}))
 	m = next.(model)
 	if m.kill != nil || cmd == nil {
 		t.Fatalf("confirmed: kill %v, cmd %v", m.kill, cmd != nil)
@@ -1062,11 +1070,14 @@ func TestCancellingAChordGivesTheKeysBack(t *testing.T) {
 	}
 }
 
-// gg, G and M are the ends of the list and its middle, where j and k
-// are its steps. They count process rows across every project, the rows
-// j and k walk, and not the titles above them; the first g of gg is
-// nothing on its own, and any other key after it is simply that key.
-func TestTheMotionsReachTheEndsAndTheMiddle(t *testing.T) {
+// gg and G are the ends of the list, where j and k are its steps. They
+// count process rows across every project, the rows j and k walk, and
+// not the titles above them; the first g of gg is nothing on its own,
+// and any other key after it is simply that key. vim's M is not here:
+// it means the middle of the screen, and the panel does not yet know
+// what is on its screen, so a key of that name would teach a wrong
+// meaning.
+func TestTheMotionsReachTheEnds(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewProcesses
 	m.projects = []project{
@@ -1084,7 +1095,6 @@ func TestTheMotionsReachTheEndsAndTheMiddle(t *testing.T) {
 		want int
 	}{
 		{[]string{"G"}, 55},      // the last row, across the projects
-		{[]string{"M"}, 33},      // the middle of the five
 		{[]string{"g", "g"}, 11}, // the first, and only on the second g
 		{[]string{"G", "g"}, 55}, // a lone g moves nothing
 		{[]string{"g", "j"}, 22}, // and the key after it is its own
@@ -1102,7 +1112,6 @@ func TestTheMotionsReachTheEndsAndTheMiddle(t *testing.T) {
 	// With nothing running there is nowhere to go and nothing to answer.
 	m.projects, m.cursor, m.cursorAt = nil, 0, 0
 	press("G")
-	press("M")
 	if m.cursor != 0 {
 		t.Errorf("with nothing running: cursor %d", m.cursor)
 	}
@@ -1451,15 +1460,15 @@ func TestXOnADeclaredRow(t *testing.T) {
 	}
 	m.cursor = 300
 	press("x")
-	if m.kill == nil || m.kill.pane != "%3" || !strings.Contains(m.kill.prompt, "CLOSE WEB ·") {
+	if m.kill == nil || m.kill.pane != "%3" || !strings.Contains(m.kill.prompt, "kill-pane %3 · web?") {
 		t.Fatalf("x on a held row: kill %+v", m.kill)
 	}
-	if cmd := press("x"); cmd == nil || m.kill != nil {
+	if cmd := press("y"); cmd == nil || m.kill != nil {
 		t.Errorf("confirming the close: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
 	m.cursor = 400
 	press("x")
-	if m.kill == nil || m.kill.pid != 401 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "END WEB 401 ·") {
+	if m.kill == nil || m.kill.pid != 401 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "kill -TERM 401 · web?") {
 		t.Errorf("x on an up row: kill %+v", m.kill)
 	}
 }

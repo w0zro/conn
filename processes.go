@@ -49,6 +49,7 @@ type processRow struct {
 	shown                             bool   // it is in the bay, on the right
 	depth                             int    // how deep under its project's own root
 	over                              bool   // a declared process whose pane holds only its last output
+	name                              string // the declared name, where the row is a declaration's
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -95,6 +96,7 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
 				over: e.declared != "" && panes[e.tty].exit != "",
+				name: declaredNameOf(e),
 			})
 		}
 		b.projects = append(b.projects, bp)
@@ -116,6 +118,16 @@ func activityOf(e entry) string {
 		return e.under
 	}
 	return e.asTyped()
+}
+
+// declaredNameOf is the name a declared row goes by, where it is one:
+// what the panel calls it, the command being in the file and on the
+// page. Anything else has none.
+func declaredNameOf(e entry) string {
+	if _, name, ok := unmarkDeclared(e.declared); ok {
+		return name
+	}
+	return ""
 }
 
 // projectName is what the processes view writes over a block: what is
@@ -142,15 +154,39 @@ func projectName(path string, roots []string, home string) string {
 // The processes view's columns, from the right: the status flush with
 // the measure, the time in that status and the terminal before it, and
 // the command taking what is left after the kind. Under minCols the
-// view is a panel: the terminal column goes, and the kind closes up.
+// view is a panel, and the command is the column that tells rows
+// apart, so the panel gives it what the others can spare: the terminal
+// and the time go, since the page beside the panel carries both; the
+// status column is as wide as the widest word on it rather than the
+// console's widest, with a floor at WORKING so the column holds still
+// as words come and go; and a declared row says its name, the command
+// being in the file and on the page.
 const (
 	kindW        = 8
 	ttyW         = 10
 	sinceW       = 5
 	panelKindW   = 8
+	panelStatusW = 7 // WORKING, WAITING, STOPPED: the floor the column holds at
 	panelMinCols = 40
 	treeIndent   = 2 // columns a row gives up per level under its root
 )
+
+// panelStatusWidth is the status column as the panel sizes it: the
+// widest word on it, a chip's two cells of padding counted, and never
+// under the floor.
+func panelStatusWidth(b processesReport) int {
+	w := panelStatusW
+	for _, bp := range b.projects {
+		for _, r := range bp.rows {
+			n := utf8.RuneCountInString(r.status)
+			if r.fault || r.status == statusWaiting {
+				n += 2
+			}
+			w = max(w, n)
+		}
+	}
+	return w
+}
 
 // drawProcesses renders the processes view for a terminal of the given
 // size, with the cursor on the row of the given pid.
@@ -165,9 +201,10 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	commandW := ttyCol - 1 - kindW
 	kindCol := kindW
 	if panel {
-		ttyCol = -1
+		statusCol = measure - panelStatusWidth(b)
+		ttyCol, sinceCol = -1, -1
 		kindCol = panelKindW
-		commandW = sinceCol - 1 - kindCol
+		commandW = statusCol - 1 - kindCol
 	}
 
 	// No rule and no column heads. The view goes unlabeled — it is what
@@ -265,13 +302,17 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			l.to(indent)
 			l.add(kind, fit(r.kind, kindCol-1, false))
 			l.to(kindCol + indent)
-			l.add(command, fit(r.command, commandW-indent, false))
+			activity := r.command
+			if panel && r.name != "" {
+				activity = r.name
+			}
+			l.add(command, fit(activity, commandW-indent, false))
 			if !panel {
 				l.to(ttyCol)
 				l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
+				l.to(sinceCol)
+				l.add(sinceColor, r.since)
 			}
-			l.to(sinceCol)
-			l.add(sinceColor, r.since)
 			switch {
 			case r.fault:
 				l.to(measure - utf8.RuneCountInString(r.status) - 2)

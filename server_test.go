@@ -928,9 +928,11 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.openShell()
 	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
 
+	// A declared row goes by its name on the panel, which is where these
+	// rows are read.
 	rowSays := func(name, word string) bool {
 		for _, l := range s.projectRowLines() {
-			if strings.Contains(l, name+" · ") && strings.HasSuffix(strings.TrimRight(l, " "), word) {
+			if strings.Contains(l, " "+name+" ") && strings.HasSuffix(strings.TrimRight(l, " "), word) {
 				return true
 			}
 		}

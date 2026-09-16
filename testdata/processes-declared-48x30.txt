@@ -1,10 +1,10 @@
 
    w0zro/app
 
-   RUN     web · npm run dev           ACTIVE
+   RUN     web                         ACTIVE
      RUN     npm run dev               ACTIVE
-   RUN     api · go run ./cm…           ENDED
- ▸ RUN     worker · make run             DOWN
+   RUN     api                          ENDED
+ ▸ RUN     worker                        DOWN
 
    w0zro/conn
 

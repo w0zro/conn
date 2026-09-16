@@ -12,9 +12,9 @@
 
    SHELL   zsh                         ACTIVE
  ▸   CONTACT claude --resume           ACTIVE
-       RUN     node /opt/cla…          ACTIVE
-       SHELL   bash -c go te…          ACTIVE
-         RUN     go test ./.…          ACTIVE
+       RUN     node /opt/claude/mc…    ACTIVE
+       SHELL   bash -c go test ./.…    ACTIVE
+         RUN     go test ./...         ACTIVE
 
 
 

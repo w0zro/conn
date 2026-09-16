@@ -214,60 +214,58 @@ func TestColoredConsolePaintsEveryRow(t *testing.T) {
 	}
 }
 
-// UNCHECKED is not the same claim NOMINAL is — there was nothing to
-// check against — so it stands out in the color something waiting already
-// does, apart from a nominal row's gray.
-func TestUncheckedStandsOutFromNominal(t *testing.T) {
+// A check that is not nominal is annunciated, whichever way it is not:
+// a fault conn found, and a reading conn could not take, are one chip
+// and one word. There used to be two grades — LOW an annunciator, and
+// UNCHECKED two rows above it said quietly in a color — and a console
+// with two grades of wrong makes the reader work out which grade a row
+// is before they can read it.
+func TestEverythingNotNominalTakesTheChip(t *testing.T) {
 	p := colored()
 	st := testStation
-	st.machine.cpus = 0 // LOAD has no core count to check against
+	st.machine.cpus = 0  // LOAD has no core count to check against
+	st.volume = volume{} // DISK went unanswered
 	text := texts(screen(compose(st, testNow), 120, 40, p))
-	if !strings.Contains(text, p.waiting+"UNCHECKED") {
-		t.Errorf("UNCHECKED is not painted waiting:\n%s", stripEscapes(text))
+	for _, want := range []string{" UNCHECKED ", " UNKNOWN "} {
+		if !strings.Contains(text, p.chip+want) {
+			t.Errorf("%q is not annunciated:\n%s", strings.TrimSpace(want), stripEscapes(text))
+		}
 	}
 	if !strings.Contains(text, p.gray+"NOMINAL") {
 		t.Errorf("NOMINAL is not painted gray:\n%s", stripEscapes(text))
 	}
-	// A check the machine would not answer is no more a reading than
-	// one there was nothing to check against, and is said the same.
-	st = testStation
-	st.volume = volume{} // DISK went unanswered
-	text = texts(screen(compose(st, testNow), 120, 40, p))
-	if !strings.Contains(text, p.waiting+"UNKNOWN") {
-		t.Errorf("UNKNOWN is not painted waiting:\n%s", stripEscapes(text))
+	// Nominal is the only word that does not take one.
+	if strings.Contains(text, p.chip+" NOMINAL ") {
+		t.Errorf("a nominal check was annunciated:\n%s", stripEscapes(text))
 	}
 }
 
-// The verdict says every system is nominal only when every system was
-// read and passed. A check with nothing to check against, or one the
-// machine would not answer, is counted beside the ones that passed:
-// conn took no reading there, and a word that called it nominal would
-// be claiming one.
-func TestTheVerdictCountsWhatWasNotRead(t *testing.T) {
-	for _, c := range []struct {
-		name string
-		t    tally
-		want string
-	}{
-		{"every one read and passed", tally{nominal: 10}, "ALL SYSTEMS NOMINAL"},
-		{"one with nothing to check against", tally{nominal: 9, unchecked: 1}, "9 NOMINAL · 1 UNCHECKED"},
-		{"one unanswered", tally{nominal: 9, unknown: 1}, "9 NOMINAL · 1 UNKNOWN"},
-		{"one of each", tally{nominal: 8, unchecked: 1, unknown: 1}, "8 NOMINAL · 1 UNCHECKED · 1 UNKNOWN"},
-		{"nothing read at all", tally{unknown: 10}, "10 UNKNOWN"},
-	} {
-		if got := c.t.verdict(); got != c.want {
-			t.Errorf("%s: the verdict reads %q, want %q", c.name, got, c.want)
-		}
+// The count at the foot is every check that is not nominal, so the
+// number and the chips on the rows are the same alarm counted once.
+func TestTheCountIsEveryCheckNotNominal(t *testing.T) {
+	var all tally
+	for _, k := range []check{{status: nominal}, {status: nominal}} {
+		all.count(k)
+	}
+	if all.off != 0 || all.nominal != 2 {
+		t.Errorf("all nominal tallied %+v", all)
+	}
+	for _, k := range []check{{status: unchecked}, {status: unknown}, {status: "LOW", fault: true}} {
+		all.count(k)
+	}
+	if all.off != 3 {
+		t.Errorf("a fault, an unchecked and an unknown came to %d, not 3", all.off)
 	}
 	// Read off a console rather than a tally by hand: the machine
-	// answers everything but its core count, so LOAD alone is unchecked.
+	// answers everything but its core count, so LOAD alone is unchecked
+	// — and it is counted with the disk that is low.
 	st := testStation
 	st.machine.cpus = 0
 	text := stripEscapes(texts(screen(compose(st, testNow), 120, 40, plain)))
-	if strings.Contains(text, "ALL SYSTEMS NOMINAL") {
+	if strings.Contains(text, allNominal) {
 		t.Errorf("the console called an unchecked system nominal:\n%s", text)
 	}
-	if !strings.Contains(text, "11 NOMINAL · 1 UNCHECKED") {
+	if !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
 		t.Errorf("the console does not count what it did not read:\n%s", text)
 	}
 }

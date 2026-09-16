@@ -282,26 +282,21 @@ func body(r report, width int, own check, p palette) []row {
 		l.add("", " ")
 		l.add(p.border, strings.Repeat(".", max(leaderEnd-l.cells, 1)))
 		stood.count(k)
-		if k.fault {
-			// A fault's chip is an annunciator too, and blinks with the
-			// verdict: what is wrong and how many are the same alarm.
-			if r.lit {
-				l.to(measure - utf8.RuneCountInString(k.status) - 2)
-				l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
-			}
-		} else {
-			// Neither UNCHECKED nor UNKNOWN is a pass the way NOMINAL is
-			// — one had nothing to check against, the other went
-			// unanswered — so both are said in the color something
-			// waiting already is: not a fault, but worth a second look,
-			// which gray would let slide past.
-			word := p.gray
-			if k.status == unchecked || k.status == unknown ||
-				k.status == missing {
-				word = p.waiting
-			}
+		// Nominal is said and left alone. Everything else takes the
+		// chip and blinks with the verdict: what is not nominal and how
+		// many there are are the same alarm. There is one rule for it
+		// because there was nearly a second — UNCHECKED said quietly,
+		// in a color, while LOW two rows above it was an annunciator —
+		// and a console with two grades of wrong makes the reader work
+		// out which grade this one is before they can read it. A system
+		// conn could not check is not a system conn found nominal, and
+		// the console has exactly one way of saying so.
+		if k.status == nominal {
 			l.to(measure - utf8.RuneCountInString(k.status))
-			l.add(word, strings.ToUpper(k.status))
+			l.add(p.gray, strings.ToUpper(k.status))
+		} else if r.lit {
+			l.to(measure - utf8.RuneCountInString(k.status) - 2)
+			l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
 		}
 		c.emit(l, stageChecks+i, false)
 	}
@@ -316,12 +311,12 @@ func body(r report, width int, own check, p palette) []row {
 	c.rule(last, measure)
 	l = c.line()
 	switch {
-	case stood.faults == 0:
-		l.add(p.gray, stood.verdict())
+	case stood.off == 0:
+		l.add(p.gray, allNominal)
 	case !r.lit:
 		// dark this second
-	case stood.faults > 1:
-		l.add(p.chip, " "+strconv.Itoa(stood.faults)+" SYSTEMS NOT NOMINAL ")
+	case stood.off > 1:
+		l.add(p.chip, " "+strconv.Itoa(stood.off)+" SYSTEMS NOT NOMINAL ")
 	default:
 		l.add(p.chip, " 1 SYSTEM NOT NOMINAL ")
 	}
@@ -329,43 +324,21 @@ func body(r report, width int, own check, p palette) []row {
 	return c.rows
 }
 
-// A tally is what the start-up checks came to, by the word each stands
-// under.
-type tally struct{ faults, nominal, unchecked, unknown int }
+// allNominal is the one sentence a console with nothing to report says.
+const allNominal = "ALL SYSTEMS NOMINAL"
+
+// A tally is what the start-up checks came to: the ones that passed,
+// and the ones that did not. A check conn could not make counts among
+// the second, because the console's job is to say what it knows and a
+// reading never taken is not a system found well.
+type tally struct{ off, nominal int }
 
 func (t *tally) count(k check) {
-	switch {
-	case k.fault:
-		t.faults++
-	case k.status == nominal:
+	if k.status == nominal {
 		t.nominal++
-	case k.status == unchecked:
-		t.unchecked++
-	case k.status == unknown:
-		t.unknown++
+		return
 	}
-}
-
-// verdict is what the checks came to when none of them failed. All
-// nominal is the one case worth a sentence, and it says every system,
-// which it has earned. Anything left unchecked or unanswered is
-// counted beside the ones that passed instead: a system conn had
-// nothing to check against is not a system conn found nominal, and a
-// line that called it one would be claiming a reading it never took.
-func (t tally) verdict() string {
-	if t.unchecked == 0 && t.unknown == 0 {
-		return "ALL SYSTEMS NOMINAL"
-	}
-	var said []string
-	for _, c := range []struct {
-		n    int
-		word string
-	}{{t.nominal, nominal}, {t.unchecked, unchecked}, {t.unknown, unknown}} {
-		if c.n > 0 {
-			said = append(said, strconv.Itoa(c.n)+" "+c.word)
-		}
-	}
-	return strings.Join(said, " · ")
+	t.off++
 }
 
 // small is the console for a terminal the body will not fit: the mark

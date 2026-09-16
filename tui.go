@@ -744,7 +744,7 @@ func (m model) published(again bool) model {
 		}
 		tellCursor(cursorPath(m.head.login.home), at, &reading{
 			projects: projects, records: m.records, panes: m.panes,
-			inside: m.inside, containers: m.containers,
+			inside: m.inside, containers: m.containers, sessions: m.sessions,
 		})
 	}
 	return m
@@ -765,6 +765,10 @@ func (m model) subject() subject {
 				return subject{pid: row.pid}
 			}
 			return subject{path: row.path}
+		}
+	case viewSessions:
+		if rows := m.sessionsRows(); m.rfind.at < len(rows) {
+			return subject{session: rows[m.rfind.at].ID}
 		}
 	}
 	return subject{}
@@ -1060,6 +1064,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.sessions, m.sessionsLoading = msg.sessions, false
 		m.rfind.at = clamp(m.rfind.at, len(m.sessionsRows()))
+		// The sessions have landed, and the page comes up for the one
+		// the cursor is on without anybody asking.
+		return m.keepingPage()
 	case killedMsg:
 		// A beat for the signal to be acted on, so the row is not read a
 		// moment too soon, still there; the processesTick this reuses is a
@@ -1766,7 +1773,10 @@ func (m model) keepingPage() (tea.Model, tea.Cmd) {
 	// the manual is up, which would stop this on its own; saying it
 	// plainly as well means the page cannot come back the moment the
 	// cursor does.
-	if !m.inside || (m.view != viewProcesses && m.view != viewProjects) || m.looking || m.helping || !m.focused {
+	if !m.inside || m.looking || m.helping || !m.focused {
+		return m, nil
+	}
+	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions {
 		return m, nil
 	}
 	if m.subject().none() {

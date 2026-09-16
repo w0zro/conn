@@ -426,3 +426,68 @@ func TestAProjectHasAPageOfItsOwn(t *testing.T) {
 		t.Errorf("a project with nothing to say said it anyway:\n%s", text)
 	}
 }
+
+// The sessions list's cursor stands on suspended sessions, and the
+// page follows it there too: the row is the session, by its id, and
+// the page is what a reader would pick it up by, with the command
+// that picks it up. The sessions landing is one of the moments the
+// page is asked for.
+func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
+	path := cursorPath("/nowhere")
+
+	m := newModel(plain)
+	m.view, m.inside, m.now = viewSessions, true, processesNow
+	m.head.login.home = dir
+	m.sessionsProject, m.sessionsDirs = "/Users/w0zro/projects/w0zro/conn", []string{"/Users/w0zro/projects/w0zro/conn"}
+	m.sessions = []session{
+		{ID: "d81d7536-e545-4881-8daa-f1d291a03be1", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour),
+			Branch: "main", Prompt: "make the page follow the list", Model: "claude-opus-5", Carried: 571_592},
+		{ID: "0c1d2e3f-0000-4000-8000-000000000000", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-26 * time.Hour), Branch: "topic"},
+	}
+	press := func(k string) {
+		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		m = next.(model)
+	}
+	published := func() subject { at, _ := askCursor(path); return at }
+	press("ctrl+p")
+	if got := published(); got.session != "d81d7536-e545-4881-8daa-f1d291a03be1" {
+		t.Errorf("on the first session the list published %+v", got)
+	}
+	press("ctrl+n")
+	if got := published(); got.session != "0c1d2e3f-0000-4000-8000-000000000000" {
+		t.Errorf("on the second session the list published %+v", got)
+	}
+	// The sessions travel with the reading, so the page can word one.
+	_, r := askCursor(path)
+	if r == nil || len(r.sessions) != 2 {
+		t.Fatalf("the sessions did not travel: %+v", r)
+	}
+
+	// The page, from what the panel said.
+	held := readoutTable{reading: *r, git: map[string]gitStatus{"/Users/w0zro/projects/w0zro/conn": {repo: true, branch: "main", commit: "abc1234", subject: "A thing", when: processesNow.Add(-time.Hour)}}}
+	page, ok := readoutPage(subject{session: "d81d7536-e545-4881-8daa-f1d291a03be1"}, held)
+	if !ok {
+		t.Fatal("a session the panel published was not there to be worded")
+	}
+	text := texts(drawReadout(page, 120, 40, plain))
+	for _, want := range []string{"d81d7536-e545-4881-8daa-f1d291a03be1", "SESSION", "CLAUDE CODE · ANTHROPIC", "AGO · ", "MAIN", "make the page follow the list",
+		"CLAUDE-OPUS-5", "571K CARRIED", "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1", "w0zro/conn", "BRANCH"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the session's page does not say %q:\n%s", want, text)
+		}
+	}
+	// A session the panel has not published is not yet said.
+	if _, ok := readoutPage(subject{session: "nobody"}, held); ok {
+		t.Error("a session the panel never published was worded anyway")
+	}
+
+	// The sessions landing puts the page up.
+	m.looking, m.focused = false, true
+	m.srv = &server{tmux: "/nonexistent/tmux", socket: filepath.Join(dir, "tmux.sock")}
+	next, cmd := m.Update(sessionsMsg{dirs: m.sessionsDirs, sessions: m.sessions})
+	if got := next.(model); !got.looking || cmd == nil {
+		t.Error("the sessions landing did not put the page in the workspace")
+	}
+}

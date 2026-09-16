@@ -383,6 +383,38 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 	return b
 }
 
+// composeSession words a suspended session: the page the sessions
+// list's cursor gets. It is what a reader would pick a session up by —
+// when it last moved, the branch it was on, the last thing asked of it
+// — what answered it and what it was carrying, where it was had and
+// what git says of that, and the command that picks it back up, which
+// is what enter runs and is worth knowing by name.
+func composeSession(c session, t readoutTable, home string, now time.Time) readoutReport {
+	b := readoutReport{name: c.ID}
+	what := readoutGroup{title: "WHAT"}
+	what.add("kind", "SESSION")
+	if a, ok := contacts[contactProgram]; ok {
+		what.add("with", join(" · ", a.name, a.maker))
+	}
+	if !c.When.IsZero() {
+		what.add("moved", age(c.When, now)+" AGO · "+stamp(c.When))
+	}
+	what.add("branch", c.Branch)
+	what.addAsWritten("last ask", c.Prompt)
+	what.add("model", c.Model)
+	if c.Carried > 0 {
+		what.add("context", tokens(c.Carried)+" CARRIED")
+	}
+	what.addAsWritten("resume", contactProgram+" --resume "+c.ID)
+	b.groups = append(b.groups, what)
+
+	where := readoutGroup{title: "WHERE"}
+	where.addPath("project", tilde(c.Dir, home))
+	b.groups = append(b.groups, where)
+	b.groups = append(b.groups, gitGroups(t.git[c.Dir], now)...)
+	return b
+}
+
 // stateWord is what the table's one letter for a process means, with
 // whether its group holds the terminal — which is the difference
 // between a thing you are talking to and a thing running behind it.

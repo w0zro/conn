@@ -41,37 +41,53 @@ import (
 // cursorPath is where a server's panel publishes its cursor.
 func cursorPath(home string) string { return socketPath(home) + ".cursor" }
 
-// A subject is what the page is about: a process, by its pid, or a
-// project, by its path. The processes view's cursor is always on a
-// process; the list's cursor stands on projects as often as not, and
-// a project is as much a thing to read about as a row in it.
+// A subject is what the page is about: a process, by its pid; a
+// project, by its path; or a suspended session, by its id. The
+// processes view's cursor is always on a process; the list's cursor
+// stands on projects as often as not, and the sessions list's on
+// sessions, and each is as much a thing to read about as a row.
 type subject struct {
-	pid  int
-	path string // a project, where pid is 0
+	pid     int
+	path    string // a project, where pid is 0
+	session string // a suspended session, where both are empty
 }
 
 // none says whether there is a subject at all.
-func (s subject) none() bool { return s.pid == 0 && s.path == "" }
+func (s subject) none() bool { return s.pid == 0 && s.path == "" && s.session == "" }
 
 // A cursorNote is the note as it is written: the subject, and the
 // reading it stands in.
 type cursorNote struct {
 	PID     int
 	Path    string
+	Session string
 	Reading *reading
 }
 
 // A reading is the panel's reading of the machine, as it publishes it
 // for the page: the rows as the panel shows them, the table's record
 // behind each row, the server's panes and whether there is a server at
-// all, and the containers docker last said, which a container's row
-// names by id.
+// all, the containers docker last said, which a container's row names
+// by id, and the sessions the sessions list has in hand, which its
+// rows name by id.
 type reading struct {
 	projects   []project
 	records    map[int]record
 	panes      map[string]pane
 	inside     bool
 	containers []container
+	sessions   []session
+}
+
+// sessionOf is the suspended session of an id among those the panel
+// has in hand, where it is one.
+func (r reading) sessionOf(id string) *session {
+	for i := range r.sessions {
+		if r.sessions[i].ID == id {
+			return &r.sessions[i]
+		}
+	}
+	return nil
 }
 
 // A record is the part of the table's own record behind a row that the
@@ -110,7 +126,7 @@ func (r reading) containerOf(e entry) *container {
 // it has, which is the same thing it does between one move and the
 // next.
 func tellCursor(path string, at subject, r *reading) {
-	b, err := json.Marshal(cursorNote{PID: at.pid, Path: at.path, Reading: r})
+	b, err := json.Marshal(cursorNote{PID: at.pid, Path: at.path, Session: at.session, Reading: r})
 	if err != nil {
 		return
 	}
@@ -138,7 +154,7 @@ func parseCursor(note string) (subject, *reading) {
 	if json.Unmarshal([]byte(note), &n) != nil {
 		return subject{}, nil
 	}
-	return subject{pid: n.PID, path: n.Path}, n.Reading
+	return subject{pid: n.PID, path: n.Path, session: n.Session}, n.Reading
 }
 
 // askCursor is the note read and parsed in one go.
@@ -157,10 +173,11 @@ type readingWire struct {
 	Panes      []pane
 	Inside     bool
 	Containers []container
+	Sessions   []session
 }
 
 func (r reading) MarshalJSON() ([]byte, error) {
-	w := readingWire{Projects: r.projects, Inside: r.inside, Containers: r.containers}
+	w := readingWire{Projects: r.projects, Inside: r.inside, Containers: r.containers, Sessions: r.sessions}
 	for _, rec := range r.records {
 		w.Records = append(w.Records, rec)
 	}
@@ -175,7 +192,7 @@ func (r *reading) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &w); err != nil {
 		return err
 	}
-	*r = reading{projects: w.Projects, inside: w.Inside, containers: w.Containers,
+	*r = reading{projects: w.Projects, inside: w.Inside, containers: w.Containers, sessions: w.Sessions,
 		records: map[int]record{}, panes: map[string]pane{}}
 	for _, rec := range w.Records {
 		r.records[rec.pid] = rec

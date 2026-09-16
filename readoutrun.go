@@ -234,9 +234,16 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 		t.carried = map[int]session{}
 	}
 	// A project is asked after by git alone: the rows in it are the
-	// panel's, already in hand.
+	// panel's, already in hand. A session the same, for the project it
+	// was had in: what it says of itself the panel read already.
 	if at.path != "" {
 		t.askGit(at.path)
+		return t
+	}
+	if at.session != "" {
+		if c := t.sessionOf(at.session); c != nil {
+			t.askGit(c.Dir)
+		}
 		return t
 	}
 	pid := at.pid
@@ -292,6 +299,13 @@ func readoutPage(at subject, t readoutTable) (readoutReport, bool) {
 	home, _ := os.UserHomeDir()
 	if at.path != "" {
 		return composeProject(at.path, t, home, time.Now()), true
+	}
+	if at.session != "" {
+		c := t.sessionOf(at.session)
+		if c == nil {
+			return readoutReport{}, false
+		}
+		return composeSession(*c, t, home, time.Now()), true
 	}
 	pid := at.pid
 	s, ok := subjectOf(pid, t.projects, t.records)

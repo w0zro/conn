@@ -4,6 +4,10 @@
    SHELL   zsh                         ACTIVE
      EDITOR  vim notes.md            STOPPED
 
+   w0zro/conn
+
+   SHELL   zsh                           IDLE
+
    w0zro/vim.pro/conjurer
 
    SHELL   zsh                         ACTIVE
@@ -11,10 +15,6 @@
        RUN     node /opt/cla…          ACTIVE
        SHELL   bash -c go te…          ACTIVE
          RUN     go test ./.…          ACTIVE
-
-   w0zro/conn
-
-   SHELL   zsh                           IDLE
 
 
 

@@ -107,12 +107,12 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	if len(rows) != 9 || !strings.Contains(text, "… 9 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
-	rows = drawProcesses(testProcesses(), 67040, 100, 9, plain)
+	rows = drawProcesses(testProcesses(), 70301, 100, 9, plain)
 	text = texts(rows)
-	// The cursor's mark keeps the margin; the row it marks still steps
-	// in for the level it is at, and the last row stands at its own
-	// project's root.
-	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸ SHELL") {
+	// The cursor's mark keeps the margin, and the row it marks still
+	// steps in for the level it is at: the last row is the go three deep
+	// under conjurer's shell.
+	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawProcesses(testProcesses(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
@@ -126,10 +126,10 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
 	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
-	// The rows read oldest first: home's shell and the vim it holds
-	// stopped, then conn's two shells, then the conjurer's tree — its
-	// shell, the claude it runs, the node that one started, the bash it
-	// started after, and the bash's own go.
+	// The rows read by project and then oldest first: home's shell and
+	// the vim it holds stopped, then conn's shell, then the conjurer's
+	// tree — its shell, the claude it runs, the node that one started,
+	// the bash it started after, and the bash's own go.
 	if m.cursor != 80001 {
 		t.Errorf("the cursor should start on the first row, not %d", m.cursor)
 	}
@@ -137,19 +137,19 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 		next, _ := m.Update(tea.KeyPressMsg{Code: rune(k[0]), Text: k})
 		m = next.(model)
 	}
-	press("j")
-	press("j")
-	press("j")
-	// Three rows down from home's shell is claude: the editor under it,
-	// then conjurer's shell, then the contact. conn's own project now
-	// stands last, holding the one shell conn was not started from.
-	if m.cursor != 70100 || m.cursorAt != 3 {
-		t.Errorf("after three j the cursor is on %d at %d", m.cursor, m.cursorAt)
+	for range 4 {
+		press("j")
 	}
-	press("k")
-	press("k")
+	// Four rows down from home's shell is claude: the editor under it,
+	// then conn's one shell, then conjurer's shell, then the contact.
+	if m.cursor != 70100 || m.cursorAt != 4 {
+		t.Errorf("after four j the cursor is on %d at %d", m.cursor, m.cursorAt)
+	}
+	for range 3 {
+		press("k")
+	}
 	if m.cursor != 80002 {
-		t.Errorf("after two k the cursor is on %d", m.cursor)
+		t.Errorf("after three k the cursor is on %d", m.cursor)
 	}
 	// A reading that still has the pid keeps the cursor on it, wherever
 	// in the rows it has moved to.
@@ -161,10 +161,10 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	// Down to claude itself, and then claude gone: what it ran stands on
 	// its own, and the cursor, with no pid of its own left to follow,
 	// holds the row it was at — which the node it started now has.
-	for range 2 {
+	for range 3 {
 		press("j")
 	}
-	if m.cursor != 70100 || m.cursorAt != 3 {
+	if m.cursor != 70100 || m.cursorAt != 4 {
 		t.Errorf("the cursor is on %d at %d, not on claude", m.cursor, m.cursorAt)
 	}
 	var without []process
@@ -175,7 +175,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	}
 	next, _ = m.Update(processesMsg{projects: projectsFrom(without, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
-	if m.cursorAt != 3 || m.cursor != 70212 {
+	if m.cursorAt != 4 || m.cursor != 70212 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
 	}
 	next, _ = m.Update(processesMsg{})

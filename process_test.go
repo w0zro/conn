@@ -58,9 +58,9 @@ var (
 // The processes view stands every process for its own work, nested
 // under whatever runs it: claude's node and its bash, the bash's own
 // go, a shell over its idle sibling, another over its stopped vim.
-// Everything sits where it started, oldest first — the projects by the
-// work that began there, the trees by their own roots, a row among its
-// siblings by itself. Nothing of root's, of another user's, without a
+// The projects are by path, and within one everything sits where it
+// started, oldest first — the trees by their own roots, a row among
+// its siblings by itself. Nothing of root's, of another user's, without a
 // terminal, or conn's own — conn is the instrument and not the work,
 // though something under it, however unlikely, would still root a tree
 // of its own.
@@ -72,21 +72,21 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
 	}
-	// Home's shell is a day old and conjurer's two hours; conn's own
-	// project is left with the shell on ttys005, ninety seconds old,
-	// because the three-hour shell on ttys004 is the one conn was
-	// started from and is conn's own lineage rather than work. Under
-	// claude the node it started forty-six minutes ago comes before the
-	// bash it started twelve seconds ago.
+	// Home, conn, then conjurer, by path, though conjurer's work is
+	// older than conn's. conn's own project is left with the shell on
+	// ttys005, ninety seconds old, because the three-hour shell on
+	// ttys004 is the one conn was started from and is conn's own lineage
+	// rather than work. Under claude the node it started forty-six
+	// minutes ago comes before the bash it started twelve seconds ago.
 	want := []string{
 		"/Users/w0zro SHELL zsh ACTIVE",
 		" /Users/w0zro EDITOR vim notes.md STOPPED",
+		"/Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 		"/Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL zsh ACTIVE",
 		" /Users/w0zro/projects/w0zro/vim.pro/conjurer CONTACT claude --resume ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN node /opt/claude/mcp.js ACTIVE",
 		"  /Users/w0zro/projects/w0zro/vim.pro/conjurer SHELL bash -c go test ./... ACTIVE",
 		"   /Users/w0zro/projects/w0zro/vim.pro/conjurer RUN go test ./... ACTIVE",
-		"/Users/w0zro/projects/w0zro/conn SHELL zsh IDLE",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("processes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -148,10 +148,10 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 		"SHELL zsh ACTIVE",
 		" EDITOR vim notes.md STOPPED",
 		"SHELL zsh IDLE",
+		"SHELL zsh IDLE",
 		"RUN node /opt/claude/mcp.js ACTIVE",
 		"SHELL bash -c go test ./... ACTIVE",
 		" RUN go test ./... ACTIVE",
-		"SHELL zsh IDLE",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("processes without claude:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -191,14 +191,15 @@ func TestTheProcessesViewAdoptsWorkWithNoTerminal(t *testing.T) {
 			got = append(got, strings.Repeat(" ", e.depth)+pl.path+" "+e.kind+" "+e.command+" "+e.status)
 		}
 	}
-	// The server that outlived its shell is the oldest thing at the
-	// project and stands first; home's shell began after all of it.
+	// Home stands first by path, though its shell began after all of
+	// conn's work; at conn the server that outlived its shell is the
+	// oldest thing there and stands first.
 	want := []string{
+		"/Users/w0zro SHELL zsh IDLE",
 		conn + " RUN python3 -m http.server 8137 ACTIVE",
 		conn + " SHELL zsh ACTIVE",
 		" " + conn + " CONTACT claude ACTIVE",
 		"  " + conn + " RUN python3 -m http.server 8000 ACTIVE",
-		"/Users/w0zro SHELL zsh IDLE",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("processes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -691,12 +692,14 @@ func TestWaitingRoundIsLongestHeldUpFirst(t *testing.T) {
 	}
 }
 
-// The list holds still. Work appearing anywhere moves nothing that was
-// already there — not the row it hangs under, not that row's siblings,
-// not the project: it goes on the end of where it belongs and
-// everything above keeps its spot. It was the newest start anywhere in
-// a subtree that ordered all three, so a command a contact ran
-// re-sorted the processes view out from under whoever was reading it.
+// The list holds still. Work appearing in a project moves nothing that
+// was already there — not the row it hangs under, not that row's
+// siblings, not the projects among themselves: it goes on the end of
+// where it belongs and everything else keeps its order. A project the
+// view has never had goes where its path sorts, which is the one place
+// it will always be. It was the newest start anywhere in a subtree that
+// ordered all three, so a command a contact ran re-sorted the
+// processes view out from under whoever was reading it.
 func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 	rows := func(procs []process) []int {
 		var out []int
@@ -738,9 +741,10 @@ func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 	}
 	// And the new work is on the end of where it belongs: the command
 	// under the contact last among what the contact runs, the new shell
-	// last in the project it is in, the new project last of all.
+	// last in the project it is in, and the new project where its path
+	// sorts — /private after /Users, whatever began when.
 	if last := after[len(after)-1]; last != 90999 {
-		t.Errorf("a project the processes view has never had stands before the others: last row is %d", last)
+		t.Errorf("a project the processes view has never had is not where its path sorts: last row is %d", last)
 	}
 	at := func(pid int) int {
 		for i, p := range after {

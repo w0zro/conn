@@ -4,6 +4,6 @@
    SHELL   zsh                                                         TTYS009             ACTIVE
  ▸   EDITOR  vim notes.md                                              TTYS009           STOPPED
 
-   w0zro/vim.pro/conjurer
+   w0zro/conn
 
    … 9 BELOW

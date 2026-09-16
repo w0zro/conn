@@ -364,11 +364,10 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	// following itself down forever.
 	walked := map[int]bool{}
 
-	// Where a thing sits is where it started, and it sits there for as
-	// long as it lives. A tree is placed by its own root's start, a row
-	// among its siblings by its own, and a project by the first work that
-	// began there — oldest first, so what is new goes on the end and
-	// nothing above it moves.
+	// Within a project, where a thing sits is where it started, and it
+	// sits there for as long as it lives. A tree is placed by its own
+	// root's start and a row among its siblings by its own — oldest
+	// first, so what is new goes on the end and nothing above it moves.
 	//
 	// It was the newest start anywhere in a subtree, which brought fresh
 	// work and its whole project to the top. That is a true thing to say
@@ -398,7 +397,6 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 
 	projects := map[string]*project{}
 	var order []string
-	projectAt := map[string]time.Time{}
 	var walk func(pid, depth int, path string)
 	walk = func(pid, depth int, path string) {
 		if walked[pid] {
@@ -420,26 +418,20 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		}
 	}
 	for _, rootPid := range roots {
-		path := rootOf(byPid[rootPid].cwd)
-		if t := startedAt(rootPid); projectAt[path].IsZero() || t.Before(projectAt[path]) {
-			projectAt[path] = t
-		}
-		walk(rootPid, 0, path)
+		walk(rootPid, 0, rootOf(byPid[rootPid].cwd))
 	}
 
 	out := make([]project, 0, len(projects))
 	for _, path := range order {
 		out = append(out, *projects[path])
 	}
-	// A project sits where work there began, and the path breaks a tie the
-	// way the pid does among rows.
-	sort.SliceStable(out, func(i, j int) bool {
-		a, b := projectAt[out[i].path], projectAt[out[j].path]
-		if a.Equal(b) {
-			return out[i].path < out[j].path
-		}
-		return a.Before(b)
-	})
+	// The projects are in the order of their paths, which is the order
+	// the list has them in, so a project is in the same place on every
+	// reading and every day whatever began there first. They sat where
+	// work there began before, which put the same project at the top one
+	// day and at the bottom the next, and the view was learnt again each
+	// morning.
+	sort.SliceStable(out, func(i, j int) bool { return out[i].path < out[j].path })
 	return out
 }
 

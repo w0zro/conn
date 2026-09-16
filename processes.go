@@ -13,9 +13,11 @@ import (
 // kind, what it is doing, its terminal, how long it has stood as it
 // does, and the word for how it stands. A row under another indents,
 // its kind and command shifted in together, the rest of its columns
-// staying where they are. Everything sits where it started and stays
-// there for as long as it lives, oldest first, so what is new goes on
-// the end and nothing above it moves. A cursor is on one row, which is
+// staying where they are. The projects are in the order of their
+// paths, as the list has them. Within one, everything sits where it
+// started and stays there for as long as it lives, oldest first, so
+// what is new goes on the end and nothing above it moves. A cursor is
+// on one row, which is
 // drawn on a raised ground from edge to edge, and the rows scroll to
 // keep it in view. What conn holds — a process in a pane of the server,
 // which can be reached — is written in the ink; work conn can only
@@ -175,7 +177,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	// is the first thing there is to read, and reading does not start
 	// hard against an edge.
 
-	// The projects, in the order work began in them; or the reason there
+	// The projects, in the order of their paths; or the reason there
 	// are none.
 	room := height
 	if height == 0 {

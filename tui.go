@@ -655,7 +655,13 @@ func (m model) published(again bool) model {
 	}
 	if pid != m.told || again {
 		m.told = pid
-		tellCursor(cursorPath(m.head.login.home), pid, m.containerAt(pid))
+		// The row goes with the pid, as the panel shows it, so the page
+		// says of it what the panel says; see cursor.go.
+		var row *entry
+		if e, _, ok := m.under(); ok {
+			row = &e
+		}
+		tellCursor(cursorPath(m.head.login.home), pid, row, m.containerAt(pid))
 	}
 	return m
 }

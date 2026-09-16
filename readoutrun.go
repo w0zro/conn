@@ -16,16 +16,16 @@ import (
 // of it than a row carries, and a pane that reads its own subject keeps
 // saying the truth while the panel is busy elsewhere.
 //
-// A key processes focus back to the panel, the way the hold does. There
+// A key passes focus back to the panel, the way the hold does. There
 // is nothing to do on the page — it is a reading — and the keys that
 // work the processes view all live on the panel, so the useful thing a
 // keypress here can mean is "put me back where the keys are".
 //
-// With no pid it follows the panel's cursor, which is what i opens: the
-// page is about whatever the cursor is on, so j and k read down the
-// list with the page keeping up rather than leaving it on a row nobody
-// is looking at any more. With a pid it stays on that pid, which is
-// what `conn readout 123`, typed, is for.
+// With no pid it follows the panel's cursor, which is how the panel
+// opens it: the page is about whatever the cursor is on, so j and k
+// read down the list with the page keeping up rather than leaving it
+// on a row nobody is looking at any more. With a pid it stays on that
+// pid, which is what `conn readout 123`, typed, is for.
 
 // readoutBeat is how often the page reads its subject again. The
 // processes view's own beat: the two are readings of the same table and
@@ -54,9 +54,14 @@ type readoutModel struct {
 	// The container the subject is, where the panel said it is one. A
 	// container is not in the process table, so the page is composed
 	// from what the panel published rather than from anything read here.
-	container     *container
+	container *container
+	// The row as the panel shows it, where the panel said. The page
+	// reads the machine for what stands around the row, and takes the
+	// row itself from the panel; see cursor.go.
+	row           *entry
 	follow        bool   // the subject is the panel's cursor, not a pid given
 	cursor        string // where the panel publishes it
+	note          string // what the panel last said there, to tell a change by
 	width, height int
 	p             palette
 	report        readoutReport
@@ -111,23 +116,32 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case readoutTickMsg:
-		// Where the cursor is, then whether that is news. A subject that
+		// What the panel says, then whether that is news. A subject that
 		// changed is read at once; one that has not is read on the beat,
 		// so a page nobody is moving still keeps up with its row.
 		if m.follow {
-			if pid, c := askCursor(m.cursor); pid != 0 && pid != m.pid {
-				m.pid, m.container = pid, c
-				// The row is answered now, out of the table already
-				// read, and the reading only replaces that answer with
-				// a newer one. Reading the machine takes a tenth of a
-				// second, which is long enough to see, and waiting it
-				// out would leave the page on the row the cursor just
-				// left — while the table read a moment ago has the new
-				// row in it, as true as the panel's own list is.
-				if r, ok := readoutPage(pid, c, m.table); ok {
-					m.report = r
+			if note := readCursor(m.cursor); note != m.note {
+				m.note = note
+				if pid, row, c := parseCursor(note); pid != 0 {
+					moved := pid != m.pid
+					m.pid, m.row, m.container = pid, row, c
+					// The row is answered now, out of the table already
+					// read, and the reading only replaces that answer
+					// with a newer one. Reading the machine takes a
+					// tenth of a second, which is long enough to see,
+					// and waiting it out would leave the page on the
+					// row the cursor just left — while the table read a
+					// moment ago has the new row in it, as true as the
+					// panel's own list is. A row that stayed put and
+					// changed its word is answered the same way: the
+					// panel said so, and the page says it now.
+					if r, ok := readoutPage(pid, row, c, m.table); ok {
+						m.report = r
+					}
+					if moved {
+						return m.reading()
+					}
 				}
-				return m.reading()
 			}
 		}
 		// One reading at a time on the beat: git under its wait can take
@@ -161,10 +175,10 @@ func (m readoutModel) tick() tea.Cmd {
 // of a project or a session is not asked again from nothing.
 func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 	m.read, m.inflight = time.Now(), true
-	pid, srv, held, c := m.pid, m.srv, m.table, m.container
+	pid, srv, held, row, c := m.pid, m.srv, m.table, m.row, m.container
 	return m, tea.Batch(
 		func() tea.Msg {
-			report, table := readoutOf(pid, c, srv, held)
+			report, table := readoutOf(pid, row, c, srv, held)
 			return readoutReadMsg{pid: pid, report: report, table: table}
 		},
 		m.tick(),
@@ -191,20 +205,23 @@ type readoutTable struct {
 	git      map[string]gitStatus // what git said of a project, by its path
 	carried  map[int]session      // which session a row was carrying
 	// Each row as this reading saw it stand, and when it was taken, so
-	// the next reading can date a row's status the way the panel does.
+	// the next reading can date a row's status the way the panel does;
+	// and the processor time each had used, to tell work from waiting
+	// the way the panel does.
 	stood  map[int]stood
+	cpu    map[int]time.Duration
 	readAt time.Time
 }
 
 // readoutOf is the page for a pid as things stand and the table it was
 // read from, or the page that says the row has gone. A pid of nothing
 // is a page waiting on a cursor that has not said where it is yet.
-func readoutOf(pid int, c *container, srv *server, held readoutTable) (readoutReport, readoutTable) {
+func readoutOf(pid int, row *entry, c *container, srv *server, held readoutTable) (readoutReport, readoutTable) {
 	if pid == 0 {
 		return readoutReport{}, held
 	}
 	t := readoutGather(pid, srv, held)
-	r, ok := readoutPage(pid, c, t)
+	r, ok := readoutPage(pid, row, c, t)
 	if !ok {
 		return readoutReport{pid: pid, gone: true}, t
 	}
@@ -236,8 +253,19 @@ func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
 	home, _ := os.UserHomeDir()
 	roots, _ := projectRoots(home)
 	isProject := projectDirs(roots)
-	t.projects = projectsFrom(procs, uid, rootFinder(isProject), isProject, contactStatuses(procs))
+	// How the rows stand, read the way the panel reads it: work off
+	// the processor time spent since the last reading, and a contact
+	// off its own word. The subject's own row comes from the panel
+	// (see readoutPage); this is for the rows around it, which the
+	// tree names with their status.
 	t.readAt = time.Now()
+	how := map[int]status{}
+	for pid := range cpuWorking(held.cpu, held.readAt, procs, t.readAt) {
+		how[pid] = status{working: true}
+	}
+	maps.Copy(how, contactStatuses(procs))
+	t.cpu = cpuOf(procs)
+	t.projects = projectsFrom(procs, uid, rootFinder(isProject), isProject, how)
 	t.stood = sinceSeen(t.projects, held.stood, held.readAt, t.readAt)
 
 	// What conn holds for the rows' terminals, when there is a server to
@@ -291,7 +319,7 @@ func readoutGather(pid int, srv *server, held readoutTable) readoutTable {
 // rather than that it has gone: of a table just read that is a row that
 // ended, but of the table already read it may only be a row that
 // started since, and the reading on its way will have it.
-func readoutPage(pid int, c *container, t readoutTable) (readoutReport, bool) {
+func readoutPage(pid int, row *entry, c *container, t readoutTable) (readoutReport, bool) {
 	s, ok := subjectOf(pid, t.projects, t.procs)
 	if !ok {
 		// A container is in none of this: it is not a process, so the
@@ -302,6 +330,14 @@ func readoutPage(pid int, c *container, t readoutTable) (readoutReport, bool) {
 			return readoutReport{}, false
 		}
 		s = readoutSubject{project: project{path: c.dir}}
+	}
+	// The row itself is the panel's, where the panel said it: what the
+	// row is doing and how long it has stood so are the panel's
+	// readings, and the page says the row as the panel shows it rather
+	// than a second reading of the same row that could disagree. The
+	// table still says what stands around it.
+	if row != nil && row.pid == pid {
+		s.entry = *row
 	}
 	s.container = c
 	if t.inside {

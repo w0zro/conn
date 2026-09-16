@@ -18,21 +18,21 @@ func TestTheCursorTravelsAsAPid(t *testing.T) {
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 
-	if got, _ := askCursor(path); got != 0 {
+	if got, _, _ := askCursor(path); got != 0 {
 		t.Errorf("with nothing published the cursor reads %d", got)
 	}
-	tellCursor(path, 49212, nil)
-	if got, _ := askCursor(path); got != 49212 {
+	tellCursor(path, 49212, nil, nil)
+	if got, _, _ := askCursor(path); got != 49212 {
 		t.Errorf("the cursor reads %d, not what was published", got)
 	}
-	tellCursor(path, 3, nil)
-	if got, _ := askCursor(path); got != 3 {
+	tellCursor(path, 3, nil, nil)
+	if got, _, _ := askCursor(path); got != 3 {
 		t.Errorf("the cursor reads %d after moving", got)
 	}
 	if err := os.WriteFile(path, []byte("not a pid"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := askCursor(path); got != 0 {
+	if got, _, _ := askCursor(path); got != 0 {
 		t.Errorf("rubbish reads as pid %d rather than as no cursor", got)
 	}
 }
@@ -48,10 +48,10 @@ func TestEachServerHasItsOwnCursor(t *testing.T) {
 	if one == two {
 		t.Fatalf("both servers publish to %s", one)
 	}
-	tellCursor(one, 11, nil)
-	tellCursor(two, 22, nil)
-	one11, _ := askCursor(one)
-	two22, _ := askCursor(two)
+	tellCursor(one, 11, nil, nil)
+	tellCursor(two, 22, nil, nil)
+	one11, _, _ := askCursor(one)
+	two22, _, _ := askCursor(two)
 	if one11 != 11 || two22 != 22 {
 		t.Errorf("the two cursors are %d and %d", one11, two22)
 	}
@@ -82,7 +82,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
 		m = next.(model)
 	}
-	published := func() int { pid, _ := askCursor(path); return pid }
+	published := func() int { pid, _, _ := askCursor(path); return pid }
 	press("j")
 	if m.cursor != 22 || published() != 22 {
 		t.Errorf("after j the cursor is %d and %d was published", m.cursor, published())
@@ -100,7 +100,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	// A reading says it again whether or not it moved, so a file gone
 	// missing comes back on the next beat rather than staying gone
 	// until somebody presses a key.
-	tellCursor(path, 0, nil)
+	tellCursor(path, 0, nil, nil)
 	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: []project{{path: "/w", entries: []entry{
 		{pid: 22, tty: "ttys002", status: statusIdle},
 	}}}})
@@ -113,18 +113,18 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	// beside whatever directory it was started in.
 	nowhere := m
 	nowhere.head.login.home, nowhere.told = "", -1
-	tellCursor(path, 55, nil)
+	tellCursor(path, 55, nil, nil)
 	nowhere.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
-	if got, _ := askCursor(path); got != 55 {
+	if got, _, _ := askCursor(path); got != 55 {
 		t.Errorf("a panel with no home published %d", got)
 	}
 
 	// On the list there is no process under the cursor; the readout keeps
 	// the subject it was given rather than being told a nothing.
-	tellCursor(path, 99, nil)
+	tellCursor(path, 99, nil, nil)
 	m.view = viewProjects
 	press("j")
-	if got, _ := askCursor(path); got != 99 {
+	if got, _, _ := askCursor(path); got != 99 {
 		t.Errorf("the list published %d over the processes view's cursor", got)
 	}
 }
@@ -147,14 +147,14 @@ func TestTheReadoutDropsAReadingItHasMovedPast(t *testing.T) {
 	}
 }
 
-// Following is what i opens: with no pid the page is about whatever the
+// Following is how the panel opens it: with no pid the page is about whatever the
 // cursor is on, and a cursor that moves moves the page. A pid given by
 // hand pins it, and the cursor does not move it.
 func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
-	tellCursor(path, 77, nil)
+	tellCursor(path, 77, nil, nil)
 
 	m := readoutModel{pid: 11, follow: true, cursor: path, p: plain, read: time.Now()}
 	next, cmd := m.Update(readoutTickMsg{})
@@ -209,7 +209,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	m := readoutModel{pid: 11, follow: true, cursor: path, p: plain, table: held,
 		report: readoutReport{pid: 11}, read: time.Now()}
 
-	tellCursor(path, 22, nil)
+	tellCursor(path, 22, nil, nil)
 	next, _ := m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
 	if m.report.pid != 22 {
@@ -222,7 +222,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	// A row the table has never seen is a row that started since it was
 	// read, not a row that has gone: the page waits for the reading on
 	// its way rather than putting up a gravestone.
-	tellCursor(path, 33, nil)
+	tellCursor(path, 33, nil, nil)
 	next, _ = m.Update(readoutTickMsg{})
 	after := next.(readoutModel)
 	if after.pid != 33 {
@@ -244,5 +244,60 @@ func TestTheReadoutKeepsTheTableOfAReadingItDrops(t *testing.T) {
 	next, _ := m.Update(readoutReadMsg{pid: 11, report: readoutReport{pid: 11}, table: table})
 	if got := next.(readoutModel).table.projects; len(got) != 1 {
 		t.Errorf("the table of a dropped reading was dropped with it: %+v", got)
+	}
+}
+
+// The row goes with the pid. Whether a row is working is read off the
+// processor time between two readings, and what a contact is doing off
+// its transcript, and a page that worked those out again for itself
+// worked them out from a different pair of readings — and said ACTIVE
+// of a row the panel beside it said was WORKING. So the panel says the
+// row as it shows it, and the page says that row: the same word on
+// both sides of the border.
+func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
+	path := cursorPath("/nowhere")
+
+	// The panel's reading of the row: working, on a tool, for a while.
+	shown := entry{pid: 22, kind: kindContact, command: "claude", typed: "claude", tty: "ttys002",
+		status: statusWorking, doing: "edit tui.go", since: time.Now().Add(-40 * time.Second), cwd: "/w"}
+	tellCursor(path, 22, &shown, nil)
+	pid, row, _ := askCursor(path)
+	if pid != 22 || row == nil || row.status != statusWorking || row.doing != "edit tui.go" {
+		t.Fatalf("the row did not travel: pid %d, row %+v", pid, row)
+	}
+
+	// The page's own table has the same row, read as merely alive.
+	held := readoutTable{projects: []project{{path: "/w", entries: []entry{
+		{pid: 11, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive, depth: 0},
+		{pid: 22, kind: kindContact, command: "claude", typed: "claude", tty: "ttys002", status: statusActive, depth: 1, cwd: "/w"},
+	}}}}
+	m := readoutModel{pid: 11, follow: true, cursor: path, p: plain, table: held,
+		report: readoutReport{pid: 11}, read: time.Now()}
+	next, _ := m.Update(readoutTickMsg{})
+	m = next.(readoutModel)
+	text := texts(drawReadout(m.report, 120, 40, plain))
+	if !strings.Contains(text, "WORKING · FOR") {
+		t.Errorf("the page says the row its own way, not the panel's:\n%s", text)
+	}
+	// What stands around it is still the table's: the shell that runs it.
+	if !strings.Contains(text, "SHELL zsh · 11") {
+		t.Errorf("the page lost the tree around the row:\n%s", text)
+	}
+
+	// A row that stays put and changes its word is said again: the note
+	// changed, so the page reads it, and nothing is read off the machine
+	// for a cursor that did not move.
+	shown.status, shown.doing = statusIdle, ""
+	tellCursor(path, 22, &shown, nil)
+	before := m.read
+	next, _ = m.Update(readoutTickMsg{})
+	m = next.(readoutModel)
+	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "IDLE") {
+		t.Errorf("the page did not follow the row's word:\n%s", text)
+	}
+	if !m.read.Equal(before) {
+		t.Error("a row that changed its word without moving read the machine again")
 	}
 }

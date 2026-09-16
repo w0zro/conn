@@ -55,9 +55,20 @@ func (m manualModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc", "q":
 			// Out of the manual and back to the work it was covering.
-			// The pane ends; conn sees the workspace empty and puts back
-			// what the manual was standing in front of.
-			return m, tea.Quit
+			// The panel is told before this pane ends, so the workspace
+			// is filled in the same breath: ending first and leaving the
+			// panel to notice put a dead pane in the workspace for as
+			// long as it took the next reading to come round.
+			srv := m.srv
+			return m, tea.Sequence(
+				func() tea.Msg {
+					if srv != nil {
+						_ = srv.leaveHelp()
+					}
+					return nil
+				},
+				tea.Quit,
+			)
 		case "j", "down", "ctrl+n":
 			m.top = min(m.top+1, m.last())
 		case "k", "up", "ctrl+p":

@@ -869,6 +869,20 @@ func (s *server) say(keys, station string) error {
 	return err
 }
 
+// leaveHelp tells the panel the manual is done with. The manual is a
+// conn of its own in a pane of its own, and the only way it has to
+// speak to the panel is the way the chords do: a key, sent to it.
+//
+// It says so rather than ending and letting the panel notice. The panel
+// notices on its next reading, which is a second or two away and only
+// happens at all while the processes view has the keys — so a manual
+// that just ended left a dead pane standing in the workspace, which is
+// the one thing the workspace should never be showing.
+func (s *server) leaveHelp() error {
+	_, err := s.run("send-keys", "-t", sessionName+":"+homeWindow+".0", "M-Escape")
+	return err
+}
+
 // shellQuote quotes a path for a tmux command line.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"

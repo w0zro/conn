@@ -228,14 +228,46 @@ func TestPrefixMinusLeavesTheManual(t *testing.T) {
 	}
 }
 
-// Leaving the manual from inside it goes back to the work it was
-// standing in front of. The pane ends, the workspace is left holding a
-// dead manual, and that is conn's cue.
+// Leaving the manual goes back to the work it was standing in front of.
+// The manual says so as it goes — a key, the way the chords speak to
+// the panel — so the workspace is filled in the same breath instead of
+// holding a dead pane until the next reading comes round.
 func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
+	work := pane{id: "%2", tty: "ttys009"}
 	m := model{view: viewProcesses, inside: true, srv: &server{}, helping: true,
-		lastIn: "ttys009", panes: map[string]pane{"ttys009": {id: "%2", tty: "ttys009"}}}
-	next, _ := m.Update(processesMsg{gen: m.processesGen, bayDead: true, bayHelp: true})
+		lastIn: "ttys009", panes: map[string]pane{"ttys009": work}}
+	next, cmd := m.key("alt+esc")
+	got := next.(model)
+	if got.helping {
+		t.Error("conn still thinks the manual is up")
+	}
+	if cmd == nil {
+		t.Fatal("nothing was done to put the workspace back")
+	}
+	// It is the same answer wherever the news comes from: a manual that
+	// ended without saying is found dead by the reading, and handled the
+	// same way rather than by a second rule that could drift from this.
+	m.helping = true
+	next, cmd = m.Update(processesMsg{gen: m.processesGen, bayDead: true, bayHelp: true,
+		panes: map[string]pane{"ttys009": work}})
+	if got := next.(model); got.helping {
+		t.Error("a manual found dead left conn still helping")
+	}
+	if cmd == nil {
+		t.Error("a manual found dead put nothing back")
+	}
+}
+
+// With nothing to go back to the workspace takes a hold and the keys
+// come to the panel: reading is over, and a placard is not somewhere to
+// leave the operator standing.
+func TestLeavingTheManualWithNothingToGoBackTo(t *testing.T) {
+	m := model{view: viewProcesses, inside: true, srv: &server{}, helping: true}
+	next, cmd := m.key("alt+esc")
 	if got := next.(model); got.helping {
 		t.Error("conn still thinks the manual is up")
+	}
+	if cmd == nil {
+		t.Error("the workspace was left as it was")
 	}
 }

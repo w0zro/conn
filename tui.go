@@ -834,28 +834,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// A home without its bay gets one; the next reading finds it.
 			case m.inside && msg.noBay:
 				cmds = append(cmds, m.processesTick(), m.openBay())
+			// A manual left behind: it says so as it goes, and this is
+			// the same answer for a manual that ended without saying —
+			// killed from outside, or gone while the keys were in the
+			// list and nobody was tending the workspace.
+			case m.inside && msg.bayDead && msg.bayHelp:
+				mm, cmd := m.leftHelp()
+				m = mm.(model)
+				cmds = append(cmds, m.processesTick(), cmd)
 			// A bay whose pane died stays the shape it was; only what is in it
 			// is replaced, so the panel never has to give up its width and take
 			// it back. What replaces it is the next process conn holds, from the
 			// cursor down and round again: the operator was working in the bay,
 			// and the work goes on in the one nearest to hand. Only with none to
 			// reach does the bay hold a placard.
-			// A manual that has been left is the operator saying they are
-			// done reading, and what they were doing before it went up is
-			// what they meant to go back to — not the next process round
-			// from a cursor that has been standing at nothing.
-			case m.inside && msg.bayDead && msg.bayHelp:
-				m.helping = false
-				mm, cmd := m.backIn()
-				m = mm.(model)
-				if cmd == nil {
-					// Nothing to go back to: the workspace takes a hold,
-					// and the keys come to the panel rather than being
-					// left standing on a placard. Reading is over, and
-					// the processes view is where conn is worked from.
-					cmd = tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
-				}
-				cmds = append(cmds, m.processesTick(), cmd)
 			case m.inside && msg.bayDead:
 				if e, ok := m.nextReachable(); ok {
 					cmds = append(cmds, m.processesTick(), m.reach(m.panes[e.tty], e.tty))
@@ -997,6 +989,14 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// it is pressed is worth more than the saving of not having it.
 	if k == "alt+s" || k == "ctrl+s" || k == "ctrl+a" || k == "alt+a" {
 		return m.openAt(k)
+	}
+	// The manual saying it is done with. It sends this as it goes, so
+	// the workspace is filled in the same breath rather than holding a
+	// dead pane until the next reading comes round — and so that it is
+	// filled at all, the reading only tending the workspace while the
+	// processes view has the keys.
+	if k == "alt+esc" {
+		return m.leftHelp()
 	}
 	// Back to the processes view, which the prefix then - sends. tmux
 	// has already put the keys on the panel by the time this arrives;
@@ -1944,4 +1944,24 @@ func typedIsADir(typed, home string) bool {
 	}
 	info, err := os.Stat(expandHome(strings.TrimSpace(typed), home))
 	return err == nil && info.IsDir()
+}
+
+// leftHelp is conn putting the workspace back after the manual: into
+// the process the manual was standing in front of, which is what the
+// operator was doing and what they meant to come back to — not the next
+// process round from a cursor that has been standing at nothing.
+//
+// With nothing to go back to the workspace takes a hold and the keys
+// come to the panel, rather than being left on a placard.
+func (m model) leftHelp() (tea.Model, tea.Cmd) {
+	m.helping = false
+	if !m.inside || m.srv == nil {
+		return m, nil
+	}
+	mm, cmd := m.backIn()
+	m = mm.(model)
+	if cmd == nil {
+		cmd = tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
+	}
+	return m, cmd
 }

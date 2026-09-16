@@ -297,7 +297,7 @@ func body(r report, width int, own check, p palette) []row {
 			// which gray would let slide past.
 			word := p.gray
 			if k.status == unchecked || k.status == unknown ||
-				k.status == notWritten || k.status == noRoots || k.status == missing {
+				k.status == notWritten || k.status == missing {
 				word = p.waiting
 			}
 			l.to(measure - utf8.RuneCountInString(k.status))

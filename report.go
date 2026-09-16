@@ -65,19 +65,24 @@ const (
 	nominal   = "NOMINAL"
 	unknown   = "UNKNOWN"
 	unchecked = "UNCHECKED"
-	// A config file that was never written, one that names no roots,
-	// and a root that is not there. None is a fault: a machine is
-	// allowed to have no config file, an empty one is allowed to be
-	// empty, and a config carried between machines names roots that are
-	// only on some of them. All three are worth the second look gray
-	// would not get them — a config that reads NOMINAL while doing
-	// nothing is the mistake nobody finds.
+	// A config file that was never written, and a root that is not
+	// there. Neither is a fault: a machine is allowed to have no config
+	// file, and a config carried between machines names roots that are
+	// only on some of them. Both are worth the second look gray would
+	// not get them.
 	//
 	// Every status is held to statusW, which is the column the words
 	// are right-aligned in; see screen.go.
 	notWritten = "NO FILE"
-	noRoots    = "NO ROOTS"
 	missing    = "MISSING"
+	// A file that is there and names no roots conn understands is a
+	// fault, and takes the chip. Somebody wrote that file meaning conn
+	// to read it, and conn is walking ~/projects instead — which on the
+	// machine this was found on happened to be the same directory the
+	// file was asking for, so nothing looked wrong and nothing was.
+	// Somewhere else it is conn quietly walking the wrong tree, and
+	// there is no second symptom to catch it by.
+	noRoots = "NO ROOTS"
 	// A file that is there and that conn could not use: it would not
 	// parse, or it would not open. Which of the two is in the error
 	// itself, said where there is room for a sentence.
@@ -358,7 +363,7 @@ func configCheck(c configState, home string) check {
 	case !c.present:
 		k.status = notWritten
 	case !c.names:
-		k.status = noRoots
+		k.status, k.fault = noRoots, true
 	}
 	return k
 }

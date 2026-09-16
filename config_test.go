@@ -103,8 +103,8 @@ func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 		fault  bool
 	}{
 		{"a file that names roots", `{"roots": ["~"]}`, nominal, false},
-		{"a file that names none", `{"roots": []}`, noRoots, false},
-		{"a file of nothing conn knows", `{"projectsDir": "~/projects"}`, noRoots, false},
+		{"a file that names none", `{"roots": []}`, noRoots, true},
+		{"a file of nothing conn knows", `{"projectsDir": "~/projects"}`, noRoots, true},
 		{"a file that will not parse", `{"roots": [`, notRead, true},
 		{"no file at all", "", notWritten, false},
 	} {

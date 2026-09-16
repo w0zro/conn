@@ -219,10 +219,7 @@ type model struct {
 	scanning    bool
 	projectsErr string
 	uid         int
-	roots       func(string) string
-	isProject   func(string) bool
-	projRoots   []string // where the checkouts are kept, for naming projects by
-	configRoots []string // the same as they were configured, to tell a change by
+	roots       rooting // where the checkouts are kept, and the finders built on it
 
 	// The sessions view: a project's suspended sessions, as last read,
 	// what has narrowed them, and which of the rows the cursor is on.
@@ -326,7 +323,7 @@ func rootOn(configured []string) rooting {
 // and a view naming them by roots the operator has since edited is a
 // view that stopped reading the file it says it reads.
 func (m model) rooted(r rooting) model {
-	m.configRoots, m.projRoots, m.isProject, m.roots = r.configured, r.real, r.isProject, r.rootOf
+	m.roots = r
 	return m
 }
 
@@ -345,7 +342,7 @@ func (m model) report() report {
 
 // processesReport is the processes view's words as things stand.
 func (m model) processesReport() processesReport {
-	w := composeProcesses(m.projects, m.panes, m.bay, m.projRoots, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
+	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
 	w.inside, w.lit = m.inside, m.lit
 	return w
 }
@@ -354,13 +351,13 @@ func (m model) processesReport() processesReport {
 // walk found, each with the processes conn holds a pane for in it under
 // it, and the work happening off every project at the foot.
 func (m model) listRows() []projectRow {
-	return withProcesses(m.walked, m.projects, m.panes, m.projRoots, m.head.login.home)
+	return withProcesses(m.walked, m.projects, m.panes, m.roots.real, m.head.login.home)
 }
 
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	return composeProjects(m.listRows(), m.find.text, m.configRoots, m.head.login.home, m.scanning, m.projectsErr)
+	return composeProjects(m.listRows(), m.find.text, m.roots.configured, m.head.login.home, m.scanning, m.projectsErr)
 }
 
 func (m model) projectRows() []projectRow {
@@ -420,8 +417,8 @@ func readStationCmd() tea.Msg {
 // does nothing else; what the reading calls for is decided when it
 // comes back.
 func (m model) readProcesses() tea.Cmd {
-	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots, m.isProject
-	home, configured := m.head.login.home, m.configRoots
+	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots.rootOf, m.roots.isProject
+	home, configured := m.head.login.home, m.roots.configured
 	containers := m.containers
 	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
 	var srv *server
@@ -1187,7 +1184,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// no projects. So it asks, here, where going on from the console
 		// would otherwise arrive at an empty list that means three
 		// different things.
-		if len(m.projRoots) == 0 {
+		if len(m.roots.real) == 0 {
 			return m.toRoots()
 		}
 		m.processesGen++

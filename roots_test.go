@@ -156,7 +156,7 @@ func TestTheAskingViewSaysHowToAnswerIt(t *testing.T) {
 // wrong directory looks like.
 func TestTheConsoleGoesToTheAskingViewWithNoRoots(t *testing.T) {
 	m := model{head: station{build: testStation.build, login: testStation.login},
-		now: testNow, p: plain, width: 120, height: 40, uid: 501, roots: testRoots}
+		now: testNow, p: plain, width: 120, height: 40, uid: 501, roots: rooting{rootOf: testRoots}}
 	st := testStation
 	m.st = &st
 	m.stage = lastStage(m.report())
@@ -203,10 +203,10 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 		t.Fatalf("the config holds %q (%v)", got, err)
 	}
 	// And in force, without waiting for a restart.
-	if len(m.projRoots) != 1 || m.isProject == nil {
-		t.Errorf("conn is not working from the root it just saved: %q", m.projRoots)
+	if len(m.roots.real) != 1 || m.roots.isProject == nil {
+		t.Errorf("conn is not working from the root it just saved: %q", m.roots.real)
 	}
-	if m.roots(filepath.Join(home, "work", "conn")) == "" {
+	if m.roots.rootOf(filepath.Join(home, "work", "conn")) == "" {
 		t.Error("the reading does not name projects by the new root")
 	}
 }
@@ -291,13 +291,13 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 	m.processesGen = msg.gen
 	next, _ := m.Update(msg)
 	m = next.(model)
-	if len(m.configRoots) != 1 || m.configRoots[0] != filepath.Join(home, "elsewhere") {
-		t.Errorf("the model is still on %q", m.configRoots)
+	if len(m.roots.configured) != 1 || m.roots.configured[0] != filepath.Join(home, "elsewhere") {
+		t.Errorf("the model is still on %q", m.roots.configured)
 	}
 	// The finder works on the roots as the table names them, symlinks
 	// resolved, so it is asked with a path of that kind.
 	real, _ := filepath.EvalSymlinks(filepath.Join(home, "elsewhere", "api"))
-	if m.roots(real) != real {
+	if m.roots.rootOf(real) != real {
 		t.Error("the reading does not name projects by the new root")
 	}
 

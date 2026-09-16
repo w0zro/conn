@@ -43,7 +43,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	// ticking as newModel leaves it: conn comes up on the console, which
 	// annunciates, and Init sets the blink going.
 	m := model{head: station{build: testStation.build, login: login{user: "w0zro", host: "station"}}, now: testNow, p: plain, ticking: true,
-		projRoots: []string{"/Users/w0zro/projects"}} // told where the work is; see toRoots
+		roots: rooting{real: []string{"/Users/w0zro/projects"}}} // told where the work is; see toRoots
 	m.width, m.height = 120, 40
 	view := func() string { return m.View().Content }
 	has := func(s string) bool { return strings.Contains(view(), s) }

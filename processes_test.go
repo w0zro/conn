@@ -123,7 +123,7 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 // The cursor moves with j and k, stays within the rows, and follows its
 // process across readings; when the process goes it holds its row.
 func TestTheCursorFollowsItsProcess(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: testRoots, now: processesNow}
+	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
 	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	// The rows read oldest first: home's shell and the vim it holds
@@ -189,11 +189,11 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 // reads the table and reads it again on its tick; c brings the console
 // back, and a stale tick is dropped.
 func TestTheKeyContinuesToProcesses(t *testing.T) {
-	m := model{head: station{build: testStation.build, login: testStation.login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501, roots: testRoots,
+	m := model{head: station{build: testStation.build, login: testStation.login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501,
 		// A conn that has been told where the work is. One that has not
 		// goes to the asking view instead of the processes view, which is
 		// its own test.
-		projRoots: []string{"/Users/w0zro/projects"}}
+		roots: rooting{rootOf: testRoots, real: []string{"/Users/w0zro/projects"}}}
 	st := testStation
 	m.st = &st
 	m.stage = lastStage(m.report())
@@ -281,7 +281,7 @@ func TestTheProcessesViewInsideTheServer(t *testing.T) {
 // server, n opens a shell at its project, and q detaches; each says why
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: testRoots, now: processesNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
+	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
 	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {

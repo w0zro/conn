@@ -202,3 +202,35 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 		t.Error("the light colorscheme still carries the dark ground")
 	}
 }
+
+// On light, the border is not slot 0. Light's slot 0 is black — what a
+// program writing ANSI-0 means by ordinary text — and everything drawn
+// on the border took it: the status line was a black bar across a pale
+// page, and a selection was a black block. The border on light is the
+// color the rest of conn draws it in, and the quietest text is the tier
+// conn reads there rather than the slot that vanishes.
+func TestTheLightColorschemeDrawsTheBorderAsTheRestOfConnDoes(t *testing.T) {
+	holdMode(t)
+	applyMode(false)
+	out := vimColorscheme()
+	for _, want := range []string{
+		"hi StatusLine guifg=" + scheme[15] + " ctermfg=15 guibg=" + lightBorderHex + " ctermbg=NONE",
+		"hi Visual guifg=NONE ctermfg=NONE guibg=" + lightBorderHex + " ctermbg=NONE",
+		"hi WinSeparator guifg=" + lightBorderHex + " ctermfg=NONE",
+		"hi LineNr guifg=" + lightFaintHex + " ctermfg=8",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the light colorscheme lacks %q", want)
+		}
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "hi ") && strings.Contains(line, "guibg="+lightScheme[0]) {
+			t.Errorf("a ground is drawn in light's black: %s", line)
+		}
+	}
+	// And on dark the border is slot 0 still, as it always was.
+	applyMode(true)
+	if out := vimColorscheme(); !strings.Contains(out, "hi Visual guifg=NONE ctermfg=NONE guibg="+darkScheme[0]+" ctermbg=0") {
+		t.Error("the dark colorscheme no longer draws a selection on slot 0")
+	}
+}

@@ -47,7 +47,7 @@ func vimColorscheme() string {
 	var (
 		ground    = vimColor{hex(groundColor), "NONE"} // the pane's own
 		lift      = vimColor{toolBg, "NONE"}           // a step off it
-		border    = slotColor(0)                       // and another
+		border    = borderColor()                      // and another
 		red       = slotColor(1)                       // an error
 		green     = slotColor(2)                       // a string
 		yellow    = slotColor(3)                       // a constant
@@ -55,7 +55,7 @@ func vimColorscheme() string {
 		magenta   = slotColor(5)                       // a function
 		cyan      = slotColor(6)                       // a type
 		parchment = slotColor(7)                       // punctuation
-		faint     = slotColor(8)                       // a line number
+		faint     = vimColor{faintHex, "8"}            // a line number
 		orange    = slotColor(9)                       // a number, a mark
 		varc      = slotColor(11)                      // a variable
 		op        = slotColor(12)                      // an operator
@@ -306,6 +306,21 @@ let g:colors_name = 'conn'
 // slotColor is one of the sixteen, and knows which one it is.
 func slotColor(i int) vimColor {
 	return vimColor{scheme[i], strconv.Itoa(i)}
+}
+
+// borderColor is the border: a pane's edge, a selection, the band
+// behind the status line. On dark it is slot 0, the darkest thing there
+// is and so the quietest edge. On light it cannot be: light's slot 0 is
+// black, which is what a program writing ANSI-0 means by ordinary text,
+// and a status line drawn on it was a black bar across a pale page. The
+// border on light is a color no slot has a name for — see mode.go — so
+// it is written out and says NONE for a terminal with only sixteen,
+// which takes the pane's own ground there rather than the wrong one.
+func borderColor() vimColor {
+	if darkMode {
+		return slotColor(0)
+	}
+	return vimColor{borderHex, "NONE"}
 }
 
 // line is the highlight as a colorscheme writes it.

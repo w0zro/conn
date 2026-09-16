@@ -10,7 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// answered runs a command and processes back what it answered. A key
+// answered runs a command and passes back what it answered. A key
 // that changes a mode answers with a batch — the status line's telling
 // beside whatever the key itself asked for — and the status line's half
 // answers nothing, so flattening the batch leaves the one message that

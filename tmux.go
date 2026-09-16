@@ -253,8 +253,8 @@ func (s *server) hasHome() bool {
 //
 // A readout is furniture too — everything true of a hold is true of it,
 // so it carries the hold's own mark and everything that acts on holds
-// acts on it — but i has to tell the two apart to know whether it is
-// opening a page or closing one, and a mark of its own is how.
+// acts on it — but the panel has to tell the two apart to know whether
+// the page is up, and a mark of its own is how.
 type pane struct {
 	id, tty       string
 	width, height int

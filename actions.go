@@ -24,7 +24,7 @@ func (m model) reviveBay() tea.Cmd {
 	return m.serverCmd(func() error { return m.srv.reviveBay(home, self) })
 }
 
-// reach puts a process in the bay, off the loop, and processes back the
+// reach puts a process in the bay, off the loop, and passes back the
 // terminal that is in the bay once it is there.
 func (m model) reach(target pane, tty string) tea.Cmd {
 	srv := m.srv
@@ -50,7 +50,7 @@ func (m model) openReadout() tea.Cmd {
 	}
 }
 
-// openShell opens a shell at a project, off the loop, and processes
+// openShell opens a shell at a project, off the loop, and passes
 // back what tmux said of it.
 func (m model) openShell(dir string) tea.Cmd {
 	srv := m.srv

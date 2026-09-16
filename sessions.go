@@ -11,7 +11,7 @@ import (
 // the project list is. A row is what a reader would recognize a session
 // by — its branch and the last thing it was asked — with how long since
 // it last moved against the right. Enter continues the one under the
-// cursor, in a shell like any other; esc abandons the readout without
+// cursor, in a shell like any other; esc leaves the view without
 // opening anything.
 
 // sessionsReport is the sessions view's words as things stand. A

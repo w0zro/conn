@@ -7,11 +7,12 @@ import (
 	"unicode/utf8"
 )
 
-// The readout: what conn knows about a row, read without entering it. i
-// on the processes view opens it, and it opens in the bay, beside the
-// processes view rather than over it — the row it is about stays on
-// screen under the cursor, and moving the cursor and pressing i again
-// is how you read down a list. It is conn's own program in a pane of
+// The readout: what conn knows about a row, read without entering it.
+// The panel puts it in the bay whenever the keys are on the panel and
+// a row is under the cursor, beside the processes view rather than
+// over it — the row it is about stays on screen under the cursor, and
+// the page follows the cursor down the list; nothing is pressed for
+// it. It is conn's own program in a pane of
 // the server, `conn readout`, the way the hold is, so the bay holds it
 // the way it holds anything else and a real pane reaching the bay is
 // rid of it.

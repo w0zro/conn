@@ -59,7 +59,7 @@ func TestEachServerHasItsOwnCursor(t *testing.T) {
 
 // The panel publishes wherever the cursor ends up, by whatever moved it
 // — j and k, tab, a reading that carried it along — because every path
-// goes out through the one project that tells it. Off the processes
+// goes out through the one place that tells it. Off the processes
 // view there is no cursor on a process, and the subject is not unchosen
 // by going to the list to open something, so nothing is said rather
 // than a nothing.

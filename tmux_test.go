@@ -43,7 +43,7 @@ func TestPanesAreParsed(t *testing.T) {
 		"%5 /dev/ttys008 138 40  1    \n" +
 		// A readout carries the hold's own mark as well as its own: it is
 		// furniture like a hold, and everything that acts on holds acts on
-		// it. Only i has to tell the two apart. The manual is furniture the
+		// it. Only the panel has to tell the two apart. The manual is furniture the
 		// same way; this pane wears every mark at once, so the parse is read
 		// for all of them together.
 		"%7 /dev/ttys009 138 40 1  1   1\n" +

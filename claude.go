@@ -15,11 +15,11 @@ import (
 
 // Claude Code leaves a suspended session's transcript behind when its
 // instance exits: <claude>/projects/<encoded cwd>/<session id>.jsonl.
-// It is enough to pick the session back up, which is what A offers:
-// every one of them at a project, newest first, filtered the way the
-// list is, and not offering one a live instance already has — vetted
-// against the process table, so a session file an ended instance left
-// behind cannot hide one still going.
+// It is enough to pick the session back up, which is what the sessions
+// view offers: every one of them at a project, newest first, filtered
+// the way the list is, and not offering one a live instance already has
+// — vetted against the process table, so a session file an ended
+// instance left behind cannot hide one still going.
 
 // session is a talk claude had in a directory and could pick back
 // up: its transcript is on disk, and no live instance is carrying it.

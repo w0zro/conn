@@ -111,7 +111,7 @@ type (
 		bay        string          // the terminal in the bay
 		noBay      bool            // home has no bay beside the panel
 		bayDead    bool            // the bay's pane held on remain-on-exit, its process gone
-		bayReadout bool            // the bay holds the readout, which i closes rather than opens
+		bayReadout bool            // the bay holds the readout, so the page is up
 		bayHelp    bool            // the bay holds the manual, and the panel says HELP
 		err        string
 		gen        int
@@ -162,11 +162,10 @@ type model struct {
 	cursor   int // the pid the cursor is on
 	cursorAt int // where in the rows it was, for when the pid goes
 	told     int // the cursor as last published for the readout to follow
-	// Whether the readout is in the bay, which is what makes i a toggle.
-	// conn sets it when it puts the page there or takes it away, and a
-	// reading corrects it — asking tmux on the keypress would be a
-	// process between the key and what it does, for something conn
-	// already knows.
+	// Whether the readout is in the bay, so the page is not asked for
+	// twice. conn sets it when it puts the page there or takes it away,
+	// and a reading corrects it — asking tmux on every reading would be
+	// a process for something conn already knows.
 	looking bool
 	// helping is whether the manual is the thing in the workspace. While
 	// it is, the panel says HELP and no row is under the cursor: the
@@ -180,9 +179,9 @@ type model struct {
 	// focus does not leave conn guessing where they are.
 	focused  bool
 	entering bool // the console is waiting on a reading to go to the processes view
-	// The modes conn last put on the status line, so each is written when
-	// it changes and not on every pass through Update.
-	// Whether conn has written the status line once since it started.
+	// Whether conn has written the status line once since it started,
+	// and the words it last put there, so each is written when it
+	// changes and not on every pass through Update.
 	// The option outlives the conn that set it — a reground respawns the
 	// panel, and the fresh conn inherits whatever the last one left — so
 	// an empty saidKeys means "not written yet", not "the server says
@@ -544,7 +543,7 @@ func (m model) annunciating() bool {
 // and lets it stop when nothing does, so a view with nothing held up on
 // it is not redrawn a second and a half at a time for nothing. Going
 // through here means no view has to remember to start it: what blinks
-// is decided in one project and the tick follows.
+// is decided in one place and the tick follows.
 func (m model) blinked() (model, tea.Cmd) {
 	want := m.annunciating()
 	if want == m.ticking {
@@ -584,7 +583,7 @@ func (m model) processesTick() tea.Cmd {
 // Update answers a message and, whatever came of it, publishes where
 // the cursor ended up. Every path that moves it — j and k, tab, a
 // reading that carried it along, the shell conn just opened — publishes
-// by going through here, which is the point of doing it in one project
+// by going through here, which is the point of doing it in one place
 // rather than at each of them: a move that forgot to say so would leave
 // the readout reading a row nobody is looking at.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -1188,7 +1187,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m, m.readProcesses()
 	case k == "c":
 		// The blink is not started here: what annunciates is decided in
-		// one project, and the tick follows the view on its own.
+		// one place, and the tick follows the view on its own.
 		m.view = viewConsole
 		if m.inside {
 			return m, m.serverCmd(func() error { return m.srv.wide() })
@@ -1286,8 +1285,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // projectKey answers a key in projects, which is a line typed into: a
 // key that stands for a character goes to the filter, so the letters
 // the other views are worked by are themselves here. Up and down move
-// the cursor, and ctrl+n and ctrl+p do too, since a process on a filter
-// is a process that cannot reach j and k; enter opens a shell at the
+// the cursor, and ctrl+n and ctrl+p do too, since a hand on a filter
+// is a hand that cannot reach j and k; enter opens a shell at the
 // row under the cursor and goes back to the processes view, which is
 // where the shell will show, and ctrl+a opens claude there instead,
 // since a plain a is a letter to type; alt+a opens the sessions view

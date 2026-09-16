@@ -7,7 +7,7 @@ import (
 )
 
 // hold is what stands in the bay when no process does: the ground, and
-// a placard saying the position is vacant. A key in it processes focus
+// a placard saying the position is vacant. A key in it passes focus
 // back to the panel. conn runs it as `conn hold`, in a pane of its own
 // server.
 //

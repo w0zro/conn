@@ -721,7 +721,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	}
 }
 
-// i opens the readout in the bay, and the processes view stays on the
+// The panel opens the readout in the bay, and the processes view stays on the
 // panel with the cursor still on the row the page is about — which is
 // the whole point of the page being over there. The panel keeps its
 // width, so the readout arriving is a swap into the bay rather than a

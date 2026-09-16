@@ -1,4 +1,117 @@
 .\" Written from docs/index.html by go run ./tools/man; edit the manual, not this.
 .TH CONN 1 "September 2026" "conn 0.10" "User Commands"
+.SH NAME
+conn \- a station for one operator directing many processes on one machine
 .SH SYNOPSIS
 .B conn
+.SH GENERAL
+.TP
+1-1.
+conn is a station for one operator directing many processes on one machine. It
+runs on tmux, which it starts and holds. The panel occupies the left of the
+terminal and the workspace the rest. The panel lists the processes working each
+project — shells, contacts, and commands — with what each is doing and which
+is waiting on the operator. The workspace holds the one process the operator is
+in. Keys move between them.
+.TP
+1-2.
+conn finds projects by walking the roots it was given: the directories named in
+\fB~/.config/conn/config.json\fR, or in \fBCONN_ROOTS\fR, which is read first.
+It is told these and infers nothing; a conn that has been told nothing asks
+before it goes on.
+.SH KEYS
+.TP
+2-1.
+A chord is the prefix — \fBctrl\-space\fR, or what \fBCONN_PREFIX\fR names —
+followed by one key. A chord works from anywhere in the station, including from
+inside a process, because tmux takes it before the process does.
+.PP
+.I "Chords"
+.RS
+.TP
+\fBprefix \-\fR
+The processes view, from wherever the keys are.
+.TP
+\fBprefix p\fR
+The projects list.
+.TP
+\fBprefix prefix\fR
+The process worked in before this one.
+.TP
+\fBprefix tab\fR
+The process that has waited longest.
+.TP
+\fBprefix j\fR
+Down the processes conn can put in the workspace.
+.TP
+\fBprefix k\fR
+Up them.
+.TP
+\fBprefix s\fR
+A shell at the project the panel is looking at.
+.TP
+\fBprefix a\fR
+A contact at that project.
+.TP
+\fBprefix alt\-a\fR
+The sessions suspended at that project.
+.TP
+\fBprefix +\fR
+conn's configuration file, in an editor.
+.TP
+\fBprefix ?\fR
+This manual, in the workspace. Again puts it away.
+.TP
+\fBprefix q\fR
+Detach. The station keeps running.
+.RE
+.TP
+2-2.
+The panel's own keys work while the panel has them, and are listed here as the
+processes view takes them. In the projects list and the sessions view a letter
+is typed into the line instead: there, enter takes the row under the cursor and
+esc goes back.
+.PP
+.I "The panel"
+.RS
+.TP
+\fBj, k\fR
+Down and up the rows.
+.TP
+\fBg g\fR
+The first row.
+.TP
+\fBG\fR
+The last row.
+.TP
+\fBM\fR
+The middle row.
+.TP
+\fBenter\fR
+Into the process under the cursor. On a service, its output; enter again goes
+into the pane holding it.
+.TP
+\fBesc\fR
+Back into the process last worked in.
+.TP
+\fBs\fR
+A shell at the project. On a service, a shell inside the container.
+.TP
+\fBa\fR
+A contact at the project.
+.TP
+\fBx\fR
+End it: a signal to a process, docker stop to a service.
+.TP
+\fBtab\fR
+The process that has waited longest.
+.TP
+\fBp\fR
+The projects list.
+.TP
+\fBc\fR
+The console.
+.TP
+\fBq\fR
+Detach.
+.RE

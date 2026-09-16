@@ -263,3 +263,20 @@ func (m model) stopContainer(id, service string) tea.Cmd {
 		return killedMsg{command: service, pid: 0}
 	}
 }
+
+// openHelp puts the manual in the workspace. The page is written out of
+// the binary first, so what is shown is the manual this conn was built
+// with rather than whatever is installed on the machine.
+func (m model) openHelp() tea.Cmd {
+	home, self, srv := m.head.login.home, m.self, m.srv
+	return func() tea.Msg {
+		path, err := writeManPage(home)
+		if err != nil {
+			return nil
+		}
+		if srv.showHelp(home, self, path) != nil {
+			return nil
+		}
+		return helpMsg{on: true}
+	}
+}

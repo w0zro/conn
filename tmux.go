@@ -275,6 +275,11 @@ type pane struct {
 	// whichever of the two a map ranged over last.
 	container string
 	shellIn   string
+	// The manual, which prefix ? puts in the workspace. It is conn's
+	// own furniture like the readout: it carries the hold's mark as
+	// well, so everything that steps over furniture steps over it, and
+	// this says which furniture it is.
+	help bool
 }
 
 // What conn asks tmux for, and how it reads the answer back. The
@@ -291,7 +296,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -311,12 +316,12 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 9 || f[0] == "" {
+		if len(f) != 10 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
 			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1",
-			container: f[7], shellIn: f[8]}
+			container: f[7], shellIn: f[8], help: f[9] == "1"}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -667,11 +672,12 @@ var scheme = darkScheme
 func tmuxConf(prefix string) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
-# Eleven chords under the prefix: to the processes view, to the list, to
+# Twelve chords under the prefix: to the processes view, to the list, to
 # the other process, to the one that has waited longest, down and up the
 # ones that can be reached at all, to a shell, to a contact and to the
 # sessions at the project the panel is looking at, to conn's own
-# configuration in an editor, and to detach; tmux's own are unbound. There is no chord for the page: in the processes view the page
+# configuration in an editor, to the manual, and to detach; tmux's own
+# are unbound. There is no chord for the page: in the processes view the page
 # is what the workspace holds, and nothing is pressed for it.
 set -g prefix ` + prefix + `
 set -g prefix2 None
@@ -685,6 +691,7 @@ bind k select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t `
 bind s select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-s
 bind a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 C-a
 bind + select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-+
+bind ? select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-?
 bind M-a set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-a
 bind q detach-client
 set -g mouse on
@@ -945,4 +952,46 @@ func downReport(ws []window, socket, home string) string {
 		fmt.Fprintf(&b, " ✔ %-*s  ended\n", width, l)
 	}
 	return b.String()
+}
+
+// showHelp puts the manual in the workspace, the way showReadout puts
+// the readout there: a window of its own, marked as a hold so that
+// everything stepping over conn's furniture steps over it, and marked
+// as the manual so the panel can say HELP while it stands.
+func (s *server) showHelp(home, self, path string) error {
+	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, manCommand(path))
+	if err != nil {
+		return err
+	}
+	help := strings.TrimSpace(id)
+	for _, mark := range []string{"@conn_hold", "@conn_help"} {
+		if _, err := s.run("set-option", "-p", "-t", help, mark, "1"); err != nil {
+			return err
+		}
+	}
+	bay, ok, err := s.bay()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		if err := s.splitBay(home, self); err != nil {
+			return err
+		}
+		if bay, ok, err = s.bay(); err != nil {
+			return err
+		} else if !ok {
+			return fmt.Errorf("home has no bay")
+		}
+	}
+	args := []string{"swap-pane", "-d", "-s", help, "-t", bay.id}
+	if bay.width > 0 && bay.height > 0 {
+		args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
+	}
+	if bay.hold {
+		args = append(args, ";", "kill-pane", "-t", bay.id)
+	}
+	if _, err := s.run(args...); err != nil {
+		return err
+	}
+	return s.focusPanel()
 }

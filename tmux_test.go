@@ -38,27 +38,28 @@ func TestTheServerIsFoundBySocket(t *testing.T) {
 
 // list-panes, as tmux prints it for the format asked.
 func TestPanesAreParsed(t *testing.T) {
-	out := "%0 /dev/ttys004 48 40     \n" +
-		"%1 /dev/ttys007 138 40 1    \n" +
-		"%5 /dev/ttys008 138 40  1   \n" +
+	out := "%0 /dev/ttys004 48 40      \n" +
+		"%1 /dev/ttys007 138 40 1     \n" +
+		"%5 /dev/ttys008 138 40  1    \n" +
 		// A readout carries the hold's own mark as well as its own: it is
 		// furniture like a hold, and everything that acts on holds acts on
-		// it. Only i has to tell the two apart.
-		"%7 /dev/ttys009 138 40 1  1  \n" +
+		// it. Only i has to tell the two apart. The manual is furniture the
+		// same way; this pane wears every mark at once, so the parse is read
+		// for all of them together.
+		"%7 /dev/ttys009 138 40 1  1   1\n" +
 		// A pane conn opened for a container says which: it is the
 		// terminal that container has not got, and its row is reached
 		// through it.
-		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b \n" +
+		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b  \n" +
 		// A pane holding a shell inside a container says which container,
 		// on the other mark: it is work of the operator's own, not the
-		// service being read, and it does not stand in for the service's
-		// terminal.
-		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b\n\n"
+		// service being read.
+		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b \n\n"
 	want := map[string]pane{
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40},
 		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true},
 		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40, dead: true},
-		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, readout: true},
+		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, readout: true, help: true},
 		"ttys010": {id: "%9", tty: "ttys010", width: 138, height: 40, container: "9f1c2d3e4a5b"},
 		"ttys011": {id: "%11", tty: "ttys011", width: 138, height: 40, shellIn: "9f1c2d3e4a5b"},
 	}
@@ -85,6 +86,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind s select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-s",
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 C-a",
 		"bind + select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-+",
+		"bind ? select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-?",
 		`bind M-a set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-a`,
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
@@ -109,8 +111,8 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 11 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
-		t.Errorf("configuration binds more than the ten chords, or ignores the prefix given:\n%s", conf)
+	if strings.Count(conf, "\nbind ") != 12 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+		t.Errorf("configuration binds more than the twelve chords, or ignores the prefix given:\n%s", conf)
 	}
 	// The prefix twice over is the other process, and the chord is the
 	// prefix whatever the prefix is.

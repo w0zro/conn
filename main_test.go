@@ -66,3 +66,44 @@ func TestTheManualsSynopsisIsTheCommandTable(t *testing.T) {
 		}
 	}
 }
+
+// The manual's chord table is the chords conn binds: every key bound
+// under the prefix is a row there, and no row names one conn does not
+// bind. This is what holds man conn to the binary for the keys, the way
+// the synopsis table holds it for the commands — a chord added without
+// a row is a chord nobody can find out about.
+func TestTheManualsChordTableIsTheChordsConnBinds(t *testing.T) {
+	page, err := os.ReadFile("docs/index.html")
+	if err != nil {
+		t.Skip(err)
+	}
+	rows := map[string]bool{}
+	for _, r := range regexp.MustCompile(`<div class="row"><span>prefix ([^<]*)</span>`).FindAllStringSubmatch(string(page), -1) {
+		rows[r[1]] = true
+	}
+	if len(rows) == 0 {
+		t.Skip("the manual has no chord table yet")
+	}
+	// A chord as the manual writes it: tmux's own spelling of the key,
+	// lowered, with its modifier said in words and the prefix itself
+	// named rather than spelt.
+	say := func(key string) string {
+		if key == defaultPrefix {
+			return "prefix"
+		}
+		return strings.ToLower(strings.ReplaceAll(key, "M-", "alt-"))
+	}
+	bound := map[string]bool{}
+	for _, m := range regexp.MustCompile(`(?m)^bind (\S+) `).FindAllStringSubmatch(tmuxConf(defaultPrefix), -1) {
+		key := say(m[1])
+		bound[key] = true
+		if !rows[key] {
+			t.Errorf("the manual does not document prefix %s", key)
+		}
+	}
+	for key := range rows {
+		if !bound[key] {
+			t.Errorf("the manual documents prefix %s, which conn does not bind", key)
+		}
+	}
+}

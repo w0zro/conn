@@ -112,6 +112,7 @@ type (
 		noBay      bool            // home has no bay beside the panel
 		bayDead    bool            // the bay's pane held on remain-on-exit, its process gone
 		bayReadout bool            // the bay holds the readout, which i closes rather than opens
+		bayHelp    bool            // the bay holds the manual, and the panel says HELP
 		err        string
 		gen        int
 		// The processor time every process had used as of this reading,
@@ -128,6 +129,7 @@ type (
 	openedMsg        struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
 	reachedMsg       struct{ tty string }  // a process was put in the bay
 	readoutMsg       struct{ on bool }     // the readout was put in the bay, or taken out of it
+	helpMsg          struct{ on bool }     // the manual was put in the bay
 	blinkMsg         struct{ gen int }     // the chip's half is up
 	projectsMsg      struct {              // the roots were walked
 		projects []projectRow
@@ -162,6 +164,12 @@ type model struct {
 	// process between the key and what it does, for something conn
 	// already knows.
 	looking bool
+	// helping is whether the manual is the thing in the workspace. While
+	// it is, the panel says HELP and no row is under the cursor: the
+	// manual is not a process, so there is no row it belongs to and a
+	// cursor left sitting on one would say the keys were about that row
+	// when they are about reading.
+	helping bool
 	// Whether the keys are on the panel. conn is told by the terminal
 	// when they arrive and when they leave, and knows on its own when
 	// its own reaching sent them away, so a terminal that reports no
@@ -443,7 +451,7 @@ func (m model) readProcesses() tea.Cmd {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
 			} else if ok {
-				msg.bay, msg.bayDead, msg.bayReadout = bay.tty, bay.dead, bay.readout
+				msg.bay, msg.bayDead, msg.bayReadout, msg.bayHelp = bay.tty, bay.dead, bay.readout, bay.help
 			}
 		}
 		return msg
@@ -570,8 +578,10 @@ func (m model) saying() (model, tea.Cmd) {
 // does not need the foot of it to say which page it is.
 var viewWords = map[int]string{
 	viewProcesses: "PROCS",
-	viewProjects:  "PROJECTS",
-	viewSessions:  "SESSIONS",
+	// viewRoots takes none of its own: the chip in the view says what it
+	// is for, at the width the question needs.
+	viewProjects: "PROJECTS",
+	viewSessions: "SESSIONS",
 }
 
 // keys is what conn knows about its own keys, for the left of the
@@ -591,6 +601,13 @@ var viewWords = map[int]string{
 func (m model) keys() string {
 	if m.kill != nil {
 		return statusLineBlock("CONFIRM") + statusLineSay(m.kill.prompt)
+	}
+	// Reading the manual is a state the operator is in, like a question
+	// armed, and it outranks the view's own word: while the manual is up
+	// the panel is not being worked, and saying PROCS would name a view
+	// whose keys are not what the operator is using.
+	if m.helping && m.view == viewProcesses {
+		return statusLineBlock("HELP")
 	}
 	return statusLineBlock(viewWords[m.view])
 }
@@ -686,6 +703,19 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.containers, m.dockerStalled = msg.containers, msg.stalled
 		m.processesGen++
 		return m, tea.Batch(m.readProcesses(), nextDocker(m.dockerFeed))
+	case helpMsg:
+		// The manual is up, and no row is under the cursor while it is.
+		// The manual is not a process; there is no row it belongs to,
+		// and a cursor left sitting on one would say these keys were
+		// about that row when they are about reading. Where the cursor
+		// was is kept, so j and k carry on from it.
+		//
+		// The reading is taken again from here, as it is for the page,
+		// so one already in flight that saw the workspace as it was
+		// cannot land afterwards and say the manual is not up.
+		m.helping, m.cursor = msg.on, 0
+		m.processesGen++
+		return m.published(false), m.readProcesses()
 	case readoutMsg:
 		// The page is up, or down, and conn knows it without reading the
 		// server: the next i is a keypress away and has to decide which
@@ -741,7 +771,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// the rows it is an index into.
 		wasRow, hadRow := m.atCursor()
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
-		m.looking = msg.bayReadout
+		m.looking, m.helping = msg.bayReadout, msg.bayHelp
 		// Work in the workspace is what esc goes back into, so a conn
 		// that came up to a bay it did not fill itself still knows where
 		// the operator was. The page and a hold are conn's own furniture
@@ -762,7 +792,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.awaited = 0
 			}
 		}
-		m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
+		// follow's job is to keep hold of the row the operator was on
+		// while the rows change under it. With the manual up there is no
+		// such row, and following would hand one back every couple of
+		// seconds: the cursor is cleared on purpose, and stays cleared
+		// until the operator moves it themselves.
+		if !m.helping {
+			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
+		}
 		// The reading the console was waiting on: the processes view goes up
 		// with its rows already in it, drawn at the panel's width, and the
 		// bay opens beside a frame that is already the shape it will be.
@@ -935,6 +972,32 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, nil // no server, and nowhere to put an editor
 		}
 		return m, m.editConfig()
+	}
+	// The manual, which the prefix then ? sends. It goes to the
+	// processes view first: the manual stands in the workspace, and the
+	// workspace is what that view is a panel beside.
+	if k == "alt+?" {
+		if m.srv == nil {
+			return m, nil // nowhere to put it
+		}
+		// Up already: the same chord puts it away. The manual is not
+		// reachable — it is conn's furniture, and the keys step over
+		// furniture — so the chord that opened it is the only thing
+		// that can close it, and a manual that could be opened and not
+		// closed would be a trap rather than a help.
+		if m.helping {
+			m.helping = false
+			return m, tea.Batch(m.reviveBay(), m.processesTick())
+		}
+		mm, cmd := m.toProcesses()
+		m = mm.(model)
+		// Said here rather than when the manual is up. Opening it is
+		// several turns of talking to tmux, and the page would be put in
+		// the workspace by a reading landing in the middle of that —
+		// the page goes up wherever a row is under the cursor, and it is
+		// this that takes the row out from under it.
+		m.helping, m.cursor = true, 0
+		return m, tea.Batch(cmd, m.openHelp())
 	}
 	// Down and up the processes conn can put in the bay, which the
 	// prefix then j and then k send. In the processes view j and k walk
@@ -1464,7 +1527,12 @@ func (m model) toProcesses() (tea.Model, tea.Cmd) {
 // waited for, so the reading a moment later does not ask for a second
 // page on top of the first.
 func (m model) keepingPage() (tea.Model, tea.Cmd) {
-	if !m.inside || m.view != viewProcesses || m.looking || !m.focused {
+	// The manual is in the workspace on purpose, and the page would put
+	// itself there over the top of it. No row is under the cursor while
+	// the manual is up, which would stop this on its own; saying it
+	// plainly as well means the page cannot come back the moment the
+	// cursor does.
+	if !m.inside || m.view != viewProcesses || m.looking || m.helping || !m.focused {
 		return m, nil
 	}
 	if _, _, ok := m.under(); !ok {

@@ -45,7 +45,7 @@
     <p class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01</p>
     <h1>CONN</h1>
     <div class="banner">OPERATING MANUAL</div>
-    <p class="tagline"></p>
+    <p class="tagline">A station for one operator directing many processes on one machine.</p>
     <p class="sub"></p>
     <div class="declassified">DECLASSIFIED<br><small>AUTH. <span>CHANGE v0.10.0</span></small></div>
   </div>
@@ -132,14 +132,55 @@
       </div>
       <div>
         <ol>
+          <li><a href="#keys"><span class="n">2</span><span>Keys</span><span class="dots"></span><span>1-1</span></a></li>
         </ol>
       </div>
     </div>
     <div class="body">
       <div class="section" id="general">
         <p class="kicker">SECTION 1</p>
-        <h2></h2>
-        <p class="para"><span class="n">1-1.</span></p>
+        <h2>General</h2>
+        <p class="para"><span class="n">1-1.</span> conn is a station for one operator directing many processes on one machine. It runs on tmux, which it starts and holds. The panel occupies the left of the terminal and the workspace the rest. The panel lists the processes working each project &mdash; shells, contacts, and commands &mdash; with what each is doing and which is waiting on the operator. The workspace holds the one process the operator is in. Keys move between them.</p>
+        <p class="para"><span class="n">1-2.</span> conn finds projects by walking the roots it was given: the directories named in <b>~/.config/conn/config.json</b>, or in <b>CONN_ROOTS</b>, which is read first. It is told these and infers nothing; a conn that has been told nothing asks before it goes on.</p>
+      </div>
+      <div class="section" id="keys">
+        <p class="kicker">SECTION 2</p>
+        <h2>Keys</h2>
+        <p class="para"><span class="n">2-1.</span> A chord is the prefix &mdash; <b>ctrl-space</b>, or what <b>CONN_PREFIX</b> names &mdash; followed by one key. A chord works from anywhere in the station, including from inside a process, because tmux takes it before the process does.</p>
+        <p class="caption">Chords</p>
+        <div class="table">
+          <div class="row head"><span>KEY</span><span>ACTION</span></div>
+          <div class="row"><span>prefix -</span><span>The processes view, from wherever the keys are.</span></div>
+          <div class="row"><span>prefix p</span><span>The projects list.</span></div>
+          <div class="row"><span>prefix prefix</span><span>The process worked in before this one.</span></div>
+          <div class="row"><span>prefix tab</span><span>The process that has waited longest.</span></div>
+          <div class="row"><span>prefix j</span><span>Down the processes conn can put in the workspace.</span></div>
+          <div class="row"><span>prefix k</span><span>Up them.</span></div>
+          <div class="row"><span>prefix s</span><span>A shell at the project the panel is looking at.</span></div>
+          <div class="row"><span>prefix a</span><span>A contact at that project.</span></div>
+          <div class="row"><span>prefix alt-a</span><span>The sessions suspended at that project.</span></div>
+          <div class="row"><span>prefix +</span><span>conn's configuration file, in an editor.</span></div>
+          <div class="row"><span>prefix ?</span><span>This manual, in the workspace. Again puts it away.</span></div>
+          <div class="row"><span>prefix q</span><span>Detach. The station keeps running.</span></div>
+        </div>
+        <p class="para"><span class="n">2-2.</span> The panel's own keys work while the panel has them, and are listed here as the processes view takes them. In the projects list and the sessions view a letter is typed into the line instead: there, enter takes the row under the cursor and esc goes back.</p>
+        <p class="caption">The panel</p>
+        <div class="table">
+          <div class="row head"><span>KEY</span><span>ACTION</span></div>
+          <div class="row"><span>j, k</span><span>Down and up the rows.</span></div>
+          <div class="row"><span>g g</span><span>The first row.</span></div>
+          <div class="row"><span>G</span><span>The last row.</span></div>
+          <div class="row"><span>M</span><span>The middle row.</span></div>
+          <div class="row"><span>enter</span><span>Into the process under the cursor. On a service, its output; enter again goes into the pane holding it.</span></div>
+          <div class="row"><span>esc</span><span>Back into the process last worked in.</span></div>
+          <div class="row"><span>s</span><span>A shell at the project. On a service, a shell inside the container.</span></div>
+          <div class="row"><span>a</span><span>A contact at the project.</span></div>
+          <div class="row"><span>x</span><span>End it: a signal to a process, docker stop to a service.</span></div>
+          <div class="row"><span>tab</span><span>The process that has waited longest.</span></div>
+          <div class="row"><span>p</span><span>The projects list.</span></div>
+          <div class="row"><span>c</span><span>The console.</span></div>
+          <div class="row"><span>q</span><span>Detach.</span></div>
+        </div>
       </div>
     </div>
     <div class="foot">

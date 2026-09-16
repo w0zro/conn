@@ -43,7 +43,9 @@ conn finds projects by walking the roots it was given: the directories named in
 \fB~/.config/conn/config.json\fR, or in \fBCONN_ROOTS\fR, which is read first. A
 project is a repository under a root, or a folder under one that holds two or
 more. conn is told the roots and infers nothing; a conn that has been told
-nothing asks before it goes on.
+nothing asks before it goes on, in a line typed into: the directories that
+answer what is typed are the rows, \fBtab\fR fills the line in with the one
+under the cursor, and \fBenter\fR takes it and writes it to the file.
 .TP
 1-4.
 The installation procedure on the cover puts the binary in \fB~/.local/bin\fR
@@ -110,6 +112,12 @@ Finished, and not yet collected.
 .TP
 \fBDOWN\fR
 Declared in the project's .conn, and not running.
+.TP
+\fBEXIT n\fR
+Ended with that code: a service, or a declared process. A fault.
+.TP
+\fBUNHEALTHY, RESTARTING, STARTING\fR
+A service, as docker says it stands. The first two are faults.
 .RE
 .TP
 2-3.

@@ -538,7 +538,23 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 		t.Errorf("arming a shell: kill %+v", m.kill)
 	}
 
-	m.projects, m.kill = nil, nil
+	// A shell whose rows are folded says what it runs, and x on it ends
+	// that — the command, looking through the bash -c — and not the
+	// shell.
+	m.tree = []project{{path: "/w", entries: []entry{
+		{pid: 30, kind: kindShell, command: "zsh", typed: "zsh"},
+		{pid: 31, kind: kindShell, command: "bash -c go test ./...", typed: "bash -c go test ./...", depth: 1},
+		{pid: 32, kind: kindRun, command: "go test ./...", typed: "go test ./...", depth: 2},
+	}}}
+	m.projects = fold(m.tree)
+	m.cursor, m.kill = 30, nil
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if m.kill == nil || m.kill.pid != 32 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "END GO 32 ·") {
+		t.Errorf("arming a folded shell: kill %+v", m.kill)
+	}
+
+	m.projects, m.tree, m.kill = nil, nil, nil
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
 	if cmd != nil || m.kill != nil {

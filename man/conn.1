@@ -145,8 +145,9 @@ the cursor back up.
 2-5.
 \fBx\fR asks to end the process under the cursor, on the status line. \fBx\fR,
 \fBy\fR or \fBenter\fR answers yes and any other key withdraws the question. A
-bare shell is killed outright; anything a shell runs is sent SIGTERM; a service
-is stopped with docker stop. The shell a process ran in is left at its prompt.
+bare shell is killed outright; anything a shell runs is sent SIGTERM, from its
+own row or from the shell's row that says it; a service is stopped with docker
+stop. The shell a process ran in is left at its prompt.
 .TP
 2-6.
 A service has no pane, so \fBenter\fR on one opens its output, and \fBenter\fR

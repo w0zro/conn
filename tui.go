@@ -1379,6 +1379,18 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if e.declared != "" {
 			return m.armDeclared(e)
 		}
+		// A shell whose rows are folded says what it runs, and x on it
+		// is x on that: the command is asked to end and the shell is
+		// left at its prompt, as it is when the command has a row of
+		// its own. Killing the shell for being a shell would take the
+		// command with it, from a row that named the command.
+		if e.kind == kindShell && e.under != "" {
+			if run, ok := m.runsOf(e); ok {
+				name := program(run.asTyped())
+				m.kill = &pendingKill{pid: run.pid, command: name, sig: syscall.SIGTERM, prompt: killPrompt(name, run.pid, syscall.SIGTERM)}
+				return m, nil
+			}
+		}
 		sig := killSignal(e.kind)
 		// The question names the program: a contact's whole command
 		// line is the note conn handed it, and a question that long is
@@ -1871,6 +1883,38 @@ func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
 	}
 	m.kill = &pendingKill{pid: pid, command: name, sig: syscall.SIGTERM, prompt: killPrompt(name, pid, syscall.SIGTERM)}
 	return m, nil
+}
+
+// runsOf is what a shell runs, in the tree whole: the first row under
+// it that is not a shell itself, looking through a bash -c to the
+// command it was given, the way the fold does for the shell's own row;
+// with nothing but shells under it, the first of those.
+func (m model) runsOf(head entry) (entry, bool) {
+	projects := m.tree
+	if len(projects) == 0 {
+		projects = m.projects
+	}
+	for _, pl := range projects {
+		for i, e := range pl.entries {
+			if e.pid != head.pid {
+				continue
+			}
+			var first entry
+			for _, under := range pl.entries[i+1:] {
+				if under.depth <= e.depth {
+					break
+				}
+				if under.kind != kindShell {
+					return under, true
+				}
+				if first.pid == 0 {
+					first = under
+				}
+			}
+			return first, first.pid != 0
+		}
+	}
+	return entry{}, false
 }
 
 // childOf is the first row under a pane's head: what the head runs,

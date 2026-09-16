@@ -542,23 +542,22 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "sleep 100", "Enter"); err != nil {
 		t.Fatal(err)
 	}
-	// Two rows at the scratch's own project now: the shell, and the sleep
-	// under it. Counting there rather than anywhere on the panel, which is
-	// the whole machine's and has sleeps of its own on it.
-	s.until("sleep running in the bay", func() bool {
-		return s.projectRows() == 2 && strings.Contains(s.panel(), "sleep 100")
+	// One row at the scratch's own project still: the shell, saying
+	// sleep 100 for what it runs, the sleep folded into it. Counting
+	// there rather than anywhere on the panel, which is the whole
+	// machine's and has sleeps of its own on it.
+	s.until("sleep running in the bay, on the shell's row", func() bool {
+		return s.projectRows() == 1 && strings.Contains(s.panel(), "sleep 100")
 	})
 
-	// The cursor stayed on the shell's own pid — it does not jump to a
-	// child that only just appeared under it — and sleep is nested
-	// right below it, the tree's next row down.
-	s.keys("j")
+	// The cursor stayed on the shell's own pid, and x on the shell's
+	// row is x on what it runs: the question names sleep.
 	s.keys("x")
 	s.until("the kill armed, naming sleep", func() bool { return strings.Contains(s.statusLine(), "END SLEEP ") })
 	s.keys("x")
 
-	s.until("sleep to end and the shell to have the project to itself", func() bool {
-		return s.projectRows() == 1
+	s.until("sleep to end and the shell to be bare again", func() bool {
+		return s.projectRows() == 1 && !strings.Contains(s.panel(), "sleep 100")
 	})
 	if s.paneDead("home.1") || !s.shellIn("home.1") {
 		t.Errorf("the shell did not survive ending what it ran")

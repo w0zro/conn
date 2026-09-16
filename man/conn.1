@@ -137,7 +137,7 @@ running in it or not, and under each what conn has running there. Typing narrows
 it. The workspace holds the readout here too, on the row under the cursor: a
 process's own, or for a project where it is, what git says of it, and what is
 running in it. \fBenter\fR opens a shell at the row under the cursor,
-\fBalt\-c\fR starts a contact there, \fBalt\-a\fR lists the sessions a contact
+\fBalt\-a\fR starts a contact there, \fBalt\-A\fR lists the sessions a contact
 left suspended there, \fBalt\-u\fR brings up what the project declares, and
 \fBesc\fR goes back. In the sessions list, \fBenter\fR picks the session under
 the cursor back up, and the workspace holds the readout on it: when it last
@@ -206,7 +206,7 @@ A shell at the project the panel is looking at.
 \fBprefix a\fR
 A contact at that project.
 .TP
-\fBprefix alt\-a\fR
+\fBprefix A\fR
 The sessions suspended at that project.
 .TP
 \fBprefix ?\fR
@@ -222,7 +222,7 @@ processes view takes them. In the projects list and the sessions list a letter
 is typed into the line instead, and the line is edited with readline's keys:
 there, \fBenter\fR takes the row under the cursor and \fBesc\fR goes back. On
 such a line ctrl is readline's, and what a letter does in the processes view is
-done with alt: \fBalt\-s\fR, \fBalt\-c\fR, \fBalt\-a\fR and \fBalt\-u\fR, which
+done with alt: \fBalt\-s\fR, \fBalt\-a\fR, \fBalt\-A\fR and \fBalt\-u\fR, which
 are the keys the chords send.
 .PP
 .I "The panel"
@@ -252,6 +252,9 @@ A shell at the project. On a service, a shell inside the container.
 .TP
 \fBa\fR
 A contact at the project.
+.TP
+\fBA\fR
+The sessions suspended at the project.
 .TP
 \fBx\fR
 End it: a signal to a process, docker stop to a service, and on a declared

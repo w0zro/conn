@@ -85,13 +85,18 @@ func TestTheManualsChordTableIsTheChordsConnBinds(t *testing.T) {
 		t.Skip("the manual has no chord table yet")
 	}
 	// A chord as the manual writes it: tmux's own spelling of the key,
-	// lowered, with its modifier said in words and the prefix itself
-	// named rather than spelt.
+	// a named key lowered, with its modifier said in words and the
+	// prefix itself named rather than spelt. A letter keeps its case:
+	// a and A are two chords.
 	say := func(key string) string {
 		if key == defaultPrefix {
 			return "prefix"
 		}
-		return strings.ToLower(strings.ReplaceAll(key, "M-", "alt-"))
+		key = strings.ReplaceAll(key, "M-", "alt-")
+		if len(key) == 1 {
+			return key
+		}
+		return strings.ToLower(key)
 	}
 	bound := map[string]bool{}
 	for _, m := range regexp.MustCompile(`(?m)^bind (\S+) `).FindAllStringSubmatch(tmuxConf(defaultPrefix), -1) {

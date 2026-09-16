@@ -1086,7 +1086,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // in the processes view c brings the console back over the whole
 // window, enter reaches the cursor's process, esc goes back into the
 // last process the workspace held, s opens a shell at its project, a
-// opens claude there instead, and alt+a opens the sessions view over
+// opens claude there instead, and alt+A opens the sessions view over
 // what claude left suspended there. tab goes to what is waiting on you,
 // longest first, and round again. x asks to end the cursor's process,
 // and arms the question rather than the ending: the next key answers
@@ -1145,10 +1145,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	}
 	// A shell, a contact, and the sessions suspended at the project the
 	// panel is looking at, each from anywhere in the server: what the
-	// prefix then s, then a, and then alt-a send. Each is a key of its
-	// own for the reason the three above are — in the list and in the
+	// prefix then s, then a, and then A send. Each is a key of its own
+	// for the reason the three above are — in the list and in the
 	// sessions view a plain s or a is a letter being typed into the
-	// line.
+	// line. The letter is the same on every road to the thing: a is a
+	// contact and A the sessions in the processes view, alt+a and
+	// alt+A on a line typed into, prefix a and prefix A from anywhere.
 	//
 	// In a line typed into, ctrl is readline's and alt is conn's. The
 	// line is edited the way readline edits one, and a ctrl key there
@@ -1157,7 +1159,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// it was — so conn's own verbs on a line are all on alt, and the
 	// alt key is the one the chord sends, so a hand learns one key for
 	// one thing wherever it is pressed.
-	if k == "alt+s" || k == "alt+c" || k == "alt+a" {
+	if k == "alt+s" || k == "alt+a" || k == "alt+shift+a" {
 		return m.openAt(k)
 	}
 	// Everything the project the panel is looking at declares and does
@@ -1402,6 +1404,10 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m, m.startContact(pl.path)
 		}
+	case k == "A":
+		// The sessions at the project: the capital of the contact's
+		// key, a session being a contact's to pick back up.
+		return m.openAt("alt+shift+a")
 	case k == "tab":
 		return m.toWaiting()
 	case k == "p":
@@ -1416,8 +1422,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // see typed for the keys every such line has. What is the list's own:
 // enter opens a shell at the row under the cursor and goes back to the
 // processes view, which is where the shell will show, or goes into the
-// row where it is a process; alt+c opens claude there instead, since
-// a plain a is a letter to type; alt+a opens the sessions view over
+// row where it is a process; alt+a opens claude there instead, since
+// a plain a is a letter to type; alt+A opens the sessions view over
 // what claude left suspended at the row, group included, the same way
 // — not a plain A, which would take a letter the line can still be
 // typed with, and not ctrl+shift+a, which is not its own chord to any
@@ -1819,7 +1825,7 @@ func (m model) openAt(k string) (tea.Model, tea.Cmd) {
 	if !m.inside || !ok {
 		return m, nil
 	}
-	if k == "alt+a" {
+	if k == "alt+shift+a" {
 		m.from = m.cameFrom()
 		return m.openSessions(path, dirs)
 	}
@@ -1828,7 +1834,7 @@ func (m model) openAt(k string) (tea.Model, tea.Cmd) {
 		mm, cmd := m.toProcesses()
 		m, cmds = mm.(model), append(cmds, cmd)
 	}
-	if k == "alt+c" {
+	if k == "alt+a" {
 		return m, tea.Batch(append(cmds, m.startContact(path))...)
 	}
 	return m, tea.Batch(append(cmds, m.openShell(path))...)

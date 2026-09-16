@@ -472,7 +472,7 @@ func TestAOpensAContactAtTheProject(t *testing.T) {
 	}
 }
 
-// alt+a opens the sessions view over what claude left suspended at the
+// alt+A opens the sessions view over what claude left suspended at the
 // project under the cursor, asking for that project's own directory
 // alone. Plain A is not bound to it — a shift chord costs the same as
 // an alt one, so there is no reason to answer to both.
@@ -482,14 +482,14 @@ func TestAltAOpensSessionsAtTheProject(t *testing.T) {
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
 	m.cursor = 11
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+shift+a"}))
 	m = next.(model)
 	if cmd != nil || m.view != viewProcesses {
 		t.Errorf("outside the server: cmd %v, view %d", cmd != nil, m.view)
 	}
 
 	m.inside = true
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+shift+a"}))
 	m = next.(model)
 	if m.view != viewSessions || !m.sessionsLoading || cmd == nil {
 		t.Fatalf("in the server: view %d, loading %v, cmd %v", m.view, m.sessionsLoading, cmd != nil)
@@ -501,12 +501,13 @@ func TestAltAOpensSessionsAtTheProject(t *testing.T) {
 		t.Errorf("scanConvos did not ask for the project under the cursor: %v", cmd())
 	}
 
-	// A is unbound in the processes view: nothing happens, the view holds.
+	// In the processes view A is the sessions too: the capital of the
+	// contact's key.
 	m.view = viewProcesses
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
 	m = next.(model)
-	if m.view != viewProcesses || cmd != nil {
-		t.Errorf("A did something: view %d, cmd %v", m.view, cmd != nil)
+	if m.view != viewSessions || cmd == nil {
+		t.Errorf("A did not open the sessions: view %d, cmd %v", m.view, cmd != nil)
 	}
 }
 
@@ -689,25 +690,25 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	}
 }
 
-// alt+c opens claude at the row instead, the way enter opens a shell
+// alt+a opens claude at the row instead, the way enter opens a shell
 // there — plain a is a letter to type into the filter, and ctrl+a is
 // the start of the line, so this is the list's key for it.
-func TestAltCOpensAnAgentAtTheProject(t *testing.T) {
+func TestAltAOpensAnAgentAtTheProject(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.walked, m.find.at = viewProjects, testProjects, 3
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+c"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
 	if m.view != viewProcesses || cmd == nil {
 		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
-		t.Errorf("alt+c did not both read the processes view and open the contact: %T", cmd())
+		t.Errorf("alt+a did not both read the processes view and open the contact: %T", cmd())
 	}
 }
 
-// alt+a opens the sessions view at the row's own directory, or, on a
+// alt+A opens the sessions view at the row's own directory, or, on a
 // group, at every repository under it too — a transcript is filed by
 // the exact directory it was had in, not the folder that names them.
 // Plain A is not bound to it, unlike ctrl+shift+a which never could be
@@ -718,7 +719,7 @@ func TestAltAOpensSessionsFromProjects(t *testing.T) {
 	m.view, m.walked, m.find.at = viewProjects, testProjects, 0 // arboreum.io, a group of two
 	m.inside = true
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+shift+a"}))
 	m = next.(model)
 	if m.view != viewSessions || cmd == nil {
 		t.Fatalf("view %d, cmd %v", m.view, cmd != nil)
@@ -868,7 +869,7 @@ func TestAltPOpensTheListFromAnywhere(t *testing.T) {
 
 // A shell, a contact and the sessions at the project the panel is
 // looking at, each reachable from anywhere in the server. They are the
-// keys the prefix then s, then a and then alt-a send, and each has to
+// keys the prefix then s, then a and then A send, and each has to
 // mean the one thing in every view the panel can be in, since in the
 // list and in the sessions view a plain s or a is a letter being typed.
 func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
@@ -892,7 +893,7 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	if m.view != viewProcesses || cmd == nil {
 		t.Errorf("a shell from the processes view: view %d, cmd %v", m.view, cmd != nil)
 	}
-	if m, cmd = press(panel(viewProcesses), "alt+c"); m.view != viewProcesses || cmd == nil {
+	if m, cmd = press(panel(viewProcesses), "alt+a"); m.view != viewProcesses || cmd == nil {
 		t.Errorf("a contact from the processes view: view %d, cmd %v", m.view, cmd != nil)
 	}
 
@@ -901,7 +902,7 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	if m, cmd = press(panel(viewProjects), "alt+s"); m.view != viewProcesses || cmd == nil {
 		t.Errorf("a shell from the list: view %d, cmd %v", m.view, cmd != nil)
 	}
-	if m, cmd = press(panel(viewProjects), "alt+c"); m.view != viewProcesses || cmd == nil {
+	if m, cmd = press(panel(viewProjects), "alt+a"); m.view != viewProcesses || cmd == nil {
 		t.Errorf("a contact from the list: view %d, cmd %v", m.view, cmd != nil)
 	}
 
@@ -919,12 +920,12 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 		t.Errorf("a shell from the sessions view: view %d, cmd %v", m.view, cmd != nil)
 	}
 
-	// alt+a goes to the sessions view rather than coming back, since it
+	// alt+A goes to the sessions view rather than coming back, since it
 	// is somewhere to be and not something to open.
-	if m, _ = press(panel(viewProcesses), "alt+a"); m.view != viewSessions || m.sessionsProject != "/w" {
+	if m, _ = press(panel(viewProcesses), "alt+shift+a"); m.view != viewSessions || m.sessionsProject != "/w" {
 		t.Errorf("sessions from the processes view: view %d, at %q", m.view, m.sessionsProject)
 	}
-	if m, _ = press(panel(viewProjects), "alt+a"); m.view != viewSessions || m.sessionsProject != "/w/repo" {
+	if m, _ = press(panel(viewProjects), "alt+shift+a"); m.view != viewSessions || m.sessionsProject != "/w/repo" {
 		t.Errorf("sessions from the list: view %d, at %q", m.view, m.sessionsProject)
 	}
 

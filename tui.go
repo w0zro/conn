@@ -416,11 +416,7 @@ func followRow(rows []projectRow, was projectRow, at int) int {
 }
 
 func (m model) Init() tea.Cmd {
-	// The roots are walked as conn comes up, and not only when the list
-	// is opened: the processes view lists what every project declares
-	// should be working it, which is read from the projects the walk
-	// finds.
-	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink(), m.scanProjects()}
+	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
 	if m.inside {
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }))
 	}
@@ -439,7 +435,7 @@ func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots.rootOf, m.roots.isProject
 	home, configured := m.head.login.home, m.roots.configured
 	containers := m.containers
-	walked, declared, full := m.walked, m.declared, m.full
+	declared, full := m.declared, m.full
 	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
 	var srv *server
 	if m.inside {
@@ -520,7 +516,7 @@ func (m model) readProcesses() tea.Cmd {
 		// And what the projects declare should be working them, which
 		// the table has no word for until it is: a stat per project,
 		// and a read where a file changed.
-		declared = refreshDeclared(declared, declaredPaths(projects, walked, isProject))
+		declared = refreshDeclared(declared, declaredPaths(projects, isProject))
 		projects = attachDeclared(projects, declared, panes)
 		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
@@ -981,12 +977,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// with its rows already in it, drawn at the panel's width, and the
 		// bay opens beside a frame that is already the shape it will be.
 		var cmds []tea.Cmd
-		// On new roots the walk is made again, so the projects the
-		// reading asks for a .conn follow the roots rather than the
-		// list's last opening.
-		if msg.rooted != nil {
-			cmds = append(cmds, m.scanProjects())
-		}
 		if m.entering {
 			m.entering, m.view = false, viewProcesses
 			if m.inside {
@@ -1839,11 +1829,11 @@ func (m model) openAt(k string) (tea.Model, tea.Cmd) {
 // and does not have running. From another view the processes view is
 // put up on the way, since that is where the rows will show.
 func (m model) raiseAt() (tea.Model, tea.Cmd) {
+	// The file is read by the raise itself, off the loop, so a project
+	// with nothing running — whose file the reading has not read — is
+	// brought up from the list all the same.
 	path, _, ok := m.atProject()
 	if !m.inside || !ok || path == "" {
-		return m, nil
-	}
-	if _, has := m.declared[path]; !has {
 		return m, nil
 	}
 	up, held := upAndHeld(m.projects, m.panes, path)

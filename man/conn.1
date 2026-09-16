@@ -158,15 +158,16 @@ container.
 .TP
 2-7.
 A project may declare the processes that work it in a file named \fB.conn\fR at
-its path; the file's form is at 4-5. A project with one has a block whether or
-not anything is running in it, and each declared process not running is a row at
-the foot of the block, dimmed and worded DOWN. \fBenter\fR on such a row brings
-it up in a pane of the station and goes into it; \fBu\fR on any row of the
-project brings up everything it declares that is down. A pane conn opened this
-way carries the declared name on its head row. When the process ends the pane
-holds its output and the row reads ENDED, or EXIT and the code as a fault;
-\fBenter\fR goes in to read it, \fBu\fR opens it anew, and \fBx\fR closes it. A
-file that will not read is said under the block, with the line.
+its path; the file's form is at 4-5. Where work is happening in the project,
+each declared process not running is a row at the foot of its block, dimmed and
+worded DOWN; a project nothing is running in shows nothing of its file.
+\fBenter\fR on such a row brings it up in a pane of the station and goes into
+it; \fBu\fR on any row of the project brings up everything it declares that is
+down. A pane conn opened this way carries the declared name on its head row.
+When the process ends the pane holds its output and the row reads ENDED, or EXIT
+and the code as a fault; \fBenter\fR goes in to read it, \fBu\fR opens it anew,
+and \fBx\fR closes it. A file that will not read is said under the block, with
+the line.
 .SH KEYS
 .TP
 3-1.

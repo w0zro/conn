@@ -1419,12 +1419,13 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 		t.Errorf("alt+u from the list: cmd %v, view %d", cmd != nil, m.view)
 	}
 
-	// A project that declares nothing has nothing to bring up.
+	// The raise reads the file itself, so a project the reading has not
+	// read a file for — nothing running in it — is still asked.
 	m.declared = nil
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "u"}))
 	m = next.(model)
-	if cmd != nil {
-		t.Error("u on a project with no file opened something")
+	if cmd == nil {
+		t.Error("u with the file unread asked nothing")
 	}
 }
 

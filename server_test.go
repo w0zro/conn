@@ -923,6 +923,10 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
+	// The down rows show beside work in the project, and nothing is
+	// working in it yet: a shell there is the work.
+	s.openShell()
+	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
 
 	rowSays := func(name, word string) bool {
 		for _, l := range s.projectRowLines() {
@@ -960,9 +964,9 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.until("sleeper ACTIVE and quick ENDED on the panel", func() bool {
 		return rowSays("sleeper", "ACTIVE") && rowSays("quick", "ENDED")
 	})
-	// The panes were parked: the bay still holds conn's own furniture.
-	if s.shellIn("home.1") {
-		t.Error("u put a pane in the bay")
+	// The panes were parked: the bay still holds the shell it held.
+	if !s.shellIn("home.1") {
+		t.Error("u changed what the bay holds")
 	}
 
 	// The cursor waits on the first pane raised, sleeper's head; under

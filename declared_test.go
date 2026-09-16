@@ -116,14 +116,13 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 	}
 }
 
-// The projects asked for a file are the blocks that are projects and
-// what the walk found, once each, in order.
-func TestTheProjectsAskedAreTheBlocksAndTheWalk(t *testing.T) {
-	projects := []project{{path: "/r/b"}, {path: "/home"}, {path: "/r/a"}}
-	walked := []projectRow{{path: "/r/a"}, {path: "/r/c"}, {path: "/r/c", pid: 12}, {path: ""}}
+// The projects asked for a file are the blocks that are projects, once
+// each, in order.
+func TestTheProjectsAskedAreTheBlocks(t *testing.T) {
+	projects := []project{{path: "/r/b"}, {path: "/home"}, {path: "/r/a"}, {path: "/r/b"}}
 	isProject := func(p string) bool { return strings.HasPrefix(p, "/r/") }
-	got := declaredPaths(projects, walked, isProject)
-	if want := []string{"/r/a", "/r/b", "/r/c"}; !reflect.DeepEqual(got, want) {
+	got := declaredPaths(projects, isProject)
+	if want := []string{"/r/a", "/r/b"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("paths: %v, want %v", got, want)
 	}
 }
@@ -162,8 +161,8 @@ func TestTheLineRunInThePane(t *testing.T) {
 // the foot of its block; one with a pane marked as its own is that
 // pane's head, relabelled, and worded by its end once it has one; a
 // pane whose rows are not read yet is no row; a project with a file
-// and no work gets a block in its place by path; a file that would not
-// read is the block's note.
+// and no block shows nothing of it; a file that would not read is the
+// block's note.
 func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	app, lib, zed := "/r/app", "/r/lib", "/r/zed"
 	projects := []project{
@@ -205,8 +204,6 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 		"  RUN npm run dev ACTIVE ttys002 ",
 		" RUN api · go run . EXIT 1 ttys003 " + markDeclared(app, "api"),
 		" RUN worker · make run DOWN  " + markDeclared(app, "worker"),
-		lib + " · ",
-		" RUN docs · mkdocs serve DOWN  " + markDeclared(lib, "docs"),
 		zed + " · .conn: line 1: want name [dir]: command",
 		" SHELL zsh IDLE ttys004 ",
 	}

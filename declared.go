@@ -23,7 +23,10 @@ import (
 //
 // A declared process that is not running is a row of the project's
 // block in the processes view, dimmed and worded DOWN, at the foot of
-// the block in the order of the file. Brought up, it runs in a pane of
+// the block in the order of the file — where the project has a block,
+// which is where work is happening in it. A project nothing is running
+// in shows nothing of its file: the processes view is what is running,
+// and a list of everything every project could run is not. Brought up, it runs in a pane of
 // conn's server marked as the declaration, and the pane's head row
 // carries the declared name; when it ends, the pane holds its output
 // and the row reads ENDED, or EXIT n as a fault. A process started by
@@ -169,24 +172,14 @@ func refreshDeclared(was map[string]declared, paths []string) map[string]declare
 }
 
 // declaredPaths is every project worth asking for a file: the projects
-// the reading has blocks for, kept to those that are projects, and
-// every project the walk found — so a project nothing is running in
-// still gets its block and its down rows.
-func declaredPaths(projects []project, walked []projectRow, isProject func(string) bool) []string {
+// the reading has blocks for, kept to those that are projects.
+func declaredPaths(projects []project, isProject func(string) bool) []string {
 	seen := map[string]bool{}
 	var out []string
-	add := func(path string) {
-		if path != "" && !seen[path] && isProject(path) {
-			seen[path] = true
-			out = append(out, path)
-		}
-	}
 	for _, pl := range projects {
-		add(pl.path)
-	}
-	for _, r := range walked {
-		if r.pid == 0 {
-			add(r.path)
+		if pl.path != "" && !seen[pl.path] && isProject(pl.path) {
+			seen[pl.path] = true
+			out = append(out, pl.path)
 		}
 	}
 	sort.Strings(out)
@@ -280,9 +273,9 @@ func upAndHeld(projects []project, panes map[string]pane, path string) (up map[s
 // attachDeclared puts the declarations among the rows. A declaration
 // with a pane marked as its own is that pane's head row, relabelled
 // with the name and, once the pane has recorded an end, worded by it;
-// one without is a down row at the foot of its project's block. A
-// project with a file and no block gets one, in its place by path. A
-// file that would not read is the block's note.
+// one without is a down row at the foot of its project's block. A file
+// that would not read is the block's note. A project with no block —
+// nothing running in it — shows nothing of its file.
 func attachDeclared(projects []project, declared map[string]declared, panes map[string]pane) []project {
 	if len(declared) == 0 {
 		return projects
@@ -307,7 +300,10 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 	}
 	sort.Strings(paths)
 	for _, path := range paths {
-		i := blockAt(&out, path)
+		i := blockOf(out, path)
+		if i < 0 {
+			continue
+		}
 		d := declared[path]
 		if d.err != "" {
 			out[i].note = d.err
@@ -333,27 +329,15 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 	return out
 }
 
-// blockAt is the index of a project's block, made where there is none:
-// in its place among the others by path, which is the order they are
-// in, so a block that is only declarations is found where a block with
-// work would be.
-func blockAt(out *[]project, path string) int {
-	for i, pl := range *out {
+// blockOf is the index of a project's block, or below zero where the
+// project has none.
+func blockOf(out []project, path string) int {
+	for i, pl := range out {
 		if pl.path == path {
 			return i
 		}
 	}
-	at := len(*out)
-	for i, pl := range *out {
-		if pl.path > path {
-			at = i
-			break
-		}
-	}
-	*out = append(*out, project{})
-	copy((*out)[at+1:], (*out)[at:])
-	(*out)[at] = project{path: path}
-	return at
+	return -1
 }
 
 // relabel makes the head row of a declaration's pane say what it is:

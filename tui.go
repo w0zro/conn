@@ -161,9 +161,9 @@ type model struct {
 	blinkGen int  // which run of the blink a turn belongs to
 	ticking  bool // the blink's tick is in flight, because something annunciates
 	projects []project
-	cursor   int // the pid the cursor is on
-	cursorAt int // where in the rows it was, for when the pid goes
-	told     int // the cursor as last published for the readout to follow
+	cursor   int     // the pid the cursor is on
+	cursorAt int     // where in the rows it was, for when the pid goes
+	told     subject // the subject as last published for the readout to follow
 	// The table's record behind each row as last read, published with
 	// the rows for the page; see cursor.go.
 	records map[int]record
@@ -288,7 +288,6 @@ func newModel(p palette) model {
 		// conn comes up on the console, which annunciates, and Init sets
 		// the blink going with everything else.
 		ticking: true,
-		told:    -1, // nothing published yet; the first cursor is news
 
 		head: station{build: readBuild(), login: readLogin()},
 		now:  time.Now(),
@@ -689,29 +688,49 @@ func (m model) station() string {
 // last telling or when a reading is saying it again. The readout
 // follows it; nothing else reads it.
 func (m model) published(again bool) model {
-	pid := m.cursor
-	// Off the processes view there is no cursor on a process. The subject
-	// is not unchosen by going to the list to open something — the readout
-	// goes on reading the row it was given — so nothing is said rather
-	// than a nothing said.
+	at := m.subject()
+	// With no subject there is nothing to say. The subject is not
+	// unchosen by going to a view with no cursor on anything — the
+	// readout goes on reading what it was given — so nothing is said
+	// rather than a nothing said.
 	//
 	// With no home there is nowhere to say it: the path would be a
 	// relative one, and conn does not write beside whatever directory
 	// it happens to have been started in.
-	if m.view != viewProcesses || !m.inside || m.head.login.home == "" {
+	if at.none() || !m.inside || m.head.login.home == "" {
 		return m
 	}
-	if pid != m.told || again {
-		m.told = pid
-		// The reading goes with the pid, as the panel shows it, so the
-		// page says what the panel says and asks the machine nothing;
-		// see cursor.go.
-		tellCursor(cursorPath(m.head.login.home), pid, &reading{
+	if at != m.told || again {
+		m.told = at
+		// The reading goes with the subject, as the panel shows it, so
+		// the page says what the panel says and asks the machine
+		// nothing; see cursor.go.
+		tellCursor(cursorPath(m.head.login.home), at, &reading{
 			projects: m.projects, records: m.records, panes: m.panes,
 			inside: m.inside, containers: m.containers,
 		})
 	}
 	return m
+}
+
+// subject is what the page is about, as the panel has it: the process
+// under the cursor in the processes view, and in the list the row the
+// cursor is on — a process where the row is one, and the project
+// otherwise, since a project is as much a thing to read about as a
+// row in it. The other views have no cursor on anything.
+func (m model) subject() subject {
+	switch m.view {
+	case viewProcesses:
+		return subject{pid: m.cursor}
+	case viewProjects:
+		if row, ok := m.atCursor(); ok {
+			if row.pid != 0 {
+				return subject{pid: row.pid}
+			}
+			return subject{path: row.path}
+		}
+	}
+	return subject{}
 }
 
 // containerAt is the container a row stands for, where it is one, as the
@@ -965,6 +984,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.find.at = clamp(m.find.at, len(rows))
 			}
+			// The page is what the workspace holds here too, about the
+			// row the cursor is on.
+			mm, cmd := m.keepingPage()
+			m = mm.(model)
+			cmds = append(cmds, cmd)
 		}
 		return m, tea.Batch(cmds...)
 	case processesTickMsg:
@@ -980,6 +1004,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.find.at = clamp(m.find.at, len(rows))
 		}
+		// The walk has given the list its rows, and the page comes up
+		// for the one the cursor is on without anybody asking.
+		return m.keepingPage()
 	case sessionsMsg:
 		// Only the sessions view that asked for these dirs wants them; one
 		// opened on another project since has moved past the answer.
@@ -1659,10 +1686,10 @@ func (m model) keepingPage() (tea.Model, tea.Cmd) {
 	// the manual is up, which would stop this on its own; saying it
 	// plainly as well means the page cannot come back the moment the
 	// cursor does.
-	if !m.inside || m.view != viewProcesses || m.looking || m.helping || !m.focused {
+	if !m.inside || (m.view != viewProcesses && m.view != viewProjects) || m.looking || m.helping || !m.focused {
 		return m, nil
 	}
-	if _, _, ok := m.under(); !ok {
+	if m.subject().none() {
 		return m, nil
 	}
 	m.looking = true

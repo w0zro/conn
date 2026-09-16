@@ -52,7 +52,7 @@ const (
 
 type readoutModel struct {
 	srv           *server
-	pid           int
+	at            subject
 	follow        bool   // the subject is the panel's cursor, not a pid given
 	cursor        string // where the panel publishes it
 	note          string // what the panel last said there, to tell a change by
@@ -71,14 +71,14 @@ type readoutModel struct {
 // is as good for the next row as for the one it was asked for, and is
 // kept.
 type readoutReadMsg struct {
-	pid    int
+	at     subject
 	report readoutReport
 	table  readoutTable
 	ok     bool // the subject was found, and the report is about it
 }
 
 func runReadout(srv *server, pid int, home string, p palette) error {
-	m := readoutModel{srv: srv, pid: pid, follow: pid == 0, cursor: cursorPath(home), p: p,
+	m := readoutModel{srv: srv, at: subject{pid: pid}, follow: pid == 0, cursor: cursorPath(home), p: p,
 		report: readoutReport{pid: pid}}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
@@ -99,7 +99,7 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// back to a row the cursor has left. What was asked is kept
 		// whatever row it was asked for.
 		m.table.sess, m.table.git, m.table.carried = msg.table.sess, msg.table.git, msg.table.carried
-		if msg.pid == m.pid {
+		if msg.at == m.at {
 			if msg.ok {
 				m.report = msg.report
 			}
@@ -118,13 +118,13 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// with its row.
 		if note := readCursor(m.cursor); note != m.note {
 			m.note = note
-			pid, r := parseCursor(note)
+			at, r := parseCursor(note)
 			if r != nil {
 				m.table = m.table.on(*r)
 			}
 			moved := false
-			if m.follow && pid != 0 && pid != m.pid {
-				m.pid, moved = pid, true
+			if m.follow && !at.none() && at != m.at {
+				m.at, moved = at, true
 			}
 			// The row is answered now, out of what the panel said, and
 			// the asking only adds to that answer what is about the row
@@ -134,10 +134,10 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// row that has gone, since the panel's cursor is always in
 			// the panel's own reading and a pinned pid is the only kind
 			// that can be missing from it.
-			if page, ok := readoutPage(m.pid, m.table); ok {
+			if page, ok := readoutPage(m.at, m.table); ok {
 				m.report = page
-			} else if m.table.published && m.pid != 0 {
-				m.report = readoutReport{pid: m.pid, gone: true}
+			} else if m.table.published && m.at.pid != 0 {
+				m.report = readoutReport{pid: m.at.pid, gone: true}
 			}
 			if moved {
 				return m.reading()
@@ -174,11 +174,11 @@ func (m readoutModel) tick() tea.Cmd {
 // asked of a project or a session is not asked again from nothing.
 func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 	m.read, m.inflight = time.Now(), true
-	pid, held := m.pid, m.table
+	at, held := m.at, m.table
 	return m, tea.Batch(
 		func() tea.Msg {
-			report, table, ok := readoutOf(pid, held)
-			return readoutReadMsg{pid: pid, report: report, table: table, ok: ok}
+			report, table, ok := readoutOf(at, held)
+			return readoutReadMsg{at: at, report: report, table: table, ok: ok}
 		},
 		m.tick(),
 	)
@@ -205,16 +205,16 @@ func (t readoutTable) on(r reading) readoutTable {
 	return t
 }
 
-// readoutOf is the page for a pid as things stand and the table it was
-// composed from, and whether the subject was found in it at all. A pid
-// of nothing is a page waiting on a cursor that has not said where it
-// is yet.
-func readoutOf(pid int, held readoutTable) (readoutReport, readoutTable, bool) {
-	if pid == 0 {
+// readoutOf is the page for a subject as things stand and the table it
+// was composed from, and whether the subject was found in it at all. No
+// subject is a page waiting on a cursor that has not said where it is
+// yet.
+func readoutOf(at subject, held readoutTable) (readoutReport, readoutTable, bool) {
+	if at.none() {
 		return readoutReport{}, held, false
 	}
-	t := readoutGather(pid, held)
-	r, ok := readoutPage(pid, t)
+	t := readoutGather(at, held)
+	r, ok := readoutPage(at, t)
 	return r, t, ok
 }
 
@@ -222,7 +222,7 @@ func readoutOf(pid int, held readoutTable) (readoutReport, readoutTable, bool) {
 // answer. What it is told of those joins what it was told of the rows
 // asked after before, since a list walked down and back up again is
 // the same few projects over and over and git is a process each time.
-func readoutGather(pid int, held readoutTable) readoutTable {
+func readoutGather(at subject, held readoutTable) readoutTable {
 	// Copied rather than written into, because the page goes on reading
 	// the table it holds while this one is being made.
 	t := held
@@ -233,6 +233,13 @@ func readoutGather(pid int, held readoutTable) readoutTable {
 	if t.carried == nil {
 		t.carried = map[int]session{}
 	}
+	// A project is asked after by git alone: the rows in it are the
+	// panel's, already in hand.
+	if at.path != "" {
+		t.askGit(at.path)
+		return t
+	}
+	pid := at.pid
 	t.sess = claudeSessions()
 
 	s, ok := subjectOf(pid, t.projects, t.records)
@@ -262,21 +269,31 @@ func readoutGather(pid int, held readoutTable) readoutTable {
 			t.carried[pid] = c
 		}
 	}
-	// What git says of the project, asked again only after its own while:
-	// a page left open on one row is the same project every beat.
-	if g, ok := t.git[s.project.path]; !ok || time.Since(g.read) >= gitEvery {
-		g = readGit(s.project.path)
-		g.read = time.Now()
-		t.git[s.project.path] = g
-	}
+	t.askGit(s.project.path)
 	return t
 }
 
-// readoutPage words one row out of a table. It says whether the row is
-// there to be worded: a row the panel's reading has not got is not on
-// the page, and what that means — gone, or not yet said — is the
-// caller's to decide.
-func readoutPage(pid int, t readoutTable) (readoutReport, bool) {
+// askGit asks git about a project, again only after its own while: a
+// page left open on one row is the same project every beat.
+func (t readoutTable) askGit(path string) {
+	if g, ok := t.git[path]; !ok || time.Since(g.read) >= gitEvery {
+		g = readGit(path)
+		g.read = time.Now()
+		t.git[path] = g
+	}
+}
+
+// readoutPage words a subject out of a table. A project is always there
+// to be worded, being a place rather than a row. Of a row it says
+// whether the row is there at all: a row the panel's reading has not
+// got is not on the page, and what that means — gone, or not yet said —
+// is the caller's to decide.
+func readoutPage(at subject, t readoutTable) (readoutReport, bool) {
+	home, _ := os.UserHomeDir()
+	if at.path != "" {
+		return composeProject(at.path, t, home, time.Now()), true
+	}
+	pid := at.pid
 	s, ok := subjectOf(pid, t.projects, t.records)
 	if !ok {
 		return readoutReport{}, false
@@ -289,8 +306,6 @@ func readoutPage(pid int, t readoutTable) (readoutReport, bool) {
 		s.sess, s.carried = t.sess[pid], t.carried[pid]
 	}
 	s.git = t.git[s.project.path]
-
-	home, _ := os.UserHomeDir()
 	return composeReadout(s, home, time.Now()), true
 }
 

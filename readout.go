@@ -268,50 +268,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// What git says of the project. A row stands for work, and the branch
 	// it is on and whether the tree is clean are the first two things
 	// anyone asks of work.
-	// A channel with nothing on it says so. A directory that is no
-	// repository has nothing to report and the group does not appear,
-	// which is the page saying nothing of what there is none of; a git
-	// conn could not ask is a reading conn went for and did not get,
-	// and that is the group's to say rather than to swallow. The two
-	// looked the same from here until git.go learned to tell them
-	// apart.
-	if s.git.problem != "" {
-		g := readoutGroup{title: "PROJECT"}
-		g.add("git", s.git.problem)
-		b.groups = append(b.groups, g)
-	}
-	if s.git.repo {
-		g := readoutGroup{title: "PROJECT"}
-		branch := s.git.branch
-		if s.git.detached {
-			branch = "DETACHED"
-		}
-		if s.git.dirty > 0 {
-			branch = join(" · ", branch, strconv.Itoa(s.git.dirty)+" CHANGED")
-		} else {
-			branch = join(" · ", branch, "CLEAN")
-		}
-		g.add("branch", branch)
-		g.addAsWritten("commit", join(" · ", s.git.commit, s.git.subject))
-		g.add("committed", age(s.git.when, now)+" AGO")
-		// Against what it tracks, when it tracks anything: a branch with
-		// no upstream is not behind by nothing, there is nothing for it
-		// to be behind.
-		if s.git.upstream != "" {
-			var moves []string
-			if s.git.ahead > 0 {
-				moves = append(moves, strconv.Itoa(s.git.ahead)+" AHEAD")
-			}
-			if s.git.behind > 0 {
-				moves = append(moves, strconv.Itoa(s.git.behind)+" BEHIND")
-			}
-			if len(moves) == 0 {
-				moves = append(moves, "EVEN")
-			}
-			g.add("tracking", s.git.upstream+" · "+strings.Join(moves, ", "))
-		}
-		b.groups = append(b.groups, g)
-	}
+	b.groups = append(b.groups, gitGroups(s.git, now)...)
 
 	// What stands around it. The processes view draws the tree already,
 	// but it draws it indented across a whole project; here it is the one
@@ -339,6 +296,90 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	}
 	b.groups = append(b.groups, tree)
 
+	return b
+}
+
+// gitGroups is what git says of a project, as the page words it. A
+// channel with nothing on it says so. A directory that is no
+// repository has nothing to report and no group appears, which is the
+// page saying nothing of what there is none of; a git conn could not
+// ask is a reading conn went for and did not get, and that is the
+// group's to say rather than to swallow. The two looked the same from
+// here until git.go learned to tell them apart.
+func gitGroups(git gitStatus, now time.Time) []readoutGroup {
+	var out []readoutGroup
+	if git.problem != "" {
+		g := readoutGroup{title: "PROJECT"}
+		g.add("git", git.problem)
+		out = append(out, g)
+	}
+	if git.repo {
+		g := readoutGroup{title: "PROJECT"}
+		branch := git.branch
+		if git.detached {
+			branch = "DETACHED"
+		}
+		if git.dirty > 0 {
+			branch = join(" · ", branch, strconv.Itoa(git.dirty)+" CHANGED")
+		} else {
+			branch = join(" · ", branch, "CLEAN")
+		}
+		g.add("branch", branch)
+		g.addAsWritten("commit", join(" · ", git.commit, git.subject))
+		g.add("committed", age(git.when, now)+" AGO")
+		// Against what it tracks, when it tracks anything: a branch with
+		// no upstream is not behind by nothing, there is nothing for it
+		// to be behind.
+		if git.upstream != "" {
+			var moves []string
+			if git.ahead > 0 {
+				moves = append(moves, strconv.Itoa(git.ahead)+" AHEAD")
+			}
+			if git.behind > 0 {
+				moves = append(moves, strconv.Itoa(git.behind)+" BEHIND")
+			}
+			if len(moves) == 0 {
+				moves = append(moves, "EVEN")
+			}
+			g.add("tracking", git.upstream+" · "+strings.Join(moves, ", "))
+		}
+		out = append(out, g)
+	}
+	return out
+}
+
+// composeProject words a project: the page the list's cursor gets on a
+// project row, where the processes view's cursor is always on a
+// process. It is where the project is, what git says of it, and the
+// rows conn has running in it — the same three things the processes
+// view and the page say of a row, said of the place instead.
+func composeProject(path string, t readoutTable, home string, now time.Time) readoutReport {
+	b := readoutReport{name: tilde(path, home)}
+	where := readoutGroup{title: "WHERE"}
+	where.addPath("project", tilde(path, home))
+	b.groups = append(b.groups, where)
+	b.groups = append(b.groups, gitGroups(t.git[path], now)...)
+	// What is running there, as the processes view lists it: each row
+	// at its own depth, so a tree reads as one. A project with nothing
+	// running in it has no group, which is the page saying so.
+	running := readoutGroup{title: "RUNNING"}
+	for _, pl := range t.projects {
+		if pl.path != path {
+			continue
+		}
+		for _, e := range pl.entries {
+			label := ""
+			if len(running.facts) == 0 {
+				label = "rows"
+			}
+			running.facts = append(running.facts, fact{
+				label:    label,
+				value:    strings.Repeat("  ", e.depth) + e.kind + " " + activityOf(e) + " · " + strconv.Itoa(e.pid) + " · " + e.status,
+				verbatim: true,
+			})
+		}
+	}
+	b.groups = append(b.groups, running)
 	return b
 }
 

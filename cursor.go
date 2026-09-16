@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -42,6 +40,26 @@ import (
 
 // cursorPath is where a server's panel publishes its cursor.
 func cursorPath(home string) string { return socketPath(home) + ".cursor" }
+
+// A subject is what the page is about: a process, by its pid, or a
+// project, by its path. The processes view's cursor is always on a
+// process; the list's cursor stands on projects as often as not, and
+// a project is as much a thing to read about as a row in it.
+type subject struct {
+	pid  int
+	path string // a project, where pid is 0
+}
+
+// none says whether there is a subject at all.
+func (s subject) none() bool { return s.pid == 0 && s.path == "" }
+
+// A cursorNote is the note as it is written: the subject, and the
+// reading it stands in.
+type cursorNote struct {
+	PID     int
+	Path    string
+	Reading *reading
+}
 
 // A reading is the panel's reading of the machine, as it publishes it
 // for the page: the rows as the panel shows them, the table's record
@@ -86,19 +104,17 @@ func (r reading) containerOf(e entry) *container {
 	return nil
 }
 
-// tellCursor publishes the pid under the panel's cursor, with the
+// tellCursor publishes the subject under the panel's cursor, with the
 // reading it stands in. Nothing waits on this and nothing is broken by
 // its failing: a readout that cannot read the cursor holds the subject
 // it has, which is the same thing it does between one move and the
 // next.
-func tellCursor(path string, pid int, r *reading) {
-	line := strconv.Itoa(pid)
-	if r != nil {
-		if b, err := json.Marshal(r); err == nil {
-			line += "\n" + string(b)
-		}
+func tellCursor(path string, at subject, r *reading) {
+	b, err := json.Marshal(cursorNote{PID: at.pid, Path: at.path, Reading: r})
+	if err != nil {
+		return
 	}
-	_ = os.WriteFile(path, []byte(line), 0o600)
+	_ = os.WriteFile(path, b, 0o600)
 }
 
 // readCursor is the note as the file holds it, or nothing where there
@@ -113,27 +129,20 @@ func readCursor(path string) string {
 	return string(b)
 }
 
-// parseCursor reads a note: the pid the panel's cursor is on, or 0
-// where there is none to read — no file yet, a panel that never
+// parseCursor reads a note: the subject the panel's cursor is on, or
+// none where there is none to read — no file yet, a panel that never
 // published, a server that is not this one — and the reading the panel
 // published beside it, where it did.
-func parseCursor(note string) (int, *reading) {
-	head, rest, _ := strings.Cut(note, "\n")
-	pid, err := strconv.Atoi(strings.TrimSpace(head))
-	if err != nil {
-		return 0, nil
+func parseCursor(note string) (subject, *reading) {
+	var n cursorNote
+	if json.Unmarshal([]byte(note), &n) != nil {
+		return subject{}, nil
 	}
-	if rest = strings.TrimSpace(rest); rest != "" {
-		var r reading
-		if json.Unmarshal([]byte(rest), &r) == nil {
-			return pid, &r
-		}
-	}
-	return pid, nil
+	return subject{pid: n.PID, path: n.Path}, n.Reading
 }
 
 // askCursor is the note read and parsed in one go.
-func askCursor(path string) (int, *reading) {
+func askCursor(path string) (subject, *reading) {
 	return parseCursor(readCursor(path))
 }
 

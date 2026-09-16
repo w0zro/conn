@@ -5,6 +5,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -134,13 +135,14 @@ type (
 		// the model goes onto them with it.
 		rooted *rooting
 	}
-	processesTickMsg struct{ gen int }     // the processes view is due to be read again
-	openedMsg        struct{ shell shell } // a shell was opened; the cursor goes to it once it is read
-	reachedMsg       struct{ tty string }  // a process was put in the bay
-	readoutMsg       struct{ on bool }     // the readout was put in the bay, or taken out of it
-	helpMsg          struct{ on bool }     // the manual was put in the bay
-	blinkMsg         struct{ gen int }     // the chip's half is up
-	projectsMsg      struct {              // the roots were walked
+	processesTickMsg struct{ gen int }        // the processes view is due to be read again
+	openedMsg        struct{ shell shell }    // a shell was opened; the cursor goes to it once it is read
+	raisedMsg        struct{ shells []shell } // a project's declared processes were brought up, parked
+	reachedMsg       struct{ tty string }     // a process was put in the bay
+	readoutMsg       struct{ on bool }        // the readout was put in the bay, or taken out of it
+	helpMsg          struct{ on bool }        // the manual was put in the bay
+	blinkMsg         struct{ gen int }        // the chip's half is up
+	projectsMsg      struct {                 // the roots were walked
 		projects []projectRow
 		err      string
 	}
@@ -815,6 +817,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
 		m.processesGen++
 		return m, m.readProcesses()
+	case raisedMsg:
+		// The panes are parked and the keys stayed here; the cursor
+		// goes to the first of them once the table has it.
+		if len(msg.shells) > 0 {
+			m.awaited, m.until = msg.shells[0].pid, time.Now().Add(waitForOpened)
+		}
+		m.processesGen++
+		return m, m.readProcesses()
 	case dockerReadyMsg:
 		// The feed is running; from here conn waits on its word rather
 		// than asking docker anything on a beat.
@@ -1073,6 +1083,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			if req.container != "" {
 				return m, m.stopContainer(req.container, req.command)
 			}
+			if req.pane != "" {
+				return m, m.closeHeld(req.pane, req.command)
+			}
 			return m, m.killEntry(req.pid, req.command, req.sig)
 		}
 		return m, nil
@@ -1127,6 +1140,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// having it.
 	if k == "alt+s" || k == "ctrl+s" || k == "alt+c" || k == "alt+a" {
 		return m.openAt(k)
+	}
+	// Everything the project the panel is looking at declares and does
+	// not have running, brought up: u in the processes view, and alt+u
+	// from the list, where u is a letter being typed.
+	if k == "alt+u" || k == "u" && m.view == viewProcesses {
+		return m.raiseAt()
 	}
 	// The manual saying it is done with. It sends this as it goes, so
 	// the workspace is filled in the same breath rather than holding a
@@ -1288,6 +1307,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, m.reach(m.panes[e.tty], e.tty)
 		case e.container != "":
 			return m, m.watchContainer(e)
+		case e.declared != "":
+			// A declared process that is down: brought up, and gone into.
+			if path, d, ok := m.declarationOf(e); ok {
+				return m, m.raise(path, d, "")
+			}
 		}
 	case k == "esc":
 		return m.backIn()
@@ -1314,6 +1338,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			}
 			m.kill = &pendingKill{container: e.container, command: name, prompt: stopPrompt(name)}
 			return m, nil
+		}
+		if e.declared != "" {
+			return m.armDeclared(e)
 		}
 		sig := killSignal(e.kind)
 		// The question names the program: a contact's whole command
@@ -1764,6 +1791,65 @@ func (m model) openAt(k string) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(append(cmds, m.startContact(path))...)
 	}
 	return m, tea.Batch(append(cmds, m.openShell(path))...)
+}
+
+// raiseAt brings up what the project the panel is looking at declares
+// and does not have running. From another view the processes view is
+// put up on the way, since that is where the rows will show.
+func (m model) raiseAt() (tea.Model, tea.Cmd) {
+	path, _, ok := m.atProject()
+	if !m.inside || !ok || path == "" {
+		return m, nil
+	}
+	if _, has := m.declared[path]; !has {
+		return m, nil
+	}
+	up, held := upAndHeld(m.projects, m.panes, path)
+	var cmds []tea.Cmd
+	if m.view != viewProcesses {
+		mm, cmd := m.toProcesses()
+		m, cmds = mm.(model), append(cmds, cmd)
+	}
+	return m, tea.Batch(append(cmds, m.raiseAll(path, up, held))...)
+}
+
+// armDeclared is x on a declared process's row. Down, there is nothing
+// to end. Ended and holding its pane, the pane is what goes, and the
+// question says close. Up, the process itself is asked to end — the
+// command under the sh that started it, so that the sh goes on to
+// record the end and hold the output the way an end of its own would;
+// the sh itself only until the command is read.
+func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
+	_, name, _ := unmarkDeclared(e.declared)
+	switch {
+	case e.tty == "":
+		return m, nil
+	case m.panes[e.tty].exit != "":
+		m.kill = &pendingKill{pane: m.panes[e.tty].id, command: name, prompt: closePrompt(name)}
+		return m, nil
+	}
+	pid := e.pid
+	if child, ok := m.childOf(e); ok {
+		pid = child.pid
+	}
+	m.kill = &pendingKill{pid: pid, command: name, sig: syscall.SIGTERM, prompt: killPrompt(name, pid, syscall.SIGTERM)}
+	return m, nil
+}
+
+// childOf is the first row under a pane's head: what the head runs.
+func (m model) childOf(head entry) (entry, bool) {
+	for _, pl := range m.projects {
+		for i, e := range pl.entries {
+			if e.pid != head.pid {
+				continue
+			}
+			if i+1 < len(pl.entries) && pl.entries[i+1].tty == head.tty && pl.entries[i+1].depth == head.depth+1 {
+				return pl.entries[i+1], true
+			}
+			return entry{}, false
+		}
+	}
+	return entry{}, false
 }
 
 // openSessions opens the sessions view over a project's suspended

@@ -1338,3 +1338,112 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 		t.Error("the chord reached into a pane whose process has ended")
 	}
 }
+
+// A declared process is brought up from its row: enter on a down row
+// opens its pane and goes in, u brings up everything the project
+// declares and does not have running, and from the list alt+u does the
+// same and comes to the processes view. Outside the server nothing is
+// opened, and a project with no file answers nothing.
+func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
+	app := "/Users/w0zro/projects/w0zro/app"
+	down := entry{pid: declaredPID(app, "web"), kind: kindRun, command: "web · npm run dev", status: statusDown, declared: markDeclared(app, "web")}
+	m := newModel(plain)
+	m.view = viewProcesses
+	m.projects = []project{{path: app, entries: []entry{down}}}
+	m.declared = map[string]declared{app: {list: []declaration{{name: "web", command: "npm run dev"}}}}
+	m.cursor = down.pid
+
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "enter"}))
+	m = next.(model)
+	if cmd != nil {
+		t.Error("outside the server, enter on a down row opened something")
+	}
+	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "enter"}))
+	m = next.(model)
+	if cmd == nil {
+		t.Fatal("in the server, enter on a down row opened nothing")
+	}
+	if _, ok := answered(cmd).(openedMsg); ok {
+		t.Error("a pane opened with no tmux to open it in")
+	}
+
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "u"}))
+	m = next.(model)
+	if cmd == nil || m.view != viewProcesses {
+		t.Fatalf("u: cmd %v, view %d", cmd != nil, m.view)
+	}
+	if msg, ok := answered(cmd).(raisedMsg); ok && len(msg.shells) != 0 {
+		t.Errorf("panes opened with no tmux to open them in: %v", msg.shells)
+	}
+
+	// The panes come back parked: the cursor waits on the first of
+	// them, and the table is read again.
+	gen := m.processesGen
+	next, cmd = m.Update(raisedMsg{shells: []shell{{pid: 500}, {pid: 501}}})
+	m = next.(model)
+	if m.awaited != 500 || m.processesGen != gen+1 || cmd == nil {
+		t.Errorf("raised: awaited %d, gen %d from %d, cmd %v", m.awaited, m.processesGen, gen, cmd != nil)
+	}
+
+	// From the list, on the project's row.
+	m.view, m.walked, m.find.at = viewProjects, []projectRow{{name: "w0zro/app", path: app}}, 0
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+u"}))
+	m = next.(model)
+	if cmd == nil || m.view != viewProcesses {
+		t.Errorf("alt+u from the list: cmd %v, view %d", cmd != nil, m.view)
+	}
+
+	// A project that declares nothing has nothing to bring up.
+	m.declared = nil
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "u"}))
+	m = next.(model)
+	if cmd != nil {
+		t.Error("u on a project with no file opened something")
+	}
+}
+
+// x on a declared row: down, nothing to end; ended and holding its
+// pane, the pane is closed, and the question says so; up, the command
+// under the sh is what is asked to end, so the sh records the end.
+func TestXOnADeclaredRow(t *testing.T) {
+	app := "/Users/w0zro/projects/w0zro/app"
+	mark := markDeclared(app, "web")
+	m := newModel(plain)
+	m.view, m.inside, m.srv = viewProcesses, true, &server{tmux: "/nonexistent/tmux"}
+	m.projects = []project{{path: app, entries: []entry{
+		{pid: declaredPID(app, "web"), kind: kindRun, status: statusDown, declared: mark},
+		{pid: 300, kind: kindRun, command: "web · npm run dev", tty: "ttys003", status: statusEnded, declared: mark},
+		{pid: 400, kind: kindRun, command: "web · npm run dev", tty: "ttys004", status: statusActive, declared: mark},
+		{pid: 401, kind: kindRun, command: "npm run dev", tty: "ttys004", status: statusActive, depth: 1},
+	}}}
+	m.panes = map[string]pane{
+		"ttys003": {id: "%3", tty: "ttys003", declared: mark, exit: "0"},
+		"ttys004": {id: "%4", tty: "ttys004", declared: mark},
+	}
+	press := func(k string) tea.Cmd {
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		m = next.(model)
+		return cmd
+	}
+	m.cursor = declaredPID(app, "web")
+	// The status line is told of the keys either way; what matters is
+	// that no question is armed.
+	press("x")
+	if m.kill != nil {
+		t.Errorf("x on a down row: kill %+v", m.kill)
+	}
+	m.cursor = 300
+	press("x")
+	if m.kill == nil || m.kill.pane != "%3" || !strings.Contains(m.kill.prompt, "CLOSE WEB ·") {
+		t.Fatalf("x on a held row: kill %+v", m.kill)
+	}
+	if cmd := press("x"); cmd == nil || m.kill != nil {
+		t.Errorf("confirming the close: cmd %v, kill %+v", cmd != nil, m.kill)
+	}
+	m.cursor = 400
+	press("x")
+	if m.kill == nil || m.kill.pid != 401 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "END WEB 401 ·") {
+		t.Errorf("x on an up row: kill %+v", m.kill)
+	}
+}

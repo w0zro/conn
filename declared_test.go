@@ -152,7 +152,7 @@ func TestTheMarkAndThePid(t *testing.T) {
 // recorded and the hold, each on a line of its own.
 func TestTheLineRunInThePane(t *testing.T) {
 	got := declaredLine(declaration{name: "web", command: "npm run dev # dev"}, "/opt/bin/tmux")
-	want := "npm run dev # dev\n'/opt/bin/tmux' set-option -p @conn_exit \"$?\"\nprintf '\\n[web exited]\\n'\nexec cat"
+	want := "npm run dev # dev\n'/opt/bin/tmux' set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\nprintf '\\n[web exited]\\n'\nexec cat"
 	if got != want {
 		t.Errorf("line:\n%s\nwant:\n%s", got, want)
 	}
@@ -231,5 +231,30 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	}
 	if attachDeclared(projects, nil, panes)[0].path != app || len(attachDeclared(projects, nil, panes)) != 2 {
 		t.Error("with nothing declared the projects are not as they were")
+	}
+}
+
+// What a project has panes for, by mark: the declarations up, to pass
+// over, and the panes holding an ended one, to replace; another
+// project's are neither, and a down row is neither.
+func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
+	app, lib := "/r/app", "/r/lib"
+	projects := []project{{path: app, entries: []entry{
+		{pid: 1, tty: "ttys001", declared: markDeclared(app, "web")},
+		{pid: 2, tty: "ttys002", declared: markDeclared(app, "api")},
+		{pid: declaredPID(app, "worker"), declared: markDeclared(app, "worker")},
+		{pid: 4, tty: "ttys004", declared: markDeclared(lib, "docs")},
+	}}}
+	panes := map[string]pane{
+		"ttys001": {id: "%1", tty: "ttys001"},
+		"ttys002": {id: "%2", tty: "ttys002", exit: "1"},
+		"ttys004": {id: "%4", tty: "ttys004"},
+	}
+	up, held := upAndHeld(projects, panes, app)
+	if !reflect.DeepEqual(up, map[string]bool{markDeclared(app, "web"): true}) {
+		t.Errorf("up: %v", up)
+	}
+	if !reflect.DeepEqual(held, map[string]string{markDeclared(app, "api"): "%2"}) {
+		t.Errorf("held: %v", held)
 	}
 }

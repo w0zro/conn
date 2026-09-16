@@ -906,3 +906,77 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 		t.Errorf("esc from a list opened on the panel moved the workspace to %s", got)
 	}
 }
+
+// A project's .conn, against the server: its declarations are down
+// rows on the panel from the first reading; u brings them up, parked
+// and marked, and the one that ended at once reads ENDED where the one
+// still running reads ACTIVE; enter on the ended one puts its pane in
+// the bay to be read; and x closes that pane, whereupon the row is down
+// again.
+func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
+	s := startScratch(t)
+	repo := filepath.Join(s.dir, "home", "repo")
+	if err := os.WriteFile(filepath.Join(repo, declaredName), []byte("sleeper: sleep 120\nquick: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.keys("Space")
+	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
+
+	rowSays := func(name, word string) bool {
+		for _, l := range s.projectRowLines() {
+			if strings.Contains(l, name+" · ") && strings.HasSuffix(strings.TrimRight(l, " "), word) {
+				return true
+			}
+		}
+		return false
+	}
+	s.until("the two down rows", func() bool { return rowSays("sleeper", "DOWN") && rowSays("quick", "DOWN") })
+
+	// marked is the id of the pane carrying a declaration's mark, and
+	// what it recorded of its end.
+	marked := func(name string) (id, exit string) {
+		out, _ := s.srv.run("list-panes", "-a", "-F", "#{pane_id} #{@conn_declared} #{@conn_exit}")
+		for _, l := range strings.Split(out, "\n") {
+			f := strings.Split(l, " ")
+			if len(f) == 3 && strings.HasPrefix(f[1], name+"@") {
+				return f[0], f[2]
+			}
+		}
+		return "", ""
+	}
+	// The panel is the whole machine's, and the cursor came up on its
+	// first row, which is some other project's. The scratch project is
+	// under /tmp, which sorts after everything under /Users, so its
+	// rows are the last: G is a row of it.
+	s.keys("G")
+	s.keys("u")
+	s.until("both panes opened and marked, quick's end recorded", func() bool {
+		sleeper, _ := marked("sleeper")
+		quick, exit := marked("quick")
+		return sleeper != "" && quick != "" && exit == "0"
+	})
+	s.until("sleeper ACTIVE and quick ENDED on the panel", func() bool {
+		return rowSays("sleeper", "ACTIVE") && rowSays("quick", "ENDED")
+	})
+	// The panes were parked: the bay still holds conn's own furniture.
+	if s.shellIn("home.1") {
+		t.Error("u put a pane in the bay")
+	}
+
+	// The cursor waits on the first pane raised, sleeper's head; under
+	// it the sleep, and then quick's row. Enter there is into its pane.
+	quick, _ := marked("quick")
+	s.keys("j")
+	s.keys("j")
+	s.keys("Enter")
+	s.until("quick's pane in the bay", func() bool { return s.bayPane() == quick })
+
+	s.keys("x")
+	s.until("the close armed, naming quick", func() bool { return strings.Contains(s.statusLine(), "CLOSE QUICK ") })
+	s.keys("x")
+	s.until("the pane gone and quick down again", func() bool {
+		id, _ := marked("quick")
+		return id == "" && rowSays("quick", "DOWN") && rowSays("sleeper", "ACTIVE")
+	})
+}

@@ -35,6 +35,10 @@ type pendingKill struct {
 	// process of this machine and has no pid to signal: docker holds it,
 	// and docker is asked to let it go.
 	container string
+	// The pane to close, where the row is a declared process that has
+	// ended and holds its pane for its output: there is nothing left to
+	// signal, and the pane is what goes.
+	pane string
 }
 
 // killSignal is what x sends a kind of entry: SIGKILL for a bare
@@ -88,6 +92,13 @@ func killPrompt(command string, pid int, sig syscall.Signal) string {
 		verb = "kill"
 	}
 	return strings.ToUpper(verb + " " + command + " " + strconv.Itoa(pid) + " · x confirms · any other key cancels")
+}
+
+// closePrompt is the question for a declared process that has ended
+// and holds its pane: close, since what goes is the pane and its
+// output, the process being over already.
+func closePrompt(name string) string {
+	return strings.ToUpper("close " + name + " · x confirms · any other key cancels")
 }
 
 // stopPrompt is the question for a container. It says stop, which is

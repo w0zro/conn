@@ -232,10 +232,12 @@ func declaredPID(project, name string) int {
 // operator, and the hold, so the last output stays up to be read. On
 // lines of their own, not after semicolons: a comment or an & on the
 // end of the operator's line would otherwise take the rest with it.
-// tmux is on $TMUX inside the pane, so the option needs no target.
+// tmux tells a pane its own id in TMUX_PANE, and is told it back: a
+// client with no terminal is otherwise pointed at whichever pane the
+// server counts as current, which is not this one.
 func declaredLine(d declaration, tmux string) string {
 	return d.command + "\n" +
-		shellQuote(tmux) + " set-option -p @conn_exit \"$?\"\n" +
+		shellQuote(tmux) + " set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\n" +
 		"printf '\\n[" + d.name + " exited]\\n'\n" +
 		holdOpen
 }
@@ -248,6 +250,31 @@ func exitStatus(code string) (string, bool) {
 		return statusEnded, false
 	}
 	return "EXIT " + code, true
+}
+
+// upAndHeld is what a project already has panes for, by mark: the
+// declarations that are up, which a raise passes over, and the panes
+// holding one that ended, by the mark, which a raise replaces. It reads
+// the rows rather than the panes, since a pane whose rows are not yet
+// read is not yet anything.
+func upAndHeld(projects []project, panes map[string]pane, path string) (up map[string]bool, held map[string]string) {
+	up, held = map[string]bool{}, map[string]string{}
+	for _, pl := range projects {
+		for _, e := range pl.entries {
+			if e.declared == "" || e.tty == "" {
+				continue
+			}
+			if project, _, ok := unmarkDeclared(e.declared); !ok || project != path {
+				continue
+			}
+			if p := panes[e.tty]; p.exit != "" {
+				held[e.declared] = p.id
+			} else {
+				up[e.declared] = true
+			}
+		}
+	}
+	return up, held
 }
 
 // attachDeclared puts the declarations among the rows. A declaration

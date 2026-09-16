@@ -62,6 +62,72 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
+// raise brings one declaration up, in the bay with the keys in it: the
+// answer to enter on a down row. replace is the pane holding the last
+// run of it, where one stands.
+func (m model) raise(path string, d declaration, replace string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		sh, err := srv.raiseDeclared(d.at(path), declaredLine(d, srv.tmux), markDeclared(path, d.name), replace, true)
+		if err != nil {
+			return nil
+		}
+		return openedMsg{shell: sh}
+	}
+}
+
+// raiseAll brings up everything a project declares that is not up, in
+// the order of the file, parked: the keys stay on the panel and the
+// reading lists the rows as they come. The file is read fresh, off the
+// loop, so what is raised is what it says now. up is passed over, and
+// held is replaced, by mark.
+func (m model) raiseAll(path string, up map[string]bool, held map[string]string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		list, err := readDeclared(path)
+		if err != nil {
+			return nil
+		}
+		var shells []shell
+		for _, d := range list {
+			mark := markDeclared(path, d.name)
+			if up[mark] {
+				continue
+			}
+			sh, err := srv.raiseDeclared(d.at(path), declaredLine(d, srv.tmux), mark, held[mark], false)
+			if err != nil {
+				continue
+			}
+			shells = append(shells, sh)
+		}
+		return raisedMsg{shells: shells}
+	}
+}
+
+// closeHeld takes down the pane a declared process ended in.
+func (m model) closeHeld(id, name string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		_ = srv.closePane(id)
+		return killedMsg{command: name}
+	}
+}
+
+// declarationOf is the declaration a row stands for, from the file as
+// last read.
+func (m model) declarationOf(e entry) (path string, d declaration, ok bool) {
+	path, name, ok := unmarkDeclared(e.declared)
+	if !ok {
+		return "", declaration{}, false
+	}
+	for _, d := range m.declared[path].list {
+		if d.name == name {
+			return path, d, true
+		}
+	}
+	return "", declaration{}, false
+}
+
 // contactProgram is the contact conn starts. Claude is the only kind
 // conn starts for now, so a is its key everywhere a shell's is s.
 const contactProgram = "claude"

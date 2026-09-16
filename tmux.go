@@ -585,6 +585,34 @@ func (s *server) openShellIn(dir, cmd, id string) (shell, error) {
 	return sh, s.show(sh.pane)
 }
 
+// raiseDeclared opens a declared process's pane, marked as the
+// declaration, in place of the pane that last held it where one is
+// still standing with its last output in it. Shown, it goes into the
+// bay with the keys in it; not shown, it is parked in a window of its
+// own for the reading to list, which is how a project is brought up
+// whole without the bay ending on whichever pane opened last.
+func (s *server) raiseDeclared(dir, cmd, mark, replace string, show bool) (shell, error) {
+	if replace != "" {
+		_, _ = s.run("kill-pane", "-t", replace)
+	}
+	sh, err := s.openMarked(dir, cmd, "@conn_declared", mark)
+	if err != nil {
+		return shell{}, err
+	}
+	sh.pane.declared = mark
+	if show {
+		return sh, s.show(sh.pane)
+	}
+	return sh, nil
+}
+
+// closePane takes a pane down: a declared process's, once its output
+// has been read.
+func (s *server) closePane(id string) error {
+	_, err := s.run("kill-pane", "-t", id)
+	return err
+}
+
 // openMarked opens a pane running a command and sets one option on it,
 // which is how conn remembers what it opened a pane for.
 func (s *server) openMarked(dir, cmd, option, value string) (shell, error) {

@@ -28,6 +28,7 @@ const rootsW = findW
 // A rootsReport is the asking view's words as things stand.
 type rootsReport struct {
 	typed string   // the path as it has been typed
+	caret int      // where in it the caret is, in runes
 	rows  []string // the directories that answer it, from ~
 	err   string   // what went wrong saving, where something did
 }
@@ -35,6 +36,14 @@ type rootsReport struct {
 // composeRoots is the view's words: what has been typed, and the
 // directories on this machine that could be what was meant.
 func composeRoots(typed, home string) rootsReport {
+	b := composeRootsAt(typed, home)
+	b.caret = utf8.RuneCountInString(typed)
+	return b
+}
+
+// composeRootsAt is composeRoots with the caret left at the start, for
+// the view to put where it is.
+func composeRootsAt(typed, home string) rootsReport {
 	b := rootsReport{typed: typed}
 	for _, dir := range completeRoot(typed, home) {
 		b.rows = append(b.rows, tilde(dir, home))
@@ -116,8 +125,10 @@ func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
 	l = c.line()
 	l.add(p.gray, "ROOT")
 	l.to(rootsW)
-	l.add(p.ink+p.bold, fit(b.typed, measure-rootsW-1, true))
+	before, after := typedRuns(b.typed, b.caret, measure-rootsW-2, true)
+	l.add(p.ink+p.bold, before)
 	l.add(p.orange+p.bold, caret)
+	l.add(p.ink+p.bold, after)
 	c.emit(l, 0, false)
 
 	room := height

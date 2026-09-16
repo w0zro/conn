@@ -409,6 +409,7 @@ func withProcesses(ps []projectRow, projects []project, panes map[string]pane, r
 // The list's words as things stand.
 type projectsReport struct {
 	filter   string
+	caret    int          // where in the filter the caret is, in runes
 	rows     []projectRow // the rows the filter left, in the order they draw
 	total    int          // how many there are before it
 	roots    []string     // where conn looked, from ~, for when it found nothing
@@ -425,6 +426,14 @@ type projectsReport struct {
 // project is — counting only the projects would have the number
 // disagreeing with what the operator can see.
 func composeProjects(ps []projectRow, filter string, roots []string, home string, scanning bool, err string) projectsReport {
+	b := composeProjectsAt(ps, filter, roots, home, scanning, err)
+	b.caret = utf8.RuneCountInString(filter)
+	return b
+}
+
+// composeProjectsAt is composeProjects with the caret left at the
+// start, for the view to put where it is.
+func composeProjectsAt(ps []projectRow, filter string, roots []string, home string, scanning bool, err string) projectsReport {
 	b := projectsReport{filter: filter, rows: matching(ps, filter), total: len(ps), scanning: scanning, err: err}
 	// Nowhere to look is not a walk that failed. conn has not been told
 	// where the work is kept, which is the operator's to say and conn's
@@ -575,13 +584,15 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	c.emit(l, 0, false)
 	c.rule(0, measure)
 
-	// The line typed into: the word, and the filter with the caret after
+	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
 	l = c.line()
 	l.add(p.gray, "FIND")
 	l.to(findW)
-	l.add(p.ink+p.bold, fit(b.filter, measure-findW-1, false))
+	before, after := typedRuns(b.filter, b.caret, measure-findW-2, false)
+	l.add(p.ink+p.bold, before)
 	l.add(p.orange+p.bold, caret)
+	l.add(p.ink+p.bold, after)
 	c.emit(l, 0, false)
 
 	room := height

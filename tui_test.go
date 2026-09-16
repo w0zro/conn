@@ -665,21 +665,21 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	}
 }
 
-// ctrl+a opens claude at the row instead, the way enter opens a shell
-// there — plain a is a letter to type into the filter, so this is the
-// list's key for it, the way ctrl+u is its key for clearing the filter.
-func TestCtrlAOpensAnAgentAtTheProject(t *testing.T) {
+// alt+c opens claude at the row instead, the way enter opens a shell
+// there — plain a is a letter to type into the filter, and ctrl+a is
+// the start of the line, so this is the list's key for it.
+func TestAltCOpensAnAgentAtTheProject(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.walked, m.find.at = viewProjects, testProjects, 3
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "ctrl+a"}))
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+c"}))
 	m = next.(model)
 	if m.view != viewProcesses || cmd == nil {
 		t.Fatalf("in the server: view %d, cmd %v", m.view, cmd != nil)
 	}
 	if msg, ok := cmd().(tea.BatchMsg); !ok || len(msg) != 2 {
-		t.Errorf("ctrl+a did not both read the processes view and open the contact: %T", cmd())
+		t.Errorf("alt+c did not both read the processes view and open the contact: %T", cmd())
 	}
 }
 
@@ -868,7 +868,7 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	if m.view != viewProcesses || cmd == nil {
 		t.Errorf("a shell from the processes view: view %d, cmd %v", m.view, cmd != nil)
 	}
-	if m, cmd = press(panel(viewProcesses), "ctrl+a"); m.view != viewProcesses || cmd == nil {
+	if m, cmd = press(panel(viewProcesses), "alt+c"); m.view != viewProcesses || cmd == nil {
 		t.Errorf("a contact from the processes view: view %d, cmd %v", m.view, cmd != nil)
 	}
 
@@ -877,16 +877,16 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	if m, cmd = press(panel(viewProjects), "alt+s"); m.view != viewProcesses || cmd == nil {
 		t.Errorf("a shell from the list: view %d, cmd %v", m.view, cmd != nil)
 	}
-	if m, cmd = press(panel(viewProjects), "ctrl+a"); m.view != viewProcesses || cmd == nil {
+	if m, cmd = press(panel(viewProjects), "alt+c"); m.view != viewProcesses || cmd == nil {
 		t.Errorf("a contact from the list: view %d, cmd %v", m.view, cmd != nil)
 	}
 
-	// ctrl+s is the pair to ctrl+a and answers the same way. a and s are
+	// ctrl+s is the pair to alt+s and answers the same way. a and s are
 	// the two things conn starts, and in the list and the sessions view
 	// both are letters being typed into the line, so each needs a chord
-	// of its own; ctrl+a had one and s did not. It answers in every view
-	// rather than in the list alone, a key being worth more for meaning
-	// the same thing wherever it is pressed.
+	// of its own. It answers in every view rather than in the list
+	// alone, a key being worth more for meaning the same thing wherever
+	// it is pressed.
 	for _, view := range []int{viewProcesses, viewProjects, viewSessions} {
 		m, cmd = press(panel(view), "ctrl+s")
 		if m.view != viewProcesses || cmd == nil {

@@ -358,7 +358,9 @@ func (m model) listRows() []projectRow {
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	return composeProjects(m.listRows(), m.find.text, m.roots.configured, m.head.login.home, m.scanning, m.projectsErr)
+	b := composeProjectsAt(m.listRows(), m.find.text, m.roots.configured, m.head.login.home, m.scanning, m.projectsErr)
+	b.caret = m.find.cur
+	return b
 }
 
 func (m model) projectRows() []projectRow {
@@ -1065,17 +1067,17 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// prefix then s, then a, and then alt-a send. Each is a key of its
 	// own for the reason the three above are — in the list and in the
 	// sessions view a plain s or a is a letter being typed into the
-	// line — and ctrl+a is the key the list already opened a contact
-	// with, so it becomes the one key for it rather than a second one.
+	// line. A contact is alt+c: it was ctrl+a, and ctrl+a is the start
+	// of the line to readline, which is what the line is edited with.
 	//
-	// ctrl+s is the pair to ctrl+a, and is here for the same reason the
-	// pair is worth having: a and s are the two things conn starts, and
-	// a hand that has learned ctrl+a should not have to reach for a
-	// different chord to get the other. Enter on a project row in the
-	// list opens a shell there too, which is no argument against it —
-	// the list is typed into, and a key that means one thing wherever
-	// it is pressed is worth more than the saving of not having it.
-	if k == "alt+s" || k == "ctrl+s" || k == "ctrl+a" || k == "alt+a" {
+	// ctrl+s is the pair to alt+s, and is here because a and s are the
+	// two things conn starts, and a hand on the line should not have to
+	// reach for a different chord to get the other. Enter on a project
+	// row in the list opens a shell there too, which is no argument
+	// against it — the list is typed into, and a key that means one
+	// thing wherever it is pressed is worth more than the saving of not
+	// having it.
+	if k == "alt+s" || k == "ctrl+s" || k == "alt+c" || k == "alt+a" {
 		return m.openAt(k)
 	}
 	// The manual saying it is done with. It sends this as it goes, so
@@ -1311,7 +1313,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // see typed for the keys every such line has. What is the list's own:
 // enter opens a shell at the row under the cursor and goes back to the
 // processes view, which is where the shell will show, or goes into the
-// row where it is a process; ctrl+a opens claude there instead, since
+// row where it is a process; alt+c opens claude there instead, since
 // a plain a is a letter to type; alt+a opens the sessions view over
 // what claude left suspended at the row, group included, the same way
 // — not a plain A, which would take a letter the line can still be
@@ -1720,7 +1722,7 @@ func (m model) openAt(k string) (tea.Model, tea.Cmd) {
 		mm, cmd := m.toProcesses()
 		m, cmds = mm.(model), append(cmds, cmd)
 	}
-	if k == "ctrl+a" {
+	if k == "alt+c" {
 		return m, tea.Batch(append(cmds, m.startContact(path))...)
 	}
 	return m, tea.Batch(append(cmds, m.openShell(path))...)
@@ -1746,7 +1748,9 @@ func (m model) sessionsRows() []session {
 
 // sessionsReport is the sessions view's words as things stand.
 func (m model) sessionsReport() sessionsReport {
-	return composeSessions(m.sessions, m.sessionsProject, m.rfind.text, m.head.login.home, m.now, m.sessionsLoading)
+	b := composeSessionsAt(m.sessions, m.sessionsProject, m.rfind.text, m.head.login.home, m.now, m.sessionsLoading)
+	b.caret = m.rfind.cur
+	return b
 }
 
 // sessionsKey answers a key on the sessions view, which is a line typed
@@ -1896,7 +1900,9 @@ func (m model) View() tea.View {
 	case viewSessions:
 		rows = drawSessions(m.sessionsReport(), m.rfind.at, width, m.height, m.p)
 	case viewRoots:
-		rows = drawRoots(composeRoots(m.asking.text, m.head.login.home), m.asking.at, width, m.height, m.p)
+		b := composeRootsAt(m.asking.text, m.head.login.home)
+		b.caret = m.asking.cur
+		rows = drawRoots(b, m.asking.at, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit
@@ -1960,7 +1966,7 @@ func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
 		// the directory under the cursor, with a separator after it, so
 		// the next keystroke is already looking inside it.
 		if m.asking.at < len(b.rows) {
-			m.asking.text, m.asking.at = b.rows[m.asking.at]+"/", 0
+			m.asking.set(b.rows[m.asking.at] + "/")
 		}
 	case k == "enter":
 		return m.takeRoot(b)

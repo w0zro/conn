@@ -26,11 +26,20 @@ type sessionsReport struct {
 	rows    []session
 	total   int
 	filter  string
+	caret   int // where in the filter the caret is, in runes
 }
 
 // composeSessions words the sessions view: the filter's rows out of the
 // whole number found.
 func composeSessions(sessions []session, project, filter, home string, now time.Time, loading bool) sessionsReport {
+	b := composeSessionsAt(sessions, project, filter, home, now, loading)
+	b.caret = utf8.RuneCountInString(filter)
+	return b
+}
+
+// composeSessionsAt is composeSessions with the caret left at the
+// start, for the view to put where it is.
+func composeSessionsAt(sessions []session, project, filter, home string, now time.Time, loading bool) sessionsReport {
 	return sessionsReport{
 		project: tilde(project, home), home: home, now: now, loading: loading,
 		rows: matchingSessions(sessions, filter), total: len(sessions), filter: filter,
@@ -98,13 +107,15 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	l.add(p.parchment+p.bold, fit(b.project, measure, true))
 	c.emit(l, 0, false)
 
-	// The line typed into: the word, and the filter with the caret after
+	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
 	l = c.line()
 	l.add(p.gray, "FIND")
 	l.to(findW)
-	l.add(p.ink+p.bold, fit(b.filter, measure-findW-1, false))
+	before, after := typedRuns(b.filter, b.caret, measure-findW-2, false)
+	l.add(p.ink+p.bold, before)
 	l.add(p.orange+p.bold, caret)
+	l.add(p.ink+p.bold, after)
 	c.emit(l, 0, false)
 
 	room := height

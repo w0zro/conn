@@ -275,6 +275,12 @@ type pane struct {
 	// whichever of the two a map ranged over last.
 	container string
 	shellIn   string
+	// The declaration this pane was opened for, as declared.go marks
+	// it, and, once the command in it has ended, the status it ended
+	// with, which the pane's own line records. A pane that is a
+	// declaration's is the work itself and is listed like any other.
+	declared string
+	exit     string
 	// The manual, which prefix ? puts in the workspace. It is conn's
 	// own furniture like the readout: it carries the hold's mark as
 	// well, so everything that steps over furniture steps over it, and
@@ -302,7 +308,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{pane_active}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -322,12 +328,13 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 11 || f[0] == "" {
+		if len(f) != 13 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
 			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1",
-			container: f[7], shellIn: f[8], help: f[9] == "1", active: f[10] == "1"}
+			container: f[7], shellIn: f[8], help: f[9] == "1",
+			declared: f[10], exit: f[11], active: f[12] == "1"}
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p

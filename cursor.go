@@ -189,10 +189,11 @@ func (r *reading) UnmarshalJSON(b []byte) error {
 type projectWire struct {
 	Path    string
 	Entries []entry
+	Note    string
 }
 
 func (p project) MarshalJSON() ([]byte, error) {
-	return json.Marshal(projectWire{Path: p.path, Entries: p.entries})
+	return json.Marshal(projectWire{Path: p.path, Entries: p.entries, Note: p.note})
 }
 
 func (p *project) UnmarshalJSON(b []byte) error {
@@ -200,7 +201,7 @@ func (p *project) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &w); err != nil {
 		return err
 	}
-	*p = project{path: w.Path, entries: w.Entries}
+	*p = project{path: w.Path, entries: w.Entries, note: w.Note}
 	return nil
 }
 
@@ -213,7 +214,7 @@ type entryWire struct {
 	Depth                     int
 	Since                     time.Time
 	Cwd, Asking, Doing        string
-	Container                 string
+	Container, Declared       string
 }
 
 func (e entry) MarshalJSON() ([]byte, error) {
@@ -221,6 +222,7 @@ func (e entry) MarshalJSON() ([]byte, error) {
 		PID: e.pid, Kind: e.kind, Command: e.command, Typed: e.typed, TTY: e.tty,
 		Started: e.started, Status: e.status, Fault: e.fault, Depth: e.depth,
 		Since: e.since, Cwd: e.cwd, Asking: e.asking, Doing: e.doing, Container: e.container,
+		Declared: e.declared,
 	})
 }
 
@@ -233,6 +235,7 @@ func (e *entry) UnmarshalJSON(b []byte) error {
 		pid: w.PID, kind: w.Kind, command: w.Command, typed: w.Typed, tty: w.TTY,
 		started: w.Started, status: w.Status, fault: w.Fault, depth: w.Depth,
 		since: w.Since, cwd: w.Cwd, asking: w.Asking, doing: w.Doing, container: w.Container,
+		declared: w.Declared,
 	}
 	return nil
 }
@@ -263,12 +266,13 @@ type paneWire struct {
 	Hold, Readout, Dead, Help bool
 	Active                    bool
 	Container, ShellIn        string
+	Declared, Exit            string
 }
 
 func (p pane) MarshalJSON() ([]byte, error) {
 	return json.Marshal(paneWire{ID: p.id, TTY: p.tty, Width: p.width, Height: p.height,
 		Hold: p.hold, Readout: p.readout, Dead: p.dead, Help: p.help, Active: p.active,
-		Container: p.container, ShellIn: p.shellIn})
+		Container: p.container, ShellIn: p.shellIn, Declared: p.declared, Exit: p.exit})
 }
 
 func (p *pane) UnmarshalJSON(b []byte) error {
@@ -278,6 +282,6 @@ func (p *pane) UnmarshalJSON(b []byte) error {
 	}
 	*p = pane{id: w.ID, tty: w.TTY, width: w.Width, height: w.Height,
 		hold: w.Hold, readout: w.Readout, dead: w.Dead, help: w.Help, active: w.Active,
-		container: w.Container, shellIn: w.ShellIn}
+		container: w.Container, shellIn: w.ShellIn, declared: w.Declared, exit: w.Exit}
 	return nil
 }

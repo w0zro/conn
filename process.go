@@ -119,6 +119,7 @@ const (
 	statusIdle    = "IDLE"    // a shell at its prompt, or a contact at rest
 	statusStopped = "STOPPED" // suspended
 	statusEnded   = "ENDED"   // finished, and not yet collected
+	statusDown    = "DOWN"    // declared in the project's .conn, and not running
 )
 
 // status is what conn learned about a process past what the table
@@ -163,12 +164,16 @@ type entry struct {
 	// The container this row is, where it is one: the id docker knows it
 	// by, which the keys act on. A process row carries nothing here.
 	container string
+	// The declaration this row is, or stands for, as its pane is marked;
+	// see declared.go. A process row carries nothing here.
+	declared string
 }
 
 // A project is a directory work is happening in, and the entries at it.
 type project struct {
 	path    string // as read; the processes view writes it from ~
 	entries []entry
+	note    string // what is wrong with the project's .conn, where something is
 }
 
 // projectsFrom composes the projects from the process table: the

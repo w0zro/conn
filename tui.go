@@ -228,6 +228,9 @@ type model struct {
 	// The asking view: the path being typed, and which of the
 	// directories answering it the cursor is on. rootErr is what went
 	// wrong saving, where something did.
+	// Where the keys were when prefix ? fired, so that leaving the
+	// manual puts them back there. See leftHelp.
+	helpFrom   string
 	rootTyped  string
 	rootCursor int
 	rootErr    string
@@ -839,7 +842,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// killed from outside, or gone while the keys were in the
 			// list and nobody was tending the workspace.
 			case m.inside && msg.bayDead && msg.bayHelp:
-				mm, cmd := m.leftHelp()
+				mm, cmd := m.leftHelp(true)
 				m = mm.(model)
 				cmds = append(cmds, m.processesTick(), cmd)
 			// A bay whose pane died stays the shape it was; only what is in it
@@ -996,7 +999,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// filled at all, the reading only tending the workspace while the
 	// processes view has the keys.
 	if k == "alt+esc" {
-		return m.leftHelp()
+		return m.leftHelp(false)
 	}
 	// Back to the processes view, which the prefix then - sends. tmux
 	// has already put the keys on the panel by the time this arrives;
@@ -1005,7 +1008,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// deciding what they were working on.
 	if k == "alt+-" {
 		if m.helping {
-			m.helping = false
+			// This chord says where to go, so where the manual was asked
+			// from stops mattering: it is the one way out of the manual
+			// that does not put the keys back, and forgetting is what
+			// makes it that.
+			m.helping, m.helpFrom = false, ""
 			return m, tea.Batch(m.reviveBay(), m.processesTick())
 		}
 		return m, nil
@@ -1036,6 +1043,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			m.helping = false
 			return m, tea.Batch(m.reviveBay(), m.processesTick())
 		}
+		// Where the keys were when the chord fired, before tmux brought
+		// them here. Reading the manual is a detour and not a move, so
+		// leaving it puts them back where they were: in the workspace if
+		// that is where they were, and on the panel if the operator was
+		// working the view.
+		m.helpFrom = m.cameFrom()
 		mm, cmd := m.toProcesses()
 		m = mm.(model)
 		// Said here rather than when the manual is up. Opening it is
@@ -1946,22 +1959,46 @@ func typedIsADir(typed, home string) bool {
 	return err == nil && info.IsDir()
 }
 
-// leftHelp is conn putting the workspace back after the manual: into
-// the process the manual was standing in front of, which is what the
-// operator was doing and what they meant to come back to — not the next
-// process round from a cursor that has been standing at nothing.
+// leftHelp is conn putting things back as the manual found them.
+// Reading is a detour: the operator asked a question in the middle of
+// something, and the answer to it is not a reason to move them.
 //
-// With nothing to go back to the workspace takes a hold and the keys
-// come to the panel, rather than being left on a placard.
-func (m model) leftHelp() (tea.Model, tea.Cmd) {
+// So the keys go back where the chord took them from. Pressed in the
+// workspace, they go back into that pane — the work is put back in the
+// workspace first, since the manual displaced it to a window of its
+// own and selecting it there is nothing happening at all. Pressed on
+// the panel, they stay on the panel: the operator was working the view,
+// and the workspace takes a hold, with the page coming back to it on
+// the next reading as it always does.
+//
+// A manual found dead rather than leaving — killed from outside, or
+// gone while nobody was tending the workspace — knows of no chord, and
+// falls back on the process the manual was standing in front of.
+func (m model) leftHelp(found bool) (tea.Model, tea.Cmd) {
 	m.helping = false
+	from := m.helpFrom
+	m.helpFrom = ""
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	mm, cmd := m.backIn()
-	m = mm.(model)
-	if cmd == nil {
-		cmd = tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
+	toPanel := tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
+	if from != "" {
+		if p, tty, ok := m.paneByID(from); ok && reachable(p) {
+			return m, m.reach(p, tty)
+		}
+		// The pane the chord came from has gone while the manual was up.
+		// There is nothing to be put back into, and the panel is where
+		// conn is worked from.
+		return m, toPanel
 	}
-	return m, cmd
+	// No chord to go on: the manual ended without saying. Back into the
+	// work it was standing in front of, where there is any.
+	if found {
+		mm, cmd := m.backIn()
+		m = mm.(model)
+		if cmd != nil {
+			return m, cmd
+		}
+	}
+	return m, toPanel
 }

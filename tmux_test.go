@@ -86,7 +86,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind s select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-s",
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 C-a",
 		"bind + select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-+",
-		"bind ? select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-?",
+		`bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-?`,
 		`bind M-a set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-a`,
 		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen

@@ -213,10 +213,16 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 // prefix - leaves the manual for the processes view, and is the way out
 // that does not first ask what you were doing.
 func TestPrefixMinusLeavesTheManual(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, srv: &server{}, helping: true}
+	m := model{view: viewProcesses, inside: true, srv: &server{}, helping: true,
+		helpFrom: "%4", panes: map[string]pane{"ttys011": {id: "%4", tty: "ttys011"}}}
 	next, cmd := m.key("alt+-")
 	if got := next.(model); got.helping {
 		t.Error("the manual is still up")
+	}
+	// This chord says where to go, so it does not put the keys back in
+	// the workspace the manual was asked from.
+	if got := next.(model); got.helpFrom != "" {
+		t.Errorf("prefix - kept the pane the manual was asked from: %q", got.helpFrom)
 	}
 	if cmd == nil {
 		t.Error("nothing was done to put it away")
@@ -225,6 +231,47 @@ func TestPrefixMinusLeavesTheManual(t *testing.T) {
 	m.helping = false
 	if _, cmd := m.key("alt+-"); cmd != nil {
 		t.Error("conn acted on prefix - with no manual up")
+	}
+}
+
+// Reading the manual is a detour, so leaving it puts the keys back
+// where the chord took them from: into the workspace where that is
+// where they were, and on the panel where the operator was working the
+// view. An answer to a question is not a reason to move somebody.
+func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
+	work := pane{id: "%4", tty: "ttys011"}
+	panes := map[string]pane{"ttys011": work}
+
+	// Asked from the workspace: back into that pane.
+	m := model{view: viewProcesses, inside: true, srv: &server{}, helping: true,
+		helpFrom: "%4", panes: panes, lastIn: "ttys009"}
+	next, cmd := m.leftHelp(false)
+	got := next.(model)
+	if got.helping || got.helpFrom != "" {
+		t.Errorf("leaving left helping %v from %q", got.helping, got.helpFrom)
+	}
+	if cmd == nil {
+		t.Error("nothing was done to put the keys back in the workspace")
+	}
+
+	// Asked from the panel: the keys stay on the panel, and the pane the
+	// manual was standing in front of is not gone back into.
+	m = model{view: viewProcesses, inside: true, srv: &server{}, helping: true,
+		panes: panes, lastIn: "ttys011"}
+	next, cmd = m.leftHelp(false)
+	if got := next.(model); got.helping {
+		t.Error("leaving from the panel left conn helping")
+	}
+	if cmd == nil {
+		t.Error("the workspace was left holding the manual")
+	}
+
+	// The pane the chord came from can go while the manual is up; then
+	// there is nothing to be put back into.
+	m = model{view: viewProcesses, inside: true, srv: &server{}, helping: true,
+		helpFrom: "%9", panes: panes}
+	if _, cmd := m.leftHelp(false); cmd == nil {
+		t.Error("a chord from a pane that has gone left the workspace as it was")
 	}
 }
 

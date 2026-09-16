@@ -172,11 +172,13 @@
           <div class="row"><span>IDLE</span><span>A shell at its prompt, or a contact at rest.</span></div>
           <div class="row"><span>STOPPED</span><span>Suspended.</span></div>
           <div class="row"><span>ENDED</span><span>Finished, and not yet collected.</span></div>
+          <div class="row"><span>DOWN</span><span>Declared in the project's .conn, and not running.</span></div>
         </div>
         <p class="para"><span class="n">2-3.</span> While the keys are on the panel, the workspace holds the readout on the row under the cursor: the whole command, where the process is working, what runs it and what it runs, what it has spent, what a contact is stopped on, and what git says of the project. It follows the cursor. <b>enter</b> puts the process in the workspace instead, with the keys in it, and <b>esc</b> goes back into the process last worked in.</p>
-        <p class="para"><span class="n">2-4.</span> <b>p</b> is the projects list: every project under the roots, whether anything is running in it or not, and under each what conn has running there. Typing narrows it. The workspace holds the readout here too, on the row under the cursor: a process's own, or for a project where it is, what git says of it, and what is running in it. <b>enter</b> opens a shell at the row under the cursor, <b>alt-c</b> starts a contact there, <b>alt-a</b> lists the sessions a contact left suspended there, and <b>esc</b> goes back. In the sessions list, <b>enter</b> picks the session under the cursor back up.</p>
+        <p class="para"><span class="n">2-4.</span> <b>p</b> is the projects list: every project under the roots, whether anything is running in it or not, and under each what conn has running there. Typing narrows it. The workspace holds the readout here too, on the row under the cursor: a process's own, or for a project where it is, what git says of it, and what is running in it. <b>enter</b> opens a shell at the row under the cursor, <b>alt-c</b> starts a contact there, <b>alt-a</b> lists the sessions a contact left suspended there, <b>alt-u</b> brings up what the project declares, and <b>esc</b> goes back. In the sessions list, <b>enter</b> picks the session under the cursor back up.</p>
         <p class="para"><span class="n">2-5.</span> <b>x</b> asks to end the process under the cursor, on the status line. <b>x</b>, <b>y</b> or <b>enter</b> answers yes and any other key withdraws the question. A bare shell is killed outright; anything a shell runs is sent SIGTERM; a service is stopped with docker stop. The shell a process ran in is left at its prompt.</p>
         <p class="para"><span class="n">2-6.</span> A service has no pane, so <b>enter</b> on one opens its output, and <b>enter</b> again goes into the pane holding that; <b>s</b> on one opens a shell inside the container.</p>
+        <p class="para"><span class="n">2-7.</span> A project may declare the processes that work it in a file named <b>.conn</b> at its path; the file's form is at 4-5. A project with one has a block whether or not anything is running in it, and each declared process not running is a row at the foot of the block, dimmed and worded DOWN. <b>enter</b> on such a row brings it up in a pane of the station and goes into it; <b>u</b> on any row of the project brings up everything it declares that is down. A pane conn opened this way carries the declared name on its head row. When the process ends the pane holds its output and the row reads ENDED, or EXIT and the code as a fault; <b>enter</b> goes in to read it, <b>u</b> opens it anew, and <b>x</b> closes it. A file that will not read is said under the block, with the line.</p>
       </div>
     </div>
     <div class="foot">
@@ -221,11 +223,12 @@
           <div class="row"><span>g g</span><span>The first row.</span></div>
           <div class="row"><span>G</span><span>The last row.</span></div>
           <div class="row"><span>M</span><span>The middle row.</span></div>
-          <div class="row"><span>enter</span><span>Into the process under the cursor. On a service, its output; enter again goes into the pane holding it.</span></div>
+          <div class="row"><span>enter</span><span>Into the process under the cursor. On a service, its output; enter again goes into the pane holding it. On a declared process that is down, brings it up.</span></div>
           <div class="row"><span>esc</span><span>Back into the process last worked in.</span></div>
           <div class="row"><span>s</span><span>A shell at the project. On a service, a shell inside the container.</span></div>
           <div class="row"><span>a</span><span>A contact at the project.</span></div>
-          <div class="row"><span>x</span><span>End it: a signal to a process, docker stop to a service. Asks first.</span></div>
+          <div class="row"><span>x</span><span>End it: a signal to a process, docker stop to a service, and on a declared process that has ended, close its pane. Asks first.</span></div>
+          <div class="row"><span>u</span><span>Bring up what the project declares and does not have running.</span></div>
           <div class="row"><span>tab</span><span>The process that has waited longest.</span></div>
           <div class="row"><span>p</span><span>The projects list.</span></div>
           <div class="row"><span>c</span><span>The console.</span></div>
@@ -276,6 +279,19 @@
           <div class="row"><span>CONN_ROOTS</span><span>The roots for this run, separated the way PATH is. Read ahead of the file.</span></div>
           <div class="row"><span>CONN_PREFIX</span><span>The prefix, in tmux's spelling. C-Space unless set.</span></div>
           <div class="row"><span>CONN_SOCKET</span><span>The socket of the server, for a second station on one machine. Under ~/.local/state/conn unless set.</span></div>
+        </div>
+        <p class="para"><span class="n">4-5.</span> A project's <b>.conn</b> declares the processes that work it, one a line, as <b>name [dir]: command</b>. A line beginning with # is a comment. A line that will not parse is said under the project's block with its number, and nothing is guessed at in its place.</p>
+        <div class="table narrow">
+          <div class="row head"><span>PART</span><span>MEANING</span></div>
+          <div class="row"><span>name</span><span>One word of letters, digits, dots, dashes and underscores, and the row's label.</span></div>
+          <div class="row"><span>dir</span><span>Where the pane opens, under the project. Left out, the project itself.</span></div>
+          <div class="row"><span>command</span><span>A shell line, run as written.</span></div>
+        </div>
+        <div class="figure">
+          <pre># .conn
+web frontend: npm run dev
+api: go run ./cmd/api
+worker services/queue: make run</pre>
         </div>
       </div>
     </div>

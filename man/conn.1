@@ -107,6 +107,9 @@ Suspended.
 .TP
 \fBENDED\fR
 Finished, and not yet collected.
+.TP
+\fBDOWN\fR
+Declared in the project's .conn, and not running.
 .RE
 .TP
 2-3.
@@ -124,8 +127,9 @@ it. The workspace holds the readout here too, on the row under the cursor: a
 process's own, or for a project where it is, what git says of it, and what is
 running in it. \fBenter\fR opens a shell at the row under the cursor,
 \fBalt\-c\fR starts a contact there, \fBalt\-a\fR lists the sessions a contact
-left suspended there, and \fBesc\fR goes back. In the sessions list, \fBenter\fR
-picks the session under the cursor back up.
+left suspended there, \fBalt\-u\fR brings up what the project declares, and
+\fBesc\fR goes back. In the sessions list, \fBenter\fR picks the session under
+the cursor back up.
 .TP
 2-5.
 \fBx\fR asks to end the process under the cursor, on the status line. \fBx\fR,
@@ -137,6 +141,18 @@ is stopped with docker stop. The shell a process ran in is left at its prompt.
 A service has no pane, so \fBenter\fR on one opens its output, and \fBenter\fR
 again goes into the pane holding that; \fBs\fR on one opens a shell inside the
 container.
+.TP
+2-7.
+A project may declare the processes that work it in a file named \fB.conn\fR at
+its path; the file's form is at 4-5. A project with one has a block whether or
+not anything is running in it, and each declared process not running is a row at
+the foot of the block, dimmed and worded DOWN. \fBenter\fR on such a row brings
+it up in a pane of the station and goes into it; \fBu\fR on any row of the
+project brings up everything it declares that is down. A pane conn opened this
+way carries the declared name on its head row. When the process ends the pane
+holds its output and the row reads ENDED, or EXIT and the code as a fault;
+\fBenter\fR goes in to read it, \fBu\fR opens it anew, and \fBx\fR closes it. A
+file that will not read is said under the block, with the line.
 .SH KEYS
 .TP
 3-1.
@@ -206,7 +222,7 @@ The middle row.
 .TP
 \fBenter\fR
 Into the process under the cursor. On a service, its output; enter again goes
-into the pane holding it.
+into the pane holding it. On a declared process that is down, brings it up.
 .TP
 \fBesc\fR
 Back into the process last worked in.
@@ -218,7 +234,11 @@ A shell at the project. On a service, a shell inside the container.
 A contact at the project.
 .TP
 \fBx\fR
-End it: a signal to a process, docker stop to a service. Asks first.
+End it: a signal to a process, docker stop to a service, and on a declared
+process that has ended, close its pane. Asks first.
+.TP
+\fBu\fR
+Bring up what the project declares and does not have running.
 .TP
 \fBtab\fR
 The process that has waited longest.
@@ -303,4 +323,30 @@ The prefix, in tmux's spelling. C-Space unless set.
 \fBCONN_SOCKET\fR
 The socket of the server, for a second station on one machine. Under
 ~/.local/state/conn unless set.
+.RE
+.TP
+4-5.
+A project's \fB.conn\fR declares the processes that work it, one a line, as
+\fBname [dir]: command\fR. A line beginning with # is a comment. A line that
+will not parse is said under the project's block with its number, and nothing is
+guessed at in its place.
+.RS
+.TP
+\fBname\fR
+One word of letters, digits, dots, dashes and underscores, and the row's label.
+.TP
+\fBdir\fR
+Where the pane opens, under the project. Left out, the project itself.
+.TP
+\fBcommand\fR
+A shell line, run as written.
+.RE
+.PP
+.RS
+.nf
+# .conn
+web frontend: npm run dev
+api: go run ./cmd/api
+worker services/queue: make run
+.fi
 .RE

@@ -185,6 +185,9 @@ type model struct {
 	// nothing", and the first writing goes out whatever it holds.
 	said     bool
 	saidKeys string
+	// And the station's own word, for the line to wear while the keys
+	// are off the panel; see station.
+	saidStation string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited      int
@@ -564,13 +567,13 @@ func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	keys := m.keys()
-	if m.said && keys == m.saidKeys {
+	keys, station := m.keys(), m.station()
+	if m.said && keys == m.saidKeys && station == m.saidStation {
 		return m, nil
 	}
-	m.said, m.saidKeys = true, keys
+	m.said, m.saidKeys, m.saidStation = true, keys, station
 	srv := m.srv
-	return m, func() tea.Msg { _ = srv.say(keys); return nil }
+	return m, func() tea.Msg { _ = srv.say(keys, station); return nil }
 }
 
 // The word each panel view wears on the status line. The console takes
@@ -607,9 +610,25 @@ func (m model) keys() string {
 	// the panel is not being worked, and saying PROCS would name a view
 	// whose keys are not what the operator is using.
 	if m.helping && m.view == viewProcesses {
-		return statusLineBlock("HELP")
+		return statusLineBlock(helpWord)
 	}
 	return statusLineBlock(viewWords[m.view])
+}
+
+// helpWord is what the line says while the manual is up.
+const helpWord = "HELP"
+
+// station is what the line says while the keys are not on the panel.
+// Ordinarily nothing: the keys are in a process, and what that process
+// is doing is its own business and is on its own screen. The manual is
+// the one thing conn puts the keys into that is conn's own, and it says
+// so, so that a page filling the workspace is not mistaken for a
+// program the operator opened and has to get out of by guessing.
+func (m model) station() string {
+	if m.helping {
+		return statusLineBlock(helpWord)
+	}
+	return ""
 }
 
 // published tells the cursor where it is, when it has moved since the
@@ -821,6 +840,22 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// cursor down and round again: the operator was working in the bay,
 			// and the work goes on in the one nearest to hand. Only with none to
 			// reach does the bay hold a placard.
+			// A manual that has been left is the operator saying they are
+			// done reading, and what they were doing before it went up is
+			// what they meant to go back to — not the next process round
+			// from a cursor that has been standing at nothing.
+			case m.inside && msg.bayDead && msg.bayHelp:
+				m.helping = false
+				mm, cmd := m.backIn()
+				m = mm.(model)
+				if cmd == nil {
+					// Nothing to go back to: the workspace takes a hold,
+					// and the keys come to the panel rather than being
+					// left standing on a placard. Reading is over, and
+					// the processes view is where conn is worked from.
+					cmd = tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
+				}
+				cmds = append(cmds, m.processesTick(), cmd)
 			case m.inside && msg.bayDead:
 				if e, ok := m.nextReachable(); ok {
 					cmds = append(cmds, m.processesTick(), m.reach(m.panes[e.tty], e.tty))
@@ -962,6 +997,18 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// it is pressed is worth more than the saving of not having it.
 	if k == "alt+s" || k == "ctrl+s" || k == "ctrl+a" || k == "alt+a" {
 		return m.openAt(k)
+	}
+	// Back to the processes view, which the prefix then - sends. tmux
+	// has already put the keys on the panel by the time this arrives;
+	// what is left is the manual, if one is up, which this takes down.
+	// It is how the operator gets from reading to working without first
+	// deciding what they were working on.
+	if k == "alt+-" {
+		if m.helping {
+			m.helping = false
+			return m, tea.Batch(m.reviveBay(), m.processesTick())
+		}
+		return m, nil
 	}
 	// conn's own configuration in an editor, which the prefix then +
 	// sends. It is a key of its own for the reason the others are: in

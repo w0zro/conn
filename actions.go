@@ -270,11 +270,7 @@ func (m model) stopContainer(id, service string) tea.Cmd {
 func (m model) openHelp() tea.Cmd {
 	home, self, srv := m.head.login.home, m.self, m.srv
 	return func() tea.Msg {
-		path, err := writeManPage(home)
-		if err != nil {
-			return nil
-		}
-		if srv.showHelp(home, self, path) != nil {
+		if srv.showHelp(home, self) != nil {
 			return nil
 		}
 		return helpMsg{on: true}

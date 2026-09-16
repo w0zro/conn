@@ -30,7 +30,8 @@ inside a process, because tmux takes it before the process does.
 .RS
 .TP
 \fBprefix \-\fR
-The processes view, from wherever the keys are.
+The processes view, from wherever the keys are. Puts the manual away if it is
+up.
 .TP
 \fBprefix p\fR
 The projects list.
@@ -60,7 +61,7 @@ The sessions suspended at that project.
 conn's configuration file, in an editor.
 .TP
 \fBprefix ?\fR
-This manual, in the workspace. Again puts it away.
+This manual, in the workspace, with the keys in it.
 .TP
 \fBprefix q\fR
 Detach. The station keeps running.
@@ -71,6 +72,13 @@ The panel's own keys work while the panel has them, and are listed here as the
 processes view takes them. In the projects list and the sessions view a letter
 is typed into the line instead: there, enter takes the row under the cursor and
 esc goes back.
+.TP
+2-3.
+While this manual is up the keys are in it, and the status line says HELP. It
+scrolls with \fBj\fR and \fBk\fR, a screen at a time with \fBspace\fR and
+\fBb\fR, and to either end with \fBg\fR and \fBG\fR. \fBesc\fR leaves it and
+goes back to the process the manual was standing in front of; \fBprefix \-\fR
+leaves it for the processes view.
 .PP
 .I "The panel"
 .RS

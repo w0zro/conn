@@ -204,6 +204,23 @@ var commands = []command{
 		}
 		return 0
 	}},
+	// The manual, in the workspace. It is not offered in the synopsis
+	// because it is not a thing to type: prefix ? is how it is reached,
+	// and conn runs this in the pane it opens for it.
+	{"manual", "", func([]string) int {
+		home, _ := os.UserHomeDir()
+		applyMode(serverMode(socketPath(home)))
+		path, err := writeManPage(home)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
+			return 1
+		}
+		if err := runManual(findServer(home), path, colored()); err != nil {
+			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
+			return 1
+		}
+		return 0
+	}},
 }
 
 // runCommand runs the command of a name; a name conn does not know is

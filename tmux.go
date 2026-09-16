@@ -682,7 +682,7 @@ func tmuxConf(prefix string) string {
 set -g prefix ` + prefix + `
 set -g prefix2 None
 unbind -a -T prefix
-bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0
+bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M--
 bind p set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-p
 bind ` + prefix + ` select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-o
 bind Tab select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-Tab
@@ -816,7 +816,11 @@ set -g window-status-current-format ""
 	// armed on the panel and answered there, so it shows only while the
 	// keys are on the panel to answer it.
 	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
-	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},}}}\"\n",
+	// Off the panel the line says what the station is doing rather than
+	// nothing. There is one such state and it is the manual: the keys
+	// are in it, being a page and not a process, and the operator who
+	// cannot see where the keys went has only the page to judge by.
+	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},#{@conn_station}}}}\"\n",
 		statusLineBlock("PREFIX"), statusLineBlock("COPY"), onPanel)
 	b.WriteString("set -g status-right \"\"\n")
 	return b.String()
@@ -858,8 +862,9 @@ func statusLineSay(text string) string {
 
 // say puts what conn knows about its own keys on the server, and asks
 // the clients to draw, so the status line never lags what changed it.
-func (s *server) say(keys string) error {
+func (s *server) say(keys, station string) error {
 	_, err := s.run("set-option", "-g", "@conn_keys", keys,
+		";", "set-option", "-g", "@conn_station", station,
 		";", "refresh-client", "-S")
 	return err
 }
@@ -958,8 +963,9 @@ func downReport(ws []window, socket, home string) string {
 // the readout there: a window of its own, marked as a hold so that
 // everything stepping over conn's furniture steps over it, and marked
 // as the manual so the panel can say HELP while it stands.
-func (s *server) showHelp(home, self, path string) error {
-	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, manCommand(path))
+func (s *server) showHelp(home, self string) error {
+	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
+		"exec "+shellQuote(self)+" manual")
 	if err != nil {
 		return err
 	}
@@ -993,5 +999,9 @@ func (s *server) showHelp(home, self, path string) error {
 	if _, err := s.run(args...); err != nil {
 		return err
 	}
-	return s.focusPanel()
+	// The keys go to the manual, not back to the panel. It is a page to
+	// be read, and a page that cannot be scrolled cannot be read; the
+	// panel says HELP while it stands, so where the keys have gone is
+	// not left to be guessed at.
+	return s.focusPane(help)
 }

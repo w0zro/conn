@@ -236,7 +236,9 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	}
 	// The conf itself names no mode of conn's: PREFIX and COPY are tmux's
 	// to know, and the word for the view is conn's, written into
-	// @conn_keys when it changes. The left is dark where that is empty.
+	// @conn_keys when it changes, with @conn_station for the one state
+	// that outlives the panel having the keys. The left is dark where
+	// both are empty.
 	left := conf[strings.Index(conf, "set -g status-left "):]
 	left = left[:strings.Index(left, "\n")]
 	for _, gone := range []string{"CONN", "PROCS", "PROJECTS", "SESSIONS", "CONSOLE"} {
@@ -244,7 +246,9 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 			t.Errorf("the status line says %q at rest", gone)
 		}
 	}
-	if !strings.HasSuffix(left, ",}}}\"") {
+	// Off the panel the line falls through to the station's own word,
+	// which is empty unless the manual is up: dark at rest either way.
+	if !strings.HasSuffix(left, ",#{@conn_station}}}}\"") {
 		t.Errorf("the left of the status line is not dark at rest: %s", left)
 	}
 }

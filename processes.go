@@ -327,15 +327,20 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	cursorRow := -1
 	project := func(bp projectBlock) {
 		d := canvas{p: p, width: width}
-		// A row of air before each block, the first included. Furniture
-		// can sit on the edge of a pane — a rule is an edge, and the head
-		// row that used to be here was flush for that reason. A project's
-		// name is not furniture, it is the first thing there is to read,
-		// and a thing to be read does not start hard against the top of
-		// the pane. It is the only air there is: a name is followed
-		// straight by what is under it, and a blank row means a new
-		// thing begins.
-		d.blank(0)
+		// A row of air before each block at the margin, the first
+		// included. Furniture can sit on the edge of a pane — a rule is
+		// an edge, and the head row that used to be here was flush for
+		// that reason. A project's name is not furniture, it is the
+		// first thing there is to read, and a thing to be read does not
+		// start hard against the top of the pane. It is the only air
+		// there is: a name is followed straight by what is under it, and
+		// a blank row means a new thing begins. A block nested under
+		// another is not a new thing but part of the one above it, and
+		// its indent already sets it apart; air before each of them
+		// spread a folder of three repositories over half a panel.
+		if bp.nest == 0 {
+			d.blank(0)
+		}
 		// The title alone. It carried a count of its rows on the right,
 		// which was the kernel's word for them and a figure the operator
 		// never asks for: the rows are right there under it. A project at

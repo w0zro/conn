@@ -122,13 +122,20 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 // under its holder in that order; a path that sorts between a holder
 // and what it holds, as a hyphen does against a slash, follows the
 // whole of them rather than splitting them. A block at the margin is
-// titled by its name from the root, and a nested one by its own
-// directory, the rest being said above it.
+// titled by its name from the root, and a nested one by its path from
+// the block above it, the rest being said there.
+//
+// A heading made for a holder nothing runs in is drawn only where it
+// groups: two or more blocks under it. One block alone under such a
+// folder stands where the heading would have, titled by its whole name
+// from the root — w0zro/conn, not w0zro over conn — since a heading
+// over one thing says nothing the thing's own name does not.
 func nested(blocks []projectBlock, isProject func(string) bool, roots []string, home string) []projectBlock {
 	at := map[string]int{}
 	for i, bp := range blocks {
 		at[bp.path] = i
 	}
+	made := len(blocks) // headings made below have no rows of their own
 	holder := func(path string) string {
 		if path == "" || isProject == nil {
 			return ""
@@ -159,27 +166,36 @@ func nested(blocks []projectBlock, isProject func(string) bool, roots []string, 
 		}
 	}
 	// Made headings went on the end; each level draws in path order.
+	// above is the block drawn over this level, which a nested block is
+	// titled from.
 	byPath := func(a, b int) int { return strings.Compare(blocks[a].path, blocks[b].path) }
 	out := make([]projectBlock, 0, len(blocks))
-	var walk func(idx []int, nest int)
-	walk = func(idx []int, nest int) {
+	var walk func(idx []int, nest int, above string)
+	walk = func(idx []int, nest int, above string) {
 		slices.SortFunc(idx, byPath)
 		for _, i := range idx {
 			bp := blocks[i]
+			held := under[bp.path]
+			if i >= made && len(held) < 2 {
+				// A heading over one thing is not drawn: the thing takes
+				// its place, at this level, under what is above.
+				walk(held, nest, above)
+				continue
+			}
 			bp.nest = nest
 			switch {
-			case nest > 0:
-				bp.path = filepath.Base(bp.path)
+			case above != "":
+				bp.path = relName(above, bp.path)
 			case bp.path == "":
 				bp.path = "NO PROJECT"
 			default:
 				bp.path = projectName(bp.path, roots, home)
 			}
 			out = append(out, bp)
-			walk(under[blocks[i].path], nest+1)
+			walk(held, nest+1, blocks[i].path)
 		}
 	}
-	walk(top, 0)
+	walk(top, 0, "")
 	return out
 }
 

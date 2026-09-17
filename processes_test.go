@@ -101,6 +101,30 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 	if !slices.Equal(names, want) {
 		t.Errorf("the blocks are %q, not %q", names, want)
 	}
+	// And with one repository alone under the folder, and nothing in
+	// the folder itself: no heading is made over one thing. The
+	// repository stands at the margin by its whole name, the way it
+	// did before folders were headings at all.
+	alone := composeProcesses(projectsFrom(append(procs[1:3:3], procs[5]), 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false)
+	names = names[:0]
+	for _, bp := range alone.projects {
+		names = append(names, strings.Repeat("  ", bp.nest)+bp.path)
+	}
+	want = []string{"w0zro/conn", "w0zro/public-rides/public-rides.com"}
+	if !slices.Equal(names, want) {
+		t.Errorf("one block under a folder drew as %q, not %q", names, want)
+	}
+	// A folder something runs in is a block of its own, and holds even
+	// one repository under it: the heading is not made, it is there.
+	one := composeProcesses(projectsFrom(append(procs[0:3:3], procs[5]), 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false)
+	names = names[:0]
+	for _, bp := range one.projects {
+		names = append(names, strings.Repeat("  ", bp.nest)+bp.path)
+	}
+	want = []string{"w0zro/conn", "w0zro/public-rides", "  public-rides.com"}
+	if !slices.Equal(names, want) {
+		t.Errorf("a worked folder with one repository drew as %q, not %q", names, want)
+	}
 }
 
 // The processes view's columns hold: the status flush right, a root's

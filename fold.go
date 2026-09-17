@@ -6,7 +6,9 @@ package main
 // panel that listed all of it was a column of rows nobody could read
 // for the sixteen that mattered. What matters under a head is what can
 // want you: a contact, wherever it is; a row that is a fault; a row that
-// is waiting; a row that is down, which wants bringing up. The rest is
+// is waiting; a row that is down, which wants bringing up; and a
+// service, which is a thing to reach — a port to go to, a health to
+// watch — and not a step in what its compose is doing. The rest is
 // what the head is doing, and is said on the head's own row. z shows the whole tree, for when the rest is what you
 // are looking for.
 
@@ -34,7 +36,7 @@ func fold(projects []project) []project {
 			if d > 0 {
 				parent, parentDepth = at[d-1], depth[d-1]
 			}
-			if d == 0 || e.kind == kindContact || e.fault || e.status == statusWaiting || e.status == statusDown {
+			if d == 0 || e.kind == kindContact || e.kind == kindService || e.fault || e.status == statusWaiting || e.status == statusDown {
 				e.depth = parentDepth + 1
 				kept.entries = append(kept.entries, e)
 				at[d], depth[d] = len(kept.entries)-1, e.depth

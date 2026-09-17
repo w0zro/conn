@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -55,5 +56,27 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 	// The projects given are left as they were.
 	if len(projects[0].entries) != 10 || projects[0].entries[0].under != "" {
 		t.Error("the tree given was written to")
+	}
+}
+
+// A service stays at rest. It is a thing to reach — a port to go to, a
+// health to watch — and not a step in what its compose is doing, so a
+// healthy service under a stack is on the panel without z, where the
+// compose plugin between them is not.
+func TestAServiceStaysAtRest(t *testing.T) {
+	projects := []project{{path: "/w", entries: []entry{
+		{pid: 500, kind: kindRun, command: "stack · docker compose up", typed: "stack · docker compose up", tty: "ttys040", status: statusActive},
+		{pid: 501, kind: kindRun, command: "docker compose up", typed: "docker compose up", tty: "ttys040", status: statusActive, depth: 1},
+		{pid: 502, kind: kindRun, command: "docker-compose compose up", typed: "docker-compose compose up", tty: "ttys040", status: statusActive, depth: 2},
+		{pid: -5, kind: kindService, command: "web · :8080", typed: "web · :8080", status: statusActive, depth: 3, container: "aaa"},
+		{pid: -6, kind: kindService, command: "db", typed: "db", status: "UNHEALTHY", fault: true, depth: 3, container: "bbb"},
+	}}}
+	var rows []string
+	for _, e := range fold(projects)[0].entries {
+		rows = append(rows, strings.Repeat(" ", e.depth)+e.kind+" "+e.command)
+	}
+	want := []string{"RUN stack · docker compose up", " SERVICE web · :8080", " SERVICE db"}
+	if !slices.Equal(rows, want) {
+		t.Errorf("at rest:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
 	}
 }

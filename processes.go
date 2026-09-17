@@ -408,12 +408,16 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	// that failed and what it said, which is what the operator would
 	// see had they typed it. The processes view is where a key was
 	// pressed for it, so it is said here, under the rows.
+	// It is wrapped rather than cut: an error cut mid-word is an error
+	// nobody can act on, and the panel is narrow.
 	if b.notice != "" {
 		d := canvas{p: p, width: width}
 		d.blank(0)
-		l := d.line()
-		l.add(p.chip, " "+fit(strings.ToUpper(b.notice), measure-2, false)+" ")
-		d.emit(l, 0, false)
+		for _, part := range wrapValue(strings.ToUpper(b.notice), measure-2) {
+			l := d.line()
+			l.add(p.chip, " "+part+" ")
+			d.emit(l, 0, false)
+		}
 		c.rows = append(c.rows, d.rows...)
 	}
 

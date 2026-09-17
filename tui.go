@@ -206,7 +206,7 @@ type model struct {
 	// nothing on the screen at all: the operator pressed a key and
 	// nothing happened, which is the one thing conn should never leave
 	// them with.
-	notice string
+	notice       string
 	processesGen int // which stay in the processes view the ticks belong to
 	// The pane the keys were in when a chord brought them to the panel,
 	// for a view there is something to cancel out of. Blank where the

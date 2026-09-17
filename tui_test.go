@@ -1520,7 +1520,7 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 	m.view, m.inside = viewProcesses, true
 	next, _ := m.Update(noticeMsg{"the shell could not be opened: tmux swap-pane: can't find pane: %9"})
 	m = next.(model)
-	if text := texts(drawProcesses(m.processesReport(), 0, 48, 30, plain)); !strings.Contains(text, "TMUX SWAP-PANE") {
+	if text := texts(drawProcesses(m.processesReport(), 0, 48, 30, plain)); !strings.Contains(text, "SWAP-PANE: CAN'T FIND PANE") {
 		t.Errorf("the notice is not under the rows:\n%s", text)
 	}
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))

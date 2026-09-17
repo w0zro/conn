@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -139,6 +140,119 @@ type declared struct {
 	size int64
 	list []declaration
 	err  string
+	// What each declaration that runs compose would bring up, by the
+	// declaration's name, as compose itself says; see composeServices.
+	// And the stamp of the compose files it was read from, so that it
+	// is asked again only when they change.
+	services map[string][]string
+	stamps   map[string]string
+}
+
+// composeArgs reads a declared command that runs compose: the words
+// between compose and up, which are compose's own — a file, a project
+// name — and the services named after up, if any. A command that is
+// not a compose up is not one.
+func composeArgs(command string) (pre, named []string, ok bool) {
+	fields := strings.Fields(command)
+	if len(fields) < 2 {
+		return nil, nil, false
+	}
+	name := strings.TrimPrefix(fields[0], "docker-")
+	if name != "docker" && name != "compose" {
+		return nil, nil, false
+	}
+	i := slices.Index(fields, "up")
+	if i < 0 {
+		return nil, nil, false
+	}
+	start := 1
+	if name == "docker" && len(fields) > 1 && fields[1] == "compose" {
+		start = 2
+	}
+	if start > i {
+		return nil, nil, false
+	}
+	pre = fields[start:i]
+	for _, f := range fields[i+1:] {
+		if !strings.HasPrefix(f, "-") {
+			named = append(named, f)
+		}
+	}
+	return pre, named, true
+}
+
+// composeFilesStamp is the compose files a declaration reads, as they
+// stand: the ones compose looks for on its own, and any it was told
+// of. A stamp that has not moved is a file that has not changed, and
+// compose is not asked again about it.
+func composeFilesStamp(dir string, pre []string) string {
+	files := []string{"compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml",
+		"compose.override.yaml", "compose.override.yml", "docker-compose.override.yaml", "docker-compose.override.yml"}
+	for i, a := range pre {
+		switch {
+		case (a == "-f" || a == "--file") && i+1 < len(pre):
+			files = append(files, pre[i+1])
+		case strings.HasPrefix(a, "--file="):
+			files = append(files, strings.TrimPrefix(a, "--file="))
+		}
+	}
+	var b strings.Builder
+	for _, f := range files {
+		if !filepath.IsAbs(f) {
+			f = filepath.Join(dir, f)
+		}
+		if info, err := os.Stat(f); err == nil {
+			fmt.Fprintf(&b, "%s:%d:%d;", f, info.ModTime().UnixNano(), info.Size())
+		}
+	}
+	return b.String()
+}
+
+// composeServices is what a compose up would bring up: the services it
+// names, or, naming none, every service compose finds in its files —
+// asked of compose itself, with the same words the declaration gives
+// it, so that every file, override and profile compose would read is
+// read the way compose reads it, and conn parses no YAML of its own.
+// Without docker there is nothing to ask, and nothing is said.
+func composeServices(dir string, pre, named []string) []string {
+	if len(named) > 0 {
+		return named
+	}
+	if dockerPath == "" {
+		return nil
+	}
+	args := append([]string{"compose"}, pre...)
+	out, err := dockerSaysIn(dir, dockerWait, append(args, "config", "--services")...)
+	if err != nil {
+		return nil
+	}
+	var services []string
+	for line := range strings.SplitSeq(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			services = append(services, line)
+		}
+	}
+	return services
+}
+
+// composeServicesOf fills in what each compose declaration would bring
+// up, asking compose only where the files have changed since it was
+// last asked.
+func composeServicesOf(path string, list []declaration, was declared) (map[string][]string, map[string]string) {
+	services, stamps := map[string][]string{}, map[string]string{}
+	for _, d := range list {
+		pre, named, ok := composeArgs(d.command)
+		if !ok {
+			continue
+		}
+		stamp := d.command + "\x00" + composeFilesStamp(d.at(path), pre)
+		if s, ok := was.services[d.name]; ok && was.stamps[d.name] == stamp {
+			services[d.name], stamps[d.name] = s, stamp
+			continue
+		}
+		services[d.name], stamps[d.name] = composeServices(d.at(path), pre, named), stamp
+	}
+	return services, stamps
 }
 
 // refreshDeclared is the files as they stand now, from what they were:
@@ -155,17 +269,21 @@ func refreshDeclared(was map[string]declared, paths []string) map[string]declare
 		if err != nil {
 			continue
 		}
-		if d, ok := was[path]; ok && d.err == "" && d.mod.Equal(info.ModTime()) && d.size == info.Size() {
-			out[path] = d
-			continue
+		d, kept := was[path]
+		stale := !kept || d.err != "" || !d.mod.Equal(info.ModTime()) || d.size != info.Size()
+		if stale {
+			d = declared{mod: info.ModTime(), size: info.Size()}
+			list, err := readDeclared(path)
+			if err != nil {
+				d.err = err.Error()
+			} else {
+				d.list = list
+			}
 		}
-		d := declared{mod: info.ModTime(), size: info.Size()}
-		list, err := readDeclared(path)
-		if err != nil {
-			d.err = err.Error()
-		} else {
-			d.list = list
-		}
+		// The compose files are stamped every time, the .conn kept or
+		// read: a service added to a compose file is a row to show,
+		// and nothing about the .conn says the compose file moved.
+		d.services, d.stamps = composeServicesOf(path, d.list, was[path])
 		out[path] = d
 	}
 	return out
@@ -315,8 +433,10 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 				// The pane is up. Its head is relabelled wherever the
 				// table filed it; a pane whose rows the table has not
 				// got yet has no row this beat, rather than a down row
-				// that is not true.
+				// that is not true. A service compose would bring up
+				// that has no container yet is down under it.
 				relabel(out, p, decl)
+				servicesUnder(out, p.tty, path, decl, d.services[decl.name])
 				continue
 			}
 			out[i].entries = append(out[i].entries, entry{
@@ -324,9 +444,72 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 				command: decl.label(), typed: decl.label(),
 				status: statusDown, cwd: decl.at(path), declared: mark,
 			})
+			// What the declaration would bring up, each a row of its
+			// own under it, down: a stack is its services, and a row
+			// per service says what conn will hold once it is up and
+			// which of them is not, the way the services stand under
+			// the stack while it runs.
+			for _, svc := range d.services[decl.name] {
+				out[i].entries = append(out[i].entries, downService(path, decl, svc, 1))
+			}
 		}
 	}
 	return out
+}
+
+// downService is a service of a compose declaration as a row, down:
+// named by the service alone, at a depth under the declaration's row,
+// with a pid of its own to hold the cursor with. It carries no mark
+// and no container, since there is nothing to signal, stop or enter;
+// bringing the declaration up is what brings it up.
+func downService(path string, decl declaration, svc string, depth int) entry {
+	return entry{
+		pid: declaredPID(path, decl.name+"/"+svc), kind: kindService,
+		command: svc, typed: svc, status: statusDown, cwd: decl.at(path), depth: depth,
+	}
+}
+
+// servicesUnder puts a down row under a running declaration's head
+// for each service compose would bring up that has no container among
+// the rows there: a service that has not started, or that compose
+// has not got to yet. The rows are copied before they are written,
+// since the projects given may be the model's own.
+func servicesUnder(out []project, tty, path string, decl declaration, services []string) {
+	if len(services) == 0 {
+		return
+	}
+	for i, pl := range out {
+		for j, e := range pl.entries {
+			if e.tty != tty {
+				continue
+			}
+			// The head's subtree, and the services with a row in it.
+			end := j + 1
+			present := map[string]bool{}
+			for end < len(pl.entries) && pl.entries[end].depth > e.depth {
+				if pl.entries[end].kind == kindService {
+					name, _, _ := strings.Cut(pl.entries[end].command, " · ")
+					present[name] = true
+				}
+				end++
+			}
+			var missing []entry
+			for _, svc := range services {
+				if !present[svc] {
+					missing = append(missing, downService(path, decl, svc, e.depth+1))
+				}
+			}
+			if len(missing) == 0 {
+				return
+			}
+			rows := make([]entry, 0, len(pl.entries)+len(missing))
+			rows = append(rows, pl.entries[:end]...)
+			rows = append(rows, missing...)
+			rows = append(rows, pl.entries[end:]...)
+			out[i].entries = rows
+			return
+		}
+	}
 }
 
 // blockOf is the index of a project's block, or below zero where the

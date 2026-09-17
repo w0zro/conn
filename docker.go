@@ -132,9 +132,16 @@ func readContainers() ([]container, bool) {
 // same news: one says the daemon is down, the other says only that it did
 // not answer yet.
 func dockerSays(wait time.Duration, args ...string) ([]byte, error) {
+	return dockerSaysIn("", wait, args...)
+}
+
+// dockerSaysIn is dockerSays run in a directory, for what compose reads
+// relative to where it is asked: its files, and the project they name.
+func dockerSaysIn(dir string, wait time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, dockerPath, args...)
+	cmd.Dir = dir
 	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	if ctx.Err() != nil {

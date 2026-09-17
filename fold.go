@@ -6,8 +6,8 @@ package main
 // panel that listed all of it was a column of rows nobody could read
 // for the sixteen that mattered. What matters under a head is what can
 // want you: a contact, wherever it is; a row that is a fault; a row that
-// is waiting. The rest is what the head is doing, and is said on the
-// head's own row. z shows the whole tree, for when the rest is what you
+// is waiting; a row that is down, which wants bringing up. The rest is
+// what the head is doing, and is said on the head's own row. z shows the whole tree, for when the rest is what you
 // are looking for.
 
 // fold is the projects with every row that is only what its parent is
@@ -34,7 +34,7 @@ func fold(projects []project) []project {
 			if d > 0 {
 				parent, parentDepth = at[d-1], depth[d-1]
 			}
-			if d == 0 || e.kind == kindContact || e.fault || e.status == statusWaiting {
+			if d == 0 || e.kind == kindContact || e.fault || e.status == statusWaiting || e.status == statusDown {
 				e.depth = parentDepth + 1
 				kept.entries = append(kept.entries, e)
 				at[d], depth[d] = len(kept.entries)-1, e.depth

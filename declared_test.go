@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -253,5 +254,92 @@ func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
 	}
 	if !reflect.DeepEqual(held, map[string]string{markDeclared(app, "api"): "%2"}) {
 		t.Errorf("held: %v", held)
+	}
+}
+
+// A declared command that runs compose is read for what it hands
+// compose — the words before up — and the services it names after it;
+// anything else is not a compose up.
+func TestAComposeDeclarationIsReadForItsWords(t *testing.T) {
+	for _, c := range []struct {
+		command    string
+		pre, named []string
+		ok         bool
+	}{
+		{"docker compose up", nil, nil, true},
+		{"docker compose -f stack.yml -p shop up", []string{"-f", "stack.yml", "-p", "shop"}, nil, true},
+		{"docker compose up -d web db", nil, []string{"web", "db"}, true},
+		{"docker-compose up api", nil, []string{"api"}, true},
+		{"docker compose logs", nil, nil, false},
+		{"npm run dev", nil, nil, false},
+		{"docker", nil, nil, false},
+	} {
+		pre, named, ok := composeArgs(c.command)
+		if ok != c.ok || !slices.Equal(pre, c.pre) || !slices.Equal(named, c.named) {
+			t.Errorf("%q read as pre %q named %q ok %v", c.command, pre, named, ok)
+		}
+	}
+	// Named services are the answer without asking compose; nothing to
+	// ask with is nothing.
+	if got := composeServices("/nowhere", nil, []string{"web", "db"}); !slices.Equal(got, []string{"web", "db"}) {
+		t.Errorf("named services came back as %q", got)
+	}
+}
+
+// A compose declaration that is down has the services it would bring
+// up as rows under it, each down; one that is up has a down row for
+// each service that has no container among its rows yet, and none for
+// the ones that have.
+func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
+	shop := "/r/shop"
+	stack := declaration{name: "stack", command: "docker compose up"}
+	declared := map[string]declared{shop: {
+		list:     []declaration{stack},
+		services: map[string][]string{"stack": {"api", "db", "web"}},
+	}}
+	// Down: nothing runs it, and a shell is open in the project.
+	projects := []project{{path: shop, entries: []entry{
+		{pid: 100, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys001", status: statusIdle},
+	}}}
+	got := attachDeclared(projects, declared, nil)
+	rows := func(pl project) []string {
+		var out []string
+		for _, e := range pl.entries {
+			out = append(out, strings.Repeat(" ", e.depth)+e.kind+" "+e.command+" "+e.status)
+		}
+		return out
+	}
+	want := []string{"SHELL zsh IDLE", "RUN stack · docker compose up DOWN", " SERVICE api DOWN", " SERVICE db DOWN", " SERVICE web DOWN"}
+	if !slices.Equal(rows(got[0]), want) {
+		t.Errorf("down:\n%s\nwant:\n%s", strings.Join(rows(got[0]), "\n"), strings.Join(want, "\n"))
+	}
+	// Each service row holds the cursor by a pid of its own, and is
+	// nothing to signal, stop or enter.
+	if e := got[0].entries[2]; e.pid == 0 || e.pid == got[0].entries[1].pid || e.declared != "" || e.container != "" || e.cwd != shop {
+		t.Errorf("a down service row: %+v", e)
+	}
+	// And the fold keeps them, as rows that want bringing up.
+	if kept := fold(got)[0]; len(kept.entries) != 5 {
+		t.Errorf("the fold took the down services: %d rows", len(kept.entries))
+	}
+
+	// Up: the head runs, and docker has two of the three services under
+	// it; the third is down under the head, after the rows it has.
+	mark := markDeclared(shop, "stack")
+	up := []project{{path: shop, entries: []entry{
+		{pid: 200, kind: kindShell, command: "sh -c docker compose up", typed: "sh -c docker compose up", tty: "ttys002", status: statusActive},
+		{pid: 201, kind: kindRun, command: "docker compose up", typed: "docker compose up", tty: "ttys002", status: statusActive, depth: 1},
+		{pid: -5, kind: kindService, command: "api · :3000", typed: "api · :3000", status: statusActive, depth: 2, container: "aaa"},
+		{pid: -6, kind: kindService, command: "web · :8080", typed: "web · :8080", status: statusActive, depth: 2, container: "bbb"},
+		{pid: 300, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys003", status: statusIdle},
+	}}}
+	panes := map[string]pane{"ttys002": {id: "%2", tty: "ttys002", declared: mark}}
+	got = attachDeclared(up, declared, panes)
+	want = []string{"RUN stack · docker compose up ACTIVE", " RUN docker compose up ACTIVE", "  SERVICE api · :3000 ACTIVE", "  SERVICE web · :8080 ACTIVE", " SERVICE db DOWN", "SHELL zsh IDLE"}
+	if !slices.Equal(rows(got[0]), want) {
+		t.Errorf("up:\n%s\nwant:\n%s", strings.Join(rows(got[0]), "\n"), strings.Join(want, "\n"))
+	}
+	if len(up[0].entries) != 5 {
+		t.Error("the model's own rows were written to")
 	}
 }

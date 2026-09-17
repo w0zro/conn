@@ -181,7 +181,10 @@ down. A pane conn opened this way carries the declared name on its head row.
 When the process ends on its own the pane holds its output and the row reads
 ENDED, or EXIT and the code as a fault; \fBenter\fR goes in to read it, \fBu\fR
 opens it anew, and \fBx\fR closes it. \fBx\fR on one still running ends it and
-closes its pane together, and the row is DOWN again. A file that will not read
+closes its pane together, and the row is DOWN again. A declaration that is a
+\fBdocker compose up\fR has the services it would bring up as rows under it,
+each DOWN until it runs, as compose itself lists them; while it runs, a service
+compose has not started is DOWN under it the same way. A file that will not read
 is said under the block, with the line.
 .SH KEYS
 .TP

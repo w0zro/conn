@@ -1377,6 +1377,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if e.declared != "" {
 			return m.armDeclared(e)
 		}
+		// A row that is down is nothing running: there is nothing to
+		// end, and the question would be about a pid conn made up.
+		if e.status == statusDown {
+			return m, nil
+		}
 		// A shell whose rows are folded says what it runs, and x on it
 		// is x on that: the command is asked to end and the shell is
 		// left at its prompt, as it is when the command has a row of

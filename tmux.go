@@ -674,8 +674,19 @@ func (s *server) raiseDeclared(dir, cmd, mark, replace string, show bool) (shell
 	return sh, nil
 }
 
+// paneExit is what a declared process's pane has recorded of its end:
+// the code, or nothing while it is still going. An error is a pane
+// that is not there to ask.
+func (s *server) paneExit(id string) (string, error) {
+	out, err := s.run("display-message", "-p", "-t", id, "#{@conn_exit}")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // closePane takes a pane down: a declared process's, once its output
-// has been read.
+// has been read, or once it was asked to end.
 func (s *server) closePane(id string) error {
 	_, err := s.run("kill-pane", "-t", id)
 	return err

@@ -962,12 +962,16 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 // rows on the panel from the first reading; u brings them up, parked
 // and marked, and the one that ended at once reads ENDED where the one
 // still running reads ACTIVE; enter on the ended one puts its pane in
-// the bay to be read; and x closes that pane, whereupon the row is down
-// again.
+// the bay to be read; x closes that pane, whereupon the row is down
+// again; and x on the one still running ends it and closes its pane in
+// one move.
 func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s := startScratch(t)
 	repo := filepath.Join(s.dir, "home", "repo")
-	if err := os.WriteFile(filepath.Join(repo, declaredName), []byte("sleeper: sleep 120\nquick: true\n"), 0o644); err != nil {
+	// sleeper answers the signal slowly, the way a docker compose up
+	// does while it stops its services: six seconds, past the five a
+	// first cut of the close gave before leaving the pane standing.
+	if err := os.WriteFile(filepath.Join(repo, declaredName), []byte("sleeper: perl -e '$SIG{TERM} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
@@ -1037,5 +1041,38 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.until("the pane gone and quick down again", func() bool {
 		id, _ := marked("quick")
 		return id == "" && rowSays("quick", "DOWN") && rowSays("sleeper", "ACTIVE")
+	})
+
+	// sleeper is still running. x on its head row asks to signal the
+	// perl, and y does that and takes the pane down with it once the
+	// end is recorded, six seconds on: the row is DOWN in the one move,
+	// with no ENDED to close.
+	// G is quick's down row. sleeper's head is above it, past the
+	// perl where the fold has left that on the panel: each row up is
+	// asked, and the question that names sleeper is the one answered;
+	// the rest are withdrawn.
+	s.keys("G")
+	armed := func() bool { return strings.Contains(s.statusLine(), "(y/n)") }
+	for i := 0; i < 4; i++ {
+		s.keys("k")
+		s.keys("x")
+		s.until("a question", armed)
+		if strings.Contains(s.statusLine(), "kill -TERM") && strings.Contains(s.statusLine(), " sleeper? (y/n)") {
+			break
+		}
+		s.keys("n")
+		s.until("the question withdrawn", func() bool { return !armed() })
+	}
+	if !strings.Contains(s.statusLine(), " sleeper? (y/n)") {
+		t.Fatalf("sleeper's row not found above quick's: %s", s.statusLine())
+	}
+	s.keys("y")
+	// The answer takes six seconds and the helper's patience is eight;
+	// the first stretch is waited out here so the wait after it is not
+	// a near thing on a slow runner.
+	time.Sleep(3 * time.Second)
+	s.until("sleeper's pane gone and its row down", func() bool {
+		id, _ := marked("sleeper")
+		return id == "" && rowSays("sleeper", "DOWN") && rowSays("quick", "DOWN")
 	})
 }

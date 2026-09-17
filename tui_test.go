@@ -563,6 +563,37 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	}
 }
 
+// x on a declared process that is up arms the signal with the pane
+// riding along, so that y takes the row to DOWN in one move; on one
+// that has ended, the pane alone, since there is nothing to signal.
+func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
+	m := newModel(plain)
+	m.view = viewProcesses
+	mark := markDeclared("/w", "web")
+	m.projects = []project{{path: "/w", entries: []entry{
+		{pid: 40, kind: kindRun, command: "web · npm run dev", typed: "web · npm run dev", tty: "/dev/ttys009", declared: mark},
+	}}}
+	m.panes = map[string]pane{"/dev/ttys009": {id: "%7", tty: "/dev/ttys009", declared: mark}}
+	m.cursor = 40
+
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if m.kill == nil || m.kill.pid != 40 || m.kill.sig != syscall.SIGTERM || m.kill.pane != "%7" {
+		t.Fatalf("arming an up declaration: kill %+v", m.kill)
+	}
+	if !strings.Contains(m.kill.prompt, "kill -TERM 40 · web?") {
+		t.Errorf("the question: kill %+v", m.kill)
+	}
+
+	m.panes["/dev/ttys009"] = pane{id: "%7", tty: "/dev/ttys009", declared: mark, exit: "0"}
+	m.kill = nil
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
+	m = next.(model)
+	if m.kill == nil || m.kill.pid != 0 || m.kill.pane != "%7" || !strings.Contains(m.kill.prompt, "kill-pane %7 · web?") {
+		t.Errorf("arming an ended declaration: kill %+v", m.kill)
+	}
+}
+
 // x, y or enter answers an armed kill by sending it; anything else
 // cancels, and takes the key that cancelled it rather than also acting
 // on it — j does not also move the cursor.

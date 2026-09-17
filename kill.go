@@ -45,9 +45,12 @@ type pendingKill struct {
 	// process of this machine and has no pid to signal: docker holds it,
 	// and docker is asked to let it go.
 	container string
-	// The pane to close, where the row is a declared process that has
-	// ended and holds its pane for its output: there is nothing left to
-	// signal, and the pane is what goes.
+	// The pane to close, where the row is a declared process. One that
+	// has ended holds its pane for its output: there is nothing left to
+	// signal, and the pane is what goes. One still up is signalled, and
+	// its pane goes once it has recorded the end, so that the row is
+	// DOWN in one move: an end the operator asked for has nothing in it
+	// to read.
 	pane string
 }
 
@@ -65,6 +68,19 @@ func killSignal(kind string) syscall.Signal {
 // process table again, so the row is not read a moment too soon, the
 // process still in it.
 const killGrace = 400 * time.Millisecond
+
+// closeWait is how long conn gives a declared process to answer the
+// signal before leaving its pane standing, and closePoll how often it
+// looks for the end meanwhile. It is well past docker's own patience:
+// a docker compose up asked to end stops each service and gives it ten
+// seconds before insisting, and a stack ended this way should go down
+// whole and its pane with it. A process that has not gone in this time
+// is not answering, and its pane and row say so rather than the pane
+// being pulled from under it.
+const (
+	closeWait = 30 * time.Second
+	closePoll = 100 * time.Millisecond
+)
 
 // killedMsg is what became of a kill once it was sent.
 type killedMsg struct {

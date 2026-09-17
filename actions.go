@@ -2,6 +2,7 @@ package main
 
 import (
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -101,6 +102,35 @@ func (m model) raiseAll(path string, up map[string]bool, held map[string]string)
 			shells = append(shells, sh)
 		}
 		return raisedMsg{shells: shells}
+	}
+}
+
+// killDeclared signals a declared process that is up and, once its
+// pane has recorded the end, takes the pane down, so the row goes
+// straight to DOWN rather than standing ENDED for a second x: an end
+// the operator asked for has nothing in it to read. The wait is
+// bounded by closeWait; a process that does not answer keeps its pane,
+// and the row goes on saying it is up. A signal that could not be
+// sent leaves the pane too, since what it holds is then an end of the
+// process's own.
+func (m model) killDeclared(pid int, command string, sig syscall.Signal, pane string) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		if err := signal(pid, sig); err == nil {
+			deadline := time.Now().Add(closeWait)
+			for time.Now().Before(deadline) {
+				exit, err := srv.paneExit(pane)
+				if err != nil {
+					break
+				}
+				if exit != "" {
+					_ = srv.closePane(pane)
+					break
+				}
+				time.Sleep(closePoll)
+			}
+		}
+		return killedMsg{command: command, pid: pid, sig: sig}
 	}
 }
 

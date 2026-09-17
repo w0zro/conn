@@ -1107,8 +1107,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			if req.container != "" {
 				return m, m.stopContainer(req.container, req.command)
 			}
-			if req.pane != "" {
+			if req.pane != "" && req.pid == 0 {
 				return m, m.closeHeld(req.pane, req.command)
+			}
+			if req.pane != "" {
+				return m, m.killDeclared(req.pid, req.command, req.sig, req.pane)
 			}
 			return m, m.killEntry(req.pid, req.command, req.sig)
 		}
@@ -1868,8 +1871,9 @@ func (m model) raiseAt() (tea.Model, tea.Cmd) {
 // to end. Ended and holding its pane, the pane is what goes, and the
 // question says close. Up, the process itself is asked to end — the
 // command under the sh that started it, so that the sh goes on to
-// record the end and hold the output the way an end of its own would;
-// the sh itself only until the command is read.
+// record the end; the sh itself only until the command is read — and
+// the pane rides with the kill, to go once the end is recorded, so
+// the row is DOWN in the one move rather than ENDED for a second x.
 func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
 	_, name, _ := unmarkDeclared(e.declared)
 	switch {
@@ -1883,7 +1887,7 @@ func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
 	if child, ok := m.childOf(e); ok {
 		pid = child.pid
 	}
-	m.kill = &pendingKill{pid: pid, command: name, sig: syscall.SIGTERM, prompt: killPrompt(name, pid, syscall.SIGTERM)}
+	m.kill = &pendingKill{pid: pid, command: name, sig: syscall.SIGTERM, prompt: killPrompt(name, pid, syscall.SIGTERM), pane: m.panes[e.tty].id}
 	return m, nil
 }
 

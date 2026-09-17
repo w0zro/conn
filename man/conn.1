@@ -160,7 +160,10 @@ shell runs, from its own row or from the shell's row that says it; \fBkill
 \-KILL\fR for a bare shell, which ignores the gentler signal; \fBdocker stop\fR
 for a service; tmux's \fBkill\-pane\fR for a pane held after its process ended.
 \fBy\fR answers yes and any other key withdraws the question, as tmux's own
-confirmation goes. The shell a process ran in is left at its prompt.
+confirmation goes. The shell a process ran in is left at its prompt. A declared
+process that is up is signalled the same way, and once it has ended its pane
+goes with it, so the row is DOWN again in the one move: an end that was asked
+for leaves nothing to read.
 .TP
 2-6.
 A service has no pane, so \fBenter\fR on one opens its output, and \fBenter\fR
@@ -175,10 +178,11 @@ worded DOWN; a project nothing is running in shows nothing of its file.
 \fBenter\fR on such a row brings it up in a pane of the station and goes into
 it; \fBu\fR on any row of the project brings up everything it declares that is
 down. A pane conn opened this way carries the declared name on its head row.
-When the process ends the pane holds its output and the row reads ENDED, or EXIT
-and the code as a fault; \fBenter\fR goes in to read it, \fBu\fR opens it anew,
-and \fBx\fR closes it. A file that will not read is said under the block, with
-the line.
+When the process ends on its own the pane holds its output and the row reads
+ENDED, or EXIT and the code as a fault; \fBenter\fR goes in to read it, \fBu\fR
+opens it anew, and \fBx\fR closes it. \fBx\fR on one still running ends it and
+closes its pane together, and the row is DOWN again. A file that will not read
+is said under the block, with the line.
 .SH KEYS
 .TP
 3-1.
@@ -267,7 +271,7 @@ The sessions suspended at the project.
 .TP
 \fBx\fR
 End it: a signal to a process, docker stop to a service, and on a declared
-process that has ended, close its pane. Asks first.
+process, its pane too, once it has ended. Asks first.
 .TP
 \fBu\fR
 Bring up what the project declares and does not have running.

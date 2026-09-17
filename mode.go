@@ -119,6 +119,13 @@ const lightGrayHex = "#6F6656"
 // the comment on darkFaintHex.
 const lightFaintHex = "#867C6A"
 
+// The second ink and the accent's shimmer, light; the dark ones are in
+// theme.go. Light's scheme[7] and scheme[1], as dark's are dark's.
+const (
+	lightParchmentHex = "#4A4335"
+	lightShimmerHex   = "#A63214"
+)
+
 // The grounds no slot has a name for, light: the same washes and bars
 // theme.go names dark, in the light ground's own temperature. A wash
 // this pale needs more room from the ground than the same wash does on
@@ -154,6 +161,7 @@ func applyMode(dark bool) {
 		cursorHex, borderHex = darkCursorHex, darkBorderHex
 		grayHex = darkGrayHex
 		faintHex = darkFaintHex
+		parchmentHex, shimmerHex, messageBg = darkParchmentHex, darkShimmerHex, darkBorderHex
 		diffAddedBg, diffRemovedBg = darkDiffAddedBg, darkDiffRemovedBg
 		diffAddedDim, diffRemovedDim = darkDiffAddedDim, darkDiffRemovedDim
 		diffAddedWord, diffRemovedWord = darkDiffAddedWord, darkDiffRemovedWord
@@ -166,6 +174,7 @@ func applyMode(dark bool) {
 	cursorHex, borderHex = lightCursorHex, lightBorderHex
 	grayHex = lightGrayHex
 	faintHex = lightFaintHex
+	parchmentHex, shimmerHex, messageBg = lightParchmentHex, lightShimmerHex, lightBorderHex
 	diffAddedBg, diffRemovedBg = lightDiffAddedBg, lightDiffRemovedBg
 	diffAddedDim, diffRemovedDim = lightDiffAddedDim, lightDiffRemovedDim
 	diffAddedWord, diffRemovedWord = lightDiffAddedWord, lightDiffRemovedWord

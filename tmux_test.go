@@ -293,7 +293,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// own ground, with tmux's own character doubled so it is shown.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
 	if ask := m.keys(); !strings.HasPrefix(ask, statusLineBlock("CONFIRM")) || !strings.Contains(ask, "bg="+cursorHex) ||
-		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+scheme[7]) ||
+		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+parchmentHex) ||
 		strings.Contains(ask, "PROCS") {
 		t.Errorf("a question armed lights %q", ask)
 	}

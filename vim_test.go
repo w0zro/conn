@@ -47,8 +47,8 @@ func TestTheVimColorschemeIsAColorscheme(t *testing.T) {
 // so the scheme holds up where sixteen is all there is.
 func TestTheVimColorschemeIsDrawnFromConnsOwn(t *testing.T) {
 	known := map[string]bool{
-		"NONE": true, hex(groundColor): true, grayHex: true,
-		toolBg: true, diffAddedBg: true, diffRemovedBg: true,
+		"NONE": true, hex(groundColor): true, hex(inkColor): true, grayHex: true,
+		borderHex: true, parchmentHex: true, cursorHex: true, toolBg: true, diffAddedBg: true, diffRemovedBg: true,
 		diffAddedWord: true, diffRemovedWord: true, diffAddedDim: true,
 	}
 	slotOf := map[string]string{}
@@ -117,10 +117,10 @@ func TestTheVimRolesFollowTheSlots(t *testing.T) {
 func TestTheVimSchemeAgreesWithTheRest(t *testing.T) {
 	out := vimColorscheme()
 	for _, want := range []string{
-		"hi Search guifg=" + hex(groundColor) + " ctermfg=NONE guibg=" + scheme[9],
+		"hi Search guifg=" + hex(groundColor) + " ctermfg=NONE guibg=" + cursorHex,
 		"hi Visual guifg=NONE ctermfg=NONE guibg=" + borderHex,
 		"hi DiffAdd guifg=NONE ctermfg=NONE guibg=" + diffAddedBg,
-		"hi DiffDelete guifg=" + scheme[8] + " ctermfg=8 guibg=" + diffRemovedBg,
+		"hi DiffDelete guifg=" + faintHex + " ctermfg=8 guibg=" + diffRemovedBg,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the colorscheme lacks %q", want)
@@ -129,7 +129,7 @@ func TestTheVimSchemeAgreesWithTheRest(t *testing.T) {
 	// No mode-like chrome takes the orange: it is for what wants you.
 	for _, line := range strings.Split(out, "\n") {
 		for _, g := range []string{"hi StatusLine ", "hi Pmenu ", "hi CursorLine ", "hi Comment "} {
-			if strings.HasPrefix(line, g) && strings.Contains(line, scheme[9]) {
+			if strings.HasPrefix(line, g) && strings.Contains(line, cursorHex) {
 				t.Errorf("%s takes the orange", strings.TrimSpace(g))
 			}
 		}
@@ -214,7 +214,7 @@ func TestTheLightColorschemeDrawsTheBorderAsTheRestOfConnDoes(t *testing.T) {
 	applyMode(false)
 	out := vimColorscheme()
 	for _, want := range []string{
-		"hi StatusLine guifg=" + scheme[15] + " ctermfg=15 guibg=" + lightBorderHex + " ctermbg=NONE",
+		"hi StatusLine guifg=" + hex(inkColor) + " ctermfg=15 guibg=" + lightBorderHex + " ctermbg=NONE",
 		"hi Visual guifg=NONE ctermfg=NONE guibg=" + lightBorderHex + " ctermbg=NONE",
 		"hi WinSeparator guifg=" + lightBorderHex + " ctermfg=NONE",
 		"hi LineNr guifg=" + lightFaintHex + " ctermfg=8",

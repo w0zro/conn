@@ -51,6 +51,7 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 func TestTheThemeIsDrawnFromConnsOwn(t *testing.T) {
 	known := map[string]bool{
 		hex(groundColor): true, hex(inkColor): true, grayHex: true, borderHex: true,
+		cursorHex: true, shimmerHex: true, parchmentHex: true, messageBg: true,
 		diffAddedBg: true, diffRemovedBg: true, diffAddedDim: true, diffRemovedDim: true,
 		diffAddedWord: true, diffRemovedWord: true,
 		messageHoverBg: true, toolBg: true,
@@ -85,15 +86,15 @@ func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 			t.Errorf("%s is %s, not a slot", k, at[k])
 		}
 	}
-	orange := scheme[9]
+	accent := cursorHex
 	for _, k := range []string{"claude", "permission", "rate_limit_fill"} {
-		if at[k] != orange {
-			t.Errorf("%s is %s, not the orange", k, at[k])
+		if at[k] != accent {
+			t.Errorf("%s is %s, not the accent", k, at[k])
 		}
 	}
 	for _, mode := range []string{"planMode", "autoAccept", "fastMode", "bashBorder", "promptBorder"} {
-		if at[mode] == orange {
-			t.Errorf("%s takes the orange", mode)
+		if at[mode] == accent {
+			t.Errorf("%s takes the accent", mode)
 		}
 	}
 }

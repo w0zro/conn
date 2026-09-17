@@ -901,7 +901,7 @@ func statusLineBlock(word string) string {
 // block. A hash is tmux's own character on this line and is doubled to
 // be shown.
 func statusLineSay(text string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", borderHex, scheme[7], strings.ReplaceAll(text, "#", "##"))
+	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", borderHex, parchmentHex, strings.ReplaceAll(text, "#", "##"))
 }
 
 // say puts what conn knows about its own keys on the server, and asks

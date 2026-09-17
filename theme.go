@@ -46,6 +46,28 @@ const darkFaintHex = "#5C564A"
 
 var faintHex = darkFaintHex
 
+// The second ink: what conn titles with, a colorscheme's punctuation,
+// the border of a bash block in Claude Code, what conn says beside a
+// block on the status line. On conn it is scheme[7], the parchment the
+// pane's ANSI-7 is drawn in, and it is read by name all the same: a
+// slot is what a program asks for, a role is what conn means, and a
+// palette whose slot 7 is white has a second ink still. Dark; the light
+// one is in mode.go.
+const darkParchmentHex = "#BFB39A"
+
+var parchmentHex = darkParchmentHex
+
+// The accent's brighter cousin: the shimmer Claude Code plays over its
+// mark and over the one dialog that stops for you. On conn it is
+// scheme[1], the red the orange lifts to.
+const darkShimmerHex = "#FF7847"
+
+var shimmerHex = darkShimmerHex
+
+// The band behind what you said to Claude Code, at rest. On conn it is
+// the border, on both grounds.
+var messageBg = darkBorderHex
+
 // Where Claude Code keeps what conn writes and what it reads back.
 const (
 	claudeDir      = ".claude"
@@ -91,14 +113,13 @@ type token struct{ name, color string }
 // colors conn has an opinion about.
 func claudeTheme() [][]token {
 	var (
-		red, yellow, cyan = scheme[1], scheme[3], scheme[6]
-		parchment         = scheme[7]
-		faint, orange     = faintHex, scheme[9]
-		ink               = scheme[15]
+		yellow, cyan  = scheme[3], scheme[6]
+		faint, accent = faintHex, cursorHex
+		ink           = hex(inkColor)
 	)
 	return [][]token{{
-		{"claude", orange},
-		{"claudeShimmer", red},
+		{"claude", accent},
+		{"claudeShimmer", shimmerHex},
 	}, {
 		{"text", ink},
 		{"inverseText", hex(groundColor)},
@@ -113,15 +134,15 @@ func claudeTheme() [][]token {
 		{"warning", "ansi:yellow"},
 		{"merged", "ansi:magenta"},
 	}, {
-		// The orange is "you, here": the mark, and the one dialog that
+		// The accent is "you, here": the mark, and the one dialog that
 		// stops and waits for you. A mode is quiet unless it changes what
 		// Claude may do.
 		{"promptBorder", faint},
-		{"permission", orange},
-		{"permissionShimmer", red},
+		{"permission", accent},
+		{"permissionShimmer", shimmerHex},
 		{"planMode", cyan},
 		{"autoAccept", yellow},
-		{"bashBorder", parchment},
+		{"bashBorder", parchmentHex},
 		{"ide", cyan},
 		{"fastMode", yellow},
 	}, {
@@ -132,18 +153,18 @@ func claudeTheme() [][]token {
 		{"diffAddedWord", diffAddedWord},
 		{"diffRemovedWord", diffRemovedWord},
 	}, {
-		{"userMessageBackground", borderHex},
+		{"userMessageBackground", messageBg},
 		{"userMessageBackgroundHover", messageHoverBg},
 		{"selectionBg", borderHex},
 		{"bashMessageBackgroundColor", toolBg},
 		{"memoryBackgroundColor", toolBg},
 	}, {
-		{"rate_limit_fill", orange},
+		{"rate_limit_fill", accent},
 		{"rate_limit_empty", borderHex},
 	}, {
 		// The rest of the agent colors keep Claude Code's own until conn
 		// has agents of its own to tell apart.
-		{"orange_FOR_SUBAGENTS_ONLY", orange},
+		{"orange_FOR_SUBAGENTS_ONLY", accent},
 		{"cyan_FOR_SUBAGENTS_ONLY", cyan},
 	}}
 }

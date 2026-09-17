@@ -20,10 +20,10 @@ import (
 // The palette is the handoff's tokens. The plain palette has no
 // sequences at all: the console is text, for a pipe and for the tests.
 type palette struct {
-	ground, border, ink, gray, faint, orange, waiting, parchment, bold, chip string
-	selection                                                                string // the ground a chosen row sits on
-	normal, end                                                              string // ink on the ground again; the row's end
-	plain                                                                    bool
+	ground, border, ink, gray, faint, orange, parchment, bold, chip string
+	selection                                                       string // the ground a chosen row sits on
+	normal, end                                                     string // ink on the ground again; the row's end
+	plain                                                           bool
 }
 
 var plain = palette{plain: true}
@@ -48,8 +48,7 @@ func colored() palette {
 		gray:      ansiHex(38, grayHex),
 		faint:     ansiHex(38, faintHex),
 		orange:    ansiHex(38, cursorHex),
-		waiting:   ansiHex(38, scheme[1]),
-		parchment: ansiHex(38, scheme[7]),
+		parchment: ansiHex(38, parchmentHex),
 		bold:      "\x1b[1m",
 		chip:      ansiHex(48, cursorHex) + ansiHex(38, hex(groundColor)) + "\x1b[1m",
 		selection: ansiHex(48, borderHex),

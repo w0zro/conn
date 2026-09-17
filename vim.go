@@ -47,21 +47,22 @@ func vimColorscheme() string {
 	var (
 		ground    = vimColor{hex(groundColor), "NONE"} // the pane's own
 		lift      = vimColor{toolBg, "NONE"}           // a step off it
-		border    = borderColor()                      // and another
+		border    = roleColor(borderHex)               // and another
 		red       = slotColor(1)                       // an error
 		green     = slotColor(2)                       // a string
 		yellow    = slotColor(3)                       // a constant
 		blue      = slotColor(4)                       // a keyword
 		magenta   = slotColor(5)                       // a function
 		cyan      = slotColor(6)                       // a type
-		parchment = slotColor(7)                       // punctuation
+		parchment = roleColor(parchmentHex)            // punctuation, a title
 		faint     = vimColor{faintHex, "8"}            // a line number
-		orange    = slotColor(9)                       // a number, a mark
+		orange    = slotColor(9)                       // a number
+		accent    = roleColor(cursorHex)               // a mark: what wants you
 		varc      = slotColor(11)                      // a variable
 		op        = slotColor(12)                      // an operator
 		call      = slotColor(13)                      // a call
 		param     = slotColor(14)                      // a parameter
-		ink       = slotColor(15)                      // what is written
+		ink       = roleColor(hex(inkColor))           // what is written
 		gray      = vimColor{grayHex, strconv.Itoa(8)} // a comment
 		chipOn    = vimColor{hex(groundColor), "NONE"} // words on a chip
 		added     = vimColor{diffAddedBg, "NONE"}      // a diff's washes
@@ -77,10 +78,10 @@ func vimColorscheme() string {
 			{"NormalNC", ink, ground, "", noColor},
 			{"NormalFloat", ink, lift, "", noColor},
 			{"FloatBorder", border, lift, "", noColor},
-			{"FloatTitle", orange, lift, "bold", noColor},
-			{"Cursor", ground, orange, "", noColor},
-			{"lCursor", ground, orange, "", noColor},
-			{"TermCursor", ground, orange, "", noColor},
+			{"FloatTitle", accent, lift, "bold", noColor},
+			{"Cursor", ground, accent, "", noColor},
+			{"lCursor", ground, accent, "", noColor},
+			{"TermCursor", ground, accent, "", noColor},
 			{"CursorLine", noColor, lift, "", noColor},
 			{"CursorColumn", noColor, lift, "", noColor},
 			{"ColorColumn", noColor, lift, "", noColor},
@@ -96,18 +97,18 @@ func vimColorscheme() string {
 			{"EndOfBuffer", border, noColor, "", noColor},
 			{"Conceal", faint, noColor, "", noColor},
 			{"Directory", blue, noColor, "", noColor},
-			{"Title", orange, noColor, "bold", noColor},
-			{"MatchParen", orange, border, "bold", noColor},
+			{"Title", accent, noColor, "bold", noColor},
+			{"MatchParen", accent, border, "bold", noColor},
 			{"WinSeparator", border, noColor, "", noColor},
 			{"VertSplit", border, noColor, "", noColor},
 		},
 	}, {
 		"What conn spends the orange on: the thing that wants you", []hl{
-			{"Search", chipOn, orange, "", noColor},
+			{"Search", chipOn, accent, "", noColor},
 			{"IncSearch", chipOn, red, "", noColor},
 			{"CurSearch", chipOn, red, "", noColor},
 			{"Substitute", chipOn, red, "", noColor},
-			{"Todo", chipOn, orange, "bold", noColor},
+			{"Todo", chipOn, accent, "bold", noColor},
 			{"QuickFixLine", noColor, border, "", noColor},
 		},
 	}, {
@@ -257,7 +258,7 @@ func vimColorscheme() string {
 			{"@tag", blue, noColor, "", noColor},
 			{"@tag.attribute", param, noColor, "", noColor},
 			{"@tag.delimiter", parchment, noColor, "", noColor},
-			{"@markup.heading", orange, noColor, "bold", noColor},
+			{"@markup.heading", accent, noColor, "bold", noColor},
 			{"@markup.link", blue, noColor, "", noColor},
 			{"@markup.link.url", op, noColor, "underline", noColor},
 			{"@markup.raw", green, noColor, "", noColor},
@@ -308,19 +309,23 @@ func slotColor(i int) vimColor {
 	return vimColor{scheme[i], strconv.Itoa(i)}
 }
 
-// borderColor is the border: a pane's edge, a selection, the band
-// behind the status line. On dark it is slot 0, the darkest thing there
-// is and so the quietest edge. On light it cannot be: light's slot 0 is
-// black, which is what a program writing ANSI-0 means by ordinary text,
-// and a status line drawn on it was a black bar across a pale page. The
-// border on light is a color no slot has a name for — see mode.go — so
-// it is written out and says NONE for a terminal with only sixteen,
-// which takes the pane's own ground there rather than the wrong one.
-func borderColor() vimColor {
-	if darkMode {
-		return slotColor(0)
+// roleColor is a color conn draws by what it means rather than by a
+// slot: the border, the ink, the second ink, the accent. It carries the
+// slot that holds the same hex when one does, so the scheme holds up
+// where sixteen is all there is, and says NONE when none does, which
+// takes the pane's own there rather than the wrong one. On conn's dark
+// ground the border is slot 0, the darkest thing there is and so the
+// quietest edge. On light it cannot be: light's slot 0 is black, which
+// is what a program writing ANSI-0 means by ordinary text, and a status
+// line drawn on it was a black bar across a pale page, so the border on
+// light is a color no slot has a name for — see mode.go.
+func roleColor(h string) vimColor {
+	for i, c := range scheme {
+		if strings.EqualFold(c, h) {
+			return vimColor{h, strconv.Itoa(i)}
+		}
 	}
-	return vimColor{borderHex, "NONE"}
+	return vimColor{h, "NONE"}
 }
 
 // line is the highlight as a colorscheme writes it.

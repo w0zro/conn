@@ -1,23 +1,30 @@
 package main
 
 import (
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 )
 
-// The processes view: what is running, by project. Under a short
-// header, each project work is happening in is a block — its path as a
-// title, and a row for each process that stands for its own work there,
-// nested under whatever runs it the way the processes actually are: its
-// kind, what it is doing, its terminal, how long it has stood as it
-// does, and the word for how it stands. A row under another indents,
-// its kind and command shifted in together, the rest of its columns
-// staying where they are. The projects are in the order of their
-// paths, as the list has them. Within one, everything sits where it
-// started and stays there for as long as it lives, oldest first, so
-// what is new goes on the end and nothing above it moves. A cursor is
-// on one row, which is
+// The processes view: what is running, by project. Each project work
+// is happening in is a block — its path as a title, and under it a row
+// for each process that stands for its own work there, nested under
+// whatever runs it the way the processes actually are: its kind, what
+// it is doing, its terminal, how long it has stood as it does, and the
+// word for how it stands. What is under a name indents two columns
+// from it: a block's rows under its title, a row under the row that
+// runs it, its kind and command shifted in together and the rest of
+// its columns staying where they are. A project that holds other
+// projects, as a folder of checkouts does, is a block with theirs
+// nested under it by name, the way the list groups them, and the
+// folder's heading is drawn even where nothing runs in the folder
+// itself, so that its repositories have something to sit under. The
+// projects are in the order of their paths, as the list has them.
+// Within one, everything sits where it started and stays there for as
+// long as it lives, oldest first, so what is new goes on the end and
+// nothing above it moves. A cursor is on one row, which is
 // drawn on a raised ground from edge to edge, and the rows scroll to
 // keep it in view. What conn holds — a process in a pane of the server,
 // which can be reached — is written in the ink; work conn can only
@@ -37,7 +44,8 @@ type processesReport struct {
 }
 
 type projectBlock struct {
-	path string
+	path string // the title: the project's name, or under a holding project its own
+	nest int    // how many projects hold it, each a level in from the margin
 	rows []processRow
 	note string // what is wrong with the project's .conn, where something is
 }
@@ -76,21 +84,18 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 }
 
 // composeProcesses words the projects; panes says which terminals are
-// the server's, and bay which of them is on the right.
+// the server's, bay which of them is on the right, and isProject which
+// directories are projects, for the blocks to nest by.
 //
 // A pane holds a whole tree, and all of it is equally in the bay, but
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
-func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, home string, now time.Time, err string, stalled bool) processesReport {
+func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool) processesReport {
 	b := processesReport{err: err, stalled: stalled}
 	head, _, marked := headOf(projects, bay)
 	for _, pl := range projects {
-		bp := projectBlock{path: projectName(pl.path, roots, home)}
-		if bp.path == "" {
-			bp.path = "NO PROJECT"
-		}
-		bp.note = pl.note
+		bp := projectBlock{path: pl.path, note: pl.note}
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, processRow{
 				pid: e.pid, kind: e.kind, command: activityOf(e), tty: e.tty, since: sinceWord(e.since, now),
@@ -102,7 +107,80 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 		}
 		b.projects = append(b.projects, bp)
 	}
+	b.projects = nested(b.projects, isProject, roots, home)
 	return b
+}
+
+// nested is the blocks as they draw: each under the project that holds
+// its directory, where one does, with a heading made for a holding
+// project nothing runs in. A conn that has not been told where the
+// work is has no projects to nest by, and its blocks stand at the
+// margin. A holding project is one the directory
+// above the block's is, which a folder of checkouts under a root is
+// and a root is not, so the nesting stops where the list's grouping
+// does. The blocks came in the order of their paths, and a block goes
+// under its holder in that order; a path that sorts between a holder
+// and what it holds, as a hyphen does against a slash, follows the
+// whole of them rather than splitting them. A block at the margin is
+// titled by its name from the root, and a nested one by its own
+// directory, the rest being said above it.
+func nested(blocks []projectBlock, isProject func(string) bool, roots []string, home string) []projectBlock {
+	at := map[string]int{}
+	for i, bp := range blocks {
+		at[bp.path] = i
+	}
+	holder := func(path string) string {
+		if path == "" || isProject == nil {
+			return ""
+		}
+		if dir := filepath.Dir(path); isProject(dir) {
+			return dir
+		}
+		return ""
+	}
+	// Headings for the holders that have no block of their own, on up
+	// to the margin.
+	for i := 0; i < len(blocks); i++ {
+		for h := holder(blocks[i].path); h != ""; h = holder(h) {
+			if _, ok := at[h]; ok {
+				break
+			}
+			at[h] = len(blocks)
+			blocks = append(blocks, projectBlock{path: h})
+		}
+	}
+	under := map[string][]int{}
+	var top []int
+	for i, bp := range blocks {
+		if h := holder(bp.path); h != "" {
+			under[h] = append(under[h], i)
+		} else {
+			top = append(top, i)
+		}
+	}
+	// Made headings went on the end; each level draws in path order.
+	byPath := func(a, b int) int { return strings.Compare(blocks[a].path, blocks[b].path) }
+	out := make([]projectBlock, 0, len(blocks))
+	var walk func(idx []int, nest int)
+	walk = func(idx []int, nest int) {
+		slices.SortFunc(idx, byPath)
+		for _, i := range idx {
+			bp := blocks[i]
+			bp.nest = nest
+			switch {
+			case nest > 0:
+				bp.path = filepath.Base(bp.path)
+			case bp.path == "":
+				bp.path = "NO PROJECT"
+			default:
+				bp.path = projectName(bp.path, roots, home)
+			}
+			out = append(out, bp)
+			walk(under[blocks[i].path], nest+1)
+		}
+	}
+	walk(top, 0)
+	return out
 }
 
 // activityOf is what a row's middle column says: for a working contact
@@ -233,23 +311,30 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	cursorRow := -1
 	project := func(bp projectBlock) {
 		d := canvas{p: p, width: width}
-		// A row of air before each project, the first included. Furniture
+		// A row of air before each block, the first included. Furniture
 		// can sit on the edge of a pane — a rule is an edge, and the head
 		// row that used to be here was flush for that reason. A project's
 		// name is not furniture, it is the first thing there is to read,
 		// and a thing to be read does not start hard against the top of
-		// the pane.
+		// the pane. It is the only air there is: a name is followed
+		// straight by what is under it, and a blank row means a new
+		// thing begins.
 		d.blank(0)
-		// The project's title alone. It carried a count of its rows on the
-		// right, which was the kernel's word for them and a figure the
-		// operator never asks for: the rows are right there under it.
+		// The title alone. It carried a count of its rows on the right,
+		// which was the kernel's word for them and a figure the operator
+		// never asks for: the rows are right there under it. A project at
+		// the margin is in the parchment and bold; one nested under
+		// another is in the ink and indented, as the list writes a
+		// repository under the folder that groups it, the indent alone
+		// telling the two apart.
 		l := d.line()
-		l.add(p.parchment+p.bold, fit(bp.path, measure, true))
+		title, titleIn := p.parchment+p.bold, 0
+		if bp.nest > 0 {
+			title, titleIn = p.ink, min(bp.nest*treeIndent, max(commandW-4, 0))
+		}
+		l.to(titleIn)
+		l.add(title, fit(bp.path, measure-titleIn, true))
 		d.emit(l, 0, false)
-		// And a row under it. The title is a heading, not the first row of
-		// the table, and with the rows closed up against it the eye read
-		// the block as five rows of which one was oddly bright.
-		d.blank(0)
 		for _, r := range bp.rows {
 			l := d.line()
 			cursored := r.pid == cursor
@@ -296,10 +381,11 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				command += p.bold
 				cursorRow = len(body) + len(d.rows)
 			}
-			// A row under another indents, kind and command shifted in
-			// together; the command gives up what the indent takes; a
-			// tree too deep for the room there is stops taking more.
-			indent := min(r.depth*treeIndent, max(commandW-4, 0))
+			// A row indents under its block's title, and under the row
+			// that runs it, kind and command shifted in together; the
+			// command gives up what the indent takes; a tree too deep for
+			// the room there is stops taking more.
+			indent := min((bp.nest+1+r.depth)*treeIndent, max(commandW-4, 0))
 			l.to(indent)
 			l.add(kind, fit(r.kind, kindCol-1, false))
 			l.to(kindCol + indent)
@@ -354,7 +440,9 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		// project that shows none of what it declares should say why.
 		if bp.note != "" {
 			l := d.line()
-			l.add(p.chip, " "+fit(strings.ToUpper(bp.note), measure-2, false)+" ")
+			in := min((bp.nest+1)*treeIndent, max(commandW-4, 0))
+			l.to(in)
+			l.add(p.chip, " "+fit(strings.ToUpper(bp.note), measure-in-2, false)+" ")
 			d.emit(l, 0, false)
 		}
 		body = append(body, d.rows...)

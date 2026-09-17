@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 // has none.
 func testProcesses() processesReport {
 	how := map[int]status{70100: {working: true, since: processesNow.Add(-7 * time.Minute)}}
-	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 }
 
 // The processes view at 120 by 40 is a file of record, as are the empty
@@ -22,11 +23,11 @@ func testProcesses() processesReport {
 func TestProcessesMatchesTheGolden(t *testing.T) {
 	golden(t, "processes-120x40.txt", texts(drawProcesses(testProcesses(), 67040, 120, 40, plain)))
 	golden(t, "processes-cursor-100x9.txt", texts(drawProcesses(testProcesses(), 80002, 100, 9, plain)))
-	empty := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	empty := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	golden(t, "processes-empty-80x24.txt", texts(drawProcesses(empty, 0, 80, 24, plain)))
-	failed := composeProcesses(nil, nil, "", testProjRoots, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false)
+	failed := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false)
 	golden(t, "processes-unread-80x24.txt", texts(drawProcesses(failed, 0, 80, 24, plain)))
-	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	panel.inside = true
 	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, plain)))
 	// A project's declarations: one up, in a pane marked as its own and
@@ -54,15 +55,52 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	}
 	isProject := func(dir string) bool { return dir == app || testIsProject(dir) }
 	projects := attachDeclared(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), declared, panes)
-	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	shown.inside = true
 	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, declaredPID(app, "worker"), 48, 30, plain)))
 	// The panel at rest: the same processes, folded. The shell over
 	// claude keeps the contact and the shell says what else it runs;
 	// the stopped vim stays for being a fault.
-	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	quiet.inside = true
 	golden(t, "processes-quiet-48x30.txt", texts(drawProcesses(quiet, 70100, 48, 30, plain)))
+}
+
+// A folder of checkouts is a project of its own, and the checkouts in
+// it are projects under it: the folder is a block, and each checkout a
+// block nested a level in under it by its own name, its rows a level in
+// under that, the way the list groups them. The folder's heading is
+// drawn where nothing runs in the folder itself, so the checkouts have
+// something to sit under; a project whose path sorts between the folder
+// and its checkouts follows them rather than splitting them.
+func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
+	rides := "/Users/w0zro/projects/w0zro/public-rides"
+	isProject := func(dir string) bool {
+		return dir == rides || dir == rides+"/public-rides.com" || dir == rides+"/public-rides.org" || dir == rides+"-notes" || testIsProject(dir)
+	}
+	procs := []process{
+		{pid: 100, ppid: 1, uid: 501, tty: "ttys030", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: processesNow.Add(-time.Hour), cwd: rides},
+		{pid: 200, ppid: 1, uid: 501, tty: "ttys031", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.com"},
+		{pid: 201, ppid: 200, uid: 501, tty: "ttys031", foreground: true, state: 'S', command: "ruby", args: []string{"ruby", "ride"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.com"},
+		{pid: 300, ppid: 1, uid: 501, tty: "ttys032", foreground: true, state: 'S', command: "python3", args: []string{"python3", "data"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.org"},
+		{pid: 400, ppid: 1, uid: 501, tty: "ttys033", foreground: true, state: 'S', command: "vim", args: []string{"vim", "todo.md"}, started: processesNow.Add(-time.Hour), cwd: rides + "-notes"},
+		{pid: 67040, ppid: 1, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+	}
+	panes := map[string]pane{"ttys030": {id: "%30"}, "ttys031": {id: "%31"}, "ttys032": {id: "%32"}, "ttys033": {id: "%33"}, "ttys005": {id: "%0"}}
+	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false)
+	held.inside = true
+	golden(t, "processes-nested-48x30.txt", texts(drawProcesses(held, 201, 48, 30, plain)))
+	// The same with nothing running in the folder itself: its heading
+	// stands, made for the blocks under it.
+	empty := composeProcesses(projectsFrom(procs[1:], 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false)
+	names := []string{}
+	for _, bp := range empty.projects {
+		names = append(names, strings.Repeat("  ", bp.nest)+bp.path)
+	}
+	want := []string{"w0zro/conn", "w0zro/public-rides", "  public-rides.com", "  public-rides.org", "w0zro/public-rides-notes"}
+	if !slices.Equal(names, want) {
+		t.Errorf("the blocks are %q, not %q", names, want)
+	}
 }
 
 // The processes view's columns hold: the status flush right, a root's
@@ -83,33 +121,34 @@ func TestProcessesLaysOut(t *testing.T) {
 		"w0zro/conn", "SHELL   zsh", "TTYS005", "IDLE",
 		"w0zro/vim.pro/conjurer", "7M      WORKING", "ACTIVE",
 		"~", " STOPPED",
-		// A root at the margin, and the tree under it stepping in: the
-		// contact its shell runs, the shell the contact runs, the go that one
-		// runs. The cursor's mark sits in the margin regardless.
-		"\n   SHELL   zsh",
-		"\n       SHELL   bash -c go test ./...",
-		"\n         RUN     go test ./...",
-		"\n     EDITOR  vim notes.md",
-		" ▸   CONTACT claude --resume",
+		// A root a level in under its project's name, and the tree under
+		// it stepping in: the contact its shell runs, the shell the
+		// contact runs, the go that one runs. The cursor's mark sits in
+		// the margin regardless.
+		"\n     SHELL   zsh",
+		"\n         SHELL   bash -c go test ./...",
+		"\n           RUN     go test ./...",
+		"\n       EDITOR  vim notes.md",
+		" ▸     CONTACT claude --resume",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("the view lacks %q:\n%s", s, text)
 		}
 	}
 	// No rule and no column heads at the top; the first project's name is
-	// the first thing there is, with a row of air above it and a row
-	// below. Above, because a name is read and reading does not start
-	// hard against the edge of a pane — the heads that used to sit there
-	// were furniture, which can. Below, because the name is a heading and
-	// not the first row of its own table.
+	// the first thing there is, with a row of air above it and its rows
+	// straight under it. Above, because a name is read and reading does
+	// not start hard against the edge of a pane — the heads that used to
+	// sit there were furniture, which can. None below: the indent says
+	// what is under the name, and a blank row means a new thing begins.
 	if got := strings.TrimSpace(rows[0].text); got != "" {
 		t.Errorf("the first row is %q, not a row of air", got)
 	}
 	if got := strings.TrimSpace(rows[1].text); got != "~" {
 		t.Errorf("the second row is %q, not the first project's name", got)
 	}
-	if got := strings.TrimSpace(rows[2].text); got != "" {
-		t.Errorf("the name has no row of air under it: %q", got)
+	if got := rows[2].text; !strings.HasPrefix(got, "     SHELL") {
+		t.Errorf("the name's first row is not a level in under it: %q", got)
 	}
 	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
 		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
@@ -138,7 +177,7 @@ func TestProcessesLaysOut(t *testing.T) {
 func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	rows := drawProcesses(testProcesses(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 9 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸ SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸   SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawProcesses(testProcesses(), 70301, 100, 9, plain)
@@ -146,7 +185,7 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	// The cursor's mark keeps the margin, and the row it marks still
 	// steps in for the level it is at: the last row is the go three deep
 	// under conjurer's shell.
-	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸       RUN") {
+	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸         RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawProcesses(testProcesses(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
@@ -227,7 +266,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 		// A conn that has been told where the work is. One that has not
 		// goes to the asking view instead of the processes view, which is
 		// its own test.
-		roots: rooting{rootOf: testRoots, real: []string{"/Users/w0zro/projects"}}}
+		roots: rooting{rootOf: testRoots, isProject: testIsProject, real: []string{"/Users/w0zro/projects"}}}
 	st := testStation
 	m.st = &st
 	m.stage = lastStage(m.report())
@@ -283,7 +322,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 // In the server, the keys say what can be done, and a terminal the
 // server does not hold is faint.
 func TestTheProcessesViewInsideTheServer(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	w.inside = true
 	rows := drawProcesses(w, 67040, 120, 40, colored())
 	text := texts(rows)
@@ -360,7 +399,7 @@ func TestKeysInsideTheServer(t *testing.T) {
 // The processes view says no keys. They are learned once; a legend on
 // every row of every reading is a thing to read past forever.
 func TestTheProcessesViewSaysNoKeys(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
@@ -389,8 +428,9 @@ func TestTheCursorIsAGround(t *testing.T) {
 		if strings.Contains(r.text, p.selection) {
 			on++
 			// conn's own project holds one row, the shell conn was not
-			// started from, and it stands at the root of its tree.
-			if !strings.HasPrefix(stripEscapes(r.text), "   SHELL   zsh") {
+			// started from, and it stands at the root of its tree, a
+			// level in under the project's name.
+			if !strings.HasPrefix(stripEscapes(r.text), "     SHELL   zsh") {
 				t.Errorf("the raised row is not the cursor's: %q", stripEscapes(r.text))
 			}
 			// Raised from edge to edge: the row never falls back to the
@@ -408,7 +448,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 	}
 	// In plain text there is no ground to raise, so the mark stays.
 	plainRows := texts(drawProcesses(testProcesses(), 67040, 120, 40, plain))
-	if !strings.Contains(plainRows, "▸ SHELL   zsh") {
+	if !strings.Contains(plainRows, "▸   SHELL   zsh") {
 		t.Errorf("the plain view lost its cursor:\n%s", plainRows)
 	}
 }
@@ -422,7 +462,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored()
 	held := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
-		testProjRoots, "/Users/w0zro", processesNow, "", false)
+		testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	held.inside = true
 	// The cursor is on a row conn holds a pane for, away from the rows
 	// under test, so none of them is giving up a rank of dimming to be
@@ -541,7 +581,7 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 		{pid: 11, kind: kindShell, command: "zsh", status: statusActive},
 		{pid: 12, kind: kindContact, command: "claude", status: statusWaiting, depth: 1, since: processesNow.Add(-time.Minute)},
 	}}}
-	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	b := composeProcesses(held, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 
 	b.lit = true
 	on := texts(drawProcesses(b, 0, 60, 12, plain))
@@ -571,7 +611,7 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 	// process you suspended yourself is not asking anything of you.
 	steady := composeProcesses([]project{{path: "/w", entries: []entry{
 		{pid: 21, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
-	}}}, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	steady.lit = false
 	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, plain)), statusStopped) {
 		t.Error("a fault went dark with the blink")
@@ -694,7 +734,7 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 		{pid: 11, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-time.Minute)},
 		{pid: 12, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
 	}}}
-	b := composeProcesses(held, nil, "", testProjRoots, "/Users/w0zro", processesNow, "", false)
+	b := composeProcesses(held, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	p := colored()
 
 	b.lit = true

@@ -1,9 +1,9 @@
 
    ~
-
-   SHELL   zsh                                                         TTYS009             ACTIVE
- ▸   EDITOR  vim notes.md                                              TTYS009           STOPPED
+     SHELL   zsh                                                       TTYS009             ACTIVE
+ ▸     EDITOR  vim notes.md                                            TTYS009           STOPPED
 
    w0zro/conn
+     SHELL   zsh                                                       TTYS005               IDLE
 
-   … 9 BELOW
+   … 6 BELOW

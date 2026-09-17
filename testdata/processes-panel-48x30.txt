@@ -1,20 +1,20 @@
 
    ~
-
-   SHELL   zsh                         ACTIVE
-     EDITOR  vim notes.md            STOPPED
+     SHELL   zsh                       ACTIVE
+       EDITOR  vim notes.md          STOPPED
 
    w0zro/conn
-
-   SHELL   zsh                           IDLE
+     SHELL   zsh                         IDLE
 
    w0zro/vim.pro/conjurer
+     SHELL   zsh                       ACTIVE
+ ▸     CONTACT claude --resume         ACTIVE
+         RUN     node /opt/claude/…    ACTIVE
+         SHELL   bash -c go test .…    ACTIVE
+           RUN     go test ./...       ACTIVE
 
-   SHELL   zsh                         ACTIVE
- ▸   CONTACT claude --resume           ACTIVE
-       RUN     node /opt/claude/mc…    ACTIVE
-       SHELL   bash -c go test ./.…    ACTIVE
-         RUN     go test ./...         ACTIVE
+
+
 
 
 

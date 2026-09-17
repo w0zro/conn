@@ -354,7 +354,7 @@ func (m model) report() report {
 
 // processesReport is the processes view's words as things stand.
 func (m model) processesReport() processesReport {
-	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
+	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.roots.isProject, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
 	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
 	return w
 }

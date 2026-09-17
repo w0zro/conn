@@ -178,7 +178,7 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 	// Never written: refreshing writes nothing. conn theme vim is what
 	// puts the file there, and a machine that never asked for one is not
 	// given one behind its back.
-	applyMode(true)
+	applyMode(connOn(true))
 	refreshVimColorscheme(home)
 	if _, err := os.Stat(path); err == nil {
 		t.Fatal("refreshVimColorscheme wrote a file conn theme vim never had")
@@ -191,7 +191,7 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 	if b, err := os.ReadFile(path); err != nil || !strings.Contains(string(b), "set background=dark") {
 		t.Fatalf("the file was not written dark: %v", err)
 	}
-	applyMode(false)
+	applyMode(connOn(false))
 	refreshVimColorscheme(home)
 	b, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(b), "set background=light") {
@@ -211,7 +211,7 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 // conn reads there rather than the slot that vanishes.
 func TestTheLightColorschemeDrawsTheBorderAsTheRestOfConnDoes(t *testing.T) {
 	holdMode(t)
-	applyMode(false)
+	applyMode(connOn(false))
 	out := vimColorscheme()
 	for _, want := range []string{
 		"hi StatusLine guifg=" + hex(inkColor) + " ctermfg=15 guibg=" + connTheme.light.border + " ctermbg=NONE",
@@ -229,7 +229,7 @@ func TestTheLightColorschemeDrawsTheBorderAsTheRestOfConnDoes(t *testing.T) {
 		}
 	}
 	// And on dark the border is slot 0 still, as it always was.
-	applyMode(true)
+	applyMode(connOn(true))
 	if out := vimColorscheme(); !strings.Contains(out, "hi Visual guifg=NONE ctermfg=NONE guibg="+connTheme.dark.scheme[0]+" ctermbg=0") {
 		t.Error("the dark colorscheme no longer draws a selection on slot 0")
 	}

@@ -103,29 +103,30 @@ func (s *server) run(args ...string) (string, error) {
 // detaches or the server ends. It answers how the client exited; an
 // error is one of its own, before the client had the terminal.
 //
-// The server's ground is what a mode file beside the socket says, or
-// the terminal's own the first time a server rises, written down so it
-// holds across attaches. --light or --dark says it instead, and says it
-// whenever it is given: a server already up is put on the other ground
-// where it stands, rather than keeping what it rose on until conn down.
-// tmux does not re-read -f on an attach, so that takes sourcing the
-// configuration again; see reground.
-func (s *server) attach(self, home string, override *bool) (int, error) {
+// The server's mode - its theme, and the ground it is on - is what a
+// mode file beside the socket says, or the terminal's own ground in
+// conn's own theme the first time a server rises, written down so it
+// holds across attaches. A flag says it instead, and says it whenever
+// it is given: a server already up is put on the other ground, or in
+// the other theme, where it stands, rather than keeping what it rose
+// in until conn down. tmux does not re-read -f on an attach, so that
+// takes sourcing the configuration again; see reground.
+func (s *server) attach(self, home string, o override) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(s.socket), 0o700); err != nil {
 		return 0, err
 	}
-	dark, ok := readModeFile(s.socket)
-	asked := false
+	have, ok := readModeFile(s.socket)
+	want, asked := have, false
 	switch {
 	case !ok:
-		dark = askDark(override)
-		_ = writeMode(s.socket, dark)
-	case override != nil && *override != dark:
-		dark = *override
-		_ = writeMode(s.socket, dark)
+		want = askMode(o)
+		_ = writeMode(s.socket, want)
+	case o.over(have) != have:
+		want = o.over(have)
+		_ = writeMode(s.socket, want)
 		asked = true
 	}
-	applyMode(dark)
+	applyMode(want)
 	refreshClaudeTheme(home)
 	refreshVimColorscheme(home)
 	conf := filepath.Join(filepath.Dir(s.socket), "tmux.conf")
@@ -169,7 +170,7 @@ func (s *server) attach(self, home string, override *bool) (int, error) {
 	return 0, nil
 }
 
-// reground puts a server already up onto the ground the mode file now
+// reground puts a server already up into the mode the mode file now
 // says. Sourcing the configuration again is what tmux has instead of
 // re-reading -f: every set -g in it lands on the live server, so each
 // pane takes the new sixteen and the new ground without going down.

@@ -584,13 +584,13 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	// under test is the ground, so the same steps run without a client.
 	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
-	applyMode(false)
+	applyMode(connOn(false))
 	confText := tmuxConf("C-Space")
-	applyMode(true) // the rest of this test reads the dark table
+	applyMode(connOn(true)) // the rest of this test reads the dark table
 	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeMode(srv.socket, false); err != nil {
+	if err := writeMode(srv.socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
 	if err := srv.reground(conf); err != nil {
@@ -603,8 +603,8 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+hex(connTheme.light.ground)+",fg="+hex(connTheme.light.ink)) {
 		t.Errorf("the window style is %q, not on the light ground", got)
 	}
-	if dark, ok := readModeFile(srv.socket); !ok || dark {
-		t.Errorf("the mode file was not put on light: dark %v, found %v", dark, ok)
+	if m, ok := readModeFile(srv.socket); !ok || m != connOn(false) {
+		t.Errorf("the mode file was not put on light: %+v, found %v", m, ok)
 	}
 	// The panel came back, and came back conn: respawned, it comes up
 	// on the console and runs it through to the end. The version it
@@ -654,25 +654,25 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	t.Cleanup(func() { _, _ = srv.run("kill-server") })
 
 	// Nothing has picked yet: a server not up comes up dark.
-	if !serverMode(srv.socket) {
-		t.Fatal("a socket with no mode file is not dark")
+	if m := serverMode(srv.socket); m != connOn(true) {
+		t.Fatalf("a socket with no mode file is %+v, not conn's dark", m)
 	}
 
 	// A terminal that said light, on a first bring-up, leaves this
 	// behind for attach to find; here it is put there by hand, the way
 	// attach's own detectDark branch would.
-	if err := writeMode(srv.socket, false); err != nil {
+	if err := writeMode(srv.socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
 
 	// What attach does with a mode file already there: read it, and put
 	// every color conn draws from on that ground, before tmuxConf is
 	// asked for the server's own drawing.
-	dark, ok := readModeFile(srv.socket)
-	if !ok || dark {
-		t.Fatalf("readModeFile = (%v, %v), want (false, true)", dark, ok)
+	m, ok := readModeFile(srv.socket)
+	if !ok || m != connOn(false) {
+		t.Fatalf("readModeFile = (%+v, %v), want (conn light, true)", m, ok)
 	}
-	applyMode(dark)
+	applyMode(m)
 
 	conf := filepath.Join(dir, "tmux.conf")
 	if err := os.WriteFile(conf, []byte(tmuxConf(defaultPrefix)), 0o600); err != nil {
@@ -717,8 +717,8 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	if _, ok := readModeFile(srv.socket); ok {
 		t.Error("conn down left the mode file behind")
 	}
-	if !serverMode(srv.socket) {
-		t.Error("after conn down, the socket is not dark again")
+	if m := serverMode(srv.socket); m != connOn(true) {
+		t.Errorf("after conn down, the socket is %+v, not conn's dark again", m)
 	}
 }
 

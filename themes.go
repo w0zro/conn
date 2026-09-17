@@ -40,6 +40,19 @@ type theme struct {
 // themes is every theme conn has, in the order they are offered.
 var themes = []theme{connTheme}
 
+// defaultTheme is the one conn wears unless told another.
+const defaultTheme = "conn"
+
+// themeNamed is the theme by that name, and whether conn has one.
+func themeNamed(name string) (theme, bool) {
+	for _, t := range themes {
+		if t.name == name {
+			return t, true
+		}
+	}
+	return theme{}, false
+}
+
 // on is the theme on one ground: dark, or light.
 func (t theme) on(dark bool) ground {
 	if dark {

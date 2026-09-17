@@ -13,23 +13,30 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// conn comes up on one of two grounds. Dark is every terminal it ever
-// knew; light is for the terminal that says its own ground is light
-// when conn asks. The choice is made once, the first time conn brings
-// up a tmux server that is not there yet, and holds for that server's
-// life: conn down and a relaunch is how it is asked again. A run with
-// no server behind it - no tmux on the machine, or a pane of conn's own
-// server, where the server already chose - asks fresh or reads what the
-// server chose, in place of guessing. What each ground is made of is
-// the theme's, in themes.go.
+// conn comes up in a theme, on one of its two grounds. Dark is every
+// terminal it ever knew; light is for the terminal that says its own
+// ground is light when conn asks. The choice is made once, the first
+// time conn brings up a tmux server that is not there yet, and holds
+// for that server's life: conn down and a relaunch is how it is asked
+// again. A run with no server behind it - no tmux on the machine, or a
+// pane of conn's own server, where the server already chose - asks
+// fresh or reads what the server chose, in place of guessing. What
+// each ground is made of is the theme's, in themes.go.
 
-// darkMode is the ground conn is on, as applyMode last left it. The
-// ground is package-wide — scheme, the hexes, themeBase and the rest
-// are all set from it at once — and nothing else names which one is in
-// force, so a caller that needs to put it back has to read the answer
-// out of one of the colors. It is dark until applyMode says otherwise,
-// which is what every terminal was before conn learned to ask.
-var darkMode = true
+// A mode is what a server came up in: a theme, by name, on one of its
+// grounds.
+type mode struct {
+	theme string
+	dark  bool
+}
+
+// current is the mode conn is in, as applyMode last left it. The mode
+// is package-wide — scheme, the hexes, themeBase and the rest are all
+// set from it at once — and nothing else names which one is in force,
+// so a caller that needs to put it back has to have kept this. It is
+// conn's dark until applyMode says otherwise, which is what every
+// terminal was before conn learned to ask.
+var current = mode{theme: defaultTheme, dark: true}
 
 // themeBase is the base claudeThemeJSON sits on, dark-ansi or
 // light-ansi, and vimBackground what the colorscheme tells nvim its own
@@ -39,70 +46,104 @@ var (
 	vimBackground = "dark"
 )
 
-// applyMode puts every color conn draws from onto one ground. In conn
-// it is called once, before anything reads scheme, groundColor,
-// cursorHex, or any of the rest. A test binary is one process running
-// every test, so a test that calls it — or calls something that calls
-// it, which dressProgram does on its way to writing a theme — leaves
-// the ground it chose standing for whatever runs next; see holdMode.
-func applyMode(dark bool) {
-	darkMode = dark
-	wear(connTheme.on(dark))
+// applyMode puts every color conn draws from onto one ground of one
+// theme. In conn it is called once, before anything reads scheme,
+// groundColor, cursorHex, or any of the rest. A theme conn does not
+// have is conn's own, which is what a mode file from a build that had
+// the theme, read by one that does not, comes to. A test binary is one
+// process running every test, so a test that calls it — or calls
+// something that calls it, which dressProgram does on its way to
+// writing a theme — leaves the mode it chose standing for whatever
+// runs next; see holdMode.
+func applyMode(m mode) {
+	t, ok := themeNamed(m.theme)
+	if !ok {
+		t, m.theme = connTheme, defaultTheme
+	}
+	current = m
+	wear(t.on(m.dark))
 	themeBase, vimBackground = "dark-ansi", "dark"
-	if !dark {
+	if !m.dark {
 		themeBase, vimBackground = "light-ansi", "light"
 	}
 }
 
-// modePath is where the mode a server came up on is kept, beside its
+// modePath is where the mode a server came up in is kept, beside its
 // socket and its tmux.conf.
 func modePath(socket string) string {
 	return filepath.Join(filepath.Dir(socket), "mode")
 }
 
 // readModeFile is the mode written at modePath, and whether one was:
-// a server that has not picked yet has nothing there.
-func readModeFile(socket string) (dark, ok bool) {
+// a server that has not picked yet has nothing there. The file is one
+// line, the ground and then the theme: "light datum". A file from
+// before conn had themes says the ground alone, and is read as conn's.
+func readModeFile(socket string) (mode, bool) {
 	b, err := os.ReadFile(modePath(socket))
 	if err != nil {
-		return false, false
+		return mode{}, false
 	}
-	return strings.TrimSpace(string(b)) != "light", true
+	words := strings.Fields(string(b))
+	m := mode{theme: defaultTheme, dark: len(words) == 0 || words[0] != "light"}
+	if len(words) > 1 {
+		if _, ok := themeNamed(words[1]); ok {
+			m.theme = words[1]
+		}
+	}
+	return m, true
 }
 
-// writeMode records the mode a fresh server comes up on, so a later
+// writeMode records the mode a fresh server comes up in, so a later
 // conn - attaching, or asking for a theme - reads the same one back
 // instead of asking the terminal again.
-func writeMode(socket string, dark bool) error {
+func writeMode(socket string, m mode) error {
 	if err := os.MkdirAll(filepath.Dir(modePath(socket)), 0o700); err != nil {
 		return err
 	}
-	mode := "dark"
-	if !dark {
-		mode = "light"
+	ground := "dark"
+	if !m.dark {
+		ground = "light"
 	}
-	return os.WriteFile(modePath(socket), []byte(mode), 0o600)
+	return os.WriteFile(modePath(socket), []byte(ground+" "+m.theme+"\n"), 0o600)
 }
 
-// serverMode is the mode the server on this socket came up on, or would
-// if none is up yet: dark, until one has picked light for itself.
-func serverMode(socket string) bool {
-	dark, ok := readModeFile(socket)
-	return !ok || dark
+// serverMode is the mode the server on this socket came up in, or would
+// if none is up yet: conn's dark, until one has picked for itself.
+func serverMode(socket string) mode {
+	if m, ok := readModeFile(socket); ok {
+		return m
+	}
+	return mode{theme: defaultTheme, dark: true}
 }
 
-// detectDark asks the terminal for its own background with OSC 11 and
-// reads what comes back. A terminal that says nothing within the wait,
-// or says something conn cannot read, is dark - which is what every
-// terminal was before conn asked, and the safe read of a query that
-// went nowhere.
-// askDark is a ground already chosen - a --light or --dark flag - or
-// the terminal's own, asked fresh.
-func askDark(override *bool) bool {
-	if override != nil {
-		return *override
+// An override is what the flags said ahead of the command: a ground,
+// when --light or --dark was given, and a theme, when --theme was.
+type override struct {
+	dark  *bool
+	theme string
+}
+
+// over is the mode with what the flags said laid over it; what they
+// did not say stands.
+func (o override) over(m mode) mode {
+	if o.dark != nil {
+		m.dark = *o.dark
 	}
-	return detectDark()
+	if o.theme != "" {
+		m.theme = o.theme
+	}
+	return m
+}
+
+// askMode is the mode a fresh server comes up in: what the flags said,
+// and for what they did not, conn's own theme on the terminal's own
+// ground, asked fresh.
+func askMode(o override) mode {
+	m := mode{theme: defaultTheme, dark: true}
+	if o.dark == nil {
+		m.dark = detectDark()
+	}
+	return o.over(m)
 }
 
 // parseModeFlags reads --light and --dark off the front of conn's own
@@ -112,28 +153,33 @@ func askDark(override *bool) bool {
 // command's own, and answers what is left of args from there, whole.
 // The two flags together is a contradiction; neither leaves the choice
 // where it always was.
-func parseModeFlags(args []string) (rest []string, override *bool, err error) {
+func parseModeFlags(args []string) (rest []string, o override, err error) {
 	for i, a := range args {
 		switch a {
 		case "--dark":
-			if override != nil && !*override {
-				return nil, nil, fmt.Errorf("--dark and --light are a contradiction")
+			if o.dark != nil && !*o.dark {
+				return nil, override{}, fmt.Errorf("--dark and --light are a contradiction")
 			}
 			dark := true
-			override = &dark
+			o.dark = &dark
 		case "--light":
-			if override != nil && *override {
-				return nil, nil, fmt.Errorf("--dark and --light are a contradiction")
+			if o.dark != nil && *o.dark {
+				return nil, override{}, fmt.Errorf("--dark and --light are a contradiction")
 			}
 			light := false
-			override = &light
+			o.dark = &light
 		default:
-			return args[i:], override, nil
+			return args[i:], o, nil
 		}
 	}
-	return nil, override, nil
+	return nil, o, nil
 }
 
+// detectDark asks the terminal for its own background with OSC 11 and
+// reads what comes back. A terminal that says nothing within the wait,
+// or says something conn cannot read, is dark - which is what every
+// terminal was before conn asked, and the safe read of a query that
+// went nowhere.
 func detectDark() bool {
 	if !stdoutIsTerminal() || !stdinIsTerminal() {
 		return true

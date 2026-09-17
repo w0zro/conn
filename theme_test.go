@@ -191,7 +191,7 @@ func TestRefreshClaudeThemeKeepsTheFileCurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	holdMode(t)
-	applyMode(false)
+	applyMode(connOn(false))
 	refreshClaudeTheme(home)
 	b, err := os.ReadFile(filepath.Join(home, ".claude", "themes", "conn.json"))
 	if err != nil || !strings.Contains(string(b), `"base": "light-ansi"`) {

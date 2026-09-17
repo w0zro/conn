@@ -32,7 +32,8 @@ func TestParseModeFlags(t *testing.T) {
 		{"a command first leaves the flag its own", []string{"theme", "--light", "claude"}, []string{"theme", "--light", "claude"}, nil},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			rest, got, err := parseModeFlags(c.args)
+			rest, o, err := parseModeFlags(c.args)
+			got := o.dark
 			if err != nil {
 				t.Fatalf("parseModeFlags(%v): %v", c.args, err)
 			}
@@ -58,21 +59,26 @@ func TestParseModeFlags(t *testing.T) {
 	}
 }
 
-// askDark takes an override over the terminal, when there is one.
-func TestAskDark(t *testing.T) {
+// askMode takes what the flags said over the terminal, when they said
+// anything, and conn's own theme for the theme until a flag names one.
+func TestAskMode(t *testing.T) {
 	light, dark := false, true
-	if askDark(&light) {
-		t.Error("askDark(&light) is dark")
+	if m := askMode(override{dark: &light}); m.dark || m.theme != defaultTheme {
+		t.Errorf("askMode(--light) = %+v", m)
 	}
-	if !askDark(&dark) {
-		t.Error("askDark(&dark) is light")
+	if m := askMode(override{dark: &dark}); !m.dark || m.theme != defaultTheme {
+		t.Errorf("askMode(--dark) = %+v", m)
 	}
-	// With no override and no terminal to ask (a test has none), askDark
+	// With nothing said and no terminal to ask (a test has none), askMode
 	// falls back the same way detectDark does: dark.
-	if !askDark(nil) {
-		t.Error("askDark(nil) with no terminal is not dark")
+	if m := askMode(override{}); !m.dark || m.theme != defaultTheme {
+		t.Errorf("askMode(nothing) with no terminal = %+v", m)
 	}
 }
+
+// connOn is conn's own theme on one ground: what every server was
+// before there was another theme to be in.
+func connOn(dark bool) mode { return mode{theme: defaultTheme, dark: dark} }
 
 // holdMode keeps the ground the test binary is on. applyMode sets the
 // colors package-wide and conn calls it once at start, where a test
@@ -84,7 +90,7 @@ func TestAskDark(t *testing.T) {
 // theme — so a test that touches the ground at all takes this.
 func holdMode(t *testing.T) {
 	t.Helper()
-	was := darkMode
+	was := current
 	t.Cleanup(func() { applyMode(was) })
 }
 
@@ -92,7 +98,7 @@ func holdMode(t *testing.T) {
 func TestApplyModeSwitchesTheGround(t *testing.T) {
 	holdMode(t)
 
-	applyMode(true)
+	applyMode(connOn(true))
 	if hex(groundColor) != "#15130F" || hex(inkColor) != "#E6DFD0" || cursorHex != "#E85D2F" ||
 		borderHex != "#2A2620" || grayHex != "#8B8272" || themeBase != "dark-ansi" || vimBackground != "dark" {
 		t.Errorf("dark: ground=%s ink=%s cursor=%s border=%s gray=%s base=%s vim=%s",
@@ -102,14 +108,14 @@ func TestApplyModeSwitchesTheGround(t *testing.T) {
 		t.Errorf("dark scheme is not connTheme.dark.scheme: %v", scheme)
 	}
 
-	applyMode(false)
+	applyMode(connOn(false))
 	if hex(groundColor) != "#EFE9DB" || hex(inkColor) != "#1A1611" || cursorHex != "#BD3A1D" ||
 		borderHex != "#D8D0BD" || grayHex != "#6F6656" || themeBase != "light-ansi" || vimBackground != "light" {
 		t.Errorf("light: ground=%s ink=%s cursor=%s border=%s gray=%s base=%s vim=%s",
 			hex(groundColor), hex(inkColor), cursorHex, borderHex, grayHex, themeBase, vimBackground)
 	}
-	if darkMode {
-		t.Error("applyMode does not say which ground it put conn on")
+	if current.dark || current.theme != defaultTheme {
+		t.Errorf("applyMode does not say what it put conn in: %+v", current)
 	}
 	if scheme != connTheme.light.scheme {
 		t.Errorf("light scheme is not connTheme.light.scheme: %v", scheme)
@@ -264,57 +270,76 @@ func TestReadOSCReply(t *testing.T) {
 	}
 }
 
-// A server's mode is dark until one is written, is what was written
-// once one is, and conn down clears it so the next one rises fresh.
+// A server's mode is conn's dark until one is written, is what was
+// written once one is, and conn down clears it so the next one rises
+// fresh. A file from before conn had themes names the ground alone and
+// reads as conn's; a file naming a theme conn does not have reads as
+// conn's too, on the ground it says.
 func TestModeFileRoundTrip(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), "state", "tmux.sock")
 
-	if !serverMode(socket) {
-		t.Error("a server with no mode file yet is not dark")
+	if m := serverMode(socket); m != connOn(true) {
+		t.Errorf("a server with no mode file yet is %+v, not conn's dark", m)
 	}
 	if _, ok := readModeFile(socket); ok {
 		t.Error("readModeFile found a file nobody wrote")
 	}
 
-	if err := writeMode(socket, false); err != nil {
+	if err := writeMode(socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
-	if serverMode(socket) {
-		t.Error("a server written light reads back dark")
+	if m := serverMode(socket); m != connOn(false) {
+		t.Errorf("a server written conn's light reads back %+v", m)
 	}
-	dark, ok := readModeFile(socket)
-	if !ok || dark {
-		t.Errorf("readModeFile = (%v, %v), want (false, true)", dark, ok)
+	if m, ok := readModeFile(socket); !ok || m != connOn(false) {
+		t.Errorf("readModeFile = (%+v, %v), want (conn light, true)", m, ok)
 	}
 
-	if err := writeMode(socket, true); err != nil {
+	if err := writeMode(socket, connOn(true)); err != nil {
 		t.Fatal(err)
 	}
-	if !serverMode(socket) {
-		t.Error("a server written dark reads back light")
+	if m := serverMode(socket); m != connOn(true) {
+		t.Errorf("a server written conn's dark reads back %+v", m)
+	}
+
+	for _, c := range []struct {
+		name, file string
+		want       mode
+	}{
+		{"a file from before themes, light", "light", connOn(false)},
+		{"a file from before themes, dark", "dark\n", connOn(true)},
+		{"a theme conn does not have", "light solarized\n", connOn(false)},
+		{"an empty file", "", connOn(true)},
+	} {
+		if err := os.WriteFile(modePath(socket), []byte(c.file), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if m := serverMode(socket); m != c.want {
+			t.Errorf("%s reads as %+v, want %+v", c.name, m, c.want)
+		}
 	}
 
 	if err := os.Remove(modePath(socket)); err != nil {
 		t.Fatal(err)
 	}
-	if !serverMode(socket) {
-		t.Error("a cleared mode file does not fall back to dark")
+	if m := serverMode(socket); m != connOn(true) {
+		t.Errorf("a cleared mode file falls back to %+v, not conn's dark", m)
 	}
 }
 
 // holdMode puts the ground back where it found it, which is the point
-// of taking it rather than calling applyMode(true) by hand: a test that
+// of taking it rather than calling applyMode(connOn(true)) by hand: a test that
 // restores to dark is right only for as long as dark is what it was.
 func TestHoldModePutsTheGroundBack(t *testing.T) {
 	holdMode(t)
 	for _, was := range []bool{true, false} {
-		applyMode(was)
+		applyMode(connOn(was))
 		t.Run("", func(t *testing.T) {
 			holdMode(t)
-			applyMode(!was)
+			applyMode(connOn(!was))
 		})
-		if darkMode != was {
-			t.Errorf("a test on %v ground left it on %v", was, darkMode)
+		if current != connOn(was) {
+			t.Errorf("a test on %v ground left conn in %+v", was, current)
 		}
 	}
 }
@@ -326,13 +351,13 @@ func TestHoldModePutsTheGroundBack(t *testing.T) {
 // reason written down where it can fail.
 func TestDressingAProgramSetsTheGround(t *testing.T) {
 	holdMode(t)
-	applyMode(false)
+	applyMode(connOn(false))
 	// A home with no server beside it has no mode file, and a ground
 	// that was never asked for is dark.
 	if _, ok := dressProgram([]string{"vim"}, t.TempDir(), nil); !ok {
 		t.Fatal("the colorscheme was not written")
 	}
-	if !darkMode {
+	if !current.dark {
 		t.Error("dressProgram left conn on the ground its caller chose")
 	}
 }

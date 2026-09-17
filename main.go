@@ -133,13 +133,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "conn: the tmux server could not be brought up: %v\n", err)
 		srv = nil
 	}
-	// A pane of conn's own server draws on the ground the server already
+	// A pane of conn's own server draws in the mode the server already
 	// chose; anything else - no tmux, or the server could not come up -
-	// has nobody to ask but the terminal itself, or --light/--dark.
+	// has nobody to ask but the terminal itself, or the flags.
 	if inside {
 		applyMode(serverMode(srv.socket))
 	} else {
-		applyMode(askDark(override))
+		applyMode(askMode(override))
 	}
 	m := newModel(colored())
 	m.srv, m.inside = srv, inside

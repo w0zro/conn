@@ -1107,11 +1107,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			if req.container != "" {
 				return m, m.stopContainer(req.container, req.command)
 			}
-			if req.pane != "" && req.pid == 0 {
-				return m, m.closeHeld(req.pane, req.command)
+			if req.interrupt {
+				return m, m.interruptDeclared(req.pane, req.command)
 			}
 			if req.pane != "" {
-				return m, m.killDeclared(req.pid, req.command, req.sig, req.pane)
+				return m, m.closeHeld(req.pane, req.command)
 			}
 			return m, m.killEntry(req.pid, req.command, req.sig)
 		}
@@ -1874,11 +1874,10 @@ func (m model) raiseAt() (tea.Model, tea.Cmd) {
 
 // armDeclared is x on a declared process's row. Down, there is nothing
 // to end. Ended and holding its pane, the pane is what goes, and the
-// question says close. Up, the process itself is asked to end — the
-// command under the sh that started it, so that the sh goes on to
-// record the end; the sh itself only until the command is read — and
-// the pane rides with the kill, to go once the end is recorded, so
-// the row is DOWN in the one move rather than ENDED for a second x.
+// question says close. Up, it is sent ctrl-c in its pane, the way a
+// hand stops what it ran in the foreground, and the pane goes once the
+// end is recorded, so the row is DOWN in the one move rather than
+// ENDED for a second x.
 func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
 	_, name, _ := unmarkDeclared(e.declared)
 	switch {
@@ -1888,11 +1887,8 @@ func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
 		m.kill = &pendingKill{pane: m.panes[e.tty].id, command: name, prompt: closePrompt(m.panes[e.tty].id, name)}
 		return m, nil
 	}
-	pid := e.pid
-	if child, ok := m.childOf(e); ok {
-		pid = child.pid
-	}
-	m.kill = &pendingKill{pid: pid, command: name, sig: syscall.SIGTERM, prompt: killPrompt(name, pid, syscall.SIGTERM), pane: m.panes[e.tty].id}
+	id := m.panes[e.tty].id
+	m.kill = &pendingKill{pane: id, command: name, interrupt: true, prompt: interruptPrompt(id, name)}
 	return m, nil
 }
 
@@ -1923,27 +1919,6 @@ func (m model) runsOf(head entry) (entry, bool) {
 				}
 			}
 			return first, first.pid != 0
-		}
-	}
-	return entry{}, false
-}
-
-// childOf is the first row under a pane's head: what the head runs,
-// in the tree whole, since the fold may have taken it off the panel.
-func (m model) childOf(head entry) (entry, bool) {
-	projects := m.tree
-	if len(projects) == 0 {
-		projects = m.projects
-	}
-	for _, pl := range projects {
-		for i, e := range pl.entries {
-			if e.pid != head.pid {
-				continue
-			}
-			if i+1 < len(pl.entries) && pl.entries[i+1].tty == head.tty && pl.entries[i+1].depth == head.depth+1 {
-				return pl.entries[i+1], true
-			}
-			return entry{}, false
 		}
 	}
 	return entry{}, false

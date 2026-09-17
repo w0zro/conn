@@ -563,9 +563,10 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	}
 }
 
-// x on a declared process that is up arms the signal with the pane
-// riding along, so that y takes the row to DOWN in one move; on one
-// that has ended, the pane alone, since there is nothing to signal.
+// x on a declared process that is up arms ctrl-c in its pane, with the
+// pane to close once the end is recorded, so that y takes the row to
+// DOWN in one move; on one that has ended, the pane alone, since there
+// is nothing left to stop.
 func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 	m := newModel(plain)
 	m.view = viewProcesses
@@ -578,10 +579,10 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.pid != 40 || m.kill.sig != syscall.SIGTERM || m.kill.pane != "%7" {
+	if m.kill == nil || !m.kill.interrupt || m.kill.pane != "%7" || m.kill.pid != 0 {
 		t.Fatalf("arming an up declaration: kill %+v", m.kill)
 	}
-	if !strings.Contains(m.kill.prompt, "kill -TERM 40 · web?") {
+	if !strings.Contains(m.kill.prompt, "tmux send-keys -t %7 C-c · web?") {
 		t.Errorf("the question: kill %+v", m.kill)
 	}
 
@@ -589,7 +590,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 	m.kill = nil
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.pid != 0 || m.kill.pane != "%7" || !strings.Contains(m.kill.prompt, "kill-pane %7 · web?") {
+	if m.kill == nil || m.kill.interrupt || m.kill.pane != "%7" || !strings.Contains(m.kill.prompt, "kill-pane %7 · web?") {
 		t.Errorf("arming an ended declaration: kill %+v", m.kill)
 	}
 }
@@ -1496,7 +1497,7 @@ func TestXOnADeclaredRow(t *testing.T) {
 	}
 	m.cursor = 400
 	press("x")
-	if m.kill == nil || m.kill.pid != 401 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "kill -TERM 401 · web?") {
+	if m.kill == nil || !m.kill.interrupt || m.kill.pane != "%4" || !strings.Contains(m.kill.prompt, "tmux send-keys -t %4 C-c · web?") {
 		t.Errorf("x on an up row: kill %+v", m.kill)
 	}
 }

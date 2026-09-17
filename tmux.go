@@ -685,6 +685,13 @@ func (s *server) paneExit(id string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// interrupt is ctrl-c in a pane, as tmux types it: what a hand does to
+// stop the thing it ran there.
+func (s *server) interrupt(id string) error {
+	_, err := s.run("send-keys", "-t", id, "C-c")
+	return err
+}
+
 // closePane takes a pane down: a declared process's, once its output
 // has been read, or once it was asked to end.
 func (s *server) closePane(id string) error {

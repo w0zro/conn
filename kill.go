@@ -47,11 +47,24 @@ type pendingKill struct {
 	container string
 	// The pane to close, where the row is a declared process. One that
 	// has ended holds its pane for its output: there is nothing left to
-	// signal, and the pane is what goes. One still up is signalled, and
-	// its pane goes once it has recorded the end, so that the row is
-	// DOWN in one move: an end the operator asked for has nothing in it
-	// to read.
-	pane string
+	// signal, and the pane is what goes. One still up is sent ctrl-c in
+	// that pane, and the pane goes once it has recorded the end, so
+	// that the row is DOWN in one move: an end the operator asked for
+	// has nothing in it to read.
+	pane      string
+	interrupt bool // ctrl-c to the pane, rather than a signal to a pid
+}
+
+// interruptPrompt is the question for a declared process that is up:
+// ctrl-c in its pane, which is how a hand stops what it ran in the
+// foreground, and the one thing every such program answers. A signal
+// to the process was tried first and was the wrong gesture: docker
+// compose up ignores SIGTERM outright and stops on ctrl-c, and it is
+// not alone in that. The terminal delivers ctrl-c to the whole
+// foreground group, the command and whatever it runs, which is what
+// a hand gets and a signal to one pid does not.
+func interruptPrompt(pane, name string) string {
+	return question("tmux send-keys -t "+pane+" C-c", name)
 }
 
 // killSignal is what x sends a kind of entry: SIGKILL for a bare

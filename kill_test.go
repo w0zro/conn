@@ -88,4 +88,7 @@ func TestTheQuestionIsTheCommand(t *testing.T) {
 	if got := closePrompt("%3", "quick"); got != "kill-pane %3 · quick? (y/n)" {
 		t.Errorf("closePrompt: %q", got)
 	}
+	if got := interruptPrompt("%8", "app"); got != "tmux send-keys -t %8 C-c · app? (y/n)" {
+		t.Errorf("interruptPrompt: %q", got)
+	}
 }

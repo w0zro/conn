@@ -968,10 +968,10 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s := startScratch(t)
 	repo := filepath.Join(s.dir, "home", "repo")
-	// sleeper answers the signal slowly, the way a docker compose up
-	// does while it stops its services: six seconds, past the five a
-	// first cut of the close gave before leaving the pane standing.
-	if err := os.WriteFile(filepath.Join(repo, declaredName), []byte("sleeper: perl -e '$SIG{TERM} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
+	// sleeper answers ctrl-c slowly, the way a docker compose up does
+	// while it stops its services: six seconds, past the five a first
+	// cut of the close gave before leaving the pane standing.
+	if err := os.WriteFile(filepath.Join(repo, declaredName), []byte("sleeper: perl -e '$SIG{INT} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
@@ -1043,10 +1043,10 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		return id == "" && rowSays("quick", "DOWN") && rowSays("sleeper", "ACTIVE")
 	})
 
-	// sleeper is still running. x on its head row asks to signal the
-	// perl, and y does that and takes the pane down with it once the
-	// end is recorded, six seconds on: the row is DOWN in the one move,
-	// with no ENDED to close.
+	// sleeper is still running. x on its head row asks for ctrl-c in
+	// its pane, and y does that and takes the pane down with it once
+	// the end is recorded, six seconds on: the row is DOWN in the one
+	// move, with no ENDED to close.
 	// G is quick's down row. sleeper's head is above it, past the
 	// perl where the fold has left that on the panel: each row up is
 	// asked, and the question that names sleeper is the one answered;
@@ -1057,7 +1057,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		s.keys("k")
 		s.keys("x")
 		s.until("a question", armed)
-		if strings.Contains(s.statusLine(), "kill -TERM") && strings.Contains(s.statusLine(), " sleeper? (y/n)") {
+		if strings.Contains(s.statusLine(), "send-keys") && strings.Contains(s.statusLine(), " sleeper? (y/n)") {
 			break
 		}
 		s.keys("n")

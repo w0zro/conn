@@ -38,36 +38,37 @@ func TestTheServerIsFoundBySocket(t *testing.T) {
 
 // list-panes, as tmux prints it for the format asked.
 func TestPanesAreParsed(t *testing.T) {
-	// The last field is tmux's word for where the keys are in the
-	// window: the panel has them here, and nothing else does.
-	out := "%0 /dev/ttys004 48 40         1\n" +
-		"%1 /dev/ttys007 138 40 1        0\n" +
-		"%5 /dev/ttys008 138 40  1       0\n" +
+	// The last two fields are tmux's word for where the keys are in the
+	// window — the panel has them here, and nothing else does — and
+	// where each pane stands in it.
+	out := "%0 /dev/ttys004 48 40         1 0\n" +
+		"%1 /dev/ttys007 138 40 1        0 1\n" +
+		"%5 /dev/ttys008 138 40  1       0 2\n" +
 		// A readout carries the hold's own mark as well as its own: it is
 		// furniture like a hold, and everything that acts on holds acts on
 		// it. Only the panel has to tell the two apart. The manual is furniture the
 		// same way; this pane wears every mark at once, so the parse is read
 		// for all of them together.
-		"%7 /dev/ttys009 138 40 1  1   1   0\n" +
+		"%7 /dev/ttys009 138 40 1  1   1   0 3\n" +
 		// A pane conn opened for a container says which: it is the
 		// terminal that container has not got, and its row is reached
 		// through it.
-		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b     0\n" +
+		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b     0 4\n" +
 		// A pane holding a shell inside a container says which container,
 		// on the other mark: it is work of the operator's own, not the
 		// service being read.
-		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b    0\n" +
+		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b    0 5\n" +
 		// A pane conn opened for a declared process says which, and
 		// how the process ended once it has.
-		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0\n\n"
+		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0 6\n\n"
 	want := map[string]pane{
-		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40, active: true},
-		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true},
-		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40, dead: true},
-		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, readout: true, help: true},
-		"ttys010": {id: "%9", tty: "ttys010", width: 138, height: 40, container: "9f1c2d3e4a5b"},
-		"ttys011": {id: "%11", tty: "ttys011", width: 138, height: 40, shellIn: "9f1c2d3e4a5b"},
-		"ttys012": {id: "%13", tty: "ttys012", width: 138, height: 40, declared: "web@%2FUsers%2Fw0zro%2Fapp", exit: "1"},
+		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40, active: true, index: 0},
+		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true, index: 1},
+		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40, dead: true, index: 2},
+		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, readout: true, help: true, index: 3},
+		"ttys010": {id: "%9", tty: "ttys010", width: 138, height: 40, container: "9f1c2d3e4a5b", index: 4},
+		"ttys011": {id: "%11", tty: "ttys011", width: 138, height: 40, shellIn: "9f1c2d3e4a5b", index: 5},
+		"ttys012": {id: "%13", tty: "ttys012", width: 138, height: 40, declared: "web@%2FUsers%2Fw0zro%2Fapp", exit: "1", index: 6},
 	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)

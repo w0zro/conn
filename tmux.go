@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -50,6 +52,13 @@ func prefixLabel(p string) string {
 type server struct {
 	tmux   string
 	socket string
+	// One change to the bay at a time. Each is a run of tmux commands
+	// that reads the bay and then swaps against it, and two of them at
+	// once — the page being put in as the operator opens a shell — each
+	// read the bay before the other's swap landed, and the second swapped
+	// against a pane the first had killed. The panel runs each off its
+	// loop, so nothing but this keeps them apart.
+	swaps sync.Mutex
 }
 
 // findServer is the server as this machine has it: no tmux, no server.
@@ -293,6 +302,11 @@ type pane struct {
 	// reaching sent them away; this is the same fact read off the
 	// server, for a reading that lands between the two.
 	active bool
+	// Where it stands in its window, which is how the bay is told from
+	// anything else beside the panel: home has two panes, the panel at
+	// 0 and the bay at 1, and a third is a mistake to be mended rather
+	// than a pane to be guessed between.
+	index int
 }
 
 // What conn asks tmux for, and how it reads the answer back. The
@@ -309,7 +323,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active} #{pane_index}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -329,13 +343,14 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 13 || f[0] == "" {
+		if len(f) != 14 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
 			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1",
 			container: f[7], shellIn: f[8], help: f[9] == "1",
 			declared: f[10], exit: f[11], active: f[12] == "1"}
+		p.index, _ = strconv.Atoi(f[13])
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -358,14 +373,33 @@ func (s *server) panel() string {
 	return os.Getenv("TMUX_PANE")
 }
 
-// bay is the pane beside the panel in the home window, when there is
-// one.
-func (s *server) bay() (pane, bool, error) {
+// home is every pane of the home window, in the order they stand.
+func (s *server) home() ([]pane, error) {
 	out, err := s.run("list-panes", "-t", s.panel(), "-F", paneFormat)
+	if err != nil {
+		return nil, err
+	}
+	var panes []pane
+	for _, p := range parsePanes(out) {
+		panes = append(panes, p)
+	}
+	sort.Slice(panes, func(i, j int) bool { return panes[i].index < panes[j].index })
+	return panes, nil
+}
+
+// bay is the pane beside the panel in the home window, when there is
+// one: the first pane after the panel, by where it stands. The panes
+// were read out of a map, in whatever order the map gave them, which
+// was one answer while home had two panes and a coin toss once it had
+// three — and a swap against the wrong one of the three, both in
+// home, sized home to the bay's width and left the operator a window
+// one column wide.
+func (s *server) bay() (pane, bool, error) {
+	panes, err := s.home()
 	if err != nil {
 		return pane{}, false, err
 	}
-	for _, p := range parsePanes(out) {
+	for _, p := range panes {
 		if p.id != s.panel() {
 			return p, true, nil
 		}
@@ -376,6 +410,23 @@ func (s *server) bay() (pane, bool, error) {
 // splitBay opens the bay beside the panel, with a hold in it, and sets
 // the panel to its width. Focus stays on the panel.
 func (s *server) splitBay(home, self string) error {
+	s.swaps.Lock()
+	defer s.swaps.Unlock()
+	return s.split(home, self)
+}
+
+// split is splitBay for a caller that already holds the bay. A bay
+// that is there already is left alone: two readings that each found
+// home without one, before either's split had landed, each split one
+// in, and home stood with three panes — the second hold beside the
+// first, and whatever came next swapped against whichever of the two
+// the lookup happened on.
+func (s *server) split(home, self string) error {
+	if _, ok, err := s.bay(); err != nil {
+		return err
+	} else if ok {
+		return nil
+	}
 	id, err := s.run("split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "-t", s.panel(), "-c", home, "exec "+shellQuote(self)+" hold")
 	if err != nil {
 		return err
@@ -410,12 +461,14 @@ func (s *server) holdPanel() error {
 // moves. Without a bay at all, which a swap has nothing to land in,
 // it falls back to splitBay.
 func (s *server) reviveBay(home, self string) error {
+	s.swaps.Lock()
+	defer s.swaps.Unlock()
 	bay, ok, err := s.bay()
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return s.splitBay(home, self)
+		return s.split(home, self)
 	}
 	return s.holdBay(home, self, bay)
 }
@@ -449,6 +502,8 @@ func (s *server) holdBay(home, self string, bay pane) error {
 // carrying it along, where a page opened per row would spawn a window a
 // keystroke and blank the bay between each.
 func (s *server) showReadout(home, self string) error {
+	s.swaps.Lock()
+	defer s.swaps.Unlock()
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
 		"exec "+shellQuote(self)+" readout")
 	if err != nil {
@@ -469,7 +524,7 @@ func (s *server) showReadout(home, self string) error {
 		// Nothing to swap into. Split one first — swapping against the panel
 		// instead would put the processes view in the window the readout came
 		// from and the readout where the processes view belongs.
-		if err := s.splitBay(home, self); err != nil {
+		if err := s.split(home, self); err != nil {
 			return err
 		}
 		if bay, ok, err = s.bay(); err != nil {
@@ -506,6 +561,8 @@ func (s *server) showReadout(home, self string) error {
 // no page in it under a panel that still had the keys, and put the
 // page back over the process the operator had just gone into.
 func (s *server) show(target pane) error {
+	s.swaps.Lock()
+	defer s.swaps.Unlock()
 	bay, ok, err := s.bay()
 	if err != nil {
 		return err
@@ -513,10 +570,20 @@ func (s *server) show(target pane) error {
 	if !ok {
 		return fmt.Errorf("home has no bay")
 	}
+	// Whether the target is itself in home, which it is only when home
+	// has more panes than it should: the pane it displaces then stays
+	// in home too, and sizing that pane's window to the bay would size
+	// home, which is the window the operator is looking at.
+	inHome := false
+	if panes, err := s.home(); err == nil {
+		for _, p := range panes {
+			inHome = inHome || p.id == target.id
+		}
+	}
 	var args []string
 	if target.id != bay.id {
 		args = []string{"swap-pane", "-d", "-s", target.id, "-t", bay.id}
-		if bay.width > 0 && bay.height > 0 {
+		if bay.width > 0 && bay.height > 0 && !inHome {
 			args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
 		}
 		if bay.hold || bay.dead {
@@ -1004,6 +1071,8 @@ func downReport(ws []window, socket, home string) string {
 // everything stepping over conn's furniture steps over it, and marked
 // as the manual so the panel can say HELP while it stands.
 func (s *server) showHelp(home, self string) error {
+	s.swaps.Lock()
+	defer s.swaps.Unlock()
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
 		"exec "+shellQuote(self)+" manual")
 	if err != nil {
@@ -1020,7 +1089,7 @@ func (s *server) showHelp(home, self string) error {
 		return err
 	}
 	if !ok {
-		if err := s.splitBay(home, self); err != nil {
+		if err := s.split(home, self); err != nil {
 			return err
 		}
 		if bay, ok, err = s.bay(); err != nil {

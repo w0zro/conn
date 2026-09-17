@@ -1511,3 +1511,20 @@ func TestZShowsTheWholeTree(t *testing.T) {
 		t.Fatal("no reading")
 	}
 }
+
+// A shell the server would not open left nothing on the screen: a key
+// was pressed and nothing happened. What the server said is said
+// under the rows, in its own words, until the next key.
+func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside = viewProcesses, true
+	next, _ := m.Update(noticeMsg{"the shell could not be opened: tmux swap-pane: can't find pane: %9"})
+	m = next.(model)
+	if text := texts(drawProcesses(m.processesReport(), 0, 48, 30, plain)); !strings.Contains(text, "TMUX SWAP-PANE") {
+		t.Errorf("the notice is not under the rows:\n%s", text)
+	}
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
+	if got := next.(model); got.notice != "" {
+		t.Errorf("a key did not take the notice down: %q", got.notice)
+	}
+}

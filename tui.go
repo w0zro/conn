@@ -131,6 +131,7 @@ type (
 	}
 	processesTickMsg struct{ gen int }        // the processes view is due to be read again
 	openedMsg        struct{ shell shell }    // a shell was opened; the cursor goes to it once it is read
+	noticeMsg        struct{ text string }    // something asked of the server was not done, and this is why
 	raisedMsg        struct{ shells []shell } // a project's declared processes were brought up, parked
 	reachedMsg       struct{ tty string }     // a process was put in the bay
 	readoutMsg       struct{ on bool }        // the readout was put in the bay, or taken out of it
@@ -200,6 +201,12 @@ type model struct {
 	awaited      int
 	until        time.Time
 	processesErr string
+	// What the server would not do, in its own words, said under the
+	// rows until the next key. A shell that could not be opened left
+	// nothing on the screen at all: the operator pressed a key and
+	// nothing happened, which is the one thing conn should never leave
+	// them with.
+	notice string
 	processesGen int // which stay in the processes view the ticks belong to
 	// The pane the keys were in when a chord brought them to the panel,
 	// for a view there is something to cancel out of. Blank where the
@@ -348,7 +355,7 @@ func (m model) report() report {
 // processesReport is the processes view's words as things stand.
 func (m model) processesReport() processesReport {
 	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
-	w.inside, w.lit = m.inside, m.lit
+	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
 	return w
 }
 
@@ -824,6 +831,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clockMsg:
 		m.now = time.Now()
 		return m, nextSecond(m.now)
+	case noticeMsg:
+		m.notice = msg.text
 	case openedMsg:
 		// The shell is in the bay; the table will have it in a moment, and
 		// the cursor goes to it then. Until then the processes view reads
@@ -1085,6 +1094,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // it. gg and G are the ends of the list, where j and k are its steps: a
 // table long enough to scroll is not walked to its end.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
+	// A notice stands until the next key, whatever it is: it was read,
+	// or it was not going to be.
+	m.notice = ""
 	// A kill x asked for takes the next key, whatever it is: y confirms
 	// it, and anything else cancels, as tmux's own confirmation goes —
 	// no other binding fires while the question is on the status line.

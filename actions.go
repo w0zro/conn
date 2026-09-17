@@ -56,7 +56,7 @@ func (m model) openShell(dir string) tea.Cmd {
 	return func() tea.Msg {
 		sh, err := srv.open(dir)
 		if err != nil {
-			return nil
+			return noticeMsg{"the shell could not be opened: " + err.Error()}
 		}
 		return openedMsg{shell: sh}
 	}
@@ -139,7 +139,7 @@ func (m model) startContact(dir string) tea.Cmd {
 	return func() tea.Msg {
 		sh, err := srv.openCmd(dir, contactCommand(srv.socket))
 		if err != nil {
-			return nil
+			return noticeMsg{"the contact could not be opened: " + err.Error()}
 		}
 		return openedMsg{shell: sh}
 	}

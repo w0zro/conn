@@ -31,6 +31,7 @@ type processesReport struct {
 	projects []projectBlock
 	err      string // why the table could not be read, when it could not
 	stalled  bool   // docker went quiet; its rows are as last seen
+	notice   string // what the server would not do, said under the rows
 	inside   bool   // conn is in its server, and rows can be reached
 	lit      bool   // the annunciators' lit half; see the waiting word below
 }
@@ -399,6 +400,19 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		// view is usually read at: a note cut off mid-word says less
 		// than no note.
 		l.add(p.faint, fit("DOCKER NOT ANSWERING · AS LAST SEEN", measure, false))
+		d.emit(l, 0, false)
+		c.rows = append(c.rows, d.rows...)
+	}
+	// What the server would not do is a fault to be looked at, and is
+	// stamped like one, in the server's own words: the tmux command
+	// that failed and what it said, which is what the operator would
+	// see had they typed it. The processes view is where a key was
+	// pressed for it, so it is said here, under the rows.
+	if b.notice != "" {
+		d := canvas{p: p, width: width}
+		d.blank(0)
+		l := d.line()
+		l.add(p.chip, " "+fit(strings.ToUpper(b.notice), measure-2, false)+" ")
 		d.emit(l, 0, false)
 		c.rows = append(c.rows, d.rows...)
 	}

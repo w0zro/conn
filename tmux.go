@@ -684,25 +684,6 @@ func (s *server) detach() error {
 	return err
 }
 
-// The terminal's chrome, beyond the ground and the ink the console is
-// drawn in: the orange for the cursor, and the console's border color,
-// which draws the line between the panel and the bay and sits behind a
-// selection. Dark until applyMode says otherwise; see mode.go.
-var (
-	cursorHex = darkCursorHex
-	borderHex = darkScheme[0]
-)
-
-// The sixteen colors a program asks for by name, as conn draws them.
-// Most are the console's own tokens: the two oranges for the reds, the
-// parchment and the ink for the whites, the faint for bright black, the
-// border for black. The blue and the magenta are conn's own, added so
-// that the slots a shell theme leans on — structure, type, what can be
-// run — stay apart from one another instead of collapsing into the
-// orange and the teal. Normal, then bright. Dark until applyMode says
-// otherwise; see mode.go for the light table and both grounds.
-var scheme = darkScheme
-
 // tmuxConf is the server's configuration: the prefix with its chords,
 // and how every pane is drawn. tmux's own prefix table is emptied, so
 // none of its keys or actions are reachable through conn; prefix then -

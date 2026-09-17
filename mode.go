@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,18 +20,8 @@ import (
 // life: conn down and a relaunch is how it is asked again. A run with
 // no server behind it - no tmux on the machine, or a pane of conn's own
 // server, where the server already chose - asks fresh or reads what the
-// server chose, in place of guessing.
-//
-// Light is not dark with the lightness flipped. On paper, emphasis is
-// more ink, not more light, so the light scheme's bright slots go
-// darker than its normal ones - the opposite of the dark scheme, where
-// bright is lighter.
-//
-// The two neutral slots are the exception, and keep what every program
-// means by them: 0 is black, which on paper is ordinary text and the
-// strongest ink there is, and 8 is the gray a program dims with. They
-// are not a border and a quieter border; a program writing ANSI-0
-// expects to be read.
+// server chose, in place of guessing. What each ground is made of is
+// the theme's, in themes.go.
 
 // darkMode is the ground conn is on, as applyMode last left it. The
 // ground is package-wide — scheme, the hexes, themeBase and the rest
@@ -42,109 +31,12 @@ import (
 // which is what every terminal was before conn learned to ask.
 var darkMode = true
 
-// The two grounds and the two inks.
+// themeBase is the base claudeThemeJSON sits on, dark-ansi or
+// light-ansi, and vimBackground what the colorscheme tells nvim its own
+// background is: whichever ground applyMode last chose.
 var (
-	darkGround  = color.RGBA{R: 21, G: 19, B: 15, A: 255}
-	darkInk     = color.RGBA{R: 230, G: 223, B: 208, A: 255}
-	lightGround = color.RGBA{R: 0xEF, G: 0xE9, B: 0xDB, A: 255}
-	lightInk    = color.RGBA{R: 0x1A, G: 0x16, B: 0x11, A: 255}
-)
-
-// The sixteen, dark and light. darkScheme is what scheme was before
-// there was a choice; lightScheme is the same table, on paper.
-var darkScheme = [16]string{
-	"#2A2620", // black
-	"#FF7847", // red
-	"#93C98B", // green
-	"#E3A94F", // yellow
-	"#7FA7C9", // blue
-	"#C98BA8", // magenta
-	"#7FC7BD", // cyan
-	"#BFB39A", // white
-	"#5C564A", // bright black
-	"#E85D2F", // bright red
-	"#A8DBA0", // bright green
-	"#F2C06E", // bright yellow
-	"#9BBEDB", // bright blue
-	"#DBA6C0", // bright magenta
-	"#9AD9D0", // bright cyan
-	"#E6DFD0", // bright white
-}
-
-var lightScheme = [16]string{
-	"#2B2620", // black
-	"#A63214", // red
-	"#23703F", // green
-	"#8A5F00", // yellow
-	"#3E5F7A", // blue
-	"#7A4258", // magenta
-	"#0D6B70", // cyan
-	"#4A4335", // white
-	"#9A9080", // bright black
-	"#BD3A1D", // bright red
-	"#1C5A33", // bright green
-	"#75500A", // bright yellow
-	"#32506A", // bright blue
-	"#68384B", // bright magenta
-	"#0A585D", // bright cyan
-	"#1A1611", // bright white
-}
-
-const (
-	darkCursorHex  = "#E85D2F"
-	lightCursorHex = "#BD3A1D"
-)
-
-// The border, and the grounds that go with it: a pane's edge, a
-// selection, the band behind what you said. On dark this is scheme[0],
-// which is the darkest thing there is and so the quietest
-// edge. On light it cannot be: light's scheme[0] is black, and black is
-// what a program writing ANSI-0 means by ordinary text — Claude Code
-// writes the unchanged lines of a diff in it. A border pale enough to
-// be an edge on paper is #D8D0BD, which is 1.27:1 against lightGround
-// and unreadable as text, so the two part company here rather than in
-// the sixteen.
-const (
-	darkBorderHex  = "#2A2620"
-	lightBorderHex = "#D8D0BD"
-)
-
-// The gray of the console's second rank, light; the dark one is grayHex
-// in theme.go, renamed darkGrayHex.
-const lightGrayHex = "#6F6656"
-
-// The quietest tier of text, light; the dark one is faintHex in
-// theme.go, renamed darkFaintHex. Apart from scheme[8] (ANSI-8, light's
-// #9A9080), which stays exactly as it was for the pane's own sake - see
-// the comment on darkFaintHex.
-const lightFaintHex = "#867C6A"
-
-// The second ink and the accent's shimmer, light; the dark ones are in
-// theme.go. Light's scheme[7] and scheme[1], as dark's are dark's.
-const (
-	lightParchmentHex = "#4A4335"
-	lightShimmerHex   = "#A63214"
-)
-
-// The grounds no slot has a name for, light: the same washes and bars
-// theme.go names dark, in the light ground's own temperature. A wash
-// this pale needs more room from the ground than the same wash does on
-// dark to read as a color at all rather than a shade of the ground
-// itself - lightness compresses toward white long before it compresses
-// toward black. Chosen, like lightFaintHex, by holding each one to at
-// least the contrast its dark counterpart already has against its own
-// ground (WCAG ratio; e.g. dark's diffAddedWord is 1.65:1 against
-// darkGround, light's #C2D4B0 was only 1.30:1 against lightGround -
-// #A4C187 is what 1.65:1 costs on the same hue).
-const (
-	lightDiffAddedBg     = "#CAD7BB"
-	lightDiffRemovedBg   = "#E8D3C4"
-	lightDiffAddedDim    = "#DFE1CD"
-	lightDiffRemovedDim  = "#EBDED0"
-	lightDiffAddedWord   = "#A4C187"
-	lightDiffRemovedWord = "#E0BDA4"
-	lightMessageHoverBg  = "#CFC6B0"
-	lightToolBg          = "#E6DFCF"
+	themeBase     = "dark-ansi"
+	vimBackground = "dark"
 )
 
 // applyMode puts every color conn draws from onto one ground. In conn
@@ -155,31 +47,11 @@ const (
 // the ground it chose standing for whatever runs next; see holdMode.
 func applyMode(dark bool) {
 	darkMode = dark
-	if dark {
-		groundColor, inkColor = darkGround, darkInk
-		scheme = darkScheme
-		cursorHex, borderHex = darkCursorHex, darkBorderHex
-		grayHex = darkGrayHex
-		faintHex = darkFaintHex
-		parchmentHex, shimmerHex, messageBg = darkParchmentHex, darkShimmerHex, darkBorderHex
-		diffAddedBg, diffRemovedBg = darkDiffAddedBg, darkDiffRemovedBg
-		diffAddedDim, diffRemovedDim = darkDiffAddedDim, darkDiffRemovedDim
-		diffAddedWord, diffRemovedWord = darkDiffAddedWord, darkDiffRemovedWord
-		messageHoverBg, toolBg = darkMessageHoverBg, darkToolBg
-		themeBase, vimBackground = "dark-ansi", "dark"
-		return
+	wear(connTheme.on(dark))
+	themeBase, vimBackground = "dark-ansi", "dark"
+	if !dark {
+		themeBase, vimBackground = "light-ansi", "light"
 	}
-	groundColor, inkColor = lightGround, lightInk
-	scheme = lightScheme
-	cursorHex, borderHex = lightCursorHex, lightBorderHex
-	grayHex = lightGrayHex
-	faintHex = lightFaintHex
-	parchmentHex, shimmerHex, messageBg = lightParchmentHex, lightShimmerHex, lightBorderHex
-	diffAddedBg, diffRemovedBg = lightDiffAddedBg, lightDiffRemovedBg
-	diffAddedDim, diffRemovedDim = lightDiffAddedDim, lightDiffRemovedDim
-	diffAddedWord, diffRemovedWord = lightDiffAddedWord, lightDiffRemovedWord
-	messageHoverBg, toolBg = lightMessageHoverBg, lightToolBg
-	themeBase, vimBackground = "light-ansi", "light"
 }
 
 // modePath is where the mode a server came up on is kept, beside its

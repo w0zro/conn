@@ -198,7 +198,7 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 		t.Fatalf("the file did not follow the ground to light: %v", err)
 	}
 	// The ground is not only the word: the colors go with it.
-	if strings.Contains(string(b), hex(darkGround)) {
+	if strings.Contains(string(b), hex(connTheme.dark.ground)) {
 		t.Error("the light colorscheme still carries the dark ground")
 	}
 }
@@ -214,23 +214,23 @@ func TestTheLightColorschemeDrawsTheBorderAsTheRestOfConnDoes(t *testing.T) {
 	applyMode(false)
 	out := vimColorscheme()
 	for _, want := range []string{
-		"hi StatusLine guifg=" + hex(inkColor) + " ctermfg=15 guibg=" + lightBorderHex + " ctermbg=NONE",
-		"hi Visual guifg=NONE ctermfg=NONE guibg=" + lightBorderHex + " ctermbg=NONE",
-		"hi WinSeparator guifg=" + lightBorderHex + " ctermfg=NONE",
-		"hi LineNr guifg=" + lightFaintHex + " ctermfg=8",
+		"hi StatusLine guifg=" + hex(inkColor) + " ctermfg=15 guibg=" + connTheme.light.border + " ctermbg=NONE",
+		"hi Visual guifg=NONE ctermfg=NONE guibg=" + connTheme.light.border + " ctermbg=NONE",
+		"hi WinSeparator guifg=" + connTheme.light.border + " ctermfg=NONE",
+		"hi LineNr guifg=" + connTheme.light.faint + " ctermfg=8",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the light colorscheme lacks %q", want)
 		}
 	}
 	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "hi ") && strings.Contains(line, "guibg="+lightScheme[0]) {
+		if strings.HasPrefix(line, "hi ") && strings.Contains(line, "guibg="+connTheme.light.scheme[0]) {
 			t.Errorf("a ground is drawn in light's black: %s", line)
 		}
 	}
 	// And on dark the border is slot 0 still, as it always was.
 	applyMode(true)
-	if out := vimColorscheme(); !strings.Contains(out, "hi Visual guifg=NONE ctermfg=NONE guibg="+darkScheme[0]+" ctermbg=0") {
+	if out := vimColorscheme(); !strings.Contains(out, "hi Visual guifg=NONE ctermfg=NONE guibg="+connTheme.dark.scheme[0]+" ctermbg=0") {
 		t.Error("the dark colorscheme no longer draws a selection on slot 0")
 	}
 }

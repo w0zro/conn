@@ -98,8 +98,8 @@ func TestApplyModeSwitchesTheGround(t *testing.T) {
 		t.Errorf("dark: ground=%s ink=%s cursor=%s border=%s gray=%s base=%s vim=%s",
 			hex(groundColor), hex(inkColor), cursorHex, borderHex, grayHex, themeBase, vimBackground)
 	}
-	if scheme != darkScheme {
-		t.Errorf("dark scheme is not darkScheme: %v", scheme)
+	if scheme != connTheme.dark.scheme {
+		t.Errorf("dark scheme is not connTheme.dark.scheme: %v", scheme)
 	}
 
 	applyMode(false)
@@ -111,16 +111,16 @@ func TestApplyModeSwitchesTheGround(t *testing.T) {
 	if darkMode {
 		t.Error("applyMode does not say which ground it put conn on")
 	}
-	if scheme != lightScheme {
-		t.Errorf("light scheme is not lightScheme: %v", scheme)
+	if scheme != connTheme.light.scheme {
+		t.Errorf("light scheme is not connTheme.light.scheme: %v", scheme)
 	}
 	// Every diff wash and band moves with the ground too, not just the
 	// sixteen and the two grounds, and so does the faint conn dims with.
-	if diffAddedBg != lightDiffAddedBg || diffRemovedBg != lightDiffRemovedBg ||
-		diffAddedDim != lightDiffAddedDim || diffRemovedDim != lightDiffRemovedDim ||
-		diffAddedWord != lightDiffAddedWord || diffRemovedWord != lightDiffRemovedWord ||
-		messageHoverBg != lightMessageHoverBg || toolBg != lightToolBg ||
-		faintHex != lightFaintHex {
+	if diffAddedBg != connTheme.light.diffAddedBg || diffRemovedBg != connTheme.light.diffRemovedBg ||
+		diffAddedDim != connTheme.light.diffAddedDim || diffRemovedDim != connTheme.light.diffRemovedDim ||
+		diffAddedWord != connTheme.light.diffAddedWord || diffRemovedWord != connTheme.light.diffRemovedWord ||
+		messageHoverBg != connTheme.light.messageHoverBg || toolBg != connTheme.light.toolBg ||
+		faintHex != connTheme.light.faint {
 		t.Error("a wash, a band or the faint was left on the dark ground")
 	}
 }
@@ -129,13 +129,13 @@ func TestApplyModeSwitchesTheGround(t *testing.T) {
 // alike, structure and type and what can be run apart from each other.
 func TestTheLightSchemeIsSixteenToo(t *testing.T) {
 	seen := map[string]int{}
-	for i, c := range lightScheme {
+	for i, c := range connTheme.light.scheme {
 		if was, dup := seen[c]; dup {
 			t.Errorf("slot %d is slot %d again: %s", i, was, c)
 		}
 		seen[c] = i
 	}
-	blue, magenta, cyan := lightScheme[4], lightScheme[5], lightScheme[6]
+	blue, magenta, cyan := connTheme.light.scheme[4], connTheme.light.scheme[5], connTheme.light.scheme[6]
 	if blue == cyan || blue == magenta || magenta == cyan {
 		t.Errorf("slots 4/5/6 collapse: %s %s %s", blue, magenta, cyan)
 	}
@@ -179,11 +179,11 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 		scheme [16]string
 		name   string
 	}{
-		{hex(lightGround), 0, lightScheme, "light black"},
-		{hex(lightGround), 7, lightScheme, "light white"},
-		{hex(lightGround), 15, lightScheme, "light bright white"},
-		{hex(darkGround), 7, darkScheme, "dark white"},
-		{hex(darkGround), 15, darkScheme, "dark bright white"},
+		{hex(connTheme.light.ground), 0, connTheme.light.scheme, "light black"},
+		{hex(connTheme.light.ground), 7, connTheme.light.scheme, "light white"},
+		{hex(connTheme.light.ground), 15, connTheme.light.scheme, "light bright white"},
+		{hex(connTheme.dark.ground), 7, connTheme.dark.scheme, "dark white"},
+		{hex(connTheme.dark.ground), 15, connTheme.dark.scheme, "dark bright white"},
 	} {
 		if r := contrast(c.scheme[c.slot], c.ground); r < readable {
 			t.Errorf("%s (slot %d, %s) is %.2f:1 on %s; %.1f:1 is what reading it takes",
@@ -194,8 +194,8 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 	// ground knocked out of it, so the word is only as readable as the
 	// orange stands off the ground it is drawn against.
 	for _, c := range []struct{ name, hex, ground string }{
-		{"dark", darkCursorHex, hex(darkGround)},
-		{"light", lightCursorHex, hex(lightGround)},
+		{"dark", connTheme.dark.accent, hex(connTheme.dark.ground)},
+		{"light", connTheme.light.accent, hex(connTheme.light.ground)},
 	} {
 		if r := contrast(c.hex, c.ground); r < readable {
 			t.Errorf("the %s block (%s) is %.2f:1 on %s; the word knocked out of it takes %.1f:1",
@@ -206,8 +206,8 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 	// and is held to no more than that, but it is still a color and
 	// not the ground.
 	for _, c := range []struct{ name, hex, ground string }{
-		{"light bright black", lightScheme[8], hex(lightGround)},
-		{"dark bright black", darkScheme[8], hex(darkGround)},
+		{"light bright black", connTheme.light.scheme[8], hex(connTheme.light.ground)},
+		{"dark bright black", connTheme.dark.scheme[8], hex(connTheme.dark.ground)},
 	} {
 		if r := contrast(c.hex, c.ground); r < 2 {
 			t.Errorf("%s (%s) is %.2f:1 on %s, which is the ground again", c.name, c.hex, r, c.ground)

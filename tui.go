@@ -11,14 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// The ground and the ink, as the terminal is asked to take them for its
-// own while conn is up, so its padding is the ground too. Dark until
-// applyMode says otherwise; see mode.go.
-var (
-	groundColor = darkGround
-	inkColor    = darkInk
-)
-
 // Across the foot of the window is the status line, which is tmux's
 // status line and an annunciator panel: dark until something conn's
 // keys are doing lights it. It is written in tmux.go; conn lights its

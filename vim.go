@@ -18,10 +18,6 @@ import (
 // that are no slot say NONE and take the pane's own, which in conn is
 // the ground already.
 
-// vimBackground is what the colorscheme tells nvim its own background
-// is: dark or light, whichever ground applyMode last chose.
-var vimBackground = "dark"
-
 // A color as a colorscheme names it: what to draw it in, and which of
 // the sixteen it is when sixteen is all there is.
 type vimColor struct{ gui, cterm string }
@@ -318,7 +314,7 @@ func slotColor(i int) vimColor {
 // quietest edge. On light it cannot be: light's slot 0 is black, which
 // is what a program writing ANSI-0 means by ordinary text, and a status
 // line drawn on it was a black bar across a pale page, so the border on
-// light is a color no slot has a name for — see mode.go.
+// light is a color no slot has a name for — see themes.go.
 func roleColor(h string) vimColor {
 	for i, c := range scheme {
 		if strings.EqualFold(c, h) {

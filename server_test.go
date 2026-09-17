@@ -576,7 +576,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
 	// The scratch server rose on dark, the ground of a terminal that
 	// says nothing. tmux answers a color in its own case.
-	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, darkScheme[0]) {
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
 		t.Fatalf("the server did not rise on dark: slot 0 is %q", got)
 	}
 
@@ -597,10 +597,10 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, lightScheme[0]) {
-		t.Errorf("slot 0 is %q after regrounding, not light's %q", got, lightScheme[0])
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.light.scheme[0]) {
+		t.Errorf("slot 0 is %q after regrounding, not light's %q", got, connTheme.light.scheme[0])
 	}
-	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+hex(lightGround)+",fg="+hex(lightInk)) {
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+hex(connTheme.light.ground)+",fg="+hex(connTheme.light.ink)) {
 		t.Errorf("the window style is %q, not on the light ground", got)
 	}
 	if dark, ok := readModeFile(srv.socket); !ok || dark {
@@ -684,9 +684,9 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 		t.Fatalf("starting the server: %v\n%s", out, err)
 	}
 	for _, c := range []struct{ option, want string }{
-		{"pane-colours[0]", lightScheme[0]},
-		{"pane-colours[9]", lightScheme[9]},
-		{"cursor-colour", lightCursorHex},
+		{"pane-colours[0]", connTheme.light.scheme[0]},
+		{"pane-colours[9]", connTheme.light.scheme[9]},
+		{"cursor-colour", connTheme.light.accent},
 	} {
 		out, err := srv.run("show-options", "-g", c.option)
 		if err != nil {

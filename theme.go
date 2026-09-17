@@ -28,81 +28,11 @@ import (
 // fixed map onto the sixteen, which conn has already dressed. Code in a
 // pane is conn's colors either way.
 
-// The gray of the console's second rank, as a hex; the ground, the ink
-// and the border have it already. Dark until applyMode says otherwise;
-// see mode.go for the light one.
-const darkGrayHex = "#8B8272"
-
-var grayHex = darkGrayHex
-
-// The quietest tier conn draws text in - a hint, a leader, Claude
-// Code's subtle and promptBorder. Dark matches scheme[8], the ANSI-8
-// slot faint has always drawn from; light needed a color of its own,
-// since ANSI-8 there (#9A9080) reads fine as a background tint but
-// nearly vanishes as foreground text on the light ground - the light
-// one is in mode.go. scheme[8] itself is untouched either way: a pane
-// still gets exactly the ANSI-8 it always did.
-const darkFaintHex = "#5C564A"
-
-var faintHex = darkFaintHex
-
-// The second ink: what conn titles with, a colorscheme's punctuation,
-// the border of a bash block in Claude Code, what conn says beside a
-// block on the status line. On conn it is scheme[7], the parchment the
-// pane's ANSI-7 is drawn in, and it is read by name all the same: a
-// slot is what a program asks for, a role is what conn means, and a
-// palette whose slot 7 is white has a second ink still. Dark; the light
-// one is in mode.go.
-const darkParchmentHex = "#BFB39A"
-
-var parchmentHex = darkParchmentHex
-
-// The accent's brighter cousin: the shimmer Claude Code plays over its
-// mark and over the one dialog that stops for you. On conn it is
-// scheme[1], the red the orange lifts to.
-const darkShimmerHex = "#FF7847"
-
-var shimmerHex = darkShimmerHex
-
-// The band behind what you said to Claude Code, at rest. On conn it is
-// the border, on both grounds.
-var messageBg = darkBorderHex
-
 // Where Claude Code keeps what conn writes and what it reads back.
 const (
 	claudeDir      = ".claude"
 	claudeThemeRef = "custom:conn"
 )
-
-// The grounds a slot has no name for, dark: the washes a diff is laid
-// on, one step up for the words inside it, and the bars behind a
-// message and a tool's output. In the ground's own temperature, none of
-// them a fill. Light equivalents are in mode.go.
-const (
-	darkDiffAddedBg     = "#1E2A1C"
-	darkDiffRemovedBg   = "#331F17"
-	darkDiffAddedDim    = "#191F17"
-	darkDiffRemovedDim  = "#231A14"
-	darkDiffAddedWord   = "#2C4028"
-	darkDiffRemovedWord = "#4A2A1D"
-	darkMessageHoverBg  = "#33302A"
-	darkToolBg          = "#1D1A15"
-)
-
-var (
-	diffAddedBg     = darkDiffAddedBg
-	diffRemovedBg   = darkDiffRemovedBg
-	diffAddedDim    = darkDiffAddedDim
-	diffRemovedDim  = darkDiffRemovedDim
-	diffAddedWord   = darkDiffAddedWord
-	diffRemovedWord = darkDiffRemovedWord
-	messageHoverBg  = darkMessageHoverBg
-	toolBg          = darkToolBg
-)
-
-// themeBase is the base claudeThemeJSON sits on: dark-ansi or
-// light-ansi, whichever ground applyMode last chose.
-var themeBase = "dark-ansi"
 
 // A token and what conn would have it drawn in.
 type token struct{ name, color string }

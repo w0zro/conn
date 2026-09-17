@@ -92,7 +92,7 @@ func TestSavingARootKeepsTheRestOfTheFile(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(`{"agentRuns": {"ollama": "ollama launch"}}`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`{"agentRuns": {"ollama": "ollama launch"}, "theme": "datum"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := saveRoots(home, []string{"~/projects"}); err != nil {
@@ -108,6 +108,9 @@ func TestSavingARootKeepsTheRestOfTheFile(t *testing.T) {
 	}
 	if _, ok := back["agentRuns"]; !ok {
 		t.Errorf("the save dropped what conn does not read:\n%s", b)
+	}
+	if string(back["theme"]) != `"datum"` {
+		t.Errorf("the save dropped the theme:\n%s", b)
 	}
 	t.Setenv("CONN_ROOTS", "")
 	got, err := projectRoots(home)

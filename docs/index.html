@@ -267,14 +267,16 @@
           <div class="row"><span>conn theme vim</span><span>Write it as a colorscheme for nvim, which does the same.</span></div>
           <div class="row"><span>conn --light</span><span>Say the ground is light, for a server coming up or one already up.</span></div>
           <div class="row"><span>conn --dark</span><span>Say the ground is dark.</span></div>
+          <div class="row"><span>conn --theme NAME</span><span>Say the theme, conn or datum, for a server coming up or one already up.</span></div>
           <div class="row"><span>conn --help</span><span>Say this.</span></div>
           <div class="row"><span>conn --version</span><span>Say the build.</span></div>
         </div>
-        <p class="para"><span class="n">4-2.</span> conn comes up dark, or light when the terminal says its own ground is light. The choice is made when the server comes up and holds for its life; <b>conn down</b> and conn again asks afresh. Everything in a pane of the server draws in conn's palette by asking the terminal for a color by name. Claude Code and nvim write their own hex instead, and <b>conn theme</b> writes each a theme from the same palette.</p>
-        <p class="para"><span class="n">4-3.</span> The configuration file is <b>~/.config/conn/config.json</b>. It holds one key.</p>
+        <p class="para"><span class="n">4-2.</span> conn comes up dark, or light when the terminal says its own ground is light, and in one of two themes: conn, its own, and datum, the colorscheme at datum.w0zro.com. The theme is what the configuration file names, or what <b>--theme</b> says. Both choices are made when the server comes up and hold for its life; <b>conn down</b> and conn again asks afresh, and <b>--light</b>, <b>--dark</b> and <b>--theme</b> put a server already up on the other ground, or in the other theme, where it stands. Everything in a pane of the server draws in conn's palette by asking the terminal for a color by name. Claude Code and nvim write their own hex instead, and <b>conn theme</b> writes each a theme from the same palette, in the theme the server is in.</p>
+        <p class="para"><span class="n">4-3.</span> The configuration file is <b>~/.config/conn/config.json</b>. It holds two keys.</p>
         <div class="table narrow">
           <div class="row head"><span>KEY</span><span>VALUE</span></div>
           <div class="row"><span>roots</span><span>The directories conn looks for projects under, as a list of paths. A leading ~ is the home.</span></div>
+          <div class="row"><span>theme</span><span>The theme conn comes up in: conn or datum. conn unless set.</span></div>
         </div>
         <p class="para"><span class="n">4-4.</span> The environment says what one run of conn should do differently from what the file says is usual.</p>
         <div class="table narrow">

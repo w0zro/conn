@@ -20,11 +20,11 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 	if len(args) != 1 {
 		return "conn theme: say which program: conn theme claude, conn theme vim\n", false
 	}
-	// The theme drawn matches whichever ground the server on this
-	// machine is running, or would come up on if none is up yet - not
+	// The theme drawn matches whichever mode the server on this
+	// machine is running in, or would come up in if none is up yet - not
 	// an argument of its own, so it never drifts from what conn itself
 	// is dressed in.
-	applyMode(serverMode(socketPath(home)))
+	applyMode(serverMode(socketPath(home), home))
 	switch args[0] {
 	case "claude":
 		return dressClaude(home, ask)
@@ -137,9 +137,9 @@ func main() {
 	// chose; anything else - no tmux, or the server could not come up -
 	// has nobody to ask but the terminal itself, or the flags.
 	if inside {
-		applyMode(serverMode(srv.socket))
+		applyMode(serverMode(srv.socket, home))
 	} else {
-		applyMode(askMode(override))
+		applyMode(askMode(override, home))
 	}
 	m := newModel(colored())
 	m.srv, m.inside = srv, inside
@@ -188,7 +188,7 @@ var commands = []command{
 		if len(args) > 0 {
 			pid, _ = strconv.Atoi(args[0])
 		}
-		applyMode(serverMode(socketPath(home)))
+		applyMode(serverMode(socketPath(home), home))
 		if err := runReadout(findServer(home), pid, home, colored()); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
@@ -197,7 +197,7 @@ var commands = []command{
 	}},
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		applyMode(serverMode(socketPath(home)))
+		applyMode(serverMode(socketPath(home), home))
 		if err := runHold(findServer(home), colored()); err != nil {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			return 1
@@ -209,7 +209,7 @@ var commands = []command{
 	// and conn runs this in the pane it opens for it.
 	{"manual", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		applyMode(serverMode(socketPath(home)))
+		applyMode(serverMode(socketPath(home), home))
 		path, err := writeManPage(home)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
@@ -240,6 +240,7 @@ func runCommand(name string, args []string) int {
 var flags = []command{
 	{"--light", "say the ground is light, for a server coming up or one already up", nil},
 	{"--dark", "say the ground is dark", nil},
+	{"--theme", "say the theme by name, conn or datum, for a server coming up or one already up", nil},
 	{"--help", "say this", nil},
 	{"--version", "say the build", nil},
 }

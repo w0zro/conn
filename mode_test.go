@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +31,8 @@ func TestParseModeFlags(t *testing.T) {
 		{"--light before a command", []string{"--light", "down"}, []string{"down"}, boolPtr(false)},
 		{"--dark said twice", []string{"--dark", "--dark"}, nil, boolPtr(true)},
 		{"a command first leaves the flag its own", []string{"theme", "--light", "claude"}, []string{"theme", "--light", "claude"}, nil},
+		{"--theme takes its name with it", []string{"--theme", "datum", "down"}, []string{"down"}, nil},
+		{"--theme beside a ground", []string{"--light", "--theme", "datum"}, nil, boolPtr(false)},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rest, o, err := parseModeFlags(c.args)
@@ -57,22 +60,70 @@ func TestParseModeFlags(t *testing.T) {
 	if _, _, err := parseModeFlags([]string{"--light", "--dark"}); err == nil {
 		t.Error("--light and --dark together was not a contradiction")
 	}
+
+	// --theme names a theme conn has, and answers it.
+	for _, c := range []struct {
+		name  string
+		args  []string
+		theme string
+	}{
+		{"alone", []string{"--theme", "datum"}, "datum"},
+		{"conn by name", []string{"--theme", "conn"}, "conn"},
+		{"said twice, the same", []string{"--theme", "datum", "--theme", "datum"}, "datum"},
+		{"not said", []string{"--dark"}, ""},
+	} {
+		if _, o, err := parseModeFlags(c.args); err != nil || o.theme != c.theme {
+			t.Errorf("%s: parseModeFlags(%v) = theme %q, %v; want %q", c.name, c.args, o.theme, err, c.theme)
+		}
+	}
+	for _, c := range []struct {
+		name string
+		args []string
+		says string
+	}{
+		{"with no name", []string{"--theme"}, "conn and datum"},
+		{"with a name conn does not have", []string{"--theme", "solarized"}, "conn has no theme solarized; it has conn and datum"},
+		{"twice, with two names", []string{"--theme", "conn", "--theme", "datum"}, "contradiction"},
+	} {
+		if _, _, err := parseModeFlags(c.args); err == nil || !strings.Contains(err.Error(), c.says) {
+			t.Errorf("--theme %s: %v; want it to say %q", c.name, err, c.says)
+		}
+	}
 }
 
-// askMode takes what the flags said over the terminal, when they said
-// anything, and conn's own theme for the theme until a flag names one.
+// askMode takes what the flags said over the terminal and the
+// configuration, when they said anything; the theme is the
+// configuration's, and conn's own where it names none.
 func TestAskMode(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	light, dark := false, true
-	if m := askMode(override{dark: &light}); m.dark || m.theme != defaultTheme {
+	if m := askMode(override{dark: &light}, home); m.dark || m.theme != defaultTheme {
 		t.Errorf("askMode(--light) = %+v", m)
 	}
-	if m := askMode(override{dark: &dark}); !m.dark || m.theme != defaultTheme {
+	if m := askMode(override{dark: &dark}, home); !m.dark || m.theme != defaultTheme {
 		t.Errorf("askMode(--dark) = %+v", m)
 	}
 	// With nothing said and no terminal to ask (a test has none), askMode
 	// falls back the same way detectDark does: dark.
-	if m := askMode(override{}); !m.dark || m.theme != defaultTheme {
+	if m := askMode(override{}, home); !m.dark || m.theme != defaultTheme {
 		t.Errorf("askMode(nothing) with no terminal = %+v", m)
+	}
+	// The configuration names the theme; a flag names it over the file;
+	// a file naming a theme conn does not have names conn's own.
+	home = writeConfig(t, `{"roots": ["~"], "theme": "datum"}`)
+	if m := askMode(override{dark: &dark}, home); m.theme != "datum" {
+		t.Errorf("askMode with datum configured = %+v", m)
+	}
+	if m := askMode(override{dark: &dark, theme: "conn"}, home); m.theme != "conn" {
+		t.Errorf("askMode(--theme conn) with datum configured = %+v", m)
+	}
+	if m := serverMode(filepath.Join(t.TempDir(), "sock"), home); m.theme != "datum" || !m.dark {
+		t.Errorf("serverMode with no file and datum configured = %+v", m)
+	}
+	home = writeConfig(t, `{"roots": ["~"], "theme": "solarized"}`)
+	if m := askMode(override{dark: &dark}, home); m.theme != defaultTheme {
+		t.Errorf("askMode with a theme conn does not have configured = %+v", m)
 	}
 }
 
@@ -277,8 +328,10 @@ func TestReadOSCReply(t *testing.T) {
 // conn's too, on the ground it says.
 func TestModeFileRoundTrip(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), "state", "tmux.sock")
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // no configuration of the machine's own
 
-	if m := serverMode(socket); m != connOn(true) {
+	if m := serverMode(socket, home); m != connOn(true) {
 		t.Errorf("a server with no mode file yet is %+v, not conn's dark", m)
 	}
 	if _, ok := readModeFile(socket); ok {
@@ -288,7 +341,7 @@ func TestModeFileRoundTrip(t *testing.T) {
 	if err := writeMode(socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
-	if m := serverMode(socket); m != connOn(false) {
+	if m := serverMode(socket, home); m != connOn(false) {
 		t.Errorf("a server written conn's light reads back %+v", m)
 	}
 	if m, ok := readModeFile(socket); !ok || m != connOn(false) {
@@ -298,7 +351,7 @@ func TestModeFileRoundTrip(t *testing.T) {
 	if err := writeMode(socket, connOn(true)); err != nil {
 		t.Fatal(err)
 	}
-	if m := serverMode(socket); m != connOn(true) {
+	if m := serverMode(socket, home); m != connOn(true) {
 		t.Errorf("a server written conn's dark reads back %+v", m)
 	}
 
@@ -314,7 +367,7 @@ func TestModeFileRoundTrip(t *testing.T) {
 		if err := os.WriteFile(modePath(socket), []byte(c.file), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if m := serverMode(socket); m != c.want {
+		if m := serverMode(socket, home); m != c.want {
 			t.Errorf("%s reads as %+v, want %+v", c.name, m, c.want)
 		}
 	}
@@ -322,7 +375,7 @@ func TestModeFileRoundTrip(t *testing.T) {
 	if err := os.Remove(modePath(socket)); err != nil {
 		t.Fatal(err)
 	}
-	if m := serverMode(socket); m != connOn(true) {
+	if m := serverMode(socket, home); m != connOn(true) {
 		t.Errorf("a cleared mode file falls back to %+v, not conn's dark", m)
 	}
 }

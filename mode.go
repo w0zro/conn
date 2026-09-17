@@ -108,12 +108,13 @@ func writeMode(socket string, m mode) error {
 }
 
 // serverMode is the mode the server on this socket came up in, or would
-// if none is up yet: conn's dark, until one has picked for itself.
-func serverMode(socket string) mode {
+// if none is up yet: the configured theme on dark, until one has picked
+// for itself.
+func serverMode(socket, home string) mode {
 	if m, ok := readModeFile(socket); ok {
 		return m
 	}
-	return mode{theme: defaultTheme, dark: true}
+	return mode{theme: configTheme(home), dark: true}
 }
 
 // An override is what the flags said ahead of the command: a ground,
@@ -136,26 +137,28 @@ func (o override) over(m mode) mode {
 }
 
 // askMode is the mode a fresh server comes up in: what the flags said,
-// and for what they did not, conn's own theme on the terminal's own
-// ground, asked fresh.
-func askMode(o override) mode {
-	m := mode{theme: defaultTheme, dark: true}
+// and for what they did not, the configured theme on the terminal's
+// own ground, asked fresh.
+func askMode(o override, home string) mode {
+	m := mode{theme: configTheme(home), dark: true}
 	if o.dark == nil {
 		m.dark = detectDark()
 	}
 	return o.over(m)
 }
 
-// parseModeFlags reads --light and --dark off the front of conn's own
-// arguments, before any command name: which ground to come up on,
-// instead of asking the terminal or a server's mode file. It stops at
-// the first argument that is not one of the two, dark or light or a
-// command's own, and answers what is left of args from there, whole.
-// The two flags together is a contradiction; neither leaves the choice
-// where it always was.
+// parseModeFlags reads --light, --dark and --theme NAME off the front
+// of conn's own arguments, before any command name: which ground and
+// which theme to come up in, instead of asking the terminal, the
+// configuration or a server's mode file. It stops at the first
+// argument that is not one of these, dark or light or a command's own,
+// and answers what is left of args from there, whole. --dark with
+// --light, or --theme twice with two names, is a contradiction; a
+// theme conn does not have is an error that names the ones it does.
+// Neither leaves the choice where it always was.
 func parseModeFlags(args []string) (rest []string, o override, err error) {
-	for i, a := range args {
-		switch a {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "--dark":
 			if o.dark != nil && !*o.dark {
 				return nil, override{}, fmt.Errorf("--dark and --light are a contradiction")
@@ -168,11 +171,36 @@ func parseModeFlags(args []string) (rest []string, o override, err error) {
 			}
 			light := false
 			o.dark = &light
+		case "--theme":
+			if i+1 == len(args) {
+				return nil, override{}, fmt.Errorf("--theme wants a theme's name: %s", themeNames())
+			}
+			name := args[i+1]
+			if _, ok := themeNamed(name); !ok {
+				return nil, override{}, fmt.Errorf("conn has no theme %s; it has %s", name, themeNames())
+			}
+			if o.theme != "" && o.theme != name {
+				return nil, override{}, fmt.Errorf("--theme %s and --theme %s are a contradiction", o.theme, name)
+			}
+			o.theme = name
+			i++
 		default:
 			return args[i:], o, nil
 		}
 	}
 	return nil, o, nil
+}
+
+// themeNames is the themes conn has, said in a sentence.
+func themeNames() string {
+	var names []string
+	for _, t := range themes {
+		names = append(names, t.name)
+	}
+	if len(names) < 2 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // detectDark asks the terminal for its own background with OSC 11 and

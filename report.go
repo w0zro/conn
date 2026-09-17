@@ -78,6 +78,9 @@ const (
 	// there is nothing else it can be inferred from.
 	notWritten = "NO FILE"
 	noRoots    = "NO ROOTS"
+	// A file naming a theme conn does not have: conn comes up in its
+	// own, and the file was written meaning otherwise.
+	noTheme = "NO THEME"
 	// A file that is there and that conn could not use: it would not
 	// parse, or it would not open. Which of the two is in the error
 	// itself, said where there is room for a sentence.
@@ -365,6 +368,8 @@ func configCheck(c configState, home string) check {
 		k.status, k.fault = notWritten, true
 	case !c.names:
 		k.status, k.fault = noRoots, true
+	case c.noSuchTheme:
+		k.status, k.fault = noTheme, true
 	}
 	return k
 }

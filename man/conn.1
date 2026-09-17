@@ -15,6 +15,8 @@ conn \- a station for one operator directing many processes on one machine
 .br
 .B conn \-\-dark
 .br
+.B conn \-\-theme NAME
+.br
 .B conn \-\-help
 .br
 .B conn \-\-version
@@ -311,6 +313,9 @@ Say the ground is light, for a server coming up or one already up.
 \fBconn \-\-dark\fR
 Say the ground is dark.
 .TP
+\fBconn \-\-theme NAME\fR
+Say the theme, conn or datum, for a server coming up or one already up.
+.TP
 \fBconn \-\-help\fR
 Say this.
 .TP
@@ -319,20 +324,27 @@ Say the build.
 .RE
 .TP
 4-2.
-conn comes up dark, or light when the terminal says its own ground is light. The
-choice is made when the server comes up and holds for its life; \fBconn down\fR
-and conn again asks afresh. Everything in a pane of the server draws in conn's
-palette by asking the terminal for a color by name. Claude Code and nvim write
-their own hex instead, and \fBconn theme\fR writes each a theme from the same
-palette.
+conn comes up dark, or light when the terminal says its own ground is light, and
+in one of two themes: conn, its own, and datum, the colorscheme at
+datum.w0zro.com. The theme is what the configuration file names, or what
+\fB\-\-theme\fR says. Both choices are made when the server comes up and hold
+for its life; \fBconn down\fR and conn again asks afresh, and \fB\-\-light\fR,
+\fB\-\-dark\fR and \fB\-\-theme\fR put a server already up on the other ground,
+or in the other theme, where it stands. Everything in a pane of the server draws
+in conn's palette by asking the terminal for a color by name. Claude Code and
+nvim write their own hex instead, and \fBconn theme\fR writes each a theme from
+the same palette, in the theme the server is in.
 .TP
 4-3.
-The configuration file is \fB~/.config/conn/config.json\fR. It holds one key.
+The configuration file is \fB~/.config/conn/config.json\fR. It holds two keys.
 .RS
 .TP
 \fBroots\fR
 The directories conn looks for projects under, as a list of paths. A leading ~
 is the home.
+.TP
+\fBtheme\fR
+The theme conn comes up in: conn or datum. conn unless set.
 .RE
 .TP
 4-4.

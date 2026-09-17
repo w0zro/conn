@@ -24,6 +24,20 @@ type config struct {
 	// running conn: the file is read by conn, not by a shell, so there
 	// is nothing else to expand it.
 	Roots []string `json:"roots"`
+	// Theme is the theme conn comes up in: conn unless set. A name conn
+	// has no theme by is conn's, and the console says so.
+	Theme string `json:"theme"`
+}
+
+// configTheme is the theme the file names, when conn has one by that
+// name, and conn's own otherwise: a file that cannot be read is the
+// console's to report, not a reason to come up in nothing.
+func configTheme(home string) string {
+	c, _ := readConfig(home)
+	if _, ok := themeNamed(c.Theme); ok {
+		return c.Theme
+	}
+	return defaultTheme
 }
 
 // configHome is where a program's configuration goes: XDG_CONFIG_HOME,
@@ -115,9 +129,14 @@ type configState struct {
 	// wasted. It is read whether or not the file is what is in force,
 	// since the environment standing in front of it does not make an
 	// unread file any less of a mistake.
-	names  bool
-	source rootSource
-	roots  []rootState
+	names bool
+	// theme is the theme the file names, as written, and noSuchTheme
+	// whether conn has none by that name. A file naming none means
+	// conn's own, which is not a mistake.
+	theme       string
+	noSuchTheme bool
+	source      rootSource
+	roots       []rootState
 }
 
 // A rootState is one configured directory and what is actually there.
@@ -142,6 +161,10 @@ func readConfigState(home string) configState {
 	c, err := readConfig(home)
 	s.err = err
 	s.names = len(cleanRoots(c.Roots, home)) > 0
+	s.theme = c.Theme
+	if _, ok := themeNamed(c.Theme); c.Theme != "" && !ok {
+		s.noSuchTheme = true
+	}
 	var roots []string
 	roots, s.source, _ = resolveRoots(home)
 	for _, r := range roots {

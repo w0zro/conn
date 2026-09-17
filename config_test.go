@@ -110,6 +110,9 @@ func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 		{"a file of nothing conn knows", `{"projectsDir": "~/projects"}`, noRoots, true},
 		{"a file that will not parse", `{"roots": [`, notRead, true},
 		{"no file at all", "", notWritten, true},
+		{"a file naming a theme conn has", `{"roots": ["~"], "theme": "datum"}`, nominal, false},
+		{"a file naming a theme conn does not have", `{"roots": ["~"], "theme": "solarized"}`, noTheme, true},
+		{"a file naming no roots and no such theme", `{"theme": "solarized"}`, noRoots, true},
 	} {
 		home := t.TempDir()
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -173,7 +176,7 @@ func TestEveryRootGetsALine(t *testing.T) {
 // does not fit runs into the dots that lead to it. The words conn has
 // are held to the column here, where the console is not being read.
 func TestEveryStatusFitsItsColumn(t *testing.T) {
-	for _, status := range []string{nominal, unknown, unchecked, notWritten, noRoots, missing, notRead, "NOT A DIR", "READ ONLY", "NO PATH"} {
+	for _, status := range []string{nominal, unknown, unchecked, notWritten, noRoots, noTheme, missing, notRead, "NOT A DIR", "READ ONLY", "NO PATH"} {
 		if len(status) > statusW {
 			t.Errorf("%q is %d wide, and the column is %d", status, len(status), statusW)
 		}

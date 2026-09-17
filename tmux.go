@@ -119,7 +119,7 @@ func (s *server) attach(self, home string, o override) (int, error) {
 	want, asked := have, false
 	switch {
 	case !ok:
-		want = askMode(o)
+		want = askMode(o, home)
 		_ = writeMode(s.socket, want)
 	case o.over(have) != have:
 		want = o.over(have)

@@ -616,6 +616,54 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	})
 }
 
+// --theme on a server already up puts it in the other theme where it
+// stands, the same road --light takes: the sixteen and the cursor
+// change, the mode file names the theme, and the panel comes back
+// painting from it.
+func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
+	holdMode(t)
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
+		t.Fatalf("the server did not rise in conn: slot 0 is %q", got)
+	}
+
+	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
+	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
+	datum := mode{theme: "datum", dark: true}
+	applyMode(datum)
+	confText := tmuxConf("C-Space")
+	applyMode(connOn(true)) // the rest of this test reads conn's table
+	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeMode(srv.socket, datum); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.reground(conf); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct{ option, want string }{
+		{"pane-colours[0]", datumTheme.dark.scheme[0]},
+		{"pane-colours[5]", datumTheme.dark.scheme[5]},
+		{"cursor-colour", datumTheme.dark.accent},
+	} {
+		if got := s.display("#{" + c.option + "}"); !strings.EqualFold(got, c.want) {
+			t.Errorf("%s is %q after regrounding, not datum's %q", c.option, got, c.want)
+		}
+	}
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+hex(datumTheme.dark.ground)+",fg="+hex(datumTheme.dark.ink)) {
+		t.Errorf("the window style is %q, not on datum's ground", got)
+	}
+	if m, ok := readModeFile(srv.socket); !ok || m != datum {
+		t.Errorf("the mode file was not put in datum: %+v, found %v", m, ok)
+	}
+	s.until("the panel to come back", func() bool {
+		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.panel(), prompt)
+	})
+}
+
 // conn down ends what the test brought up, and says so; a second
 // conn down finds nothing.
 func TestDownEndsTheScratchServer(t *testing.T) {
@@ -644,6 +692,8 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 		t.Skip("tmux is not installed")
 	}
 	holdMode(t)
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // no configuration of the machine's own
 
 	dir, err := os.MkdirTemp("/tmp", "conn-test-")
 	if err != nil {
@@ -654,7 +704,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	t.Cleanup(func() { _, _ = srv.run("kill-server") })
 
 	// Nothing has picked yet: a server not up comes up dark.
-	if m := serverMode(srv.socket); m != connOn(true) {
+	if m := serverMode(srv.socket, home); m != connOn(true) {
 		t.Fatalf("a socket with no mode file is %+v, not conn's dark", m)
 	}
 
@@ -717,7 +767,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	if _, ok := readModeFile(srv.socket); ok {
 		t.Error("conn down left the mode file behind")
 	}
-	if m := serverMode(srv.socket); m != connOn(true) {
+	if m := serverMode(srv.socket, home); m != connOn(true) {
 		t.Errorf("after conn down, the socket is %+v, not conn's dark again", m)
 	}
 }

@@ -343,18 +343,19 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		}
 		// The title alone. It carried a count of its rows on the right,
 		// which was the kernel's word for them and a figure the operator
-		// never asks for: the rows are right there under it. A project at
-		// the margin is in the parchment and bold; one nested under
-		// another is in the ink and indented, as the list writes a
-		// repository under the folder that groups it, the indent alone
-		// telling the two apart.
+		// never asks for: the rows are right there under it. Every title
+		// is in the parchment and bold, at the margin or nested: a
+		// nested one was in the ink, the indent alone telling it from a
+		// row, and a folder of repositories read as a wall of rows with
+		// nothing to catch the eye between one block and the next. The
+		// indent says what is under what; the weight says what is a name.
 		l := d.line()
-		title, titleIn := p.parchment+p.bold, 0
+		titleIn := 0
 		if bp.nest > 0 {
-			title, titleIn = p.ink, min(bp.nest*treeIndent, max(commandW-4, 0))
+			titleIn = min(bp.nest*treeIndent, max(commandW-4, 0))
 		}
 		l.to(titleIn)
-		l.add(title, fit(bp.path, measure-titleIn, true))
+		l.add(p.parchment+p.bold, fit(bp.path, measure-titleIn, true))
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()

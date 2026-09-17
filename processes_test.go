@@ -796,3 +796,23 @@ func screenChipOf(t *testing.T) string {
 	st.volume.free = 6_800_000_000
 	return texts(screen(compose(st, testNow), 120, 40, colored()))
 }
+
+// A nested block's title is a title: in the parchment and bold like one
+// at the margin, with the indent saying what it is under. In the ink
+// it read as one more row, and a folder of repositories was a wall.
+func TestANestedTitleIsBoldLikeAnyTitle(t *testing.T) {
+	rides := "/Users/w0zro/projects/w0zro/public-rides"
+	isProject := func(dir string) bool { return dir == rides || dir == rides+"/public-rides.com" || testIsProject(dir) }
+	procs := []process{
+		{pid: 100, ppid: 1, uid: 501, tty: "ttys030", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: processesNow.Add(-time.Hour), cwd: rides},
+		{pid: 200, ppid: 1, uid: 501, tty: "ttys031", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.com"},
+	}
+	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), map[string]pane{"ttys030": {id: "%30"}, "ttys031": {id: "%31"}}, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false)
+	held.inside = true
+	p := colored()
+	for _, r := range drawProcesses(held, 100, 48, 30, p) {
+		if strings.Contains(r.text, "public-rides.com") && !strings.Contains(r.text, p.parchment+p.bold+"public-rides.com") {
+			t.Errorf("the nested title is not in the parchment and bold: %q", r.text)
+		}
+	}
+}

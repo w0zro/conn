@@ -449,3 +449,21 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 		t.Errorf("a run was given a contact group:\n%s", got)
 	}
 }
+
+// A row that is no process — a declaration down, a service down — is
+// filed under a number of conn's own, and the page names the row
+// rather than showing that number as a pid.
+func TestAMadeUpPidIsNotShownAsOne(t *testing.T) {
+	for _, e := range []entry{
+		{pid: declaredPID("/w", "stack"), kind: kindRun, command: "stack · docker compose up", typed: "stack · docker compose up", status: statusDown, cwd: "/w"},
+		{pid: declaredPID("/w", "stack/web"), kind: kindService, command: "web", typed: "web", status: statusDown, cwd: "/w", depth: 1},
+	} {
+		text := texts(drawReadout(composeReadout(readoutSubject{entry: e, project: project{path: "/w"}}, "/Users/w0zro", processesNow), 120, 20, plain))
+		if strings.Contains(text, "PID -") {
+			t.Errorf("the page shows conn's own number as a pid:\n%s", text)
+		}
+		if want := program(e.typed); !strings.Contains(text, want) {
+			t.Errorf("the page does not name the row %q:\n%s", want, text)
+		}
+	}
+}

@@ -117,6 +117,14 @@ func (g *readoutGroup) addPath(label, value string) {
 func composeReadout(s readoutSubject, home string, now time.Time) readoutReport {
 	e := s.entry
 	b := readoutReport{pid: e.pid}
+	// A row with no process — a declaration down, a service down — is
+	// filed under a number of conn's own, below zero where no process
+	// is, so the cursor can hold it. The header names the row instead:
+	// saying the number would be conn showing the operator its own
+	// filing, and a pid that is not one is worse than no pid.
+	if e.pid < 0 {
+		b.name = program(e.asTyped())
+	}
 
 	// What the contact is stopped on goes first, ahead of what the row
 	// even is. It is the whole reason to open the page on a waiting row,

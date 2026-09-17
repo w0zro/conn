@@ -1,6 +1,9 @@
 package main
 
-import "image/color"
+import (
+	"fmt"
+	"image/color"
+)
 
 // A theme is everything conn dresses a server in, by name: the ground
 // and the ink, the sixteen a program asks for by name, and the roles
@@ -38,7 +41,7 @@ type theme struct {
 }
 
 // themes is every theme conn has, in the order they are offered.
-var themes = []theme{connTheme}
+var themes = []theme{connTheme, datumTheme}
 
 // defaultTheme is the one conn wears unless told another.
 const defaultTheme = "conn"
@@ -59,6 +62,18 @@ func (t theme) on(dark bool) ground {
 		return t.dark
 	}
 	return t.light
+}
+
+// rgb is a color as a table writes it, #RRGGBB, as the terminal is
+// asked to take it. A table is read at start and by the tests, so a
+// hex that will not parse stops conn there rather than drawing black.
+func rgb(h string) color.RGBA {
+	var c color.RGBA
+	if _, err := fmt.Sscanf(h, "#%02X%02X%02X", &c.R, &c.G, &c.B); err != nil {
+		panic(fmt.Sprintf("not a color: %q", h))
+	}
+	c.A = 255
+	return c
 }
 
 // connTheme is conn's own. Dark is every terminal it ever knew; light

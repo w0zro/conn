@@ -146,7 +146,7 @@ func TestTheAskingViewSaysHowToAnswerIt(t *testing.T) {
 		}
 	}
 	all := strings.Join(text, "\n")
-	for _, want := range []string{"ROOTS", "ROOT  ~/pro", "~/projects", "ENTER SAVES ONE"} {
+	for _, want := range []string{"ROOTS", "ROOT   ~/pro", "~/projects", "ENTER SAVES ONE"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("the view lacks %q:\n%s", want, all)
 		}

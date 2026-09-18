@@ -56,7 +56,7 @@ func TestSessionsLayOut(t *testing.T) {
 	rows := drawSessions(testSessions(""), 1, 48, 30, plain)
 	text := texts(rows)
 	for _, s := range []string{
-		"SESSIONS", "2 SUSPENDED", "FIND  ▏", "~/projects/w0zro/conn",
+		"SESSIONS", "2 SUSPENDED", "FIND   ▏", "~/projects/w0zro/conn",
 		"main", "fix the flaky", "topic/resume", "2H 00M", "3D 00H",
 	} {
 		if !strings.Contains(text, s) {

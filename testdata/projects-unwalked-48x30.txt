@@ -1,7 +1,7 @@
 
    PROJECTS                           0 FOUND
    ──────────────────────────────────────────
-   FIND  ▏
+   FIND   ▏
 
  THE ROOTS COULD NOT BE WALKED: NO SUCH DIRECTORY
 

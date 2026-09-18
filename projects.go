@@ -587,12 +587,8 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
 	l = c.line()
-	l.add(p.gray, "FIND")
-	l.to(findW)
 	before, after := typedRuns(b.filter, b.caret, measure-findW-2, false)
-	l.add(p.ink+p.bold, before)
-	l.add(p.orange+p.bold, caret)
-	l.add(p.ink+p.bold, after)
+	l.field(0, measure-findW, "FIND", before, after)
 	c.emit(l, 0, false)
 
 	room := height

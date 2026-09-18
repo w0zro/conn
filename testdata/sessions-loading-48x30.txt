@@ -2,7 +2,7 @@
    SESSIONS
    ──────────────────────────────────────────
    ~/projects/w0zro/conn
-   FIND  ▏
+   FIND   ▏
 
                     LOOKING
 

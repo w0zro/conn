@@ -193,7 +193,7 @@ func TestProjectsLayOut(t *testing.T) {
 	rows := drawProjects(testList(""), 6, 48, 30, plain)
 	text := texts(rows)
 	for _, s := range []string{
-		"PROJECTS", "10 FOUND", "FIND  ▏",
+		"PROJECTS", "10 FOUND", "FIND   ▏",
 		"arboreum.io", "2 REPOS", "  content", "compose-demo",
 		"experiments/one-off", "▸  w0zro", "3 REPOS", "  conn",
 	} {

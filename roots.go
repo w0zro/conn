@@ -123,12 +123,8 @@ func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
 	c.rule(0, measure)
 
 	l = c.line()
-	l.add(p.gray, "ROOT")
-	l.to(rootsW)
 	before, after := typedRuns(b.typed, b.caret, measure-rootsW-2, true)
-	l.add(p.ink+p.bold, before)
-	l.add(p.orange+p.bold, caret)
-	l.add(p.ink+p.bold, after)
+	l.field(0, measure-rootsW, "ROOT", before, after)
 	c.emit(l, 0, false)
 
 	room := height

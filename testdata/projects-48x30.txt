@@ -1,7 +1,7 @@
 
    PROJECTS                          10 FOUND
    ──────────────────────────────────────────
-   FIND  ▏
+   FIND   ▏
 
 ▸  arboreum.io                        2 REPOS
      content

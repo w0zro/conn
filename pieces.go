@@ -136,20 +136,20 @@ func (l *line) eyebrowIn(color string, col int, label string, right int, count s
 }
 
 // field is a line typed into, drawn as a field rather than as a word and
-// a caret loose on the ground: the raised ground says where the typing
-// goes, and holds its width whether anything has been typed or not. The
-// caret stands where the typing left it, so what is before it and what
-// is after it are given apart.
+// a caret loose on the ground: a well cut through the surface down to
+// the ground says where the typing goes, and holds its width whether
+// anything has been typed or not. The caret stands where the typing
+// left it, so what is before it and what is after it are given apart.
 func (l *line) field(col, width int, label, before, after string) {
 	l.to(col)
 	l.add(l.p.gray, label)
 	l.add("", "  ")
 	start := l.cells
-	l.add(l.p.selection+l.p.ink, " "+before)
-	l.add(l.p.selection+l.p.orange+l.p.bold, caret)
-	l.add(l.p.selection+l.p.ink, after)
+	l.add(l.p.well+l.p.ink+l.p.bold, " "+before)
+	l.add(l.p.well+l.p.orange+l.p.bold, caret)
+	l.add(l.p.well+l.p.ink+l.p.bold, after)
 	if n := width - (l.cells - start); n > 0 {
-		l.add(l.p.selection, strings.Repeat(" ", n))
+		l.add(l.p.well, strings.Repeat(" ", n))
 	}
 }
 

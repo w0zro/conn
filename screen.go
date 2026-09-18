@@ -24,6 +24,7 @@ type palette struct {
 	surface                                                         string // one step off the ground: the panel's own
 	edge, running, struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
 	selection                                                       string // the ground a chosen row sits on
+	well                                                            string // the ground under the surface, which a field is cut down to
 	normal, end                                                     string // ink on the ground again; the row's end
 	plain                                                           bool
 }
@@ -55,6 +56,7 @@ func colored() palette {
 		chip:      ansiHex(48, cursorHex) + ansiHex(38, hex(groundColor)) + "\x1b[1m",
 		selection: ansiHex(48, borderHex),
 		surface:   ansiHex(48, surfaceHex),
+		well:      ansiHex(48, hex(groundColor)),
 		edge:      ansiHex(38, surfaceHex),
 		running:   ansiHex(38, runningHex),
 		struck:    "\x1b[9m",

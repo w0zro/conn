@@ -85,6 +85,11 @@ func TestAFieldHoldsItsWidth(t *testing.T) {
 	if empty.cells != typed.cells {
 		t.Errorf("a field typed into is %d cells and an empty one %d", typed.cells, empty.cells)
 	}
+	// The field is cut down to the ground, not raised to the ground a
+	// chosen row sits on: a box to type into is told from the cursor.
+	if got := drawn(colored().onSurface(), 40, func(l *line) { l.field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, ansiHex(48, hex(groundColor))+ansiHex(38, hex(inkColor))) || strings.Contains(got, ansiHex(48, borderHex)) {
+		t.Errorf("the field is not on the ground under the surface: %q", got)
+	}
 	if got := drawn(plain, 40, func(l *line) { l.field(0, 20, "FIND", "pro", "") }); !strings.Contains(got, "FIND   pro"+caret) {
 		t.Errorf("the field does not say what was typed: %q", got)
 	}

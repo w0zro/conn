@@ -21,6 +21,7 @@ import (
 // sequences at all: the console is text, for a pipe and for the tests.
 type palette struct {
 	ground, border, ink, gray, faint, orange, parchment, bold, chip string
+	surface                                                         string // one step off the ground: the panel's own
 	selection                                                       string // the ground a chosen row sits on
 	normal, end                                                     string // ink on the ground again; the row's end
 	plain                                                           bool
@@ -52,8 +53,22 @@ func colored() palette {
 		bold:      "\x1b[1m",
 		chip:      ansiHex(48, cursorHex) + ansiHex(38, hex(groundColor)) + "\x1b[1m",
 		selection: ansiHex(48, borderHex),
+		surface:   ansiHex(48, surfaceHex),
 		end:       "\x1b[0m",
 	}
+	p.normal = p.end + p.ground + p.ink
+	return p
+}
+
+// onSurface is the palette with the surface for its ground: what the
+// panel draws in, its pane being a step off the ground the bay is on,
+// so the two halves of the window read as two things. The plain
+// palette has no ground either way.
+func (p palette) onSurface() palette {
+	if p.plain {
+		return p
+	}
+	p.ground = p.surface
 	p.normal = p.end + p.ground + p.ink
 	return p
 }

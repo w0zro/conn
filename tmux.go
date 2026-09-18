@@ -208,7 +208,14 @@ func (s *server) reground(conf string) error {
 			}
 		}
 	}
-	_, err = s.run("respawn-pane", "-k", "-t", sessionName+":"+homeWindow+".0")
+	// The panel's pane is painted on the new ground's surface here as
+	// well as by the conn that comes up in it, so the window is right
+	// in the same breath as the rest and not a moment after.
+	panel := sessionName + ":" + homeWindow + ".0"
+	if _, err := s.run("select-pane", "-t", panel, "-P", "bg="+surfaceHex); err != nil {
+		return err
+	}
+	_, err = s.run("respawn-pane", "-k", "-t", panel)
 	return err
 }
 

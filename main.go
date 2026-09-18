@@ -141,8 +141,14 @@ func main() {
 	} else {
 		applyMode(askMode(override, home))
 	}
-	m := newModel(colored())
+	// The panel is drawn on the surface, a step off the ground the bay
+	// is on, and its pane is painted to match, so the ground shows the
+	// same past the rows conn draws.
+	m := newModel(colored().onSurface())
 	m.srv, m.inside = srv, inside
+	if inside {
+		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+surfaceHex)
+	}
 	m.self, _ = os.Executable()
 	if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "conn: %v\n", err)

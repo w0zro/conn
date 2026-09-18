@@ -593,15 +593,24 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	if err := writeMode(srv.socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
+	// reground paints the panel's pane from the table in force, which
+	// for the conn asking is the ground it asks for.
+	applyMode(connOn(false))
 	if err := srv.reground(conf); err != nil {
 		t.Fatal(err)
 	}
+	applyMode(connOn(true))
 
 	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.light.scheme[0]) {
 		t.Errorf("slot 0 is %q after regrounding, not light's %q", got, connTheme.light.scheme[0])
 	}
-	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+hex(connTheme.light.ground)+",fg="+hex(connTheme.light.ink)) {
-		t.Errorf("the window style is %q, not on the light ground", got)
+	// The panel's pane is painted on the surface of the new ground; the
+	// window's style, which the bay is on, is the ground itself.
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+connTheme.light.surface) {
+		t.Errorf("the panel's pane is %q, not on the light surface", got)
+	}
+	if got, _ := s.srv.run("show-options", "-gv", "window-style"); !strings.EqualFold(strings.TrimSpace(got), "bg="+hex(connTheme.light.ground)+",fg="+hex(connTheme.light.ink)) {
+		t.Errorf("the window style is %q, not on the light ground", strings.TrimSpace(got))
 	}
 	if m, ok := readModeFile(srv.socket); !ok || m != connOn(false) {
 		t.Errorf("the mode file was not put on light: %+v, found %v", m, ok)
@@ -640,9 +649,13 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	if err := writeMode(srv.socket, datum); err != nil {
 		t.Fatal(err)
 	}
+	// reground paints the panel's pane from the table in force, which
+	// for the conn asking is the ground it asks for.
+	applyMode(datum)
 	if err := srv.reground(conf); err != nil {
 		t.Fatal(err)
 	}
+	applyMode(connOn(true))
 
 	for _, c := range []struct{ option, want string }{
 		{"pane-colours[0]", datumTheme.dark.scheme[0]},
@@ -653,8 +666,11 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 			t.Errorf("%s is %q after regrounding, not datum's %q", c.option, got, c.want)
 		}
 	}
-	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+hex(datumTheme.dark.ground)+",fg="+hex(datumTheme.dark.ink)) {
-		t.Errorf("the window style is %q, not on datum's ground", got)
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+datumTheme.dark.surface) {
+		t.Errorf("the panel's pane is %q, not on datum's surface", got)
+	}
+	if got, _ := s.srv.run("show-options", "-gv", "window-style"); !strings.EqualFold(strings.TrimSpace(got), "bg="+hex(datumTheme.dark.ground)+",fg="+hex(datumTheme.dark.ink)) {
+		t.Errorf("the window style is %q, not on datum's ground", strings.TrimSpace(got))
 	}
 	if m, ok := readModeFile(srv.socket); !ok || m != datum {
 		t.Errorf("the mode file was not put in datum: %+v, found %v", m, ok)

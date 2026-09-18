@@ -92,19 +92,28 @@ func portsWord(ports []string) string {
 }
 
 // byState files every row of the reading under its group, the groups
-// in their order and the waiting rows oldest first. A filed row stands
-// alone, at the margin,
-// and remembers the project it was read in and the depth it stood at
+// in their order and the waiting rows oldest first. Every group stands
+// whether it has rows or not, with its count, so the panel keeps one
+// shape as rows come and go: a group that came and went with its rows
+// moved everything under it a reading at a time, and the eye lost its
+// place. Only a reading with nothing in it at all has no groups, and
+// says so instead. A filed row stands alone, at the margin, and
+// remembers the project it was read in and the depth it stood at
 // there, so that what conn does at a project is done at the row's own,
 // and the page still finds what runs it.
 func byState(projects []project) []project {
 	groups := map[string][]entry{}
+	filed := 0
 	for _, pl := range projects {
 		for _, e := range pl.entries {
 			g := stateOf(e)
 			e.filed, e.from, e.fromDepth, e.depth = true, pl.path, e.depth, 0
 			groups[g] = append(groups[g], e)
+			filed++
 		}
+	}
+	if filed == 0 {
+		return nil
 	}
 	waiting := groups[groupWaiting]
 	sort.SliceStable(waiting, func(i, j int) bool {
@@ -116,9 +125,7 @@ func byState(projects []project) []project {
 	})
 	var out []project
 	for _, g := range groupOrder {
-		if len(groups[g]) > 0 {
-			out = append(out, project{path: g, entries: groups[g]})
-		}
+		out = append(out, project{path: g, entries: groups[g]})
 	}
 	return out
 }

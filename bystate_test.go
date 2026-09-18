@@ -225,3 +225,28 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 		t.Errorf("in eight cells the row says %q", l.b.String())
 	}
 }
+
+// Every group stands whether it has rows or not, with its count, so
+// the panel keeps one shape as rows come and go. Only a reading with
+// nothing in it at all has no groups.
+func TestEveryGroupStandsWithItsCount(t *testing.T) {
+	out := byState([]project{{path: "/w", entries: []entry{
+		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusIdle},
+	}}})
+	if len(out) != len(groupOrder) {
+		t.Fatalf("one idle shell stands under %d groups, want every one of the %d", len(out), len(groupOrder))
+	}
+	for i, g := range groupOrder {
+		if out[i].path != g {
+			t.Errorf("group %d is %q, want %q", i, groupTitle(out[i].path), groupTitle(g))
+		}
+	}
+	b := composeProcesses(out, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
+	b.lit = true
+	text := texts(drawProcesses(b, 1, panelWidth, 30, plain))
+	for _, want := range []string{"WAITING FOR YOU ─────────────────── 0", "WORKING ─────────────────────────── 0", "SERVING ─────────────────────────── 0", "OPEN ────────────────────────────── 1", "NOT RUNNING ─────────────────────── 0"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the panel lacks %q:\n%s", want, text)
+		}
+	}
+}

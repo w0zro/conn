@@ -229,7 +229,7 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	for _, want := range []string{
 		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
 		"set -g status-right \"#{@conn_up}\"",
-		`set -g status-format[1] "#[bg=` + borderHex + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
+		`set -g status-format[1] "#[bg=` + surfaceHex + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.
@@ -284,7 +284,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		t.Errorf("a question armed lights %q", ask)
 	}
 	if bar := m.bar(); !strings.HasPrefix(bar, statusLineBlock("CONFIRM")) || !strings.Contains(bar, "  END CLAUDE 11 · ##1") ||
-		!strings.Contains(bar, "bg="+borderHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]Yes") {
+		!strings.Contains(bar, "bg="+surfaceHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]Yes") {
 		t.Errorf("a question armed puts %q on the bar", bar)
 	}
 	m.kill = nil

@@ -27,7 +27,8 @@ var (
 
 // keyBar is the hints as the bar writes them: each key in the ink and
 // bold, what it does in the gray after it, three cells between one and
-// the next, a cell in from the edge.
+// the next, a cell in from the edge, on the surface, which is the
+// bar's ground.
 func keyBar(hints []keyHint) string {
 	var b strings.Builder
 	b.WriteString(" ")
@@ -35,7 +36,7 @@ func keyBar(hints []keyHint) string {
 		if i > 0 {
 			b.WriteString("   ")
 		}
-		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", borderHex, hex(inkColor), h.key, grayHex, h.does)
+		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", surfaceHex, hex(inkColor), h.key, grayHex, h.does)
 	}
 	return b.String()
 }
@@ -43,6 +44,6 @@ func keyBar(hints []keyHint) string {
 // designation is the station's mark at the right of the key bar: the
 // host in capitals, and the conn that is running.
 func designation(host, version string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", borderHex, grayHex,
+	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", surfaceHex, grayHex,
 		strings.ReplaceAll(join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version)), "#", "##"))
 }

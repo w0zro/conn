@@ -948,7 +948,10 @@ set -g pane-border-status off
 		statusLineBlock("PREFIX"), statusLineBlock("COPY"), onPanel)
 	b.WriteString("set -g status-right \"#{@conn_up}\"\n")
 	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
-	fmt.Fprintf(&b, "set -g status-format[1] \"#[bg=%s]#{@conn_bar}#[align=right]#{@conn_ident}\"\n", borderHex)
+	// The key bar is on the surface, the panel's own ground, so the two
+	// rows are two things: the band the window's frame, the bar the
+	// panel's footer.
+	fmt.Fprintf(&b, "set -g status-format[1] \"#[bg=%s]#{@conn_bar}#[align=right]#{@conn_ident}\"\n", surfaceHex)
 	return b.String()
 }
 
@@ -978,12 +981,12 @@ func statusLineBlock(word string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", cursorHex, hex(groundColor), word)
 }
 
-// statusLineSay is what conn says beside a block: on the status line's
-// own ground, in the parchment conn titles with, two spaces off the
-// block. A hash is tmux's own character on this line and is doubled to
-// be shown.
+// statusLineSay is what conn says beside a block on the key bar: on
+// the bar's own ground, the surface, in the parchment conn titles
+// with, two spaces off the block. A hash is tmux's own character on
+// this line and is doubled to be shown.
 func statusLineSay(text string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", borderHex, parchmentHex, strings.ReplaceAll(text, "#", "##"))
+	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", surfaceHex, parchmentHex, strings.ReplaceAll(text, "#", "##"))
 }
 
 // say puts what conn knows about its own keys on the server, and asks

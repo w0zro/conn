@@ -1142,7 +1142,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		return sleeper != "" && quick != "" && exit == "0"
 	})
 	s.until("sleeper ACTIVE and quick ENDED on the panel", func() bool {
-		return s.rowIn("sleeper", groupOpen) && s.rowIn("quick", groupNotRunning)
+		return s.rowIn("sleeper", groupIdle) && s.rowIn("quick", groupNotRunning)
 	})
 	// The panes were parked: the bay still holds the shell it held.
 	if !s.shellIn("home.1") {
@@ -1164,7 +1164,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.keys("y")
 	s.until("the pane gone and quick down again", func() bool {
 		id, _ := marked("quick")
-		return id == "" && s.rowIn("quick", groupNotRunning) && s.rowIn("sleeper", groupOpen)
+		return id == "" && s.rowIn("quick", groupNotRunning) && s.rowIn("sleeper", groupIdle)
 	})
 
 	// sleeper is still running. x on its head row asks for ctrl-c in

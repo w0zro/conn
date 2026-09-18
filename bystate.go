@@ -7,8 +7,8 @@ import (
 
 // The panel is filed by what a thing is doing, not by which project it
 // is in. What wants you comes first, under its own eyebrow; then what
-// is working, what is serving, what is open and quiet, and what is not
-// running; and the
+// is working, what is serving, what is idle, and what is not running;
+// and the
 // project drops to the right of the row, in the faint, where it is read
 // second. A panel by project put the one row that had stopped for the
 // operator wherever its project happened to sort, under whatever shell
@@ -23,11 +23,11 @@ const (
 	groupWaiting    = "\x001 waiting"
 	groupWorking    = "\x002 working"
 	groupServing    = "\x003 serving"
-	groupOpen       = "\x004 open"
+	groupIdle       = "\x004 idle"
 	groupNotRunning = "\x005 not running"
 )
 
-var groupOrder = []string{groupWaiting, groupWorking, groupServing, groupOpen, groupNotRunning}
+var groupOrder = []string{groupWaiting, groupWorking, groupServing, groupIdle, groupNotRunning}
 
 // groupTitle is a group's eyebrow.
 func groupTitle(path string) string {
@@ -38,8 +38,8 @@ func groupTitle(path string) string {
 		return "WORKING"
 	case groupServing:
 		return "SERVING"
-	case groupOpen:
-		return "OPEN"
+	case groupIdle:
+		return "IDLE"
 	case groupNotRunning:
 		return "NOT RUNNING"
 	}
@@ -52,7 +52,11 @@ func isGroup(path string) bool {
 	return len(path) > 0 && path[0] == 0
 }
 
-// stateOf is the group a row files under.
+// stateOf is the group a row files under. What is alive with nothing
+// to report — a shell at its prompt, an editor, a process up and not
+// doing anything, a contact at rest, a stopped row with its stamp — is
+// idle: at rest, nothing pending, yours when you want it, which is
+// the word its rows already use.
 func stateOf(e entry) string {
 	switch e.status {
 	case statusWaiting:
@@ -65,12 +69,12 @@ func stateOf(e entry) string {
 	if serving(e) {
 		return groupServing
 	}
-	return groupOpen
+	return groupIdle
 }
 
 // serving says whether a row is a thing to reach: it is alive and has
 // a port, one it listens on or one its container publishes. A server
-// is not open and quiet, it is at its work, and a port is what tells a
+// is not idle, it is at its work, and a port is what tells a
 // node that serves from a node that builds, both of which the process
 // table calls the same. A contact is filed by what it asks of you and
 // never by what it has open, and what is not running serves nothing.

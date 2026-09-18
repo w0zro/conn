@@ -36,7 +36,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 		}
 		got = append(got, groupTitle(pl.path)+":"+strings.Join(pids, ""))
 	}
-	if want := "WAITING FOR YOU:52 WORKING:7 SERVING:3 OPEN:14 NOT RUNNING:6"; strings.Join(got, " ") != want {
+	if want := "WAITING FOR YOU:52 WORKING:7 SERVING:3 IDLE:14 NOT RUNNING:6"; strings.Join(got, " ") != want {
 		t.Errorf("filed as %v, want %s", got, want)
 	}
 	if e := out[0].entries[1]; !e.filed || e.from != "/w/a" || e.fromDepth != 1 || e.depth != 0 {
@@ -79,7 +79,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	rows := drawProcesses(b, 5, panelWidth, 30, plain)
 	text := texts(rows)
 	golden(t, "processes-state-44x30.txt", text)
-	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "OPEN ─", "NOT RUNNING ─",
+	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "IDLE ─", "NOT RUNNING ─",
 		"●  claude", "9 min", "2 min", "●  go test ./... ◐", "●  node vite · :5173", "○  zsh", "◌  worker", " Stopped"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
@@ -173,7 +173,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 }
 
 // A row is serving when it is alive and has a port: one it listens on,
-// or one its container publishes. A server is not open and quiet, and
+// or one its container publishes. A server is not idle, and
 // a port is what tells a node that serves from a node that builds. A
 // contact is filed by what it asks, never by what it has open; what is
 // not running serves nothing; and a port under a shell is the shell's
@@ -192,9 +192,9 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 		{entry{kind: kindRun, command: "node", status: statusActive, ports: []string{"5173"}}, groupServing},
 		{entry{kind: kindService, command: "web", status: statusActive, ports: []string{"8438"}}, groupServing},
 		{entry{kind: kindService, command: "db", status: "UNHEALTHY", fault: true, ports: []string{"5432"}}, groupServing},
-		{entry{kind: kindRun, command: "node", status: statusActive}, groupOpen},
+		{entry{kind: kindRun, command: "node", status: statusActive}, groupIdle},
 		{entry{kind: kindService, command: "web", status: statusDown, ports: []string{"8438"}}, groupNotRunning},
-		{entry{kind: kindContact, command: "claude", status: statusIdle, ports: []string{"41231"}}, groupOpen},
+		{entry{kind: kindContact, command: "claude", status: statusIdle, ports: []string{"41231"}}, groupIdle},
 		{entry{kind: kindContact, command: "claude", status: statusWaiting, ports: []string{"41231"}}, groupWaiting},
 	} {
 		if got := stateOf(c.e); got != c.want {
@@ -244,7 +244,7 @@ func TestEveryGroupStandsWithItsCount(t *testing.T) {
 	b := composeProcesses(out, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	b.lit = true
 	text := texts(drawProcesses(b, 1, panelWidth, 30, plain))
-	for _, want := range []string{"WAITING FOR YOU ─────────────────── 0", "WORKING ─────────────────────────── 0", "SERVING ─────────────────────────── 0", "OPEN ────────────────────────────── 1", "NOT RUNNING ─────────────────────── 0"} {
+	for _, want := range []string{"WAITING FOR YOU ─────────────────── 0", "WORKING ─────────────────────────── 0", "SERVING ─────────────────────────── 0", "IDLE ────────────────────────────── 1", "NOT RUNNING ─────────────────────── 0"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}

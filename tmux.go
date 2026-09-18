@@ -951,7 +951,7 @@ set -g pane-border-status off
 	// The key bar is on the surface, the panel's own ground, so the two
 	// rows are two things: the band the window's frame, the bar the
 	// panel's footer.
-	fmt.Fprintf(&b, "set -g status-format[1] \"#[bg=%s]#{@conn_bar}#[align=right]#{@conn_ident}\"\n", surfaceHex)
+	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{@conn_bar}#[align=right]#{@conn_ident}\"\n", surfaceHex, surfaceHex)
 	return b.String()
 }
 

@@ -229,7 +229,7 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	for _, want := range []string{
 		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
 		"set -g status-right \"#{@conn_up}\"",
-		`set -g status-format[1] "#[bg=` + surfaceHex + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
+		`set -g status-format[1] "#[fill=` + surfaceHex + ` bg=` + surfaceHex + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.

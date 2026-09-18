@@ -797,13 +797,16 @@ func (m model) bar() string {
 	if ok && (e.pid > 0 || e.container != "") {
 		hints = append(hints, keyHint{"x", "End it"})
 	}
-	if m.inside {
+	// A shell, a contact and a bring-up are at the row's project, so
+	// with no row under the cursor there is nowhere for them: what is
+	// left is the list, and the manual.
+	if m.inside && ok {
 		hints = append(hints, keyHint{"s", "Shell"}, keyHint{"a", "New contact"})
-		if ok && projectHasDown(m.projects, pl.path) {
+		if projectHasDown(m.projects, pl.path) {
 			hints = append(hints, keyHint{"u", "Bring up"})
 		}
 	}
-	return keyBar(append(hints, keyHint{"?", "Help"}))
+	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{"?", "Help"}))
 }
 
 // prefixWord is the prefix as the bar writes it: ctrl-space for

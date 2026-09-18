@@ -319,6 +319,7 @@ func TestEnterAndSActOnTheContainer(t *testing.T) {
 	// With no container and no pane there is nothing to ask for, so
 	// neither key invents one.
 	m.projects[0].entries[0].container = ""
+	m.saidBar = m.bar() // the bar stops offering enter, which is a change of its own
 	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); cmd != nil {
 		t.Error("enter opened something for a row that is neither reachable nor a container")
 	}

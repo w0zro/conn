@@ -22,6 +22,7 @@ import (
 type palette struct {
 	ground, border, ink, gray, faint, orange, parchment, bold, chip string
 	surface                                                         string // one step off the ground: the panel's own
+	edge, running, struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
 	selection                                                       string // the ground a chosen row sits on
 	normal, end                                                     string // ink on the ground again; the row's end
 	plain                                                           bool
@@ -54,10 +55,20 @@ func colored() palette {
 		chip:      ansiHex(48, cursorHex) + ansiHex(38, hex(groundColor)) + "\x1b[1m",
 		selection: ansiHex(48, borderHex),
 		surface:   ansiHex(48, surfaceHex),
+		edge:      ansiHex(38, surfaceHex),
+		running:   ansiHex(38, runningHex),
+		struck:    "\x1b[9m",
 		end:       "\x1b[0m",
 	}
 	p.normal = p.end + p.ground + p.ink
 	return p
+}
+
+// lifted is the palette with the ground raised one step, to the
+// surface: a block drawn in it sits on that ground edge to edge without
+// taking the one a chosen row sits on.
+func (p palette) lifted() palette {
+	return p.onSurface()
 }
 
 // onSurface is the palette with the surface for its ground: what the

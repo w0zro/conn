@@ -1,0 +1,138 @@
+package main
+
+import (
+	"strconv"
+	"unicode/utf8"
+)
+
+// The panel by state, drawn: each group under its eyebrow with its
+// count at the end of the rule, a row of air before each. A row is a
+// dot, what it is doing, and at the right the project it is in, in the
+// faint. A waiting row says how long it has waited there instead, in
+// the accent, since that is the one figure that says which of two to
+// answer first; a fault says its word, stamped. A working row's dot is
+// followed by a spinner that turns as the readings come, so what is at
+// work is seen to be. What is not running is struck through.
+
+// The spinner's frames, one a reading.
+var spinner = []string{"◐", "◓", "◑", "◒"}
+
+// drawState renders the panel by state for a terminal of the given size,
+// with the cursor on the row of the given pid. The blocks are groups,
+// as byState files them.
+func drawState(b processesReport, cursor int, width, height int, p palette) []row {
+	width = max(width, panelMinCols)
+	measure, _, _ := columns(width)
+	c := canvas{p: p, width: width}
+	room := height
+	if height == 0 {
+		room = 1 << 30
+	}
+
+	var body []row
+	cursorRow := -1
+	d := canvas{p: p, width: width}
+	for _, bp := range b.projects {
+		d.blank(0)
+		l := d.line()
+		l.eyebrow(1, groupTitle(bp.path), measure, strconv.Itoa(len(bp.rows)))
+		d.emit(l, 0, false)
+		for _, r := range bp.rows {
+			l := d.line()
+			cursored := r.pid == cursor
+			glyph, tone := dotRests, p.faint
+			switch {
+			case r.fault:
+				glyph, tone = dotWants, p.orange
+			case r.status == statusWaiting:
+				glyph, tone = dotWants, p.orange+p.bold
+			case r.status == statusWorking:
+				glyph, tone = dotWorks, p.running
+			case bp.path == groupNotRunning:
+				glyph = dotOver
+			}
+			command, right := p.ink, p.faint
+			if r.status == statusWaiting {
+				command += p.bold
+			}
+			if bp.path == groupNotRunning {
+				command = p.faint + p.struck
+			}
+			if b.inside && (r.reach == "" || r.over) && !r.shown {
+				// A row conn can only report, or a declared process
+				// that has ended and holds its pane for its output: a
+				// rank down, and every column of it.
+				dim := p.faint
+				if cursored {
+					dim = p.gray
+				}
+				command, right, tone = dim, dim, dim
+			}
+			if r.shown {
+				l.mark = cursorBar
+			}
+			if cursored {
+				// The row under the cursor is on the raised ground with
+				// the bar in the margin; in plain text, the mark alone.
+				l.p = p.chosen()
+				l.mark = cursorBar
+				if p.plain {
+					l.mark = "▸"
+				}
+				command += p.bold
+				cursorRow = len(body) + len(d.rows)
+			}
+			l.to(1)
+			l.dot(tone, glyph)
+			activity := r.command
+			if r.name != "" {
+				activity = r.name
+			}
+			// What stands at the right: the age of a wait, in the
+			// accent; a fault's word, stamped; else the project.
+			tail, tailColor, tailW := r.from, right, 0
+			if r.from == "" {
+				tail = "~"
+			}
+			switch {
+			case r.status == statusWaiting && r.age != "":
+				tail, tailColor = r.age, p.orange+p.bold
+			case r.fault:
+				tail = ""
+			}
+			// The project keeps to its half of the row: a path outside
+			// every root is written whole, and elided from the left.
+			tail = fit(tail, max(measure/2, 12), true)
+			tailW = utf8.RuneCountInString(tail)
+			if r.fault {
+				tailW = stampWidth(said(r.status), p)
+			}
+			spin := ""
+			if r.status == statusWorking {
+				spin = " " + spinner[b.spin%len(spinner)]
+			}
+			l.add(command, fit(activity, measure-l.cells-tailW-2-utf8.RuneCountInString(spin), false))
+			if spin != "" {
+				l.add(p.running, spin)
+			}
+			switch {
+			case r.fault:
+				l.to(measure - tailW)
+				l.stamp(said(r.status))
+			case tail != "":
+				l.to(measure - tailW)
+				l.add(tailColor, tail)
+			}
+			d.emit(l, 0, false)
+		}
+	}
+	body = d.rows
+	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
+	c.rows = append(c.rows, notes(b, width, measure, p)...)
+	if height > 0 {
+		for len(c.rows) < height {
+			c.blank(0)
+		}
+	}
+	return c.rows
+}

@@ -1,0 +1,30 @@
+
+    WAITING FOR YOU ─────────────────── 2
+ ▸  ●  claude                       9 min
+    ●  claude                       2 min
+
+    WORKING ─────────────────────────── 1
+    ●  go test ./... ◐               /w/b
+
+    OPEN ────────────────────────────── 2
+ ▌  ○  zsh                           /w/a
+    ●  vim                       Stopped
+
+    NOT RUNNING ─────────────────────── 1
+    ◌  worker                        /w/a
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -356,6 +356,7 @@ func (m model) report() report {
 func (m model) processesReport() processesReport {
 	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.roots.isProject, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
 	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
+	w.spin = int(m.now.Unix()) % len(spinner)
 	return w
 }
 
@@ -363,7 +364,7 @@ func (m model) processesReport() processesReport {
 // walk found, each with the processes conn holds a pane for in it under
 // it, and the work happening off every project at the foot.
 func (m model) listRows() []projectRow {
-	return withProcesses(m.walked, m.projects, m.panes, m.roots.real, m.head.login.home)
+	return withProcesses(m.walked, unfiled(m.projects), m.panes, m.roots.real, m.head.login.home)
 }
 
 // projectsReport is the list's words as things stand, and projectRows
@@ -521,7 +522,7 @@ func (m model) readProcesses() tea.Cmd {
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
 			records: records, rooted: rerooted, declared: declared}
 		if !full {
-			msg.projects = fold(projects)
+			msg.projects = byState(fold(projects))
 		}
 		if srv != nil {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
@@ -1323,7 +1324,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		if len(m.tree) > 0 {
 			m.projects = m.tree
 			if !m.full {
-				m.projects = fold(m.tree)
+				m.projects = byState(fold(m.tree))
 			}
 			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
 		}
@@ -2012,7 +2013,7 @@ func (m model) under() (entry, project, bool) {
 	for _, pl := range m.projects {
 		for _, e := range pl.entries {
 			if e.pid == m.cursor {
-				return e, pl, true
+				return e, rowsBlock(m.projects, e, pl), true
 			}
 		}
 	}

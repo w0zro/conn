@@ -22,6 +22,7 @@ type ground struct {
 	shimmer   string // the accent's brighter cousin, for Claude Code to shimmer with
 	border    string // a pane's edge, a selection, the band behind the status line
 	surface   string // one step off the ground, short of the border: the panel's own ground
+	running   string // a process doing something, said by the dot at the head of its row
 	gray      string // the second rank: a label, a comment
 	faint     string // the quietest text: a leader, a hint, a line number
 	parchment string // the second ink: a title, punctuation, what conn says on the status line
@@ -160,6 +161,7 @@ var connTheme = theme{
 		shimmer:   "#FF7847",
 		border:    "#2A2620",
 		surface:   "#1D1A15",
+		running:   "#93C98B",
 		gray:      "#8B8272",
 		faint:     "#5C564A",
 		parchment: "#BFB39A",
@@ -199,6 +201,7 @@ var connTheme = theme{
 		shimmer:   "#A63214",
 		border:    "#D8D0BD",
 		surface:   "#E6DFCF",
+		running:   "#23703F",
 		gray:      "#6F6656",
 		faint:     "#867C6A",
 		parchment: "#4A4335",
@@ -228,6 +231,7 @@ var (
 	shimmerHex   = connTheme.dark.shimmer
 	borderHex    = connTheme.dark.border
 	surfaceHex   = connTheme.dark.surface
+	runningHex   = connTheme.dark.running
 	grayHex      = connTheme.dark.gray
 	faintHex     = connTheme.dark.faint
 	parchmentHex = connTheme.dark.parchment
@@ -242,7 +246,7 @@ var (
 func wear(g ground) {
 	groundColor, inkColor = g.ground, g.ink
 	scheme = g.scheme
-	cursorHex, shimmerHex, borderHex, surfaceHex = g.accent, g.shimmer, g.border, g.surface
+	cursorHex, shimmerHex, borderHex, surfaceHex, runningHex = g.accent, g.shimmer, g.border, g.surface, g.running
 	grayHex, faintHex, parchmentHex = g.gray, g.faint, g.parchment
 	messageBg, messageHoverBg, toolBg = g.messageBg, g.messageHoverBg, g.toolBg
 	diffAddedBg, diffRemovedBg = g.diffAddedBg, g.diffRemovedBg

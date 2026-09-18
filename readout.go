@@ -371,7 +371,7 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 	// at its own depth, so a tree reads as one. A project with nothing
 	// running in it has no group, which is the page saying so.
 	running := readoutGroup{title: "RUNNING"}
-	for _, pl := range t.projects {
+	for _, pl := range unfiled(t.projects) {
 		if pl.path != path {
 			continue
 		}

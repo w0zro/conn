@@ -45,6 +45,7 @@ var datumTheme = theme{
 		shimmer:   "#F5B9D9", // call: purple's quiet sibling
 		border:    "#2B2F35", // bg2: the selection
 		surface:   "#181C21", // bg1: the panel's ground
+		running:   "#54DCAA", // green: datum has the one
 		gray:      "#8F98A3", // fg1
 		faint:     "#757D87", // fg1 a fifth of the way to bg0: datum's promptBorder
 		parchment: "#DBE0E8", // fg0: datum has two inks, and the bold carries a title
@@ -84,6 +85,7 @@ var datumTheme = theme{
 		shimmer:   "#633750",
 		border:    "#CED3D9",
 		surface:   "#E7ECF2",
+		running:   "#007553",
 		gray:      "#616A76",
 		faint:     "#7E8691",
 		parchment: "#292E35",

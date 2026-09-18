@@ -36,6 +36,7 @@ import (
 // moment.
 type processesReport struct {
 	projects []projectBlock
+	spin     int    // the spinner's frame, turned by the readings; see state.go
 	err      string // why the table could not be read, when it could not
 	stalled  bool   // docker went quiet; its rows are as last seen
 	notice   string // what the server would not do, said under the rows
@@ -59,6 +60,8 @@ type processRow struct {
 	depth                             int    // how deep under its project's own root
 	over                              bool   // a declared process whose pane holds only its last output
 	name                              string // the declared name, where the row is a declaration's
+	from                              string // the project a filed row was read in, by its name on the panel; see bystate.go
+	age                               string // how long a waiting row has waited, as the panel says it
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -71,16 +74,20 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 	if tty == "" {
 		return 0, 0, false
 	}
-	i := 0
+	// The head is the row that stood shallowest in the tree the
+	// terminal was read as, wherever it has since been filed: a contact
+	// filed above the shell that runs it is not the head of their
+	// terminal, the shell is.
+	i, best, bestAt, bestDepth := 0, 0, 0, -1
 	for _, pl := range projects {
 		for _, e := range pl.entries {
-			if e.tty == tty {
-				return e.pid, i, true
+			if e.tty == tty && (bestDepth < 0 || depthOf(e) < bestDepth) {
+				best, bestAt, bestDepth = e.pid, i, depthOf(e)
 			}
 			i++
 		}
 	}
-	return 0, 0, false
+	return best, bestAt, bestDepth >= 0
 }
 
 // composeProcesses words the projects; panes says which terminals are
@@ -103,12 +110,34 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 				shown: marked && e.pid == head, depth: e.depth,
 				over: e.declared != "" && panes[e.tty].exit != "",
 				name: declaredNameOf(e),
+				from: filedFrom(e, roots, home),
+				age:  waitedFor(e, now),
 			})
 		}
 		b.projects = append(b.projects, bp)
 	}
 	b.projects = nested(b.projects, isProject, roots, home)
 	return b
+}
+
+// filedFrom names the project a filed row was read in, as the panel
+// titles it, for the row to say at its right: filed by state, the
+// project is what tells one zsh from another.
+func filedFrom(e entry, roots []string, home string) string {
+	if !e.filed {
+		return ""
+	}
+	return projectName(e.from, roots, home)
+}
+
+// waitedFor is how long a waiting row has waited, for the panel to say
+// at its right; nothing for a row that is not waiting, or whose moment
+// is not known.
+func waitedFor(e entry, now time.Time) string {
+	if e.status != statusWaiting || e.since.IsZero() {
+		return ""
+	}
+	return minutes(now.Sub(e.since))
 }
 
 // nested is the blocks as they draw: each under the project that holds
@@ -137,7 +166,7 @@ func nested(blocks []projectBlock, isProject func(string) bool, roots []string, 
 	}
 	made := len(blocks) // headings made below have no rows of their own
 	holder := func(path string) string {
-		if path == "" || isProject == nil {
+		if path == "" || isGroup(path) || isProject == nil {
 			return ""
 		}
 		if dir := filepath.Dir(path); isProject(dir) {
@@ -184,6 +213,8 @@ func nested(blocks []projectBlock, isProject func(string) bool, roots []string, 
 			}
 			bp.nest = nest
 			switch {
+			case isGroup(bp.path):
+				// A group is titled by what it is, not where.
 			case above != "":
 				bp.path = relName(above, bp.path)
 			case bp.path == "":
@@ -286,6 +317,9 @@ func panelStatusWidth(b processesReport) int {
 // drawProcesses renders the processes view for a terminal of the given
 // size, with the cursor on the row of the given pid.
 func drawProcesses(b processesReport, cursor int, width, height int, p palette) []row {
+	if len(b.projects) > 0 && isGroup(b.projects[0].path) {
+		return drawState(b, cursor, width, height, p)
+	}
 	panel := width < minCols
 	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
@@ -491,6 +525,23 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
+	c.rows = append(c.rows, notes(b, width, measure, p)...)
+
+	// The ground fills what the rows do not: the keys are learned once,
+	// and a legend on every row of every reading is a thing to read
+	// past forever.
+	if height > 0 {
+		for len(c.rows) < height {
+			c.blank(0)
+		}
+	}
+	return c.rows
+}
+
+// notes is what is said under the rows of either drawing of the view:
+// docker having gone quiet, and what the server would not do.
+func notes(b processesReport, width, measure int, p palette) []row {
+	c := canvas{p: p, width: width}
 	// Docker having gone quiet is said under the rows it is about. The
 	// services are still listed — what docker last said stands, which is
 	// better than dropping them — but a row that may be minutes stale
@@ -531,13 +582,5 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		c.rows = append(c.rows, d.rows...)
 	}
 
-	// The ground fills what the rows do not: the keys are learned once,
-	// and a legend on every row of every reading is a thing to read
-	// past forever.
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-	}
 	return c.rows
 }

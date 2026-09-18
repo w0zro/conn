@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -122,6 +123,18 @@ const (
 	statusDown    = "DOWN"    // declared in the project's .conn, and not running
 )
 
+// said is a status as a row says it. The vocabulary is the machine's and
+// stays in capitals wherever conn reasons about it — the manual's table
+// of every word a row can say is that list — and what the operator
+// reads is a word: Working, Waiting, Stopped. Capitals are for labels,
+// and a status is not a label but a fact about a thing.
+func said(status string) string {
+	if status == "" {
+		return ""
+	}
+	return strings.ToUpper(status[:1]) + strings.ToLower(status[1:])
+}
+
 // status is what conn learned about a process past what the table
 // says of it. Anything can be working, read off the processor time it
 // spent. Only a contact says more, being the only thing here that knows
@@ -158,6 +171,11 @@ type entry struct {
 	// and what a contact says it is stopped on.
 	cwd    string
 	asking string
+	// Where a row filed by state was read: the project, and the depth
+	// it stood at there; see bystate.go.
+	filed     bool
+	from      string
+	fromDepth int
 	// What a working contact is doing, read off its transcript: the
 	// tool it has in flight, as a verb and an object.
 	doing string
@@ -747,6 +765,19 @@ func age(since, now time.Time) string {
 		return ""
 	}
 	return spell(now.Sub(since))
+}
+
+// minutes is how long a wait has stood, as the panel says it beside
+// the row: in minutes under an hour, since a wait is answered in
+// minutes, and above that as the hours and minutes are spelled.
+func minutes(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	if d < time.Hour {
+		return strconv.Itoa(int(d.Minutes())) + " min"
+	}
+	return strings.ToLower(spell(d))
 }
 
 // sinceWord is how long a row has stood as it does, for the processes

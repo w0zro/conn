@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -141,42 +142,92 @@ func (s *scratch) projectRows() int {
 }
 
 // projectRowLines is the scratch project's rows as the panel draws
-// them, up to the blank that begins the next project.
+// them: filed by state, a row is a dot and its command with the project
+// it was read in at the right, so the scratch project's rows are the
+// ones that end on its name.
 //
 // Only in the processes view. The list names the same project and puts
-// the same processes under it, in a layout of its own — dense, with no
-// blank between a project and its rows and none between one project and
-// the next — so a count taken there answers a different question in the
-// same units. openShell presses enter and returns without waiting for
-// the view to come back, so the list is on the panel often enough for a
-// careless count to be the list's; that is how a baseline taken here
-// once came to be measured against the wrong view.
+// the same processes under it, in a layout of its own, so a count taken
+// there answers a different question in the same units. openShell
+// presses enter and returns without waiting for the view to come back,
+// so the list is on the panel often enough for a careless count to be
+// the list's; that is how a baseline taken here once came to be
+// measured against the wrong view.
 func (s *scratch) projectRowLines() []string {
 	if !s.inProcesses() {
 		return nil
 	}
-	lines := strings.Split(s.panel(), "\n")
-	for i, line := range lines {
-		// The title line, and not a row that merely says the word: a
-		// project is named alone on its line.
-		if strings.TrimSpace(line) != scratchProject {
+	var out []string
+	for _, line := range strings.Split(s.panel(), "\n") {
+		if isRow(line) && strings.HasSuffix(strings.TrimRight(line, " "), " "+scratchProject) {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// isRow says whether a panel line is a process row: past the cursor's
+// mark and the bay's bar, it begins with a dot.
+func isRow(line string) bool {
+	for _, f := range strings.Fields(line) {
+		switch f {
+		case "▸", cursorBar:
+			continue
+		case dotWorks, dotRests, dotOver:
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+// rowIn says whether the scratch project has a row of that name under
+// that group's eyebrow on the panel.
+func (s *scratch) rowIn(name, group string) bool {
+	if !s.inProcesses() {
+		return false
+	}
+	under := ""
+	for _, line := range strings.Split(s.panel(), "\n") {
+		t := strings.TrimSpace(line)
+		for _, g := range groupOrder {
+			if strings.HasPrefix(t, groupTitle(g)+" ─") {
+				under = g
+			}
+		}
+		if isRow(line) && strings.Contains(line, " "+name+" ") && strings.HasSuffix(strings.TrimRight(line, " "), " "+scratchProject) && under == group {
+			return true
+		}
+	}
+	return false
+}
+
+// cursorAmongShells is which of the scratch project's shell rows the
+// cursor is on, counting from nought, or below nought when it is on
+// none of them. The cursor's row is the one on the raised ground from
+// edge to edge, which the capture keeps as the selection's color.
+func (s *scratch) cursorAmongShells() int {
+	out, _ := s.srv.run("capture-pane", "-e", "-p", "-t", sessionName+":"+homeWindow+".0")
+	raised := "48;2;" + rgbOf(borderHex)
+	n := 0
+	for _, line := range strings.Split(out, "\n") {
+		plain := stripEscapes(line)
+		if !isRow(plain) || !isShell(rowCommand(plain)) || !strings.HasSuffix(strings.TrimRight(plain, " "), " "+scratchProject) {
 			continue
 		}
-		// The title has a row of air under it, and then its rows.
-		rows := lines[i+1:]
-		if len(rows) > 0 && strings.TrimSpace(rows[0]) == "" {
-			rows = rows[1:]
+		if strings.Contains(line[:min(len(line), 60)], raised) {
+			return n
 		}
-		var out []string
-		for _, r := range rows {
-			if strings.TrimSpace(r) == "" {
-				break
-			}
-			out = append(out, r)
-		}
-		return out
+		n++
 	}
-	return nil
+	return -1
+}
+
+// rgbOf is a hex color as an escape's R;G;B.
+func rgbOf(hex string) string {
+	var r, g, b int
+	_, _ = fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b)
+	return fmt.Sprintf("%d;%d;%d", r, g, b)
 }
 
 // shellRows is how many of the scratch project's rows are shells, which
@@ -185,11 +236,29 @@ func (s *scratch) projectRowLines() []string {
 func (s *scratch) shellRows() int {
 	n := 0
 	for _, r := range s.projectRowLines() {
-		if strings.HasPrefix(strings.TrimSpace(r), "SHELL") {
+		if isShell(rowCommand(r)) {
 			n++
 		}
 	}
 	return n
+}
+
+// rowCommand is the first word of a panel row past its marks and dot.
+func rowCommand(r string) string {
+	for _, f := range strings.Fields(r) {
+		switch f {
+		case "▸", cursorBar, dotWorks, dotRests, dotOver:
+			continue
+		}
+		return f
+	}
+	return ""
+}
+
+// isShell says whether a command is one of the shells a scratch test
+// might open.
+func isShell(cmd string) bool {
+	return cmd == "sh" || cmd == "bash" || cmd == "zsh" || cmd == "dash"
 }
 
 // openShell opens a shell at the scratch root's own repository, from
@@ -339,9 +408,12 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 	})
 	s.until("the second shell's row", func() bool { return s.shellRows() >= 2 })
 
-	// The cursor is on the shell just opened, which is in the bay and
-	// stands last, everything sitting where it started; k is the first
-	// of the two, and enter brings it back.
+	// The cursor goes to the shell just opened once a reading has it,
+	// which is the second of the project's two shells; the machine may
+	// be running anything else around them, so what is waited for is
+	// the cursor on that row and not a count. k is the first of the
+	// two, and enter brings it back.
+	s.until("the cursor on the second shell", func() bool { return s.cursorAmongShells() == 1 })
 	s.keys("k")
 	s.keys("Enter")
 	s.until("the first shell back in the bay", func() bool {
@@ -1000,15 +1072,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 
 	// A declared row goes by its name on the panel, which is where these
 	// rows are read.
-	rowSays := func(name, word string) bool {
-		for _, l := range s.projectRowLines() {
-			if strings.Contains(l, " "+name+" ") && strings.HasSuffix(strings.TrimRight(l, " "), word) {
-				return true
-			}
-		}
-		return false
-	}
-	s.until("the two down rows", func() bool { return rowSays("sleeper", "DOWN") && rowSays("quick", "DOWN") })
+	s.until("the two down rows", func() bool { return s.rowIn("sleeper", groupNotRunning) && s.rowIn("quick", groupNotRunning) })
 
 	// marked is the id of the pane carrying a declaration's mark, and
 	// what it recorded of its end.
@@ -1034,18 +1098,18 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		return sleeper != "" && quick != "" && exit == "0"
 	})
 	s.until("sleeper ACTIVE and quick ENDED on the panel", func() bool {
-		return rowSays("sleeper", "ACTIVE") && rowSays("quick", "ENDED")
+		return s.rowIn("sleeper", groupOpen) && s.rowIn("quick", groupNotRunning)
 	})
 	// The panes were parked: the bay still holds the shell it held.
 	if !s.shellIn("home.1") {
 		t.Error("u changed what the bay holds")
 	}
 
-	// The cursor waits on the first pane raised, sleeper's head; under
-	// it the sleep, and then quick's row. Enter there is into its pane.
+	// quick ended at once and is not running, which is the last group,
+	// and the scratch project sorts last within it: G is quick's row,
+	// whatever else the machine has down. Enter there is into its pane.
 	quick, _ := marked("quick")
-	s.keys("j")
-	s.keys("j")
+	s.keys("G")
 	s.keys("Enter")
 	s.until("quick's pane in the bay", func() bool { return s.bayPane() == quick })
 
@@ -1056,7 +1120,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.keys("y")
 	s.until("the pane gone and quick down again", func() bool {
 		id, _ := marked("quick")
-		return id == "" && rowSays("quick", "DOWN") && rowSays("sleeper", "ACTIVE")
+		return id == "" && s.rowIn("quick", groupNotRunning) && s.rowIn("sleeper", groupOpen)
 	})
 
 	// sleeper is still running. x on its head row asks for ctrl-c in
@@ -1069,10 +1133,17 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	// the rest are withdrawn.
 	s.keys("G")
 	armed := func() bool { return strings.Contains(s.statusLine(), "(y/n)") }
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 24; i++ {
 		s.keys("k")
 		s.keys("x")
-		s.until("a question", armed)
+		asked := false
+		for deadline := time.Now().Add(time.Second); time.Now().Before(deadline) && !asked; {
+			asked = armed()
+			time.Sleep(50 * time.Millisecond)
+		}
+		if !asked {
+			continue
+		}
 		if strings.Contains(s.statusLine(), "send-keys") && strings.Contains(s.statusLine(), " sleeper? (y/n)") {
 			break
 		}
@@ -1089,6 +1160,6 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	s.until("sleeper's pane gone and its row down", func() bool {
 		id, _ := marked("sleeper")
-		return id == "" && rowSays("sleeper", "DOWN") && rowSays("quick", "DOWN")
+		return id == "" && s.rowIn("sleeper", groupNotRunning) && s.rowIn("quick", groupNotRunning)
 	})
 }

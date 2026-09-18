@@ -408,7 +408,8 @@ func (s *scratch) until(what string, cond func() bool) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	s.t.Fatalf("waited for %s\nrail:\n%s\nbar: %s\npanes: %s", what, s.panel(), s.statusLine(), s.panes())
+	at, _ := parseCursor(readCursor(cursorPath(filepath.Join(s.dir, "home"))))
+	s.t.Fatalf("waited for %s\nrail:\n%s\nbar: %s\npanes: %s\ncursor note: %+v\nbay:\n%s", what, s.panel(), s.statusLine(), s.panes(), at, strings.TrimRight(s.bay(), "\n "))
 }
 
 // conn comes up in the home window: the console across it, then on a

@@ -334,13 +334,29 @@ func (s *scratch) inProcesses() bool {
 
 // statusLine is the status line as tmux expands it: what conn has put
 // there for wherever its keys are.
-// It is the band, and the key bar's text after it: the bar is a pane
-// of conn's own, drawn from an option the panel writes.
+// It is the band, and the key bar's row after it.
 func (s *scratch) statusLine() string {
 	out, _ := s.srv.run("display-message", "-p", "-t", sessionName+":"+homeWindow+".0",
-		"#{T:status-left}#{T:status-right}")
-	bar, _ := s.srv.run("show-options", "-gqv", "@conn_bar_text")
-	return strings.TrimSpace(out) + " " + strings.TrimSpace(stripEscapes(bar))
+		"#{T:status-left}#{T:status-right} #{T:@conn_bar}#{T:@conn_ident}")
+	return strings.TrimSpace(stripStyles(out))
+}
+
+// stripStyles is a status line format without its #[...] styles.
+func stripStyles(s string) string {
+	var b strings.Builder
+	in := false
+	for _, r := range s {
+		switch {
+		case in && r == ']':
+			in = false
+		case in:
+		case r == '#':
+			in = true
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // display is a tmux format, of the panel.
@@ -388,16 +404,15 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 	s.until("the bay to open", func() bool {
 		return s.display("#{pane_width}") == panelW && strings.Contains(s.panes(), "home.1:conn:")
 	})
-	if hold := s.display("#{window_panes}"); hold != "3" {
-		t.Errorf("home has %s panes, not the panel, the bay and the bar", hold)
+	if hold := s.display("#{window_panes}"); hold != "2" {
+		t.Errorf("home has %s panes", hold)
 	}
 
 	s.openShell()
 	s.until("a shell in the bay", func() bool {
 		return s.shellIn("home.1") && s.projectRows() >= 1
 	})
-	// The panel and the bar are conn's own and stay; a hold is a third.
-	if strings.Count(s.panes(), "conn:") > 2 {
+	if strings.Contains(s.panes(), "conn:") && strings.Count(s.panes(), "conn:") > 1 {
 		t.Errorf("the hold should be gone once a shell is in the bay: %s", s.panes())
 	}
 	first := s.display("#{pane_id}")
@@ -481,7 +496,7 @@ func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
 
 	// And the bay is still the bay. What ended was somewhere else, and
 	// home neither collapsed nor gave up the panel's width.
-	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "3" || w != panelW {
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
 		t.Errorf("home changed shape when a parked window went: %s panes, %s wide", n, w)
 	}
 }
@@ -509,7 +524,7 @@ func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	s.until("a second shell in the bay, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
 	})
-	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "3" || w != panelW {
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
 		t.Errorf("the key changed the window's shape: %s panes, %s wide", n, w)
 	}
 }
@@ -538,7 +553,7 @@ func TestTheRingKeyWalksToTheOtherHeldProcess(t *testing.T) {
 
 	s.keys("M-j")
 	s.until("the other held shell to come round into the bay", func() bool { return s.bayPane() == first })
-	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "3" || w != panelW {
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
 		t.Errorf("the ring changed the window's shape: %s panes, %s wide", n, w)
 	}
 }
@@ -561,7 +576,7 @@ func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 	// remain-on-exit means this was never anything but true: the window
 	// never had one pane to begin with, so there is nothing to catch mid
 	// collapse.
-	if n := s.display("#{window_panes}"); n != "3" {
+	if n := s.display("#{window_panes}"); n != "2" {
 		t.Errorf("home has %s panes with a dead shell in the bay", n)
 	}
 	if w := s.display("#{pane_width}"); w != panelW {
@@ -571,7 +586,7 @@ func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 	s.until("a hold to take the dead pane's place", func() bool {
 		return strings.Contains(s.panes(), "home.1:conn:")
 	})
-	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "3" || w != panelW {
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
 		t.Errorf("the revival changed the window's shape: %s panes, %s wide", n, w)
 	}
 }
@@ -939,7 +954,7 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 
 	// Following costs nothing in panes: it is one page changing subject,
 	// not a page per row.
-	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != windows || n != "3" {
+	if w, n := s.display("#{session_windows}"), s.display("#{window_panes}"); w != windows || n != "2" {
 		t.Errorf("reading down the list left %s windows and %s panes in home, not %s and 2", w, n, windows)
 	}
 
@@ -956,7 +971,7 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	// instead, and it costs no window of its own.
 	s.openShell()
 	s.until("a shell to take the bay from the readout", func() bool { return s.shellIn("home.1") })
-	if n := s.display("#{window_panes}"); n != "3" {
+	if n := s.display("#{window_panes}"); n != "2" {
 		t.Errorf("home has %s panes; the readout was filed away rather than dropped", n)
 	}
 }
@@ -989,7 +1004,7 @@ func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
 	// with no client attached sends none, and a test has no terminal to
 	// attach one from. What the rule does with the keys is held at the
 	// model, where the message can be handed over directly.
-	if w, n := s.display("#{pane_width}"), s.display("#{window_panes}"); w != panelW || n != "3" {
+	if w, n := s.display("#{pane_width}"), s.display("#{window_panes}"); w != panelW || n != "2" {
 		t.Errorf("home changed shape: %s wide, %s panes", w, n)
 	}
 }
@@ -1041,7 +1056,7 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 	if got := s.active("#{pane_id}"); got != first {
 		t.Errorf("the keys are in %s, not the shell the chord came from", got)
 	}
-	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "3" || w != panelW {
+	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
 		t.Errorf("the cancel changed the window's shape: %s panes, %s wide", n, w)
 	}
 

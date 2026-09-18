@@ -41,28 +41,26 @@ func TestPanesAreParsed(t *testing.T) {
 	// The last two fields are tmux's word for where the keys are in the
 	// window — the panel has them here, and nothing else does — and
 	// where each pane stands in it.
-	out := "%0 /dev/ttys004 48 40         1 0 \n" +
-		"%1 /dev/ttys007 138 40 1        0 1 \n" +
-		"%5 /dev/ttys008 138 40  1       0 2 \n" +
+	out := "%0 /dev/ttys004 48 40         1 0\n" +
+		"%1 /dev/ttys007 138 40 1        0 1\n" +
+		"%5 /dev/ttys008 138 40  1       0 2\n" +
 		// A readout carries the hold's own mark as well as its own: it is
 		// furniture like a hold, and everything that acts on holds acts on
 		// it. Only the panel has to tell the two apart. The manual is furniture the
 		// same way; this pane wears every mark at once, so the parse is read
 		// for all of them together.
-		"%7 /dev/ttys009 138 40 1  1   1   0 3 \n" +
+		"%7 /dev/ttys009 138 40 1  1   1   0 3\n" +
 		// A pane conn opened for a container says which: it is the
 		// terminal that container has not got, and its row is reached
 		// through it.
-		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b     0 4 \n" +
+		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b     0 4\n" +
 		// A pane holding a shell inside a container says which container,
 		// on the other mark: it is work of the operator's own, not the
 		// service being read.
-		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b    0 5 \n" +
+		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b    0 5\n" +
 		// A pane conn opened for a declared process says which, and
 		// how the process ended once it has.
-		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0 6 \n" +
-		// The bar across the foot, marked as conn's own.
-		"%15 /dev/ttys013 187 1         0 7 1\n\n"
+		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0 6\n\n"
 	want := map[string]pane{
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40, active: true, index: 0},
 		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true, index: 1},
@@ -71,7 +69,6 @@ func TestPanesAreParsed(t *testing.T) {
 		"ttys010": {id: "%9", tty: "ttys010", width: 138, height: 40, container: "9f1c2d3e4a5b", index: 4},
 		"ttys011": {id: "%11", tty: "ttys011", width: 138, height: 40, shellIn: "9f1c2d3e4a5b", index: 5},
 		"ttys012": {id: "%13", tty: "ttys012", width: 138, height: 40, declared: "web@%2FUsers%2Fw0zro%2Fapp", exit: "1", index: 6},
-		"ttys013": {id: "%15", tty: "ttys013", width: 187, height: 1, bar: true, index: 7},
 	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)
@@ -97,7 +94,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-a",
 		`bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-?`,
 		`bind A set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-A`,
-		"set -g status on", "set -g status-position top", "set -g mouse on", "unbind -n MouseDrag1Border",
+		"set -g status on", "set -g status-position bottom", "set -g status 2", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane
 		// over it. Its text begins where the panel's does.
@@ -232,6 +229,7 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	for _, want := range []string{
 		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
 		"set -g status-right \"#{@conn_up}\"",
+		`set -g status-format[1] "#[bg=` + borderHex + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.
@@ -285,7 +283,8 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	if ask := m.keys(); ask != statusLineBlock("CONFIRM") || !strings.Contains(ask, "bg="+cursorHex) {
 		t.Errorf("a question armed lights %q", ask)
 	}
-	if bar := stripEscapes(m.bar()); !strings.HasPrefix(bar, " CONFIRM ") || !strings.Contains(bar, "  END CLAUDE 11 · #1") || !strings.Contains(bar, "y Yes") {
+	if bar := m.bar(); !strings.HasPrefix(bar, statusLineBlock("CONFIRM")) || !strings.Contains(bar, "  END CLAUDE 11 · ##1") ||
+		!strings.Contains(bar, "bg="+borderHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]Yes") {
 		t.Errorf("a question armed puts %q on the bar", bar)
 	}
 	m.kill = nil

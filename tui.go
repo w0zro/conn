@@ -651,7 +651,7 @@ func (m model) saying() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, keys, station, up, bar
-	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, colored())
+	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag)
 	return m, func() tea.Msg { _ = srv.say(keys, station, up, bar, ident); return nil }
 }
 
@@ -731,12 +731,11 @@ func (m model) upWord() string {
 // cannot take is not offered — or what has the keys instead: the
 // manual, or a question armed, which is said here with its answers.
 func (m model) bar() string {
-	p := colored()
 	switch {
 	case m.kill != nil:
-		return p.chip + " CONFIRM " + p.end + p.selection + "  " + p.parchment + m.kill.prompt + p.end + p.selection + "   " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, p)
+		return statusLineBlock("CONFIRM") + statusLineSay(m.kill.prompt) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}})
 	case m.helping:
-		return keyBar(helpHints, p)
+		return keyBar(helpHints)
 	}
 	// While a process has the keys, none of the panel's work: what
 	// works is a chord, which tmux takes before the process does. The
@@ -748,12 +747,12 @@ func (m model) bar() string {
 		if len(waitingRound(m.projects)) > 0 {
 			hints = append(hints, keyHint{px + " Tab", "Next waiting"})
 		}
-		return keyBar(append(hints, keyHint{px + " " + px, "Last process"}, keyHint{px + " ?", "Help"}), p)
+		return keyBar(append(hints, keyHint{px + " " + px, "Last process"}, keyHint{px + " ?", "Help"}))
 	}
 	var hints []keyHint
 	switch m.view {
 	case viewConsole:
-		return keyBar(consoleHints, p)
+		return keyBar(consoleHints)
 	case viewProjects:
 		rows := m.projectRows()
 		if len(rows) > 1 {
@@ -766,7 +765,7 @@ func (m model) bar() string {
 				hints = append(hints, keyHint{"Enter", "Open a shell there"}, keyHint{"alt-a", "New contact"}, keyHint{"alt-A", "Sessions"})
 			}
 		}
-		return keyBar(append(hints, keyHint{"Esc", "Back"}), p)
+		return keyBar(append(hints, keyHint{"Esc", "Back"}))
 	case viewSessions:
 		if len(m.sessionsRows()) > 1 {
 			hints = append(hints, moveHint)
@@ -774,9 +773,9 @@ func (m model) bar() string {
 		if len(m.sessionsRows()) > 0 && m.inside {
 			hints = append(hints, keyHint{"Enter", "Resume it here"})
 		}
-		return keyBar(append(hints, keyHint{"Esc", "Back"}), p)
+		return keyBar(append(hints, keyHint{"Esc", "Back"}))
 	case viewRoots:
-		return keyBar(rootsHints, p)
+		return keyBar(rootsHints)
 	}
 	if rowsIn(m.projects) > 1 {
 		hints = append(hints, moveHint)
@@ -804,7 +803,7 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"u", "Bring up"})
 		}
 	}
-	return keyBar(append(hints, keyHint{"?", "Help"}), p)
+	return keyBar(append(hints, keyHint{"?", "Help"}))
 }
 
 // prefixWord is the prefix as the bar writes it: ctrl-space for

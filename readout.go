@@ -256,7 +256,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// window. How large the window is is nowhere Claude Code writes it
 	// down, so conn does not say.
 	if s.carried.Carried > 0 {
-		contact.add("Context", tokens(s.carried.Carried)+" carried")
+		contact.add("Context", strings.ToLower(tokens(s.carried.Carried))+" carried")
 	}
 	// A resumed contact names its session on its own command line, an
 	// inch above, and this would be the second place to read one id.
@@ -462,7 +462,7 @@ func composeSession(c session, t readoutTable, home string, now time.Time) reado
 	what.addAsWritten("Last ask", c.Prompt)
 	what.add("Model", c.Model)
 	if c.Carried > 0 {
-		what.add("Context", tokens(c.Carried)+" carried")
+		what.add("Context", strings.ToLower(tokens(c.Carried))+" carried")
 	}
 	what.addAsWritten("Resume", contactProgram+" --resume "+c.ID)
 	b.groups = append(b.groups, what)

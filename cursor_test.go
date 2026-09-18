@@ -474,7 +474,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	}
 	text := texts(drawReadout(page, 120, 40, plain))
 	for _, want := range []string{"d81d7536-e545-4881-8daa-f1d291a03be1", "Session", "Claude Code · Anthropic", " ago · ", "main", "make the page follow the list",
-		"claude-opus-5", "571K carried", "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1", "w0zro/conn", "Branch"} {
+		"claude-opus-5", "571k carried", "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1", "w0zro/conn", "Branch"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the session's page does not say %q:\n%s", want, text)
 		}

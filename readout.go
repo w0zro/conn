@@ -582,6 +582,14 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	if b.contact != nil && !b.gone {
 		return drawContact(b, *b.contact, width, height, p)
 	}
+	// Nothing yet: the page follows the panel's cursor, and before the
+	// panel has said where that is there is no row to be about. It
+	// stood empty under its header then, with PID 0 against the right,
+	// which read as a page about a row that does not exist — and a
+	// test on a slow runner took that pid for the row's.
+	if b.pid == 0 && b.name == "" && !b.gone && len(b.groups) == 0 {
+		return padTo(c, height)
+	}
 
 	// The header: the view's name, and against the right the pid, which
 	// is what the page is about and the one thing about a row that

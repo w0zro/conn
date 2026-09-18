@@ -408,7 +408,7 @@ func (s *scratch) until(what string, cond func() bool) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	at, _ := parseCursor(readCursor(cursorPath(filepath.Join(s.dir, "home"))))
+	at, _ := parseCursor(readCursor(s.srv.socket + ".cursor"))
 	s.t.Fatalf("waited for %s\nrail:\n%s\nbar: %s\npanes: %s\ncursor note: %+v\nbay:\n%s", what, s.panel(), s.statusLine(), s.panes(), at, strings.TrimRight(s.bay(), "\n "))
 }
 
@@ -932,9 +932,11 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	s.until("the sleepers' rows on the panel", func() bool { return s.projectRows() >= 2 })
 
 	// Nothing is pressed for the page: it is what the workspace holds
-	// while the keys are on the panel in this view.
+	// while the keys are on the panel in this view. It is up once it
+	// is about a row: the page comes up before the panel has told it
+	// where the cursor is, and says nothing until then.
 	s.until("the readout to take the workspace", func() bool {
-		return s.pageUp()
+		return s.pageUp() && s.readoutPidOf() != "" && s.readoutPidOf() != "0"
 	})
 	// The processes view did not give up its pane, or its width, to say
 	// this.
@@ -967,12 +969,14 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	if was == "" {
 		t.Fatalf("the page says no pid:\n%s", s.bay())
 	}
+	t.Logf("the page is first on %s, with the panel:\n%s", was, s.panel())
 	s.keys("j")
 	s.until("the page to follow the cursor down", func() bool {
 		got := s.readoutPidOf()
 		return got != "" && got != was
 	})
 	moved := s.readoutPidOf()
+	t.Logf("after j the page is on %s, with the panel:\n%s", moved, s.panel())
 	s.keys("k")
 	s.until("the page to follow it back", func() bool { return s.readoutPidOf() == was })
 	t.Logf("the page followed %s → %s → %s", was, moved, was)

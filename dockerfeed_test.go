@@ -19,6 +19,14 @@ import (
 // writing to a field already being read.
 func feedUnderTest(t *testing.T, opened *atomic.Int32, list func() ([]container, bool)) (*dockerFeed, *io.PipeWriter) {
 	t.Helper()
+	return pacedFeed(t, opened, list, 40*time.Millisecond)
+}
+
+// pacedFeed is feedUnderTest with the heartbeat chosen: a test counting
+// the lists a burst costs wants the heartbeat out of the count, since
+// on a slow runner it beats twice in the time a fast one beats once.
+func pacedFeed(t *testing.T, opened *atomic.Int32, list func() ([]container, bool), heartbeat time.Duration) (*dockerFeed, *io.PipeWriter) {
+	t.Helper()
 	if list == nil {
 		list = func() ([]container, bool) { return []container{{id: "abc", service: "web"}}, false }
 	}
@@ -33,7 +41,7 @@ func feedUnderTest(t *testing.T, opened *atomic.Int32, list func() ([]container,
 			return r, nil
 		},
 		list:      list,
-		heartbeat: 40 * time.Millisecond,
+		heartbeat: heartbeat,
 		retry:     10 * time.Millisecond,
 		settle:    15 * time.Millisecond,
 	}
@@ -70,7 +78,10 @@ func TestTheFeedListsBeforeAnythingHappens(t *testing.T) {
 func TestABurstOfEventsIsOneList(t *testing.T) {
 	var opened atomic.Int32
 	var lists atomic.Int32
-	f, w := feedUnderTest(t, &opened, func() ([]container, bool) { lists.Add(1); return nil, false })
+	// The heartbeat is kept out of it: with it at the test's usual
+	// pace, a slow runner had it beat twice in the window a fast one
+	// beat once, and the count said the burst had cost what it had not.
+	f, w := pacedFeed(t, &opened, func() ([]container, bool) { lists.Add(1); return nil, false }, time.Second)
 	waitFor(t, f, "the first list")
 	before := lists.Load()
 
@@ -82,11 +93,7 @@ func TestABurstOfEventsIsOneList(t *testing.T) {
 	waitFor(t, f, "the burst's list")
 	// Past the settle, with no more events: nothing more is asked.
 	time.Sleep(60 * time.Millisecond)
-	select {
-	case <-f.msgs: // the heartbeat may have spoken; that is its job
-	default:
-	}
-	if got := lists.Load() - before; got > 2 {
+	if got := lists.Load() - before; got != 1 {
 		t.Errorf("five events in a burst asked docker %d times", got)
 	}
 }

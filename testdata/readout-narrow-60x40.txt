@@ -1,40 +1,40 @@
 
-   READOUT                                      PID 49212
-   ──────────────────────────────────────────────────────
+   CONTACT ──────────────────────────────────────────────
 
-   WAITING
-   ON ........ INPUT NEEDED
-   FOR ....... 7M 00S
-   ASKS ...... AskUserQuestion · Does the status line
-               still say PROCS while this question
-               waits?
+    2D   conn-2d   ~/projects/w0zro/conn · main
+         Claude Code 2.1.267 · 571k of context carried
 
-   WHAT
-   KIND ...... CONTACT
-   COMMAND ... claude --resume
-               d81d7536-e545-4881-8daa-f1d291a03be1
-   STATUS .... WAITING
-   STATE ..... SLEEPING · HAS THE TERMINAL
-   UP ........ 1H 32M · SINCE 09-SEP 01:28 Z
-   CPU ....... 2M 14S SPENT
+   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+   ▌  WAITING FOR YOU                               7 min
+   ▌
+   ▌  “Does the status line still say PROCS while this
+   ▌  question waits?”
+   ▌
+   ▌  Asked with AskUserQuestion at 19:53
+   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
-   WHERE
-   PROJECT ... ~/projects/w0zro/conn
-   CWD ....... ~/projects/w0zro/conn/tools
-   TTY ....... TTYS003
-   PANE ...... %2 · CAN BE REACHED
+   PROCEDURE ────────────────────────────────────────────
 
-   CONTACT
-   WITH ...... CLAUDE CODE · ANTHROPIC
-   MODEL ..... CLAUDE-OPUS-5
-   CONTEXT ... 571K CARRIED
-   NAME ...... CONN-2D
-   VERSION ... 2.1.267
-   LAST ASK .. i want the info to use the pane on the
-               right
+   1    Enter    Go in and answer it
+   2    Tab      Leave it, take the next thing waiting
+   3    x        End it — conn asks first
 
-   PROJECT
-   BRANCH .... MAIN · 3 CHANGED
-   COMMIT .... 263cf91 · The readout: what conn knows
-               of a row
-   COMMITTED . 3H 00M AGO
+   CAUTION ──────────────────────────────────────────────
+
+   It has the terminal and is sleeping. x signals the
+   contact, not what it runs — the process under it
+   keeps going.
+
+   HOW THE WORK HAS GONE ────────────────────────────────
+
+   ██████████████████████████  worked 1h 25m · waiting 7m
+
+   It came up at 18:28 and worked for 1h 25m, then
+   stopped to ask. You last gave it “i want the info to
+   use the pane on the right”.
+
+   SPECIFICATIONS ───────────────────────────────────────
+
+   Designation .. CONN-2D
+   Given ........ Today, 18:28
+   Worked ....... 1h 25m

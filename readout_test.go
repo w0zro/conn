@@ -51,46 +51,53 @@ func TestTheReadoutIsWhatItWas(t *testing.T) {
 }
 
 // The page says the things the processes view's columns have no room
-// for, and says them whole.
+// for, and says them whole. A contact's page is the sheet: who it is,
+// the question in a card, what to do, what to be careful of, how the
+// work has gone, and the specifications beside.
 func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
-	// Tall enough for the whole page: the file of record above shows
-	// the cut at forty rows, and this reads what is said, not where the
-	// pane ends.
-	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 120, 48, plain))
+	// Tall enough for the whole page, and narrow enough for one column,
+	// so a value stands whole on its own line rather than wrapped beside
+	// the sheet.
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 100, 60, plain))
 
 	// The command as it was written, not in conn's own upper case: it is
 	// a thing somebody might retype.
 	if !strings.Contains(text, "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1") {
 		t.Errorf("the whole command is not on the page:\n%s", text)
 	}
-	// The ask is the reason to open the page on a waiting row at all, so
-	// it comes before what the row is, where a cut page cannot lose it.
-	if !strings.Contains(text, "INPUT NEEDED") {
-		t.Errorf("what the contact is stopped on is not on the page:\n%s", text)
+	// The question is the reason to open the page on a waiting row at
+	// all, so it comes before what to do about it, in a card, in the
+	// contact's own words.
+	if strings.Index(text, "WAITING FOR YOU") > strings.Index(text, "PROCEDURE") {
+		t.Errorf("the question is not the first thing on the page:\n%s", text)
 	}
-	if strings.Index(text, "WAITING") > strings.Index(text, "WHAT") {
-		t.Errorf("the ask is not the first thing on the page:\n%s", text)
-	}
-	// And it is said once. The group above carries how long, so the
-	// status does not carry it too: on a dense page a thing said twice
-	// reads as two things.
-	if n := strings.Count(text, "7M 00S"); n != 1 {
+	// How long it has waited is said in the card and among the figures,
+	// and nowhere else.
+	if n := strings.Count(text, "7 min"); n != 2 {
 		t.Errorf("how long it has waited is on the page %d times:\n%s", n, text)
 	}
 	for what, want := range map[string]string{
-		"how long it has waited":   "FOR ....... 7M 00S",
-		"what it is asking, whole": "AskUserQuestion · Does the status line still say PROCS while this question waits?",
-		"its own directory":        "~/projects/w0zro/conn/tools",
-		"what the table says":      "SLEEPING · HAS THE TERMINAL",
-		"what it has spent":        "2M 14S SPENT",
+		"what it stopped for":      "WAITING FOR YOU",
+		"how long, at the right":   "  7 min\n",
+		"what it is asking, whole": "“Does the status line still say PROCS while this question waits?”",
+		"with what, and when":      "Asked with AskUserQuestion at",
+		"what to do":               "1    Enter    Go in and answer it",
+		"what else":                "2    Tab      Leave it, take the next thing waiting",
+		"how long it has waited":   "Waiting ...... 7 min",
+		"its own directory":        "Working in ... ~/projects/w0zro/conn/tools",
+		"what the table says":      "It has the terminal and is sleeping.",
+		"what x reaches":           "keeps going.",
+		"what it has spent":        "Processor .... 2m 14s",
 		"which session":            "d81d7536-e545-4881-8daa-f1d291a03be1",
 		"what it goes by":          "CONN-2D",
-		"the last thing it asked":  "i want the info to use the pane on the right",
-		"the branch and the tree":  "MAIN · 3 CHANGED",
-		"the commit":               "263cf91",
-		"what it is tracking":      "ORIGIN/MAIN · 142 AHEAD",
-		"what runs it":             "SHELL zsh · 49200",
-		"what it runs":             "RUN caffeinate · 49300 · ACTIVE",
+		"the last thing it asked":  "You last gave it “i want the",
+		"the story":                "It came up at 18:28 and worked for 1h 25m, then stopped to ask.",
+		"the bar's caption":        "worked 1h 25m · waiting 7m",
+		"the branch and the tree":  "Branch ....... main · 3 changed",
+		"the commit":               "Commit ....... 263cf91",
+		"what it is tracking":      "Tracking ..... origin/main · 142 ahead",
+		"what runs it":             "Under ........ Shell zsh · 49200",
+		"what it runs":             "Runs ......... Run caffeinate · 49300",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%s (%q) is not on the page:\n%s", what, want, text)
@@ -136,7 +143,7 @@ func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 	s := readoutSubj()
 	s.inside, s.pane = false, pane{}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
-	if strings.Contains(text, "PANE") {
+	if strings.Contains(text, "Pane") {
 		t.Errorf("outside the server the page still spoke of panes:\n%s", text)
 	}
 }
@@ -148,7 +155,7 @@ func TestTheReadoutDoesNotDateAFaultFromTheContactsClock(t *testing.T) {
 	s := readoutSubj()
 	s.entry.status, s.entry.fault, s.entry.asking = statusStopped, true, ""
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
-	if strings.Contains(text, "STOPPED · FOR") {
+	if strings.Contains(text, "Stopped · for") {
 		t.Errorf("a stopped row was dated from the contact's clock:\n%s", text)
 	}
 }
@@ -159,10 +166,10 @@ func TestTheReadoutSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
 	s := readoutSubj()
 	s.git.upstream, s.git.ahead, s.git.dirty = "", 0, 0
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
-	if strings.Contains(text, "TRACKING") {
+	if strings.Contains(text, "Tracking") {
 		t.Errorf("a branch with no upstream was given one:\n%s", text)
 	}
-	if !strings.Contains(text, "MAIN · CLEAN") {
+	if !strings.Contains(text, "main · clean") {
 		t.Errorf("a clean tree does not say so:\n%s", text)
 	}
 }
@@ -264,14 +271,14 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	s.children = append(s.children, entry{pid: 49301, kind: kindShell, tty: "ttys003",
 		command: "zsh -c source /Users/w0zro/.claude/shell-snapshots/snapshot-zsh-1789.sh 2>/dev/null || true && eval 'go build'",
 		status:  statusActive, depth: 2})
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
 
 	for what, gone := range map[string]string{
 		"the note conn appended":      "running inside conn",
 		"a child's whole line":        "shell-snapshots",
-		"the session, said twice":     "SESSION ...",
-		"the branch the project says": "BRANCH .... MAIN\n",
-		"the ordinary kind":           "RUNNING ... INTERACTIVE",
+		"the session, said twice":     "Session ...",
+		"the branch the project says": "Its branch ... main",
+		"the ordinary kind":           "Running ...... interactive",
 	} {
 		if strings.Contains(text, gone) {
 			t.Errorf("%s (%q) is on the page:\n%s", what, gone, text)
@@ -279,8 +286,8 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	}
 	// What is left of each is the part somebody would act on.
 	for what, want := range map[string]string{
-		"the command as typed": "COMMAND ... claude --resume d81d7536-e545-4881-8daa-f1d291a03be1",
-		"the child by program": "SHELL zsh · 49301 · ACTIVE",
+		"the command as typed": "Command ...... claude --resume d81d7536-e545-4881-8daa-f1d291a03be1",
+		"the child by program": "Shell zsh · 49301",
 		"the session, once":    "d81d7536-e545-4881-8daa-f1d291a03be1",
 	} {
 		if !strings.Contains(text, want) {
@@ -294,8 +301,8 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	// A session running behind another is not the ordinary case and is
 	// worth its line; so is a branch the project has since left.
 	s.sess.Kind, s.carried.Branch = "bg-spare", "topic/resume"
-	text = texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
-	if !strings.Contains(text, "RUNNING ... BG-SPARE") || !strings.Contains(text, "BRANCH .... TOPIC/RESUME") {
+	text = texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	if !strings.Contains(text, "Running ...... bg-spare") || !strings.Contains(text, "Its branch ... topic/resume") {
 		t.Errorf("what is not ordinary went unsaid:\n%s", text)
 	}
 }
@@ -304,11 +311,11 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 // The station sees a process and a transcript; these say what is at the
 // other end of it.
 func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
-	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 120, 60, plain))
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 100, 60, plain))
 	for what, want := range map[string]string{
-		"the agent and whose it is": "WITH ...... CLAUDE CODE · ANTHROPIC",
-		"what is answering":         "MODEL ..... CLAUDE-OPUS-5",
-		"what it is hauling":        "CONTEXT ... 571K CARRIED",
+		"the agent and what it is": "Claude Code 2.1.267",
+		"what is answering":        "Model ........ claude-opus-5",
+		"what it is hauling":       "571k of context carried",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("%s (%q) is not on the page:\n%s", what, want, text)
@@ -318,15 +325,15 @@ func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
 	// A contact conn cannot read says none of it rather than guessing.
 	s := readoutSubj()
 	s.carried.Model, s.carried.Carried = "", 0
-	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
-	for _, gone := range []string{"MODEL ...", "CONTEXT ..."} {
+	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	for _, gone := range []string{"Model ...", "context carried"} {
 		if strings.Contains(quiet, gone) {
 			t.Errorf("%q is on the page for a contact that said nothing:\n%s", gone, quiet)
 		}
 	}
-	// Whose it is is known from the program's own name, which conn has
-	// whether the contact answers for itself or not.
-	if !strings.Contains(quiet, "WITH ...... CLAUDE CODE · ANTHROPIC") {
+	// Who it is with is known from the program's own name, which conn
+	// has whether the contact answers for itself or not.
+	if !strings.Contains(quiet, "Claude Code") {
 		t.Errorf("who it is with went unsaid:\n%s", quiet)
 	}
 
@@ -334,7 +341,7 @@ func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
 	// the part that answers the question.
 	s = readoutSubj()
 	s.entry.command, s.entry.typed = "aider --model sonnet", ""
-	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain)); !strings.Contains(got, "WITH ...... AIDER\n") {
+	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain)); !strings.Contains(got, "  Aider 2.1.267") {
 		t.Errorf("an agent with no maker named:\n%s", got)
 	}
 }
@@ -420,8 +427,8 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	// A directory with no repository in it says nothing about one.
 	s := readoutSubj()
 	s.git = gitStatus{}
-	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
-	if strings.Contains(quiet, "PROJECT\n") && strings.Contains(quiet, "GIT ...") {
+	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	if strings.Contains(quiet, "Git ...") {
 		t.Errorf("a directory that is no repository was reported as unread:\n%s", quiet)
 	}
 
@@ -429,8 +436,8 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	for _, why := range []string{"NOT ON PATH", "NO ANSWER IN 2S"} {
 		s = readoutSubj()
 		s.git = gitStatus{problem: why}
-		got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
-		if !strings.Contains(got, "GIT ....... "+why) {
+		got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+		if !strings.Contains(got, "Git .......... "+why) {
 			t.Errorf("a git that could not be asked (%q) went unsaid:\n%s", why, got)
 		}
 	}
@@ -439,8 +446,8 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	// leaving a group with one row in it and no reason.
 	s = readoutSubj()
 	s.sess, s.carried = sessionFile{}, session{}
-	got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain))
-	if !strings.Contains(got, "SAYS ...... NOTHING CONN CAN READ") {
+	got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	if !strings.Contains(got, "Says ......... Nothing conn can read") {
 		t.Errorf("a contact conn cannot ask went unsaid:\n%s", got)
 	}
 	// And a row that is no contact at all has no such channel to read.

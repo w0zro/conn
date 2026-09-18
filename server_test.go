@@ -107,7 +107,7 @@ const scratchProject = "repo"
 
 // readoutPid is the pid the readout in the bay says it is about, or ""
 // when the bay is not a readout or has not read yet.
-var readoutPidRe = regexp.MustCompile(`PID (\d+)`)
+var readoutPidRe = regexp.MustCompile(`(?:PID|Process \.+) (\d+)`)
 
 func (s *scratch) readoutPidOf() string {
 	if m := readoutPidRe.FindStringSubmatch(s.bay()); m != nil {

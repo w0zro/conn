@@ -89,7 +89,10 @@ func TestProcSocketsAreRead(t *testing.T) {
 // what it is connected to, then its unix sockets, each kind labelled
 // once; a row with nothing open has no such group.
 func TestThePageSaysWhatARowListensOn(t *testing.T) {
+	// A run's page, which is the groups; a contact's is the sheet, and
+	// a contact has nothing open to the world worth its page.
 	s := readoutSubj()
+	s.entry.kind, s.entry.command, s.entry.typed = kindRun, "node vite", ""
 	s.entry.sockets = []socket{
 		{"TCP", "127.0.0.1:5173->127.0.0.1:60322", "ESTABLISHED"},
 		{"TCP", "*:5173", "LISTEN"},

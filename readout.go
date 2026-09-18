@@ -64,6 +64,8 @@ type readoutReport struct {
 	name   string
 	gone   bool // the row was there when the readout opened, and is not now
 	groups []readoutGroup
+	// A contact's page is a sheet rather than groups; see page.go.
+	contact *contactPage
 }
 
 // A readoutGroup is a title and the facts under it. A group with no
@@ -152,6 +154,14 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// and it is said here instead.
 	if s.container != nil {
 		return composeService(b, *s.container, s.pane, s.inside, home, now)
+	}
+
+	// A contact's page is the sheet, drawn instead of the groups; the
+	// groups are composed all the same, being what the tests of the
+	// wording read.
+	if e.kind == kindContact {
+		sheet := composeContact(s, home, now)
+		b.contact = &sheet
 	}
 
 	what := readoutGroup{title: "WHAT"}
@@ -500,6 +510,12 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
 	measure, _, _ := columns(width)
 	c := canvas{p: p, width: width}
+
+	// A contact's page is a sheet of its own, with no header over it:
+	// who it is stands at the head; see page.go.
+	if b.contact != nil && !b.gone {
+		return drawContact(b, *b.contact, width, height, p)
+	}
 
 	// The header: the view's name, and against the right the pid, which
 	// is what the page is about and the one thing about a row that

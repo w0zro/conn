@@ -287,12 +287,13 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	}
 
 	// The page, with nothing of its own yet, says the row as the panel
-	// says it, with what stands around it and what the record adds.
+	// says it, with what stands around it and what the record adds: the
+	// contact's sheet, since the cursor is on the contact.
 	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: plain, report: readoutReport{pid: 11}, read: time.Now()}
 	next, _ := m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
 	text := texts(drawReadout(m.report, 120, 40, plain))
-	for _, want := range []string{"WORKING · FOR", "SHELL zsh · 11", "HAS THE TERMINAL", "1M 30S SPENT", "%3 · CAN BE REACHED"} {
+	for _, want := range []string{"Working · edit tui.go · for", "Under ........ Shell zsh · 11", "It has the terminal and is sleeping.", "Processor .... 1m 30s", "Pane ......... %3"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page does not say %q:\n%s", want, text)
 		}
@@ -306,7 +307,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	before := m.read
 	next, _ = m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
-	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "IDLE") {
+	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "Idle") {
 		t.Errorf("the page did not follow the row's word:\n%s", text)
 	}
 	if !m.read.Equal(before) {

@@ -1,40 +1,40 @@
 
-   READOUT                                                                                                  PID 49212
-   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   CONTACT ────────────────────────────────────────────────────────────      SPECIFICATIONS ─────────────────────────
 
-   WAITING
-   ON ........ INPUT NEEDED
-   FOR ....... 7M 00S
-   ASKS ...... AskUserQuestion · Does the status line still say PROCS while this question waits?
+    2D   conn-2d   ~/projects/w0zro/conn · main                              Designation .. CONN-2D
+         Claude Code 2.1.267 · 571k of context carried                       Given ........ Today, 18:28
+                                                                             Worked ....... 1h 25m
+   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄      Processor .... 2m 14s
+   ▌  WAITING FOR YOU                                             7 min      Waiting ...... 7 min
+   ▌
+   ▌  “Does the status line still say PROCS while this question              Branch ....... main · 3 changed
+   ▌  waits?”                                                                Commit ....... 263cf91
+   ▌                                                                         Tracking ..... origin/main · 142 ahead
+   ▌  Asked with AskUserQuestion at 19:53
+   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀      Folder ....... ~/projects/w0zro/conn
+                                                                             Working in ... ~/projects/w0zro/conn/too
+   PROCEDURE ──────────────────────────────────────────────────────────                     ls
+                                                                             Pane ......... %2
+   1    Enter    Go in and answer it                                         Process ...... 49212
+   2    Tab      Leave it, take the next thing waiting                       Terminal ..... ttys003
+   3    x        End it — conn asks first                                    Under ........ Shell zsh · 49200
+                                                                             Runs ......... Run caffeinate · 49300
+   CAUTION ────────────────────────────────────────────────────────────
+                                                                             Command ...... claude --resume
+   It has the terminal and is sleeping. x signals the contact, not                          d81d7536-e545-4881-8daa-f
+   what it runs — the process under it keeps going.                                         1d291a03be1
+                                                                             Model ........ claude-opus-5
+   HOW THE WORK HAS GONE ──────────────────────────────────────────────
 
-   WHAT
-   KIND ...... CONTACT
-   COMMAND ... claude --resume d81d7536-e545-4881-8daa-f1d291a03be1
-   STATUS .... WAITING
-   STATE ..... SLEEPING · HAS THE TERMINAL
-   UP ........ 1H 32M · SINCE 09-SEP 01:28 Z
-   CPU ....... 2M 14S SPENT
+   ████████████████████████████████████████  worked 1h 25m · waiting 7m
 
-   WHERE
-   PROJECT ... ~/projects/w0zro/conn
-   CWD ....... ~/projects/w0zro/conn/tools
-   TTY ....... TTYS003
-   PANE ...... %2 · CAN BE REACHED
+   It came up at 18:28 and worked for 1h 25m, then stopped to ask. You
+   last gave it “i want the info to use the pane on the right”.
 
-   CONTACT
-   WITH ...... CLAUDE CODE · ANTHROPIC
-   MODEL ..... CLAUDE-OPUS-5
-   CONTEXT ... 571K CARRIED
-   NAME ...... CONN-2D
-   VERSION ... 2.1.267
-   LAST ASK .. i want the info to use the pane on the right
 
-   PROJECT
-   BRANCH .... MAIN · 3 CHANGED
-   COMMIT .... 263cf91 · The readout: what conn knows of a row
-   COMMITTED . 3H 00M AGO
-   TRACKING .. ORIGIN/MAIN · 142 AHEAD
 
-   TREE
-   PARENT .... SHELL zsh · 49200
-   RUNS ...... RUN caffeinate · 49300 · ACTIVE
+
+
+
+
+

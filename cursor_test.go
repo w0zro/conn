@@ -269,7 +269,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 		projects: []project{{path: "/w", entries: []entry{
 			{pid: 11, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
 			shown,
-			{pid: -99, kind: kindService, command: "web · :8438", tty: "", status: statusActive, cwd: "/w", container: "abc123def456"},
+			{pid: -99, kind: kindService, command: "web", ports: []string{"8438"}, tty: "", status: statusActive, cwd: "/w", container: "abc123def456"},
 		}}},
 		records:    map[int]record{11: {pid: 11, state: 'S', foreground: false}, 22: {pid: 22, state: 'S', foreground: true, cpu: 90 * time.Second}},
 		panes:      map[string]pane{"ttys002": {id: "%3", tty: "ttys002"}},

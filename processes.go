@@ -55,13 +55,14 @@ type processRow struct {
 	pid                               int
 	kind, command, tty, since, status string
 	fault                             bool
-	reach                             string // the pane that holds it, in conn's server
-	shown                             bool   // it is in the bay, on the right
-	depth                             int    // how deep under its project's own root
-	over                              bool   // a declared process whose pane holds only its last output
-	name                              string // the declared name, where the row is a declaration's
-	from                              string // the project a filed row was read in, by its name on the panel; see bystate.go
-	age                               string // how long a waiting row has waited, as the panel says it
+	reach                             string   // the pane that holds it, in conn's server
+	shown                             bool     // it is in the bay, on the right
+	depth                             int      // how deep under its project's own root
+	over                              bool     // a declared process whose pane holds only its last output
+	name                              string   // the declared name, where the row is a declaration's
+	from                              string   // the project a filed row was read in, by its name on the panel; see bystate.go
+	age                               string   // how long a waiting row has waited, as the panel says it
+	ports                             []string // the ports it listens on or publishes, said after its command; see bystate.go
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -108,10 +109,11 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 				pid: e.pid, kind: e.kind, command: activityOf(e), tty: e.tty, since: sinceWord(e.since, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
-				over: e.declared != "" && panes[e.tty].exit != "",
-				name: declaredNameOf(e),
-				from: filedFrom(e, roots, home),
-				age:  waitedFor(e, now),
+				over:  e.declared != "" && panes[e.tty].exit != "",
+				name:  declaredNameOf(e),
+				from:  filedFrom(e, roots, home),
+				age:   waitedFor(e, now),
+				ports: e.ports,
 			})
 		}
 		b.projects = append(b.projects, bp)
@@ -449,7 +451,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			if panel && r.name != "" {
 				activity = r.name
 			}
-			l.add(command, fit(activity, commandW-indent, false))
+			l.activity(command, p.gray, activity, r.ports, commandW-indent)
 			if !panel {
 				l.to(ttyCol)
 				l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))

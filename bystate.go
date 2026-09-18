@@ -1,10 +1,14 @@
 package main
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // The panel is filed by what a thing is doing, not by which project it
 // is in. What wants you comes first, under its own eyebrow; then what
-// is working, what is open and quiet, and what is not running; and the
+// is working, what is serving, what is open and quiet, and what is not
+// running; and the
 // project drops to the right of the row, in the faint, where it is read
 // second. A panel by project put the one row that had stopped for the
 // operator wherever its project happened to sort, under whatever shell
@@ -18,11 +22,12 @@ import "sort"
 const (
 	groupWaiting    = "\x001 waiting"
 	groupWorking    = "\x002 working"
-	groupOpen       = "\x003 open"
-	groupNotRunning = "\x004 not running"
+	groupServing    = "\x003 serving"
+	groupOpen       = "\x004 open"
+	groupNotRunning = "\x005 not running"
 )
 
-var groupOrder = []string{groupWaiting, groupWorking, groupOpen, groupNotRunning}
+var groupOrder = []string{groupWaiting, groupWorking, groupServing, groupOpen, groupNotRunning}
 
 // groupTitle is a group's eyebrow.
 func groupTitle(path string) string {
@@ -31,6 +36,8 @@ func groupTitle(path string) string {
 		return "WAITING FOR YOU"
 	case groupWorking:
 		return "WORKING"
+	case groupServing:
+		return "SERVING"
 	case groupOpen:
 		return "OPEN"
 	case groupNotRunning:
@@ -55,7 +62,33 @@ func stateOf(e entry) string {
 	case statusDown, statusEnded:
 		return groupNotRunning
 	}
+	if serving(e) {
+		return groupServing
+	}
 	return groupOpen
+}
+
+// serving says whether a row is a thing to reach: it is alive and has
+// a port, one it listens on or one its container publishes. A server
+// is not open and quiet, it is at its work, and a port is what tells a
+// node that serves from a node that builds, both of which the process
+// table calls the same. A contact is filed by what it asks of you and
+// never by what it has open, and what is not running serves nothing.
+func serving(e entry) bool {
+	switch e.status {
+	case statusDown, statusEnded:
+		return false
+	}
+	return e.kind != kindContact && len(e.ports) > 0
+}
+
+// portsWord is how a row says its ports after its command: web · :8438,
+// or every port it has, lowest first. Nothing for a row with none.
+func portsWord(ports []string) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	return " · :" + strings.Join(ports, " :")
 }
 
 // byState files every row of the reading under its group, the groups

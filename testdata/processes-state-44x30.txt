@@ -6,15 +6,15 @@
     WORKING ─────────────────────────── 1
     ●  go test ./... ◐               /w/b
 
+    SERVING ─────────────────────────── 1
+    ●  node vite · :5173             /w/a
+
     OPEN ────────────────────────────── 2
 ▌   ○  zsh                           /w/a
     ●  vim                       Stopped
 
     NOT RUNNING ─────────────────────── 1
     ◌  worker                        /w/a
-
-
-
 
 
 

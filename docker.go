@@ -25,9 +25,10 @@ import (
 // docker knows, and compose writes on every container it starts the
 // directory it was started for — the same fact lsof reports of a process
 // — so a container is filed under a project by the rule everything else
-// is. It is listed as a row named for its service with the ports it
-// publishes on the host, under the compose that runs it where one runs
-// in a shell, and as a root under the project where compose was left
+// is. It is listed as a row named for its service, carrying the ports
+// it publishes on the host the way a process carries the ports it
+// listens on, under the compose that runs it where one runs in a
+// shell, and as a root under the project where compose was left
 // detached.
 //
 // A container has no terminal, so conn holds no pane for it and the row
@@ -356,16 +357,6 @@ func containerStatus(c container) (string, bool) {
 	return statusEnded, false
 }
 
-// activity is what a container's row says it is: the service, and the
-// ports it publishes on the host, which is where you would go to reach
-// it. web · :8438
-func (c container) activity() string {
-	if len(c.ports) == 0 {
-		return c.service
-	}
-	return c.service + " · :" + strings.Join(c.ports, " :")
-}
-
 // attachContainers files each container under the project its directory
 // says it belongs to, and under the compose that runs it where one is
 // running in a shell there — the deepest such process, compose being a
@@ -460,7 +451,7 @@ func placeContainers(pl project, cs []container, paneOf, shellIn map[string]stri
 	for _, c := range cs {
 		e := entry{
 			pid: containerPID(c.id), kind: kindService,
-			command: c.activity(), typed: c.activity(),
+			command: c.service, typed: c.service, ports: c.ports,
 			started: c.since, since: c.since, cwd: c.dir,
 			container: c.id, tty: paneOf[c.id],
 		}

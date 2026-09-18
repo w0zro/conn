@@ -55,6 +55,20 @@ func (l *line) dot(color, glyph string) {
 	l.add("", "  ")
 }
 
+// activity is what a row is doing, in a width: the command, and after
+// it the ports it has, in the gray, as web · :8438. The command gives
+// up what the ports take; where the width has no room for the ports
+// past a few cells of command, the ports go and the command has it.
+func (l *line) activity(color, portsColor, command string, ports []string, width int) {
+	word := portsWord(ports)
+	if w := utf8.RuneCountInString(word); w > 0 && width-w >= 4 {
+		l.add(color, fit(command, width-w, false))
+		l.add(portsColor, word)
+		return
+	}
+	l.add(color, fit(command, width, false))
+}
+
 // stamp is a word knocked out of the accent — WAITING, and how long it
 // has been. It is the one piece that is read before it is read: a block
 // of color in a row of text is seen first and understood after.

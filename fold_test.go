@@ -68,14 +68,14 @@ func TestAServiceStaysAtRest(t *testing.T) {
 		{pid: 500, kind: kindRun, command: "stack · docker compose up", typed: "stack · docker compose up", tty: "ttys040", status: statusActive},
 		{pid: 501, kind: kindRun, command: "docker compose up", typed: "docker compose up", tty: "ttys040", status: statusActive, depth: 1},
 		{pid: 502, kind: kindRun, command: "docker-compose compose up", typed: "docker-compose compose up", tty: "ttys040", status: statusActive, depth: 2},
-		{pid: -5, kind: kindService, command: "web · :8080", typed: "web · :8080", status: statusActive, depth: 3, container: "aaa"},
+		{pid: -5, kind: kindService, command: "web", typed: "web", ports: []string{"8080"}, status: statusActive, depth: 3, container: "aaa"},
 		{pid: -6, kind: kindService, command: "db", typed: "db", status: "UNHEALTHY", fault: true, depth: 3, container: "bbb"},
 	}}}
 	var rows []string
 	for _, e := range fold(projects)[0].entries {
 		rows = append(rows, strings.Repeat(" ", e.depth)+e.kind+" "+e.command)
 	}
-	want := []string{"RUN stack · docker compose up", " SERVICE web · :8080", " SERVICE db"}
+	want := []string{"RUN stack · docker compose up", " SERVICE web", " SERVICE db"}
 	if !slices.Equal(rows, want) {
 		t.Errorf("at rest:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
 	}

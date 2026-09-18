@@ -17,7 +17,10 @@ package main
 // contact, a fault or waiting, and comes to stand under the nearest row
 // that stayed. A shell whose rows folded says what it runs — the first
 // of them that is not a shell itself, so a bash -c is looked through to
-// the command it was given.
+// the command it was given. A port a folded row listens on is the port
+// of the row it folds into: the shell that ran npm run dev is what is
+// serving :5173, and says so, unless it is a contact, which is filed by
+// what it asks and never by what it has open.
 func fold(projects []project) []project {
 	out := make([]project, 0, len(projects))
 	for _, pl := range projects {
@@ -49,6 +52,9 @@ func fold(projects []project) []project {
 				p := &kept.entries[parent]
 				if p.kind == kindShell && (p.under == "" || p.underShell && e.kind != kindShell) {
 					p.under, p.underShell = e.asTyped(), e.kind == kindShell
+				}
+				if p.kind != kindContact {
+					p.ports = mergePorts(p.ports, e.ports)
 				}
 			}
 		}

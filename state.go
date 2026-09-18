@@ -12,7 +12,9 @@ import (
 // the accent, since that is the one figure that says which of two to
 // answer first; a fault says its word, stamped. A working row's dot is
 // followed by a spinner that turns as the readings come, so what is at
-// work is seen to be. What is not running is struck through.
+// work is seen to be. A serving row's dot is the running color too,
+// still, and its port follows its command, being where you would go.
+// What is not running is struck through.
 
 // The spinner's frames, one a reading.
 var spinner = []string{"◐", "◓", "◑", "◒"}
@@ -46,7 +48,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 				glyph, tone = dotWants, p.orange
 			case r.status == statusWaiting:
 				glyph, tone = dotWants, p.orange+p.bold
-			case r.status == statusWorking:
+			case r.status == statusWorking, bp.path == groupServing:
 				glyph, tone = dotWorks, p.running
 			case bp.path == groupNotRunning:
 				glyph = dotOver
@@ -111,7 +113,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			if r.status == statusWorking {
 				spin = " " + spinner[b.spin%len(spinner)]
 			}
-			l.add(command, fit(activity, measure-l.cells-tailW-2-utf8.RuneCountInString(spin), false))
+			l.activity(command, p.gray, activity, r.ports, measure-l.cells-tailW-2-utf8.RuneCountInString(spin))
 			if spin != "" {
 				l.add(p.running, spin)
 			}

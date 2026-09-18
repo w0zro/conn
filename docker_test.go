@@ -55,9 +55,6 @@ func TestDockerPsIsReadIntoContainers(t *testing.T) {
 	if web.image != "nginx:alpine" {
 		t.Errorf("web's image is %q", web.image)
 	}
-	if got := web.activity(); got != "web · :8438" {
-		t.Errorf("web's row says %q", got)
-	}
 
 	// docker says an age; conn says a moment, so the column is written
 	// the way every other row's is.
@@ -71,10 +68,6 @@ func TestDockerPsIsReadIntoContainers(t *testing.T) {
 	}
 	if got := dockerNow.Sub(worker.since); got != 8*time.Second {
 		t.Errorf("worker exited %v ago, not eight seconds", got)
-	}
-	// A worker with no published port is named alone.
-	if got := worker.activity(); got != "worker" {
-		t.Errorf("worker's row says %q", got)
 	}
 
 	// A container compose did not start has no directory and no service
@@ -178,8 +171,10 @@ func TestContainersStandUnderTheComposeThatRunsThem(t *testing.T) {
 	rows := out[0].entries
 	var got []string
 	for _, e := range rows {
-		got = append(got, strings.Repeat("  ", e.depth)+e.kind+" "+e.command)
+		got = append(got, strings.Repeat("  ", e.depth)+e.kind+" "+e.command+portsWord(e.ports))
 	}
+	// A service carries the ports it publishes on the host, which is
+	// where you would go to reach it; a worker with none is named alone.
 	want := []string{
 		"SHELL zsh",
 		"  RUN docker compose up",
@@ -225,7 +220,7 @@ func TestDetachedContainersRootTheirOwnProject(t *testing.T) {
 		if e.depth != 0 {
 			t.Errorf("%s stands at depth %d with no compose above it", e.command, e.depth)
 		}
-		got = append(got, e.command)
+		got = append(got, e.command+portsWord(e.ports))
 	}
 	want := "cache · :6390, web · :8438, worker"
 	if strings.Join(got, ", ") != want {
@@ -301,7 +296,7 @@ func TestEnterAndSActOnTheContainer(t *testing.T) {
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
 	m.projects = []project{{path: "/p", entries: []entry{
-		{pid: -99, kind: kindService, command: "web · :8438", container: "abc123", cwd: "/p", status: statusActive},
+		{pid: -99, kind: kindService, command: "web", ports: []string{"8438"}, container: "abc123", cwd: "/p", status: statusActive},
 	}}}
 	m.cursor = -99
 
@@ -379,7 +374,7 @@ func TestXStopsAContainer(t *testing.T) {
 	m.view, m.inside = viewProcesses, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.projects = []project{{path: "/p", entries: []entry{
-		{pid: -99, kind: kindService, command: "web · :8438", container: "abc123", cwd: "/p", status: statusActive},
+		{pid: -99, kind: kindService, command: "web", ports: []string{"8438"}, container: "abc123", cwd: "/p", status: statusActive},
 		{pid: -98, kind: kindService, command: "worker", container: "def456", cwd: "/p", status: statusEnded},
 	}}}
 	m.containers = []container{{id: "abc123", service: "web"}, {id: "def456", service: "worker"}}
@@ -396,7 +391,7 @@ func TestXStopsAContainer(t *testing.T) {
 	if strings.Contains(m.kill.prompt, "kill") || strings.Contains(m.kill.prompt, "-99") {
 		t.Errorf("the question talks of killing or of a pid: %q", m.kill.prompt)
 	}
-	// By the service, not by the row's label, which carries the ports.
+	// By the service, not by the row as drawn, which carries the ports.
 	if strings.Contains(m.kill.prompt, ":8438") {
 		t.Errorf("the question asks about an address: %q", m.kill.prompt)
 	}

@@ -329,13 +329,13 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 	up := []project{{path: shop, entries: []entry{
 		{pid: 200, kind: kindShell, command: "sh -c docker compose up", typed: "sh -c docker compose up", tty: "ttys002", status: statusActive},
 		{pid: 201, kind: kindRun, command: "docker compose up", typed: "docker compose up", tty: "ttys002", status: statusActive, depth: 1},
-		{pid: -5, kind: kindService, command: "api · :3000", typed: "api · :3000", status: statusActive, depth: 2, container: "aaa"},
-		{pid: -6, kind: kindService, command: "web · :8080", typed: "web · :8080", status: statusActive, depth: 2, container: "bbb"},
+		{pid: -5, kind: kindService, command: "api", typed: "api", ports: []string{"3000"}, status: statusActive, depth: 2, container: "aaa"},
+		{pid: -6, kind: kindService, command: "web", typed: "web", ports: []string{"8080"}, status: statusActive, depth: 2, container: "bbb"},
 		{pid: 300, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys003", status: statusIdle},
 	}}}
 	panes := map[string]pane{"ttys002": {id: "%2", tty: "ttys002", declared: mark}}
 	got = attachDeclared(up, declared, panes)
-	want = []string{"RUN stack · docker compose up ACTIVE", " RUN docker compose up ACTIVE", "  SERVICE api · :3000 ACTIVE", "  SERVICE web · :8080 ACTIVE", " SERVICE db DOWN", "SHELL zsh IDLE"}
+	want = []string{"RUN stack · docker compose up ACTIVE", " RUN docker compose up ACTIVE", "  SERVICE api ACTIVE", "  SERVICE web ACTIVE", " SERVICE db DOWN", "SHELL zsh IDLE"}
 	if !slices.Equal(rows(got[0]), want) {
 		t.Errorf("up:\n%s\nwant:\n%s", strings.Join(rows(got[0]), "\n"), strings.Join(want, "\n"))
 	}

@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,6 +42,54 @@ func (s socket) listening() bool {
 		return true
 	}
 	return false
+}
+
+// listeningPorts is the TCP ports something could connect to, once
+// each however many addresses they are bound on, lowest first: what
+// the row says of a server. A UDP port and a unix socket are said on
+// the page and not here; a port is what you would go to.
+func listeningPorts(sockets []socket) []string {
+	var ports []int
+	for _, s := range sockets {
+		if s.proto != "TCP" || !s.listening() {
+			continue
+		}
+		_, port, err := net.SplitHostPort(s.addr)
+		if err != nil {
+			continue
+		}
+		n, err := strconv.Atoi(port)
+		if err != nil || slices.Contains(ports, n) {
+			continue
+		}
+		ports = append(ports, n)
+	}
+	sort.Ints(ports)
+	out := make([]string, 0, len(ports))
+	for _, n := range ports {
+		out = append(out, strconv.Itoa(n))
+	}
+	return out
+}
+
+// mergePorts is two rows' ports as one row's: once each, lowest first.
+// Nothing where neither has any.
+func mergePorts(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	var ports []int
+	for _, s := range slices.Concat(a, b) {
+		if n, err := strconv.Atoi(s); err == nil && !slices.Contains(ports, n) {
+			ports = append(ports, n)
+		}
+	}
+	sort.Ints(ports)
+	out := make([]string, 0, len(ports))
+	for _, n := range ports {
+		out = append(out, strconv.Itoa(n))
+	}
+	return out
 }
 
 // String is the socket as the page says it: the protocol and the

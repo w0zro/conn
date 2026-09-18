@@ -175,8 +175,12 @@ type entry struct {
 	// and what a contact says it is stopped on.
 	cwd    string
 	asking string
-	// What it has open to the world, for the page; see sockets.go.
+	// What it has open to the world, for the page; see sockets.go. The
+	// TCP ports it listens on are the row's own fact, said after its
+	// command and filing it under SERVING; a service carries the ports
+	// it publishes on the host here.
 	sockets []socket
+	ports   []string
 	// Where a row filed by state was read: the project, and the depth
 	// it stood at there; see bystate.go.
 	filed     bool
@@ -440,7 +444,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		p := byPid[pid]
 		kind := kindOf(p)
 		e := entry{pid: p.pid, kind: kind, command: commandLine(p), typed: typedLine(p), tty: p.tty, started: p.started, depth: depth,
-			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking, sockets: p.sockets}
+			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking, sockets: p.sockets, ports: listeningPorts(p.sockets)}
 		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
 		if projects[path] == nil {
 			projects[path] = &project{path: path}

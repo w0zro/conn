@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 			{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
 			{pid: 2, kind: kindContact, command: "claude", tty: "ttys001", status: statusWaiting, depth: 1, since: now.Add(-2 * time.Minute)},
 			{pid: 4, kind: kindEditor, command: "vim", tty: "ttys001", status: statusStopped, depth: 1, fault: true},
+			{pid: 3, kind: kindRun, command: "node vite", tty: "ttys004", status: statusActive, ports: []string{"5173"}},
 			{pid: 6, kind: kindRun, command: "worker", tty: "", status: statusDown, depth: 1},
 		}},
 		{path: "/w/b", entries: []entry{
@@ -34,7 +36,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 		}
 		got = append(got, groupTitle(pl.path)+":"+strings.Join(pids, ""))
 	}
-	if want := "WAITING FOR YOU:52 WORKING:7 OPEN:14 NOT RUNNING:6"; strings.Join(got, " ") != want {
+	if want := "WAITING FOR YOU:52 WORKING:7 SERVING:3 OPEN:14 NOT RUNNING:6"; strings.Join(got, " ") != want {
 		t.Errorf("filed as %v, want %s", got, want)
 	}
 	if e := out[0].entries[1]; !e.filed || e.from != "/w/a" || e.fromDepth != 1 || e.depth != 0 {
@@ -54,7 +56,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	}
 	// The reading by project again, for whatever asks about projects
 	// rather than rows.
-	if back := unfiled(out); len(back) != 2 || back[0].path != "/w/b" || len(back[0].entries) != 2 || back[1].path != "/w/a" || len(back[1].entries) != 4 {
+	if back := unfiled(out); len(back) != 2 || back[0].path != "/w/b" || len(back[0].entries) != 2 || back[1].path != "/w/a" || len(back[1].entries) != 5 {
 		t.Errorf("unfiled: %+v", back)
 	}
 
@@ -77,8 +79,8 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	rows := drawProcesses(b, 5, panelWidth, 30, plain)
 	text := texts(rows)
 	golden(t, "processes-state-44x30.txt", text)
-	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "OPEN ─", "NOT RUNNING ─",
-		"●  claude", "9 min", "2 min", "●  go test ./... ◐", "○  zsh", "◌  worker", " Stopped"} {
+	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "OPEN ─", "NOT RUNNING ─",
+		"●  claude", "9 min", "2 min", "●  go test ./... ◐", "●  node vite · :5173", "○  zsh", "◌  worker", " Stopped"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -164,5 +166,59 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	m.up, m.now = processesNow.Add(-(5*24*time.Hour + 2*time.Hour + 14*time.Minute)), processesNow
 	if up := m.upWord(); !strings.Contains(up, "T+ 5d 02h 14m ") {
 		t.Errorf("the clock reads %q", up)
+	}
+}
+
+// A row is serving when it is alive and has a port: one it listens on,
+// or one its container publishes. A server is not open and quiet, and
+// a port is what tells a node that serves from a node that builds. A
+// contact is filed by what it asks, never by what it has open; what is
+// not running serves nothing; and a port under a shell is the shell's
+// to say, the fold carrying it up onto the row that stays.
+func TestAServingRowIsFiledByItsPort(t *testing.T) {
+	listens := []socket{{proto: "TCP", addr: "127.0.0.1:5173", state: "LISTEN"}, {proto: "TCP", addr: "[::1]:5173", state: "LISTEN"},
+		{proto: "TCP", addr: "127.0.0.1:5173->127.0.0.1:50122", state: "ESTABLISHED"}, {proto: "UDP", addr: "*:5353"},
+		{proto: "unix", addr: "/tmp/vite.sock"}, {proto: "TCP", addr: "*:24678", state: "LISTEN"}}
+	if got := strings.Join(listeningPorts(listens), " "); got != "5173 24678" {
+		t.Errorf("the ports are %q, want the TCP listeners once each, lowest first", got)
+	}
+	for _, c := range []struct {
+		e    entry
+		want string
+	}{
+		{entry{kind: kindRun, command: "node", status: statusActive, ports: []string{"5173"}}, groupServing},
+		{entry{kind: kindService, command: "web", status: statusActive, ports: []string{"8438"}}, groupServing},
+		{entry{kind: kindService, command: "db", status: "UNHEALTHY", fault: true, ports: []string{"5432"}}, groupServing},
+		{entry{kind: kindRun, command: "node", status: statusActive}, groupOpen},
+		{entry{kind: kindService, command: "web", status: statusDown, ports: []string{"8438"}}, groupNotRunning},
+		{entry{kind: kindContact, command: "claude", status: statusIdle, ports: []string{"41231"}}, groupOpen},
+		{entry{kind: kindContact, command: "claude", status: statusWaiting, ports: []string{"41231"}}, groupWaiting},
+	} {
+		if got := stateOf(c.e); got != c.want {
+			t.Errorf("%s %s with ports %v files under %q, want %q", c.e.kind, c.e.command, c.e.ports, groupTitle(got), groupTitle(c.want))
+		}
+	}
+	folded := fold([]project{{path: "/w", entries: []entry{
+		{pid: 1, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys001", status: statusActive},
+		{pid: 2, kind: kindRun, command: "npm run dev", typed: "npm run dev", tty: "ttys001", status: statusActive, depth: 1, ports: []string{"24678"}},
+		{pid: 3, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys001", status: statusActive, depth: 2, ports: []string{"5173"}},
+		{pid: 4, kind: kindContact, command: "claude", typed: "claude", tty: "ttys002", status: statusWorking},
+		{pid: 5, kind: kindRun, command: "python -m http.server", typed: "python -m http.server", tty: "ttys002", status: statusActive, depth: 1, ports: []string{"8000"}},
+	}}})
+	var rows []string
+	for _, e := range folded[0].entries {
+		rows = append(rows, strings.Repeat(" ", e.depth)+activityOf(e)+portsWord(e.ports))
+	}
+	if want := []string{"npm run dev · :5173 :24678", "claude"}; !slices.Equal(rows, want) {
+		t.Errorf("the fold kept %q, want %q", rows, want)
+	}
+	if got := stateOf(folded[0].entries[0]); got != groupServing {
+		t.Errorf("the shell that runs the server files under %q", groupTitle(got))
+	}
+	// Drawn in a width with no room for the port, the command has it.
+	l := (&canvas{p: plain, width: 20}).line()
+	l.activity(plain.ink, plain.gray, "node vite", []string{"5173"}, 8)
+	if l.b.String() != "node vi…" {
+		t.Errorf("in eight cells the row says %q", l.b.String())
 	}
 }

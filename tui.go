@@ -132,7 +132,7 @@ type (
 	processesTickMsg struct{ gen int }        // the processes view is due to be read again
 	openedMsg        struct{ shell shell }    // a shell was opened; the cursor goes to it once it is read
 	noticeMsg        struct{ text string }    // something asked of the server was not done, and this is why
-	raisedMsg        struct{ shells []shell } // a project's declared processes were brought up, parked
+	raisedMsg        struct{ shells []shell } // declared processes were brought up, parked: a project's, or one
 	reachedMsg       struct{ tty string }     // a process was put in the bay
 	readoutMsg       struct{ on bool }        // the readout was put in the bay, or taken out of it
 	helpMsg          struct{ on bool }        // the manual was put in the bay
@@ -809,8 +809,10 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"Enter", "Bring it up"})
 		case e.container != "":
 			hints = append(hints, keyHint{"Enter", "Its output"})
-		case e.declared != "" && e.status == statusDown:
+		case e.declared != "" && e.status == statusDown && e.brew != "":
 			hints = append(hints, keyHint{"Enter", "Bring it up"})
+		case e.declared != "" && e.status == statusDown:
+			hints = append(hints, keyHint{"Enter", "Bring it up, go in"})
 		}
 	}
 	if len(waitingRound(m.projects)) > 0 {
@@ -824,8 +826,11 @@ func (m model) bar() string {
 	// left is the list, and the manual.
 	if m.inside && ok {
 		hints = append(hints, keyHint{"s", "Shell"}, keyHint{"a", "New contact"})
+		if rowDown(e, m.panes) {
+			hints = append(hints, keyHint{"u", "Bring it up"})
+		}
 		if projectHasDown(m.projects, pl.path) {
-			hints = append(hints, keyHint{"u", "Bring up"})
+			hints = append(hints, keyHint{"U", "Bring up all"})
 		}
 	}
 	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{"?", "Help"}))
@@ -846,8 +851,23 @@ func prefixWord(p string) string {
 	return p
 }
 
+// rowDown says whether a row is a declaration that is not up, which is
+// what u would bring up: down, or ended and holding its pane; a brew
+// service, by brew's word.
+func rowDown(e entry, panes map[string]pane) bool {
+	switch {
+	case e.declared == "":
+		return false
+	case e.brew != "":
+		return e.status != statusActive
+	case e.tty == "":
+		return true
+	}
+	return panes[e.tty].exit != ""
+}
+
 // projectHasDown says whether a project has anything declared and not
-// running, which is what u would bring up.
+// running, which is what U would bring up.
 func projectHasDown(projects []project, path string) bool {
 	for _, pl := range projects {
 		for _, e := range pl.entries {
@@ -1338,10 +1358,17 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "alt+s" || k == "alt+a" || k == "alt+shift+a" {
 		return m.openAt(k)
 	}
-	// Everything the project the panel is looking at declares and does
-	// not have running, brought up: u in the processes view, and alt+u
-	// from the list, where u is a letter being typed.
+	// What is under the cursor, brought up: u in the processes view,
+	// and alt+u from the list, where u is a letter being typed. On a
+	// process's row it is that one process, and the keys stay on the
+	// panel, so u pressed down the rows brings them up one at a time;
+	// on a project's row, in the list, it is the project. U, and alt+U,
+	// bring up everything the row's project declares and does not have
+	// running, wherever in it the cursor is.
 	if k == "alt+u" || k == "u" && m.view == viewProcesses {
+		return m.raiseUnder()
+	}
+	if k == "alt+shift+u" || k == "U" && m.view == viewProcesses {
 		return m.raiseAt()
 	}
 	// The manual saying it is done with. It sends this as it goes, so
@@ -1521,7 +1548,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		case e.declared != "":
 			// A declared process that is down: brought up, and gone into.
 			if path, d, ok := m.declarationOf(e); ok {
-				return m, m.raise(path, d, "")
+				return m, m.raise(path, d, "", true)
 			}
 		}
 	case k == "esc":
@@ -2059,6 +2086,29 @@ func (m model) raiseAt() (tea.Model, tea.Cmd) {
 		m, cmds = mm.(model), append(cmds, cmd)
 	}
 	return m, tea.Batch(append(cmds, m.raiseAll(path, up, held))...)
+}
+
+// raiseUnder brings up the row under the cursor, parked: a declared
+// process that is down, or ended and holding its pane, opened anew in
+// place of that pane; a brew service, started by brew. The keys stay
+// on the panel, so the next u is the next row. From the list the row
+// is a project, and the project is what is brought up.
+func (m model) raiseUnder() (tea.Model, tea.Cmd) {
+	if m.view != viewProcesses {
+		return m.raiseAt()
+	}
+	e, _, ok := m.under()
+	if !m.inside || !ok || !rowDown(e, m.panes) {
+		return m, nil
+	}
+	if e.brew != "" {
+		return m, m.startBrew(e.brew)
+	}
+	path, d, ok := m.declarationOf(e)
+	if !ok {
+		return m, nil
+	}
+	return m, m.raise(path, d, m.panes[e.tty].id, false)
 }
 
 // armDeclared is x on a declared process's row. Down, there is nothing

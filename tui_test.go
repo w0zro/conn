@@ -1391,10 +1391,11 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 }
 
 // A declared process is brought up from its row: enter on a down row
-// opens its pane and goes in, u brings up everything the project
-// declares and does not have running, and from the list alt+u does the
-// same and comes to the processes view. Outside the server nothing is
-// opened, and a project with no file answers nothing.
+// opens its pane and goes in, u brings up the row and leaves the keys
+// on the panel, U brings up everything the project declares and does
+// not have running, and from the list alt+u does what U does and comes
+// to the processes view. Outside the server nothing is opened, and a
+// project with no file answers nothing.
 func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	app := "/Users/w0zro/projects/w0zro/app"
 	down := entry{pid: declaredPID(app, "web"), kind: kindRun, command: "web · npm run dev", status: statusDown, declared: markDeclared(app, "web")}
@@ -1419,13 +1420,15 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 		t.Error("a pane opened with no tmux to open it in")
 	}
 
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "u"}))
-	m = next.(model)
-	if cmd == nil || m.view != viewProcesses {
-		t.Fatalf("u: cmd %v, view %d", cmd != nil, m.view)
-	}
-	if msg, ok := answered(cmd).(raisedMsg); ok && len(msg.shells) != 0 {
-		t.Errorf("panes opened with no tmux to open them in: %v", msg.shells)
+	for _, key := range []string{"u", "U"} {
+		next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: key}))
+		m = next.(model)
+		if cmd == nil || m.view != viewProcesses {
+			t.Fatalf("%s: cmd %v, view %d", key, cmd != nil, m.view)
+		}
+		if msg, ok := answered(cmd).(raisedMsg); ok && len(msg.shells) != 0 {
+			t.Errorf("%s: panes opened with no tmux to open them in: %v", key, msg.shells)
+		}
 	}
 
 	// The panes come back parked: the cursor waits on the first of
@@ -1445,13 +1448,18 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 		t.Errorf("alt+u from the list: cmd %v, view %d", cmd != nil, m.view)
 	}
 
-	// The raise reads the file itself, so a project the reading has not
-	// read a file for — nothing running in it — is still asked.
+	// The raise of a project reads the file itself, so a project the
+	// reading has not read a file for — nothing running in it — is
+	// still asked. A row's raise is its declaration, and without one
+	// there is nothing to raise.
 	m.declared = nil
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "u"}))
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "U"}))
 	m = next.(model)
 	if cmd == nil {
-		t.Error("u with the file unread asked nothing")
+		t.Error("U with the file unread asked nothing")
+	}
+	if _, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "u"})); cmd != nil {
+		t.Error("u with no declaration to raise asked something")
 	}
 }
 

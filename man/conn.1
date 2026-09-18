@@ -190,22 +190,24 @@ its path; the file's form is at 4-5. Where work is happening in the project,
 each declared process not running is a row at the foot of its block, dimmed and
 worded DOWN; a project nothing is running in shows nothing of its file.
 \fBenter\fR on such a row brings it up in a pane of the station and goes into
-it; \fBu\fR on any row of the project brings up everything it declares that is
-down. A pane conn opened this way carries the declared name on its head row.
-When the process ends on its own the pane holds its output and the row reads
-ENDED, or EXIT and the code as a fault; \fBenter\fR goes in to read it, \fBu\fR
-opens it anew, and \fBx\fR closes it. \fBx\fR on one still running sends it
-ctrl-c in its pane and closes the pane once it has ended, and the row is DOWN
-again. A declaration that is a \fBdocker compose up\fR has the services it would
-bring up as rows under it, each DOWN until it runs, as compose itself lists
-them; while it runs, a service compose has not started is DOWN under it the same
-way. A declaration that is a \fBbrew services start\fR is the Homebrew service
-it names, as brew reports it, rather than a pane: ACTIVE with the ports it
-listens on, DOWN until it is started, EXIT and the code where its last run ended
-badly. \fBenter\fR on it up follows its log, and down asks brew to start it;
-\fBx\fR asks brew to stop it; \fBu\fR starts it with the rest. A service more
-than one project declares is one row, and says * for the project. A file that
-will not read is said under the block, with the line.
+it; \fBu\fR brings it up and leaves the keys on the panel, so \fBu\fR pressed
+down the rows brings them up one at a time; \fBU\fR on any row of the project
+brings up everything it declares that is down. A pane conn opened this way
+carries the declared name on its head row. When the process ends on its own the
+pane holds its output and the row reads ENDED, or EXIT and the code as a fault;
+\fBenter\fR goes in to read it, \fBu\fR opens it anew, and \fBx\fR closes it.
+\fBx\fR on one still running sends it ctrl-c in its pane and closes the pane
+once it has ended, and the row is DOWN again. A declaration that is a \fBdocker
+compose up\fR has the services it would bring up as rows under it, each DOWN
+until it runs, as compose itself lists them; while it runs, a service compose
+has not started is DOWN under it the same way. A declaration that is a \fBbrew
+services start\fR is the Homebrew service it names, as brew reports it, rather
+than a pane: ACTIVE with the ports it listens on, DOWN until it is started, EXIT
+and the code where its last run ended badly. \fBenter\fR on it up follows its
+log, and down asks brew to start it; \fBx\fR asks brew to stop it; \fBu\fR
+starts it, and \fBU\fR starts it with the rest. A service more than one project
+declares is one row, and says * for the project. A file that will not read is
+said under the block, with the line.
 .SH KEYS
 .TP
 3-1.
@@ -258,8 +260,8 @@ processes view takes them. In the projects list and the sessions list a letter
 is typed into the line instead, and the line is edited with readline's keys:
 there, \fBenter\fR takes the row under the cursor and \fBesc\fR goes back. On
 such a line ctrl is readline's, and what a letter does in the processes view is
-done with alt: \fBalt\-s\fR, \fBalt\-a\fR, \fBalt\-A\fR and \fBalt\-u\fR, which
-are the keys the chords send.
+done with alt: \fBalt\-s\fR, \fBalt\-a\fR, \fBalt\-A\fR, \fBalt\-u\fR and
+\fBalt\-U\fR, which are the keys the chords send.
 .PP
 .I "The panel"
 .RS
@@ -297,6 +299,9 @@ End it: a signal to a process, docker stop to a service, ctrl-c to a declared
 process and its pane once it has ended. Asks first.
 .TP
 \fBu\fR
+Bring up the declared process under the cursor, and stay on the panel.
+.TP
+\fBU\fR
 Bring up what the project declares and does not have running.
 .TP
 \fBtab\fR

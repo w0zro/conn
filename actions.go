@@ -63,15 +63,19 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
-// raise brings one declaration up, in the bay with the keys in it: the
-// answer to enter on a down row. replace is the pane holding the last
-// run of it, where one stands.
-func (m model) raise(path string, d declaration, replace string) tea.Cmd {
+// raise brings one declaration up: the answer to enter on a down row,
+// in the bay with the keys in it, and to u, parked, the keys left on
+// the panel. replace is the pane holding the last run of it, where one
+// stands.
+func (m model) raise(path string, d declaration, replace string, enter bool) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.raiseDeclared(d.at(path), declaredLine(d, srv.tmux), markDeclared(path, d.name), replace, true)
+		sh, err := srv.raiseDeclared(d.at(path), declaredLine(d, srv.tmux), markDeclared(path, d.name), replace, enter)
 		if err != nil {
 			return nil
+		}
+		if !enter {
+			return raisedMsg{shells: []shell{sh}}
 		}
 		return openedMsg{shell: sh}
 	}

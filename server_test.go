@@ -1141,7 +1141,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	// under /tmp, which sorts after everything under /Users, so its
 	// rows are the last: G is a row of it.
 	s.keys("G")
-	s.keys("u")
+	s.keys("U")
 	s.until("both panes opened and marked, quick's end recorded", func() bool {
 		sleeper, _ := marked("sleeper")
 		quick, exit := marked("quick")
@@ -1152,7 +1152,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	})
 	// The panes were parked: the bay still holds the shell it held.
 	if !s.shellIn("home.1") {
-		t.Error("u changed what the bay holds")
+		t.Error("U changed what the bay holds")
 	}
 
 	// quick ended at once and is not running, which is the last group,

@@ -857,9 +857,13 @@ set -g display-time 3000
 	for i, c := range scheme {
 		fmt.Fprintf(&b, "set -g pane-colours[%d] \"%s\"\n", i, c)
 	}
+	// The seam between the panel and the bay is the panel's surface
+	// meeting the bay's ground, and needs no line drawn on it: the
+	// border column is painted in the surface, line and all, so the
+	// panel simply ends where the bay begins.
 	b.WriteString("set -g pane-border-lines single\n")
-	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
-	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", borderHex, ground)
+	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", surfaceHex, surfaceHex)
+	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", surfaceHex, surfaceHex)
 	b.WriteString("set -g pane-border-indicators off\n")
 	b.WriteString(statusLine())
 	return b.String()

@@ -1018,8 +1018,11 @@ func (s *server) say(keys, station, up, bar, ident string) error {
 		";", "set-option", "-g", "@conn_up", up,
 		";", "set-option", "-g", "@conn_bar_text", bar,
 		";", "set-option", "-g", "@conn_ident", ident,
-		";", "refresh-client", "-S",
-		";", "wait-for", "-S", barChannel)
+		// The bar's signal before the clients' redraw: a server with no
+		// client attached refuses the redraw, and everything after it
+		// in the sequence with it.
+		";", "wait-for", "-S", barChannel,
+		";", "refresh-client", "-S")
 	return err
 }
 

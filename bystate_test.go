@@ -171,3 +171,11 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		t.Errorf("the bar row is %q", row)
 	}
 }
+
+// An option comes back from tmux with its escapes written out; the bar
+// reads them back.
+func TestTheBarReadsItsEscapesBack(t *testing.T) {
+	if got := unescaped(`\033[1mEnter\033[0m a \\ b`); got != "\x1b[1mEnter\x1b[0m a \\ b" {
+		t.Errorf("unescaped: %q", got)
+	}
+}

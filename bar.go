@@ -30,9 +30,10 @@ func runBar(srv *server, p palette) error {
 	return err
 }
 
-// Init reads the bar once, then waits for the panel to change it.
+// Init reads the bar once; each reading, once answered, waits for the
+// panel to change it, so there is one wait on the channel at a time.
 func (b barModel) Init() tea.Cmd {
-	return tea.Batch(b.read(false), b.read(true))
+	return b.read(false)
 }
 
 // read is the options as they stand, after the panel's signal where
@@ -49,9 +50,32 @@ func (b barModel) read(wait bool) tea.Cmd {
 		}
 		left, _ := srv.run("show-options", "-gqv", "@conn_bar_text")
 		right, _ := srv.run("show-options", "-gqv", "@conn_ident")
-		return barMsg{strings.TrimRight(left, "\n"), strings.TrimRight(right, "\n")}
+		return barMsg{unescaped(strings.TrimRight(left, "\n")), unescaped(strings.TrimRight(right, "\n"))}
 	}
 }
+
+// unescaped is an option's value as it was set: tmux writes a control
+// character in it back as three octal digits after a backslash, and a
+// backslash as two.
+func unescaped(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+3 < len(s) && isOctal(s[i+1]) && isOctal(s[i+2]) && isOctal(s[i+3]) {
+			b.WriteByte((s[i+1]-'0')<<6 | (s[i+2]-'0')<<3 | (s[i+3] - '0'))
+			i += 3
+			continue
+		}
+		if s[i] == '\\' && i+1 < len(s) && s[i+1] == '\\' {
+			b.WriteByte('\\')
+			i++
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+func isOctal(c byte) bool { return c >= '0' && c <= '7' }
 
 func (b barModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {

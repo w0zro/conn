@@ -809,14 +809,18 @@ func (m model) bar() string {
 	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{"?", "Help"}))
 }
 
-// prefixWord is the prefix as the bar writes it: ^Space for C-Space,
+// prefixWord is the prefix as the bar writes it: ^space for C-Space,
 // the caret being how a terminal has always written control, and
 // short enough that a chord said three times across the bar is still
-// a bar of keys and not a sentence; alt-a for M-a; the rest as tmux
-// spells it.
+// a bar of keys and not a sentence; alt-a for M-a. A named key is
+// written as the manual writes it, in lower case; a letter is left
+// as it came, since alt-A is not alt-a.
 func prefixWord(p string) string {
 	p = strings.ReplaceAll(p, "C-", "^")
 	p = strings.ReplaceAll(p, "M-", "alt-")
+	if i := strings.LastIndexAny(p, "^-"); len(p)-i-1 > 1 {
+		p = p[:i+1] + strings.ToLower(p[i+1:])
+	}
 	return p
 }
 

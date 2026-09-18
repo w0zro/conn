@@ -157,7 +157,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		t.Errorf("with no rows the bar offers %s", bar)
 	}
 	m.inside, m.focused = true, false
-	if bar := m.bar(); !has(bar, "^Space -", "Panel") || !has(bar, "^Space ?", "Help") || has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "^space -", "Panel") || !has(bar, "^space ?", "Help") || has(bar, "x", "End it") {
 		t.Errorf("with the keys in a process the bar offers %s", bar)
 	}
 	m.focused = true

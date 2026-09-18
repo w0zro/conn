@@ -16,8 +16,10 @@ import (
 // still, and its port follows its command, being where you would go.
 // What is not running is struck through.
 
-// The spinner's frames, one a reading.
-var spinner = []string{"◐", "◓", "◑", "◒"}
+// The spinner's frames, one a reading: a dot going round the cell,
+// a full turn in eight, a trace sweeping a dial rather than a glyph
+// standing still between readings.
+var spinner = []string{"⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"}
 
 // drawState renders the panel by state for a terminal of the given size,
 // with the cursor on the row of the given pid. The blocks are groups,

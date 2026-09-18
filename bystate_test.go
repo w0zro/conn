@@ -80,7 +80,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	text := texts(rows)
 	golden(t, "processes-state-44x30.txt", text)
 	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "IDLE ─", "NOT RUNNING ─",
-		"●  claude", "9 min", "2 min", "●  go test ./... ◐", "●  node vite · :5173", "○  zsh", "◌  worker", " Stopped"} {
+		"●  claude", "9 min", "2 min", "●  go test ./... ⠁", "●  node vite · :5173", "○  zsh", "◌  worker", " Stopped"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}

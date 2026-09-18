@@ -153,7 +153,7 @@ func TestProcessesLaysOut(t *testing.T) {
 		"\n         SHELL   bash -c go test ./...",
 		"\n           RUN     go test ./...",
 		"\n       EDITOR  vim notes.md",
-		" ▸     CONTACT claude --resume",
+		"▸      CONTACT claude --resume",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("the view lacks %q:\n%s", s, text)
@@ -201,7 +201,7 @@ func TestProcessesLaysOut(t *testing.T) {
 func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	rows := drawProcesses(testProcesses(), 80001, 100, 9, plain)
 	text := texts(rows)
-	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸   SHELL") {
+	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸    SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
 	rows = drawProcesses(testProcesses(), 70301, 100, 9, plain)
@@ -209,7 +209,7 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	// The cursor's mark keeps the margin, and the row it marks still
 	// steps in for the level it is at: the last row is the go three deep
 	// under conjurer's shell.
-	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸         RUN") {
+	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸          RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
 	if piped := drawProcesses(testProcesses(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
@@ -472,7 +472,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 	}
 	// In plain text there is no ground to raise, so the mark stays.
 	plainRows := texts(drawProcesses(testProcesses(), 67040, 120, 40, plain))
-	if !strings.Contains(plainRows, "▸   SHELL   zsh") {
+	if !strings.Contains(plainRows, "▸    SHELL   zsh") {
 		t.Errorf("the plain view lost its cursor:\n%s", plainRows)
 	}
 }

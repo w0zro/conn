@@ -88,6 +88,14 @@ func (s *scratch) panel() string {
 	return out
 }
 
+// finished is whether the console has come to its verdict, the last
+// thing it shows: every check's row says NOMINAL, so the word alone
+// does not tell the end from the middle.
+func (s *scratch) finished() bool {
+	panel := s.panel()
+	return strings.Contains(panel, allNominal) || strings.Contains(panel, "NOT NOMINAL")
+}
+
 // scratchProject is what the panel calls the scratch root's repository:
 // the one project in the processes view that is this test's own, since
 // the processes view reads the whole machine's table and everything
@@ -395,7 +403,7 @@ func (s *scratch) until(what string, cond func() bool) {
 // its side again; the panel holds its width when the window is resized.
 func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	if !strings.Contains(s.panel(), "START-UP CHECKS") || s.display("#{pane_width}") != "160" {
 		t.Errorf("the console should have the whole window:\n%s", s.panel())
 	}
@@ -473,7 +481,7 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 // ever cleared it.
 func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -509,7 +517,7 @@ func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
 // held by the configuration; this is what happens when it lands.
 func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -535,7 +543,7 @@ func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 // there are, and from the last of them it comes round to the first.
 func TestTheRingKeyWalksToTheOtherHeldProcess(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -560,7 +568,7 @@ func TestTheRingKeyWalksToTheOtherHeldProcess(t *testing.T) {
 
 func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -597,7 +605,7 @@ func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 // never having given the panel's width up for it.
 func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -630,7 +638,7 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 // it too; a kill of an entry is always the command alone.
 func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -671,7 +679,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	holdMode(t)
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	// The scratch server rose on dark, the ground of a terminal that
 	// says nothing. tmux answers a color in its own case.
 	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
@@ -719,7 +727,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	// and a shallow checkout with no tags has none to say — so what is
 	// waited for is the page finishing.
 	s.until("the panel to come back", func() bool {
-		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.panel(), prompt)
+		return strings.Contains(s.panes(), "home.0:conn:") && s.finished()
 	})
 }
 
@@ -730,7 +738,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	holdMode(t)
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
 		t.Fatalf("the server did not rise in conn: slot 0 is %q", got)
 	}
@@ -774,7 +782,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 		t.Errorf("the mode file was not put in datum: %+v, found %v", m, ok)
 	}
 	s.until("the panel to come back", func() bool {
-		return strings.Contains(s.panes(), "home.0:conn:") && strings.Contains(s.panel(), prompt)
+		return strings.Contains(s.panes(), "home.0:conn:") && s.finished()
 	})
 }
 
@@ -782,7 +790,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 // conn down finds nothing.
 func TestDownEndsTheScratchServer(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	msg, ok := takeDown(s.srv, filepath.Join(s.dir, "home"))
 	if !ok || !strings.Contains(msg, "Window home") || !strings.Contains(msg, "Server ") || !strings.Contains(msg, "ended") {
 		t.Errorf("down: %v %q", ok, msg)
@@ -893,7 +901,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 // window laid out afresh, and focus stays where the keys are.
 func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open in the processes view", func() bool {
 		return s.display("#{pane_width}") == panelW && s.inProcesses()
@@ -983,7 +991,7 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 // something. Nothing is pressed for it.
 func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the workspace to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -1025,7 +1033,7 @@ func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
 // sends its key is written here in its place.
 func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 	s := startScratch(t)
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 
@@ -1088,7 +1096,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, declaredName), []byte("sleeper: perl -e '$SIG{INT} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s.until("the console to finish", func() bool { return strings.Contains(s.panel(), prompt) })
+	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
 	s.until("the bay to open", func() bool { return s.display("#{pane_width}") == panelW })
 	// The down rows show beside work in the project, and nothing is

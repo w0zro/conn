@@ -195,7 +195,7 @@ func TestProjectsLayOut(t *testing.T) {
 	for _, s := range []string{
 		"PROJECTS", "10 FOUND", "FIND  ▏",
 		"arboreum.io", "2 REPOS", "  content", "compose-demo",
-		"experiments/one-off", " ▸ w0zro", "3 REPOS", "  conn",
+		"experiments/one-off", "▸  w0zro", "3 REPOS", "  conn",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("the list lacks %q:\n%s", s, text)
@@ -248,7 +248,7 @@ func TestTheFilterAnswersByNameAndByGroup(t *testing.T) {
 func TestAListThatWillNotFitScrolls(t *testing.T) {
 	rows := drawProjects(testList(""), 9, 48, 10, plain)
 	text := texts(rows)
-	if len(rows) != 10 || !strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸   vim.pro") {
+	if len(rows) != 10 || !strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸    vim.pro") {
 		t.Errorf("at 48x10 with the cursor on the last row:\n%s", text)
 	}
 }

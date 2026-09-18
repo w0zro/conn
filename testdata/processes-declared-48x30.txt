@@ -3,7 +3,7 @@
      RUN     web                       ACTIVE
        RUN     npm run dev             ACTIVE
      RUN     api                        ENDED
- ▸   RUN     worker                      DOWN
+▸    RUN     worker                      DOWN
 
    w0zro/conn
      SHELL   zsh                         IDLE

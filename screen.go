@@ -110,7 +110,6 @@ const (
 	statusW    = 9  // the widest status: UNCHECKED, NOT A DIR
 	minCols    = 80
 	stationGap = 5 // between the wordmark and the station block
-	prompt     = "PRESS ANY KEY TO CONTINUE"
 )
 
 // columns are the measure's, for a terminal width columns wide: the
@@ -140,11 +139,12 @@ func lastStage(r report) int {
 	return stageChecks + 1 + len(r.checks)
 }
 
-// rowsNeeded is how many rows the console takes for a report: the body,
-// then air and the prompt. It is counted off the layout, not summed by
-// hand.
+// rowsNeeded is how many rows the console takes for a report: the
+// body, the verdict its last row. It is counted off the layout, not
+// summed by hand. The key bar at the foot says how to go on, so the
+// console has no row of its own to say it.
 func rowsNeeded(r report) int {
-	return len(body(r, minCols, check{}, plain)) + 2
+	return len(body(r, minCols, check{}, plain))
 }
 
 // screen renders the console for a terminal of the given size, in the
@@ -165,12 +165,9 @@ func screen(r report, width, height int, p palette) []row {
 	rows := body(r, cols, own, p)
 	if height > 0 {
 		c := canvas{p: p, width: max(width, minCols), rows: rows}
-		for len(c.rows) < height-1 {
+		for len(c.rows) < height {
 			c.blank(lastStage(r))
 		}
-		l := c.line()
-		l.add(p.gray, prompt)
-		c.emit(l, lastStage(r), true)
 		rows = c.rows
 	}
 	return rows
@@ -396,15 +393,8 @@ func small(own check, width, height, need int, p palette) []row {
 	l.add(p.gray, "NEEDS ")
 	l.add(p.ink, strconv.Itoa(minCols)+"×"+strconv.Itoa(need))
 	c.emit(l, stageHeader, false)
-	if height > 0 {
-		for len(c.rows) < height-1 {
-			c.blank(stageHeader)
-		}
-		if len(c.rows) == height-1 {
-			l := c.line()
-			l.add(p.gray, prompt)
-			c.emit(l, stageHeader, true)
-		}
+	for height > 0 && len(c.rows) < height {
+		c.blank(stageHeader)
 	}
 	return c.rows
 }
@@ -508,8 +498,10 @@ func (l *line) leader(label string, field int, dots string) {
 }
 
 // emit frames a line as a row: the margin — or, centered, the column
-// that centers it — the pieces, and the ground to the edge. In the plain
-// palette the ground is nothing, and the row ends with its last piece.
+// that centers it — the pieces, and the ground to the edge. A marked
+// row carries its mark at the very edge, the margin after it. In the
+// plain palette the ground is nothing, and the row ends with its last
+// piece.
 func (c *canvas) emit(l *line, stage int, centered bool) {
 	p := l.p
 	left := margin
@@ -518,7 +510,7 @@ func (c *canvas) emit(l *line, stage int, centered bool) {
 	}
 	lead := strings.Repeat(" ", left)
 	if l.mark != "" && !centered {
-		lead = " " + p.orange + p.bold + l.mark + p.normal + strings.Repeat(" ", margin-2)
+		lead = p.orange + p.bold + l.mark + p.normal + strings.Repeat(" ", margin-1)
 	}
 	text := p.normal + lead + l.b.String() + strings.Repeat(" ", max(c.width-left-l.cells, 0)) + p.end
 	if p.plain {

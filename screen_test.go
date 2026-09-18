@@ -94,7 +94,7 @@ func TestConsoleLaysOut(t *testing.T) {
 		"CONN 0.7.0 (devel)", "STATION  W0ZRO@STATION", "09-SEP-2026  02:58:41 Z", "4af550d · 09-SEP-2026 · MODIFIED",
 		"SYSTEM .... MACOS 26.6.2 (25G83)", "CWD ....... ~/projects/w0zro/conn", "SHELL ..... ZSH 5.9",
 		"SCREEN .... 120×40 · XTERM-256COLOR · TRUECOLOR", "STATE ..... ~/.local/state/conn",
-		"ALL SYSTEMS NOMINAL", prompt,
+		"ALL SYSTEMS NOMINAL",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("console lacks %q:\n%s", s, text)
@@ -103,7 +103,7 @@ func TestConsoleLaysOut(t *testing.T) {
 	if strings.Contains(text, "\x1b") || strings.Contains(text, "NOT NOMINAL") {
 		t.Errorf("console carries an escape or a fault:\n%s", text)
 	}
-	if len(rows) != 40 || !strings.Contains(rows[39].text, prompt) {
+	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
 		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
 	}
 	for _, row := range rows {
@@ -117,8 +117,8 @@ func TestConsoleLaysOut(t *testing.T) {
 			t.Errorf("row is %d columns: %q", w, row.text)
 		}
 	}
-	if rowsNeeded(r) != len(body(r, 120, check{}, plain))+2 {
-		t.Errorf("rowsNeeded %d is not the body and two", rowsNeeded(r))
+	if rowsNeeded(r) != len(body(r, 120, check{}, plain)) {
+		t.Errorf("rowsNeeded %d is not the body", rowsNeeded(r))
 	}
 }
 
@@ -145,8 +145,8 @@ func TestFaultsLightTheConsole(t *testing.T) {
 }
 
 // A terminal the console will not fit gets the small console: nothing
-// clipped, the size it needs in view, the prompt when there is a row
-// for it. Off a terminal there is no screen to check, and no prompt.
+// clipped, the size it needs in view. Off a terminal there is no screen
+// to check.
 func TestSmallAndPipedConsoles(t *testing.T) {
 	r := compose(testStation, testNow)
 	// The height below which nothing the console can give up will make
@@ -174,15 +174,12 @@ func TestSmallAndPipedConsoles(t *testing.T) {
 				t.Errorf("%dx%d has a row %d wide: %q", c.w, c.h, w, row.text)
 			}
 		}
-		if c.h >= 6 && !strings.Contains(rows[c.h-1].text, prompt) {
-			t.Errorf("%dx%d has no prompt on the bottom row:\n%s", c.w, c.h, text)
-		}
 	}
 	if rows := screen(r, 100, need, plain); strings.Contains(texts(rows), "SMALL") || len(rows) != need {
 		t.Errorf("a terminal of exactly the rows needed is small, or %d rows", len(rows))
 	}
 	piped := texts(screen(r, 0, 0, plain))
-	if !strings.Contains(piped, "SCREEN .... NO TERMINAL") || !strings.Contains(piped, " UNCHECKED") || strings.Contains(piped, prompt) {
+	if !strings.Contains(piped, "SCREEN .... NO TERMINAL") || !strings.Contains(piped, " UNCHECKED") {
 		t.Errorf("off a terminal:\n%s", piped)
 	}
 }

@@ -8,7 +8,7 @@
 
    w0zro/vim.pro/conjurer
      SHELL   zsh                       ACTIVE
- ▸     CONTACT claude --resume         ACTIVE
+▸      CONTACT claude --resume         ACTIVE
          RUN     node /opt/claude/…    ACTIVE
          SHELL   bash -c go test .…    ACTIVE
            RUN     go test ./...       ACTIVE

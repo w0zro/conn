@@ -4,7 +4,7 @@
    ~/projects/w0zro/conn
    FIND  flaky▏
 
- ▸ main          fix the flaky bui… 2H 00M
+▸  main          fix the flaky bui… 2H 00M
 
 
 

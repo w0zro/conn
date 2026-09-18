@@ -5,7 +5,7 @@
 
    w0zro                              2 REPOS
      quickfix-pro
- ▸   vim.pro
+▸    vim.pro
 
 
 

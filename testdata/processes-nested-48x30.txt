@@ -6,7 +6,7 @@
      CONTACT claude                    ACTIVE
      public-rides.com
        SHELL   zsh                     ACTIVE
- ▸       RUN     ruby ride             ACTIVE
+▸        RUN     ruby ride             ACTIVE
      public-rides.org
        RUN     python3 data            ACTIVE
 

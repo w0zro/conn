@@ -3,7 +3,7 @@
    ──────────────────────────────────────────
    FIND  ▏
 
- ▸ arboreum.io                        2 REPOS
+▸  arboreum.io                        2 REPOS
      content
      welcome
    compose-demo

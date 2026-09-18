@@ -12,7 +12,7 @@
    work/api
    w0zro                              3 REPOS
      conn
- ▸     CONTACT READ tui.go           WAITING
+▸      CONTACT READ tui.go           WAITING
        SHELL   zsh
      quickfix-pro
      vim.pro

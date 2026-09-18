@@ -47,7 +47,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	m.width, m.height = 120, 40
 	view := func() string { return m.View().Content }
 	has := func(s string) bool { return strings.Contains(view(), s) }
-	if !has("STATION  W0ZRO@STATION") || !has("CONN 0.7.0 (devel)") || has("HOST ...") || has("SCREEN") || has(prompt) {
+	if !has("STATION  W0ZRO@STATION") || !has("CONN 0.7.0 (devel)") || has("HOST ...") || has("SCREEN") {
 		t.Errorf("the header alone should be up at the start:\n%s", view())
 	}
 	if got := strings.Count(view(), "\n") + 1; got != 40 {
@@ -77,13 +77,11 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if !has("CLOCK") || !has("ALL SYSTEMS NOMINAL") {
 		t.Errorf("the console did not finish:\n%s", view())
 	}
-	if lines := strings.Split(view(), "\n"); !strings.Contains(lines[len(lines)-1], prompt) {
-		t.Errorf("the prompt is not on the bottom row:\n%s", view())
-	}
-	// Seven checks conn always makes, the config file's own, the roots
-	// on the one line this terminal has room for, and two tools; the
-	// screen's own check and the verdict are the two stages past them.
-	if lastStage(m.report()) != stageChecks+12 {
+	// Seven checks conn always makes, the config file's own, the two
+	// roots on a line each now this terminal has the rows, and two
+	// tools; the screen's own check and the verdict are the two stages
+	// past them.
+	if lastStage(m.report()) != stageChecks+13 {
 		t.Errorf("last stage is %d", lastStage(m.report()))
 	}
 	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewConsole || !next.(model).entering {

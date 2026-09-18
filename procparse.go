@@ -188,6 +188,7 @@ func readProcTree(root string, boot time.Time, hz int) []process {
 	if err != nil {
 		return nil
 	}
+	tables := procSocketTables(root)
 	var procs []process
 	for _, e := range entries {
 		if _, err := strconv.Atoi(e.Name()); err != nil {
@@ -207,6 +208,7 @@ func readProcTree(root string, boot time.Time, hz int) []process {
 			p.args = strings.Split(strings.TrimRight(string(cmd), "\x00"), "\x00")
 		}
 		p.cwd, _ = os.Readlink(filepath.Join(dir, "cwd"))
+		p.sockets = fdSockets(dir, tables)
 		procs = append(procs, p)
 	}
 	return procs

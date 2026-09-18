@@ -215,6 +215,11 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	}
 	b.groups = append(b.groups, where)
 
+	// What it has open to the world: what it listens on, what it is
+	// connected to, and the unix sockets it holds by path. A server is
+	// told from a shell at its prompt by nothing else on the page.
+	b.groups = append(b.groups, socketGroup(e.sockets))
+
 	// Which session a contact is carrying, and what it was last
 	// asked — the two things that say which of several claudes this one
 	// is, where the command line only says that it is one.
@@ -305,6 +310,37 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	b.groups = append(b.groups, tree)
 
 	return b
+}
+
+// socketGroup is what a row has open to the world, each socket a
+// line: the ones that listen first, then the connections, then the
+// unix sockets, the label given once for each kind.
+func socketGroup(sockets []socket) readoutGroup {
+	g := readoutGroup{title: "SOCKETS"}
+	var listens, connected, unix []string
+	for _, s := range sockets {
+		switch {
+		case s.proto == "unix":
+			unix = append(unix, s.addr)
+		case s.listening():
+			listens = append(listens, s.String())
+		case s.proto == "TCP":
+			connected = append(connected, s.String())
+		}
+	}
+	for _, kind := range []struct {
+		label string
+		lines []string
+	}{{"listens", listens}, {"connected", connected}, {"unix", unix}} {
+		for i, line := range kind.lines {
+			label := kind.label
+			if i > 0 {
+				label = ""
+			}
+			g.facts = append(g.facts, fact{label: label, value: line, verbatim: true})
+		}
+	}
+	return g
 }
 
 // gitGroups is what git says of a project, as the page words it. A

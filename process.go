@@ -29,6 +29,10 @@ type process struct {
 	// nothing on its own: what it has used since the last reading is
 	// how the processes view tells work from waiting.
 	cpu time.Duration
+	// What it has open to the world: the ports it listens on, the
+	// connections it holds, the unix sockets it has by path; see
+	// sockets.go.
+	sockets []socket
 }
 
 // The kinds of process the processes view tells apart, by the program's
@@ -171,6 +175,8 @@ type entry struct {
 	// and what a contact says it is stopped on.
 	cwd    string
 	asking string
+	// What it has open to the world, for the page; see sockets.go.
+	sockets []socket
 	// Where a row filed by state was read: the project, and the depth
 	// it stood at there; see bystate.go.
 	filed     bool
@@ -434,7 +440,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		p := byPid[pid]
 		kind := kindOf(p)
 		e := entry{pid: p.pid, kind: kind, command: commandLine(p), typed: typedLine(p), tty: p.tty, started: p.started, depth: depth,
-			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking}
+			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking, sockets: p.sockets}
 		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
 		if projects[path] == nil {
 			projects[path] = &project{path: path}

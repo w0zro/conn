@@ -43,6 +43,20 @@ func readProcesses(uid int) ([]process, error) {
 		return nil, fmt.Errorf("ps: %w", err)
 	}
 	cpu := parsePsTimes(out)
+	// And what each has open to the world: lsof again, for the internet
+	// sockets and for the unix ones, which it will not list in one
+	// breath with the working directories. A listing that fails here
+	// costs the reading the sockets and nothing else: a row is a row
+	// without them.
+	sockets := map[int][]socket{}
+	if out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-i", "-F", "pcnPT"); err == nil {
+		sockets = parseSockets(out)
+	}
+	if out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-U", "-F", "pcn"); err == nil {
+		for pid, held := range parseUnixSockets(out) {
+			sockets[pid] = append(sockets[pid], held...)
+		}
+	}
 	ttys := ttyNames()
 	procs := make([]process, 0, len(kinfo))
 	for _, k := range kinfo {
@@ -62,6 +76,7 @@ func readProcesses(uid int) ([]process, error) {
 			p.cwd, p.command = d.cwd, d.command
 		}
 		p.cpu = cpu[p.pid]
+		p.sockets = sockets[p.pid]
 		if p.uid == uid {
 			if raw, err := unix.SysctlRaw("kern.procargs2", p.pid); err == nil {
 				p.args = parseProcargs(raw)

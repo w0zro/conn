@@ -107,11 +107,11 @@ func TestTheConfigurationHolds(t *testing.T) {
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
-		`set -g pane-border-style "fg=` + surfaceHex + `,bg=` + surfaceHex + `"`,
+		`set -g pane-border-style "fg=` + hex(groundColor) + `,bg=` + hex(groundColor) + `"`,
 		"set-environment -g CONN 1", "set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1",
 		`set -ga update-environment " TERM_PROGRAM TERM_PROGRAM_VERSION"`, "set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
 
-		`set -g pane-border-style "fg=` + surfaceHex + `,bg=` + surfaceHex + `"`, `set -g pane-active-border-style "fg=` + surfaceHex + `,bg=` + surfaceHex + `"`,
+		`set -g pane-border-style "fg=` + hex(groundColor) + `,bg=` + hex(groundColor) + `"`, `set -g pane-active-border-style "fg=` + hex(groundColor) + `,bg=` + hex(groundColor) + `"`,
 	} {
 		if !strings.Contains(conf, s) {
 			t.Errorf("configuration lacks %q", s)

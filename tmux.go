@@ -859,11 +859,12 @@ set -g display-time 3000
 	}
 	// The seam between the panel and the bay is the panel's surface
 	// meeting the bay's ground, and needs no line drawn on it: the
-	// border column is painted in the surface, line and all, so the
-	// panel simply ends where the bay begins.
+	// border column is painted in the ground, line and all, so it is a
+	// column of the bay's own air between the two, and the panel ends a
+	// column short of where the bay begins.
 	b.WriteString("set -g pane-border-lines single\n")
-	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", surfaceHex, surfaceHex)
-	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", surfaceHex, surfaceHex)
+	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", ground, ground)
+	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", ground, ground)
 	b.WriteString("set -g pane-border-indicators off\n")
 	b.WriteString(statusLine())
 	return b.String()

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 // The tests run on one station, whatever machine they run on. A model
@@ -18,7 +19,14 @@ import (
 // the run's own with nothing in it. A test about the configuration
 // itself sets both for itself, as those tests already do, and what it
 // sets stands over this.
+//
+// The clock is read in one zone too. The sheet writes a time of day
+// as the wall clock shows it, in the machine's zone, and the files of
+// record were written on the Pacific coast: a runner in UTC drew the
+// same sheet seven hours on and failed for it. So the tests' local
+// zone is that coast's, fixed, whatever the machine's is.
 func TestMain(m *testing.M) {
+	time.Local = time.FixedZone("PDT", -7*60*60)
 	dir, err := os.MkdirTemp("", "conn-test-config-")
 	if err != nil {
 		panic(err)

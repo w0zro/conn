@@ -340,10 +340,16 @@ func (s *scratch) parked(id string) bool {
 // header happened to hold breaks the day the header goes, which is how
 // four of these came to fail at once.
 // The band wears the wordmark in every panel view, so it is the panel
-// itself that says: a group's eyebrow is the processes view's alone.
+// itself that says: a group's eyebrow is the processes view's alone,
+// and so is the word it says with no row to file, which is what a
+// runner with nothing running under its roots shows.
 func (s *scratch) inProcesses() bool {
+	panel := s.panel()
+	if strings.Contains(panel, "NO PROCESSES") {
+		return true
+	}
 	for _, g := range groupOrder {
-		if strings.Contains(s.panel(), groupTitle(g)+" ─") {
+		if strings.Contains(panel, groupTitle(g)+" ─") {
 			return true
 		}
 	}

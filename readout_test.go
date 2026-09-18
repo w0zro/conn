@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -471,6 +472,19 @@ func TestAMadeUpPidIsNotShownAsOne(t *testing.T) {
 		}
 		if want := program(e.typed); !strings.Contains(text, want) {
 			t.Errorf("the page does not name the row %q:\n%s", want, text)
+		}
+	}
+}
+
+// The sheet fits every width the pane can have, one column or two: a
+// row past the edge is a row tmux cuts, and nothing on the sheet is
+// worth less than seeing it end.
+func TestTheSheetFitsEveryWidth(t *testing.T) {
+	for _, w := range []int{panelMinCols, 60, twoColumns - 1, twoColumns, 120, 160} {
+		for _, r := range drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), w, 0, plain) {
+			if n := utf8.RuneCountInString(r.text); n > w {
+				t.Errorf("at %d a row is %d wide: %q", w, n, r.text)
+			}
 		}
 	}
 }

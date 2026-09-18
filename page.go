@@ -376,7 +376,7 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 		}
 		if c.askedWith != "" {
 			cardLine()
-			cardLine(func(l *line) { l.add(l.p.gray, c.askedWith) })
+			cardLine(func(l *line) { l.add(l.p.gray, fit(c.askedWith, measure-3, false)) })
 		}
 		cv.card(cardBelow, 0, measure, 0)
 	} else if c.standing != "" {
@@ -401,7 +401,7 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 		l.to(4)
 		l.key(h.key)
 		l.to(4 + keyCol)
-		l.add(p.ink, h.does)
+		l.add(p.ink, fit(h.does, measure-l.cells, false))
 		emit(l)
 	}
 
@@ -430,7 +430,13 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 		if c.waitedFor > 0 {
 			caption += " · waiting " + strings.ToLower(brief(c.waitedFor))
 		}
-		barW := max(measure-utf8.RuneCountInString(caption)-2, 10)
+		// The caption sits after the bar where the width has room for
+		// both, and under it where it has not.
+		barW := measure - utf8.RuneCountInString(caption) - 2
+		beside := barW >= 10
+		if !beside {
+			barW = measure
+		}
 		total := c.worked + c.waitedFor
 		waited := 0
 		if total > 0 && c.waitedFor > 0 {
@@ -441,8 +447,13 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 		if waited > 0 {
 			l.add(p.orange, strings.Repeat("█", waited))
 		}
-		l.add("", "  ")
-		l.add(p.gray, caption)
+		if beside {
+			l.add("", "  ")
+		} else {
+			emit(l)
+			l = newLine()
+		}
+		l.add(p.gray, fit(caption, measure, false))
 		emit(l)
 		blank()
 		for _, part := range wrapValue(c.story, measure) {

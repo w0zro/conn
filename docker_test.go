@@ -337,13 +337,13 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 	text := texts(drawReadout(b, 60, 24, plain))
 	for _, want := range []string{
 		"94e3da190ba7", // the header, in place of a pid conn invented
-		"IMAGE ..... NGINX:ALPINE",
-		"UP 3 MINUTES (HEALTHY)", // docker's own sentence, which says it best
-		"HEALTH .... HEALTHY",
-		"COMPOSE ... COMPOSE-DEMO",
-		"NAME ...... COMPOSE-DEMO-WEB-1",
-		"PORTS ..... LOCALHOST:8438",
-		"ENTER OPENS ITS LOG",
+		"Image ..... nginx:alpine",
+		"Up 3 minutes (healthy)", // docker's own sentence, which says it best
+		"Health .... Healthy",
+		"Compose ... compose-demo",
+		"Name ...... compose-demo-web-1",
+		"Ports ..... localhost:8438",
+		"Enter opens its log",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page lacks %q:\n%s", want, text)
@@ -351,7 +351,7 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 	}
 	// Nothing from the process page, which asks the table things it
 	// cannot answer for a container.
-	for _, unwanted := range []string{"PID ", "STATE ", "CPU ", "COMMAND "} {
+	for _, unwanted := range []string{"PID ", "State ", "CPU ", "Command "} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("the page still says %q:\n%s", unwanted, text)
 		}
@@ -361,7 +361,7 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 	// that buries it: Exited (3) reads as a fact, not as a fault.
 	c.state, c.exit, c.health, c.status = "exited", "3", "", "Exited (3) 8 seconds ago"
 	text = texts(drawReadout(composeReadout(readoutSubject{container: &c, inside: true}, "/Users/w0zro", now), 60, 24, plain))
-	if !strings.Contains(text, "WRONG ..... EXIT 3") {
+	if !strings.Contains(text, "Wrong ..... Exit 3") {
 		t.Errorf("a dead service does not say what went wrong:\n%s", text)
 	}
 }

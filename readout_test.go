@@ -44,11 +44,17 @@ func readoutSubj() readoutSubject {
 	}
 }
 
-// The readout at both widths is the file of record.
+// The readout at both widths is the file of record: a contact's sheet,
+// and the page of groups every other row gets, here a shell's.
 func TestTheReadoutIsWhatItWas(t *testing.T) {
 	b := composeReadout(readoutSubj(), "/Users/w0zro", processesNow)
 	golden(t, "readout-120x40.txt", texts(drawReadout(b, 120, 40, plain)))
 	golden(t, "readout-narrow-60x40.txt", texts(drawReadout(b, 60, 40, plain)))
+	s := readoutSubj()
+	s.entry.kind, s.entry.command, s.entry.typed, s.entry.status, s.entry.asking = kindShell, "zsh", "", statusActive, ""
+	s.entry.sockets = []socket{{"TCP", "*:5173", "LISTEN"}}
+	s.sess, s.carried = sessionFile{}, session{}
+	golden(t, "readout-shell-100x40.txt", texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 40, plain)))
 }
 
 // The page says the things the processes view's columns have no room
@@ -128,12 +134,12 @@ func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 	}
 	// A terminal conn did not open says so, since inside the server that
 	// is a fact about the row rather than about conn.
-	if !strings.Contains(text, "CONN DID NOT OPEN IT") {
+	if !strings.Contains(text, "conn did not open it") {
 		t.Errorf("a terminal conn does not hold is not said:\n%s", text)
 	}
 	// A status with no moment behind it gets no clause rather than a
 	// made-up one.
-	if strings.Contains(text, "IDLE · FOR") {
+	if strings.Contains(text, "Idle · for") {
 		t.Errorf("a status with no moment was dated anyway:\n%s", text)
 	}
 }
@@ -214,7 +220,7 @@ func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 // or holding the last thing it read.
 func TestTheReadoutSaysWhenItsRowIsGone(t *testing.T) {
 	text := texts(drawReadout(readoutReport{pid: 49212, gone: true}, 120, 40, plain))
-	if !strings.Contains(text, "NO LONGER LISTED") {
+	if !strings.Contains(text, "no longer listed") {
 		t.Errorf("a page whose row went says:\n%s", text)
 	}
 	if !strings.Contains(text, "PID 49212") {

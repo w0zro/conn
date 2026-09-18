@@ -77,12 +77,15 @@ type readoutGroup struct {
 	facts []fact
 }
 
-// labelW is the widest a label may be. The leader pads to factCol-1
+// pageCol is where a value starts on the page, from the margin.
+const pageCol = factCol
+
+// labelW is the widest a label may be. The leader pads to pageCol-1
 // and then adds a space, so a label that fills the field leaves one dot
 // and starts its value a column past every other value on the page. No
 // label here needs the room, and a page whose values do not line up is
 // a page nobody can run an eye down.
-const labelW = factCol - 3
+const labelW = pageCol - 3
 
 // add puts a fact in a group, and drops one with nothing to say: most
 // of what the page reports is absent on some row or other, and a label
@@ -135,15 +138,15 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// the part that must not be cut is the part that goes at the top.
 	if e.asking != "" {
 		ask := readoutGroup{title: "WAITING"}
-		ask.add("on", e.asking)
-		ask.add("for", age(e.since, now))
+		ask.add("On", e.asking)
+		ask.add("For", elapsed(e.since, now))
 		// The thing itself, in the contact's words: the tool it asked to
 		// use and what for, or what it last said, which is the question
 		// when a turn ended on one.
 		if s.carried.Ask.Tool != "" {
-			ask.addAsWritten("asks", s.carried.Ask.String())
+			ask.addAsWritten("Asks", s.carried.Ask.String())
 		} else {
-			ask.addAsWritten("said", s.carried.Ask.Said)
+			ask.addAsWritten("Said", s.carried.Ask.Said)
 		}
 		b.groups = append(b.groups, ask)
 	}
@@ -165,14 +168,14 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	}
 
 	what := readoutGroup{title: "WHAT"}
-	what.add("kind", e.kind)
+	what.add("Kind", said(e.kind))
 	// The command as it was written, which is a thing somebody might
 	// retype — and so without the note conn appends when it raises a
 	// contact. That note is a thousand characters of conn's own prose
 	// with newlines through it, and printing it here was conn showing
 	// the operator the noise conn made, at length, above everything the
 	// page is actually for. The processes view has always dropped it.
-	what.addAsWritten("command", e.asTyped())
+	what.addAsWritten("Command", e.asTyped())
 	// The pid is on the header, an inch above this, and is not said
 	// again here.
 	// How it stands, and how long it has stood that way. Only a contact
@@ -180,32 +183,34 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// since the moment conn holds for it is when a contact last changed
 	// what it says of itself, which has nothing to do with when
 	// something stopped it.
-	status := e.status
+	status := said(e.status)
 	// The clause is dropped where the group above already carries it:
 	// on a dense page a thing said twice reads as two things.
 	if !e.since.IsZero() && !e.fault && e.asking == "" {
-		status += " · FOR " + age(e.since, now)
+		status += " · for " + elapsed(e.since, now)
 	}
-	what.add("status", status)
-	what.add("state", stateWord(s.proc.state, s.proc.foreground))
-	what.add("up", join(" · ", age(e.started, now), "SINCE "+stamp(e.started)))
+	what.add("Status", status)
+	what.add("State", stateWord(s.proc.state, s.proc.foreground))
+	if !e.started.IsZero() {
+		what.add("Up", join(" · ", elapsed(e.started, now), "since "+stamp(e.started)))
+	}
 	// What it has actually spent, which is the measure behind WORKING and
 	// is nowhere in the processes view. Under a second is none worth
 	// saying.
 	if s.proc.cpu >= time.Second {
-		what.add("cpu", spell(s.proc.cpu)+" SPENT")
+		what.add("CPU", span(s.proc.cpu)+" spent")
 	}
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("project", tilde(s.project.path, home))
+	where.addPath("Project", tilde(s.project.path, home))
 	// The project is the tree's, and a process below the root can have
 	// cd'd anywhere since; where it actually is is worth saying only
 	// when it is somewhere else.
 	if e.cwd != "" && e.cwd != s.project.path {
-		where.addPath("cwd", tilde(e.cwd, home))
+		where.addPath("CWD", tilde(e.cwd, home))
 	}
-	where.add("tty", e.tty)
+	where.add("TTY", e.tty)
 	// Whether conn can put you in front of this row, by the one rule
 	// that decides it everywhere: enter, the ring, and the bay taking
 	// the next thing when its own ends all ask the same question, and
@@ -215,13 +220,13 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		// conn holds no panes outside its server, so saying this row is
 		// in none of them says nothing about the row.
 	case reachable(s.pane):
-		where.add("pane", s.pane.id+" · CAN BE REACHED")
+		where.add("Pane", s.pane.id+" · can be reached")
 	case s.pane.dead:
-		where.add("pane", s.pane.id+" · ITS PANE HAS ENDED")
+		where.add("Pane", s.pane.id+" · its pane has ended")
 	case s.pane.id != "":
-		where.add("pane", s.pane.id+" · CANNOT BE REACHED")
+		where.add("Pane", s.pane.id+" · cannot be reached")
 	default:
-		where.add("pane", "NONE · CONN DID NOT OPEN IT")
+		where.add("Pane", "None · conn did not open it")
 	}
 	b.groups = append(b.groups, where)
 
@@ -239,43 +244,43 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// it is, which is the first thing anybody asks of a thing that
 	// answers back.
 	if a, ok := contacts[program(e.asTyped())]; ok {
-		contact.add("with", join(" · ", a.name, a.maker))
+		contact.add("With", join(" · ", a.name, a.maker))
 	}
 	// Which model is answering, by the name the API knows it by. A
 	// session can change model part way through, so this is the one
 	// that answered last and not the one it was raised on.
-	contact.add("model", s.carried.Model)
+	contact.add("Model", s.carried.Model)
 	// What that turn was given to read: what was sent with it and what
 	// it read back out of the cache. It is what the contact is hauling,
 	// and the readable half of the question people ask about a context
 	// window. How large the window is is nowhere Claude Code writes it
 	// down, so conn does not say.
 	if s.carried.Carried > 0 {
-		contact.add("context", tokens(s.carried.Carried)+" CARRIED")
+		contact.add("Context", tokens(s.carried.Carried)+" carried")
 	}
 	// A resumed contact names its session on its own command line, an
 	// inch above, and this would be the second place to read one id.
 	if !strings.Contains(e.asTyped(), s.sess.SessionID) {
-		contact.add("session", s.sess.SessionID)
+		contact.add("Session", s.sess.SessionID)
 	}
-	contact.add("name", s.sess.Name)
-	contact.add("version", s.sess.Version)
+	contact.add("Name", s.sess.Name)
+	contact.add("Version", s.sess.Version)
 	// What sort of session it is, said only when it is not somebody's
 	// own. Every contact conn can put you in front of is interactive,
 	// so a row saying so on every one of them is a row nobody reads;
 	// one running behind another session is worth the line, and is the
 	// answer to a claude in the list nobody remembers starting.
 	if s.sess.Kind != interactiveSession {
-		contact.add("running", s.sess.Kind)
+		contact.add("Running", s.sess.Kind)
 	}
 	// The branch the session recorded, where that is not the branch the
 	// project is on now. The same word under two titles reads as two
 	// facts; a contact working a branch the project has since left is
 	// the case worth a line of its own.
 	if !strings.EqualFold(s.carried.Branch, s.git.branch) {
-		contact.add("branch", s.carried.Branch)
+		contact.add("Branch", s.carried.Branch)
 	}
-	contact.addAsWritten("last ask", s.carried.Prompt)
+	contact.addAsWritten("Last ask", s.carried.Prompt)
 	// A contact that gives no account of itself. conn reads what Claude
 	// Code writes down about the instance it is running; another
 	// maker's agent writes nothing conn knows how to read, and neither
@@ -284,7 +289,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// which reads as a page that gave up rather than a channel with
 	// nothing on it.
 	if e.kind == kindContact && s.sess.SessionID == "" {
-		contact.add("says", "NOTHING CONN CAN READ")
+		contact.add("Says", "Nothing conn can read")
 	}
 	b.groups = append(b.groups, contact)
 
@@ -304,16 +309,16 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// them is on that row's own page, an i away.
 	tree := readoutGroup{title: "TREE"}
 	if s.parent.pid != 0 {
-		tree.addAsWritten("parent", s.parent.kind+" "+program(s.parent.asTyped())+" · "+strconv.Itoa(s.parent.pid))
+		tree.addAsWritten("Parent", said(s.parent.kind)+" "+program(s.parent.asTyped())+" · "+strconv.Itoa(s.parent.pid))
 	}
 	for i, k := range s.children {
-		label := "runs"
+		label := "Runs"
 		if i > 0 {
 			label = ""
 		}
 		tree.facts = append(tree.facts, fact{
 			label:    label,
-			value:    k.kind + " " + program(k.asTyped()) + " · " + strconv.Itoa(k.pid) + " · " + k.status,
+			value:    said(k.kind) + " " + program(k.asTyped()) + " · " + strconv.Itoa(k.pid) + " · " + said(k.status),
 			verbatim: true,
 		})
 	}
@@ -341,7 +346,7 @@ func socketGroup(sockets []socket) readoutGroup {
 	for _, kind := range []struct {
 		label string
 		lines []string
-	}{{"listens", listens}, {"connected", connected}, {"unix", unix}} {
+	}{{"Listens", listens}, {"Connected", connected}, {"Unix", unix}} {
 		for i, line := range kind.lines {
 			label := kind.label
 			if i > 0 {
@@ -364,38 +369,38 @@ func gitGroups(git gitStatus, now time.Time) []readoutGroup {
 	var out []readoutGroup
 	if git.problem != "" {
 		g := readoutGroup{title: "PROJECT"}
-		g.add("git", git.problem)
+		g.add("Git", git.problem)
 		out = append(out, g)
 	}
 	if git.repo {
 		g := readoutGroup{title: "PROJECT"}
 		branch := git.branch
 		if git.detached {
-			branch = "DETACHED"
+			branch = "detached"
 		}
 		if git.dirty > 0 {
-			branch = join(" · ", branch, strconv.Itoa(git.dirty)+" CHANGED")
+			branch = join(" · ", branch, strconv.Itoa(git.dirty)+" changed")
 		} else {
-			branch = join(" · ", branch, "CLEAN")
+			branch = join(" · ", branch, "clean")
 		}
-		g.add("branch", branch)
-		g.addAsWritten("commit", join(" · ", git.commit, git.subject))
-		g.add("committed", age(git.when, now)+" AGO")
+		g.add("Branch", branch)
+		g.addAsWritten("Commit", join(" · ", git.commit, git.subject))
+		g.add("Committed", elapsed(git.when, now)+" ago")
 		// Against what it tracks, when it tracks anything: a branch with
 		// no upstream is not behind by nothing, there is nothing for it
 		// to be behind.
 		if git.upstream != "" {
 			var moves []string
 			if git.ahead > 0 {
-				moves = append(moves, strconv.Itoa(git.ahead)+" AHEAD")
+				moves = append(moves, strconv.Itoa(git.ahead)+" ahead")
 			}
 			if git.behind > 0 {
-				moves = append(moves, strconv.Itoa(git.behind)+" BEHIND")
+				moves = append(moves, strconv.Itoa(git.behind)+" behind")
 			}
 			if len(moves) == 0 {
-				moves = append(moves, "EVEN")
+				moves = append(moves, "even")
 			}
-			g.add("tracking", git.upstream+" · "+strings.Join(moves, ", "))
+			g.add("Tracking", git.upstream+" · "+strings.Join(moves, ", "))
 		}
 		out = append(out, g)
 	}
@@ -410,7 +415,7 @@ func gitGroups(git gitStatus, now time.Time) []readoutGroup {
 func composeProject(path string, t readoutTable, home string, now time.Time) readoutReport {
 	b := readoutReport{name: tilde(path, home)}
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("project", tilde(path, home))
+	where.addPath("Project", tilde(path, home))
 	b.groups = append(b.groups, where)
 	b.groups = append(b.groups, gitGroups(t.git[path], now)...)
 	// What is running there, as the processes view lists it: each row
@@ -424,11 +429,11 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 		for _, e := range pl.entries {
 			label := ""
 			if len(running.facts) == 0 {
-				label = "rows"
+				label = "Rows"
 			}
 			running.facts = append(running.facts, fact{
 				label:    label,
-				value:    strings.Repeat("  ", e.depth) + e.kind + " " + activityOf(e) + " · " + strconv.Itoa(e.pid) + " · " + e.status,
+				value:    strings.Repeat("  ", e.depth) + said(e.kind) + " " + activityOf(e) + " · " + strconv.Itoa(e.pid) + " · " + said(e.status),
 				verbatim: true,
 			})
 		}
@@ -446,27 +451,37 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 func composeSession(c session, t readoutTable, home string, now time.Time) readoutReport {
 	b := readoutReport{name: c.ID}
 	what := readoutGroup{title: "WHAT"}
-	what.add("kind", "SESSION")
+	what.add("Kind", said("SESSION"))
 	if a, ok := contacts[contactProgram]; ok {
-		what.add("with", join(" · ", a.name, a.maker))
+		what.add("With", join(" · ", a.name, a.maker))
 	}
 	if !c.When.IsZero() {
-		what.add("moved", age(c.When, now)+" AGO · "+stamp(c.When))
+		what.add("Moved", elapsed(c.When, now)+" ago · "+stamp(c.When))
 	}
-	what.add("branch", c.Branch)
-	what.addAsWritten("last ask", c.Prompt)
-	what.add("model", c.Model)
+	what.add("Branch", c.Branch)
+	what.addAsWritten("Last ask", c.Prompt)
+	what.add("Model", c.Model)
 	if c.Carried > 0 {
-		what.add("context", tokens(c.Carried)+" CARRIED")
+		what.add("Context", tokens(c.Carried)+" carried")
 	}
-	what.addAsWritten("resume", contactProgram+" --resume "+c.ID)
+	what.addAsWritten("Resume", contactProgram+" --resume "+c.ID)
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("project", tilde(c.Dir, home))
+	where.addPath("Project", tilde(c.Dir, home))
 	b.groups = append(b.groups, where)
 	b.groups = append(b.groups, gitGroups(t.git[c.Dir], now)...)
 	return b
+}
+
+// elapsed is how long since a moment, as the page says it: in the
+// lower case the page is written in, and nothing for a moment that is
+// not known.
+func elapsed(since, now time.Time) string {
+	if since.IsZero() {
+		return ""
+	}
+	return span(now.Sub(since))
 }
 
 // stateWord is what the table's one letter for a process means, with
@@ -476,22 +491,22 @@ func stateWord(state byte, foreground bool) string {
 	var word string
 	switch state {
 	case 'R':
-		word = "RUNNING"
+		word = "Running"
 	case 'S':
-		word = "SLEEPING"
+		word = "Sleeping"
 	case 'I':
-		word = "IDLE"
+		word = "Idle"
 	case 'T':
-		word = "STOPPED"
+		word = "Stopped"
 	case 'Z':
-		word = "ENDED"
+		word = "Ended"
 	case 'D':
-		word = "IN DISK WAIT"
+		word = "In disk wait"
 	default:
 		return ""
 	}
 	if foreground {
-		word += " · HAS THE TERMINAL"
+		word += " · has the terminal"
 	}
 	return word
 }
@@ -502,7 +517,7 @@ func stamp(at time.Time) string {
 	if at.IsZero() {
 		return ""
 	}
-	return strings.ToUpper(at.UTC().Format("02-Jan 15:04")) + " Z"
+	return at.UTC().Format("02-Jan 15:04") + " Z"
 }
 
 // drawReadout renders the readout for a pane of the given size.
@@ -522,7 +537,6 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	// cannot be mistaken for another row.
 	c.blank(0)
 	l := c.line()
-	l.add(p.orange+p.bold, "READOUT")
 	right := "PID " + strconv.Itoa(b.pid)
 	// A container is known by its id. The number conn files it under is
 	// its own bookkeeping — below zero, where no process is, so the
@@ -531,15 +545,13 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	if b.name != "" {
 		right = b.name
 	}
-	l.to(measure - utf8.RuneCountInString(right))
-	l.add(p.gray, right)
+	l.eyebrow(0, "READOUT", measure, right)
 	c.emit(l, 0, false)
-	c.rule(0, measure)
 
 	if b.gone {
 		c.blank(0)
 		l := c.line()
-		l.add(p.chip, " THE ROW IS NO LONGER LISTED ")
+		l.stamp("The row is no longer listed")
 		c.emit(l, 0, false)
 		return padTo(c, height)
 	}
@@ -553,15 +565,18 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 		}
 		c.blank(0)
 		l := c.line()
-		l.title(0, g.title)
+		// The group's name, with a rule running off it to the edge of
+		// the page: the same mark a group's name takes on the panel,
+		// since the page and the panel are the same instrument speaking.
+		l.eyebrow(0, g.title, measure, "")
 		c.emit(l, 0, false)
 		for _, f := range g.facts {
-			for i, part := range wrapValue(cased(f.value, f.path || f.verbatim), measure-factCol-1) {
+			for i, part := range wrapValue(f.value, measure-pageCol-1) {
 				l := c.line()
 				if i == 0 && f.label != "" {
-					l.leader(strings.ToUpper(f.label), factCol-1, p.faint)
+					l.leader(f.label, pageCol-1, p.faint)
 				} else {
-					l.to(factCol)
+					l.to(pageCol)
 				}
 				l.add(p.ink, part)
 				c.emit(l, 0, false)
@@ -639,56 +654,56 @@ func composeService(b readoutReport, c container, p pane, inside bool, home stri
 	b.name = c.id
 
 	what := readoutGroup{title: "WHAT"}
-	what.add("kind", kindService)
-	what.add("service", c.service)
-	what.add("image", c.image)
+	what.add("Kind", said(kindService))
+	what.add("Service", c.service)
+	what.add("Image", c.image)
 	// docker's own sentence, which says the state and its age together
 	// and says them better than conn would by taking them apart: Up 3
 	// minutes (healthy), Exited (3) 8 seconds ago.
-	what.addAsWritten("status", strings.ToUpper(c.status))
+	what.addAsWritten("Status", said(c.status))
 	// And what the row made of it, which is the word the processes view
 	// used and the reason it wears a mark or does not.
 	word, fault := containerStatus(c)
 	if fault {
-		what.add("wrong", word)
+		what.add("Wrong", said(word))
 	}
 	// A health check disagreeing with a container that is up is the
 	// whole reason to have one, and the sentence above buries it in
 	// parentheses.
 	if c.health != "" {
-		what.add("health", strings.ToUpper(c.health))
+		what.add("Health", said(c.health))
 	}
 	if !c.since.IsZero() {
 		// Docker gives how long ago the status became true, which for a
 		// running container is when it started and for a stopped one is
 		// when it stopped. Neither is "up", so neither is called it.
-		what.add("since", age(c.since, now)+" · "+stamp(c.since))
+		what.add("Since", elapsed(c.since, now)+" · "+stamp(c.since))
 	}
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("project", tilde(c.dir, home))
+	where.addPath("Project", tilde(c.dir, home))
 	// The compose project, which is what its siblings share and what
 	// docker compose down would take with it.
 	if c.project != "" {
-		where.add("compose", c.project)
+		where.add("Compose", c.project)
 	}
-	where.add("name", c.name)
+	where.add("Name", c.name)
 	// Where you would go to reach it, which is the one thing a service
 	// has that a process row has no column for.
 	if len(c.ports) > 0 {
-		where.add("ports", "LOCALHOST:"+strings.Join(c.ports, " · LOCALHOST:"))
+		where.add("Ports", "localhost:"+strings.Join(c.ports, " · localhost:"))
 	}
 	// A container has no terminal. The pane is the one conn opened to
 	// watch it, when it has, and that is what enter goes into.
 	switch {
 	case !inside:
 	case reachable(p):
-		where.add("pane", p.id+" · CAN BE REACHED")
+		where.add("Pane", p.id+" · can be reached")
 	case p.dead:
-		where.add("pane", p.id+" · ITS PANE HAS ENDED")
+		where.add("Pane", p.id+" · its pane has ended")
 	default:
-		where.add("pane", "NONE · ENTER OPENS ITS LOG")
+		where.add("Pane", "None · Enter opens its log")
 	}
 	b.groups = append(b.groups, where)
 	return b

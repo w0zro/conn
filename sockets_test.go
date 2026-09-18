@@ -100,7 +100,7 @@ func TestThePageSaysWhatARowListensOn(t *testing.T) {
 		{"unix", "/tmp/dev.sock", ""},
 	}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
-	for _, want := range []string{"SOCKETS", "LISTENS ... TCP *:5173", "CONNECTED . TCP 127.0.0.1:5173->127.0.0.1:60322", "UNIX ...... /tmp/dev.sock"} {
+	for _, want := range []string{"SOCKETS", "Listens ... TCP *:5173", "Connected . TCP 127.0.0.1:5173->127.0.0.1:60322", "Unix ...... /tmp/dev.sock"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page lacks %q:\n%s", want, text)
 		}

@@ -319,7 +319,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	tellCursor(path, subject{pid: -99}, &r)
 	next, _ = m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
-	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "NGINX") || !strings.Contains(text, "abc123def456") {
+	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "nginx") || !strings.Contains(text, "abc123def456") {
 		t.Errorf("the service's page was not composed from what the panel said of it:\n%s", text)
 	}
 
@@ -414,7 +414,7 @@ func TestAProjectHasAPageOfItsOwn(t *testing.T) {
 		t.Fatal("a project was not there to be worded")
 	}
 	text := texts(drawReadout(page, 120, 40, plain))
-	for _, want := range []string{"READOUT", "w0zro/conn", "PROJECT", "MAIN · 2 CHANGED", "RUNNING", "SHELL zsh · 11 · ACTIVE", "  RUN go test ./... · 22 · WORKING"} {
+	for _, want := range []string{"READOUT", "w0zro/conn", "PROJECT", "main · 2 changed", "RUNNING", "Shell zsh · 11 · Active", "  Run go test ./... · 22 · Working"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the project's page does not say %q:\n%s", want, text)
 		}
@@ -473,8 +473,8 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 		t.Fatal("a session the panel published was not there to be worded")
 	}
 	text := texts(drawReadout(page, 120, 40, plain))
-	for _, want := range []string{"d81d7536-e545-4881-8daa-f1d291a03be1", "SESSION", "CLAUDE CODE · ANTHROPIC", "AGO · ", "MAIN", "make the page follow the list",
-		"CLAUDE-OPUS-5", "571K CARRIED", "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1", "w0zro/conn", "BRANCH"} {
+	for _, want := range []string{"d81d7536-e545-4881-8daa-f1d291a03be1", "Session", "Claude Code · Anthropic", " ago · ", "main", "make the page follow the list",
+		"claude-opus-5", "571K carried", "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1", "w0zro/conn", "Branch"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the session's page does not say %q:\n%s", want, text)
 		}

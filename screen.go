@@ -315,11 +315,15 @@ func body(r report, width int, own check, p palette) []row {
 		// out which grade this one is before they can read it. A system
 		// conn could not check is not a system conn found nominal, and
 		// the console has exactly one way of saying so.
+		// The word ends at the column whether it is said or chipped:
+		// the chip's own cell of ground hangs a cell into the margin,
+		// so its word lines up with NOMINAL above and below it rather
+		// than its box.
 		if k.status == nominal {
 			l.to(measure - utf8.RuneCountInString(k.status))
 			l.add(p.gray, strings.ToUpper(k.status))
 		} else if r.lit {
-			l.to(measure - utf8.RuneCountInString(k.status) - 2)
+			l.to(measure - utf8.RuneCountInString(k.status) - 1)
 			l.add(p.chip, " "+strings.ToUpper(k.status)+" ")
 		}
 		c.emit(l, stageChecks+i, false)

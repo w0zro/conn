@@ -133,9 +133,11 @@ func TestFaultsLightTheConsole(t *testing.T) {
 	}
 	measure, _, _ := columns(120)
 	for _, row := range rows {
-		// In plain text the chip's trailing space is trimmed with the row's.
-		if strings.HasSuffix(row.text, " LOW") && utf8.RuneCountInString(row.text) != margin+measure-1 {
-			t.Errorf("chip is not flush with column %d: %q", margin+measure, row.text)
+		// The chip's word ends at the column NOMINAL ends at, its box
+		// hanging a cell into the margin. In plain text the chip's
+		// trailing space is trimmed with the row's.
+		if strings.HasSuffix(row.text, " LOW") && utf8.RuneCountInString(row.text) != margin+measure {
+			t.Errorf("the chip's word is not flush with column %d: %q", margin+measure, row.text)
 		}
 	}
 	st.machine.power.percent, st.machine.power.state = 5, "discharging"

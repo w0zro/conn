@@ -809,12 +809,15 @@ func (m model) bar() string {
 	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{"?", "Help"}))
 }
 
-// prefixWord is the prefix as the bar writes it: ctrl-space for
-// C-Space, alt-a for M-a, the rest as tmux spells it, in lower case.
+// prefixWord is the prefix as the bar writes it: ^Space for C-Space,
+// the caret being how a terminal has always written control, and
+// short enough that a chord said three times across the bar is still
+// a bar of keys and not a sentence; alt-a for M-a; the rest as tmux
+// spells it.
 func prefixWord(p string) string {
-	p = strings.ReplaceAll(p, "C-", "ctrl-")
+	p = strings.ReplaceAll(p, "C-", "^")
 	p = strings.ReplaceAll(p, "M-", "alt-")
-	return strings.ToLower(p)
+	return p
 }
 
 // projectHasDown says whether a project has anything declared and not

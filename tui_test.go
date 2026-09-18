@@ -1252,7 +1252,7 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	// The status line has been said once already, so what a key asks for
 	// here is the key's own asking and not the line's first telling.
-	m.said, m.saidKeys, m.saidStation, m.saidBoard, m.saidBar = true, m.keys(), m.station(), m.board(), m.bar()
+	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
 
 	press := func(m model, k string) (model, tea.Cmd) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))

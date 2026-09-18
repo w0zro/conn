@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"maps"
 	"os"
 	"slices"
@@ -197,7 +196,7 @@ type model struct {
 	// And the station's own word, for the line to wear while the keys
 	// are off the panel; see station.
 	saidStation string
-	saidBoard   string
+	saidUp      string
 	saidBar     string
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
@@ -647,13 +646,13 @@ func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	keys, station, board, bar := m.keys(), m.station(), m.board(), m.bar()
-	if m.said && keys == m.saidKeys && station == m.saidStation && board == m.saidBoard && bar == m.saidBar {
+	keys, station, up, bar := m.keys(), m.station(), m.upWord(), m.bar()
+	if m.said && keys == m.saidKeys && station == m.saidStation && up == m.saidUp && bar == m.saidBar {
 		return m, nil
 	}
-	m.said, m.saidKeys, m.saidStation, m.saidBoard, m.saidBar = true, keys, station, board, bar
-	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag)
-	return m, func() tea.Msg { _ = srv.say(keys, station, board, bar, ident); return nil }
+	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, keys, station, up, bar
+	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, colored())
+	return m, func() tea.Msg { _ = srv.say(keys, station, up, bar, ident); return nil }
 }
 
 // keys is what conn knows about its own keys, for the left of the
@@ -671,42 +670,28 @@ func (m model) saying() (model, tea.Cmd) {
 // say. tmux shows it only while the keys are on the panel, so a bay
 // with the keys in it leaves the position dark.
 func (m model) keys() string {
-	return m.stretch(m.keysWord())
-}
-
-// keysWord is the panel's word for where the keys are, and how many
-// cells it takes.
-func (m model) keysWord() (string, int) {
 	if m.kill != nil {
 		// The question itself is on the key bar, where the answer is.
-		return statusLineBlock("CONFIRM"), len(" CONFIRM ")
+		return statusLineBlock("CONFIRM")
 	}
 	// Reading the manual is a state the operator is in, like a question
 	// armed, and it outranks the wordmark: while the manual is up the
 	// panel is not being worked.
 	if m.helping && m.view == viewProcesses {
-		return statusLineBlock(helpWord), len(helpWord) + 2
+		return statusLineBlock(helpWord)
 	}
 	// The whole tree is a way of looking at the processes view rather
 	// than a view of its own, and the band says so while it is on.
 	if m.full && m.view == viewProcesses {
-		return statusLineBlock(treeWord), len(treeWord) + 2
+		return statusLineBlock(treeWord)
 	}
 	// Otherwise the wordmark: the band is the station's, and the panel
 	// says which view it is in by its own eyebrows. The console says
 	// nothing, wearing a wordmark of its own six rows tall.
 	if m.view == viewConsole {
-		return "", 0
+		return ""
 	}
-	return statusLineWord(wordmarkLine, hex(inkColor), true), len(wordmarkLine)
-}
-
-// stretch is a word on the panel's stretch of the band, padded to it:
-// the border shows the ground past what is written on it, and the
-// band is meant to run the pane's width. tmux keeps two cells at each
-// end of a border for itself.
-func (m model) stretch(word string, cells int) string {
-	return banded(word, cells, m.width-4)
+	return statusLineWord(wordmarkLine, hex(inkColor), true)
 }
 
 // wordmarkLine is conn's name as the band wears it.
@@ -727,22 +712,18 @@ const helpWord = "HELP"
 // program the operator opened and has to get out of by guessing.
 func (m model) station() string {
 	if m.helping {
-		return m.stretch(statusLineBlock(helpWord), len(helpWord)+2)
+		return statusLineBlock(helpWord)
 	}
-	return m.stretch(statusLineWord(wordmarkLine, hex(inkColor), true), len(wordmarkLine))
+	return statusLineWord(wordmarkLine, hex(inkColor), true)
 }
 
-// board is the bay's stretch of the band: the clock at its right edge,
-// how long this conn has been up, as a mission clock reads, padded to
-// the bay's width as the last reading had it.
-func (m model) board() string {
+// upWord is the right edge of the band: how long this conn has been
+// up, as a mission clock reads.
+func (m model) upWord() string {
 	if m.up.IsZero() {
 		return ""
 	}
-	clock := "T+ " + strings.ToLower(uptime(m.up, m.now)) + " "
-	width := m.panes[m.bay].width - 4
-	pad := max(width-len(clock), 0)
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s%s", borderHex, grayHex, strings.Repeat(" ", pad), clock)
+	return statusLineWord("T+ "+strings.ToLower(uptime(m.up, m.now))+" ", grayHex, false)
 }
 
 // bar is the key bar across the foot of the window: the keys that work
@@ -750,28 +731,29 @@ func (m model) board() string {
 // cannot take is not offered — or what has the keys instead: the
 // manual, or a question armed, which is said here with its answers.
 func (m model) bar() string {
+	p := colored()
 	switch {
 	case m.kill != nil:
-		return statusLineBlock("CONFIRM") + statusLineSay(m.kill.prompt) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}})
+		return p.chip + " CONFIRM " + p.end + p.selection + "  " + p.parchment + m.kill.prompt + p.end + p.selection + "   " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, p)
 	case m.helping:
-		return keyBar(helpHints)
+		return keyBar(helpHints, p)
 	}
 	// While a process has the keys, none of the panel's work: what
 	// works is a chord, which tmux takes before the process does. The
 	// bar says the chords that matter from there, with the prefix as
 	// it is pressed.
 	if m.inside && !m.focused && m.view != viewConsole {
-		p := prefixWord(prefix())
-		hints := []keyHint{{p + " -", "Panel"}}
+		px := prefixWord(prefix())
+		hints := []keyHint{{px + " -", "Panel"}}
 		if len(waitingRound(m.projects)) > 0 {
-			hints = append(hints, keyHint{p + " Tab", "Next waiting"})
+			hints = append(hints, keyHint{px + " Tab", "Next waiting"})
 		}
-		return keyBar(append(hints, keyHint{p + " " + p, "Last process"}, keyHint{p + " ?", "Help"}))
+		return keyBar(append(hints, keyHint{px + " " + px, "Last process"}, keyHint{px + " ?", "Help"}), p)
 	}
 	var hints []keyHint
 	switch m.view {
 	case viewConsole:
-		return keyBar(consoleHints)
+		return keyBar(consoleHints, p)
 	case viewProjects:
 		rows := m.projectRows()
 		if len(rows) > 1 {
@@ -784,7 +766,7 @@ func (m model) bar() string {
 				hints = append(hints, keyHint{"Enter", "Open a shell there"}, keyHint{"alt-a", "New contact"}, keyHint{"alt-A", "Sessions"})
 			}
 		}
-		return keyBar(append(hints, keyHint{"Esc", "Back"}))
+		return keyBar(append(hints, keyHint{"Esc", "Back"}), p)
 	case viewSessions:
 		if len(m.sessionsRows()) > 1 {
 			hints = append(hints, moveHint)
@@ -792,9 +774,9 @@ func (m model) bar() string {
 		if len(m.sessionsRows()) > 0 && m.inside {
 			hints = append(hints, keyHint{"Enter", "Resume it here"})
 		}
-		return keyBar(append(hints, keyHint{"Esc", "Back"}))
+		return keyBar(append(hints, keyHint{"Esc", "Back"}), p)
 	case viewRoots:
-		return keyBar(rootsHints)
+		return keyBar(rootsHints, p)
 	}
 	if rowsIn(m.projects) > 1 {
 		hints = append(hints, moveHint)
@@ -822,7 +804,7 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"u", "Bring up"})
 		}
 	}
-	return keyBar(append(hints, keyHint{"?", "Help"}))
+	return keyBar(append(hints, keyHint{"?", "Help"}), p)
 }
 
 // prefixWord is the prefix as the bar writes it: ctrl-space for

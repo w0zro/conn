@@ -202,7 +202,7 @@ func (s *server) reground(conf string) error {
 		return err
 	}
 	for _, p := range panes {
-		if p.hold {
+		if p.hold || p.bar {
 			if _, err := s.run("respawn-pane", "-k", "-t", p.id); err != nil {
 				return err
 			}
@@ -216,6 +216,30 @@ func (s *server) reground(conf string) error {
 		return err
 	}
 	_, err = s.run("respawn-pane", "-k", "-t", panel)
+	return err
+}
+
+// splitBar puts the key bar across the foot of home: a pane one row
+// tall and the window's width, under the panel and the bay alike,
+// running conn's own drawing of it. tmux draws a status line at one
+// edge only, and the top is the band's; a bar that is a pane is
+// continuous where a border, being a pane's own, would break at the
+// seam. A bar that is there already is left alone.
+func (s *server) splitBar(home, self string) error {
+	if panes, err := s.home(); err != nil {
+		return err
+	} else {
+		for _, p := range panes {
+			if p.bar {
+				return nil
+			}
+		}
+	}
+	id, err := s.run("split-window", "-v", "-f", "-l", "1", "-d", "-P", "-F", "#{pane_id}", "-t", sessionName+":"+homeWindow, "-c", home, "exec "+shellQuote(self)+" bar")
+	if err != nil {
+		return err
+	}
+	_, err = s.run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_bar", "1")
 	return err
 }
 
@@ -278,6 +302,7 @@ type pane struct {
 	hold          bool
 	readout       bool
 	dead          bool
+	bar           bool // the key bar across the foot of home, conn's own; see bar.go
 	// The container this pane is watching, where it is one conn opened
 	// to read a service's output. A container has no terminal of its
 	// own, so this is how its row comes to have one: the pane conn
@@ -330,7 +355,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active} #{pane_index}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active} #{pane_index} #{@conn_bar}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -350,7 +375,7 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 14 || f[0] == "" {
+		if len(f) != 15 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
@@ -358,6 +383,7 @@ func parsePanes(out string) map[string]pane {
 			container: f[7], shellIn: f[8], help: f[9] == "1",
 			declared: f[10], exit: f[11], active: f[12] == "1"}
 		p.index, _ = strconv.Atoi(f[13])
+		p.bar = f[14] == "1"
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
 		panes[p.tty] = p
@@ -372,7 +398,7 @@ func parsePanes(out string) map[string]pane {
 // own ends, and what the page reports cannot drift apart into four
 // slightly different answers to one question.
 func reachable(p pane) bool {
-	return p.id != "" && !p.hold && !p.readout && !p.dead
+	return p.id != "" && !p.hold && !p.readout && !p.bar && !p.dead
 }
 
 // The panel is the pane this conn runs in; tmux names it in TMUX_PANE.
@@ -407,7 +433,7 @@ func (s *server) bay() (pane, bool, error) {
 		return pane{}, false, err
 	}
 	for _, p := range panes {
-		if p.id != s.panel() {
+		if p.id != s.panel() && !p.bar {
 			return p, true, nil
 		}
 	}
@@ -439,6 +465,9 @@ func (s *server) split(home, self string) error {
 		return err
 	}
 	if _, err := s.run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_hold", "1"); err != nil {
+		return err
+	}
+	if err := s.splitBar(home, self); err != nil {
 		return err
 	}
 	// A pane in this window whose process ends stays instead of
@@ -922,9 +951,9 @@ set -g display-time 3000
 func statusLine() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
-set -g status-position bottom
+set -g status-position top
 set -g status-justify left
-set -g status-left-length 300
+set -g status-left-length 200
 set -g status-right-length 100
 # Nothing on the status line is read on a beat: conn sets its options
 # when what they say changes, and nothing else on the line changes at all.
@@ -932,38 +961,19 @@ set -g status-interval 0
 # conn has no tabs, so the middle of the line is nothing.
 set -g window-status-format ""
 set -g window-status-current-format ""
+# The band is the status line; the key bar is a pane of its own.
+set -g pane-border-status off
 `)
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
-	// The line is the key bar: the keys that work where the cursor is,
-	// or a question armed, and at the right the station's designation.
-	// The band across the top — where the keys are, and the clock — is
-	// the home window's top border; see topBand.
-	b.WriteString("set -g status-left \"#{@conn_bar}\"\n")
-	b.WriteString("set -g status-right \"#{@conn_ident}\"\n")
+	// The band across the top: a mode tmux knows itself first — PREFIX
+	// while a chord is pending, COPY in copy mode — then where the keys
+	// are, by conn's word, while the keys are on the panel, and the
+	// station's word when they are not; and at the right edge the clock.
+	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
+	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},#{@conn_station}}}}\"\n",
+		statusLineBlock("PREFIX"), statusLineBlock("COPY"), onPanel)
+	b.WriteString("set -g status-right \"#{@conn_up}\"\n")
 	return b.String()
-}
-
-// topBand puts the band across the top of the home window: the panes'
-// top border, which runs the window's width under both panes. tmux
-// draws a status row at one edge only, and the foot is the key bar's.
-// The panel's stretch carries where the keys are — the wordmark, or
-// the mode that has them — and the bay's the clock; each is written
-// padded to its pane, since the border's own fill is the ground's.
-func (s *server) topBand() error {
-	window := sessionName + ":" + homeWindow
-	_, err := s.run("set-option", "-w", "-t", window, "pane-border-status", "top",
-		";", "set-option", "-w", "-t", window, "pane-border-format", topBandFormat())
-	return err
-}
-
-// topBandFormat is the band as tmux draws it: on the panel's stretch a
-// mode tmux knows itself first — PREFIX while a chord is pending, COPY
-// in copy mode — then where the keys are, by conn's word, while the
-// keys are on the panel, and the station's word when they are not; on
-// the bay's stretch the clock.
-func topBandFormat() string {
-	return fmt.Sprintf("#{?#{==:#{pane_index},0},#{?client_prefix,%s,#{?pane_in_mode,%s,#{?pane_active,#{@conn_keys},#{@conn_station}}}},#{@conn_board}}",
-		statusLineBlock("PREFIX"), statusLineBlock("COPY"))
 }
 
 // statusLineBlock is a mode as the status line wears it: the ground
@@ -1002,15 +1012,22 @@ func statusLineSay(text string) string {
 
 // say puts what conn knows about its own keys on the server, and asks
 // the clients to draw, so the status line never lags what changed it.
-func (s *server) say(keys, station, board, bar, ident string) error {
+func (s *server) say(keys, station, up, bar, ident string) error {
 	_, err := s.run("set-option", "-g", "@conn_keys", keys,
 		";", "set-option", "-g", "@conn_station", station,
-		";", "set-option", "-g", "@conn_board", board,
-		";", "set-option", "-g", "@conn_bar", bar,
+		";", "set-option", "-g", "@conn_up", up,
+		";", "set-option", "-g", "@conn_bar_text", bar,
 		";", "set-option", "-g", "@conn_ident", ident,
-		";", "refresh-client", "-S")
+		";", "refresh-client", "-S",
+		";", "wait-for", "-S", barChannel)
 	return err
 }
+
+// barChannel is the tmux channel the panel signals when the bar's
+// options have changed, and the bar waits on; see bar.go. The bar's
+// text is @conn_bar_text: @conn_bar is the mark on the bar's own pane,
+// and a global option of that name would be inherited by every pane.
+const barChannel = "conn-bar"
 
 // statusLineWord is a word on the line's own ground: the wordmark in
 // the ink and bold, or a figure in the gray.
@@ -1020,39 +1037,6 @@ func statusLineWord(text, color string, bold bool) string {
 		weight = "bold"
 	}
 	return fmt.Sprintf("#[bg=%s fg=%s %s]%s", borderHex, color, weight, strings.ReplaceAll(text, "#", "##"))
-}
-
-// banded is a stretch of the band: what is written on it, then the
-// band's own color out to a width, so a border row that would show the
-// ground past the words shows the band instead. cells is what the words
-// take, which the styles in them do not.
-func banded(text string, cells, width int) string {
-	if width > cells {
-		text += fmt.Sprintf("#[bg=%s]%s", borderHex, strings.Repeat(" ", width-cells))
-	}
-	return text
-}
-
-// keyBar is the key bar as the foot wears it: each key in the ink and
-// bold, what it does in the gray after it, three cells between one and
-// the next, a cell in from the edge.
-func keyBar(hints []keyHint) string {
-	var b strings.Builder
-	b.WriteString(" ")
-	for i, h := range hints {
-		if i > 0 {
-			b.WriteString("   ")
-		}
-		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", borderHex, hex(inkColor), h.key, grayHex, h.does)
-	}
-	return b.String()
-}
-
-// designation is the station's mark at the right of the key bar: the
-// host in capitals, and the conn that is running.
-func designation(host, version string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", borderHex, grayHex,
-		strings.ReplaceAll(join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version)), "#", "##"))
 }
 
 // leaveHelp tells the panel the manual is done with. The manual is a

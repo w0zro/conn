@@ -148,7 +148,6 @@ func main() {
 	m.srv, m.inside = srv, inside
 	if inside {
 		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+surfaceHex)
-		_ = srv.topBand()
 	}
 	m.self, _ = os.Executable()
 	if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {
@@ -198,6 +197,17 @@ var commands = []command{
 		applyMode(serverMode(socketPath(home), home))
 		if err := runReadout(findServer(home), pid, home, colored()); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
+			return 1
+		}
+		return 0
+	}},
+	// The key bar across the foot of home, in a pane of conn's own; see
+	// bar.go. conn runs this in the pane it opens for it.
+	{"bar", "", func([]string) int {
+		home, _ := os.UserHomeDir()
+		applyMode(serverMode(socketPath(home), home))
+		if err := runBar(findServer(home), colored()); err != nil {
+			fmt.Fprintf(os.Stderr, "conn bar: %v\n", err)
 			return 1
 		}
 		return 0

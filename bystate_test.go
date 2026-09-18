@@ -115,7 +115,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
 		{pid: -9, kind: kindRun, command: "worker", status: statusDown, declared: "worker@/w"},
 	}}})
-	has := func(bar, key, does string) bool { return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+does) }
+	has := func(bar, key, does string) bool { return strings.Contains(stripEscapes(bar), key+" "+does) }
 	m.cursor = 1
 	bar := m.bar()
 	for _, want := range [][2]string{{"j k", "Move"}, {"Enter", "Open"}, {"Tab", "Next waiting"}, {"x", "End it"}, {"s", "Shell"}, {"u", "Bring up"}, {"?", "Help"}} {
@@ -154,10 +154,20 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	if bar := m.bar(); !strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, "kill -TERM 1 · zsh?") || !has(bar, "y", "Yes") {
 		t.Errorf("a question armed puts %s on the bar", bar)
 	}
-	// The clock on the bay's stretch of the band, padded to the bay.
-	m.up, m.now, m.bay = processesNow.Add(-(5*24*time.Hour + 2*time.Hour + 14*time.Minute)), processesNow, "ttys009"
-	m.panes["ttys009"] = pane{id: "%9", width: 60}
-	if board := m.board(); !strings.HasSuffix(board, "T+ 5d 02h 14m ") || !strings.Contains(board, strings.Repeat(" ", 60-4-len("T+ 5d 02h 14m "))) {
-		t.Errorf("the board reads %q", board)
+	// The clock at the right edge of the band, as a mission clock reads.
+	m.up, m.now = processesNow.Add(-(5*24*time.Hour + 2*time.Hour + 14*time.Minute)), processesNow
+	if up := m.upWord(); !strings.Contains(up, "T+ 5d 02h 14m ") {
+		t.Errorf("the clock reads %q", up)
+	}
+	// The bar's pieces stand on the band, in the ink and bold for a key
+	// and the gray for its word, and the bar itself is a row: the keys
+	// a cell in from the left, the mark a cell in from the right.
+	p := colored()
+	if bar := keyBar([]keyHint{{"Enter", "Open"}}, p); !strings.Contains(bar, p.ink+p.bold+"Enter") || !strings.Contains(bar, p.gray+"Open") {
+		t.Errorf("a hint is drawn as %q", bar)
+	}
+	b := barModel{left: keyBar([]keyHint{{"Enter", "Open"}}, plain), right: designation("mbp", "0.1", plain), width: 40, p: plain}
+	if row := b.View().Content; len([]rune(row)) != 40 || !strings.HasPrefix(row, " Enter Open   ") || !strings.HasSuffix(row, "  MBP · conn 0.1 ") {
+		t.Errorf("the bar row is %q", row)
 	}
 }

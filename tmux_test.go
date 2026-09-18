@@ -41,26 +41,28 @@ func TestPanesAreParsed(t *testing.T) {
 	// The last two fields are tmux's word for where the keys are in the
 	// window — the panel has them here, and nothing else does — and
 	// where each pane stands in it.
-	out := "%0 /dev/ttys004 48 40         1 0\n" +
-		"%1 /dev/ttys007 138 40 1        0 1\n" +
-		"%5 /dev/ttys008 138 40  1       0 2\n" +
+	out := "%0 /dev/ttys004 48 40         1 0 \n" +
+		"%1 /dev/ttys007 138 40 1        0 1 \n" +
+		"%5 /dev/ttys008 138 40  1       0 2 \n" +
 		// A readout carries the hold's own mark as well as its own: it is
 		// furniture like a hold, and everything that acts on holds acts on
 		// it. Only the panel has to tell the two apart. The manual is furniture the
 		// same way; this pane wears every mark at once, so the parse is read
 		// for all of them together.
-		"%7 /dev/ttys009 138 40 1  1   1   0 3\n" +
+		"%7 /dev/ttys009 138 40 1  1   1   0 3 \n" +
 		// A pane conn opened for a container says which: it is the
 		// terminal that container has not got, and its row is reached
 		// through it.
-		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b     0 4\n" +
+		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b     0 4 \n" +
 		// A pane holding a shell inside a container says which container,
 		// on the other mark: it is work of the operator's own, not the
 		// service being read.
-		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b    0 5\n" +
+		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b    0 5 \n" +
 		// A pane conn opened for a declared process says which, and
 		// how the process ended once it has.
-		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0 6\n\n"
+		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0 6 \n" +
+		// The bar across the foot, marked as conn's own.
+		"%15 /dev/ttys013 187 1         0 7 1\n\n"
 	want := map[string]pane{
 		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40, active: true, index: 0},
 		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true, index: 1},
@@ -69,6 +71,7 @@ func TestPanesAreParsed(t *testing.T) {
 		"ttys010": {id: "%9", tty: "ttys010", width: 138, height: 40, container: "9f1c2d3e4a5b", index: 4},
 		"ttys011": {id: "%11", tty: "ttys011", width: 138, height: 40, shellIn: "9f1c2d3e4a5b", index: 5},
 		"ttys012": {id: "%13", tty: "ttys012", width: 138, height: 40, declared: "web@%2FUsers%2Fw0zro%2Fapp", exit: "1", index: 6},
+		"ttys013": {id: "%15", tty: "ttys013", width: 187, height: 1, bar: true, index: 7},
 	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)
@@ -94,7 +97,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-a",
 		`bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-?`,
 		`bind A set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-A`,
-		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
+		"set -g status on", "set -g status-position top", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane
 		// over it. Its text begins where the panel's does.
@@ -222,31 +225,27 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 			t.Errorf("the status line still asks conn for %q", gone)
 		}
 	}
-	// The line is the key bar and the station's mark, both conn's to
-	// write, and nothing else.
-	for _, want := range []string{"set -g status-left \"#{@conn_bar}\"", "set -g status-right \"#{@conn_ident}\"", "status-interval 0"} {
-		if !strings.Contains(conf, want) {
-			t.Errorf("the status line lacks %q:\n%s", want, conf)
-		}
-	}
-	// The band across the top is the home window's border: on the
-	// panel's stretch a mode tmux knows itself first, then where the
-	// keys are by conn's word while they are on the panel and the
-	// station's word when they are not; on the bay's stretch the clock.
-	// Neither names a mode of conn's itself.
-	band := topBandFormat()
+	// The line is the band: a mode tmux knows itself first, then where
+	// the keys are by conn's word while they are on the panel and the
+	// station's word when they are not, and at the right the clock.
+	// The conf itself names no mode of conn's.
 	for _, want := range []string{
-		"#{?client_prefix,", "#{?pane_in_mode,", "#{?pane_active,#{@conn_keys},#{@conn_station}}", "#{@conn_board}",
+		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
+		"set -g status-right \"#{@conn_up}\"",
+		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
+		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.
 		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
 		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
 	} {
-		if !strings.Contains(band, want) {
-			t.Errorf("the band lacks %q:\n%s", want, band)
+		if !strings.Contains(conf, want) {
+			t.Errorf("the status line lacks %q:\n%s", want, conf)
 		}
 	}
+	left := conf[strings.Index(conf, "set -g status-left "):]
+	left = left[:strings.Index(left, "\n")]
 	for _, gone := range []string{"CONN", "PROCS", "PROJECTS", "SESSIONS", "CONSOLE"} {
-		if strings.Contains(band, gone) || strings.Contains(conf, "@conn_keys \""+gone) {
+		if strings.Contains(left, gone) {
 			t.Errorf("the band says %q at rest", gone)
 		}
 	}
@@ -271,13 +270,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 			t.Errorf("view %d lights %q, not the wordmark", v, keys)
 		}
 	}
-	// On a panel of a width, the wordmark is padded out to it in the
-	// band's color, tmux keeping two cells at each end of a border.
-	wide := m
-	wide.width = 44
-	if keys := wide.keys(); !strings.HasSuffix(keys, "#[bg="+borderHex+"]"+strings.Repeat(" ", 44-4-len(wordmarkLine))) {
-		t.Errorf("the wordmark is not padded to the panel: %q", keys)
-	}
+
 	m.view = viewConsole
 	if keys := m.keys(); keys != "" {
 		t.Errorf("the console lights %q", keys)
@@ -287,15 +280,12 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// It comes ahead of the view's word: while it stands, the view under
 	// it cannot be worked, and its word would be a lie.
 	m.view = viewProcesses
-	// The question itself is on the key bar, where its answers are, on
-	// the line's own ground, with tmux's own character doubled so it is
-	// shown.
+	// The question itself is on the key bar, where its answers are.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
 	if ask := m.keys(); ask != statusLineBlock("CONFIRM") || !strings.Contains(ask, "bg="+cursorHex) {
 		t.Errorf("a question armed lights %q", ask)
 	}
-	if bar := m.bar(); !strings.HasPrefix(bar, statusLineBlock("CONFIRM")) || !strings.Contains(bar, "  END CLAUDE 11 · ##1") ||
-		!strings.Contains(bar, "bg="+borderHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]Yes") {
+	if bar := stripEscapes(m.bar()); !strings.HasPrefix(bar, " CONFIRM ") || !strings.Contains(bar, "  END CLAUDE 11 · #1") || !strings.Contains(bar, "y Yes") {
 		t.Errorf("a question armed puts %q on the bar", bar)
 	}
 	m.kill = nil

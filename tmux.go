@@ -922,7 +922,7 @@ set -g display-time 3000
 func statusLine() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
-set -g status-position bottom
+set -g status-position top
 set -g status-justify left
 set -g status-left-length 200
 set -g status-right-length 200

@@ -94,7 +94,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-a",
 		`bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-?`,
 		`bind A set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-A`,
-		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
+		"set -g status on", "set -g status-position top", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane
 		// over it. Its text begins where the panel's does.

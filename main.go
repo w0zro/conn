@@ -148,6 +148,7 @@ func main() {
 	m.srv, m.inside = srv, inside
 	if inside {
 		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+surfaceHex)
+		_ = srv.topBand()
 	}
 	m.self, _ = os.Executable()
 	if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {

@@ -94,16 +94,11 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-a",
 		`bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-?`,
 		`bind A set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-A`,
-		"set -g status on", "set -g status-position top", "set -g mouse on", "unbind -n MouseDrag1Border",
+		"set -g status on", "set -g status-position bottom", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane
 		// over it. Its text begins where the panel's does.
 		`set -g status-style "bg=` + borderHex + `,fg=#8B8272"`,
-		// A mode is a block of its color with the ground knocked out of
-		// it. The attributes are parted by spaces rather than commas so
-		// the conditional around a mode is not cut in two.
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
@@ -227,35 +222,33 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 			t.Errorf("the status line still asks conn for %q", gone)
 		}
 	}
-	for _, want := range []string{
-		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}",
-		"set -g status-right \"\"",
-		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
-		"status-interval 0",
-		// Every mode a block of the orange, the ground knocked out of it.
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
-	} {
+	// The line is the key bar and the station's mark, both conn's to
+	// write, and nothing else.
+	for _, want := range []string{"set -g status-left \"#{@conn_bar}\"", "set -g status-right \"#{@conn_ident}\"", "status-interval 0"} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("the status line lacks %q:\n%s", want, conf)
 		}
 	}
-	// The conf itself names no mode of conn's: PREFIX and COPY are tmux's
-	// to know, and the word for the view is conn's, written into
-	// @conn_keys when it changes, with @conn_station for the one state
-	// that outlives the panel having the keys. The left is dark where
-	// both are empty.
-	left := conf[strings.Index(conf, "set -g status-left "):]
-	left = left[:strings.Index(left, "\n")]
-	for _, gone := range []string{"CONN", "PROCS", "PROJECTS", "SESSIONS", "CONSOLE"} {
-		if strings.Contains(left, gone) {
-			t.Errorf("the status line says %q at rest", gone)
+	// The band across the top is the home window's border: on the
+	// panel's stretch a mode tmux knows itself first, then where the
+	// keys are by conn's word while they are on the panel and the
+	// station's word when they are not; on the bay's stretch the clock.
+	// Neither names a mode of conn's itself.
+	band := topBandFormat()
+	for _, want := range []string{
+		"#{?client_prefix,", "#{?pane_in_mode,", "#{?pane_active,#{@conn_keys},#{@conn_station}}", "#{@conn_board}",
+		// Every mode a block of the orange, the ground knocked out of it.
+		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
+		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
+	} {
+		if !strings.Contains(band, want) {
+			t.Errorf("the band lacks %q:\n%s", want, band)
 		}
 	}
-	// Off the panel the line falls through to the station's own word,
-	// which is empty unless the manual is up: dark at rest either way.
-	if !strings.HasSuffix(left, ",#{@conn_station}}}}\"") {
-		t.Errorf("the left of the status line is not dark at rest: %s", left)
+	for _, gone := range []string{"CONN", "PROCS", "PROJECTS", "SESSIONS", "CONSOLE"} {
+		if strings.Contains(band, gone) || strings.Contains(conf, "@conn_keys \""+gone) {
+			t.Errorf("the band says %q at rest", gone)
+		}
 	}
 }
 
@@ -269,17 +262,21 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
 	}}}
 
-	// Each panel view wears its own word, and the console wears none: it
-	// covers the window and says which page it is itself.
-	for v, want := range map[int]string{
-		viewProcesses: "PROCS",
-		viewProjects:  "PROJECTS",
-		viewSessions:  "SESSIONS",
-	} {
+	// Each panel view wears the wordmark, the band being the station's
+	// and the view saying itself by its eyebrows; the console wears
+	// none, covering the window with a wordmark of its own.
+	for _, v := range []int{viewProcesses, viewProjects, viewSessions} {
 		m.view = v
-		if keys := m.keys(); keys != statusLineBlock(want) {
-			t.Errorf("the %s view lights %q, not %s", want, keys, want)
+		if keys := m.keys(); keys != statusLineWord(wordmarkLine, hex(inkColor), true) {
+			t.Errorf("view %d lights %q, not the wordmark", v, keys)
 		}
+	}
+	// On a panel of a width, the wordmark is padded out to it in the
+	// band's color, tmux keeping two cells at each end of a border.
+	wide := m
+	wide.width = 44
+	if keys := wide.keys(); !strings.HasSuffix(keys, "#[bg="+borderHex+"]"+strings.Repeat(" ", 44-4-len(wordmarkLine))) {
+		t.Errorf("the wordmark is not padded to the panel: %q", keys)
 	}
 	m.view = viewConsole
 	if keys := m.keys(); keys != "" {
@@ -290,13 +287,16 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// It comes ahead of the view's word: while it stands, the view under
 	// it cannot be worked, and its word would be a lie.
 	m.view = viewProcesses
-	// The question itself stands beside the block, on the status line's
-	// own ground, with tmux's own character doubled so it is shown.
+	// The question itself is on the key bar, where its answers are, on
+	// the line's own ground, with tmux's own character doubled so it is
+	// shown.
 	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
-	if ask := m.keys(); !strings.HasPrefix(ask, statusLineBlock("CONFIRM")) || !strings.Contains(ask, "bg="+cursorHex) ||
-		!strings.HasSuffix(ask, "  END CLAUDE 11 · ##1") || !strings.Contains(ask, "bg="+borderHex+" fg="+parchmentHex) ||
-		strings.Contains(ask, "PROCS") {
+	if ask := m.keys(); ask != statusLineBlock("CONFIRM") || !strings.Contains(ask, "bg="+cursorHex) {
 		t.Errorf("a question armed lights %q", ask)
+	}
+	if bar := m.bar(); !strings.HasPrefix(bar, statusLineBlock("CONFIRM")) || !strings.Contains(bar, "  END CLAUDE 11 · ##1") ||
+		!strings.Contains(bar, "bg="+borderHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]Yes") {
+		t.Errorf("a question armed puts %q on the bar", bar)
 	}
 	m.kill = nil
 
@@ -338,10 +338,11 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	if _, again := next.saying(); again != nil {
 		t.Error("the same word was written to the status line twice")
 	}
+	// Another view has other keys on the bar, so it is written.
 	moved := next
 	moved.view = viewProjects
 	if _, changed := moved.saying(); changed == nil {
-		t.Error("the keys moving to another view did not go out on the status line")
+		t.Error("the keys moving to another view did not go out on the bar")
 	}
 
 	// Outside the server there is no status line to write to.

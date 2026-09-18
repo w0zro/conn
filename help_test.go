@@ -61,7 +61,7 @@ func TestTheManualIsWrittenWhereManCanReadIt(t *testing.T) {
 // these keys are about.
 func TestTheManualPutsThePanelInHelp(t *testing.T) {
 	m := model{view: viewProcesses, cursor: 4321, inside: true}
-	if got := m.keys(); !strings.Contains(got, "PROCS") {
+	if got := m.keys(); !strings.Contains(got, wordmarkLine) {
 		t.Fatalf("a panel with no manual up says %q", got)
 	}
 	next, _ := m.Update(helpMsg{on: true})
@@ -72,13 +72,13 @@ func TestTheManualPutsThePanelInHelp(t *testing.T) {
 	if m.cursor != 0 {
 		t.Errorf("a row is still under the cursor: %d", m.cursor)
 	}
-	if got := m.keys(); !strings.Contains(got, "HELP") || strings.Contains(got, "PROCS") {
+	if got := m.keys(); !strings.Contains(got, "HELP") || strings.Contains(got, wordmarkLine) {
 		t.Errorf("the panel says %q", got)
 	}
 	// The word is the view's again once the manual is out of the
 	// workspace, which the reading is what says.
 	next, _ = m.Update(processesMsg{gen: m.processesGen})
-	if got := next.(model).keys(); !strings.Contains(got, "PROCS") {
+	if got := next.(model).keys(); !strings.Contains(got, wordmarkLine) {
 		t.Errorf("with the manual gone the panel says %q", got)
 	}
 }
@@ -90,15 +90,15 @@ func TestTheManualPutsThePanelInHelp(t *testing.T) {
 // manual rather than on the panel at all.
 func TestHelpIsThePanelsWordOnlyInTheProcessesView(t *testing.T) {
 	m := model{view: viewProjects, helping: true, inside: true}
-	if got := m.keys(); !strings.Contains(got, "PROJECTS") {
+	if got := m.keys(); !strings.Contains(got, wordmarkLine) {
 		t.Errorf("the list says %q while the manual is up", got)
 	}
 	if got := m.station(); !strings.Contains(got, helpWord) {
 		t.Errorf("the station says %q while the manual is up", got)
 	}
 	m.helping = false
-	if got := m.station(); got != "" {
-		t.Errorf("the station says %q with nothing up", got)
+	if got := m.station(); !strings.Contains(got, wordmarkLine) {
+		t.Errorf("the station says %q with nothing up, not the wordmark", got)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestTheChordPutsTheManualAwayAgain(t *testing.T) {
 	if cmd == nil {
 		t.Error("nothing was done to put it away")
 	}
-	if got := m.keys(); !strings.Contains(got, "PROCS") {
+	if got := m.keys(); !strings.Contains(got, wordmarkLine) {
 		t.Errorf("the panel still says %q", got)
 	}
 }

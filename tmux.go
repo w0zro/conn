@@ -922,31 +922,48 @@ set -g display-time 3000
 func statusLine() string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
-set -g status-position top
+set -g status-position bottom
 set -g status-justify left
-set -g status-left-length 200
-set -g status-right-length 200
-# Nothing on the status line is read on a beat: conn sets its option when
-# what it says changes, and nothing else on the line changes at all.
+set -g status-left-length 300
+set -g status-right-length 100
+# Nothing on the status line is read on a beat: conn sets its options
+# when what they say changes, and nothing else on the line changes at all.
 set -g status-interval 0
 # conn has no tabs, so the middle of the line is nothing.
 set -g window-status-format ""
 set -g window-status-current-format ""
 `)
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
-	// Where the keys are, which is tmux's to know: the panel is the first
-	// pane of the home window and everything else is work. A question is
-	// armed on the panel and answered there, so it shows only while the
-	// keys are on the panel to answer it.
-	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
-	// Off the panel the line says what the station is doing rather than
-	// nothing. There is one such state and it is the manual: the keys
-	// are in it, being a page and not a process, and the operator who
-	// cannot see where the keys went has only the page to judge by.
-	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},#{@conn_station}}}}\"\n",
-		statusLineBlock("PREFIX"), statusLineBlock("COPY"), onPanel)
-	b.WriteString("set -g status-right \"\"\n")
+	// The line is the key bar: the keys that work where the cursor is,
+	// or a question armed, and at the right the station's designation.
+	// The band across the top — where the keys are, and the clock — is
+	// the home window's top border; see topBand.
+	b.WriteString("set -g status-left \"#{@conn_bar}\"\n")
+	b.WriteString("set -g status-right \"#{@conn_ident}\"\n")
 	return b.String()
+}
+
+// topBand puts the band across the top of the home window: the panes'
+// top border, which runs the window's width under both panes. tmux
+// draws a status row at one edge only, and the foot is the key bar's.
+// The panel's stretch carries where the keys are — the wordmark, or
+// the mode that has them — and the bay's the clock; each is written
+// padded to its pane, since the border's own fill is the ground's.
+func (s *server) topBand() error {
+	window := sessionName + ":" + homeWindow
+	_, err := s.run("set-option", "-w", "-t", window, "pane-border-status", "top",
+		";", "set-option", "-w", "-t", window, "pane-border-format", topBandFormat())
+	return err
+}
+
+// topBandFormat is the band as tmux draws it: on the panel's stretch a
+// mode tmux knows itself first — PREFIX while a chord is pending, COPY
+// in copy mode — then where the keys are, by conn's word, while the
+// keys are on the panel, and the station's word when they are not; on
+// the bay's stretch the clock.
+func topBandFormat() string {
+	return fmt.Sprintf("#{?#{==:#{pane_index},0},#{?client_prefix,%s,#{?pane_in_mode,%s,#{?pane_active,#{@conn_keys},#{@conn_station}}}},#{@conn_board}}",
+		statusLineBlock("PREFIX"), statusLineBlock("COPY"))
 }
 
 // statusLineBlock is a mode as the status line wears it: the ground
@@ -985,11 +1002,57 @@ func statusLineSay(text string) string {
 
 // say puts what conn knows about its own keys on the server, and asks
 // the clients to draw, so the status line never lags what changed it.
-func (s *server) say(keys, station string) error {
+func (s *server) say(keys, station, board, bar, ident string) error {
 	_, err := s.run("set-option", "-g", "@conn_keys", keys,
 		";", "set-option", "-g", "@conn_station", station,
+		";", "set-option", "-g", "@conn_board", board,
+		";", "set-option", "-g", "@conn_bar", bar,
+		";", "set-option", "-g", "@conn_ident", ident,
 		";", "refresh-client", "-S")
 	return err
+}
+
+// statusLineWord is a word on the line's own ground: the wordmark in
+// the ink and bold, or a figure in the gray.
+func statusLineWord(text, color string, bold bool) string {
+	weight := "nobold"
+	if bold {
+		weight = "bold"
+	}
+	return fmt.Sprintf("#[bg=%s fg=%s %s]%s", borderHex, color, weight, strings.ReplaceAll(text, "#", "##"))
+}
+
+// banded is a stretch of the band: what is written on it, then the
+// band's own color out to a width, so a border row that would show the
+// ground past the words shows the band instead. cells is what the words
+// take, which the styles in them do not.
+func banded(text string, cells, width int) string {
+	if width > cells {
+		text += fmt.Sprintf("#[bg=%s]%s", borderHex, strings.Repeat(" ", width-cells))
+	}
+	return text
+}
+
+// keyBar is the key bar as the foot wears it: each key in the ink and
+// bold, what it does in the gray after it, three cells between one and
+// the next, a cell in from the edge.
+func keyBar(hints []keyHint) string {
+	var b strings.Builder
+	b.WriteString(" ")
+	for i, h := range hints {
+		if i > 0 {
+			b.WriteString("   ")
+		}
+		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", borderHex, hex(inkColor), h.key, grayHex, h.does)
+	}
+	return b.String()
+}
+
+// designation is the station's mark at the right of the key bar: the
+// host in capitals, and the conn that is running.
+func designation(host, version string) string {
+	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", borderHex, grayHex,
+		strings.ReplaceAll(join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version)), "#", "##"))
 }
 
 // leaveHelp tells the panel the manual is done with. The manual is a

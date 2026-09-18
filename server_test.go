@@ -321,8 +321,15 @@ func (s *scratch) parked(id string) bool {
 // its keys are in — not the panel's layout. A test keyed to a word the
 // header happened to hold breaks the day the header goes, which is how
 // four of these came to fail at once.
+// The band wears the wordmark in every panel view, so it is the panel
+// itself that says: a group's eyebrow is the processes view's alone.
 func (s *scratch) inProcesses() bool {
-	return strings.Contains(s.statusLine(), "PROCS")
+	for _, g := range groupOrder {
+		if strings.Contains(s.panel(), groupTitle(g)+" ─") {
+			return true
+		}
+	}
+	return false
 }
 
 // statusLine is the status line as tmux expands it: what conn has put

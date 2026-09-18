@@ -299,7 +299,7 @@ func TestEnterAndSActOnTheContainer(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside = viewProcesses, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.said, m.saidKeys = true, m.keys()
+	m.said, m.saidKeys, m.saidStation, m.saidBoard, m.saidBar = true, m.keys(), m.station(), m.board(), m.bar()
 	m.projects = []project{{path: "/p", entries: []entry{
 		{pid: -99, kind: kindService, command: "web · :8438", container: "abc123", cwd: "/p", status: statusActive},
 	}}}

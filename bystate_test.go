@@ -102,3 +102,62 @@ func TestMinutes(t *testing.T) {
 		}
 	}
 }
+
+// The key bar says only the keys the cursor's row can take: enter where
+// there is somewhere to go, x where there is something to end, tab
+// where anything waits, u where the project has anything down, and the
+// keys that act at a project only inside the server. While a process
+// has the keys, it says the chords instead.
+func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
+	m := model{view: viewProcesses, inside: true, focused: true, panes: map[string]pane{"ttys001": {id: "%1"}}}
+	m.projects = byState([]project{{path: "/w", entries: []entry{
+		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
+		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
+		{pid: -9, kind: kindRun, command: "worker", status: statusDown, declared: "worker@/w"},
+	}}})
+	has := func(bar, key, does string) bool { return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+does) }
+	m.cursor = 1
+	bar := m.bar()
+	for _, want := range [][2]string{{"j k", "Move"}, {"Enter", "Open"}, {"Tab", "Next waiting"}, {"x", "End it"}, {"s", "Shell"}, {"u", "Bring up"}, {"?", "Help"}} {
+		if !has(bar, want[0], want[1]) {
+			t.Errorf("on the shell the bar lacks %s %s:\n%s", want[0], want[1], bar)
+		}
+	}
+	m.cursor = 2 // a contact in no pane conn holds: nowhere to go into
+	if bar := m.bar(); has(bar, "Enter", "Open") || !has(bar, "x", "End it") {
+		t.Errorf("on an unreachable contact the bar offers %s", bar)
+	}
+	m.cursor = -9 // declared and down: brought up, not ended
+	if bar := m.bar(); !has(bar, "Enter", "Bring it up") || has(bar, "x", "End it") {
+		t.Errorf("on a down declaration the bar offers %s", bar)
+	}
+	all := unfiled(m.projects)
+	for i := range all[0].entries {
+		if all[0].entries[i].pid == 2 {
+			all[0].entries[i].status = statusIdle
+		}
+	}
+	m.projects = byState(all)
+	if bar := m.bar(); has(bar, "Tab", "Next waiting") {
+		t.Errorf("with nothing waiting the bar offers tab:\n%s", bar)
+	}
+	m.inside = false
+	if bar := m.bar(); has(bar, "s", "Shell") || has(bar, "u", "Bring up") {
+		t.Errorf("outside the server the bar offers keys that need it:\n%s", bar)
+	}
+	m.inside, m.focused = true, false
+	if bar := m.bar(); !has(bar, "ctrl-space -", "Panel") || !has(bar, "ctrl-space ?", "Help") || has(bar, "x", "End it") {
+		t.Errorf("with the keys in a process the bar offers %s", bar)
+	}
+	m.focused = true
+	m.kill = &pendingKill{prompt: "kill -TERM 1 · zsh?"}
+	if bar := m.bar(); !strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, "kill -TERM 1 · zsh?") || !has(bar, "y", "Yes") {
+		t.Errorf("a question armed puts %s on the bar", bar)
+	}
+	// The clock on the bay's stretch of the band, padded to the bay.
+	m.up, m.now, m.bay = processesNow.Add(-(5*24*time.Hour + 2*time.Hour + 14*time.Minute)), processesNow, "ttys009"
+	m.panes["ttys009"] = pane{id: "%9", width: 60}
+	if board := m.board(); !strings.HasSuffix(board, "T+ 5d 02h 14m ") || !strings.Contains(board, strings.Repeat(" ", 60-4-len("T+ 5d 02h 14m "))) {
+		t.Errorf("the board reads %q", board)
+	}
+}

@@ -88,6 +88,16 @@ func (s *scratch) panel() string {
 	return out
 }
 
+// pageUp is whether the workspace holds the readout: the page of
+// groups under its header, or a contact's sheet, which has no header
+// and is told by its specifications. Which one comes up depends on the
+// row the cursor lands on, and the machine running the test may well
+// have a contact in its table.
+func (s *scratch) pageUp() bool {
+	bay := s.bay()
+	return strings.Contains(bay, "READOUT") || strings.Contains(bay, "SPECIFICATIONS")
+}
+
 // finished is whether the console has come to its verdict, the last
 // thing it shows: every check's row says NOMINAL, so the word alone
 // does not tell the end from the middle.
@@ -917,7 +927,7 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	// Nothing is pressed for the page: it is what the workspace holds
 	// while the keys are on the panel in this view.
 	s.until("the readout to take the workspace", func() bool {
-		return strings.Contains(s.bay(), "READOUT") && strings.Contains(s.bay(), "WHERE")
+		return s.pageUp()
 	})
 	// The processes view did not give up its pane, or its width, to say
 	// this.
@@ -971,7 +981,7 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 	// workspace holds in this view.
 	s.keys("i")
 	s.until("the sleepers' rows to be walked again", func() bool { return s.readoutPidOf() != "" })
-	if !strings.Contains(s.bay(), "READOUT") {
+	if !s.pageUp() {
 		t.Errorf("a key took the page away:\n%s", s.bay())
 	}
 
@@ -999,12 +1009,12 @@ func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
 	// without anybody asking.
 	s.sleepers(1)
 	s.until("the sleeper's row on the panel", func() bool { return s.projectRows() >= 1 })
-	s.until("the page to take the workspace", func() bool { return strings.Contains(s.bay(), "READOUT") })
+	s.until("the page to take the workspace", func() bool { return s.pageUp() })
 
 	// Going into a process puts the process there instead.
 	s.openShell()
 	s.until("a shell in the workspace", func() bool {
-		return s.shellIn("home.1") && !strings.Contains(s.bay(), "READOUT")
+		return s.shellIn("home.1") && !s.pageUp()
 	})
 
 	// The keys coming back bring the page back. That half cannot be

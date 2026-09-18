@@ -284,7 +284,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 		t.Errorf("a question armed lights %q", ask)
 	}
 	if bar := m.bar(); !strings.HasPrefix(bar, statusLineBlock("CONFIRM")) || !strings.Contains(bar, "  END CLAUDE 11 · ##1") ||
-		!strings.Contains(bar, "bg="+surfaceHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]Yes") {
+		!strings.Contains(bar, "bg="+surfaceHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]yes") {
 		t.Errorf("a question armed puts %q on the bar", bar)
 	}
 	m.kill = nil

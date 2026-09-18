@@ -107,8 +107,10 @@ func TestConsoleLaysOut(t *testing.T) {
 		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
 	}
 	for _, row := range rows {
-		if strings.HasSuffix(row.text, nominal) && strings.Contains(row.text, "...") && utf8.RuneCountInString(row.text) != margin+measure {
-			t.Errorf("status is not flush with column %d: %q", margin+measure, row.text)
+		// NOMINAL stands a cell in from the column's edge, centered in
+		// the field the widest status fills; see the axis check below.
+		if strings.HasSuffix(row.text, nominal) && strings.Contains(row.text, "...") && utf8.RuneCountInString(row.text) != margin+measure-1 {
+			t.Errorf("status is not a cell in from column %d: %q", margin+measure, row.text)
 		}
 		if i := strings.Index(row.text, "USER ..."); i >= 0 && utf8.RuneCountInString(row.text[:i]) != margin+rightCol {
 			t.Errorf("session column is not at %d: %q", margin+rightCol, row.text)
@@ -131,14 +133,33 @@ func TestFaultsLightTheConsole(t *testing.T) {
 	if !strings.Contains(text, "6.8 GB FREE") || !strings.Contains(text, " LOW") || !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
 		t.Errorf("fault not lit:\n%s", text)
 	}
-	measure, _, _ := columns(120)
-	for _, row := range rows {
-		// The chip's word ends at the column NOMINAL ends at, its box
-		// hanging a cell into the margin. In plain text the chip's
-		// trailing space is trimmed with the row's.
-		if strings.HasSuffix(row.text, " LOW") && utf8.RuneCountInString(row.text) != margin+measure {
-			t.Errorf("the chip's word is not flush with column %d: %q", margin+measure, row.text)
+	// The status words stand centered on one another: LOW over the MIN
+	// of the NOMINAL above it, UNCHECKED across the whole field. The
+	// middle of each word is the same column.
+	middle := func(row, word string) int {
+		i := strings.LastIndex(row, word)
+		if i < 0 {
+			return -1
 		}
+		return utf8.RuneCountInString(row[:i])*2 + utf8.RuneCountInString(word) - 1
+	}
+	axis := -1
+	for _, row := range rows {
+		for _, word := range []string{"NOMINAL", "LOW", "UNCHECKED"} {
+			// A check's row, which has leaders; the verdict ends in the
+			// word too and is centered on the page instead.
+			if !strings.HasSuffix(strings.TrimSpace(row.text), word) || !strings.Contains(row.text, "...") {
+				continue
+			}
+			if m := middle(row.text, word); axis < 0 {
+				axis = m
+			} else if m != axis {
+				t.Errorf("%s is centered on column %d/2 where the rest are on %d/2: %q", word, m, axis, row.text)
+			}
+		}
+	}
+	if axis < 0 {
+		t.Error("no status word was found to check the axis against")
 	}
 	st.machine.power.percent, st.machine.power.state = 5, "discharging"
 	if text := texts(screen(compose(st, testNow), 120, 40, plain)); !strings.Contains(text, "2 SYSTEMS NOT NOMINAL") {

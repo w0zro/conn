@@ -54,6 +54,8 @@ type readoutSubject struct {
 	// What docker says of this row, where the row is a container, as
 	// the panel published it; see cursor.go.
 	container *container
+	// And what brew says of it, where the row is a service of brew's.
+	brew *brewService
 }
 
 // readoutReport is the readout's words as things stand, about one row.
@@ -157,6 +159,9 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// and it is said here instead.
 	if s.container != nil {
 		return composeService(b, *s.container, s.pane, s.inside, home, now)
+	}
+	if e.brew != "" {
+		return composeBrewPage(b, e, s.brew, s.pane, s.inside, home)
 	}
 
 	// A contact's page is the sheet, drawn instead of the groups; the
@@ -324,6 +329,52 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	}
 	b.groups = append(b.groups, tree)
 
+	return b
+}
+
+// composeBrewPage words a brew service's row: what brew says of it,
+// where it belongs, and what it has open. A service brew has not
+// reported — brew not asked yet, or the formula not installed — is
+// said as the declaration alone.
+func composeBrewPage(b readoutReport, e entry, svc *brewService, p pane, inside bool, home string) readoutReport {
+	b.name = e.brew
+	what := readoutGroup{title: "WHAT"}
+	what.add("Kind", said(kindService)+" · Homebrew")
+	what.add("Formula", e.brew)
+	if svc == nil {
+		what.add("Status", "Not reported by brew")
+	} else {
+		what.add("Status", said(svc.status))
+		if word, fault := brewStatus(*svc); fault {
+			what.add("Wrong", said(word))
+		}
+		if svc.running && svc.pid > 0 {
+			what.add("Process", strconv.Itoa(svc.pid))
+		}
+		what.addAsWritten("Command", svc.command)
+		what.addPath("Log", tilde(svc.log, home))
+	}
+	b.groups = append(b.groups, what)
+
+	where := readoutGroup{title: "WHERE"}
+	where.addPath("Project", tilde(e.cwd, home))
+	if e.shared > 1 {
+		where.add("Shared", strconv.Itoa(e.shared)+" projects")
+	}
+	if len(e.ports) > 0 {
+		where.add("Ports", "localhost:"+strings.Join(e.ports, " · localhost:"))
+	}
+	switch {
+	case !inside:
+	case reachable(p):
+		where.add("Pane", p.id+" · can be reached")
+	case p.dead:
+		where.add("Pane", p.id+" · its pane has ended")
+	case svc != nil && svc.log != "":
+		where.add("Pane", "None · Enter opens its log")
+	}
+	b.groups = append(b.groups, where)
+	b.groups = append(b.groups, socketGroup(e.sockets))
 	return b
 }
 

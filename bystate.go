@@ -119,6 +119,23 @@ func byState(projects []project) []project {
 	if filed == 0 {
 		return nil
 	}
+	// A brew service two projects declare is one service, and stands
+	// once, under the first project that declares it; the row counts
+	// the projects and says * for them, see filedFrom.
+	for g, rows := range groups {
+		seen := map[string]bool{}
+		kept := rows[:0]
+		for _, e := range rows {
+			if e.brew != "" {
+				if seen[e.brew] {
+					continue
+				}
+				seen[e.brew] = true
+			}
+			kept = append(kept, e)
+		}
+		groups[g] = kept
+	}
 	waiting := groups[groupWaiting]
 	sort.SliceStable(waiting, func(i, j int) bool {
 		a, b := waiting[i].since, waiting[j].since

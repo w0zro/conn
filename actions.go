@@ -95,6 +95,11 @@ func (m model) raiseAll(path string, up map[string]bool, held map[string]string)
 			if up[mark] {
 				continue
 			}
+			// A brew service is started by brew, not in a pane.
+			if formula, ok := brewArgs(d.command); ok {
+				_, _ = brewSays(brewWait, "services", "start", formula)
+				continue
+			}
 			sh, err := srv.raiseDeclared(d.at(path), declaredLine(d, srv.tmux), mark, held[mark], false)
 			if err != nil {
 				continue
@@ -324,6 +329,44 @@ const pickShell = "command -v bash >/dev/null 2>&1 && exec bash || exec sh"
 // docker's stop and not a signal: there is no process on this machine to
 // send one to, and docker asks the container to end and waits before
 // insisting, which is what a service expects of a shutdown.
+// watchBrew opens a pane following a brew service's log, marked as the
+// service's, so the pane is the row's terminal and the next enter goes
+// back into it. A service with no log to follow opens nothing.
+func (m model) watchBrew(e entry) tea.Cmd {
+	svc := m.brewAt(e.brew)
+	if svc == nil || svc.log == "" {
+		return nil
+	}
+	srv, dir, formula, log := m.srv, e.cwd, e.brew, svc.log
+	cmd := "tail -n 2000 -f " + shellQuote(log) + " 2>&1; " + holdOpen
+	return func() tea.Msg {
+		sh, err := srv.openWatching(dir, cmd, brewMark(formula))
+		if err != nil {
+			return nil
+		}
+		return openedMsg{shell: sh}
+	}
+}
+
+// startBrew asks brew to start a service, and asks it how things
+// stand once it has answered, so the row is ACTIVE when the start is,
+// rather than on the next beat.
+func (m model) startBrew(formula string) tea.Cmd {
+	return func() tea.Msg {
+		_, _ = brewSays(brewWait, "services", "start", formula)
+		return readBrew()
+	}
+}
+
+// stopBrew asks brew to stop a service, the way x on a container asks
+// docker: there is no process here conn would signal itself.
+func (m model) stopBrew(formula, name string) tea.Cmd {
+	return func() tea.Msg {
+		_, _ = brewSays(brewWait, "services", "stop", formula)
+		return killedMsg{command: name, pid: 0}
+	}
+}
+
 func (m model) stopContainer(id, service string) tea.Cmd {
 	feed := m.dockerFeed
 	return func() tea.Msg {

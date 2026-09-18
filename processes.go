@@ -129,6 +129,9 @@ func filedFrom(e entry, roots []string, home string) string {
 	if !e.filed {
 		return ""
 	}
+	if e.shared > 1 {
+		return "*"
+	}
 	return projectName(e.from, roots, home)
 }
 

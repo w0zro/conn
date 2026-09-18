@@ -313,6 +313,7 @@ func readoutPage(at subject, t readoutTable) (readoutReport, bool) {
 		return readoutReport{}, false
 	}
 	s.container = t.containerOf(s.entry)
+	s.brew = t.brewOf(s.entry)
 	if t.inside {
 		s.pane, s.inside = t.panes[s.entry.tty], true
 	}

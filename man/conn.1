@@ -199,7 +199,13 @@ ctrl-c in its pane and closes the pane once it has ended, and the row is DOWN
 again. A declaration that is a \fBdocker compose up\fR has the services it would
 bring up as rows under it, each DOWN until it runs, as compose itself lists
 them; while it runs, a service compose has not started is DOWN under it the same
-way. A file that will not read is said under the block, with the line.
+way. A declaration that is a \fBbrew services start\fR is the Homebrew service
+it names, as brew reports it, rather than a pane: ACTIVE with the ports it
+listens on, DOWN until it is started, EXIT and the code where its last run ended
+badly. \fBenter\fR on it up follows its log, and down asks brew to start it;
+\fBx\fR asks brew to stop it; \fBu\fR starts it with the rest. A service more
+than one project declares is one row, and says * for the project. A file that
+will not read is said under the block, with the line.
 .SH KEYS
 .TP
 3-1.
@@ -411,5 +417,6 @@ A shell line, run as written.
 web frontend: npm run dev
 api: go run ./cmd/api
 worker services/queue: make run
+db: brew services start postgresql@14
 .fi
 .RE

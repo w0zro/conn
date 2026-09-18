@@ -195,6 +195,12 @@ type entry struct {
 	// The declaration this row is, or stands for, as its pane is marked;
 	// see declared.go. A process row carries nothing here.
 	declared string
+	// The Homebrew service this row is, by its formula, where it is one
+	// a project declares; see brew.go. And how many projects declare
+	// it, where more than one does: the panel files them as one row,
+	// and says * for the project.
+	brew   string
+	shared int
 	// What runs under a shell whose rows are folded, for its activity
 	// column; see fold.go. underShell says it is a shell itself, and a
 	// command found later under it is taken instead.

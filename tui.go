@@ -283,6 +283,9 @@ type model struct {
 	up            time.Time // when this conn came up, for the band's clock
 	dockerFeed    *dockerFeed
 	dockerStalled bool
+	// What brew last said of its services, merged into every reading
+	// while any project declares one; see brew.go.
+	brews []brewService
 	// The last terminal the workspace held that was work: where esc
 	// goes back into. It is not the bay, because while the keys are on
 	// the panel the page is in the bay and the work has been put back
@@ -421,6 +424,9 @@ func followRow(rows []projectRow, was projectRow, at int) int {
 
 func (m model) Init() tea.Cmd {
 	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
+	if brewPath != "" {
+		cmds = append(cmds, nextBrew())
+	}
 	if m.inside {
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.wide() }))
 	}
@@ -438,7 +444,7 @@ func readStationCmd() tea.Msg {
 func (m model) readProcesses() tea.Cmd {
 	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots.rootOf, m.roots.isProject
 	home, configured := m.head.login.home, m.roots.configured
-	containers := m.containers
+	containers, brews := m.containers, m.brews
 	declared, full := m.declared, m.full
 	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
 	var srv *server
@@ -522,6 +528,18 @@ func (m model) readProcesses() tea.Cmd {
 		// and a read where a file changed.
 		declared = refreshDeclared(declared, declaredPaths(projects, isProject))
 		projects = attachDeclared(projects, declared, panes)
+		// And the services brew holds up for them, as brew last said,
+		// each with the sockets of the process running it, which the
+		// table has and files nowhere.
+		if brewDeclared(declared) {
+			sockets := map[int][]socket{}
+			for _, p := range procs {
+				if len(p.sockets) > 0 {
+					sockets[p.pid] = p.sockets
+				}
+			}
+			projects = attachBrew(projects, declared, brews, sockets, paneOf)
+		}
 		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
 			records: records, rooted: rerooted, declared: declared}
@@ -785,6 +803,10 @@ func (m model) bar() string {
 		switch {
 		case reachable(m.panes[e.tty]):
 			hints = append(hints, keyHint{"Enter", "Open"})
+		case e.brew != "" && e.status == statusActive:
+			hints = append(hints, keyHint{"Enter", "Its log"})
+		case e.brew != "":
+			hints = append(hints, keyHint{"Enter", "Bring it up"})
 		case e.container != "":
 			hints = append(hints, keyHint{"Enter", "Its output"})
 		case e.declared != "" && e.status == statusDown:
@@ -866,7 +888,7 @@ func (m model) published(again bool) model {
 		}
 		tellCursor(cursorPath(m.head.login.home), at, &reading{
 			projects: projects, records: m.records, panes: m.panes,
-			inside: m.inside, containers: m.containers, sessions: m.sessions,
+			inside: m.inside, containers: m.containers, brews: m.brews, sessions: m.sessions,
 		})
 	}
 	return m
@@ -894,6 +916,12 @@ func (m model) subject() subject {
 		}
 	}
 	return subject{}
+}
+
+// brewAt is the brew service of a formula, as the panel has it from
+// brew, where brew has reported it.
+func (m model) brewAt(formula string) *brewService {
+	return brewServiceNamed(m.brews, formula)
 }
 
 // containerAt is the container a row stands for, where it is one, as the
@@ -986,6 +1014,21 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.containers, m.dockerStalled = msg.containers, msg.stalled
 		m.processesGen++
 		return m, tea.Batch(m.readProcesses(), nextDocker(m.dockerFeed))
+	case brewTickMsg:
+		// Brew is asked only while some project declares a service of
+		// its own; otherwise the beat passes.
+		if brewDeclared(m.declared) {
+			return m, readBrew
+		}
+		return m, nextBrew()
+	case brewMsg:
+		// Brew's word, drawn again at once, as docker's is. An answer
+		// that failed leaves what it last said standing.
+		if msg.err == nil {
+			m.brews = msg.services
+		}
+		m.processesGen++
+		return m, tea.Batch(m.readProcesses(), nextBrew())
 	case helpMsg:
 		// The manual is up, and no row is under the cursor while it is.
 		// The manual is not a process; there is no row it belongs to,
@@ -1230,6 +1273,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			if req.container != "" {
 				return m, m.stopContainer(req.container, req.command)
 			}
+			if req.brew != "" {
+				return m, m.stopBrew(req.brew, req.command)
+			}
 			if req.interrupt {
 				return m, m.interruptDeclared(req.pane, req.command)
 			}
@@ -1463,6 +1509,13 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		switch {
 		case reachable(m.panes[e.tty]):
 			return m, m.reach(m.panes[e.tty], e.tty)
+		case e.brew != "" && e.status == statusActive:
+			// A brew service up: its log, the way a container's output
+			// is what there is to be in front of.
+			return m, m.watchBrew(e)
+		case e.brew != "":
+			// Down, or ended badly: brew is asked to start it.
+			return m, m.startBrew(e.brew)
 		case e.container != "":
 			return m, m.watchContainer(e)
 		case e.declared != "":
@@ -1495,6 +1548,19 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 				name = c.service
 			}
 			m.kill = &pendingKill{container: e.container, command: name, prompt: stopPrompt(e.container, name)}
+			return m, nil
+		}
+		// A brew service is stopped by brew, by its declared name; one
+		// not running is left alone, as a container is.
+		if e.brew != "" {
+			if e.status != statusActive {
+				return m, nil
+			}
+			name := declaredNameOf(e)
+			if name == "" {
+				name = e.brew
+			}
+			m.kill = &pendingKill{brew: e.brew, command: name, prompt: brewStopPrompt(e.brew, name)}
 			return m, nil
 		}
 		if e.declared != "" {

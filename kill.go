@@ -45,6 +45,9 @@ type pendingKill struct {
 	// process of this machine and has no pid to signal: docker holds it,
 	// and docker is asked to let it go.
 	container string
+	// The brew service to stop, by its formula, where the row is one:
+	// launchd holds it, and brew is asked to stop it.
+	brew string
 	// The pane to close, where the row is a declared process. One that
 	// has ended holds its pane for its output: there is nothing left to
 	// signal, and the pane is what goes. One still up is sent ctrl-c in
@@ -157,6 +160,11 @@ func closePrompt(pane, name string) string {
 // what the row is called.
 func stopPrompt(id, service string) string {
 	return question("docker stop "+id, service)
+}
+
+// brewStopPrompt is the question x asks of a brew service's row.
+func brewStopPrompt(formula, name string) string {
+	return question("brew services stop "+formula, name)
 }
 
 // question is a command about to be run, as tmux puts one: the

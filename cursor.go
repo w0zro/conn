@@ -76,6 +76,7 @@ type reading struct {
 	panes      map[string]pane
 	inside     bool
 	containers []container
+	brews      []brewService // what brew said of its services; see brew.go
 	sessions   []session
 }
 
@@ -108,6 +109,15 @@ func recordOf(p process) record {
 
 // containerOf is the container a row stands for among those docker
 // said, where it is one.
+// brewOf is the brew service a row stands for among those brew
+// reported, where it is one.
+func (r reading) brewOf(e entry) *brewService {
+	if e.brew == "" {
+		return nil
+	}
+	return brewServiceNamed(r.brews, e.brew)
+}
+
 func (r reading) containerOf(e entry) *container {
 	if e.container == "" {
 		return nil
@@ -173,11 +183,12 @@ type readingWire struct {
 	Panes      []pane
 	Inside     bool
 	Containers []container
+	Brews      []brewService
 	Sessions   []session
 }
 
 func (r reading) MarshalJSON() ([]byte, error) {
-	w := readingWire{Projects: r.projects, Inside: r.inside, Containers: r.containers, Sessions: r.sessions}
+	w := readingWire{Projects: r.projects, Inside: r.inside, Containers: r.containers, Brews: r.brews, Sessions: r.sessions}
 	for _, rec := range r.records {
 		w.Records = append(w.Records, rec)
 	}
@@ -192,7 +203,7 @@ func (r *reading) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &w); err != nil {
 		return err
 	}
-	*r = reading{projects: w.Projects, inside: w.Inside, containers: w.Containers, sessions: w.Sessions,
+	*r = reading{projects: w.Projects, inside: w.Inside, containers: w.Containers, brews: w.Brews, sessions: w.Sessions,
 		records: map[int]record{}, panes: map[string]pane{}}
 	for _, rec := range w.Records {
 		r.records[rec.pid] = rec
@@ -232,6 +243,10 @@ type entryWire struct {
 	Since                     time.Time
 	Cwd, Asking, Doing        string
 	Container, Declared       string
+	Sockets                   []socket
+	Ports                     []string
+	Brew                      string
+	Shared                    int
 }
 
 func (e entry) MarshalJSON() ([]byte, error) {
@@ -239,7 +254,7 @@ func (e entry) MarshalJSON() ([]byte, error) {
 		PID: e.pid, Kind: e.kind, Command: e.command, Typed: e.typed, TTY: e.tty,
 		Started: e.started, Status: e.status, Fault: e.fault, Depth: e.depth,
 		Since: e.since, Cwd: e.cwd, Asking: e.asking, Doing: e.doing, Container: e.container,
-		Declared: e.declared,
+		Declared: e.declared, Sockets: e.sockets, Ports: e.ports, Brew: e.brew, Shared: e.shared,
 	})
 }
 
@@ -252,8 +267,46 @@ func (e *entry) UnmarshalJSON(b []byte) error {
 		pid: w.PID, kind: w.Kind, command: w.Command, typed: w.Typed, tty: w.TTY,
 		started: w.Started, status: w.Status, fault: w.Fault, depth: w.Depth,
 		since: w.Since, cwd: w.Cwd, asking: w.Asking, doing: w.Doing, container: w.Container,
-		declared: w.Declared,
+		declared: w.Declared, sockets: w.Sockets, ports: w.Ports, brew: w.Brew, shared: w.Shared,
 	}
+	return nil
+}
+
+type socketWire struct{ Proto, Addr, State string }
+
+func (s socket) MarshalJSON() ([]byte, error) {
+	return json.Marshal(socketWire{Proto: s.proto, Addr: s.addr, State: s.state})
+}
+
+func (s *socket) UnmarshalJSON(b []byte) error {
+	var w socketWire
+	if err := json.Unmarshal(b, &w); err != nil {
+		return err
+	}
+	*s = socket{proto: w.Proto, addr: w.Addr, state: w.State}
+	return nil
+}
+
+type brewWire struct {
+	Name    string
+	Running bool
+	PID     int
+	Exit    string
+	Status  string
+	Command string
+	Log     string
+}
+
+func (s brewService) MarshalJSON() ([]byte, error) {
+	return json.Marshal(brewWire{Name: s.name, Running: s.running, PID: s.pid, Exit: s.exit, Status: s.status, Command: s.command, Log: s.log})
+}
+
+func (s *brewService) UnmarshalJSON(b []byte) error {
+	var w brewWire
+	if err := json.Unmarshal(b, &w); err != nil {
+		return err
+	}
+	*s = brewService{name: w.Name, running: w.Running, pid: w.PID, exit: w.Exit, status: w.Status, command: w.Command, log: w.Log}
 	return nil
 }
 

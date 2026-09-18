@@ -372,10 +372,20 @@ func upAndHeld(projects []project, panes map[string]pane, path string) (up map[s
 	up, held = map[string]bool{}, map[string]string{}
 	for _, pl := range projects {
 		for _, e := range pl.entries {
-			if e.declared == "" || e.tty == "" {
+			if e.declared == "" {
 				continue
 			}
 			if project, _, ok := unmarkDeclared(e.declared); !ok || project != path {
+				continue
+			}
+			// A brew service is up by brew's word, not by a pane.
+			if e.brew != "" {
+				if e.status == statusActive {
+					up[e.declared] = true
+				}
+				continue
+			}
+			if e.tty == "" {
 				continue
 			}
 			if p := panes[e.tty]; p.exit != "" {
@@ -428,6 +438,11 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 			continue
 		}
 		for _, decl := range d.list {
+			// A brew service is a row of its own kind, as brew reports
+			// it, not a pane running the command; see attachBrew.
+			if _, ok := brewArgs(decl.command); ok {
+				continue
+			}
 			mark := markDeclared(path, decl.name)
 			if p, ok := byMark[mark]; ok {
 				// The pane is up. Its head is relabelled wherever the

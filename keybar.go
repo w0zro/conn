@@ -26,9 +26,10 @@ var (
 )
 
 // keyBar is the hints as the bar writes them: each key in the ink and
-// bold, what it does in the gray after it, three cells between one and
-// the next, a cell in from the edge, on the surface, which is the
-// bar's ground.
+// bold, what it does in the gray after it and in the lower case, so
+// the key is the one thing that stands up in the row; three cells
+// between one and the next, a cell in from the edge, on the surface,
+// which is the bar's ground.
 func keyBar(hints []keyHint) string {
 	var b strings.Builder
 	b.WriteString(" ")
@@ -36,7 +37,7 @@ func keyBar(hints []keyHint) string {
 		if i > 0 {
 			b.WriteString("   ")
 		}
-		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", surfaceHex, hex(inkColor), h.key, grayHex, h.does)
+		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", surfaceHex, hex(inkColor), h.key, grayHex, strings.ToLower(h.does))
 	}
 	return b.String()
 }

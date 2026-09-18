@@ -117,7 +117,10 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
 		{pid: -9, kind: kindRun, command: "worker", status: statusDown, declared: "worker@/w"},
 	}}})
-	has := func(bar, key, does string) bool { return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+does) }
+	// The words are written in the lower case, whatever the hint says.
+	has := func(bar, key, does string) bool {
+		return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+strings.ToLower(does))
+	}
 	m.cursor = 1
 	bar := m.bar()
 	for _, want := range [][2]string{{"j k", "Move"}, {"Enter", "Open"}, {"Tab", "Next waiting"}, {"x", "End it"}, {"s", "Shell"}, {"u", "Bring up"}, {"?", "Help"}} {

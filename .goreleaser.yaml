@@ -7,11 +7,12 @@ version: 2
 
 project_name: conn
 
-# The man page in the archive is written from the manual, stamped with the release
-# being cut rather than the one the manual last recorded.
+# The man page in the archive is stamped with the release being cut,
+# rather than the one it last recorded.
 before:
   hooks:
-    - go run ./tools/man -version {{ .Version }}
+    - >-
+      perl -pi -e 's/^\.TH CONN 1 "[^"]*" "conn [^"]*"/.TH CONN 1 "{{ .Now.Format "2006-01-02" }}" "conn {{ .Version }}"/' man/conn.1
 
 builds:
   - env:

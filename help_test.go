@@ -348,3 +348,45 @@ func TestNoRowGoesInAndNoneComesBack(t *testing.T) {
 		t.Errorf("leaving invented row %d", got.cursor)
 	}
 }
+
+// The page is held to the binary: its SYNOPSIS names every command conn
+// offers and every flag it takes, and no command conn does not answer
+// to; its KEYS section names the one key tmux takes, as conn binds it.
+func TestTheManPageIsHeldToTheBinary(t *testing.T) {
+	page := string(manPage)
+	i, j := strings.Index(page, ".SH SYNOPSIS"), strings.Index(page, ".SH DESCRIPTION")
+	if i < 0 || j < i {
+		t.Fatal("the page has no synopsis")
+	}
+	known := map[string]bool{}
+	for _, c := range commands {
+		if c.use != "" {
+			known[c.name] = true
+		}
+	}
+	for _, f := range flags {
+		known[f.name] = true
+	}
+	syn := strings.ReplaceAll(page[i:j], `\-`, "-")
+	for name := range known {
+		if !strings.Contains(syn, name) {
+			t.Errorf("the page's synopsis lacks %q", name)
+		}
+	}
+	for _, line := range strings.Split(syn, "\n") {
+		if f := strings.Fields(line); len(f) >= 3 && f[0] == ".B" && f[1] == "conn" && !known[f[2]] {
+			t.Errorf("the page offers %q, which conn does not answer to", line)
+		}
+	}
+	k := strings.Index(page, ".SH KEYS")
+	if k < 0 {
+		t.Fatal("the page has no keys section")
+	}
+	keys := strings.ReplaceAll(page[k:], `\-`, "-")
+	say := strings.ToLower(strings.ReplaceAll(defaultKey, "C-", "ctrl-"))
+	for _, want := range []string{say, "CONN_KEY"} {
+		if !strings.Contains(keys, want) {
+			t.Errorf("the page's keys section lacks %s", want)
+		}
+	}
+}

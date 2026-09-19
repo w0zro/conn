@@ -9,12 +9,12 @@ import (
 	"strings"
 )
 
-// The manual conn carries. It is the page written from docs/index.html
-// by tools/man, built into the binary rather than looked for on the
-// machine: a conn run from a build directory has no installed page, and
-// an installed conn may have one from an older release beside a newer
-// binary. The manual a conn shows is the manual that conn was built
-// with, which is the only one guaranteed to describe it.
+// The manual conn carries: man/conn.1, written by hand and built into
+// the binary rather than looked for on the machine. A conn run from a
+// build directory has no installed page, and an installed conn may have
+// one from an older release beside a newer binary. The manual a conn
+// shows is the manual that conn was built with, which is the only one
+// guaranteed to describe it.
 //
 //go:embed man/conn.1
 var manPage []byte

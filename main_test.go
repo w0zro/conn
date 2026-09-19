@@ -9,8 +9,8 @@ import (
 
 // The manual's synopsis is the command table: every command conn offers
 // and every flag it takes is a row there, and no row names a command or
-// a flag conn does not have. The man page's synopsis is written from
-// those rows, so this is what holds man conn to the binary.
+// a flag conn does not have. The man page is held to the binary on its
+// own, in help_test.go.
 func TestTheManualsSynopsisIsTheCommandTable(t *testing.T) {
 	page, err := os.ReadFile("docs/index.html")
 	if err != nil {
@@ -69,8 +69,7 @@ func TestTheManualsSynopsisIsTheCommandTable(t *testing.T) {
 
 // The manual names the one key tmux takes, and it is the one conn
 // binds: in the root table, so that it works from inside a process,
-// and no other. This is what holds man conn to the binary for the key,
-// the way the synopsis table holds it for the commands.
+// and no other.
 func TestTheManualNamesThePanelKey(t *testing.T) {
 	page, err := os.ReadFile("docs/index.html")
 	if err != nil {

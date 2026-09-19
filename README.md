@@ -1,9 +1,55 @@
 # conn
 
-Notes for working on conn. The manual is the site, `docs/index.html`,
-and it says what conn does for the operator. This document says how
-the tree is built, tested, and released, and nothing the tree already
-says for itself.
+A console for the processes working your projects. conn files every
+process on one machine by what it needs from you, and puts the one
+you choose in front of you.
+
+```
+   WAITING FOR YOU ───────────────────── 2
+▸  ●  claude                        9 MIN
+   ●  claude                        2 MIN
+
+   WORKING ───────────────────────────── 1
+   ●  go test ./... ⣾                 conn
+
+   SERVING ───────────────────────────── 1
+   ●  :5173  node vite                 web
+
+   IDLE ──────────────────────────────── 2
+▌  ○  zsh                              web
+   ●  vim                         STOPPED
+
+   NOT RUNNING ───────────────────────── 1
+   ◌  worker                           web
+```
+
+```
+curl -fsSL https://conn.w0zro.com/install.sh | sh
+```
+
+macOS and Linux. Needs `tmux`, and `lsof` on macOS.
+
+conn brings up a tmux server of its own. conn is the panel on the
+left; the workspace is the rest of the window. Every shell, editor,
+coding agent, dev server, container and Homebrew service working a
+project under your roots is a row on the panel. `enter` puts a row's
+process in the workspace and the keys in it. `ctrl-space` brings the
+keys back to the panel from inside any process. `tab` goes to the
+agent that has waited longest for you. `esc` goes back into the
+process you were in. `q` detaches, and everything keeps running.
+
+A project's `.conn` file declares what works it, one process a line,
+so conn can say what is not running and bring it up. Claude Code
+sessions are contacts: conn reads their state, shows the question a
+waiting one asked, and lists the sessions left suspended at a project.
+
+`man conn`, or `?` inside conn, is the reference. The operating
+manual is at [conn.w0zro.com](https://conn.w0zro.com).
+
+---
+
+Notes for working on the tree. Nothing here that the tree says for
+itself.
 
 ## SECTION 1. GENERAL
 
@@ -12,27 +58,26 @@ on one machine: a panel that lists the processes working each project,
 and a workspace holding the one process the operator is in, on a tmux
 server conn starts and holds. It is one Go binary with no cgo, for
 macOS and Linux. The vocabulary is fixed: process, contact, session,
-project, panel, workspace, status line, readout. The code still says
-bay for the workspace.
+project, panel, workspace, status line, page. The code still says
+bay for the workspace and readout for the page.
 
 **1-2.** The whole program is one package at the root. A file is named
 for the thing it is about, and its head comment says what that thing
 is and why it is done the way it is; read the head before the code. The
 machine is read by a file per platform, `process_darwin.go` and
 `process_linux.go`, and a function only one platform calls is unused on
-the other. `tools/man` writes the man page from the manual and
-`tools/revisions` writes the manual's record of revisions from the
-tags. `docs/` is what conn.w0zro.com serves: the manual, its
+the other. `tools/revisions` writes the manual's record of revisions
+from the tags. `docs/` is what conn.w0zro.com serves: the manual, its
 stylesheet, and `install.sh`.
 
-**1-3.** The manual is the one text. `man/conn.1` is written from it by
-`go run ./tools/man`, built into the binary, and shown by `prefix ?`;
-it is never edited by hand. A test fails when the page in the tree is
-not the manual's. Two more hold the manual to the binary: every command
-and flag conn answers to is a row of the synopsis table and nothing
-else is, and every chord bound under the prefix is a row of the chord
-table and nothing else is. A key or a command added without its row
-fails the build.
+**1-3.** There are two texts. `man/conn.1` is the reference, written by
+hand in roff, built into the binary, and shown by `?`; it is held to the
+binary by a test: its synopsis names every command and flag conn
+answers to and nothing else, and its keys section names the panel key.
+`docs/index.html` is the operating manual, held the same way: every
+command and flag is a row of its synopsis table and nothing else is,
+and the keys section names the panel key. A key or a command added
+without its row in both fails the build.
 
 ## SECTION 2. BUILDING AND TESTING
 
@@ -61,10 +106,10 @@ step is its own commit.
 row the manual will record it by: `git tag -a v0.11.0 -m "What the
 release did"`. Pushing it runs the tests and hands the build to
 goreleaser, which produces `conn_<version>_<os>_<arch>.tar.gz` holding
-the binary and the man page, beside a `checksums.txt`. Those names are
-what `install.sh` expects.
+the binary and the man page, stamped with the release, beside a
+`checksums.txt`. Those names are what `install.sh` expects.
 
 **3-2.** Once the release is out, the workflow writes the record of
-revisions and the man page and pushes both to main. That push is the
-one Pages rebuilds the site on. `goreleaser release --snapshot --clean`
-rehearses the build locally without tagging.
+revisions, stamps the man page, and pushes both to main. That push is
+the one Pages rebuilds the site on. `goreleaser release --snapshot
+--clean` rehearses the build locally without tagging.

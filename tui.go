@@ -93,6 +93,12 @@ const (
 	blinkDark = time.Second / 2
 )
 
+// A working row's spinner turns a frame at a time: eight frames a
+// turn, a turn a second. It turned with the clock before, a frame a
+// second, and a turn eight seconds long read as a glyph changing now
+// and then rather than as anything moving.
+const spinEvery = 125 * time.Millisecond
+
 type (
 	stageMsg     struct{}          // the next stage is due
 	clockMsg     struct{}          // the second has turned
@@ -137,6 +143,7 @@ type (
 	readoutMsg       struct{ on bool }        // the readout was put in the bay, or taken out of it
 	helpMsg          struct{ on bool }        // the manual was put in the bay
 	blinkMsg         struct{ gen int }        // the chip's half is up
+	spinMsg          struct{ gen int }        // the spinner's next frame is due
 	projectsMsg      struct {                 // the roots were walked
 		projects []projectRow
 		err      string
@@ -160,6 +167,8 @@ type model struct {
 	lit      bool // the annunciators are showing this half of the blink
 	blinkGen int  // which run of the blink a turn belongs to
 	ticking  bool // the blink's tick is in flight, because something annunciates
+	spinGen  int  // which run of the spinner a frame belongs to
+	turning  bool // the spinner's tick is in flight, because a row is working
 	projects []project
 	cursor   int     // the pid the cursor is on
 	cursorAt int     // where in the rows it was, for when the pid goes
@@ -363,7 +372,7 @@ func (m model) report() report {
 func (m model) processesReport() processesReport {
 	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.roots.isProject, m.head.login.home, m.now, m.processesErr, m.dockerStalled)
 	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
-	w.spin = int(m.now.Unix()) % len(spinner)
+	w.spin = int(m.now.UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
 	return w
 }
 
@@ -618,6 +627,46 @@ func (m model) nextBlink() tea.Cmd {
 	return tea.Tick(d, func(time.Time) tea.Msg { return blinkMsg{gen} })
 }
 
+// working says whether a spinner is turning on the panel as things
+// stand: the processes view filed by state, with a row at work on it.
+// The tree on z draws no spinner, and no other view does.
+func (m model) working() bool {
+	if m.view != viewProcesses || m.full {
+		return false
+	}
+	for _, pl := range m.projects {
+		for _, e := range pl.entries {
+			if e.status == statusWorking {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// turned starts the spinner's tick when a row begins to work and lets
+// it stop when none does, the way blinked does for the blink: eight
+// redraws a second are nothing while something is seen to move, and
+// too many while nothing is.
+func (m model) turned() (model, tea.Cmd) {
+	want := m.working()
+	if want == m.turning {
+		return m, nil
+	}
+	m.turning, m.spinGen = want, m.spinGen+1
+	if !want {
+		return m, nil
+	}
+	return m, m.nextSpin()
+}
+
+// nextSpin is the spinner's next frame. A frame from an earlier run of
+// the spinner is dropped.
+func (m model) nextSpin() tea.Cmd {
+	gen := m.spinGen
+	return tea.Tick(spinEvery, func(time.Time) tea.Msg { return spinMsg{gen} })
+}
+
 // processesTick is when the processes view reads again: soon while it
 // waits on a shell conn opened, and at its own pace otherwise.
 func (m model) processesTick() tea.Cmd {
@@ -645,8 +694,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		nm = nm.published(reading)
 		nm, said := nm.saying()
 		nm, blink := nm.blinked()
-		if said != nil || blink != nil {
-			return nm, tea.Batch(cmd, said, blink)
+		nm, spin := nm.turned()
+		if said != nil || blink != nil || spin != nil {
+			return nm, tea.Batch(cmd, said, blink, spin)
 		}
 		return nm, cmd
 	}
@@ -1117,6 +1167,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.lit = !m.lit
 		return m, m.nextBlink()
+	case spinMsg:
+		if msg.gen != m.spinGen || !m.working() {
+			return m, nil
+		}
+		m.now = time.Now()
+		return m, m.nextSpin()
 	case processesMsg:
 		if msg.gen != m.processesGen {
 			return m, nil

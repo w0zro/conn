@@ -24,11 +24,11 @@ const (
 	projectLeast = 8
 )
 
-// The spinner's frames, one a second: the cell full but for one dot,
-// the gap going round, a full turn in eight. A single dot going round
-// was a trace too faint to be seen turning beside a row of text; the
-// full cell has the weight of the dot before it, and the gap is what
-// moves.
+// The spinner's frames: the cell full but for one dot, the gap going
+// round, a full turn in eight, and a turn a second (spinEvery, in
+// tui.go). A single dot going round was a trace too faint to be seen
+// turning beside a row of text; the full cell has the weight of the
+// dot before it, and the gap is what moves.
 var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 
 // drawState renders the panel by state for a terminal of the given size,

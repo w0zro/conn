@@ -670,6 +670,59 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 	}
 }
 
+// The spinner's tick runs while a row is working on the panel by state
+// and stops when none is, or when the tree is up, or off the view: the
+// panel is redrawn eight times a second for something seen to move and
+// not otherwise. Its frame is the clock's at the tick's grain, so the
+// frames go round in order at the tick's pace.
+func TestTheSpinnerTurnsOnlyForWhatWorks(t *testing.T) {
+	m := newModel(plain)
+	if m.working() {
+		t.Error("the console has a spinner turning")
+	}
+	m.view = viewProcesses
+	m.projects = byState([]project{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}}}})
+	if m.working() {
+		t.Error("an idle row has a spinner turning")
+	}
+	m.projects = byState([]project{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}, {pid: 12, status: statusWorking}}}})
+	if !m.working() {
+		t.Error("a working row has no spinner turning")
+	}
+	m.full = true
+	if m.working() {
+		t.Error("the tree has a spinner turning")
+	}
+	m.full = false
+	next, cmd := m.turned()
+	if !next.turning || cmd == nil {
+		t.Errorf("the spinner did not start: turning %v cmd %v", next.turning, cmd != nil)
+	}
+	if _, again := next.turned(); again != nil {
+		t.Error("the spinner was started twice over")
+	}
+	next.projects = nil
+	stopped, cmd := next.turned()
+	if stopped.turning || cmd != nil {
+		t.Errorf("the spinner did not stop: turning %v", stopped.turning)
+	}
+	// The frames, a turn a second: the eighth of a second after a frame
+	// is the next one, and the second after it is the same one again.
+	m.now = time.Unix(100, 0)
+	first := m.processesReport().spin
+	m.now = m.now.Add(spinEvery)
+	if second := m.processesReport().spin; second != (first+1)%len(spinner) {
+		t.Errorf("a tick on, the frame is %d after %d", second, first)
+	}
+	m.now = time.Unix(101, 0)
+	if again := m.processesReport().spin; again != first {
+		t.Errorf("a second on, the frame is %d, not %d again", again, first)
+	}
+	if spinEvery*time.Duration(len(spinner)) != time.Second {
+		t.Errorf("a turn is %v, not a second", spinEvery*time.Duration(len(spinner)))
+	}
+}
+
 // The blink runs while something annunciates and stops when nothing
 // does, so a view with nothing held up on it is not redrawn a second
 // and a half at a time for nothing.

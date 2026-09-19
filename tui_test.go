@@ -1248,9 +1248,12 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.projects, m.panes = viewProcesses, testRunning, testPanes
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	// The status line has been said once already, so what a key asks for
-	// here is the key's own asking and not the line's first telling.
+	// The status line has been said once already, and the spinner is
+	// turning already for the row at work, so what a key asks for here
+	// is the key's own asking and not the line's first telling or the
+	// spinner's first frame.
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
+	m.turning = m.working()
 
 	press := func(m model, k string) (model, tea.Cmd) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))

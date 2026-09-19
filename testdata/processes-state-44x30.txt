@@ -1,20 +1,20 @@
 
    WAITING FOR YOU ──────────────────── 2
-▸  ●         claude                 9 min
-   ●         claude                 2 min
+▸  ●  claude                        9 min
+   ●  claude                        2 min
 
    WORKING ──────────────────────────── 1
-   ●         go test ./... ⣾         /w/b
+   ●  go test ./... ⣾                /w/b
 
    SERVING ──────────────────────────── 1
    ●  :5173  node vite               /w/a
 
    IDLE ─────────────────────────────── 2
-▌  ○         zsh                     /w/a
-   ●         vim                 Stopped
+▌  ○  zsh                            /w/a
+   ●  vim                        Stopped
 
    NOT RUNNING ──────────────────────── 1
-   ◌         worker                  /w/a
+   ◌  worker                         /w/a
 
 
 

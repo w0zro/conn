@@ -80,7 +80,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	text := texts(rows)
 	golden(t, "processes-state-44x30.txt", text)
 	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "IDLE ─", "NOT RUNNING ─",
-		"●         claude", "9 min", "2 min", "●         go test ./... ⣾", "●  :5173  node vite", "○         zsh", "◌         worker", " Stopped"} {
+		"●  claude", "9 min", "2 min", "●  go test ./... ⣾", "●  :5173  node vite", "○  zsh", "◌  worker", " Stopped"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -298,5 +298,36 @@ func TestAFiledRowKeepsItsPortBeforeItsProject(t *testing.T) {
 		if !strings.Contains(text, "…") {
 			t.Errorf("at %d wide nothing yielded to the port:\n%s", width, text)
 		}
+	}
+}
+
+// The column of ports is a group's own. A serving row's command starts
+// after the widest port in its group, and a row filed elsewhere starts
+// its command right after the dot: the groups are read one at a time,
+// and a blank slot under IDLE is a gap, not a column.
+func TestThePortsColumnIsTheGroupsOwn(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
+	m.projects = byState([]project{{path: "/home/w0zro/projects/app", entries: []entry{
+		{pid: 5, kind: kindRun, command: "node server.js", status: statusActive, ports: []string{"8080", "8081"}},
+		{pid: 6, kind: kindShell, command: "zsh", status: statusIdle},
+	}}})
+	var serving, idle string
+	for _, line := range strings.Split(texts(drawProcesses(m.processesReport(), 0, panelWidth, 20, plain)), "\n") {
+		switch {
+		case strings.Contains(line, "node"):
+			serving = line
+		case strings.Contains(line, "zsh"):
+			idle = line
+		}
+	}
+	if serving == "" || idle == "" {
+		t.Fatalf("the rows are missing:\n%q\n%q", serving, idle)
+	}
+	if strings.Index(serving, "node") <= strings.Index(serving, ":8080 :8081") {
+		t.Errorf("the serving row's command does not follow its ports: %q", serving)
+	}
+	if strings.Index(idle, "zsh") >= strings.Index(serving, "node") {
+		t.Errorf("the idle row waits on a column its group does not have:\n%q\n%q", serving, idle)
 	}
 }

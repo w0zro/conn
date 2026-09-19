@@ -46,23 +46,24 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 		room = 1 << 30
 	}
 
-	// The ports come first, in a column of their own after the dot,
-	// and the commands start together after it. What is at :3000 is
-	// the fact a serving row is looked at for, and read down the panel
-	// it is a column, where after each command it stood at its own
-	// distance and was the first thing a narrow row lost. The column is
-	// as wide as the widest, and gone when nothing serves.
-	portsW := 0
-	for _, bp := range b.projects {
-		for _, r := range bp.rows {
-			portsW = max(portsW, utf8.RuneCountInString(portsColumn(r.ports)))
-		}
-	}
-
 	var body []row
 	cursorRow := -1
 	d := canvas{p: p, width: width}
 	for _, bp := range b.projects {
+		// The ports come first, in a column of their own after the
+		// dot, and the group's commands start together after it. What
+		// is at :3000 is the fact a serving row is looked at for, and
+		// read down the group it is a column, where after each command
+		// it stood at its own distance and was the first thing a narrow
+		// row lost. The column is the group's own, as wide as its
+		// widest, and gone from a group where nothing serves: the eye
+		// reads down one group at a time, and an idle row has nothing
+		// to say there, so lining its command up with a serving row's
+		// cost it the cells and read as a gap.
+		portsW := 0
+		for _, r := range bp.rows {
+			portsW = max(portsW, utf8.RuneCountInString(portsColumn(r.ports)))
+		}
 		d.blank(0)
 		l := d.line()
 		l.eyebrow(0, groupTitle(bp.path), measure, strconv.Itoa(len(bp.rows)))

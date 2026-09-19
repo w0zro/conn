@@ -72,26 +72,6 @@ func listeningPorts(sockets []socket) []string {
 	return out
 }
 
-// mergePorts is two rows' ports as one row's: once each, lowest first.
-// Nothing where neither has any.
-func mergePorts(a, b []string) []string {
-	if len(b) == 0 {
-		return a
-	}
-	var ports []int
-	for _, s := range slices.Concat(a, b) {
-		if n, err := strconv.Atoi(s); err == nil && !slices.Contains(ports, n) {
-			ports = append(ports, n)
-		}
-	}
-	sort.Ints(ports)
-	out := make([]string, 0, len(ports))
-	for _, n := range ports {
-		out = append(out, strconv.Itoa(n))
-	}
-	return out
-}
-
 // String is the socket as the page says it: the protocol and the
 // address, and the state where it is not the one the address implies.
 func (s socket) String() string {

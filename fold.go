@@ -9,18 +9,21 @@ package main
 // is waiting; a row that is down, which wants bringing up; and a
 // service, which is a thing to reach — a port to go to, a health to
 // watch — and not a step in what its compose is doing. The rest is
-// what the head is doing, and is said on the head's own row. z shows the whole tree, for when the rest is what you
-// are looking for.
+// what the head is doing, and is said on the head's own row. z shows
+// the whole tree, for when the rest is what you are looking for.
+//
+// A process that listens is a service of the machine's own, and stays
+// the same way: a port is a thing to reach, and the row to reach it
+// from is the process that holds it, with its own command, and not the
+// supervisor six of them roll up to. The head that started it carries
+// no port of its own, and files by what it is doing.
 
 // fold is the projects with every row that is only what its parent is
 // doing folded into the parent: a row stays when it is a head, a
-// contact, a fault or waiting, and comes to stand under the nearest row
-// that stayed. A shell whose rows folded says what it runs — the first
-// of them that is not a shell itself, so a bash -c is looked through to
-// the command it was given. A port a folded row listens on is the port
-// of the row it folds into: the shell that ran npm run dev is what is
-// serving :5173, and says so, unless it is a contact, which is filed by
-// what it asks and never by what it has open.
+// contact, a service, a listener, a fault or waiting, and comes to
+// stand under the nearest row that stayed. A shell whose rows folded
+// says what it runs — the first of them that is not a shell itself, so
+// a bash -c is looked through to the command it was given.
 func fold(projects []project) []project {
 	out := make([]project, 0, len(projects))
 	for _, pl := range projects {
@@ -39,7 +42,7 @@ func fold(projects []project) []project {
 			if d > 0 {
 				parent, parentDepth = at[d-1], depth[d-1]
 			}
-			if d == 0 || e.kind == kindContact || e.kind == kindService || e.fault || e.status == statusWaiting || e.status == statusDown {
+			if d == 0 || e.kind == kindContact || e.kind == kindService || len(e.ports) > 0 || e.fault || e.status == statusWaiting || e.status == statusDown {
 				e.depth = parentDepth + 1
 				kept.entries = append(kept.entries, e)
 				at[d], depth[d] = len(kept.entries)-1, e.depth
@@ -52,9 +55,6 @@ func fold(projects []project) []project {
 				p := &kept.entries[parent]
 				if p.kind == kindShell && (p.under == "" || p.underShell && e.kind != kindShell) {
 					p.under, p.underShell = e.asTyped(), e.kind == kindShell
-				}
-				if p.kind != kindContact {
-					p.ports = mergePorts(p.ports, e.ports)
 				}
 			}
 		}

@@ -215,11 +215,19 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 	for _, e := range folded[0].entries {
 		rows = append(rows, strings.Repeat(" ", e.depth)+activityOf(e)+portsWord(e.ports))
 	}
-	if want := []string{"npm run dev · :5173 :24678", "claude"}; !slices.Equal(rows, want) {
+	// A process that listens stands as a row of its own under whatever
+	// started it, with its own command and its own port: the row to
+	// reach a port from is the process that holds it. The shell that
+	// ran it carries no port, and files by what it is, as a shell whose
+	// child is a contact does.
+	if want := []string{"zsh", " npm run dev · :24678", "  node vite · :5173", "claude", " python -m http.server · :8000"}; !slices.Equal(rows, want) {
 		t.Errorf("the fold kept %q, want %q", rows, want)
 	}
-	if got := stateOf(folded[0].entries[0]); got != groupServing {
-		t.Errorf("the shell that runs the server files under %q", groupTitle(got))
+	if got := stateOf(folded[0].entries[1]); got != groupServing {
+		t.Errorf("the server files under %q", groupTitle(got))
+	}
+	if got := stateOf(folded[0].entries[0]); got != groupIdle {
+		t.Errorf("the shell that ran the server files under %q", groupTitle(got))
 	}
 	// Drawn narrow, the port is the last thing to go: in eight cells
 	// it stands alone, without the dot that joined it to the command,

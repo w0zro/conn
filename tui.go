@@ -505,15 +505,17 @@ func (m model) readProcesses() tea.Cmd {
 				shellIn[tty] = p.shellIn
 			}
 		}
-		if len(watching) > 0 {
-			kept := procs[:0]
-			for _, p := range procs {
-				if !watching[p.tty] {
-					kept = append(kept, p)
+		// And the panel's own terminal, where nothing of the operator's
+		// runs: conn does, and what conn asks.
+		panelTTY := ""
+		if srv != nil {
+			for tty, p := range panes {
+				if p.id == srv.panel() {
+					panelTTY = tty
 				}
 			}
-			procs = kept
 		}
+		procs = withoutConnsOwn(procs, watching, panelTTY)
 		projects := projectsFrom(procs, uid, roots, isProject, how)
 		records := recordsOf(procs, projects)
 		// And what docker is holding up, which the table cannot show: a

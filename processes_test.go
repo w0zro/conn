@@ -844,3 +844,29 @@ func TestANestedTitleIsBoldLikeAnyTitle(t *testing.T) {
 		}
 	}
 }
+
+// What is conn's own doing is not a row: a pane watching a service, and
+// anything on the panel's own terminal that is not conn itself — a
+// curl brew forked for its analytics and let go of, which carries the
+// panel's terminal and nothing else to know it by. conn stays, since
+// the shell it was launched from is held by walking up from it, and a
+// process on any other terminal is untouched.
+func TestConnsOwnDoingIsNoRow(t *testing.T) {
+	procs := []process{
+		{pid: 10, ppid: 1, tty: "ttys001", args: []string{"conn"}},
+		{pid: 11, ppid: 1, tty: "ttys001", args: []string{"curl", "https://analytics.brew.sh"}},
+		{pid: 12, ppid: 1, tty: "ttys002", args: []string{"tail", "-f", "log"}},
+		{pid: 13, ppid: 1, tty: "ttys003", args: []string{"zsh"}},
+	}
+	got := withoutConnsOwn(procs, map[string]bool{"ttys002": true}, "ttys001")
+	var pids []int
+	for _, p := range got {
+		pids = append(pids, p.pid)
+	}
+	if !slices.Equal(pids, []int{10, 13}) {
+		t.Errorf("the table kept %v, not conn and the shell", pids)
+	}
+	if n := len(withoutConnsOwn(procs, nil, "")); n != 4 {
+		t.Errorf("with nothing to take out, %d of 4 were kept", n)
+	}
+}

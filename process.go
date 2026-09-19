@@ -887,3 +887,29 @@ func spell(d time.Duration) string {
 		return fmt.Sprintf("%dS", secs)
 	}
 }
+
+// withoutConnsOwn is the table less what is conn's own doing and not
+// the operator's: the panes watching a service, whose tail is the
+// service's row and not a row beside it; and whatever else is on the
+// panel's own terminal. conn is the one thing that runs there, and a
+// process that carries that terminal is one conn asked for — brew,
+// whose ruby forks a curl for its analytics and exits without waiting
+// for it. covered cannot find conn above a child conn has let go of,
+// but the terminal it carries is enough to know it by. conn itself
+// stays: the shell it was launched from is held by walking up from it.
+func withoutConnsOwn(procs []process, watching map[string]bool, panelTTY string) []process {
+	if len(watching) == 0 && panelTTY == "" {
+		return procs
+	}
+	kept := procs[:0]
+	for _, p := range procs {
+		if watching[p.tty] {
+			continue
+		}
+		if p.tty == panelTTY && kindOf(p) != kindConn {
+			continue
+		}
+		kept = append(kept, p)
+	}
+	return kept
+}

@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -265,5 +267,20 @@ func TestSocketsAndBrewTravelWithTheReading(t *testing.T) {
 	}
 	if svc := back.brewOf(e); svc == nil || svc.pid != 24422 || svc.log == "" {
 		t.Errorf("brew's word came back as %+v", svc)
+	}
+}
+
+// An asking of brew sends nothing anywhere: brew's analytics, its update
+// check and its hints are off in the environment conn gives it, and the
+// beat between askings is slow enough that booting brew's ruby costs
+// the machine little.
+func TestBrewIsAskedQuietly(t *testing.T) {
+	for _, want := range []string{"HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ENV_HINTS=1"} {
+		if !slices.Contains(brewEnv, want) {
+			t.Errorf("brew is asked without %s", want)
+		}
+	}
+	if brewBeat < 10*time.Second {
+		t.Errorf("brew is asked every %s", brewBeat)
 	}
 }

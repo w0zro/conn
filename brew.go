@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -35,7 +36,11 @@ import (
 
 const (
 	brewWait = 5 * time.Second // the longest brew is given to answer
-	brewBeat = 5 * time.Second // how often it is asked, while anything is declared
+	// How often brew is asked, while anything is declared. An asking
+	// boots brew's ruby, half a second of a core, and a service does
+	// not change on its own between one and the next; a start or a
+	// stop from the panel asks again at once.
+	brewBeat = 15 * time.Second
 )
 
 var brewPath = lookPath("brew")
@@ -70,11 +75,20 @@ func brewArgs(command string) (formula string, ok bool) {
 // which is what makes that pane the row's terminal.
 func brewMark(formula string) string { return "brew:" + formula }
 
+// brewEnv is what conn adds to brew's environment when it asks. brew
+// records every command it is given with a curl to its analytics,
+// forked and left to itself, and would send one for every asking conn
+// makes; it checks itself for updates too, and prints hints. An asking
+// is conn's own and not the operator's use of brew, and sends nothing
+// anywhere.
+var brewEnv = []string{"HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ENV_HINTS=1"}
+
 // brewSays asks brew, given a wait.
 func brewSays(wait time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, brewPath, args...)
+	cmd.Env = append(os.Environ(), brewEnv...)
 	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	if ctx.Err() != nil {

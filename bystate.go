@@ -56,7 +56,10 @@ func isGroup(path string) bool {
 // to report — a shell at its prompt, an editor, a process up and not
 // doing anything, a contact at rest, a stopped row with its stamp — is
 // idle: at rest, nothing pending, yours when you want it, which is
-// the word its rows already use.
+// the word its rows already use. A stopped row is alive, and fg
+// brings it back; one that ended with a code has ended, the same as
+// one that ended clean, and is not running, with its stamp saying
+// how it went.
 func stateOf(e entry) string {
 	switch e.status {
 	case statusWaiting:
@@ -64,6 +67,9 @@ func stateOf(e entry) string {
 	case statusWorking:
 		return groupWorking
 	case statusDown, statusEnded:
+		return groupNotRunning
+	}
+	if strings.HasPrefix(e.status, exitWord) {
 		return groupNotRunning
 	}
 	if serving(e) {

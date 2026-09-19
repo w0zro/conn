@@ -163,7 +163,7 @@ func brewStatus(s brewService) (string, bool) {
 	case s.running:
 		return statusActive, false
 	case s.exit != "":
-		return "EXIT " + s.exit, true
+		return exitWord + s.exit, true
 	case s.status == "error":
 		return "ERROR", true
 	}

@@ -364,8 +364,11 @@ func exitStatus(code string) (string, bool) {
 	if code == "0" {
 		return statusEnded, false
 	}
-	return "EXIT " + code, true
+	return exitWord + code, true
 }
+
+// exitWord is what a status that ended with a code begins with.
+const exitWord = "EXIT "
 
 // upAndHeld is what a project already has panes for, by mark: the
 // declarations that are up, which a raise passes over, and the panes

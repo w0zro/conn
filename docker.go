@@ -352,7 +352,7 @@ func containerStatus(c container) (string, bool) {
 	case c.running():
 		return statusActive, false
 	case c.exit != "" && c.exit != "0":
-		return "EXIT " + c.exit, true
+		return exitWord + c.exit, true
 	}
 	return statusEnded, false
 }

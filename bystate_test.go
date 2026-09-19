@@ -197,6 +197,9 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 		{entry{kind: kindService, command: "db", status: "UNHEALTHY", fault: true, ports: []string{"5432"}}, groupServing},
 		{entry{kind: kindRun, command: "node", status: statusActive}, groupIdle},
 		{entry{kind: kindService, command: "web", status: statusDown, ports: []string{"8438"}}, groupNotRunning},
+		{entry{kind: kindService, command: "worker", status: "EXIT 3", fault: true}, groupNotRunning},
+		{entry{kind: kindRun, command: "web · npm run dev", status: statusEnded, fault: false}, groupNotRunning},
+		{entry{kind: kindRun, command: "sleep 99999", status: statusStopped, fault: true}, groupIdle},
 		{entry{kind: kindContact, command: "claude", status: statusIdle, ports: []string{"41231"}}, groupIdle},
 		{entry{kind: kindContact, command: "claude", status: statusWaiting, ports: []string{"41231"}}, groupWaiting},
 	} {

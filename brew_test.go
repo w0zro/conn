@@ -138,9 +138,9 @@ func TestAServiceTwoProjectsDeclareIsFiledOnce(t *testing.T) {
 			}
 		}
 	}
-	// A service that ended badly is a fault among the idle rows, with
-	// its stamp, as a container that exited is.
-	if want := "SERVING postgresql@14 * x2, IDLE redis /w/q x1"; strings.Join(rows, ", ") != want {
+	// A service that ended badly is not running, with its stamp
+	// saying how it went, as a container that exited is.
+	if want := "SERVING postgresql@14 * x2, NOT RUNNING redis /w/q x1"; strings.Join(rows, ", ") != want {
 		t.Errorf("filed as %q, want %q", strings.Join(rows, ", "), want)
 	}
 	back := unfiled(filed)

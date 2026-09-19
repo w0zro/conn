@@ -4,17 +4,17 @@
    ●  claude                        2 MIN
 
    WORKING ───────────────────────────── 1
-   ●  go test ./... ⣾                 /w/b
+   ●  go test ./... ⣾                    b
 
    SERVING ───────────────────────────── 1
-   ●  :5173  node vite                /w/a
+   ●  :5173  node vite                   a
 
    IDLE ──────────────────────────────── 2
-▌  ○  zsh                             /w/a
+▌  ○  zsh                                a
    ●  vim                         STOPPED
 
    NOT RUNNING ───────────────────────── 1
-   ◌  worker                          /w/a
+   ◌  worker                             a
 
 
 

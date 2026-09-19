@@ -130,17 +130,18 @@ func TestAServiceTwoProjectsDeclareIsFiledOnce(t *testing.T) {
 	sockets := map[int][]socket{24422: {{"TCP", "127.0.0.1:5432", "LISTEN"}}}
 	out := attachBrew(projects, decl, services, sockets, nil)
 	filed := byState(out)
+	names := leafNames(filed, nil, "/Users/w0zro")
 	var rows []string
 	for _, pl := range filed {
 		for _, e := range pl.entries {
 			if e.brew != "" {
-				rows = append(rows, groupTitle(pl.path)+" "+e.brew+" "+filedFrom(e, nil, "/Users/w0zro")+" x"+string(rune('0'+e.shared)))
+				rows = append(rows, groupTitle(pl.path)+" "+e.brew+" "+filedFrom(e, names)+" x"+string(rune('0'+e.shared)))
 			}
 		}
 	}
 	// A service that ended badly is not running, with its stamp
 	// saying how it went, as a container that exited is.
-	if want := "SERVING postgresql@14 * x2, NOT RUNNING redis /w/q x1"; strings.Join(rows, ", ") != want {
+	if want := "SERVING postgresql@14 * x2, NOT RUNNING redis q x1"; strings.Join(rows, ", ") != want {
 		t.Errorf("filed as %q, want %q", strings.Join(rows, ", "), want)
 	}
 	back := unfiled(filed)

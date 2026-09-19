@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -921,5 +922,42 @@ func TestConnsOwnDoingIsNoRow(t *testing.T) {
 	}
 	if n := len(withoutConnsOwn(procs, nil, "")); n != 4 {
 		t.Errorf("with nothing to take out, %d of 4 were kept", n)
+	}
+}
+
+// A filed row names its project by the project's own directory, the
+// leaf, and puts the folder above before it only where two projects
+// on the panel share the name, and more above that where they still
+// do: web and web read apps/web and lib/web, and two apps/web read
+// from the folder above that. A name that would take the whole path
+// is written as the block title is.
+func TestAFiledRowNamesItsProjectByItsLeaf(t *testing.T) {
+	roots := []string{"/r"}
+	shell := func(pid int, path string) project {
+		return project{path: path, entries: []entry{{pid: pid, kind: kindShell, command: "zsh", status: statusIdle}}}
+	}
+	filed := byState([]project{
+		shell(1, "/r/api"),
+		shell(2, "/r/apps/web"),
+		shell(3, "/r/lib/web"),
+		shell(4, "/r/x/apps/web"),
+		shell(5, "/Users/w0zro/Downloads"),
+		shell(6, "/r"),
+	})
+	b := composeProcesses(filed, nil, "", roots, testIsProject, "/Users/w0zro", processesNow, "", false)
+	got := map[int]string{}
+	for _, bp := range b.projects {
+		for _, r := range bp.rows {
+			got[r.pid] = r.from
+		}
+	}
+	want := map[int]string{1: "api", 2: "apps/web", 3: "lib/web", 4: "x/apps/web", 5: "Downloads", 6: "r"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("named %v, want %v", got, want)
+	}
+	// Alone on the panel, a project is its leaf and nothing more.
+	names := leafNames(byState([]project{shell(2, "/r/apps/web")}), roots, "/Users/w0zro")
+	if names["/r/apps/web"] != "web" {
+		t.Errorf("alone, apps/web is called %q", names["/r/apps/web"])
 	}
 }

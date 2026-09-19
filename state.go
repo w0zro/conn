@@ -16,7 +16,7 @@ import (
 // still, and its port follows its command, being where you would go.
 // What is not running is struck through.
 
-// The spinner's frames, one a reading: a dot going round the cell,
+// The spinner's frames, one a second: a dot going round the cell,
 // a full turn in eight, a trace sweeping a dial rather than a glyph
 // standing still between readings.
 var spinner = []string{"⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"}

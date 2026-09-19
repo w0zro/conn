@@ -487,11 +487,12 @@ and its object, as
 a shell command as typed,
 .IR "grep pattern" ,
 .IR "agent description" .
+Otherwise, for a contact, the title of its session.
 Otherwise what a folded shell runs.
 Otherwise the command as typed.
 A contact's command line is shown without the note
 .B conn
-handed it.
+handed it or the session it resumed.
 .SS Folding
 The filed view folds the tree.
 A row survives if it is the head of its pane, a contact, a service, a
@@ -718,6 +719,11 @@ is
 For a
 .B WAITING
 row the page reads the question itself from the session transcript.
+.PP
+A contact's row is labelled with its session's title, which Claude
+Code writes into the transcript from the first prompt and replaces on
+.BR /rename .
+While the contact is working, the row says what it is doing instead.
 .PP
 .B tab
 goes to the contact that has waited longest.

@@ -42,7 +42,12 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	if i := strings.LastIndex(name, "-"); i >= 0 && i+1 < len(name) {
 		badge = name[i+1:]
 	}
+	// The sheet is headed by what the session is about where the
+	// transcript says; the designation keeps the handle.
 	c := contactPage{badge: strings.ToUpper(badge), name: name}
+	if e.title != "" {
+		c.name = e.title
+	}
 	c.where = join(" · ", projectName(s.project.path, nil, home), s.git.branch)
 	if c.where == "" {
 		c.where = tilde(s.project.path, home)

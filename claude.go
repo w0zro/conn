@@ -297,23 +297,26 @@ func doingWord(name string, input map[string]json.RawMessage) string {
 // until those change, and a working contact's transcript is read on
 // every beat otherwise.
 type activitySeen struct {
-	size int64
-	mod  time.Time
-	word string
+	size  int64
+	mod   time.Time
+	word  string
+	title string
 }
 
-// activities fills in what each working contact is doing, read off the
-// end of its transcript, and answers what to hold for the next
-// reading. Only a row that is WORKING is asked: an idle contact is
-// doing nothing, and a waiting one is stopped on a question, which is
-// not an activity and is not the row's to say.
+// activities fills in what each contact's session is about and, for a
+// working one, what it is doing, both read off the end of its
+// transcript, and answers what to hold for the next reading. Every
+// contact is asked for its title; only a row that is WORKING is asked
+// what it is doing: an idle contact is doing nothing, and a waiting
+// one is stopped on a question, which is not an activity and is not
+// the row's to say.
 func activities(projects []project, was map[string]activitySeen) map[string]activitySeen {
 	next := map[string]activitySeen{}
 	var sessions map[int]sessionFile
 	for i := range projects {
 		for j := range projects[i].entries {
 			e := &projects[i].entries[j]
-			if e.kind != kindContact || e.status != statusWorking {
+			if e.kind != kindContact {
 				continue
 			}
 			if sessions == nil {
@@ -334,11 +337,14 @@ func activities(projects []project, was map[string]activitySeen) map[string]acti
 			}
 			seen := activitySeen{size: st.Size(), mod: st.ModTime()}
 			if w, ok := was[path]; ok && w.size == seen.size && w.mod.Equal(seen.mod) {
-				seen.word = w.word
-			} else {
-				seen.word = readAsk(path).Doing
+				seen.word, seen.title = w.word, w.title
+			} else if lines, err := tailLines(path, sessionTail); err == nil {
+				seen.word, seen.title = askOf(lines).Doing, titleOf(lines)
 			}
-			e.doing = seen.word
+			if e.status == statusWorking {
+				e.doing = seen.word
+			}
+			e.title = seen.title
 			next[path] = seen
 		}
 	}
@@ -355,6 +361,28 @@ func readAsk(path string) ask {
 	if err != nil {
 		return ask{}
 	}
+	return askOf(lines)
+}
+
+// titleOf is what a transcript says its session is about: the last
+// title record in it. Claude Code writes one from the first prompt
+// and again after each turn, and a rename writes the new name the
+// same way, so the last one is the name the session goes by now.
+func titleOf(lines [][]byte) string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		var rec struct {
+			Type  string `json:"type"`
+			Title string `json:"aiTitle"`
+		}
+		if json.Unmarshal(lines[i], &rec) == nil && rec.Type == "ai-title" && rec.Title != "" {
+			return flatten(rec.Title)
+		}
+	}
+	return ""
+}
+
+// askOf is readAsk over the lines already read.
+func askOf(lines [][]byte) ask {
 	answered := map[string]bool{}
 	var a ask
 	for i := len(lines) - 1; i >= 0; i-- {

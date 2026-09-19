@@ -846,15 +846,15 @@ func TestSinceSeenDatesARowByItsOwnEye(t *testing.T) {
 // line keeps it. The kill's question names the program alone.
 func TestTheRowSaysWhatWasTyped(t *testing.T) {
 	raised := process{command: "claude", args: []string{"claude", "--append-system-prompt", "You are running inside conn", "--resume", "abc"}}
-	if got := typedLine(raised); got != "claude --resume abc" {
+	if got := typedLine(raised); got != "claude" {
 		t.Errorf("typedLine = %q", got)
 	}
 	if got := commandLine(raised); got != "claude --append-system-prompt You are running inside conn --resume abc" {
 		t.Errorf("commandLine = %q", got)
 	}
-	joined := process{command: "claude", args: []string{"claude", "--append-system-prompt=note"}}
-	if got := typedLine(joined); got != "claude" {
-		t.Errorf("typedLine with the value joined = %q", got)
+	joined := process{command: "claude", args: []string{"claude", "--append-system-prompt=note", "--resume=abc", "--model", "opus"}}
+	if got := typedLine(joined); got != "claude --model opus" {
+		t.Errorf("typedLine with the values joined = %q", got)
 	}
 	if got := program("go test ./..."); got != "go" {
 		t.Errorf("program = %q", got)

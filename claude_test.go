@@ -406,6 +406,8 @@ func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
 		}
 		lines := `{"type":"user","message":{"content":"do the thing"}}
 {"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./..."}}]}}
+{"type":"ai-title","aiTitle":"The first title","sessionId":"s"}
+{"type":"ai-title","aiTitle":"Do the thing","sessionId":"s"}
 `
 		if err := os.WriteFile(sessionPath(dir, "s-"+strconv.Itoa(pid)), []byte(lines), 0o644); err != nil {
 			t.Fatal(err)
@@ -422,18 +424,55 @@ func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
 	if got := projects[0].entries[1].doing; got != "" {
 		t.Errorf("the idle contact is doing %q", got)
 	}
-	if len(was) != 1 {
-		t.Errorf("%d transcripts were held, not the working one alone", len(was))
+	// Both are asked what their session is about, and the last title
+	// written is the one that stands.
+	for i, e := range projects[0].entries {
+		if e.title != "Do the thing" {
+			t.Errorf("contact %d is titled %q", i, e.title)
+		}
 	}
-	// The same file is not read again: the word held is answered.
+	if len(was) != 2 {
+		t.Errorf("%d transcripts were held, not both", len(was))
+	}
+	// The same file is not read again: the word and the title held are
+	// answered.
 	for path := range was {
 		seen := was[path]
-		seen.word = "held"
+		seen.word, seen.title = "held", "held too"
 		was[path] = seen
 	}
 	activities(projects, was)
 	if got := projects[0].entries[0].doing; got != "held" {
 		t.Errorf("an unchanged transcript was read again: %q", got)
+	}
+	if got := projects[0].entries[1].title; got != "held too" {
+		t.Errorf("an unchanged transcript was read again for its title: %q", got)
+	}
+}
+
+// A contact's row goes by its session's title while it is not working,
+// and by what it is doing while it is: the title is what tells one
+// claude from another, and the activity is the one thing that changes.
+func TestAContactsRowGoesByItsTitle(t *testing.T) {
+	idle := entry{pid: 1, kind: kindContact, status: statusIdle, title: "Do the thing"}
+	if got := rowName(idle); got != "Do the thing" {
+		t.Errorf("idle: %q", got)
+	}
+	waiting := entry{pid: 2, kind: kindContact, status: statusWaiting, title: "Do the thing"}
+	if got := rowName(waiting); got != "Do the thing" {
+		t.Errorf("waiting: %q", got)
+	}
+	working := entry{pid: 3, kind: kindContact, status: statusWorking, title: "Do the thing", doing: "read tui.go"}
+	if got := rowName(working); got != "" {
+		t.Errorf("working: %q, the activity is the row's", got)
+	}
+	untitled := entry{pid: 4, kind: kindContact, status: statusIdle}
+	if got := rowName(untitled); got != "" {
+		t.Errorf("untitled: %q", got)
+	}
+	declared := entry{pid: 5, kind: kindRun, declared: markDeclared("/w/app", "web")}
+	if got := rowName(declared); got != "web" {
+		t.Errorf("declared: %q", got)
 	}
 }
 

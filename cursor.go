@@ -241,7 +241,7 @@ type entryWire struct {
 	Fault                     bool
 	Depth                     int
 	Since                     time.Time
-	Cwd, Asking, Doing        string
+	Cwd, Asking, Doing, Title string
 	Container, Declared       string
 	Sockets                   []socket
 	Ports                     []string
@@ -253,7 +253,7 @@ func (e entry) MarshalJSON() ([]byte, error) {
 	return json.Marshal(entryWire{
 		PID: e.pid, Kind: e.kind, Command: e.command, Typed: e.typed, TTY: e.tty,
 		Started: e.started, Status: e.status, Fault: e.fault, Depth: e.depth,
-		Since: e.since, Cwd: e.cwd, Asking: e.asking, Doing: e.doing, Container: e.container,
+		Since: e.since, Cwd: e.cwd, Asking: e.asking, Doing: e.doing, Title: e.title, Container: e.container,
 		Declared: e.declared, Sockets: e.sockets, Ports: e.ports, Brew: e.brew, Shared: e.shared,
 	})
 }
@@ -266,7 +266,7 @@ func (e *entry) UnmarshalJSON(b []byte) error {
 	*e = entry{
 		pid: w.PID, kind: w.Kind, command: w.Command, typed: w.Typed, tty: w.TTY,
 		started: w.Started, status: w.Status, fault: w.Fault, depth: w.Depth,
-		since: w.Since, cwd: w.Cwd, asking: w.Asking, doing: w.Doing, container: w.Container,
+		since: w.Since, cwd: w.Cwd, asking: w.Asking, doing: w.Doing, title: w.Title, container: w.Container,
 		declared: w.Declared, sockets: w.Sockets, ports: w.Ports, brew: w.Brew, shared: w.Shared,
 	}
 	return nil

@@ -111,7 +111,7 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
 				over:  e.declared != "" && panes[e.tty].exit != "",
-				name:  declaredNameOf(e),
+				name:  rowName(e),
 				from:  filedFrom(e, names),
 				age:   waitedFor(e, now),
 				ports: e.ports,
@@ -303,6 +303,17 @@ func activityOf(e entry) string {
 		return e.under
 	}
 	return e.asTyped()
+}
+
+// rowName is the name a row goes by in place of its command, where it
+// has one: a declaration's declared name, and a contact's session
+// title while the contact is not working. A working contact's row
+// says what it is doing, which is the one thing about it that changes.
+func rowName(e entry) string {
+	if e.kind == kindContact && e.doing == "" {
+		return e.title
+	}
+	return declaredNameOf(e)
 }
 
 // declaredNameOf is the name a declared row goes by, where it is one:

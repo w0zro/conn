@@ -154,7 +154,7 @@ func TestProcessesLaysOut(t *testing.T) {
 		"\n         SHELL   bash -c go test ./...",
 		"\n           RUN     go test ./...",
 		"\n       EDITOR  vim notes.md",
-		"▸      CONTACT claude --resume",
+		"▸      CONTACT claude",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("the view lacks %q:\n%s", s, text)
@@ -339,7 +339,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 	if m.view != viewProcesses || m.entering {
 		t.Fatalf("the reading the console was waiting on did not put the processes view up")
 	}
-	if cmd == nil || !strings.Contains(m.View().Content, "claude --resume") {
+	if cmd == nil || !strings.Contains(m.View().Content, "claude") {
 		t.Errorf("the processes view should show what was read and set the tick going:\n%s", m.View().Content)
 	}
 	if _, cmd := m.Update(processesTickMsg{gen: m.processesGen - 1}); cmd != nil {
@@ -364,7 +364,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 	if m.view != viewProcesses || m.entering || cmd == nil || m.processesGen != 2 {
 		t.Errorf("a key on the finished console should return to the processes view and read it afresh: gen %d", m.processesGen)
 	}
-	if !strings.Contains(m.View().Content, "claude --resume") {
+	if !strings.Contains(m.View().Content, "claude") {
 		t.Errorf("the processes view came back empty rather than with the rows it had:\n%s", m.View().Content)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd == nil {
@@ -393,7 +393,7 @@ func TestTheProcessesViewInsideTheServer(t *testing.T) {
 	}
 	// In the panel there is no terminal column, and the rows close up.
 	panelText := texts(drawProcesses(w, 67040, 48, 30, plain))
-	if strings.Contains(panelText, "TTY") || !strings.Contains(panelText, "CONTACT claude --resu") {
+	if strings.Contains(panelText, "TTY") || !strings.Contains(panelText, "CONTACT claude ") {
 		t.Errorf("the panel:\n%s", panelText)
 	}
 	for _, r := range drawProcesses(w, 67040, 48, 30, plain) {
@@ -537,7 +537,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	// What hangs under the head is in the same pane and just as much in
 	// the bay; it reads as the other true thing about it, which is that
 	// conn holds a pane for it.
-	if !strings.Contains(text, p.ink+"claude --resume") {
+	if !strings.Contains(text, p.ink+"claude") {
 		t.Errorf("what hangs under the bay's head is not in the ink:\n%s", text)
 	}
 	// In nobody's pane: a rank down, and every column of it.
@@ -558,7 +558,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	// Outside the server, every command is the ink: conn can reach none
 	// of them, so dimming would say nothing.
 	out := texts(drawProcesses(testProcesses(), 67040, 120, 40, p))
-	for _, in := range []string{p.ink + p.bold + "zsh", p.ink + "claude --resume", p.ink + "vim notes.md"} {
+	for _, in := range []string{p.ink + p.bold + "zsh", p.ink + "claude", p.ink + "vim notes.md"} {
 		if !strings.Contains(out, in) {
 			t.Errorf("outside the server a command is not in the ink:\n%s", out)
 		}

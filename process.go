@@ -189,6 +189,11 @@ type entry struct {
 	// What a working contact is doing, read off its transcript: the
 	// tool it has in flight, as a verb and an object.
 	doing string
+	// What a contact's session is about, read off its transcript: the
+	// title Claude Code gave it from its first prompt, or the name it
+	// was renamed to. It is the row's label while the contact is not
+	// working, since claude says nothing and the pid says less.
+	title string
 	// The container this row is, where it is one: the id docker knows it
 	// by, which the keys act on. A process row carries nothing here.
 	container string
@@ -634,9 +639,25 @@ func typedLine(p process) string {
 	return strings.Join(commandWords(p, true), " ")
 }
 
-// ownFlag is the argument conn adds to a contact's command line, and
-// takes a value of its own.
-const ownFlag = "--append-system-prompt"
+// ownFlags are the arguments conn adds to a contact's command line,
+// each taking a value of its own: the note, and the session picked
+// back up. Both are conn's doing, and neither says anything a row
+// should: a resumed session is named by its title, not its id.
+var ownFlags = []string{"--append-system-prompt", "--resume"}
+
+// ownFlag says whether an argument is one of conn's own, and whether
+// its value is joined to it with an equals sign.
+func ownFlag(a string) (own, joined bool) {
+	for _, f := range ownFlags {
+		if a == f {
+			return true, false
+		}
+		if strings.HasPrefix(a, f+"=") {
+			return true, true
+		}
+	}
+	return false, false
+}
 
 // commandWords is the command as words, one an argument. An argument
 // is one line however it was written: a python -c handed a script
@@ -650,11 +671,10 @@ func commandWords(p process, lessOwn bool) []string {
 	for i := 1; i < len(p.args); i++ {
 		a := p.args[i]
 		if lessOwn {
-			if a == ownFlag {
-				i++
-				continue
-			}
-			if strings.HasPrefix(a, ownFlag+"=") {
+			if own, joined := ownFlag(a); own {
+				if !joined {
+					i++
+				}
 				continue
 			}
 		}

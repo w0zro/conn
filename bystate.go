@@ -92,7 +92,16 @@ func portsWord(ports []string) string {
 	if len(ports) == 0 {
 		return ""
 	}
-	return " · :" + strings.Join(ports, " :")
+	return " · " + portsColumn(ports)
+}
+
+// portsColumn is the ports as the filed panel's column has them, ahead
+// of the command: :8438, or every port lowest first. Nothing for none.
+func portsColumn(ports []string) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	return ":" + strings.Join(ports, " :")
 }
 
 // byState files every row of the reading under its group, the groups

@@ -24,6 +24,9 @@ const (
 	projectLeast = 8
 )
 
+// portsGap is the air between the column of ports and the commands.
+const portsGap = 2
+
 // The spinner's frames: the cell full but for one dot, the gap going
 // round, a full turn in eight, and a turn a second (spinEvery, in
 // tui.go). A single dot going round was a trace too faint to be seen
@@ -41,6 +44,19 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 	room := height
 	if height == 0 {
 		room = 1 << 30
+	}
+
+	// The ports come first, in a column of their own after the dot,
+	// and the commands start together after it. What is at :3000 is
+	// the fact a serving row is looked at for, and read down the panel
+	// it is a column, where after each command it stood at its own
+	// distance and was the first thing a narrow row lost. The column is
+	// as wide as the widest, and gone when nothing serves.
+	portsW := 0
+	for _, bp := range b.projects {
+		for _, r := range bp.rows {
+			portsW = max(portsW, utf8.RuneCountInString(portsColumn(r.ports)))
+		}
 	}
 
 	var body []row
@@ -97,6 +113,11 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 				cursorRow = len(body) + len(d.rows)
 			}
 			l.dot(tone, glyph)
+			if portsW > 0 {
+				start := l.cells
+				l.add(command, portsColumn(r.ports))
+				l.to(start + portsW + portsGap)
+			}
 			activity := r.command
 			if r.name != "" {
 				activity = r.name
@@ -117,17 +138,17 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			if r.status == statusWorking {
 				spin = " " + spinner[b.spin%len(spinner)]
 			}
-			// The project keeps to its half of the row: a path outside
-			// every root is written whole, and elided from the left. It
-			// yields where its half would cut off the row's own facts,
-			// the ports and a few cells of the command, since the name
-			// is the same on every row of the block and the port is
-			// not: a project too long for the row was cutting the port
-			// off, and the port is the reason to look at the row.
+			// The project keeps to its half of the row at most: a path
+			// outside every root is written whole, and elided from the
+			// left. It takes what the command leaves, since the command
+			// is the row's own and the name is the same on every row of
+			// the block; a command longer than the row leaves it the
+			// least, enough to tell one project from another.
 			tailMax := max(measure/2, 12)
 			if project {
 				room := measure - l.cells - 2 - utf8.RuneCountInString(spin)
-				if spare := room - utf8.RuneCountInString(portsWord(r.ports)) - commandLeast; spare < tailMax {
+				need := max(utf8.RuneCountInString(activity), commandLeast)
+				if spare := room - need; spare < tailMax {
 					tailMax = max(spare, projectLeast)
 				}
 			}
@@ -136,7 +157,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			if r.fault {
 				tailW = stampWidth(said(r.status), p)
 			}
-			l.activity(command, p.gray, activity, r.ports, measure-l.cells-tailW-2-utf8.RuneCountInString(spin))
+			l.add(command, fit(activity, measure-l.cells-tailW-2-utf8.RuneCountInString(spin), false))
 			if spin != "" {
 				l.add(p.running, spin)
 			}

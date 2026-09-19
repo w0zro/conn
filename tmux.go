@@ -221,19 +221,29 @@ func (s *server) reground(conf string) error {
 	return err
 }
 
-// oscColors asks the terminal to take conn's ink and surface for its
-// own, and oscOwnColors gives it its own back. The surface and not the
-// ground: what the terminal paints with it is the padding around the
-// client, and the padding meets the panel and the key bar, which stand
-// on the surface, so the surface is what makes the padding part of the
-// frame rather than a stripe of the bay around it. tmux keeps what the
-// conn in a pane asks for to the pane, so the terminal outside hears it
-// from the conn that attached, which is also there to take it back. The
-// cursor is the other way about: tmux does put the server's on the
-// terminal, and leaves it there when the client goes, so conn asks for
-// nothing and takes it back all the same.
+// oscColors asks the terminal to take conn's ink and a ground for its
+// own, and oscOwnColors gives it its own back. What the terminal paints
+// with the ground is the padding around the client, and the padding
+// meets the panel and the key bar. On a dark ground it is black, and
+// not the surface: the terminal's own edge, the same on every theme,
+// with the frame standing on it. On a light ground black would be a
+// bar around the window, so the padding takes the surface, which the
+// panel and the key bar stand on, and the frame is one piece. tmux
+// keeps what the conn in a pane asks for to the pane, so the terminal
+// outside hears it from the conn that attached, which is also there to
+// take it back. The cursor is the other way about: tmux does put the
+// server's on the terminal, and leaves it there when the client goes,
+// so conn asks for nothing and takes it back all the same.
 func oscColors() string {
-	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", hex(inkColor), surfaceHex)
+	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", hex(inkColor), paddingHex())
+}
+
+// paddingHex is what the terminal is asked to paint around the client.
+func paddingHex() string {
+	if current.dark {
+		return "#000000"
+	}
+	return surfaceHex
 }
 
 const oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\"

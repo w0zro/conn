@@ -142,14 +142,21 @@ func TestTheClientEnvironmentDropsTmux(t *testing.T) {
 }
 
 // Before the client has the terminal, the terminal is asked to take the
-// surface and the ink for its own, so its padding around the client is
-// the surface the panel and the key bar stand on, and the frame is one
-// piece; when the client returns it gets its own colors back. The panes
+// ink and a ground for its own: black on a dark ground, so the padding
+// around the client is the terminal's own edge, and the surface on a
+// light one, so the padding is what the panel and the key bar stand on;
+// when the client returns it gets its own colors back. The panes
 // themselves are drawn on the ground.
-func TestTheTerminalIsAskedForTheSurface(t *testing.T) {
-	if got := oscColors(); got != "\x1b]10;#E6DFD0\x1b\\\x1b]11;#1D1A15\x1b\\" {
-		t.Errorf("colors asked for: %q", got)
+func TestTheTerminalIsAskedForItsPadding(t *testing.T) {
+	if got := oscColors(); got != "\x1b]10;#E6DFD0\x1b\\\x1b]11;#000000\x1b\\" {
+		t.Errorf("colors asked for on dark: %q", got)
 	}
+	was := current
+	applyMode(mode{dark: false, theme: defaultTheme})
+	if got := oscColors(); got != "\x1b]10;"+hex(inkColor)+"\x1b\\\x1b]11;"+surfaceHex+"\x1b\\" {
+		t.Errorf("colors asked for on light: %q", got)
+	}
+	applyMode(was)
 	// The cursor is given back too: the server puts its own on the
 	// terminal, and does not take it off.
 	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\" {

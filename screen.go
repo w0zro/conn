@@ -122,6 +122,21 @@ func columns(width int) (measure, rightCol, leaderEnd int) {
 	return measure, measure / 2, measure - statusW - 2
 }
 
+// measureAt is the measure a view draws to at a width: the console's,
+// or, under minCols, the panel's, which is a column wider. The panel
+// is a pane, and the bay's border stands past its right edge: with
+// the border, three columns of air on the right came to four, one more
+// than the margin on the left. The panel gives up two, and with the
+// border the sides match. At the console's own width there is no
+// border, and the margins are the margin each side.
+func measureAt(width int) int {
+	measure, _, _ := columns(width)
+	if width < minCols {
+		measure++
+	}
+	return measure
+}
+
 // A row of the console and the stage of the sequence it comes on at.
 type row struct {
 	text  string

@@ -1,9 +1,9 @@
 
-   PROJECTS                           3 OF 10
-   ──────────────────────────────────────────
+   PROJECTS                            3 OF 10
+   ───────────────────────────────────────────
    FIND   pro▏
 
-   w0zro                              2 REPOS
+   w0zro                               2 REPOS
      quickfix-pro
 ▸    vim.pro
 

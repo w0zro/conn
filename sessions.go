@@ -80,7 +80,7 @@ const (
 // size, with the cursor on the given row.
 func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
-	measure, _, _ := columns(width)
+	measure := measureAt(width)
 	c := canvas{p: p, width: width}
 
 	// The header: the name of the view, and against the right the count

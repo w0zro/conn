@@ -107,7 +107,7 @@ func completeRoot(typed, home string) []string {
 // answer it, and the chip saying what pressing enter will do.
 func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
-	measure, _, _ := columns(width)
+	measure := measureAt(width)
 	c := canvas{p: p, width: width}
 
 	c.blank(0)

@@ -1,18 +1,18 @@
 
-   PROJECTS                          15 FOUND
-   ──────────────────────────────────────────
+   PROJECTS                           15 FOUND
+   ───────────────────────────────────────────
    FIND   ▏
 
-   arboreum.io                        2 REPOS
+   arboreum.io                         2 REPOS
      content
      welcome
    compose-demo
      COMMAND docker compose up
    experiments/one-off
    work/api
-   w0zro                              3 REPOS
+   w0zro                               3 REPOS
      conn
-▸      CONTACT READ tui.go           WAITING
+▸      CONTACT READ tui.go            WAITING
        SHELL   zsh
      quickfix-pro
      vim.pro

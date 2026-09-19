@@ -39,7 +39,7 @@ var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 // as byState files them.
 func drawState(b processesReport, cursor int, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
-	measure, _, _ := columns(width)
+	measure := measureAt(width)
 	c := canvas{p: p, width: width}
 	room := height
 	if height == 0 {

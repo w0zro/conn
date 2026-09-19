@@ -1,13 +1,13 @@
 
    w0zro/app
-     RUN     web                       ACTIVE
-       RUN     npm run dev             ACTIVE
-     RUN     api                        ENDED
-▸    RUN     worker                      DOWN
+     RUN     web                        ACTIVE
+       RUN     npm run dev              ACTIVE
+     RUN     api                         ENDED
+▸    RUN     worker                       DOWN
 
    w0zro/conn
-     SHELL   zsh                         IDLE
-      .CONN: LINE 2: WANT NAME [DIR]: COMMA…
+     SHELL   zsh                          IDLE
+      .CONN: LINE 2: WANT NAME [DIR]: COMMAND
 
 
 

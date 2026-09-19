@@ -327,7 +327,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	}
 	panel := width < minCols
 	width = max(width, panelMinCols)
-	measure, _, _ := columns(width)
+	measure := measureAt(width)
 	c := canvas{p: p, width: width}
 	statusCol := measure - statusW
 	sinceCol := statusCol - 1 - sinceW

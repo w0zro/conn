@@ -16,10 +16,20 @@ import (
 // still, and its port follows its command, being where you would go.
 // What is not running is struck through.
 
-// The spinner's frames, one a second: a dot going round the cell,
-// a full turn in eight, a trace sweeping a dial rather than a glyph
-// standing still between readings.
-var spinner = []string{"⠁", "⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂"}
+// What a filed row keeps of its own when the width is short: the
+// ports, whole, then this much of the command, before the project at
+// the right yields, and the project is never cut below this.
+const (
+	commandLeast = 10
+	projectLeast = 8
+)
+
+// The spinner's frames, one a second: the cell full but for one dot,
+// the gap going round, a full turn in eight. A single dot going round
+// was a trace too faint to be seen turning beside a row of text; the
+// full cell has the weight of the dot before it, and the gap is what
+// moves.
+var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 
 // drawState renders the panel by state for a terminal of the given size,
 // with the cursor on the row of the given pid. The blocks are groups,
@@ -93,26 +103,38 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			}
 			// What stands at the right: the age of a wait, in the
 			// accent; a fault's word, stamped; else the project.
-			tail, tailColor, tailW := r.from, right, 0
+			tail, tailColor, tailW, project := r.from, right, 0, true
 			if r.from == "" {
 				tail = "~"
 			}
 			switch {
 			case r.status == statusWaiting && r.age != "":
-				tail, tailColor = r.age, p.orange+p.bold
+				tail, tailColor, project = r.age, p.orange+p.bold, false
 			case r.fault:
-				tail = ""
-			}
-			// The project keeps to its half of the row: a path outside
-			// every root is written whole, and elided from the left.
-			tail = fit(tail, max(measure/2, 12), true)
-			tailW = utf8.RuneCountInString(tail)
-			if r.fault {
-				tailW = stampWidth(said(r.status), p)
+				tail, project = "", false
 			}
 			spin := ""
 			if r.status == statusWorking {
 				spin = " " + spinner[b.spin%len(spinner)]
+			}
+			// The project keeps to its half of the row: a path outside
+			// every root is written whole, and elided from the left. It
+			// yields where its half would cut off the row's own facts,
+			// the ports and a few cells of the command, since the name
+			// is the same on every row of the block and the port is
+			// not: a project too long for the row was cutting the port
+			// off, and the port is the reason to look at the row.
+			tailMax := max(measure/2, 12)
+			if project {
+				room := measure - l.cells - 2 - utf8.RuneCountInString(spin)
+				if spare := room - utf8.RuneCountInString(portsWord(r.ports)) - commandLeast; spare < tailMax {
+					tailMax = max(spare, projectLeast)
+				}
+			}
+			tail = fit(tail, tailMax, true)
+			tailW = utf8.RuneCountInString(tail)
+			if r.fault {
+				tailW = stampWidth(said(r.status), p)
 			}
 			l.activity(command, p.gray, activity, r.ports, measure-l.cells-tailW-2-utf8.RuneCountInString(spin))
 			if spin != "" {

@@ -60,10 +60,21 @@ func (l *line) dot(color, glyph string) {
 // up what the ports take; where the width has no room for the ports
 // past a few cells of command, the ports go and the command has it.
 func (l *line) activity(color, portsColor, command string, ports []string, width int) {
+	// The ports are the row's own fact, where you would go, and the
+	// last thing a narrow row gives up: the command is elided to what
+	// is left beside them, down to a letter, and past that the ports
+	// stand alone. Only a width the ports themselves do not fit gives
+	// the whole of it to the command.
 	word := portsWord(ports)
-	if w := utf8.RuneCountInString(word); w > 0 && width-w >= 4 {
+	w := utf8.RuneCountInString(word)
+	switch {
+	case w == 0:
+	case width-w >= 2:
 		l.add(color, fit(command, width-w, false))
 		l.add(portsColor, word)
+		return
+	case width >= w-3:
+		l.add(portsColor, strings.TrimPrefix(word, " · "))
 		return
 	}
 	l.add(color, fit(command, width, false))

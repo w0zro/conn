@@ -80,7 +80,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	text := texts(rows)
 	golden(t, "processes-state-44x30.txt", text)
 	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "IDLE ─", "NOT RUNNING ─",
-		"●  claude", "9 min", "2 min", "●  go test ./... ⠁", "●  node vite · :5173", "○  zsh", "◌  worker", " Stopped"} {
+		"●  claude", "9 min", "2 min", "●  go test ./... ⣾", "●  node vite · :5173", "○  zsh", "◌  worker", " Stopped"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -221,11 +221,24 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 	if got := stateOf(folded[0].entries[0]); got != groupServing {
 		t.Errorf("the shell that runs the server files under %q", groupTitle(got))
 	}
-	// Drawn in a width with no room for the port, the command has it.
+	// Drawn narrow, the port is the last thing to go: in eight cells
+	// it stands alone, without the dot that joined it to the command,
+	// and only a width the port itself does not fit gives the cells
+	// to the command.
 	l := (&canvas{p: plain, width: 20}).line()
 	l.activity(plain.ink, plain.gray, "node vite", []string{"5173"}, 8)
-	if l.b.String() != "node vi…" {
+	if l.b.String() != ":5173" {
 		t.Errorf("in eight cells the row says %q", l.b.String())
+	}
+	l = (&canvas{p: plain, width: 20}).line()
+	l.activity(plain.ink, plain.gray, "node vite", []string{"5173"}, 12)
+	if l.b.String() != "nod… · :5173" {
+		t.Errorf("in twelve cells the row says %q", l.b.String())
+	}
+	l = (&canvas{p: plain, width: 20}).line()
+	l.activity(plain.ink, plain.gray, "node vite", []string{"5173"}, 4)
+	if l.b.String() != "nod…" {
+		t.Errorf("in four cells the row says %q", l.b.String())
 	}
 }
 
@@ -250,6 +263,32 @@ func TestEveryGroupStandsWithItsCount(t *testing.T) {
 	for _, want := range []string{"WAITING FOR YOU ──────────────────── 0", "WORKING ──────────────────────────── 0", "SERVING ──────────────────────────── 0", "IDLE ─────────────────────────────── 1", "NOT RUNNING ──────────────────────── 0"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
+		}
+	}
+}
+
+// A row keeps its port when the width is short: the port is where you
+// would go, and the row is looked at for it. The command is elided
+// beside it and the project at the right yields to it, elided from the
+// left, rather than the port being cut off behind a long project name.
+func TestAFiledRowKeepsItsPortBeforeItsProject(t *testing.T) {
+	long := "/Volumes/work/some-organization-name/auditboard-backend-services"
+	m := newModel(plain)
+	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
+	m.projects = byState([]project{{path: long, entries: []entry{
+		{pid: 5, kind: kindRun, command: "pnpm start", cwd: long, status: statusActive, ports: []string{"3000"}},
+		{pid: 6, kind: kindRun, command: "node server.js", cwd: long, status: statusActive, ports: []string{"8080", "8081"}},
+	}}})
+	for _, width := range []int{panelWidth, 50, 40} {
+		text := texts(drawProcesses(m.processesReport(), 5, width, 20, plain))
+		if !strings.Contains(text, ":3000") || !strings.Contains(text, ":8080 :8081") {
+			t.Errorf("at %d wide the rows lost their ports:\n%s", width, text)
+		}
+		if !strings.Contains(text, "pnpm") || !strings.Contains(text, "node") {
+			t.Errorf("at %d wide the rows lost their commands:\n%s", width, text)
+		}
+		if !strings.Contains(text, "…") {
+			t.Errorf("at %d wide nothing yielded to the port:\n%s", width, text)
 		}
 	}
 }

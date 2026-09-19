@@ -76,19 +76,19 @@ func TestKillSignalIsKillForAShellAndTermForWhatItRuns(t *testing.T) {
 // everything else's TERM; docker stop with the id docker is told;
 // tmux's kill-pane with the pane.
 func TestTheQuestionIsTheCommand(t *testing.T) {
-	if got := killPrompt("claude", 4242, syscall.SIGTERM); got != "kill -TERM 4242 · claude? (y/n)" {
+	if got := killPrompt("claude", 4242, syscall.SIGTERM); got != "kill -TERM 4242 · claude?" {
 		t.Errorf("killPrompt, term: %q", got)
 	}
-	if got := killPrompt("sh", 4242, syscall.SIGKILL); got != "kill -KILL 4242 · sh? (y/n)" {
+	if got := killPrompt("sh", 4242, syscall.SIGKILL); got != "kill -KILL 4242 · sh?" {
 		t.Errorf("killPrompt, kill: %q", got)
 	}
-	if got := stopPrompt("abc123", "web"); got != "docker stop abc123 · web? (y/n)" {
+	if got := stopPrompt("abc123", "web"); got != "docker stop abc123 · web?" {
 		t.Errorf("stopPrompt: %q", got)
 	}
-	if got := closePrompt("%3", "quick"); got != "kill-pane %3 · quick? (y/n)" {
+	if got := closePrompt("%3", "quick"); got != "kill-pane %3 · quick?" {
 		t.Errorf("closePrompt: %q", got)
 	}
-	if got := interruptPrompt("%8", "app"); got != "tmux send-keys -t %8 C-c · app? (y/n)" {
+	if got := interruptPrompt("%8", "app"); got != "tmux send-keys -t %8 C-c · app?" {
 		t.Errorf("interruptPrompt: %q", got)
 	}
 }

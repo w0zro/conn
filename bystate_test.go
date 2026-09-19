@@ -165,7 +165,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	}
 	m.focused = true
 	m.kill = &pendingKill{prompt: "kill -TERM 1 · zsh?"}
-	if bar := m.bar(); !strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, "kill -TERM 1 · zsh?") || !has(bar, "y", "Yes") {
+	if bar := m.bar(); strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, "kill -TERM 1 · zsh?") || !has(bar, "y", "Yes") {
 		t.Errorf("a question armed puts %s on the bar", bar)
 	}
 	// The clock at the right edge of the band, as a mission clock reads.

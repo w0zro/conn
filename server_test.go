@@ -677,7 +677,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	// row is x on what it runs: the question names sleep.
 	s.keys("x")
 	s.until("the kill armed, naming sleep", func() bool {
-		return strings.Contains(s.statusLine(), "kill -TERM") && strings.Contains(s.statusLine(), " sleep? (y/n)")
+		return strings.Contains(s.statusLine(), "kill -TERM") && strings.Contains(s.statusLine(), " sleep?")
 	})
 	s.keys("y")
 
@@ -1170,7 +1170,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 
 	s.keys("x")
 	s.until("the close armed, naming quick", func() bool {
-		return strings.Contains(s.statusLine(), "kill-pane") && strings.Contains(s.statusLine(), " quick? (y/n)")
+		return strings.Contains(s.statusLine(), "kill-pane") && strings.Contains(s.statusLine(), " quick?")
 	})
 	s.keys("y")
 	s.until("the pane gone and quick down again", func() bool {
@@ -1187,7 +1187,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	// asked, and the question that names sleeper is the one answered;
 	// the rest are withdrawn.
 	s.keys("G")
-	armed := func() bool { return strings.Contains(s.statusLine(), "(y/n)") }
+	armed := func() bool { return strings.Contains(s.statusLine(), "any other key") }
 	for i := 0; i < 24; i++ {
 		s.keys("k")
 		s.keys("x")
@@ -1199,13 +1199,13 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		if !asked {
 			continue
 		}
-		if strings.Contains(s.statusLine(), "send-keys") && strings.Contains(s.statusLine(), " sleeper? (y/n)") {
+		if strings.Contains(s.statusLine(), "send-keys") && strings.Contains(s.statusLine(), " sleeper?") {
 			break
 		}
 		s.keys("n")
 		s.until("the question withdrawn", func() bool { return !armed() })
 	}
-	if !strings.Contains(s.statusLine(), " sleeper? (y/n)") {
+	if !strings.Contains(s.statusLine(), " sleeper?") {
 		t.Fatalf("sleeper's row not found above quick's: %s", s.statusLine())
 	}
 	s.keys("y")

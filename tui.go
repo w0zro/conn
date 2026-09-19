@@ -751,7 +751,9 @@ func (m model) upWord() string {
 func (m model) bar() string {
 	switch {
 	case m.kill != nil:
-		return statusLineBlock("CONFIRM") + statusLineSay(m.kill.prompt) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}})
+		// The band says CONFIRM over it; the bar is the question and
+		// its answers, and says neither twice.
+		return statusLineSay(m.kill.prompt) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}})
 	case m.helping:
 		return keyBar(helpHints)
 	}

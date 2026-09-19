@@ -181,7 +181,7 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	}
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.brew != "postgresql@14" || m.kill.prompt != "brew services stop postgresql@14 · db? (y/n)" {
+	if m.kill == nil || m.kill.brew != "postgresql@14" || m.kill.prompt != "brew services stop postgresql@14 · db?" {
 		t.Fatalf("x armed %+v", m.kill)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "y"})); cmd == nil {

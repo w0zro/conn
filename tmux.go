@@ -987,12 +987,12 @@ func statusLineBlock(word string) string {
 	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", cursorHex, hex(groundColor), word)
 }
 
-// statusLineSay is what conn says beside a block on the key bar: on
-// the bar's own ground, the surface, in the parchment conn titles
-// with, two spaces off the block. A hash is tmux's own character on
-// this line and is doubled to be shown.
+// statusLineSay is what conn says on the key bar in words, a question
+// armed: on the bar's own ground, the surface, in the parchment conn
+// titles with, one space in where the keys begin. A hash is tmux's own
+// character on this line and is doubled to be shown.
 func statusLineSay(text string) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]  %s", surfaceHex, parchmentHex, strings.ReplaceAll(text, "#", "##"))
+	return fmt.Sprintf("#[bg=%s fg=%s nobold] %s", surfaceHex, parchmentHex, strings.ReplaceAll(text, "#", "##"))
 }
 
 // say puts what conn knows about its own keys on the server, and asks

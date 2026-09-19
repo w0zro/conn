@@ -20,9 +20,9 @@ type keyHint struct{ key, does string }
 // rest are chosen by what the cursor's row can take, in bar.
 var (
 	moveHint     = keyHint{"j k", "Move"}
-	rootsHints   = []keyHint{moveHint, {"Enter", "Saves it"}}
-	consoleHints = []keyHint{{"Any key", "Continue"}}
-	helpHints    = []keyHint{{"Esc", "Back"}}
+	rootsHints   = []keyHint{moveHint, {"enter", "Saves it"}}
+	consoleHints = []keyHint{{"any key", "Continue"}}
+	helpHints    = []keyHint{{"esc", "Back"}}
 )
 
 // keyBar is the hints as the bar writes them: each key in the ink and

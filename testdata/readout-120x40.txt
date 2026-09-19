@@ -15,8 +15,8 @@
                                                                              Working in ... ~/projects/w0zro/conn/too
    PROCEDURE ──────────────────────────────────────────────────────────                     ls
                                                                              Pane ......... %2
-   1    Enter    Go in and answer it                                         Process ...... 49212
-   2    Tab      Leave it, take the next thing waiting                       Terminal ..... ttys003
+   1    enter    Go in and answer it                                         Process ...... 49212
+   2    tab      Leave it, take the next thing waiting                       Terminal ..... ttys003
    3    x        End it — conn asks first                                    Under ........ Shell zsh · 49200
                                                                              Runs ......... Run caffeinate · 49300
    CAUTION ────────────────────────────────────────────────────────────

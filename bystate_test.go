@@ -123,20 +123,20 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	}
 	m.cursor = 1
 	bar := m.bar()
-	for _, want := range [][2]string{{"j k", "Move"}, {"Enter", "Open"}, {"Tab", "Next waiting"}, {"x", "End it"}, {"s", "Shell"}, {"U", "Bring up all"}, {"?", "Help"}} {
+	for _, want := range [][2]string{{"j k", "Move"}, {"enter", "Open"}, {"tab", "Next waiting"}, {"x", "End it"}, {"s", "Shell"}, {"U", "Bring up all"}, {"?", "Help"}} {
 		if !has(bar, want[0], want[1]) {
 			t.Errorf("on the shell the bar lacks %s %s:\n%s", want[0], want[1], bar)
 		}
 	}
 	m.cursor = 2 // a contact in no pane conn holds: nowhere to go into
-	if bar := m.bar(); has(bar, "Enter", "Open") || !has(bar, "x", "End it") {
+	if bar := m.bar(); has(bar, "enter", "Open") || !has(bar, "x", "End it") {
 		t.Errorf("on an unreachable contact the bar offers %s", bar)
 	}
 	if bar := m.bar(); has(bar, "u", "Bring it up") {
 		t.Errorf("on a shell the bar offers u:\n%s", bar)
 	}
 	m.cursor = -9 // declared and down: brought up, not ended
-	if bar := m.bar(); !has(bar, "Enter", "Bring it up, go in") || !has(bar, "u", "Bring it up") || has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "enter", "Bring it up, go in") || !has(bar, "u", "Bring it up") || has(bar, "x", "End it") {
 		t.Errorf("on a down declaration the bar offers %s", bar)
 	}
 	all := unfiled(m.projects)
@@ -146,7 +146,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		}
 	}
 	m.projects = byState(all)
-	if bar := m.bar(); has(bar, "Tab", "Next waiting") {
+	if bar := m.bar(); has(bar, "tab", "Next waiting") {
 		t.Errorf("with nothing waiting the bar offers tab:\n%s", bar)
 	}
 	m.inside = false

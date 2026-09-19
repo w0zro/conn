@@ -88,9 +88,9 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	// What to do about it: go in; leave it for the next thing waiting;
 	// end it, which conn asks about first.
 	if c.waiting {
-		c.procedure = []keyHint{{"Enter", "Go in and answer it"}, {"Tab", "Leave it, take the next thing waiting"}, {"x", "End it — conn asks first"}}
+		c.procedure = []keyHint{{"enter", "Go in and answer it"}, {"tab", "Leave it, take the next thing waiting"}, {"x", "End it — conn asks first"}}
 	} else {
-		c.procedure = []keyHint{{"Enter", "Go in"}, {"x", "End it — conn asks first"}}
+		c.procedure = []keyHint{{"enter", "Go in"}, {"x", "End it — conn asks first"}}
 	}
 
 	// What to be careful of: a contact that has the terminal and is

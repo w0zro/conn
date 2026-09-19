@@ -822,7 +822,7 @@ func (m model) bar() string {
 		px := keyWord(panelKey())
 		hints := []keyHint{{px, "Panel"}}
 		if len(waitingRound(m.projects)) > 0 {
-			hints = append(hints, keyHint{px + " Tab", "Next waiting"})
+			hints = append(hints, keyHint{px + " tab", "Next waiting"})
 		}
 		return keyBar(append(hints, keyHint{px + " " + px, "Last process"}, keyHint{px + " ?", "Help"}))
 	}
@@ -837,20 +837,20 @@ func (m model) bar() string {
 		}
 		if row, ok := m.atCursor(); ok && m.inside {
 			if row.pid != 0 {
-				hints = append(hints, keyHint{"Enter", "Go in"})
+				hints = append(hints, keyHint{"enter", "Go in"})
 			} else {
-				hints = append(hints, keyHint{"Enter", "Open a shell there"}, keyHint{"alt-a", "New contact"}, keyHint{"alt-A", "Sessions"})
+				hints = append(hints, keyHint{"enter", "Open a shell there"}, keyHint{"alt-a", "New contact"}, keyHint{"alt-A", "Sessions"})
 			}
 		}
-		return keyBar(append(hints, keyHint{"Esc", "Back"}))
+		return keyBar(append(hints, keyHint{"esc", "Back"}))
 	case viewSessions:
 		if len(m.sessionsRows()) > 1 {
 			hints = append(hints, moveHint)
 		}
 		if len(m.sessionsRows()) > 0 && m.inside {
-			hints = append(hints, keyHint{"Enter", "Resume it here"})
+			hints = append(hints, keyHint{"enter", "Resume it here"})
 		}
-		return keyBar(append(hints, keyHint{"Esc", "Back"}))
+		return keyBar(append(hints, keyHint{"esc", "Back"}))
 	case viewRoots:
 		return keyBar(rootsHints)
 	}
@@ -861,21 +861,21 @@ func (m model) bar() string {
 	if ok {
 		switch {
 		case reachable(m.panes[e.tty]):
-			hints = append(hints, keyHint{"Enter", "Open"})
+			hints = append(hints, keyHint{"enter", "Open"})
 		case e.brew != "" && e.status == statusActive:
-			hints = append(hints, keyHint{"Enter", "Its log"})
+			hints = append(hints, keyHint{"enter", "Its log"})
 		case e.brew != "":
-			hints = append(hints, keyHint{"Enter", "Bring it up"})
+			hints = append(hints, keyHint{"enter", "Bring it up"})
 		case e.container != "":
-			hints = append(hints, keyHint{"Enter", "Its output"})
+			hints = append(hints, keyHint{"enter", "Its output"})
 		case e.declared != "" && e.status == statusDown && e.brew != "":
-			hints = append(hints, keyHint{"Enter", "Bring it up"})
+			hints = append(hints, keyHint{"enter", "Bring it up"})
 		case e.declared != "" && e.status == statusDown:
-			hints = append(hints, keyHint{"Enter", "Bring it up, go in"})
+			hints = append(hints, keyHint{"enter", "Bring it up, go in"})
 		}
 	}
 	if len(waitingRound(m.projects)) > 0 {
-		hints = append(hints, keyHint{"Tab", "Next waiting"})
+		hints = append(hints, keyHint{"tab", "Next waiting"})
 	}
 	if ok && (e.pid > 0 || e.container != "") {
 		hints = append(hints, keyHint{"x", "End it"})

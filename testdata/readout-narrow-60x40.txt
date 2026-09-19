@@ -15,8 +15,8 @@
 
    PROCEDURE ────────────────────────────────────────────
 
-   1    Enter    Go in and answer it
-   2    Tab      Leave it, take the next thing waiting
+   1    enter    Go in and answer it
+   2    tab      Leave it, take the next thing waiting
    3    x        End it — conn asks first
 
    CAUTION ──────────────────────────────────────────────

@@ -175,7 +175,7 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	}
 
 	m.cursor = 24422
-	if bar := m.bar(); !has(bar, "Enter", "Its log") || !has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "enter", "Its log") || !has(bar, "x", "End it") {
 		t.Errorf("on a service up the bar says %q", bar)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); cmd == nil {
@@ -191,7 +191,7 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	}
 
 	m.kill, m.cursor = nil, -7
-	if bar := m.bar(); !has(bar, "Enter", "Bring it up") || has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "enter", "Bring it up") || has(bar, "x", "End it") {
 		t.Errorf("on a service down the bar says %q", bar)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); cmd == nil {

@@ -128,6 +128,24 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	if got, _ := askCursor(path); got.pid != 99 {
 		t.Errorf("the list published %d over the processes view's cursor", got.pid)
 	}
+
+	// The processes view with no rows left has no subject, and the
+	// readout has to hear that the last row has gone: the reading is
+	// published again under the subject last told, with nothing in it,
+	// and the page not finding the row in it says so.
+	m.view = viewProjects
+	m.view, m.cursor, m.told = viewProcesses, 22, subject{pid: 22}
+	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: nil})
+	m = next.(model)
+	got, r := askCursor(path)
+	if m.cursor != 0 || got.pid != 22 || r == nil || len(r.projects) != 0 {
+		t.Errorf("with the last row gone the cursor is %d, and %d was published with a reading of %v", m.cursor, got.pid, r != nil)
+	}
+	held := readoutModel{at: subject{pid: 22}, follow: true, cursor: path, p: plain}
+	next, _ = held.Update(readoutTickMsg{})
+	if got := next.(readoutModel).report; !got.gone || got.pid != 22 {
+		t.Errorf("the readout did not hear the row was gone: %+v", got)
+	}
 }
 
 // A reading of a subject the cursor has since left is no longer about

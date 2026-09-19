@@ -955,7 +955,19 @@ func (m model) published(again bool) model {
 	// With no home there is nowhere to say it: the path would be a
 	// relative one, and conn does not write beside whatever directory
 	// it happens to have been started in.
-	if at.none() || !m.inside || m.head.login.home == "" {
+	if !m.inside || m.head.login.home == "" {
+		return m
+	}
+	// The processes view with no row at all has no subject either, and
+	// the last row gone is what the readout has to hear: told nothing,
+	// it went on wording the row out of the reading it last had, with
+	// the panel beside it saying NO PROCESSES. So the reading is said
+	// again under the subject last told, and the readout, not finding
+	// the row in it, says the row is gone.
+	if at.none() && m.view == viewProcesses && !m.told.none() {
+		at, again = m.told, true
+	}
+	if at.none() {
 		return m
 	}
 	if at != m.told || again {

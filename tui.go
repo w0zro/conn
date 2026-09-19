@@ -1410,9 +1410,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// sessions view a plain s or a is a letter being typed into the
 	// line. The letter is the same on every road to the thing: a is a
 	// contact and A the sessions in the processes view, alt+a and
-	// alt+A on a line typed into, prefix a and prefix A from anywhere,
-	// and prefix alt+A as well, the key the chord sends being the one
-	// the hand learned on the line.
+	// alt+A on a line typed into, prefix a and prefix A from anywhere.
 	//
 	// In a line typed into, ctrl is readline's and alt is conn's. The
 	// line is edited the way readline edits one, and a ctrl key there

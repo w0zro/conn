@@ -802,6 +802,42 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	})
 }
 
+// ? fills the workspace with the manual and the panel with the keys:
+// the half of the window where the keys are pressed says what they are
+// while the half beside it says what the station is. esc puts both
+// back.
+func TestTheKeysStandOnThePanelWhileTheManualIsUp(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return s.finished() })
+	s.keys("Enter")
+	s.until("the processes view", func() bool { return s.inProcesses() })
+
+	s.keys("?")
+	s.until("the manual in the workspace", func() bool {
+		return strings.Contains(s.bay(), "CONN(1)")
+	})
+	s.until("the keys on the panel", func() bool {
+		panel := s.panel()
+		return strings.Contains(panel, "KEYS") && strings.Contains(panel, "IN A PROCESS")
+	})
+	if got := s.panel(); strings.Contains(got, groupTitle(groupIdle)) {
+		t.Errorf("the panel is still drawing the processes view:\n%s", got)
+	}
+	if !strings.Contains(s.statusLine(), helpWord) {
+		t.Errorf("the band does not say %s: %q", helpWord, s.statusLine())
+	}
+
+	// The manual has the keys, so esc goes to the manual's own pane —
+	// send-keys writes to a pane and not through tmux's key table — and
+	// both halves of the window come back.
+	if _, err := s.srv.run("send-keys", "-t", sessionName+":"+homeWindow+".1", "Escape"); err != nil {
+		t.Fatal(err)
+	}
+	s.until("the processes view again", func() bool {
+		return s.inProcesses() && !strings.Contains(s.panel(), "IN A PROCESS")
+	})
+}
+
 // A theme picked in the settings dresses the server where it stands,
 // and the panel keeps the keys. --theme on the way in respawns the
 // panel, which a conn asking for a theme from its own settings cannot

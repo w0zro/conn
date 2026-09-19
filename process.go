@@ -206,6 +206,10 @@ type entry struct {
 	// command found later under it is taken instead.
 	under      string
 	underShell bool
+	// The command of the one listener folded into this row, whose
+	// ports and sockets the row carries; see fold.go. A program conn
+	// knows by name is known here too, so the row takes the client.
+	listener string
 }
 
 // A project is a directory work is happening in, and the entries at it.

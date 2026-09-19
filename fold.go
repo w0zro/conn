@@ -75,8 +75,9 @@ func fold(projects []project) []project {
 // directly under the head in what is kept, and the only row under the
 // head at any depth that has a port: a second port under the head,
 // on the listener itself or beside it, is several servers, and each
-// keeps its row. The head takes the ports, and what stood under the
-// listener stands under the head.
+// keeps its row. The head takes the ports and the sockets, and says
+// whose they were, and what stood under the listener stands under the
+// head.
 func liftListener(rows []entry) []entry {
 	drop := map[int]bool{}
 	for j := range rows {
@@ -97,7 +98,9 @@ func liftListener(rows []entry) []entry {
 		if ports != 1 || listener < 0 {
 			continue
 		}
-		h.ports = rows[listener].ports
+		l := rows[listener]
+		h.ports, h.listener = l.ports, l.asTyped()
+		h.sockets = append(append([]socket(nil), h.sockets...), l.sockets...)
 		drop[listener] = true
 		for i := listener + 1; i < len(rows) && rows[i].depth > rows[listener].depth; i++ {
 			rows[i].depth--

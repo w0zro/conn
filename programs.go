@@ -41,7 +41,9 @@ var knownPrograms = []knownProgram{{
 
 // programOf is the program a row is, or nil. A brew service is known by
 // its formula and a container by its image, since neither row's
-// command is the server's own; anything else by the process name.
+// command is the server's own; anything else by the process name, its
+// own or the listener's it folded, since a postgres under a shell is
+// the shell's row on the panel and the port on it is the server's.
 func programOf(e entry, c *container) *knownProgram {
 	for i := range knownPrograms {
 		p := &knownPrograms[i]
@@ -55,8 +57,10 @@ func programOf(e entry, c *container) *knownProgram {
 				return p
 			}
 		default:
-			if slices.Contains(p.commands, path.Base(program(e.command))) {
-				return p
+			for _, command := range []string{e.command, e.listener} {
+				if command != "" && slices.Contains(p.commands, path.Base(program(command))) {
+					return p
+				}
 			}
 		}
 	}

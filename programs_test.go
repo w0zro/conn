@@ -26,6 +26,8 @@ func TestARowIsAKnownProgramByCommandFormulaOrImage(t *testing.T) {
 		{"another brew service", entry{command: "redis", brew: "redis"}, nil, ""},
 		{"another image", entry{container: "abc"}, &container{id: "abc", image: "redis:7"}, ""},
 		{"a shell", entry{command: "zsh", kind: kindShell}, nil, ""},
+		{"a shell a postgres folded into", entry{command: "zsh", kind: kindShell, listener: "postgres -D data"}, nil, "psql"},
+		{"a wrapper a node folded into", entry{command: "npm start", listener: "node server.js"}, nil, ""},
 	} {
 		got := ""
 		if p := programOf(c.e, c.container); p != nil {
@@ -70,12 +72,13 @@ func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 		{pid: -7, kind: kindService, command: "postgresql@14", brew: "postgresql@14", declared: markDeclared("/w/a", "db"), cwd: "/w/a", status: statusDown},
 		{pid: -8, kind: kindService, command: "web", container: "abc", cwd: "/w/a", status: statusActive},
 		{pid: 302, kind: kindRun, command: "node server.js", cwd: "/w/a", status: statusActive, ports: []string{"3000"}},
+		{pid: 303, kind: kindShell, command: "zsh", cwd: "/w/a", status: statusActive, ports: []string{"5433"}, listener: "postgres -D data"},
 	}}}
 	has := func(bar string) bool { return strings.Contains(bar, "S #[nobold fg="+grayHex+"]psql") }
 	for _, c := range []struct {
 		pid  int
 		want bool
-	}{{300, true}, {301, false}, {-7, false}, {-8, true}, {302, false}} {
+	}{{300, true}, {301, false}, {-7, false}, {-8, true}, {302, false}, {303, true}} {
 		m.cursor = c.pid
 		if got := has(m.bar()); got != c.want {
 			t.Errorf("on %d the bar offers S: %v, want %v\n%s", c.pid, got, c.want, m.bar())

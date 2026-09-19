@@ -92,7 +92,7 @@ func TestAServiceStaysAtRest(t *testing.T) {
 func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 	projects := []project{{path: "/w", entries: []entry{
 		{pid: 1, kind: kindRun, typed: "npm run dev", status: statusActive},
-		{pid: 2, kind: kindRun, typed: "node /w/node_modules/.bin/vite", status: statusActive, depth: 1, ports: []string{"5174"}},
+		{pid: 2, kind: kindRun, typed: "node /w/node_modules/.bin/vite", status: statusActive, depth: 1, ports: []string{"5174"}, sockets: []socket{{"TCP", "*:5174", "LISTEN"}, {"TCP", "127.0.0.1:5174->127.0.0.1:60322", "ESTABLISHED"}}},
 		{pid: 3, kind: kindShell, typed: "zsh", status: statusActive},
 		{pid: 4, kind: kindRun, typed: "npm run dev:web", status: statusActive, depth: 1},
 		{pid: 5, kind: kindRun, typed: "node vite", status: statusActive, depth: 2, ports: []string{"5173"}},
@@ -125,11 +125,22 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 		t.Errorf("folded:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
 	}
 	// The head is still its own process: the kill question and the
-	// page go by its pid, and its command is what it was.
-	if e := fold(projects)[0].entries[0]; e.pid != 1 || e.asTyped() != "npm run dev" {
-		t.Errorf("the head: %+v", e)
+	// page go by its pid, and its command is what it was. It says whose
+	// port it carries, and carries the sockets too, so its page says
+	// what it listens on and is connected to.
+	head := fold(projects)[0].entries[0]
+	if head.pid != 1 || head.asTyped() != "npm run dev" || head.listener != "node /w/node_modules/.bin/vite" || len(head.sockets) != 2 {
+		t.Errorf("the head: %+v", head)
 	}
-	if len(projects[0].entries[0].ports) != 0 {
+	s := readoutSubj()
+	s.entry = head
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	for _, want := range []string{"Command ... npm run dev", "Listens ... TCP *:5174", "Connected . TCP 127.0.0.1:5174->127.0.0.1:60322"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the folded head's page lacks %q:\n%s", want, text)
+		}
+	}
+	if len(projects[0].entries[0].ports) != 0 || len(projects[0].entries[0].sockets) != 0 {
 		t.Error("the tree given was written to")
 	}
 }

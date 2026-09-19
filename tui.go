@@ -872,6 +872,10 @@ func (m model) bar() string {
 				hints = append(hints, keyHint{"enter", "Change it"}, keyHint{"x", "Take it out"})
 			case addRootSetting:
 				hints = append(hints, keyHint{"enter", "Add one"})
+			case themeSetting:
+				if rows[m.settingAt].note != noteInUse {
+					hints = append(hints, keyHint{"enter", "Wear it"})
+				}
 			}
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}))
@@ -2495,7 +2499,7 @@ func (m model) View() tea.View {
 // file as it is on disk, with what went wrong writing it laid over the
 // top, since a save that failed is about the file the view is showing.
 func (m model) settingsReport() settingsReport {
-	b := composeSettings(m.head.login.home)
+	b := composeSettings(m.head.login.home, current.theme)
 	if m.settingErr != "" {
 		b.err = m.settingErr
 	}
@@ -2545,6 +2549,8 @@ func (m model) settingsKey(k string) (tea.Model, tea.Cmd) {
 			return m.toRootsFor(r.at, r.text)
 		case addRootSetting:
 			return m.toRootsFor(-1, "~/")
+		case themeSetting:
+			return m.useTheme(r.text)
 		}
 	case k == "x":
 		if m.settingAt < len(rows) && rows[m.settingAt].kind == rootSetting {
@@ -2594,6 +2600,44 @@ func (m model) wroteRoots(roots []string) (tea.Model, tea.Cmd) {
 	m.settingAt = clamp(m.settingAt, len(m.settingsReport().rows))
 	m.processesGen++
 	return m, tea.Batch(m.readProcesses(), m.scanProjects())
+}
+
+// useTheme puts conn in a theme and writes it down. It is worn now, not
+// on the next start: the mode file is what a pane of conn's own reads
+// when it comes up, the configuration is what the next server reads,
+// and the server standing is sourced again so every pane takes the new
+// sixteen where it stands. What conn writes for other programs — Claude
+// Code's theme, nvim's colorscheme — is written again where it is
+// already there, since those are conn's colors too and a station half
+// in one theme is worse than either.
+//
+// The ground is not asked again. Dark or light is the terminal's own
+// and was settled when the server rose; a theme is the other axis, and
+// changing one is not a reason to go back over the other.
+func (m model) useTheme(name string) (tea.Model, tea.Cmd) {
+	if _, ok := themeNamed(name); !ok {
+		return m, nil
+	}
+	home := m.head.login.home
+	if err := saveTheme(home, name); err != nil {
+		m.settingErr = err.Error()
+		return m, nil
+	}
+	m.settingErr = ""
+	want := mode{theme: name, dark: current.dark}
+	// Every color conn draws from is package-wide, so it is put on here,
+	// on the loop, and what the server is told is worked out here too
+	// and handed over ready: a command reading the palette off another
+	// goroutine would be reading it while the next key writes it.
+	applyMode(want)
+	m.p = colored().onSurface()
+	refreshClaudeTheme(home)
+	refreshVimColorscheme(home)
+	if !m.inside || m.srv == nil {
+		return m, nil
+	}
+	srv, conf, bg := m.srv, tmuxConf(panelKey()), surfaceHex
+	return m, m.serverCmd(func() error { return srv.rewear(conf, bg, want) })
 }
 
 // toRoots is the asking view, which conn goes to instead of the

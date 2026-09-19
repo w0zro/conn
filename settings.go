@@ -18,7 +18,9 @@ import (
 // It is a list, like the rest of conn: the settings are the rows, the
 // cursor moves among them, and enter answers the row under it. A root
 // is typed into the asking view, which is the one place conn completes
-// a path and knows what is a directory on this machine.
+// a path and knows what is a directory on this machine; a theme is
+// picked off the rows, conn having a fixed few, and a theme picked is
+// worn at once rather than waiting for the next start.
 //
 // What it writes is the file, and only the keys it came to change:
 // saveSetting carries the rest through. What is in force is another
@@ -31,6 +33,7 @@ type settingKind int
 const (
 	rootSetting    settingKind = iota // one configured root
 	addRootSetting                    // the row that asks for another
+	themeSetting                      // one of the themes conn has
 )
 
 // A settingRow is one row of the view: what it says, what is wrong or
@@ -38,7 +41,7 @@ const (
 type settingRow struct {
 	kind settingKind
 	text string // the root as the file writes it
-	note string // MISSING, NOT A DIR
+	note string // MISSING, NOT A DIR, IN USE, IN THE FILE
 	at   int    // which root, for the row that edits or removes one
 }
 
@@ -52,17 +55,24 @@ type settingsReport struct {
 	rows    []settingRow
 }
 
+// The notes a theme's row wears: the one conn is wearing now, and the
+// one the file names where a flag on the way in put conn in another.
+const (
+	noteInUse  = "IN USE"
+	noteInFile = "IN THE FILE"
+)
+
 // addRootRow is what the row that takes another root says.
 const addRootRow = "+ A ROOT"
 
 // composeSettings is the file as the view shows it: the roots it names,
 // as it names them, with what each one turned out to be on this
-// machine.
+// machine, and the themes conn has with the one being worn marked.
 //
 // The roots are the file's own, not the ones in force: this is the view
 // that edits the file, and a view that showed CONN_ROOTS's directories
 // would be offering to edit rows that are not in the file at all.
-func composeSettings(home string) settingsReport {
+func composeSettings(home, inUse string) settingsReport {
 	b := settingsReport{path: tilde(configPath(home), home)}
 	if _, err := os.Stat(configPath(home)); err == nil {
 		b.present = true
@@ -88,6 +98,19 @@ func composeSettings(home string) settingsReport {
 		b.roots++
 	}
 	b.rows = append(b.rows, settingRow{kind: addRootSetting, text: addRootRow})
+	for _, t := range themes {
+		row := settingRow{kind: themeSetting, text: t.name}
+		switch {
+		case t.name == inUse:
+			row.note = noteInUse
+		case t.name == c.Theme:
+			// The file names one and conn is wearing another: a flag
+			// said otherwise on the way in. Both are said, the
+			// difference being the thing somebody came here to see.
+			row.note = noteInFile
+		}
+		b.rows = append(b.rows, row)
+	}
 	return b
 }
 
@@ -140,14 +163,19 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 	kind := settingKind(-1)
 	for i, r := range b.rows {
 		if r.kind != kind && !(kind == rootSetting && r.kind == addRootSetting) {
-			// A heading for the setting, with what the file says of it
-			// against the right: how many roots it names.
+			// A heading for each setting, with what the file says of it
+			// against the right: how many roots it names, and nothing
+			// for the themes, which are as many as conn has either way.
 			d.blank(0)
 			l := d.line()
-			l.eyebrow(0, "ROOTS", measure, strconv.Itoa(b.roots))
+			if r.kind == themeSetting {
+				l.eyebrow(0, "THEME", measure, "")
+			} else {
+				l.eyebrow(0, "ROOTS", measure, strconv.Itoa(b.roots))
+			}
 			d.emit(l, 0, false)
 			d.blank(0)
-			if b.forced {
+			if r.kind != themeSetting && b.forced {
 				// The file is not what conn is walking. Said here rather
 				// than left to the console, because this is the view
 				// where somebody edits a root and waits for the list to
@@ -166,6 +194,9 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 			cursorRow = len(d.rows)
 		}
 		text, note := r.text, r.note
+		if r.kind == themeSetting {
+			text = strings.ToUpper(text)
+		}
 		room := measure
 		if note != "" {
 			room -= utf8.RuneCountInString(note) + 2

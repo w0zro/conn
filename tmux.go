@@ -135,12 +135,12 @@ func (s *server) attach(self, home string, o override) (int, error) {
 	applyMode(want)
 	refreshClaudeTheme(home)
 	refreshVimColorscheme(home)
-	conf := filepath.Join(filepath.Dir(s.socket), "tmux.conf")
+	conf := confPath(s.socket)
 	if err := os.WriteFile(conf, []byte(tmuxConf(panelKey())), 0o600); err != nil {
 		return 0, err
 	}
 	if asked {
-		if err := s.reground(conf); err != nil {
+		if err := s.reground(conf, surfaceHex, true); err != nil {
 			return 0, err
 		}
 	}
@@ -177,6 +177,28 @@ func (s *server) attach(self, home string, o override) (int, error) {
 	return 0, nil
 }
 
+// rewear puts the server into a mode conn has just taken on. It is
+// reground for a conn that is itself the panel: the mode is written
+// down first, since the panes that come up again read it, and the
+// panel is left standing — it is the conn asking for this, it has the
+// palette already, and killing it to change color would take the view
+// the operator is working with it.
+func (s *server) rewear(conf, bg string, m mode) error {
+	if err := writeMode(s.socket, m); err != nil {
+		return err
+	}
+	if err := os.WriteFile(confPath(s.socket), []byte(conf), 0o600); err != nil {
+		return err
+	}
+	return s.reground(confPath(s.socket), bg, false)
+}
+
+// confPath is the tmux configuration conn writes for its server, beside
+// the socket and the mode.
+func confPath(socket string) string {
+	return filepath.Join(filepath.Dir(socket), "tmux.conf")
+}
+
 // reground puts a server already up into the mode the mode file now
 // says. Sourcing the configuration again is what tmux has instead of
 // re-reading -f: every set -g in it lands on the live server, so each
@@ -188,7 +210,13 @@ func (s *server) attach(self, home string, o override) (int, error) {
 // panel, and a hold if one is standing in the bay — and read the mode
 // afresh. A pane with work in it draws in its own colors and keeps
 // them; what it asks for by name it now gets from the new sixteen.
-func (s *server) reground(conf string) error {
+//
+// bg is the surface the panel's pane is painted, handed in rather than
+// read here: the caller has the palette on the loop, and this runs off
+// it. panel is whether the panel is one of the panes to start again — a
+// conn that attached from outside has to, and the panel itself, asking
+// for a theme from the settings, must not.
+func (s *server) reground(conf, bg string, panel bool) error {
 	if !s.up() {
 		return nil
 	}
@@ -209,11 +237,14 @@ func (s *server) reground(conf string) error {
 	// The panel's pane is painted on the new ground's surface here as
 	// well as by the conn that comes up in it, so the window is right
 	// in the same breath as the rest and not a moment after.
-	panel := sessionName + ":" + homeWindow + ".0"
-	if _, err := s.run("select-pane", "-t", panel, "-P", "bg="+surfaceHex); err != nil {
+	target := sessionName + ":" + homeWindow + ".0"
+	if _, err := s.run("select-pane", "-t", target, "-P", "bg="+bg); err != nil {
 		return err
 	}
-	_, err = s.run("respawn-pane", "-k", "-t", panel)
+	if !panel {
+		return nil
+	}
+	_, err = s.run("respawn-pane", "-k", "-t", target)
 	return err
 }
 

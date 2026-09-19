@@ -718,7 +718,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	// reground paints the panel's pane from the table in force, which
 	// for the conn asking is the ground it asks for.
 	applyMode(connOn(false))
-	if err := srv.reground(conf); err != nil {
+	if err := srv.reground(conf, surfaceHex, true); err != nil {
 		t.Fatal(err)
 	}
 	applyMode(connOn(true))
@@ -774,7 +774,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	// reground paints the panel's pane from the table in force, which
 	// for the conn asking is the ground it asks for.
 	applyMode(datum)
-	if err := srv.reground(conf); err != nil {
+	if err := srv.reground(conf, surfaceHex, true); err != nil {
 		t.Fatal(err)
 	}
 	applyMode(connOn(true))
@@ -800,6 +800,59 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	s.until("the panel to come back", func() bool {
 		return strings.Contains(s.panes(), "home.0:conn:") && s.finished()
 	})
+}
+
+// A theme picked in the settings dresses the server where it stands,
+// and the panel keeps the keys. --theme on the way in respawns the
+// panel, which a conn asking for a theme from its own settings cannot
+// do: it would be killing the view the key was pressed in. So the
+// sixteen change, the mode file says the new theme, the file names it,
+// and the pane the settings are in is the same pane it was.
+func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
+	holdMode(t)
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return s.finished() })
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
+		t.Fatalf("the server did not rise in conn: slot 0 is %q", got)
+	}
+	s.keys("Enter")
+	s.until("the processes view", func() bool { return s.inProcesses() })
+	was := s.paneAt(homeWindow + ".0")
+
+	s.keys(",")
+	s.until("the settings", func() bool { return strings.Contains(s.panel(), "SETTINGS") })
+	// The scratch server is told its root by the environment, which
+	// stands in front of the file, and the view says so where somebody
+	// would otherwise edit a root and wait for a list that will not
+	// change.
+	if !strings.Contains(s.panel(), "CONN_ROOTS") {
+		t.Errorf("the settings do not say what is in force:\n%s", s.panel())
+	}
+	// Down the rows to a theme that is not the one conn is wearing, and
+	// take it.
+	s.keys("j", "j")
+	s.keys("Enter")
+	s.until("the server to be dressed in datum", func() bool {
+		return strings.EqualFold(s.display("#{pane-colours[0]}"), datumTheme.dark.scheme[0])
+	})
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+datumTheme.dark.surface) {
+		t.Errorf("the panel's pane is %q, not on datum's surface", got)
+	}
+	if m, ok := readModeFile(s.srv.socket); !ok || m.theme != "datum" {
+		t.Errorf("the mode file says %+v, found %v", m, ok)
+	}
+	c, err := readConfig(filepath.Join(s.dir, "home"))
+	if err != nil || c.Theme != "datum" {
+		t.Errorf("the file names the theme %q: %v", c.Theme, err)
+	}
+	// The panel was not restarted, and the keys are still in the
+	// settings where they were pressed.
+	if got := s.paneAt(homeWindow + ".0"); got != was {
+		t.Errorf("the panel was %s and is now %s", was, got)
+	}
+	if !strings.Contains(s.panel(), "SETTINGS") {
+		t.Errorf("the settings went away with the theme:\n%s", s.panel())
+	}
 }
 
 // conn down ends what the test brought up, and says so; a second

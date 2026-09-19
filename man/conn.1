@@ -144,6 +144,25 @@ Where
 stands in front of the file the view says so, and the rows stay the
 file's own.
 A file that will not parse is shown and not written over.
+.PP
+Under the roots are the themes
+.B conn
+has, the one being worn marked
+.BR "IN USE" ,
+and the one the file names
+.B "IN THE FILE"
+where a
+.B \-\-theme
+on the way in put
+.B conn
+in another.
+.B enter
+wears one: the file is written, the server's mode with it, and the
+server is dressed where it stands \(em the sixteen of every pane, the
+panel's own ground, and the theme files for Claude Code and nvim where
+those are already there.
+The ground stays as it was; it is the terminal's, and a theme is the
+other axis.
 .SS The roots view
 Where a root is typed, with the directories on this machine that answer
 what has been typed so far as its rows.
@@ -381,6 +400,7 @@ Move the cursor a row.
 .B enter
 On a root: type it over.
 On the row that adds one: type another.
+On a theme: wear it.
 .TP
 .B x
 Take the root under the cursor out of the file.
@@ -609,6 +629,7 @@ Told no roots,
 .B conn
 asks for one on the roots view before showing any processes, and writes
 the answer to the configuration file.
+The settings view is where they are edited afterwards.
 .PP
 A project is a git repository under a root, or a directory under a root
 that directly holds one.
@@ -1171,9 +1192,11 @@ A leading
 .B ~
 in a root is your home.
 .B conn
-reads this file and writes only
-.BR roots ,
-only when asked on the roots view, keeping every other key.
+reads this file and writes
+.B roots
+and
+.BR theme ,
+from the settings view, keeping every other key.
 A file that will not parse is a fault on the console and is never
 written over.
 .TP
@@ -1228,8 +1251,10 @@ and
 each with a dark and a light ground.
 The theme is
 .B theme
-in the configuration file or
-.BR \-\-theme .
+in the configuration file,
+.BR \-\-theme ,
+or the settings view, where picking one dresses the server where it
+stands.
 The ground is asked of the terminal or given by
 .BR \-\-light / \-\-dark .
 Every color is drawn by its role, and the sixteen ANSI colors of every

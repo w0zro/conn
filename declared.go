@@ -31,8 +31,12 @@ import (
 // conn's server marked as the declaration, and the pane's head row
 // carries the declared name; when it ends, the pane holds its output
 // and the row reads ENDED, or EXIT n as a fault. A process started by
-// hand with the same command is a plain row: the mark is what says a
-// pane is the declaration's, and nothing else is guessed at.
+// hand with the declaration's command, in its directory, is the
+// declaration too, wherever it was started: the row carries the name,
+// and the declaration is not brought up a second time beside it. The
+// mark is how a pane conn opened says whose it is, and the command and
+// the directory are how any other row says the same; a row at the
+// wrong directory, or with a word of difference, is a plain row.
 
 const declaredName = ".conn"
 
@@ -385,7 +389,12 @@ func upAndHeld(projects []project, panes map[string]pane, path string) (up map[s
 				}
 				continue
 			}
+			// A row with no terminal is a down row, or a declaration
+			// started by hand somewhere conn cannot see a terminal for.
 			if e.tty == "" {
+				if e.status != statusDown {
+					up[e.declared] = true
+				}
 				continue
 			}
 			if p := panes[e.tty]; p.exit != "" {
@@ -450,8 +459,18 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 				// got yet has no row this beat, rather than a down row
 				// that is not true. A service compose would bring up
 				// that has no container yet is down under it.
-				relabel(out, p, decl)
-				servicesUnder(out, p.tty, path, decl, d.services[decl.name])
+				if pid, ok := headPID(out, p.tty); ok {
+					relabel(out, pid, decl, mark, p.exit)
+					servicesUnder(out, pid, path, decl, d.services[decl.name])
+				}
+				continue
+			}
+			// No pane of conn's is marked as it, but a row running its
+			// command at its directory is the declaration started by
+			// hand, and the row is relabelled the same way.
+			if pid, ok := startedByHand(out[i], path, decl); ok {
+				relabel(out, pid, decl, mark, "")
+				servicesUnder(out, pid, path, decl, d.services[decl.name])
 				continue
 			}
 			out[i].entries = append(out[i].entries, entry{
@@ -484,18 +503,54 @@ func downService(path string, decl declaration, svc string, depth int) entry {
 	}
 }
 
-// servicesUnder puts a down row under a running declaration's head
+// startedByHand is the row in a project's block that is a declaration
+// started by hand: one running the declared command, word for word,
+// at the declared directory, and not already a declaration's. The
+// shallowest such row is the one, since a command that runs itself
+// again under itself is one process to the operator.
+func startedByHand(pl project, path string, decl declaration) (pid int, ok bool) {
+	command := strings.Join(strings.Fields(decl.command), " ")
+	at := filepath.Clean(decl.at(path))
+	depth := -1
+	for _, e := range pl.entries {
+		if e.declared != "" || e.pid <= 0 || e.status == statusDown {
+			continue
+		}
+		if strings.Join(strings.Fields(e.asTyped()), " ") != command || filepath.Clean(e.cwd) != at {
+			continue
+		}
+		if depth < 0 || e.depth < depth {
+			pid, depth = e.pid, e.depth
+		}
+	}
+	return pid, depth >= 0
+}
+
+// headPID is the pid of the head row of a pane's tree: the first row
+// with its terminal, the rows standing in tree order.
+func headPID(out []project, tty string) (int, bool) {
+	for _, pl := range out {
+		for _, e := range pl.entries {
+			if e.tty == tty {
+				return e.pid, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// servicesUnder puts a down row under a running declaration's row
 // for each service compose would bring up that has no container among
 // the rows there: a service that has not started, or that compose
 // has not got to yet. The rows are copied before they are written,
 // since the projects given may be the model's own.
-func servicesUnder(out []project, tty, path string, decl declaration, services []string) {
+func servicesUnder(out []project, pid int, path string, decl declaration, services []string) {
 	if len(services) == 0 {
 		return
 	}
 	for i, pl := range out {
 		for j, e := range pl.entries {
-			if e.tty != tty {
+			if e.pid != pid {
 				continue
 			}
 			// The head's subtree, and the services with a row in it.
@@ -538,22 +593,22 @@ func blockOf(out []project, path string) int {
 	return -1
 }
 
-// relabel makes the head row of a declaration's pane say what it is:
-// the declared name and command in place of the sh tmux started, its
-// kind a run, and its word the exit the pane recorded, where it has.
-// The rows are copied before they are written, since the projects
-// given may be the model's own.
-func relabel(out []project, p pane, decl declaration) {
+// relabel makes a declaration's row say what it is: the declared name
+// and command in place of the sh tmux started or the line typed, its
+// kind a run, its mark the declaration's, and its word the exit the
+// pane recorded, where it has one. The rows are copied before they
+// are written, since the projects given may be the model's own.
+func relabel(out []project, pid int, decl declaration, mark, exit string) {
 	for i, pl := range out {
 		for j, e := range pl.entries {
-			if e.tty != p.tty {
+			if e.pid != pid {
 				continue
 			}
 			rows := make([]entry, len(pl.entries))
 			copy(rows, pl.entries)
-			e.kind, e.command, e.typed, e.declared = kindRun, decl.label(), decl.label(), p.declared
-			if p.exit != "" {
-				e.status, e.fault = exitStatus(p.exit)
+			e.kind, e.command, e.typed, e.declared = kindRun, decl.label(), decl.label(), mark
+			if exit != "" {
+				e.status, e.fault = exitStatus(exit)
 			}
 			rows[j] = e
 			out[i].entries = rows

@@ -172,6 +172,14 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 			{pid: 200, kind: kindShell, command: "sh -c npm run dev", typed: "sh -c npm run dev", tty: "ttys002", status: statusActive},
 			{pid: 201, kind: kindRun, command: "npm run dev", typed: "npm run dev", tty: "ttys002", status: statusActive, depth: 1},
 			{pid: 300, kind: kindShell, command: "cat", typed: "cat", tty: "ttys003", status: statusActive},
+			// By hand: the worker's command typed at the project, in a
+			// shell of the operator's own; the api's command, at the
+			// project rather than under api; the ghost's, with a word
+			// of difference; and a wrong one under nothing.
+			{pid: 500, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys005", status: statusActive, cwd: app},
+			{pid: 501, kind: kindRun, command: "make run", typed: "make  run", tty: "ttys005", status: statusWorking, depth: 1, cwd: app},
+			{pid: 502, kind: kindRun, command: "go run .", typed: "go run .", tty: "ttys005", status: statusActive, depth: 1, cwd: app},
+			{pid: 503, kind: kindRun, command: "sleep 10", typed: "sleep 10", tty: "ttys005", status: statusActive, depth: 1, cwd: app},
 		}},
 		{path: zed, entries: []entry{{pid: 400, kind: kindShell, command: "zsh", tty: "ttys004", status: statusIdle}}},
 	}
@@ -204,17 +212,20 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 		" RUN web · npm run dev ACTIVE ttys002 " + markDeclared(app, "web"),
 		"  RUN npm run dev ACTIVE ttys002 ",
 		" RUN api · go run . EXIT 1 ttys003 " + markDeclared(app, "api"),
-		" RUN worker · make run DOWN  " + markDeclared(app, "worker"),
+		" SHELL zsh ACTIVE ttys005 ",
+		"  RUN worker · make run WORKING ttys005 " + markDeclared(app, "worker"),
+		"  RUN go run . ACTIVE ttys005 ",
+		"  RUN sleep 10 ACTIVE ttys005 ",
 		zed + " · .conn: line 1: want name [dir]: command",
 		" SHELL zsh IDLE ttys004 ",
 	}
 	if !reflect.DeepEqual(rows, want) {
 		t.Errorf("rows:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
 	}
-	// The down row has a pid of its own to hold the cursor with, and
-	// the exited one is a fault where a clean end is not.
-	if e := got[0].entries[4]; e.pid != declaredPID(app, "worker") || e.cwd != app {
-		t.Errorf("the down row: %+v", e)
+	// The row started by hand keeps its own pid and place, and the
+	// exited one is a fault where a clean end is not.
+	if e := got[0].entries[5]; e.pid != 501 || e.depth != 1 || e.cwd != app {
+		t.Errorf("the row started by hand: %+v", e)
 	}
 	if e := got[0].entries[3]; !e.fault {
 		t.Error("an exit of 1 is not a fault")
@@ -223,8 +234,15 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	if e := attachDeclared(projects, declared, panes)[0].entries[3]; e.status != statusEnded || e.fault {
 		t.Errorf("a clean end: %s, fault %v", e.status, e.fault)
 	}
+	// With nothing started by hand the worker is a down row, with a
+	// pid of its own to hold the cursor with.
+	got = attachDeclared(projects[:1], declared, panes)
+	got[0].entries = got[0].entries[:4]
+	if e := attachDeclared([]project{{path: app, entries: projects[0].entries[:4]}}, declared, panes)[0].entries[4]; e.pid != declaredPID(app, "worker") || e.cwd != app || e.status != statusDown {
+		t.Errorf("the down row: %+v", e)
+	}
 	// The projects given are left as they were.
-	if len(projects[0].entries) != 4 || projects[0].entries[1].kind != kindShell {
+	if len(projects[0].entries) != 8 || projects[0].entries[1].kind != kindShell {
 		t.Error("the model's own rows were written to")
 	}
 	if attachDeclared(projects, nil, panes)[0].path != app || len(attachDeclared(projects, nil, panes)) != 2 {
@@ -240,8 +258,10 @@ func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
 	projects := []project{{path: app, entries: []entry{
 		{pid: 1, tty: "ttys001", declared: markDeclared(app, "web")},
 		{pid: 2, tty: "ttys002", declared: markDeclared(app, "api")},
-		{pid: declaredPID(app, "worker"), declared: markDeclared(app, "worker")},
+		{pid: declaredPID(app, "worker"), status: statusDown, declared: markDeclared(app, "worker")},
 		{pid: 4, tty: "ttys004", declared: markDeclared(lib, "docs")},
+		// Started by hand, somewhere with no terminal conn can see.
+		{pid: 5, status: statusActive, declared: markDeclared(app, "cron")},
 	}}}
 	panes := map[string]pane{
 		"ttys001": {id: "%1", tty: "ttys001"},
@@ -249,7 +269,7 @@ func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
 		"ttys004": {id: "%4", tty: "ttys004"},
 	}
 	up, held := upAndHeld(projects, panes, app)
-	if !reflect.DeepEqual(up, map[string]bool{markDeclared(app, "web"): true}) {
+	if !reflect.DeepEqual(up, map[string]bool{markDeclared(app, "web"): true, markDeclared(app, "cron"): true}) {
 		t.Errorf("up: %v", up)
 	}
 	if !reflect.DeepEqual(held, map[string]string{markDeclared(app, "api"): "%2"}) {
@@ -341,5 +361,23 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 	}
 	if len(up[0].entries) != 5 {
 		t.Error("the model's own rows were written to")
+	}
+
+	// By hand: the same stack typed into a shell, no pane marked. The
+	// row that ran the command is the stack, and the missing service
+	// is down under it, not under the shell.
+	hand := []project{{path: shop, entries: []entry{
+		{pid: 300, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys003", status: statusIdle, cwd: shop},
+		{pid: 301, kind: kindRun, command: "docker compose up", typed: "docker compose up", tty: "ttys003", status: statusActive, depth: 1, cwd: shop},
+		{pid: -5, kind: kindService, command: "api", typed: "api", ports: []string{"3000"}, status: statusActive, depth: 2, container: "aaa"},
+		{pid: -6, kind: kindService, command: "web", typed: "web", ports: []string{"8080"}, status: statusActive, depth: 2, container: "bbb"},
+	}}}
+	got = attachDeclared(hand, declared, nil)
+	want = []string{"SHELL zsh IDLE", " RUN stack · docker compose up ACTIVE", "  SERVICE api ACTIVE", "  SERVICE web ACTIVE", "  SERVICE db DOWN"}
+	if !slices.Equal(rows(got[0]), want) {
+		t.Errorf("by hand:\n%s\nwant:\n%s", strings.Join(rows(got[0]), "\n"), strings.Join(want, "\n"))
+	}
+	if e := got[0].entries[1]; e.declared != mark || e.pid != 301 {
+		t.Errorf("the row started by hand: %+v", e)
 	}
 }

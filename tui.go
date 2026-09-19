@@ -924,7 +924,7 @@ func rowDown(e entry, panes map[string]pane) bool {
 	case e.brew != "":
 		return e.status != statusActive
 	case e.tty == "":
-		return true
+		return e.status == statusDown
 	}
 	return panes[e.tty].exit != ""
 }
@@ -1585,7 +1585,10 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			m.kill = &pendingKill{brew: e.brew, command: name, prompt: brewStopPrompt(e.brew, name)}
 			return m, nil
 		}
-		if e.declared != "" {
+		// A declaration in a pane conn opened for it is stopped in
+		// that pane. One started by hand is a process like any other,
+		// wherever it runs, and is signalled as one.
+		if e.declared != "" && (e.status == statusDown || m.panes[e.tty].declared == e.declared) {
 			return m.armDeclared(e)
 		}
 		// A row that is down is nothing running: there is nothing to

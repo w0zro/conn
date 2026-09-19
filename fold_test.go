@@ -80,3 +80,56 @@ func TestAServiceStaysAtRest(t *testing.T) {
 		t.Errorf("at rest:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+// One process alone listening under a head folds into it: the head
+// takes the port and is the serving row, worded as what was typed or
+// declared, since npm run dev and the node under it that holds the
+// port are one server to the operator. A shell that says what it runs
+// takes the port the same way. Several ports under one head are
+// several servers, and each keeps its row; a port under a contact is
+// the contact's to leave alone; and what stood under the listener
+// stands under the head.
+func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
+	projects := []project{{path: "/w", entries: []entry{
+		{pid: 1, kind: kindRun, typed: "npm run dev", status: statusActive},
+		{pid: 2, kind: kindRun, typed: "node /w/node_modules/.bin/vite", status: statusActive, depth: 1, ports: []string{"5174"}},
+		{pid: 3, kind: kindShell, typed: "zsh", status: statusActive},
+		{pid: 4, kind: kindRun, typed: "npm run dev:web", status: statusActive, depth: 1},
+		{pid: 5, kind: kindRun, typed: "node vite", status: statusActive, depth: 2, ports: []string{"5173"}},
+		{pid: 6, kind: kindShell, typed: "bash -c make", status: statusWaiting, depth: 3},
+		{pid: 7, kind: kindRun, typed: "npm run dev", status: statusActive, ports: []string{"24678"}},
+		{pid: 8, kind: kindRun, typed: "node vite", status: statusActive, depth: 1, ports: []string{"5175"}},
+		{pid: 9, kind: kindRun, typed: "turbo dev", status: statusActive},
+		{pid: 10, kind: kindRun, typed: "next dev", status: statusActive, depth: 1, ports: []string{"3000"}},
+		{pid: 11, kind: kindRun, typed: "node api.js", status: statusActive, depth: 1, ports: []string{"4000"}},
+		{pid: 12, kind: kindContact, typed: "claude", status: statusWorking},
+		{pid: 13, kind: kindRun, typed: "python -m http.server", status: statusActive, depth: 1, ports: []string{"8000"}},
+	}}}
+	var rows []string
+	for _, e := range fold(projects)[0].entries {
+		rows = append(rows, strings.Repeat(" ", e.depth)+e.kind+" "+activityOf(e)+portsWord(e.ports))
+	}
+	want := []string{
+		"RUN npm run dev · :5174",
+		"SHELL npm run dev:web · :5173",
+		" SHELL bash -c make",
+		"RUN npm run dev · :24678",
+		" RUN node vite · :5175",
+		"RUN turbo dev",
+		" RUN next dev · :3000",
+		" RUN node api.js · :4000",
+		"CONTACT claude",
+		" RUN python -m http.server · :8000",
+	}
+	if !reflect.DeepEqual(rows, want) {
+		t.Errorf("folded:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
+	}
+	// The head is still its own process: the kill question and the
+	// page go by its pid, and its command is what it was.
+	if e := fold(projects)[0].entries[0]; e.pid != 1 || e.asTyped() != "npm run dev" {
+		t.Errorf("the head: %+v", e)
+	}
+	if len(projects[0].entries[0].ports) != 0 {
+		t.Error("the tree given was written to")
+	}
+}

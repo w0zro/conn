@@ -13,10 +13,14 @@ package main
 // the whole tree, for when the rest is what you are looking for.
 //
 // A process that listens is a service of the machine's own, and stays
-// the same way: a port is a thing to reach, and the row to reach it
-// from is the process that holds it, with its own command, and not the
-// supervisor six of them roll up to. The head that started it carries
-// no port of its own, and files by what it is doing.
+// the same way: a port is a thing to reach. Where one process alone
+// listens under a head, the head is the thing — npm run dev, and the
+// node under it that holds the port, are one server to the operator,
+// reached from the one pane — so the port is lifted onto the head and
+// the listener's row folds into it; see liftListener. Where several
+// listen under one head, a compose stack or a monorepo's dev, each
+// stands as a row under it with its own command and port, and the
+// supervisor they roll up to carries none.
 
 // fold is the projects with every row that is only what its parent is
 // doing folded into the parent: a row stays when it is a head, a
@@ -58,7 +62,66 @@ func fold(projects []project) []project {
 				}
 			}
 		}
+		kept.entries = liftListener(kept.entries)
 		out = append(out, kept)
 	}
 	return out
+}
+
+// liftListener folds a lone listener into its head. A head is any row
+// kept that is not a contact and not a service: a contact files by
+// what it asks of you and never by a port, and a service is a thing of
+// its own. The listener is a plain process alive on a port, standing
+// directly under the head in what is kept, and the only row under the
+// head at any depth that has a port: a second port under the head,
+// on the listener itself or beside it, is several servers, and each
+// keeps its row. The head takes the ports, and what stood under the
+// listener stands under the head.
+func liftListener(rows []entry) []entry {
+	drop := map[int]bool{}
+	for j := range rows {
+		h := &rows[j]
+		if h.kind == kindContact || h.kind == kindService || len(h.ports) > 0 {
+			continue
+		}
+		listener, ports := -1, 0
+		for i := j + 1; i < len(rows) && rows[i].depth > h.depth; i++ {
+			if len(rows[i].ports) == 0 {
+				continue
+			}
+			ports++
+			if rows[i].depth == h.depth+1 && plainListener(rows[i]) {
+				listener = i
+			}
+		}
+		if ports != 1 || listener < 0 {
+			continue
+		}
+		h.ports = rows[listener].ports
+		drop[listener] = true
+		for i := listener + 1; i < len(rows) && rows[i].depth > rows[listener].depth; i++ {
+			rows[i].depth--
+		}
+	}
+	if len(drop) == 0 {
+		return rows
+	}
+	out := make([]entry, 0, len(rows)-len(drop))
+	for i, e := range rows {
+		if !drop[i] {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// plainListener says whether a row is a process alive on a port and
+// nothing else the panel keeps a row for: not a contact, not a
+// service, not a fault, and not waiting.
+func plainListener(e entry) bool {
+	switch {
+	case e.kind == kindContact, e.kind == kindService, e.fault, e.status == statusWaiting:
+		return false
+	}
+	return len(e.ports) > 0
 }

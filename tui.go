@@ -1450,6 +1450,10 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	half := m.firstG
 	m.firstG = false
 	if half && k == "g" {
+		if m.view == viewSettings {
+			m.settingAt = 0
+			return m, nil
+		}
 		m.cursor, m.cursorAt = follow(m.projects, 0, 0)
 		return m, nil
 	}

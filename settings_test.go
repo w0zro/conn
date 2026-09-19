@@ -308,3 +308,29 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 		}
 	}
 }
+
+// gg and G are the ends of the list here as they are in the processes
+// view: the settings are rows and the keys that move among rows are the
+// same keys everywhere.
+func TestTheSettingsMoveToBothEnds(t *testing.T) {
+	home := configured(t, `{"roots":["~/projects","~/work"]}`, "projects", "work")
+	m := settingsAt(t, home, 0)
+	last := len(m.settingsReport().rows) - 1
+	next, _ := m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+	m = next.(model)
+	if m.settingAt != last {
+		t.Errorf("G went to row %d of %d", m.settingAt, last)
+	}
+	next, _ = m.Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
+	next, _ = next.(model).Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
+	if got := next.(model).settingAt; got != 0 {
+		t.Errorf("gg went to row %d", got)
+	}
+	// j from the last row comes round to the first, as it does in the
+	// processes view.
+	m.settingAt = last
+	next, _ = m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if got := next.(model).settingAt; got != 0 {
+		t.Errorf("j past the last row went to %d", got)
+	}
+}

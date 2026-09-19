@@ -183,7 +183,10 @@ one move: an end that was asked for leaves nothing to read.
 2-6.
 A service has no pane, so \fBenter\fR on one opens its output, and \fBenter\fR
 again goes into the pane holding that; \fBs\fR on one opens a shell inside the
-container.
+container. A row that is a server conn knows by name — postgres, as a process,
+a Homebrew service or a container — takes \fBS\fR as well: a session with the
+server by its own client, psql, in a pane of the station, connected to the port
+it listens on or run inside its container. \fBs\fR beside it is still a shell.
 .TP
 2-7.
 A project may declare the processes that work it in a file named \fB.conn\fR at
@@ -288,6 +291,9 @@ Back into the process last worked in.
 .TP
 \fBs\fR
 A shell at the project. On a service, a shell inside the container.
+.TP
+\fBS\fR
+A session with the server the row is, by its client: psql on postgres.
 .TP
 \fBa\fR
 A contact at the project.

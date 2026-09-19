@@ -825,7 +825,11 @@ func (m model) bar() string {
 	// with no row under the cursor there is nowhere for them: what is
 	// left is the list, and the manual.
 	if m.inside && ok {
-		hints = append(hints, keyHint{"s", "Shell"}, keyHint{"a", "New contact"})
+		hints = append(hints, keyHint{"s", "Shell"})
+		if p := m.programUnder(e); p != nil {
+			hints = append(hints, keyHint{"S", p.client})
+		}
+		hints = append(hints, keyHint{"a", "New contact"})
 		if rowDown(e, m.panes) {
 			hints = append(hints, keyHint{"u", "Bring it up"})
 		}
@@ -1626,6 +1630,15 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			}
 			if pl.path != "" {
 				return m, m.openShell(pl.path)
+			}
+		}
+	case k == "S":
+		// A session with the server the row is, by its own client: psql
+		// on postgres. s beside it is a shell near the server; this is
+		// the server itself, talked to.
+		if e, pl, ok := m.under(); m.inside && ok {
+			if p := m.programUnder(e); p != nil {
+				return m, m.openClient(e, p, pl.path)
 			}
 		}
 	case k == "a":

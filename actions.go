@@ -1,6 +1,8 @@
 package main
 
 import (
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -309,6 +311,78 @@ func (m model) shellInContainer(e entry) tea.Cmd {
 		}
 		return openedMsg{shell: sh}
 	}
+}
+
+// openClient is S on a row that is a program conn knows: a session with
+// the server by its own client, psql for postgres. In a container the
+// client runs inside it by docker exec, as the user the image was
+// given. On this machine it connects to the port the row listens on,
+// and is found on the path, or under the formula's own prefix where
+// brew keeps it out of the path, as it does postgresql. The pane holds
+// on a failure so what went wrong can be read, as a shell in a
+// container does; a session ended by the operator takes its pane with
+// it, as a shell does.
+func (m model) openClient(e entry, p *knownProgram, dir string) tea.Cmd {
+	srv := m.srv
+	if dir == "" {
+		dir = e.cwd
+	}
+	if e.container != "" {
+		id := e.container
+		return func() tea.Msg {
+			user := containerEnv(id, p.userEnv)
+			if user == "" {
+				user = p.user
+			}
+			cmd := shellQuote(dockerPath) + " exec -it " + shellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + holdOpen
+			sh, err := srv.openShellIn(dir, cmd, id)
+			if err != nil {
+				return nil
+			}
+			return openedMsg{shell: sh}
+		}
+	}
+	if len(e.ports) == 0 {
+		return nil
+	}
+	port, formula := e.ports[0], e.brew
+	return func() tea.Msg {
+		client := lookPath(p.client)
+		if client == "" && formula != "" {
+			if out, err := brewSays(brewWait, "--prefix", formula); err == nil {
+				if c := filepath.Join(strings.TrimSpace(string(out)), "bin", p.client); lookPath(c) != "" {
+					client = c
+				}
+			}
+		}
+		if client == "" {
+			return noticeMsg{p.client + " was not found on the path"}
+		}
+		cmd := shellQuote(client) + " " + p.args(port) + " 2>&1 || " + holdOpen
+		sh, err := srv.openCmd(dir, cmd)
+		if err != nil {
+			return noticeMsg{"the session could not be opened: " + err.Error()}
+		}
+		return openedMsg{shell: sh}
+	}
+}
+
+// containerEnv is one variable of a container's environment, as docker
+// inspect reports it, or nothing.
+func containerEnv(id, name string) string {
+	if name == "" || dockerPath == "" {
+		return ""
+	}
+	out, err := dockerSays(dockerWait, "inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", id)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if v, ok := strings.CutPrefix(line, name+"="); ok {
+			return v
+		}
+	}
+	return ""
 }
 
 // holdOpen keeps a pane standing after what it was opened for has

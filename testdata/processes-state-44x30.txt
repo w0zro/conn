@@ -11,7 +11,7 @@
 
    IDLE ──────────────────────────────── 2
 ▌  ○  zsh                             /w/a
-   ●  vim                         Stopped
+   ●  vim                         STOPPED
 
    NOT RUNNING ───────────────────────── 1
    ◌  worker                          /w/a

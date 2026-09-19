@@ -156,7 +156,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			tail = fit(tail, tailMax, true)
 			tailW = utf8.RuneCountInString(tail)
 			if r.fault {
-				tailW = stampWidth(said(r.status), p)
+				tailW = stampWidth(r.status, p)
 			}
 			l.add(command, fit(activity, measure-l.cells-tailW-2-utf8.RuneCountInString(spin), false))
 			if spin != "" {
@@ -165,7 +165,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			switch {
 			case r.fault:
 				l.to(measure - tailW)
-				l.stamp(said(r.status))
+				l.stamp(r.status)
 			case tail != "":
 				l.to(measure - tailW)
 				l.add(tailColor, tail)

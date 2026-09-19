@@ -73,11 +73,12 @@ stylesheet, and `install.sh`.
 **1-3.** There are two texts. `man/conn.1` is the reference, written by
 hand in roff, built into the binary, and shown by `?`; it is held to the
 binary by a test: its synopsis names every command and flag conn
-answers to and nothing else, and its keys section names the panel key.
-`docs/index.html` is the operating manual, held the same way: every
-command and flag is a row of its synopsis table and nothing else is,
-and the keys section names the panel key. A key or a command added
-without its row in both fails the build.
+answers to and nothing else, and its keys section names the panel key
+as it is bound. A key or a command added without its row fails the
+build. `docs/index.html` is the operating manual: how conn is worked,
+on the site's pages, pointing at the man page for every key and word.
+It is held to nothing by a test, and is read again when a section it
+describes changes.
 
 ## SECTION 2. BUILDING AND TESTING
 

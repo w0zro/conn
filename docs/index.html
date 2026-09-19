@@ -138,13 +138,13 @@
         <p class="label">CONTENTS</p>
         <ol>
           <li><a href="#general"><span class="n">1</span><span>General</span><span class="dots"></span><span>1-1</span></a></li>
-          <li><a href="#operation"><span class="n">2</span><span>Operation</span><span class="dots"></span><span>1-1</span></a></li>
+          <li><a href="#first-session"><span class="n">2</span><span>First session</span><span class="dots"></span><span>1-2</span></a></li>
         </ol>
       </div>
       <div>
         <ol>
-          <li><a href="#keys"><span class="n">3</span><span>Keys</span><span class="dots"></span><span>1-2</span></a></li>
-          <li><a href="#commands"><span class="n">4</span><span>Commands and configuration</span><span class="dots"></span><span>1-3</span></a></li>
+          <li><a href="#panel"><span class="n">3</span><span>Working the panel</span><span class="dots"></span><span>1-4</span></a></li>
+          <li><a href="#declares"><span class="n">4</span><span>What a project declares</span><span class="dots"></span><span>1-5</span></a></li>
         </ol>
       </div>
     </div>
@@ -152,43 +152,10 @@
       <div class="section" id="general">
         <p class="kicker">SECTION 1</p>
         <h2>General</h2>
-        <p class="para"><span class="n">1-1.</span> conn is a station for one operator directing many processes on one machine. It runs on tmux, which it starts and holds. The panel occupies the left of the terminal and the workspace the rest. The panel lists the processes working each project &mdash; shells, contacts, and commands &mdash; with what each is doing and which is waiting on the operator. The workspace holds the one process the operator is in. Keys move between them.</p>
-        <p class="para"><span class="n">1-2.</span> A contact is a process with an agent at the other end: Claude Code, or another conn knows by name. A contact works without direction and stops to ask for it. The station shows which one has stopped, and <b>tab</b> goes to the one that has waited longest.</p>
-        <p class="para"><span class="n">1-3.</span> conn finds projects by walking the roots it was given: the directories named in <b>~/.config/conn/config.json</b>, or in <b>CONN_ROOTS</b>, which is read first. A project is a repository under a root, or a folder under one that holds two or more. conn is told the roots and infers nothing; a conn that has been told nothing asks before it goes on, in a line typed into: the directories that answer what is typed are the rows, <b>tab</b> fills the line in with the one under the cursor, and <b>enter</b> takes it and writes it to the file.</p>
-        <p class="para"><span class="n">1-4.</span> The installation procedure on the cover puts the binary in <b>~/.local/bin</b> and this manual beside it, where <b>man conn</b> finds it. conn needs tmux on the path. On macOS it also needs lsof, which is how it reads where a process is working; Linux reads /proc. Without tmux, conn shows the console and the processes view and can reach nothing.</p>
-      </div>
-      <div class="section" id="operation">
-        <p class="kicker">SECTION 2</p>
-        <h2>Operation</h2>
-        <p class="para"><span class="n">2-1.</span> conn comes up on the console: a readout of the machine and the session, the start-up checks, and the verdict. A check that found something wrong is a fault, and the verdict counts them; with none it says so. Any key continues to the processes view; from there <b>c</b> brings the console back.</p>
-        <p class="para"><span class="n">2-2.</span> The processes view is what is running, filed by what each thing is doing: WAITING FOR YOU, WORKING, SERVING, IDLE and NOT RUNNING, each under an eyebrow with its count, and what wants you first, the longest wait at the head. A row is serving when it is alive and has a port, one it listens on or one its container publishes; the ports stand first, in a column of their own after the dot, being where you would go, and the commands start together after it. The project at the right takes what the command leaves. A row says what it is doing with a dot at its head &mdash; the accent where it has stopped to ask you something, the running color where it is at work or serving, a hollow ring where it is idle, a dotted one where it is not running &mdash; then what it is, and at its right the project it is in, by its own name, with the folder above put before it only where two projects on the panel share a name. A waiting row is stamped with how long it has waited there instead, and the stamp blinks; a fault is stamped with its word, and holds still; a working row&#x27;s dot is followed by a spinner that turns with the station&#x27;s clock, and what is not running is struck through. A row conn holds in a pane of its server is written in the ink and can be entered; work conn can only report is dimmed. At rest the view is quiet: a tree is its head, and beside it only a contact, a service, a process that listens on a port, a fault, or a row that is waiting or down; what else runs under a shell is said on the shell&#x27;s own row. A port is said on the row that started the server: where one process alone listens under a head, the head carries its port and is the serving row, worded as what was typed or declared, since the two are one server reached from the one pane; where several listen under one head, a compose stack or a monorepo&#x27;s dev, each stands as a row under it with its own command and port, and the supervisor they roll up to carries none. <b>z</b> shows the whole tree instead, by project: each block a project&#x27;s name, its rows nested under whatever runs them with their kind, their terminal and the time in columns of their own where the view is wide, and a declared process by its name; the band says TREE while it does. Across the foot of the window run two rows. The upper is the band: the wordmark, or the mode that has the keys, and at the right edge how long the station has been up. The lower is the key bar: the keys the row under the cursor can take, and only those, or the panel key while a process has the keys, or the question a key has armed with its answers, and at the right the station and the conn that is running.</p>
-        <p class="caption">Kinds</p>
-        <div class="table keys">
-          <div class="row head"><span>KIND</span><span>WHAT THE ROW IS</span></div>
-          <div class="row"><span>SHELL</span><span>A shell. Bare, it is idle; running anything, it is active as what it runs is.</span></div>
-          <div class="row"><span>CONTACT</span><span>An agent, and the one kind that can wait on the operator.</span></div>
-          <div class="row"><span>EDITOR</span><span>An editor.</span></div>
-          <div class="row"><span>RUN</span><span>Anything else: a build, a test, a server, a script.</span></div>
-          <div class="row"><span>SERVICE</span><span>A docker container, filed under the project compose started it for; or a Homebrew service a project declares, as brew reports it.</span></div>
-        </div>
-        <p class="caption">Words</p>
-        <div class="table keys">
-          <div class="row head"><span>WORD</span><span>HOW THE ROW STANDS</span></div>
-          <div class="row"><span>WORKING</span><span>Doing something now. A contact says what: the tool it has in flight.</span></div>
-          <div class="row"><span>WAITING</span><span>A contact stopped on a question it put to the operator.</span></div>
-          <div class="row"><span>ACTIVE</span><span>Alive, and not doing anything.</span></div>
-          <div class="row"><span>IDLE</span><span>A shell at its prompt, or a contact at rest.</span></div>
-          <div class="row"><span>STOPPED</span><span>Suspended.</span></div>
-          <div class="row"><span>ENDED</span><span>Finished, and not yet collected.</span></div>
-          <div class="row"><span>DOWN</span><span>Declared in the project's .conn, and not running.</span></div>
-          <div class="row"><span>EXIT n</span><span>Ended with that code: a service, or a declared process. A fault.</span></div>
-          <div class="row"><span>UNHEALTHY, RESTARTING, STARTING</span><span>A service, as docker says it stands. The first two are faults.</span></div>
-        </div>
-        <p class="para"><span class="n">2-3.</span> While the keys are on the panel, the workspace holds the readout on the row under the cursor: the whole command, where the process is working, what it listens on and is connected to, what runs it and what it runs, what it has spent, and what git says of the project. A contact&#x27;s readout is a handoff sheet instead: who it is and where it is working, the question it stopped on in its own words with how long it has waited, what to do about it as a numbered procedure of keys, what to be careful of, how the work has gone as a bar and a sentence, and beside all that the specifications with leaders. It follows the cursor. <b>enter</b> puts the process in the workspace instead, with the keys in it, and <b>esc</b> goes back into the process last worked in.</p>
-        <p class="para"><span class="n">2-4.</span> <b>p</b> is the projects list: every project under the roots, whether anything is running in it or not, and under each what conn has running there. Typing narrows it. The workspace holds the readout here too, on the row under the cursor: a process's own, or for a project where it is, what git says of it, and what is running in it. <b>enter</b> opens a shell at the row under the cursor, <b>alt-a</b> starts a contact there, <b>alt-A</b> lists the sessions a contact left suspended there, <b>alt-u</b> brings up what the project declares, and <b>esc</b> goes back. In the sessions list, <b>enter</b> picks the session under the cursor back up, and the workspace holds the readout on it: when it last moved, its branch, the last thing asked of it, the model, and the command that picks it back up.</p>
-        <p class="para"><span class="n">2-5.</span> <b>x</b> asks to end the process under the cursor, on the status line, and the question is the command conn is about to run: <b>kill -TERM</b> for anything a shell runs, from its own row or from the shell's row that says it; <b>kill -KILL</b> for a bare shell, which ignores the gentler signal; <b>docker stop</b> for a service; tmux's <b>kill-pane</b> for a pane held after its process ended. <b>y</b> answers yes and any other key withdraws the question, as tmux's own confirmation goes. The shell a process ran in is left at its prompt. A declared process that is up is sent <b>ctrl-c</b> in its pane instead, by tmux's <b>send-keys</b>, the way a hand stops what it ran in the foreground &mdash; a <b>docker compose up</b> ignores SIGTERM and stops on ctrl-c, and it is not alone &mdash; and once it has ended its pane goes with it, so the row is DOWN again in the one move: an end that was asked for leaves nothing to read.</p>
-        <p class="para"><span class="n">2-6.</span> A service has no pane, so <b>enter</b> on one opens its output, and <b>enter</b> again goes into the pane holding that; <b>s</b> on one opens a shell inside the container. A row that is a server conn knows by name &mdash; postgres, as a process, a Homebrew service or a container &mdash; takes <b>S</b> as well: a session with the server by its own client, psql, in a pane of the station, connected to the port it listens on or run inside its container. <b>s</b> beside it is still a shell.</p>
-        <p class="para"><span class="n">2-7.</span> A project may declare the processes that work it in a file named <b>.conn</b> at its path; the file's form is at 4-5. Where work is happening in the project, each declared process not running is a row at the foot of its block, dimmed and worded DOWN; a project nothing is running in shows nothing of its file. <b>enter</b> on such a row brings it up in a pane of the station and goes into it; <b>u</b> brings it up and leaves the keys on the panel, so <b>u</b> pressed down the rows brings them up one at a time; <b>U</b> on any row of the project brings up everything it declares that is down. A pane conn opened this way carries the declared name on its head row. A process started by hand with the declaration's command, word for word, in the declaration's directory, is the declaration too, wherever it was started: its row carries the name, <b>u</b> and <b>U</b> pass it over, and <b>x</b> signals it as the process it is. When the process ends on its own the pane holds its output and the row reads ENDED, or EXIT and the code as a fault; <b>enter</b> goes in to read it, <b>u</b> opens it anew, and <b>x</b> closes it. <b>x</b> on one still running sends it ctrl-c in its pane and closes the pane once it has ended, and the row is DOWN again. A declaration that is a <b>docker compose up</b> has the services it would bring up as rows under it, each DOWN until it runs, as compose itself lists them; while it runs, a service compose has not started is DOWN under it the same way. A declaration that is a <b>brew services start</b> is the Homebrew service it names, as brew reports it, rather than a pane: ACTIVE with the ports it listens on, DOWN until it is started, EXIT and the code where its last run ended badly. <b>enter</b> on it up follows its log, and down asks brew to start it; <b>x</b> asks brew to stop it; <b>u</b> starts it, and <b>U</b> starts it with the rest. A service more than one project declares is one row, and says * for the project. conn asks brew with its analytics and its update check off, so an asking sends nothing anywhere. A file that will not read is said under the block, with the line.</p>
+        <p class="para"><span class="n">1-1.</span> conn is a station for one operator directing many processes on one machine. It runs on tmux, which it starts and holds on a socket of its own. The panel occupies the left of the window, forty-four columns; the workspace is the rest. The panel lists every process working a project, filed by what it needs from the operator. The workspace holds the one process the operator is in.</p>
+        <p class="para"><span class="n">1-2.</span> A process is anything with a terminal whose working directory is inside a project: a shell, an editor, a build, a dev server. A container compose started for a project, and a Homebrew service a project claims, are processes too. A contact is a process with an agent at the other end, Claude Code, which works on its own and stops to ask. A project is a repository under one of the roots the operator names. The page is what conn knows of the row under the cursor, shown in the workspace while the keys are on the panel.</p>
+        <p class="para"><span class="n">1-3.</span> This manual says how conn is operated. The reference is the man page: every key, every word the screen shows, every file conn reads and writes. <b>man conn</b> shows it, and <b>?</b> shows it inside conn, in the workspace.</p>
+        <p class="para"><span class="n">1-4.</span> The installation procedure on the cover puts the binary in <b>~/.local/bin</b> and the man page beside it. conn runs on macOS and Linux. It needs tmux on the path, and on macOS lsof, which is how it reads where each process is working. Without tmux, conn shows the console and the panel and can go into nothing.</p>
       </div>
     </div>
     <div class="foot">
@@ -203,38 +170,34 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-1</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-1</span></div>
     <div class="rule"></div>
     <div class="body">
-      <div class="section" id="keys">
-        <p class="kicker">SECTION 3</p>
-        <h2>Keys</h2>
-        <p class="para"><span class="n">3-1.</span> tmux takes one key from anywhere in the station, including from inside a process: <b>ctrl-space</b>, or what <b>CONN_KEY</b> names. It brings the keys to the panel, on the processes view, with the row of the process they came out of under the cursor, and the panel answers the key after it. So every key in the table below works from inside a process with ctrl-space before it: <b>ctrl-space x</b> ends the process you were in, <b>ctrl-space s</b> opens a shell beside it, <b>ctrl-space tab</b> goes to what has waited longest, <b>ctrl-space ?</b> opens this manual and <b>ctrl-space q</b> detaches. Pressed on the processes view itself it goes into the process worked in before this one, so twice over from a process is the other process. Pressed in the projects list or the sessions list it leaves them for the processes view, and pressed in the manual it puts the manual away. The status line says COPY while tmux is in copy mode.</p>
-        <p class="para"><span class="n">3-2.</span> The panel's own keys work while the panel has them, and are listed here as the processes view takes them. In the projects list and the sessions list a letter is typed into the line instead, and the line is edited with readline's keys: there, <b>enter</b> takes the row under the cursor and <b>esc</b> goes back. On such a line ctrl is readline's, and what a letter does in the processes view is done with alt: <b>alt-s</b>, <b>alt-a</b>, <b>alt-A</b>, <b>alt-u</b> and <b>alt-U</b>.</p>
-        <p class="caption">The panel</p>
-        <div class="table keys">
-          <div class="row head"><span>KEY</span><span>ACTION</span></div>
-          <div class="row"><span>j, k</span><span>Down and up the rows, and round again at either end.</span></div>
-          <div class="row"><span>click</span><span>The row under the mouse.</span></div>
-          <div class="row"><span>g g</span><span>The first row.</span></div>
-          <div class="row"><span>G</span><span>The last row.</span></div>
-          <div class="row"><span>z</span><span>The whole tree, and the quiet view again.</span></div>
-          <div class="row"><span>enter</span><span>Into the process under the cursor. On a service, its output; enter again goes into the pane holding it. On a declared process that is down, brings it up.</span></div>
-          <div class="row"><span>esc</span><span>Back into the process last worked in.</span></div>
-          <div class="row"><span>s</span><span>A shell at the project. On a service, a shell inside the container.</span></div>
-          <div class="row"><span>S</span><span>A session with the server the row is, by its client: psql on postgres.</span></div>
-          <div class="row"><span>a</span><span>A contact at the project.</span></div>
-          <div class="row"><span>A</span><span>The sessions suspended at the project.</span></div>
-          <div class="row"><span>x</span><span>End it: a signal to a process, docker stop to a service, ctrl-c to a declared process and its pane once it has ended. Asks first.</span></div>
-          <div class="row"><span>u</span><span>Bring up the declared process under the cursor, and stay on the panel.</span></div>
-          <div class="row"><span>U</span><span>Bring up what the project declares and does not have running.</span></div>
-          <div class="row"><span>tab</span><span>The process that has waited longest.</span></div>
-          <div class="row"><span>p</span><span>The projects list.</span></div>
-          <div class="row"><span>?</span><span>This manual, in the workspace, with the keys in it.</span></div>
-          <div class="row"><span>c</span><span>The console.</span></div>
-          <div class="row"><span>q</span><span>Detach. The station keeps running.</span></div>
+      <div class="section" id="first-session">
+        <p class="kicker">SECTION 2</p>
+        <h2>First session</h2>
+        <p class="para"><span class="n">2-1.</span> Type <b>conn</b>. The console comes up: the machine, the session, the start-up checks, and the verdict. A check that found something wrong is a fault and blinks; with none, ALL SYSTEMS NOMINAL. Any key continues.</p>
+        <p class="para"><span class="n">2-2.</span> The first time, conn asks where the work is: a line holding a directory, and under it the directories that answer it. <b>tab</b> fills the line in with the row under the cursor; <b>enter</b> takes it, writes it to <b>~/.config/conn/config.json</b> as the root, and goes to work. More roots go in the file by hand.</p>
+        <p class="para"><span class="n">2-3.</span> The panel comes up, filed by state. WAITING FOR YOU holds the contacts that have stopped to ask, longest wait first, stamped with how long. WORKING holds what is spending processor time now. SERVING holds what listens on a port. IDLE holds the rest. NOT RUNNING holds what a project declares and does not have up. Every group stands with its count, empty or not.</p>
+        <div class="figure">
+          <pre>   WAITING FOR YOU ───────────────────── 2
+▸  ●  claude                        9 MIN
+   ●  claude                        2 MIN
+
+   WORKING ───────────────────────────── 1
+   ●  go test ./... ⣾                 conn
+
+   SERVING ───────────────────────────── 1
+   ●  :5173  node vite                 web
+
+   IDLE ──────────────────────────────── 2
+▌  ○  zsh                              web
+   ●  vim                         STOPPED
+
+   NOT RUNNING ───────────────────────── 1
+   ◌  worker                           web</pre>
         </div>
-        <p class="para"><span class="n">3-3.</span> While this manual is up the keys are in it, and the status line says HELP. It scrolls with <b>j</b> and <b>k</b>, a screen at a time with <b>space</b> and <b>b</b>, and to either end with <b>g</b> and <b>G</b>. <b>esc</b> leaves it and puts the keys back where they were when it was asked for &mdash; in the workspace, or on the panel; <b>ctrl-space</b> leaves it for the processes view whichever it was.</p>
+        <p class="caption">Two contacts waiting, a test running, a server up, a declared worker down.</p>
       </div>
     </div>
     <div class="foot">
@@ -249,58 +212,114 @@
   <span class="hole"></span><span class="hole"></span><span class="hole"></span>
   <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
   <div class="sheet">
-    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-1</span></div>
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 2-4</span></div>
     <div class="rule"></div>
     <div class="body">
-      <div class="section" id="commands">
-        <p class="kicker">SECTION 4</p>
-        <h2>Commands and configuration</h2>
-        <p class="para"><span class="n">4-1.</span> conn is called as follows. A second conn, run while the station is up, attaches to it.</p>
-        <div class="table synopsis">
-          <div class="row head"><span>COMMAND</span><span>ACTION</span></div>
-          <div class="row"><span>conn</span><span>The console, then the processes view.</span></div>
-          <div class="row"><span>conn down</span><span>Take the server down, with everything in it.</span></div>
-          <div class="row"><span>conn theme claude</span><span>Write conn's palette as a theme for Claude Code, which draws its own colors.</span></div>
-          <div class="row"><span>conn theme vim</span><span>Write it as a colorscheme for nvim, which does the same.</span></div>
-          <div class="row"><span>conn --light</span><span>Say the ground is light, for a server coming up or one already up.</span></div>
-          <div class="row"><span>conn --dark</span><span>Say the ground is dark.</span></div>
-          <div class="row"><span>conn --theme NAME</span><span>Say the theme, conn or datum, for a server coming up or one already up.</span></div>
-          <div class="row"><span>conn --help</span><span>Say this.</span></div>
-          <div class="row"><span>conn --version</span><span>Say the build.</span></div>
+      <div class="section">
+        <p class="para"><span class="n">2-4.</span> <b>j</b> and <b>k</b> move the cursor. The workspace shows the page for the row: the command in full, where it is working, what it listens on, what runs it and what it runs, and what git says of the project. For a contact the page is a handoff sheet, with the question it stopped on in its own words.</p>
+        <p class="para"><span class="n">2-5.</span> <b>enter</b> goes in. The row's process fills the workspace and the keys are in it. Work there as in any terminal. <b>ctrl-space</b> brings the keys back to the panel, with the row of the process just left under the cursor, so the next key is about it. This is the one key tmux takes; tmux's own prefix is unset in conn's server, and its other bindings do not apply.</p>
+        <p class="para"><span class="n">2-6.</span> Three more ways round. <b>esc</b> on the panel goes back into the process last worked in, wherever the cursor has wandered. <b>ctrl-space</b> pressed on the panel goes into the process worked in before that one, so from inside a process <b>ctrl-space ctrl-space</b> is the other process. <b>tab</b> goes to the contact that has waited longest; from inside a process, <b>ctrl-space tab</b>.</p>
+        <p class="para"><span class="n">2-7.</span> To start work: <b>s</b> opens a shell at the row's project, <b>a</b> a new contact there. <b>p</b> opens the list of every project under the roots, whether anything runs in it or not; typing narrows it, <b>enter</b> opens a shell at the project under the cursor, and <b>esc</b> goes back.</p>
+        <p class="para"><span class="n">2-8.</span> To leave: <b>q</b> detaches. The server and every process keep running. <b>conn</b> typed again attaches to what is there. <b>conn down</b> takes the server down with everything in it.</p>
+        <div class="note">
+          <p class="label">KEYS ON THE BAR</p>
+          <p>The lower row across the foot of the window is the key bar. It names the keys the row under the cursor can take, and no others. Inside a process it names <b>ctrl-space</b>.</p>
         </div>
-        <p class="para"><span class="n">4-2.</span> conn comes up dark, or light when the terminal says its own ground is light, and in one of two themes: conn, its own, and datum, the colorscheme at datum.w0zro.com. The theme is what the configuration file names, or what <b>--theme</b> says. Both choices are made when the server comes up and hold for its life; <b>conn down</b> and conn again asks afresh, and <b>--light</b>, <b>--dark</b> and <b>--theme</b> put a server already up on the other ground, or in the other theme, where it stands. Everything in a pane of the server draws in conn's palette by asking the terminal for a color by name. Claude Code and nvim write their own hex instead, and <b>conn theme</b> writes each a theme from the same palette, in the theme the server is in.</p>
-        <p class="para"><span class="n">4-3.</span> The configuration file is <b>~/.config/conn/config.json</b>. It holds two keys.</p>
-        <div class="table narrow">
-          <div class="row head"><span>KEY</span><span>VALUE</span></div>
-          <div class="row"><span>roots</span><span>The directories conn looks for projects under, as a list of paths. A leading ~ is the home.</span></div>
-          <div class="row"><span>theme</span><span>The theme conn comes up in: conn or datum. conn unless set.</span></div>
-        </div>
-        <p class="para"><span class="n">4-4.</span> The environment says what one run of conn should do differently from what the file says is usual.</p>
-        <div class="table narrow">
-          <div class="row head"><span>VARIABLE</span><span>VALUE</span></div>
-          <div class="row"><span>CONN_ROOTS</span><span>The roots for this run, separated the way PATH is. Read ahead of the file.</span></div>
-          <div class="row"><span>CONN_KEY</span><span>The key that brings the keys to the panel, in tmux's spelling. C-Space unless set.</span></div>
-          <div class="row"><span>CONN_SOCKET</span><span>The socket of the server, for a second station on one machine. Under ~/.local/state/conn unless set.</span></div>
-        </div>
-        <p class="para"><span class="n">4-5.</span> A project's <b>.conn</b> declares the processes that work it, one a line, as <b>name [dir]: command</b>. A line beginning with # is a comment. A line that will not parse is said under the project's block with its number, and nothing is guessed at in its place.</p>
-        <div class="table narrow">
-          <div class="row head"><span>PART</span><span>MEANING</span></div>
-          <div class="row"><span>name</span><span>One word of letters, digits, dots, dashes and underscores, and the row's label.</span></div>
-          <div class="row"><span>dir</span><span>Where the pane opens, under the project. Left out, the project itself.</span></div>
-          <div class="row"><span>command</span><span>A shell line, run as written.</span></div>
-        </div>
-        <div class="figure">
-          <pre># .conn
-web frontend: npm run dev
-api: go run ./cmd/api
-worker services/queue: make run
-db: brew services start postgresql@14</pre>
         </div>
       </div>
     </div>
     <div class="foot">
       <div class="rule"></div>
       <div class="folio"><span>TM-CONN-01</span><b>1-3</b><span>CHANGE v0.15.0</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 1-4 -->
+<section class="page" aria-label="Page 1-4">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-1</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section" id="panel">
+        <p class="kicker">SECTION 3</p>
+        <h2>Working the panel</h2>
+        <p class="para"><span class="n">3-1.</span> A contact is Claude Code started by conn, with <b>a</b>, or found running in a project. conn reads the record Claude Code keeps of each instance and takes its word: WORKING while it is busy, WAITING when it has put a question, IDLE at rest. A waiting row blinks. Its page shows the question, how long it has waited, and the keys that answer it. <b>enter</b> goes in to answer; <b>tab</b> leaves it for the next one waiting.</p>
+        <p class="para"><span class="n">3-2.</span> A contact started by conn is told it runs inside conn, and how to start a dev server or a watcher in a window of the server rather than in the background, so that what it starts is a row on the panel with a pane to go into.</p>
+        <p class="para"><span class="n">3-3.</span> <b>A</b> lists the sessions Claude Code left suspended at the row's project, newest first, with the branch and the last prompt. Typing narrows them. <b>enter</b> resumes the one under the cursor in a new pane. From the projects list, <b>alt-A</b> does the same for the project under the cursor.</p>
+        <p class="para"><span class="n">3-4.</span> <b>x</b> ends the row's process, and asks first. The question stands on the key bar as the command about to be run, <b>kill -TERM</b> and the pid, or <b>docker stop</b>, or <b>brew services stop</b>; the band reads CONFIRM. <b>y</b> runs it; any other key withdraws it. A bare shell is sent KILL, since shells ignore the gentler signal. A contact is signalled and not what it runs: the processes under it keep going.</p>
+        <p class="para"><span class="n">3-5.</span> A container compose started is a row under its project, SERVICE, with the ports it publishes. It has no pane of its own, so <b>enter</b> opens its output, and <b>enter</b> again goes into the pane holding that. <b>s</b> opens a shell inside the container. On a postgres, as a process, a container or a Homebrew service, <b>S</b> opens psql connected to it.</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>1-4</b><span>CHANGE v0.15.0</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 1-5 -->
+<section class="page" aria-label="Page 1-5">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 3-6</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section">
+        <p class="para"><span class="n">3-6.</span> <b>z</b> shows the whole process tree by project, every row nested under what runs it, with its terminal and the age of its state; the band reads TREE. <b>z</b> again is the filed view. <b>c</b> brings the console back over the window. <b>?</b> opens the man page in the workspace with the keys in it; the band reads HELP, and <b>esc</b> puts the keys back where they were.</p>
+        <p class="para"><span class="n">3-7.</span> The mouse works on the panel: a click on a row is the cursor to that row. The wheel and a drag are tmux's, and scroll or copy in the pane they land on; the band reads COPY while a pane is in copy mode.</p>
+        <p class="para"><span class="n">3-8.</span> In the projects list and the sessions list the line is typed into, so a letter is a character there. The line is edited the way readline edits one, and what a letter does on the panel is done with alt: <b>alt-s</b> a shell, <b>alt-a</b> a contact, <b>alt-A</b> the sessions, <b>alt-u</b> what the project declares. <b>ctrl-c</b> detaches from any view.</p>
+      </div>
+      <div class="section" id="declares">
+        <p class="kicker">SECTION 4</p>
+        <h2>What a project declares</h2>
+        <p class="para"><span class="n">4-1.</span> A project may keep a file named <b>.conn</b> at its top, naming the processes that work it: one a line, as <b>name [dir]: command</b>. The name is one word and becomes the row's label. The directory is under the project and is where the process runs; left out, it is the project itself. The command is a shell line, run as written. A line beginning with # is a comment.</p>
+        <div class="figure">
+          <pre><span class="c"># what works this project</span>
+web frontend:          npm run dev
+api:                   go run ./cmd/api
+worker services/queue: make run
+db:                    docker compose up postgres
+cache:                 brew services start redis</pre>
+        </div>
+        <p class="caption">A .conn file: two panes, a compose service, and a Homebrew service.</p>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>1-5</b><span>CHANGE v0.15.0</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PAGE 1-6 -->
+<section class="page" aria-label="Page 1-6">
+  <span class="hole"></span><span class="hole"></span><span class="hole"></span>
+  <span class="classified top"><s>CONFIDENTIAL</s></span><span class="classified bottom"><s>CONFIDENTIAL</s></span>
+  <div class="sheet">
+    <div class="running"><b>TM-CONN-01</b><span>OPERATING MANUAL</span><span>PARA. 4-2</span></div>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="section">
+        <p class="para"><span class="n">4-2.</span> Where work is happening in the project, each declared process that is not running is a row at the foot of its block, dimmed and worded DOWN, under NOT RUNNING. A project nothing is running in shows nothing of its file: the panel is what is running.</p>
+        <p class="para"><span class="n">4-3.</span> <b>enter</b> on such a row brings it up in a pane of the server and goes into it. <b>u</b> brings it up and leaves the keys on the panel, so <b>u</b> pressed down the rows brings them up one at a time. <b>U</b> on any row of the project brings up everything it declares and does not have running. The pane carries the declared name on its row.</p>
+        <p class="para"><span class="n">4-4.</span> When the process ends on its own, the pane holds its output and the row reads ENDED, or EXIT and the code as a fault. <b>enter</b> goes in to read it, <b>u</b> runs it again, and <b>x</b> closes the pane. <b>x</b> on one still running sends it ctrl-c in its pane, the way a hand stops what it ran in the foreground, and closes the pane once it has ended; the row is DOWN again in the one move.</p>
+        <p class="para"><span class="n">4-5.</span> A process started by hand with the declared command, word for word, in the declared directory, is the declaration too, wherever it was started. Its row carries the name, <b>u</b> and <b>U</b> pass it over, and <b>x</b> signals it as the process it is.</p>
+        <p class="para"><span class="n">4-6.</span> A command that runs <b>docker compose up</b> has the services compose would bring up as rows under it, each DOWN until it runs, as compose lists them. A command that runs <b>brew services start</b> is the Homebrew service it names, as brew reports it, rather than a pane: ACTIVE with its ports, DOWN until started, EXIT and the code where its last run ended badly. <b>enter</b> on it up follows its log; down, it asks brew to start it. <b>x</b> asks brew to stop it.</p>
+        <p class="para"><span class="n">4-7.</span> A line that will not read is said under the project's block, with its number, and nothing is guessed at in its place.</p>
+        <div class="note">
+          <p class="label">THE REFERENCE</p>
+          <p>Every key, every word the panel and the console can show, the files conn reads and writes, and what each command does are in the man page: <b>man conn</b>, or <b>?</b> inside conn.</p>
+        </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="rule"></div>
+      <div class="folio"><span>TM-CONN-01</span><b>1-6</b><span>CHANGE v0.15.0</span></div>
     </div>
   </div>
 </section>

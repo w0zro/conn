@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -377,6 +378,10 @@ func TestTheManPageIsHeldToTheBinary(t *testing.T) {
 		if f := strings.Fields(line); len(f) >= 3 && f[0] == ".B" && f[1] == "conn" && !known[f[2]] {
 			t.Errorf("the page offers %q, which conn does not answer to", line)
 		}
+	}
+	bound := regexp.MustCompile(`(?m)^bind (\S+) (\S+) `).FindAllStringSubmatch(tmuxConf(defaultKey), -1)
+	if len(bound) != 1 || bound[0][1] != "-n" || bound[0][2] != defaultKey {
+		t.Fatalf("conn binds %v, not the panel key alone in the root table", bound)
 	}
 	k := strings.Index(page, ".SH KEYS")
 	if k < 0 {

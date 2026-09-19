@@ -42,14 +42,20 @@ func manSection(page, name string) string {
 
 // boldWord says whether the page sets a word in bold anywhere: a key is
 // .B or .BR, alone or among others, and roff writes ctrl-space with the
-// hyphen escaped.
+// hyphen escaped. On a .BR line the roman half is punctuation between
+// the keys — .BR enter , — and is not a key; on a .B line everything
+// is bold, which is how the comma is written as a key of its own.
 func boldWord(page, word string) bool {
 	word = strings.ReplaceAll(word, "-", `\-`)
 	for _, line := range strings.Split(page, "\n") {
-		if !strings.HasPrefix(line, ".B ") && !strings.HasPrefix(line, ".BR ") {
+		roman := strings.HasPrefix(line, ".BR ")
+		if !roman && !strings.HasPrefix(line, ".B ") {
 			continue
 		}
 		for _, f := range strings.Fields(strings.NewReplacer(`", "`, " ", `"`, "").Replace(line)) {
+			if roman && strings.Trim(f, ",.;:") == "" {
+				continue
+			}
 			if f == word {
 				return true
 			}

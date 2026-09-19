@@ -31,6 +31,11 @@ type rootsReport struct {
 	caret int      // where in it the caret is, in runes
 	rows  []string // the directories that answer it, from ~
 	err   string   // what went wrong saving, where something did
+	// editing is whether this is a root being changed from the
+	// settings rather than the first root conn has ever been given. The
+	// chip at the foot says what pressing enter will do, and on the
+	// first start it also says why the view is up at all.
+	editing bool
 }
 
 // composeRoots is the view's words: what has been typed, and the
@@ -174,7 +179,11 @@ func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
 		}
 	}
 	l = c.line()
-	l.add(p.chip, " CONN HAS NO ROOTS · ENTER SAVES ONE ")
+	word := " CONN HAS NO ROOTS · ENTER SAVES ONE "
+	if b.editing {
+		word = " ENTER SAVES IT · ESC GOES BACK "
+	}
+	l.add(p.chip, word)
 	c.emit(l, 0, true)
 	return c.rows
 }

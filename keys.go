@@ -53,6 +53,7 @@ func panelKeys(px string) []keyGroup {
 		"THE STATION", []keyHint{
 			{"p", "the projects"},
 			{"c", "the console"},
+			{",", "the settings"},
 			{"?", "these keys"},
 			{"q", "detach"},
 		},

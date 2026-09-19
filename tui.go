@@ -59,7 +59,8 @@ const (
 	viewProcesses
 	viewProjects
 	viewSessions
-	viewRoots // conn has not been told where the work is, and is asking
+	viewSettings // conn's own configuration, as the operator keeps it
+	viewRoots    // a root being typed, for the settings or the first start
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -260,9 +261,18 @@ type model struct {
 
 	// The asking view: the path being typed, with the cursor among the
 	// directories answering it, and what went wrong saving, where
-	// something did.
-	asking  typed
-	rootErr string
+	// something did. askingAt is the root being typed over, where one
+	// is, and -1 for a root being added; askingBack is the view the
+	// typing came from and goes back to.
+	asking     typed
+	rootErr    string
+	askingAt   int
+	askingBack int
+
+	// The settings view: the row the cursor is on, and what went wrong
+	// writing the file, where something did.
+	settingAt  int
+	settingErr string
 
 	// kill is a kill x has asked for and not yet answered; nothing else
 	// binds while it is not nil.
@@ -851,7 +861,24 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"enter", "Resume it here"})
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}))
+	case viewSettings:
+		rows := m.settingsReport().rows
+		if len(rows) > 1 {
+			hints = append(hints, moveHint)
+		}
+		if m.settingAt < len(rows) {
+			switch rows[m.settingAt].kind {
+			case rootSetting:
+				hints = append(hints, keyHint{"enter", "Change it"}, keyHint{"x", "Take it out"})
+			case addRootSetting:
+				hints = append(hints, keyHint{"enter", "Add one"})
+			}
+		}
+		return keyBar(append(hints, keyHint{"esc", "Back"}))
 	case viewRoots:
+		if m.askingBack == viewSettings {
+			return keyBar(append(rootsHints, keyHint{"esc", "Back"}))
+		}
 		return keyBar(rootsHints)
 	}
 	if rowsIn(m.projects) > 1 {
@@ -1472,6 +1499,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m.projectKey(k)
 	case viewSessions:
 		return m.sessionsKey(k)
+	case viewSettings:
+		return m.settingsKey(k)
 	case viewRoots:
 		return m.rootsKey(k)
 	}
@@ -1683,6 +1712,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// pane the panel key just brought them out of, or nowhere.
 		m.from = came
 		return m.toProjects()
+	case k == ",":
+		// conn's own configuration, a detour like the list. The comma
+		// is what a program of this shape is settled in everywhere, and
+		// it is not a letter the processes view wanted for anything.
+		m.from = came
+		return m.toSettings()
 	case k == "?":
 		return m.openManual(came)
 	}
@@ -2415,9 +2450,12 @@ func (m model) View() tea.View {
 		rows = drawProjects(m.projectsReport(), m.find.at, width, m.height, m.p)
 	case m.view == viewSessions:
 		rows = drawSessions(m.sessionsReport(), m.rfind.at, width, m.height, m.p)
+	case m.view == viewSettings:
+		rows = drawSettings(m.settingsReport(), m.settingAt, width, m.height, m.p)
 	case m.view == viewRoots:
 		b := composeRootsAt(m.asking.text, m.head.login.home)
-		b.caret = m.asking.cur
+		b.caret, b.editing = m.asking.cur, m.askingBack == viewSettings
+		b.err = m.rootErr
 		rows = drawRoots(b, m.asking.at, width, m.height, m.p)
 	default:
 		r := m.report()
@@ -2453,12 +2491,133 @@ func (m model) View() tea.View {
 	return v
 }
 
+// settingsReport is the settings view's words as things stand: the
+// file as it is on disk, with what went wrong writing it laid over the
+// top, since a save that failed is about the file the view is showing.
+func (m model) settingsReport() settingsReport {
+	b := composeSettings(m.head.login.home)
+	if m.settingErr != "" {
+		b.err = m.settingErr
+	}
+	return b
+}
+
+// toSettings is conn's own configuration, a view like the others. It is
+// a detour, as the list is: esc goes back to the processes view, and
+// into the pane the panel key came out of where there was one.
+func (m model) toSettings() (tea.Model, tea.Cmd) {
+	m.view, m.settingErr = viewSettings, ""
+	m.settingAt = clamp(m.settingAt, len(m.settingsReport().rows))
+	return m, nil
+}
+
+// settingsKey answers a key in the settings. The rows are settings, so
+// the keys are the list's: j and k move, enter answers the row under
+// the cursor, x takes a root out, and esc leaves without having
+// changed anything — every change here is made by a key pressed on
+// purpose and written as it is made.
+func (m model) settingsKey(k string) (tea.Model, tea.Cmd) {
+	rows := m.settingsReport().rows
+	switch {
+	case k == "ctrl+c":
+		if m.inside {
+			return m, m.serverCmd(func() error { return m.srv.detach() })
+		}
+		return m, tea.Quit
+	case k == "j" || k == "down":
+		m.settingAt = ring(m.settingAt+1, len(rows))
+	case k == "k" || k == "up":
+		m.settingAt = ring(m.settingAt-1, len(rows))
+	case k == "g":
+		m.firstG = true
+	case k == "G":
+		m.settingAt = clamp(len(rows)-1, len(rows))
+	case k == "esc":
+		return m.backFrom()
+	case k == "enter":
+		if m.settingAt >= len(rows) {
+			return m, nil
+		}
+		switch r := rows[m.settingAt]; r.kind {
+		case rootSetting:
+			// The root as the file writes it, to be typed over: the
+			// operator is fixing a path more often than replacing one.
+			return m.toRootsFor(r.at, r.text)
+		case addRootSetting:
+			return m.toRootsFor(-1, "~/")
+		}
+	case k == "x":
+		if m.settingAt < len(rows) && rows[m.settingAt].kind == rootSetting {
+			return m.dropRoot(rows[m.settingAt].at)
+		}
+	}
+	return m, nil
+}
+
+// dropRoot takes one root out of the file. No question is asked: a root
+// is a line the operator typed and can type again, the view shows what
+// is left at once, and conn is not going to make a habit of asking
+// twice about work that is not a process.
+func (m model) dropRoot(at int) (tea.Model, tea.Cmd) {
+	home := m.head.login.home
+	c, err := readConfig(home)
+	if err != nil {
+		m.settingErr = err.Error()
+		return m, nil
+	}
+	if at < 0 || at >= len(c.Roots) {
+		return m, nil
+	}
+	roots := append(append([]string{}, c.Roots[:at]...), c.Roots[at+1:]...)
+	return m.wroteRoots(roots)
+}
+
+// wroteRoots writes the roots and puts conn to work on what the file
+// now says. The walk and the table are asked again against them, so the
+// change is in the list on the next reading rather than on the next
+// start; what is in force is read back from the file, since CONN_ROOTS
+// may be standing in front of it and a view that re-rooted conn on the
+// file would have conn walking directories it is not showing.
+func (m model) wroteRoots(roots []string) (tea.Model, tea.Cmd) {
+	home := m.head.login.home
+	if err := saveRoots(home, roots); err != nil {
+		m.settingErr = err.Error()
+		return m, nil
+	}
+	m.settingErr = ""
+	now, err := projectRoots(home)
+	if err != nil {
+		m.settingErr = err.Error()
+		return m, nil
+	}
+	m = m.rooted(rootOn(now))
+	m.settingAt = clamp(m.settingAt, len(m.settingsReport().rows))
+	m.processesGen++
+	return m, tea.Batch(m.readProcesses(), m.scanProjects())
+}
+
 // toRoots is the asking view, which conn goes to instead of the
 // processes view when it has no roots. It comes up on the home, which
 // is where checkouts usually are and is a directory that certainly
 // exists, so the first thing shown is a list rather than nothing.
 func (m model) toRoots() (tea.Model, tea.Cmd) {
-	m.view, m.asking, m.rootErr = viewRoots, typed{text: "~/"}, ""
+	return m.toRootsFor(-1, "~/")
+}
+
+// toRootsFor is the same view, typing one root: the one at an index,
+// to be written over, or another, at -1. It is where the settings send
+// a root to be edited, completing a path against the machine being
+// what this view is for. Where it goes when it is done is where it was
+// opened from — the settings, or the processes view, which is what the
+// first start is answering its way to.
+func (m model) toRootsFor(at int, text string) (tea.Model, tea.Cmd) {
+	m.askingBack = viewProcesses
+	if m.view == viewSettings {
+		m.askingBack = viewSettings
+	}
+	m.view, m.rootErr, m.askingAt = viewRoots, "", at
+	m.asking = typed{}
+	m.asking.set(text)
 	return m, nil
 }
 
@@ -2488,6 +2647,14 @@ func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
 		if m.asking.at < len(b.rows) {
 			m.asking.set(b.rows[m.asking.at] + "/")
 		}
+	case k == "esc":
+		// Back to the settings, nothing written. The first start has
+		// nowhere to go back to: conn cannot show the processes view
+		// until this is answered, and a key that did nothing would be
+		// conn pretending there was a way past it.
+		if m.askingBack == viewSettings {
+			return m.toSettings()
+		}
 	case k == "enter":
 		return m.takeRoot(b)
 	}
@@ -2511,14 +2678,38 @@ func (m model) takeRoot(b rootsReport) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	full := expandHome(root, home)
-	if err := saveRoots(home, []string{tilde(full, home)}); err != nil {
+	// The roots the file names, with this one put in: written over the
+	// root the settings sent here, and added to the rest otherwise. The
+	// file is read again rather than taken off the model, since it is
+	// the file this writes and the operator may have edited it by hand
+	// since conn last read it.
+	c, err := readConfig(home)
+	if err != nil {
+		m.rootErr = err.Error()
+		return m, nil
+	}
+	roots := append([]string{}, c.Roots...)
+	if m.askingAt >= 0 && m.askingAt < len(roots) {
+		roots[m.askingAt] = tilde(full, home)
+	} else {
+		roots = append(roots, tilde(full, home))
+	}
+	// A root typed from the settings goes back to them, where the rows
+	// are the file and the operator can see what they just wrote. The
+	// writing is the settings view's own, since what went wrong with it
+	// belongs on the view that will be up to say it.
+	if m.askingBack == viewSettings {
+		mm, _ := m.toSettings()
+		return mm.(model).wroteRoots(roots)
+	}
+	if err := saveRoots(home, roots); err != nil {
 		m.rootErr = err.Error()
 		return m, nil
 	}
 	// conn works from it now, not on the next start: the roots the
 	// reading names projects by are the ones just written, and the walk
 	// and the table are asked again against them.
-	m = m.rooted(rootOn([]string{full}))
+	m = m.rooted(rootOn(cleanRoots(roots, home)))
 	m.view, m.processesGen = viewProcesses, m.processesGen+1
 	cmds := []tea.Cmd{m.readProcesses(), m.scanProjects()}
 	if m.inside {

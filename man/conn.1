@@ -126,12 +126,34 @@ rows.
 .B A
 opens the suspended Claude Code sessions at the cursor's project, with a
 line to type into that narrows them.
-.SS The roots view
-Shown instead of the processes view when
+.SS The settings
+\fB,\fR opens
+.BR conn 's
+own configuration: the roots the file names, each with what it turned
+out to be on this machine, and a row that adds another.
+.B enter
+on a root types it over,
+.B x
+takes it out, and each is written to the file as it is made \(em only
+the key it changes, the rest of the file carried through.
 .B conn
-has been told no roots.
-It asks for one directory, writes it to the configuration, and goes to
-work.
+walks what was written at once, on the next reading, rather than on the
+next start.
+Where
+.B CONN_ROOTS
+stands in front of the file the view says so, and the rows stay the
+file's own.
+A file that will not parse is shown and not written over.
+.SS The roots view
+Where a root is typed, with the directories on this machine that answer
+what has been typed so far as its rows.
+It is shown instead of the processes view when
+.B conn
+has been told no roots \(em it asks for one directory, writes it, and
+goes to work \(em and from the settings, for a root being added or
+typed over, which
+.B esc
+leaves as it was.
 .SS The manual
 \fB?\fR opens this page in the workspace and puts the keys in it; the band
 reads
@@ -234,6 +256,9 @@ The console.
 .B p
 The projects list.
 .TP
+.B ,
+The settings.
+.TP
 .B ?
 The manual.
 .TP
@@ -266,7 +291,12 @@ view; on a process, go in.
 Sessions: resume the session in a new pane and return to the processes
 view.
 Roots: take what was typed if it names a directory, else the directory
-under the cursor; write it; go to work.
+under the cursor, and write it to the file \(em over the root the
+settings sent, or beside the ones already there.
+From the settings, back to them; on the first start, go to work.
+.TP
+.B esc
+Roots, from the settings: back, with nothing written.
 .TP
 .B tab
 Roots only: fill the line with the directory under the cursor and a
@@ -343,6 +373,20 @@ A row that reads
 .B DOWN
 takes no
 .BR x .
+.SS In the settings
+.TP 20
+.BR j ", " k ", " gg ", " G
+Move the cursor a row.
+.TP
+.B enter
+On a root: type it over.
+On the row that adds one: type another.
+.TP
+.B x
+Take the root under the cursor out of the file.
+.TP
+.B esc
+Back to the processes view.
 .SS In the manual
 .TP 20
 .BR j ", " k ", " down ", " up ", " ctrl\-n ", " ctrl\-p

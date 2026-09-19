@@ -12,9 +12,11 @@ import (
 
 // conn's own configuration: a file the operator keeps, holding what
 // conn cannot work out for itself and would otherwise have to be told
-// again on every start. conn reads it and never writes it — what is in
-// it was put there on purpose, so a file that cannot be read is said
-// out loud rather than passed over for the defaults.
+// again on every start. What is in it was put there on purpose, so a
+// file that cannot be read is said out loud rather than passed over
+// for the defaults, and a file conn writes keeps every key it did not
+// come to change; see saveSetting, and settings.go for the view the
+// operator changes one in.
 
 // A config is what the file says. A field left out is not set, and what
 // conn would have done without a file at all still stands.
@@ -185,19 +187,29 @@ func rootStateOf(path string) rootState {
 	return rootState{path: path}
 }
 
-// saveRoots writes the roots into the config file, keeping whatever
-// else is in it. conn reads this file and does not otherwise write it,
-// and this is the one place that does, because conn asked for the
-// answer and the operator gave it: the alternative is telling somebody
-// the path to a file and the spelling of a key and sending them away to
-// type it themselves.
+// saveRoots writes the roots into the config file.
+func saveRoots(home string, roots []string) error {
+	return saveSetting(home, "roots", roots)
+}
+
+// saveTheme writes the theme conn is to come up in.
+func saveTheme(home, name string) error {
+	return saveSetting(home, "theme", name)
+}
+
+// saveSetting writes one setting into the config file, keeping
+// whatever else is in it. conn reads this file and otherwise does not
+// write it, and this is the one place that does, because conn asked
+// for the answer and the operator gave it: the alternative is telling
+// somebody the path to a file and the spelling of a key and sending
+// them away to type it themselves.
 //
 // What conn does not understand is carried through untouched. A file
 // may hold settings from a conn older or newer than this one, and a
 // save that dropped them would be conn deciding they did not matter.
 // The keys are written in the order Go writes a map, which is sorted;
 // the file is small and the order is not what it is for.
-func saveRoots(home string, roots []string) error {
+func saveSetting(home, key string, value any) error {
 	path := configPath(home)
 	fields := map[string]json.RawMessage{}
 	if b, err := os.ReadFile(path); err == nil {
@@ -208,11 +220,11 @@ func saveRoots(home string, roots []string) error {
 			return fmt.Errorf("%s will not parse, and conn will not write over it", tilde(path, home))
 		}
 	}
-	list, err := json.Marshal(roots)
+	set, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
-	fields["roots"] = list
+	fields[key] = set
 	out, err := json.MarshalIndent(fields, "", "  ")
 	if err != nil {
 		return err

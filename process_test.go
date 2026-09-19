@@ -461,6 +461,9 @@ func TestKindsAndCommands(t *testing.T) {
 		// A written title: the name is the first word of it, and the
 		// whole of it is what the process was started as.
 		{process{command: "claude", args: []string{"claude bg-spare", "--bg-spare", "/tmp/1a39b95b.claim.sock"}}, kindContact, "claude bg-spare --bg-spare /tmp/1a39b95b.claim.sock"},
+		// A script handed on the line, newlines and all, is one line
+		// on the row.
+		{process{command: "python3", args: []string{"python3", "-c", "import time\nwhile True:\n    work()\n"}}, kindRun, "python3 -c import time while True: work()"},
 	} {
 		if kind, cmd := kindOf(c.p), commandLine(c.p); kind != c.kind || cmd != c.command {
 			t.Errorf("%+v: %s %q, want %s %q", c.p, kind, cmd, c.kind, c.command)

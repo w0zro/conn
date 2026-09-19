@@ -634,6 +634,10 @@ func typedLine(p process) string {
 // takes a value of its own.
 const ownFlag = "--append-system-prompt"
 
+// commandWords is the command as words, one an argument. An argument
+// is one line however it was written: a python -c handed a script
+// with newlines in it is one process, and its row is one row, where
+// the newline written out took the rows under it down with it.
 func commandWords(p process, lessOwn bool) []string {
 	if len(p.args) == 0 {
 		return []string{strings.TrimPrefix(filepath.Base(p.command), "-")}
@@ -650,9 +654,18 @@ func commandWords(p process, lessOwn bool) []string {
 				continue
 			}
 		}
-		words = append(words, a)
+		words = append(words, oneLine(a))
 	}
 	return words
+}
+
+// oneLine is a string with its whitespace, newlines among it, run
+// together to single spaces.
+func oneLine(s string) string {
+	if !strings.ContainsAny(s, "\n\r\t\v\f") {
+		return s
+	}
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // asTyped is the command as typed, or as written where nothing was

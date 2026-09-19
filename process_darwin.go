@@ -75,6 +75,14 @@ func readProcesses(uid int) ([]process, error) {
 		if d, ok := dirs[p.pid]; ok {
 			p.cwd, p.command = d.cwd, d.command
 		}
+		// lsof lists nothing for a process that has ended and not been
+		// collected, there being no directory left to list, and its
+		// arguments are gone with it; the kernel still has its name,
+		// and a row that says sleep and ENDED is a row that can be
+		// read, where a row with no name was not.
+		if p.command == "" {
+			p.command = unix.ByteSliceToString(k.Proc.P_comm[:])
+		}
 		p.cpu = cpu[p.pid]
 		p.sockets = sockets[p.pid]
 		if p.uid == uid {

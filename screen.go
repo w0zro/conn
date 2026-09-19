@@ -141,6 +141,7 @@ func measureAt(width int) int {
 type row struct {
 	text  string
 	stage int
+	pid   int // the entry the row draws, where it draws one, for a click to find
 }
 
 // The stages: the header at once, the readout, each check in turn, and
@@ -480,6 +481,7 @@ type line struct {
 	b     strings.Builder
 	cells int
 	mark  string
+	pid   int // the entry the line is, where it is one; see row
 }
 
 func (c *canvas) line() *line {
@@ -539,7 +541,7 @@ func (c *canvas) emit(l *line, stage int, centered bool) {
 	if p.plain {
 		text = strings.TrimRight(text, " ")
 	}
-	c.rows = append(c.rows, row{text: text, stage: stage})
+	c.rows = append(c.rows, row{text: text, stage: stage, pid: l.pid})
 }
 
 func (c *canvas) blank(stage int) {

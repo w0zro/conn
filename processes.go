@@ -398,6 +398,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()
+			l.pid = r.pid
 			cursored := r.pid == cursor
 			// What conn can do with a row is said two ways, and they are
 			// not the same kind of saying. Dimming is a rank the whole

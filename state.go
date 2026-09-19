@@ -71,6 +71,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()
+			l.pid = r.pid
 			cursored := r.pid == cursor
 			glyph, tone := dotRests, p.faint
 			switch {

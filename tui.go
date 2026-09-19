@@ -1332,7 +1332,28 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Tick(killGrace, func(time.Time) tea.Msg { return processesTickMsg{gen: gen} })
 	case tea.KeyPressMsg:
 		return m.key(msg.String())
+	case tea.MouseClickMsg:
+		return m.click(msg)
 	}
+	return m, nil
+}
+
+// click is the mouse pressed on the panel. tmux has the mouse, and
+// hands a press in conn's pane on to conn since conn asks for it; a
+// press on a row of the processes view puts the cursor on the row, the
+// way j and k do, and the page follows. The rows are drawn again to
+// find which row was under the press, since the view is drawn from
+// the model and the model keeps no picture of it. Anywhere else, and
+// any other button, is nothing yet.
+func (m model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
+	if m.view != viewProcesses || msg.Button != tea.MouseLeft {
+		return m, nil
+	}
+	rows := drawProcesses(m.processesReport(), m.cursor, m.cols(), m.height, m.p)
+	if msg.Y < 0 || msg.Y >= len(rows) || rows[msg.Y].pid == 0 {
+		return m, nil
+	}
+	m.cursor, m.cursorAt = follow(m.projects, rows[msg.Y].pid, m.cursorAt)
 	return m, nil
 }
 
@@ -2405,6 +2426,10 @@ func (m model) View() tea.View {
 	// page: the keys coming back to the panel is the operator asking
 	// what a row is, and nothing else announces that.
 	v.ReportFocus = true
+	// The mouse: a press on a row is a way to the row. tmux keeps the
+	// rest of the mouse, the wheel and a drag into copy mode among it,
+	// and passes conn the presses in its pane.
+	v.MouseMode = tea.MouseModeCellMotion
 	v.BackgroundColor = groundColor
 	v.ForegroundColor = inkColor
 	v.WindowTitle = "conn"

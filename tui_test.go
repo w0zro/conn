@@ -1538,3 +1538,55 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 		t.Errorf("a key did not take the notice down: %q", got.notice)
 	}
 }
+
+// A click on a row of the processes view puts the cursor on it, the
+// way j and k do; a click on an eyebrow, a rule or the air between
+// groups moves nothing, and a click in another view is nothing.
+func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 30
+	m.projects = byState([]project{{path: "/w/a", entries: []entry{
+		{pid: 11, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys001", status: statusIdle},
+		{pid: 12, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys002", status: statusActive, ports: []string{"5173"}},
+	}}})
+	m.cursor, m.cursorAt = follow(m.projects, 12, 0)
+	rows := drawProcesses(m.processesReport(), m.cursor, m.cols(), m.height, m.p)
+	at := func(want string) int {
+		for y, r := range rows {
+			if strings.Contains(r.text, want) {
+				return y
+			}
+		}
+		t.Fatalf("no row says %q:\n%s", want, texts(rows))
+		return -1
+	}
+	click := func(y int) model {
+		next, _ := m.Update(tea.MouseClickMsg{X: 3, Y: y, Button: tea.MouseLeft})
+		return next.(model)
+	}
+	if got := click(at("zsh")); got.cursor != 11 || got.cursorAt != 1 {
+		t.Errorf("a click on the shell put the cursor on %d at %d", got.cursor, got.cursorAt)
+	}
+	if got := click(at("IDLE ─")); got.cursor != 12 {
+		t.Errorf("a click on an eyebrow moved the cursor to %d", got.cursor)
+	}
+	if got := click(0); got.cursor != 12 {
+		t.Errorf("a click on the air moved the cursor to %d", got.cursor)
+	}
+	if got := click(len(rows) + 5); got.cursor != 12 {
+		t.Errorf("a click below the rows moved the cursor to %d", got.cursor)
+	}
+	next, _ := m.Update(tea.MouseClickMsg{X: 3, Y: at("zsh"), Button: tea.MouseRight})
+	if got := next.(model); got.cursor != 12 {
+		t.Errorf("the right button moved the cursor to %d", got.cursor)
+	}
+	m.view = viewProjects
+	if got := click(at("zsh")); got.cursor != 12 {
+		t.Errorf("a click in the projects view moved the processes cursor to %d", got.cursor)
+	}
+	// The view asks the terminal for the mouse.
+	m.view = viewProcesses
+	if m.View().MouseMode != tea.MouseModeCellMotion {
+		t.Error("the view does not ask for the mouse")
+	}
+}

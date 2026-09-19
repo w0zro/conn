@@ -219,10 +219,16 @@ type model struct {
 	// them with.
 	notice       string
 	processesGen int // which stay in the processes view the ticks belong to
-	// The pane the keys were in when a chord brought them to the panel,
-	// for a view there is something to cancel out of. Blank where the
-	// keys were already here.
+	// The pane the keys were in when the panel key brought them here
+	// and a detour was begun with the next key, for a view there is
+	// something to cancel out of. Blank where the keys were already
+	// here.
 	from string
+	// The pane the keys came out of at the panel key just pressed,
+	// held for the one key after it: p, ? and A begin a detour, and a
+	// detour ends where the keys were before it. Any other key is the
+	// operator working the view, and the arrival is over.
+	came string
 	// The last reading's processor times, and when they were read: a
 	// process is working by what it has spent since, not by what it has
 	// spent altogether.
@@ -246,7 +252,7 @@ type model struct {
 	sessions        []session
 	sessionsLoading bool
 	rfind           typed // the line typed into, and the cursor among the rows it leaves
-	// The manual: where the keys were when prefix ? fired, and the row
+	// The manual: where the keys were when ? was pressed, and the row
 	// that was under the cursor, so that leaving it puts both back.
 	// See leftHelp.
 	helpFrom   string
@@ -274,7 +280,7 @@ type model struct {
 	panes  map[string]pane // the server's panes by terminal, as last read
 	bay    string          // the terminal in the bay, as last read
 	// The terminal that was in the bay before that one, which is where
-	// the other-process chord goes back to.
+	// the panel key pressed on the panel goes back to.
 	lastBay string
 
 	// What docker last said, and the feed that says it. The containers
@@ -736,8 +742,7 @@ func (m model) saying() (model, tea.Cmd) {
 // Otherwise the word for the view the keys are in. The views are worked
 // by different keys — a letter narrows the rows in projects and
 // sessions and is a command in processes — so which one has the keys is
-// a state the operator is in, the same kind of thing PREFIX and COPY
-// say. tmux shows it only while the keys are on the panel, so a bay
+// a state the operator is in, the same kind of thing COPY says. tmux shows it only while the keys are on the panel, so a bay
 // with the keys in it leaves the position dark.
 func (m model) keys() string {
 	if m.kill != nil {
@@ -810,12 +815,12 @@ func (m model) bar() string {
 		return keyBar(helpHints)
 	}
 	// While a process has the keys, none of the panel's work: what
-	// works is a chord, which tmux takes before the process does. The
-	// bar says the chords that matter from there, with the prefix as
-	// it is pressed.
+	// works is the panel key, which tmux takes before the process does,
+	// and after it any key of the panel's. The bar says the key, and
+	// the pairs that matter most from there.
 	if m.inside && !m.focused && m.view != viewConsole {
-		px := prefixWord(prefix())
-		hints := []keyHint{{px + " -", "Panel"}}
+		px := keyWord(panelKey())
+		hints := []keyHint{{px, "Panel"}}
 		if len(waitingRound(m.projects)) > 0 {
 			hints = append(hints, keyHint{px + " Tab", "Next waiting"})
 		}
@@ -894,13 +899,13 @@ func (m model) bar() string {
 	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{"?", "Help"}))
 }
 
-// prefixWord is the prefix as the bar writes it: ^space for C-Space,
+// keyWord is the panel key as the bar writes it: ^space for C-Space,
 // the caret being how a terminal has always written control, and
-// short enough that a chord said three times across the bar is still
+// short enough that the key said three times across the bar is still
 // a bar of keys and not a sentence; alt-a for M-a. A named key is
 // written as the manual writes it, in lower case; a letter is left
 // as it came, since alt-A is not alt-a.
-func prefixWord(p string) string {
+func keyWord(p string) string {
 	p = strings.ReplaceAll(p, "C-", "^")
 	p = strings.ReplaceAll(p, "M-", "alt-")
 	if i := strings.LastIndexAny(p, "^-"); len(p)-i-1 > 1 {
@@ -1337,9 +1342,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // in the processes view c brings the console back over the whole
 // window, enter reaches the cursor's process, esc goes back into the
 // last process the workspace held, s opens a shell at its project, a
-// opens claude there instead, and alt+A opens the sessions view over
-// what claude left suspended there. tab goes to what is waiting on you,
-// longest first, and round again. x asks to end the cursor's process,
+// opens claude there instead, and A opens the sessions view over what
+// claude left suspended there. tab goes to what is waiting on you,
+// longest first, and round again. ? puts the manual in the workspace.
+// x asks to end the cursor's process,
 // and arms the question rather than the ending: the next key answers
 // it. gg and G are the ends of the list, where j and k are its steps: a
 // table long enough to scroll is not walked to its end.
@@ -1347,6 +1353,10 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A notice stands until the next key, whatever it is: it was read,
 	// or it was not going to be.
 	m.notice = ""
+	// So does the arrival: the pane the keys came out of is for the key
+	// after the panel key and no other, whatever that key is.
+	came := m.came
+	m.came = ""
 	// A kill x asked for takes the next key, whatever it is: y confirms
 	// it, and anything else cancels, as tmux's own confirmation goes —
 	// no other binding fires while the question is on the status line.
@@ -1379,48 +1389,29 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		m.cursor, m.cursorAt = follow(m.projects, 0, 0)
 		return m, nil
 	}
-	// The key that opens projects from wherever conn is, which is what
-	// the prefix chord sends. p cannot serve: it opens projects from the
-	// processes view, where it is a key, but in projects and in sessions
-	// it is a letter being typed into the line, and on the console it is
-	// one of the any-keys that continue to the processes view. So the
-	// chord has a key of its own, and it is the same key wherever it is
-	// pressed.
-	if k == "alt+p" {
-		m.from = m.cameFrom()
-		return m.toProjects()
-	}
-	// The other process, which the prefix twice over sends. It is a key
-	// of its own for the same reason: in projects and in sessions every
-	// letter is one being typed into the line.
-	if k == "alt+o" {
-		return m.toOther()
-	}
-	// The process that has waited longest, which the prefix then tab sends
-	// from anywhere: in the processes view tab itself is the key, but on
-	// the list and the sessions view tab is nothing and on the console it
-	// is one of the any-keys, so the chord has a key of its own.
-	if k == "alt+tab" {
-		return m.toWaiting()
+	// The keys arriving on the panel, which the panel key sends after
+	// bringing them: from inside a process, from the manual, or from
+	// the panel itself. On the console it is any key, and the console
+	// answers it as it answers any key.
+	if k == "alt+-" && m.view != viewConsole {
+		return m.arrived(m.cameFrom())
 	}
 	// A shell, a contact, and the sessions suspended at the project the
-	// panel is looking at, each from anywhere in the server: what the
-	// prefix then s, then a, and then A send. Each is a key of its own
-	// for the reason the three above are — in the list and in the
-	// sessions view a plain s or a is a letter being typed into the
-	// line. The letter is the same on every road to the thing: a is a
-	// contact and A the sessions in the processes view, alt+a and
-	// alt+A on a line typed into, prefix a and prefix A from anywhere.
+	// panel is looking at, from a line typed into. In the list and in
+	// the sessions view a plain s or a is a letter being typed into the
+	// line, so what a letter does in the processes view is done there
+	// with alt. The letter is the same on every road to the thing: a is
+	// a contact and A the sessions in the processes view, alt+a and
+	// alt+A on a line typed into.
 	//
 	// In a line typed into, ctrl is readline's and alt is conn's. The
 	// line is edited the way readline edits one, and a ctrl key there
 	// means what it means to readline — ctrl+a the start of the line,
 	// not a contact, which it was; ctrl+s a search, not a shell, which
-	// it was — so conn's own verbs on a line are all on alt, and the
-	// alt key is the one the chord sends, so a hand learns one key for
-	// one thing wherever it is pressed.
+	// it was — so conn's own verbs on a line are all on alt, so a hand
+	// learns one key for one thing wherever it is pressed.
 	if k == "alt+s" || k == "alt+a" || k == "alt+shift+a" {
-		return m.openAt(k)
+		return m.openAt(k, came)
 	}
 	// What is under the cursor, brought up: u in the processes view,
 	// and alt+u from the list, where u is a letter being typed. On a
@@ -1442,66 +1433,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// processes view has the keys.
 	if k == "alt+esc" {
 		return m.leftHelp(false)
-	}
-	// Back to the processes view, which the prefix then - sends. tmux
-	// has already put the keys on the panel by the time this arrives;
-	// what is left is the manual, if one is up, which this takes down.
-	// It is how the operator gets from reading to working without first
-	// deciding what they were working on.
-	if k == "alt+-" {
-		if m.helping {
-			// This chord says where to go, so where the manual was asked
-			// from stops mattering: it is the one way out of the manual
-			// that does not put the keys back, and forgetting is what
-			// makes it that.
-			m.helping, m.helpFrom = false, ""
-			m = m.tookBackRow()
-			return m, tea.Batch(m.reviveBay(), m.processesTick())
-		}
-		return m, nil
-	}
-	// The manual, which the prefix then ? sends. It goes to the
-	// processes view first: the manual stands in the workspace, and the
-	// workspace is what that view is a panel beside.
-	if k == "alt+?" {
-		if m.srv == nil {
-			return m, nil // nowhere to put it
-		}
-		// Up already: the same chord puts it away. The manual is not
-		// reachable — it is conn's furniture, and the keys step over
-		// furniture — so the chord that opened it is the only thing
-		// that can close it, and a manual that could be opened and not
-		// closed would be a trap rather than a help.
-		if m.helping {
-			m.helping = false
-			return m, tea.Batch(m.reviveBay(), m.processesTick())
-		}
-		// Where the keys were when the chord fired, before tmux brought
-		// them here. Reading the manual is a detour and not a move, so
-		// leaving it puts them back where they were: in the workspace if
-		// that is where they were, and on the panel if the operator was
-		// working the view.
-		m.helpFrom = m.cameFrom()
-		mm, cmd := m.toProcesses()
-		m = mm.(model)
-		// Said here rather than when the manual is up. Opening it is
-		// several turns of talking to tmux, and the page would be put in
-		// the workspace by a reading landing in the middle of that —
-		// the page goes up wherever a row is under the cursor, and it is
-		// this that takes the row out from under it.
-		// The row is kept rather than dropped. No row is under the
-		// cursor while the manual is up, but the operator has not
-		// unchosen it: they asked a question about the station and are
-		// coming back to whatever they were looking at.
-		m.helping, m.helpCursor, m.cursor = true, m.cursor, 0
-		return m, tea.Batch(cmd, m.openHelp())
-	}
-	// Down and up the processes conn can put in the bay, which the
-	// prefix then j and then k send. In the processes view j and k walk
-	// every row, this walks only what there is somewhere to be sent to;
-	// in the list and in the sessions view they are letters being typed.
-	if k == "alt+j" || k == "alt+k" {
-		return m.toReachable(k == "alt+j")
 	}
 	switch m.view {
 	case viewProjects:
@@ -1708,15 +1639,102 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case k == "A":
 		// The sessions at the project: the capital of the contact's
 		// key, a session being a contact's to pick back up.
-		return m.openAt("alt+shift+a")
+		return m.openAt("alt+shift+a", came)
 	case k == "tab":
 		return m.toWaiting()
 	case k == "p":
-		// Pressed here, so there is nowhere to go back to.
-		m.from = ""
+		// A detour: it ends where the keys were before it, which is the
+		// pane the panel key just brought them out of, or nowhere.
+		m.from = came
 		return m.toProjects()
+	case k == "?":
+		return m.openManual(came)
 	}
 	return m, nil
+}
+
+// arrived is the keys having come to the panel by the panel key, from
+// the pane they were in, which tmux has already left for the panel by
+// the time this is read. The panel is put on the processes view, which
+// is what the panel is: the list and the sessions view are left, and
+// the manual is put away, its own key being the only thing that can
+// reach it. Come out of a pane, the pane's row goes under the cursor,
+// so the key after this one is about the process the operator was just
+// in — x ends it, s opens a shell beside it — and the pane is held for
+// that key, so a detour begun with it ends back in the pane.
+//
+// Pressed on the processes view itself, where the keys already were,
+// it is the other process: the one worked in before this one. So from
+// inside a process, twice over is the other process, which is the
+// shape that key has everywhere.
+//
+// The asking view is left alone: there are no processes to show until
+// it has been answered.
+func (m model) arrived(from string) (tea.Model, tea.Cmd) {
+	if m.helping {
+		// The key says where to go, so where the manual was asked from
+		// stops mattering: it is the one way out of the manual that
+		// does not put the keys back, and forgetting is what makes it
+		// that.
+		m.helping, m.helpFrom = false, ""
+		m = m.tookBackRow()
+		return m, tea.Batch(m.reviveBay(), m.processesTick())
+	}
+	if m.view == viewRoots {
+		return m, nil
+	}
+	var cmds []tea.Cmd
+	switch {
+	case m.view != viewProcesses:
+		// Come to the panel, whatever the list was begun from: the key
+		// says where to go.
+		m.from = ""
+		mm, cmd := m.toProcesses()
+		m, cmds = mm.(model), append(cmds, cmd)
+	case from == "":
+		return m.toOther()
+	}
+	if from != "" {
+		m.came = from
+		if _, tty, ok := m.paneByID(from); ok {
+			if pid, at, ok := headOf(m.projects, tty); ok {
+				m.cursor, m.cursorAt = pid, at
+			}
+		}
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// openManual puts the manual in the workspace, which is what ? does in
+// the processes view, and takes with it where the keys were before the
+// panel key brought them here, so that leaving it puts them back.
+//
+// The manual is not reachable — it is conn's furniture, and the keys
+// step over furniture — so the panel key is the only thing that can
+// close it, and a manual that could be opened and not closed would be
+// a trap rather than a help.
+func (m model) openManual(came string) (tea.Model, tea.Cmd) {
+	if m.srv == nil || m.helping {
+		return m, nil // nowhere to put it, or up already
+	}
+	// Reading the manual is a detour and not a move, so leaving it puts
+	// the keys back where they were: in the pane the panel key brought
+	// them out of, if this was the key after it, and on the panel if
+	// the operator was working the view.
+	m.helpFrom = came
+	mm, cmd := m.toProcesses()
+	m = mm.(model)
+	// Said here rather than when the manual is up. Opening it is
+	// several turns of talking to tmux, and the page would be put in
+	// the workspace by a reading landing in the middle of that — the
+	// page goes up wherever a row is under the cursor, and it is this
+	// that takes the row out from under it.
+	// The row is kept rather than dropped. No row is under the cursor
+	// while the manual is up, but the operator has not unchosen it:
+	// they asked a question about the station and are coming back to
+	// whatever they were looking at.
+	m.helping, m.helpCursor, m.cursor = true, m.cursor, 0
+	return m, tea.Batch(cmd, m.openHelp())
 }
 
 // projectKey answers a key in projects, which is a line typed into;
@@ -1782,7 +1800,7 @@ func (m model) slotted(tty string) model {
 	// the moment the keys reach the panel, so by the time anything is
 	// opened or reached the bay is the page, and a rule that refused to
 	// remember furniture — rightly — never remembered anything at all.
-	// The chord did nothing for the whole of the page's life.
+	// The key did nothing for the whole of the page's life.
 	//
 	// lastIn is only ever work, being set here and, on a reading, only
 	// for a bay that can be reached. So one holds what you are in and
@@ -1798,14 +1816,15 @@ func (m model) slotted(tty string) model {
 // toOther goes to the process that was in the bay before the one in it
 // now, and takes the one in it now as the one to come back to — so
 // pressed twice it is where it started, and pressed while working is
-// the other thing you are working on. It is what the prefix twice over
-// sends, which is the shape that key has everywhere: the one you were
-// last in.
+// the other thing you are working on. It is what the panel key does
+// pressed on the panel, so from inside a process it is the panel key
+// twice over, which is the shape that key has everywhere: the one you
+// were last in.
 //
-// The console is left on the way, in the rare case the chord is pressed
-// with it up: you cannot be in a pane while the console is over the
-// window, so this is a press from the panel, and the answer to it is a
-// process.
+// The console is left on the way, in the rare case it is asked for
+// with the console up: you cannot be in a pane while the console is
+// over the window, so this is a press from the panel, and the answer
+// to it is a process.
 func (m model) toOther() (tea.Model, tea.Cmd) {
 	// Asked as reachable and not merely as held, the way every other
 	// road into a pane asks it: a pane whose process has ended is an id
@@ -1824,11 +1843,10 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 // toWaiting goes to the process that has waited longest: the cursor to
 // its row, its pane in the bay, and the keys in it, so one press has
 // the operator answering. Pressed again from the panel it goes round
-// the ring, longest first. It is what tab does in the processes view
-// and what the prefix then tab sends from anywhere. From another view
-// the processes view is put up on the way, since the answer is a pane,
-// and from the console the bay is given its side back, a pane being
-// unreachable with the console over the window.
+// the ring, longest first. It is what tab does in the processes view.
+// From another view the processes view is put up on the way, since the
+// answer is a pane, and from the console the bay is given its side
+// back, a pane being unreachable with the console over the window.
 //
 // A process conn holds no pane for is still gone to, on the panel, and
 // the keys stay where they are.
@@ -1870,78 +1888,13 @@ func (m model) goTo(next entry) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// reachableRound is every pane conn holds that has work in it, said as
-// the one row that stands for it: the head of the tree, since a pane
-// holds a whole tree and there is one thing in it to be put in the
-// bay. It is the ring alt+j walks down and alt+k up, in the order the
-// view stands the rows in, with where each sits among all the rows, so
-// that a cursor anywhere in the list knows which way is next. A hold,
-// the readout and a pane whose process has ended are not work.
-func (m model) reachableRound() (round []entry, at []int) {
-	seen := map[string]bool{}
-	i := 0
-	for _, pl := range m.projects {
-		for _, e := range pl.entries {
-			p := m.panes[e.tty]
-			if reachable(p) && !seen[e.tty] {
-				seen[e.tty] = true
-				round, at = append(round, e), append(at, i)
-			}
-			i++
-		}
-	}
-	return round, at
-}
-
-// toReachable goes to the next process conn can actually put in front
-// of you, down the view with alt+j and up it with alt+k, round again
-// from either end. Rows conn only reports are stepped over rather than
-// landed on: the keys are going with the cursor, and a row there is no
-// pane for is nowhere to send them. With nothing to reach it does
-// nothing, which is every row outside conn's own server.
-func (m model) toReachable(down bool) (tea.Model, tea.Cmd) {
-	round, at := m.reachableRound()
-	if len(round) == 0 {
-		return m, nil
-	}
-	// Where the cursor stands among all the rows, which is not where it
-	// stands in the ring: it can be on a row conn cannot reach, or on a
-	// row inside a tree whose head is the ring's member.
-	here, i := -1, 0
-	for _, pl := range m.projects {
-		for _, e := range pl.entries {
-			if e.pid == m.cursor {
-				here = i
-			}
-			i++
-		}
-	}
-	next := round[0]
-	if down {
-		for j, k := range at {
-			if k > here {
-				next = round[j]
-				break
-			}
-		}
-	} else {
-		next = round[len(round)-1]
-		for j := len(at) - 1; j >= 0; j-- {
-			if at[j] < here {
-				next = round[j]
-				break
-			}
-		}
-	}
-	return m.goTo(next)
-}
-
-// cameFrom is the pane the keys were in when a chord brought them to
-// the panel, and nothing where they were already here. A chord writes
-// it as it fires, because by the time conn reads the key the panel is
-// the pane with the keys and nothing on this side can tell where they
-// came from. It is read once and cleared, so a chord that was answered
-// rather than cancelled leaves nothing behind for the next one.
+// cameFrom is the pane the keys were in when the panel key brought
+// them to the panel, and nothing where they were already here. The key
+// writes it as it fires, because by the time conn reads the key the
+// panel is the pane with the keys and nothing on this side can tell
+// where they came from. It is read once and cleared, so a press that
+// was answered rather than cancelled leaves nothing behind for the
+// next one.
 func (m model) cameFrom() string {
 	if !m.inside || m.srv == nil {
 		return ""
@@ -1958,9 +1911,10 @@ func (m model) cameFrom() string {
 }
 
 // backFrom is the cancel. The panel comes back to the processes view,
-// and where a chord brought the keys here out of another pane they go
-// back to it: cancelling is putting things as they were, and the pane
-// the operator was working in is part of how they were.
+// and where the panel key brought the keys here out of another pane
+// and the list was the next key, they go back to it: cancelling is
+// putting things as they were, and the pane the operator was working
+// in is part of how they were.
 //
 // Going back to it is reaching it, not selecting it. The pane is not
 // where it was: the page takes the workspace while the keys are on the
@@ -1969,7 +1923,7 @@ func (m model) cameFrom() string {
 // not looking at, which is nothing happening at all. Reaching it puts
 // it back in the workspace first, which is where the operator left it.
 //
-// A chord pressed on the panel leaves nothing to go back to, and the
+// A list opened from the panel leaves nothing to go back to, and the
 // cancel is the view alone: you were not in a pane, so there is no pane
 // to be put back in. Work that ended while the list was up is the same
 // answer for the same reason.
@@ -1990,8 +1944,8 @@ func (m model) backFrom() (tea.Model, tea.Cmd) {
 
 // paneByID is the pane conn holds under that id, and the terminal it is
 // on. conn holds its panes by terminal, a terminal being what a row
-// is; a chord names the pane it fired from by id, which is what tmux
-// knows of it.
+// is; the panel key names the pane it fired from by id, which is what
+// tmux knows of it.
 func (m model) paneByID(id string) (pane, string, bool) {
 	for tty, p := range m.panes {
 		if p.id == id {
@@ -2120,14 +2074,16 @@ func (m model) atProject() (string, []string, bool) {
 // project the panel is looking at. A shell and a contact show in the
 // processes view, so the panel comes back to it for them, the way the
 // list has always come back for what it opened; the sessions view is
-// somewhere to be and is gone to.
-func (m model) openAt(k string) (tea.Model, tea.Cmd) {
+// somewhere to be and is gone to, and takes with it the pane the panel
+// key just brought the keys out of, where it did, so that leaving it
+// puts them back.
+func (m model) openAt(k, came string) (tea.Model, tea.Cmd) {
 	path, dirs, ok := m.atProject()
 	if !m.inside || !ok {
 		return m, nil
 	}
 	if k == "alt+shift+a" {
-		m.from = m.cameFrom()
+		m.from = came
 		return m.openSessions(path, dirs)
 	}
 	var cmds []tea.Cmd
@@ -2540,8 +2496,8 @@ func typedIsADir(typed, home string) bool {
 // Reading is a detour: the operator asked a question in the middle of
 // something, and the answer to it is not a reason to move them.
 //
-// So the keys go back where the chord took them from. Pressed in the
-// workspace, they go back into that pane — the work is put back in the
+// So the keys go back where the panel key took them from. Pressed in
+// the workspace, they go back into that pane — the work is put back in the
 // workspace first, since the manual displaced it to a window of its
 // own and selecting it there is nothing happening at all. Pressed on
 // the panel, they stay on the panel: the operator was working the view,
@@ -2549,8 +2505,9 @@ func typedIsADir(typed, home string) bool {
 // the next reading as it always does.
 //
 // A manual found dead rather than leaving — killed from outside, or
-// gone while nobody was tending the workspace — knows of no chord, and
-// falls back on the process the manual was standing in front of.
+// gone while nobody was tending the workspace — knows of no pane the
+// keys came from, and falls back on the process the manual was
+// standing in front of.
 func (m model) leftHelp(found bool) (tea.Model, tea.Cmd) {
 	m.helping = false
 	from := m.helpFrom
@@ -2567,12 +2524,12 @@ func (m model) leftHelp(found bool) (tea.Model, tea.Cmd) {
 		if p, tty, ok := m.paneByID(from); ok && reachable(p) {
 			return m, m.reach(p, tty)
 		}
-		// The pane the chord came from has gone while the manual was up.
+		// The pane the keys came from has gone while the manual was up.
 		// There is nothing to be put back into, and the panel is where
 		// conn is worked from.
 		return m, toPanel
 	}
-	// No chord to go on: the manual ended without saying. Back into the
+	// Nothing to go on: the manual ended without saying. Back into the
 	// work it was standing in front of, where there is any.
 	if found {
 		mm, cmd := m.backIn()

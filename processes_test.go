@@ -757,9 +757,9 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 	}
 }
 
-// The prefix twice over goes to the process that was in the bay before
-// the one in it now, and takes the one in it now as the one to come
-// back to — so pressed twice it is where it started. conn's own
+// The panel key, pressed on the panel, goes to the process that was in
+// the bay before the one in it now, and takes the one in it now as the
+// one to come back to — so pressed twice it is where it started. conn's own
 // furniture is not somewhere you were working: a hold standing in an
 // empty bay and the readout are not remembered, and going back never
 // lands on one.
@@ -776,7 +776,7 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	// a key can ask the server for here is the pane swap under test.
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
 	other := func(m model) (model, tea.Cmd) {
-		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'o'}))
+		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: '-'}))
 		return next.(model), cmd
 	}
 

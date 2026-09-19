@@ -67,48 +67,28 @@ func TestTheManualsSynopsisIsTheCommandTable(t *testing.T) {
 	}
 }
 
-// The manual's chord table is the chords conn binds: every key bound
-// under the prefix is a row there, and no row names one conn does not
-// bind. This is what holds man conn to the binary for the keys, the way
-// the synopsis table holds it for the commands — a chord added without
-// a row is a chord nobody can find out about.
-func TestTheManualsChordTableIsTheChordsConnBinds(t *testing.T) {
+// The manual names the one key tmux takes, and it is the one conn
+// binds: in the root table, so that it works from inside a process,
+// and no other. This is what holds man conn to the binary for the key,
+// the way the synopsis table holds it for the commands.
+func TestTheManualNamesThePanelKey(t *testing.T) {
 	page, err := os.ReadFile("docs/index.html")
 	if err != nil {
 		t.Skip(err)
 	}
-	rows := map[string]bool{}
-	for _, r := range regexp.MustCompile(`<div class="row"><span>prefix ([^<]*)</span>`).FindAllStringSubmatch(string(page), -1) {
-		rows[r[1]] = true
+	bound := regexp.MustCompile(`(?m)^bind (\S+) (\S+) `).FindAllStringSubmatch(tmuxConf(defaultKey), -1)
+	if len(bound) != 1 || bound[0][1] != "-n" || bound[0][2] != defaultKey {
+		t.Fatalf("conn binds %v, not the panel key alone in the root table", bound)
 	}
-	if len(rows) == 0 {
-		t.Skip("the manual has no chord table yet")
+	// As the manual writes it: the modifier in words, the key lowered.
+	say := strings.ToLower(strings.ReplaceAll(defaultKey, "C-", "ctrl-"))
+	keys := string(page)
+	if i := strings.Index(keys, `id="keys"`); i >= 0 {
+		keys = keys[i:]
 	}
-	// A chord as the manual writes it: tmux's own spelling of the key,
-	// a named key lowered, with its modifier said in words and the
-	// prefix itself named rather than spelt. A letter keeps its case:
-	// a and A are two chords.
-	say := func(key string) string {
-		if key == defaultPrefix {
-			return "prefix"
-		}
-		key = strings.ReplaceAll(key, "M-", "alt-")
-		if len(key) == 1 {
-			return key
-		}
-		return strings.ToLower(key)
-	}
-	bound := map[string]bool{}
-	for _, m := range regexp.MustCompile(`(?m)^bind (\S+) `).FindAllStringSubmatch(tmuxConf(defaultPrefix), -1) {
-		key := say(m[1])
-		bound[key] = true
-		if !rows[key] {
-			t.Errorf("the manual does not document prefix %s", key)
-		}
-	}
-	for key := range rows {
-		if !bound[key] {
-			t.Errorf("the manual documents prefix %s, which conn does not bind", key)
+	for _, want := range []string{"<b>" + say + "</b>", "<b>CONN_KEY</b>"} {
+		if !strings.Contains(keys, want) {
+			t.Errorf("the manual's keys section lacks %s", want)
 		}
 	}
 }

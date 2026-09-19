@@ -211,7 +211,7 @@ var commands = []command{
 		return 0
 	}},
 	// The manual, in the workspace. It is not offered in the synopsis
-	// because it is not a thing to type: prefix ? is how it is reached,
+	// because it is not a thing to type: ? is how it is reached,
 	// and conn runs this in the pane it opens for it.
 	{"manual", "", func([]string) int {
 		home, _ := os.UserHomeDir()

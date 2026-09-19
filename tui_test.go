@@ -394,9 +394,8 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 
 // In the server, tab puts the waiting contact's pane in the bay and the
 // keys in it, so one press has the operator answering; a process conn
-// holds no pane for is gone to on the panel and the keys stay. The
-// prefix then tab sends alt+tab, which does the same from any view,
-// putting the processes view up on the way.
+// holds no pane for is gone to on the panel and the keys stay. Asked
+// from another view, the processes view is put up on the way.
 func TestTabReachesTheWaitingContact(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.srv = viewProcesses, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
@@ -425,11 +424,11 @@ func TestTabReachesTheWaitingContact(t *testing.T) {
 		t.Errorf("unheld: cursor %d, cmd %v", m.cursor, answered(cmd))
 	}
 
-	// From the console, by the chord: the processes view comes up and the
-	// process is reached.
+	// From the console: the processes view comes up and the process is
+	// reached.
 	m.panes = map[string]pane{"ttys002": {id: "%2", tty: "ttys002"}}
 	m.view, m.cursor = viewConsole, 11
-	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModAlt})
+	next, cmd = m.toWaiting()
 	m = next.(model)
 	if m.view != viewProcesses || m.cursor != 22 || cmd == nil {
 		t.Errorf("from the console: view %d, cursor %d, cmd %v", m.view, m.cursor, cmd != nil)
@@ -847,62 +846,99 @@ func TestAStaleSessionsAnswerIsDropped(t *testing.T) {
 	}
 }
 
-// Projects has a key of its own that reaches it from every view, which
-// is what the prefix chord sends. p cannot serve: it opens projects
-// from the processes view, where it is a key, but in projects and in
-// sessions it is a letter being typed into the line, and on the console
-// it is one of the any-keys that continue to the processes view.
-func TestAltPOpensTheListFromAnywhere(t *testing.T) {
+// The panel key brings the keys to the panel, and the panel is the
+// processes view: the list and the sessions view are left for it,
+// whatever begun them, and the asking view is not. Come out of a pane,
+// that pane's row goes under the cursor, and the pane is held for the
+// one key after it, so that a detour begun with that key — the list,
+// the sessions, the manual — ends back in the pane; any other key is
+// the operator working the view, and the arrival is over. Pressed on
+// the processes view itself, where the keys already were, it is the
+// other process.
+func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	base := newModel(plain)
-	base.now, base.width, base.height = processesNow, 120, 40
-	for _, view := range []int{viewProcesses, viewConsole, viewProjects, viewSessions} {
-		m := base
-		m.view = view
-		m.find.text, m.find.at = "already typed", 3
-		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'p'}))
-		got := next.(model)
-		if got.view != viewProjects {
-			t.Errorf("from view %d, alt+p left conn on view %d", view, got.view)
-		}
-		if got.find.text != "" || got.find.at != 0 || !got.scanning {
-			t.Errorf("from view %d, alt+p did not open the list afresh: filter %q cursor %d scanning %v",
-				view, got.find.text, got.find.at, got.scanning)
-		}
-		if cmd == nil {
-			t.Errorf("from view %d, alt+p did not walk the roots", view)
-		}
+	base.inside, base.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	base.projects = []project{{path: "/w", entries: []entry{
+		{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}, {pid: 23, tty: "ttys002", depth: 1},
+	}}}
+	base.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
+	base.cursor, base.cursorAt = 11, 0
+	press := func(m model, k string) model {
+		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
+		return next.(model)
 	}
 
-	// The console's wait on a reading is called off, or that reading would
-	// land a moment later and put the processes view up over the list.
-	m := base
-	m.view, m.entering = viewConsole, true
-	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'p'}))
-	m = next.(model)
-	if m.entering {
-		t.Fatal("alt+p on the console left it waiting to go to the processes view")
+	for _, view := range []int{viewProjects, viewSessions} {
+		m := base
+		m.view, m.from = view, "%1"
+		next, cmd := m.arrived("")
+		got := next.(model)
+		if got.view != viewProcesses || got.from != "" || cmd == nil {
+			t.Errorf("from view %d: view %d, from %q, cmd %v", view, got.view, got.from, cmd != nil)
+		}
 	}
-	next, _ = m.Update(processesMsg{gen: m.processesGen})
-	if got := next.(model).view; got != viewProjects {
-		t.Errorf("the reading the console had asked for put view %d up over the list", got)
+	m := base
+	m.view = viewRoots
+	if next, _ := m.arrived(""); next.(model).view != viewRoots {
+		t.Error("the panel key left the asking view")
+	}
+
+	// Out of a pane: its row — the head of its tree — under the cursor,
+	// and the pane held for the next key.
+	m = base
+	m.view, m.cursor, m.cursorAt = viewProcesses, 23, 2
+	next, _ := m.arrived("%2")
+	m = next.(model)
+	if m.cursor != 22 || m.came != "%2" {
+		t.Fatalf("out of %%2: cursor %d, came %q", m.cursor, m.came)
+	}
+	if got := press(m, "p"); got.view != viewProjects || got.from != "%2" || got.came != "" {
+		t.Errorf("p after the arrival: view %d, from %q, came %q", got.view, got.from, got.came)
+	}
+	if got := press(m, "?"); !got.helping || got.helpFrom != "%2" || got.came != "" {
+		t.Errorf("? after the arrival: helping %v, from %q, came %q", got.helping, got.helpFrom, got.came)
+	}
+	if got := press(m, "A"); got.view != viewSessions || got.from != "%2" {
+		t.Errorf("A after the arrival: view %d, from %q", got.view, got.from)
+	}
+	moved := press(m, "j")
+	if moved.came != "" {
+		t.Error("j kept the arrival")
+	}
+	if got := press(moved, "p"); got.from != "" {
+		t.Errorf("p a key after the arrival still had the pane: from %q", got.from)
+	}
+
+	// Pressed on the panel, with the keys already here: the other
+	// process, which against no tmux is a reach that reaches nothing.
+	m = base
+	m.view, m.lastBay = viewProcesses, "ttys001"
+	if _, cmd := m.arrived(""); cmd == nil {
+		t.Error("pressed on the panel, the key did not go to the other process")
+	}
+	// A pane the rows do not know leaves the cursor where it was.
+	m = base
+	m.view = viewProcesses
+	next, _ = m.arrived("%9")
+	if got := next.(model); got.cursor != 11 || got.came != "%9" {
+		t.Errorf("out of a pane the rows do not know: cursor %d, came %q", got.cursor, got.came)
 	}
 
 	// The kill question still takes the next key, whatever it is.
 	armed := base
 	armed.view = viewProcesses
 	armed.kill = &pendingKill{pid: 49212, command: "zsh", sig: syscall.SIGTERM}
-	next, _ = armed.Update(tea.KeyPressMsg(tea.Key{Mod: tea.ModAlt, Code: 'p'}))
-	if got := next.(model); got.view != viewProcesses || got.kill != nil {
-		t.Errorf("alt+p fired under an armed kill: view %d", got.view)
+	if got := press(armed, "alt+-"); got.view != viewProcesses || got.kill != nil {
+		t.Errorf("the panel key fired under an armed kill: view %d", got.view)
 	}
 }
 
 // A shell, a contact and the sessions at the project the panel is
-// looking at, each reachable from anywhere in the server. They are the
-// keys the prefix then s, then a and then A send, and each has to
-// mean the one thing in every view the panel can be in, since in the
-// list and in the sessions view a plain s or a is a letter being typed.
-func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
+// looking at, from a line typed into: alt+s, alt+a and alt+A, each of
+// which has to mean the one thing in every view the panel can be in,
+// since in the list and in the sessions view a plain s or a is a
+// letter being typed.
+func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	panel := func(view int) model {
 		m := newModel(plain)
 		m.inside, m.view = true, view
@@ -973,87 +1009,12 @@ func TestTheChordsOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	}
 }
 
-// Down and up the processes conn can actually put in front of you,
-// which the prefix then j and then k send. A row conn only reports is
-// stepped over: the keys travel with the cursor, and a row there is no
-// pane for is nowhere to send them. A tree is one stop, not one a row,
-// since the pane holds the whole of it.
-func TestTheRingWalksOnlyWhatCanBeReached(t *testing.T) {
-	m := newModel(plain)
-	m.inside, m.view = true, viewProcesses
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.projects = []project{
-		{path: "/a", entries: []entry{
-			{pid: 10, tty: "ttys001", kind: kindShell},   // reached
-			{pid: 11, tty: "ttys002", kind: kindShell},   // only reported
-			{pid: 12, tty: "ttys003", kind: kindContact}, // reached, and a tree
-			{pid: 13, tty: "ttys003", kind: kindRun, depth: 1},
-			{pid: 14, tty: "ttys004", kind: kindShell}, // a hold, which is conn's own
-		}},
-	}
-	m.panes = map[string]pane{
-		"ttys001": {id: "%1", tty: "ttys001"},
-		"ttys003": {id: "%3", tty: "ttys003"},
-		"ttys004": {id: "%4", tty: "ttys004", hold: true},
-	}
-
-	round, at := m.reachableRound()
-	if len(round) != 2 || round[0].pid != 10 || round[1].pid != 12 || at[0] != 0 || at[1] != 2 {
-		t.Fatalf("the ring is not the two panes with work in them: %+v at %v", round, at)
-	}
-
-	press := func(m model, k string) model {
-		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
-		return next.(model)
-	}
-	// Down from the first reaches the tree's head, not the row under it.
-	m.cursor = 10
-	if got := press(m, "alt+j").cursor; got != 12 {
-		t.Errorf("down from the first: cursor %d", got)
-	}
-	// And round again from the end, both ways.
-	m.cursor = 12
-	if got := press(m, "alt+j").cursor; got != 10 {
-		t.Errorf("down from the last: cursor %d", got)
-	}
-	m.cursor = 10
-	if got := press(m, "alt+k").cursor; got != 12 {
-		t.Errorf("up from the first: cursor %d", got)
-	}
-	// From a row conn cannot reach, which is between the two.
-	m.cursor = 11
-	if got := press(m, "alt+j").cursor; got != 12 {
-		t.Errorf("down from a row conn only reports: cursor %d", got)
-	}
-	if got := press(m, "alt+k").cursor; got != 10 {
-		t.Errorf("up from a row conn only reports: cursor %d", got)
-	}
-	// From inside a tree, up is the head of the tree it is inside.
-	m.cursor = 13
-	if got := press(m, "alt+k").cursor; got != 12 {
-		t.Errorf("up from inside a tree: cursor %d", got)
-	}
-
-	// The ring carries the keys with it: the pane goes into the bay,
-	// which against no tmux is a reach that reaches nothing.
-	m.cursor = 10
-	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+j"})); cmd == nil {
-		t.Error("the ring moved the cursor without putting the pane in the bay")
-	}
-
-	// With nothing conn holds there is nowhere to go, which is every row
-	// outside conn's own server.
-	m.panes = nil
-	if got := press(m, "alt+j").cursor; got != 10 {
-		t.Errorf("with no panes the cursor moved to %d", got)
-	}
-}
-
-// A chord brings the keys to the panel out of whatever pane they were
-// in. Cancelling puts them back: esc from the list and from the
-// sessions view returns to the processes view, and to the pane the
-// chord came from. Pressed on the panel there is nowhere to go back to.
-func TestCancellingAChordGivesTheKeysBack(t *testing.T) {
+// The panel key brings the keys to the panel out of whatever pane they
+// were in, and p after it is a detour. Cancelling puts them back: esc
+// from the list and from the sessions view returns to the processes
+// view, and to the pane the keys came from. Opened from the panel
+// there is nowhere to go back to.
+func TestCancellingADetourGivesTheKeysBack(t *testing.T) {
 	m := newModel(plain)
 	m.inside, m.view, m.srv = true, viewProjects, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 
@@ -1088,11 +1049,18 @@ func TestCancellingAChordGivesTheKeysBack(t *testing.T) {
 		t.Error("esc with nowhere to go back to asked for the keys anyway")
 	}
 
-	// p is pressed on the panel, so it leaves nothing to go back to.
-	m.view, m.from = viewProcesses, "%7"
+	// p pressed on the panel, with no arrival before it, leaves nothing
+	// to go back to; the key after the panel key takes the pane it came
+	// out of.
+	m.view, m.from, m.came = viewProcesses, "%7", ""
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "p"}))
 	if m = next.(model); m.view != viewProjects || m.from != "" {
 		t.Errorf("p on the panel: view %d, from %q", m.view, m.from)
+	}
+	m.view, m.came = viewProcesses, "%7"
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "p"}))
+	if m = next.(model); m.view != viewProjects || m.from != "%7" || m.came != "" {
+		t.Errorf("p after the panel key: view %d, from %q, came %q", m.view, m.from, m.came)
 	}
 }
 
@@ -1146,9 +1114,9 @@ func TestTheMotionsReachTheEnds(t *testing.T) {
 // The list holds the processes running in each project, so enter on one
 // of those rows goes into it — its pane in the bay and the keys in it,
 // the way enter does on the row in the processes view — where enter on
-// a project row starts a shell there. That is what makes p and the
-// prefix and p the way to a process on a machine with more of them than
-// there are rows to draw.
+// a project row starts a shell there. That is what makes p, and the
+// panel key then p, the way to a process on a machine with more of them
+// than there are rows to draw.
 func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
@@ -1338,7 +1306,7 @@ func withPane(panes map[string]pane, p pane) map[string]pane {
 // workspace between every two things you go into — it takes it the
 // moment the keys reach the panel — so a rule that read the other off
 // the bay read the page, refused it as the furniture it is, and
-// remembered nothing at all. The chord then did nothing for as long as
+// remembered nothing at all. The key then did nothing for as long as
 // the page existed, on every row and not only on a service's.
 func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 	m := newModel(plain)
@@ -1370,10 +1338,11 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 		t.Errorf("the work is %q", m.lastIn)
 	}
 
-	// And the chord goes there, rather than finding nothing to go to.
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+o"}))
+	// And the panel key, pressed on the panel, goes there rather than
+	// finding nothing to go to.
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+-"}))
 	if cmd == nil {
-		t.Error("the other-process chord asked for nothing")
+		t.Error("the panel key asked for nothing")
 	}
 	_ = next
 
@@ -1388,8 +1357,8 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 	// Work whose pane has ended is nowhere to be sent, and is asked the
 	// way every other road into a pane asks it.
 	m.panes["ttysb"] = pane{id: "%2", tty: "ttysb", dead: true}
-	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+o"})); cmd != nil {
-		t.Error("the chord reached into a pane whose process has ended")
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+-"})); cmd != nil {
+		t.Error("the key reached into a pane whose process has ended")
 	}
 }
 

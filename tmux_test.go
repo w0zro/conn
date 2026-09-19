@@ -78,22 +78,14 @@ func TestPanesAreParsed(t *testing.T) {
 	}
 }
 
-// The configuration sets the prefix, empties tmux's prefix table, and
-// binds two chords under it — - to the processes view, q to detach; it
-// carries the readout; a path with a quote in it survives quoting.
+// The configuration takes tmux's prefix away and binds the panel key
+// in the root table, and nothing else; it carries the readout; a path
+// with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
 	conf := tmuxConf("C-Space")
 	for _, s := range []string{
-		"set -g prefix C-Space", "set -g prefix2 None", "unbind -a -T prefix", "bind - select-pane -t conn:home.0",
-		`bind p set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-p`,
-		"bind q detach-client",
-		"bind Tab select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-Tab",
-		"bind j select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-j",
-		"bind k select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-k",
-		"bind s select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-s",
-		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-a",
-		`bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-?`,
-		`bind A set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-A`,
+		"set -g prefix None", "set -g prefix2 None",
+		`bind -n C-Space set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M--`,
 		"set -g status on", "set -g status-position bottom", "set -g status 2", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane
@@ -112,21 +104,21 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 11 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
-		t.Errorf("configuration binds more than the eleven chords, or ignores the prefix given:\n%s", conf)
+	if strings.Count(conf, "\nbind ") != 1 || strings.Contains(conf, "unbind -T") || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+		t.Errorf("configuration binds more than the panel key, or ignores the key given:\n%s", conf)
 	}
-	// The prefix twice over is the other process, and the chord is the
-	// prefix whatever the prefix is.
-	if !strings.Contains(tmuxConf("C-a"), "bind C-a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-o") {
-		t.Errorf("the prefix is not bound under itself:\n%s", tmuxConf("C-a"))
+	// The key is bound whatever the key is, and in the root table, or it
+	// would not reach through a process.
+	if !strings.Contains(tmuxConf("C-a"), "bind -n C-a set -gF @conn_from") {
+		t.Errorf("the panel key is not bound in the root table:\n%s", tmuxConf("C-a"))
 	}
-	t.Setenv("CONN_PREFIX", "")
-	if prefix() != "C-Space" || prefixLabel(prefix()) != "C-SPACE" {
-		t.Errorf("default prefix: %q %q", prefix(), prefixLabel(prefix()))
+	t.Setenv("CONN_KEY", "")
+	if panelKey() != "C-Space" {
+		t.Errorf("default key: %q", panelKey())
 	}
-	t.Setenv("CONN_PREFIX", "C-a")
-	if prefix() != "C-a" {
-		t.Errorf("prefix from the environment: %q", prefix())
+	t.Setenv("CONN_KEY", "C-a")
+	if panelKey() != "C-a" {
+		t.Errorf("key from the environment: %q", panelKey())
 	}
 	if got := shellQuote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
 		t.Errorf("quoted: %s", got)
@@ -197,7 +189,7 @@ func TestDownSaysWhatItEnded(t *testing.T) {
 // leans on — structure, what can be run, type — apart from each other,
 // in both the normal colors and the bright.
 func TestTheSixteenAreSixteen(t *testing.T) {
-	conf := tmuxConf(defaultPrefix)
+	conf := tmuxConf(defaultKey)
 	for i, c := range scheme {
 		if want := fmt.Sprintf("set -g pane-colours[%d] %q", i, c); !strings.Contains(conf, want) {
 			t.Errorf("configuration lacks %q", want)
@@ -235,13 +227,12 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	// station's word when they are not, and at the right the clock.
 	// The conf itself names no mode of conn's.
 	for _, want := range []string{
-		"#{?client_prefix,", "#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
+		"#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
 		"set -g status-right \"#{@conn_up}\"",
 		`set -g status-format[1] "#[fill=` + surfaceHex + ` bg=` + surfaceHex + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] PREFIX ",
 		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
 	} {
 		if !strings.Contains(conf, want) {

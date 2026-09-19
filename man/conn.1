@@ -90,7 +90,7 @@ wide, and a declared process by its name; the band says TREE while it does.
 Across the foot of the window run two rows. The upper is the band: the wordmark,
 or the mode that has the keys, and at the right edge how long the station has
 been up. The lower is the key bar: the keys the row under the cursor can take,
-and only those, or the chords while a process has the keys, or the question a
+and only those, or the panel key while a process has the keys, or the question a
 key has armed with its answers, and at the right the station and the conn that
 is running.
 .PP
@@ -220,48 +220,19 @@ that will not read is said under the block, with the line.
 .SH KEYS
 .TP
 3-1.
-A chord is the prefix — \fBctrl\-space\fR, or what \fBCONN_PREFIX\fR names —
-followed by one key. A chord works from anywhere in the station, including from
-inside a process, because tmux takes it before the process does. The status line
-says PREFIX while one is pending, and COPY while tmux is in copy mode.
-.PP
-.I "Chords"
-.RS
-.TP
-\fBprefix \-\fR
-The processes view, from wherever the keys are. Puts the manual away if it is
-up.
-.TP
-\fBprefix p\fR
-The projects list.
-.TP
-\fBprefix prefix\fR
-The process worked in before this one.
-.TP
-\fBprefix tab\fR
-The process that has waited longest.
-.TP
-\fBprefix j\fR
-Down the processes conn can put in the workspace.
-.TP
-\fBprefix k\fR
-Up them.
-.TP
-\fBprefix s\fR
-A shell at the project the panel is looking at.
-.TP
-\fBprefix a\fR
-A contact at that project.
-.TP
-\fBprefix A\fR
-The sessions suspended at that project.
-.TP
-\fBprefix ?\fR
-This manual, in the workspace, with the keys in it.
-.TP
-\fBprefix q\fR
-Detach. The station keeps running.
-.RE
+tmux takes one key from anywhere in the station, including from inside a
+process: \fBctrl\-space\fR, or what \fBCONN_KEY\fR names. It brings the keys to
+the panel, on the processes view, with the row of the process they came out of
+under the cursor, and the panel answers the key after it. So every key in the
+table below works from inside a process with ctrl-space before it:
+\fBctrl\-space x\fR ends the process you were in, \fBctrl\-space s\fR opens a
+shell beside it, \fBctrl\-space tab\fR goes to what has waited longest,
+\fBctrl\-space ?\fR opens this manual and \fBctrl\-space q\fR detaches. Pressed
+on the processes view itself it goes into the process worked in before this one,
+so twice over from a process is the other process. Pressed in the projects list
+or the sessions list it leaves them for the processes view, and pressed in the
+manual it puts the manual away. The status line says COPY while tmux is in copy
+mode.
 .TP
 3-2.
 The panel's own keys work while the panel has them, and are listed here as the
@@ -270,7 +241,7 @@ is typed into the line instead, and the line is edited with readline's keys:
 there, \fBenter\fR takes the row under the cursor and \fBesc\fR goes back. On
 such a line ctrl is readline's, and what a letter does in the processes view is
 done with alt: \fBalt\-s\fR, \fBalt\-a\fR, \fBalt\-A\fR, \fBalt\-u\fR and
-\fBalt\-U\fR, which are the keys the chords send.
+\fBalt\-U\fR.
 .PP
 .I "The panel"
 .RS
@@ -322,11 +293,14 @@ The process that has waited longest.
 \fBp\fR
 The projects list.
 .TP
+\fB?\fR
+This manual, in the workspace, with the keys in it.
+.TP
 \fBc\fR
 The console.
 .TP
 \fBq\fR
-Detach.
+Detach. The station keeps running.
 .RE
 .TP
 3-3.
@@ -334,7 +308,7 @@ While this manual is up the keys are in it, and the status line says HELP. It
 scrolls with \fBj\fR and \fBk\fR, a screen at a time with \fBspace\fR and
 \fBb\fR, and to either end with \fBg\fR and \fBG\fR. \fBesc\fR leaves it and
 puts the keys back where they were when it was asked for — in the workspace,
-or on the panel; \fBprefix \-\fR leaves it for the processes view whichever it
+or on the panel; \fBctrl\-space\fR leaves it for the processes view whichever it
 was.
 .SH COMMANDS AND CONFIGURATION
 .TP
@@ -403,8 +377,9 @@ file says is usual.
 \fBCONN_ROOTS\fR
 The roots for this run, separated the way PATH is. Read ahead of the file.
 .TP
-\fBCONN_PREFIX\fR
-The prefix, in tmux's spelling. C-Space unless set.
+\fBCONN_KEY\fR
+The key that brings the keys to the panel, in tmux's spelling. C-Space unless
+set.
 .TP
 \fBCONN_SOCKET\fR
 The socket of the server, for a second station on one machine. Under

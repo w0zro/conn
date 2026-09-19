@@ -526,12 +526,13 @@ func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
 	}
 }
 
-// The key the prefix then s sends, which opens a shell at the project
-// the panel is looking at and puts it in the bay. The prefix half
-// cannot be driven here: send-keys writes to the pane and never
-// reaches tmux's key table, and a scratch server has no client
-// attached to press a prefix at. What the chord is bound to send is
-// held by the configuration; this is what happens when it lands.
+// s opens a shell at the project the panel is looking at and puts it
+// in the bay. From inside a process it is the panel key then s, and
+// the panel key cannot be driven here: send-keys writes to the pane
+// and never reaches tmux's key table, and a scratch server has no
+// client attached to press a key at. What the key is bound to do is
+// held by the configuration; this is what happens when s lands on the
+// panel.
 func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
@@ -545,7 +546,7 @@ func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	// does not reach the shell until the reading that has it does.
 	s.until("the shell's row on the panel", func() bool { return s.projectRows() >= 1 })
 
-	s.keys("M-s")
+	s.keys("s")
 	s.until("a second shell in the bay, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
 	})
@@ -554,11 +555,11 @@ func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	}
 }
 
-// The key the prefix then j sends, which walks to the next process
-// conn holds and puts it in the bay. With two shells open and the
-// second in the bay, it brings the first back: the ring is the panes
-// there are, and from the last of them it comes round to the first.
-func TestTheRingKeyWalksToTheOtherHeldProcess(t *testing.T) {
+// The panel key, landing on the panel with the keys already there,
+// goes to the other process: the one in the bay before the one in it
+// now. With two shells open and the second in the bay, it brings the
+// first back.
+func TestThePanelKeyOnThePanelGoesToTheOtherProcess(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
 	s.keys("Space")
@@ -572,14 +573,12 @@ func TestTheRingKeyWalksToTheOtherHeldProcess(t *testing.T) {
 	s.until("a second shell, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
 	})
-	// The ring steps from where the cursor stands, and the cursor does
-	// not reach the second shell until the reading that has it does.
 	s.until("both shells' rows on the panel", func() bool { return s.projectRows() >= 2 })
 
-	s.keys("M-j")
-	s.until("the other held shell to come round into the bay", func() bool { return s.bayPane() == first })
+	s.keys("M--")
+	s.until("the other held shell to come back into the bay", func() bool { return s.bayPane() == first })
 	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
-		t.Errorf("the ring changed the window's shape: %s panes, %s wide", n, w)
+		t.Errorf("the key changed the window's shape: %s panes, %s wide", n, w)
 	}
 }
 
@@ -864,7 +863,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	applyMode(m)
 
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf(defaultPrefix)), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(defaultKey)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(tmux, "-S", srv.socket, "-f", conf, "new-session", "-d",
@@ -1038,8 +1037,9 @@ func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
 	}
 }
 
-// Cancelling the list puts the operator back where the chord came from,
-// and putting them back means reaching that pane, not selecting it.
+// Cancelling a list begun with the panel key puts the operator back
+// where the keys came from, and putting them back means reaching that
+// pane, not selecting it.
 // By the time the cancel comes the pane is not in the workspace: the
 // page takes the workspace while the keys are on the panel, and what it
 // displaced went to a window of its own. Selecting a pane there does
@@ -1049,9 +1049,9 @@ func TestThePageIsWhatTheWorkspaceHoldsInTheProcessesView(t *testing.T) {
 // The page cannot be the one to park it here, for the reason the rule
 // above gives: that turn is a focus event and this server has no client
 // to send one. A second shell parks the first just as well, and being
-// parked is the whole of what the cancel has to deal with. The prefix
-// half cannot be driven either; what the binding writes down before it
-// sends its key is written here in its place.
+// parked is the whole of what the cancel has to deal with. The panel
+// key cannot be driven either; what the binding writes down before it
+// sends its key is written here in its place, and its key sent.
 func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
@@ -1068,11 +1068,13 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
 	})
 
-	// The chord, as the binding fires it out of the first shell's pane.
+	// The panel key, as the binding fires it out of the first shell's
+	// pane, and p after it.
 	if _, err := s.srv.run("set-option", "-g", "@conn_from", first); err != nil {
 		t.Fatal(err)
 	}
-	s.keys("M-p")
+	s.keys("M--")
+	s.keys("p")
 	s.until("the list", func() bool { return strings.Contains(s.panel(), "PROJECTS") })
 
 	// esc brings the view back and the shell with it: out of its own
@@ -1083,14 +1085,14 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 		t.Error("the shell stayed in a window of its own")
 	}
 	if got := s.active("#{pane_id}"); got != first {
-		t.Errorf("the keys are in %s, not the shell the chord came from", got)
+		t.Errorf("the keys are in %s, not the shell the keys came from", got)
 	}
 	if n, w := s.display("#{window_panes}"), s.display("#{pane_width}"); n != "2" || w != panelW {
 		t.Errorf("the cancel changed the window's shape: %s panes, %s wide", n, w)
 	}
 
-	// p on the panel is not a chord and leaves nothing to go back to:
-	// the cancel is the view alone, and nothing is put anywhere.
+	// p on the panel, with no arrival before it, leaves nothing to go
+	// back to: the cancel is the view alone, and nothing is put anywhere.
 	bay := s.bayPane()
 	s.keys("p")
 	s.until("the list from the panel", func() bool { return strings.Contains(s.panel(), "PROJECTS") })

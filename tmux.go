@@ -28,24 +28,21 @@ import (
 // which is how a test brings up a server of its own.
 
 const (
-	sessionName   = "conn"
-	homeWindow    = "home"
-	panelWidth    = 44 // the panel's columns; the bay has the rest
-	defaultPrefix = "C-Space"
+	sessionName = "conn"
+	homeWindow  = "home"
+	panelWidth  = 44 // the panel's columns; the bay has the rest
+	defaultKey  = "C-Space"
 )
 
-// prefix is the key conn's chords come under: ctrl+space, or what
-// CONN_PREFIX says, in tmux's spelling of a key.
-func prefix() string {
-	if p := os.Getenv("CONN_PREFIX"); p != "" {
+// panelKey is the one key tmux takes for conn from anywhere in the
+// station: ctrl+space, or what CONN_KEY says, in tmux's spelling of a
+// key. It brings the keys to the panel, and the panel answers the key
+// after it.
+func panelKey() string {
+	if p := os.Getenv("CONN_KEY"); p != "" {
 		return p
 	}
-	return defaultPrefix
-}
-
-// prefixLabel is the prefix as a legend writes it: C-SPACE, C-A.
-func prefixLabel(p string) string {
-	return strings.ToUpper(p)
+	return defaultKey
 }
 
 // A server is conn's tmux server: the tmux program and the socket.
@@ -139,7 +136,7 @@ func (s *server) attach(self, home string, o override) (int, error) {
 	refreshClaudeTheme(home)
 	refreshVimColorscheme(home)
 	conf := filepath.Join(filepath.Dir(s.socket), "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf(prefix())), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(panelKey())), 0o600); err != nil {
 		return 0, err
 	}
 	if asked {
@@ -314,7 +311,7 @@ type pane struct {
 	// declaration's is the work itself and is listed like any other.
 	declared string
 	exit     string
-	// The manual, which prefix ? puts in the workspace. It is conn's
+	// The manual, which ? puts in the workspace. It is conn's
 	// own furniture like the readout: it carries the hold's mark as
 	// well, so everything that steps over furniture steps over it, and
 	// this says which furniture it is.
@@ -793,41 +790,33 @@ func (s *server) detach() error {
 	return err
 }
 
-// tmuxConf is the server's configuration: the prefix with its chords,
-// and how every pane is drawn. tmux's own prefix table is emptied, so
-// none of its keys or actions are reachable through conn; prefix then -
-// puts focus in the processes view from wherever the keys are, and
-// prefix then q detaches the way q does from the processes view itself,
-// without first coming back to it. The drawing is the console's: every
+// tmuxConf is the server's configuration: the panel key, and how
+// every pane is drawn. tmux has no prefix here, so none of its keys or
+// actions are reachable through conn; the one key it takes is the
+// panel's, bound in the root table so that it works from inside a
+// process, and what it does is bring the keys to the panel and say so
+// — the pane they came out of first, so that the panel can put its row
+// under the cursor and a detour begun from here can end back in it.
+// Every key of the panel's is then reachable from inside a process
+// with the panel key before it, and the panel's own table is the only
+// one there is. The drawing is the console's: every
 // pane on the ground, in the ink, with the sixteen colors a program
 // asks for by name drawn from conn's scheme, with CONN set in the
 // server so a program that draws in its own hex can tell where it is
 // and dress to match, the cursor in the orange and a selection on the
 // border color, and between the panel and the bay a line in that color
 // too, the same whichever side has focus.
-func tmuxConf(prefix string) string {
+func tmuxConf(key string) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
-# Eleven chords under the prefix: to the processes view, to the list, to
-# the other process, to the one that has waited longest, down and up the
-# ones that can be reached at all, to a shell, to a contact and to the
-# sessions at the project the panel is looking at, to the manual, and to
-# detach; tmux's own are unbound. There is no chord for the page: in the processes view the page
-# is what the workspace holds, and nothing is pressed for it.
-set -g prefix ` + prefix + `
+# One key, from anywhere in the station: to the panel, which says where
+# the keys came from. No prefix, so nothing of tmux's own is reachable,
+# and the panel or the process answers every other key. There is no key
+# for the page: in the processes view the page is what the workspace
+# holds, and nothing is pressed for it.
+set -g prefix None
 set -g prefix2 None
-unbind -a -T prefix
-bind - select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M--
-bind p set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-p
-bind ` + prefix + ` select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-o
-bind Tab select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-Tab
-bind j select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-j
-bind k select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-k
-bind s select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-s
-bind a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-a
-bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-?
-bind A set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-A
-bind q detach-client
+bind -n ` + key + ` set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M--
 set -g mouse on
 # The panel's width is conn's to hold; a drag of the border would only be
 # put back.
@@ -893,10 +882,10 @@ set -g display-time 3000
 // the 3270's operator information area, where the wait symbol was
 // always in the same cell.
 //
-// On the left, where the keys are. A chord hanging and a pane in copy
-// mode are the client's business and tmux's to know, and no amount of
-// drawing on the panel will tell you either; tmux has them for nothing.
-// A question conn has armed is the third, being not a state you are in
+// On the left, where the keys are. A pane in copy mode is the client's
+// business and tmux's to know, and no amount of drawing on the panel
+// will tell you; tmux has it for nothing. A question conn has armed is
+// the other, being not a state you are in
 // but a thing waiting on you that takes the next key whatever it is.
 // The fourth is the panel view the keys are in — PROCS, PROJECTS,
 // SESSIONS — which conn knows and tmux does not.
@@ -953,15 +942,14 @@ set -g pane-border-status off
 `)
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", borderHex, grayHex)
 	// Two rows across the foot. The upper is the band: a mode tmux knows
-	// itself first — PREFIX while a chord is pending, COPY in copy mode —
-	// then where the keys are, by conn's word, while the keys are on the
+	// itself first — COPY in copy mode — then where the keys are, by conn's word, while the keys are on the
 	// panel, and the station's word when they are not; and at the right
 	// edge the clock. The lower is the key bar: the keys that work where
 	// the cursor is, or a question armed, and at the right the station's
 	// designation.
 	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
-	fmt.Fprintf(&b, "set -g status-left \"#{?client_prefix,%s,#{?pane_in_mode,%s,#{?%s,#{@conn_keys},#{@conn_station}}}}\"\n",
-		statusLineBlock("PREFIX"), statusLineBlock("COPY"), onPanel)
+	fmt.Fprintf(&b, "set -g status-left \"#{?pane_in_mode,%s,#{?%s,#{@conn_keys},#{@conn_station}}}\"\n",
+		statusLineBlock("COPY"), onPanel)
 	b.WriteString("set -g status-right \"#{@conn_up}\"\n")
 	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
 	// The key bar is on the surface, the panel's own ground, so the two
@@ -1029,7 +1017,7 @@ func statusLineWord(text, color string, bold bool) string {
 
 // leaveHelp tells the panel the manual is done with. The manual is a
 // conn of its own in a pane of its own, and the only way it has to
-// speak to the panel is the way the chords do: a key, sent to it.
+// speak to the panel is the way the panel key does: a key, sent to it.
 //
 // It says so rather than ending and letting the panel notice. The panel
 // notices on its next reading, which is a second or two away and only

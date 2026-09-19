@@ -6,7 +6,7 @@ import (
 )
 
 // The keys, where the decision is made. Every key conn has was
-// invisible until prefix ?, which is the one thing a manual cannot
+// invisible until ?, which is the one thing a manual cannot
 // mend: nobody opens the manual for a key they do not know is there.
 // So the foot of the window carries the keys that work where the
 // cursor is, a key and a word each, the way a footer says what a

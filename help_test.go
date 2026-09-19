@@ -49,7 +49,7 @@ func TestTheManualIsWrittenWhereManCanReadIt(t *testing.T) {
 		}
 		text.WriteString("\n")
 	}
-	for _, want := range []string{"NAME", "KEYS", "prefix ?"} {
+	for _, want := range []string{"NAME", "KEYS", "ctrl-space"} {
 		if !strings.Contains(text.String(), want) {
 			t.Errorf("the page conn pages lacks %q", want)
 		}
@@ -99,25 +99,6 @@ func TestHelpIsThePanelsWordOnlyInTheProcessesView(t *testing.T) {
 	m.helping = false
 	if got := m.station(); !strings.Contains(got, wordmarkLine) {
 		t.Errorf("the station says %q with nothing up, not the wordmark", got)
-	}
-}
-
-// The chord that opens the manual puts it away again. The manual is
-// conn's own furniture and the keys step over furniture, so nothing
-// else can reach it: a manual that opened and would not close would be
-// a trap rather than a help.
-func TestTheChordPutsTheManualAwayAgain(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, srv: &server{}, cursor: 77, helping: true}
-	next, cmd := m.key("alt+?")
-	m = next.(model)
-	if m.helping {
-		t.Error("the manual is still up after the chord that closes it")
-	}
-	if cmd == nil {
-		t.Error("nothing was done to put it away")
-	}
-	if got := m.keys(); !strings.Contains(got, wordmarkLine) {
-		t.Errorf("the panel still says %q", got)
 	}
 }
 
@@ -210,27 +191,34 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 	}
 }
 
-// prefix - leaves the manual for the processes view, and is the way out
-// that does not first ask what you were doing.
-func TestPrefixMinusLeavesTheManual(t *testing.T) {
+// The panel key leaves the manual for the processes view, and is the
+// way out that does not first ask what you were doing. The manual is
+// conn's own furniture and the keys step over furniture, so nothing
+// else can reach it: a manual that opened and would not close would be
+// a trap rather than a help.
+func TestThePanelKeyLeavesTheManual(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &server{}, helping: true,
 		helpFrom: "%4", panes: map[string]pane{"ttys011": {id: "%4", tty: "ttys011"}}}
 	next, cmd := m.key("alt+-")
 	if got := next.(model); got.helping {
 		t.Error("the manual is still up")
 	}
-	// This chord says where to go, so it does not put the keys back in
-	// the workspace the manual was asked from.
+	// The key says where to go, so it does not put the keys back in the
+	// workspace the manual was asked from.
 	if got := next.(model); got.helpFrom != "" {
-		t.Errorf("prefix - kept the pane the manual was asked from: %q", got.helpFrom)
+		t.Errorf("the panel key kept the pane the manual was asked from: %q", got.helpFrom)
 	}
 	if cmd == nil {
 		t.Error("nothing was done to put it away")
 	}
-	// With no manual up it is tmux's own business and conn does nothing.
+	if got := next.(model).keys(); !strings.Contains(got, wordmarkLine) {
+		t.Errorf("the panel still says %q", got)
+	}
+	// With no manual up, pressed on the panel, it is the other process,
+	// and with nothing behind this one there is nowhere to go.
 	m.helping = false
 	if _, cmd := m.key("alt+-"); cmd != nil {
-		t.Error("conn acted on prefix - with no manual up")
+		t.Error("conn went somewhere with nothing to go back to")
 	}
 }
 
@@ -329,7 +317,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 	}}}
 	m := model{view: viewProcesses, inside: true, srv: &server{}, projects: projects,
 		cursor: 22, cursorAt: 1}
-	next, _ := m.key("alt+?")
+	next, _ := m.key("?")
 	m = next.(model)
 	if m.cursor != 0 {
 		t.Errorf("a row is still under the cursor while the manual is up: %d", m.cursor)

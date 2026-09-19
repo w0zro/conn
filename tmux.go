@@ -158,10 +158,9 @@ func (s *server) attach(self, home string, o override) (int, error) {
 	// A tmux inside another tmux refuses to attach while TMUX is set; the
 	// terminal is this conn's to give.
 	cmd.Env = withoutTmux(os.Environ())
-	// The terminal takes the surface and the ink for its own before the
-	// client has it, so the padding around the client is the surface
-	// too: the panel's ground, and the key bar's, which is what the
-	// frame of the window is made of. The conn in the pane asks tmux for
+	// The terminal takes black and the ink for its own before the
+	// client has it, so the padding around the client is the terminal's
+	// own edge, on either ground. The conn in the pane asks tmux for
 	// the pane's own ground, which tmux keeps to the pane; the terminal
 	// outside hears it from here.
 	fmt.Print(oscColors())
@@ -221,27 +220,21 @@ func (s *server) reground(conf string) error {
 // oscColors asks the terminal to take conn's ink and a ground for its
 // own, and oscOwnColors gives it its own back. What the terminal paints
 // with the ground is the padding around the client, and the padding
-// meets the panel and the key bar. On a dark ground it is black, and
-// not the surface: the terminal's own edge, the same on every theme,
-// with the frame standing on it. On a light ground black would be a
-// bar around the window, so the padding takes the surface, which the
-// panel and the key bar stand on, and the frame is one piece. tmux
+// meets the panel and the key bar. It is black, and not the surface:
+// the terminal's own edge, the same on every theme and on either
+// ground, with the frame standing on it. tmux
 // keeps what the conn in a pane asks for to the pane, so the terminal
 // outside hears it from the conn that attached, which is also there to
 // take it back. The cursor is the other way about: tmux does put the
 // server's on the terminal, and leaves it there when the client goes,
 // so conn asks for nothing and takes it back all the same.
 func oscColors() string {
-	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", hex(inkColor), paddingHex())
+	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", hex(inkColor), paddingHex)
 }
 
-// paddingHex is what the terminal is asked to paint around the client.
-func paddingHex() string {
-	if current.dark {
-		return "#000000"
-	}
-	return surfaceHex
-}
+// paddingHex is what the terminal is asked to paint around the client:
+// black, on either ground.
+const paddingHex = "#000000"
 
 const oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\"
 

@@ -80,7 +80,7 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	text := texts(rows)
 	golden(t, "processes-state-44x30.txt", text)
 	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "IDLE ─", "NOT RUNNING ─",
-		"●  claude", "9 min", "2 min", "●  go test ./... ⣾", "●  :5173  node vite", "○  zsh", "◌  worker", " STOPPED"} {
+		"●  claude", " 9 MIN", " 2 MIN", "●  go test ./... ⣾", "●  :5173  node vite", "○  zsh", "◌  worker", " STOPPED"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -332,5 +332,40 @@ func TestThePortsColumnIsTheGroupsOwn(t *testing.T) {
 	}
 	if strings.Index(idle, "zsh") >= strings.Index(serving, "node") {
 		t.Errorf("the idle row waits on a column its group does not have:\n%q\n%q", serving, idle)
+	}
+}
+
+// A wait is stamped with how long, and the stamp blinks as the wide
+// view's WAITING does: on the dark half its cells are the ground and
+// the rest of the row holds still. A fault's stamp holds still on
+// both halves.
+func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
+	m.projects = byState([]project{{path: "/w", entries: []entry{
+		{pid: 1, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute)},
+		{pid: 2, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
+	}}})
+	b := m.processesReport()
+	b.lit = true
+	on := drawProcesses(b, 0, panelWidth, 20, plain)
+	b.lit = false
+	off := drawProcesses(b, 0, panelWidth, 20, plain)
+	if !strings.Contains(texts(on), " 9 MIN") || strings.Contains(texts(on), "9 min") {
+		t.Errorf("the lit half does not stamp the wait:\n%s", texts(on))
+	}
+	if strings.Contains(texts(off), "9 MIN") {
+		t.Errorf("the dark half still says it:\n%s", texts(off))
+	}
+	if !strings.Contains(texts(off), " STOPPED") {
+		t.Errorf("the fault's stamp went dark with the wait's:\n%s", texts(off))
+	}
+	if len(on) != len(off) {
+		t.Fatalf("the halves are %d rows and %d", len(on), len(off))
+	}
+	for i := range on {
+		if lit, dark := on[i].text, off[i].text; lit != dark && !strings.Contains(lit, "9 MIN") {
+			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
+		}
 	}
 }

@@ -2,14 +2,15 @@ package main
 
 import (
 	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
 // The panel by state, drawn: each group under its eyebrow with its
 // count at the end of the rule, a row of air before each. A row is a
 // dot, what it is doing, and at the right the project it is in, in the
-// faint. A waiting row says how long it has waited there instead, in
-// the accent, since that is the one figure that says which of two to
+// faint. A waiting row is stamped with how long it has waited there
+// instead, since that is the one figure that says which of two to
 // answer first; a fault says its word, stamped. A working row's dot is
 // followed by a spinner that turns as the readings come, so what is at
 // work is seen to be. A serving row's dot is the running color too,
@@ -123,17 +124,26 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			if r.name != "" {
 				activity = r.name
 			}
-			// What stands at the right: the age of a wait, in the
-			// accent; a fault's word, stamped; else the project.
-			tail, tailColor, tailW, project := r.from, right, 0, true
+			// What stands at the right: for a wait, how long, stamped,
+			// and blinking on the console's cadence the way the wide
+			// view's WAITING does, since the row that wants you should
+			// be seen before it is read and the row that moves is the
+			// one the corner of an eye finds; for a fault, its word,
+			// stamped and holding still; else the project. The wait's
+			// stamp is dark on the dark half, its cells the ground, so
+			// nothing around it moves.
+			tail, tailColor, tailW, project, stamped := r.from, right, 0, true, ""
 			if r.from == "" {
 				tail = "~"
 			}
 			switch {
-			case r.status == statusWaiting && r.age != "":
-				tail, tailColor, project = r.age, p.orange+p.bold, false
+			case r.status == statusWaiting:
+				stamped, project = strings.ToUpper(r.age), false
+				if stamped == "" {
+					stamped = statusWaiting
+				}
 			case r.fault:
-				tail, project = "", false
+				stamped, project = r.status, false
 			}
 			spin := ""
 			if r.status == statusWorking {
@@ -155,17 +165,18 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			}
 			tail = fit(tail, tailMax, true)
 			tailW = utf8.RuneCountInString(tail)
-			if r.fault {
-				tailW = stampWidth(r.status, p)
+			if stamped != "" {
+				tailW = stampWidth(stamped, p)
 			}
 			l.add(command, fit(activity, measure-l.cells-tailW-2-utf8.RuneCountInString(spin), false))
 			if spin != "" {
 				l.add(p.running, spin)
 			}
 			switch {
-			case r.fault:
+			case stamped != "" && r.status == statusWaiting && !b.lit:
+			case stamped != "":
 				l.to(measure - tailW)
-				l.stamp(r.status)
+				l.stamp(stamped)
 			case tail != "":
 				l.to(measure - tailW)
 				l.add(tailColor, tail)

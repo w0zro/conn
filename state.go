@@ -39,7 +39,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 	for _, bp := range b.projects {
 		d.blank(0)
 		l := d.line()
-		l.eyebrow(1, groupTitle(bp.path), measure, strconv.Itoa(len(bp.rows)))
+		l.eyebrow(0, groupTitle(bp.path), measure, strconv.Itoa(len(bp.rows)))
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
 			l := d.line()
@@ -86,7 +86,6 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 				command += p.bold
 				cursorRow = len(body) + len(d.rows)
 			}
-			l.to(1)
 			l.dot(tone, glyph)
 			activity := r.command
 			if r.name != "" {

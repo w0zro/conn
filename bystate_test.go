@@ -247,7 +247,7 @@ func TestEveryGroupStandsWithItsCount(t *testing.T) {
 	b := composeProcesses(out, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
 	b.lit = true
 	text := texts(drawProcesses(b, 1, panelWidth, 30, plain))
-	for _, want := range []string{"WAITING FOR YOU ─────────────────── 0", "WORKING ─────────────────────────── 0", "SERVING ─────────────────────────── 0", "IDLE ────────────────────────────── 1", "NOT RUNNING ─────────────────────── 0"} {
+	for _, want := range []string{"WAITING FOR YOU ──────────────────── 0", "WORKING ──────────────────────────── 0", "SERVING ──────────────────────────── 0", "IDLE ─────────────────────────────── 1", "NOT RUNNING ──────────────────────── 0"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}

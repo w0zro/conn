@@ -2403,14 +2403,19 @@ func (m model) cols() int {
 func (m model) View() tea.View {
 	var rows []row
 	width := m.cols()
-	switch m.view {
-	case viewProcesses:
+	switch {
+	// The manual is in the workspace with the keys in it, and the panel
+	// holds the keys themselves: what a hand looking for one has to
+	// read, in the half of the window where they are pressed.
+	case m.helping:
+		rows = drawKeys(panelKeys(keyWord(panelKey())), "processes", width, m.height, m.p)
+	case m.view == viewProcesses:
 		rows = drawProcesses(m.processesReport(), m.cursor, width, m.height, m.p)
-	case viewProjects:
+	case m.view == viewProjects:
 		rows = drawProjects(m.projectsReport(), m.find.at, width, m.height, m.p)
-	case viewSessions:
+	case m.view == viewSessions:
 		rows = drawSessions(m.sessionsReport(), m.rfind.at, width, m.height, m.p)
-	case viewRoots:
+	case m.view == viewRoots:
 		b := composeRootsAt(m.asking.text, m.head.login.home)
 		b.caret = m.asking.cur
 		rows = drawRoots(b, m.asking.at, width, m.height, m.p)

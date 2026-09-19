@@ -22,7 +22,10 @@ var (
 	moveHint     = keyHint{"j k", "Move"}
 	rootsHints   = []keyHint{moveHint, {"enter", "Saves it"}}
 	consoleHints = []keyHint{{"any key", "Continue"}}
-	helpHints    = []keyHint{{"esc", "Back"}}
+	// The manual has the keys while it is up, so the bar says the
+	// manual's: the panel beside it is the card of conn's own, which is
+	// read rather than worked.
+	helpHints = []keyHint{moveHint, {"space b", "Page"}, {"g G", "Top, end"}, {"esc", "Back"}}
 )
 
 // keyBar is the hints as the bar writes them: each key in the ink and

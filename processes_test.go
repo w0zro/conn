@@ -219,6 +219,34 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 
 // The cursor moves with j and k, stays within the rows, and follows its
 // process across readings; when the process goes it holds its row.
+// The rows are a ring to j and k: k on the first row is the last, and
+// j on the last is the first, so cycling through the processes never
+// stops at an end.
+func TestJAndKGoRoundTheRows(t *testing.T) {
+	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
+	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
+	m = next.(model)
+	press := func(k string) {
+		next, _ := m.Update(tea.KeyPressMsg{Code: rune(k[0]), Text: k})
+		m = next.(model)
+	}
+	last := rowsIn(m.projects) - 1
+	if last < 1 {
+		t.Fatalf("the fixture has %d rows, too few to go round", last+1)
+	}
+	press("k")
+	if m.cursorAt != last {
+		t.Errorf("k on the first row went to %d, not the last row %d", m.cursorAt, last)
+	}
+	press("j")
+	if m.cursorAt != 0 {
+		t.Errorf("j on the last row went to %d, not the first", m.cursorAt)
+	}
+	if got := ring(0, 0); got != 0 {
+		t.Errorf("with no rows the ring is %d", got)
+	}
+}
+
 func TestTheCursorFollowsItsProcess(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
 	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})

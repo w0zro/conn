@@ -1505,9 +1505,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			return m, m.serverCmd(func() error { return m.srv.wide() })
 		}
 	case k == "j" || k == "down":
-		m.cursor, m.cursorAt = follow(m.projects, 0, m.cursorAt+1)
+		m.cursor, m.cursorAt = follow(m.projects, 0, ring(m.cursorAt+1, rowsIn(m.projects)))
 	case k == "k" || k == "up":
-		m.cursor, m.cursorAt = follow(m.projects, 0, max(m.cursorAt-1, 0))
+		m.cursor, m.cursorAt = follow(m.projects, 0, ring(m.cursorAt-1, rowsIn(m.projects)))
 	case k == "g":
 		// Nothing yet: g is the half of a motion, and what it means is
 		// decided by the key after it.
@@ -2232,6 +2232,17 @@ func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
 // the first, which is no row.
 func clamp(at, rows int) int {
 	return min(max(at, 0), max(rows-1, 0))
+}
+
+// ring is a row index wrapped round the rows there are. The rows are a
+// ring to j and k: the row after the last is the first, and the row
+// before the first is the last, so a hand cycling through the
+// processes is never stopped at an end. With no rows it is the first.
+func ring(at, rows int) int {
+	if rows <= 0 {
+		return 0
+	}
+	return ((at % rows) + rows) % rows
 }
 
 // under is the entry and the project under the cursor. nextReachable is

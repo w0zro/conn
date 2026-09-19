@@ -802,7 +802,9 @@ func tmuxConf(prefix string) string {
 # the other process, to the one that has waited longest, down and up the
 # ones that can be reached at all, to a shell, to a contact and to the
 # sessions at the project the panel is looking at, to the manual, and to
-# detach; tmux's own are unbound. There is no chord for the page: in the processes view the page
+# detach; tmux's own are unbound. The sessions answer to alt-A under the
+# prefix as well as A, since alt-A is the key the chord sends and the
+# one a hand learns on a line typed into. There is no chord for the page: in the processes view the page
 # is what the workspace holds, and nothing is pressed for it.
 set -g prefix ` + prefix + `
 set -g prefix2 None
@@ -817,6 +819,7 @@ bind s select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t `
 bind a select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-a
 bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-?
 bind A set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-A
+bind M-A set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M-A
 bind q detach-client
 set -g mouse on
 # The panel's width is conn's to hold; a drag of the border would only be

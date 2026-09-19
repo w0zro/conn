@@ -94,6 +94,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 		"bind a select-pane -t conn:home.0 \\; send-keys -t conn:home.0 M-a",
 		`bind ? set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-?`,
 		`bind A set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-A`,
+		`bind M-A set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M-A`,
 		"set -g status on", "set -g status-position bottom", "set -g status 2", "set -g mouse on", "unbind -n MouseDrag1Border",
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane
@@ -112,8 +113,8 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 11 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
-		t.Errorf("configuration binds more than the eleven chords, or ignores the prefix given:\n%s", conf)
+	if strings.Count(conf, "\nbind ") != 12 || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+		t.Errorf("configuration binds more than the eleven chords and the sessions' second key, or ignores the prefix given:\n%s", conf)
 	}
 	// The prefix twice over is the other process, and the chord is the
 	// prefix whatever the prefix is.

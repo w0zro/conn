@@ -86,14 +86,14 @@ func TestTheManualsChordTableIsTheChordsConnBinds(t *testing.T) {
 	}
 	// A chord as the manual writes it: tmux's own spelling of the key,
 	// a named key lowered, with its modifier said in words and the
-	// prefix itself named rather than spelt. A letter keeps its case:
-	// a and A are two chords.
+	// prefix itself named rather than spelt. A letter keeps its case,
+	// under a modifier too: a and A are two chords, and alt-A is A's.
 	say := func(key string) string {
 		if key == defaultPrefix {
 			return "prefix"
 		}
 		key = strings.ReplaceAll(key, "M-", "alt-")
-		if len(key) == 1 {
+		if len(strings.TrimPrefix(key, "alt-")) == 1 {
 			return key
 		}
 		return strings.ToLower(key)

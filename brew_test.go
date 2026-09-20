@@ -115,10 +115,12 @@ func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
 	}
 }
 
-// A service two projects declare is one service: the panel files it
-// once, under the first, saying * for the project, and puts it back
-// under that project when the reading is by project again.
-func TestAServiceTwoProjectsDeclareIsFiledOnce(t *testing.T) {
+// A service two projects declare stands under each of them: both
+// declare it, either is where you would go to it, and each row counts
+// how many projects share it, which the page says. It was filed once,
+// under the first, while the panel was filed by state and a second row
+// of one service in one block would have been the same thing twice.
+func TestAServiceTwoProjectsDeclareStandsUnderEach(t *testing.T) {
 	services, _ := parseBrewServices([]byte(brewInfo))
 	decl := map[string]declared{
 		"/w/a": {list: []declaration{{name: "db", command: "brew services start postgresql@14"}}},
@@ -130,32 +132,19 @@ func TestAServiceTwoProjectsDeclareIsFiledOnce(t *testing.T) {
 	}
 	sockets := map[int][]socket{24422: {{"TCP", "127.0.0.1:5432", "LISTEN"}}}
 	out := attachBrew(projects, decl, services, sockets, nil)
-	filed := byState(out)
-	names := leafNames(filed, nil, "/Users/w0zro")
 	var rows []string
-	for _, pl := range filed {
+	for _, pl := range out {
 		for _, e := range pl.entries {
 			if e.brew != "" {
-				rows = append(rows, groupTitle(pl.path)+" "+e.brew+" "+filedFrom(e, names)+" x"+string(rune('0'+e.shared)))
+				rows = append(rows, pl.path+" "+e.brew+" "+e.status+" x"+string(rune('0'+e.shared)))
 			}
 		}
 	}
 	// A service that ended badly is not running, with its stamp
 	// saying how it went, as a container that exited is.
-	if want := "SERVING postgresql@14 * x2, NOT RUNNING redis q x1"; strings.Join(rows, ", ") != want {
-		t.Errorf("filed as %q, want %q", strings.Join(rows, ", "), want)
-	}
-	back := unfiled(filed)
-	var under []string
-	for _, pl := range back {
-		for _, e := range pl.entries {
-			if e.brew != "" {
-				under = append(under, pl.path+" "+e.brew)
-			}
-		}
-	}
-	if len(back) != 2 || strings.Join(under, ", ") != "/w/a postgresql@14, /w/q redis" {
-		t.Errorf("unfiled: %v in %d projects", under, len(back))
+	want := "/w/a postgresql@14 ACTIVE x2, /w/q postgresql@14 ACTIVE x2, /w/q redis EXIT 78 x1"
+	if got := strings.Join(rows, ", "); got != want {
+		t.Errorf("the rows are %q, want %q", got, want)
 	}
 }
 

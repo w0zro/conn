@@ -183,12 +183,25 @@ func (s *scratch) projectRowLines() []string {
 		return nil
 	}
 	var out []string
+	under := false
 	for _, line := range strings.Split(s.panel(), "\n") {
-		if isRow(line) && strings.HasSuffix(strings.TrimRight(line, " "), " "+scratchProject) {
+		switch {
+		case strings.HasPrefix(strings.TrimSpace(line), scratchProject+" ─"):
+			under = true
+		case isEyebrow(line):
+			under = false
+		case under && isRow(line):
 			out = append(out, line)
 		}
 	}
 	return out
+}
+
+// isEyebrow says whether a panel line is a block's head: a label with a
+// rule running off it to the right edge. It is where one project's rows
+// end and the next project's begin.
+func isEyebrow(line string) bool {
+	return !isRow(line) && strings.Contains(line, " ─")
 }
 
 // isRow says whether a panel line is a process row: past the margin —
@@ -220,21 +233,23 @@ func rowFields(line string) []string {
 	return out
 }
 
-// rowIn says whether the scratch project has a row of that name under
-// that group's eyebrow on the panel.
-func (s *scratch) rowIn(name, group string) bool {
-	if !s.inProcesses() {
-		return false
-	}
-	under := ""
-	for _, line := range strings.Split(s.panel(), "\n") {
-		t := strings.TrimSpace(line)
-		for _, g := range groupOrder {
-			if strings.HasPrefix(t, groupTitle(g)+" ─") {
-				under = g
-			}
+// rowSays says whether the scratch project has a row of that name
+// saying that word at its right: DOWN or ENDED for what is not
+// running, and nothing at all for a row that is up, which has nothing
+// to report and so says nothing.
+func (s *scratch) rowSays(name, word string) bool {
+	for _, line := range s.projectRowLines() {
+		if rowCommand(line) != name {
+			continue
 		}
-		if isRow(line) && strings.Contains(line, " "+name+" ") && strings.HasSuffix(strings.TrimRight(line, " "), " "+scratchProject) && under == group {
+		t := strings.TrimRight(line, " ")
+		if word == "" {
+			if !strings.HasSuffix(t, " "+statusDown) && !strings.HasSuffix(t, " "+statusEnded) {
+				return true
+			}
+			continue
+		}
+		if strings.HasSuffix(t, " "+word) {
 			return true
 		}
 	}
@@ -251,7 +266,7 @@ func (s *scratch) cursorAmongShells() int {
 	n := 0
 	for _, line := range strings.Split(out, "\n") {
 		plain := stripEscapes(line)
-		if !isRow(plain) || !isShell(rowCommand(plain)) || !strings.HasSuffix(strings.TrimRight(plain, " "), " "+scratchProject) {
+		if !isShell(rowCommand(plain)) {
 			continue
 		}
 		if strings.Contains(line[:min(len(line), 60)], raised) {
@@ -361,16 +376,16 @@ func (s *scratch) parked(id string) bool {
 // header happened to hold breaks the day the header goes, which is how
 // four of these came to fail at once.
 // The band wears the wordmark in every panel view, so it is the panel
-// itself that says: a group's eyebrow is the processes view's alone,
-// and so is the word it says with no row to file, which is what a
+// itself that says: a process row's dot is the processes view's alone,
+// and so is the word it says with no row at all, which is what a
 // runner with nothing running under its roots shows.
 func (s *scratch) inProcesses() bool {
 	panel := s.panel()
 	if strings.Contains(panel, "NO PROCESSES") {
 		return true
 	}
-	for _, g := range groupOrder {
-		if strings.Contains(panel, groupTitle(g)+" ─") {
+	for _, line := range strings.Split(panel, "\n") {
+		if isRow(line) {
 			return true
 		}
 	}
@@ -841,7 +856,7 @@ func TestTheKeysStandOnThePanelWhileTheManualIsUp(t *testing.T) {
 		panel := s.panel()
 		return strings.Contains(panel, "KEYS") && strings.Contains(panel, "IN A PROCESS")
 	})
-	if got := s.panel(); strings.Contains(got, groupTitle(groupIdle)) {
+	if got := s.panel(); strings.Contains(got, scratchProject+" ─") {
 		t.Errorf("the panel is still drawing the processes view:\n%s", got)
 	}
 	if !strings.Contains(s.statusLine(), helpWord) {
@@ -1254,7 +1269,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 
 	// A declared row goes by its name on the panel, which is where these
 	// rows are read.
-	s.until("the two down rows", func() bool { return s.rowIn("sleeper", groupNotRunning) && s.rowIn("quick", groupNotRunning) })
+	s.until("the two down rows", func() bool { return s.rowSays("sleeper", statusDown) && s.rowSays("quick", statusDown) })
 
 	// marked is the id of the pane carrying a declaration's mark, and
 	// what it recorded of its end.
@@ -1280,7 +1295,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		return sleeper != "" && quick != "" && exit == "0"
 	})
 	s.until("sleeper ACTIVE and quick ENDED on the panel", func() bool {
-		return s.rowIn("sleeper", groupIdle) && s.rowIn("quick", groupNotRunning)
+		return s.rowSays("sleeper", "") && s.rowSays("quick", statusEnded)
 	})
 	// The panes were parked: the bay still holds the shell it held.
 	if !s.shellIn("home.1") {
@@ -1302,7 +1317,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.keys("y")
 	s.until("the pane gone and quick down again", func() bool {
 		id, _ := marked("quick")
-		return id == "" && s.rowIn("quick", groupNotRunning) && s.rowIn("sleeper", groupIdle)
+		return id == "" && s.rowSays("quick", statusDown) && s.rowSays("sleeper", "")
 	})
 
 	// sleeper is still running. x on its head row asks for ctrl-c in
@@ -1342,6 +1357,6 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	s.until("sleeper's pane gone and its row down", func() bool {
 		id, _ := marked("sleeper")
-		return id == "" && s.rowIn("sleeper", groupNotRunning) && s.rowIn("quick", groupNotRunning)
+		return id == "" && s.rowSays("sleeper", statusDown) && s.rowSays("quick", statusDown)
 	})
 }

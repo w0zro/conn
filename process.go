@@ -181,11 +181,6 @@ type entry struct {
 	// it publishes on the host here.
 	sockets []socket
 	ports   []string
-	// Where a row filed by state was read: the project, and the depth
-	// it stood at there; see bystate.go.
-	filed     bool
-	from      string
-	fromDepth int
 	// What a working contact is doing, read off its transcript: the
 	// tool it has in flight, as a verb and an object.
 	doing string

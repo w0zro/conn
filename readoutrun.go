@@ -333,7 +333,7 @@ func subjectOf(pid int, projects []project, records map[int]record) (readoutSubj
 			if e.pid != pid {
 				continue
 			}
-			s := readoutSubject{entry: e, proc: records[pid], project: rowsBlock(projects, e, pl)}
+			s := readoutSubject{entry: e, proc: records[pid], project: pl}
 			// The tree is written depth first, so what runs this row is
 			// the nearest row above it that is a level shallower, and
 			// what it runs is the rows below it until the depth comes
@@ -350,28 +350,6 @@ func subjectOf(pid int, projects []project, records map[int]record) (readoutSubj
 				}
 				if pl.entries[j].depth == e.depth+1 {
 					s.children = append(s.children, pl.entries[j])
-				}
-			}
-			// A row filed by state stands alone, and what runs it and what
-			// it runs are filed elsewhere: they share its terminal, and
-			// stood a level above and a level below it in the tree it was
-			// read from.
-			if e.filed {
-				s.parent, s.children = entry{}, nil
-				for _, pl := range projects {
-					for _, c := range pl.entries {
-						if c.pid == e.pid || c.tty != e.tty {
-							continue
-						}
-						switch {
-						case depthOf(c) < e.fromDepth:
-							if s.parent.pid == 0 || depthOf(c) > depthOf(s.parent) {
-								s.parent = c
-							}
-						case depthOf(c) == e.fromDepth+1:
-							s.children = append(s.children, c)
-						}
-					}
 				}
 			}
 			return s, true

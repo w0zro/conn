@@ -1546,14 +1546,14 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 
 // A click on a row of the processes view puts the cursor on it, the
 // way j and k do; a click on an eyebrow, a rule or the air between
-// groups moves nothing, and a click in another view is nothing.
+// projects moves nothing, and a click in another view is nothing.
 func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 30
-	m.projects = byState([]project{{path: "/w/a", entries: []entry{
+	m.projects = []project{{path: "/w/a", entries: []entry{
 		{pid: 11, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys001", status: statusIdle},
 		{pid: 12, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys002", status: statusActive, ports: []string{"5173"}},
-	}}})
+	}}}
 	m.cursor, m.cursorAt = follow(m.projects, 12, 0)
 	rows := drawProcesses(m.processesReport(), m.cursor, m.cols(), m.height, m.p)
 	at := func(want string) int {
@@ -1569,10 +1569,10 @@ func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
 		next, _ := m.Update(tea.MouseClickMsg{X: 3, Y: y, Button: tea.MouseLeft})
 		return next.(model)
 	}
-	if got := click(at("zsh")); got.cursor != 11 || got.cursorAt != 1 {
+	if got := click(at("zsh")); got.cursor != 11 || got.cursorAt != 0 {
 		t.Errorf("a click on the shell put the cursor on %d at %d", got.cursor, got.cursorAt)
 	}
-	if got := click(at("IDLE ─")); got.cursor != 12 {
+	if got := click(at("/w/a ─")); got.cursor != 12 {
 		t.Errorf("a click on an eyebrow moved the cursor to %d", got.cursor)
 	}
 	if got := click(0); got.cursor != 12 {

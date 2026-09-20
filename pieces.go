@@ -130,19 +130,30 @@ func (l *line) eyebrow(col int, label string, right int, count string) {
 // eyebrowIn is an eyebrow with its label in a color of the caller's:
 // the accent, for a block that is an alarm.
 func (l *line) eyebrowIn(color string, col int, label string, right int, count string) {
+	l.eyebrowTail(color, col, label, right, utf8.RuneCountInString(count))
+	if count != "" {
+		l.add(l.p.ink+l.p.bold, count)
+	}
+}
+
+// eyebrowTail is an eyebrow whose figure at the end of the rule the
+// caller draws itself, in the width it says: a block that says how it
+// stands rather than how many rows it has puts a stamp there, and a
+// stamp is not a word in a color. The line is left at the column the
+// figure begins at.
+func (l *line) eyebrowTail(color string, col int, label string, right, tailW int) {
 	l.to(col)
 	l.add(color, label)
 	l.add("", " ")
 	tail := 0
-	if count != "" {
-		tail = utf8.RuneCountInString(count) + 1
+	if tailW > 0 {
+		tail = tailW + 1
 	}
 	if n := right - l.cells - tail; n > 0 {
 		l.add(l.p.border, strings.Repeat("─", n))
 	}
-	if count != "" {
+	if tailW > 0 {
 		l.add("", " ")
-		l.add(l.p.ink+l.p.bold, count)
 	}
 }
 

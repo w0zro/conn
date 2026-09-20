@@ -41,6 +41,7 @@ type processesReport struct {
 	stalled  bool   // docker went quiet; its rows are as last seen
 	notice   string // what the server would not do, said under the rows
 	inside   bool   // conn is in its server, and rows can be reached
+	filed    bool   // the panel's drawing, folded and under eyebrows; z draws the tree
 	lit      bool   // the annunciators' lit half; see the waiting word below
 }
 
@@ -60,9 +61,8 @@ type processRow struct {
 	depth                             int      // how deep under its project's own root
 	over                              bool     // a declared process whose pane holds only its last output
 	name                              string   // the declared name, where the row is a declaration's
-	from                              string   // the project a filed row was read in, by its name on the panel; see bystate.go
 	age                               string   // how long a waiting row has waited, as the panel says it
-	ports                             []string // the ports it listens on or publishes, said after its command; see bystate.go
+	ports                             []string // the ports it listens on or publishes, said after its command
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -75,15 +75,14 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 	if tty == "" {
 		return 0, 0, false
 	}
-	// The head is the row that stood shallowest in the tree the
-	// terminal was read as, wherever it has since been filed: a contact
-	// filed above the shell that runs it is not the head of their
-	// terminal, the shell is.
+	// The head is the row that stands shallowest in the tree the
+	// terminal was read as: a contact under the shell that runs it is
+	// not the head of their terminal, the shell is.
 	i, best, bestAt, bestDepth := 0, 0, 0, -1
 	for _, pl := range projects {
 		for _, e := range pl.entries {
-			if e.tty == tty && (bestDepth < 0 || depthOf(e) < bestDepth) {
-				best, bestAt, bestDepth = e.pid, i, depthOf(e)
+			if e.tty == tty && (bestDepth < 0 || e.depth < bestDepth) {
+				best, bestAt, bestDepth = e.pid, i, e.depth
 			}
 			i++
 		}
@@ -102,7 +101,6 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool) processesReport {
 	b := processesReport{err: err, stalled: stalled}
 	head, _, marked := headOf(projects, bay)
-	names := leafNames(projects, roots, home)
 	for _, pl := range projects {
 		bp := projectBlock{path: pl.path, note: pl.note}
 		for _, e := range pl.entries {
@@ -112,7 +110,6 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 				shown: marked && e.pid == head, depth: e.depth,
 				over:  e.declared != "" && panes[e.tty].exit != "",
 				name:  rowName(e),
-				from:  filedFrom(e, names),
 				age:   waitedFor(e, now),
 				ports: e.ports,
 			})
@@ -121,72 +118,6 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 	}
 	b.projects = nested(b.projects, isProject, roots, home)
 	return b
-}
-
-// filedFrom names the project a filed row was read in, as the panel
-// titles it, for the row to say at its right: filed by state, the
-// project is what tells one zsh from another. names is leafNames of
-// the reading.
-func filedFrom(e entry, names map[string]string) string {
-	if !e.filed {
-		return ""
-	}
-	if e.shared > 1 {
-		return "*"
-	}
-	return names[e.from]
-}
-
-// leafNames names each project the reading's rows were read in by its
-// own directory's name, the leaf, which is what a project is called;
-// the folder above it is put before it only where two projects on the
-// panel share the name, and one more above that where they still do,
-// which is as much of the path as it takes to tell them apart and no
-// more. A name that would take the whole path is written as the
-// project's block title is, from a root or from ~; a root itself is
-// its leaf.
-func leafNames(projects []project, roots []string, home string) map[string]string {
-	segs := map[string]int{}
-	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if e.filed && e.from != "" {
-				segs[e.from] = 1
-			}
-		}
-	}
-	name := func(path string, n int) (string, bool) {
-		parts := strings.Split(strings.Trim(filepath.ToSlash(path), "/"), "/")
-		if n >= len(parts) {
-			if slices.Contains(roots, path) {
-				return filepath.Base(path), false
-			}
-			return projectName(path, roots, home), false
-		}
-		return strings.Join(parts[len(parts)-n:], "/"), true
-	}
-	names := map[string]string{}
-	for {
-		byName := map[string][]string{}
-		for path, n := range segs {
-			names[path], _ = name(path, n)
-			byName[names[path]] = append(byName[names[path]], path)
-		}
-		grown := false
-		for _, paths := range byName {
-			if len(paths) < 2 {
-				continue
-			}
-			for _, path := range paths {
-				if _, more := name(path, segs[path]); more {
-					segs[path]++
-					grown = true
-				}
-			}
-		}
-		if !grown {
-			return names
-		}
-	}
 }
 
 // waitedFor is how long a waiting row has waited, for the panel to say
@@ -225,7 +156,7 @@ func nested(blocks []projectBlock, isProject func(string) bool, roots []string, 
 	}
 	made := len(blocks) // headings made below have no rows of their own
 	holder := func(path string) string {
-		if path == "" || isGroup(path) || isProject == nil {
+		if path == "" || isProject == nil {
 			return ""
 		}
 		if dir := filepath.Dir(path); isProject(dir) {
@@ -272,8 +203,6 @@ func nested(blocks []projectBlock, isProject func(string) bool, roots []string, 
 			}
 			bp.nest = nest
 			switch {
-			case isGroup(bp.path):
-				// A group is titled by what it is, not where.
 			case above != "":
 				bp.path = relName(above, bp.path)
 			case bp.path == "":
@@ -387,8 +316,8 @@ func panelStatusWidth(b processesReport) int {
 // drawProcesses renders the processes view for a terminal of the given
 // size, with the cursor on the row of the given pid.
 func drawProcesses(b processesReport, cursor int, width, height int, p palette) []row {
-	if len(b.projects) > 0 && isGroup(b.projects[0].path) {
-		return drawState(b, cursor, width, height, p)
+	if b.filed {
+		return drawFiled(b, cursor, width, height, p)
 	}
 	panel := width < minCols
 	width = max(width, panelMinCols)

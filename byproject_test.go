@@ -7,43 +7,23 @@ import (
 	"time"
 )
 
-// The reading is filed by state: what wants you first and oldest wait
-// first, then what is working, what is open, and what is not running.
-// A filed row remembers where it was read, what conn does at a project
-// is done at the row's own, and the head of a terminal is still the
-// shell that ran the contact.
-func TestThePanelIsFiledByState(t *testing.T) {
+// The panel is filed by project: a block per project, its rows in the
+// order they were read, and what conn does at a project done at the
+// row's own. The head of a terminal is the shell that ran the contact.
+func TestThePanelIsFiledByProject(t *testing.T) {
 	now := processesNow
-	in := []project{
-		{path: "/w/a", entries: []entry{
+	out := []project{
+		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 			{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
 			{pid: 2, kind: kindContact, command: "claude", tty: "ttys001", status: statusWaiting, depth: 1, since: now.Add(-2 * time.Minute)},
 			{pid: 4, kind: kindEditor, command: "vim", tty: "ttys001", status: statusStopped, depth: 1, fault: true},
 			{pid: 3, kind: kindRun, command: "node vite", tty: "ttys004", status: statusActive, ports: []string{"5173"}},
 			{pid: 6, kind: kindRun, command: "worker", tty: "", status: statusDown, depth: 1},
 		}},
-		{path: "/w/b", entries: []entry{
+		{path: "/Users/w0zro/projects/w0zro/vim.pro/conjurer", entries: []entry{
 			{pid: 5, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting, since: now.Add(-9 * time.Minute)},
 			{pid: 7, kind: kindShell, command: "zsh", tty: "ttys003", status: statusWorking, under: "go test ./..."},
 		}},
-	}
-	out := byState(in)
-	var got []string
-	for _, pl := range out {
-		var pids []string
-		for _, e := range pl.entries {
-			pids = append(pids, string(rune('0'+e.pid)))
-		}
-		got = append(got, groupTitle(pl.path)+":"+strings.Join(pids, ""))
-	}
-	if want := "WAITING FOR YOU:52 WORKING:7 SERVING:3 IDLE:14 NOT RUNNING:6"; strings.Join(got, " ") != want {
-		t.Errorf("filed as %v, want %s", got, want)
-	}
-	if e := out[0].entries[1]; !e.filed || e.from != "/w/a" || e.fromDepth != 1 || e.depth != 0 {
-		t.Errorf("a filed row does not remember where it was read: %+v", e)
-	}
-	if rowsBlock(out, out[0].entries[1], out[0]).path != "/w/a" {
-		t.Error("a filed row's block is not the one it was read in")
 	}
 	if pid, _, ok := headOf(out, "ttys001"); !ok || pid != 1 {
 		t.Errorf("the head of the terminal is %d, not the shell that ran the contact", pid)
@@ -51,36 +31,28 @@ func TestThePanelIsFiledByState(t *testing.T) {
 	if pid, _, ok := headOf(out, "ttys002"); !ok || pid != 5 {
 		t.Errorf("a contact that is its terminal's head is not found: %d", pid)
 	}
-	if quiet := byState(nil); len(quiet) != 0 {
-		t.Errorf("nothing filed grew a group: %+v", quiet)
-	}
-	// The reading by project again, for whatever asks about projects
-	// rather than rows.
-	if back := unfiled(out); len(back) != 2 || back[0].path != "/w/b" || len(back[0].entries) != 2 || back[1].path != "/w/a" || len(back[1].entries) != 5 {
-		t.Errorf("unfiled: %+v", back)
-	}
-
-	// The page of a filed row is its project's, and still says what
-	// runs it and what it runs.
+	// The page of a row is its project's, and says what runs it and
+	// what it runs.
 	s, ok := subjectOf(2, out, nil)
-	if !ok || s.project.path != "/w/a" || s.parent.pid != 1 {
-		t.Errorf("the filed row's page: project %q, parent %d", s.project.path, s.parent.pid)
+	if !ok || s.project.path != "/Users/w0zro/projects/w0zro/conn" || s.parent.pid != 1 {
+		t.Errorf("the row's page: project %q, parent %d", s.project.path, s.parent.pid)
 	}
 	s, _ = subjectOf(1, out, nil)
 	if len(s.children) != 2 {
 		t.Errorf("the shell's page runs %d rows, not the contact and the editor", len(s.children))
 	}
 
-	// Drawn: each group under its eyebrow with its count, a row's
-	// project at its right in the faint or a wait's age in the accent,
-	// and a fault stamped. The file of record is the panel's own width.
+	// Drawn: each project under its eyebrow with what it wants of you
+	// at the end of the rule, a wait stamped with its age, a fault
+	// stamped with its word, and what is down saying so. The file of
+	// record is the panel's own width.
 	b := composeProcesses(out, map[string]pane{"ttys001": {id: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false)
-	b.lit = true
+	b.lit, b.filed = true, true
 	rows := drawProcesses(b, 5, panelWidth, 30, plain)
 	text := texts(rows)
-	golden(t, "processes-state-44x30.txt", text)
-	for _, want := range []string{"WAITING FOR YOU ─", "─ 2", "WORKING ─", "SERVING ─", "IDLE ─", "NOT RUNNING ─",
-		"●  claude", " 9 MIN", " 2 MIN", "⣾ ●  go test ./...", "●  :5173  node vite", "○  zsh", "◌  worker", " STOPPED"} {
+	golden(t, "processes-filed-44x30.txt", text)
+	for _, want := range []string{"w0zro/conn ─", "vim.pro/conjurer ─", "─  WAITING", " 9 MIN", " 2 MIN",
+		"⣾ ●  go test ./...", "●  node vite · :5173", "○  zsh", "◌    worker", " STOPPED", " DOWN"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -112,11 +84,11 @@ func TestMinutes(t *testing.T) {
 // has the keys, it says the chords instead.
 func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, focused: true, panes: map[string]pane{"ttys001": {id: "%1"}}}
-	m.projects = byState([]project{{path: "/w", entries: []entry{
+	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
 		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
 		{pid: -9, kind: kindRun, command: "worker", status: statusDown, declared: "worker@/w"},
-	}}})
+	}}}
 	// The words are written in the lower case, whatever the hint says.
 	has := func(bar, key, does string) bool {
 		return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+strings.ToLower(does))
@@ -139,13 +111,11 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	if bar := m.bar(); !has(bar, "enter", "Bring it up, go in") || !has(bar, "u", "Bring it up") || has(bar, "x", "End it") {
 		t.Errorf("on a down declaration the bar offers %s", bar)
 	}
-	all := unfiled(m.projects)
-	for i := range all[0].entries {
-		if all[0].entries[i].pid == 2 {
-			all[0].entries[i].status = statusIdle
+	for i := range m.projects[0].entries {
+		if m.projects[0].entries[i].pid == 2 {
+			m.projects[0].entries[i].status = statusIdle
 		}
 	}
-	m.projects = byState(all)
 	if bar := m.bar(); has(bar, "tab", "Next waiting") {
 		t.Errorf("with nothing waiting the bar offers tab:\n%s", bar)
 	}
@@ -176,12 +146,12 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 }
 
 // A row is serving when it is alive and has a port: one it listens on,
-// or one its container publishes. A server is not idle, and
-// a port is what tells a node that serves from a node that builds. A
-// contact is filed by what it asks, never by what it has open; what is
-// not running serves nothing; and a port under a shell is the shell's
-// to say, the fold carrying it up onto the row that stays.
-func TestAServingRowIsFiledByItsPort(t *testing.T) {
+// or one its container publishes. A server is not idle, and a port is
+// what tells a node that serves from a node that builds. A contact
+// stands by what it asks, never by what it has open; what is not
+// running serves nothing; and a port under a shell is the shell's to
+// say, the fold carrying it up onto the row that stays.
+func TestAServingRowIsKnownByItsPort(t *testing.T) {
 	listens := []socket{{proto: "TCP", addr: "127.0.0.1:5173", state: "LISTEN"}, {proto: "TCP", addr: "[::1]:5173", state: "LISTEN"},
 		{proto: "TCP", addr: "127.0.0.1:5173->127.0.0.1:50122", state: "ESTABLISHED"}, {proto: "UDP", addr: "*:5353"},
 		{proto: "unix", addr: "/tmp/vite.sock"}, {proto: "TCP", addr: "*:24678", state: "LISTEN"}}
@@ -190,21 +160,41 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 	}
 	for _, c := range []struct {
 		e    entry
-		want string
+		want bool
 	}{
-		{entry{kind: kindRun, command: "node", status: statusActive, ports: []string{"5173"}}, groupServing},
-		{entry{kind: kindService, command: "web", status: statusActive, ports: []string{"8438"}}, groupServing},
-		{entry{kind: kindService, command: "db", status: "UNHEALTHY", fault: true, ports: []string{"5432"}}, groupServing},
-		{entry{kind: kindRun, command: "node", status: statusActive}, groupIdle},
-		{entry{kind: kindService, command: "web", status: statusDown, ports: []string{"8438"}}, groupNotRunning},
-		{entry{kind: kindService, command: "worker", status: "EXIT 3", fault: true}, groupNotRunning},
-		{entry{kind: kindRun, command: "web · npm run dev", status: statusEnded, fault: false}, groupNotRunning},
-		{entry{kind: kindRun, command: "sleep 99999", status: statusStopped, fault: true}, groupIdle},
-		{entry{kind: kindContact, command: "claude", status: statusIdle, ports: []string{"41231"}}, groupIdle},
-		{entry{kind: kindContact, command: "claude", status: statusWaiting, ports: []string{"41231"}}, groupWaiting},
+		{entry{kind: kindRun, command: "node", status: statusActive, ports: []string{"5173"}}, true},
+		{entry{kind: kindService, command: "web", status: statusActive, ports: []string{"8438"}}, true},
+		{entry{kind: kindService, command: "db", status: "UNHEALTHY", fault: true, ports: []string{"5432"}}, true},
+		{entry{kind: kindRun, command: "node", status: statusActive}, false},
+		{entry{kind: kindService, command: "web", status: statusDown, ports: []string{"8438"}}, false},
+		{entry{kind: kindRun, command: "web · npm run dev", status: statusEnded, ports: []string{"8438"}}, false},
+		{entry{kind: kindContact, command: "claude", status: statusIdle, ports: []string{"41231"}}, false},
 	} {
-		if got := stateOf(c.e); got != c.want {
-			t.Errorf("%s %s with ports %v files under %q, want %q", c.e.kind, c.e.command, c.e.ports, groupTitle(got), groupTitle(c.want))
+		if got := serving(c.e); got != c.want {
+			t.Errorf("%s %s with ports %v serves %v, want %v", c.e.kind, c.e.command, c.e.ports, got, c.want)
+		}
+	}
+	// How a row stands, which is the mark it takes and what its block
+	// says of it. A wait comes before a fault, a fault before a down
+	// row; a stopped row is a fault and is alive, and one that ended
+	// with a code is a fault and is over.
+	for _, c := range []struct {
+		status string
+		fault  bool
+		want   int
+	}{
+		{statusWaiting, false, standWaiting},
+		{statusStopped, true, standFault},
+		{"UNHEALTHY", true, standFault},
+		{"EXIT 3", true, standFault},
+		{statusDown, false, standDown},
+		{statusEnded, false, standOver},
+		{statusWorking, false, standWorking},
+		{statusActive, false, standRests},
+		{statusIdle, false, standRests},
+	} {
+		if got := stateOf(c.status, c.fault); got != c.want {
+			t.Errorf("%s (fault %v) stands %d, want %d", c.status, c.fault, got, c.want)
 		}
 	}
 	folded := fold([]project{{path: "/w", entries: []entry{
@@ -226,11 +216,11 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 	if want := []string{"zsh", " npm run dev · :24678", "  node vite · :5173", "claude", " python -m http.server · :8000"}; !slices.Equal(rows, want) {
 		t.Errorf("the fold kept %q, want %q", rows, want)
 	}
-	if got := stateOf(folded[0].entries[1]); got != groupServing {
-		t.Errorf("the server files under %q", groupTitle(got))
+	if !serving(folded[0].entries[1]) {
+		t.Error("the server does not read as one")
 	}
-	if got := stateOf(folded[0].entries[0]); got != groupIdle {
-		t.Errorf("the shell that ran the server files under %q", groupTitle(got))
+	if serving(folded[0].entries[0]) {
+		t.Error("the shell that ran the server reads as a server itself")
 	}
 	// Drawn narrow, the port is the last thing to go: in eight cells
 	// it stands alone, without the dot that joined it to the command,
@@ -253,43 +243,89 @@ func TestAServingRowIsFiledByItsPort(t *testing.T) {
 	}
 }
 
-// Every group stands whether it has rows or not, with its count, so
-// the panel keeps one shape as rows come and go. Only a reading with
-// nothing in it at all has no groups.
-func TestEveryGroupStandsWithItsCount(t *testing.T) {
-	out := byState([]project{{path: "/w", entries: []entry{
-		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusIdle},
-	}}})
-	if len(out) != len(groupOrder) {
-		t.Fatalf("one idle shell stands under %d groups, want every one of the %d", len(out), len(groupOrder))
+// The eyebrow says what the project wants of you: a wait before a
+// fault, a fault before a down row, counted where there is more than
+// one of it, and nothing where the project wants nothing. It is the
+// whole of the triage in one line a project rather than one a process,
+// and it holds while the rows it is about are scrolled away.
+func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
+	row := func(status string, fault bool) processRow {
+		return processRow{status: status, fault: fault}
 	}
-	for i, g := range groupOrder {
-		if out[i].path != g {
-			t.Errorf("group %d is %q, want %q", i, groupTitle(out[i].path), groupTitle(g))
+	for _, c := range []struct {
+		rows    []processRow
+		want    string
+		stamped bool
+	}{
+		{[]processRow{row(statusIdle, false), row(statusWorking, false)}, "", false},
+		{[]processRow{row(statusDown, false)}, "DOWN", false},
+		{[]processRow{row(statusDown, false), row(statusDown, false)}, "2 DOWN", false},
+		{[]processRow{row("EXIT 1", true), row(statusDown, false)}, "EXIT 1", true},
+		{[]processRow{row("EXIT 1", true), row(statusStopped, true)}, "2 FAULTS", true},
+		{[]processRow{row(statusWaiting, false), row("EXIT 1", true)}, "WAITING", true},
+		{[]processRow{row(statusWaiting, false), row(statusWaiting, false)}, "2 WAITING", true},
+	} {
+		got, stamped, _ := verdict(c.rows)
+		if got != c.want || stamped != c.stamped {
+			t.Errorf("%d rows say %q (stamped %v), want %q (%v)", len(c.rows), got, stamped, c.want, c.stamped)
 		}
 	}
-	b := composeProcesses(out, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false)
+	// Drawn at the end of the rule, and a wait's blinks with the rows.
+	m := newModel(plain)
+	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
+	m.projects = []project{
+		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
+			{pid: 1, kind: kindShell, command: "zsh", status: statusIdle},
+		}},
+		{path: "/Users/w0zro/projects/w0zro/vim.pro/conjurer", entries: []entry{
+			{pid: 2, kind: kindRun, command: "api", status: statusDown},
+			{pid: 3, kind: kindRun, command: "web", status: statusDown},
+		}},
+	}
+	b := m.processesReport()
 	b.lit = true
-	text := texts(drawProcesses(b, 1, panelWidth, 30, plain))
-	for _, want := range []string{"WAITING FOR YOU ───────────────────── 0", "WORKING ───────────────────────────── 0", "SERVING ───────────────────────────── 0", "IDLE ──────────────────────────────── 1", "NOT RUNNING ───────────────────────── 0"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("the panel lacks %q:\n%s", want, text)
+	text := texts(drawProcesses(b, 1, panelWidth, 20, plain))
+	golden(t, "processes-verdicts-44x20.txt", text)
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, "conn ─") && !strings.HasSuffix(strings.TrimRight(line, " "), "─") {
+			t.Errorf("a project that wants nothing says something: %q", line)
 		}
+	}
+	if !strings.Contains(text, " 2 DOWN") {
+		t.Errorf("the project with nothing up does not say so:\n%s", text)
+	}
+	// A block held by another gives up as much at its right as its
+	// indent takes at the left, so what it holds sits inside it.
+	var holder, held string
+	for _, line := range strings.Split(text, "\n") {
+		switch {
+		case strings.Contains(line, "w0zro ─"):
+			holder = strings.TrimRight(line, " ")
+		case strings.Contains(line, "conn ─"):
+			held = strings.TrimRight(line, " ")
+		}
+	}
+	if holder == "" || held == "" {
+		t.Fatalf("the blocks are missing:\n%s", text)
+	}
+	if len([]rune(held)) >= len([]rune(holder)) {
+		t.Errorf("the held block runs to the holder's edge:\n%q\n%q", holder, held)
 	}
 }
 
 // A row keeps its port when the width is short: the port is where you
 // would go, and the row is looked at for it. The command is elided
-// beside it and the project at the right yields to it, elided from the
-// left, rather than the port being cut off behind a long project name.
-func TestAFiledRowKeepsItsPortBeforeItsProject(t *testing.T) {
+// beside it rather than the port being cut off behind it, and the
+// project's name, which is the eyebrow's now and not every row's, is
+// elided from the left where the rule has no room for it.
+func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 	long := "/Volumes/work/some-organization-name/auditboard-backend-services"
 	m := newModel(plain)
 	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
-	m.projects = byState([]project{{path: long, entries: []entry{
-		{pid: 5, kind: kindRun, command: "pnpm start", cwd: long, status: statusActive, ports: []string{"3000"}},
+	m.projects = []project{{path: long, entries: []entry{
+		{pid: 5, kind: kindRun, command: "pnpm start --host --strict-port", cwd: long, status: statusActive, ports: []string{"3000"}},
 		{pid: 6, kind: kindRun, command: "node server.js", cwd: long, status: statusActive, ports: []string{"8080", "8081"}},
-	}}})
+	}}}
 	for _, width := range []int{panelWidth, 50, 40} {
 		text := texts(drawProcesses(m.processesReport(), 5, width, 20, plain))
 		if !strings.Contains(text, ":3000") || !strings.Contains(text, ":8080 :8081") {
@@ -299,39 +335,40 @@ func TestAFiledRowKeepsItsPortBeforeItsProject(t *testing.T) {
 			t.Errorf("at %d wide the rows lost their commands:\n%s", width, text)
 		}
 		if !strings.Contains(text, "…") {
-			t.Errorf("at %d wide nothing yielded to the port:\n%s", width, text)
+			t.Errorf("at %d wide nothing yielded:\n%s", width, text)
 		}
 	}
 }
 
-// The column of ports is a group's own. A serving row's command starts
-// after the widest port in its group, and a row filed elsewhere starts
-// its command right after the dot: the groups are read one at a time,
-// and a blank slot under IDLE is a gap, not a column.
-func TestThePortsColumnIsTheGroupsOwn(t *testing.T) {
+// A row's port follows its command, where it is a fact about that row
+// and reads with it. The ports stood in a column of their own while
+// the panel was filed by state and the serving rows were a block: down
+// a project most rows have no port, and a column they leave blank is
+// a gap rather than a column.
+func TestThePortFollowsTheCommand(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
-	m.projects = byState([]project{{path: "/home/w0zro/projects/app", entries: []entry{
-		{pid: 5, kind: kindRun, command: "node server.js", status: statusActive, ports: []string{"8080", "8081"}},
+	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
+		{pid: 5, kind: kindRun, command: "node server.js", status: statusActive, ports: []string{"8080"}},
 		{pid: 6, kind: kindShell, command: "zsh", status: statusIdle},
-	}}})
-	var serving, idle string
+	}}}
+	var serves, quiet string
 	for _, line := range strings.Split(texts(drawProcesses(m.processesReport(), 0, panelWidth, 20, plain)), "\n") {
 		switch {
 		case strings.Contains(line, "node"):
-			serving = line
+			serves = line
 		case strings.Contains(line, "zsh"):
-			idle = line
+			quiet = line
 		}
 	}
-	if serving == "" || idle == "" {
-		t.Fatalf("the rows are missing:\n%q\n%q", serving, idle)
+	if serves == "" || quiet == "" {
+		t.Fatalf("the rows are missing:\n%q\n%q", serves, quiet)
 	}
-	if strings.Index(serving, "node") <= strings.Index(serving, ":8080 :8081") {
-		t.Errorf("the serving row's command does not follow its ports: %q", serving)
+	if strings.Index(serves, "node") >= strings.Index(serves, ":8080") {
+		t.Errorf("the port does not follow the command: %q", serves)
 	}
-	if strings.Index(idle, "zsh") >= strings.Index(serving, "node") {
-		t.Errorf("the idle row waits on a column its group does not have:\n%q\n%q", serving, idle)
+	if strings.Index(quiet, "zsh") != strings.Index(serves, "node") {
+		t.Errorf("the commands do not start together:\n%q\n%q", serves, quiet)
 	}
 }
 
@@ -342,10 +379,10 @@ func TestThePortsColumnIsTheGroupsOwn(t *testing.T) {
 func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
-	m.projects = byState([]project{{path: "/w", entries: []entry{
+	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 1, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute)},
 		{pid: 2, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
-	}}})
+	}}}
 	b := m.processesReport()
 	b.lit = true
 	on := drawProcesses(b, 0, panelWidth, 20, plain)
@@ -363,8 +400,10 @@ func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 	if len(on) != len(off) {
 		t.Fatalf("the halves are %d rows and %d", len(on), len(off))
 	}
+	// Only what the wait is stamped on differs between the halves:
+	// the row, and the eyebrow saying the project is waiting.
 	for i := range on {
-		if lit, dark := on[i].text, off[i].text; lit != dark && !strings.Contains(lit, "9 MIN") {
+		if lit, dark := on[i].text, off[i].text; lit != dark && !strings.Contains(lit, "9 MIN") && !strings.Contains(lit, statusWaiting) {
 			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
 		}
 	}

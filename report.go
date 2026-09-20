@@ -81,6 +81,9 @@ const (
 	// A file naming a theme conn does not have: conn comes up in its
 	// own, and the file was written meaning otherwise.
 	noTheme = "NO THEME"
+	// A file naming a ground that is neither: conn asks the terminal,
+	// and the file was written meaning otherwise.
+	noGround = "NO GROUND"
 	// A file that is there and that conn could not use: it would not
 	// parse, or it would not open. Which of the two is in the error
 	// itself, said where there is room for a sentence.
@@ -370,6 +373,8 @@ func configCheck(c configState, home string) check {
 		k.status, k.fault = noRoots, true
 	case c.noSuchTheme:
 		k.status, k.fault = noTheme, true
+	case c.noSuchGround:
+		k.status, k.fault = noGround, true
 	}
 	return k
 }

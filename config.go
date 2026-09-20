@@ -29,6 +29,32 @@ type config struct {
 	// Theme is the theme conn comes up in: conn unless set. A name conn
 	// has no theme by is conn's, and the console says so.
 	Theme string `json:"theme"`
+	// Ground is the ground conn comes up on: dark or light. Left out,
+	// conn asks the terminal its own with OSC 11, which is what it has
+	// always done and what most stations want; a file naming one is an
+	// operator who wants the same ground whatever terminal they are at.
+	// A word that is neither is asked for the same way, and the console
+	// says so.
+	Ground string `json:"ground"`
+}
+
+// The grounds, as the file names them.
+const (
+	darkGround  = "dark"
+	lightGround = "light"
+)
+
+// groundNamed reads a ground the file names: whether it is dark, and
+// whether conn has a ground by that name at all. Nothing named is not a
+// mistake — it is the terminal's to answer.
+func groundNamed(name string) (dark, ok bool) {
+	switch name {
+	case darkGround:
+		return true, true
+	case lightGround:
+		return false, true
+	}
+	return false, false
 }
 
 // configTheme is the theme the file names, when conn has one by that
@@ -137,8 +163,13 @@ type configState struct {
 	// conn's own, which is not a mistake.
 	theme       string
 	noSuchTheme bool
-	source      rootSource
-	roots       []rootState
+	// ground is the ground the file names, as written, and
+	// noSuchGround whether it is a word conn knows. A file naming none
+	// means the terminal's own, which is not a mistake.
+	ground       string
+	noSuchGround bool
+	source       rootSource
+	roots        []rootState
 }
 
 // A rootState is one configured directory and what is actually there.
@@ -166,6 +197,10 @@ func readConfigState(home string) configState {
 	s.theme = c.Theme
 	if _, ok := themeNamed(c.Theme); c.Theme != "" && !ok {
 		s.noSuchTheme = true
+	}
+	s.ground = c.Ground
+	if _, ok := groundNamed(c.Ground); c.Ground != "" && !ok {
+		s.noSuchGround = true
 	}
 	var roots []string
 	roots, s.source, _ = resolveRoots(home)
@@ -197,19 +232,47 @@ func saveTheme(home, name string) error {
 	return saveSetting(home, "theme", name)
 }
 
+// saveGround writes the ground conn is to come up on, and takes the key
+// out again for a ground of nothing — which is not the same as a ground
+// written empty. The file is what conn reads; a key that is there says
+// somebody decided, and giving the choice back to the terminal is
+// taking the decision out rather than writing down a blank one.
+func saveGround(home, name string) error {
+	if name == "" {
+		return dropSetting(home, "ground")
+	}
+	return saveSetting(home, "ground", name)
+}
+
 // saveSetting writes one setting into the config file, keeping
 // whatever else is in it. conn reads this file and otherwise does not
-// write it, and this is the one place that does, because conn asked
+// write it, and these are the one place that does, because conn asked
 // for the answer and the operator gave it: the alternative is telling
 // somebody the path to a file and the spelling of a key and sending
 // them away to type it themselves.
+func saveSetting(home, key string, value any) error {
+	set, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return writeSetting(home, key, set)
+}
+
+// dropSetting takes a key out of the file, which is how a setting is
+// given back to whatever conn would have done without one.
+func dropSetting(home, key string) error {
+	return writeSetting(home, key, nil)
+}
+
+// writeSetting is the read, the merge and the write both of those are;
+// a value of nothing takes the key out.
 //
 // What conn does not understand is carried through untouched. A file
 // may hold settings from a conn older or newer than this one, and a
 // save that dropped them would be conn deciding they did not matter.
 // The keys are written in the order Go writes a map, which is sorted;
 // the file is small and the order is not what it is for.
-func saveSetting(home, key string, value any) error {
+func writeSetting(home, key string, set json.RawMessage) error {
 	path := configPath(home)
 	fields := map[string]json.RawMessage{}
 	if b, err := os.ReadFile(path); err == nil {
@@ -220,11 +283,11 @@ func saveSetting(home, key string, value any) error {
 			return fmt.Errorf("%s will not parse, and conn will not write over it", tilde(path, home))
 		}
 	}
-	set, err := json.Marshal(value)
-	if err != nil {
-		return err
+	if set == nil {
+		delete(fields, key)
+	} else {
+		fields[key] = set
 	}
-	fields[key] = set
 	out, err := json.MarshalIndent(fields, "", "  ")
 	if err != nil {
 		return err

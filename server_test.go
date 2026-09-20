@@ -62,11 +62,18 @@ func startScratch(t *testing.T) *scratch {
 	if err := os.MkdirAll(filepath.Join(home, "repo", ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// The scratch conn keeps its own configuration, in the test's own
+	// directory, and the test reads the same one. Without this it wrote
+	// into whatever config directory the test binary was run with — the
+	// suite's own, shared by every test in the process — so a conn told
+	// to wear a theme in one test came up wearing it in the next.
+	config := filepath.Join(dir, "config")
+	t.Setenv("XDG_CONFIG_HOME", config)
 	cmd := exec.Command(tmux, "-S", s.srv.socket, "-f", conf, "new-session", "-d", "-x", "160", "-y", "40",
 		"-s", sessionName, "-n", homeWindow, "-c", home, "exec "+shellQuote(bin))
 	cmd.Env = append(withoutTmux(os.Environ()),
 		"CONN_SOCKET="+s.srv.socket, "XDG_STATE_HOME="+filepath.Join(dir, "state"),
-		"CONN_ROOTS="+home,
+		"XDG_CONFIG_HOME="+config, "CONN_ROOTS="+home,
 		"HOME="+home, "TERM=xterm-256color", "COLORTERM=truecolor", "SHELL=/bin/sh")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("starting the server: %v\n%s", err, out)
@@ -838,12 +845,13 @@ func TestTheKeysStandOnThePanelWhileTheManualIsUp(t *testing.T) {
 	})
 }
 
-// A theme picked in the settings dresses the server where it stands,
-// and the panel keeps the keys. --theme on the way in respawns the
-// panel, which a conn asking for a theme from its own settings cannot
-// do: it would be killing the view the key was pressed in. So the
-// sixteen change, the mode file says the new theme, the file names it,
-// and the pane the settings are in is the same pane it was.
+// A theme or a ground picked in the settings dresses the server where
+// it stands, and the panel keeps the keys. --theme on the way in
+// respawns the panel, which a conn asking for a theme from its own
+// settings cannot do: it would be killing the view the key was pressed
+// in. So the sixteen change, the mode file says the new theme and
+// ground, the file names both, and the pane the settings are in is the
+// same pane it was.
 func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	holdMode(t)
 	s := startScratch(t)
@@ -876,6 +884,20 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	}
 	if m, ok := readModeFile(s.srv.socket); !ok || m.theme != "datum" {
 		t.Errorf("the mode file says %+v, found %v", m, ok)
+	}
+
+	// And the ground under it, which is the other axis: the theme
+	// stands while the ground changes.
+	s.keys("j", "j")
+	s.keys("Enter")
+	s.until("the server to be on the light ground", func() bool {
+		return strings.EqualFold(s.display("#{window-style}"), "bg="+datumTheme.light.surface)
+	})
+	if m, ok := readModeFile(s.srv.socket); !ok || m.dark || m.theme != "datum" {
+		t.Errorf("the mode file says %+v, found %v", m, ok)
+	}
+	if c, err := readConfig(filepath.Join(s.dir, "home")); err != nil || c.Ground != lightGround {
+		t.Errorf("the file names the ground %q: %v", c.Ground, err)
 	}
 	c, err := readConfig(filepath.Join(s.dir, "home"))
 	if err != nil || c.Theme != "datum" {

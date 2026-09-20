@@ -108,13 +108,32 @@ func writeMode(socket string, m mode) error {
 }
 
 // serverMode is the mode the server on this socket came up in, or would
-// if none is up yet: the configured theme on dark, until one has picked
+// if none is up yet: what the configuration says, until one has picked
 // for itself.
 func serverMode(socket, home string) mode {
 	if m, ok := readModeFile(socket); ok {
 		return m
 	}
-	return mode{theme: configTheme(home), dark: true}
+	return configMode(home)
+}
+
+// configMode is the mode the file asks for: its theme, and its ground
+// where it names one. A file naming no ground is dark here — this is
+// the mode for a conn with no server to read and nobody to ask, and
+// dark is what every terminal was before conn learned to ask. askMode
+// is where the terminal is asked.
+func configMode(home string) mode {
+	m := mode{theme: configTheme(home), dark: true}
+	if dark, ok := groundNamed(configGround(home)); ok {
+		m.dark = dark
+	}
+	return m
+}
+
+// configGround is the ground the file names, as written.
+func configGround(home string) string {
+	c, _ := readConfig(home)
+	return c.Ground
 }
 
 // An override is what the flags said ahead of the command: a ground,
@@ -137,12 +156,17 @@ func (o override) over(m mode) mode {
 }
 
 // askMode is the mode a fresh server comes up in: what the flags said,
-// and for what they did not, the configured theme on the terminal's
-// own ground, asked fresh.
+// and for what they did not, what the configuration says — the theme,
+// and the ground where it names one, the terminal's own asked fresh
+// where it does not. A file naming a ground is an operator who wants
+// the same one wherever they are; the question put to the terminal is
+// for everybody else, which is most stations.
 func askMode(o override, home string) mode {
-	m := mode{theme: configTheme(home), dark: true}
+	m := configMode(home)
 	if o.dark == nil {
-		m.dark = detectDark()
+		if _, named := groundNamed(configGround(home)); !named {
+			m.dark = detectDark()
+		}
 	}
 	return o.over(m)
 }

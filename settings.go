@@ -18,9 +18,9 @@ import (
 // It is a list, like the rest of conn: the settings are the rows, the
 // cursor moves among them, and enter answers the row under it. A root
 // is typed into the asking view, which is the one place conn completes
-// a path and knows what is a directory on this machine; a theme is
-// picked off the rows, conn having a fixed few, and a theme picked is
-// worn at once rather than waiting for the next start.
+// a path and knows what is a directory on this machine; a theme and a
+// ground are picked off the rows, conn having a fixed few of each, and
+// either picked is worn at once rather than waiting for the next start.
 //
 // What it writes is the file, and only the keys it came to change:
 // saveSetting carries the rest through. What is in force is another
@@ -34,15 +34,20 @@ const (
 	rootSetting    settingKind = iota // one configured root
 	addRootSetting                    // the row that asks for another
 	themeSetting                      // one of the themes conn has
+	groundSetting                     // a ground, or the terminal's own
 )
 
 // A settingRow is one row of the view: what it says, what is wrong or
 // notable about it against the right, and which setting it stands for.
 type settingRow struct {
 	kind settingKind
-	text string // the root as the file writes it
+	text string // the root as the file writes it, or the setting's name
 	note string // MISSING, NOT A DIR, IN USE, IN THE FILE
 	at   int    // which root, for the row that edits or removes one
+	// value is what the file would say for this row, where that is not
+	// what the row says: the ground's own word, and nothing at all for
+	// the row that gives the choice back to the terminal.
+	value string
 }
 
 // A settingsReport is the view's words as things stand.
@@ -52,7 +57,13 @@ type settingsReport struct {
 	err     string // it will not parse, or would not save
 	forced  bool   // CONN_ROOTS stands in front of the roots in it
 	roots   int    // how many the file names
-	rows    []settingRow
+	// What the file names that conn does not have, as written: a theme
+	// by no name of conn's, a ground that is neither. Neither is a
+	// reason to refuse the file — conn uses its own and goes on — and
+	// both are said, since a setting written and not taken is the
+	// quiet mistake this file has.
+	unknownTheme, unknownGround string
+	rows                        []settingRow
 }
 
 // The notes a theme's row wears: the one conn is wearing now, and the
@@ -62,8 +73,21 @@ const (
 	noteInFile = "IN THE FILE"
 )
 
-// addRootRow is what the row that takes another root says.
-const addRootRow = "+ A ROOT"
+// grounds are the ground's rows, in the order they are offered: the two
+// conn has, and the one that is not a ground at all — the terminal's
+// answer, which is what conn does with no ground named.
+var grounds = []struct{ text, value string }{
+	{"DARK", darkGround},
+	{"LIGHT", lightGround},
+	{askTheTerminal, ""},
+}
+
+// addRootRow is what the row that takes another root says, and
+// askTheTerminal the row that leaves the ground to the terminal.
+const (
+	addRootRow     = "+ A ROOT"
+	askTheTerminal = "ASK THE TERMINAL"
+)
 
 // composeSettings is the file as the view shows it: the roots it names,
 // as it names them, with what each one turned out to be on this
@@ -72,7 +96,7 @@ const addRootRow = "+ A ROOT"
 // The roots are the file's own, not the ones in force: this is the view
 // that edits the file, and a view that showed CONN_ROOTS's directories
 // would be offering to edit rows that are not in the file at all.
-func composeSettings(home, inUse string) settingsReport {
+func composeSettings(home, inUse string, dark bool) settingsReport {
 	b := settingsReport{path: tilde(configPath(home), home)}
 	if _, err := os.Stat(configPath(home)); err == nil {
 		b.present = true
@@ -110,6 +134,32 @@ func composeSettings(home, inUse string) settingsReport {
 			row.note = noteInFile
 		}
 		b.rows = append(b.rows, row)
+	}
+	if _, ok := themeNamed(c.Theme); c.Theme != "" && !ok {
+		b.unknownTheme = c.Theme
+	}
+	// The grounds, and under them the row that gives the choice back to
+	// the terminal. It is a row like the others because it is a choice
+	// like the others: what conn does about the ground is one question
+	// with three answers, and two of them in a list with the third
+	// somewhere else would be conn hiding its own default.
+	named, isNamed := groundNamed(c.Ground)
+	for _, g := range grounds {
+		row := settingRow{kind: groundSetting, text: g.text, value: g.value}
+		switch {
+		case g.value != "" && dark == (g.value == darkGround):
+			row.note = noteInUse
+		case g.value != "" && isNamed && named == (g.value == darkGround):
+			row.note = noteInFile
+		case g.value == "" && !isNamed:
+			// The file names no ground conn knows, so the terminal is
+			// asked, which is what this row says.
+			row.note = noteInFile
+		}
+		b.rows = append(b.rows, row)
+	}
+	if !isNamed && c.Ground != "" {
+		b.unknownGround = c.Ground
 	}
 	return b
 }
@@ -165,22 +215,39 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 		if r.kind != kind && !(kind == rootSetting && r.kind == addRootSetting) {
 			// A heading for each setting, with what the file says of it
 			// against the right: how many roots it names, and nothing
-			// for the themes, which are as many as conn has either way.
+			// for the themes and the grounds, which are as many as conn
+			// has either way.
 			d.blank(0)
 			l := d.line()
-			if r.kind == themeSetting {
+			switch r.kind {
+			case themeSetting:
 				l.eyebrow(0, "THEME", measure, "")
-			} else {
+			case groundSetting:
+				l.eyebrow(0, "GROUND", measure, "")
+			default:
 				l.eyebrow(0, "ROOTS", measure, strconv.Itoa(b.roots))
 			}
 			d.emit(l, 0, false)
 			d.blank(0)
-			if r.kind != themeSetting && b.forced {
-				// The file is not what conn is walking. Said here rather
-				// than left to the console, because this is the view
-				// where somebody edits a root and waits for the list to
-				// change.
-				say(p.gray, "CONN_ROOTS STANDS IN FRONT OF THESE")
+			// What the file says of this setting that conn could not
+			// use, under the heading it belongs to. The console says so
+			// too, in a word; this is the view the operator came to to
+			// put it right.
+			switch {
+			case r.kind == rootSetting || r.kind == addRootSetting:
+				if b.forced {
+					// The file is not what conn is walking. Said here
+					// rather than left to the console, because this is
+					// the view where somebody edits a root and waits
+					// for the list to change.
+					say(p.gray, "CONN_ROOTS STANDS IN FRONT OF THESE")
+					d.blank(0)
+				}
+			case r.kind == themeSetting && b.unknownTheme != "":
+				say(p.gray, "CONN HAS NO THEME NAMED "+strings.ToUpper(b.unknownTheme))
+				d.blank(0)
+			case r.kind == groundSetting && b.unknownGround != "":
+				say(p.gray, strings.ToUpper(b.unknownGround)+" IS NEITHER GROUND")
 				d.blank(0)
 			}
 		}

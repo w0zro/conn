@@ -54,11 +54,11 @@ func settingsAt(t *testing.T, home string, at int) model {
 // this machine against the right.
 func TestTheSettingsShowTheFile(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects","~/gone"]}`, "projects")
-	b := composeSettings(home, "conn")
+	b := composeSettings(home, "conn", true)
 	if !b.present || b.err != "" {
 		t.Fatalf("the file read as present %v, err %q", b.present, b.err)
 	}
-	if b.roots != 2 || len(b.rows) != 3+len(themes) {
+	if b.roots != 2 || len(b.rows) != 3+len(themes)+len(grounds) {
 		t.Fatalf("%d roots in %d rows", b.roots, len(b.rows))
 	}
 	if b.rows[0].text != "~/projects" || b.rows[0].note != "" {
@@ -78,11 +78,11 @@ func TestTheSettingsShowTheFile(t *testing.T) {
 func TestTheSettingsSayWhenTheEnvironmentStandsInFront(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects"]}`, "projects", "elsewhere")
 	t.Setenv("CONN_ROOTS", filepath.Join(home, "elsewhere"))
-	b := composeSettings(home, "conn")
+	b := composeSettings(home, "conn", true)
 	if !b.forced {
 		t.Fatal("the view does not know CONN_ROOTS is in force")
 	}
-	if len(b.rows) != 2+len(themes) || b.rows[0].text != "~/projects" {
+	if len(b.rows) != 2+len(themes)+len(grounds) || b.rows[0].text != "~/projects" {
 		t.Fatalf("the rows are not the file's: %+v", b.rows)
 	}
 	var text strings.Builder
@@ -191,7 +191,7 @@ func TestXTakesARootOut(t *testing.T) {
 	if c := wrote(t, home); len(c.Roots) != 0 {
 		t.Errorf("the file still names %q", c.Roots)
 	}
-	if rows := m.settingsReport().rows; len(rows) != 1+len(themes) || rows[0].kind != addRootSetting {
+	if rows := m.settingsReport().rows; len(rows) != 1+len(themes)+len(grounds) || rows[0].kind != addRootSetting {
 		t.Errorf("what is left is %+v", rows)
 	}
 }
@@ -201,7 +201,7 @@ func TestXTakesARootOut(t *testing.T) {
 // quietly making a new file out of half an answer.
 func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 	home := configured(t, `{"roots": [`, "projects")
-	b := composeSettings(home, "conn")
+	b := composeSettings(home, "conn", true)
 	if b.err == "" {
 		t.Fatal("the view says nothing about a file that will not parse")
 	}
@@ -213,7 +213,7 @@ func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".config", "conn", "config.json")); err != nil {
 		t.Fatal(err)
 	}
-	b = composeSettings(home, "conn")
+	b = composeSettings(home, "conn", true)
 	if b.err == "" {
 		t.Error("the file was written over")
 	}
@@ -333,4 +333,102 @@ func TestTheSettingsMoveToBothEnds(t *testing.T) {
 	if got := next.(model).settingAt; got != 0 {
 		t.Errorf("j past the last row went to %d", got)
 	}
+}
+
+// A ground picked in the settings is written down and worn at once,
+// like a theme, and the theme is left where it was: the two are
+// separate axes and picking one is not an answer about the other.
+func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
+	holdMode(t)
+	applyMode(mode{theme: "datum", dark: true})
+	home := configured(t, `{"roots":["~/projects"],"theme":"datum"}`, "projects")
+	m := settingsAt(t, home, 0)
+	m.settingAt = rowFor(t, m, groundSetting, lightGround)
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = next.(model)
+	if current.dark {
+		t.Error("conn is still on dark")
+	}
+	if current.theme != "datum" {
+		t.Errorf("picking a ground put conn in the theme %q", current.theme)
+	}
+	c := wrote(t, home)
+	if c.Ground != lightGround || c.Theme != "datum" || len(c.Roots) != 1 {
+		t.Errorf("the file came out %+v", c)
+	}
+	// And a fresh server would come up on it without asking the
+	// terminal anything.
+	if askMode(override{}, home).dark {
+		t.Error("a fresh server would not come up on the ground in the file")
+	}
+	for _, r := range m.settingsReport().rows {
+		if r.kind == groundSetting && r.value == lightGround && r.note != noteInUse {
+			t.Errorf("the ground worn is noted %q", r.note)
+		}
+	}
+}
+
+// The row that asks the terminal takes the key out of the file and
+// changes nothing where conn stands: OSC 11 is a question for a server
+// rising, and a conn in a pane of its own server would be asking tmux,
+// which answers with the ground conn itself set.
+func TestAskingTheTerminalTakesTheGroundOutOfTheFile(t *testing.T) {
+	holdMode(t)
+	applyMode(mode{theme: defaultTheme, dark: false})
+	home := configured(t, `{"roots":["~/projects"],"ground":"light"}`, "projects")
+	m := settingsAt(t, home, 0)
+	m.settingAt = rowFor(t, m, groundSetting, "")
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = next.(model)
+	if current.dark {
+		t.Error("the ground changed under a server already up")
+	}
+	if c := wrote(t, home); c.Ground != "" || len(c.Roots) != 1 {
+		t.Errorf("the file came out %+v", c)
+	}
+	// The key is gone rather than written empty: conn reads the file,
+	// and a key that is there says somebody decided.
+	b, err := os.ReadFile(configPath(home))
+	if err != nil || strings.Contains(string(b), "ground") {
+		t.Errorf("the file still names a ground: %s (%v)", b, err)
+	}
+	for _, r := range m.settingsReport().rows {
+		if r.kind == groundSetting && r.value == "" && r.note != noteInFile {
+			t.Errorf("the row that asks the terminal is noted %q", r.note)
+		}
+	}
+}
+
+// A ground the file names that is neither is said under the heading it
+// belongs to, and a theme conn does not have the same way: the console
+// says so in a word, and this is the view somebody came to to put it
+// right.
+func TestTheSettingsSayWhatTheFileNamesAndConnHasNot(t *testing.T) {
+	home := configured(t, `{"roots":["~/projects"],"theme":"solarized","ground":"grey"}`, "projects")
+	b := composeSettings(home, "conn", true)
+	if b.unknownTheme != "solarized" || b.unknownGround != "grey" {
+		t.Fatalf("the view read them as %q and %q", b.unknownTheme, b.unknownGround)
+	}
+	var text strings.Builder
+	for _, r := range drawSettings(b, 0, panelWidth, 0, plain) {
+		text.WriteString(r.text + "\n")
+	}
+	for _, want := range []string{"CONN HAS NO THEME NAMED SOLARIZED", "GREY IS NEITHER GROUND"} {
+		if !strings.Contains(text.String(), want) {
+			t.Errorf("the view does not say %q:\n%s", want, text.String())
+		}
+	}
+}
+
+// rowFor is the row of a setting with a given value, for a test that
+// moves the cursor to it.
+func rowFor(t *testing.T, m model, kind settingKind, value string) int {
+	t.Helper()
+	for i, r := range m.settingsReport().rows {
+		if r.kind == kind && r.value == value {
+			return i
+		}
+	}
+	t.Fatalf("no %v row for %q", kind, value)
+	return 0
 }

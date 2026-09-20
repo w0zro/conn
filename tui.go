@@ -876,6 +876,15 @@ func (m model) bar() string {
 				if rows[m.settingAt].note != noteInUse {
 					hints = append(hints, keyHint{"enter", "Wear it"})
 				}
+			case groundSetting:
+				switch r := rows[m.settingAt]; {
+				case r.value == "" && r.note != noteInFile:
+					// Nothing changes now: the terminal is asked when a
+					// server rises, and one is up.
+					hints = append(hints, keyHint{"enter", "For the next start"})
+				case r.value != "" && r.note != noteInUse:
+					hints = append(hints, keyHint{"enter", "Wear it"})
+				}
 			}
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}))
@@ -2503,7 +2512,7 @@ func (m model) View() tea.View {
 // file as it is on disk, with what went wrong writing it laid over the
 // top, since a save that failed is about the file the view is showing.
 func (m model) settingsReport() settingsReport {
-	b := composeSettings(m.head.login.home, current.theme)
+	b := composeSettings(m.head.login.home, current.theme, current.dark)
 	if m.settingErr != "" {
 		b.err = m.settingErr
 	}
@@ -2555,6 +2564,8 @@ func (m model) settingsKey(k string) (tea.Model, tea.Cmd) {
 			return m.toRootsFor(-1, "~/")
 		case themeSetting:
 			return m.useTheme(r.text)
+		case groundSetting:
+			return m.useGround(r.value)
 		}
 	case k == "x":
 		if m.settingAt < len(rows) && rows[m.settingAt].kind == rootSetting {
@@ -2606,29 +2617,57 @@ func (m model) wroteRoots(roots []string) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(m.readProcesses(), m.scanProjects())
 }
 
-// useTheme puts conn in a theme and writes it down. It is worn now, not
-// on the next start: the mode file is what a pane of conn's own reads
-// when it comes up, the configuration is what the next server reads,
-// and the server standing is sourced again so every pane takes the new
-// sixteen where it stands. What conn writes for other programs — Claude
-// Code's theme, nvim's colorscheme — is written again where it is
-// already there, since those are conn's colors too and a station half
-// in one theme is worse than either.
-//
-// The ground is not asked again. Dark or light is the terminal's own
-// and was settled when the server rose; a theme is the other axis, and
-// changing one is not a reason to go back over the other.
+// useTheme puts conn in a theme and writes it down. The other axis is
+// left alone: the ground conn is on was settled when the server rose,
+// and picking a theme is not a reason to go back over it.
 func (m model) useTheme(name string) (tea.Model, tea.Cmd) {
 	if _, ok := themeNamed(name); !ok {
 		return m, nil
 	}
-	home := m.head.login.home
-	if err := saveTheme(home, name); err != nil {
+	if err := saveTheme(m.head.login.home, name); err != nil {
 		m.settingErr = err.Error()
 		return m, nil
 	}
+	return m.wearing(mode{theme: name, dark: current.dark})
+}
+
+// useGround puts conn on a ground and writes it down, or, for a ground
+// of nothing, takes the key out and leaves the choice to the terminal
+// from the next start.
+//
+// The terminal is not asked again here. OSC 11 is a question put to the
+// terminal and answered by it, and a conn in a pane of its own server
+// would be asking tmux, which answers with the ground conn itself set:
+// the question is only worth asking when a server rises, and that is
+// where it is asked. So the row that gives the choice back changes
+// nothing now and says so; what is on stays on until conn down.
+func (m model) useGround(name string) (tea.Model, tea.Cmd) {
+	dark, named := groundNamed(name)
+	if name != "" && !named {
+		return m, nil
+	}
+	if err := saveGround(m.head.login.home, name); err != nil {
+		m.settingErr = err.Error()
+		return m, nil
+	}
+	if !named {
+		m.settingErr = ""
+		return m, nil
+	}
+	return m.wearing(mode{theme: current.theme, dark: dark})
+}
+
+// wearing puts conn in a mode, now rather than on the next start: the
+// mode file is what a pane of conn's own reads when it comes up, the
+// configuration is what the next server reads, and the server standing
+// is sourced again so every pane takes the new sixteen where it stands.
+// What conn writes for other programs — Claude Code's theme, nvim's
+// colorscheme — is written again where it is already there, since those
+// are conn's colors too and a station half in one theme is worse than
+// either.
+func (m model) wearing(want mode) (tea.Model, tea.Cmd) {
 	m.settingErr = ""
-	want := mode{theme: name, dark: current.dark}
+	home := m.head.login.home
 	// Every color conn draws from is package-wide, so it is put on here,
 	// on the loop, and what the server is told is worked out here too
 	// and handed over ready: a command reading the palette off another

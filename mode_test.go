@@ -125,6 +125,26 @@ func TestAskMode(t *testing.T) {
 	if m := askMode(override{dark: &dark}, home); m.theme != defaultTheme {
 		t.Errorf("askMode with a theme conn does not have configured = %+v", m)
 	}
+	// A file naming a ground stands in front of the terminal: an
+	// operator who wrote one wants that ground wherever they are. A flag
+	// stands in front of the file, as it does for the theme.
+	home = writeConfig(t, `{"roots": ["~"], "ground": "light"}`)
+	if m := askMode(override{}, home); m.dark {
+		t.Errorf("askMode with light configured = %+v", m)
+	}
+	if m := askMode(override{dark: &dark}, home); !m.dark {
+		t.Errorf("askMode(--dark) with light configured = %+v", m)
+	}
+	if m := serverMode(filepath.Join(t.TempDir(), "sock"), home); m.dark {
+		t.Errorf("serverMode with no file and light configured = %+v", m)
+	}
+	// A word that is neither ground is no ground at all: the terminal is
+	// asked, which with no terminal to ask is dark, and the console says
+	// the file names one conn does not have.
+	home = writeConfig(t, `{"roots": ["~"], "ground": "grey"}`)
+	if m := askMode(override{}, home); !m.dark {
+		t.Errorf("askMode with a ground conn does not have configured = %+v", m)
+	}
 }
 
 // connOn is conn's own theme on one ground: what every server was

@@ -383,7 +383,8 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	published := func() subject { at, _ := askCursor(path); return at }
 
 	// The first row is the project; the page is about the place.
-	press("ctrl+p") // nothing to move to, and a key to publish on
+	press("ctrl+n") // down and back up: a move that publishes and stays
+	press("ctrl+p")
 	if got := published(); got.path != "/Users/w0zro/projects/w0zro/conn" || got.pid != 0 {
 		t.Errorf("on the project row the list published %+v", got)
 	}
@@ -470,6 +471,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 		m = next.(model)
 	}
 	published := func() subject { at, _ := askCursor(path); return at }
+	press("ctrl+n")
 	press("ctrl+p")
 	if got := published(); got.session != "d81d7536-e545-4881-8daa-f1d291a03be1" {
 		t.Errorf("on the first session the list published %+v", got)

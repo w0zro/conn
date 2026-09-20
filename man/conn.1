@@ -161,8 +161,31 @@ wears one: the file is written, the server's mode with it, and the
 server is dressed where it stands \(em the sixteen of every pane, the
 panel's own ground, and the theme files for Claude Code and nvim where
 those are already there.
-The ground stays as it was; it is the terminal's, and a theme is the
-other axis.
+.PP
+Under the themes are the two grounds and
+.BR "ASK THE TERMINAL" ,
+which is what
+.B conn
+does with no ground in the file.
+.B enter
+on a ground wears it, the same road a theme takes, and writes
+.B ground
+to the file, so the next start comes up on it whatever the terminal
+says.
+.B enter
+on
+.B ASK THE TERMINAL
+takes the key out again and changes nothing where the server stands:
+OSC 11 is a question for a server rising, and a
+.B conn
+in a pane of its own server would be asking tmux, which answers with
+the ground
+.B conn
+itself set.
+A file naming a theme
+.B conn
+does not have, or a ground that is neither, is said under the heading
+it belongs to.
 .SS The roots view
 Where a root is typed, with the directories on this machine that answer
 what has been typed so far as its rows.
@@ -303,6 +326,7 @@ The panel's letters are characters here, and its verbs move to
 .TP 20
 .BR up ", " down ", " ctrl\-p ", " ctrl\-n
 Move the cursor among the rows.
+The rows are a ring: past the last is the first.
 .TP
 .B enter
 Projects: on a project, open a shell there and return to the processes
@@ -396,11 +420,15 @@ takes no
 .TP 20
 .BR j ", " k ", " gg ", " G
 Move the cursor a row.
+The rows are a ring: past the last is the first.
 .TP
 .B enter
 On a root: type it over.
 On the row that adds one: type another.
-On a theme: wear it.
+On a theme or a ground: wear it.
+On
+.BR "ASK THE TERMINAL" :
+leave the ground to the terminal from the next start.
 .TP
 .B x
 Take the root under the cursor out of the file.
@@ -971,7 +999,9 @@ if it names none,
 .B NO THEME
 if it names a theme
 .B conn
-does not have.
+does not have,
+.B NO GROUND
+if it names a ground that is neither dark nor light.
 .TP
 .B ROOT
 One per root.
@@ -1116,9 +1146,11 @@ For a server already up, they change it: every pane of
 .BR conn 's
 own is redrawn.
 Otherwise the ground is fixed for the server's life.
-Without a flag, a fresh server asks the terminal its background with
-OSC 11 and calls it dark when its luminance is under a half, or when
-the terminal does not answer within 200 ms.
+Without a flag, a fresh server takes
+.B ground
+from the configuration file, and with none there asks the terminal its
+background with OSC 11, calling it dark when its luminance is under a
+half or when the terminal does not answer within 200 ms.
 .B \-\-light
 with
 .B \-\-dark
@@ -1177,13 +1209,14 @@ and
 .TP
 .I ~/.config/conn/config.json
 The configuration.
-Two keys:
+Three keys, each of which may be left out:
 .PP
 .nf
 .RS
 {
   "roots": ["~/projects", "~/work"],
-  "theme": "conn"
+  "theme": "conn",
+  "ground": "dark"
 }
 .RE
 .fi
@@ -1193,10 +1226,14 @@ A leading
 in a root is your home.
 .B conn
 reads this file and writes
-.B roots
+.BR roots ,
+.B theme
 and
-.BR theme ,
+.BR ground ,
 from the settings view, keeping every other key.
+No
+.B ground
+is the terminal's own, asked when a server rises.
 A file that will not parse is a fault on the console and is never
 written over.
 .TP
@@ -1255,8 +1292,12 @@ in the configuration file,
 .BR \-\-theme ,
 or the settings view, where picking one dresses the server where it
 stands.
-The ground is asked of the terminal or given by
-.BR \-\-light / \-\-dark .
+The ground is
+.B ground
+in the configuration file,
+.BR \-\-light / \-\-dark ,
+or the settings view; with none of those it is asked of the terminal
+when a server rises.
 Every color is drawn by its role, and the sixteen ANSI colors of every
 pane in the server are set to the theme's.
 .
@@ -1369,12 +1410,11 @@ Other contacts read as any process.
 .TP
 \(bu
 The ground is fixed for the server's life.
-.B \-\-light
-or
+.BR \-\-light ,
 .B \-\-dark
-on a running server changes it;
+and the settings view change it on a running server;
 .B conn down
-asks the terminal again.
+asks the terminal again, unless the file names a ground.
 .TP
 \(bu
 .B q

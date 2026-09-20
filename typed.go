@@ -63,16 +63,21 @@ func (l *typed) input() *textinput.Model {
 // and tab mean something different on each line, and the view answers
 // those before asking here.
 //
+// The rows are a ring, as they are to j and k in the views worked by
+// those: down off the last is the first and up off the first is the
+// last. A line that is typed into leaves a handful of rows, and an
+// end that stops the cursor is an end a hand has to notice.
+//
 // A character is any key that stands for one, which is how a letter the
 // other views are worked by is itself here: a plain s or a or p is
 // typed into the line rather than run.
 func (l *typed) edit(k string, rows int) bool {
 	switch k {
 	case "up", "ctrl+p":
-		l.at = clamp(l.at-1, rows)
+		l.at = ring(l.at-1, rows)
 		return true
 	case "down", "ctrl+n":
-		l.at = clamp(l.at+1, rows)
+		l.at = ring(l.at+1, rows)
 		return true
 	}
 	in := l.input()

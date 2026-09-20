@@ -641,8 +641,8 @@ func TestAKilledMsgRereads(t *testing.T) {
 
 // p leaves the processes view for the list and walks the roots; what is
 // typed narrows the rows and puts the cursor back at the top; the
-// arrows and ctrl+n and ctrl+p move it, held within the rows there are;
-// esc comes back to the processes view, and the processes view reads
+// arrows and ctrl+n and ctrl+p move it round the rows there are; esc
+// comes back to the processes view, and the processes view reads
 // again.
 func TestTheListIsALineTypedInto(t *testing.T) {
 	m := newModel(plain)
@@ -670,17 +670,22 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 	if rows := m.projectRows(); len(rows) != 2 || rows[1].name != "conn" {
 		t.Errorf("conn leaves %d rows", len(rows))
 	}
-	// The cursor is held within them, and backspace widens them again.
+	// The cursor rings round them, and backspace widens them again.
 	for range 5 {
 		m, _ = key(m, "down")
 	}
 	if m.find.at != 1 {
-		t.Errorf("the cursor ran to %d of 2 rows", m.find.at)
+		t.Errorf("five rows down a ring of 2 left the cursor at %d", m.find.at)
+	}
+	m, _ = key(m, "down")
+	if m.find.at != 0 {
+		t.Errorf("down off the last of 2 rows left the cursor at %d", m.find.at)
 	}
 	m, _ = key(m, "ctrl+p")
-	if m.find.at != 0 {
-		t.Errorf("ctrl+p left the cursor at %d", m.find.at)
+	if m.find.at != 1 {
+		t.Errorf("ctrl+p off the first of 2 rows left the cursor at %d", m.find.at)
 	}
+	m, _ = key(m, "ctrl+n")
 	m, _ = key(m, "backspace")
 	if m.find.text != "con" || m.find.at != 0 {
 		t.Errorf("after backspace: filter %q, cursor %d", m.find.text, m.find.at)

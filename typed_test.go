@@ -5,8 +5,8 @@ import "testing"
 // The keys every typed line has, answered in one place: a character
 // goes in at the caret and puts the cursor back on the first row, the
 // editing is readline's, and up and down and their ctrl pair walk the
-// rows and stop at either end. A key that is none of these is left to
-// the view.
+// rows as a ring, off one end and on at the other. A key that is none
+// of these is left to the view.
 func TestATypedLineAnswersItsOwnKeys(t *testing.T) {
 	var l typed
 	took := func(k string, rows int) bool { return l.edit(k, rows) }
@@ -25,15 +25,23 @@ func TestATypedLineAnswersItsOwnKeys(t *testing.T) {
 	}
 	took("up", 5)
 	took("ctrl+p", 5)
-	took("ctrl+p", 5)
 	if l.at != 0 {
-		t.Errorf("up past the first row left the cursor at %d", l.at)
+		t.Errorf("up twice left the cursor at %d", l.at)
+	}
+	// Off either end and on at the other.
+	took("ctrl+p", 5)
+	if l.at != 4 {
+		t.Errorf("up off the first row left the cursor at %d", l.at)
+	}
+	took("down", 5)
+	if l.at != 0 {
+		t.Errorf("down off the last row left the cursor at %d", l.at)
 	}
 	for range 9 {
 		took("down", 5)
 	}
 	if l.at != 4 {
-		t.Errorf("down past the last row left the cursor at %d", l.at)
+		t.Errorf("nine rows down a ring of five left the cursor at %d", l.at)
 	}
 	// Typing narrows the rows, and the cursor goes back to the first of
 	// what is left.

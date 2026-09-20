@@ -178,26 +178,19 @@
         <h2>First session</h2>
         <p class="para"><span class="n">2-1.</span> Type <b>conn</b>. The console comes up: the machine, the session, the start-up checks, and the verdict. A check that found something wrong is a fault and blinks; with none, ALL SYSTEMS NOMINAL. Any key continues.</p>
         <p class="para"><span class="n">2-2.</span> The first time, conn asks where the work is: a line holding a directory, and under it the directories that answer it. <b>tab</b> fills the line in with the row under the cursor; <b>enter</b> takes it, writes it to <b>~/.config/conn/config.json</b> as the root, and goes to work. More roots, the theme and the ground are the settings: <b>,</b> opens them.</p>
-        <p class="para"><span class="n">2-3.</span> The panel comes up, filed by state. WAITING FOR YOU holds the contacts that have stopped to ask, longest wait first, stamped with how long. WORKING holds what is spending processor time now. SERVING holds what listens on a port. IDLE holds the rest. NOT RUNNING holds what a project declares and does not have up. Every group stands with its count, empty or not.</p>
+        <p class="para"><span class="n">2-3.</span> The panel comes up, a block for each project work is happening in. At the end of a block’s rule is what that project wants of you: WAITING where a contact has stopped to ask, the fault’s word where something is a fault, DOWN where a declared process is not up. A project that wants nothing says nothing. The rows under it say what each process is doing, and only say a word at the right where there is one to say: how long a wait has waited, a fault’s word, or the word for what is not running.</p>
         <div class="figure">
-          <pre>   WAITING FOR YOU ───────────────────── 2
+          <pre>   conn ────────────────────────  WAITING
 ▸  ●  claude                        9 MIN
-   ●  claude                        2 MIN
+ ⣾ ●  go test ./...
+   ○  zsh
 
-   WORKING ───────────────────────────── 1
- ⣾ ●  go test ./...                   conn
-
-   SERVING ───────────────────────────── 1
-   ●  :5173  node vite                 web
-
-   IDLE ──────────────────────────────── 2
-▌  ○  zsh                              web
+   web ─────────────────────────  STOPPED
+   ●  node vite · :5173
    ●  vim                         STOPPED
-
-   NOT RUNNING ───────────────────────── 1
-   ◌  worker                           web</pre>
+   ◌  worker                          DOWN</pre>
         </div>
-        <p class="caption">Two contacts waiting, a test running, a server up, a declared worker down.</p>
+        <p class="caption">A contact waiting and a test running at one project; a server up, a stopped editor and a declared worker down at the other.</p>
       </div>
     </div>
     <div class="foot">
@@ -305,7 +298,7 @@ cache:                 brew services start redis</pre>
     <div class="rule"></div>
     <div class="body">
       <div class="section">
-        <p class="para"><span class="n">4-2.</span> Where work is happening in the project, each declared process that is not running is a row at the foot of its block, dimmed and worded DOWN, under NOT RUNNING. A project nothing is running in shows nothing of its file: the panel is what is running.</p>
+        <p class="para"><span class="n">4-2.</span> Each declared process that is not running is a row at the foot of its project’s block, dimmed and worded DOWN, and the block’s rule says DOWN with it. A project with a file and nothing running has a block all the same, holding what it declares: that none of it is up is the fact the block is there to say.</p>
         <p class="para"><span class="n">4-3.</span> <b>enter</b> on such a row brings it up in a pane of the server and goes into it. <b>u</b> brings it up and leaves the keys on the panel, so <b>u</b> pressed down the rows brings them up one at a time. <b>U</b> on any row of the project brings up everything it declares and does not have running. The pane carries the declared name on its row.</p>
         <p class="para"><span class="n">4-4.</span> When the process ends on its own, the pane holds its output and the row reads ENDED, or EXIT and the code as a fault. <b>enter</b> goes in to read it, <b>u</b> runs it again, and <b>x</b> closes the pane. <b>x</b> on one still running sends it ctrl-c in its pane, the way a hand stops what it ran in the foreground, and closes the pane once it has ended; the row is DOWN again in the one move.</p>
         <p class="para"><span class="n">4-5.</span> A process started by hand with the declared command, word for word, in the declared directory, is the declaration too, wherever it was started. Its row carries the name, <b>u</b> and <b>U</b> pass it over, and <b>x</b> signals it as the process it is.</p>

@@ -92,17 +92,13 @@ See
 below.
 .SS The processes view
 The panel's own view.
-Every process is a row, filed under one of five groups in a fixed
-order:
-.BR "WAITING FOR YOU" ,
-.BR WORKING ,
-.BR SERVING ,
-.BR IDLE ,
-.BR "NOT RUNNING" .
-Every group is drawn with its count, empty or not.
+Every process is a row, under the block of the project it works in.
+A block is drawn with the project's name, a rule, and at the end of the
+rule what the project wants of you, where it wants anything.
+The rows are folded: what is only what its parent is doing is left off.
 The cursor is on one row.
 .B z
-shows the whole process tree by project instead, with a column for the
+shows the whole process tree instead, unfolded, with a column for the
 terminal and one for the age of the row's state; the band reads
 .BR TREE .
 The table is read again every two seconds.
@@ -290,7 +286,7 @@ Bring up everything the row's project declares and does not have
 running.
 .TP
 .B z
-The whole tree, or the filed view again.
+The whole tree, or the panel's blocks again.
 .TP
 .B c
 The console.
@@ -485,34 +481,58 @@ declares.
 .B RUN
 Anything else.
 .SS Groups
-In the filed view a row is in the first group that takes it:
+.SS Blocks
+In the panel a row is in the block of the project it works in.
+The blocks are in the order of their paths.
+A project that holds other projects is a heading over them; a block
+under a heading is indented, and gives up as much at its right.
+A project that declares processes in a
+.I .conn
+has a block whether or not anything in it is running.
+.PP
+At the end of a block's rule is what the project wants of you, the
+first of these it holds:
 .TP 18
-.B WAITING FOR YOU
-Status
-.BR WAITING ,
-longest wait first.
-Each row is stamped with how long, and blinks.
+.B WAITING
+A row is waiting.
+The stamp blinks, and counts the rows where more than one waits.
+.TP
+.BI n " FAULTS"
+A row is a fault: its own word where one row is, the count where more
+are.
+Stamped, holding still.
+.TP
+.B DOWN
+A declared process is not running, counted the same way.
+.PP
+A project with none of these says nothing, and its rule runs to the
+edge.
+.SS Marks on a row
+.TP 18
+.B WAITING
+The dot is the accent, the command is bold, and the row is stamped at
+its right with how long it has waited.
 .TP
 .B WORKING
-Status
-.BR WORKING .
 A spinner turns in the margin, before the dot.
 .TP
-.B SERVING
-Alive, not a contact, and listening on a TCP port.
-The ports stand in a column before the command.
+serving
+Alive, not a contact, and listening on a TCP port: the dot is the
+running color and the ports follow the command.
 .TP
-.B IDLE
-Everything else that is running, faults included.
-.TP
-.B NOT RUNNING
+not running
 .BR DOWN ,
 .BR ENDED ,
 .BR "EXIT " n .
-The command is struck through.
+The command is struck through and the row says the word at its right.
+.TP
+a fault
+Stamped with its word at the right, holding still.
+.PP
+A row that is up with nothing to report says nothing at its right.
 .SS Status
-The status is the last word of a row in the tree view, and what files a
-row in the filed view.
+The status is the last word of a row in the tree view, and in the panel
+what the row says at its right and what its block says of it.
 The first that applies:
 .TP 12
 .B STOPPED
@@ -565,7 +585,12 @@ A Homebrew service's is brew's:
 .PP
 A fault is drawn as a chip and holds still.
 .B WAITING
-blinks.
+blinks, and in the panel says the age of the wait in place of the word.
+.B ACTIVE
+and
+.B IDLE
+are said in the tree view only: in the panel a row up with nothing to
+report says nothing.
 The tree view dates each row by when
 .B conn
 last saw its status change, in one unit:
@@ -588,7 +613,7 @@ A contact's command line is shown without the note
 .B conn
 handed it or the session it resumed.
 .SS Folding
-The filed view folds the tree.
+The panel folds the tree.
 A row survives if it is the head of its pane, a contact, a service, a
 listener, a fault,
 .BR WAITING ,
@@ -603,7 +628,7 @@ shows every row.
 .SS Ports
 TCP listeners only, lowest first.
 UDP and unix sockets are on the page.
-.SS Projects
+.SS Project names
 A project is named with its root stripped:
 .I ~/projects/w0zro/conn
 under the root

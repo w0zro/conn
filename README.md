@@ -1,26 +1,19 @@
 # conn
 
-A console for the processes working your projects. conn files every
-process on one machine by what it needs from you, and puts the one
-you choose in front of you.
+A console for the processes working your projects. conn puts every
+process on one machine under the project it works, says what each
+project wants of you, and puts the one you choose in front of you.
 
 ```
-   WAITING FOR YOU ───────────────────── 2
+   conn ────────────────────────  WAITING
 ▸  ●  claude                        9 MIN
-   ●  claude                        2 MIN
+ ⣾ ●  go test ./...
+   ○  zsh
 
-   WORKING ───────────────────────────── 1
- ⣾ ●  go test ./...                   conn
-
-   SERVING ───────────────────────────── 1
-   ●  :5173  node vite                 web
-
-   IDLE ──────────────────────────────── 2
-▌  ○  zsh                              web
+   web ─────────────────────────  STOPPED
+   ●  node vite · :5173
    ●  vim                         STOPPED
-
-   NOT RUNNING ───────────────────────── 1
-   ◌  worker                           web
+   ◌  worker                          DOWN
 ```
 
 ```

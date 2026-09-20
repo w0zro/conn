@@ -70,8 +70,9 @@ func TestBrewServicesAreReadFromBrew(t *testing.T) {
 // down before brew has said anything of it, and active with the pid
 // and the ports of the process running it once it has, labelled by its
 // declared name and marked as the declaration. A pane opened on its
-// log is its terminal. A project with no block shows nothing of it,
-// and the ordinary declared rows do not take it for a pane to raise.
+// log is its terminal. A project with no block of its own is given
+// one for what it declares, and the ordinary declared rows do not take
+// it for a pane to raise.
 func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
 	services, _ := parseBrewServices([]byte(brewInfo))
 	decl := map[string]declared{
@@ -90,8 +91,8 @@ func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
 	}
 
 	out = attachBrew(out, decl, nil, nil, nil)
-	if n := len(out); n != 1 {
-		t.Fatalf("a project with no block grew one: %d projects", n)
+	if n := len(out); n != 2 {
+		t.Fatalf("the project that only declares has no block: %d projects", n)
 	}
 	if n := len(out[0].entries); n != 3 {
 		t.Fatalf("the brew service is not a row: %d rows", n)

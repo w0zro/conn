@@ -294,15 +294,26 @@ func refreshDeclared(was map[string]declared, paths []string) map[string]declare
 }
 
 // declaredPaths is every project worth asking for a file: the projects
-// the reading has blocks for, kept to those that are projects.
-func declaredPaths(projects []project, isProject func(string) bool) []string {
+// the reading has blocks for, kept to those that are projects, and
+// every project conn has already read a file for. A project keeps its
+// block once its file has been read, whether or not the table still
+// shows work in it: the file says what works the project, and that
+// none of it is up is the fact the block stands to say. was is the
+// declarations as of the last reading.
+func declaredPaths(projects []project, was map[string]declared, isProject func(string) bool) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, pl := range projects {
-		if pl.path != "" && !seen[pl.path] && isProject(pl.path) {
-			seen[pl.path] = true
-			out = append(out, pl.path)
+	take := func(path string) {
+		if path != "" && !seen[path] && isProject(path) {
+			seen[path] = true
+			out = append(out, path)
 		}
+	}
+	for _, pl := range projects {
+		take(pl.path)
+	}
+	for path := range was {
+		take(path)
 	}
 	sort.Strings(out)
 	return out
@@ -415,7 +426,8 @@ func upAndHeld(projects []project, panes map[string]pane, path string) (up map[s
 // with the name and, once the pane has recorded an end, worded by it;
 // one without is a down row at the foot of its project's block. A file
 // that would not read is the block's note. A project with no block —
-// nothing running in it — shows nothing of its file.
+// nothing running in it — is given one, holding what it declares,
+// down.
 func attachDeclared(projects []project, declared map[string]declared, panes map[string]pane) []project {
 	if len(declared) == 0 {
 		return projects
@@ -440,11 +452,20 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 	}
 	sort.Strings(paths)
 	for _, path := range paths {
+		d := declared[path]
 		i := blockOf(out, path)
 		if i < 0 {
-			continue
+			// Nothing of the project is running, and it declares what
+			// should be: the block stands empty and takes the down rows
+			// below, so that a project with nothing up says so where it
+			// would say anything else. A file that declares nothing and
+			// read clean has nothing to stand for.
+			if d.err == "" && len(d.list) == 0 {
+				continue
+			}
+			out = append(out, project{path: path})
+			i = len(out) - 1
 		}
-		d := declared[path]
 		if d.err != "" {
 			out[i].note = d.err
 			continue

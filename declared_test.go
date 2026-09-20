@@ -118,13 +118,38 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 }
 
 // The projects asked for a file are the blocks that are projects, once
-// each, in order.
+// each, in order, and every project already read for stays asked
+// whether or not it still has a block.
 func TestTheProjectsAskedAreTheBlocks(t *testing.T) {
 	projects := []project{{path: "/r/b"}, {path: "/home"}, {path: "/r/a"}, {path: "/r/b"}}
 	isProject := func(p string) bool { return strings.HasPrefix(p, "/r/") }
-	got := declaredPaths(projects, isProject)
+	got := declaredPaths(projects, nil, isProject)
 	if want := []string{"/r/a", "/r/b"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("paths: %v, want %v", got, want)
+	}
+	was := map[string]declared{"/r/c": {}, "/r/a": {}, "/nope": {}}
+	got = declaredPaths(projects, was, isProject)
+	if want := []string{"/r/a", "/r/b", "/r/c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("paths with the last reading: %v, want %v", got, want)
+	}
+}
+
+// A project that declares what works it stands even with nothing
+// running in it: a block of its own, holding what it declares, down.
+func TestAProjectWithNothingUpStandsForItsFile(t *testing.T) {
+	files := map[string]declared{"/r/a": {list: []declaration{{name: "web", command: "npm run dev"}}}}
+	out := attachDeclared([]project{{path: "/r/b"}}, files, nil)
+	i := blockOf(out, "/r/a")
+	if i < 0 {
+		t.Fatalf("no block for the project that declares: %v", out)
+	}
+	if len(out[i].entries) != 1 || out[i].entries[0].status != statusDown {
+		t.Errorf("the block holds %+v, want one down row", out[i].entries)
+	}
+	// A file that declares nothing stands for nothing.
+	out = attachDeclared([]project{{path: "/r/b"}}, map[string]declared{"/r/c": {}}, nil)
+	if blockOf(out, "/r/c") >= 0 {
+		t.Errorf("a file declaring nothing made a block: %v", out)
 	}
 }
 
@@ -162,8 +187,8 @@ func TestTheLineRunInThePane(t *testing.T) {
 // the foot of its block; one with a pane marked as its own is that
 // pane's head, relabelled, and worded by its end once it has one; a
 // pane whose rows are not read yet is no row; a project with a file
-// and no block shows nothing of it; a file that would not read is the
-// block's note.
+// and no block of its own is given one, holding what it declares,
+// down; a file that would not read is the block's note.
 func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	app, lib, zed := "/r/app", "/r/lib", "/r/zed"
 	projects := []project{
@@ -218,6 +243,8 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 		"  RUN sleep 10 ACTIVE ttys005 ",
 		zed + " · .conn: line 1: want name [dir]: command",
 		" SHELL zsh IDLE ttys004 ",
+		lib + " · ",
+		" RUN docs · mkdocs serve DOWN  " + markDeclared(lib, "docs"),
 	}
 	if !reflect.DeepEqual(rows, want) {
 		t.Errorf("rows:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))

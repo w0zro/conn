@@ -553,7 +553,7 @@ func (m model) readProcesses() tea.Cmd {
 		// And what the projects declare should be working them, which
 		// the table has no word for until it is: a stat per project,
 		// and a read where a file changed.
-		declared = refreshDeclared(declared, declaredPaths(projects, isProject))
+		declared = refreshDeclared(declared, declaredPaths(projects, declared, isProject))
 		projects = attachDeclared(projects, declared, panes)
 		// And the services brew holds up for them, as brew last said,
 		// each with the sockets of the process running it, which the

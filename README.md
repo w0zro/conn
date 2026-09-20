@@ -10,7 +10,7 @@ you choose in front of you.
    ●  claude                        2 MIN
 
    WORKING ───────────────────────────── 1
-   ●  go test ./... ⣾                 conn
+ ⣾ ●  go test ./...                   conn
 
    SERVING ───────────────────────────── 1
    ●  :5173  node vite                 web

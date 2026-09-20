@@ -191,19 +191,33 @@ func (s *scratch) projectRowLines() []string {
 	return out
 }
 
-// isRow says whether a panel line is a process row: past the cursor's
-// mark and the bay's bar, it begins with a dot.
+// isRow says whether a panel line is a process row: past the margin —
+// the cursor's mark, the bay's bar, a spinner turning — it begins with
+// a dot.
 func isRow(line string) bool {
-	for _, f := range strings.Fields(line) {
+	for _, f := range rowFields(line) {
 		switch f {
-		case "▸", cursorBar:
-			continue
 		case dotWorks, dotRests, dotOver:
 			return true
 		}
 		return false
 	}
 	return false
+}
+
+// rowFields is a panel line's words with the margin's marks dropped:
+// the cursor's mark and the bay's bar, which a spinner's frame stands
+// beside without a space between them.
+func rowFields(line string) []string {
+	var out []string
+	for _, f := range strings.Fields(line) {
+		f = strings.TrimLeft(f, "▸"+cursorBar+strings.Join(spinner, ""))
+		if f == "" {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // rowIn says whether the scratch project has a row of that name under
@@ -270,9 +284,9 @@ func (s *scratch) shellRows() int {
 
 // rowCommand is the first word of a panel row past its marks and dot.
 func rowCommand(r string) string {
-	for _, f := range strings.Fields(r) {
+	for _, f := range rowFields(r) {
 		switch f {
-		case "▸", cursorBar, dotWorks, dotRests, dotOver:
+		case dotWorks, dotRests, dotOver:
 			continue
 		}
 		return f

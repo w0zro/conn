@@ -475,12 +475,15 @@ type canvas struct {
 
 // A line is built from painted pieces; cells counts the columns. A mark
 // is set in the margin, before the line, where there is no color to say
-// which row is the cursor's — see palette.chosen.
+// which row is the cursor's — see palette.chosen. A turn is set in the
+// margin too, in the column after the mark: a frame of something going
+// round beside the row it belongs to.
 type line struct {
 	p     palette
 	b     strings.Builder
 	cells int
 	mark  string
+	turn  string
 	pid   int // the entry the line is, where it is one; see row
 }
 
@@ -524,9 +527,9 @@ func (l *line) leader(label string, field int, dots string) {
 
 // emit frames a line as a row: the margin — or, centered, the column
 // that centers it — the pieces, and the ground to the edge. A marked
-// row carries its mark at the very edge, the margin after it. In the
-// plain palette the ground is nothing, and the row ends with its last
-// piece.
+// row carries its mark at the very edge and a turning row its frame in
+// the column after it, the rest of the margin after them. In the plain
+// palette the ground is nothing, and the row ends with its last piece.
 func (c *canvas) emit(l *line, stage int, centered bool) {
 	p := l.p
 	left := margin
@@ -534,8 +537,15 @@ func (c *canvas) emit(l *line, stage int, centered bool) {
 		left = max((c.width-l.cells)/2, 0)
 	}
 	lead := strings.Repeat(" ", left)
-	if l.mark != "" && !centered {
-		lead = p.orange + p.bold + l.mark + p.normal + strings.Repeat(" ", margin-1)
+	if !centered && (l.mark != "" || l.turn != "") {
+		mark, turn := " ", " "
+		if l.mark != "" {
+			mark = p.orange + p.bold + l.mark + p.normal
+		}
+		if l.turn != "" {
+			turn = p.running + l.turn + p.normal
+		}
+		lead = mark + turn + strings.Repeat(" ", margin-2)
 	}
 	text := p.normal + lead + l.b.String() + strings.Repeat(" ", max(c.width-left-l.cells, 0)) + p.end
 	if p.plain {

@@ -11,9 +11,9 @@ import (
 // dot, what it is doing, and at the right the project it is in, in the
 // faint. A waiting row is stamped with how long it has waited there
 // instead, since that is the one figure that says which of two to
-// answer first; a fault says its word, stamped. A working row's dot is
-// followed by a spinner that turns as the readings come, so what is at
-// work is seen to be. A serving row's dot is the running color too,
+// answer first; a fault says its word, stamped. A working row
+// turns a spinner in the margin, in the column between the cursor's bar
+// and the dot, as the readings come, so what is at work is seen to be. A serving row's dot is the running color too,
 // still, and its port follows its command, being where you would go.
 // What is not running is struck through.
 
@@ -32,7 +32,9 @@ const portsGap = 2
 // round, a full turn in eight, and a turn a second (spinEvery, in
 // tui.go). A single dot going round was a trace too faint to be seen
 // turning beside a row of text; the full cell has the weight of the
-// dot before it, and the gap is what moves.
+// dot beside it, and the gap is what moves. It turns in the margin,
+// where the rows at work make a column of their own and the text they
+// are about keeps its line.
 var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 
 // drawState renders the panel by state for a terminal of the given size,
@@ -146,9 +148,8 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			case r.fault:
 				stamped, project = r.status, false
 			}
-			spin := ""
 			if r.status == statusWorking {
-				spin = " " + spinner[b.spin%len(spinner)]
+				l.turn = spinner[b.spin%len(spinner)]
 			}
 			// The project keeps to its half of the row at most: a path
 			// outside every root is written whole, and elided from the
@@ -158,7 +159,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			// least, enough to tell one project from another.
 			tailMax := max(measure/2, 12)
 			if project {
-				room := measure - l.cells - 2 - utf8.RuneCountInString(spin)
+				room := measure - l.cells - 2
 				need := max(utf8.RuneCountInString(activity), commandLeast)
 				if spare := room - need; spare < tailMax {
 					tailMax = max(spare, projectLeast)
@@ -169,10 +170,7 @@ func drawState(b processesReport, cursor int, width, height int, p palette) []ro
 			if stamped != "" {
 				tailW = stampWidth(stamped, p)
 			}
-			l.add(command, fit(activity, measure-l.cells-tailW-2-utf8.RuneCountInString(spin), false))
-			if spin != "" {
-				l.add(p.running, spin)
-			}
+			l.add(command, fit(activity, measure-l.cells-tailW-2, false))
 			switch {
 			case stamped != "" && r.status == statusWaiting && !b.lit:
 			case stamped != "":

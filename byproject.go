@@ -26,18 +26,20 @@ import "strings"
 // word, and the blocks are the projects, which come and go when work
 // does rather than every reading.
 
-// The states a row stands in, worst first. A block says the first of
-// these it holds and nothing where it holds none: a wait is answered, a
-// fault is looked at, a down row is brought up, and what is working or
-// serving or quiet asks nothing. A word on every block would be a word
-// read past on every block.
+// The states a row's word stands it in, worst first. A block says the
+// first of these it holds and nothing where it holds none: a wait is
+// answered, a fault is looked at, a down row is brought up, and what is
+// working or over or quiet asks nothing. A word on every block would be
+// a word read past on every block.
+//
+// A port is not here. Serving is not a word a row says but a thing it
+// has, and a row has it or not whatever its word is.
 const (
 	standWaiting = iota
 	standFault
 	standDown
-	standWorking
-	standServing
 	standOver
+	standWorking
 	standRests
 )
 
@@ -45,20 +47,18 @@ const (
 // block says of itself. What is alive with nothing to report — a shell
 // at its prompt, an editor, a process up and not doing anything, a
 // contact at rest — rests. A stopped row is a fault and is alive: fg
-// brings it back. One that ended, cleanly or with a code, is over,
-// and a code is a fault besides.
+// brings it back. One that ended with a code is a fault before it is
+// over, since the code is the thing to look at.
 func stateOf(status string, fault bool) int {
 	switch {
 	case status == statusWaiting:
 		return standWaiting
-	case fault && (status == statusEnded || strings.HasPrefix(status, exitWord)):
+	case fault:
 		return standFault
 	case status == statusDown:
 		return standDown
-	case status == statusEnded || strings.HasPrefix(status, exitWord):
+	case over(status):
 		return standOver
-	case fault:
-		return standFault
 	case status == statusWorking:
 		return standWorking
 	}

@@ -128,18 +128,18 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			d.blank(0)
 		}
 		l := d.line()
-		say, stamped, blinks := verdict(bp.rows)
-		tailW := utf8.RuneCountInString(say)
-		if stamped {
-			tailW = stampWidth(say, p)
+		wants, wantStamped, wantBlinks := verdict(bp.rows)
+		wantW := utf8.RuneCountInString(wants)
+		if wantStamped {
+			wantW = stampWidth(wants, p)
 		}
-		l.eyebrowTail(p.parchment+p.bold, in, fit(bp.path, max(edge-in-tailW-1, 1), true), edge, tailW)
+		l.eyebrowTail(p.parchment+p.bold, in, fit(bp.path, max(edge-in-wantW-1, 1), true), edge, wantW)
 		switch {
-		case blinks && !b.lit:
-		case stamped:
-			l.stamp(say)
-		case say != "":
-			l.add(p.ink+p.bold, say)
+		case wantBlinks && !b.lit:
+		case wantStamped:
+			l.stamp(wants)
+		case wants != "":
+			l.add(p.ink+p.bold, wants)
 		}
 		d.emit(l, 0, false)
 		for _, r := range bp.rows {
@@ -155,10 +155,13 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 				glyph, tone = dotWants, p.orange
 			case stand == standOver, stand == standDown:
 				glyph = dotOver
-			case stand == standWorking, len(r.ports) > 0:
+			case stand == standWorking, r.kind != kindContact && len(r.ports) > 0:
+				// A contact stands by what it asks of you and never by
+				// what it has open, as serving has it; anything else
+				// alive on a port is at its work.
 				glyph, tone = dotWorks, p.running
 			}
-			command, ports := p.ink, p.gray
+			command, ports, word := p.ink, p.gray, p.gray
 			if stand == standWaiting {
 				command += p.bold
 			}
@@ -173,9 +176,8 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 				if cursored {
 					dim = p.gray
 				}
-				command, ports = dim, dim
+				command, ports, word = dim, dim, dim
 			}
-			word := p.gray
 			if r.shown {
 				l.mark = cursorBar
 			}

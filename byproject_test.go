@@ -189,6 +189,7 @@ func TestAServingRowIsKnownByItsPort(t *testing.T) {
 		{"EXIT 3", true, standFault},
 		{statusDown, false, standDown},
 		{statusEnded, false, standOver},
+		{"EXIT 3", false, standOver},
 		{statusWorking, false, standWorking},
 		{statusActive, false, standRests},
 		{statusIdle, false, standRests},

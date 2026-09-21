@@ -918,6 +918,11 @@ func (m model) bar() string {
 	if len(waitingRound(m.projects)) > 0 {
 		hints = append(hints, keyHint{"tab", "Next waiting"})
 	}
+	// The port itself is the word: the bar has enter saying Open beside
+	// it, and what tells the two apart is that this one names a port.
+	if ok && serving(e) {
+		hints = append(hints, keyHint{"o", "Open " + portsColumn(e.ports[:1])})
+	}
 	if ok && (e.pid > 0 || e.container != "") {
 		hints = append(hints, keyHint{"x", "End it"})
 	}
@@ -1732,6 +1737,13 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			if p := m.programUnder(e); p != nil {
 				return m, m.openClient(e, p, pl.path)
 			}
+		}
+	case k == "o":
+		// The row's port in the browser. It asks nothing of the server,
+		// so it works whether or not conn holds one: the port is on the
+		// row either way, and so is the machine the browser is on.
+		if e, _, ok := m.under(); ok && serving(e) {
+			return m, m.openServing(e)
 		}
 	case k == "a":
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {

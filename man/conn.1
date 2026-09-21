@@ -279,6 +279,17 @@ knows:
 on a postgres.
 The bar names the client.
 .TP
+.B o
+The row's port in the browser, at
+.IR http://localhost: port .
+Offered where a row is running and has a port, whether it listens on
+it or publishes it; a row that says several is opened at the lowest.
+The browser is the system's own:
+.BR open (1)
+on macOS,
+.BR xdg\-open (1)
+on Linux.
+.TP
 .B a
 A new contact at the row's project: Claude Code, told it runs inside
 .BR conn .
@@ -646,6 +657,8 @@ shows every row.
 .SS Ports
 TCP listeners only, lowest first.
 UDP and unix sockets are on the page.
+.B o
+opens the lowest in the browser.
 .SS Project names
 In the tree a project is named with its root stripped:
 .I ~/projects/w0zro/conn

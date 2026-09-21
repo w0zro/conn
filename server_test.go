@@ -217,12 +217,13 @@ func isEyebrow(line string) bool {
 // the cursor's mark, the bay's bar, a spinner turning — it begins with
 // a dot.
 func isRow(line string) bool {
-	for _, f := range rowFields(line) {
-		switch f {
-		case dotWorks, dotRests, dotOver:
-			return true
-		}
+	f := rowFields(line)
+	if len(f) == 0 {
 		return false
+	}
+	switch f[0] {
+	case dotWorks, dotRests, dotOver:
+		return true
 	}
 	return false
 }

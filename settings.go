@@ -124,10 +124,10 @@ func composeSettings(home, inUse string, dark bool) settingsReport {
 	b.rows = append(b.rows, settingRow{kind: addRootSetting, text: addRootRow})
 	for _, t := range themes {
 		row := settingRow{kind: themeSetting, text: t.name}
-		switch {
-		case t.name == inUse:
+		switch t.name {
+		case inUse:
 			row.note = noteInUse
-		case t.name == c.Theme:
+		case c.Theme:
 			// The file names one and conn is wearing another: a flag
 			// said otherwise on the way in. Both are said, the
 			// difference being the thing somebody came here to see.
@@ -246,7 +246,7 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 	}
 	kind := settingKind(-1)
 	for i, r := range b.rows {
-		if r.kind != kind && !(kind == rootSetting && r.kind == addRootSetting) {
+		if r.kind != kind && (kind != rootSetting || r.kind != addRootSetting) {
 			// A heading for each setting, with what the file says of it
 			// against the right: how many roots it names, and nothing
 			// for the themes and the grounds, which are as many as conn

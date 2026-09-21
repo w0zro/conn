@@ -108,18 +108,18 @@ func (m settingsModel) key(k string) (settingsModel, tea.Cmd) {
 		m.at = 0
 		return m, nil
 	}
-	switch {
-	case k == "ctrl+c" || k == "esc":
+	switch k {
+	case "ctrl+c", "esc":
 		return m, m.leaving()
-	case k == "j" || k == "down":
+	case "j", "down":
 		m.at = ring(m.at+1, len(rows))
-	case k == "k" || k == "up":
+	case "k", "up":
 		m.at = ring(m.at-1, len(rows))
-	case k == "g":
+	case "g":
 		m.firstG = true
-	case k == "G":
+	case "G":
 		m.at = clamp(len(rows)-1, len(rows))
-	case k == "enter":
+	case "enter":
 		if m.at >= len(rows) {
 			return m, nil
 		}
@@ -135,7 +135,7 @@ func (m settingsModel) key(k string) (settingsModel, tea.Cmd) {
 		case groundSetting:
 			return m.useGround(r.value)
 		}
-	case k == "x":
+	case "x":
 		if m.at < len(rows) && rows[m.at].kind == rootSetting {
 			return m.dropRoot(rows[m.at].at)
 		}

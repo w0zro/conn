@@ -483,9 +483,12 @@ Anything else.
 .SS Groups
 .SS Blocks
 In the panel a row is in the block of the project it works in.
-The blocks are in the order of their paths.
-A project that holds other projects is a heading over them; a block
-under a heading is indented, and gives up as much at its right.
+Every block is at the margin, in the order of its project's path, and
+named by the project's own directory; where two on the panel share that
+name, as much of the path above it as tells them apart.
+A project that holds other projects is not a block of its own here: it
+is a heading in the tree, on
+.BR z .
 A project that declares processes in a
 .I .conn
 has a block whether or not anything in it is running.
@@ -629,7 +632,7 @@ shows every row.
 TCP listeners only, lowest first.
 UDP and unix sockets are on the page.
 .SS Project names
-A project is named with its root stripped:
+In the tree a project is named with its root stripped:
 .I ~/projects/w0zro/conn
 under the root
 .I ~/projects
@@ -638,7 +641,8 @@ is
 Work in a directory outside every root is under
 .B ~
 and the path.
-A directory that groups two or more projects is a heading over them.
+A directory that groups two or more projects is a heading over them in
+the tree; the panel has no heading for it.
 .SS Marks
 The cursor's row is on raised ground.
 The row whose pane is in the workspace carries a bar in the margin.

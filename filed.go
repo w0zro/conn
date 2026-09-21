@@ -116,24 +116,16 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 	cursorRow := -1
 	d := canvas{p: p, width: width}
 	for _, bp := range b.projects {
-		// A block indents under the project that holds it, as a folder
-		// of checkouts holds its repositories, and gives up the same at
-		// its right: a rule that began indented and ended where its
-		// holder's ended read as another block at the margin, and what
-		// a block holds should sit inside it at both edges. The rows
-		// take the block's right edge with the rule.
-		in := min(bp.nest*treeIndent, max(measure-commandLeast-4, 0))
-		edge := measure - in
-		if bp.nest == 0 {
-			d.blank(0)
-		}
+		// Every block is at the margin, with a row of air before it.
+		// The projects are a list and not a tree here; see flat.
+		d.blank(0)
 		l := d.line()
 		wants, wantStamped, wantBlinks := verdict(bp.rows)
 		wantW := utf8.RuneCountInString(wants)
 		if wantStamped {
 			wantW = stampWidth(wants, p)
 		}
-		l.eyebrowTail(p.parchment+p.bold, in, fit(bp.path, max(edge-in-wantW-1, 1), true), edge, wantW)
+		l.eyebrowTail(p.parchment+p.bold, 0, fit(bp.path, max(measure-wantW-1, 1), true), measure, wantW)
 		switch {
 		case wantBlinks && !b.lit:
 		case wantStamped:
@@ -195,13 +187,12 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			if r.status == statusWorking {
 				l.turn = spinner[b.spin%len(spinner)]
 			}
-			l.to(in)
 			l.dot(tone, glyph)
 			// The dots stand in one column down the block, whatever
 			// depth their rows are at: they are what the panel is read
 			// down, and a column that steps in and out is not one. What
 			// runs what is said by the command's own indent.
-			l.to(min(l.cells+r.depth*treeIndent, max(edge-commandLeast, 0)))
+			l.to(min(l.cells+r.depth*treeIndent, max(measure-commandLeast, 0)))
 			say, stamped, blinks := rowWord(r)
 			tailW := utf8.RuneCountInString(say)
 			if stamped {
@@ -211,14 +202,14 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			if r.name != "" {
 				activity = r.name
 			}
-			l.activity(command, ports, activity, r.ports, max(edge-l.cells-tailW-1, 0))
+			l.activity(command, ports, activity, r.ports, max(measure-l.cells-tailW-1, 0))
 			switch {
 			case blinks && !b.lit:
 			case stamped:
-				l.to(edge - tailW)
+				l.to(measure - tailW)
 				l.stamp(say)
 			case say != "":
-				l.to(edge - tailW)
+				l.to(measure - tailW)
 				l.add(word, say)
 			}
 			d.emit(l, 0, false)
@@ -228,8 +219,8 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 		// project that shows none of what it declares should say why.
 		if bp.note != "" {
 			l := d.line()
-			l.to(in + 3)
-			l.add(p.chip, " "+fit(strings.ToUpper(bp.note), max(edge-in-5, 1), false)+" ")
+			l.to(3)
+			l.add(p.chip, " "+fit(strings.ToUpper(bp.note), max(measure-5, 1), false)+" ")
 			d.emit(l, 0, false)
 		}
 	}

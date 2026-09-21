@@ -1,12 +1,12 @@
 
-   w0zro/conn ──────────────────  WAITING
+   conn ────────────────────────  WAITING
 ▌  ○  zsh
    ●    claude                      2 MIN
    ●    vim                       STOPPED
    ●  node vite · :5173
    ◌    worker                        DOWN
 
-   w0zro/vim.pro/conjurer ──────  WAITING
+   conjurer ────────────────────  WAITING
 ▸  ●  claude                        9 MIN
  ⣾ ●  go test ./...
 

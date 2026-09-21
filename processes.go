@@ -98,8 +98,8 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
-func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool) processesReport {
-	b := processesReport{err: err, stalled: stalled}
+func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
+	b := processesReport{err: err, stalled: stalled, filed: filed}
 	head, _, marked := headOf(projects, bay)
 	for _, pl := range projects {
 		bp := projectBlock{path: pl.path, note: pl.note}
@@ -116,8 +116,93 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 		}
 		b.projects = append(b.projects, bp)
 	}
+	if filed {
+		b.projects = flat(b.projects, roots, home)
+		return b
+	}
 	b.projects = nested(b.projects, isProject, roots, home)
 	return b
+}
+
+// flat is the blocks as the panel has them: the projects alone, in the
+// order of their paths, each named by its own directory. A block with
+// no rows is dropped — a project is on the panel because work is
+// happening in it, and a heading with nothing under it is a name for
+// nothing.
+//
+// The tree nests a project under the project that holds it, as a folder
+// of checkouts holds its repositories, and the panel does not. The
+// folder is not where any work is happening; it is a place on a disk
+// two of the projects share, and standing it over them cost a row and
+// an indent to say so. The panel is the projects work is happening in,
+// each at the margin, and the tree on z is where what holds what is
+// read.
+func flat(blocks []projectBlock, roots []string, home string) []projectBlock {
+	var out []projectBlock
+	for _, bp := range blocks {
+		if len(bp.rows) > 0 {
+			out = append(out, bp)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b projectBlock) int { return strings.Compare(a.path, b.path) })
+	names := leafNames(out, roots, home)
+	for i := range out {
+		if out[i].path == "" {
+			out[i].path = "NO PROJECT"
+			continue
+		}
+		out[i].path = names[out[i].path]
+	}
+	return out
+}
+
+// leafNames names each project on the panel by its own directory's
+// name, the leaf, which is what a project is called; the folder above
+// it is put before it only where two projects on the panel share the
+// name, and one more above that where they still do, which is as much
+// of the path as it takes to tell them apart and no more. A name that
+// would take the whole path is written as the tree titles a block,
+// from a root or from ~; a root itself is its leaf.
+func leafNames(blocks []projectBlock, roots []string, home string) map[string]string {
+	segs := map[string]int{}
+	for _, bp := range blocks {
+		if bp.path != "" {
+			segs[bp.path] = 1
+		}
+	}
+	name := func(path string, n int) (string, bool) {
+		parts := strings.Split(strings.Trim(filepath.ToSlash(path), "/"), "/")
+		if n >= len(parts) {
+			if slices.Contains(roots, path) {
+				return filepath.Base(path), false
+			}
+			return projectName(path, roots, home), false
+		}
+		return strings.Join(parts[len(parts)-n:], "/"), true
+	}
+	names := map[string]string{}
+	for {
+		byName := map[string][]string{}
+		for path, n := range segs {
+			names[path], _ = name(path, n)
+			byName[names[path]] = append(byName[names[path]], path)
+		}
+		grown := false
+		for _, paths := range byName {
+			if len(paths) < 2 {
+				continue
+			}
+			for _, path := range paths {
+				if _, more := name(path, segs[path]); more {
+					segs[path]++
+					grown = true
+				}
+			}
+		}
+		if !grown {
+			return names
+		}
+	}
 }
 
 // waitedFor is how long a waiting row has waited, for the panel to say

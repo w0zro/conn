@@ -1572,7 +1572,7 @@ func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
 	if got := click(at("zsh")); got.cursor != 11 || got.cursorAt != 0 {
 		t.Errorf("a click on the shell put the cursor on %d at %d", got.cursor, got.cursorAt)
 	}
-	if got := click(at("/w/a ─")); got.cursor != 12 {
+	if got := click(at("a ─")); got.cursor != 12 {
 		t.Errorf("a click on an eyebrow moved the cursor to %d", got.cursor)
 	}
 	if got := click(0); got.cursor != 12 {

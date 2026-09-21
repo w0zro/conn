@@ -46,12 +46,12 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// at the end of the rule, a wait stamped with its age, a fault
 	// stamped with its word, and what is down saying so. The file of
 	// record is the panel's own width.
-	b := composeProcesses(out, map[string]pane{"ttys001": {id: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false)
-	b.lit, b.filed = true, true
+	b := composeProcesses(out, map[string]pane{"ttys001": {id: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
+	b.lit = true
 	rows := drawProcesses(b, 5, panelWidth, 30, plain)
 	text := texts(rows)
 	golden(t, "processes-filed-44x30.txt", text)
-	for _, want := range []string{"w0zro/conn ─", "vim.pro/conjurer ─", "─  WAITING", " 9 MIN", " 2 MIN",
+	for _, want := range []string{"conn ─", "conjurer ─", "─  WAITING", " 9 MIN", " 2 MIN",
 		"⣾ ●  go test ./...", "●  node vite · :5173", "○  zsh", "◌    worker", " STOPPED", " DOWN"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
@@ -295,23 +295,25 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 	if !strings.Contains(text, " 2 DOWN") {
 		t.Errorf("the project with nothing up does not say so:\n%s", text)
 	}
-	// A block held by another gives up as much at its right as its
-	// indent takes at the left, so what it holds sits inside it.
-	var holder, held string
+	// Every block is at the margin: the folder the two projects share
+	// is not a project and nothing is happening in it.
 	for _, line := range strings.Split(text, "\n") {
-		switch {
-		case strings.Contains(line, "w0zro ─"):
-			holder = strings.TrimRight(line, " ")
-		case strings.Contains(line, "conn ─"):
-			held = strings.TrimRight(line, " ")
+		if strings.Contains(line, "w0zro") {
+			t.Errorf("the folder over the projects is a block of its own: %q", line)
+		}
+		if trimmed := strings.TrimRight(line, " "); trimmed != "" && !isPanelRow(trimmed) && !strings.HasPrefix(trimmed, "   ") {
+			t.Errorf("a block is not at the margin: %q", line)
 		}
 	}
-	if holder == "" || held == "" {
-		t.Fatalf("the blocks are missing:\n%s", text)
+}
+
+// isPanelRow says whether a trimmed panel line is a process row rather
+// than a block's eyebrow: it begins with a dot, past the margin.
+func isPanelRow(line string) bool {
+	for _, f := range strings.Fields(line) {
+		return f == dotWants || f == dotWorks || f == dotRests || f == dotOver || f == "▸" || f == cursorBar
 	}
-	if len([]rune(held)) >= len([]rune(holder)) {
-		t.Errorf("the held block runs to the holder's edge:\n%q\n%q", holder, held)
-	}
+	return false
 }
 
 // A row keeps its port when the width is short: the port is where you
@@ -335,9 +337,12 @@ func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 		if !strings.Contains(text, "pnpm") || !strings.Contains(text, "node") {
 			t.Errorf("at %d wide the rows lost their commands:\n%s", width, text)
 		}
-		if !strings.Contains(text, "…") {
-			t.Errorf("at %d wide nothing yielded:\n%s", width, text)
-		}
+	}
+	// At the narrowest the command is what yields, and the port is
+	// still there when it has.
+	narrow := texts(drawProcesses(m.processesReport(), 5, 40, 20, plain))
+	if !strings.Contains(narrow, "…") || !strings.Contains(narrow, ":3000") {
+		t.Errorf("narrow, the command did not yield to the port:\n%s", narrow)
 	}
 }
 

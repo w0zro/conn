@@ -112,6 +112,60 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 	}
 }
 
+// How the work has gone is a count of work, not a clock: a contact at
+// rest worked up to the moment it stopped, and reads the same a minute
+// later. Only what it has stood since grows, under the word for the way
+// it stands. A contact conn cannot read is given no figure for work at
+// all, since conn does not know that any of the span was work.
+func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
+	later := processesNow.Add(time.Minute)
+	for _, c := range []struct {
+		what, status, rest string
+		since              time.Time
+		grows              bool
+	}{
+		{what: "a contact stopped on an ask", status: statusWaiting, rest: "waiting", since: processesNow.Add(-7 * time.Minute)},
+		{what: "a contact whose turn is over", status: statusIdle, rest: "idle", since: processesNow.Add(-7 * time.Minute)},
+		{what: "a contact at work", status: statusWorking, since: processesNow.Add(-7 * time.Minute), grows: true},
+	} {
+		s := readoutSubj()
+		s.entry.status, s.entry.since = c.status, c.since
+		was := composeContact(s, "/Users/w0zro", processesNow)
+		is := composeContact(s, "/Users/w0zro", later)
+		switch {
+		case c.grows && is.worked <= was.worked:
+			t.Errorf("%s: the work stood still at %s while it worked", c.what, span(is.worked))
+		case !c.grows && is.worked != was.worked:
+			t.Errorf("%s: the work went from %s to %s a minute later, doing nothing", c.what, span(was.worked), span(is.worked))
+		}
+		if c.rest == "" {
+			continue
+		}
+		if is.rested-was.rested != time.Minute {
+			t.Errorf("%s: it stood %s, then %s a minute later", c.what, span(was.rested), span(is.rested))
+		}
+		if want := "· " + c.rest + " 8m"; !strings.Contains(texts(drawReadout(composeReadout(s, "/Users/w0zro", later), 100, 60, plain)), want) {
+			t.Errorf("%s: the bar's caption does not say %q", c.what, want)
+		}
+	}
+
+	// A contact with no session file to read stands as conn found it,
+	// and conn knows no moment work stopped: it says how long the
+	// contact has been up and claims no span of work.
+	s := readoutSubj()
+	s.entry.status, s.entry.since = statusActive, time.Time{}
+	s.sess, s.carried = sessionFile{}, session{}
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	if !strings.Contains(text, "It came up at 18:28 and has been up 1h 32m.") {
+		t.Errorf("a contact conn cannot read was not said to be merely up:\n%s", text)
+	}
+	for _, claim := range []string{"worked", "Worked"} {
+		if strings.Contains(text, claim) {
+			t.Errorf("a contact conn cannot read was credited with work (%q):\n%s", claim, text)
+		}
+	}
+}
+
 // A row with nothing more to say says nothing more: a shell has no ask
 // and no session, so it gets neither group, and a heading over nothing
 // is not drawn. A process sitting in its tree's own project is not told

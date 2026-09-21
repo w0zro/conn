@@ -26,7 +26,8 @@ type contactPage struct {
 	standing                 string // what it is doing, where it is not waiting
 	procedure                []keyHint
 	caution                  string
-	worked, waitedFor        time.Duration // how the work has gone
+	worked, rested           time.Duration // how the work has gone: what it worked, and what it has stood since
+	restWord                 string        // what that standing is called: waiting, or idle
 	story                    string        // the same, as a sentence
 	specs                    []fact        // the specifications, a blank label for a row of air
 }
@@ -119,25 +120,42 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	}
 	c.caution = strings.Join(caution, " ")
 
-	// How the work has gone: the span since it came up, and how much of
-	// that it has stood waiting; then the last thing it was given, which
-	// is the work it is on. The moment it came up is known and the
-	// moment it was last asked is not, so the two are not put in one
-	// clause as though the one dated the other.
+	// How the work has gone: what it worked, and what it has stood since;
+	// then the last thing it was given, which is the work it is on. A
+	// contact at work is working this moment, so its span reaches to
+	// now. One at rest - stopped on an ask, or its turn simply over -
+	// worked up to the moment it stopped and not a second past it, so
+	// that span holds still and only the rest beside it grows. Of a
+	// contact conn cannot read, conn knows neither, and says how long it
+	// has been up instead. The moment it came up is known and the moment
+	// it was last asked is not, so the two are not put in one clause as
+	// though the one dated the other.
 	if !e.started.IsZero() {
-		total := now.Sub(e.started)
-		if c.waiting && !e.since.IsZero() {
-			c.waitedFor = now.Sub(e.since)
+		stopped := e.since
+		if stopped.Before(e.started) {
+			stopped = time.Time{}
 		}
-		c.worked = max(total-c.waitedFor, 0)
+		atRest := (c.waiting || e.status == statusIdle) && !stopped.IsZero()
+		if atRest {
+			c.worked = stopped.Sub(e.started)
+			c.rested = max(now.Sub(stopped), 0)
+			c.restWord = "waiting"
+			if !c.waiting {
+				c.restWord = "idle"
+			}
+		} else if e.status == statusWorking {
+			c.worked = now.Sub(e.started)
+		}
 		story := "It came up at " + e.started.Local().Format("15:04")
 		switch {
-		case c.waiting:
+		case atRest && c.waiting:
 			story += " and worked for " + span(c.worked) + ", then stopped to ask."
+		case atRest:
+			story += " and worked for " + span(c.worked) + ", then stopped."
 		case e.status == statusWorking:
 			story += " and has been at work for " + span(c.worked) + "."
 		default:
-			story += " and has had " + span(c.worked) + "."
+			story += " and has been up " + span(now.Sub(e.started)) + "."
 		}
 		if s.carried.Prompt != "" {
 			story += " You last gave it “" + s.carried.Prompt + "”."
@@ -429,38 +447,48 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 		l.eyebrow(0, "HOW THE WORK HAS GONE", measure, "")
 		emit(l)
 		blank()
-		// The bar: what was worked in the gray, what has been waited in
-		// the accent, to the width the caption leaves.
-		caption := "worked " + span(c.worked)
-		if c.waitedFor > 0 {
-			caption += " · waiting " + strings.ToLower(brief(c.waitedFor))
-		}
-		// The caption sits after the bar where the width has room for
-		// both, and under it where it has not.
-		barW := measure - utf8.RuneCountInString(caption) - 2
-		beside := barW >= 10
-		if !beside {
-			barW = measure
-		}
-		total := c.worked + c.waitedFor
-		waited := 0
-		if total > 0 && c.waitedFor > 0 {
-			waited = max(int(float64(barW)*float64(c.waitedFor)/float64(total)), 1)
-		}
-		l = newLine()
-		l.add(p.running, strings.Repeat("█", barW-waited))
-		if waited > 0 {
-			l.add(p.orange, strings.Repeat("█", waited))
-		}
-		if beside {
-			l.add("", "  ")
-		} else {
-			emit(l)
+		// The bar: what was worked in the running green, what it has
+		// stood since beside it - in the accent where somebody is being
+		// waited on, quietly where the turn is merely over - to the
+		// width the caption leaves. A contact with no span conn can
+		// call work gets the sentence alone; a full bar would say the
+		// whole of it was work, which conn does not know.
+		if c.worked > 0 || c.rested > 0 {
+			caption := "worked " + span(c.worked)
+			if c.rested > 0 {
+				caption += " · " + c.restWord + " " + strings.ToLower(brief(c.rested))
+			}
+			// The caption sits after the bar where the width has room
+			// for both, and under it where it has not.
+			barW := measure - utf8.RuneCountInString(caption) - 2
+			beside := barW >= 10
+			if !beside {
+				barW = measure
+			}
+			total := c.worked + c.rested
+			rested := 0
+			if total > 0 && c.rested > 0 {
+				rested = max(int(float64(barW)*float64(c.rested)/float64(total)), 1)
+			}
+			restInk := p.gray
+			if c.waiting {
+				restInk = p.orange
+			}
 			l = newLine()
+			l.add(p.running, strings.Repeat("█", barW-rested))
+			if rested > 0 {
+				l.add(restInk, strings.Repeat("█", rested))
+			}
+			if beside {
+				l.add("", "  ")
+			} else {
+				emit(l)
+				l = newLine()
+			}
+			l.add(p.gray, fit(caption, measure, false))
+			emit(l)
+			blank()
 		}
-		l.add(p.gray, fit(caption, measure, false))
-		emit(l)
-		blank()
 		for _, part := range wrapValue(c.story, measure) {
 			l = newLine()
 			l.add(p.gray, part)

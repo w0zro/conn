@@ -22,6 +22,11 @@ var (
 	moveHint     = keyHint{"j k", "Move"}
 	rootsHints   = []keyHint{moveHint, {"enter", "Saves it"}}
 	consoleHints = []keyHint{{"any key", "Continue"}}
+	// A root typed in the settings, where esc is a way back to the
+	// rows. The first start has none: conn cannot show anything until
+	// the line is answered, and a key that did nothing would be conn
+	// pretending there was a way past it.
+	rootsBarHints = append(append([]keyHint{}, rootsHints...), keyHint{"esc", "Back"})
 	// The manual has the keys while it is up, so the bar says the
 	// manual's: the panel beside it is the card of conn's own, which is
 	// read rather than worked.

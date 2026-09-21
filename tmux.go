@@ -140,7 +140,7 @@ func (s *server) attach(self, home string, o override) (int, error) {
 		return 0, err
 	}
 	if asked {
-		if err := s.reground(conf, surfaceHex, true); err != nil {
+		if err := s.reground(conf, surfaceHex, "", true); err != nil {
 			return 0, err
 		}
 	}
@@ -178,19 +178,19 @@ func (s *server) attach(self, home string, o override) (int, error) {
 }
 
 // rewear puts the server into a mode conn has just taken on. It is
-// reground for a conn that is itself the panel: the mode is written
-// down first, since the panes that come up again read it, and the
-// panel is left standing — it is the conn asking for this, it has the
-// palette already, and killing it to change color would take the view
-// the operator is working with it.
-func (s *server) rewear(conf, bg string, m mode) error {
+// reground for a conn already in the server: the mode is written down
+// first, since the panes that come up again read it, and the panel is
+// left standing — it is told to wear the mode where it stands, and
+// killing it to change color would take the view the operator is
+// working with it.
+func (s *server) rewear(conf, bg, except string, m mode) error {
 	if err := writeMode(s.socket, m); err != nil {
 		return err
 	}
 	if err := os.WriteFile(confPath(s.socket), []byte(conf), 0o600); err != nil {
 		return err
 	}
-	return s.reground(confPath(s.socket), bg, false)
+	return s.reground(confPath(s.socket), bg, except, false)
 }
 
 // confPath is the tmux configuration conn writes for its server, beside
@@ -214,9 +214,13 @@ func confPath(socket string) string {
 // bg is the surface the panel's pane is painted, handed in rather than
 // read here: the caller has the palette on the loop, and this runs off
 // it. panel is whether the panel is one of the panes to start again — a
-// conn that attached from outside has to, and the panel itself, asking
-// for a theme from the settings, must not.
-func (s *server) reground(conf, bg string, panel bool) error {
+// conn that attached from outside has to, and a conn already in the
+// server, which tells the panel to wear the mode where it stands, must
+// not. except is the pane asking, where the asking came from a pane of
+// conn's own: it has put the mode on itself already, and starting it
+// again would take the operator back to the top of the page they are
+// working.
+func (s *server) reground(conf, bg, except string, panel bool) error {
 	if !s.up() {
 		return nil
 	}
@@ -228,7 +232,7 @@ func (s *server) reground(conf, bg string, panel bool) error {
 		return err
 	}
 	for _, p := range panes {
-		if p.hold {
+		if p.hold && p.id != except {
 			if _, err := s.run("respawn-pane", "-k", "-t", p.id); err != nil {
 				return err
 			}
@@ -237,8 +241,15 @@ func (s *server) reground(conf, bg string, panel bool) error {
 	// The panel's pane is painted on the new ground's surface here as
 	// well as by the conn that comes up in it, so the window is right
 	// in the same breath as the rest and not a moment after.
+	//
+	// The style is set as the pane's own option rather than with
+	// select-pane -P, which paints a pane by first making it the pane
+	// the keys are in. That was nothing while the panel was the only
+	// conn that asked for a ground — it had the keys already — and
+	// with the settings in the workspace it took them out from under
+	// the operator mid-page.
 	target := sessionName + ":" + homeWindow + ".0"
-	if _, err := s.run("select-pane", "-t", target, "-P", "bg="+bg); err != nil {
+	if _, err := s.run("set-option", "-p", "-t", target, "window-style", "bg="+bg); err != nil {
 		return err
 	}
 	if !panel {
@@ -340,6 +351,11 @@ type pane struct {
 	// well, so everything that steps over furniture steps over it, and
 	// this says which furniture it is.
 	help bool
+	// The settings, which , puts in the workspace. Furniture again,
+	// and marked apart from the manual for the same reason the manual
+	// is marked apart from the readout: the panel says which of them
+	// is standing, and answers for the keys that are in it.
+	settings bool
 	// Whether this is its window's active pane, which is tmux's word
 	// for where the keys are in that window. The panel is told by the
 	// terminal when the keys leave it and knows on its own when its
@@ -367,7 +383,7 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active} #{pane_index}"
+	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active} #{pane_index} #{@conn_settings}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
@@ -387,13 +403,14 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 14 || f[0] == "" {
+		if len(f) != 15 || f[0] == "" {
 			continue
 		}
 		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
 			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1",
 			container: f[7], shellIn: f[8], help: f[9] == "1",
-			declared: f[10], exit: f[11], active: f[12] == "1"}
+			declared: f[10], exit: f[11], active: f[12] == "1",
+			settings: f[14] == "1"}
 		p.index, _ = strconv.Atoi(f[13])
 		p.width, _ = strconv.Atoi(f[2])
 		p.height, _ = strconv.Atoi(f[3])
@@ -414,6 +431,14 @@ func reachable(p pane) bool {
 
 // The panel is the pane this conn runs in; tmux names it in TMUX_PANE.
 func (s *server) panel() string {
+	return ownPane()
+}
+
+// ownPane is the pane this conn runs in, whichever conn it is: the
+// panel for the one that draws the panel, and its own pane for a page
+// of conn's own standing in the workspace. A page asking the server to
+// change color names it, so that it is the one pane not started again.
+func ownPane() string {
 	return os.Getenv("TMUX_PANE")
 }
 
@@ -535,30 +560,64 @@ func (s *server) holdBay(home, self string, bay pane) error {
 }
 
 // showReadout puts the readout in the bay, and leaves focus on the
-// panel. It is furniture rather than work — it runs nothing of yours,
-// and reaching anything else is meant to be rid of it — so it is marked
-// the way a hold is: killed when a real pane takes the bay, and
-// respawned where it stands when the ground changes. Focus stays where
-// it was because the readout is a reading, not a project to be.
+// panel. Focus stays where it was because the readout is a reading,
+// not a project to be.
 //
 // It is opened on no pid, which is the readout's word for "whatever the
 // panel's cursor is on". One page then serves the whole list, j and k
 // carrying it along, where a page opened per row would spawn a window a
 // keystroke and blank the bay between each.
 func (s *server) showReadout(home, self string) error {
+	return s.showOwn(home, self, "readout", "@conn_readout", false)
+}
+
+// showHelp puts the manual in the workspace, with the keys in it: it is
+// a page to be read, and a page that cannot be scrolled cannot be read.
+// The panel says HELP while it stands, so where the keys have gone is
+// not left to be guessed at.
+func (s *server) showHelp(home, self string) error {
+	return s.showOwn(home, self, "manual", "@conn_help", true)
+}
+
+// showSettings puts the settings in the workspace, with the keys in it.
+// The workspace is where conn puts what is being worked on, and the
+// configuration is that while it is open: the panel is the list of
+// what is running and has no room to be a form as well. The panel says
+// SETTINGS while it stands and goes on reading the machine beside it.
+func (s *server) showSettings(home, self string) error {
+	return s.showOwn(home, self, "settings", "@conn_settings", true)
+}
+
+// showOwn puts one of conn's own pages in the bay: the readout, the
+// manual, the settings. Each is a conn of its own, run as a command of
+// this binary in a window of its own and swapped into the bay, so the
+// row it would otherwise take in the processes view is not taken and
+// the keys in it are conn's to decide.
+//
+// Every one is furniture rather than work — it runs nothing of yours,
+// and reaching anything else is meant to be rid of it. So each carries
+// the hold's own mark, and everything that acts on holds acts on it:
+// killed when a real pane takes the bay, respawned where it stands
+// when the ground changes. Each carries a mark of its own besides,
+// which is how the panel tells which page is standing. What is left to
+// the caller is the keys: a page to be read or worked takes them, and
+// a reading does not.
+//
+// What was in the bay goes back to a window of its own, still running,
+// unless it was conn's own furniture and has nothing to go back to.
+func (s *server) showOwn(home, self, cmd, mark string, keys bool) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
 	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
-		"exec "+shellQuote(self)+" readout")
+		"exec "+shellQuote(self)+" "+cmd)
 	if err != nil {
 		return err
 	}
-	readout := strings.TrimSpace(id)
-	if _, err := s.run("set-option", "-p", "-t", readout, "@conn_hold", "1"); err != nil {
-		return err
-	}
-	if _, err := s.run("set-option", "-p", "-t", readout, "@conn_readout", "1"); err != nil {
-		return err
+	page := strings.TrimSpace(id)
+	for _, opt := range []string{"@conn_hold", mark} {
+		if _, err := s.run("set-option", "-p", "-t", page, opt, "1"); err != nil {
+			return err
+		}
 	}
 	bay, ok, err := s.bay()
 	if err != nil {
@@ -566,8 +625,8 @@ func (s *server) showReadout(home, self string) error {
 	}
 	if !ok {
 		// Nothing to swap into. Split one first — swapping against the panel
-		// instead would put the processes view in the window the readout came
-		// from and the readout where the processes view belongs.
+		// instead would put the processes view in the window the page came
+		// from and the page where the processes view belongs.
 		if err := s.split(home, self); err != nil {
 			return err
 		}
@@ -577,18 +636,18 @@ func (s *server) showReadout(home, self string) error {
 			return fmt.Errorf("home has no bay")
 		}
 	}
-	args := []string{"swap-pane", "-d", "-s", readout, "-t", bay.id}
+	args := []string{"swap-pane", "-d", "-s", page, "-t", bay.id}
 	if bay.width > 0 && bay.height > 0 {
 		args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
 	}
-	// What was in the bay goes back to a window of its own, still
-	// running, unless it was conn's own furniture and has nothing to go
-	// back to.
 	if bay.hold {
 		args = append(args, ";", "kill-pane", "-t", bay.id)
 	}
 	if _, err := s.run(args...); err != nil {
 		return err
+	}
+	if keys {
+		return s.focusPane(page)
 	}
 	return s.focusPanel()
 }
@@ -1029,6 +1088,27 @@ func (s *server) say(keys, station, up, bar, ident string) error {
 	return err
 }
 
+// sayBand is say without the key bar, for the panel while a page of
+// conn's own has the keys and is writing that position itself.
+func (s *server) sayBand(keys, station, up, ident string) error {
+	_, err := s.run("set-option", "-g", "@conn_keys", keys,
+		";", "set-option", "-g", "@conn_station", station,
+		";", "set-option", "-g", "@conn_up", up,
+		";", "set-option", "-g", "@conn_ident", ident,
+		";", "refresh-client", "-S")
+	return err
+}
+
+// sayBar is the key bar alone, for a page of conn's own that has the
+// keys: what the keys do there is its own to say, since the bar says
+// the keys that work where the cursor is and the cursor is in that
+// pane. The panel leaves the position alone while such a page stands;
+// see saying in tui.go.
+func (s *server) sayBar(bar string) error {
+	_, err := s.run("set-option", "-g", "@conn_bar", bar, ";", "refresh-client", "-S")
+	return err
+}
+
 // statusLineWord is a word on the line's own ground: the wordmark in
 // the ink and bold, or a figure in the gray.
 func statusLineWord(text, color string, bold bool) string {
@@ -1039,19 +1119,48 @@ func statusLineWord(text, color string, bold bool) string {
 	return fmt.Sprintf("#[bg=%s fg=%s %s]%s", borderHex, color, weight, strings.ReplaceAll(text, "#", "##"))
 }
 
-// leaveHelp tells the panel the manual is done with. The manual is a
-// conn of its own in a pane of its own, and the only way it has to
-// speak to the panel is the way the panel key does: a key, sent to it.
+// tellPanel sends the panel a key. A page of conn's own is a conn in a
+// pane of its own, and the only way it has to speak to the panel is
+// the way the panel key does: a key, sent to it.
 //
-// It says so rather than ending and letting the panel notice. The panel
-// notices on its next reading, which is a second or two away and only
-// happens at all while the processes view has the keys — so a manual
-// that just ended left a dead pane standing in the workspace, which is
-// the one thing the workspace should never be showing.
-func (s *server) leaveHelp() error {
-	_, err := s.run("send-keys", "-t", sessionName+":"+homeWindow+".0", "M-Escape")
+// The keys it sends are alt keys the panel answers to and nothing else
+// does; see leaveKey and worn.
+func (s *server) tellPanel(key string) error {
+	_, err := s.run("send-keys", "-t", sessionName+":"+homeWindow+".0", key)
 	return err
 }
+
+// leaveHelp tells the panel the manual is done with, and leaveSettings
+// the same of the settings.
+//
+// Each says so rather than ending and letting the panel notice. The
+// panel notices on its next reading, which is a second or two away and
+// only happens at all while the processes view has the keys — so a
+// page that just ended left a dead pane standing in the workspace,
+// which is the one thing the workspace should never be showing.
+func (s *server) leaveHelp() error     { return s.tellPanel(leaveHelpKey) }
+func (s *server) leaveSettings() error { return s.tellPanel(leaveSettingsKey) }
+
+// wearMode tells the panel the mode has changed under it: the settings
+// have just written one and put it on the server, and the panel draws
+// in colors of its own that it read when it came up.
+//
+// The panel is not respawned for it, the way the panes conn fills with
+// furniture are. Respawning the panel is a fresh conn, which comes up
+// on the console — the operator picked a theme and would be handed
+// back the boot screen — so the panel reads the mode file again where
+// it stands and wears what it now says.
+func (s *server) wearMode() error { return s.tellPanel(wearModeKey) }
+
+// The keys a page of conn's own sends the panel. They are alt keys
+// because the panel answers those wherever the keys are and whatever
+// view it is in, and these three are not otherwise pressed: nobody
+// reaches for alt-escape or alt-comma on a list of processes.
+const (
+	leaveHelpKey     = "M-Escape"
+	leaveSettingsKey = "M-,"
+	wearModeKey      = "M-w"
+)
 
 // shellQuote quotes a path for a tmux command line.
 func shellQuote(s string) string {
@@ -1141,53 +1250,4 @@ func downReport(ws []window, socket, home string) string {
 		fmt.Fprintf(&b, " ✔ %-*s  ended\n", width, l)
 	}
 	return b.String()
-}
-
-// showHelp puts the manual in the workspace, the way showReadout puts
-// the readout there: a window of its own, marked as a hold so that
-// everything stepping over conn's furniture steps over it, and marked
-// as the manual so the panel can say HELP while it stands.
-func (s *server) showHelp(home, self string) error {
-	s.swaps.Lock()
-	defer s.swaps.Unlock()
-	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
-		"exec "+shellQuote(self)+" manual")
-	if err != nil {
-		return err
-	}
-	help := strings.TrimSpace(id)
-	for _, mark := range []string{"@conn_hold", "@conn_help"} {
-		if _, err := s.run("set-option", "-p", "-t", help, mark, "1"); err != nil {
-			return err
-		}
-	}
-	bay, ok, err := s.bay()
-	if err != nil {
-		return err
-	}
-	if !ok {
-		if err := s.split(home, self); err != nil {
-			return err
-		}
-		if bay, ok, err = s.bay(); err != nil {
-			return err
-		} else if !ok {
-			return fmt.Errorf("home has no bay")
-		}
-	}
-	args := []string{"swap-pane", "-d", "-s", help, "-t", bay.id}
-	if bay.width > 0 && bay.height > 0 {
-		args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
-	}
-	if bay.hold {
-		args = append(args, ";", "kill-pane", "-t", bay.id)
-	}
-	if _, err := s.run(args...); err != nil {
-		return err
-	}
-	// The keys go to the manual, not back to the panel. It is a page to
-	// be read, and a page that cannot be scrolled cannot be read; the
-	// panel says HELP while it stands, so where the keys have gone is
-	// not left to be guessed at.
-	return s.focusPane(help)
 }

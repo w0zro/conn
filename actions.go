@@ -469,3 +469,15 @@ func (m model) openHelp() tea.Cmd {
 		return helpMsg{on: true}
 	}
 }
+
+// openTheSettings puts the settings in the workspace, the way the
+// manual goes there.
+func (m model) openTheSettings() tea.Cmd {
+	home, self, srv := m.head.login.home, m.self, m.srv
+	return func() tea.Msg {
+		if srv.showSettings(home, self) != nil {
+			return nil
+		}
+		return settingsMsg{on: true}
+	}
+}

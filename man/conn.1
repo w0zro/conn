@@ -125,8 +125,15 @@ line to type into that narrows them.
 .SS The settings
 \fB,\fR opens
 .BR conn 's
-own configuration: the roots the file names, each with what it turned
-out to be on this machine, and a row that adds another.
+own configuration in the workspace, with the keys in it; the band reads
+.BR SETTINGS .
+The panel beside it stays the panel, reading the machine, and holds no
+row under the cursor while they stand.
+.B esc
+closes them and puts the keys back where they were.
+.PP
+The rows are the roots the file names, each with what it turned out to
+be on this machine, and a row that adds another.
 .B enter
 on a root types it over,
 .B x
@@ -134,7 +141,8 @@ takes it out, and each is written to the file as it is made \(em only
 the key it changes, the rest of the file carried through.
 .B conn
 walks what was written at once, on the next reading, rather than on the
-next start.
+next start: the panel reads the file every time it reads the process
+table, and re-roots itself where it has changed.
 Where
 .B CONN_ROOTS
 stands in front of the file the view says so, and the rows stay the
@@ -185,11 +193,12 @@ it belongs to.
 .SS The roots view
 Where a root is typed, with the directories on this machine that answer
 what has been typed so far as its rows.
-It is shown instead of the processes view when
+It is shown on the panel, instead of the processes view, when
 .B conn
-has been told no roots \(em it asks for one directory, writes it, and
-goes to work \(em and from the settings, for a root being added or
-typed over, which
+has been told no roots: it asks for one directory, writes it, and goes
+to work.
+The settings put the same line up in their own pane, for a root being
+added or typed over, which
 .B esc
 leaves as it was.
 .SS The manual
@@ -430,7 +439,13 @@ leave the ground to the terminal from the next start.
 Take the root under the cursor out of the file.
 .TP
 .B esc
-Back to the processes view.
+On a root being typed: back to the rows, nothing written.
+On the rows: close the settings.
+The keys go back where they were before
+.BR , .
+.TP
+.B ctrl\-space
+Close them, to the panel.
 .SS In the manual
 .TP 20
 .BR j ", " k ", " down ", " up ", " ctrl\-n ", " ctrl\-p
@@ -927,7 +942,9 @@ The page is what
 knows of the row under the cursor, in the workspace, following the
 cursor.
 It is up while the keys are on the panel in the processes view, the
-projects list or the sessions view.
+projects list or the sessions view, and stands aside for whatever else
+is put in the workspace: a process gone into, the manual, the
+settings.
 .SS A process
 Groups, each with the fields it has:
 .TP 10

@@ -164,6 +164,40 @@ func composeSettings(home, inUse string, dark bool) settingsReport {
 	return b
 }
 
+// settingsHints is what the key bar says: the keys that work on the row
+// under the cursor, and only those. The settings are worked in a pane
+// of conn's own, so they write the bar themselves — the panel writes
+// the rest of the line and leaves that position alone while they
+// stand; see saying in settingsrun.go.
+func settingsHints(rows []settingRow, at int) []keyHint {
+	var hints []keyHint
+	if len(rows) > 1 {
+		hints = append(hints, moveHint)
+	}
+	if at < len(rows) {
+		switch rows[at].kind {
+		case rootSetting:
+			hints = append(hints, keyHint{"enter", "Change it"}, keyHint{"x", "Take it out"})
+		case addRootSetting:
+			hints = append(hints, keyHint{"enter", "Add one"})
+		case themeSetting:
+			if rows[at].note != noteInUse {
+				hints = append(hints, keyHint{"enter", "Wear it"})
+			}
+		case groundSetting:
+			switch r := rows[at]; {
+			case r.value == "" && r.note != noteInFile:
+				// Nothing changes now: the terminal is asked when a
+				// server rises, and one is up.
+				hints = append(hints, keyHint{"enter", "For the next start"})
+			case r.value != "" && r.note != noteInUse:
+				hints = append(hints, keyHint{"enter", "Wear it"})
+			}
+		}
+	}
+	return append(hints, keyHint{"esc", "Back"})
+}
+
 // drawSettings renders the view for a pane of the given size, with the
 // cursor on the given row.
 func drawSettings(b settingsReport, cursor, width, height int, p palette) []row {
@@ -273,8 +307,17 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 			color = l.p.gray
 		}
 		l.add(color, fit(text, room, r.kind == rootSetting))
+		// The note against the right, with the console's own leader
+		// carrying the eye to it. On the panel the two were a glance
+		// apart; the settings are worked in the workspace now, and a
+		// name at one edge with IN USE at the other and eighty columns
+		// of nothing between is not a row. It is the mark every fact
+		// the console and the readout state already wears.
 		if note != "" {
-			l.to(measure - utf8.RuneCountInString(note))
+			at := measure - utf8.RuneCountInString(note)
+			l.add("", " ")
+			l.add(l.p.faint, strings.Repeat(".", max(at-l.cells-1, 1)))
+			l.to(at)
 			l.add(l.p.gray, note)
 		}
 		d.emit(l, 0, false)

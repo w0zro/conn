@@ -41,13 +41,27 @@ func wrote(t *testing.T, home string) config {
 	return c
 }
 
-// settingsAt is a model on the settings view, with the cursor on a row.
-func settingsAt(t *testing.T, home string, at int) model {
+// settingsAt is the settings, in the pane they are worked in, with the
+// cursor on a row.
+func settingsAt(t *testing.T, home string, at int) settingsModel {
 	t.Helper()
-	m := model{p: plain, width: panelWidth, height: 40, view: viewSettings, settingAt: at}
-	m.head.login.home = home
-	return m
+	return settingsModel{p: plain, width: bayWidth, height: 40, home: home, at: at}
 }
+
+// bayWidth is a workspace to draw the settings in: what is left of a
+// wide window beside the panel.
+const bayWidth = 120
+
+// key is a key pressed in the settings, for a test that presses
+// several.
+func (m settingsModel) press(t *testing.T, k tea.KeyPressMsg) settingsModel {
+	t.Helper()
+	next, _ := m.Update(k)
+	return next.(settingsModel)
+}
+
+// typing is a key of a letter, as a terminal sends one.
+func typing(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
 
 // The settings show the file, and the file as it is written: the roots
 // it names, in its own words, with what each one turned out to be on
@@ -101,16 +115,14 @@ func TestTheSettingsSayWhenTheEnvironmentStandsInFront(t *testing.T) {
 func TestARootAddedFromTheSettingsKeepsTheRest(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects"],"theme":"datum"}`, "projects", "work")
 	m := settingsAt(t, home, 1) // the row that adds one
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
-	if m.view != viewRoots || m.askingAt != -1 || m.askingBack != viewSettings {
-		t.Fatalf("enter on the add row went to view %d, at %d, back to %d", m.view, m.askingAt, m.askingBack)
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !m.asking || m.askingAt != -1 {
+		t.Fatalf("enter on the add row: asking %v, at %d", m.asking, m.askingAt)
 	}
-	m.asking.set(filepath.Join(home, "work"))
-	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
-	if m.view != viewSettings {
-		t.Fatalf("a root saved from the settings left the view at %d", m.view)
+	m.line.set(filepath.Join(home, "work"))
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.asking {
+		t.Error("a root saved left the line up")
 	}
 	c := wrote(t, home)
 	if len(c.Roots) != 2 || c.Roots[0] != "~/projects" || c.Roots[1] != "~/work" {
@@ -120,9 +132,12 @@ func TestARootAddedFromTheSettingsKeepsTheRest(t *testing.T) {
 	if c.Theme != "datum" {
 		t.Errorf("the theme in the file came out %q", c.Theme)
 	}
-	// conn walks it now, not on the next start.
-	if len(m.roots.real) != 2 {
-		t.Errorf("conn is walking %q", m.roots.real)
+	// conn walks it on its next reading rather than on the next start;
+	// the settings tell the panel nothing, and the panel reads the file
+	// every time it reads the table. See
+	// TestAReadingTakesTheRootsAsTheFileNowNamesThem.
+	if rows := m.report().rows; rows[1].text != "~/work" {
+		t.Errorf("the rows do not show what was written: %+v", rows)
 	}
 }
 
@@ -131,33 +146,29 @@ func TestARootAddedFromTheSettingsKeepsTheRest(t *testing.T) {
 func TestARootIsTypedOverWhereItStands(t *testing.T) {
 	home := configured(t, `{"roots":["~/gone","~/projects"]}`, "projects", "work")
 	m := settingsAt(t, home, 0)
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
-	if m.asking.text != "~/gone" || m.askingAt != 0 {
-		t.Fatalf("enter on a root gave %q at %d", m.asking.text, m.askingAt)
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.line.text != "~/gone" || m.askingAt != 0 {
+		t.Fatalf("enter on a root gave %q at %d", m.line.text, m.askingAt)
 	}
-	m.asking.set(filepath.Join(home, "work"))
-	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
+	m.line.set(filepath.Join(home, "work"))
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if c := wrote(t, home); len(c.Roots) != 2 || c.Roots[0] != "~/work" || c.Roots[1] != "~/projects" {
 		t.Errorf("the file names %q", c.Roots)
 	}
 }
 
 // esc leaves the typing without writing anything, and goes back to the
-// settings. On the first start there is nothing to go back to and esc
-// does nothing, since conn cannot show the processes view until it has
-// been told where to look.
+// rows. On the first start, which asks on the panel, there is nothing
+// to go back to and esc does nothing: conn cannot show the processes
+// view until it has been told where to look.
 func TestEscLeavesARootAsItWas(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects"]}`, "projects")
 	m := settingsAt(t, home, 0)
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
-	m.asking.set("~/somewhere-else")
-	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m = next.(model)
-	if m.view != viewSettings {
-		t.Fatalf("esc from a root being typed left the view at %d", m.view)
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.line.set("~/somewhere-else")
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.asking {
+		t.Fatal("esc from a root being typed left the line up")
 	}
 	if c := wrote(t, home); len(c.Roots) != 1 || c.Roots[0] != "~/projects" {
 		t.Errorf("esc wrote something: %q", c.Roots)
@@ -166,9 +177,25 @@ func TestEscLeavesARootAsItWas(t *testing.T) {
 	first.head.login.home = home
 	mm, _ := first.toRoots()
 	first = mm.(model)
-	next, _ = first.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	next, _ := first.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if next.(model).view != viewRoots {
 		t.Error("esc found a way out of the first start, which has none")
+	}
+}
+
+// esc on the rows is the settings done with: the panel is told, so the
+// workspace is filled in the same breath, and then this conn ends.
+func TestEscLeavesTheSettings(t *testing.T) {
+	home := configured(t, `{"roots":["~/projects"]}`, "projects")
+	m := settingsAt(t, home, 0)
+	if _, cmd := m.key("esc"); cmd == nil {
+		t.Error("esc on the rows did nothing")
+	}
+	// From the line it is the rows it goes back to, not out.
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
+	next, cmd := m.key("esc")
+	if cmd != nil || next.asking {
+		t.Error("esc on the line left the settings rather than the line")
 	}
 }
 
@@ -176,22 +203,17 @@ func TestEscLeavesARootAsItWas(t *testing.T) {
 func TestXTakesARootOut(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects","~/work"]}`, "projects", "work")
 	m := settingsAt(t, home, 0)
-	next, _ := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
-	m = next.(model)
+	m = m.press(t, typing('x'))
 	c := wrote(t, home)
 	if len(c.Roots) != 1 || c.Roots[0] != "~/work" {
 		t.Fatalf("the file names %q", c.Roots)
 	}
-	if len(m.roots.real) != 1 || !strings.HasSuffix(m.roots.real[0], "work") {
-		t.Errorf("conn is walking %q", m.roots.real)
-	}
 	// The add row is all that is left once the last one goes.
-	next, _ = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
-	m = next.(model)
+	m = m.press(t, typing('x'))
 	if c := wrote(t, home); len(c.Roots) != 0 {
 		t.Errorf("the file still names %q", c.Roots)
 	}
-	if rows := m.settingsReport().rows; len(rows) != 1+len(themes)+len(grounds) || rows[0].kind != addRootSetting {
+	if rows := m.report().rows; len(rows) != 1+len(themes)+len(grounds) || rows[0].kind != addRootSetting {
 		t.Errorf("what is left is %+v", rows)
 	}
 }
@@ -206,9 +228,9 @@ func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 		t.Fatal("the view says nothing about a file that will not parse")
 	}
 	m := settingsAt(t, home, 0)
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if got := next.(model).view; got != viewSettings {
-		t.Fatalf("enter went to view %d with nothing to edit", got)
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.asking {
+		t.Fatal("enter put a line up with nothing to edit")
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "conn", "config.json")); err != nil {
 		t.Fatal(err)
@@ -219,23 +241,120 @@ func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 	}
 }
 
-// The comma opens the settings from the processes view, and esc comes
-// back to it.
+// The comma puts the settings in the workspace, and the panel says
+// SETTINGS while they stand: the panel stays the panel, reading the
+// machine beside them, and holds no row under the cursor, the keys
+// being in the other pane.
 func TestTheCommaOpensTheSettings(t *testing.T) {
-	home := configured(t, `{"roots":["~/projects"]}`, "projects")
-	m := model{p: plain, width: panelWidth, height: 40, view: viewProcesses}
-	m.head.login.home = home
-	next, _ := m.Update(tea.KeyPressMsg{Code: ',', Text: ","})
+	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: &server{}}
+	next, cmd := m.key(",")
 	m = next.(model)
-	if m.view != viewSettings {
-		t.Fatalf("the comma went to view %d", m.view)
+	if !m.setting || cmd == nil {
+		t.Fatalf("the comma left setting %v, cmd %v", m.setting, cmd != nil)
 	}
-	if !strings.Contains(m.View().Content, "SETTINGS") {
-		t.Errorf("the settings view does not say what it is:\n%s", m.View().Content)
+	if m.view != viewProcesses {
+		t.Errorf("the comma took the panel off the processes view, to %d", m.view)
 	}
-	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	if got := next.(model).view; got != viewProcesses {
-		t.Errorf("esc from the settings went to view %d", got)
+	if m.cursor != 0 || m.settingCursor != 4321 {
+		t.Errorf("the row under the cursor is %d, kept as %d", m.cursor, m.settingCursor)
+	}
+	if got := m.keys(); !strings.Contains(got, settingsWord) || strings.Contains(got, wordmarkLine) {
+		t.Errorf("the band says %q", got)
+	}
+	if got := m.station(); !strings.Contains(got, settingsWord) {
+		t.Errorf("with the keys in the settings the band says %q", got)
+	}
+	// And they are one at a time: a comma pressed again while they
+	// stand is not a second pane of settings.
+	if _, cmd := m.key(","); cmd != nil {
+		t.Error("the comma opened the settings over the settings")
+	}
+	// Leaving puts the row back and the panel's own word with it.
+	next, cmd = m.leftSettings(false)
+	m = next.(model)
+	if m.setting || m.cursor != 4321 {
+		t.Errorf("leaving left setting %v, cursor %d", m.setting, m.cursor)
+	}
+	if cmd == nil {
+		t.Error("the workspace was left holding the settings")
+	}
+	if got := m.keys(); !strings.Contains(got, wordmarkLine) {
+		t.Errorf("with the settings gone the band says %q", got)
+	}
+}
+
+// The settings say as they go, the way the manual does, and the panel
+// answers the key wherever it is and whatever view it is in.
+func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
+	m := model{view: viewProjects, inside: true, srv: &server{}, setting: true, settingFrom: "%4",
+		panes: map[string]pane{"ttys011": {id: "%4", tty: "ttys011"}}}
+	next, cmd := m.key("alt+,") // what leaveSettingsKey arrives as
+	if got := next.(model); got.setting || got.settingFrom != "" {
+		t.Errorf("the settings are still up: setting %v, from %q", got.setting, got.settingFrom)
+	}
+	if cmd == nil {
+		t.Error("nothing was done to put them away")
+	}
+	// The panel key is the other way out, and it does not put the keys
+	// back where they came from: the key says where to go.
+	next, _ = m.arrived("")
+	if got := next.(model); got.setting || got.settingFrom != "" {
+		t.Errorf("the panel key left setting %v, from %q", got.setting, got.settingFrom)
+	}
+}
+
+// A reading that finds the settings in the workspace leaves the cursor
+// let go, the way it does for the manual: there is no row the keys are
+// about while they stand, and follow would hand one back on the beat.
+func TestTheReadingLeavesTheCursorAloneWhileSetting(t *testing.T) {
+	projects := []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}}}}
+	m := model{view: viewProcesses, inside: true, cursor: 0, projects: projects}
+	up := processesMsg{projects: projects, gen: m.processesGen, baySetting: true}
+	next, _ := m.Update(up)
+	if got := next.(model); got.cursor != 0 || !got.setting {
+		t.Errorf("the reading put the cursor back on %d (setting %v)", got.cursor, got.setting)
+	}
+	next, _ = m.Update(processesMsg{projects: projects, gen: m.processesGen})
+	if got := next.(model); got.cursor == 0 || got.setting {
+		t.Errorf("with no settings up the reading left the cursor at %d (setting %v)", got.cursor, got.setting)
+	}
+}
+
+// The bar says the keys that work on the row under the cursor, and the
+// settings write it themselves: the cursor is in their pane, and the
+// panel cannot know what it is on. The panel leaves that position
+// alone while they stand.
+func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
+	home := configured(t, `{"roots":["~/projects"]}`, "projects")
+	m := settingsAt(t, home, 0)
+	rows := m.report().rows
+	if got := keyBar(settingsHints(rows, 0)); !strings.Contains(got, "take it out") {
+		t.Errorf("on a root the bar says %q", got)
+	}
+	if got := keyBar(settingsHints(rows, 1)); !strings.Contains(got, "add one") {
+		t.Errorf("on the add row the bar says %q", got)
+	}
+	// The theme conn is wearing takes no enter, so the bar offers none.
+	at := rowFor(t, m, themeSetting, "")
+	for i, r := range rows {
+		if r.kind == themeSetting && r.note == noteInUse {
+			at = i
+		}
+	}
+	if got := keyBar(settingsHints(rows, at)); strings.Contains(got, "wear it") {
+		t.Errorf("the theme already worn offers %q", got)
+	}
+
+	// The panel writes the band and leaves the bar to them.
+	p := model{view: viewProcesses, inside: true, srv: &server{}, setting: true}
+	p, _ = p.saying()
+	if p.saidBar != "" {
+		t.Errorf("the panel wrote the bar while the settings had the keys: %q", p.saidBar)
+	}
+	p.setting = false
+	p, _ = p.saying()
+	if p.saidBar == "" {
+		t.Error("with the settings gone the panel does not write the bar again")
 	}
 }
 
@@ -271,7 +390,7 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 	applyMode(mode{theme: defaultTheme, dark: true})
 	home := configured(t, `{"roots":["~/projects"]}`, "projects")
 	m := settingsAt(t, home, 0)
-	rows := m.settingsReport().rows
+	rows := m.report().rows
 	at := -1
 	for i, r := range rows {
 		if r.kind == themeSetting && r.text != current.theme {
@@ -283,9 +402,8 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 		t.Skip("conn has one theme")
 	}
 	want := rows[at].text
-	m.settingAt = at
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
+	m.at = at
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if current.theme != want {
 		t.Errorf("conn is wearing %q, not %q", current.theme, want)
 	}
@@ -302,10 +420,32 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 	}
 	// And the view says so, the row wearing the note rather than the
 	// one the file used to name.
-	for _, r := range m.settingsReport().rows {
+	for _, r := range m.report().rows {
 		if r.kind == themeSetting && r.text == want && r.note != noteInUse {
 			t.Errorf("the theme worn is noted %q", r.note)
 		}
+	}
+}
+
+// The panel is told the mode changed and wears it where it stands. A
+// fresh conn in that pane would be the console, and the operator
+// picked a theme rather than asking to start again.
+func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
+	holdMode(t)
+	applyMode(mode{theme: defaultTheme, dark: true})
+	home := t.TempDir()
+	socket := filepath.Join(home, "conn.sock")
+	if err := writeMode(socket, mode{theme: "datum", dark: false}); err != nil {
+		t.Fatal(err)
+	}
+	m := model{view: viewProcesses, inside: true, srv: &server{socket: socket}}
+	m.head.login.home = home
+	next, _ := m.key("alt+w") // what wearModeKey arrives as
+	if current.theme != "datum" || current.dark {
+		t.Errorf("the panel is wearing %+v", current)
+	}
+	if next.(model).p.ink == "" {
+		t.Error("the panel did not take the new palette")
 	}
 }
 
@@ -315,22 +455,19 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 func TestTheSettingsMoveToBothEnds(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects","~/work"]}`, "projects", "work")
 	m := settingsAt(t, home, 0)
-	last := len(m.settingsReport().rows) - 1
-	next, _ := m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
-	m = next.(model)
-	if m.settingAt != last {
-		t.Errorf("G went to row %d of %d", m.settingAt, last)
+	last := len(m.report().rows) - 1
+	m = m.press(t, typing('G'))
+	if m.at != last {
+		t.Errorf("G went to row %d of %d", m.at, last)
 	}
-	next, _ = m.Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
-	next, _ = next.(model).Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
-	if got := next.(model).settingAt; got != 0 {
-		t.Errorf("gg went to row %d", got)
+	m = m.press(t, typing('g')).press(t, typing('g'))
+	if m.at != 0 {
+		t.Errorf("gg went to row %d", m.at)
 	}
 	// j from the last row comes round to the first, as it does in the
 	// processes view.
-	m.settingAt = last
-	next, _ = m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	if got := next.(model).settingAt; got != 0 {
+	m.at = last
+	if got := m.press(t, typing('j')).at; got != 0 {
 		t.Errorf("j past the last row went to %d", got)
 	}
 }
@@ -343,9 +480,8 @@ func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 	applyMode(mode{theme: "datum", dark: true})
 	home := configured(t, `{"roots":["~/projects"],"theme":"datum"}`, "projects")
 	m := settingsAt(t, home, 0)
-	m.settingAt = rowFor(t, m, groundSetting, lightGround)
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
+	m.at = rowFor(t, m, groundSetting, lightGround)
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if current.dark {
 		t.Error("conn is still on dark")
 	}
@@ -361,7 +497,7 @@ func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 	if askMode(override{}, home).dark {
 		t.Error("a fresh server would not come up on the ground in the file")
 	}
-	for _, r := range m.settingsReport().rows {
+	for _, r := range m.report().rows {
 		if r.kind == groundSetting && r.value == lightGround && r.note != noteInUse {
 			t.Errorf("the ground worn is noted %q", r.note)
 		}
@@ -377,9 +513,8 @@ func TestAskingTheTerminalTakesTheGroundOutOfTheFile(t *testing.T) {
 	applyMode(mode{theme: defaultTheme, dark: false})
 	home := configured(t, `{"roots":["~/projects"],"ground":"light"}`, "projects")
 	m := settingsAt(t, home, 0)
-	m.settingAt = rowFor(t, m, groundSetting, "")
-	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	m = next.(model)
+	m.at = rowFor(t, m, groundSetting, "")
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if current.dark {
 		t.Error("the ground changed under a server already up")
 	}
@@ -392,7 +527,7 @@ func TestAskingTheTerminalTakesTheGroundOutOfTheFile(t *testing.T) {
 	if err != nil || strings.Contains(string(b), "ground") {
 		t.Errorf("the file still names a ground: %s (%v)", b, err)
 	}
-	for _, r := range m.settingsReport().rows {
+	for _, r := range m.report().rows {
 		if r.kind == groundSetting && r.value == "" && r.note != noteInFile {
 			t.Errorf("the row that asks the terminal is noted %q", r.note)
 		}
@@ -420,15 +555,33 @@ func TestTheSettingsSayWhatTheFileNamesAndConnHasNot(t *testing.T) {
 	}
 }
 
+// The settings are drawn in the workspace and the roots are typed
+// there too: the line is the same asking view the first start uses,
+// with a way back to the rows that the first start has not got.
+func TestTheSettingsDrawTheRootsLineInThePane(t *testing.T) {
+	home := configured(t, `{"roots":["~/projects"]}`, "projects")
+	m := settingsAt(t, home, 0)
+	if got := m.View().Content; !strings.Contains(got, "SETTINGS") {
+		t.Errorf("the pane does not say what it is:\n%s", got)
+	}
+	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if got := m.View().Content; !strings.Contains(got, "~/projects") {
+		t.Errorf("the line is not the root being typed over:\n%s", got)
+	}
+	if !m.rootsReport().editing {
+		t.Error("the line does not know it is changing a root rather than asking for the first")
+	}
+}
+
 // rowFor is the row of a setting with a given value, for a test that
 // moves the cursor to it.
-func rowFor(t *testing.T, m model, kind settingKind, value string) int {
+func rowFor(t *testing.T, m settingsModel, kind settingKind, value string) int {
 	t.Helper()
-	for i, r := range m.settingsReport().rows {
+	for i, r := range m.report().rows {
 		if r.kind == kind && r.value == value {
 			return i
 		}
 	}
-	t.Fatalf("no %v row for %q", kind, value)
+	t.Fatalf("no row of kind %d with value %q", kind, value)
 	return 0
 }

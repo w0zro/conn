@@ -154,6 +154,15 @@ func (s *scratch) bayPane() string {
 	return strings.TrimSpace(out)
 }
 
+// bayKeys sends keys to the pane on the right, which is where they are
+// while a page of conn's own stands there.
+func (s *scratch) bayKeys(keys ...string) {
+	s.t.Helper()
+	if _, err := s.srv.run(append([]string{"send-keys", "-t", sessionName + ":" + homeWindow + ".1"}, keys...)...); err != nil {
+		s.t.Fatal(err)
+	}
+}
+
 // bay is what the pane on the right shows.
 func (s *scratch) bay() string {
 	out, _ := s.srv.run("capture-pane", "-p", "-t", sessionName+":"+homeWindow+".1")
@@ -754,7 +763,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	// reground paints the panel's pane from the table in force, which
 	// for the conn asking is the ground it asks for.
 	applyMode(connOn(false))
-	if err := srv.reground(conf, surfaceHex, true); err != nil {
+	if err := srv.reground(conf, surfaceHex, "", true); err != nil {
 		t.Fatal(err)
 	}
 	applyMode(connOn(true))
@@ -810,7 +819,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	// reground paints the panel's pane from the table in force, which
 	// for the conn asking is the ground it asks for.
 	applyMode(datum)
-	if err := srv.reground(conf, surfaceHex, true); err != nil {
+	if err := srv.reground(conf, surfaceHex, "", true); err != nil {
 		t.Fatal(err)
 	}
 	applyMode(connOn(true))
@@ -892,19 +901,28 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	s.until("the processes view", func() bool { return s.inProcesses() })
 	was := s.paneAt(homeWindow + ".0")
 
+	// The settings go to the workspace and take the keys with them; the
+	// panel stays the panel, and the band says where the keys have
+	// gone.
 	s.keys(",")
-	s.until("the settings", func() bool { return strings.Contains(s.panel(), "SETTINGS") })
+	s.until("the settings", func() bool { return strings.Contains(s.bay(), "SETTINGS") })
+	if !s.inProcesses() {
+		t.Errorf("the panel left the processes view for the settings:\n%s", s.panel())
+	}
+	if got := s.statusLine(); !strings.Contains(got, "SETTINGS") {
+		t.Errorf("the band says %q", got)
+	}
 	// The scratch server is told its root by the environment, which
 	// stands in front of the file, and the view says so where somebody
 	// would otherwise edit a root and wait for a list that will not
 	// change.
-	if !strings.Contains(s.panel(), "CONN_ROOTS") {
-		t.Errorf("the settings do not say what is in force:\n%s", s.panel())
+	if !strings.Contains(s.bay(), "CONN_ROOTS") {
+		t.Errorf("the settings do not say what is in force:\n%s", s.bay())
 	}
 	// Down the rows to a theme that is not the one conn is wearing, and
 	// take it.
-	s.keys("j", "j")
-	s.keys("Enter")
+	s.bayKeys("j", "j")
+	s.bayKeys("Enter")
 	s.until("the server to be dressed in datum", func() bool {
 		return strings.EqualFold(s.display("#{pane-colours[0]}"), datumTheme.dark.scheme[0])
 	})
@@ -917,8 +935,8 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 
 	// And the ground under it, which is the other axis: the theme
 	// stands while the ground changes.
-	s.keys("j", "j")
-	s.keys("Enter")
+	s.bayKeys("j", "j")
+	s.bayKeys("Enter")
 	s.until("the server to be on the light ground", func() bool {
 		return strings.EqualFold(s.display("#{window-style}"), "bg="+datumTheme.light.surface)
 	})
@@ -932,13 +950,28 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	if err != nil || c.Theme != "datum" {
 		t.Errorf("the file names the theme %q: %v", c.Theme, err)
 	}
-	// The panel was not restarted, and the keys are still in the
-	// settings where they were pressed.
+	// The panel was not restarted — a fresh conn there is the console —
+	// and neither was the pane the keys are in, which would have put
+	// the cursor back at the top of the page being worked.
 	if got := s.paneAt(homeWindow + ".0"); got != was {
 		t.Errorf("the panel was %s and is now %s", was, got)
 	}
-	if !strings.Contains(s.panel(), "SETTINGS") {
-		t.Errorf("the settings went away with the theme:\n%s", s.panel())
+	if !strings.Contains(s.bay(), "SETTINGS") {
+		t.Errorf("the settings went away with the theme:\n%s", s.bay())
+	}
+	if got := s.active("#{pane_index}"); got != "1" {
+		t.Errorf("the keys are in pane %s, not in the settings", got)
+	}
+
+	// esc puts the workspace back and the keys with it.
+	s.bayKeys("Escape")
+	s.until("the workspace to be filled again", func() bool {
+		bay := strings.TrimSpace(s.bay())
+		return !strings.Contains(s.statusLine(), "SETTINGS") &&
+			!strings.Contains(bay, "SETTINGS") && !strings.Contains(bay, "dead")
+	})
+	if got := s.active("#{pane_index}"); got != "0" {
+		t.Errorf("the keys stayed in pane %s", got)
 	}
 }
 

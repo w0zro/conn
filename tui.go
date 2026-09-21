@@ -59,8 +59,7 @@ const (
 	viewProcesses
 	viewProjects
 	viewSessions
-	viewSettings // conn's own configuration, as the operator keeps it
-	viewRoots    // a root being typed, for the settings or the first start
+	viewRoots // the first root being typed, on a conn told nowhere to look
 )
 
 // The time before each stage after the header: a beat for the readout
@@ -112,6 +111,7 @@ type (
 		bayDead    bool            // the bay's pane held on remain-on-exit, its process gone
 		bayReadout bool            // the bay holds the readout, so the page is up
 		bayHelp    bool            // the bay holds the manual, and the panel says HELP
+		baySetting bool            // the bay holds the settings, and the panel says SETTINGS
 		bayActive  bool            // the keys are in the bay, by tmux's own word
 		err        string
 		// The projects' .conn files as this reading found them, kept on
@@ -143,6 +143,7 @@ type (
 	reachedMsg       struct{ tty string }     // a process was put in the bay
 	readoutMsg       struct{ on bool }        // the readout was put in the bay, or taken out of it
 	helpMsg          struct{ on bool }        // the manual was put in the bay
+	settingsMsg      struct{ on bool }        // the settings were put in the bay
 	blinkMsg         struct{ gen int }        // the chip's half is up
 	spinMsg          struct{ gen int }        // the spinner's next frame is due
 	projectsMsg      struct {                 // the roots were walked
@@ -188,6 +189,13 @@ type model struct {
 	// cursor left sitting on one would say the keys were about that row
 	// when they are about reading.
 	helping bool
+	// setting is whether the settings are the thing in the workspace,
+	// which is the same arrangement: the panel says SETTINGS and holds
+	// no row under the cursor, the keys being in the other pane. The
+	// panel goes on reading the machine while they stand — the list is
+	// what the station is for, and a configuration being edited beside
+	// it is no reason to stop.
+	setting bool
 	// Whether the keys are on the panel. conn is told by the terminal
 	// when they arrive and when they leave, and knows on its own when
 	// its own reaching sent them away, so a terminal that reports no
@@ -258,21 +266,19 @@ type model struct {
 	// See leftHelp.
 	helpFrom   string
 	helpCursor int
+	// The settings: where the keys were when , was pressed, and the row
+	// that was under the cursor. The same detour the manual is, and
+	// left the same way; see leftSettings.
+	settingFrom   string
+	settingCursor int
 
 	// The asking view: the path being typed, with the cursor among the
 	// directories answering it, and what went wrong saving, where
-	// something did. askingAt is the root being typed over, where one
-	// is, and -1 for a root being added; askingBack is the view the
-	// typing came from and goes back to.
-	asking     typed
-	rootErr    string
-	askingAt   int
-	askingBack int
-
-	// The settings view: the row the cursor is on, and what went wrong
-	// writing the file, where something did.
-	settingAt  int
-	settingErr string
+	// something did. It is the first start alone — a root changed on a
+	// conn already at work is typed in the settings, which are a pane
+	// of conn's own.
+	asking  typed
+	rootErr string
 
 	// kill is a kill x has asked for and not yet answered; nothing else
 	// binds while it is not nil.
@@ -578,6 +584,7 @@ func (m model) readProcesses() tea.Cmd {
 				msg.noBay = true
 			} else if ok {
 				msg.bay, msg.bayDead, msg.bayReadout, msg.bayHelp = bay.tty, bay.dead, bay.readout, bay.help
+				msg.baySetting = bay.settings
 				msg.bayActive = bay.active
 			}
 		}
@@ -733,11 +740,24 @@ func (m model) saying() (model, tea.Cmd) {
 		return m, nil
 	}
 	keys, station, up, bar := m.keys(), m.station(), m.upWord(), m.bar()
+	// The settings have the keys and say what the keys do there, the
+	// bar being the keys that work on the row under the cursor and the
+	// cursor being in that pane. The panel writes the rest of the line
+	// and leaves that position to them; the bar it would have written
+	// is forgotten rather than remembered, so the first telling after
+	// the settings are done writes the panel's own again whatever it
+	// says.
+	if m.setting {
+		bar = ""
+	}
 	if m.said && keys == m.saidKeys && station == m.saidStation && up == m.saidUp && bar == m.saidBar {
 		return m, nil
 	}
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, keys, station, up, bar
 	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag)
+	if m.setting {
+		return m, func() tea.Msg { _ = srv.sayBand(keys, station, up, ident); return nil }
+	}
 	return m, func() tea.Msg { _ = srv.say(keys, station, up, bar, ident); return nil }
 }
 
@@ -759,11 +779,14 @@ func (m model) keys() string {
 		// The question itself is on the key bar, where the answer is.
 		return statusLineBlock("CONFIRM")
 	}
-	// Reading the manual is a state the operator is in, like a question
-	// armed, and it outranks the wordmark: while the manual is up the
-	// panel is not being worked.
+	// Reading the manual, or keeping the settings, is a state the
+	// operator is in, like a question armed, and it outranks the
+	// wordmark: while either is up the panel is not being worked.
 	if m.helping && m.view == viewProcesses {
 		return statusLineBlock(helpWord)
+	}
+	if m.setting && m.view == viewProcesses {
+		return statusLineBlock(settingsWord)
 	}
 	// The whole tree is a way of looking at the processes view rather
 	// than a view of its own, and the band says so while it is on.
@@ -786,18 +809,26 @@ const wordmarkLine = " CONN "
 // whole tree.
 const treeWord = "TREE"
 
-// helpWord is what the line says while the manual is up.
-const helpWord = "HELP"
+// helpWord is what the line says while the manual is up, and
+// settingsWord while the settings are.
+const (
+	helpWord     = "HELP"
+	settingsWord = "SETTINGS"
+)
 
 // station is what the line says while the keys are not on the panel.
 // Ordinarily nothing: the keys are in a process, and what that process
-// is doing is its own business and is on its own screen. The manual is
-// the one thing conn puts the keys into that is conn's own, and it says
-// so, so that a page filling the workspace is not mistaken for a
-// program the operator opened and has to get out of by guessing.
+// is doing is its own business and is on its own screen. The manual
+// and the settings are what conn puts the keys into that are conn's
+// own, and each says so, so that a page filling the workspace is not
+// mistaken for a program the operator opened and has to get out of by
+// guessing.
 func (m model) station() string {
-	if m.helping {
+	switch {
+	case m.helping:
 		return statusLineBlock(helpWord)
+	case m.setting:
+		return statusLineBlock(settingsWord)
 	}
 	return statusLineWord(wordmarkLine, hex(inkColor), true)
 }
@@ -861,37 +892,7 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"enter", "Resume it here"})
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}))
-	case viewSettings:
-		rows := m.settingsReport().rows
-		if len(rows) > 1 {
-			hints = append(hints, moveHint)
-		}
-		if m.settingAt < len(rows) {
-			switch rows[m.settingAt].kind {
-			case rootSetting:
-				hints = append(hints, keyHint{"enter", "Change it"}, keyHint{"x", "Take it out"})
-			case addRootSetting:
-				hints = append(hints, keyHint{"enter", "Add one"})
-			case themeSetting:
-				if rows[m.settingAt].note != noteInUse {
-					hints = append(hints, keyHint{"enter", "Wear it"})
-				}
-			case groundSetting:
-				switch r := rows[m.settingAt]; {
-				case r.value == "" && r.note != noteInFile:
-					// Nothing changes now: the terminal is asked when a
-					// server rises, and one is up.
-					hints = append(hints, keyHint{"enter", "For the next start"})
-				case r.value != "" && r.note != noteInUse:
-					hints = append(hints, keyHint{"enter", "Wear it"})
-				}
-			}
-		}
-		return keyBar(append(hints, keyHint{"esc", "Back"}))
 	case viewRoots:
-		if m.askingBack == viewSettings {
-			return keyBar(append(rootsHints, keyHint{"esc", "Back"}))
-		}
 		return keyBar(rootsHints)
 	}
 	if rowsIn(m.projects) > 1 {
@@ -1177,6 +1178,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.helping, m.cursor = msg.on, 0
 		m.processesGen++
 		return m.published(false), m.readProcesses()
+	case settingsMsg:
+		// The settings are up, and no row is under the cursor while
+		// they are, for the reason the manual clears it: they are not a
+		// process, so there is no row they belong to. Where the cursor
+		// was is kept, and the reading is taken again from here so one
+		// already in flight cannot land and say they are not up.
+		m.setting, m.cursor = msg.on, 0
+		m.processesGen++
+		return m.published(false), m.readProcesses()
 	case readoutMsg:
 		// The page is up, or down, and conn knows it without reading the
 		// server: the next i is a keypress away and has to decide which
@@ -1245,7 +1255,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
 		m.records, m.declared, m.tree = msg.records, msg.declared, msg.tree
-		m.looking, m.helping = msg.bayReadout, msg.bayHelp
+		m.looking, m.helping, m.setting = msg.bayReadout, msg.bayHelp, msg.baySetting
 		// Where the keys are, by the server's own word. conn is told by
 		// the terminal when they leave, and knows on its own when its
 		// reaching sent them away, but a reading can land between the
@@ -1278,11 +1288,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		// follow's job is to keep hold of the row the operator was on
-		// while the rows change under it. With the manual up there is no
-		// such row, and following would hand one back every couple of
-		// seconds: the cursor is cleared on purpose, and stays cleared
-		// until the operator moves it themselves.
-		if !m.helping {
+		// while the rows change under it. With the manual or the
+		// settings up there is no such row, and following would hand
+		// one back every couple of seconds: the cursor is cleared on
+		// purpose, and stays cleared until the operator moves it
+		// themselves.
+		if !m.helping && !m.setting {
 			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
 		}
 		// The reading the console was waiting on: the processes view goes up
@@ -1306,6 +1317,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// list and nobody was tending the workspace.
 			case m.inside && msg.bayDead && msg.bayHelp:
 				mm, cmd := m.leftHelp(true)
+				m = mm.(model)
+				cmds = append(cmds, m.processesTick(), cmd)
+			// The settings, the same way.
+			case m.inside && msg.bayDead && msg.baySetting:
+				mm, cmd := m.leftSettings(true)
 				m = mm.(model)
 				cmds = append(cmds, m.processesTick(), cmd)
 			// A bay whose pane died stays the shape it was; only what is in it
@@ -1459,10 +1475,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	half := m.firstG
 	m.firstG = false
 	if half && k == "g" {
-		if m.view == viewSettings {
-			m.settingAt = 0
-			return m, nil
-		}
 		m.cursor, m.cursorAt = follow(m.projects, 0, 0)
 		return m, nil
 	}
@@ -1503,21 +1515,27 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	if k == "alt+shift+u" || k == "U" && m.view == viewProcesses {
 		return m.raiseAt()
 	}
-	// The manual saying it is done with. It sends this as it goes, so
-	// the workspace is filled in the same breath rather than holding a
+	// A page of conn's own speaking to the panel. The manual and the
+	// settings each say as they go that they are done with, so the
+	// workspace is filled in the same breath rather than holding a
 	// dead pane until the next reading comes round — and so that it is
 	// filled at all, the reading only tending the workspace while the
-	// processes view has the keys.
-	if k == "alt+esc" {
+	// processes view has the keys. The settings say the other thing
+	// too: they have put the server in a mode, and the panel draws in
+	// colors it read when it came up.
+	switch k {
+	case "alt+esc":
 		return m.leftHelp(false)
+	case "alt+,":
+		return m.leftSettings(false)
+	case "alt+w":
+		return m.worn()
 	}
 	switch m.view {
 	case viewProjects:
 		return m.projectKey(k)
 	case viewSessions:
 		return m.sessionsKey(k)
-	case viewSettings:
-		return m.settingsKey(k)
 	case viewRoots:
 		return m.rootsKey(k)
 	}
@@ -1730,11 +1748,10 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		m.from = came
 		return m.toProjects()
 	case k == ",":
-		// conn's own configuration, a detour like the list. The comma
-		// is what a program of this shape is settled in everywhere, and
-		// it is not a letter the processes view wanted for anything.
-		m.from = came
-		return m.toSettings()
+		// conn's own configuration, in the workspace. The comma is what
+		// a program of this shape is settled in everywhere, and it is
+		// not a letter the processes view wanted for anything.
+		return m.openSettings(came)
 	case k == "?":
 		return m.openManual(came)
 	}
@@ -1759,12 +1776,12 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // The asking view is left alone: there are no processes to show until
 // it has been answered.
 func (m model) arrived(from string) (tea.Model, tea.Cmd) {
-	if m.helping {
-		// The key says where to go, so where the manual was asked from
-		// stops mattering: it is the one way out of the manual that
-		// does not put the keys back, and forgetting is what makes it
-		// that.
+	if m.helping || m.setting {
+		// The key says where to go, so where the page was asked from
+		// stops mattering: it is the one way out that does not put the
+		// keys back, and forgetting is what makes it that.
 		m.helping, m.helpFrom = false, ""
+		m.setting, m.settingFrom = false, ""
 		m = m.tookBackRow()
 		return m, tea.Batch(m.reviveBay(), m.processesTick())
 	}
@@ -1802,8 +1819,8 @@ func (m model) arrived(from string) (tea.Model, tea.Cmd) {
 // close it, and a manual that could be opened and not closed would be
 // a trap rather than a help.
 func (m model) openManual(came string) (tea.Model, tea.Cmd) {
-	if m.srv == nil || m.helping {
-		return m, nil // nowhere to put it, or up already
+	if m.srv == nil || m.helping || m.setting {
+		return m, nil // nowhere to put it, or a page of conn's own up already
 	}
 	// Reading the manual is a detour and not a move, so leaving it puts
 	// the keys back where they were: in the pane the panel key brought
@@ -2116,12 +2133,12 @@ func (m model) toProcesses() (tea.Model, tea.Cmd) {
 // waited for, so the reading a moment later does not ask for a second
 // page on top of the first.
 func (m model) keepingPage() (tea.Model, tea.Cmd) {
-	// The manual is in the workspace on purpose, and the page would put
-	// itself there over the top of it. No row is under the cursor while
-	// the manual is up, which would stop this on its own; saying it
-	// plainly as well means the page cannot come back the moment the
-	// cursor does.
-	if !m.inside || m.looking || m.helping || !m.focused {
+	// The manual and the settings are in the workspace on purpose, and
+	// the page would put itself there over the top of either. No row is
+	// under the cursor while one of them is up, which would stop this
+	// on its own; saying it plainly as well means the page cannot come
+	// back the moment the cursor does.
+	if !m.inside || m.looking || m.helping || m.setting || !m.focused {
 		return m, nil
 	}
 	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions {
@@ -2467,12 +2484,9 @@ func (m model) View() tea.View {
 		rows = drawProjects(m.projectsReport(), m.find.at, width, m.height, m.p)
 	case m.view == viewSessions:
 		rows = drawSessions(m.sessionsReport(), m.rfind.at, width, m.height, m.p)
-	case m.view == viewSettings:
-		rows = drawSettings(m.settingsReport(), m.settingAt, width, m.height, m.p)
 	case m.view == viewRoots:
 		b := composeRootsAt(m.asking.text, m.head.login.home)
-		b.caret, b.editing = m.asking.cur, m.askingBack == viewSettings
-		b.err = m.rootErr
+		b.caret, b.err = m.asking.cur, m.rootErr
 		rows = drawRoots(b, m.asking.at, width, m.height, m.p)
 	default:
 		r := m.report()
@@ -2508,179 +2522,80 @@ func (m model) View() tea.View {
 	return v
 }
 
-// settingsReport is the settings view's words as things stand: the
-// file as it is on disk, with what went wrong writing it laid over the
-// top, since a save that failed is about the file the view is showing.
-func (m model) settingsReport() settingsReport {
-	b := composeSettings(m.head.login.home, current.theme, current.dark)
-	if m.settingErr != "" {
-		b.err = m.settingErr
-	}
-	return b
-}
-
-// toSettings is conn's own configuration, a view like the others. It is
-// a detour, as the list is: esc goes back to the processes view, and
-// into the pane the panel key came out of where there was one.
-func (m model) toSettings() (tea.Model, tea.Cmd) {
-	m.view, m.settingErr = viewSettings, ""
-	m.settingAt = clamp(m.settingAt, len(m.settingsReport().rows))
-	return m, nil
-}
-
-// settingsKey answers a key in the settings. The rows are settings, so
-// the keys are the list's: j and k move, enter answers the row under
-// the cursor, x takes a root out, and esc leaves without having
-// changed anything — every change here is made by a key pressed on
-// purpose and written as it is made.
-func (m model) settingsKey(k string) (tea.Model, tea.Cmd) {
-	rows := m.settingsReport().rows
-	switch {
-	case k == "ctrl+c":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		return m, tea.Quit
-	case k == "j" || k == "down":
-		m.settingAt = ring(m.settingAt+1, len(rows))
-	case k == "k" || k == "up":
-		m.settingAt = ring(m.settingAt-1, len(rows))
-	case k == "g":
-		m.firstG = true
-	case k == "G":
-		m.settingAt = clamp(len(rows)-1, len(rows))
-	case k == "esc":
-		return m.backFrom()
-	case k == "enter":
-		if m.settingAt >= len(rows) {
-			return m, nil
-		}
-		switch r := rows[m.settingAt]; r.kind {
-		case rootSetting:
-			// The root as the file writes it, to be typed over: the
-			// operator is fixing a path more often than replacing one.
-			return m.toRootsFor(r.at, r.text)
-		case addRootSetting:
-			return m.toRootsFor(-1, "~/")
-		case themeSetting:
-			return m.useTheme(r.text)
-		case groundSetting:
-			return m.useGround(r.value)
-		}
-	case k == "x":
-		if m.settingAt < len(rows) && rows[m.settingAt].kind == rootSetting {
-			return m.dropRoot(rows[m.settingAt].at)
-		}
-	}
-	return m, nil
-}
-
-// dropRoot takes one root out of the file. No question is asked: a root
-// is a line the operator typed and can type again, the view shows what
-// is left at once, and conn is not going to make a habit of asking
-// twice about work that is not a process.
-func (m model) dropRoot(at int) (tea.Model, tea.Cmd) {
-	home := m.head.login.home
-	c, err := readConfig(home)
-	if err != nil {
-		m.settingErr = err.Error()
-		return m, nil
-	}
-	if at < 0 || at >= len(c.Roots) {
-		return m, nil
-	}
-	roots := append(append([]string{}, c.Roots[:at]...), c.Roots[at+1:]...)
-	return m.wroteRoots(roots)
-}
-
-// wroteRoots writes the roots and puts conn to work on what the file
-// now says. The walk and the table are asked again against them, so the
-// change is in the list on the next reading rather than on the next
-// start; what is in force is read back from the file, since CONN_ROOTS
-// may be standing in front of it and a view that re-rooted conn on the
-// file would have conn walking directories it is not showing.
-func (m model) wroteRoots(roots []string) (tea.Model, tea.Cmd) {
-	home := m.head.login.home
-	if err := saveRoots(home, roots); err != nil {
-		m.settingErr = err.Error()
-		return m, nil
-	}
-	m.settingErr = ""
-	now, err := projectRoots(home)
-	if err != nil {
-		m.settingErr = err.Error()
-		return m, nil
-	}
-	m = m.rooted(rootOn(now))
-	m.settingAt = clamp(m.settingAt, len(m.settingsReport().rows))
-	m.processesGen++
-	return m, tea.Batch(m.readProcesses(), m.scanProjects())
-}
-
-// useTheme puts conn in a theme and writes it down. The other axis is
-// left alone: the ground conn is on was settled when the server rose,
-// and picking a theme is not a reason to go back over it.
-func (m model) useTheme(name string) (tea.Model, tea.Cmd) {
-	if _, ok := themeNamed(name); !ok {
-		return m, nil
-	}
-	if err := saveTheme(m.head.login.home, name); err != nil {
-		m.settingErr = err.Error()
-		return m, nil
-	}
-	return m.wearing(mode{theme: name, dark: current.dark})
-}
-
-// useGround puts conn on a ground and writes it down, or, for a ground
-// of nothing, takes the key out and leaves the choice to the terminal
-// from the next start.
+// openSettings puts the settings in the workspace, which is what , does
+// in the processes view, and takes with it where the keys were before
+// the panel key brought them here, so that leaving them puts the keys
+// back. It is the manual's arrangement for the same reasons; see
+// openManual.
 //
-// The terminal is not asked again here. OSC 11 is a question put to the
-// terminal and answered by it, and a conn in a pane of its own server
-// would be asking tmux, which answers with the ground conn itself set:
-// the question is only worth asking when a server rises, and that is
-// where it is asked. So the row that gives the choice back changes
-// nothing now and says so; what is on stays on until conn down.
-func (m model) useGround(name string) (tea.Model, tea.Cmd) {
-	dark, named := groundNamed(name)
-	if name != "" && !named {
-		return m, nil
+// The settings are not reachable — they are conn's furniture, and the
+// keys step over furniture — so the panel key and their own esc are
+// the ways out of them.
+func (m model) openSettings(came string) (tea.Model, tea.Cmd) {
+	if m.srv == nil || m.setting || m.helping {
+		return m, nil // nowhere to put them, or a page of conn's own up already
 	}
-	if err := saveGround(m.head.login.home, name); err != nil {
-		m.settingErr = err.Error()
-		return m, nil
-	}
-	if !named {
-		m.settingErr = ""
-		return m, nil
-	}
-	return m.wearing(mode{theme: current.theme, dark: dark})
+	m.settingFrom = came
+	mm, cmd := m.toProcesses()
+	m = mm.(model)
+	// Said here rather than when they are up, for the reason the
+	// manual says it here: opening is several turns of talking to
+	// tmux, and the page would be put in the workspace by a reading
+	// landing in the middle of that. The row is kept rather than
+	// dropped — the operator went to the settings and is coming back
+	// to whatever they were looking at.
+	m.setting, m.settingCursor, m.cursor = true, m.cursor, 0
+	return m, tea.Batch(cmd, m.openTheSettings())
 }
 
-// wearing puts conn in a mode, now rather than on the next start: the
-// mode file is what a pane of conn's own reads when it comes up, the
-// configuration is what the next server reads, and the server standing
-// is sourced again so every pane takes the new sixteen where it stands.
-// What conn writes for other programs — Claude Code's theme, nvim's
-// colorscheme — is written again where it is already there, since those
-// are conn's colors too and a station half in one theme is worse than
-// either.
-func (m model) wearing(want mode) (tea.Model, tea.Cmd) {
-	m.settingErr = ""
-	home := m.head.login.home
-	// Every color conn draws from is package-wide, so it is put on here,
-	// on the loop, and what the server is told is worked out here too
-	// and handed over ready: a command reading the palette off another
-	// goroutine would be reading it while the next key writes it.
-	applyMode(want)
-	m.p = colored().onSurface()
-	refreshClaudeTheme(home)
-	refreshVimColorscheme(home)
+// leftSettings is conn putting things back as the settings found them,
+// which is what leftHelp does for the manual and is the same detour;
+// see leftHelp for why the keys go back where they came from.
+func (m model) leftSettings(found bool) (tea.Model, tea.Cmd) {
+	m.setting = false
+	from := m.settingFrom
+	m.settingFrom = ""
+	m = m.tookBackRow()
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	srv, conf, bg := m.srv, tmuxConf(panelKey()), surfaceHex
-	return m, m.serverCmd(func() error { return srv.rewear(conf, bg, want) })
+	toPanel := tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
+	if from != "" {
+		if p, tty, ok := m.paneByID(from); ok && reachable(p) {
+			return m, m.reach(p, tty)
+		}
+		return m, toPanel
+	}
+	if found {
+		mm, cmd := m.backIn()
+		m = mm.(model)
+		if cmd != nil {
+			return m, cmd
+		}
+	}
+	return m, toPanel
+}
+
+// worn is the settings saying they have put the server in a mode. The
+// panel reads the mode file where it stands and wears what it says: a
+// fresh conn in this pane would be the console, and the operator
+// picked a theme rather than asking to start again.
+//
+// Nothing is asked of the server. The pane conn draws is painted by
+// the reground the settings asked for, and the sixteen every other
+// pane draws from went with it; what is left is the colors this conn
+// holds in memory.
+func (m model) worn() (tea.Model, tea.Cmd) {
+	if m.srv == nil {
+		return m, nil
+	}
+	want, ok := readModeFile(m.srv.socket)
+	if !ok {
+		return m, nil
+	}
+	applyMode(want)
+	m.p = colored().onSurface()
+	return m, nil
 }
 
 // toRoots is the asking view, which conn goes to instead of the
@@ -2688,23 +2603,9 @@ func (m model) wearing(want mode) (tea.Model, tea.Cmd) {
 // is where checkouts usually are and is a directory that certainly
 // exists, so the first thing shown is a list rather than nothing.
 func (m model) toRoots() (tea.Model, tea.Cmd) {
-	return m.toRootsFor(-1, "~/")
-}
-
-// toRootsFor is the same view, typing one root: the one at an index,
-// to be written over, or another, at -1. It is where the settings send
-// a root to be edited, completing a path against the machine being
-// what this view is for. Where it goes when it is done is where it was
-// opened from — the settings, or the processes view, which is what the
-// first start is answering its way to.
-func (m model) toRootsFor(at int, text string) (tea.Model, tea.Cmd) {
-	m.askingBack = viewProcesses
-	if m.view == viewSettings {
-		m.askingBack = viewSettings
-	}
-	m.view, m.rootErr, m.askingAt = viewRoots, "", at
+	m.view, m.rootErr = viewRoots, ""
 	m.asking = typed{}
-	m.asking.set(text)
+	m.asking.set("~/")
 	return m, nil
 }
 
@@ -2735,13 +2636,10 @@ func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
 			m.asking.set(b.rows[m.asking.at] + "/")
 		}
 	case k == "esc":
-		// Back to the settings, nothing written. The first start has
-		// nowhere to go back to: conn cannot show the processes view
-		// until this is answered, and a key that did nothing would be
-		// conn pretending there was a way past it.
-		if m.askingBack == viewSettings {
-			return m.toSettings()
-		}
+		// Nothing. The first start has nowhere to go back to: conn
+		// cannot show the processes view until this is answered, and a
+		// key that did nothing would be conn pretending there was a
+		// way past it.
 	case k == "enter":
 		return m.takeRoot(b)
 	}
@@ -2765,30 +2663,16 @@ func (m model) takeRoot(b rootsReport) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	full := expandHome(root, home)
-	// The roots the file names, with this one put in: written over the
-	// root the settings sent here, and added to the rest otherwise. The
-	// file is read again rather than taken off the model, since it is
-	// the file this writes and the operator may have edited it by hand
-	// since conn last read it.
+	// The roots the file names, with this one added. The file is read
+	// again rather than taken off the model, since it is the file this
+	// writes and the operator may have edited it by hand since conn
+	// last read it.
 	c, err := readConfig(home)
 	if err != nil {
 		m.rootErr = err.Error()
 		return m, nil
 	}
-	roots := append([]string{}, c.Roots...)
-	if m.askingAt >= 0 && m.askingAt < len(roots) {
-		roots[m.askingAt] = tilde(full, home)
-	} else {
-		roots = append(roots, tilde(full, home))
-	}
-	// A root typed from the settings goes back to them, where the rows
-	// are the file and the operator can see what they just wrote. The
-	// writing is the settings view's own, since what went wrong with it
-	// belongs on the view that will be up to say it.
-	if m.askingBack == viewSettings {
-		mm, _ := m.toSettings()
-		return mm.(model).wroteRoots(roots)
-	}
+	roots := append(append([]string{}, c.Roots...), tilde(full, home))
 	if err := saveRoots(home, roots); err != nil {
 		m.rootErr = err.Error()
 		return m, nil
@@ -2864,13 +2748,19 @@ func (m model) leftHelp(found bool) (tea.Model, tea.Cmd) {
 	return m, toPanel
 }
 
-// tookBackRow puts the cursor back on the row the manual was asked
-// from. Nothing happens where there was none: a manual asked for with
-// no row under the cursor leaves with none, which is the same answer.
+// tookBackRow puts the cursor back on the row the manual or the
+// settings were asked from. Nothing happens where there was none:
+// either asked for with no row under the cursor leaves with none,
+// which is the same answer. They are never up at once, so the two
+// fields are one answer read from wherever it was put.
 func (m model) tookBackRow() model {
-	if m.helpCursor == 0 {
+	was := m.helpCursor
+	if was == 0 {
+		was = m.settingCursor
+	}
+	if was == 0 {
 		return m
 	}
-	m.cursor, m.helpCursor = m.helpCursor, 0
+	m.cursor, m.helpCursor, m.settingCursor = was, 0, 0
 	return m.published(false)
 }

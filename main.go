@@ -210,6 +210,18 @@ var commands = []command{
 		}
 		return 0
 	}},
+	// The settings, in the workspace. Not offered in the synopsis, for
+	// the manual's reason: , is how they are reached, and conn runs
+	// this in the pane it opens for them.
+	{"settings", "", func([]string) int {
+		home, _ := os.UserHomeDir()
+		applyMode(serverMode(socketPath(home), home))
+		if err := runSettings(findServer(home), home, colored()); err != nil {
+			fmt.Fprintf(os.Stderr, "conn settings: %v\n", err)
+			return 1
+		}
+		return 0
+	}},
 	// The manual, in the workspace. It is not offered in the synopsis
 	// because it is not a thing to type: ? is how it is reached,
 	// and conn runs this in the pane it opens for it.

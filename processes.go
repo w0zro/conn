@@ -98,6 +98,28 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 // saying so on every row of it paints a block rather than a mark. Only
 // the head of that tree is marked shown. What hangs under it reads as
 // what it is: in a pane conn holds, like any other row conn can reach.
+// worked is the projects something is up in. A project's rows can all
+// be down — everything its .conn declares, every service a compose
+// would bring up and every service brew holds, with nothing of it
+// running — and rows like that are a reading of the file rather than of
+// the machine: a list of what could be started, which is what the file
+// already is. The project is left out. Opening anything in it brings it
+// back, with what it declares under it, down, which is where a
+// declaration is worth seeing: beside work already happening.
+//
+// A project whose .conn would not read stays whatever its rows are.
+// That is a fault, and a fault is to be answered.
+func worked(projects []project) []project {
+	out := make([]project, 0, len(projects))
+	for _, pl := range projects {
+		up := slices.ContainsFunc(pl.entries, func(e entry) bool { return e.status != statusDown })
+		if up || pl.note != "" {
+			out = append(out, pl)
+		}
+	}
+	return out
+}
+
 func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
 	b := processesReport{err: err, stalled: stalled, filed: filed}
 	head, _, marked := headOf(projects, bay)

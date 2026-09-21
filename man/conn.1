@@ -515,9 +515,17 @@ name, as much of the path above it as tells them apart.
 A project that holds other projects is not a block of its own here: it
 is a heading in the tree, on
 .BR z .
-A project that declares processes in a
+A project has a block while something in it is running.
+What its
 .I .conn
-has a block whether or not anything in it is running.
+declares and is not running stands under it,
+.BR DOWN .
+A project nothing is up in is not listed: its rows would be a reading of
+the file and not of the machine.
+A
+.I .conn
+that would not read is a fault, and its project stands on that note
+alone.
 .PP
 At the end of a block's rule is what the project wants of you, the
 first of these it holds:
@@ -804,9 +812,9 @@ cache:          brew services start redis
 A declared process that is not running is a row of the project's block,
 worded
 .BR DOWN ,
-under
-.BR "NOT RUNNING" .
-A project with nothing running in it shows nothing of its file.
+at the foot of the rows of what is running.
+A project with nothing running in it shows nothing of its file, and is
+not a block at all.
 .PP
 .BR enter ,
 .B u

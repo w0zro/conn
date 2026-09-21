@@ -923,3 +923,31 @@ func TestConnsOwnDoingIsNoRow(t *testing.T) {
 		t.Errorf("with nothing to take out, %d of 4 were kept", n)
 	}
 }
+
+// A project nothing is up in is not listed. Its rows are what its .conn
+// declares and nothing of this machine, and a panel of them is a list
+// of what could be started. Something up in it — a process, or a
+// service brew holds for it — lists it, with what is down under it.
+func TestAProjectNothingIsUpInIsNotListed(t *testing.T) {
+	down := entry{pid: -17000000, kind: kindRun, command: "npm run dev", status: statusDown}
+	projects := []project{
+		{path: "/r/app", entries: []entry{{pid: 1, kind: kindShell, command: "zsh", status: statusIdle}, down}},
+		{path: "/r/lib", entries: []entry{down}},
+		{path: "/r/db", entries: []entry{down, {pid: 2, kind: kindService, command: "postgresql@14", status: statusActive, brew: "postgresql@14"}}},
+		{path: "/r/zed", note: ".conn: line 1: want name [dir]: command"},
+		{path: "/r/gone"},
+	}
+	var got []string
+	for _, pl := range worked(projects) {
+		got = append(got, pl.path)
+	}
+	want := []string{"/r/app", "/r/db", "/r/zed"}
+	if !slices.Equal(got, want) {
+		t.Errorf("the projects listed are %v, want %v", got, want)
+	}
+	// What is down under a project something is up in stays: a
+	// declaration is worth reading beside work already happening.
+	if rows := worked(projects)[0].entries; len(rows) != 2 || rows[1].status != statusDown {
+		t.Errorf("the down row was dropped with its project: %+v", rows)
+	}
+}

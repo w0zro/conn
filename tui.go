@@ -577,6 +577,9 @@ func (m model) readProcesses() tea.Cmd {
 			}
 			projects = attachBrew(projects, declared, brews, sockets, paneOf)
 		}
+		// And out go the projects nothing is up in, whose every row is
+		// a declaration of what is not running; see worked.
+		projects = worked(projects)
 		// And which of them have lost the listener they had, which is a
 		// fault and so is worded before the rows are dated: a row that
 		// has come to say CLOSED came to say it now.

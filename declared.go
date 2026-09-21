@@ -457,9 +457,13 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 		if i < 0 {
 			// Nothing of the project is running, and it declares what
 			// should be: the block stands empty and takes the down rows
-			// below, so that a project with nothing up says so where it
-			// would say anything else. A file that declares nothing and
-			// read clean has nothing to stand for.
+			// below. Whether it is listed is not settled here — a
+			// project whose every row is down is dropped, and one whose
+			// declaration brew holds up for it is not; see worked. What
+			// is settled here is that the file has been read against the
+			// machine, which is what brew is then asked about. A file
+			// that declares nothing and read clean has nothing to stand
+			// for.
 			if d.err == "" && len(d.list) == 0 {
 				continue
 			}

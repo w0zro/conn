@@ -923,7 +923,8 @@ func (m model) bar() string {
 	}
 	// A shell, a contact and a bring-up are at the row's project, so
 	// with no row under the cursor there is nowhere for them: what is
-	// left is the list, and the manual.
+	// left is the station's own keys, which work wherever the cursor
+	// is and are at the end of the bar for it.
 	if m.inside && ok {
 		hints = append(hints, keyHint{"s", "Shell"})
 		if p := m.programUnder(e); p != nil {
@@ -937,7 +938,7 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"U", "Bring up all"})
 		}
 	}
-	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{"?", "Help"}))
+	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{",", "Settings"}, keyHint{"?", "Help"}))
 }
 
 // keyWord is the panel key as the bar writes it: ^space for C-Space,

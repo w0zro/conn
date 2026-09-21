@@ -124,9 +124,10 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		t.Errorf("outside the server the bar offers keys that need it:\n%s", bar)
 	}
 	// With nothing running there is no row and so no project to act at:
-	// the list and the manual are what is left.
+	// the station's own keys are what is left.
 	empty := model{view: viewProcesses, inside: true, focused: true}
-	if bar := empty.bar(); has(bar, "s", "Shell") || has(bar, "a", "New contact") || !has(bar, "p", "Projects") || !has(bar, "?", "Help") {
+	if bar := empty.bar(); has(bar, "s", "Shell") || has(bar, "a", "New contact") ||
+		!has(bar, "p", "Projects") || !has(bar, ",", "Settings") || !has(bar, "?", "Help") {
 		t.Errorf("with no rows the bar offers %s", bar)
 	}
 	m.inside, m.focused = true, false

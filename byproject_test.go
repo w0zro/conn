@@ -415,3 +415,27 @@ func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 		}
 	}
 }
+
+// Nothing to list is said on the panel as it is in the tree. The panel
+// drew nothing at all here, which is what a panel that has failed to
+// draw looks like.
+func TestThePanelSaysWhenThereIsNothingToList(t *testing.T) {
+	for _, filed := range []bool{true, false} {
+		empty := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, filed)
+		if out := texts(drawProcesses(empty, 0, panelWidth, 20, plain)); !strings.Contains(out, "NO PROCESSES") {
+			t.Errorf("nothing running, filed %v, says nothing:\n%s", filed, out)
+		}
+		unread := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false, filed)
+		unread.stalled = true
+		out := texts(drawProcesses(unread, 0, panelWidth, 20, plain))
+		if !strings.Contains(out, "LSOF: NOT FOUND") {
+			t.Errorf("the table could not be read, filed %v, and the view says nothing:\n%s", filed, out)
+		}
+		if !strings.Contains(out, "DOCKER NOT ANSWERING") {
+			t.Errorf("the notes are lost where there are no rows, filed %v:\n%s", filed, out)
+		}
+		if len(drawProcesses(unread, 0, panelWidth, 20, plain)) != 20 {
+			t.Errorf("the drawing is not the height it was given, filed %v", filed)
+		}
+	}
+}

@@ -401,6 +401,17 @@ func panelStatusWidth(b processesReport) int {
 // drawProcesses renders the processes view for a terminal of the given
 // size, with the cursor on the row of the given pid.
 func drawProcesses(b processesReport, cursor int, width, height int, p palette) []row {
+	// Nothing to list is drawn the same way whichever drawing is up,
+	// and so is drawn before the choice between them: the fold and the
+	// tree differ in how rows are arranged under their projects, and
+	// here there are no rows. The panel — the fold, which is what conn
+	// shows — drew nothing at all in this case, so a machine with
+	// nothing running on it and a panel that had failed to draw looked
+	// alike, and a process table that could not be read said so only in
+	// the tree, which is the drawing nobody is on when it happens.
+	if b.err != "" || len(b.projects) == 0 {
+		return drawNoRows(b, width, height, p)
+	}
 	if b.filed {
 		return drawFiled(b, cursor, width, height, p)
 	}
@@ -588,25 +599,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		}
 		body = append(body, d.rows...)
 	}
-	switch {
-	case b.err != "":
-		d := canvas{p: p, width: width}
-		d.blank(0)
-		l := d.line()
-		l.add(p.chip, " "+strings.ToUpper(b.err)+" ")
-		d.emit(l, 0, true)
-		body = d.rows
-	case len(b.projects) == 0:
-		d := canvas{p: p, width: width}
-		d.blank(0)
-		l := d.line()
-		l.add(p.gray, "NO PROCESSES")
-		d.emit(l, 0, true)
-		body = d.rows
-	default:
-		for _, bp := range b.projects {
-			project(bp)
-		}
+	for _, bp := range b.projects {
+		project(bp)
 	}
 	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
 
@@ -615,6 +609,30 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	// The ground fills what the rows do not: the keys are learned once,
 	// and a legend on every row of every reading is a thing to read
 	// past forever.
+	if height > 0 {
+		for len(c.rows) < height {
+			c.blank(0)
+		}
+	}
+	return c.rows
+}
+
+// drawNoRows is the view where there is nothing to list: why the table
+// could not be read, or, where it read and held nothing, that nothing
+// is running. Either is a line at the middle of the panel, with
+// whatever the notes have to say under it.
+func drawNoRows(b processesReport, width, height int, p palette) []row {
+	width = max(width, panelMinCols)
+	c := canvas{p: p, width: width}
+	c.blank(0)
+	l := c.line()
+	if b.err != "" {
+		l.add(p.chip, " "+strings.ToUpper(b.err)+" ")
+	} else {
+		l.add(p.gray, "NO PROCESSES")
+	}
+	c.emit(l, 0, true)
+	c.rows = append(c.rows, notes(b, width, measureAt(width), p)...)
 	if height > 0 {
 		for len(c.rows) < height {
 			c.blank(0)

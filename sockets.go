@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // What a process has open to the world: the ports it listens on, the
@@ -286,4 +287,66 @@ func fdSockets(dir string, tables map[string]socket) []socket {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
 	return out
+}
+
+// closedAfter is how many readings running a row must have had nothing
+// listening before conn says its listener is gone. One is not enough:
+// the sockets are a listing of their own, and one that does not come
+// back costs the reading every port on the machine at once, which
+// would stamp every server there is; a server that closes its listener
+// and binds it again between two readings is the same shape. Two
+// readings running is a port that is really gone, and says so a couple
+// of seconds after it went.
+const closedAfter = 2
+
+// A servingSeen is a process conn has seen listening: which process it
+// was, by the moment it began, so a pid come round again on another
+// process is not taken for it, and how many readings running it has
+// had nothing open since.
+type servingSeen struct {
+	started time.Time
+	lost    int
+}
+
+// markClosed words the rows whose listener has gone while the process
+// is still there, and answers what to hold for the next reading. A
+// server alive on no port is a server nobody can reach, and without
+// this the row simply dropped the port it had been saying and stood
+// there looking like any other process at work: a fault told only by
+// what was missing from the row. It is a fault, so the row says CLOSED
+// where a fault's word goes, its project's block counts it among the
+// faults, and the fold keeps the row rather than folding a listener
+// that no longer listens into the head it had lifted its port onto.
+//
+// Only a process of the operator's own is watched this way. A
+// container publishes its ports for as long as it runs and stops
+// publishing only by stopping; a contact is filed by what it asks of
+// you and never by what it has open; a row that is over serves nothing,
+// and what ended is said by its own word. A row that is already a
+// fault, or waiting on the operator, keeps the word it has: that is
+// the thing to look at, and the port is the lesser fact beside it.
+func markClosed(projects []project, was map[int]servingSeen) map[int]servingSeen {
+	next := map[int]servingSeen{}
+	for i := range projects {
+		for j := range projects[i].entries {
+			e := &projects[i].entries[j]
+			if e.pid <= 0 || e.kind == kindContact || over(e.status) {
+				continue
+			}
+			if len(e.ports) > 0 {
+				next[e.pid] = servingSeen{started: e.started}
+				continue
+			}
+			prev, ok := was[e.pid]
+			if !ok || !prev.started.Equal(e.started) {
+				continue
+			}
+			prev.lost++
+			next[e.pid] = prev
+			if prev.lost >= closedAfter && !e.fault && e.status != statusWaiting {
+				e.status, e.fault = statusClosed, true
+			}
+		}
+	}
+	return next
 }

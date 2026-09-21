@@ -583,6 +583,15 @@ A fault.
 A contact says it is waiting on you.
 Read from Claude Code's own record of the session, never guessed.
 .TP
+.B CLOSED
+The row was listening on a port and has had none for two readings
+running, with the process still there: a server nobody can reach.
+A fault.
+Contacts and rows
+.B conn
+only reports are not watched this way, and a port bound again takes
+the word off.
+.TP
 .B WORKING
 The process spent at least a twentieth of one core's time since the
 last reading two seconds ago; or a contact says it is busy.
@@ -659,6 +668,8 @@ TCP listeners only, lowest first.
 UDP and unix sockets are on the page.
 .B o
 opens the lowest in the browser.
+A row whose ports all go while its process lives says
+.BR CLOSED .
 .SS Project names
 In the tree a project is named with its root stripped:
 .I ~/projects/w0zro/conn

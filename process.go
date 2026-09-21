@@ -125,6 +125,7 @@ const (
 	statusStopped = "STOPPED" // suspended
 	statusEnded   = "ENDED"   // finished, and not yet collected
 	statusDown    = "DOWN"    // declared in the project's .conn, and not running
+	statusClosed  = "CLOSED"  // it was listening, and the listener has gone while it lives
 )
 
 // said is a status as a row says it. The vocabulary is the machine's and

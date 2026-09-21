@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // lsof -nP -a -i -F pcnPT, as captured: a socket a descriptor, the
@@ -114,5 +115,118 @@ func TestThePageSaysWhatARowListensOn(t *testing.T) {
 	s.entry.sockets = nil
 	if quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain)); strings.Contains(quiet, "SOCKETS") {
 		t.Errorf("a row with nothing open has a sockets group:\n%s", quiet)
+	}
+}
+
+// A row that was listening and is not, while its process lives, says
+// CLOSED: the port it had been saying does not simply go off the row.
+// One reading is not enough — a listing that did not come back would
+// stamp every server on the machine — and the word stands for as long
+// as the process does without a listener.
+func TestAListenerGoneWhileTheProcessLives(t *testing.T) {
+	began := time.Now().Add(-time.Hour)
+	serving := []project{{path: "/w/a", entries: []entry{
+		{pid: 300, kind: kindRun, command: "node vite", started: began, status: statusActive, ports: []string{"5173"}},
+	}}}
+	was := markClosed(serving, nil)
+	if got := was[300]; !got.started.Equal(began) || got.lost != 0 {
+		t.Fatalf("a row that serves is held as %+v", got)
+	}
+	closed := func() []project {
+		return []project{{path: "/w/a", entries: []entry{
+			{pid: 300, kind: kindRun, command: "node vite", started: began, status: statusActive},
+		}}}
+	}
+	one := closed()
+	was = markClosed(one, was)
+	if e := one[0].entries[0]; e.status != statusActive || e.fault {
+		t.Errorf("one reading without the port says %q", e.status)
+	}
+	two := closed()
+	was = markClosed(two, was)
+	if e := two[0].entries[0]; e.status != statusClosed || !e.fault {
+		t.Errorf("two readings without the port say %q, fault %v", e.status, e.fault)
+	}
+	three := closed()
+	was = markClosed(three, was)
+	if e := three[0].entries[0]; e.status != statusClosed {
+		t.Errorf("the word does not hold: %q", e.status)
+	}
+	// And a listener bound again is a row at work: the word goes, and
+	// the count it was stamped on starts over.
+	back := serving
+	was = markClosed(back, was)
+	if e := back[0].entries[0]; e.status != statusActive || e.fault {
+		t.Errorf("a port bound again says %q", e.status)
+	}
+	again := closed()
+	markClosed(again, was)
+	if e := again[0].entries[0]; e.status != statusActive {
+		t.Errorf("the first reading after the port came back says %q", e.status)
+	}
+}
+
+// A listener that has closed keeps its row on the panel. Its port is
+// what had lifted it onto the head that runs it; with the port gone
+// the row would have folded into that head and taken the fault with
+// it, leaving a project whose dev server is unreachable saying nothing
+// at all.
+func TestAClosedListenerKeepsItsRow(t *testing.T) {
+	began := time.Now().Add(-time.Hour)
+	rows := func(ports []string) []project {
+		return []project{{path: "/w/a", entries: []entry{
+			{pid: 300, kind: kindShell, command: "npm run dev", started: began, status: statusActive, depth: 0},
+			{pid: 301, kind: kindRun, command: "node vite", started: began, status: statusActive, depth: 1, ports: ports},
+		}}}
+	}
+	was := markClosed(rows([]string{"5173"}), nil)
+	for range closedAfter {
+		was = markClosed(rows(nil), was)
+	}
+	gone := rows(nil)
+	markClosed(gone, was)
+	folded := fold(gone)
+	if len(folded[0].entries) != 2 {
+		t.Fatalf("the fold left %d rows: %+v", len(folded[0].entries), folded[0].entries)
+	}
+	if e := folded[0].entries[1]; e.status != statusClosed || !e.fault {
+		t.Errorf("the listener's row says %q, fault %v", e.status, e.fault)
+	}
+	// And the project's block says the fault at the end of its rule.
+	b := composeProcesses(folded, nil, "", nil, func(string) bool { return true }, "/h", time.Now(), "", false, true)
+	if word, stamped, _ := verdict(b.projects[0].rows); word != statusClosed || !stamped {
+		t.Errorf("the block says %q, stamped %v", word, stamped)
+	}
+}
+
+// What conn does not watch this way: a contact, which is filed by what
+// it asks of you and never by what it has open; a row that is over,
+// which serves nothing; a row conn only reports, with no pid of its
+// own; a pid come round again on another process; and a row that is
+// already a fault or waiting, which has the word worth reading.
+func TestWhatTheClosedWordLeavesAlone(t *testing.T) {
+	began := time.Now().Add(-time.Hour)
+	since := began.Add(time.Minute)
+	served := map[int]servingSeen{
+		301: {started: began, lost: closedAfter},
+		302: {started: began, lost: closedAfter},
+		303: {started: began, lost: closedAfter},
+		304: {started: began, lost: closedAfter},
+		305: {started: since, lost: closedAfter},
+		306: {started: began, lost: closedAfter},
+	}
+	projects := []project{{path: "/w/a", entries: []entry{
+		{pid: 301, kind: kindContact, command: "claude", started: began, status: statusWorking},
+		{pid: 302, kind: kindRun, command: "node vite", started: began, status: statusEnded, fault: true},
+		{pid: 0, kind: kindService, command: "web", container: "abc", status: statusActive},
+		{pid: 304, kind: kindRun, command: "node vite", started: began, status: statusStopped, fault: true},
+		{pid: 305, kind: kindRun, command: "node vite", started: began, status: statusActive},
+		{pid: 306, kind: kindContact, command: "claude", started: began, status: statusWaiting},
+	}}}
+	markClosed(projects, served)
+	for _, e := range projects[0].entries {
+		if e.status == statusClosed {
+			t.Errorf("%d says CLOSED", e.pid)
+		}
 	}
 }

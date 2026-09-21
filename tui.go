@@ -129,6 +129,9 @@ type (
 		// the next reading dates a row's status against.
 		stood map[int]stood
 		acts  map[string]activitySeen
+		// Each row conn has seen listening, and how many readings it
+		// has had nothing open since: what says a listener has gone.
+		serves map[int]servingSeen
 		// The table's record behind each row, for the page; see cursor.go.
 		records map[int]record
 		// The roots the reading found the file naming, where they are
@@ -244,6 +247,7 @@ type model struct {
 	cpuWas map[int]time.Duration
 	stood  map[int]stood
 	acts   map[string]activitySeen
+	serves map[int]servingSeen
 	cpuAt  time.Time
 	// The list: the projects as the roots were last walked, and the line
 	// typed into to narrow them, with the cursor among the rows it leaves.
@@ -477,7 +481,7 @@ func (m model) readProcesses() tea.Cmd {
 	home, configured := m.head.login.home, m.roots.configured
 	containers, brews := m.containers, m.brews
 	declared, full := m.declared, m.full
-	was, wasAt, stoodWas, actsWas := m.cpuWas, m.cpuAt, m.stood, m.acts
+	was, wasAt, stoodWas, actsWas, servesWas := m.cpuWas, m.cpuAt, m.stood, m.acts, m.serves
 	var srv *server
 	if m.inside {
 		srv = m.srv
@@ -573,9 +577,13 @@ func (m model) readProcesses() tea.Cmd {
 			}
 			projects = attachBrew(projects, declared, brews, sockets, paneOf)
 		}
+		// And which of them have lost the listener they had, which is a
+		// fault and so is worded before the rows are dated: a row that
+		// has come to say CLOSED came to say it now.
+		serves := markClosed(projects, servesWas)
 		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
-			records: records, rooted: rerooted, declared: declared}
+			serves: serves, records: records, rooted: rerooted, declared: declared}
 		if !full {
 			msg.projects = fold(projects)
 		}
@@ -1281,7 +1289,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastIn = msg.bay
 		}
 		if msg.cpu != nil {
-			m.cpuWas, m.cpuAt, m.stood, m.acts = msg.cpu, msg.cpuAt, msg.stood, msg.acts
+			m.cpuWas, m.cpuAt, m.stood, m.acts, m.serves = msg.cpu, msg.cpuAt, msg.stood, msg.acts, msg.serves
 		}
 		// The shell conn opened is the cursor's once the reading has it;
 		// one that never comes is given up on when the wait is out.

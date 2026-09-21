@@ -88,8 +88,10 @@ func serving(e entry) bool {
 	return e.kind != kindContact && len(e.ports) > 0
 }
 
-// portsWord is how a row says its ports after its command: web · :8438,
-// or every port it has, lowest first. Nothing for a row with none.
+// portsWord is how a row of the tree says its ports after its command:
+// web · :8438, or every port it has, lowest first. Nothing for a row
+// with none. The panel stands them at its right instead, as a column,
+// and asks for portsColumn.
 func portsWord(ports []string) string {
 	if len(ports) == 0 {
 		return ""

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // The panel is filed by project: a block per project, its rows in the
@@ -52,7 +53,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	text := texts(rows)
 	golden(t, "processes-filed-44x30.txt", text)
 	for _, want := range []string{"conn ─", "conjurer ─", "─  WAITING", " 9 MIN", " 2 MIN",
-		"⣾ ●  go test ./...", "●  node vite · :5173", "○  zsh", "◌    worker", " STOPPED", " DOWN"} {
+		"⣾ ●  go test ./...", "●  node vite", ":5173", "○  zsh", "◌    worker", " STOPPED", " DOWN"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -347,35 +348,82 @@ func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 	}
 }
 
-// A row's port follows its command, where it is a fact about that row
-// and reads with it. The ports stood in a column of their own while
-// the panel was filed by state and the serving rows were a block: down
-// a project most rows have no port, and a column they leave blank is
-// a gap rather than a column.
-func TestThePortFollowsTheCommand(t *testing.T) {
+// The right of a row is one column, and the ports end at it: a row of
+// one port and a row of three finish level, down every project, so the
+// ports are read down the panel rather than found along each row. A
+// row with a word to stand by — waiting, at fault, over — says that
+// word in the column instead, which is why the column is not the gap
+// it would be if the ports had it to themselves: most rows either
+// serve or have something to say, and the two never want it at once.
+func TestThePortsEndAtOneColumn(t *testing.T) {
 	m := newModel(plain)
 	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
 	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 5, kind: kindRun, command: "node server.js", status: statusActive, ports: []string{"8080"}},
-		{pid: 6, kind: kindShell, command: "zsh", status: statusIdle},
+		{pid: 6, kind: kindRun, command: "caddy run", status: statusActive, ports: []string{"443", "80"}},
+		{pid: 7, kind: kindShell, command: "zsh", status: statusIdle},
+		{pid: 8, kind: kindRun, command: "npm run build", status: statusDown, ports: []string{"4000"}},
 	}}}
-	var serves, quiet string
+	ends := map[string]int{}
+	var serves, quiet, ended string
 	for _, line := range strings.Split(texts(drawProcesses(m.processesReport(), 0, panelWidth, 20, plain)), "\n") {
-		switch {
-		case strings.Contains(line, "node"):
-			serves = line
-		case strings.Contains(line, "zsh"):
-			quiet = line
+		for _, at := range []struct {
+			word string
+			line *string
+		}{{"node", &serves}, {"caddy", &quiet}, {"zsh", nil}, {"npm", &ended}} {
+			if !strings.Contains(line, at.word) {
+				continue
+			}
+			if at.line != nil {
+				*at.line = line
+			}
+			ends[at.word] = utf8.RuneCountInString(strings.TrimRight(line, " "))
 		}
 	}
-	if serves == "" || quiet == "" {
-		t.Fatalf("the rows are missing:\n%q\n%q", serves, quiet)
+	if serves == "" || quiet == "" || ended == "" {
+		t.Fatalf("the rows are missing:\n%q\n%q\n%q", serves, quiet, ended)
 	}
-	if strings.Index(serves, "node") >= strings.Index(serves, ":8080") {
-		t.Errorf("the port does not follow the command: %q", serves)
+	// One port, three ports, and a word in the column's place all
+	// finish where the panel finishes.
+	if ends["node"] != ends["caddy"] || ends["caddy"] != ends["npm"] {
+		t.Errorf("the column is ragged: %v\n%q\n%q\n%q", ends, serves, quiet, ended)
 	}
-	if strings.Index(quiet, "zsh") != strings.Index(serves, "node") {
+	if !strings.HasSuffix(serves, ":8080") || !strings.HasSuffix(quiet, ":443 :80") {
+		t.Errorf("the ports are not at the end:\n%q\n%q", serves, quiet)
+	}
+	// A row with nothing to say and nothing open ends at its command,
+	// and the commands all start together whatever stands at the end.
+	if ends["zsh"] >= ends["node"] {
+		t.Errorf("a row with no port was carried out to the column: %v", ends)
+	}
+	if strings.Index(quiet, "caddy") != strings.Index(serves, "node") {
 		t.Errorf("the commands do not start together:\n%q\n%q", serves, quiet)
+	}
+}
+
+// The word a row stands by takes the column from its port: a process
+// that is down is down, and where it would have gone when it was up is
+// not the thing to say about it.
+func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
+	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
+		{pid: 5, kind: kindRun, command: "npm run build", status: statusDown, ports: []string{"4000"}},
+		{pid: 6, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute), ports: []string{"7000"}},
+	}}}
+	b := m.processesReport()
+	for _, lit := range []bool{true, false} {
+		b.lit = lit
+		text := texts(drawProcesses(b, 0, panelWidth, 20, plain))
+		if !strings.Contains(text, "DOWN") {
+			t.Errorf("lit %v: the down row lost its word:\n%s", lit, text)
+		}
+		// On the blink's dark half the column is still the word's: a
+		// port coming up in the gap would make the row say one thing
+		// and then the other, second by second.
+		if strings.Contains(text, ":4000") || strings.Contains(text, ":7000") {
+			t.Errorf("lit %v: a port stands where the row's word does:\n%s", lit, text)
+		}
 	}
 }
 

@@ -193,24 +193,41 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			// down, and a column that steps in and out is not one. What
 			// runs what is said by the command's own indent.
 			l.to(min(l.cells+r.depth*treeIndent, max(measure-commandLeast, 0)))
+			// The right of a row is one column, and two things want it:
+			// the word a row stands by, and the ports it serves on. The
+			// word takes it wherever there is one — a row that is
+			// waiting, or at fault, or over is telling you the thing to
+			// know about it, and where it is going is not that — and
+			// otherwise the ports stand there. So every row says one
+			// thing at the edge, and the ports of every row that has
+			// nothing else to say line up down it.
 			say, stamped, blinks := rowWord(r)
-			tailW := utf8.RuneCountInString(say)
+			tail, tailColor := say, word
+			if say == "" {
+				tail, tailColor = portsColumn(r.ports), ports
+			}
+			tailW := utf8.RuneCountInString(tail)
 			if stamped {
-				tailW = stampWidth(say, p)
+				tailW = stampWidth(tail, p)
 			}
 			activity := r.command
 			if r.name != "" {
 				activity = r.name
 			}
-			l.activity(command, ports, activity, r.ports, max(measure-l.cells-tailW-1, 0))
+			l.add(command, fit(activity, max(measure-l.cells-tailW-1, 0), false))
 			switch {
 			case blinks && !b.lit:
+				// The column is the word's for as long as the word is
+				// the row's, dark half or lit: a port coming up in the
+				// gap would be the row saying something else every
+				// second, and a blink is one thing appearing and not
+				// two things taking turns.
 			case stamped:
 				l.to(measure - tailW)
-				l.stamp(say)
-			case say != "":
+				l.stamp(tail)
+			case tail != "":
 				l.to(measure - tailW)
-				l.add(word, say)
+				l.add(tailColor, tail)
 			}
 			d.emit(l, 0, false)
 		}

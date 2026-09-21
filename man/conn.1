@@ -562,7 +562,7 @@ A spinner turns in the margin, before the dot.
 .TP
 serving
 Alive, not a contact, and listening on a TCP port: the dot is the
-running color and the ports follow the command.
+running color and the ports stand at the row's right.
 .TP
 not running
 .BR DOWN ,
@@ -573,7 +573,8 @@ The command is struck through and the row says the word at its right.
 a fault
 Stamped with its word at the right, holding still.
 .PP
-A row that is up with nothing to report says nothing at its right.
+A row that is up with nothing to report says its ports at its right,
+or nothing where it has none.
 .SS Status
 The status is the last word of a row in the tree view, and in the panel
 what the row says at its right and what its block says of it.
@@ -685,6 +686,14 @@ UDP and unix sockets are on the page.
 opens the lowest in the browser.
 A row whose ports all go while its process lives says
 .BR CLOSED .
+.PP
+In the panel the ports end at the panel's right edge, so that the rows
+that serve are read down that edge rather than found along each row.
+The right of a row is one column: a row waiting, at fault or over says
+its word there instead, since where a row would have taken you is not
+the thing to know about a row that is asking for you or has stopped.
+In the tree the ports follow the command, the tree having columns of
+its own.
 .SS Project names
 In the tree a project is named with its root stripped:
 .I ~/projects/w0zro/conn

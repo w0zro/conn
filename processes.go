@@ -62,7 +62,7 @@ type processRow struct {
 	over                              bool     // a declared process whose pane holds only its last output
 	name                              string   // the declared name, where the row is a declaration's
 	age                               string   // how long a waiting row has waited, as the panel says it
-	ports                             []string // the ports it listens on or publishes, said after its command
+	ports                             []string // the ports it listens on or publishes, said at the right of a panel row and after the command in the tree
 }
 
 // headOf is the first row of a terminal in the projects as read: the

@@ -281,9 +281,16 @@ The bar names the client.
 .TP
 .B o
 The row's port in the browser, at
-.IR http://localhost: port .
+.IR localhost: port .
 Offered where a row is running and has a port, whether it listens on
 it or publishes it; a row that says several is opened at the lowest.
+The scheme is the port's own:
+.B conn
+offers it a TLS handshake, and sends the browser to
+.I https
+where one comes back and
+.I http
+where none does.
 The browser is the system's own:
 .BR open (1)
 on macOS,

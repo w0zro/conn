@@ -1,6 +1,10 @@
 package main
 
 import (
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -43,9 +47,48 @@ func TestOIsOfferedWhereARowServes(t *testing.T) {
 }
 
 // The port a row says is the port the browser is sent to, on this
-// machine and over http.
+// machine, under the scheme that port answers to — proven against a
+// server of each kind rather than against conn's idea of them.
 func TestThePortIsWhereTheBrowserGoes(t *testing.T) {
-	if got := localURL("5173"); got != "http://localhost:5173" {
-		t.Errorf("the browser is sent to %q", got)
+	nothing := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	plainly := httptest.NewServer(nothing)
+	defer plainly.Close()
+	secured := httptest.NewTLSServer(nothing)
+	defer secured.Close()
+	for _, c := range []struct{ what, at, want string }{
+		{"an http server", plainly.URL, "http"},
+		{"an https server", secured.URL, "https"},
+		{"a port nothing is on", "http://localhost:" + freePort(t), "http"},
+	} {
+		port := portOf(t, c.at)
+		if got, want := localURL(port), c.want+"://localhost:"+port; got != want {
+			t.Errorf("with %s on the port the browser is sent to %q, want %q", c.what, got, want)
+		}
 	}
+}
+
+// portOf is the port a test server came up on.
+func portOf(t *testing.T, at string) string {
+	t.Helper()
+	u, err := url.Parse(at)
+	if err != nil {
+		t.Fatalf("parsing %q: %v", at, err)
+	}
+	return u.Port()
+}
+
+// freePort is a port of this machine nothing is listening on: one taken
+// and given back, which is as close to a free port as the system will
+// say.
+func freePort(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("taking a port: %v", err)
+	}
+	port := portOf(t, "http://"+l.Addr().String())
+	if err := l.Close(); err != nil {
+		t.Fatalf("giving the port back: %v", err)
+	}
+	return port
 }

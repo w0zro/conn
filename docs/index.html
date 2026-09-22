@@ -183,17 +183,18 @@
         <p class="para"><span class="n">2-3.</span> The panel comes up, a block for each project work is happening in, each at the margin and named by its own directory. At the end of a block’s rule is what that project wants of you: WAITING where a contact has stopped to ask, the fault’s word where something is a fault, DOWN where a declared process is not up. A project that wants nothing says nothing. The rows under it stand by kind — the contacts that can answer you, then the shells you type at, then the work — each marked for what it is and saying what it is doing, and only saying a word at the right where there is one to say: how long a wait has waited, a fault’s word, or the word for what is not running.</p>
         <div class="figure">
           <pre>   conn ────────────────────────  WAITING
-▸  ◆  claude                        9 MIN
+▸  ✻  claude                        9 MIN
    ❯  zsh
  ⣾ ○  go test ./...
 
    web ─────────────────────────  STOPPED
    ❯  zsh
    ▯  vim                         STOPPED
+   ◉  postgres                      :5432
    ○  node vite                     :5173
    ○  worker                         DOWN</pre>
         </div>
-        <p class="caption">The mark at the head of a row is what the row is: ◆ a contact, ❯ a shell, ▯ an editor, ■ a service, ○ anything else. A contact waiting and a test running at one project; a shell, a stopped editor, a server up and a declared worker down at the other.</p>
+        <p class="caption">The mark at the head of a row is what the row is: ✻ a contact, ❯ a shell, ▯ an editor, ◉ a service, ○ anything else. A contact waiting and a test running at one project; a shell, a stopped editor, a Homebrew service, a server up and a declared worker down at the other.</p>
       </div>
     </div>
     <div class="foot">

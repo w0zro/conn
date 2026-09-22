@@ -61,7 +61,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// and a shell running a build is the build — work, and not a way in
 	// to a pane.
 	for _, want := range []string{"conn ─", "conjurer ─", "─  WAITING", " 9 MIN", " 2 MIN",
-		"⣾ ○  go test ./...", "○  node vite", ":5173", "❯  zsh", "◆  claude", "▯  vim", "○  worker", " STOPPED", " DOWN"} {
+		"⣾ ○  go test ./...", "○  node vite", ":5173", "❯  zsh", markContact + "  claude", "▯  vim", "○  worker", " STOPPED", " DOWN"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}

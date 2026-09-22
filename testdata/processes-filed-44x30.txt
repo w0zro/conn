@@ -1,13 +1,13 @@
 
    conn ────────────────────────  WAITING
-   ◆  claude                        2 MIN
+   ✻  claude                        2 MIN
 ▌  ❯  zsh
    ▯  vim                         STOPPED
    ○  node vite                      :5173
    ○  worker                          DOWN
 
    conjurer ────────────────────  WAITING
-▸  ◆  claude                        9 MIN
+▸  ✻  claude                        9 MIN
  ⣾ ○  go test ./...
 
 

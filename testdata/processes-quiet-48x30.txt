@@ -7,7 +7,7 @@
    ❯  zsh
 
    conjurer ──────────────────────────────────
-▸  ◆  claude
+▸  ✻  claude
 ▌  ❯  zsh
 
 

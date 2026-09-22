@@ -492,28 +492,61 @@ Detach, or quit.
 .
 .SH WHAT A ROW SAYS
 .SS Kinds
-A row's kind is the program's name, in the tree view a column of its
-own:
-.TP 10
-.B SHELL
-zsh, bash, fish, sh, dash, nu, tcsh, ksh.
-.TP
-.B EDITOR
-vim, nvim, vi, hx, helix, emacs, nano, micro, kak.
-.TP
-.B CONTACT
+A row's kind is the program's name.
+In the panel it is the mark at the head of the row; in the tree view on
+.B z
+a column of its own.
+.TP 12
+.B "◆ CONTACT"
 claude, codex, gemini, copilot, amp, opencode, aider.
 A coding agent: a process that can stop and wait on you.
 See
 .BR CONTACTS .
 .TP
-.B SERVICE
+.B "❯ SHELL"
+zsh, bash, fish, sh, dash, nu, tcsh, ksh.
+The mark is the prompt it shows you.
+.TP
+.B "▯ EDITOR"
+vim, nvim, vi, hx, helix, emacs, nano, micro, kak.
+.TP
+.B "■ SERVICE"
 A docker container, a Homebrew service, or a compose service a project
 declares.
+The mark is the box docker or Homebrew holds up.
 .TP
-.B RUN
-Anything else.
+.B "○ RUN"
+Anything else — a build, a test, a dev server, a script.
+The commonest row, and the lightest mark.
+.PP
+A shell whose rows are folded away stands for what it runs, and wears
+that kind: a shell running
+.I vim notes.md
+is an editor, one running
+.I go test ./...
+is a run.
+A shell at its prompt runs nothing and is a shell.
+.PP
+The mark says the kind and nothing else.
+The color on it says how the row stands, which the spinner, the stamp,
+the strike-through and the port say again.
 .SS Groups
+In the panel a project's rows stand by kind: the contacts that can
+answer you, then the shells you type at, then the work — editors,
+services and runs together, in the order they started in.
+A row stays in its rank for as long as it lives, so what is new goes on
+the end of its rank and nothing above it moves.
+.PP
+The panel draws no indent.
+Ordering by kind and keeping the tree are not both possible: a contact
+almost always runs under the shell of its pane.
+What runs what is on
+.BR z ,
+which draws the tree whole, and on the page beside the panel, which
+says a row's
+.B Under
+and its
+.BR Runs .
 .SS Blocks
 In the panel a row is in the block of the project it works in.
 Every block is at the margin, in the order of its project's path, and
@@ -554,14 +587,14 @@ edge.
 .SS Marks on a row
 .TP 18
 .B WAITING
-The dot is the accent, the command is bold, and the row is stamped at
+The mark is the accent, the command is bold, and the row is stamped at
 its right with how long it has waited.
 .TP
 .B WORKING
-A spinner turns in the margin, before the dot.
+A spinner turns in the margin, before the mark.
 .TP
 serving
-Alive, not a contact, and listening on a TCP port: the dot is the
+Alive, not a contact, and listening on a TCP port: the mark is the
 running color and the ports stand at the row's right.
 .TP
 not running

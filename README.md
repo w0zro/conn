@@ -6,14 +6,15 @@ project wants of you, and puts the one you choose in front of you.
 
 ```
    conn ────────────────────────  WAITING
-▸  ●  claude                        9 MIN
- ⣾ ●  go test ./...
-   ○  zsh
+▸  ◆  claude                        9 MIN
+   ❯  zsh
+ ⣾ ○  go test ./...
 
    web ─────────────────────────  STOPPED
-   ●  node vite · :5173
-   ●  vim                         STOPPED
-   ◌  worker                          DOWN
+   ❯  zsh
+   ▯  vim                         STOPPED
+   ○  node vite                     :5173
+   ○  worker                         DOWN
 ```
 
 ```

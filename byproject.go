@@ -30,13 +30,20 @@ import (
 // word, and the blocks are the projects, which come and go when work
 // does rather than every reading.
 
-// The order a project's rows stand in: what can answer you first, then
-// what you type at, then the work. A contact is the row you deal with
-// and the one the eye should land on; a shell is the way in to a pane;
-// everything else is what is going on in there. Within a rank the rows
-// keep the order they were read in, which is the order they started in,
-// so a row stays where it is for as long as it lives and what is new
-// goes on the end of its own rank.
+// The order a project's rows stand in: what can answer you, then what
+// you are in, then what is running. A contact is the row you deal with
+// and the one the eye should land on; a shell is the way in to a pane
+// and an editor is a pane you are already in; a service is held up for
+// you and a run is the work itself. Within a rank the rows keep the
+// order they were read in, which is the order they started in, so a row
+// stays where it is for as long as it lives and what is new goes on the
+// end of its own rank.
+//
+// Every kind has a rank of its own, so every mark makes an unbroken run
+// down the block. Three ranks with the editors, services and runs
+// together read as no order at all: the marks came and went down the
+// column — a run, an editor, a run — and a column the eye is meant to
+// read down has to look sorted to be worth sorting.
 //
 // The panel is a list of rows here and not a tree of them, and draws no
 // indent. Ordering by kind and keeping the tree are not both possible:
@@ -75,15 +82,19 @@ func panelKind(e entry) string {
 }
 
 // rank is where a kind stands in that order. A kind conn does not tell
-// apart is a run, and ranks with the work.
+// apart is a run, and ranks last with the rest of the work.
 func rank(kind string) int {
 	switch kind {
 	case kindContact:
 		return 0
 	case kindShell:
 		return 1
+	case kindEditor:
+		return 2
+	case kindService:
+		return 3
 	}
-	return 2
+	return 4
 }
 
 // The states a row's word stands it in, worst first. A block says the

@@ -35,17 +35,17 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 			rows = append(rows, strings.Repeat(" ", e.depth+1)+e.kind+" "+activityOf(e)+" "+e.status)
 		}
 	}
-	// What is kept stands in the panel's order, by kind: the contact
-	// first, then the shell at its prompt, then the work — and the shell
-	// running go test ranks with the work, being what it runs. See
-	// byKind. The depth each row keeps is no longer an indent on the
+	// What is kept stands in the panel's order, by kind: the contact,
+	// then the shell at its prompt, then the editor, then the work — and
+	// the shell running go test ranks with the work, being what it runs.
+	// See byKind. The depth each row keeps is no longer an indent on the
 	// panel; it is what headOf finds a pane's head by.
 	want := []string{
 		"/w ",
 		"  CONTACT read tui.go WORKING",
 		"   SHELL bash -c make WAITING",
-		" SHELL go test ./... ACTIVE",
 		"  EDITOR vim notes.md STOPPED",
+		" SHELL go test ./... ACTIVE",
 		" RUN sleep 9 ACTIVE",
 		"/x a note",
 		" SHELL zsh IDLE",
@@ -68,6 +68,12 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 // health to watch — and not a step in what its compose is doing, so a
 // healthy service under a stack is on the panel without z, where the
 // compose plugin between them is not.
+//
+// The services stand above the stack that brought them up, services
+// ranking before runs; see byKind. The stack is not their heading on
+// the panel, which is a list of rows and not a tree of them — what
+// holds what is on z — and the thing to reach is the service, which is
+// the row the operator wants first.
 func TestAServiceStaysAtRest(t *testing.T) {
 	projects := []project{{path: "/w", entries: []entry{
 		{pid: 500, kind: kindRun, command: "stack · docker compose up", typed: "stack · docker compose up", tty: "ttys040", status: statusActive},
@@ -80,7 +86,7 @@ func TestAServiceStaysAtRest(t *testing.T) {
 	for _, e := range fold(projects)[0].entries {
 		rows = append(rows, strings.Repeat(" ", e.depth)+e.kind+" "+e.command)
 	}
-	want := []string{"RUN stack · docker compose up", " SERVICE web", " SERVICE db"}
+	want := []string{" SERVICE web", " SERVICE db", "RUN stack · docker compose up"}
 	if !slices.Equal(rows, want) {
 		t.Errorf("at rest:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
 	}

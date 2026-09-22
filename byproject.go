@@ -1,6 +1,10 @@
 package main
 
-import "strings"
+import (
+	"cmp"
+	"slices"
+	"strings"
+)
 
 // The panel is filed by project: a block per project under an eyebrow
 // of its own, holding the rows it has, folded; and at the end of the
@@ -25,6 +29,62 @@ import "strings"
 // the row can say — the right of the row is free for the row's own
 // word, and the blocks are the projects, which come and go when work
 // does rather than every reading.
+
+// The order a project's rows stand in: what can answer you first, then
+// what you type at, then the work. A contact is the row you deal with
+// and the one the eye should land on; a shell is the way in to a pane;
+// everything else is what is going on in there. Within a rank the rows
+// keep the order they were read in, which is the order they started in,
+// so a row stays where it is for as long as it lives and what is new
+// goes on the end of its own rank.
+//
+// The panel is a list of rows here and not a tree of them, and draws no
+// indent. Ordering by kind and keeping the tree are not both possible:
+// a contact almost always runs under the shell of its pane, so a tree
+// that held its shape would leave every contact a row down under a
+// shell rather than at the top. What runs what is on z, which draws the
+// tree whole, and on the page beside the panel, which says a row's
+// Under and its Runs.
+//
+// A row keeps the depth it was read at all the same, undrawn: it is how
+// headOf finds the process a pane was opened on, which is what the
+// bay's bar goes on and where the cursor belongs once the pane is
+// reached.
+func byKind(rows []entry) []entry {
+	slices.SortStableFunc(rows, func(a, b entry) int {
+		return cmp.Compare(rank(panelKind(a)), rank(panelKind(b)))
+	})
+	return rows
+}
+
+// panelKind is the kind a row wears on the panel, which is not always
+// the kind of its program. A shell whose rows folded into it stands for
+// what it runs — its row says vim notes.md, or go test ./... — so it
+// wears what it runs: the editor's mark over the one, work's over the
+// other. A shell at its prompt runs nothing and is the prompt. A shell
+// that found only another shell under it is a shell still.
+//
+// The tree on z keeps the program's own kind in its kind column, where
+// the shell and what it runs are two rows and neither stands for the
+// other.
+func panelKind(e entry) string {
+	if e.kind == kindShell && e.under != "" && e.underKind != "" {
+		return e.underKind
+	}
+	return e.kind
+}
+
+// rank is where a kind stands in that order. A kind conn does not tell
+// apart is a run, and ranks with the work.
+func rank(kind string) int {
+	switch kind {
+	case kindContact:
+		return 0
+	case kindShell:
+		return 1
+	}
+	return 2
+}
 
 // The states a row's word stands it in, worst first. A block says the
 // first of these it holds and nothing where it holds none: a wait is

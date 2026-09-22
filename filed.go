@@ -7,13 +7,14 @@ import (
 )
 
 // The panel, drawn: each project under its eyebrow with what it wants
-// at the end of the rule, a row of air before each. A row is a dot and
-// what it is doing, and at the right its own word where it has one to
-// say. A working row turns a spinner in the margin, in the column
-// between the cursor's bar and the dot, as the readings come, so what
-// is at work is seen to be. A serving row's dot is the running color
-// and its port follows its command, being where you would go. What is
-// not running is struck through.
+// at the end of the rule, a row of air before each. A row is a mark for
+// what it is and a word for what it is doing, and at the right its own
+// word where it has one to say. The rows of a project stand in the
+// panel's order, by kind: see byKind. A working row turns a spinner in
+// the margin, in the column between the cursor's bar and the mark, as
+// the readings come, so what is at work is seen to be. A serving row's
+// mark is in the running color and its port follows its command, being
+// where you would go. What is not running is struck through.
 
 // What a row says at its right, and only where there is something to
 // say: how long a wait has waited, a fault's word, or the word for a
@@ -139,19 +140,27 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			l.pid = r.pid
 			cursored := r.pid == cursor
 			stand := stateOf(r.status, r.fault)
-			glyph, tone := dotRests, p.faint
+			// The mark is the row's kind and never its state; the color
+			// on it is how the kind stands. See the marks in pieces.go.
+			tone := p.faint
 			switch {
 			case stand == standWaiting:
-				glyph, tone = dotWants, p.orange+p.bold
+				tone = p.orange + p.bold
 			case stand == standFault:
-				glyph, tone = dotWants, p.orange
+				tone = p.orange
 			case stand == standOver, stand == standDown:
-				glyph = dotOver
+				// The faint it has already. A row that is not running is
+				// said by its command struck through and by its word at
+				// the right, and it keeps the mark of what it is, so that
+				// a service that is down still reads as a service. It is
+				// named here rather than left to fall through, so that a
+				// declared row holding a port it no longer answers on
+				// cannot be taken for one at work.
 			case stand == standWorking, r.kind != kindContact && len(r.ports) > 0:
 				// A contact stands by what it asks of you and never by
 				// what it has open, as serving has it; anything else
 				// alive on a port is at its work.
-				glyph, tone = dotWorks, p.running
+				tone = p.running
 			}
 			command, ports, word := p.ink, p.gray, p.gray
 			if stand == standWaiting {
@@ -187,12 +196,12 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			if r.status == statusWorking {
 				l.turn = spinner[b.spin%len(spinner)]
 			}
-			l.dot(tone, glyph)
-			// The dots stand in one column down the block, whatever
-			// depth their rows are at: they are what the panel is read
-			// down, and a column that steps in and out is not one. What
-			// runs what is said by the command's own indent.
-			l.to(min(l.cells+r.depth*treeIndent, max(measure-commandLeast, 0)))
+			// The marks stand in one column down the block and the
+			// commands start in one column beside it: the two are what
+			// the panel is read down, and a column that steps in and out
+			// is not one. Nothing is indented here — the rows are a list
+			// in the panel's own order, by kind; see byKind.
+			l.dot(tone, markOf(r.stands))
 			// The right of a row is one column, and two things want it:
 			// the word a row stands by, and the ports it serves on. The
 			// word takes it wherever there is one — a row that is

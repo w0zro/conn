@@ -176,9 +176,9 @@ func (s *scratch) projectRows() int {
 }
 
 // projectRowLines is the scratch project's rows as the panel draws
-// them: filed by state, a row is a dot and its command with the project
-// it was read in at the right, so the scratch project's rows are the
-// ones that end on its name.
+// them: filed by project, a row is the mark of its kind and its
+// command, so the scratch project's rows are the ones under its
+// eyebrow, down to the next eyebrow or the end.
 //
 // Only in the processes view. The list names the same project and puts
 // the same processes under it, in a layout of its own, so a count taken
@@ -215,17 +215,13 @@ func isEyebrow(line string) bool {
 
 // isRow says whether a panel line is a process row: past the margin —
 // the cursor's mark, the bay's bar, a spinner turning — it begins with
-// a dot.
+// the mark of a kind.
 func isRow(line string) bool {
 	f := rowFields(line)
 	if len(f) == 0 {
 		return false
 	}
-	switch f[0] {
-	case dotWorks, dotRests, dotOver:
-		return true
-	}
-	return false
+	return isMark(f[0])
 }
 
 // rowFields is a panel line's words with the margin's marks dropped:
@@ -307,11 +303,11 @@ func (s *scratch) shellRows() int {
 	return n
 }
 
-// rowCommand is the first word of a panel row past its marks and dot.
+// rowCommand is the first word of a panel row past the margin's marks
+// and the mark of its kind.
 func rowCommand(r string) string {
 	for _, f := range rowFields(r) {
-		switch f {
-		case dotWorks, dotRests, dotOver:
+		if isMark(f) {
 			continue
 		}
 		return f

@@ -28,6 +28,11 @@ package main
 // stand under the nearest row that stayed. A shell whose rows folded
 // says what it runs — the first of them that is not a shell itself, so
 // a bash -c is looked through to the command it was given.
+//
+// What is left is then put in the panel's order, by kind: see byKind.
+// It is done here rather than where the rows are drawn because the
+// cursor walks this reading and the panel draws it, and the two would
+// otherwise disagree about which row is next.
 func fold(projects []project) []project {
 	out := make([]project, 0, len(projects))
 	for _, pl := range projects {
@@ -58,11 +63,11 @@ func fold(projects []project) []project {
 			if parent >= 0 {
 				p := &kept.entries[parent]
 				if p.kind == kindShell && (p.under == "" || p.underShell && e.kind != kindShell) {
-					p.under, p.underShell = e.asTyped(), e.kind == kindShell
+					p.under, p.underShell, p.underKind = e.asTyped(), e.kind == kindShell, e.kind
 				}
 			}
 		}
-		kept.entries = liftListener(kept.entries)
+		kept.entries = byKind(liftListener(kept.entries))
 		out = append(out, kept)
 	}
 	return out

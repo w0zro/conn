@@ -9,8 +9,12 @@ import (
 )
 
 // The panel is filed by project: a block per project, its rows in the
-// order they were read, and what conn does at a project done at the
-// row's own. The head of a terminal is the shell that ran the contact.
+// panel's own order — the contact that can answer you, then the shell
+// you type at, then the work — and what conn does at a project done at
+// the row's own. The head of a terminal is the shell that ran the
+// contact. The rows go through fold, as the panel's do: that is where
+// they are put in order, so that the cursor walking them and the panel
+// drawing them cannot disagree about which row is next.
 func TestThePanelIsFiledByProject(t *testing.T) {
 	now := processesNow
 	out := []project{
@@ -23,7 +27,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 		}},
 		{path: "/Users/w0zro/projects/w0zro/vim.pro/conjurer", entries: []entry{
 			{pid: 5, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting, since: now.Add(-9 * time.Minute)},
-			{pid: 7, kind: kindShell, command: "zsh", tty: "ttys003", status: statusWorking, under: "go test ./..."},
+			{pid: 7, kind: kindShell, command: "zsh", tty: "ttys003", status: statusWorking, under: "go test ./...", underKind: kindRun},
 		}},
 	}
 	if pid, _, ok := headOf(out, "ttys001"); !ok || pid != 1 {
@@ -47,13 +51,17 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// at the end of the rule, a wait stamped with its age, a fault
 	// stamped with its word, and what is down saying so. The file of
 	// record is the panel's own width.
-	b := composeProcesses(out, map[string]pane{"ttys001": {id: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
+	b := composeProcesses(fold(out), map[string]pane{"ttys001": {id: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
 	b.lit = true
 	rows := drawProcesses(b, 5, panelWidth, 30, plain)
 	text := texts(rows)
 	golden(t, "processes-filed-44x30.txt", text)
+	// The mark is the kind and the color on it is the state: a contact
+	// is a diamond wherever it stands, a shell at its prompt the prompt,
+	// and a shell running a build is the build — work, and not a way in
+	// to a pane.
 	for _, want := range []string{"conn ─", "conjurer ─", "─  WAITING", " 9 MIN", " 2 MIN",
-		"⣾ ●  go test ./...", "●  node vite", ":5173", "○  zsh", "◌    worker", " STOPPED", " DOWN"} {
+		"⣾ ○  go test ./...", "○  node vite", ":5173", "❯  zsh", "◆  claude", "▯  vim", "○  worker", " STOPPED", " DOWN"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -216,13 +224,15 @@ func TestAServingRowIsKnownByItsPort(t *testing.T) {
 	// reach a port from is the process that holds it. The shell that
 	// ran it carries no port, and files by what it is, as a shell whose
 	// child is a contact does.
-	if want := []string{"zsh", " npm run dev · :24678", "  node vite · :5173", "claude", " python -m http.server · :8000"}; !slices.Equal(rows, want) {
+	// And they stand in the panel's order, by kind: the contact, the
+	// shell at its prompt, then the work. See byKind.
+	if want := []string{"claude", "zsh", " npm run dev · :24678", "  node vite · :5173", " python -m http.server · :8000"}; !slices.Equal(rows, want) {
 		t.Errorf("the fold kept %q, want %q", rows, want)
 	}
-	if !serving(folded[0].entries[1]) {
+	if !serving(rowOf(folded[0].entries, 2)) {
 		t.Error("the server does not read as one")
 	}
-	if serving(folded[0].entries[0]) {
+	if serving(rowOf(folded[0].entries, 1)) {
 		t.Error("the shell that ran the server reads as a server itself")
 	}
 	// Drawn narrow, the port is the last thing to go: in eight cells
@@ -310,10 +320,10 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 }
 
 // isPanelRow says whether a trimmed panel line is a process row rather
-// than a block's eyebrow: it begins with a dot, past the margin.
+// than a block's eyebrow: it begins with a row's mark, past the margin.
 func isPanelRow(line string) bool {
 	for _, f := range strings.Fields(line) {
-		return f == dotWants || f == dotWorks || f == dotRests || f == dotOver || f == "▸" || f == cursorBar
+		return isMark(f) || f == "▸" || f == cursorBar
 	}
 	return false
 }
@@ -485,5 +495,58 @@ func TestThePanelSaysWhenThereIsNothingToList(t *testing.T) {
 		if len(drawProcesses(unread, 0, panelWidth, 20, plain)) != 20 {
 			t.Errorf("the drawing is not the height it was given, filed %v", filed)
 		}
+	}
+}
+
+// A row's mark is its kind, and the five kinds are five marks: the eye
+// tells a contact from a container from a shell down the one column it
+// reads the panel by. The color on the mark is how the row stands, and
+// says nothing about what it is.
+func TestAMarkIsTheKindAndTheKindsAreDistinct(t *testing.T) {
+	for kind, want := range map[string]string{
+		kindContact: markContact, kindShell: markShell, kindEditor: markEditor,
+		kindService: markService, kindRun: markRun,
+		"SOMETHING CONN DOES NOT KNOW": markRun,
+	} {
+		if got := markOf(kind); got != want {
+			t.Errorf("%s wears %q, want %q", kind, got, want)
+		}
+	}
+	if len(slices.Compact(slices.Sorted(slices.Values(marks)))) != len(marks) {
+		t.Errorf("two kinds wear the same mark: %q", marks)
+	}
+
+	// Drawn, with every kind on the panel at once and a shell for each
+	// of the two things a shell can be: a prompt you type at, and a row
+	// standing for what it runs, which wears what it runs.
+	now := processesNow
+	folded := fold([]project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
+		{pid: 1, kind: kindShell, typed: "zsh", tty: "ttys001", status: statusIdle},
+		{pid: 2, kind: kindEditor, typed: "vim notes.md", tty: "ttys001", status: statusActive, depth: 1},
+		{pid: 3, kind: kindShell, typed: "zsh", tty: "ttys002", status: statusIdle},
+		{pid: 4, kind: kindContact, typed: "claude", tty: "ttys002", status: statusWorking, depth: 1},
+		{pid: 5, kind: kindService, typed: "postgres", status: statusActive, ports: []string{"5432"}},
+		{pid: 6, kind: kindRun, typed: "go build ./...", tty: "ttys003", status: statusWorking},
+	}}})
+	b := composeProcesses(folded, nil, "", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
+	text := texts(drawProcesses(b, 0, panelWidth, 20, plain))
+	// The contact first, then the shell that is only a shell, then the
+	// work — the shell standing for vim among it, wearing the editor's
+	// mark and not the prompt's. See byKind.
+	want := []string{
+		markContact + "  claude",
+		markShell + "  zsh",
+		markEditor + "  vim notes.md",
+		markService + "  postgres",
+		markRun + "  go build ./...",
+	}
+	at := 0
+	for _, line := range strings.Split(text, "\n") {
+		if at < len(want) && strings.Contains(line, want[at]) {
+			at++
+		}
+	}
+	if at != len(want) {
+		t.Errorf("the panel does not read %q in order:\n%s", want, text)
 	}
 }

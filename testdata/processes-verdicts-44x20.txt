@@ -1,10 +1,10 @@
 
    conn ──────────────────────────────────
-▸  ○  zsh
+▸  ❯  zsh
 
    conjurer ─────────────────────── 2 DOWN
-   ◌  api                             DOWN
-   ◌  web                             DOWN
+   ○  api                             DOWN
+   ○  web                             DOWN
 
 
 

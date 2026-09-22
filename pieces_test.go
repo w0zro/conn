@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -40,9 +41,9 @@ func TestAPieceKeepsItsGlyphsAndDropsItsColor(t *testing.T) {
 		t.Errorf("the stamp is %d cells, want 14", w)
 	}
 
-	for _, d := range []string{dotWants, dotWorks, dotRests, dotOver} {
+	for _, d := range marks {
 		if got := drawn(plain, 40, func(l *line) { l.dot("", d) }); !strings.Contains(got, d) {
-			t.Errorf("the plain palette dropped the dot %q: %q", d, got)
+			t.Errorf("the plain palette dropped the mark %q: %q", d, got)
 		}
 	}
 }
@@ -148,3 +149,10 @@ func TestTheSurfaceIsNotTheSelection(t *testing.T) {
 		t.Error("the plain palette lifted something")
 	}
 }
+
+// The marks a row can wear, for the tests that tell a row from an
+// eyebrow by what stands at the head of it.
+var marks = []string{markContact, markShell, markEditor, markService, markRun}
+
+// isMark says whether a word is a row's mark.
+func isMark(s string) bool { return slices.Contains(marks, s) }

@@ -204,9 +204,13 @@ type entry struct {
 	shared int
 	// What runs under a shell whose rows are folded, for its activity
 	// column; see fold.go. underShell says it is a shell itself, and a
-	// command found later under it is taken instead.
+	// command found later under it is taken instead. underKind is that
+	// command's own kind, which the row wears on the panel: a shell
+	// standing for the vim it runs is an editor there, and one standing
+	// for a build is work. See panelKind.
 	under      string
 	underShell bool
+	underKind  string
 	// The command of the one listener folded into this row, whose
 	// ports and sockets the row carries; see fold.go. A program conn
 	// knows by name is known here too, so the row takes the client.

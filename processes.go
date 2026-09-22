@@ -62,6 +62,7 @@ type processRow struct {
 	over                              bool     // a declared process whose pane holds only its last output
 	name                              string   // the declared name, where the row is a declaration's
 	age                               string   // how long a waiting row has waited, as the panel says it
+	stands                            string   // the kind the panel marks it as; a folded shell's is not its own
 	ports                             []string // the ports it listens on or publishes, said at the right of a panel row and after the command in the tree
 }
 
@@ -130,10 +131,11 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 				pid: e.pid, kind: e.kind, command: activityOf(e), tty: e.tty, since: sinceWord(e.since, now),
 				status: e.status, fault: e.fault, reach: panes[e.tty].id,
 				shown: marked && e.pid == head, depth: e.depth,
-				over:  e.declared != "" && panes[e.tty].exit != "",
-				name:  rowName(e),
-				age:   waitedFor(e, now),
-				ports: e.ports,
+				over:   e.declared != "" && panes[e.tty].exit != "",
+				name:   rowName(e),
+				age:    waitedFor(e, now),
+				stands: panelKind(e),
+				ports:  e.ports,
 			})
 		}
 		b.projects = append(b.projects, bp)

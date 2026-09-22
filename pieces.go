@@ -5,29 +5,60 @@ import (
 	"unicode/utf8"
 )
 
-// The pieces conn draws a row and a page out of: the dot at the head of
+// The pieces conn draws a row and a page out of: the mark at the head of
 // a row, the stamp on the one that wants you, the key you can press, the
 // label with a rule running off it to a count, the line typed into, and
 // a card's two edges. They are here rather than in screen.go because
 // screen.go is the console and these are drawn on every view.
 //
 // A piece is what it looks like and nothing about what it means: which
-// dot a row takes is its view's to decide, and a piece asked for is
+// mark a row takes is its view's to decide, and a piece asked for is
 // drawn. In the plain palette, which is what a pipe and the tests read,
 // a piece keeps whatever it says in glyphs and drops whatever it said
-// in color: the dots stay, since ● and ○ are not the same word, and the
+// in color: the marks stay, since they are five different words, and the
 // stamp's half-cells go, since a block of color trimmed to nothing is
 // two stray characters.
 
-// The dots. A row says what it is doing before it says what it is: the
-// eye finds a filled dot in a column of hollow ones without reading a
-// word of the row it is on.
+// The marks. A row says what it is before it says what it is doing: the
+// eye tells a contact from a container from a shell down the one column
+// it reads the panel by, without reading a word of any row it is on.
+//
+// The mark said the state before, and the state is said four other ways
+// already — a row at work turns a spinner, a row waiting blinks its
+// stamp, a row not running is struck through, a row serving says its
+// port — so the column at the head of a row was the fifth telling of
+// what the row had said, and said nothing of what the row was. The
+// command cannot say it either: zsh and vim name themselves, but a
+// contact's row says what it is doing, and a declared name, a container
+// and a build are one word each with nothing between them. So the mark
+// is the kind, and the color on it is how the kind stands.
+//
+// A kind with a mark of its own takes it, and the rest are one family
+// ranked by weight: the more a row can want of you, the more ink it
+// carries.
 const (
-	dotWants = "●" // it has stopped to ask you something
-	dotWorks = "●" // it is doing something now
-	dotRests = "○" // it is up, and quiet
-	dotOver  = "◌" // it has ended, or never came up
+	markContact = "◆" // the one kind that can stop and ask you something
+	markShell   = "❯" // the prompt it shows you
+	markEditor  = "▯" // a page, open: it has the terminal and asks nothing
+	markService = "■" // a box, which is what docker and brew hold up for you
+	markRun     = "○" // anything else, and the commonest row: the lightest mark
 )
+
+// markOf is the mark a kind wears. A kind conn does not tell apart is a
+// run, which is what kindOf makes of it.
+func markOf(kind string) string {
+	switch kind {
+	case kindContact:
+		return markContact
+	case kindShell:
+		return markShell
+	case kindEditor:
+		return markEditor
+	case kindService:
+		return markService
+	}
+	return markRun
+}
 
 // The half-cells a stamp is capped with, so it begins and ends at half a
 // cell rather than on the edge of one.
@@ -47,9 +78,9 @@ const (
 // mark it rather than raising the ground under it.
 const cursorBar = "▌"
 
-// dot is the state of a row, at the head of it, in a color the caller
-// picks: the accent for what wants you, the green for what is working,
-// the faint for what is quiet or over.
+// dot is the mark at the head of a row — its kind — in a color the
+// caller picks for how it stands: the accent for what wants you, the
+// green for what is working, the faint for what is quiet or over.
 func (l *line) dot(color, glyph string) {
 	l.add(color, glyph)
 	l.add("", "  ")

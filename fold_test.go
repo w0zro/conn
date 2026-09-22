@@ -35,11 +35,16 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 			rows = append(rows, strings.Repeat(" ", e.depth+1)+e.kind+" "+activityOf(e)+" "+e.status)
 		}
 	}
+	// What is kept stands in the panel's order, by kind: the contact
+	// first, then the shell at its prompt, then the work — and the shell
+	// running go test ranks with the work, being what it runs. See
+	// byKind. The depth each row keeps is no longer an indent on the
+	// panel; it is what headOf finds a pane's head by.
 	want := []string{
 		"/w ",
-		" SHELL go test ./... ACTIVE",
 		"  CONTACT read tui.go WORKING",
 		"   SHELL bash -c make WAITING",
+		" SHELL go test ./... ACTIVE",
 		"  EDITOR vim notes.md STOPPED",
 		" RUN sleep 9 ACTIVE",
 		"/x a note",
@@ -50,7 +55,7 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 	}
 	// The row's own command is kept under what it says: the kill
 	// question and the page name the shell, not what it runs.
-	if e := got[0].entries[0]; e.asTyped() != "zsh" || e.under != "go test ./..." {
+	if e := rowOf(got[0].entries, 1); e.asTyped() != "zsh" || e.under != "go test ./..." {
 		t.Errorf("the head: typed %q, under %q", e.asTyped(), e.under)
 	}
 	// The projects given are left as they were.
@@ -109,16 +114,19 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 	for _, e := range fold(projects)[0].entries {
 		rows = append(rows, strings.Repeat(" ", e.depth)+e.kind+" "+activityOf(e)+portsWord(e.ports))
 	}
+	// In the panel's order, by kind: the contact, then the shell that is
+	// only a shell, then the work — which the two shells standing for
+	// what they run are part of. See byKind.
 	want := []string{
+		"CONTACT claude",
+		" SHELL bash -c make",
 		"RUN npm run dev · :5174",
 		"SHELL npm run dev:web · :5173",
-		" SHELL bash -c make",
 		"RUN npm run dev · :24678",
 		" RUN node vite · :5175",
 		"RUN turbo dev",
 		" RUN next dev · :3000",
 		" RUN node api.js · :4000",
-		"CONTACT claude",
 		" RUN python -m http.server · :8000",
 	}
 	if !reflect.DeepEqual(rows, want) {
@@ -128,7 +136,7 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 	// page go by its pid, and its command is what it was. It says whose
 	// port it carries, and carries the sockets too, so its page says
 	// what it listens on and is connected to.
-	head := fold(projects)[0].entries[0]
+	head := rowOf(fold(projects)[0].entries, 1)
 	if head.pid != 1 || head.asTyped() != "npm run dev" || head.listener != "node /w/node_modules/.bin/vite" || len(head.sockets) != 2 {
 		t.Errorf("the head: %+v", head)
 	}
@@ -143,4 +151,16 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 	if len(projects[0].entries[0].ports) != 0 || len(projects[0].entries[0].sockets) != 0 {
 		t.Error("the tree given was written to")
 	}
+}
+
+// rowOf is a row by its pid among those a fold kept, for the tests that
+// mean one row and not whichever stands first: the rows are in the
+// panel's order, by kind, and not the order they were written in.
+func rowOf(rows []entry, pid int) entry {
+	for _, e := range rows {
+		if e.pid == pid {
+			return e
+		}
+	}
+	return entry{}
 }

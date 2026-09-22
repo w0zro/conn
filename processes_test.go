@@ -58,10 +58,13 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	shown.inside = true
 	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, declaredPID(app, "worker"), 48, 30, plain)))
-	// The panel at rest: the same processes, folded. The shell over
-	// claude keeps the contact and the shell says what else it runs;
-	// the stopped vim stays for being a fault.
-	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	// The panel at rest: the same processes, folded and filed as the
+	// panel files them. The shell over claude keeps the contact and the
+	// shell says what else it runs; the stopped vim stays for being a
+	// fault. It is drawn as the panel and not as the tree: folded rows
+	// stand in the panel's order, by kind, and the tree's indent over
+	// them would say a contact runs under the shell standing below it.
+	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
 	quiet.inside = true
 	golden(t, "processes-quiet-48x30.txt", texts(drawProcesses(quiet, 70100, 48, 30, plain)))
 }

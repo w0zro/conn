@@ -88,10 +88,6 @@ func counted(n int, word string) string {
 	return strconv.Itoa(n) + " " + word
 }
 
-// What a row keeps of its command when the width is short, before the
-// word at its right yields the row.
-const commandLeast = 10
-
 // The spinner's frames: the cell full but for one dot, the gap going
 // round, a full turn in eight, and a turn a second (spinEvery, in
 // tui.go). A single dot going round was a trace too faint to be seen

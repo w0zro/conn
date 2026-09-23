@@ -1,6 +1,7 @@
 package main
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"errors"
 	"os"
 	"strconv"
@@ -35,27 +36,13 @@ import (
 // different one, and the spelling to do it by hand. A question that
 // said end or kill in conn's own words hid all three.
 
-// pendingKill is a kill x has asked for and not yet answered.
+// pendingKill is a kill x has asked for and not yet answered: the
+// question, and what a yes runs. What is ended and how — a signal to a
+// pid, docker stop, brew services stop, ctrl-c or kill-pane in a
+// declaration's pane — is endOn's to decide, and the question says it.
 type pendingKill struct {
-	pid     int
-	command string
-	sig     syscall.Signal
-	prompt  string // the question, as the status line puts it
-	// The container to stop, where the row is one. A container is not a
-	// process of this machine and has no pid to signal: docker holds it,
-	// and docker is asked to let it go.
-	container string
-	// The brew service to stop, by its formula, where the row is one:
-	// launchd holds it, and brew is asked to stop it.
-	brew string
-	// The pane to close, where the row is a declared process. One that
-	// has ended holds its pane for its output: there is nothing left to
-	// signal, and the pane is what goes. One still up is sent ctrl-c in
-	// that pane, and the pane goes once it has recorded the end, so
-	// that the row is DOWN in one move: an end the operator asked for
-	// has nothing in it to read.
-	pane      string
-	interrupt bool // ctrl-c to the pane, rather than a signal to a pid
+	prompt string // the question, as the status line puts it
+	end    tea.Cmd
 }
 
 // interruptPrompt is the question for a declared process that is up:

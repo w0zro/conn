@@ -518,7 +518,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if cmd != nil || m.kill == nil || m.kill.pid != 11 || m.kill.command != "claude" || m.kill.sig != syscall.SIGTERM {
+	if cmd != nil || m.kill == nil || m.kill.end == nil {
 		t.Fatalf("arming: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
 	// The question travels with the kill, to the status line.
@@ -532,7 +532,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	m.cursor, m.kill = 22, nil
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.sig != syscall.SIGKILL || !strings.Contains(m.kill.prompt, "kill -KILL 22 · zsh?") {
+	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill -KILL 22 · zsh?") {
 		t.Errorf("arming a shell: kill %+v", m.kill)
 	}
 
@@ -548,7 +548,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	m.cursor, m.kill = 30, nil
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.pid != 32 || m.kill.sig != syscall.SIGTERM || !strings.Contains(m.kill.prompt, "kill -TERM 32 · go?") {
+	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill -TERM 32 · go?") {
 		t.Errorf("arming a folded shell: kill %+v", m.kill)
 	}
 
@@ -576,7 +576,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || !m.kill.interrupt || m.kill.pane != "%7" || m.kill.pid != 0 {
+	if m.kill == nil || m.kill.end == nil {
 		t.Fatalf("arming an up declaration: kill %+v", m.kill)
 	}
 	if !strings.Contains(m.kill.prompt, "tmux send-keys -t %7 C-c · web?") {
@@ -587,7 +587,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 	m.kill = nil
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.interrupt || m.kill.pane != "%7" || !strings.Contains(m.kill.prompt, "kill-pane %7 · web?") {
+	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill-pane %7 · web?") {
 		t.Errorf("arming an ended declaration: kill %+v", m.kill)
 	}
 }
@@ -601,7 +601,10 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, kind: kindContact, command: "claude"}}}}
 	m.cursor = 11
 
-	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
+	armed := &pendingKill{prompt: "kill -TERM 11 · claude?", end: func() tea.Msg {
+		return killedMsg{command: "claude", pid: 11, sig: syscall.SIGTERM}
+	}}
+	m.kill = armed
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	m = next.(model)
 	if m.kill != nil || m.cursor != 11 {
@@ -610,13 +613,13 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 
 	// x again is any other key, and withdraws it: the confirmation is
 	// tmux's, and y is the yes.
-	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
+	m.kill = armed
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
 	if m.kill != nil || cmd != nil {
 		t.Errorf("x on the question: kill %v, cmd %v", m.kill, cmd != nil)
 	}
-	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM}
+	m.kill = armed
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "y"}))
 	m = next.(model)
 	if m.kill != nil || cmd == nil {
@@ -624,7 +627,7 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 	}
 	msg, ok := cmd().(killedMsg)
 	if !ok || msg.pid != 11 || msg.command != "claude" || msg.sig != syscall.SIGTERM {
-		t.Errorf("killEntry did not ask to signal the armed entry: %v", cmd())
+		t.Errorf("y did not run what was armed: %v", cmd())
 	}
 }
 
@@ -932,7 +935,7 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	// The kill question still takes the next key, whatever it is.
 	armed := base
 	armed.view = viewProcesses
-	armed.kill = &pendingKill{pid: 49212, command: "zsh", sig: syscall.SIGTERM}
+	armed.kill = &pendingKill{prompt: "kill -TERM 49212 · zsh?"}
 	if got := press(armed, "alt+-"); got.view != viewProcesses || got.kill != nil {
 		t.Errorf("the panel key fired under an armed kill: view %d", got.view)
 	}
@@ -1472,7 +1475,7 @@ func TestXOnADeclaredRow(t *testing.T) {
 	}
 	m.cursor = 300
 	press("x")
-	if m.kill == nil || m.kill.pane != "%3" || !strings.Contains(m.kill.prompt, "kill-pane %3 · web?") {
+	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill-pane %3 · web?") {
 		t.Fatalf("x on a held row: kill %+v", m.kill)
 	}
 	if cmd := press("y"); cmd == nil || m.kill != nil {
@@ -1480,7 +1483,7 @@ func TestXOnADeclaredRow(t *testing.T) {
 	}
 	m.cursor = 400
 	press("x")
-	if m.kill == nil || !m.kill.interrupt || m.kill.pane != "%4" || !strings.Contains(m.kill.prompt, "tmux send-keys -t %4 C-c · web?") {
+	if m.kill == nil || !strings.Contains(m.kill.prompt, "tmux send-keys -t %4 C-c · web?") {
 		t.Errorf("x on an up row: kill %+v", m.kill)
 	}
 }

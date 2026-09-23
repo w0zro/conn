@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"syscall"
 	"testing"
 )
 
@@ -279,7 +278,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	m.view = viewProcesses
 	// The question itself is on the key bar, where its answers are, and
 	// the word is the band's alone.
-	m.kill = &pendingKill{pid: 11, command: "claude", sig: syscall.SIGTERM, prompt: "END CLAUDE 11 · #1"}
+	m.kill = &pendingKill{prompt: "END CLAUDE 11 · #1"}
 	if ask := m.keys(); ask != statusLineBlock("CONFIRM") || !strings.Contains(ask, "bg="+cursorHex) {
 		t.Errorf("a question armed lights %q", ask)
 	}

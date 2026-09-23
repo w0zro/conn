@@ -382,7 +382,7 @@ func TestXStopsAContainer(t *testing.T) {
 	m.cursor = -99
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
-	if m.kill == nil || m.kill.container != "abc123" {
+	if m.kill == nil || m.kill.end == nil {
 		t.Fatalf("x armed %+v", m.kill)
 	}
 	if !strings.Contains(m.kill.prompt, "docker stop abc123 · web?") {

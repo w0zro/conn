@@ -5,7 +5,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -911,19 +910,8 @@ func (m model) bar() string {
 	}
 	e, pl, ok := m.under()
 	if ok {
-		switch {
-		case reachable(m.panes[e.tty]):
-			hints = append(hints, keyHint{"enter", "Open"})
-		case e.brew != "" && e.status == statusActive:
-			hints = append(hints, keyHint{"enter", "Its log"})
-		case e.brew != "":
-			hints = append(hints, keyHint{"enter", "Bring it up"})
-		case e.container != "":
-			hints = append(hints, keyHint{"enter", "Its output"})
-		case e.declared != "" && e.status == statusDown && e.brew != "":
-			hints = append(hints, keyHint{"enter", "Bring it up"})
-		case e.declared != "" && e.status == statusDown:
-			hints = append(hints, keyHint{"enter", "Bring it up, go in"})
+		if word, cmd := m.enterOn(e); cmd != nil {
+			hints = append(hints, keyHint{"enter", word})
 		}
 	}
 	if len(waitingRound(m.projects)) > 0 {
@@ -934,7 +922,7 @@ func (m model) bar() string {
 	if ok && serving(e) {
 		hints = append(hints, keyHint{"o", "Open " + portsColumn(e.ports[:1])})
 	}
-	if ok && (e.pid > 0 || e.container != "") {
+	if ok && m.endOn(e) != nil {
 		hints = append(hints, keyHint{"x", "End it"})
 	}
 	// A shell, a contact and a bring-up are at the row's project, so
@@ -947,7 +935,7 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"S", p.client})
 		}
 		hints = append(hints, keyHint{"a", "New contact"})
-		if rowDown(e, m.panes) {
+		if m.raiseOn(e) != nil {
 			hints = append(hints, keyHint{"u", "Bring it up"})
 		}
 		if projectHasDown(m.projects, pl.path) {
@@ -1470,19 +1458,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		req := m.kill
 		m.kill = nil
 		if k == "y" {
-			if req.container != "" {
-				return m, m.stopContainer(req.container, req.command)
-			}
-			if req.brew != "" {
-				return m, m.stopBrew(req.brew, req.command)
-			}
-			if req.interrupt {
-				return m, m.interruptDeclared(req.pane, req.command)
-			}
-			if req.pane != "" {
-				return m, m.closeHeld(req.pane, req.command)
-			}
-			return m, m.killEntry(req.pid, req.command, req.sig)
+			return m, req.end
 		}
 		return m, nil
 	}
@@ -1633,101 +1609,16 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
 		}
 	case k == "enter":
-		e, _, ok := m.under()
-		if !m.inside || !ok {
-			return m, nil
-		}
-		// A row conn already holds a pane for is gone into; that is enter
-		// everywhere. A container has no pane until one is opened for it,
-		// and what there is to be in front of is what it has written, so
-		// the first enter opens its output and the next goes back into
-		// the pane holding it.
-		switch {
-		case reachable(m.panes[e.tty]):
-			return m, m.reach(m.panes[e.tty], e.tty)
-		case e.brew != "" && e.status == statusActive:
-			// A brew service up: its log, the way a container's output
-			// is what there is to be in front of.
-			return m, m.watchBrew(e)
-		case e.brew != "":
-			// Down, or ended badly: brew is asked to start it.
-			return m, m.startBrew(e.brew)
-		case e.container != "":
-			return m, m.watchContainer(e)
-		case e.declared != "":
-			// A declared process that is down: brought up, and gone into.
-			if path, d, ok := m.declarationOf(e); ok {
-				return m, m.raise(path, d, "", true)
-			}
+		if e, _, ok := m.under(); ok {
+			_, cmd := m.enterOn(e)
+			return m, cmd
 		}
 	case k == "esc":
 		return m.backIn()
 	case k == "x":
-		e, _, ok := m.under()
-		if !ok {
-			return m, nil
+		if e, _, ok := m.under(); ok {
+			m.kill = m.endOn(e)
 		}
-		// A container is stopped rather than signalled: there is no
-		// process here to send anything to, and docker's stop asks it to
-		// go before insisting. One already stopped is left alone — the
-		// question would be about nothing, and the row is kept only so
-		// the service that died beside its siblings can be seen.
-		if e.container != "" {
-			if e.status == statusEnded || e.fault {
-				return m, nil
-			}
-			// By its service, which is what it is called here. The row's
-			// own label carries the ports it publishes, and a question
-			// that reads STOP CACHE · :6390 is asking about an address.
-			name := e.command
-			if c := m.containerAt(e.pid); c != nil {
-				name = c.service
-			}
-			m.kill = &pendingKill{container: e.container, command: name, prompt: stopPrompt(e.container, name)}
-			return m, nil
-		}
-		// A brew service is stopped by brew, by its declared name; one
-		// not running is left alone, as a container is.
-		if e.brew != "" {
-			if e.status != statusActive {
-				return m, nil
-			}
-			name := declaredNameOf(e)
-			if name == "" {
-				name = e.brew
-			}
-			m.kill = &pendingKill{brew: e.brew, command: name, prompt: brewStopPrompt(e.brew, name)}
-			return m, nil
-		}
-		// A declaration in a pane conn opened for it is stopped in
-		// that pane. One started by hand is a process like any other,
-		// wherever it runs, and is signalled as one.
-		if e.declared != "" && (e.status == statusDown || m.panes[e.tty].declared == e.declared) {
-			return m.armDeclared(e)
-		}
-		// A row that is down is nothing running: there is nothing to
-		// end, and the question would be about a pid conn made up.
-		if e.status == statusDown {
-			return m, nil
-		}
-		// A shell whose rows are folded says what it runs, and x on it
-		// is x on that: the command is asked to end and the shell is
-		// left at its prompt, as it is when the command has a row of
-		// its own. Killing the shell for being a shell would take the
-		// command with it, from a row that named the command.
-		if e.kind == kindShell && e.under != "" {
-			if run, ok := m.runsOf(e); ok {
-				name := program(run.asTyped())
-				m.kill = &pendingKill{pid: run.pid, command: name, sig: syscall.SIGTERM, prompt: killPrompt(name, run.pid, syscall.SIGTERM)}
-				return m, nil
-			}
-		}
-		sig := killSignal(e.kind)
-		// The question names the program: a contact's whole command
-		// line is the note conn handed it, and a question that long is
-		// not read.
-		name := program(e.asTyped())
-		m.kill = &pendingKill{pid: e.pid, command: name, sig: sig, prompt: killPrompt(name, e.pid, sig)}
 	case k == "s":
 		// A shell here. On a container, here is inside it: the row stands
 		// for a machine of its own, and the directory it was started for
@@ -2246,46 +2137,16 @@ func (m model) raiseAt() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(append(cmds, m.raiseAll(path, up, held))...)
 }
 
-// raiseUnder brings up the row under the cursor, parked: a declared
-// process that is down, or ended and holding its pane, opened anew in
-// place of that pane; a brew service, started by brew. The keys stay
-// on the panel, so the next u is the next row. From the list the row
-// is a project, and the project is what is brought up.
+// raiseUnder is u: the row under the cursor brought up, as raiseOn
+// says. From the list the row is a project, and the project is what is
+// brought up.
 func (m model) raiseUnder() (tea.Model, tea.Cmd) {
 	if m.view != viewProcesses {
 		return m.raiseAt()
 	}
-	e, _, ok := m.under()
-	if !m.inside || !ok || !rowDown(e, m.panes) {
-		return m, nil
+	if e, _, ok := m.under(); ok {
+		return m, m.raiseOn(e)
 	}
-	if e.brew != "" {
-		return m, m.startBrew(e.brew)
-	}
-	path, d, ok := m.declarationOf(e)
-	if !ok {
-		return m, nil
-	}
-	return m, m.raise(path, d, m.panes[e.tty].id, false)
-}
-
-// armDeclared is x on a declared process's row. Down, there is nothing
-// to end. Ended and holding its pane, the pane is what goes, and the
-// question says close. Up, it is sent ctrl-c in its pane, the way a
-// hand stops what it ran in the foreground, and the pane goes once the
-// end is recorded, so the row is DOWN in the one move rather than
-// ENDED for a second x.
-func (m model) armDeclared(e entry) (tea.Model, tea.Cmd) {
-	_, name, _ := unmarkDeclared(e.declared)
-	switch {
-	case e.tty == "":
-		return m, nil
-	case m.panes[e.tty].exit != "":
-		m.kill = &pendingKill{pane: m.panes[e.tty].id, command: name, prompt: closePrompt(m.panes[e.tty].id, name)}
-		return m, nil
-	}
-	id := m.panes[e.tty].id
-	m.kill = &pendingKill{pane: id, command: name, interrupt: true, prompt: interruptPrompt(id, name)}
 	return m, nil
 }
 

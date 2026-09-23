@@ -98,6 +98,9 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
 		{pid: -9, kind: kindRun, command: "worker", status: statusDown, declared: "worker@/w"},
 	}}}
+	// The row's declaration, as the file was last read: what enter and u
+	// bring up.
+	m.declared = map[string]declared{"/w": {list: []declaration{{name: "worker", command: "npm run worker"}}}}
 	// The words are written in the lower case, whatever the hint says.
 	has := func(bar, key, does string) bool {
 		return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+strings.ToLower(does))

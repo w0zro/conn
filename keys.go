@@ -45,6 +45,7 @@ func panelKeys(px string) []keyGroup {
 			{"x", "end it"},
 			{"s", "a shell there"},
 			{"S", "its own client"},
+			{"o", "open its port"},
 			{"a", "a new contact"},
 			{"A", "its sessions"},
 			{"u U", "bring up, bring up all"},

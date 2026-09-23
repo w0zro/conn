@@ -27,6 +27,40 @@ func TestTheCardShowsOnlyKeysTheManualHas(t *testing.T) {
 	}
 }
 
+// And the other way: every key the manual gives the panel is on the
+// card. A key the panel answers to and the card leaves out is a key the
+// operator does not learn the station by, which is how o went missing
+// from it. A click is not a key, and has no place on a card of keys.
+func TestTheCardHasEveryKeyTheManualGivesThePanel(t *testing.T) {
+	section := manSection(string(manPage), "KEYS")
+	_, panel, ok := strings.Cut(section, ".SS On the panel, in the processes view\n")
+	if !ok {
+		t.Fatal("the manual has no subsection for the panel's keys")
+	}
+	panel, _, _ = strings.Cut(panel, "\n.SS ")
+	onCard := map[string]bool{}
+	for _, g := range panelKeys("ctrl-space") {
+		for _, h := range g.keys {
+			for _, k := range strings.Fields(h.key) {
+				onCard[k] = true
+			}
+		}
+	}
+	lines := strings.Split(panel, "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, ".TP") || i+1 == len(lines) {
+			continue
+		}
+		term := strings.Fields(strings.NewReplacer(".BR ", "", ".B ", "", `"`, "", ",", "").Replace(lines[i+1]))
+		if len(term) == 0 || term[0] == "left" {
+			continue
+		}
+		if !onCard[term[0]] {
+			t.Errorf("the manual gives the panel %q, and the card does not", term[0])
+		}
+	}
+}
+
 // manSection is the text of one .SH, for a test reading the page as the
 // record it is.
 func manSection(page, name string) string {

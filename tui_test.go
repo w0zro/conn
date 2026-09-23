@@ -1547,6 +1547,59 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 	}
 }
 
+// A row's clicks go between its readout and its process. The first
+// click is the readout, even on the row the cursor is already on; the
+// second on the same row goes in; a click on another row, or a key
+// between the two, makes the next one a first again.
+func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
+	m := newModel(plain)
+	m.view, m.inside, m.focused, m.looking = viewProcesses, true, true, true
+	m.srv, m.width, m.height = &server{}, panelWidth, 30
+	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
+	m.projects = []project{{path: "/w/a", entries: []entry{
+		{pid: 11, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys001", status: statusIdle},
+		{pid: 12, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys002", status: statusActive},
+	}}}
+	m.cursor, m.cursorAt = follow(m.projects, 11, 0)
+	rows := drawProcesses(m.processesReport(), m.cursor, m.cols(), m.height, m.p)
+	at := func(want string) int {
+		for y, r := range rows {
+			if strings.Contains(r.text, want) {
+				return y
+			}
+		}
+		t.Fatalf("no row says %q:\n%s", want, texts(rows))
+		return -1
+	}
+	// goes says whether a click went in: the readout is already up, so
+	// the readout asks nothing and only going in has something to do.
+	// Straight to click, past Update, which tells the readout where the
+	// cursor is and has something to do on every click.
+	click := func(y int) bool {
+		next, cmd := m.click(tea.MouseClickMsg{X: 3, Y: y, Button: tea.MouseLeft})
+		m = next.(model)
+		return cmd != nil
+	}
+	if click(at("zsh")) {
+		t.Error("the first click on the row the cursor was on went in")
+	}
+	if !click(at("zsh")) {
+		t.Error("the second click did not go in")
+	}
+	if click(at("zsh")) {
+		t.Error("the click after going in went in again")
+	}
+	if click(at("node vite")) || m.cursor != 12 {
+		t.Errorf("the first click on another row went in, or missed it: cursor %d", m.cursor)
+	}
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "?"}))
+	m = next.(model)
+	m.helping = false
+	if click(at("node vite")) {
+		t.Error("a click after a key went in")
+	}
+}
+
 // A click on a row of the processes view puts the cursor on it, the
 // way j and k do; a click on an eyebrow, a rule or the air between
 // projects moves nothing, and a click in another view is nothing.

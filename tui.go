@@ -228,7 +228,11 @@ type model struct {
 	// nothing on the screen at all: the operator pressed a key and
 	// nothing happened, which is the one thing conn should never leave
 	// them with.
-	notice       string
+	notice string
+	// The row the last click put the readout on. A click on a row is
+	// the readout first, always; a second click on the same row goes
+	// in, the way enter does. Any key, or going in, starts it over.
+	clicked      int
 	processesGen int // which stay in the processes view the ticks belong to
 	// The pane the keys were in when the panel key brought them here
 	// and a detour was begun with the next key, for a view there is
@@ -1412,12 +1416,16 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // click is the mouse pressed on the panel. tmux has the mouse, and
-// hands a press in conn's pane on to conn since conn asks for it; a
+// hands a press in conn's pane on to conn since conn asks for it. A
 // press on a row of the processes view puts the cursor on the row, the
-// way j and k do, and the page follows. The rows are drawn again to
-// find which row was under the press, since the view is drawn from
-// the model and the model keeps no picture of it. Anywhere else, and
-// any other button, is nothing yet.
+// way j and k do, and the readout in the workspace; the same row
+// pressed again goes in, the way enter does. Pressing the row once
+// more from inside brings the keys back to the panel and the readout
+// back with them, so a row's clicks go between its readout and its
+// process, and the first is always the readout. The rows are drawn
+// again to find which row was under the press, since the view is drawn
+// from the model and the model keeps no picture of it. Anywhere else,
+// and any other button, is nothing yet.
 func (m model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	if m.view != viewProcesses || msg.Button != tea.MouseLeft {
 		return m, nil
@@ -1426,8 +1434,18 @@ func (m model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	if msg.Y < 0 || msg.Y >= len(rows) || rows[msg.Y].pid == 0 {
 		return m, nil
 	}
-	m.cursor, m.cursorAt = follow(m.projects, rows[msg.Y].pid, m.cursorAt)
-	return m, nil
+	pid := rows[msg.Y].pid
+	m.cursor, m.cursorAt = follow(m.projects, pid, m.cursorAt)
+	if m.clicked == pid {
+		m.clicked = 0
+		if e, _, ok := m.under(); ok {
+			_, cmd := m.enterOn(e)
+			return m, cmd
+		}
+		return m, nil
+	}
+	m.clicked = pid
+	return m.keepingPage()
 }
 
 // key answers a key: q and ctrl+c detach in the server and close conn
@@ -1447,6 +1465,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A notice stands until the next key, whatever it is: it was read,
 	// or it was not going to be.
 	m.notice = ""
+	// A key between two clicks makes the second a first one again.
+	m.clicked = 0
 	// So does the arrival: the pane the keys came out of is for the key
 	// after the panel key and no other, whatever that key is.
 	came := m.came

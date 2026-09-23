@@ -383,10 +383,43 @@ type pane struct {
 // empty string between two spaces and keeps its place, which is why
 // these are split and not fielded.
 const (
-	paneFormat   = "#{pane_id} #{pane_tty} #{pane_width} #{pane_height} #{@conn_hold} #{pane_dead} #{@conn_readout} #{@conn_container} #{@conn_shell_in} #{@conn_help} #{@conn_declared} #{@conn_exit} #{pane_active} #{pane_index} #{@conn_settings}"
 	openFormat   = "#{pane_id} #{pane_pid} #{pane_tty}"
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
+
+// paneFields is what conn asks tmux of a pane, a field at a time: what
+// tmux fills in, and where the answer goes. paneFormat is these in
+// order and parsePanes reads them back in the same order, so a field is
+// added in one place and the two cannot fall out of step.
+var paneFields = []struct {
+	format string
+	read   func(p *pane, v string)
+}{
+	{"#{pane_id}", func(p *pane, v string) { p.id = v }},
+	{"#{pane_tty}", func(p *pane, v string) { p.tty = strings.TrimPrefix(v, "/dev/") }},
+	{"#{pane_width}", func(p *pane, v string) { p.width, _ = strconv.Atoi(v) }},
+	{"#{pane_height}", func(p *pane, v string) { p.height, _ = strconv.Atoi(v) }},
+	{"#{@conn_hold}", func(p *pane, v string) { p.hold = v == "1" }},
+	{"#{pane_dead}", func(p *pane, v string) { p.dead = v == "1" }},
+	{"#{@conn_readout}", func(p *pane, v string) { p.readout = v == "1" }},
+	{"#{@conn_container}", func(p *pane, v string) { p.container = v }},
+	{"#{@conn_shell_in}", func(p *pane, v string) { p.shellIn = v }},
+	{"#{@conn_help}", func(p *pane, v string) { p.help = v == "1" }},
+	{"#{@conn_declared}", func(p *pane, v string) { p.declared = v }},
+	{"#{@conn_exit}", func(p *pane, v string) { p.exit = v }},
+	{"#{pane_active}", func(p *pane, v string) { p.active = v == "1" }},
+	{"#{pane_index}", func(p *pane, v string) { p.index, _ = strconv.Atoi(v) }},
+	{"#{@conn_settings}", func(p *pane, v string) { p.settings = v == "1" }},
+}
+
+// paneFormat is the fields, as list-panes is asked for them.
+var paneFormat = func() string {
+	formats := make([]string, len(paneFields))
+	for i, f := range paneFields {
+		formats[i] = f.format
+	}
+	return strings.Join(formats, " ")
+}()
 
 // panes is every pane in the server, by the terminal it holds.
 func (s *server) panes() (map[string]pane, error) {
@@ -403,17 +436,13 @@ func parsePanes(out string) map[string]pane {
 	panes := map[string]pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != 15 || f[0] == "" {
+		if len(f) != len(paneFields) || f[0] == "" {
 			continue
 		}
-		p := pane{id: f[0], tty: strings.TrimPrefix(f[1], "/dev/"),
-			hold: f[4] == "1", dead: f[5] == "1", readout: f[6] == "1",
-			container: f[7], shellIn: f[8], help: f[9] == "1",
-			declared: f[10], exit: f[11], active: f[12] == "1",
-			settings: f[14] == "1"}
-		p.index, _ = strconv.Atoi(f[13])
-		p.width, _ = strconv.Atoi(f[2])
-		p.height, _ = strconv.Atoi(f[3])
+		var p pane
+		for i, field := range paneFields {
+			field.read(&p, f[i])
+		}
 		panes[p.tty] = p
 	}
 	return panes

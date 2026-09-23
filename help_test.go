@@ -170,25 +170,33 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 	for i := range lines {
 		lines[i] = "line"
 	}
-	m := manualModel{lines: lines, height: 10, width: 80, p: plain}
+	m := newManual(nil, "", plain)
+	m.page.SetWidth(80)
+	m.page.SetHeight(10)
+	m.page.SetContentLines(m.rows(lines, 80, 10))
 	step := func(k string) manualModel {
 		next, _ := m.Update(tea.KeyPressMsg{Code: rune(k[0]), Text: k})
 		return next.(manualModel)
 	}
-	if m = step("k"); m.top != 0 {
-		t.Errorf("scrolled up from the top to %d", m.top)
+	if m = step("k"); m.page.YOffset() != 0 {
+		t.Errorf("scrolled up from the top to %d", m.page.YOffset())
 	}
-	if m = step("j"); m.top != 1 {
-		t.Errorf("j went to %d", m.top)
+	if m = step("j"); m.page.YOffset() != 1 {
+		t.Errorf("j went to %d", m.page.YOffset())
 	}
-	if m = step("G"); m.top != 40 {
-		t.Errorf("G went to %d, and the last line should sit at the foot", m.top)
+	if m = step("G"); m.page.YOffset() != 40 {
+		t.Errorf("G went to %d, and the last line should sit at the foot", m.page.YOffset())
 	}
-	if m = step("j"); m.top != 40 {
-		t.Errorf("j past the end went to %d", m.top)
+	if m = step("j"); m.page.YOffset() != 40 {
+		t.Errorf("j past the end went to %d", m.page.YOffset())
 	}
-	if m = step("g"); m.top != 0 {
-		t.Errorf("g went to %d", m.top)
+	if m = step("g"); m.page.YOffset() != 0 {
+		t.Errorf("g went to %d", m.page.YOffset())
+	}
+	// A page shorter than the pane is drawn down to its foot all the
+	// same, on the ground.
+	if got := m.rows([]string{"line"}, 80, 10); len(got) != 10 {
+		t.Errorf("a one-line page is %d rows in a pane of 10", len(got))
 	}
 }
 

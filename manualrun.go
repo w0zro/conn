@@ -1,8 +1,7 @@
 package main
 
 import (
-	"strings"
-
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -18,29 +17,41 @@ import (
 // start of a command would be the one place in the station where the
 // key meant something else.
 
-// A manualModel is the manual being read: the lines, and where in them.
+// A manualModel is the manual being read: the page, and the viewport
+// it is read through, which does the scrolling.
 type manualModel struct {
-	srv           *server
-	path          string
-	lines         []string
-	top           int
-	width, height int
-	p             palette
+	srv  *server
+	path string
+	page viewport.Model
+	p    palette
+}
+
+func newManual(srv *server, path string, p palette) manualModel {
+	page := viewport.New()
+	page.KeyMap = manualKeys()
+	return manualModel{srv: srv, path: path, page: page, p: p}
 }
 
 func runManual(srv *server, path string, p palette) error {
-	_, err := tea.NewProgram(manualModel{srv: srv, path: path, p: p}, programOptions()...).Run()
+	_, err := tea.NewProgram(newManual(srv, path, p), programOptions()...).Run()
 	return err
 }
 
+// manualKeys are the viewport's own, with the keys less and emacs
+// scroll by as well, and no scrolling sideways: man has set the text to
+// the pane.
+func manualKeys() viewport.KeyMap {
+	k := viewport.DefaultKeyMap()
+	k.Down.SetKeys("j", "down", "ctrl+n")
+	k.Up.SetKeys("k", "up", "ctrl+p")
+	k.PageDown.SetKeys("space", "f", "pgdown", "ctrl+f")
+	k.PageUp.SetKeys("b", "pgup", "ctrl+b")
+	k.Left.SetEnabled(false)
+	k.Right.SetEnabled(false)
+	return k
+}
+
 func (m manualModel) Init() tea.Cmd { return nil }
-
-// page is how far a screenful moves, one line kept for the eye.
-func (m manualModel) page() int { return max(m.height-1, 1) }
-
-// last is the furthest the text can be scrolled: the end of it at the
-// foot of the pane, never past.
-func (m manualModel) last() int { return max(len(m.lines)-m.height, 0) }
 
 func (m manualModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -48,9 +59,10 @@ func (m manualModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The text is set to the pane. man wraps to a width, so a pane
 		// that changes size is a page that has to be read again rather
 		// than the same lines drawn narrower.
-		m.width, m.height = msg.Width, msg.Height
-		m.lines = manText(m.path, m.width)
-		m.top = min(m.top, m.last())
+		m.page.SetWidth(msg.Width)
+		m.page.SetHeight(msg.Height)
+		m.page.SetContentLines(m.rows(manText(m.path, msg.Width), msg.Width, msg.Height))
+		return m, nil
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc", "q":
@@ -69,28 +81,27 @@ func (m manualModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				},
 				tea.Quit,
 			)
-		case "j", "down", "ctrl+n":
-			m.top = min(m.top+1, m.last())
-		case "k", "up", "ctrl+p":
-			m.top = max(m.top-1, 0)
-		case " ", "space", "pgdown", "ctrl+f":
-			m.top = min(m.top+m.page(), m.last())
-		case "b", "pgup", "ctrl+b":
-			m.top = max(m.top-m.page(), 0)
 		case "g", "home":
-			m.top = 0
+			m.page.GotoTop()
+			return m, nil
 		case "G", "end":
-			m.top = m.last()
+			m.page.GotoBottom()
+			return m, nil
 		}
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.page, cmd = m.page.Update(msg)
+	return m, cmd
 }
 
-func (m manualModel) View() tea.View {
-	c := canvas{p: m.p, width: max(m.width, 1)}
-	for i := m.top; i < len(m.lines) && len(c.rows) < m.height; i++ {
+// rows is the page drawn, a row to a line of man's, bold where man set
+// it bold, on the ground; and down to the foot of the pane, on the
+// ground still, where the page is shorter than the pane.
+func (m manualModel) rows(lines []string, width, height int) []string {
+	c := canvas{p: m.p, width: max(width, 1)}
+	for _, text := range lines {
 		l := c.line()
-		for _, run := range manLine(m.lines[i]) {
+		for _, run := range manLine(text) {
 			color := m.p.ink
 			if run.bold {
 				color = m.p.ink + m.p.bold
@@ -99,14 +110,18 @@ func (m manualModel) View() tea.View {
 		}
 		c.emit(l, 0, false)
 	}
-	for len(c.rows) < m.height {
+	for len(c.rows) < height {
 		c.blank(0)
 	}
 	texts := make([]string, len(c.rows))
 	for i, r := range c.rows {
 		texts[i] = r.text
 	}
-	v := tea.NewView(strings.Join(texts, "\n"))
+	return texts
+}
+
+func (m manualModel) View() tea.View {
+	v := tea.NewView(m.page.View())
 	v.AltScreen = true
 	return v
 }

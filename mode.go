@@ -2,15 +2,13 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
-	"time"
 
+	"charm.land/lipgloss/v2"
 	term "github.com/charmbracelet/x/term"
-	"golang.org/x/sys/unix"
 )
 
 // conn comes up in a theme, on one of its two grounds. Dark is every
@@ -227,11 +225,14 @@ func themeNames() string {
 	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
-// detectDark asks the terminal for its own background with OSC 11 and
-// reads what comes back. A terminal that says nothing within the wait,
-// or says something conn cannot read, is dark - which is what every
-// terminal was before conn asked, and the safe read of a query that
-// went nowhere.
+// detectDark asks the terminal for its own background with OSC 11, and
+// reads what comes back. lipgloss puts the question, and a request for
+// the terminal's attributes after it, which every terminal answers: one
+// that does not know OSC 11 has said so as soon as that answer is in,
+// and the wait is only for one that answers nothing at all. A terminal
+// that says nothing, or something conn cannot read, is dark - which is
+// what every terminal was before conn asked, and the safe read of a
+// query that went nowhere.
 func detectDark() bool {
 	if !stdoutIsTerminal() || !stdinIsTerminal() {
 		return true
@@ -243,74 +244,17 @@ func detectDark() bool {
 	}
 	// Nothing to be done if the terminal will not go back.
 	defer func() { _ = term.Restore(fd, state) }()
-
-	if _, err := os.Stdout.WriteString("\x1b]11;?\x1b\\"); err != nil {
+	bg, err := lipgloss.BackgroundColor(os.Stdin, os.Stdout)
+	if err != nil || bg == nil {
 		return true
 	}
-	if !waitReadable(fd, 200*time.Millisecond) {
-		return true
-	}
-	reply := readOSCReply(os.Stdin)
-	dark, ok := parseBackground(reply)
-	if !ok {
-		return true
-	}
-	return dark
+	return isDark(bg)
 }
 
-// waitReadable blocks until fd has a byte waiting or the wait passes.
-// os.Stdin's own read deadline is what a query with nowhere to go was
-// meant to lean on, but a pty's fd does not support one - Go answers
-// SetReadDeadline with "file type does not support deadline" on one,
-// silently, since the error was never checked - so the read that
-// followed blocked forever on a terminal that never replies to OSC 11
-// and never closes the pty either. Polling the raw fd first works on
-// any fd, pty included.
-func waitReadable(fd uintptr, wait time.Duration) bool {
-	fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
-	n, err := unix.Poll(fds, int(wait.Milliseconds()))
-	return err == nil && n > 0
-}
-
-// readOSCReply reads an OSC response one byte at a time until it ends -
-// with BEL, or with ST (ESC \) - or the read stalls or a cap is hit.
-func readOSCReply(r interface{ Read([]byte) (int, error) }) []byte {
-	buf := make([]byte, 0, 64)
-	one := make([]byte, 1)
-	for len(buf) < 64 {
-		n, err := r.Read(one)
-		if n == 0 || err != nil {
-			break
-		}
-		buf = append(buf, one[0])
-		if one[0] == '\a' || (len(buf) >= 2 && buf[len(buf)-2] == 0x1b && buf[len(buf)-1] == '\\') {
-			break
-		}
-	}
-	return buf
-}
-
-// oscBackground finds OSC 11's color in its reply: rgb:RRRR/GGGG/BBBB,
-// however many hex digits a channel came in.
-var oscBackground = regexp.MustCompile(`rgb:([0-9a-fA-F]+)/([0-9a-fA-F]+)/([0-9a-fA-F]+)`)
-
-// parseBackground reads OSC 11's reply as dark or light, by the same
-// relative luminance a screen reader uses to say if text passes on a
-// ground: below half is dark.
-func parseBackground(reply []byte) (dark, ok bool) {
-	m := oscBackground.FindSubmatch(reply)
-	if m == nil {
-		return false, false
-	}
-	channel := func(h []byte) float64 {
-		v, err := strconv.ParseUint(string(h), 16, 64)
-		if err != nil {
-			return 0
-		}
-		max := uint64(1)<<(4*uint(len(h))) - 1
-		return float64(v) / float64(max)
-	}
-	r, g, b := channel(m[1]), channel(m[2]), channel(m[3])
-	luminance := 0.2126*r + 0.7152*g + 0.0722*b
-	return luminance < 0.5, true
+// isDark reads a ground as dark or light by the same relative luminance
+// a screen reader uses to say if text passes on it: below half is dark.
+func isDark(c color.Color) bool {
+	r, g, b, _ := c.RGBA()
+	luminance := 0.2126*float64(r) + 0.7152*float64(g) + 0.0722*float64(b)
+	return luminance/0xffff < 0.5
 }

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
+	"image/color"
 	"math"
 	"os"
 	"path/filepath"
@@ -292,52 +292,23 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 	}
 }
 
-// OSC 11's reply is read as dark or light by its luminance, however
-// many hex digits a channel came in and whichever way it is
-// terminated; a reply conn cannot read leaves ok false.
-func TestParseBackground(t *testing.T) {
+// A ground is read as dark or light by its luminance: conn's own two
+// grounds, as a terminal on them answers OSC 11, and the ends.
+func TestIsDark(t *testing.T) {
 	for _, c := range []struct {
-		name  string
-		reply string
-		dark  bool
-		ok    bool
+		name    string
+		r, g, b uint16
+		dark    bool
 	}{
-		{"dark, ST, 4 digits", "\x1b]11;rgb:1512/1312/0f0f\x1b\\", true, true},
-		{"light, BEL, 4 digits", "\x1b]11;rgb:efef/e9e9/dbdb\a", false, true},
-		{"dark, 2 digits", "\x1b]11;rgb:15/13/0f\x1b\\", true, true},
-		{"light, 2 digits", "\x1b]11;rgb:ef/e9/db\x1b\\", false, true},
-		{"white is light", "\x1b]11;rgb:ffff/ffff/ffff\x1b\\", false, true},
-		{"black is dark", "\x1b]11;rgb:0000/0000/0000\x1b\\", true, true},
-		{"garbage", "not an OSC reply", false, false},
-		{"empty", "", false, false},
+		{"conn's dark", 0x1512, 0x1312, 0x0f0f, true},
+		{"conn's light", 0xefef, 0xe9e9, 0xdbdb, false},
+		{"white", 0xffff, 0xffff, 0xffff, false},
+		{"black", 0, 0, 0, true},
+		{"a saturated blue", 0x2020, 0x4040, 0xffff, true},
 	} {
-		t.Run(c.name, func(t *testing.T) {
-			dark, ok := parseBackground([]byte(c.reply))
-			if ok != c.ok || (ok && dark != c.dark) {
-				t.Errorf("parseBackground(%q) = (%v, %v), want (%v, %v)", c.reply, dark, ok, c.dark, c.ok)
-			}
-		})
-	}
-}
-
-// readOSCReply stops at BEL, at ST, or at 64 bytes, whichever comes
-// first, and takes nothing past what the terminal actually sent.
-func TestReadOSCReply(t *testing.T) {
-	for _, c := range []struct {
-		name string
-		sent string
-		want string
-	}{
-		{"BEL", "\x1b]11;rgb:1512/1312/0f0f\a\x1b]after", "\x1b]11;rgb:1512/1312/0f0f\a"},
-		{"ST", "\x1b]11;rgb:1512/1312/0f0f\x1b\\after", "\x1b]11;rgb:1512/1312/0f0f\x1b\\"},
-		{"nothing sent", "", ""},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			got := readOSCReply(bytes.NewReader([]byte(c.sent)))
-			if string(got) != c.want {
-				t.Errorf("readOSCReply(%q) = %q, want %q", c.sent, got, c.want)
-			}
-		})
+		if got := isDark(color.RGBA64{R: c.r, G: c.g, B: c.b, A: 0xffff}); got != c.dark {
+			t.Errorf("isDark(%s) = %v, want %v", c.name, got, c.dark)
+		}
 	}
 }
 

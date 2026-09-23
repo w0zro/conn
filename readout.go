@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The readout: what conn knows about a row, read without entering it.
@@ -659,32 +661,31 @@ func padTo(c canvas, height int) []row {
 
 // wrapValue breaks a value to a width, on spaces where there are any
 // and hard where there are none — a command line is mostly spaces and a
-// path is none, and both have to arrive whole.
+// path is none, and both have to arrive whole. It is conn's own rather
+// than x/ansi's, which breaks at every hyphen too: a command's flags and
+// a tmux verb are words that have hyphens in them, and a line that ends
+// in --res is a command nobody can read back.
 func wrapValue(s string, width int) []string {
-	if width < 1 {
-		width = 1
-	}
+	width = max(width, 1)
 	var out []string
-	for utf8.RuneCountInString(s) > width {
-		cut := -1
-		n := 0
-		for i, r := range s {
-			if n >= width {
-				break
-			}
-			if r == ' ' {
-				cut = i
-			}
-			n++
+	for ansi.StringWidth(s) > width {
+		head := ansi.Truncate(s, width, "")
+		if head == "" {
+			// A character wider than the line goes on one of its own.
+			_, n := utf8.DecodeRuneInString(s)
+			head = s[:n]
 		}
+		cut := strings.LastIndexByte(head, ' ')
 		if cut <= 0 {
-			cut = len(string([]rune(s)[:width]))
-			out = append(out, s[:cut])
-			s = s[cut:]
+			out = append(out, head)
+			s = s[len(head):]
 			continue
 		}
 		out = append(out, s[:cut])
 		s = strings.TrimLeft(s[cut:], " ")
+	}
+	if s == "" && len(out) > 0 {
+		return out
 	}
 	return append(out, s)
 }

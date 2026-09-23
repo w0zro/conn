@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
+	"github.com/charmbracelet/x/ansi"
 	term "github.com/charmbracelet/x/term"
 )
 
@@ -262,7 +262,7 @@ func body(r report, width int, own check, p palette) []row {
 	// The header: the wordmark, the station block beside it on its first
 	// rows, and a rule under it.
 	c.blank(stageHeader)
-	markW := utf8.RuneCountInString(wordmark[0])
+	markW := ansi.StringWidth(wordmark[0])
 	station := [][2]string{
 		{p.bold, strings.TrimSpace("CONN " + r.version)},
 		{p.gray, "STATION  " + strings.ToUpper(r.station)},
@@ -339,11 +339,11 @@ func body(r report, width int, own check, p palette) []row {
 		// words rather than a ragged right edge of boxes.
 		word := strings.ToUpper(k.status)
 		if k.status == nominal {
-			l.to(measure - statusW + (statusW-utf8.RuneCountInString(word))/2)
+			l.to(measure - statusW + (statusW-ansi.StringWidth(word))/2)
 			l.add(p.gray, word)
 		} else if r.lit {
 			word = " " + word + " "
-			l.to(measure - statusW + (statusW-utf8.RuneCountInString(word))/2)
+			l.to(measure - statusW + (statusW-ansi.StringWidth(word))/2)
 			l.add(p.chip, word)
 		}
 		c.emit(l, stageChecks+i, false)
@@ -397,7 +397,7 @@ func small(own check, width, height, need int, p palette) []row {
 	c := canvas{p: p, width: width}
 	measure, _, _ := columns(width)
 	c.blank(stageHeader)
-	if markW := utf8.RuneCountInString(wordmark[0]); measure >= markW && height >= len(wordmark)+5 {
+	if markW := ansi.StringWidth(wordmark[0]); measure >= markW && height >= len(wordmark)+5 {
 		for _, m := range wordmark {
 			l := c.line()
 			l.add(p.orange+p.bold, m)
@@ -459,11 +459,11 @@ func wide(r report, own check) int {
 	measure := minCols - 2*margin
 	for _, side := range [][]fact{r.system, r.login} {
 		for _, f := range side {
-			measure = max(measure, 2*(utf8.RuneCountInString(cased(f.value, f.path))+factCol+2))
+			measure = max(measure, 2*(ansi.StringWidth(cased(f.value, f.path))+factCol+2))
 		}
 	}
 	for _, k := range append([]check{own}, r.checks...) {
-		measure = max(measure, utf8.RuneCountInString(cased(k.value, k.path))+checkCol+statusW+4)
+		measure = max(measure, ansi.StringWidth(cased(k.value, k.path))+checkCol+statusW+4)
 	}
 	return measure + 2*margin
 }
@@ -503,7 +503,7 @@ func (l *line) add(color, s string) {
 	if color != "" {
 		l.b.WriteString(l.p.normal)
 	}
-	l.cells += utf8.RuneCountInString(s)
+	l.cells += ansi.StringWidth(s)
 }
 
 // to pads the line out to a column.
@@ -616,7 +616,7 @@ func stdinIsTerminal() bool { return term.IsTerminal(os.Stdin.Fd()) }
 // cut at the end. A note after the path, set off by " · ", keeps its
 // place.
 func fit(s string, w int, path bool) string {
-	if utf8.RuneCountInString(s) <= w {
+	if ansi.StringWidth(s) <= w {
 		return s
 	}
 	if w <= 1 {
@@ -627,18 +627,18 @@ func fit(s string, w int, path bool) string {
 		if note != "" {
 			note = " · " + note
 		}
-		if room := w - utf8.RuneCountInString(note); room >= 6 {
+		if room := w - ansi.StringWidth(note); room >= 6 {
 			return shortenPath(path, room) + note
 		}
 	}
-	return string([]rune(s)[:w-1]) + "…"
+	return ansi.Truncate(s, w, "…")
 }
 
 // shortenPath elides directories from the middle of a path until it
 // fits in w columns, keeping the head and as much of the end as will go.
 // When the last name alone will not fit, its end is what shows.
 func shortenPath(path string, w int) string {
-	if utf8.RuneCountInString(path) <= w {
+	if ansi.StringWidth(path) <= w {
 		return path
 	}
 	parts := strings.Split(path, "/")
@@ -648,10 +648,22 @@ func shortenPath(path string, w int) string {
 	}
 	for keep := len(parts) - head - 1; keep >= 1; keep-- {
 		s := strings.Join(parts[:head], "/") + "/…/" + strings.Join(parts[len(parts)-keep:], "/")
-		if utf8.RuneCountInString(s) <= w {
+		if ansi.StringWidth(s) <= w {
 			return s
 		}
 	}
-	r := []rune(path)
-	return "…" + string(r[len(r)-(w-1):])
+	if w < 1 {
+		return ""
+	}
+	// A wide character the cut falls through is kept whole, which can
+	// leave a cell too many; the cut then moves past it.
+	for n := ansi.StringWidth(path) - (w - 1); ; n++ {
+		s := ansi.TruncateLeft(path, n, "…")
+		if s == "" {
+			return "…" // nothing of the path fits beside it
+		}
+		if ansi.StringWidth(s) <= w {
+			return s
+		}
+	}
 }

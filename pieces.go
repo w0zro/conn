@@ -2,7 +2,8 @@ package main
 
 import (
 	"strings"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The pieces conn draws a row and a page out of: the mark at the head of
@@ -100,7 +101,7 @@ func (l *line) activity(color, portsColor, command string, ports []string, width
 	// stand alone. Only a width the ports themselves do not fit gives
 	// the whole of it to the command.
 	word := portsWord(ports)
-	w := utf8.RuneCountInString(word)
+	w := ansi.StringWidth(word)
 	switch {
 	case w == 0:
 	case width-w >= 2:
@@ -130,7 +131,7 @@ func (l *line) stamp(s string) {
 // stampWidth is the cells a stamp takes, for a caller placing one
 // against the measure.
 func stampWidth(s string, p palette) int {
-	w := utf8.RuneCountInString(s) + 2
+	w := ansi.StringWidth(s) + 2
 	if p.plain {
 		return w
 	}
@@ -145,7 +146,7 @@ func (l *line) key(k string) {
 }
 
 // keyWidth is the cells a key takes.
-func keyWidth(k string) int { return utf8.RuneCountInString(k) + 2 }
+func keyWidth(k string) int { return ansi.StringWidth(k) + 2 }
 
 // eyebrow is a block's name: a small label, a rule running off it to the
 // right edge, and what it counts at the end. It is what a box was for —
@@ -164,7 +165,7 @@ func (l *line) eyebrow(col int, label string, right int, count string) {
 // eyebrowIn is an eyebrow with its label in a color of the caller's:
 // the accent, for a block that is an alarm.
 func (l *line) eyebrowIn(color string, col int, label string, right int, count string) {
-	l.eyebrowTail(color, col, label, right, utf8.RuneCountInString(count))
+	l.eyebrowTail(color, col, label, right, ansi.StringWidth(count))
 	if count != "" {
 		l.add(l.p.ink+l.p.bold, count)
 	}

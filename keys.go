@@ -2,7 +2,8 @@ package main
 
 import (
 	"strings"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The keys, on the screen. ? used to hand the workspace to the manual
@@ -101,7 +102,7 @@ func drawKeys(groups []keyGroup, view string, width, height int, p palette) []ro
 	l := c.line()
 	l.add(p.orange+p.bold, "KEYS")
 	right := strings.ToUpper(view)
-	l.to(measure - utf8.RuneCountInString(right))
+	l.to(measure - ansi.StringWidth(right))
 	l.add(p.gray, right)
 	c.emit(l, 0, false)
 	c.rule(0, measure)

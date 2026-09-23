@@ -3,7 +3,8 @@ package main
 import (
 	"strconv"
 	"strings"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The panel, drawn: each project under its eyebrow with what it wants
@@ -118,7 +119,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 		d.blank(0)
 		l := d.line()
 		wants, wantStamped, wantBlinks := verdict(bp.rows)
-		wantW := utf8.RuneCountInString(wants)
+		wantW := ansi.StringWidth(wants)
 		if wantStamped {
 			wantW = stampWidth(wants, p)
 		}
@@ -211,7 +212,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			if say == "" {
 				tail, tailColor = portsColumn(r.ports), ports
 			}
-			tailW := utf8.RuneCountInString(tail)
+			tailW := ansi.StringWidth(tail)
 			if stamped {
 				tailW = stampWidth(tail, p)
 			}

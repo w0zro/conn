@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The sessions view: a project's suspended sessions, filtered the way
@@ -96,7 +98,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	l.to(measure - utf8.RuneCountInString(right))
+	l.to(measure - ansi.StringWidth(right))
 	l.add(p.gray, right)
 	c.emit(l, 0, false)
 	c.rule(0, measure)

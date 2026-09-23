@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // conn walks where it was told and nowhere else, so a conn that has
@@ -122,7 +124,7 @@ func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
 	if len(b.rows) > 0 {
 		right = strconv.Itoa(len(b.rows)) + " UNDER IT"
 	}
-	l.to(measure - utf8.RuneCountInString(right))
+	l.to(measure - ansi.StringWidth(right))
 	l.add(p.gray, right)
 	c.emit(l, 0, false)
 	c.rule(0, measure)

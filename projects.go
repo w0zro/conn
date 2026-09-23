@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The projects: every project work could happen, where the processes
@@ -579,7 +581,7 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	l.to(measure - utf8.RuneCountInString(right))
+	l.to(measure - ansi.StringWidth(right))
 	l.add(p.gray, right)
 	c.emit(l, 0, false)
 	c.rule(0, measure)
@@ -656,8 +658,8 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 				if pr.repos != 1 {
 					count += "S"
 				}
-				l.add(p.parchment+p.bold, fit(pr.name, measure-utf8.RuneCountInString(count)-2, true))
-				l.to(measure - utf8.RuneCountInString(count))
+				l.add(p.parchment+p.bold, fit(pr.name, measure-ansi.StringWidth(count)-2, true))
+				l.to(measure - ansi.StringWidth(count))
 				l.add(p.gray, count)
 			case pr.grouped:
 				l.to(nestW)

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 var update = flag.Bool("update", false, "write the golden consoles under testdata")
@@ -397,5 +399,35 @@ func TestTheAlarmsBlink(t *testing.T) {
 	well.lit = false
 	if !strings.Contains(texts(screen(well, 120, 40, plain)), "ALL SYSTEMS NOMINAL") {
 		t.Error("the word that all is well blinked")
+	}
+}
+
+// A value is held to its width in the cells it takes on the screen, not
+// the characters it is written in: a project named in Japanese, or a
+// session title with an emoji in it, takes two cells a character, and a
+// row cut by its characters ran past the panel's edge.
+func TestValuesAreHeldToCellsNotCharacters(t *testing.T) {
+	for _, s := range []string{
+		"~/projects/プロジェクト/設計書",
+		"fix the 🙂 in the greeting and the 漢字 in the title",
+		"plain ascii that is long enough to be cut somewhere",
+	} {
+		for w := 2; w <= 24; w++ {
+			for _, path := range []bool{false, true} {
+				if got := fit(s, w, path); ansi.StringWidth(got) > w {
+					t.Errorf("fit(%q, %d, %v) = %q, %d cells", s, w, path, got, ansi.StringWidth(got))
+				}
+			}
+			for _, l := range wrapValue(s, w) {
+				if ansi.StringWidth(l) > w {
+					t.Errorf("wrapValue(%q, %d) gave %q, %d cells", s, w, l, ansi.StringWidth(l))
+				}
+			}
+		}
+	}
+	// A character wider than the line goes on a line of its own, rather
+	// than holding the wrap in place for ever.
+	if got := wrapValue("漢字", 1); len(got) != 2 {
+		t.Errorf("wrapValue of wide characters in one cell = %q", got)
 	}
 }

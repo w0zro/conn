@@ -5,7 +5,8 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The processes view: what is running, by project. Each project work
@@ -412,7 +413,7 @@ func panelStatusWidth(b processesReport) int {
 	w := panelStatusW
 	for _, bp := range b.projects {
 		for _, r := range bp.rows {
-			n := utf8.RuneCountInString(r.status)
+			n := ansi.StringWidth(r.status)
 			if r.fault || r.status == statusWaiting {
 				n += 2
 			}
@@ -578,7 +579,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			}
 			switch {
 			case r.fault:
-				l.to(measure - utf8.RuneCountInString(r.status) - 2)
+				l.to(measure - ansi.StringWidth(r.status) - 2)
 				l.add(p.chip, " "+r.status+" ")
 			case r.status == statusWaiting:
 				// The one word here that asks something of you, and the
@@ -602,11 +603,11 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				// dark: a word that jumped its neighbours about would be
 				// worse than one that never blinked.
 				if b.lit {
-					l.to(measure - utf8.RuneCountInString(r.status) - 2)
+					l.to(measure - ansi.StringWidth(r.status) - 2)
 					l.add(p.chip, " "+r.status+" ")
 				}
 			default:
-				l.to(measure - utf8.RuneCountInString(r.status))
+				l.to(measure - ansi.StringWidth(r.status))
 				l.add(word, r.status)
 			}
 			d.emit(l, 0, false)

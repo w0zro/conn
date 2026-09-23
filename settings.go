@@ -4,7 +4,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The settings view: conn's configuration, worked where conn is worked.
@@ -215,10 +216,10 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 	if !b.present {
 		right += " · NEW"
 	}
-	if w := measure - utf8.RuneCountInString("SETTINGS") - 2; utf8.RuneCountInString(right) > w {
+	if w := measure - ansi.StringWidth("SETTINGS") - 2; ansi.StringWidth(right) > w {
 		right = fit(right, w, true)
 	}
-	l.to(measure - utf8.RuneCountInString(right))
+	l.to(measure - ansi.StringWidth(right))
 	l.add(p.gray, right)
 	c.emit(l, 0, false)
 	c.rule(0, measure)
@@ -300,7 +301,7 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 		}
 		room := measure
 		if note != "" {
-			room -= utf8.RuneCountInString(note) + 2
+			room -= ansi.StringWidth(note) + 2
 		}
 		color := l.p.ink
 		if r.kind == addRootSetting {
@@ -314,7 +315,7 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 		// of nothing between is not a row. It is the mark every fact
 		// the console and the readout state already wears.
 		if note != "" {
-			at := measure - utf8.RuneCountInString(note)
+			at := measure - ansi.StringWidth(note)
 			l.add("", " ")
 			l.add(l.p.faint, strings.Repeat(".", max(at-l.cells-1, 1)))
 			l.to(at)

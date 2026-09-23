@@ -4,7 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The page of a contact: a handoff sheet rather than a table of facts. Who the contact is and where it is working;
@@ -323,7 +324,7 @@ func drawContact(b readoutReport, c contactPage, width, height int, p palette) [
 			r = right[i].text
 		}
 		if p.plain {
-			l += strings.Repeat(" ", max(leftW-utf8.RuneCountInString(l), 0))
+			l += strings.Repeat(" ", max(leftW-ansi.StringWidth(l), 0))
 			cv.rows = append(cv.rows, row{text: strings.TrimRight(l+r, " ")})
 			continue
 		}
@@ -366,7 +367,7 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 	emit(l)
 	if c.with != "" {
 		l = newLine()
-		l.to(utf8.RuneCountInString(c.badge) + 4)
+		l.to(ansi.StringWidth(c.badge) + 4)
 		l.add(p.faint, fit(c.with, measure-l.cells, false))
 		emit(l)
 	}
@@ -387,7 +388,7 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 		cardLine(func(l *line) {
 			l.add(l.p.orange+l.p.bold, "WAITING FOR YOU")
 			if c.waited != "" {
-				l.to(measure - utf8.RuneCountInString(c.waited))
+				l.to(measure - ansi.StringWidth(c.waited))
 				l.add(l.p.orange+l.p.bold, c.waited)
 			}
 		})
@@ -460,7 +461,7 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 			}
 			// The caption sits after the bar where the width has room
 			// for both, and under it where it has not.
-			barW := measure - utf8.RuneCountInString(caption) - 2
+			barW := measure - ansi.StringWidth(caption) - 2
 			beside := barW >= 10
 			if !beside {
 				barW = measure

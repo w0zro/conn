@@ -10,7 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // conn holds a tmux server of its own. The first conn brings it up with
@@ -1272,7 +1273,7 @@ func downReport(ws []window, socket, home string) string {
 	lines = append(lines, "Server "+tilde(socket, home))
 	width := 0
 	for _, l := range lines {
-		width = max(width, utf8.RuneCountInString(l))
+		width = max(width, ansi.StringWidth(l))
 	}
 	var b strings.Builder
 	for _, l := range lines {

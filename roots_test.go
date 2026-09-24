@@ -267,7 +267,8 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 	m := model{head: station{login: login{home: home}}, p: plain, uid: os.Getuid()}
 	m = m.rooted(rootOn([]string{filepath.Join(home, "work")}))
 
-	// The file as conn came up on it: nothing to report.
+	// The file as conn came up on it: the reading is made on the same
+	// roots.
 	if err := saveRoots(home, []string{filepath.Join(home, "work")}); err != nil {
 		t.Fatal(err)
 	}
@@ -275,8 +276,8 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 	if !ok || msg.err != "" {
 		t.Fatalf("the reading came back %+v", msg)
 	}
-	if msg.rooted != nil {
-		t.Errorf("a file that did not change rerooted conn onto %q", msg.rooted.configured)
+	if msg.rooted == nil || len(msg.rooted.configured) != 1 || msg.rooted.configured[0] != filepath.Join(home, "work") {
+		t.Errorf("a file that did not change put conn on %+v", msg.rooted)
 	}
 
 	// The file edited under a running conn: the reading finds it and
@@ -308,5 +309,49 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 	// without reading the file again to draw.
 	if got := m.projectsReport().roots; len(got) != 1 || got[0] != "~/elsewhere" {
 		t.Errorf("the list says conn is looking under %q", got)
+	}
+}
+
+// A directory becomes a project when git init runs in it, and a
+// process already there is filed under it from the next reading on.
+// Which directories were projects was remembered for as long as conn
+// ran, and a directory asked about in the moment between mkdir and git
+// init stayed no project: its processes were filed under the folder
+// above it until conn was restarted.
+func TestAReadingAsksWhichDirectoriesAreProjectsAgain(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("CONN_ROOTS", "")
+	home := tree(t, "work", "work/w0zro/conn/.git", "work/w0zro/essays")
+	root := filepath.Join(home, "work")
+	if err := saveRoots(home, []string{root}); err != nil {
+		t.Fatal(err)
+	}
+	m := model{head: station{login: login{home: home}}, p: plain, uid: os.Getuid()}
+	m = m.rooted(rootOn([]string{root}))
+	real, _ := filepath.EvalSymlinks(root)
+	essays, group := filepath.Join(real, "w0zro", "essays"), filepath.Join(real, "w0zro")
+
+	read := func() rooting {
+		t.Helper()
+		msg, ok := m.readProcesses()().(processesMsg)
+		if !ok || msg.err != "" || msg.rooted == nil {
+			t.Fatalf("the reading came back %+v", msg)
+		}
+		m.processesGen = msg.gen
+		next, _ := m.Update(msg)
+		m = next.(model)
+		return *msg.rooted
+	}
+	if got := read().rootOf(essays); got != group {
+		t.Fatalf("before git init, essays is filed under %q, not the group", got)
+	}
+	if err := os.Mkdir(filepath.Join(essays, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := read().rootOf(essays); got != essays {
+		t.Errorf("after git init, essays is still filed under %q", got)
+	}
+	if !m.roots.isProject(essays) {
+		t.Error("the model is not on the reading's answers")
 	}
 }

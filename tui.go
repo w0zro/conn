@@ -133,9 +133,9 @@ type (
 		serves map[int]servingSeen
 		// The table's record behind each row, for the page; see cursor.go.
 		records map[int]record
-		// The roots the reading found the file naming, where they are
-		// not the ones conn was on: the reading was made on these, and
-		// the model goes onto them with it.
+		// The rooting the reading was made on: the roots it found the
+		// file naming, and which directories were projects as it read
+		// them. The model goes onto it with the rows it filed.
 		rooted *rooting
 	}
 	processesTickMsg struct{ gen int }        // the processes view is due to be read again
@@ -358,8 +358,8 @@ func newModel(p palette) model {
 // configured, the same as the process table names them, and the two
 // finders built on them — which directories are projects, and which
 // project holds a directory. The finders remember what they found, so
-// a rooting is built once for a set of roots and kept until the set
-// changes.
+// one reading asks the disk once a directory; each reading builds its
+// own, since what they found is true of the disk as it stood then.
 type rooting struct {
 	configured, real []string
 	isProject        func(string) bool
@@ -480,7 +480,7 @@ func readStationCmd() tea.Msg {
 // does nothing else; what the reading calls for is decided when it
 // comes back.
 func (m model) readProcesses() tea.Cmd {
-	gen, uid, roots, isProject := m.processesGen, m.uid, m.roots.rootOf, m.roots.isProject
+	gen, uid := m.processesGen, m.uid
 	home, configured := m.head.login.home, m.roots.configured
 	containers, brews := m.containers, m.brews
 	declared, full := m.declared, m.full
@@ -501,13 +501,22 @@ func (m model) readProcesses() tea.Cmd {
 		// that will not parse changes nothing: the list says so, and
 		// conn is not going to name projects by a guess at what it was
 		// about to say.
-		var rerooted *rooting
+		//
+		// And which directories are projects, asked again. The answers
+		// are remembered for this reading and no longer: a directory
+		// becomes a project when git init runs in it, and a process
+		// already there when a remembered answer said otherwise was
+		// filed under the folder above for as long as conn ran. The
+		// reading's rooting goes back with it, so the view names its
+		// rows with the answers they were filed by, and no two readings
+		// share a memory across the loop.
 		if home != "" {
-			if now, err := projectRoots(home); err == nil && !slices.Equal(now, configured) {
-				r := rootOn(now)
-				rerooted, roots, isProject = &r, r.rootOf, r.isProject
+			if now, err := projectRoots(home); err == nil {
+				configured = now
 			}
 		}
+		rooting := rootOn(configured)
+		roots, isProject := rooting.rootOf, rooting.isProject
 		// How each process stands past what the table says: anything is
 		// working by the processor time it spent since the last reading,
 		// which is why that reading is kept, and a contact answers for
@@ -589,7 +598,7 @@ func (m model) readProcesses() tea.Cmd {
 		serves := markClosed(projects, servesWas)
 		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
 			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
-			serves: serves, records: records, rooted: rerooted, declared: declared}
+			serves: serves, records: records, rooted: &rooting, declared: declared}
 		if !full {
 			msg.projects = fold(projects)
 		}

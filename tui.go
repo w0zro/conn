@@ -847,13 +847,21 @@ func (m model) station() string {
 	return statusLineWord(wordmarkLine, hex(inkColor), true)
 }
 
-// upWord is the right edge of the band: how long this conn has been
-// up, as a mission clock reads.
+// upWord is the right edge of the band: the time of day, local, as
+// the console says it, and how long this conn has been up, as a
+// mission clock reads. It is on the band because the band is under
+// every view and every pane, the one place a clock is always in sight.
+// To the minute: the band is written when its words change, and a
+// second hand would write it every second.
 func (m model) upWord() string {
-	if m.up.IsZero() {
+	if m.now.IsZero() {
 		return ""
 	}
-	return statusLineWord("T+ "+strings.ToLower(uptime(m.up, m.now))+" ", grayHex, false)
+	word := m.now.Format("15:04")
+	if !m.up.IsZero() {
+		word += " · T+ " + strings.ToLower(uptime(m.up, m.now))
+	}
+	return statusLineWord(word+" ", grayHex, false)
 }
 
 // bar is the key bar across the foot of the window: the keys that work

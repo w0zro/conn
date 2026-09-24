@@ -151,10 +151,11 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	if bar := m.bar(); strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, "kill -TERM 1 · zsh?") || !has(bar, "y", "Yes") {
 		t.Errorf("a question armed puts %s on the bar", bar)
 	}
-	// The clock at the right edge of the band, as a mission clock reads.
+	// The clocks at the right edge of the band: the time of day, and
+	// how long conn has been up, as a mission clock reads.
 	m.up, m.now = processesNow.Add(-(5*24*time.Hour + 2*time.Hour + 14*time.Minute)), processesNow
-	if up := m.upWord(); !strings.Contains(up, "T+ 5d 02h 14m ") {
-		t.Errorf("the clock reads %q", up)
+	if up, want := m.upWord(), processesNow.Format("15:04")+" · T+ 5d 02h 14m "; !strings.Contains(up, want) {
+		t.Errorf("the clock reads %q, not %q", up, want)
 	}
 }
 

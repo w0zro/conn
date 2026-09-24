@@ -374,6 +374,34 @@ func TestTheFilterReachesTheProcesses(t *testing.T) {
 	}
 }
 
+// A process row in the list goes by what the panel calls it, and the
+// filter finds it by anything the panel says of it: a contact at rest
+// by its session's title as well as by claude, a server by its port,
+// and a row by how it stands.
+func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
+	running := []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
+		{pid: 11, kind: kindContact, command: "claude", typed: "claude", title: "Fix the login bug", tty: "ttys001", status: statusIdle},
+		{pid: 22, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys002", status: statusActive, ports: []string{"5173"}},
+	}}}
+	panes := map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
+	live := withProcesses(testProjects, running, panes, []string{"/Users/w0zro/projects"}, "/Users/w0zro")
+	contact := "    " + kindContact + " Fix the login bug"
+	server := "    " + kindRun + " node vite"
+	for _, c := range []struct {
+		filter string
+		want   []string
+	}{
+		{"login bug", []string{"w0zro/", "  conn", contact}},
+		{"claude", []string{"w0zro/", "  conn", contact}},
+		{"5173", []string{"w0zro/", "  conn", server}},
+		{"idle", []string{"w0zro/", "  conn", contact}},
+	} {
+		if got := rowNames(matching(live, c.filter)); !equal(got, c.want) {
+			t.Errorf("%q leaves\n%q\nnot\n%q", c.filter, got, c.want)
+		}
+	}
+}
+
 // The list with the machine in it is a file of record, and it holds the
 // measure at the width the panel actually is: a process row carries a
 // kind, an activity and, where it is waiting, the block that says so,

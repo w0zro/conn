@@ -33,21 +33,29 @@ type projectRow struct {
 	grouped bool // a repository under a group, listed beneath it
 	repos   int  // a group's repositories; none for a repository
 	// A process listed under its project: the terminal the row is
-	// reached by, what kind of thing it is, what it is doing, and
-	// whether it is waiting on the operator.
+	// reached by, what kind of thing it is, what the panel calls it,
+	// and whether it is waiting on the operator. The rest is what the
+	// panel says of it besides, for the filter to find it by: what it
+	// runs, where the label is a name, the ports it listens on, and how
+	// it stands.
 	pid     int
 	tty     string
 	kind    string
 	doing   string
 	waiting bool
+	command string
+	ports   []string
+	status  string
 	nest    int // how many steps in from the margin the row is drawn
 }
 
 // words are what a row answers a filter with: a project by its name,
-// and a process by what it is and what it is doing.
+// and a process by everything the panel says of it, so that whatever
+// is read on the panel finds the row here — a contact by its session's
+// title as well as by claude, a server by its port.
 func (p projectRow) words() string {
 	if p.pid != 0 {
-		return p.kind + " " + p.doing
+		return strings.Join([]string{p.kind, p.doing, p.command, portsColumn(p.ports), p.status}, " ")
 	}
 	return p.name
 }
@@ -358,7 +366,8 @@ func withProcesses(ps []projectRow, projects []project, panes map[string]pane, r
 			}
 			under[pl.path] = append(under[pl.path], projectRow{
 				path: pl.path, pid: e.pid, tty: e.tty, kind: e.kind,
-				doing: activityOf(e), waiting: e.status == statusWaiting,
+				doing: rowLabel(e), waiting: e.status == statusWaiting,
+				command: activityOf(e), ports: e.ports, status: e.status,
 			})
 		}
 	}

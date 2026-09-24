@@ -355,6 +355,15 @@ func rowName(e entry) string {
 	return declaredNameOf(e)
 }
 
+// rowLabel is what the panel calls a row: its name where it has one,
+// and what it is doing where it has not.
+func rowLabel(e entry) string {
+	if name := rowName(e); name != "" {
+		return name
+	}
+	return activityOf(e)
+}
+
 // declaredNameOf is the name a declared row goes by, where it is one:
 // what the panel calls it, the command being in the file and on the
 // page. Anything else has none.

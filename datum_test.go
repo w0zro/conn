@@ -116,23 +116,22 @@ func TestDatumIsDatumsOwn(t *testing.T) {
 // name: the console's own palette, what conn says on the status line,
 // what Claude Code writes in, and the text of the vim colorscheme.
 func TestConnReadsUnderDatumLight(t *testing.T) {
-	holdMode(t)
-	applyMode(mode{theme: "datum", dark: false})
+	g := mode{theme: "datum", dark: false}.wear()
 	const readable = 4.5
-	bg := hex(groundColor)
-	if c := contrast(scheme[7], bg); c >= readable {
-		t.Fatalf("datum light's slot 7 (%s) reads as text at %.2f:1; this test has nothing to show", scheme[7], c)
+	bg := hex(g.ground)
+	if c := contrast(g.scheme[7], bg); c >= readable {
+		t.Fatalf("datum light's slot 7 (%s) reads as text at %.2f:1; this test has nothing to show", g.scheme[7], c)
 	}
 
-	if c := contrast(parchmentHex, bg); c < readable {
-		t.Errorf("the parchment (%s) is %.2f:1 on datum light", parchmentHex, c)
+	if c := contrast(g.parchment, bg); c < readable {
+		t.Errorf("the parchment (%s) is %.2f:1 on datum light", g.parchment, c)
 	}
-	if say := statusLineSay("HELLO"); !strings.Contains(say, "fg="+parchmentHex) {
+	if say := statusLineSay("HELLO", g); !strings.Contains(say, "fg="+g.parchment) {
 		t.Errorf("the status line says its word in %q, not the parchment", say)
 	}
 	at := map[string]string{}
-	for _, g := range claudeTheme() {
-		for _, tk := range g {
+	for _, grp := range claudeTheme(g) {
+		for _, tk := range grp {
 			at[tk.name] = tk.color
 		}
 	}
@@ -141,15 +140,15 @@ func TestConnReadsUnderDatumLight(t *testing.T) {
 			t.Errorf("Claude Code's %s (%s) is %.2f:1 on datum light", k, at[k], c)
 		}
 	}
-	for _, line := range strings.Split(vimColorscheme(), "\n") {
-		for _, g := range []string{"hi Normal ", "hi Delimiter ", "hi StatusLine ", "hi Pmenu ", "hi Title ", "hi @punctuation.delimiter "} {
-			if !strings.HasPrefix(line, g) {
+	for _, line := range strings.Split(vimColorscheme(g), "\n") {
+		for _, group := range []string{"hi Normal ", "hi Delimiter ", "hi StatusLine ", "hi Pmenu ", "hi Title ", "hi @punctuation.delimiter "} {
+			if !strings.HasPrefix(line, group) {
 				continue
 			}
 			_, rest, _ := strings.Cut(line, "guifg=")
 			fg, _, _ := strings.Cut(rest, " ")
 			if c := contrast(fg, bg); c < readable {
-				t.Errorf("%s draws text in %s, %.2f:1 on datum light", strings.TrimSpace(g), fg, c)
+				t.Errorf("%s draws text in %s, %.2f:1 on datum light", strings.TrimSpace(group), fg, c)
 			}
 		}
 	}
@@ -158,7 +157,6 @@ func TestConnReadsUnderDatumLight(t *testing.T) {
 // A role's color in the vim colorscheme carries the slot that holds
 // the same hex, whichever theme that is, and NONE where none does.
 func TestARoleColorSaysItsSlot(t *testing.T) {
-	holdMode(t)
 	for _, c := range []struct {
 		m    mode
 		role string
@@ -174,9 +172,9 @@ func TestARoleColorSaysItsSlot(t *testing.T) {
 		{mode{"datum", false}, "border", "7"},
 		{mode{"datum", false}, "faint", "NONE"},
 	} {
-		applyMode(c.m)
-		h := map[string]string{"accent": cursorHex, "border": borderHex, "ink": hex(inkColor), "faint": faintHex}[c.role]
-		if got := roleColor(h); got.cterm != c.want || got.gui != h {
+		g := c.m.wear()
+		h := map[string]string{"accent": g.accent, "border": g.border, "ink": hex(g.ink), "faint": g.faint}[c.role]
+		if got := roleColor(g, h); got.cterm != c.want || got.gui != h {
 			t.Errorf("%s %s: roleColor(%s) = %+v, want cterm %s", c.m.theme, c.role, h, got, c.want)
 		}
 	}

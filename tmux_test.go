@@ -82,7 +82,8 @@ func TestPanesAreParsed(t *testing.T) {
 // in the root table, and nothing else; it carries the readout; a path
 // with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
-	conf := tmuxConf("C-Space")
+	g := connTheme.dark
+	conf := tmuxConf("C-Space", g)
 	for _, s := range []string{
 		"set -g prefix None", "set -g prefix2 None",
 		`bind -n C-Space set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M--`,
@@ -90,27 +91,27 @@ func TestTheConfigurationHolds(t *testing.T) {
 		// The status line stands on the raised ground, which is what a chosen
 		// row sits on: a surface of its own and not the last line of the pane
 		// over it. Its text begins where the panel's does.
-		`set -g status-style "bg=` + borderHex + `,fg=#8B8272"`,
+		`set -g status-style "bg=` + g.border + `,fg=#8B8272"`,
 		`set -g window-status-format ""`,
 		`set -g window-style "bg=#15130F,fg=#E6DFD0"`, `set -g pane-colours[15] "#E6DFD0"`,
 		`set -g cursor-colour "#E85D2F"`, `set -g mode-style "bg=#2A2620,fg=#E6DFD0"`,
-		`set -g pane-border-style "fg=` + hex(groundColor) + `,bg=` + hex(groundColor) + `"`,
+		`set -g pane-border-style "fg=` + hex(g.ground) + `,bg=` + hex(g.ground) + `"`,
 		"set-environment -g CONN 1", "set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1",
 		`set -ga update-environment " TERM_PROGRAM TERM_PROGRAM_VERSION"`, "set -g default-terminal tmux-256color", "set-environment -g COLORTERM truecolor",
 
-		`set -g pane-border-style "fg=` + hex(groundColor) + `,bg=` + hex(groundColor) + `"`, `set -g pane-active-border-style "fg=` + hex(groundColor) + `,bg=` + hex(groundColor) + `"`,
+		`set -g pane-border-style "fg=` + hex(g.ground) + `,bg=` + hex(g.ground) + `"`, `set -g pane-active-border-style "fg=` + hex(g.ground) + `,bg=` + hex(g.ground) + `"`,
 	} {
 		if !strings.Contains(conf, s) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 1 || strings.Contains(conf, "unbind -T") || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a"), "C-Space") {
+	if strings.Count(conf, "\nbind ") != 1 || strings.Contains(conf, "unbind -T") || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a", g), "C-Space") {
 		t.Errorf("configuration binds more than the panel key, or ignores the key given:\n%s", conf)
 	}
 	// The key is bound whatever the key is, and in the root table, or it
 	// would not reach through a process.
-	if !strings.Contains(tmuxConf("C-a"), "bind -n C-a set -gF @conn_from") {
-		t.Errorf("the panel key is not bound in the root table:\n%s", tmuxConf("C-a"))
+	if !strings.Contains(tmuxConf("C-a", g), "bind -n C-a set -gF @conn_from") {
+		t.Errorf("the panel key is not bound in the root table:\n%s", tmuxConf("C-a", g))
 	}
 	t.Setenv("CONN_KEY", "")
 	if panelKey() != "C-Space" {
@@ -139,21 +140,18 @@ func TestTheClientEnvironmentDropsTmux(t *testing.T) {
 // edge; when the client returns it gets its own colors back. The panes
 // themselves are drawn on the ground.
 func TestTheTerminalIsAskedForItsPadding(t *testing.T) {
-	if got := oscColors(); got != "\x1b]10;#E6DFD0\x1b\\\x1b]11;#000000\x1b\\" {
+	if got := oscColors(connTheme.dark); got != "\x1b]10;#E6DFD0\x1b\\\x1b]11;#000000\x1b\\" {
 		t.Errorf("colors asked for on dark: %q", got)
 	}
-	was := current
-	applyMode(mode{dark: false, theme: defaultTheme})
-	if got := oscColors(); got != "\x1b]10;"+hex(inkColor)+"\x1b\\\x1b]11;#000000\x1b\\" {
+	if got := oscColors(connTheme.light); got != "\x1b]10;"+hex(connTheme.light.ink)+"\x1b\\\x1b]11;#000000\x1b\\" {
 		t.Errorf("colors asked for on light: %q", got)
 	}
-	applyMode(was)
 	// The cursor is given back too: the server puts its own on the
 	// terminal, and does not take it off.
 	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\" {
 		t.Errorf("colors given back: %q", oscOwnColors)
 	}
-	if want := "bg=" + hex(groundColor) + ",fg=" + hex(inkColor); !strings.Contains(tmuxConf("C-Space"), want) {
+	if want := "bg=" + hex(connTheme.dark.ground) + ",fg=" + hex(connTheme.dark.ink); !strings.Contains(tmuxConf("C-Space", connTheme.dark), want) {
 		t.Errorf("the panes are not drawn in %s", want)
 	}
 }
@@ -188,7 +186,8 @@ func TestDownSaysWhatItEnded(t *testing.T) {
 // leans on — structure, what can be run, type — apart from each other,
 // in both the normal colors and the bright.
 func TestTheSixteenAreSixteen(t *testing.T) {
-	conf := tmuxConf(defaultKey)
+	scheme := connTheme.dark.scheme
+	conf := tmuxConf(defaultKey, connTheme.dark)
 	for i, c := range scheme {
 		if want := fmt.Sprintf("set -g pane-colours[%d] %q", i, c); !strings.Contains(conf, want) {
 			t.Errorf("configuration lacks %q", want)
@@ -215,7 +214,8 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 // the keys are on the panel. The right of the line is empty, and
 // nothing on it is re-read on a beat.
 func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
-	conf := tmuxConf("C-Space")
+	g := connTheme.dark
+	conf := tmuxConf("C-Space", g)
 	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_rail", "@conn_slot", "@conn_lamps", "status-interval 1"} {
 		if strings.Contains(conf, gone) {
 			t.Errorf("the status line still asks conn for %q", gone)
@@ -228,11 +228,11 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	for _, want := range []string{
 		"#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
 		"set -g status-right \"#{@conn_up}\"",
-		`set -g status-format[1] "#[fill=` + surfaceHex + ` bg=` + surfaceHex + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
+		`set -g status-format[1] "#[fill=` + g.surface + ` bg=` + g.surface + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.
-		"#[bg=" + cursorHex + " fg=" + hex(groundColor) + " bold] COPY ",
+		"#[bg=" + g.accent + " fg=" + hex(g.ground) + " bold] COPY ",
 	} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("the status line lacks %q:\n%s", want, conf)
@@ -251,7 +251,8 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 // question armed over it, and nothing else of conn's. It is written
 // when it changes and not again for the same view.
 func TestConnLightsTheStatusLine(t *testing.T) {
-	m := newModel(plain)
+	g := connTheme.dark
+	m := plainModel()
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
@@ -262,7 +263,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// none, covering the window with a wordmark of its own.
 	for _, v := range []int{viewProcesses, viewProjects, viewSessions} {
 		m.view = v
-		if keys := m.keys(); keys != statusLineWord(wordmarkLine, hex(inkColor), true) {
+		if keys := m.keys(); keys != statusLineWord(wordmarkLine, hex(g.ink), true, g) {
 			t.Errorf("view %d lights %q, not the wordmark", v, keys)
 		}
 	}
@@ -279,11 +280,11 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// The question itself is on the key bar, where its answers are, and
 	// the word is the band's alone.
 	m.kill = &pendingKill{prompt: "END CLAUDE 11 · #1"}
-	if ask := m.keys(); ask != statusLineBlock("CONFIRM") || !strings.Contains(ask, "bg="+cursorHex) {
+	if ask := m.keys(); ask != statusLineBlock("CONFIRM", g) || !strings.Contains(ask, "bg="+g.accent) {
 		t.Errorf("a question armed lights %q", ask)
 	}
 	if bar := m.bar(); strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, " END CLAUDE 11 · ##1") ||
-		!strings.Contains(bar, "bg="+surfaceHex+" fg="+parchmentHex) || !strings.Contains(bar, "y #[nobold fg="+grayHex+"]yes") {
+		!strings.Contains(bar, "bg="+g.surface+" fg="+g.parchment) || !strings.Contains(bar, "y #[nobold fg="+g.gray+"]yes") {
 		t.Errorf("a question armed puts %q on the bar", bar)
 	}
 	m.kill = nil
@@ -347,9 +348,10 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 // answer into an underscore, and conn read no panes at all. A space
 // tells the fields apart in every locale there is.
 func TestNoFormatAsksTmuxForAControlCharacter(t *testing.T) {
-	for _, f := range []string{paneFormat, openFormat, windowFormat, statusLine(), tmuxConf("C-Space")} {
+	conf := tmuxConf("C-Space", connTheme.dark)
+	for _, f := range []string{paneFormat, openFormat, windowFormat, statusLine(connTheme.dark), conf} {
 		for i, r := range f {
-			if r == '\n' || r == '\t' && f == tmuxConf("C-Space") {
+			if r == '\n' || r == '\t' && f == conf {
 				continue // the configuration is a file of lines, not a format
 			}
 			if r < 0x20 || r == 0x7f {

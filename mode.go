@@ -28,42 +28,16 @@ type mode struct {
 	dark  bool
 }
 
-// current is the mode conn is in, as applyMode last left it. The mode
-// is package-wide — scheme, the hexes, themeBase and the rest are all
-// set from it at once — and nothing else names which one is in force,
-// so a caller that needs to put it back has to have kept this. It is
-// conn's dark until applyMode says otherwise, which is what every
-// terminal was before conn learned to ask.
-var current = mode{theme: defaultTheme, dark: true}
-
-// themeBase is the base claudeThemeJSON sits on, dark-ansi or
-// light-ansi, and vimBackground what the colorscheme tells nvim its own
-// background is: whichever ground applyMode last chose.
-var (
-	themeBase     = "dark-ansi"
-	vimBackground = "dark"
-)
-
-// applyMode puts every color conn draws from onto one ground of one
-// theme. In conn it is called once, before anything reads scheme,
-// groundColor, cursorHex, or any of the rest. A theme conn does not
+// wear is the ground a mode puts conn on: the theme's, dark or light,
+// which everything conn draws is then handed. A theme conn does not
 // have is conn's own, which is what a mode file from a build that had
-// the theme, read by one that does not, comes to. A test binary is one
-// process running every test, so a test that calls it — or calls
-// something that calls it, which dressProgram does on its way to
-// writing a theme — leaves the mode it chose standing for whatever
-// runs next; see holdMode.
-func applyMode(m mode) {
+// the theme, read by one that does not, comes to.
+func (m mode) wear() ground {
 	t, ok := themeNamed(m.theme)
 	if !ok {
-		t, m.theme = connTheme, defaultTheme
+		t = connTheme
 	}
-	current = m
-	wear(t.on(m.dark))
-	themeBase, vimBackground = "dark-ansi", "dark"
-	if !m.dark {
-		themeBase, vimBackground = "light-ansi", "light"
-	}
+	return t.on(m.dark)
 }
 
 // modePath is where the mode a server came up in is kept, beside its

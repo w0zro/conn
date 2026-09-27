@@ -68,7 +68,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.now = viewProcesses, true, processesNow
 	m.head.login.home = dir
 	m.projects = []project{{path: "/w", entries: []entry{
@@ -363,7 +363,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.now = viewProjects, true, processesNow
 	m.head.login.home = dir
 	m.walked = []projectRow{{name: "w0zro/conn", path: "/Users/w0zro/projects/w0zro/conn"}}
@@ -457,7 +457,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
 	path := cursorPath("/nowhere")
 
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.now = viewSessions, true, processesNow
 	m.head.login.home = dir
 	m.sessionsProject, m.sessionsDirs = "/Users/w0zro/projects/w0zro/conn", []string{"/Users/w0zro/projects/w0zro/conn"}

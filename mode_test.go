@@ -151,54 +151,32 @@ func TestAskMode(t *testing.T) {
 // before there was another theme to be in.
 func connOn(dark bool) mode { return mode{theme: defaultTheme, dark: dark} }
 
-// holdMode keeps the ground the test binary is on. applyMode sets the
-// colors package-wide and conn calls it once at start, where a test
-// binary runs every test in the one process: a test that puts conn on
-// the other ground leaves it there for whatever runs next, and the
-// tests that read the dark defaults run later in the file order. The
-// hazard is worth naming because it is not always visible at the call
-// — dressProgram applies a mode of its own on the way to writing a
-// theme — so a test that touches the ground at all takes this.
-func holdMode(t *testing.T) {
-	t.Helper()
-	was := current
-	t.Cleanup(func() { applyMode(was) })
-}
-
-// applyMode puts every color on one ground or the other.
-func TestApplyModeSwitchesTheGround(t *testing.T) {
-	holdMode(t)
-
-	applyMode(connOn(true))
-	if hex(groundColor) != "#15130F" || hex(inkColor) != "#E6DFD0" || cursorHex != "#E85D2F" ||
-		borderHex != "#2A2620" || grayHex != "#8B8272" || themeBase != "dark-ansi" || vimBackground != "dark" {
-		t.Errorf("dark: ground=%s ink=%s cursor=%s border=%s gray=%s base=%s vim=%s",
-			hex(groundColor), hex(inkColor), cursorHex, borderHex, grayHex, themeBase, vimBackground)
+// A mode wears a ground: its theme's, dark or light, and the ground
+// says what follows from it for the programs conn dresses. A theme
+// conn does not have is conn's own, on the ground asked for.
+func TestAModeWearsAGround(t *testing.T) {
+	for _, c := range []struct {
+		m         mode
+		want      ground
+		base, vim string
+	}{
+		{connOn(true), connTheme.dark, "dark-ansi", "dark"},
+		{connOn(false), connTheme.light, "light-ansi", "light"},
+		{mode{theme: "datum", dark: true}, datumTheme.dark, "dark-ansi", "dark"},
+		{mode{theme: "datum", dark: false}, datumTheme.light, "light-ansi", "light"},
+		{mode{theme: "gone", dark: false}, connTheme.light, "light-ansi", "light"},
+	} {
+		g := c.m.wear()
+		if g != c.want {
+			t.Errorf("%+v wears %s, not the ground asked for", c.m, hex(g.ground))
+		}
+		if g.claudeBase() != c.base || g.vimBackground() != c.vim {
+			t.Errorf("%+v tells Claude Code %q and nvim %q", c.m, g.claudeBase(), g.vimBackground())
+		}
 	}
-	if scheme != connTheme.dark.scheme {
-		t.Errorf("dark scheme is not connTheme.dark.scheme: %v", scheme)
-	}
-
-	applyMode(connOn(false))
-	if hex(groundColor) != "#EFE9DB" || hex(inkColor) != "#1A1611" || cursorHex != "#BD3A1D" ||
-		borderHex != "#D8D0BD" || grayHex != "#6F6656" || themeBase != "light-ansi" || vimBackground != "light" {
-		t.Errorf("light: ground=%s ink=%s cursor=%s border=%s gray=%s base=%s vim=%s",
-			hex(groundColor), hex(inkColor), cursorHex, borderHex, grayHex, themeBase, vimBackground)
-	}
-	if current.dark || current.theme != defaultTheme {
-		t.Errorf("applyMode does not say what it put conn in: %+v", current)
-	}
-	if scheme != connTheme.light.scheme {
-		t.Errorf("light scheme is not connTheme.light.scheme: %v", scheme)
-	}
-	// Every diff wash and band moves with the ground too, not just the
-	// sixteen and the two grounds, and so does the faint conn dims with.
-	if diffAddedBg != connTheme.light.diffAddedBg || diffRemovedBg != connTheme.light.diffRemovedBg ||
-		diffAddedDim != connTheme.light.diffAddedDim || diffRemovedDim != connTheme.light.diffRemovedDim ||
-		diffAddedWord != connTheme.light.diffAddedWord || diffRemovedWord != connTheme.light.diffRemovedWord ||
-		messageHoverBg != connTheme.light.messageHoverBg || toolBg != connTheme.light.toolBg ||
-		faintHex != connTheme.light.faint {
-		t.Error("a wash, a band or the faint was left on the dark ground")
+	if hex(connOn(true).wear().ground) != "#15130F" || connOn(true).wear().accent != "#E85D2F" ||
+		hex(connOn(false).wear().ground) != "#EFE9DB" || connOn(false).wear().accent != "#BD3A1D" {
+		t.Error("conn's own grounds are not the ones the tables say")
 	}
 }
 
@@ -368,40 +346,5 @@ func TestModeFileRoundTrip(t *testing.T) {
 	}
 	if m := serverMode(socket, home); m != connOn(true) {
 		t.Errorf("a cleared mode file falls back to %+v, not conn's dark", m)
-	}
-}
-
-// holdMode puts the ground back where it found it, which is the point
-// of taking it rather than calling applyMode(connOn(true)) by hand: a test that
-// restores to dark is right only for as long as dark is what it was.
-func TestHoldModePutsTheGroundBack(t *testing.T) {
-	holdMode(t)
-	for _, was := range []bool{true, false} {
-		applyMode(connOn(was))
-		t.Run("", func(t *testing.T) {
-			holdMode(t)
-			applyMode(connOn(!was))
-		})
-		if current != connOn(was) {
-			t.Errorf("a test on %v ground left conn in %+v", was, current)
-		}
-	}
-}
-
-// dressProgram writes a theme for the ground the server on this machine
-// is on, which means it applies a mode: a caller that had conn on the
-// other ground does not have it any more. Nothing at the call says so,
-// which is why the tests that make it take holdMode, and this is that
-// reason written down where it can fail.
-func TestDressingAProgramSetsTheGround(t *testing.T) {
-	holdMode(t)
-	applyMode(connOn(false))
-	// A home with no server beside it has no mode file, and a ground
-	// that was never asked for is dark.
-	if _, ok := dressProgram([]string{"vim"}, t.TempDir(), nil); !ok {
-		t.Fatal("the colorscheme was not written")
-	}
-	if !current.dark {
-		t.Error("dressProgram left conn on the ground its caller chose")
 	}
 }

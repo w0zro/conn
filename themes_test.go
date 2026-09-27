@@ -21,6 +21,13 @@ func TestEveryThemeIsWholeOnBothGrounds(t *testing.T) {
 			if g.ground.A != 255 || g.ink.A != 255 {
 				t.Errorf("%s %s: the ground or the ink is unset", th.name, on.name)
 			}
+			// A ground says which it is by its own luminance, and what
+			// follows from that - the base Claude Code's theme sits on,
+			// what nvim is told - is read off it; a dark ground that
+			// read as light would dress every program for the wrong one.
+			if g.dark() != (on.name == "dark") {
+				t.Errorf("%s %s: the ground %s reads as %s", th.name, on.name, hex(g.ground), map[bool]string{true: "dark", false: "light"}[g.dark()])
+			}
 			for i, c := range g.scheme {
 				if !isHex.MatchString(c) {
 					t.Errorf("%s %s: slot %d is %q", th.name, on.name, i, c)

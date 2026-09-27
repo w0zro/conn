@@ -72,7 +72,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 		}
 	}
 	// What is not running is struck through, in color.
-	if lit := texts(drawProcesses(b, 5, panelWidth, 30, colored())); !strings.Contains(lit, "\x1b[9m") {
+	if lit := texts(drawProcesses(b, 5, panelWidth, 30, colored(connTheme.dark))); !strings.Contains(lit, "\x1b[9m") {
 		t.Errorf("what is not running is not struck through:\n%s", lit)
 	}
 }
@@ -92,7 +92,7 @@ func TestMinutes(t *testing.T) {
 // keys that act at a project only inside the server. While a process
 // has the keys, it says the chords instead.
 func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, focused: true, panes: map[string]pane{"ttys001": {id: "%1"}}}
+	m := model{view: viewProcesses, inside: true, focused: true, g: connTheme.dark, panes: map[string]pane{"ttys001": {id: "%1"}}}
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
 		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
@@ -103,7 +103,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	m.declared = map[string]declared{"/w": {list: []declaration{{name: "worker", command: "npm run worker"}}}}
 	// The words are written in the lower case, whatever the hint says.
 	has := func(bar, key, does string) bool {
-		return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+strings.ToLower(does))
+		return strings.Contains(bar, key+" #[nobold fg="+connTheme.dark.gray+"]"+strings.ToLower(does))
 	}
 	m.cursor = 1
 	bar := m.bar()
@@ -137,7 +137,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	}
 	// With nothing running there is no row and so no project to act at:
 	// the station's own keys are what is left.
-	empty := model{view: viewProcesses, inside: true, focused: true}
+	empty := model{view: viewProcesses, inside: true, focused: true, g: connTheme.dark}
 	if bar := empty.bar(); has(bar, "s", "Shell") || has(bar, "a", "New contact") ||
 		!has(bar, "p", "Projects") || !has(bar, ",", "Settings") || !has(bar, "?", "Help") {
 		t.Errorf("with no rows the bar offers %s", bar)
@@ -288,7 +288,7 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 		}
 	}
 	// Drawn at the end of the rule, and a wait's blinks with the rows.
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
 	m.projects = []project{
 		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
@@ -339,7 +339,7 @@ func isPanelRow(line string) bool {
 // elided from the left where the rule has no room for it.
 func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 	long := "/Volumes/work/some-organization-name/auditboard-backend-services"
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
 	m.projects = []project{{path: long, entries: []entry{
 		{pid: 5, kind: kindRun, command: "pnpm start --host --strict-port", cwd: long, status: statusActive, ports: []string{"3000"}},
@@ -370,7 +370,7 @@ func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 // it would be if the ports had it to themselves: most rows either
 // serve or have something to say, and the two never want it at once.
 func TestThePortsEndAtOneColumn(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
 	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 5, kind: kindRun, command: "node server.js", status: statusActive, ports: []string{"8080"}},
@@ -419,7 +419,7 @@ func TestThePortsEndAtOneColumn(t *testing.T) {
 // that is down is down, and where it would have gone when it was up is
 // not the thing to say about it.
 func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
 	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 5, kind: kindRun, command: "npm run build", status: statusDown, ports: []string{"4000"}},
@@ -446,7 +446,7 @@ func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
 // the rest of the row holds still. A fault's stamp holds still on
 // both halves.
 func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
 	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 1, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute)},

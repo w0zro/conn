@@ -17,7 +17,7 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 		Base      string            `json:"base"`
 		Overrides map[string]string `json:"overrides"`
 	}
-	out := claudeThemeJSON()
+	out := claudeThemeJSON(connTheme.dark)
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("not a theme file: %v\n%s", err, out)
 	}
@@ -26,8 +26,8 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	n := 0
-	for _, g := range claudeTheme() {
-		for _, tk := range g {
+	for _, grp := range claudeTheme(connTheme.dark) {
+		for _, tk := range grp {
 			if seen[tk.name] {
 				t.Errorf("%s is written twice", tk.name)
 			}
@@ -40,8 +40,8 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 	}
 	// The file is grouped the way the handoff groups it, so it can be
 	// read against it; the groups are what the blank lines separate.
-	if groups := strings.Count(out, "\n\n"); groups != len(claudeTheme())-1 {
-		t.Errorf("%d blank lines between %d groups", groups, len(claudeTheme()))
+	if groups := strings.Count(out, "\n\n"); groups != len(claudeTheme(connTheme.dark))-1 {
+		t.Errorf("%d blank lines between %d groups", groups, len(claudeTheme(connTheme.dark)))
 	}
 }
 
@@ -49,18 +49,19 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 // console's own, a reference to a slot, or one of the grounds no slot
 // has a name for. Nothing is a color from somewhere else.
 func TestTheThemeIsDrawnFromConnsOwn(t *testing.T) {
+	g := connTheme.dark
 	known := map[string]bool{
-		hex(groundColor): true, hex(inkColor): true, grayHex: true, borderHex: true,
-		cursorHex: true, shimmerHex: true, parchmentHex: true, messageBg: true,
-		diffAddedBg: true, diffRemovedBg: true, diffAddedDim: true, diffRemovedDim: true,
-		diffAddedWord: true, diffRemovedWord: true,
-		messageHoverBg: true, toolBg: true,
+		hex(g.ground): true, hex(g.ink): true, g.gray: true, g.border: true,
+		g.accent: true, g.shimmer: true, g.parchment: true, g.messageBg: true,
+		g.diffAddedBg: true, g.diffRemovedBg: true, g.diffAddedDim: true, g.diffRemovedDim: true,
+		g.diffAddedWord: true, g.diffRemovedWord: true,
+		g.messageHoverBg: true, g.toolBg: true,
 	}
-	for _, c := range scheme {
+	for _, c := range g.scheme {
 		known[c] = true
 	}
-	for _, g := range claudeTheme() {
-		for _, tk := range g {
+	for _, grp := range claudeTheme(g) {
+		for _, tk := range grp {
 			if strings.HasPrefix(tk.color, "ansi:") {
 				continue
 			}
@@ -76,8 +77,8 @@ func TestTheThemeIsDrawnFromConnsOwn(t *testing.T) {
 // dialog that stops and waits, and the meter — never a mode.
 func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 	at := map[string]string{}
-	for _, g := range claudeTheme() {
-		for _, tk := range g {
+	for _, grp := range claudeTheme(connTheme.dark) {
+		for _, tk := range grp {
 			at[tk.name] = tk.color
 		}
 	}
@@ -86,7 +87,7 @@ func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 			t.Errorf("%s is %s, not a slot", k, at[k])
 		}
 	}
-	accent := cursorHex
+	accent := connTheme.dark.accent
 	for _, k := range []string{"claude", "permission", "rate_limit_fill"} {
 		if at[k] != accent {
 			t.Errorf("%s is %s, not the accent", k, at[k])
@@ -103,7 +104,6 @@ func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 // point Claude Code at it only when nothing of the user's own is in the
 // way.
 func TestConnWritesTheThemeAndOffersOnce(t *testing.T) {
-	holdMode(t) // dressProgram puts conn on the ground its server is on
 	yes := func(string) bool { return true }
 	write := func(t *testing.T, settings string) string {
 		t.Helper()
@@ -180,19 +180,17 @@ func TestRefreshClaudeThemeKeepsTheFileCurrent(t *testing.T) {
 	home := t.TempDir()
 
 	// Never written: refreshing writes nothing.
-	refreshClaudeTheme(home)
+	refreshClaudeTheme(home, connTheme.dark)
 	if _, err := os.Stat(filepath.Join(home, ".claude", "themes", "conn.json")); err == nil {
 		t.Error("refreshClaudeTheme wrote a file conn theme claude never had")
 	}
 
 	// Written once, on dark; the server moves to light; a refresh
 	// catches the file up without being asked again.
-	if _, err := writeClaudeTheme(home); err != nil {
+	if _, err := writeClaudeTheme(home, connTheme.dark); err != nil {
 		t.Fatal(err)
 	}
-	holdMode(t)
-	applyMode(connOn(false))
-	refreshClaudeTheme(home)
+	refreshClaudeTheme(home, connTheme.light)
 	b, err := os.ReadFile(filepath.Join(home, ".claude", "themes", "conn.json"))
 	if err != nil || !strings.Contains(string(b), `"base": "light-ansi"`) {
 		t.Errorf("the file was not refreshed to light: %v\n%s", err, b)
@@ -202,7 +200,6 @@ func TestRefreshClaudeThemeKeepsTheFileCurrent(t *testing.T) {
 // conn dresses the programs it has a theme for, and says so for any
 // other.
 func TestConnDressesWhatItHasAThemeFor(t *testing.T) {
-	holdMode(t) // dressProgram puts conn on the ground its server is on
 	home := t.TempDir()
 	for _, args := range [][]string{{}, {"emacs"}, {"claude", "dark"}} {
 		if _, ok := dressProgram(args, home, nil); ok {

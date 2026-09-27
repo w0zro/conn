@@ -33,8 +33,8 @@ func TestTheSurfaceIsBetweenTheGroundAndTheBorder(t *testing.T) {
 	}
 	// The palette on the surface paints its rows on it, and returns to
 	// it after every piece.
-	p := colored().onSurface()
-	if p.ground != ansiHex(48, surfaceHex) || !strings.HasPrefix(p.normal, p.end+p.ground) {
+	p := colored(connTheme.dark).onSurface()
+	if p.ground != groundIn(connTheme.dark.surface) || !strings.HasPrefix(p.normal, p.end+p.ground) {
 		t.Errorf("the surface palette grounds on %q", p.ground)
 	}
 	if got := plain.onSurface(); !got.plain || got.ground != "" {

@@ -62,7 +62,7 @@ func TestTheClientReachesTheServer(t *testing.T) {
 // a container. A brew service that is down listens nowhere, and a row
 // that is no known program has no client to offer.
 func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.containers = []container{{id: "abc", image: "postgres:16", state: "running", dir: "/w/a"}}
@@ -74,7 +74,7 @@ func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 		{pid: 302, kind: kindRun, command: "node server.js", cwd: "/w/a", status: statusActive, ports: []string{"3000"}},
 		{pid: 303, kind: kindShell, command: "zsh", cwd: "/w/a", status: statusActive, ports: []string{"5433"}, listener: "postgres -D data"},
 	}}}
-	has := func(bar string) bool { return strings.Contains(bar, "S #[nobold fg="+grayHex+"]psql") }
+	has := func(bar string) bool { return strings.Contains(bar, "S #[nobold fg="+connTheme.dark.gray+"]psql") }
 	for _, c := range []struct {
 		pid  int
 		want bool

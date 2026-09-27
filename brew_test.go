@@ -152,7 +152,7 @@ func TestAServiceTwoProjectsDeclareStandsUnderEach(t *testing.T) {
 // start it; x asks brew to stop one that is up, by its declared name,
 // and leaves one down alone. The bar says as much.
 func TestTheKeysAskBrewAboutItsService(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.brews, _ = parseBrewServices([]byte(brewInfo))
@@ -162,7 +162,7 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	}}}
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
 	has := func(bar, key, does string) bool {
-		return strings.Contains(bar, key+" #[nobold fg="+grayHex+"]"+strings.ToLower(does))
+		return strings.Contains(bar, key+" #[nobold fg="+connTheme.dark.gray+"]"+strings.ToLower(does))
 	}
 
 	m.cursor = 24422

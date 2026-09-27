@@ -424,7 +424,7 @@ func TestTokensAreShort(t *testing.T) {
 // on, which after reaching something is that something.
 func TestThePageFollowsTheKeys(t *testing.T) {
 	panel := func() model {
-		m := newModel(plain)
+		m := plainModel()
 		m.inside, m.view, m.focused = true, viewProcesses, true
 		m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 		m.projects = []project{{path: "/w", entries: []entry{

@@ -10,6 +10,13 @@ import (
 // conn draws by meaning, each on a dark ground and a light one. conn is
 // the theme conn has always worn, and the one it wears unless told
 // another; see mode.go for how a ground is chosen.
+//
+// A ground is a value, and everything conn draws takes the one it is
+// handed: the palette is built off it, the tmux configuration and the
+// status line are written from it, and so are the theme for Claude Code
+// and the colorscheme for nvim. Nothing is package-wide, so a conn that
+// changes mode hands the new ground to what draws and nothing reads a
+// color from the mode before.
 
 // A ground is a theme on one of its two grounds.
 type ground struct {
@@ -218,38 +225,12 @@ var connTheme = theme{
 	},
 }
 
-// What conn draws from, as wear last left it: every reader in conn
-// takes its color from here, by name, and none of them cares which
-// theme or ground it came off. conn's dark until applyMode says
-// otherwise, which is what every terminal was before conn learned to
-// ask.
-var (
-	groundColor, inkColor = connTheme.dark.ground, connTheme.dark.ink
-	scheme                = connTheme.dark.scheme
-
-	cursorHex    = connTheme.dark.accent
-	shimmerHex   = connTheme.dark.shimmer
-	borderHex    = connTheme.dark.border
-	surfaceHex   = connTheme.dark.surface
-	runningHex   = connTheme.dark.running
-	grayHex      = connTheme.dark.gray
-	faintHex     = connTheme.dark.faint
-	parchmentHex = connTheme.dark.parchment
-
-	messageBg, messageHoverBg, toolBg = connTheme.dark.messageBg, connTheme.dark.messageHoverBg, connTheme.dark.toolBg
-	diffAddedBg, diffRemovedBg        = connTheme.dark.diffAddedBg, connTheme.dark.diffRemovedBg
-	diffAddedDim, diffRemovedDim      = connTheme.dark.diffAddedDim, connTheme.dark.diffRemovedDim
-	diffAddedWord, diffRemovedWord    = connTheme.dark.diffAddedWord, connTheme.dark.diffRemovedWord
-)
-
-// wear puts every color conn draws from onto one ground of one theme.
-func wear(g ground) {
-	groundColor, inkColor = g.ground, g.ink
-	scheme = g.scheme
-	cursorHex, shimmerHex, borderHex, surfaceHex, runningHex = g.accent, g.shimmer, g.border, g.surface, g.running
-	grayHex, faintHex, parchmentHex = g.gray, g.faint, g.parchment
-	messageBg, messageHoverBg, toolBg = g.messageBg, g.messageHoverBg, g.toolBg
-	diffAddedBg, diffRemovedBg = g.diffAddedBg, g.diffRemovedBg
-	diffAddedDim, diffRemovedDim = g.diffAddedDim, g.diffRemovedDim
-	diffAddedWord, diffRemovedWord = g.diffAddedWord, g.diffRemovedWord
+// dark is whether this is a theme's dark ground, read off the ground
+// itself the way a terminal's is asked: a theme's dark ground is dark
+// by construction, and reading it keeps a ground one thing rather than
+// a table and a flag about the table. What follows from it - the base
+// Claude Code's theme sits on, what nvim is told its background is -
+// is read here too.
+func (g ground) dark() bool {
+	return isDark(g.ground)
 }

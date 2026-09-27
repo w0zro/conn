@@ -143,7 +143,7 @@ func TestTheFeedSaysWhenDockerDidNotAnswer(t *testing.T) {
 // The panel holds docker's word and merges it into the next reading, and
 // says so under the rows while docker is quiet.
 func TestAStalledDockerIsSaidUnderTheRows(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.width, m.height = viewProcesses, 48, 30
 	next, _ := m.Update(dockerMsg{containers: []container{{id: "abc", service: "web", state: "running"}}, stalled: true})
 	m = next.(model)

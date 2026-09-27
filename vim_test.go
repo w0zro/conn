@@ -11,7 +11,7 @@ import (
 // The colorscheme is one nvim can read: it names itself, it is one
 // ground, and it writes no group twice.
 func TestTheVimColorschemeIsAColorscheme(t *testing.T) {
-	out := vimColorscheme()
+	out := vimColorscheme(connTheme.dark)
 	for _, s := range []string{"set background=dark", "hi clear", "let g:colors_name = 'conn'"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("the colorscheme lacks %q", s)
@@ -36,7 +36,7 @@ func TestTheVimColorschemeIsAColorscheme(t *testing.T) {
 		t.Errorf("only %d groups; the scheme should cover the editor", len(seen))
 	}
 	// A terminal opened in nvim gets the same sixteen.
-	for i, c := range scheme {
+	for i, c := range connTheme.dark.scheme {
 		if want := "let g:terminal_color_" + strconv.Itoa(i) + " = '" + c + "'"; !strings.Contains(out, want) {
 			t.Errorf("the colorscheme lacks %q", want)
 		}
@@ -46,17 +46,18 @@ func TestTheVimColorschemeIsAColorscheme(t *testing.T) {
 // Every color in it is one conn draws, and each carries the slot it is,
 // so the scheme holds up where sixteen is all there is.
 func TestTheVimColorschemeIsDrawnFromConnsOwn(t *testing.T) {
+	g := connTheme.dark
 	known := map[string]bool{
-		"NONE": true, hex(groundColor): true, hex(inkColor): true, grayHex: true,
-		borderHex: true, parchmentHex: true, cursorHex: true, toolBg: true, diffAddedBg: true, diffRemovedBg: true,
-		diffAddedWord: true, diffRemovedWord: true, diffAddedDim: true,
+		"NONE": true, hex(g.ground): true, hex(g.ink): true, g.gray: true,
+		g.border: true, g.parchment: true, g.accent: true, g.toolBg: true, g.diffAddedBg: true, g.diffRemovedBg: true,
+		g.diffAddedWord: true, g.diffRemovedWord: true, g.diffAddedDim: true,
 	}
 	slotOf := map[string]string{}
-	for i, c := range scheme {
+	for i, c := range g.scheme {
 		known[c] = true
 		slotOf[c] = strconv.Itoa(i)
 	}
-	for _, line := range strings.Split(vimColorscheme(), "\n") {
+	for _, line := range strings.Split(vimColorscheme(g), "\n") {
 		if !strings.HasPrefix(line, "hi ") {
 			continue
 		}
@@ -86,7 +87,7 @@ func TestTheVimColorschemeIsDrawnFromConnsOwn(t *testing.T) {
 // apart from a variable.
 func TestTheVimRolesFollowTheSlots(t *testing.T) {
 	at := map[string]string{}
-	for _, line := range strings.Split(vimColorscheme(), "\n") {
+	for _, line := range strings.Split(vimColorscheme(connTheme.dark), "\n") {
 		if !strings.HasPrefix(line, "hi ") {
 			continue
 		}
@@ -101,8 +102,8 @@ func TestTheVimRolesFollowTheSlots(t *testing.T) {
 		"Number": 9, "Identifier": 11, "Operator": 12,
 		"@function.call": 13, "@variable.parameter": 14, "Error": 1,
 	} {
-		if at[group] != scheme[slot] {
-			t.Errorf("%s is %s, not slot %d (%s)", group, at[group], slot, scheme[slot])
+		if at[group] != connTheme.dark.scheme[slot] {
+			t.Errorf("%s is %s, not slot %d (%s)", group, at[group], slot, connTheme.dark.scheme[slot])
 		}
 	}
 	// A call is not a definition, and a parameter is not a variable.
@@ -115,12 +116,13 @@ func TestTheVimRolesFollowTheSlots(t *testing.T) {
 // is the thing that wants you, a selection is the border color, and a
 // diff's washes are the washes.
 func TestTheVimSchemeAgreesWithTheRest(t *testing.T) {
-	out := vimColorscheme()
+	g := connTheme.dark
+	out := vimColorscheme(g)
 	for _, want := range []string{
-		"hi Search guifg=" + hex(groundColor) + " ctermfg=NONE guibg=" + cursorHex,
-		"hi Visual guifg=NONE ctermfg=NONE guibg=" + borderHex,
-		"hi DiffAdd guifg=NONE ctermfg=NONE guibg=" + diffAddedBg,
-		"hi DiffDelete guifg=" + faintHex + " ctermfg=8 guibg=" + diffRemovedBg,
+		"hi Search guifg=" + hex(g.ground) + " ctermfg=NONE guibg=" + g.accent,
+		"hi Visual guifg=NONE ctermfg=NONE guibg=" + g.border,
+		"hi DiffAdd guifg=NONE ctermfg=NONE guibg=" + g.diffAddedBg,
+		"hi DiffDelete guifg=" + g.faint + " ctermfg=8 guibg=" + g.diffRemovedBg,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the colorscheme lacks %q", want)
@@ -128,9 +130,9 @@ func TestTheVimSchemeAgreesWithTheRest(t *testing.T) {
 	}
 	// No mode-like chrome takes the orange: it is for what wants you.
 	for _, line := range strings.Split(out, "\n") {
-		for _, g := range []string{"hi StatusLine ", "hi Pmenu ", "hi CursorLine ", "hi Comment "} {
-			if strings.HasPrefix(line, g) && strings.Contains(line, cursorHex) {
-				t.Errorf("%s takes the orange", strings.TrimSpace(g))
+		for _, group := range []string{"hi StatusLine ", "hi Pmenu ", "hi CursorLine ", "hi Comment "} {
+			if strings.HasPrefix(line, group) && strings.Contains(line, g.accent) {
+				t.Errorf("%s takes the orange", strings.TrimSpace(group))
 			}
 		}
 	}
@@ -138,7 +140,6 @@ func TestTheVimSchemeAgreesWithTheRest(t *testing.T) {
 
 // conn writes the colorscheme where nvim looks for one, and says so.
 func TestConnWritesTheVimColorscheme(t *testing.T) {
-	holdMode(t) // dressProgram puts conn on the ground its server is on
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", "")
 	msg, ok := dressProgram([]string{"vim"}, home, nil)
@@ -170,7 +171,6 @@ func TestConnWritesTheVimColorscheme(t *testing.T) {
 // started in conn is drawn on the ground conn is actually on rather
 // than the one it was on the day the file was written.
 func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
-	holdMode(t)
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", "")
 	path := filepath.Join(home, ".config", "nvim", "colors", "conn.vim")
@@ -178,21 +178,19 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 	// Never written: refreshing writes nothing. conn theme vim is what
 	// puts the file there, and a machine that never asked for one is not
 	// given one behind its back.
-	applyMode(connOn(true))
-	refreshVimColorscheme(home)
+	refreshVimColorscheme(home, connTheme.dark)
 	if _, err := os.Stat(path); err == nil {
 		t.Fatal("refreshVimColorscheme wrote a file conn theme vim never had")
 	}
 
 	// Written on dark; the server comes up light; the file catches up.
-	if _, err := writeVimColorscheme(home); err != nil {
+	if _, err := writeVimColorscheme(home, connTheme.dark); err != nil {
 		t.Fatal(err)
 	}
 	if b, err := os.ReadFile(path); err != nil || !strings.Contains(string(b), "set background=dark") {
 		t.Fatalf("the file was not written dark: %v", err)
 	}
-	applyMode(connOn(false))
-	refreshVimColorscheme(home)
+	refreshVimColorscheme(home, connTheme.light)
 	b, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(b), "set background=light") {
 		t.Fatalf("the file did not follow the ground to light: %v", err)
@@ -210,11 +208,9 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 // color the rest of conn draws it in, and the quietest text is the tier
 // conn reads there rather than the slot that vanishes.
 func TestTheLightColorschemeDrawsTheBorderAsTheRestOfConnDoes(t *testing.T) {
-	holdMode(t)
-	applyMode(connOn(false))
-	out := vimColorscheme()
+	out := vimColorscheme(connTheme.light)
 	for _, want := range []string{
-		"hi StatusLine guifg=" + hex(inkColor) + " ctermfg=15 guibg=" + connTheme.light.border + " ctermbg=NONE",
+		"hi StatusLine guifg=" + hex(connTheme.light.ink) + " ctermfg=15 guibg=" + connTheme.light.border + " ctermbg=NONE",
 		"hi Visual guifg=NONE ctermfg=NONE guibg=" + connTheme.light.border + " ctermbg=NONE",
 		"hi WinSeparator guifg=" + connTheme.light.border + " ctermfg=NONE",
 		"hi LineNr guifg=" + connTheme.light.faint + " ctermfg=8",
@@ -229,8 +225,7 @@ func TestTheLightColorschemeDrawsTheBorderAsTheRestOfConnDoes(t *testing.T) {
 		}
 	}
 	// And on dark the border is slot 0 still, as it always was.
-	applyMode(connOn(true))
-	if out := vimColorscheme(); !strings.Contains(out, "hi Visual guifg=NONE ctermfg=NONE guibg="+connTheme.dark.scheme[0]+" ctermbg=0") {
+	if out := vimColorscheme(connTheme.dark); !strings.Contains(out, "hi Visual guifg=NONE ctermfg=NONE guibg="+connTheme.dark.scheme[0]+" ctermbg=0") {
 		t.Error("the dark colorscheme no longer draws a selection on slot 0")
 	}
 }

@@ -38,34 +38,34 @@ type hlSection struct {
 
 var noColor = vimColor{}
 
-// vimColorscheme is the colorscheme, ready to be written.
-func vimColorscheme() string {
+// vimColorscheme is the colorscheme for a ground, ready to be written.
+func vimColorscheme(g ground) string {
 	var (
-		ground    = vimColor{hex(groundColor), "NONE"} // the pane's own
-		lift      = vimColor{toolBg, "NONE"}           // a step off it
-		border    = roleColor(borderHex)               // and another
-		red       = slotColor(1)                       // an error
-		green     = slotColor(2)                       // a string
-		yellow    = slotColor(3)                       // a constant
-		blue      = slotColor(4)                       // a keyword
-		magenta   = slotColor(5)                       // a function
-		cyan      = slotColor(6)                       // a type
-		parchment = roleColor(parchmentHex)            // punctuation, a title
-		faint     = vimColor{faintHex, "8"}            // a line number
-		orange    = slotColor(9)                       // a number
-		accent    = roleColor(cursorHex)               // a mark: what wants you
-		varc      = slotColor(11)                      // a variable
-		op        = slotColor(12)                      // an operator
-		call      = slotColor(13)                      // a call
-		param     = slotColor(14)                      // a parameter
-		ink       = roleColor(hex(inkColor))           // what is written
-		gray      = vimColor{grayHex, strconv.Itoa(8)} // a comment
-		chipOn    = vimColor{hex(groundColor), "NONE"} // words on a chip
-		added     = vimColor{diffAddedBg, "NONE"}      // a diff's washes
-		removed   = vimColor{diffRemovedBg, "NONE"}    //
-		addedWord = vimColor{diffAddedWord, "NONE"}    //
-		removedW  = vimColor{diffRemovedWord, "NONE"}  //
-		changed   = vimColor{diffAddedDim, "NONE"}     //
+		ground    = vimColor{hex(g.ground), "NONE"}     // the pane's own
+		lift      = vimColor{g.toolBg, "NONE"}          // a step off it
+		border    = roleColor(g, g.border)              // and another
+		red       = slotColor(g, 1)                     // an error
+		green     = slotColor(g, 2)                     // a string
+		yellow    = slotColor(g, 3)                     // a constant
+		blue      = slotColor(g, 4)                     // a keyword
+		magenta   = slotColor(g, 5)                     // a function
+		cyan      = slotColor(g, 6)                     // a type
+		parchment = roleColor(g, g.parchment)           // punctuation, a title
+		faint     = vimColor{g.faint, "8"}              // a line number
+		orange    = slotColor(g, 9)                     // a number
+		accent    = roleColor(g, g.accent)              // a mark: what wants you
+		varc      = slotColor(g, 11)                    // a variable
+		op        = slotColor(g, 12)                    // an operator
+		call      = slotColor(g, 13)                    // a call
+		param     = slotColor(g, 14)                    // a parameter
+		ink       = roleColor(g, hex(g.ink))            // what is written
+		gray      = vimColor{g.gray, strconv.Itoa(8)}   // a comment
+		chipOn    = vimColor{hex(g.ground), "NONE"}     // words on a chip
+		added     = vimColor{g.diffAddedBg, "NONE"}     // a diff's washes
+		removed   = vimColor{g.diffRemovedBg, "NONE"}   //
+		addedWord = vimColor{g.diffAddedWord, "NONE"}   //
+		removedW  = vimColor{g.diffRemovedWord, "NONE"} //
+		changed   = vimColor{g.diffAddedDim, "NONE"}    //
 	)
 
 	sections := []hlSection{{
@@ -280,7 +280,7 @@ func vimColorscheme() string {
 " conn picks one ground - dark or light - when a server rises, and holds
 " it for that server's life; it does not follow the system after.
 
-set background=` + vimBackground + `
+set background=` + g.vimBackground() + `
 hi clear
 if exists('syntax_on')
   syntax reset
@@ -294,15 +294,24 @@ let g:colors_name = 'conn'
 		}
 	}
 	b.WriteString("\n\" A terminal opened in nvim gets the sixteen it would have had in a\n\" pane of the server.\n")
-	for i, c := range scheme {
+	for i, c := range g.scheme {
 		fmt.Fprintf(&b, "let g:terminal_color_%d = '%s'\n", i, c)
 	}
 	return b.String()
 }
 
-// slotColor is one of the sixteen, and knows which one it is.
-func slotColor(i int) vimColor {
-	return vimColor{scheme[i], strconv.Itoa(i)}
+// vimBackground is what the colorscheme tells nvim its own background
+// is: the ground conn is on.
+func (g ground) vimBackground() string {
+	if g.dark() {
+		return "dark"
+	}
+	return "light"
+}
+
+// slotColor is one of a ground's sixteen, and knows which one it is.
+func slotColor(g ground, i int) vimColor {
+	return vimColor{g.scheme[i], strconv.Itoa(i)}
 }
 
 // roleColor is a color conn draws by what it means rather than by a
@@ -315,8 +324,8 @@ func slotColor(i int) vimColor {
 // is what a program writing ANSI-0 means by ordinary text, and a status
 // line drawn on it was a black bar across a pale page, so the border on
 // light is a color no slot has a name for — see themes.go.
-func roleColor(h string) vimColor {
-	for i, c := range scheme {
+func roleColor(g ground, h string) vimColor {
+	for i, c := range g.scheme {
 		if strings.EqualFold(c, h) {
 			return vimColor{h, strconv.Itoa(i)}
 		}
@@ -347,15 +356,15 @@ func (h hl) line() string {
 	return strings.Join(parts, " ")
 }
 
-// writeVimColorscheme writes the colorscheme where nvim looks for one,
-// and answers the path it wrote.
-func writeVimColorscheme(home string) (string, error) {
+// writeVimColorscheme writes the colorscheme for a ground where nvim
+// looks for one, and answers the path it wrote.
+func writeVimColorscheme(home string, g ground) (string, error) {
 	dir := filepath.Join(configHome(home), "nvim", "colors")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	path := filepath.Join(dir, "conn.vim")
-	return path, os.WriteFile(path, []byte(vimColorscheme()), 0o644)
+	return path, os.WriteFile(path, []byte(vimColorscheme(g)), 0o644)
 }
 
 // refreshVimColorscheme rewrites the colorscheme if it has already been
@@ -369,18 +378,18 @@ func writeVimColorscheme(home string) (string, error) {
 // which is what a ground that is fixed for a server's life needs: the
 // ground changes when the server does, and the editors opened after it
 // are the ones there are.
-func refreshVimColorscheme(home string) {
+func refreshVimColorscheme(home string, g ground) {
 	path := filepath.Join(configHome(home), "nvim", "colors", "conn.vim")
 	if _, err := os.Stat(path); err != nil {
 		return
 	}
-	_, _ = writeVimColorscheme(home)
+	_, _ = writeVimColorscheme(home, g)
 }
 
 // dressVim writes the colorscheme and says how nvim is to reach for it,
 // which is nvim's own business and the user's: conn writes the colors.
-func dressVim(home string) (string, bool) {
-	path, err := writeVimColorscheme(home)
+func dressVim(home string, g ground) (string, bool) {
+	path, err := writeVimColorscheme(home, g)
 	if err != nil {
 		return fmt.Sprintf("conn theme: %v\n", err), false
 	}

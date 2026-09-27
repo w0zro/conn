@@ -166,6 +166,7 @@ type model struct {
 	due           bool // the readout's beat has passed and it waits on the station
 	width, height int
 	p             palette
+	g             ground // the ground conn is on, which the palette is built off and the status line is written from
 
 	view     int
 	lit      bool // the annunciators are showing this half of the blink
@@ -332,7 +333,9 @@ type model struct {
 	lastIn string
 }
 
-func newModel(p palette) model {
+// newModel is conn on a ground: drawn in that ground's palette on the
+// surface, the panel's own, and speaking to tmux in its colors.
+func newModel(g ground) model {
 	home, _ := os.UserHomeDir()
 	// A config that will not parse is the view's to report, not the
 	// model's to come up on: newModel takes the roots it is left with
@@ -348,7 +351,8 @@ func newModel(p palette) model {
 
 		head: station{build: readBuild(), login: readLogin()},
 		now:  time.Now(),
-		p:    p,
+		p:    colored(g).onSurface(),
+		g:    g,
 		uid:  os.Getuid(),
 	}
 	return m.rooted(rootOn(configured))
@@ -777,7 +781,7 @@ func (m model) saying() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, keys, station, up, bar
-	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag)
+	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, m.g)
 	if m.setting {
 		return m, func() tea.Msg { _ = srv.sayBand(keys, station, up, ident); return nil }
 	}
@@ -800,21 +804,21 @@ func (m model) saying() (model, tea.Cmd) {
 func (m model) keys() string {
 	if m.kill != nil {
 		// The question itself is on the key bar, where the answer is.
-		return statusLineBlock("CONFIRM")
+		return statusLineBlock("CONFIRM", m.g)
 	}
 	// Reading the manual, or keeping the settings, is a state the
 	// operator is in, like a question armed, and it outranks the
 	// wordmark: while either is up the panel is not being worked.
 	if m.helping && m.view == viewProcesses {
-		return statusLineBlock(helpWord)
+		return statusLineBlock(helpWord, m.g)
 	}
 	if m.setting && m.view == viewProcesses {
-		return statusLineBlock(settingsWord)
+		return statusLineBlock(settingsWord, m.g)
 	}
 	// The whole tree is a way of looking at the processes view rather
 	// than a view of its own, and the band says so while it is on.
 	if m.full && m.view == viewProcesses {
-		return statusLineBlock(treeWord)
+		return statusLineBlock(treeWord, m.g)
 	}
 	// Otherwise the wordmark: the band is the station's, and the panel
 	// says which view it is in by its own eyebrows. The console says
@@ -822,7 +826,7 @@ func (m model) keys() string {
 	if m.view == viewConsole {
 		return ""
 	}
-	return statusLineWord(wordmarkLine, hex(inkColor), true)
+	return statusLineWord(wordmarkLine, hex(m.g.ink), true, m.g)
 }
 
 // wordmarkLine is conn's name as the band wears it.
@@ -849,11 +853,11 @@ const (
 func (m model) station() string {
 	switch {
 	case m.helping:
-		return statusLineBlock(helpWord)
+		return statusLineBlock(helpWord, m.g)
 	case m.setting:
-		return statusLineBlock(settingsWord)
+		return statusLineBlock(settingsWord, m.g)
 	}
-	return statusLineWord(wordmarkLine, hex(inkColor), true)
+	return statusLineWord(wordmarkLine, hex(m.g.ink), true, m.g)
 }
 
 // upWord is the right edge of the band: the time of day, local, as
@@ -870,7 +874,7 @@ func (m model) upWord() string {
 	if !m.up.IsZero() {
 		word += " · T+ " + strings.ToLower(uptime(m.up, m.now))
 	}
-	return statusLineWord(word+" ", grayHex, false)
+	return statusLineWord(word+" ", m.g.gray, false, m.g)
 }
 
 // bar is the key bar across the foot of the window: the keys that work
@@ -882,9 +886,9 @@ func (m model) bar() string {
 	case m.kill != nil:
 		// The band says CONFIRM over it; the bar is the question and
 		// its answers, and says neither twice.
-		return statusLineSay(m.kill.prompt) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}})
+		return statusLineSay(m.kill.prompt, m.g) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, m.g)
 	case m.helping:
-		return keyBar(helpHints)
+		return keyBar(helpHints, m.g)
 	}
 	// While a process has the keys, none of the panel's work: what
 	// works is the panel key, which tmux takes before the process does,
@@ -896,12 +900,12 @@ func (m model) bar() string {
 		if len(waitingRound(m.projects)) > 0 {
 			hints = append(hints, keyHint{px + " tab", "Next waiting"})
 		}
-		return keyBar(append(hints, keyHint{px + " " + px, "Last process"}, keyHint{px + " ?", "Help"}))
+		return keyBar(append(hints, keyHint{px + " " + px, "Last process"}, keyHint{px + " ?", "Help"}), m.g)
 	}
 	var hints []keyHint
 	switch m.view {
 	case viewConsole:
-		return keyBar(consoleHints)
+		return keyBar(consoleHints, m.g)
 	case viewProjects:
 		rows := m.projectRows()
 		if len(rows) > 1 {
@@ -914,7 +918,7 @@ func (m model) bar() string {
 				hints = append(hints, keyHint{"enter", "Open a shell there"}, keyHint{"alt-a", "New contact"}, keyHint{"alt-A", "Sessions"})
 			}
 		}
-		return keyBar(append(hints, keyHint{"esc", "Back"}))
+		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewSessions:
 		if len(m.sessionsRows()) > 1 {
 			hints = append(hints, moveHint)
@@ -922,9 +926,9 @@ func (m model) bar() string {
 		if len(m.sessionsRows()) > 0 && m.inside {
 			hints = append(hints, keyHint{"enter", "Resume it here"})
 		}
-		return keyBar(append(hints, keyHint{"esc", "Back"}))
+		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewRoots:
-		return keyBar(rootsHints)
+		return keyBar(rootsHints, m.g)
 	}
 	if rowsIn(m.projects) > 1 {
 		hints = append(hints, moveHint)
@@ -963,7 +967,7 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"U", "Bring up all"})
 		}
 	}
-	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{",", "Settings"}, keyHint{"?", "Help"}))
+	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{",", "Settings"}, keyHint{"?", "Help"}), m.g)
 }
 
 // keyWord is the panel key as the bar writes it: ^space for C-Space,
@@ -2438,8 +2442,8 @@ func (m model) View() tea.View {
 	// rest of the mouse, the wheel and a drag into copy mode among it,
 	// and passes conn the presses in its pane.
 	v.MouseMode = tea.MouseModeCellMotion
-	v.BackgroundColor = groundColor
-	v.ForegroundColor = inkColor
+	v.BackgroundColor = m.g.ground
+	v.ForegroundColor = m.g.ink
 	v.WindowTitle = "conn"
 	return v
 }
@@ -2515,8 +2519,8 @@ func (m model) worn() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	applyMode(want)
-	m.p = colored().onSurface()
+	m.g = want.wear()
+	m.p = colored(m.g).onSurface()
 	return m, nil
 }
 

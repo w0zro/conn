@@ -13,7 +13,7 @@ import (
 // contact is never a thing to go to, whatever it has open, and a row
 // that is not running serves nothing.
 func TestOIsOfferedWhereARowServes(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.projects = []project{{path: "/w/a", entries: []entry{
@@ -30,7 +30,7 @@ func TestOIsOfferedWhereARowServes(t *testing.T) {
 		want bool
 	}{{300, true}, {301, false}, {302, false}, {303, false}} {
 		m.cursor = c.pid
-		if got := strings.Contains(m.bar(), "o #[nobold fg="+grayHex+"]open :5173"); got != c.want {
+		if got := strings.Contains(m.bar(), "o #[nobold fg="+connTheme.dark.gray+"]open :5173"); got != c.want {
 			t.Errorf("on %d the bar offers o: %v, want %v\n%s", c.pid, got, c.want, m.bar())
 		}
 		_, cmd := m.key("o")

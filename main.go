@@ -24,12 +24,12 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 	// machine is running in, or would come up in if none is up yet - not
 	// an argument of its own, so it never drifts from what conn itself
 	// is dressed in.
-	applyMode(serverMode(socketPath(home), home))
+	g := serverMode(socketPath(home), home).wear()
 	switch args[0] {
 	case "claude":
-		return dressClaude(home, ask)
+		return dressClaude(home, ask, g)
 	case "vim", "nvim":
-		return dressVim(home)
+		return dressVim(home, g)
 	}
 	return fmt.Sprintf("conn theme: conn has no theme for %s; it has one for claude and one for vim\n", args[0]), false
 }
@@ -38,8 +38,8 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 // when nothing of the user's own is in the way: a settings file on one
 // of the themes Claude Code comes with, or on none. A custom theme is
 // somebody's own doing, and conn says what it is and leaves it.
-func dressClaude(home string, ask func(string) bool) (string, bool) {
-	path, err := writeClaudeTheme(home)
+func dressClaude(home string, ask func(string) bool, g ground) (string, bool) {
+	path, err := writeClaudeTheme(home, g)
 	if err != nil {
 		return fmt.Sprintf("conn theme: %v\n", err), false
 	}
@@ -136,18 +136,20 @@ func main() {
 	// A pane of conn's own server draws in the mode the server already
 	// chose; anything else - no tmux, or the server could not come up -
 	// has nobody to ask but the terminal itself, or the flags.
+	var want mode
 	if inside {
-		applyMode(serverMode(srv.socket, home))
+		want = serverMode(srv.socket, home)
 	} else {
-		applyMode(askMode(override, home))
+		want = askMode(override, home)
 	}
 	// The panel is drawn on the surface, a step off the ground the bay
 	// is on, and its pane is painted to match, so the ground shows the
 	// same past the rows conn draws.
-	m := newModel(colored().onSurface())
+	g := want.wear()
+	m := newModel(g)
 	m.srv, m.inside = srv, inside
 	if inside {
-		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+surfaceHex)
+		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+g.surface)
 	}
 	m.self, _ = os.Executable()
 	if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {
@@ -194,8 +196,8 @@ var commands = []command{
 		if len(args) > 0 {
 			pid, _ = strconv.Atoi(args[0])
 		}
-		applyMode(serverMode(socketPath(home), home))
-		if err := runReadout(findServer(home), pid, home, colored()); err != nil {
+		g := serverMode(socketPath(home), home).wear()
+		if err := runReadout(findServer(home), pid, home, colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
 		}
@@ -203,8 +205,8 @@ var commands = []command{
 	}},
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		applyMode(serverMode(socketPath(home), home))
-		if err := runHold(findServer(home), colored()); err != nil {
+		g := serverMode(socketPath(home), home).wear()
+		if err := runHold(findServer(home), colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			return 1
 		}
@@ -215,8 +217,7 @@ var commands = []command{
 	// this in the pane it opens for them.
 	{"settings", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		applyMode(serverMode(socketPath(home), home))
-		if err := runSettings(findServer(home), home, colored()); err != nil {
+		if err := runSettings(findServer(home), home, serverMode(socketPath(home), home)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn settings: %v\n", err)
 			return 1
 		}
@@ -227,13 +228,13 @@ var commands = []command{
 	// and conn runs this in the pane it opens for it.
 	{"manual", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		applyMode(serverMode(socketPath(home), home))
+		g := serverMode(socketPath(home), home).wear()
 		path, err := writeManPage(home)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}
-		if err := runManual(findServer(home), path, colored()); err != nil {
+		if err := runManual(findServer(home), path, colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}

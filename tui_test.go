@@ -15,6 +15,15 @@ import (
 // beside whatever the key itself asked for — and the status line's half
 // answers nothing, so flattening the batch leaves the one message that
 // matters.
+// plainModel is a model to work in a test: on conn's dark ground,
+// which is what every terminal was before conn learned to ask, and
+// drawn in the plain palette so that its rows are text.
+func plainModel() model {
+	m := newModel(connTheme.dark)
+	m.p = plain
+	return m
+}
+
 func answered(cmd tea.Cmd) tea.Msg {
 	if cmd == nil {
 		return nil
@@ -141,7 +150,7 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if blinkDark*2 != blinkLit {
 		t.Errorf("lit %v, dark %v: the dark half should be half of the lit", blinkLit, blinkDark)
 	}
-	m := newModel(plain)
+	m := plainModel()
 	if !m.lit {
 		t.Error("the chip starts dark")
 	}
@@ -256,7 +265,7 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 		next, _ := m.Update(processesMsg{projects: projects, gen: m.processesGen})
 		return next.(model)
 	}
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.cursor, m.now = viewProcesses, 11, time.Now()
 	m = read(m, here)
 
@@ -291,7 +300,7 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 // reading the server back: the row says it is the one shown at once,
 // and the row that was shown stops saying so.
 func TestTheReachedRowIsTheBayAtOnce(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.bay = viewProcesses, "ttys001"
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}}}}
 	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
@@ -326,7 +335,7 @@ func TestTheReachedRowIsTheBayAtOnce(t *testing.T) {
 // sub-process would pick out the one thing in the pane that is not what
 // is in the bay.
 func TestReachingFromInsideATreePutsTheCursorOnItsHead(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 9, tty: "ttys001"},
@@ -358,7 +367,7 @@ func TestReachingFromInsideATreePutsTheCursorOnItsHead(t *testing.T) {
 // else is one key from the thing that has waited longest.
 func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 	at := func(s int) time.Time { return time.Now().Add(time.Duration(-s) * time.Second) }
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 11, status: statusIdle},
@@ -397,7 +406,7 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 // holds no pane for is gone to on the panel and the keys stay. Asked
 // from another view, the processes view is put up on the way.
 func TestTabReachesTheWaitingContact(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.srv = viewProcesses, true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 11, status: statusIdle, tty: "ttys001"},
@@ -439,7 +448,7 @@ func TestTabReachesTheWaitingContact(t *testing.T) {
 // shell there; outside the server nothing can be opened, and off any
 // project there is nothing to open it at.
 func TestAOpensAContactAtTheProject(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
 	m.cursor = 11
@@ -474,7 +483,7 @@ func TestAOpensAContactAtTheProject(t *testing.T) {
 // alone. Plain A is not bound to it — a shift chord costs the same as
 // an alt one, so there is no reason to answer to both.
 func TestAltAOpensSessionsAtTheProject(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
 	m.cursor = 11
@@ -511,7 +520,7 @@ func TestAltAOpensSessionsAtTheProject(t *testing.T) {
 // x arms a kill on the entry under the cursor rather than sending one;
 // off any entry there is nothing to arm, and it says so.
 func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, kind: kindContact, command: "claude"}}}}
 	m.cursor = 11
@@ -565,7 +574,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 // DOWN in one move; on one that has ended, the pane alone, since there
 // is nothing left to stop.
 func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	mark := markDeclared("/w", "web")
 	m.projects = []project{{path: "/w", entries: []entry{
@@ -596,7 +605,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 // cancels, and takes the key that cancelled it rather than also acting
 // on it — j does not also move the cursor.
 func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, kind: kindContact, command: "claude"}}}}
 	m.cursor = 11
@@ -634,7 +643,7 @@ func TestAnArmedKillIsConfirmedOrCancelled(t *testing.T) {
 // After a kill the table is read again after a beat, so the row is not
 // read a moment too soon.
 func TestAKilledMsgRereads(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	_, cmd := m.Update(killedMsg{command: "claude", pid: 11, sig: syscall.SIGTERM})
 	if cmd == nil {
@@ -648,7 +657,7 @@ func TestAKilledMsgRereads(t *testing.T) {
 // comes back to the processes view, and the processes view reads
 // again.
 func TestTheListIsALineTypedInto(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.width, m.height = viewProcesses, 48, 30
 	key := func(m model, k string) (model, tea.Cmd) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k, Code: rune(k[0])}))
@@ -707,7 +716,7 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 // processes view, where the shell will show. Outside the server nothing
 // can be opened, and the list holds.
 func TestEnterOpensAShellAtTheProject(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.walked, m.find.at = viewProjects, testProjects, 3
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
@@ -731,7 +740,7 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 // there — plain a is a letter to type into the filter, and ctrl+a is
 // the start of the line, so this is the list's key for it.
 func TestAltAOpensAnAgentAtTheProject(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.walked, m.find.at = viewProjects, testProjects, 3
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
 
@@ -752,7 +761,7 @@ func TestAltAOpensAnAgentAtTheProject(t *testing.T) {
 // — a shift chord costs the same as an alt one, so there is no reason
 // to give up typing a capital letter into the filter for it.
 func TestAltAOpensSessionsFromProjects(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.walked, m.find.at = viewProjects, testProjects, 0 // arboreum.io, a group of two
 	m.inside = true
 
@@ -785,7 +794,7 @@ func TestAltAOpensSessionsFromProjects(t *testing.T) {
 // and ctrl+u widen it again, and esc leaves without continuing
 // anything.
 func TestSessionsIsALineTypedInto(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.sessions = viewSessions, testSessions2
 	key := func(m model, k string) (model, tea.Cmd) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
@@ -816,7 +825,7 @@ func TestSessionsIsALineTypedInto(t *testing.T) {
 // shell will show; outside the server nothing can be opened, and the
 // sessions view holds.
 func TestEnterResumesTheSessionUnderTheCursor(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.sessions, m.rfind.at = viewSessions, testSessions2, 1
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
@@ -838,7 +847,7 @@ func TestEnterResumesTheSessionUnderTheCursor(t *testing.T) {
 // project — or closed — is dropped: only the one that asked for these
 // dirs wants them.
 func TestAStaleSessionsAnswerIsDropped(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.sessionsDirs, m.sessionsLoading = viewSessions, []string{"/a"}, true
 
 	next, _ := m.Update(sessionsMsg{dirs: []string{"/b"}, sessions: testSessions2})
@@ -864,7 +873,7 @@ func TestAStaleSessionsAnswerIsDropped(t *testing.T) {
 // the processes view itself, where the keys already were, it is the
 // other process.
 func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
-	base := newModel(plain)
+	base := plainModel()
 	base.inside, base.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	base.projects = []project{{path: "/w", entries: []entry{
 		{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}, {pid: 23, tty: "ttys002", depth: 1},
@@ -948,7 +957,7 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 // letter being typed.
 func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	panel := func(view int) model {
-		m := newModel(plain)
+		m := plainModel()
 		m.inside, m.view = true, view
 		m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
 		m.cursor = 11
@@ -1023,7 +1032,7 @@ func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 // view, and to the pane the keys came from. Opened from the panel
 // there is nowhere to go back to.
 func TestCancellingADetourGivesTheKeysBack(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.inside, m.view, m.srv = true, viewProjects, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 
 	// Cancelling a visit a chord brought about asks for the pane back.
@@ -1080,7 +1089,7 @@ func TestCancellingADetourGivesTheKeysBack(t *testing.T) {
 // what is on its screen, so a key of that name would teach a wrong
 // meaning.
 func TestTheMotionsReachTheEnds(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []project{
 		{path: "/w", entries: []entry{{pid: 11}, {pid: 22}}},
@@ -1126,7 +1135,7 @@ func TestTheMotionsReachTheEnds(t *testing.T) {
 // panel key then p, the way to a process on a machine with more of them
 // than there are rows to draw.
 func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	rows := m.projectRows()
@@ -1185,7 +1194,7 @@ func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 // index alone: it holds the row it was on — a process by its pid, a
 // project by its path — as processes come and go under it.
 func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
 	m.find.at = 0
 	for i, r := range m.projectRows() {
@@ -1221,7 +1230,7 @@ func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
 // than read off the bay. The cursor is not consulted — enter is for the
 // row you are looking at, esc for the process you came out of.
 func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.projects, m.panes = viewProcesses, testRunning, testPanes
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	// The status line has been said once already, and the spinner is
@@ -1317,7 +1326,7 @@ func withPane(panes map[string]pane, p pane) map[string]pane {
 // remembered nothing at all. The key then did nothing for as long as
 // the page existed, on every row and not only on a service's.
 func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.inside, m.view = true, viewProcesses
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.panes = map[string]pane{
@@ -1379,7 +1388,7 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	app := "/Users/w0zro/projects/w0zro/app"
 	down := entry{pid: declaredPID(app, "web"), kind: kindRun, command: "web · npm run dev", status: statusDown, declared: markDeclared(app, "web")}
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []project{{path: app, entries: []entry{down}}}
 	m.declared = map[string]declared{app: {list: []declaration{{name: "web", command: "npm run dev"}}}}
@@ -1449,7 +1458,7 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 func TestXOnADeclaredRow(t *testing.T) {
 	app := "/Users/w0zro/projects/w0zro/app"
 	mark := markDeclared(app, "web")
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.srv = viewProcesses, true, &server{tmux: "/nonexistent/tmux"}
 	m.projects = []project{{path: app, entries: []entry{
 		{pid: declaredPID(app, "web"), kind: kindRun, status: statusDown, declared: mark},
@@ -1497,7 +1506,7 @@ func TestZShowsTheWholeTree(t *testing.T) {
 		{pid: 1, kind: kindShell, typed: "zsh", status: statusActive},
 		{pid: 2, kind: kindRun, typed: "go test ./...", status: statusActive, depth: 1},
 	}}}
-	m := newModel(plain)
+	m := plainModel()
 	m.view = viewProcesses
 	next, _ := m.Update(processesMsg{projects: fold(tree), tree: tree})
 	m = next.(model)
@@ -1534,7 +1543,7 @@ func TestZShowsTheWholeTree(t *testing.T) {
 // was pressed and nothing happened. What the server said is said
 // under the rows, in its own words, until the next key.
 func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	next, _ := m.Update(noticeMsg{"the shell could not be opened: tmux swap-pane: can't find pane: %9"})
 	m = next.(model)
@@ -1552,7 +1561,7 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 // second on the same row goes in; a click on another row, or a key
 // between the two, makes the next one a first again.
 func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.focused, m.looking = viewProcesses, true, true, true
 	m.srv, m.width, m.height = &server{}, panelWidth, 30
 	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
@@ -1604,7 +1613,7 @@ func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
 // way j and k do; a click on an eyebrow, a rule or the air between
 // projects moves nothing, and a click in another view is nothing.
 func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 30
 	m.projects = []project{{path: "/w/a", entries: []entry{
 		{pid: 11, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys001", status: statusIdle},

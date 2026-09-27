@@ -387,7 +387,7 @@ func TestTheManPageIsHeldToTheBinary(t *testing.T) {
 			t.Errorf("the page offers %q, which conn does not answer to", line)
 		}
 	}
-	bound := regexp.MustCompile(`(?m)^bind (\S+) (\S+) `).FindAllStringSubmatch(tmuxConf(defaultKey), -1)
+	bound := regexp.MustCompile(`(?m)^bind (\S+) (\S+) `).FindAllStringSubmatch(tmuxConf(defaultKey, connTheme.dark), -1)
 	if len(bound) != 1 || bound[0][1] != "-n" || bound[0][2] != defaultKey {
 		t.Fatalf("conn binds %v, not the panel key alone in the root table", bound)
 	}

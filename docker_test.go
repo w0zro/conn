@@ -291,7 +291,7 @@ func TestAContainerTakesThePaneConnOpenedForIt(t *testing.T) {
 // pane, goes into it the way enter goes into anything. s opens a shell
 // inside the container rather than at the directory it was started for.
 func TestEnterAndSActOnTheContainer(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
@@ -370,7 +370,7 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 // kill: there is no process here to signal. One already stopped is left
 // alone, the question being about nothing.
 func TestXStopsAContainer(t *testing.T) {
-	m := newModel(plain)
+	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	m.projects = []project{{path: "/p", entries: []entry{

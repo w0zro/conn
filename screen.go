@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -33,36 +32,38 @@ type palette struct {
 
 var plain = palette{plain: true}
 
-// ansiHex is a hex color, conn's own or a program's, as the escape a
-// terminal wants: 38 for ink, 48 for a ground.
-func ansiHex(code int, h string) string {
-	h = strings.TrimPrefix(h, "#")
-	v, _ := strconv.ParseUint(h, 16, 32)
-	return fmt.Sprintf("\x1b[%d;2;%d;%d;%dm", code, v>>16&0xFF, v>>8&0xFF, v&0xFF)
+// inkIn is a hex of a ground's table as the sequence that draws text
+// in it, and groundIn as the one that lays a ground of it: x/ansi
+// writes the style, and conn only says which color and which side.
+func inkIn(h string) string {
+	return ansi.Style{}.ForegroundColor(rgb(h)).String()
 }
 
-// colored draws the boot console on whichever ground applyMode last
-// picked: the console's own tokens are conn's scheme, so light or dark
-// reaches this palette the same way it reaches everything else conn
-// draws.
-func colored() palette {
+func groundIn(h string) string {
+	return ansi.Style{}.BackgroundColor(rgb(h)).String()
+}
+
+// colored is the palette on a ground: the console's own tokens are
+// the ground's table, so light or dark reaches this palette the same
+// way it reaches everything else conn draws.
+func colored(g ground) palette {
 	p := palette{
-		ground:    ansiHex(48, hex(groundColor)),
-		border:    ansiHex(38, borderHex),
-		ink:       ansiHex(38, hex(inkColor)),
-		gray:      ansiHex(38, grayHex),
-		faint:     ansiHex(38, faintHex),
-		orange:    ansiHex(38, cursorHex),
-		parchment: ansiHex(38, parchmentHex),
-		bold:      "\x1b[1m",
-		chip:      ansiHex(48, cursorHex) + ansiHex(38, hex(groundColor)) + "\x1b[1m",
-		selection: ansiHex(48, borderHex),
-		surface:   ansiHex(48, surfaceHex),
-		well:      ansiHex(48, hex(groundColor)),
-		edge:      ansiHex(38, surfaceHex),
-		running:   ansiHex(38, runningHex),
-		struck:    "\x1b[9m",
-		end:       "\x1b[0m",
+		ground:    groundIn(hex(g.ground)),
+		border:    inkIn(g.border),
+		ink:       inkIn(hex(g.ink)),
+		gray:      inkIn(g.gray),
+		faint:     inkIn(g.faint),
+		orange:    inkIn(g.accent),
+		parchment: inkIn(g.parchment),
+		bold:      ansi.Style{}.Bold().String(),
+		chip:      ansi.Style{}.BackgroundColor(rgb(g.accent)).ForegroundColor(g.ground).Bold().String(),
+		selection: groundIn(g.border),
+		surface:   groundIn(g.surface),
+		well:      groundIn(hex(g.ground)),
+		edge:      inkIn(g.surface),
+		running:   inkIn(g.running),
+		struck:    ansi.Style{}.Strikethrough(true).String(),
+		end:       ansi.Style{}.Reset().String(),
 	}
 	p.normal = p.end + p.ground + p.ink
 	return p

@@ -55,7 +55,7 @@ func startScratch(t *testing.T) *scratch {
 	s := &scratch{t: t, srv: &server{tmux: tmux, socket: filepath.Join(dir, "sock")}, dir: dir}
 	t.Cleanup(func() { _, _ = s.srv.run("kill-server") })
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space")), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", connTheme.dark)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	home := filepath.Join(dir, "home")
@@ -268,7 +268,7 @@ func (s *scratch) rowSays(name, word string) bool {
 // edge to edge, which the capture keeps as the selection's color.
 func (s *scratch) cursorAmongShells() int {
 	out, _ := s.srv.run("capture-pane", "-e", "-p", "-t", sessionName+":"+homeWindow+".0")
-	raised := "48;2;" + rgbOf(borderHex)
+	raised := "48;2;" + rgbOf(connTheme.dark.border)
 	n := 0
 	for _, line := range strings.Split(out, "\n") {
 		plain := stripEscapes(line)
@@ -735,7 +735,6 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 // the mode file says the new one, and the panel comes back painting
 // from it — no conn down in between.
 func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
-	holdMode(t)
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
 	// The scratch server rose on dark, the ground of a terminal that
@@ -748,22 +747,18 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	// under test is the ground, so the same steps run without a client.
 	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
-	applyMode(connOn(false))
-	confText := tmuxConf("C-Space")
-	applyMode(connOn(true)) // the rest of this test reads the dark table
-	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
+	light := connOn(false).wear()
+	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", light)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeMode(srv.socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
-	// reground paints the panel's pane from the table in force, which
-	// for the conn asking is the ground it asks for.
-	applyMode(connOn(false))
-	if err := srv.reground(conf, surfaceHex, "", true); err != nil {
+	// reground paints the panel's pane on the surface of the ground
+	// asked for.
+	if err := srv.reground(conf, light.surface, "", true); err != nil {
 		t.Fatal(err)
 	}
-	applyMode(connOn(true))
 
 	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.light.scheme[0]) {
 		t.Errorf("slot 0 is %q after regrounding, not light's %q", got, connTheme.light.scheme[0])
@@ -794,7 +789,6 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 // change, the mode file names the theme, and the panel comes back
 // painting from it.
 func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
-	holdMode(t)
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
 	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
@@ -804,22 +798,17 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
 	datum := mode{theme: "datum", dark: true}
-	applyMode(datum)
-	confText := tmuxConf("C-Space")
-	applyMode(connOn(true)) // the rest of this test reads conn's table
-	if err := os.WriteFile(conf, []byte(confText), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", datum.wear())), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := writeMode(srv.socket, datum); err != nil {
 		t.Fatal(err)
 	}
-	// reground paints the panel's pane from the table in force, which
-	// for the conn asking is the ground it asks for.
-	applyMode(datum)
-	if err := srv.reground(conf, surfaceHex, "", true); err != nil {
+	// reground paints the panel's pane on the surface of the ground
+	// asked for.
+	if err := srv.reground(conf, datum.wear().surface, "", true); err != nil {
 		t.Fatal(err)
 	}
-	applyMode(connOn(true))
 
 	for _, c := range []struct{ option, want string }{
 		{"pane-colours[0]", datumTheme.dark.scheme[0]},
@@ -888,7 +877,6 @@ func TestTheKeysStandOnThePanelWhileTheManualIsUp(t *testing.T) {
 // ground, the file names both, and the pane the settings are in is the
 // same pane it was.
 func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
-	holdMode(t)
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
 	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
@@ -999,7 +987,6 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	if tmux == "" {
 		t.Skip("tmux is not installed")
 	}
-	holdMode(t)
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // no configuration of the machine's own
 
@@ -1023,17 +1010,15 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// What attach does with a mode file already there: read it, and put
-	// every color conn draws from on that ground, before tmuxConf is
-	// asked for the server's own drawing.
+	// What attach does with a mode file already there: read it, and
+	// write the server's own drawing from the ground it wears.
 	m, ok := readModeFile(srv.socket)
 	if !ok || m != connOn(false) {
 		t.Fatalf("readModeFile = (%+v, %v), want (conn light, true)", m, ok)
 	}
-	applyMode(m)
 
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf(defaultKey)), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(defaultKey, m.wear())), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(tmux, "-S", srv.socket, "-f", conf, "new-session", "-d",

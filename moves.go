@@ -143,3 +143,18 @@ func (m model) raiseOn(e entry) tea.Cmd {
 	}
 	return m.raise(path, d, m.panes[e.tty].id, false)
 }
+
+// rowDown says whether a row is a declaration that is not up, which is
+// what u would bring up: down, or ended and holding its pane; a brew
+// service, by brew's word.
+func rowDown(e entry, panes map[string]pane) bool {
+	switch {
+	case e.declared == "":
+		return false
+	case e.brew != "":
+		return e.status != statusActive
+	case e.tty == "":
+		return e.status == statusDown
+	}
+	return panes[e.tty].exit != ""
+}

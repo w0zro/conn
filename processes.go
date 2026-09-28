@@ -749,15 +749,15 @@ func (m model) processesKey(k, came string) (tea.Model, tea.Cmd) {
 			return m, m.serverCmd(func() error { return m.srv.wide() })
 		}
 	case k == "j" || k == "down":
-		m.cursor, m.cursorAt = follow(m.projects, 0, ring(m.cursorAt+1, rowsIn(m.projects)))
+		m = m.onRow(0, ring(m.cursorAt+1, rowsIn(m.projects)))
 	case k == "k" || k == "up":
-		m.cursor, m.cursorAt = follow(m.projects, 0, ring(m.cursorAt-1, rowsIn(m.projects)))
+		m = m.onRow(0, ring(m.cursorAt-1, rowsIn(m.projects)))
 	case k == "g":
 		// Nothing yet: g is the half of a motion, and what it means is
 		// decided by the key after it.
 		m.firstG = true
 	case k == "G":
-		m.cursor, m.cursorAt = follow(m.projects, 0, rowsIn(m.projects)-1)
+		m = m.onRow(0, rowsIn(m.projects)-1)
 	case k == "z":
 		// The whole tree, or the fold of it again. The rows are re-made
 		// from the reading held, so the change is at once; the cursor
@@ -769,7 +769,7 @@ func (m model) processesKey(k, came string) (tea.Model, tea.Cmd) {
 			if !m.full {
 				m.projects = fold(m.tree)
 			}
-			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
+			m = m.onRow(m.cursor, m.cursorAt)
 		}
 	case k == "enter":
 		if e, _, ok := m.under(); ok {
@@ -864,7 +864,7 @@ func (m model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	pid := rows[msg.Y].pid
-	m.cursor, m.cursorAt = follow(m.projects, pid, m.cursorAt)
+	m = m.onRow(pid, m.cursorAt)
 	if m.clicked == pid {
 		m.clicked = 0
 		if e, _, ok := m.under(); ok {
@@ -908,7 +908,7 @@ func (m model) toWaiting() (tea.Model, tea.Cmd) {
 // one. A row conn only reports is gone to on the panel, and the keys
 // stay where they are, there being nothing to put them in.
 func (m model) goTo(next entry) (tea.Model, tea.Cmd) {
-	m.cursor, m.cursorAt = follow(m.projects, next.pid, m.cursorAt)
+	m = m.onRow(next.pid, m.cursorAt)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
 		console := m.view == viewConsole
@@ -973,6 +973,13 @@ func (m model) under() (entry, project, bool) {
 		}
 	}
 	return entry{}, project{}, false
+}
+
+// onRow puts the cursor on the row of pid where it is listed, and on
+// the row at otherwise, held within the rows there are; see follow.
+func (m model) onRow(pid, at int) model {
+	m.cursor, m.cursorAt = follow(m.projects, pid, at)
+	return m
 }
 
 // follow finds the cursor after the rows change: the row of its pid,

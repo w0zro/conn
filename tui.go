@@ -1184,7 +1184,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// purpose, and stays cleared until the operator moves it
 		// themselves.
 		if m.detour.to == noDetour {
-			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
+			m = m.onRow(m.cursor, m.cursorAt)
 		}
 		// The reading the console was waiting on: the processes view goes up
 		// with its rows already in it, drawn at the panel's width, and the
@@ -1313,7 +1313,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	half := m.firstG
 	m.firstG = false
 	if half && k == "g" {
-		m.cursor, m.cursorAt = follow(m.projects, 0, 0)
+		m = m.onRow(0, 0)
 		return m, nil
 	}
 	// The keys arriving on the panel, which the panel key sends after

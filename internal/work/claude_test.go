@@ -297,6 +297,35 @@ func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
 	}
 }
 
+// A session is called by its rename where it has one, and otherwise by
+// the title Claude Code gave it, the last of either settling it. These
+// are the orders the records come in: a rename written on its own when
+// it is made, and again just before each title after it.
+func TestTitleOfPrefersARename(t *testing.T) {
+	ai := func(s string) string { return `{"type":"ai-title","aiTitle":"` + s + `"}` }
+	rename := func(s string) string { return `{"type":"custom-title","customTitle":"` + s + `"}` }
+	user := `{"type":"user","message":{"content":"go on"}}`
+	for _, c := range []struct {
+		name  string
+		lines []string
+		want  string
+	}{
+		{"no title", []string{user}, ""},
+		{"titled", []string{ai("First"), user, ai("Second")}, "Second"},
+		{"just renamed", []string{ai("Auto"), user, rename("Mine")}, "Mine"},
+		{"renamed, and a turn since", []string{ai("Auto"), rename("Mine"), user, rename("Mine"), ai("Auto again")}, "Mine"},
+		{"renamed twice", []string{rename("Old"), ai("Auto"), user, rename("New"), ai("Auto")}, "New"},
+	} {
+		var lines [][]byte
+		for _, l := range c.lines {
+			lines = append(lines, []byte(l))
+		}
+		if got := titleOf(lines); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
 // The recent sessions are every project's, newest first, each with the
 // directory its transcript says it was had in, since the directory it
 // is filed under cannot be read back into a path. A rename, written

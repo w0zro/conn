@@ -379,19 +379,35 @@ func ReadAsk(path string) Ask {
 	return askOf(lines)
 }
 
-// titleOf is what a transcript says its session is about: the last
-// title record in it. Claude Code writes one from the first prompt
-// and again after each turn, and a rename writes the new name the
-// same way, so the last one is the name the session goes by now.
+// titleOf is what a transcript says its session is called: a rename,
+// where it has one, and otherwise the title Claude Code gave it. Claude
+// Code writes a title from the first prompt and again after each turn,
+// as an ai-title record; a rename is a custom-title record, written
+// when it is made and again just before each ai-title after it. So the
+// last title record settles it: a custom-title is the name, and an
+// ai-title is the name unless the record before it is a rename.
 func titleOf(lines [][]byte) string {
+	rename := func(line []byte) string {
+		var rec transcriptLine
+		if json.Unmarshal(line, &rec) == nil && rec.Type == "custom-title" {
+			return Flatten(rec.CustomTitle)
+		}
+		return ""
+	}
 	for i := len(lines) - 1; i >= 0; i-- {
-		var rec struct {
-			Type  string `json:"type"`
-			Title string `json:"aiTitle"`
+		if name := rename(lines[i]); name != "" {
+			return name
 		}
-		if json.Unmarshal(lines[i], &rec) == nil && rec.Type == "ai-title" && rec.Title != "" {
-			return Flatten(rec.Title)
+		var rec transcriptLine
+		if json.Unmarshal(lines[i], &rec) != nil || rec.Type != "ai-title" || rec.AITitle == "" {
+			continue
 		}
+		if i > 0 {
+			if name := rename(lines[i-1]); name != "" {
+				return name
+			}
+		}
+		return Flatten(rec.AITitle)
 	}
 	return ""
 }
@@ -725,7 +741,9 @@ func ReadSessionMeta(path string, c *Session) {
 	if err != nil {
 		return
 	}
-	named := false
+	// What it is called, by the rule the processes view names a
+	// contact's row by; see titleOf.
+	c.Title = titleOf(lines)
 	for i := len(lines) - 1; i >= 0; i-- {
 		var rec transcriptLine
 		if err := json.Unmarshal(lines[i], &rec); err != nil {
@@ -742,20 +760,6 @@ func ReadSessionMeta(path string, c *Session) {
 		if c.Dir == "" {
 			c.Dir = rec.Cwd
 		}
-		// What it is called. A renamed session has Claude Code write
-		// the rename again just before each title it writes itself, so
-		// the last title settles it: the record before it is the rename,
-		// where there is one, and the rename outranks it.
-		if !named && rec.Type == "custom-title" && rec.CustomTitle != "" {
-			c.Title, named = Flatten(rec.CustomTitle), true
-		}
-		if !named && rec.Type == "ai-title" && rec.AITitle != "" {
-			c.Title, named = Flatten(rec.AITitle), true
-			var prev transcriptLine
-			if i > 0 && json.Unmarshal(lines[i-1], &prev) == nil && prev.Type == "custom-title" && prev.CustomTitle != "" {
-				c.Title = Flatten(prev.CustomTitle)
-			}
-		}
 		if c.Prompt == "" && rec.Type == "last-prompt" {
 			c.Prompt = Flatten(rec.LastPrompt)
 		}
@@ -769,7 +773,7 @@ func ReadSessionMeta(path string, c *Session) {
 		if c.Model == "" && rec.Type == "assistant" && rec.Message.Model != "" {
 			c.Model, c.Carried = rec.Message.Model, rec.carried()
 		}
-		if c.Branch != "" && c.Prompt != "" && c.Model != "" && c.Dir != "" && named {
+		if c.Branch != "" && c.Prompt != "" && c.Model != "" && c.Dir != "" {
 			return
 		}
 	}

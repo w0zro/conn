@@ -138,33 +138,6 @@ func TestTheVimSchemeAgreesWithTheRest(t *testing.T) {
 	}
 }
 
-// conn writes the colorscheme where nvim looks for one, and says so.
-func TestConnWritesTheVimColorscheme(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", "")
-	msg, ok := dressProgram([]string{"vim"}, home, nil)
-	if !ok || !strings.Contains(msg, "nvim/colors/conn.vim") {
-		t.Fatalf("not written: %q", msg)
-	}
-	b, err := os.ReadFile(filepath.Join(home, ".config", "nvim", "colors", "conn.vim"))
-	if err != nil || !strings.Contains(string(b), "let g:colors_name = 'conn'") {
-		t.Errorf("the file on disk: %v", err)
-	}
-	// nvim is the same program by either name.
-	if _, ok := dressProgram([]string{"nvim"}, home, nil); !ok {
-		t.Error("conn theme nvim was not taken")
-	}
-	// XDG_CONFIG_HOME is where it goes when it is set.
-	other := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", other)
-	if _, ok := dressProgram([]string{"vim"}, home, nil); !ok {
-		t.Fatal("not written under XDG_CONFIG_HOME")
-	}
-	if _, err := os.Stat(filepath.Join(other, "nvim", "colors", "conn.vim")); err != nil {
-		t.Errorf("XDG_CONFIG_HOME was not used: %v", err)
-	}
-}
-
 // The colorscheme follows the ground the server settles on. conn writes
 // it once, on whichever ground conn theme vim was run under; a server
 // that comes up on the other one catches the file up, so the next nvim

@@ -210,7 +210,7 @@ func themeNames() string {
 // what every terminal was before conn asked, and the safe read of a
 // query that went nowhere.
 func detectDark() bool {
-	if !stdoutIsTerminal() || !stdinIsTerminal() {
+	if !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd()) {
 		return true
 	}
 	fd := os.Stdin.Fd()

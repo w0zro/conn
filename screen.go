@@ -1,12 +1,10 @@
 package main
 
 import (
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
-	term "github.com/charmbracelet/x/term"
 )
 
 // The boot console, as the design hands it off and the brief has grown
@@ -603,14 +601,6 @@ func cased(value string, path bool) string {
 	}
 	return strings.ToUpper(value)
 }
-
-// stdoutIsTerminal says whether what conn prints is going to a person's
-// screen, or to a pipe or file. A character device is not enough:
-// /dev/null is one, and nobody reads it.
-func stdoutIsTerminal() bool { return term.IsTerminal(os.Stdout.Fd()) }
-
-// stdinIsTerminal says whether there is somebody there to answer.
-func stdinIsTerminal() bool { return term.IsTerminal(os.Stdin.Fd()) }
 
 // fit holds a value to w columns. A path is shortened between its head
 // and its end so the name it leads to is what survives; anything else is

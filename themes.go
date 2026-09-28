@@ -253,3 +253,8 @@ func configTheme(home string) string {
 	}
 	return defaultTheme
 }
+
+// hex is a color as a terminal wants it written.
+func hex(c color.RGBA) string {
+	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
+}

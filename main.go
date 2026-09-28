@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	term "github.com/charmbracelet/x/term"
 )
 
 // dressProgram writes a theme for a program conn holds but cannot dress
@@ -294,3 +295,11 @@ func say(msg string, ok bool) int {
 	fmt.Print(msg)
 	return 0
 }
+
+// stdoutIsTerminal says whether what conn prints is going to a person's
+// screen, or to a pipe or file. A character device is not enough:
+// /dev/null is one, and nobody reads it.
+func stdoutIsTerminal() bool { return term.IsTerminal(os.Stdout.Fd()) }
+
+// stdinIsTerminal says whether there is somebody there to answer.
+func stdinIsTerminal() bool { return term.IsTerminal(os.Stdin.Fd()) }

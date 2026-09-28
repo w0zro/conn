@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -274,11 +273,6 @@ func oscColors(g ground) string {
 const paddingHex = "#000000"
 
 const oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\"
-
-// hex is a color as a terminal wants it written.
-func hex(c color.RGBA) string {
-	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
-}
 
 // withoutTmux is an environment with tmux's own variables dropped.
 func withoutTmux(env []string) []string {

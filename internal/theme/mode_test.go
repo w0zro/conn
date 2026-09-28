@@ -172,8 +172,8 @@ func TestAModeWearsAGround(t *testing.T) {
 		if g != c.want {
 			t.Errorf("%+v wears %s, not the ground asked for", c.m, Hex(g.Ground))
 		}
-		if g.ClaudeBase() != c.base || g.VimBackground() != c.vim {
-			t.Errorf("%+v tells Claude Code %q and nvim %q", c.m, g.ClaudeBase(), g.VimBackground())
+		if g.claudeBase() != c.base || g.vimBackground() != c.vim {
+			t.Errorf("%+v tells Claude Code %q and nvim %q", c.m, g.claudeBase(), g.vimBackground())
 		}
 	}
 	if Hex(connOn(true).Wear().Ground) != "#15130F" || connOn(true).Wear().Accent != "#E85D2F" ||
@@ -286,7 +286,7 @@ func TestIsDark(t *testing.T) {
 		{"black", 0, 0, 0, true},
 		{"a saturated blue", 0x2020, 0x4040, 0xffff, true},
 	} {
-		if got := IsDark(color.RGBA64{R: c.r, G: c.g, B: c.b, A: 0xffff}); got != c.dark {
+		if got := isDark(color.RGBA64{R: c.r, G: c.g, B: c.b, A: 0xffff}); got != c.dark {
 			t.Errorf("IsDark(%s) = %v, want %v", c.name, got, c.dark)
 		}
 	}

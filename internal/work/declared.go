@@ -55,11 +55,11 @@ type Declaration struct {
 // without quoting.
 var declaredNameOK = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-// ParseDeclared reads the file's text. A line that will not parse is an
+// parseDeclared reads the file's text. A line that will not parse is an
 // error naming the line, in the voice conn's own configuration is read
 // in: the file is there, somebody meant it to be read, and the reader's
 // next move is to open it at that line.
-func ParseDeclared(text string) ([]Declaration, error) {
+func parseDeclared(text string) ([]Declaration, error) {
 	var out []Declaration
 	seen := map[string]bool{}
 	for i, line := range strings.Split(text, "\n") {
@@ -112,7 +112,7 @@ func ReadDeclared(project string) ([]Declaration, error) {
 	if err != nil {
 		return nil, err
 	}
-	list, err := ParseDeclared(string(b))
+	list, err := parseDeclared(string(b))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", DeclaredName, err)
 	}
@@ -154,11 +154,11 @@ type Declared struct {
 	stamps   map[string]string
 }
 
-// ComposeArgs reads a declared command that runs compose: the words
+// composeArgs reads a declared command that runs compose: the words
 // between compose and up, which are compose's own — a file, a project
 // name — and the services named after up, if any. A command that is
 // not a compose up is not one.
-func ComposeArgs(command string) (pre, named []string, ok bool) {
+func composeArgs(command string) (pre, named []string, ok bool) {
 	fields := strings.Fields(command)
 	if len(fields) < 2 {
 		return nil, nil, false
@@ -214,13 +214,13 @@ func composeFilesStamp(dir string, pre []string) string {
 	return b.String()
 }
 
-// ComposeServices is what a compose up would bring up: the services it
+// composeServices is what a compose up would bring up: the services it
 // names, or, naming none, every service compose finds in its files —
 // asked of compose itself, with the same words the declaration gives
 // it, so that every file, override and profile compose would read is
 // read the way compose reads it, and conn parses no YAML of its own.
 // Without docker there is nothing to ask, and nothing is said.
-func ComposeServices(dir string, pre, named []string) []string {
+func composeServices(dir string, pre, named []string) []string {
 	if len(named) > 0 {
 		return named
 	}
@@ -247,7 +247,7 @@ func ComposeServices(dir string, pre, named []string) []string {
 func composeServicesOf(path string, list []Declaration, was Declared) (map[string][]string, map[string]string) {
 	services, stamps := map[string][]string{}, map[string]string{}
 	for _, d := range list {
-		pre, named, ok := ComposeArgs(d.Command)
+		pre, named, ok := composeArgs(d.Command)
 		if !ok {
 			continue
 		}
@@ -256,7 +256,7 @@ func composeServicesOf(path string, list []Declaration, was Declared) (map[strin
 			services[d.Name], stamps[d.Name] = s, stamp
 			continue
 		}
-		services[d.Name], stamps[d.Name] = ComposeServices(d.At(path), pre, named), stamp
+		services[d.Name], stamps[d.Name] = composeServices(d.At(path), pre, named), stamp
 	}
 	return services, stamps
 }
@@ -455,7 +455,7 @@ func AttachDeclared(projects []Project, declared map[string]Declared, panes map[
 	sort.Strings(paths)
 	for _, path := range paths {
 		d := declared[path]
-		i := BlockOf(out, path)
+		i := blockOf(out, path)
 		if i < 0 {
 			// Nothing of the project is running, and it declares what
 			// should be: the block stands empty and takes the down rows
@@ -612,9 +612,9 @@ func servicesUnder(out []Project, pid int, path string, decl Declaration, servic
 	}
 }
 
-// BlockOf is the index of a project's block, or below zero where the
+// blockOf is the index of a project's block, or below zero where the
 // project has none.
-func BlockOf(out []Project, path string) int {
+func blockOf(out []Project, path string) int {
 	for i, pl := range out {
 		if pl.Path == path {
 			return i

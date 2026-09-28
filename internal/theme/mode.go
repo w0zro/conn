@@ -224,12 +224,12 @@ func detectDark() bool {
 	if err != nil || bg == nil {
 		return true
 	}
-	return IsDark(bg)
+	return isDark(bg)
 }
 
-// IsDark reads a ground as dark or light by the same relative luminance
+// isDark reads a ground as dark or light by the same relative luminance
 // a screen reader uses to say if text passes on it: below half is dark.
-func IsDark(c color.Color) bool {
+func isDark(c color.Color) bool {
 	r, g, b, _ := c.RGBA()
 	luminance := 0.2126*float64(r) + 0.7152*float64(g) + 0.0722*float64(b)
 	return luminance/0xffff < 0.5

@@ -17,7 +17,7 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 		Base      string            `json:"base"`
 		Overrides map[string]string `json:"overrides"`
 	}
-	out := ClaudeThemeJSON(Conn.Dark)
+	out := claudeThemeJSON(Conn.Dark)
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("not a theme file: %v\n%s", err, out)
 	}

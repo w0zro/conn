@@ -60,12 +60,12 @@ func claudeConfigDir() string {
 // every character that is not a letter or digit becomes a dash.
 var notAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 
-func EncodePath(p string) string { return notAlnum.ReplaceAllString(p, "-") }
+func encodePath(p string) string { return notAlnum.ReplaceAllString(p, "-") }
 
-// IsSessionID reports whether a transcript's stem is shaped like the
+// isSessionID reports whether a transcript's stem is shaped like the
 // ids Claude writes — hex and dashes. The id ends up on a shell command
 // line, so anything else found beside the transcripts is not one.
-func IsSessionID(id string) bool {
+func isSessionID(id string) bool {
 	if id == "" {
 		return false
 	}
@@ -248,12 +248,12 @@ func askDetail(input map[string]json.RawMessage) string {
 	return ""
 }
 
-// DoingWord is a tool call as the processes view's activity column says it: a
+// doingWord is a tool call as the processes view's activity column says it: a
 // verb and an object, in the lower case a command is typed in. A file
 // is named by its base name, a command by itself, and anything else by
 // the tool's own name and what it was asked. A question put to the
 // operator is not an activity and gets no word.
-func DoingWord(name string, input map[string]json.RawMessage) string {
+func doingWord(name string, input map[string]json.RawMessage) string {
 	field := func(k string) string {
 		var v string
 		if raw, ok := input[k]; ok && json.Unmarshal(raw, &v) == nil {
@@ -306,10 +306,10 @@ func doing(verb, object string) string {
 	return verb + " " + object
 }
 
-// A transcript as it was last read for a row's activity: its size and
-// its moment, and the word read off it. The file is the same file
-// until those change, and a working contact's transcript is read on
-// every beat otherwise.
+// An ActivitySeen is a transcript as it was last read for a row's
+// activity: its size and its moment, and the word read off it. The file
+// is the same file until those change, and a working contact's
+// transcript is read on every beat otherwise.
 type ActivitySeen struct {
 	size  int64
 	mod   time.Time
@@ -439,7 +439,7 @@ func askOf(lines [][]byte) Ask {
 				switch it.Type {
 				case "tool_use":
 					if !answered[it.ID] && a.Tool == "" {
-						a.Tool, a.Detail, a.Doing = it.Name, askDetail(it.Input), DoingWord(it.Name, it.Input)
+						a.Tool, a.Detail, a.Doing = it.Name, askDetail(it.Input), doingWord(it.Name, it.Input)
 					}
 				case "text":
 					if t := Flatten(it.Text); t != "" && a.Said == "" {
@@ -579,13 +579,13 @@ func ClaudeSuspended(dirs []string, projects []Project) []Session {
 	seen := map[string]bool{}
 	var out []Session
 	for _, dir := range dirs {
-		entries, err := os.ReadDir(filepath.Join(root, EncodePath(dir)))
+		entries, err := os.ReadDir(filepath.Join(root, encodePath(dir)))
 		if err != nil {
 			continue
 		}
 		for _, e := range entries {
 			id := strings.TrimSuffix(e.Name(), ".jsonl")
-			if e.IsDir() || id == e.Name() || !IsSessionID(id) || live[id] || seen[id] {
+			if e.IsDir() || id == e.Name() || !isSessionID(id) || live[id] || seen[id] {
 				continue
 			}
 			info, err := e.Info()
@@ -594,7 +594,7 @@ func ClaudeSuspended(dirs []string, projects []Project) []Session {
 			}
 			seen[id] = true
 			c := Session{ID: id, Dir: dir, When: info.ModTime()}
-			ReadSessionMeta(filepath.Join(root, EncodePath(dir), e.Name()), &c)
+			ReadSessionMeta(filepath.Join(root, encodePath(dir), e.Name()), &c)
 			out = append(out, c)
 		}
 	}
@@ -743,5 +743,5 @@ const ContactProgram = "claude"
 
 // SessionPath is where claude files a session had in a directory.
 func SessionPath(dir, id string) string {
-	return filepath.Join(claudeConfigDir(), "projects", EncodePath(dir), id+".jsonl")
+	return filepath.Join(claudeConfigDir(), "projects", encodePath(dir), id+".jsonl")
 }

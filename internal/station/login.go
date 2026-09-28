@@ -53,13 +53,13 @@ func ReadLogin() Login {
 	}
 	s.Home, _ = os.UserHomeDir()
 	if s.Shell = os.Getenv("SHELL"); s.Shell != "" {
-		s.ShellVer = FirstVersion(run(s.Shell, "--version"))
+		s.ShellVer = firstVersion(run(s.Shell, "--version"))
 	}
 	s.TTY = ttyName()
 	s.Tmux = os.Getenv("TMUX") != ""
 	client := tmuxEnvironment()
-	s.Terminal, s.TerminalVer = TerminalProgram(client)
-	s.SSHFrom = SSHOrigin(client)
+	s.Terminal, s.TerminalVer = terminalProgram(client)
+	s.SSHFrom = sshOrigin(client)
 	s.Lang = join(" · ", os.Getenv("LANG"), os.Getenv("LC_ALL"))
 	s.Zone = zoneName()
 	s.Cwd, _ = os.Getwd()
@@ -142,9 +142,9 @@ func zoneName() string {
 	return ""
 }
 
-// FirstVersion picks the version out of what a program says of itself:
+// firstVersion picks the version out of what a program says of itself:
 // the first word that starts with a digit, up to any parenthesis.
-func FirstVersion(out string) string {
+func firstVersion(out string) string {
 	for _, f := range strings.Fields(out) {
 		if f[0] >= '0' && f[0] <= '9' {
 			v, _, _ := strings.Cut(f, "(")
@@ -262,7 +262,7 @@ func readStateDir(home string) StateDir {
 	}
 }
 
-// TerminalProgram is the terminal conn is being looked at through, and
+// terminalProgram is the terminal conn is being looked at through, and
 // the version it gives for itself.
 //
 // Inside tmux, TERM_PROGRAM is tmux: the multiplexer announces itself
@@ -273,7 +273,7 @@ func readStateDir(home string) StateDir {
 // come and go. A terminal that announces nothing, or a tmux that was
 // not told to carry the answer, leaves the row with the one thing that
 // is true of it: that this is inside tmux.
-func TerminalProgram(client map[string]string) (string, string) {
+func terminalProgram(client map[string]string) (string, string) {
 	name, version := os.Getenv("TERM_PROGRAM"), os.Getenv("TERM_PROGRAM_VERSION")
 	if name != "tmux" {
 		return name, version
@@ -281,7 +281,7 @@ func TerminalProgram(client map[string]string) (string, string) {
 	return client["TERM_PROGRAM"], client["TERM_PROGRAM_VERSION"]
 }
 
-// SSHOrigin is the address this session is reached from over ssh, and
+// sshOrigin is the address this session is reached from over ssh, and
 // is blank where nothing says it is reached from anywhere.
 //
 // The row said LOCAL whenever SSH_CONNECTION was unset, which is not a
@@ -297,7 +297,7 @@ func TerminalProgram(client map[string]string) (string, string) {
 // variable as each client attaches, and it is the client that is
 // either here or somewhere else. A server that answers -SSH_CONNECTION
 // is saying the variable is unset, which is the same silence.
-func SSHOrigin(client map[string]string) string {
+func sshOrigin(client map[string]string) string {
 	origin := os.Getenv("SSH_CONNECTION")
 	if origin == "" {
 		origin = client["SSH_CONNECTION"]

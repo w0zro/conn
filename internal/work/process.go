@@ -48,7 +48,7 @@ const (
 	KindEditor  = "EDITOR"
 	KindConn    = "CONN" // conn itself; not in the processes view
 	KindRun     = "RUN"
-	KindHold    = "HOLD" // conn standing in an empty bay; not in the processes view
+	kindHold    = "HOLD" // conn standing in an empty bay; not in the processes view
 )
 
 // A name is a contact's when the name means an agent and means little
@@ -104,7 +104,7 @@ func KindOf(p Process) string {
 	name, _, _ = strings.Cut(name, " ")
 	switch {
 	case name == "conn" && len(p.Args) > 1 && p.Args[1] == "hold":
-		return KindHold
+		return kindHold
 	case name == "conn":
 		return KindConn
 	case slices.Contains(shells, name):
@@ -285,7 +285,7 @@ func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProjec
 		if p.UID != uid || p.TTY == "" {
 			continue
 		}
-		if k := KindOf(p); k != KindConn && k != KindHold {
+		if k := KindOf(p); k != KindConn && k != kindHold {
 			continue
 		}
 		seen := map[int]bool{}
@@ -319,7 +319,7 @@ func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProjec
 			}
 			if candidate[a.PID] {
 				switch KindOf(a) {
-				case KindConn, KindHold:
+				case KindConn, kindHold:
 					return true
 				}
 			}
@@ -354,7 +354,7 @@ func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProjec
 			continue
 		}
 		switch KindOf(p) {
-		case KindConn, KindHold:
+		case KindConn, kindHold:
 			continue
 		}
 		if root := rootOf(p.Cwd); isProject(root) {
@@ -368,7 +368,7 @@ func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProjec
 	scaffolding := map[int]bool{}
 	for _, p := range procs {
 		switch KindOf(p) {
-		case KindConn, KindHold:
+		case KindConn, kindHold:
 		default:
 			continue
 		}
@@ -405,7 +405,7 @@ func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProjec
 			continue
 		}
 		switch KindOf(p) {
-		case KindConn, KindHold:
+		case KindConn, kindHold:
 			continue
 		}
 		if parent, ok := treeParent(p); ok {
@@ -463,9 +463,9 @@ func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProjec
 		walked[pid] = true
 		p := byPid[pid]
 		kind := KindOf(p)
-		e := Entry{PID: p.PID, Kind: kind, Command: CommandLine(p), Typed: TypedLine(p), TTY: p.TTY, Started: p.Started, Depth: depth,
+		e := Entry{PID: p.PID, Kind: kind, Command: commandLine(p), Typed: typedLine(p), TTY: p.TTY, Started: p.Started, Depth: depth,
 			Since: how[p.PID].Since, Cwd: p.Cwd, Asking: how[p.PID].asking, Sockets: p.Sockets, Ports: ListeningPorts(p.Sockets)}
-		e.Status, e.Fault = StatusOf(p, kind, len(children[pid]) > 0, how[p.PID])
+		e.Status, e.Fault = statusOf(p, kind, len(children[pid]) > 0, how[p.PID])
 		if projects[path] == nil {
 			projects[path] = &Project{Path: path}
 			order = append(order, path)
@@ -587,7 +587,7 @@ func CpuOf(procs []Process) map[int]time.Duration {
 	return out
 }
 
-// StatusOf is the word for a process as it stands. A shell is only
+// statusOf is the word for a process as it stands. A shell is only
 // idle bare, at its prompt; running anything, even nested many levels
 // down, it is active the way what it runs is. Working is narrower than
 // active and is the one worth watching: the process was doing
@@ -609,7 +609,7 @@ func CpuOf(procs []Process) map[int]time.Duration {
 // on a socket is waiting on the socket - so the word is only ever
 // about a person. It is no fault, nothing having gone wrong, so it is
 // a word of its own rather than a chip.
-func StatusOf(p Process, kind string, hasChildren bool, how Status) (string, bool) {
+func statusOf(p Process, kind string, hasChildren bool, how Status) (string, bool) {
 	switch {
 	case p.State == 'T':
 		return StatusStopped, true
@@ -628,19 +628,19 @@ func StatusOf(p Process, kind string, hasChildren bool, how Status) (string, boo
 	}
 }
 
-// CommandLine is what a process was started as: the program by its base
+// commandLine is what a process was started as: the program by its base
 // name and its arguments, or the program's name alone when the arguments
 // could not be read.
-func CommandLine(p Process) string {
+func commandLine(p Process) string {
 	return strings.Join(commandWords(p, false), " ")
 }
 
-// TypedLine is the command as the operator typed it: the same words
+// typedLine is the command as the operator typed it: the same words
 // less the argument conn adds when it starts a contact. A contact conn
 // raised read on the watch as claude --app…, which was conn showing the
 // operator the noise conn itself had made. The readout keeps the whole
 // line, being where the whole of anything goes.
-func TypedLine(p Process) string {
+func typedLine(p Process) string {
 	return strings.Join(commandWords(p, true), " ")
 }
 

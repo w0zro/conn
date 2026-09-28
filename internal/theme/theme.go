@@ -99,12 +99,12 @@ func ClaudeTheme(g Ground) [][]token {
 	}}
 }
 
-// ClaudeThemeJSON is the theme as Claude Code reads it, written in the
+// claudeThemeJSON is the theme as Claude Code reads it, written in the
 // handoff's own order and grouping rather than sorted, so the file can
 // be read against the handoff line for line.
-func ClaudeThemeJSON(g Ground) string {
+func claudeThemeJSON(g Ground) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "{\n  \"name\": \"Conn\",\n  \"base\": %q,\n  \"overrides\": {\n", g.ClaudeBase())
+	fmt.Fprintf(&b, "{\n  \"name\": \"Conn\",\n  \"base\": %q,\n  \"overrides\": {\n", g.claudeBase())
 	groups := ClaudeTheme(g)
 	for i, g := range groups {
 		for j, t := range g {
@@ -123,11 +123,11 @@ func ClaudeThemeJSON(g Ground) string {
 	return b.String()
 }
 
-// ClaudeBase is the base the theme sits on: the ansi theme Claude Code
+// claudeBase is the base the theme sits on: the ansi theme Claude Code
 // comes with for the ground conn is on, so a token conn says nothing
 // about falls through to a slot laid out for that ground.
-func (g Ground) ClaudeBase() string {
-	if g.Dark() {
+func (g Ground) claudeBase() string {
+	if g.dark() {
 		return "dark-ansi"
 	}
 	return "light-ansi"
@@ -141,7 +141,7 @@ func WriteClaudeTheme(home string, g Ground) (string, error) {
 		return "", err
 	}
 	path := filepath.Join(dir, "conn.json")
-	return path, os.WriteFile(path, []byte(ClaudeThemeJSON(g)), 0o644)
+	return path, os.WriteFile(path, []byte(claudeThemeJSON(g)), 0o644)
 }
 
 // RefreshClaudeTheme rewrites conn's theme for Claude Code if it has

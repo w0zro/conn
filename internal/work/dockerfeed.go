@@ -87,7 +87,7 @@ func StartDocker() tea.Msg {
 		Retry:     dockerRetry,
 		Settle:    dockerSettle,
 	}
-	go f.Run()
+	go f.run()
 	return DockerReadyMsg{Feed: f}
 }
 
@@ -158,10 +158,10 @@ func (f *DockerFeed) Close() {
 	}
 }
 
-// Run is the feed: a list at the start, then one for every burst of
+// run is the feed: a list at the start, then one for every burst of
 // events, every heartbeat and every poke, and the stream opened again
 // after a wait when it ends.
-func (f *DockerFeed) Run() {
+func (f *DockerFeed) run() {
 	defer close(f.Done)
 	f.tell()
 	first := true

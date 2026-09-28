@@ -9,14 +9,14 @@ import (
 // A container goes by a number below zero, where no process is, read off
 // its id so the cursor holds its row from one reading to the next.
 func TestAContainerHoldsItsRowByItsID(t *testing.T) {
-	a, b := ContainerPID("9f1c2d3e4a5b"), ContainerPID("1a2b3c4d5e6f")
+	a, b := containerPID("9f1c2d3e4a5b"), containerPID("1a2b3c4d5e6f")
 	if a >= 0 || b >= 0 {
 		t.Errorf("containers took pids %d and %d, which a process could hold", a, b)
 	}
 	if a == b {
 		t.Error("two containers share a row")
 	}
-	if ContainerPID("9f1c2d3e4a5b") != a {
+	if containerPID("9f1c2d3e4a5b") != a {
 		t.Error("a container's number moved between readings")
 	}
 }
@@ -166,7 +166,7 @@ func TestDockerAgesAreRead(t *testing.T) {
 		{"Exited (0) 2 hours ago", 2 * time.Hour, true},
 		{"Created", 0, false},
 	} {
-		got, ok := AgeOf(c.status)
+		got, ok := ageOf(c.status)
 		if got != c.want || ok != c.ok {
 			t.Errorf("%q: %v %v, want %v %v", c.status, got, ok, c.want, c.ok)
 		}
@@ -191,7 +191,7 @@ func TestDockerPsIsReadIntoContainers(t *testing.T) {
 	if got := strings.Join(web.Ports, ","); got != "8438" {
 		t.Errorf("web publishes %q", got)
 	}
-	if web.Health != "healthy" || web.Exit != "" || !web.Running() {
+	if web.Health != "healthy" || web.Exit != "" || !web.running() {
 		t.Errorf("web: health %q exit %q state %q", web.Health, web.Exit, web.State)
 	}
 	// The maintainer's label holds a comma of its own; it must not eat
@@ -207,7 +207,7 @@ func TestDockerPsIsReadIntoContainers(t *testing.T) {
 	}
 
 	worker := cs[2]
-	if worker.Exit != "3" || worker.Running() {
+	if worker.Exit != "3" || worker.running() {
 		t.Errorf("worker: exit %q state %q", worker.Exit, worker.State)
 	}
 	if got := dockerNow.Sub(worker.Since); got != 8*time.Second {

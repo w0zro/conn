@@ -110,8 +110,8 @@ func ExpandHome(path, home string) string {
 	return path // ~someone else: not conn's to guess at
 }
 
-// Which of the three answers the roots were taken from, for the console
-// to say where what it is showing came from.
+// RootSource is which of the three answers the roots were taken from,
+// for the console to say where what it is showing came from.
 type RootSource int
 
 const (

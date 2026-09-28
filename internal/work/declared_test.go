@@ -29,14 +29,14 @@ func TestAComposeDeclarationIsReadForItsWords(t *testing.T) {
 		{"npm run dev", nil, nil, false},
 		{"docker", nil, nil, false},
 	} {
-		pre, named, ok := ComposeArgs(c.command)
+		pre, named, ok := composeArgs(c.command)
 		if ok != c.ok || !slices.Equal(pre, c.pre) || !slices.Equal(named, c.named) {
 			t.Errorf("%q read as pre %q named %q ok %v", c.command, pre, named, ok)
 		}
 	}
 	// Named services are the answer without asking compose; nothing to
 	// ask with is nothing.
-	if got := ComposeServices("/nowhere", nil, []string{"web", "db"}); !slices.Equal(got, []string{"web", "db"}) {
+	if got := composeServices("/nowhere", nil, []string{"web", "db"}); !slices.Equal(got, []string{"web", "db"}) {
 		t.Errorf("named services came back as %q", got)
 	}
 }
@@ -54,7 +54,7 @@ func TestALineThatWillNotParseIsSaid(t *testing.T) {
 		{"web:   ", "line 1: web runs nothing"},
 		{"web: a\nweb: b", "line 2: web is declared twice"},
 	} {
-		_, err := ParseDeclared(c.text)
+		_, err := parseDeclared(c.text)
 		if err == nil || err.Error() != c.want {
 			t.Errorf("parseDeclared(%q) = %v, want %s", c.text, err, c.want)
 		}
@@ -66,7 +66,7 @@ func TestALineThatWillNotParseIsSaid(t *testing.T) {
 func TestAProjectWithNothingUpStandsForItsFile(t *testing.T) {
 	files := map[string]Declared{"/r/a": {List: []Declaration{{Name: "web", Command: "npm run dev"}}}}
 	out := AttachDeclared([]Project{{Path: "/r/b"}}, files, nil)
-	i := BlockOf(out, "/r/a")
+	i := blockOf(out, "/r/a")
 	if i < 0 {
 		t.Fatalf("no block for the project that declares: %v", out)
 	}
@@ -75,7 +75,7 @@ func TestAProjectWithNothingUpStandsForItsFile(t *testing.T) {
 	}
 	// A file that declares nothing stands for nothing.
 	out = AttachDeclared([]Project{{Path: "/r/b"}}, map[string]Declared{"/r/c": {}}, nil)
-	if BlockOf(out, "/r/c") >= 0 {
+	if blockOf(out, "/r/c") >= 0 {
 		t.Errorf("a file declaring nothing made a block: %v", out)
 	}
 }
@@ -178,7 +178,7 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 // blank lines are nothing; the dir is cleaned and the project itself
 // is no dir at all.
 func TestTheFileIsOneProcessALine(t *testing.T) {
-	got, err := ParseDeclared("# the processes\n\nweb frontend: npm run dev\napi: go run ./cmd/api\nworker services/queue/: make run\nhere .: ls  \n")
+	got, err := parseDeclared("# the processes\n\nweb frontend: npm run dev\napi: go run ./cmd/api\nworker services/queue/: make run\nhere .: ls  \n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestTheFileIsOneProcessALine(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parsed:\n%+v\nwant:\n%+v", got, want)
 	}
-	if got, err := ParseDeclared(""); err != nil || len(got) != 0 {
+	if got, err := parseDeclared(""); err != nil || len(got) != 0 {
 		t.Errorf("an empty file declares %v, %v", got, err)
 	}
 }

@@ -25,8 +25,8 @@ func TestEveryThemeIsWholeOnBothGrounds(t *testing.T) {
 			// follows from that - the base Claude Code's theme sits on,
 			// what nvim is told - is read off it; a dark ground that
 			// read as light would dress every program for the wrong one.
-			if g.Dark() != (on.name == "dark") {
-				t.Errorf("%s %s: the ground %s reads as %s", th.Name, on.name, Hex(g.Ground), map[bool]string{true: "dark", false: "light"}[g.Dark()])
+			if g.dark() != (on.name == "dark") {
+				t.Errorf("%s %s: the ground %s reads as %s", th.Name, on.name, Hex(g.Ground), map[bool]string{true: "dark", false: "light"}[g.dark()])
 			}
 			for i, c := range g.Scheme {
 				if !isHex.MatchString(c) {

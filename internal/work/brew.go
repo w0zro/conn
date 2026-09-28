@@ -42,7 +42,7 @@ const (
 	// boots brew's ruby, half a second of a core, and a service does
 	// not change on its own between one and the next; a start or a
 	// stop from the panel asks again at once.
-	BrewBeat = 15 * time.Second
+	brewBeat = 15 * time.Second
 )
 
 var BrewPath = station.LookPath("brew")
@@ -77,20 +77,20 @@ func BrewArgs(command string) (formula string, ok bool) {
 // which is what makes that pane the row's terminal.
 func BrewMark(formula string) string { return "brew:" + formula }
 
-// BrewEnv is what conn adds to brew's environment when it asks. brew
+// brewEnv is what conn adds to brew's environment when it asks. brew
 // records every command it is given with a curl to its analytics,
 // forked and left to itself, and would send one for every asking conn
 // makes; it checks itself for updates too, and prints hints. An asking
 // is conn's own and not the operator's use of brew, and sends nothing
 // anywhere.
-var BrewEnv = []string{"HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ENV_HINTS=1"}
+var brewEnv = []string{"HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ENV_HINTS=1"}
 
 // BrewSays asks brew, given a wait.
 func BrewSays(wait time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, BrewPath, args...)
-	cmd.Env = append(os.Environ(), BrewEnv...)
+	cmd.Env = append(os.Environ(), brewEnv...)
 	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
 	if ctx.Err() != nil {
@@ -210,7 +210,7 @@ func AttachBrew(projects []Project, declared map[string]Declared, services []Bre
 		e     Entry
 	}
 	for _, path := range paths {
-		i := BlockOf(out, path)
+		i := blockOf(out, path)
 		if i < 0 || declared[path].Err != "" {
 			continue
 		}
@@ -265,7 +265,7 @@ type BrewTickMsg struct{}
 
 // NextBrew is the next beat.
 func NextBrew() tea.Cmd {
-	return tea.Tick(BrewBeat, func(time.Time) tea.Msg { return BrewTickMsg{} })
+	return tea.Tick(brewBeat, func(time.Time) tea.Msg { return BrewTickMsg{} })
 }
 
 // ReadBrew asks brew, off the loop.

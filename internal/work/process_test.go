@@ -179,7 +179,7 @@ func TestKindsAndCommands(t *testing.T) {
 		{Process{Command: "conn", Args: []string{"/Users/w0zro/.local/bin/conn"}}, KindConn, "conn"},
 		{Process{Command: "go", Args: []string{"go", "test", "./..."}}, KindRun, "go test ./..."},
 		{Process{Command: "python3.12"}, KindRun, "python3.12"},
-		{Process{Command: "conn", Args: []string{"/usr/local/bin/conn", "hold"}}, KindHold, "conn hold"},
+		{Process{Command: "conn", Args: []string{"/usr/local/bin/conn", "hold"}}, kindHold, "conn hold"},
 		// A written title: the name is the first word of it, and the
 		// whole of it is what the process was started as.
 		{Process{Command: "claude", Args: []string{"claude bg-spare", "--bg-spare", "/tmp/1a39b95b.claim.sock"}}, KindContact, "claude bg-spare --bg-spare /tmp/1a39b95b.claim.sock"},
@@ -187,7 +187,7 @@ func TestKindsAndCommands(t *testing.T) {
 		// on the row.
 		{Process{Command: "python3", Args: []string{"python3", "-c", "import time\nwhile True:\n    work()\n"}}, KindRun, "python3 -c import time while True: work()"},
 	} {
-		if kind, cmd := KindOf(c.p), CommandLine(c.p); kind != c.kind || cmd != c.command {
+		if kind, cmd := KindOf(c.p), commandLine(c.p); kind != c.kind || cmd != c.command {
 			t.Errorf("%+v: %s %q, want %s %q", c.p, kind, cmd, c.kind, c.command)
 		}
 	}
@@ -206,11 +206,11 @@ func TestLsofIsParsed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := ParseLsof(string(out))
+	got := parseLsof(string(out))
 	if len(got) != 5 || got[67032].Command != "conn" || got[67032].Cwd != "/Users/w0zro/projects/w0zro/conn" || got[409].Cwd != "/" {
 		t.Errorf("lsof: %+v", got)
 	}
-	if got := ParseLsof(""); len(got) != 0 {
+	if got := parseLsof(""); len(got) != 0 {
 		t.Errorf("nothing parsed as %+v", got)
 	}
 }
@@ -268,7 +268,7 @@ func TestOnlyTheRootsHoldProjectsOfFolders(t *testing.T) {
 func TestProcIsParsed(t *testing.T) {
 	boot := time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC)
 	line := "70301 (go (test)) R 70300 70300 70001 34823 70300 4194304 1 0 0 0 5 1 0 0 20 0 8 0 43200000 100 200 300"
-	p, ok := ParseProcStat(line, boot, 100)
+	p, ok := parseProcStat(line, boot, 100)
 	// utime and stime are fields 14 and 15 — 5 and 1 here — and at a
 	// hundred ticks a second that is sixty milliseconds on a processor.
 	want := Process{PID: 70301, Command: "go (test)", State: 'R', PPID: 70300, PGID: 70300, TTY: "pts/7", Foreground: true,
@@ -276,15 +276,15 @@ func TestProcIsParsed(t *testing.T) {
 	if !ok || !reflect.DeepEqual(p, want) {
 		t.Errorf("stat: %+v %v, want %+v", p, ok, want)
 	}
-	if _, ok := ParseProcStat("garbage", boot, 100); ok {
+	if _, ok := parseProcStat("garbage", boot, 100); ok {
 		t.Error("garbage parsed")
 	}
 	for nr, name := range map[int]string{0: "", 34823: "pts/7", 34816: "pts/0", 35072: "pts/256", 1025: "tty1", 5 << 8: ""} {
-		if got := LinuxTTY(nr); got != name {
+		if got := linuxTTY(nr); got != name {
 			t.Errorf("tty %d: %q, want %q", nr, got, name)
 		}
 	}
-	if got := ParseBootTime("cpu  1 2 3\nbtime " + strconv.FormatInt(boot.Unix(), 10) + "\nprocesses 5\n"); !got.Equal(boot) {
+	if got := parseBootTime("cpu  1 2 3\nbtime " + strconv.FormatInt(boot.Unix(), 10) + "\nprocesses 5\n"); !got.Equal(boot) {
 		t.Errorf("btime: %v", got)
 	}
 
@@ -305,7 +305,7 @@ func TestProcIsParsed(t *testing.T) {
 	}
 	write("70302", "stat", "broken\n")
 	write("notapid", "stat", line)
-	procs := ReadProcTree(root, boot, 100)
+	procs := readProcTree(root, boot, 100)
 	if len(procs) != 1 || procs[0].Cwd != "/home/w0zro/conn" || !reflect.DeepEqual(procs[0].Args, []string{"go", "test", "./..."}) || procs[0].UID != os.Getuid() {
 		t.Errorf("proc tree: %+v", procs)
 	}
@@ -316,10 +316,10 @@ func TestProcargsAreParsed(t *testing.T) {
 	raw := make([]byte, 4)
 	binary.LittleEndian.PutUint32(raw, 3)
 	raw = append(raw, "/usr/local/bin/go\x00\x00\x00\x00go\x00test\x00./...\x00HOME=/Users/w0zro\x00"...)
-	if got := ParseProcargs(raw); !reflect.DeepEqual(got, []string{"go", "test", "./..."}) {
+	if got := parseProcargs(raw); !reflect.DeepEqual(got, []string{"go", "test", "./..."}) {
 		t.Errorf("procargs: %q", got)
 	}
-	if got := ParseProcargs(raw[:3]); got != nil {
+	if got := parseProcargs(raw[:3]); got != nil {
 		t.Errorf("a short procargs parsed as %q", got)
 	}
 }
@@ -448,12 +448,12 @@ func TestPsTimesAreParsed(t *testing.T) {
 		{"nonsense", 0, false},
 		{"1:2:3:4", 0, false},
 	} {
-		got, ok := ParsePsTime(c.in)
+		got, ok := parsePsTime(c.in)
 		if ok != c.ok || got != c.want {
 			t.Errorf("%q: %v %v, want %v %v", c.in, got, ok, c.want, c.ok)
 		}
 	}
-	times := ParsePsTimes("    1  63:35.26\n  333  26:21.76\n\ngarbage line here\n  334   0:00.39\n")
+	times := parsePsTimes("    1  63:35.26\n  333  26:21.76\n\ngarbage line here\n  334   0:00.39\n")
 	if len(times) != 3 || times[1] != 63*time.Minute+35*time.Second+260*time.Millisecond || times[334] != 390*time.Millisecond {
 		t.Errorf("a listing reads as %v", times)
 	}
@@ -757,14 +757,14 @@ func TestTheProcessesViewHoldsItsOrder(t *testing.T) {
 // line keeps it. The kill's question names the program alone.
 func TestTheRowSaysWhatWasTyped(t *testing.T) {
 	raised := Process{Command: "claude", Args: []string{"claude", "--append-system-prompt", "You are running inside conn", "--resume", "abc"}}
-	if got := TypedLine(raised); got != "claude" {
+	if got := typedLine(raised); got != "claude" {
 		t.Errorf("typedLine = %q", got)
 	}
-	if got := CommandLine(raised); got != "claude --append-system-prompt You are running inside conn --resume abc" {
+	if got := commandLine(raised); got != "claude --append-system-prompt You are running inside conn --resume abc" {
 		t.Errorf("commandLine = %q", got)
 	}
 	joined := Process{Command: "claude", Args: []string{"claude", "--append-system-prompt=note", "--resume=abc", "--model", "opus"}}
-	if got := TypedLine(joined); got != "claude --model opus" {
+	if got := typedLine(joined); got != "claude --model opus" {
 		t.Errorf("typedLine with the values joined = %q", got)
 	}
 	if got := Program("go test ./..."); got != "go" {
@@ -785,20 +785,20 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 		waits   = Status{Waiting: true}
 	)
 	shell := Process{State: 'S'}
-	if s, _ := StatusOf(shell, KindShell, false, busy); s != StatusWorking {
+	if s, _ := statusOf(shell, KindShell, false, busy); s != StatusWorking {
 		t.Errorf("a bare shell doing something is %s", s)
 	}
-	if s, _ := StatusOf(shell, KindShell, false, nothing); s != StatusIdle {
+	if s, _ := statusOf(shell, KindShell, false, nothing); s != StatusIdle {
 		t.Errorf("a bare shell doing nothing is %s", s)
 	}
-	if s, _ := StatusOf(Process{State: 'T'}, KindRun, false, busy); s != StatusStopped {
+	if s, _ := statusOf(Process{State: 'T'}, KindRun, false, busy); s != StatusStopped {
 		t.Error("a stopped process that was working is not stopped")
 	}
-	if s, _ := StatusOf(Process{State: 'S'}, KindRun, true, nothing); s != StatusActive {
+	if s, _ := statusOf(Process{State: 'S'}, KindRun, true, nothing); s != StatusActive {
 		t.Errorf("a run doing nothing is %s", s)
 	}
 	contact := Process{State: 'S'}
-	s, fault := StatusOf(contact, KindContact, false, waits)
+	s, fault := statusOf(contact, KindContact, false, waits)
 	if s != StatusWaiting {
 		t.Errorf("a contact waiting on you is %s", s)
 	}
@@ -807,13 +807,13 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	}
 	// A contact stopped with its turn over holds nothing up, and reads the
 	// way anything else at rest does rather than asking for you.
-	if s, _ := StatusOf(contact, KindContact, false, Status{Idle: true}); s != StatusIdle {
+	if s, _ := statusOf(contact, KindContact, false, Status{Idle: true}); s != StatusIdle {
 		t.Errorf("a contact with its turn over is %s, not idle", s)
 	}
-	if s, _ := StatusOf(contact, KindContact, false, Status{Working: true, Waiting: true}); s != StatusWaiting {
+	if s, _ := statusOf(contact, KindContact, false, Status{Working: true, Waiting: true}); s != StatusWaiting {
 		t.Errorf("a contact that says both is %s, not waiting", s)
 	}
-	if s, _ := StatusOf(Process{State: 'T'}, KindContact, false, waits); s != StatusStopped {
+	if s, _ := statusOf(Process{State: 'T'}, KindContact, false, waits); s != StatusStopped {
 		t.Error("a stopped contact is not stopped")
 	}
 }

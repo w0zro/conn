@@ -81,9 +81,9 @@ type Container struct {
 	Since   time.Time // when it came to stand as it does, as docker's age gives it
 }
 
-// Running reports the container's process alive: the state a row wants no
+// running reports the container's process alive: the state a row wants no
 // mark for.
-func (c Container) Running() bool { return c.State == "running" }
+func (c Container) running() bool { return c.State == "running" }
 
 // DockerPath is where the docker client is, or nothing where there is
 // none: a machine without docker is asked nothing, ever.
@@ -194,7 +194,7 @@ func ParseContainers(out []byte, now time.Time) []Container {
 		// docker says an age and conn says a time: the column is written
 		// from a moment, the way every other row's is, so what docker
 		// gives as three minutes is read back to when that was.
-		if age, ok := AgeOf(row.Status); ok {
+		if age, ok := ageOf(row.Status); ok {
 			c.Since = now.Add(-age)
 		}
 		cs = append(cs, c)
@@ -234,10 +234,10 @@ func healthOf(status string) string {
 	return ""
 }
 
-// AgeOf is how long ago the status last changed, off docker's words for
+// ageOf is how long ago the status last changed, off docker's words for
 // it: Up 3 minutes, Exited (1) About an hour ago, Up Less than a second.
 // The health in parentheses comes after the age and is not part of it.
-func AgeOf(status string) (time.Duration, bool) {
+func ageOf(status string) (time.Duration, bool) {
 	if i := strings.Index(status, " ("); i >= 0 && !strings.HasPrefix(status, "Exited") {
 		status = status[:i]
 	}
@@ -321,12 +321,12 @@ func hostPorts(s string) []string {
 	return out
 }
 
-// ContainerPID is the number a container goes by among rows, where every
+// containerPID is the number a container goes by among rows, where every
 // row has one: below zero, where no process is, and the same for the
 // container from one reading to the next so the cursor holds its row. It
 // is read off the id, whose first digits are enough to tell containers
 // apart.
-func ContainerPID(id string) int {
+func containerPID(id string) int {
 	v, err := strconv.ParseInt(id[:min(6, len(id))], 16, 64)
 	if err != nil {
 		v = 0
@@ -349,9 +349,9 @@ func ContainerStatus(c Container) (string, bool) {
 		return "RESTARTING", true
 	case c.State == "paused":
 		return StatusStopped, true
-	case c.Running() && c.Health == "starting":
+	case c.running() && c.Health == "starting":
 		return "STARTING", false
-	case c.Running():
+	case c.running():
 		return StatusActive, false
 	case c.Exit != "" && c.Exit != "0":
 		return exitWord + c.Exit, true
@@ -382,7 +382,7 @@ func AttachContainers(projects []Project, cs []Container, rootOf func(string) st
 	// failures to read again every day.
 	live := map[string]bool{}
 	for _, c := range cs {
-		if c.Running() && c.Project != "" {
+		if c.running() && c.Project != "" {
 			live[c.Project] = true
 		}
 	}
@@ -393,7 +393,7 @@ func AttachContainers(projects []Project, cs []Container, rootOf func(string) st
 			continue
 		}
 		path := rootOf(c.Dir)
-		if !c.Running() && !live[c.Project] && !composeRuns(projects, path, c.Dir, c.Service) {
+		if !c.running() && !live[c.Project] && !composeRuns(projects, path, c.Dir, c.Service) {
 			continue
 		}
 		if _, ok := at[path]; !ok {
@@ -452,7 +452,7 @@ func placeContainers(pl Project, cs []Container, paneOf, shellIn map[string]stri
 	entries := slices.Clone(pl.Entries)
 	for _, c := range cs {
 		e := Entry{
-			PID: ContainerPID(c.ID), Kind: KindService,
+			PID: containerPID(c.ID), Kind: KindService,
 			Command: c.Service, Typed: c.Service, Ports: c.Ports,
 			Started: c.Since, Since: c.Since, Cwd: c.Dir,
 			Container: c.ID, TTY: paneOf[c.ID],

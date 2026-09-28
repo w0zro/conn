@@ -49,7 +49,7 @@ func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(claude, "sessions"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(claude, "projects", EncodePath(dir)), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(claude, "projects", encodePath(dir)), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	for _, pid := range []int{10, 11} {
@@ -317,14 +317,14 @@ func TestDoingWordIsAVerbAndAnObject(t *testing.T) {
 		{"AskUserQuestion", `{"questions":[{"question":"Which?"}]}`, ""},
 		{"Unheard", `{"prompt":"do it"}`, "unheard do it"},
 	} {
-		if got := DoingWord(c.name, raw(c.input)); got != c.want {
+		if got := doingWord(c.name, raw(c.input)); got != c.want {
 			t.Errorf("doingWord(%s) = %q, want %q", c.name, got, c.want)
 		}
 	}
 }
 
 func TestEncodePathDashesEveryThingThatIsNotAlnum(t *testing.T) {
-	if got := EncodePath("/Users/w0zro/projects/conn"); got != "-Users-w0zro-projects-conn" {
+	if got := encodePath("/Users/w0zro/projects/conn"); got != "-Users-w0zro-projects-conn" {
 		t.Errorf("encodePath = %q", got)
 	}
 }
@@ -335,7 +335,7 @@ func TestIsSessionIDAcceptsOnlyHexAndDashes(t *testing.T) {
 		"claude": false, "../../etc/passwd": false, "a b": false,
 	}
 	for id, want := range cases {
-		if got := IsSessionID(id); got != want {
+		if got := isSessionID(id); got != want {
 			t.Errorf("isSessionID(%q) = %v, want %v", id, got, want)
 		}
 	}
@@ -441,7 +441,7 @@ func write(t *testing.T, path, text string) {
 // session in it, with the given lines and modification time.
 func writeTranscript(t *testing.T, claude, dir, id string, lines []string, when time.Time) {
 	t.Helper()
-	pdir := filepath.Join(claude, "projects", EncodePath(dir))
+	pdir := filepath.Join(claude, "projects", encodePath(dir))
 	if err := os.MkdirAll(pdir, 0o755); err != nil {
 		t.Fatal(err)
 	}

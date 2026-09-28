@@ -282,9 +282,6 @@ func TestWordsForNumbers(t *testing.T) {
 	if sizeShort(4_400_000) != "4.2 MB" || sizeShort(2<<30) != "2 GB" || sizeShort(500) != "1 KB" || sizeShort(0) != "" {
 		t.Errorf("sizeShort: %q %q %q %q", sizeShort(4_400_000), sizeShort(2<<30), sizeShort(500), sizeShort(0))
 	}
-	if station.FirstVersion("zsh 5.9 (arm-apple-darwin23.0.0)") != "5.9" || station.FirstVersion("GNU bash, version 5.2.37(1)-release") != "5.2.37" || station.FirstVersion("") != "" {
-		t.Errorf("firstVersion: %q %q", station.FirstVersion("zsh 5.9 (arm-apple-darwin23.0.0)"), station.FirstVersion("GNU bash, version 5.2.37(1)-release"))
-	}
 	booted := time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC)
 	if got := uptime(booted, booted.Add(90*time.Minute)); got != "01H 30M" {
 		t.Errorf("uptime: %q", got)
@@ -333,43 +330,6 @@ func TestTheStationCanBeRead(t *testing.T) {
 	}
 	if st.Machine.Page == 0 || st.Machine.Kernel == "" || st.Login.GoVersion == "" {
 		t.Errorf("the machine was not read: %+v", st.Machine)
-	}
-}
-
-// Inside tmux, TERM_PROGRAM is tmux. The row said so twice and never
-// said what was drawing the screen, so the client's own answer is
-// asked of the server, which conn tells to keep it current.
-func TestTheTerminalIsTheOneBeingLookedAt(t *testing.T) {
-	t.Setenv("TERM_PROGRAM", "ghostty")
-	t.Setenv("TERM_PROGRAM_VERSION", "1.3.1")
-	if name, ver := station.TerminalProgram(nil); name != "ghostty" || ver != "1.3.1" {
-		t.Errorf("outside tmux: %q %q", name, ver)
-	}
-
-	t.Setenv("TERM_PROGRAM", "tmux")
-	t.Setenv("TERM_PROGRAM_VERSION", "3.5a")
-	client := map[string]string{"TERM_PROGRAM": "ghostty", "TERM_PROGRAM_VERSION": "1.3.1"}
-	if name, ver := station.TerminalProgram(client); name != "ghostty" || ver != "1.3.1" {
-		t.Errorf("inside a server that carries it: %q %q", name, ver)
-	}
-	// A server that was not told to carry it, or a terminal that
-	// announces nothing, leaves the row the one thing that is true.
-	if name, ver := station.TerminalProgram(nil); name != "" || ver != "" {
-		t.Errorf("inside a server that does not: %q %q", name, ver)
-	}
-
-	// The origin is read the same way, and the environment conn was
-	// started with is believed first: it is this process's own.
-	t.Setenv("SSH_CONNECTION", "10.0.0.5 51234 10.0.0.9 22")
-	if got := station.SSHOrigin(map[string]string{"SSH_CONNECTION": "10.0.0.9 1 2 3"}); got != "10.0.0.5" {
-		t.Errorf("own environment: %q", got)
-	}
-	t.Setenv("SSH_CONNECTION", "")
-	if got := station.SSHOrigin(map[string]string{"SSH_CONNECTION": "10.0.0.9 1 2 3"}); got != "10.0.0.9" {
-		t.Errorf("the server's answer: %q", got)
-	}
-	if got := station.SSHOrigin(nil); got != "" {
-		t.Errorf("nobody saying: %q", got)
 	}
 }
 

@@ -62,7 +62,7 @@ func TestAListenerGoneWhileTheProcessLives(t *testing.T) {
 func TestInternetSocketsAreParsed(t *testing.T) {
 	out := "p673\ncidentityservicesd\nf7\nPUDP\nn*:*\nf33\nPTCP\nn[fe80::1]:1024->[fe80::2]:1024\nTST=ESTABLISHED\nTQR=0\nTQS=0\nf43\nPTCP\nn[fe80::1]:1024->[fe80::2]:1024\nTST=ESTABLISHED\n" +
 		"p8100\ncnode\nf21\nPTCP\nn*:5173\nTST=LISTEN\nf22\nPTCP\nn127.0.0.1:5173->127.0.0.1:60322\nTST=ESTABLISHED\nf30\nPUDP\nn*:5353\n"
-	got := ParseSockets(out)
+	got := parseSockets(out)
 	if len(got[673]) != 2 || got[673][0].Proto != "UDP" || got[673][1].State != "ESTABLISHED" {
 		t.Errorf("673 holds %+v", got[673])
 	}
@@ -76,7 +76,7 @@ func TestInternetSocketsAreParsed(t *testing.T) {
 	if s := (Socket{"TCP", "*:80", "CLOSE_WAIT"}).String(); s != "TCP *:80 · close_wait" {
 		t.Errorf("a socket says %q", s)
 	}
-	if len(ParseSockets("")) != 0 {
+	if len(parseSockets("")) != 0 {
 		t.Error("nothing parsed as something")
 	}
 }
@@ -108,7 +108,7 @@ func TestProcSocketsAreRead(t *testing.T) {
 	for fd, target := range map[string]string{"0": "/dev/pts/3", "3": "socket:[12345]", "4": "socket:[12346]", "5": "socket:[12347]", "6": "socket:[12348]", "7": "socket:[12345]", "8": "socket:[99999]"} {
 		must(os.Symlink(target, filepath.Join(dir, "fd", fd)))
 	}
-	got := FdSockets(dir, ProcSocketTables(root))
+	got := fdSockets(dir, procSocketTables(root))
 	var lines []string
 	for _, s := range got {
 		lines = append(lines, s.String())
@@ -119,8 +119,8 @@ func TestProcSocketsAreRead(t *testing.T) {
 	if !got[0].Listening() || got[1].Listening() || !got[2].Listening() {
 		t.Errorf("listening is wrong: %+v", got)
 	}
-	if HexAddr("00000000:0000") != "*:*" || HexAddr("garbage") != "garbage" {
-		t.Errorf("hexAddr: %q %q", HexAddr("00000000:0000"), HexAddr("garbage"))
+	if hexAddr("00000000:0000") != "*:*" || hexAddr("garbage") != "garbage" {
+		t.Errorf("hexAddr: %q %q", hexAddr("00000000:0000"), hexAddr("garbage"))
 	}
 }
 
@@ -128,7 +128,7 @@ func TestProcSocketsAreRead(t *testing.T) {
 // without a path is a pair of ends nobody else can reach.
 func TestUnixSocketsAreParsed(t *testing.T) {
 	out := "p700\ncdocker\nf5\nn/Users/w0zro/.docker/run/docker.sock\nf6\nn/Users/w0zro/.docker/run/docker.sock\nf7\nn->0x9f2c\nf8\nn/tmp/core.sock\n"
-	got := ParseUnixSockets(out)
+	got := parseUnixSockets(out)
 	if len(got[700]) != 2 || got[700][0].Addr != "/Users/w0zro/.docker/run/docker.sock" || got[700][1].Addr != "/tmp/core.sock" {
 		t.Errorf("700 holds %+v", got[700])
 	}

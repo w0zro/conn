@@ -157,7 +157,7 @@ func TestTheVimColorschemeFollowsTheGround(t *testing.T) {
 	}
 
 	// Written on dark; the server comes up light; the file catches up.
-	if _, err := WriteVimColorscheme(home, Conn.Dark); err != nil {
+	if _, err := writeVimColorscheme(home, Conn.Dark); err != nil {
 		t.Fatal(err)
 	}
 	if b, err := os.ReadFile(path); err != nil || !strings.Contains(string(b), "set background=dark") {

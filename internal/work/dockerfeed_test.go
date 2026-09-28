@@ -92,7 +92,7 @@ func TestClosingTheFeedLetsGoOfTheStream(t *testing.T) {
 		Retry:     10 * time.Millisecond,
 		Settle:    10 * time.Millisecond,
 	}
-	go f.Run()
+	go f.run()
 	waitFor(t, f, "the first list")
 	f.Close()
 	select {
@@ -168,7 +168,7 @@ func pacedFeed(t *testing.T, opened *atomic.Int32, list func() ([]Container, boo
 		Settle:    15 * time.Millisecond,
 	}
 	t.Cleanup(f.Close)
-	go f.Run()
+	go f.run()
 	return f, w
 }
 

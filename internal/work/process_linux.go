@@ -10,5 +10,5 @@ func ReadProcesses(uid int) ([]Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ReadProcTree("/proc", ParseBootTime(string(stat)), 100), nil
+	return readProcTree("/proc", parseBootTime(string(stat)), 100), nil
 }

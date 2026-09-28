@@ -234,14 +234,14 @@ var Conn = theme{
 	},
 }
 
-// Dark is whether this is a theme's dark ground, read off the ground
+// dark is whether this is a theme's dark ground, read off the ground
 // itself the way a terminal's is asked: a theme's dark ground is dark
 // by construction, and reading it keeps a ground one thing rather than
 // a table and a flag about the table. What follows from it - the base
 // Claude Code's theme sits on, what nvim is told its background is -
 // is read here too.
-func (g Ground) Dark() bool {
-	return IsDark(g.Ground)
+func (g Ground) dark() bool {
+	return isDark(g.Ground)
 }
 
 // configTheme is the theme the file names, when conn has one by that

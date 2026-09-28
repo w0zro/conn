@@ -31,7 +31,7 @@ func ReadProcesses(uid int) ([]Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lsof: %w", err)
 	}
-	dirs := ParseLsof(out)
+	dirs := parseLsof(out)
 	if len(dirs) == 0 {
 		return nil, errors.New("lsof answered for no process")
 	}
@@ -42,7 +42,7 @@ func ReadProcesses(uid int) ([]Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ps: %w", err)
 	}
-	cpu := ParsePsTimes(out)
+	cpu := parsePsTimes(out)
 	// And what each has open to the world: lsof again, for the internet
 	// sockets and for the unix ones, which it will not list in one
 	// breath with the working directories. A listing that fails here
@@ -50,10 +50,10 @@ func ReadProcesses(uid int) ([]Process, error) {
 	// without them.
 	sockets := map[int][]Socket{}
 	if out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-i", "-F", "pcnPT"); err == nil {
-		sockets = ParseSockets(out)
+		sockets = parseSockets(out)
 	}
 	if out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-U", "-F", "pcn"); err == nil {
-		for pid, held := range ParseUnixSockets(out) {
+		for pid, held := range parseUnixSockets(out) {
 			sockets[pid] = append(sockets[pid], held...)
 		}
 	}
@@ -87,7 +87,7 @@ func ReadProcesses(uid int) ([]Process, error) {
 		p.Sockets = sockets[p.PID]
 		if p.UID == uid {
 			if raw, err := unix.SysctlRaw("kern.procargs2", p.PID); err == nil {
-				p.Args = ParseProcargs(raw)
+				p.Args = parseProcargs(raw)
 			}
 		}
 		procs = append(procs, p)
@@ -145,10 +145,10 @@ const listingTimeout = 5 * time.Second
 // a program that is not there, or one that did not answer in time.
 // WaitDelay is for the process the timeout's kill does not take on.
 func listing(name string, args ...string) (string, error) {
-	return ListingWithin(listingTimeout, name, args...)
+	return listingWithin(listingTimeout, name, args...)
 }
 
-func ListingWithin(timeout time.Duration, name string, args ...string) (string, error) {
+func listingWithin(timeout time.Duration, name string, args ...string) (string, error) {
 	if _, err := exec.LookPath(name); err != nil {
 		return "", err
 	}

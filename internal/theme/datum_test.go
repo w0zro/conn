@@ -130,7 +130,7 @@ func TestARoleColorSaysItsSlot(t *testing.T) {
 	} {
 		g := c.m.Wear()
 		h := map[string]string{"accent": g.Accent, "border": g.Border, "ink": Hex(g.Ink), "faint": g.Faint}[c.role]
-		if got := RoleColor(g, h); got.Cterm != c.want || got.GUI != h {
+		if got := roleColor(g, h); got.Cterm != c.want || got.GUI != h {
 			t.Errorf("%s %s: RoleColor(%s) = %+v, want cterm %s", c.m.Theme, c.role, h, got, c.want)
 		}
 	}

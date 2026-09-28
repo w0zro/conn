@@ -64,12 +64,12 @@ func TestAServiceTwoProjectsDeclareStandsUnderEach(t *testing.T) {
 // the machine little.
 func TestBrewIsAskedQuietly(t *testing.T) {
 	for _, want := range []string{"HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ENV_HINTS=1"} {
-		if !slices.Contains(BrewEnv, want) {
+		if !slices.Contains(brewEnv, want) {
 			t.Errorf("brew is asked without %s", want)
 		}
 	}
-	if BrewBeat < 10*time.Second {
-		t.Errorf("brew is asked every %s", BrewBeat)
+	if brewBeat < 10*time.Second {
+		t.Errorf("brew is asked every %s", brewBeat)
 	}
 }
 

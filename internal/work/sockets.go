@@ -83,11 +83,11 @@ func (s Socket) String() string {
 	return out
 }
 
-// ParseSockets reads lsof -nP -a -i -F pcnPT: for each process, its
+// parseSockets reads lsof -nP -a -i -F pcnPT: for each process, its
 // internet sockets, one per descriptor, the protocol and name and the
 // TCP state on their own lines. A socket held on two descriptors is
 // one socket.
-func ParseSockets(out string) map[int][]Socket {
+func parseSockets(out string) map[int][]Socket {
 	held := map[int][]Socket{}
 	pid := 0
 	var cur Socket
@@ -128,10 +128,10 @@ func ParseSockets(out string) map[int][]Socket {
 	return held
 }
 
-// ParseUnixSockets reads lsof -nP -a -U -F pcn: for each process, the
+// parseUnixSockets reads lsof -nP -a -U -F pcn: for each process, the
 // unix sockets it holds that have a path. One without is a pair of
 // ends nobody else can reach, and is not said.
-func ParseUnixSockets(out string) map[int][]Socket {
+func parseUnixSockets(out string) map[int][]Socket {
 	held := map[int][]Socket{}
 	pid := 0
 	seen := map[int]map[string]bool{}
@@ -177,7 +177,7 @@ func procNetTable(text, proto string) map[string]Socket {
 		if i == 0 || len(f) < 10 {
 			continue
 		}
-		local, remote, state, inode := HexAddr(f[1]), HexAddr(f[2]), f[3], f[9]
+		local, remote, state, inode := hexAddr(f[1]), hexAddr(f[2]), f[3], f[9]
 		s := Socket{Proto: proto, Addr: local}
 		if proto == "TCP" {
 			s.State = tcpStates[state]
@@ -190,9 +190,9 @@ func procNetTable(text, proto string) map[string]Socket {
 	return out
 }
 
-// HexAddr is a /proc/net address, ADDR:PORT in hex with the address in
+// hexAddr is a /proc/net address, ADDR:PORT in hex with the address in
 // the host's byte order, as lsof would print it.
-func HexAddr(s string) string {
+func hexAddr(s string) string {
 	addr, port, ok := strings.Cut(s, ":")
 	if !ok {
 		return s
@@ -243,9 +243,9 @@ func procNetUnix(text string) map[string]Socket {
 	return out
 }
 
-// ProcSocketTables is every socket the kernel has, by inode, read off
+// procSocketTables is every socket the kernel has, by inode, read off
 // the tables under root/net.
-func ProcSocketTables(root string) map[string]Socket {
+func procSocketTables(root string) map[string]Socket {
 	all := map[string]Socket{}
 	for _, t := range []struct{ file, proto string }{{"tcp", "TCP"}, {"tcp6", "TCP"}, {"udp", "UDP"}, {"udp6", "UDP"}} {
 		if text, err := os.ReadFile(filepath.Join(root, "net", t.file)); err == nil {
@@ -262,9 +262,9 @@ func ProcSocketTables(root string) map[string]Socket {
 	return all
 }
 
-// FdSockets is the sockets a process holds, read off its descriptors:
+// fdSockets is the sockets a process holds, read off its descriptors:
 // each that is a socket names its inode, which the tables know.
-func FdSockets(dir string, tables map[string]Socket) []Socket {
+func fdSockets(dir string, tables map[string]Socket) []Socket {
 	fds, err := os.ReadDir(filepath.Join(dir, "fd"))
 	if err != nil {
 		return nil

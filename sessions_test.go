@@ -9,6 +9,8 @@ import (
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/theme"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // testSessions2 is a project's suspended sessions as claudeSuspended
@@ -79,5 +81,58 @@ func TestSessionsLayOut(t *testing.T) {
 	text = texts(drawSessions(b, 0, 48, 30, plain))
 	if !strings.Contains(text, "1 OF 2") {
 		t.Errorf("narrowed:\n%s", text)
+	}
+}
+
+// The recent view is every project's sessions: r opens it from the
+// processes view, A still opens the one project's, and the two are not
+// the same view. A row is named by the project that holds where it was
+// had, by its leaf, and says what the session is called, falling back
+// to what it was last asked; the golden holds the drawing.
+func TestTheRecentViewIsEveryProjectsSessions(t *testing.T) {
+	m := plainModel()
+	m.view, m.inside = viewProcesses, true
+	next, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	m = next.(model)
+	if m.view != viewSessions || !m.sessions.recent || cmd == nil {
+		t.Fatalf("r: view %v, recent %v, cmd %v", m.view, m.sessions.recent, cmd != nil)
+	}
+
+	// An answer for the one project's view is not this view's.
+	if m.sessions.landed(sessionsMsg{dirs: []string{"/w/conn"}, sessions: testSessions2}) {
+		t.Error("the recent view took a project's sessions")
+	}
+	recent := []work.Session{
+		{ID: "cccccccc-0000-0000-0000-000000000003", Dir: "/Users/w0zro/projects/w0zro/conn/internal", When: processesNow.Add(-time.Hour), Branch: "main", Title: "Package split", Prompt: "split the packages"},
+		{ID: "dddddddd-0000-0000-0000-000000000004", Dir: "/Users/w0zro/projects/rides", When: processesNow.Add(-26 * time.Hour), Prompt: "fix the map"},
+	}
+	if !m.sessions.landed(sessionsMsg{recent: true, sessions: recent}) {
+		t.Fatal("the recent view refused its own answer")
+	}
+	rootOf := func(dir string) string {
+		if strings.HasPrefix(dir, "/Users/w0zro/projects/w0zro/conn") {
+			return "/Users/w0zro/projects/w0zro/conn"
+		}
+		return dir
+	}
+	b := m.sessions.report("/Users/w0zro", processesNow, rootOf)
+	rows := drawSessions(b, 0, 48, 30, plain)
+	golden(t, "sessions-recent-48x30.txt", texts(rows))
+	text := texts(rows)
+	for _, want := range []string{"RECENT", "conn          Package split", "rides         fix the map"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the recent view lacks %q:\n%s", want, text)
+		}
+	}
+
+	// A, from the processes view, is the project's own view still.
+	m = plainModel()
+	m.view, m.inside = viewProcesses, true
+	m.projects = []work.Project{{Path: "/w/conn", Entries: []work.Entry{{PID: 11, Kind: work.KindShell}}}}
+	m.cursor = 11
+	next, _ = m.Update(tea.KeyPressMsg{Code: 'A', Text: "A"})
+	m = next.(model)
+	if m.view != viewSessions || m.sessions.recent || m.sessions.project != "/w/conn" {
+		t.Errorf("A: view %v, recent %v, project %q", m.view, m.sessions.recent, m.sessions.project)
 	}
 }

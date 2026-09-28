@@ -122,6 +122,12 @@ rows.
 .B A
 opens the suspended Claude Code sessions at the cursor's project, with a
 line to type into that narrows them.
+.B r
+opens the same view over every project, headed
+.BR RECENT :
+what was being done anywhere, where
+.B A
+is what was being done here.
 .SS The settings
 \fB,\fR opens
 .BR conn 's
@@ -316,6 +322,9 @@ A new contact at the row's project: Claude Code, told it runs inside
 .B A
 The sessions view for the row's project.
 .TP
+.B r
+The recent view: every project's suspended sessions, newest first.
+.TP
 .B u
 Bring up the row's declared process or Homebrew service.
 The keys stay on the panel.
@@ -393,6 +402,9 @@ Projects, sessions: a new contact at the row's project.
 .TP
 .B alt\-A
 Projects, sessions: the sessions view for the row's project.
+.TP
+.B alt\-r
+Projects, sessions: the recent view.
 .TP
 .BR alt\-u ", " alt\-U
 Projects, sessions: bring up the row's project's declared processes.
@@ -981,13 +993,28 @@ running contact is carrying.
 .B A
 lists them, newest first, each with its branch, its last prompt and its
 age.
-The line typed into matches the prompt, the branch and the directory.
+The line typed into matches the prompt, the title, the branch and the
+directory.
 .B enter
 resumes the session with
 .B claude \-\-resume
 in a new pane, at the session's own directory.
 With none:
 .BR "NOTHING SUSPENDED HERE" .
+.PP
+.B r
+lists them across every project, newest first: the hundred most recent
+transcripts on the machine that no running contact is carrying,
+wherever they were had.
+A row there is named by its project, the one that holds the directory
+the session was had in, and says the session's title, a rename before
+the title Claude Code gave it, where
+.B A
+says its last prompt.
+.B enter
+resumes it at its own directory, whatever project the cursor was on.
+With none:
+.BR "NOTHING SUSPENDED" .
 .
 .SH SERVICES
 .SS Docker

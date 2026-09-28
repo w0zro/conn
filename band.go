@@ -188,7 +188,13 @@ func (m model) bar() string {
 			hints = append(hints, moveHint)
 		}
 		if len(m.sessions.rows()) > 0 && m.inside {
-			hints = append(hints, keyHint{"enter", "Resume it here"})
+			// Here is the project the view is for; the recent view is
+			// for every one, and resumes a session where it was had.
+			word := "Resume it here"
+			if m.sessions.recent {
+				word = "Resume it"
+			}
+			hints = append(hints, keyHint{"enter", word})
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewRoots:

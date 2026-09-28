@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"os"
 	"strings"
 	"time"
@@ -161,8 +162,9 @@ type (
 		projects []projectRow
 		err      string
 	}
-	sessionsMsg struct { // a project's suspended sessions were read
+	sessionsMsg struct { // a project's suspended sessions were read, or every project's
 		dirs     []string
+		recent   bool
 		sessions []work.Session
 	}
 )
@@ -790,6 +792,12 @@ func (m model) key(k string) (model, tea.Cmd) {
 	if k == "alt+s" || k == "alt+a" || k == "alt+shift+a" {
 		return m.openAt(k, came)
 	}
+	// Every project's suspended sessions, newest first: r in the
+	// processes view, and alt+r on a line typed into. A is the one
+	// project's; see openRecent.
+	if k == "alt+r" || k == "r" && m.view == viewProcesses {
+		return m.openRecent(came)
+	}
 	// What is under the cursor, brought up: u in the processes view,
 	// and alt+u from the list, where u is a letter being typed. On a
 	// process's row it is that one process, and the keys stay on the
@@ -1076,6 +1084,15 @@ func (m model) atProject() (string, []string, bool) {
 		if m.sessions.project != "" {
 			return m.sessions.project, m.sessions.dirs, true
 		}
+		// The recent view is for every project, so the project is the
+		// row's: the one that holds where its session was had.
+		if c, ok := m.sessions.at(); m.sessions.recent && ok {
+			root := c.Dir
+			if m.roots.rootOf != nil {
+				root = cmp.Or(m.roots.rootOf(c.Dir), c.Dir)
+			}
+			return root, []string{root}, true
+		}
 	}
 	return "", nil, false
 }
@@ -1213,7 +1230,7 @@ func (m model) View() tea.View {
 	case m.view == viewProjects:
 		rows = drawProjects(m.projectsReport(), m.list.find.at, width, m.height, m.p)
 	case m.view == viewSessions:
-		rows = drawSessions(m.sessions.report(m.head.Login.Home, m.now), m.sessions.find.at, width, m.height, m.p)
+		rows = drawSessions(m.sessions.report(m.head.Login.Home, m.now, m.roots.rootOf), m.sessions.find.at, width, m.height, m.p)
 	case m.view == viewRoots:
 		rows = drawRoots(m.asking.report(m.head.Login.Home), m.asking.line.at, width, m.height, m.p)
 	default:

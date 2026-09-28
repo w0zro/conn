@@ -1,6 +1,8 @@
 package main
 
 import (
+	"cmp"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,13 +23,22 @@ import (
 // it last moved against the right. Enter continues the one under the
 // cursor, in a shell like any other; esc leaves the view without
 // opening anything.
+//
+// The same view over every project is the recent view, r: what was
+// being done anywhere, rather than what was being done here. The two
+// are kept apart because they are different questions. A row there is
+// named by its project in the branch's column, and says what the
+// session is called rather than what it was last asked, since a list
+// across every project is read for which piece of work it was.
 
 // sessionsReport is the sessions view's words as things stand. A
 // directory the sessions view looked under and found nothing in — no
 // sessions had, or none yet read — is not an error; there is none for
 // the sessions view to say.
 type sessionsReport struct {
-	project string // the project it was opened on, tilde'd
+	project string            // the project it was opened on, tilde'd; empty for the recent view
+	recent  bool              // every project's, named by project and by title
+	names   map[string]string // the project each row's directory is in, by its leaf, for the recent view
 	home    string
 	now     time.Time
 	loading bool
@@ -65,6 +76,7 @@ func matchingSessions(cs []work.Session, filter string) []work.Session {
 	var out []work.Session
 	for _, c := range cs {
 		if strings.Contains(strings.ToLower(c.Prompt), f) ||
+			strings.Contains(strings.ToLower(c.Title), f) ||
 			strings.Contains(strings.ToLower(c.Branch), f) ||
 			strings.Contains(strings.ToLower(c.Dir), f) {
 			out = append(out, c)
@@ -96,7 +108,11 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	// of it.
 	c.blank(0)
 	l := c.line()
-	l.add(p.orange+p.bold, "SESSIONS")
+	word := "SESSIONS"
+	if b.recent {
+		word = "RECENT"
+	}
+	l.add(p.orange+p.bold, word)
 	right := strconv.Itoa(b.total) + " SUSPENDED"
 	switch {
 	case b.loading && b.total == 0:
@@ -110,9 +126,13 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	c.rule(0, measure)
 
 	// The project it is for, the way a project titles its block in the
-	// processes view.
+	// processes view; the recent view is for every one.
 	l = c.line()
-	l.add(p.parchment+p.bold, fit(b.project, measure, true))
+	if b.recent {
+		l.add(p.parchment+p.bold, "Every project")
+	} else {
+		l.add(p.parchment+p.bold, fit(b.project, measure, true))
+	}
 	c.emit(l, 0, false)
 
 	// The line typed into: the word, and the filter with the caret in
@@ -141,6 +161,8 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 		say(p.gray, "LOOKING")
 	case len(b.rows) == 0 && b.filter != "":
 		say(p.gray, "NOTHING ANSWERS TO "+strings.ToUpper(b.filter))
+	case len(b.rows) == 0 && b.recent:
+		say(p.gray, "NOTHING SUSPENDED")
 	case len(b.rows) == 0:
 		say(p.gray, "NOTHING SUSPENDED HERE")
 	default:
@@ -156,12 +178,16 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 				}
 				cursorRow = len(d.rows)
 			}
-			l.add(p.gray, fit(cv.Branch, branchW-1, false))
+			first, prompt := cv.Branch, cv.Prompt
+			if b.recent {
+				first, prompt = b.names[cv.Dir], cmp.Or(cv.Title, cv.Prompt)
+			}
+			l.add(p.gray, fit(first, branchW-1, false))
 			l.to(branchW)
 			// A session with nothing read of it is named by where it
 			// was had; one with a prompt is named by that instead, since it
 			// is the more of the two a reader would recognize it by.
-			prompt, path := cv.Prompt, false
+			path := false
 			if prompt == "" {
 				prompt, path = config.Tilde(cv.Dir, b.home), true
 			}
@@ -189,6 +215,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 type sessionList struct {
 	project string   // what the view is for
 	dirs    []string // the directories asked for; a stale answer's guard
+	recent  bool     // every project's, and no directories asked for
 	read    []work.Session
 	loading bool
 	find    typed
@@ -198,7 +225,7 @@ type sessionList struct {
 // view's: one opened on another project since has moved past the
 // answer.
 func (l *sessionList) landed(msg sessionsMsg) bool {
-	if !slices.Equal(msg.dirs, l.dirs) {
+	if msg.recent != l.recent || !slices.Equal(msg.dirs, l.dirs) {
 		return false
 	}
 	l.read, l.loading = msg.sessions, false
@@ -220,10 +247,21 @@ func (l sessionList) at() (work.Session, bool) {
 	return rows[l.find.at], true
 }
 
-// report is the sessions view's words as things stand.
-func (l sessionList) report(home string, now time.Time) sessionsReport {
+// report is the sessions view's words as things stand. rootOf is the
+// project that holds a directory, which the recent view names a row by.
+func (l sessionList) report(home string, now time.Time, rootOf func(string) string) sessionsReport {
 	b := composeSessionsAt(l.read, l.project, l.find.text, home, now, l.loading)
 	b.caret = l.find.cur
+	if l.recent {
+		b.recent, b.names = true, map[string]string{}
+		for _, c := range b.rows {
+			root := c.Dir
+			if rootOf != nil {
+				root = cmp.Or(rootOf(c.Dir), c.Dir)
+			}
+			b.names[c.Dir] = filepath.Base(root)
+		}
+	}
 	return b
 }
 
@@ -235,6 +273,22 @@ func (m model) openSessions(project string, dirs []string) (model, tea.Cmd) {
 	m.view = viewSessions
 	m.sessions = sessionList{project: project, dirs: dirs, loading: true}
 	return m, m.scanSessions(dirs)
+}
+
+// openRecent opens the sessions view over every project's suspended
+// sessions, newest first: the recent view. came is the pane the keys
+// were in, for esc to go back to.
+func (m model) openRecent(came string) (model, tea.Cmd) {
+	if !m.inside {
+		return m, nil
+	}
+	m.from = came
+	m.view = viewSessions
+	m.sessions = sessionList{recent: true, loading: true}
+	projects := m.projects
+	return m, func() tea.Msg {
+		return sessionsMsg{recent: true, sessions: work.ClaudeRecent(projects)}
+	}
 }
 
 // sessionsKey answers a key on the sessions view, which is a line typed

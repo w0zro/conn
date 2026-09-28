@@ -1660,3 +1660,24 @@ func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
 		t.Error("the view does not ask for the mouse")
 	}
 }
+
+// ctrl+c is the same key in every view: outside the server it closes
+// conn and takes the docker feed's stream with it, which it once did
+// from the processes view alone.
+func TestCtrlCClosesTheFeedFromEveryView(t *testing.T) {
+	for _, view := range []int{viewProcesses, viewProjects, viewSessions, viewRoots} {
+		done := make(chan struct{})
+		close(done)
+		m := plainModel()
+		m.view, m.dockerFeed = view, &dockerFeed{stop: make(chan struct{}), done: done}
+		_, cmd := m.key("ctrl+c")
+		if _, quit := answered(cmd).(tea.QuitMsg); !quit {
+			t.Errorf("view %d: ctrl+c did not close conn", view)
+		}
+		select {
+		case <-m.dockerFeed.stop:
+		default:
+			t.Errorf("view %d: ctrl+c left the docker feed running", view)
+		}
+	}
+}

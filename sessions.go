@@ -242,10 +242,7 @@ func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case m.sessions.find.edit(k, len(m.sessions.rows())):
 	case k == "ctrl+c":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		return m, tea.Quit
+		return m.leave()
 	case k == "esc":
 		return m.backFrom()
 	case k == "enter":

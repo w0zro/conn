@@ -281,10 +281,7 @@ func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case m.asking.edit(k, m.head.login.home):
 	case k == "ctrl+c":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		return m, tea.Quit
+		return m.leave()
 	case k == "esc":
 		// Nothing. The first start has nowhere to go back to: conn
 		// cannot show the processes view until this is answered, and a

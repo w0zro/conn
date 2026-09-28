@@ -1448,17 +1448,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	}
 	switch {
 	case k == "ctrl+c" || k == "q":
-		if m.inside {
-			// A detach leaves the server and this conn standing, so the
-			// feed keeps its stream: there is something still watching.
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		// Going for good takes the feed's stream with it. docker events
-		// is a child conn started, and a child outlives the parent that
-		// abandons it — it would sit reparented to init until the next
-		// container event pushed a write down a pipe nobody holds.
-		m.dockerFeed.close()
-		return m, tea.Quit
+		return m.leave()
 	case m.view == viewConsole && m.stage < lastStage(m.report()):
 		m.stage = lastStage(m.report())
 		return m, nil
@@ -1585,6 +1575,22 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m.openDetour(toManual, came)
 	}
 	return m, nil
+}
+
+// leave is ctrl+c, from any view, and q where q is not a letter being
+// typed: a detach in the server, and conn closing outside it.
+func (m model) leave() (tea.Model, tea.Cmd) {
+	if m.inside {
+		// A detach leaves the server and this conn standing, so the
+		// feed keeps its stream: there is something still watching.
+		return m, m.serverCmd(func() error { return m.srv.detach() })
+	}
+	// Going for good takes the feed's stream with it. docker events
+	// is a child conn started, and a child outlives the parent that
+	// abandons it — it would sit reparented to init until the next
+	// container event pushed a write down a pipe nobody holds.
+	m.dockerFeed.close()
+	return m, tea.Quit
 }
 
 // arrived is the keys having come to the panel by the panel key, from

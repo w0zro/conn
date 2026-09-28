@@ -824,10 +824,7 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case m.list.find.edit(k, len(rows)):
 	case k == "ctrl+c":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		return m, tea.Quit
+		return m.leave()
 	case k == "esc":
 		return m.backFrom()
 	case k == "enter":

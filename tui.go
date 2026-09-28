@@ -313,14 +313,6 @@ func (m model) rooted(r rooting) model {
 	return m
 }
 
-// processesReport is the processes view's words as things stand.
-func (m model) processesReport() processesReport {
-	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.roots.isProject, m.head.login.home, m.now, m.processesErr, m.dockerStalled, !m.full)
-	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
-	w.spin = int(m.now.UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
-	return w
-}
-
 func (m model) Init() tea.Cmd {
 	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
 	if brewPath != "" {
@@ -1289,52 +1281,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// click is the mouse pressed on the panel. tmux has the mouse, and
-// hands a press in conn's pane on to conn since conn asks for it. A
-// press on a row of the processes view puts the cursor on the row, the
-// way j and k do, and the readout in the workspace; the same row
-// pressed again goes in, the way enter does. Pressing the row once
-// more from inside brings the keys back to the panel and the readout
-// back with them, so a row's clicks go between its readout and its
-// process, and the first is always the readout. The rows are drawn
-// again to find which row was under the press, since the view is drawn
-// from the model and the model keeps no picture of it. Anywhere else,
-// and any other button, is nothing yet.
-func (m model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
-	if m.view != viewProcesses || msg.Button != tea.MouseLeft {
-		return m, nil
-	}
-	rows := drawProcesses(m.processesReport(), m.cursor, m.cols(), m.height, m.p)
-	if msg.Y < 0 || msg.Y >= len(rows) || rows[msg.Y].pid == 0 {
-		return m, nil
-	}
-	pid := rows[msg.Y].pid
-	m.cursor, m.cursorAt = follow(m.projects, pid, m.cursorAt)
-	if m.clicked == pid {
-		m.clicked = 0
-		if e, _, ok := m.under(); ok {
-			_, cmd := m.enterOn(e)
-			return m, cmd
-		}
-		return m, nil
-	}
-	m.clicked = pid
-	return m.keepingPage()
-}
-
-// key answers a key: q and ctrl+c detach in the server and close conn
-// outside it, from anywhere; on the console a key skips the sequence,
-// then continues to the processes view and gives the bay its side back;
-// in the processes view c brings the console back over the whole
-// window, enter reaches the cursor's process, esc goes back into the
-// last process the workspace held, s opens a shell at its project, a
-// opens claude there instead, and A opens the sessions view over what
-// claude left suspended there. tab goes to what is waiting on you,
-// longest first, and round again. ? puts the manual in the workspace.
-// x asks to end the cursor's process,
-// and arms the question rather than the ending: the next key answers
-// it. gg and G are the ends of the list, where j and k are its steps: a
-// table long enough to scroll is not walked to its end.
+// key answers a key. What every view shares is answered here: a
+// question armed takes the key whatever it is, the panel key and the
+// alt keys work from any view, and a page of conn's own speaks to the
+// panel on keys of its own. Anything else is the view's, and goes to
+// the view that has the keys.
 func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// A notice stands until the next key, whatever it is: it was read,
 	// or it was not going to be.
@@ -1426,102 +1377,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	case viewRoots:
 		return m.rootsKey(k)
 	}
-	switch {
-	case k == "ctrl+c" || k == "q":
-		return m.leave()
-	case k == "c":
-		// The blink is not started here: what annunciates is decided in
-		// one place, and the tick follows the view on its own.
-		m.view = viewConsole
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.wide() })
-		}
-	case k == "j" || k == "down":
-		m.cursor, m.cursorAt = follow(m.projects, 0, ring(m.cursorAt+1, rowsIn(m.projects)))
-	case k == "k" || k == "up":
-		m.cursor, m.cursorAt = follow(m.projects, 0, ring(m.cursorAt-1, rowsIn(m.projects)))
-	case k == "g":
-		// Nothing yet: g is the half of a motion, and what it means is
-		// decided by the key after it.
-		m.firstG = true
-	case k == "G":
-		m.cursor, m.cursorAt = follow(m.projects, 0, rowsIn(m.projects)-1)
-	case k == "z":
-		// The whole tree, or the fold of it again. The rows are re-made
-		// from the reading held, so the change is at once; the cursor
-		// keeps its pid where the pid is still shown, and its row
-		// otherwise.
-		m.full = !m.full
-		if len(m.tree) > 0 {
-			m.projects = m.tree
-			if !m.full {
-				m.projects = fold(m.tree)
-			}
-			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
-		}
-	case k == "enter":
-		if e, _, ok := m.under(); ok {
-			_, cmd := m.enterOn(e)
-			return m, cmd
-		}
-	case k == "esc":
-		return m.backIn()
-	case k == "x":
-		if e, _, ok := m.under(); ok {
-			m.kill = m.endOn(e)
-		}
-	case k == "s":
-		// A shell here. On a container, here is inside it: the row stands
-		// for a machine of its own, and the directory it was started for
-		// is not where its work is going on.
-		if e, pl, ok := m.under(); m.inside && ok {
-			if e.container != "" {
-				return m, m.shellInContainer(e)
-			}
-			if pl.path != "" {
-				return m, m.openShell(pl.path)
-			}
-		}
-	case k == "S":
-		// A session with the server the row is, by its own client: psql
-		// on postgres. s beside it is a shell near the server; this is
-		// the server itself, talked to.
-		if e, pl, ok := m.under(); m.inside && ok {
-			if p := m.programUnder(e); p != nil {
-				return m, m.openClient(e, p, pl.path)
-			}
-		}
-	case k == "o":
-		// The row's port in the browser. It asks nothing of the server,
-		// so it works whether or not conn holds one: the port is on the
-		// row either way, and so is the machine the browser is on.
-		if e, _, ok := m.under(); ok && serving(e) {
-			return m, m.openServing(e)
-		}
-	case k == "a":
-		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
-			return m, m.startContact(pl.path)
-		}
-	case k == "A":
-		// The sessions at the project: the capital of the contact's
-		// key, a session being a contact's to pick back up.
-		return m.openAt("alt+shift+a", came)
-	case k == "tab":
-		return m.toWaiting()
-	case k == "p":
-		// A detour: it ends where the keys were before it, which is the
-		// pane the panel key just brought them out of, or nowhere.
-		m.from = came
-		return m.toProjects()
-	case k == ",":
-		// conn's own configuration, in the workspace. The comma is what
-		// a program of this shape is settled in everywhere, and it is
-		// not a letter the processes view wanted for anything.
-		return m.openDetour(toSettings, came)
-	case k == "?":
-		return m.openDetour(toManual, came)
-	}
-	return m, nil
+	return m.processesKey(k, came)
 }
 
 // leave is ctrl+c, from any view, and q where q is not a letter being
@@ -1639,54 +1495,6 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 	if m.view == viewConsole {
 		m.view, m.entering = viewProcesses, false
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
-	}
-	return m, tea.Batch(cmds...)
-}
-
-// toWaiting goes to the process that has waited longest: the cursor to
-// its row, its pane in the bay, and the keys in it, so one press has
-// the operator answering. Pressed again from the panel it goes round
-// the ring, longest first. It is what tab does in the processes view.
-// From another view the processes view is put up on the way, since the
-// answer is a pane, and from the console the bay is given its side
-// back, a pane being unreachable with the console over the window.
-//
-// A process conn holds no pane for is still gone to, on the panel, and
-// the keys stay where they are.
-func (m model) toWaiting() (tea.Model, tea.Cmd) {
-	round := waitingRound(m.projects)
-	if len(round) == 0 {
-		return m, nil
-	}
-	next := round[0]
-	for i, e := range round {
-		if e.pid == m.cursor {
-			next = round[(i+1)%len(round)]
-			break
-		}
-	}
-	return m.goTo(next)
-}
-
-// goTo puts the cursor on a row and the operator in front of it: the
-// panel comes back to the processes view if it is somewhere else, and
-// the row's pane goes into the bay with the keys, where conn holds
-// one. A row conn only reports is gone to on the panel, and the keys
-// stay where they are, there being nothing to put them in.
-func (m model) goTo(next entry) (tea.Model, tea.Cmd) {
-	m.cursor, m.cursorAt = follow(m.projects, next.pid, m.cursorAt)
-	var cmds []tea.Cmd
-	if m.view != viewProcesses {
-		console := m.view == viewConsole
-		m.view, m.entering = viewProcesses, false
-		m.processesGen++
-		cmds = append(cmds, m.readProcesses())
-		if console && m.inside {
-			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
-		}
-	}
-	if m.inside && reachable(m.panes[next.tty]) {
-		cmds = append(cmds, m.reach(m.panes[next.tty], next.tty))
 	}
 	return m, tea.Batch(cmds...)
 }
@@ -1895,19 +1703,6 @@ func (m model) raiseAt() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(append(cmds, m.raiseAll(path, up, held))...)
 }
 
-// raiseUnder is u: the row under the cursor brought up, as raiseOn
-// says. From the list the row is a project, and the project is what is
-// brought up.
-func (m model) raiseUnder() (tea.Model, tea.Cmd) {
-	if m.view != viewProcesses {
-		return m.raiseAt()
-	}
-	if e, _, ok := m.under(); ok {
-		return m, m.raiseOn(e)
-	}
-	return m, nil
-}
-
 // runsOf is what a shell runs, in the tree whole: the first row under
 // it that is not a shell itself, looking through a bash -c to the
 // command it was given, the way the fold does for the shell's own row;
@@ -1955,76 +1750,6 @@ func ring(at, rows int) int {
 		return 0
 	}
 	return ((at % rows) + rows) % rows
-}
-
-// under is the entry and the project under the cursor. nextReachable is
-// the first process at or after the cursor, round again from the top,
-// that conn holds a live pane for: what the bay takes when what was in
-// it ends. A hold, the readout and a pane that has died are not
-// processes.
-func (m model) nextReachable() (entry, bool) {
-	var all []entry
-	for _, pl := range m.projects {
-		all = append(all, pl.entries...)
-	}
-	start := 0
-	for i, e := range all {
-		if e.pid == m.cursor {
-			start = i
-			break
-		}
-	}
-	for k := range all {
-		e := all[(start+k)%len(all)]
-		if p := m.panes[e.tty]; reachable(p) {
-			return e, true
-		}
-	}
-	return entry{}, false
-}
-
-func (m model) under() (entry, project, bool) {
-	for _, pl := range m.projects {
-		for _, e := range pl.entries {
-			if e.pid == m.cursor {
-				return e, pl, true
-			}
-		}
-	}
-	return entry{}, project{}, false
-}
-
-// follow finds the cursor after the rows change: the row of its pid,
-// where that is still listed, else the row where it was, held within
-// the rows there are. It answers the pid and the row.
-func follow(projects []project, pid, at int) (int, int) {
-	var pids []int
-	for _, pl := range projects {
-		for _, e := range pl.entries {
-			pids = append(pids, e.pid)
-		}
-	}
-	if len(pids) == 0 {
-		return 0, 0
-	}
-	for i, p := range pids {
-		if pid != 0 && p == pid {
-			return p, i
-		}
-	}
-	at = min(max(at, 0), len(pids)-1)
-	return pids[at], at
-}
-
-// rowsIn is how many process rows the projects hold: what a motion to
-// the end or the middle of them counts against. It counts the processes
-// and not the titles above them, which is the list j and k walk.
-func rowsIn(projects []project) int {
-	n := 0
-	for _, pl := range projects {
-		n += len(pl.entries)
-	}
-	return n
 }
 
 // View is the view that is up. The console shows as far as it has come

@@ -323,8 +323,8 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 		// its own test.
 		roots: rooting{rootOf: testRoots, isProject: testIsProject, real: []string{"/Users/w0zro/projects"}}}
 	st := testStation
-	m.st = &st
-	m.stage = lastStage(m.report())
+	m.console.st = &st
+	m.console.stage = lastStage(m.report())
 	next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	if m.view != viewConsole || !m.entering || cmd == nil {

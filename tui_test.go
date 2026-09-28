@@ -66,12 +66,12 @@ func TestProgramComesOnInStages(t *testing.T) {
 	// The readout's beat passes before the station is read: it waits.
 	next, cmd := m.Update(stageMsg{})
 	m = next.(model)
-	if cmd != nil || !m.due || has("HOST ...") {
+	if cmd != nil || !m.console.due || has("HOST ...") {
 		t.Errorf("the readout came on before the station was read:\n%s", view())
 	}
 	next, cmd = m.Update(stationMsg{testStation})
 	m = next.(model)
-	if cmd == nil || m.due || !has("SYSTEM .... MACOS 26.6.2 (25G83)") || has("SCREEN") {
+	if cmd == nil || m.console.due || !has("SYSTEM .... MACOS 26.6.2 (25G83)") || has("SCREEN") {
 		t.Errorf("the readout should come on with the station:\n%s", view())
 	}
 	next, _ = m.Update(stageMsg{})
@@ -79,7 +79,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if !has("SCREEN") || has("STATE ...") {
 		t.Errorf("the screen check should be up third, alone:\n%s", view())
 	}
-	for m.stage < lastStage(m.report()) {
+	for m.console.stage < lastStage(m.report()) {
 		next, _ = m.Update(stageMsg{})
 		m = next.(model)
 	}
@@ -110,18 +110,18 @@ func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
 	m := model{head: station{build: testStation.build}, now: testNow, p: plain, width: 120, height: 40, blink: beat{on: true}}
 	next, cmd := m.Update(stationMsg{testStation})
 	m = next.(model)
-	if cmd != nil || m.stage != stageHeader {
+	if cmd != nil || m.console.stage != stageHeader {
 		t.Errorf("the station alone should not bring the readout on")
 	}
 	next, cmd = m.Update(stageMsg{})
 	m = next.(model)
-	if cmd == nil || m.stage != stageReadout {
-		t.Errorf("the beat after the station should bring the readout on: stage %d", m.stage)
+	if cmd == nil || m.console.stage != stageReadout {
+		t.Errorf("the beat after the station should bring the readout on: stage %d", m.console.stage)
 	}
 	next, cmd = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
-	if cmd != nil || m.stage != lastStage(m.report()) {
-		t.Errorf("a key should skip to the end: stage %d", m.stage)
+	if cmd != nil || m.console.stage != lastStage(m.report()) {
+		t.Errorf("a key should skip to the end: stage %d", m.console.stage)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd == nil {
 		t.Error("q should close the console")

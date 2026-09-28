@@ -60,17 +60,6 @@ const (
 	viewRoots // the first root being typed, on a conn told nowhere to look
 )
 
-// The time before each stage after the header: a beat for the readout
-// and the verdict, less for each check.
-func (m model) stageDelay(stage int) time.Duration {
-	switch stage {
-	case stageReadout, lastStage(m.report()):
-		return 150 * time.Millisecond
-	default:
-		return 80 * time.Millisecond
-	}
-}
-
 // processesEvery is how often the processes view reads the process
 // table at rest. While it is waiting on a shell conn has just opened,
 // it reads again as soon as it can: a shell takes a moment to reach the
@@ -146,11 +135,9 @@ type (
 )
 
 type model struct {
-	head          station  // what the header needs: the build and who is at the station
-	st            *station // the station, once read
+	head          station // what the header needs: the build and who is at the station
+	console       console // the console, as far as it has come on
 	now           time.Time
-	stage         int  // the stage the console has come on to
-	due           bool // the readout's beat has passed and it waits on the station
 	width, height int
 	p             palette
 	g             ground // the ground conn is on, which the palette is built off and the status line is written from
@@ -324,19 +311,6 @@ func rootOn(configured []string) rooting {
 func (m model) rooted(r rooting) model {
 	m.roots = r
 	return m
-}
-
-// report is the console's words as things stand: from the station once
-// it is read, from the header's part of it before, and as the terminal
-// in hand can hold them. The stages are counted off the report the
-// screen will actually draw, so a console that gave up its per-root
-// lines does not go on ticking through stages that have no row.
-func (m model) report() report {
-	st := m.head
-	if m.st != nil {
-		st = *m.st
-	}
-	return fitted(compose(st, m.now), m.height)
 }
 
 // processesReport is the processes view's words as things stand.
@@ -523,10 +497,6 @@ type trace struct {
 	// Each row seen listening, and how many readings it has had nothing
 	// open since: what says a listener has gone.
 	serves map[int]servingSeen
-}
-
-func (m model) nextStage() tea.Cmd {
-	return tea.Tick(m.stageDelay(m.stage+1), func(time.Time) tea.Msg { return stageMsg{} })
 }
 
 // nextSecond ticks on the turn of the second, not a second after the
@@ -1051,18 +1021,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.serverCmd(func() error { return m.srv.holdPanel() })
 		}
 	case stationMsg:
-		st := msg.station
-		m.st = &st
-		if m.due {
-			m.due = false
-			return m.advance()
-		}
+		return m.stationRead(msg.station)
 	case stageMsg:
-		if m.stage+1 == stageReadout && m.st == nil {
-			m.due = true
-			return m, nil
-		}
-		return m.advance()
+		return m.stageDue()
 	case clockMsg:
 		m.now = time.Now()
 		return m, nextSecond(m.now)
@@ -1456,6 +1417,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		return m.worn()
 	}
 	switch m.view {
+	case viewConsole:
+		return m.consoleKey(k)
 	case viewProjects:
 		return m.projectKey(k)
 	case viewSessions:
@@ -1466,39 +1429,6 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c" || k == "q":
 		return m.leave()
-	case m.view == viewConsole && m.stage < lastStage(m.report()):
-		m.stage = lastStage(m.report())
-		return m, nil
-	case m.view == viewConsole:
-		// The console holds until the processes view has something to show.
-		// Going at once put an empty view up, filled it a tenth of a second
-		// later when the table had been read, and moved it to the panel's
-		// width after that — three screens to arrive at one. The console is a
-		// still page and a moment more of it is not seen, where a view
-		// assembling itself is.
-		//
-		// Only the first time. Coming back from the console the rows of the
-		// last stay are still held, a couple of seconds old, and the
-		// processes view goes up with them at once while the reading on its
-		// way brings them up to date.
-		// Told nowhere to look, conn cannot show the processes view at
-		// all: it is every project work is happening in, and there are
-		// no projects. So it asks, here, where going on from the console
-		// would otherwise arrive at an empty list that means three
-		// different things.
-		if len(m.roots.real) == 0 {
-			return m.toRoots()
-		}
-		m.processesGen++
-		if len(m.projects) == 0 && m.processesErr == "" {
-			m.entering = true
-			return m, m.readProcesses()
-		}
-		m.view = viewProcesses
-		if m.inside {
-			return m, tea.Batch(m.readProcesses(), m.serverCmd(func() error { return m.srv.narrow() }))
-		}
-		return m, m.readProcesses()
 	case k == "c":
 		// The blink is not started here: what annunciates is decided in
 		// one place, and the tick follows the view on its own.
@@ -2097,18 +2027,6 @@ func rowsIn(projects []project) int {
 	return n
 }
 
-// advance brings the next stage on and sets the one after it going.
-func (m model) advance() (tea.Model, tea.Cmd) {
-	last := lastStage(m.report())
-	if m.stage < last {
-		m.stage++
-	}
-	if m.stage < last {
-		return m, m.nextStage()
-	}
-	return m, nil
-}
-
 // View is the view that is up. The console shows as far as it has come
 // on: rows of a later stage are the ground until their turn. cols is
 // the width conn draws in, which is the panel's own where conn is a
@@ -2158,7 +2076,7 @@ func (m model) View() tea.View {
 		if i >= m.height && m.height > 0 {
 			break
 		}
-		if m.view == viewConsole && r.stage > m.stage {
+		if m.view == viewConsole && r.stage > m.console.stage {
 			texts = append(texts, ground)
 		} else {
 			texts = append(texts, r.text)

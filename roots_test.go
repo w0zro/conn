@@ -161,8 +161,8 @@ func TestTheConsoleGoesToTheAskingViewWithNoRoots(t *testing.T) {
 	m := model{head: station{build: testStation.build, login: testStation.login},
 		now: testNow, p: plain, width: 120, height: 40, uid: 501, roots: rooting{rootOf: testRoots}}
 	st := testStation
-	m.st = &st
-	m.stage = lastStage(m.report())
+	m.console.st = &st
+	m.console.stage = lastStage(m.report())
 	next, _ := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	if m.view != viewRoots {

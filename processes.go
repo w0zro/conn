@@ -826,6 +826,8 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 		return m.openAt("alt+shift+a", came)
 	case "tab":
 		return m.toWaiting()
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9", "0":
+		return m.toContact(k)
 	case "p":
 		// A detour: it ends where the keys were before it, which is the
 		// pane the panel key just brought them out of, or nowhere.
@@ -906,6 +908,45 @@ func (m model) toWaiting() (model, tea.Cmd) {
 		}
 	}
 	return m.goTo(next)
+}
+
+// toContact goes to a contact by its place among the contacts, in the
+// order the panel draws them: 1 the first, 9 the ninth, and 0 the
+// tenth, since 0 is where the tenth is on the row of digits. From inside
+// a process it is the panel key and the digit, which is how a window is
+// picked by number in tmux. A place with no contact in it is nothing.
+func (m model) toContact(k string) (model, tea.Cmd) {
+	n := int(k[0]-'0') - 1
+	if n < 0 {
+		n = 9
+	}
+	pids := contactPIDs(m.processesReport())
+	if n >= len(pids) {
+		return m, nil
+	}
+	for _, pl := range m.projects {
+		for _, e := range pl.Entries {
+			if e.PID == pids[n] {
+				return m.goTo(e)
+			}
+		}
+	}
+	return m, nil
+}
+
+// contactPIDs is the contacts on the panel, top to bottom, as it draws
+// them: the report's blocks are in the order they are drawn, which is
+// not the order of the reading.
+func contactPIDs(b processesReport) []int {
+	var pids []int
+	for _, bp := range b.projects {
+		for _, r := range bp.rows {
+			if r.kind == work.KindContact {
+				pids = append(pids, r.pid)
+			}
+		}
+	}
+	return pids
 }
 
 // goTo puts the cursor on a row and the operator in front of it: the

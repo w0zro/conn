@@ -55,7 +55,7 @@ func TestTheCardHasEveryKeyTheManualGivesThePanel(t *testing.T) {
 		if !strings.HasPrefix(line, ".TP") || i+1 == len(lines) {
 			continue
 		}
-		term := strings.Fields(strings.NewReplacer(".BR ", "", ".B ", "", `"`, "", ",", "").Replace(lines[i+1]))
+		term := strings.Fields(strings.NewReplacer(".BR ", "", ".B ", "", `"`, "", ",", "", `\-`, "-").Replace(lines[i+1]))
 		if len(term) == 0 || term[0] == "left" {
 			continue
 		}

@@ -409,6 +409,50 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 	}
 }
 
+// A digit goes to a contact by its place down the panel as drawn: 1
+// the first, 0 the tenth. The panel draws its projects by path, so the
+// count is the drawing's and not the reading's, and a row that is not a
+// contact is not counted. A place with no contact in it moves nothing.
+func TestADigitGoesToAContactByItsPlace(t *testing.T) {
+	m := plainModel()
+	m.view = viewProcesses
+	var tenth []work.Entry
+	for i := range 8 {
+		tenth = append(tenth, work.Entry{PID: 300 + i, Kind: work.KindContact})
+	}
+	m.projects = []work.Project{
+		{Path: "/w/zeta", Entries: tenth},
+		{Path: "/w/alpha", Entries: []work.Entry{
+			{PID: 11, Kind: work.KindShell},
+			{PID: 22, Kind: work.KindContact},
+			{PID: 33, Kind: work.KindRun},
+			{PID: 44, Kind: work.KindContact},
+		}},
+	}
+	m.cursor, m.cursorAt = 11, 0
+
+	press := func(r rune) {
+		next, _ := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		m = next.(model)
+	}
+	for _, c := range []struct {
+		key rune
+		pid int
+	}{{'1', 22}, {'2', 44}, {'3', 300}, {'0', 307}, {'1', 22}} {
+		press(c.key)
+		if m.cursor != c.pid {
+			t.Errorf("%c put the cursor on %d, want %d", c.key, m.cursor, c.pid)
+		}
+	}
+
+	// Ten contacts less one: 0 has none to go to.
+	m.projects[0].Entries = tenth[:7]
+	press('0')
+	if m.cursor != 22 {
+		t.Errorf("0 with nine contacts moved the cursor to %d", m.cursor)
+	}
+}
+
 // In the server, tab puts the waiting contact's pane in the bay and the
 // keys in it, so one press has the operator answering; a process conn
 // holds no pane for is gone to on the panel and the keys stay. Asked

@@ -1,4 +1,4 @@
-package main
+package theme
 
 import (
 	"bufio"
@@ -72,34 +72,34 @@ func readClaude(t *testing.T, name string) map[string]string {
 func TestDatumIsDatumsOwn(t *testing.T) {
 	for _, on := range []struct {
 		name string
-		g    ground
-	}{{"dark", datumTheme.dark}, {"light", datumTheme.light}} {
+		g    Ground
+	}{{"dark", Datum.Dark}, {"light", Datum.Light}} {
 		g := on.g
 		keys, palette := readGhostty(t, "ghostty-"+on.name)
 		claude := readClaude(t, "claude-"+on.name+".json")
 		for i := range palette {
-			if !strings.EqualFold(g.scheme[i], palette[i]) {
-				t.Errorf("%s slot %d is %s; datum's is %s", on.name, i, g.scheme[i], palette[i])
+			if !strings.EqualFold(g.Scheme[i], palette[i]) {
+				t.Errorf("%s slot %d is %s; datum's is %s", on.name, i, g.Scheme[i], palette[i])
 			}
 		}
 		for _, c := range []struct{ role, have, want, from string }{
-			{"ground", hex(g.ground), keys["background"], "background"},
-			{"ink", hex(g.ink), keys["foreground"], "foreground"},
-			{"accent", g.accent, keys["cursor-color"], "cursor-color"},
-			{"border", g.border, keys["selection-background"], "selection-background"},
-			{"shimmer", g.shimmer, palette[13], "slot 13, call"},
-			{"gray", g.gray, claude["inactive"], "inactive"},
-			{"faint", g.faint, claude["promptBorder"], "promptBorder"},
-			{"parchment", g.parchment, claude["text"], "text"},
-			{"messageBg", g.messageBg, claude["userMessageBackground"], "userMessageBackground"},
-			{"messageHoverBg", g.messageHoverBg, claude["userMessageBackgroundHover"], "userMessageBackgroundHover"},
-			{"toolBg", g.toolBg, claude["userMessageBackground"], "userMessageBackground, bg1"},
-			{"diffAddedBg", g.diffAddedBg, claude["diffAdded"], "diffAdded"},
-			{"diffRemovedBg", g.diffRemovedBg, claude["diffRemoved"], "diffRemoved"},
-			{"diffAddedDim", g.diffAddedDim, claude["diffAddedDimmed"], "diffAddedDimmed"},
-			{"diffRemovedDim", g.diffRemovedDim, claude["diffRemovedDimmed"], "diffRemovedDimmed"},
-			{"diffAddedWord", g.diffAddedWord, claude["diffAddedWord"], "diffAddedWord"},
-			{"diffRemovedWord", g.diffRemovedWord, claude["diffRemovedWord"], "diffRemovedWord"},
+			{"ground", Hex(g.Ground), keys["background"], "background"},
+			{"ink", Hex(g.Ink), keys["foreground"], "foreground"},
+			{"accent", g.Accent, keys["cursor-color"], "cursor-color"},
+			{"border", g.Border, keys["selection-background"], "selection-background"},
+			{"shimmer", g.Shimmer, palette[13], "slot 13, call"},
+			{"gray", g.Gray, claude["inactive"], "inactive"},
+			{"faint", g.Faint, claude["promptBorder"], "promptBorder"},
+			{"parchment", g.Parchment, claude["text"], "text"},
+			{"messageBg", g.MessageBg, claude["userMessageBackground"], "userMessageBackground"},
+			{"messageHoverBg", g.MessageHoverBg, claude["userMessageBackgroundHover"], "userMessageBackgroundHover"},
+			{"toolBg", g.ToolBg, claude["userMessageBackground"], "userMessageBackground, bg1"},
+			{"diffAddedBg", g.DiffAddedBg, claude["diffAdded"], "diffAdded"},
+			{"diffRemovedBg", g.DiffRemovedBg, claude["diffRemoved"], "diffRemoved"},
+			{"diffAddedDim", g.DiffAddedDim, claude["diffAddedDimmed"], "diffAddedDimmed"},
+			{"diffRemovedDim", g.DiffRemovedDim, claude["diffRemovedDimmed"], "diffRemovedDimmed"},
+			{"diffAddedWord", g.DiffAddedWord, claude["diffAddedWord"], "diffAddedWord"},
+			{"diffRemovedWord", g.DiffRemovedWord, claude["diffRemovedWord"], "diffRemovedWord"},
 		} {
 			if c.want == "" {
 				t.Errorf("%s: datum's port has no %s", on.name, c.from)
@@ -114,7 +114,7 @@ func TestDatumIsDatumsOwn(t *testing.T) {
 // the same hex, whichever theme that is, and NONE where none does.
 func TestARoleColorSaysItsSlot(t *testing.T) {
 	for _, c := range []struct {
-		m    mode
+		m    Mode
 		role string
 		want string
 	}{
@@ -122,16 +122,16 @@ func TestARoleColorSaysItsSlot(t *testing.T) {
 		{connOn(true), "border", "0"},
 		{connOn(false), "border", "NONE"},
 		{connOn(false), "ink", "15"},
-		{mode{"datum", true}, "accent", "5"},
-		{mode{"datum", true}, "ink", "7"},
-		{mode{"datum", false}, "ink", "0"},
-		{mode{"datum", false}, "border", "7"},
-		{mode{"datum", false}, "faint", "NONE"},
+		{Mode{"datum", true}, "accent", "5"},
+		{Mode{"datum", true}, "ink", "7"},
+		{Mode{"datum", false}, "ink", "0"},
+		{Mode{"datum", false}, "border", "7"},
+		{Mode{"datum", false}, "faint", "NONE"},
 	} {
-		g := c.m.wear()
-		h := map[string]string{"accent": g.accent, "border": g.border, "ink": hex(g.ink), "faint": g.faint}[c.role]
-		if got := roleColor(g, h); got.cterm != c.want || got.gui != h {
-			t.Errorf("%s %s: roleColor(%s) = %+v, want cterm %s", c.m.theme, c.role, h, got, c.want)
+		g := c.m.Wear()
+		h := map[string]string{"accent": g.Accent, "border": g.Border, "ink": Hex(g.Ink), "faint": g.Faint}[c.role]
+		if got := RoleColor(g, h); got.Cterm != c.want || got.GUI != h {
+			t.Errorf("%s %s: RoleColor(%s) = %+v, want cterm %s", c.m.Theme, c.role, h, got, c.want)
 		}
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -34,32 +36,32 @@ var plain = palette{plain: true}
 // in it, and groundIn as the one that lays a ground of it: x/ansi
 // writes the style, and conn only says which color and which side.
 func inkIn(h string) string {
-	return ansi.Style{}.ForegroundColor(rgb(h)).String()
+	return ansi.Style{}.ForegroundColor(theme.RGB(h)).String()
 }
 
 func groundIn(h string) string {
-	return ansi.Style{}.BackgroundColor(rgb(h)).String()
+	return ansi.Style{}.BackgroundColor(theme.RGB(h)).String()
 }
 
 // colored is the palette on a ground: the console's own tokens are
 // the ground's table, so light or dark reaches this palette the same
 // way it reaches everything else conn draws.
-func colored(g ground) palette {
+func colored(g theme.Ground) palette {
 	p := palette{
-		ground:    groundIn(hex(g.ground)),
-		border:    inkIn(g.border),
-		ink:       inkIn(hex(g.ink)),
-		gray:      inkIn(g.gray),
-		faint:     inkIn(g.faint),
-		orange:    inkIn(g.accent),
-		parchment: inkIn(g.parchment),
+		ground:    groundIn(theme.Hex(g.Ground)),
+		border:    inkIn(g.Border),
+		ink:       inkIn(theme.Hex(g.Ink)),
+		gray:      inkIn(g.Gray),
+		faint:     inkIn(g.Faint),
+		orange:    inkIn(g.Accent),
+		parchment: inkIn(g.Parchment),
 		bold:      ansi.Style{}.Bold().String(),
-		chip:      ansi.Style{}.BackgroundColor(rgb(g.accent)).ForegroundColor(g.ground).Bold().String(),
-		selection: groundIn(g.border),
-		surface:   groundIn(g.surface),
-		well:      groundIn(hex(g.ground)),
-		edge:      inkIn(g.surface),
-		running:   inkIn(g.running),
+		chip:      ansi.Style{}.BackgroundColor(theme.RGB(g.Accent)).ForegroundColor(g.Ground).Bold().String(),
+		selection: groundIn(g.Border),
+		surface:   groundIn(g.Surface),
+		well:      groundIn(theme.Hex(g.Ground)),
+		edge:      inkIn(g.Surface),
+		running:   inkIn(g.Running),
 		struck:    ansi.Style{}.Strikethrough(true).String(),
 		end:       ansi.Style{}.Reset().String(),
 	}

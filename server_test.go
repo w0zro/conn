@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 )
 
@@ -57,7 +59,7 @@ func startScratch(t *testing.T) *scratch {
 	s := &scratch{t: t, srv: &server{tmux: tmux, socket: filepath.Join(dir, "sock")}, dir: dir}
 	t.Cleanup(func() { _, _ = s.srv.run("kill-server") })
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", connTheme.dark)), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", theme.Conn.Dark)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	home := filepath.Join(dir, "home")
@@ -270,7 +272,7 @@ func (s *scratch) rowSays(name, word string) bool {
 // edge to edge, which the capture keeps as the selection's color.
 func (s *scratch) cursorAmongShells() int {
 	out, _ := s.srv.run("capture-pane", "-e", "-p", "-t", sessionName+":"+homeWindow+".0")
-	raised := "48;2;" + rgbOf(connTheme.dark.border)
+	raised := "48;2;" + rgbOf(theme.Conn.Dark.Border)
 	n := 0
 	for _, line := range strings.Split(out, "\n") {
 		plain := stripEscapes(line)
@@ -741,7 +743,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	s.until("the console to finish", func() bool { return s.finished() })
 	// The scratch server rose on dark, the ground of a terminal that
 	// says nothing. tmux answers a color in its own case.
-	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, theme.Conn.Dark.Scheme[0]) {
 		t.Fatalf("the server did not rise on dark: slot 0 is %q", got)
 	}
 
@@ -749,31 +751,31 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	// under test is the ground, so the same steps run without a client.
 	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
-	light := connOn(false).wear()
+	light := connOn(false).Wear()
 	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", light)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeMode(srv.socket, connOn(false)); err != nil {
+	if err := theme.WriteMode(srv.socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
 	// reground paints the panel's pane on the surface of the ground
 	// asked for.
-	if err := srv.reground(conf, light.surface, "", true); err != nil {
+	if err := srv.reground(conf, light.Surface, "", true); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.light.scheme[0]) {
-		t.Errorf("slot 0 is %q after regrounding, not light's %q", got, connTheme.light.scheme[0])
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, theme.Conn.Light.Scheme[0]) {
+		t.Errorf("slot 0 is %q after regrounding, not light's %q", got, theme.Conn.Light.Scheme[0])
 	}
 	// The panel's pane is painted on the surface of the new ground; the
 	// window's style, which the bay is on, is the ground itself.
-	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+connTheme.light.surface) {
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+theme.Conn.Light.Surface) {
 		t.Errorf("the panel's pane is %q, not on the light surface", got)
 	}
-	if got, _ := s.srv.run("show-options", "-gv", "window-style"); !strings.EqualFold(strings.TrimSpace(got), "bg="+hex(connTheme.light.ground)+",fg="+hex(connTheme.light.ink)) {
+	if got, _ := s.srv.run("show-options", "-gv", "window-style"); !strings.EqualFold(strings.TrimSpace(got), "bg="+theme.Hex(theme.Conn.Light.Ground)+",fg="+theme.Hex(theme.Conn.Light.Ink)) {
 		t.Errorf("the window style is %q, not on the light ground", strings.TrimSpace(got))
 	}
-	if m, ok := readModeFile(srv.socket); !ok || m != connOn(false) {
+	if m, ok := theme.ReadModeFile(srv.socket); !ok || m != connOn(false) {
 		t.Errorf("the mode file was not put on light: %+v, found %v", m, ok)
 	}
 	// The panel came back, and came back conn: respawned, it comes up
@@ -793,41 +795,41 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
-	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, theme.Conn.Dark.Scheme[0]) {
 		t.Fatalf("the server did not rise in conn: slot 0 is %q", got)
 	}
 
 	srv := &server{tmux: lookPath("tmux"), socket: s.srv.socket}
 	conf := filepath.Join(filepath.Dir(srv.socket), "tmux.conf")
-	datum := mode{theme: "datum", dark: true}
-	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", datum.wear())), 0o600); err != nil {
+	datum := theme.Mode{Theme: "datum", Dark: true}
+	if err := os.WriteFile(conf, []byte(tmuxConf("C-Space", datum.Wear())), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeMode(srv.socket, datum); err != nil {
+	if err := theme.WriteMode(srv.socket, datum); err != nil {
 		t.Fatal(err)
 	}
 	// reground paints the panel's pane on the surface of the ground
 	// asked for.
-	if err := srv.reground(conf, datum.wear().surface, "", true); err != nil {
+	if err := srv.reground(conf, datum.Wear().Surface, "", true); err != nil {
 		t.Fatal(err)
 	}
 
 	for _, c := range []struct{ option, want string }{
-		{"pane-colours[0]", datumTheme.dark.scheme[0]},
-		{"pane-colours[5]", datumTheme.dark.scheme[5]},
-		{"cursor-colour", datumTheme.dark.accent},
+		{"pane-colours[0]", theme.Datum.Dark.Scheme[0]},
+		{"pane-colours[5]", theme.Datum.Dark.Scheme[5]},
+		{"cursor-colour", theme.Datum.Dark.Accent},
 	} {
 		if got := s.display("#{" + c.option + "}"); !strings.EqualFold(got, c.want) {
 			t.Errorf("%s is %q after regrounding, not datum's %q", c.option, got, c.want)
 		}
 	}
-	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+datumTheme.dark.surface) {
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+theme.Datum.Dark.Surface) {
 		t.Errorf("the panel's pane is %q, not on datum's surface", got)
 	}
-	if got, _ := s.srv.run("show-options", "-gv", "window-style"); !strings.EqualFold(strings.TrimSpace(got), "bg="+hex(datumTheme.dark.ground)+",fg="+hex(datumTheme.dark.ink)) {
+	if got, _ := s.srv.run("show-options", "-gv", "window-style"); !strings.EqualFold(strings.TrimSpace(got), "bg="+theme.Hex(theme.Datum.Dark.Ground)+",fg="+theme.Hex(theme.Datum.Dark.Ink)) {
 		t.Errorf("the window style is %q, not on datum's ground", strings.TrimSpace(got))
 	}
-	if m, ok := readModeFile(srv.socket); !ok || m != datum {
+	if m, ok := theme.ReadModeFile(srv.socket); !ok || m != datum {
 		t.Errorf("the mode file was not put in datum: %+v, found %v", m, ok)
 	}
 	s.until("the panel to come back", func() bool {
@@ -881,7 +883,7 @@ func TestTheKeysStandOnThePanelWhileTheManualIsUp(t *testing.T) {
 func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	s := startScratch(t)
 	s.until("the console to finish", func() bool { return s.finished() })
-	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, connTheme.dark.scheme[0]) {
+	if got := s.display("#{pane-colours[0]}"); !strings.EqualFold(got, theme.Conn.Dark.Scheme[0]) {
 		t.Fatalf("the server did not rise in conn: slot 0 is %q", got)
 	}
 	s.keys("Enter")
@@ -911,12 +913,12 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	s.bayKeys("j", "j")
 	s.bayKeys("Enter")
 	s.until("the server to be dressed in datum", func() bool {
-		return strings.EqualFold(s.display("#{pane-colours[0]}"), datumTheme.dark.scheme[0])
+		return strings.EqualFold(s.display("#{pane-colours[0]}"), theme.Datum.Dark.Scheme[0])
 	})
-	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+datumTheme.dark.surface) {
+	if got := s.display("#{window-style}"); !strings.EqualFold(got, "bg="+theme.Datum.Dark.Surface) {
 		t.Errorf("the panel's pane is %q, not on datum's surface", got)
 	}
-	if m, ok := readModeFile(s.srv.socket); !ok || m.theme != "datum" {
+	if m, ok := theme.ReadModeFile(s.srv.socket); !ok || m.Theme != "datum" {
 		t.Errorf("the mode file says %+v, found %v", m, ok)
 	}
 
@@ -925,9 +927,9 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	s.bayKeys("j", "j")
 	s.bayKeys("Enter")
 	s.until("the server to be on the light ground", func() bool {
-		return strings.EqualFold(s.display("#{window-style}"), "bg="+datumTheme.light.surface)
+		return strings.EqualFold(s.display("#{window-style}"), "bg="+theme.Datum.Light.Surface)
 	})
-	if m, ok := readModeFile(s.srv.socket); !ok || m.dark || m.theme != "datum" {
+	if m, ok := theme.ReadModeFile(s.srv.socket); !ok || m.Dark || m.Theme != "datum" {
 		t.Errorf("the mode file says %+v, found %v", m, ok)
 	}
 	if c, err := config.Read(filepath.Join(s.dir, "home")); err != nil || c.Ground != config.LightGround {
@@ -1001,26 +1003,26 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	t.Cleanup(func() { _, _ = srv.run("kill-server") })
 
 	// Nothing has picked yet: a server not up comes up dark.
-	if m := serverMode(srv.socket, home); m != connOn(true) {
+	if m := theme.ServerMode(srv.socket, home); m != connOn(true) {
 		t.Fatalf("a socket with no mode file is %+v, not conn's dark", m)
 	}
 
 	// A terminal that said light, on a first bring-up, leaves this
 	// behind for attach to find; here it is put there by hand, the way
 	// attach's own detectDark branch would.
-	if err := writeMode(srv.socket, connOn(false)); err != nil {
+	if err := theme.WriteMode(srv.socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
 
 	// What attach does with a mode file already there: read it, and
 	// write the server's own drawing from the ground it wears.
-	m, ok := readModeFile(srv.socket)
+	m, ok := theme.ReadModeFile(srv.socket)
 	if !ok || m != connOn(false) {
-		t.Fatalf("readModeFile = (%+v, %v), want (conn light, true)", m, ok)
+		t.Fatalf("theme.ReadModeFile = (%+v, %v), want (conn light, true)", m, ok)
 	}
 
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmuxConf(defaultKey, m.wear())), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(tmuxConf(defaultKey, m.Wear())), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(tmux, "-S", srv.socket, "-f", conf, "new-session", "-d",
@@ -1029,9 +1031,9 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 		t.Fatalf("starting the server: %v\n%s", out, err)
 	}
 	for _, c := range []struct{ option, want string }{
-		{"pane-colours[0]", connTheme.light.scheme[0]},
-		{"pane-colours[9]", connTheme.light.scheme[9]},
-		{"cursor-colour", connTheme.light.accent},
+		{"pane-colours[0]", theme.Conn.Light.Scheme[0]},
+		{"pane-colours[9]", theme.Conn.Light.Scheme[9]},
+		{"cursor-colour", theme.Conn.Light.Accent},
 	} {
 		out, err := srv.run("show-options", "-g", c.option)
 		if err != nil {
@@ -1059,10 +1061,10 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	if err := srv.down(); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := readModeFile(srv.socket); ok {
+	if _, ok := theme.ReadModeFile(srv.socket); ok {
 		t.Error("conn down left the mode file behind")
 	}
-	if m := serverMode(srv.socket, home); m != connOn(true) {
+	if m := theme.ServerMode(srv.socket, home); m != connOn(true) {
 		t.Errorf("after conn down, the socket is %+v, not conn's dark again", m)
 	}
 }

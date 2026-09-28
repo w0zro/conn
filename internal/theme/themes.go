@@ -1,4 +1,18 @@
-package main
+// Package theme is what conn dresses a server in. A theme is that, by
+// name: the ground and the ink, the sixteen a program asks for by name,
+// and the roles conn draws by meaning, each on a dark ground and a
+// light one. conn is the theme conn has always worn, and the one it
+// wears unless told another; see mode.go for how a ground is chosen.
+// The same colors are written out for the programs conn dresses: a
+// theme for Claude Code, and a colorscheme for nvim.
+//
+// A ground is a value, and everything conn draws takes the one it is
+// handed: the palette is built off it, the tmux configuration and the
+// status line are written from it, and so are the theme for Claude Code
+// and the colorscheme for nvim. Nothing is package-wide, so a conn that
+// changes mode hands the new ground to what draws and nothing reads a
+// color from the mode before.
+package theme
 
 import (
 	"fmt"
@@ -7,84 +21,71 @@ import (
 	"github.com/w0zro/conn/internal/config"
 )
 
-// A theme is everything conn dresses a server in, by name: the ground
-// and the ink, the sixteen a program asks for by name, and the roles
-// conn draws by meaning, each on a dark ground and a light one. conn is
-// the theme conn has always worn, and the one it wears unless told
-// another; see mode.go for how a ground is chosen.
-//
-// A ground is a value, and everything conn draws takes the one it is
-// handed: the palette is built off it, the tmux configuration and the
-// status line are written from it, and so are the theme for Claude Code
-// and the colorscheme for nvim. Nothing is package-wide, so a conn that
-// changes mode hands the new ground to what draws and nothing reads a
-// color from the mode before.
-
-// A ground is a theme on one of its two grounds.
-type ground struct {
-	ground, ink color.RGBA // the pane's ground, and ordinary text on it
-	scheme      [16]string // what a program asks for by name; a slot, and never read for a role
+// A Ground is a theme on one of its two grounds.
+type Ground struct {
+	Ground, Ink color.RGBA // the pane's ground, and ordinary text on it
+	Scheme      [16]string // what a program asks for by name; a slot, and never read for a role
 
 	// The roles: what conn draws by meaning. Each is a hex of its own,
 	// whether or not a slot happens to hold the same one.
-	accent    string // "you, here": the cursor, a chip, a title, the caret, a block on the status line
-	shimmer   string // the accent's brighter cousin, for Claude Code to shimmer with
-	border    string // a pane's edge, a selection, the band behind the status line
-	surface   string // one step off the ground, short of the border: the panel's own ground
-	running   string // a process doing something, said by the dot at the head of its row
-	gray      string // the second rank: a label, a comment
-	faint     string // the quietest text: a leader, a hint, a line number
-	parchment string // the second ink: a title, punctuation, what conn says on the status line
+	Accent    string // "you, here": the cursor, a chip, a title, the caret, a block on the status line
+	Shimmer   string // the accent's brighter cousin, for Claude Code to shimmer with
+	Border    string // a pane's edge, a selection, the band behind the status line
+	Surface   string // one step off the ground, short of the border: the panel's own ground
+	Running   string // a process doing something, said by the dot at the head of its row
+	Gray      string // the second rank: a label, a comment
+	Faint     string // the quietest text: a leader, a hint, a line number
+	Parchment string // the second ink: a title, punctuation, what conn says on the status line
 
 	// The grounds no slot has a name for: the band behind what you said
 	// to Claude Code, at rest and under the pointer; the bar behind a
 	// tool's output, which is also the step off the ground a colorscheme
 	// lifts a float onto; and the washes a diff is laid on, one step up
 	// for the words inside it, and dimmed.
-	messageBg, messageHoverBg, toolBg                                                        string
-	diffAddedBg, diffRemovedBg, diffAddedDim, diffRemovedDim, diffAddedWord, diffRemovedWord string
+	MessageBg, MessageHoverBg, ToolBg                                                        string
+	DiffAddedBg, DiffRemovedBg, DiffAddedDim, DiffRemovedDim, DiffAddedWord, DiffRemovedWord string
 }
 
 // A theme is a name and its two grounds.
 type theme struct {
-	name        string
-	dark, light ground
+	Name        string
+	Dark, Light Ground
 }
 
-// themes is every theme conn has, in the order they are offered.
-var themes = []theme{connTheme, datumTheme}
+// All is every theme conn has, in the order they are offered.
+var All = []theme{Conn, Datum}
 
-// defaultTheme is the one conn wears unless told another.
-const defaultTheme = "conn"
+// Default is the one conn wears unless told another.
+const Default = "conn"
 
-// themeNamed is the theme by that name, and whether conn has one.
-func themeNamed(name string) (theme, bool) {
-	for _, t := range themes {
-		if t.name == name {
+// Named is the theme by that name, and whether conn has one.
+func Named(name string) (theme, bool) {
+	for _, t := range All {
+		if t.Name == name {
 			return t, true
 		}
 	}
 	return theme{}, false
 }
 
-// themeKnown says whether conn has a theme by that name.
-func themeKnown(name string) bool {
-	_, ok := themeNamed(name)
+// Known says whether conn has a theme by that name.
+func Known(name string) bool {
+	_, ok := Named(name)
 	return ok
 }
 
 // on is the theme on one ground: dark, or light.
-func (t theme) on(dark bool) ground {
+func (t theme) on(dark bool) Ground {
 	if dark {
-		return t.dark
+		return t.Dark
 	}
-	return t.light
+	return t.Light
 }
 
-// rgb is a color as a table writes it, #RRGGBB, as the terminal is
+// RGB is a color as a table writes it, #RRGGBB, as the terminal is
 // asked to take it. A table is read at start and by the tests, so a
 // hex that will not parse stops conn there rather than drawing black.
-func rgb(h string) color.RGBA {
+func RGB(h string) color.RGBA {
 	var c color.RGBA
 	if _, err := fmt.Sscanf(h, "#%02X%02X%02X", &c.R, &c.G, &c.B); err != nil {
 		panic(fmt.Sprintf("not a color: %q", h))
@@ -93,7 +94,7 @@ func rgb(h string) color.RGBA {
 	return c
 }
 
-// connTheme is conn's own. Dark is every terminal it ever knew; light
+// Conn is conn's own. Dark is every terminal it ever knew; light
 // is for the terminal that says its own ground is light when conn asks.
 //
 // Light is not dark with the lightness flipped. On paper, emphasis is
@@ -149,12 +150,12 @@ func rgb(h string) color.RGBA {
 // dark's diffAddedWord is 1.65:1 against its ground, light's #C2D4B0
 // was only 1.30:1 against light's - #A4C187 is what 1.65:1 costs on
 // the same hue).
-var connTheme = theme{
-	name: "conn",
-	dark: ground{
-		ground: color.RGBA{R: 21, G: 19, B: 15, A: 255},
-		ink:    color.RGBA{R: 230, G: 223, B: 208, A: 255},
-		scheme: [16]string{
+var Conn = theme{
+	Name: "conn",
+	Dark: Ground{
+		Ground: color.RGBA{R: 21, G: 19, B: 15, A: 255},
+		Ink:    color.RGBA{R: 230, G: 223, B: 208, A: 255},
+		Scheme: [16]string{
 			"#2A2620", // black
 			"#FF7847", // red
 			"#93C98B", // green
@@ -172,29 +173,29 @@ var connTheme = theme{
 			"#9AD9D0", // bright cyan
 			"#E6DFD0", // bright white
 		},
-		accent:    "#E85D2F",
-		shimmer:   "#FF7847",
-		border:    "#2A2620",
-		surface:   "#1D1A15",
-		running:   "#93C98B",
-		gray:      "#8B8272",
-		faint:     "#5C564A",
-		parchment: "#BFB39A",
+		Accent:    "#E85D2F",
+		Shimmer:   "#FF7847",
+		Border:    "#2A2620",
+		Surface:   "#1D1A15",
+		Running:   "#93C98B",
+		Gray:      "#8B8272",
+		Faint:     "#5C564A",
+		Parchment: "#BFB39A",
 
-		messageBg:       "#2A2620",
-		messageHoverBg:  "#33302A",
-		toolBg:          "#1D1A15",
-		diffAddedBg:     "#1E2A1C",
-		diffRemovedBg:   "#331F17",
-		diffAddedDim:    "#191F17",
-		diffRemovedDim:  "#231A14",
-		diffAddedWord:   "#2C4028",
-		diffRemovedWord: "#4A2A1D",
+		MessageBg:       "#2A2620",
+		MessageHoverBg:  "#33302A",
+		ToolBg:          "#1D1A15",
+		DiffAddedBg:     "#1E2A1C",
+		DiffRemovedBg:   "#331F17",
+		DiffAddedDim:    "#191F17",
+		DiffRemovedDim:  "#231A14",
+		DiffAddedWord:   "#2C4028",
+		DiffRemovedWord: "#4A2A1D",
 	},
-	light: ground{
-		ground: color.RGBA{R: 0xEF, G: 0xE9, B: 0xDB, A: 255},
-		ink:    color.RGBA{R: 0x1A, G: 0x16, B: 0x11, A: 255},
-		scheme: [16]string{
+	Light: Ground{
+		Ground: color.RGBA{R: 0xEF, G: 0xE9, B: 0xDB, A: 255},
+		Ink:    color.RGBA{R: 0x1A, G: 0x16, B: 0x11, A: 255},
+		Scheme: [16]string{
 			"#2B2620", // black
 			"#A63214", // red
 			"#23703F", // green
@@ -212,35 +213,35 @@ var connTheme = theme{
 			"#0A585D", // bright cyan
 			"#1A1611", // bright white
 		},
-		accent:    "#BD3A1D",
-		shimmer:   "#A63214",
-		border:    "#D8D0BD",
-		surface:   "#E6DFCF",
-		running:   "#23703F",
-		gray:      "#6F6656",
-		faint:     "#867C6A",
-		parchment: "#4A4335",
+		Accent:    "#BD3A1D",
+		Shimmer:   "#A63214",
+		Border:    "#D8D0BD",
+		Surface:   "#E6DFCF",
+		Running:   "#23703F",
+		Gray:      "#6F6656",
+		Faint:     "#867C6A",
+		Parchment: "#4A4335",
 
-		messageBg:       "#D8D0BD",
-		messageHoverBg:  "#CFC6B0",
-		toolBg:          "#E6DFCF",
-		diffAddedBg:     "#CAD7BB",
-		diffRemovedBg:   "#E8D3C4",
-		diffAddedDim:    "#DFE1CD",
-		diffRemovedDim:  "#EBDED0",
-		diffAddedWord:   "#A4C187",
-		diffRemovedWord: "#E0BDA4",
+		MessageBg:       "#D8D0BD",
+		MessageHoverBg:  "#CFC6B0",
+		ToolBg:          "#E6DFCF",
+		DiffAddedBg:     "#CAD7BB",
+		DiffRemovedBg:   "#E8D3C4",
+		DiffAddedDim:    "#DFE1CD",
+		DiffRemovedDim:  "#EBDED0",
+		DiffAddedWord:   "#A4C187",
+		DiffRemovedWord: "#E0BDA4",
 	},
 }
 
-// dark is whether this is a theme's dark ground, read off the ground
+// Dark is whether this is a theme's dark ground, read off the ground
 // itself the way a terminal's is asked: a theme's dark ground is dark
 // by construction, and reading it keeps a ground one thing rather than
 // a table and a flag about the table. What follows from it - the base
 // Claude Code's theme sits on, what nvim is told its background is -
 // is read here too.
-func (g ground) dark() bool {
-	return isDark(g.ground)
+func (g Ground) Dark() bool {
+	return IsDark(g.Ground)
 }
 
 // configTheme is the theme the file names, when conn has one by that
@@ -248,13 +249,13 @@ func (g ground) dark() bool {
 // console's to report, not a reason to come up in nothing.
 func configTheme(home string) string {
 	c, _ := config.Read(home)
-	if _, ok := themeNamed(c.Theme); ok {
+	if _, ok := Named(c.Theme); ok {
 		return c.Theme
 	}
-	return defaultTheme
+	return Default
 }
 
-// hex is a color as a terminal wants it written.
-func hex(c color.RGBA) string {
+// Hex is a color as a terminal wants it written.
+func Hex(c color.RGBA) string {
 	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
 }

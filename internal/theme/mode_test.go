@@ -1,4 +1,4 @@
-package main
+package theme
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // --light and --dark, read off the front of conn's own arguments, pick
@@ -35,29 +37,29 @@ func TestParseModeFlags(t *testing.T) {
 		{"--theme beside a ground", []string{"--light", "--theme", "datum"}, nil, boolPtr(false)},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			rest, o, err := parseModeFlags(c.args)
-			got := o.dark
+			rest, o, err := ParseFlags(c.args)
+			got := o.Dark
 			if err != nil {
-				t.Fatalf("parseModeFlags(%v): %v", c.args, err)
+				t.Fatalf("ParseFlags(%v): %v", c.args, err)
 			}
 			if len(rest) != len(c.rest) {
-				t.Fatalf("parseModeFlags(%v) rest = %v, want %v", c.args, rest, c.rest)
+				t.Fatalf("ParseFlags(%v) rest = %v, want %v", c.args, rest, c.rest)
 			}
 			for i := range rest {
 				if rest[i] != c.rest[i] {
-					t.Errorf("parseModeFlags(%v) rest = %v, want %v", c.args, rest, c.rest)
+					t.Errorf("ParseFlags(%v) rest = %v, want %v", c.args, rest, c.rest)
 				}
 			}
 			if (got == nil) != (c.want == nil) || (got != nil && *got != *c.want) {
-				t.Errorf("parseModeFlags(%v) override = %v, want %v", c.args, got, c.want)
+				t.Errorf("ParseFlags(%v) override = %v, want %v", c.args, got, c.want)
 			}
 		})
 	}
 
-	if _, _, err := parseModeFlags([]string{"--dark", "--light"}); err == nil {
+	if _, _, err := ParseFlags([]string{"--dark", "--light"}); err == nil {
 		t.Error("--dark and --light together was not a contradiction")
 	}
-	if _, _, err := parseModeFlags([]string{"--light", "--dark"}); err == nil {
+	if _, _, err := ParseFlags([]string{"--light", "--dark"}); err == nil {
 		t.Error("--light and --dark together was not a contradiction")
 	}
 
@@ -72,8 +74,8 @@ func TestParseModeFlags(t *testing.T) {
 		{"said twice, the same", []string{"--theme", "datum", "--theme", "datum"}, "datum"},
 		{"not said", []string{"--dark"}, ""},
 	} {
-		if _, o, err := parseModeFlags(c.args); err != nil || o.theme != c.theme {
-			t.Errorf("%s: parseModeFlags(%v) = theme %q, %v; want %q", c.name, c.args, o.theme, err, c.theme)
+		if _, o, err := ParseFlags(c.args); err != nil || o.Theme != c.theme {
+			t.Errorf("%s: ParseFlags(%v) = theme %q, %v; want %q", c.name, c.args, o.Theme, err, c.theme)
 		}
 	}
 	for _, c := range []struct {
@@ -85,97 +87,97 @@ func TestParseModeFlags(t *testing.T) {
 		{"with a name conn does not have", []string{"--theme", "solarized"}, "conn has no theme solarized; it has conn and datum"},
 		{"twice, with two names", []string{"--theme", "conn", "--theme", "datum"}, "contradiction"},
 	} {
-		if _, _, err := parseModeFlags(c.args); err == nil || !strings.Contains(err.Error(), c.says) {
+		if _, _, err := ParseFlags(c.args); err == nil || !strings.Contains(err.Error(), c.says) {
 			t.Errorf("--theme %s: %v; want it to say %q", c.name, err, c.says)
 		}
 	}
 }
 
-// askMode takes what the flags said over the terminal and the
+// AskMode takes what the flags said over the terminal and the
 // configuration, when they said anything; the theme is the
 // configuration's, and conn's own where it names none.
 func TestAskMode(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	light, dark := false, true
-	if m := askMode(override{dark: &light}, home); m.dark || m.theme != defaultTheme {
-		t.Errorf("askMode(--light) = %+v", m)
+	if m := AskMode(Override{Dark: &light}, home); m.Dark || m.Theme != Default {
+		t.Errorf("AskMode(--light) = %+v", m)
 	}
-	if m := askMode(override{dark: &dark}, home); !m.dark || m.theme != defaultTheme {
-		t.Errorf("askMode(--dark) = %+v", m)
+	if m := AskMode(Override{Dark: &dark}, home); !m.Dark || m.Theme != Default {
+		t.Errorf("AskMode(--dark) = %+v", m)
 	}
-	// With nothing said and no terminal to ask (a test has none), askMode
+	// With nothing said and no terminal to ask (a test has none), AskMode
 	// falls back the same way detectDark does: dark.
-	if m := askMode(override{}, home); !m.dark || m.theme != defaultTheme {
-		t.Errorf("askMode(nothing) with no terminal = %+v", m)
+	if m := AskMode(Override{}, home); !m.Dark || m.Theme != Default {
+		t.Errorf("AskMode(nothing) with no terminal = %+v", m)
 	}
 	// The configuration names the theme; a flag names it over the file;
 	// a file naming a theme conn does not have names conn's own.
 	home = writeConfig(t, `{"roots": ["~"], "theme": "datum"}`)
-	if m := askMode(override{dark: &dark}, home); m.theme != "datum" {
-		t.Errorf("askMode with datum configured = %+v", m)
+	if m := AskMode(Override{Dark: &dark}, home); m.Theme != "datum" {
+		t.Errorf("AskMode with datum configured = %+v", m)
 	}
-	if m := askMode(override{dark: &dark, theme: "conn"}, home); m.theme != "conn" {
-		t.Errorf("askMode(--theme conn) with datum configured = %+v", m)
+	if m := AskMode(Override{Dark: &dark, Theme: "conn"}, home); m.Theme != "conn" {
+		t.Errorf("AskMode(--theme conn) with datum configured = %+v", m)
 	}
-	if m := serverMode(filepath.Join(t.TempDir(), "sock"), home); m.theme != "datum" || !m.dark {
-		t.Errorf("serverMode with no file and datum configured = %+v", m)
+	if m := ServerMode(filepath.Join(t.TempDir(), "sock"), home); m.Theme != "datum" || !m.Dark {
+		t.Errorf("ServerMode with no file and datum configured = %+v", m)
 	}
 	home = writeConfig(t, `{"roots": ["~"], "theme": "solarized"}`)
-	if m := askMode(override{dark: &dark}, home); m.theme != defaultTheme {
-		t.Errorf("askMode with a theme conn does not have configured = %+v", m)
+	if m := AskMode(Override{Dark: &dark}, home); m.Theme != Default {
+		t.Errorf("AskMode with a theme conn does not have configured = %+v", m)
 	}
 	// A file naming a ground stands in front of the terminal: an
 	// operator who wrote one wants that ground wherever they are. A flag
 	// stands in front of the file, as it does for the theme.
 	home = writeConfig(t, `{"roots": ["~"], "ground": "light"}`)
-	if m := askMode(override{}, home); m.dark {
-		t.Errorf("askMode with light configured = %+v", m)
+	if m := AskMode(Override{}, home); m.Dark {
+		t.Errorf("AskMode with light configured = %+v", m)
 	}
-	if m := askMode(override{dark: &dark}, home); !m.dark {
-		t.Errorf("askMode(--dark) with light configured = %+v", m)
+	if m := AskMode(Override{Dark: &dark}, home); !m.Dark {
+		t.Errorf("AskMode(--dark) with light configured = %+v", m)
 	}
-	if m := serverMode(filepath.Join(t.TempDir(), "sock"), home); m.dark {
-		t.Errorf("serverMode with no file and light configured = %+v", m)
+	if m := ServerMode(filepath.Join(t.TempDir(), "sock"), home); m.Dark {
+		t.Errorf("ServerMode with no file and light configured = %+v", m)
 	}
 	// A word that is neither ground is no ground at all: the terminal is
 	// asked, which with no terminal to ask is dark, and the console says
 	// the file names one conn does not have.
 	home = writeConfig(t, `{"roots": ["~"], "ground": "grey"}`)
-	if m := askMode(override{}, home); !m.dark {
-		t.Errorf("askMode with a ground conn does not have configured = %+v", m)
+	if m := AskMode(Override{}, home); !m.Dark {
+		t.Errorf("AskMode with a ground conn does not have configured = %+v", m)
 	}
 }
 
 // connOn is conn's own theme on one ground: what every server was
 // before there was another theme to be in.
-func connOn(dark bool) mode { return mode{theme: defaultTheme, dark: dark} }
+func connOn(dark bool) Mode { return Mode{Theme: Default, Dark: dark} }
 
 // A mode wears a ground: its theme's, dark or light, and the ground
 // says what follows from it for the programs conn dresses. A theme
 // conn does not have is conn's own, on the ground asked for.
 func TestAModeWearsAGround(t *testing.T) {
 	for _, c := range []struct {
-		m         mode
-		want      ground
+		m         Mode
+		want      Ground
 		base, vim string
 	}{
-		{connOn(true), connTheme.dark, "dark-ansi", "dark"},
-		{connOn(false), connTheme.light, "light-ansi", "light"},
-		{mode{theme: "datum", dark: true}, datumTheme.dark, "dark-ansi", "dark"},
-		{mode{theme: "datum", dark: false}, datumTheme.light, "light-ansi", "light"},
-		{mode{theme: "gone", dark: false}, connTheme.light, "light-ansi", "light"},
+		{connOn(true), Conn.Dark, "dark-ansi", "dark"},
+		{connOn(false), Conn.Light, "light-ansi", "light"},
+		{Mode{Theme: "datum", Dark: true}, Datum.Dark, "dark-ansi", "dark"},
+		{Mode{Theme: "datum", Dark: false}, Datum.Light, "light-ansi", "light"},
+		{Mode{Theme: "gone", Dark: false}, Conn.Light, "light-ansi", "light"},
 	} {
-		g := c.m.wear()
+		g := c.m.Wear()
 		if g != c.want {
-			t.Errorf("%+v wears %s, not the ground asked for", c.m, hex(g.ground))
+			t.Errorf("%+v wears %s, not the ground asked for", c.m, Hex(g.Ground))
 		}
-		if g.claudeBase() != c.base || g.vimBackground() != c.vim {
-			t.Errorf("%+v tells Claude Code %q and nvim %q", c.m, g.claudeBase(), g.vimBackground())
+		if g.ClaudeBase() != c.base || g.VimBackground() != c.vim {
+			t.Errorf("%+v tells Claude Code %q and nvim %q", c.m, g.ClaudeBase(), g.VimBackground())
 		}
 	}
-	if hex(connOn(true).wear().ground) != "#15130F" || connOn(true).wear().accent != "#E85D2F" ||
-		hex(connOn(false).wear().ground) != "#EFE9DB" || connOn(false).wear().accent != "#BD3A1D" {
+	if Hex(connOn(true).Wear().Ground) != "#15130F" || connOn(true).Wear().Accent != "#E85D2F" ||
+		Hex(connOn(false).Wear().Ground) != "#EFE9DB" || connOn(false).Wear().Accent != "#BD3A1D" {
 		t.Error("conn's own grounds are not the ones the tables say")
 	}
 }
@@ -184,13 +186,13 @@ func TestAModeWearsAGround(t *testing.T) {
 // alike, structure and type and what can be run apart from each other.
 func TestTheLightSchemeIsSixteenToo(t *testing.T) {
 	seen := map[string]int{}
-	for i, c := range connTheme.light.scheme {
+	for i, c := range Conn.Light.Scheme {
 		if was, dup := seen[c]; dup {
 			t.Errorf("slot %d is slot %d again: %s", i, was, c)
 		}
 		seen[c] = i
 	}
-	blue, magenta, cyan := connTheme.light.scheme[4], connTheme.light.scheme[5], connTheme.light.scheme[6]
+	blue, magenta, cyan := Conn.Light.Scheme[4], Conn.Light.Scheme[5], Conn.Light.Scheme[6]
 	if blue == cyan || blue == magenta || magenta == cyan {
 		t.Errorf("slots 4/5/6 collapse: %s %s %s", blue, magenta, cyan)
 	}
@@ -234,11 +236,11 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 		scheme [16]string
 		name   string
 	}{
-		{hex(connTheme.light.ground), 0, connTheme.light.scheme, "light black"},
-		{hex(connTheme.light.ground), 7, connTheme.light.scheme, "light white"},
-		{hex(connTheme.light.ground), 15, connTheme.light.scheme, "light bright white"},
-		{hex(connTheme.dark.ground), 7, connTheme.dark.scheme, "dark white"},
-		{hex(connTheme.dark.ground), 15, connTheme.dark.scheme, "dark bright white"},
+		{Hex(Conn.Light.Ground), 0, Conn.Light.Scheme, "light black"},
+		{Hex(Conn.Light.Ground), 7, Conn.Light.Scheme, "light white"},
+		{Hex(Conn.Light.Ground), 15, Conn.Light.Scheme, "light bright white"},
+		{Hex(Conn.Dark.Ground), 7, Conn.Dark.Scheme, "dark white"},
+		{Hex(Conn.Dark.Ground), 15, Conn.Dark.Scheme, "dark bright white"},
 	} {
 		if r := contrast(c.scheme[c.slot], c.ground); r < readable {
 			t.Errorf("%s (slot %d, %s) is %.2f:1 on %s; %.1f:1 is what reading it takes",
@@ -249,8 +251,8 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 	// ground knocked out of it, so the word is only as readable as the
 	// orange stands off the ground it is drawn against.
 	for _, c := range []struct{ name, hex, ground string }{
-		{"dark", connTheme.dark.accent, hex(connTheme.dark.ground)},
-		{"light", connTheme.light.accent, hex(connTheme.light.ground)},
+		{"dark", Conn.Dark.Accent, Hex(Conn.Dark.Ground)},
+		{"light", Conn.Light.Accent, Hex(Conn.Light.Ground)},
 	} {
 		if r := contrast(c.hex, c.ground); r < readable {
 			t.Errorf("the %s block (%s) is %.2f:1 on %s; the word knocked out of it takes %.1f:1",
@@ -261,8 +263,8 @@ func TestTheSlotsATextIsWrittenInAreReadable(t *testing.T) {
 	// and is held to no more than that, but it is still a color and
 	// not the ground.
 	for _, c := range []struct{ name, hex, ground string }{
-		{"light bright black", connTheme.light.scheme[8], hex(connTheme.light.ground)},
-		{"dark bright black", connTheme.dark.scheme[8], hex(connTheme.dark.ground)},
+		{"light bright black", Conn.Light.Scheme[8], Hex(Conn.Light.Ground)},
+		{"dark bright black", Conn.Dark.Scheme[8], Hex(Conn.Dark.Ground)},
 	} {
 		if r := contrast(c.hex, c.ground); r < 2 {
 			t.Errorf("%s (%s) is %.2f:1 on %s, which is the ground again", c.name, c.hex, r, c.ground)
@@ -284,8 +286,8 @@ func TestIsDark(t *testing.T) {
 		{"black", 0, 0, 0, true},
 		{"a saturated blue", 0x2020, 0x4040, 0xffff, true},
 	} {
-		if got := isDark(color.RGBA64{R: c.r, G: c.g, B: c.b, A: 0xffff}); got != c.dark {
-			t.Errorf("isDark(%s) = %v, want %v", c.name, got, c.dark)
+		if got := IsDark(color.RGBA64{R: c.r, G: c.g, B: c.b, A: 0xffff}); got != c.dark {
+			t.Errorf("IsDark(%s) = %v, want %v", c.name, got, c.dark)
 		}
 	}
 }
@@ -300,51 +302,68 @@ func TestModeFileRoundTrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // no configuration of the machine's own
 
-	if m := serverMode(socket, home); m != connOn(true) {
+	if m := ServerMode(socket, home); m != connOn(true) {
 		t.Errorf("a server with no mode file yet is %+v, not conn's dark", m)
 	}
-	if _, ok := readModeFile(socket); ok {
-		t.Error("readModeFile found a file nobody wrote")
+	if _, ok := ReadModeFile(socket); ok {
+		t.Error("ReadModeFile found a file nobody wrote")
 	}
 
-	if err := writeMode(socket, connOn(false)); err != nil {
+	if err := WriteMode(socket, connOn(false)); err != nil {
 		t.Fatal(err)
 	}
-	if m := serverMode(socket, home); m != connOn(false) {
+	if m := ServerMode(socket, home); m != connOn(false) {
 		t.Errorf("a server written conn's light reads back %+v", m)
 	}
-	if m, ok := readModeFile(socket); !ok || m != connOn(false) {
-		t.Errorf("readModeFile = (%+v, %v), want (conn light, true)", m, ok)
+	if m, ok := ReadModeFile(socket); !ok || m != connOn(false) {
+		t.Errorf("ReadModeFile = (%+v, %v), want (conn light, true)", m, ok)
 	}
 
-	if err := writeMode(socket, connOn(true)); err != nil {
+	if err := WriteMode(socket, connOn(true)); err != nil {
 		t.Fatal(err)
 	}
-	if m := serverMode(socket, home); m != connOn(true) {
+	if m := ServerMode(socket, home); m != connOn(true) {
 		t.Errorf("a server written conn's dark reads back %+v", m)
 	}
 
 	for _, c := range []struct {
 		name, file string
-		want       mode
+		want       Mode
 	}{
 		{"a file from before themes, light", "light", connOn(false)},
 		{"a file from before themes, dark", "dark\n", connOn(true)},
 		{"a theme conn does not have", "light solarized\n", connOn(false)},
 		{"an empty file", "", connOn(true)},
 	} {
-		if err := os.WriteFile(modePath(socket), []byte(c.file), 0o600); err != nil {
+		if err := os.WriteFile(ModePath(socket), []byte(c.file), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if m := serverMode(socket, home); m != c.want {
+		if m := ServerMode(socket, home); m != c.want {
 			t.Errorf("%s reads as %+v, want %+v", c.name, m, c.want)
 		}
 	}
 
-	if err := os.Remove(modePath(socket)); err != nil {
+	if err := os.Remove(ModePath(socket)); err != nil {
 		t.Fatal(err)
 	}
-	if m := serverMode(socket, home); m != connOn(true) {
+	if m := ServerMode(socket, home); m != connOn(true) {
 		t.Errorf("a cleared mode file falls back to %+v, not conn's dark", m)
 	}
+}
+
+// writeConfig puts a config file where conn will look for it, under a
+// config home of the test's own, and answers the home it was written
+// for.
+func writeConfig(t *testing.T, body string) string {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	home := t.TempDir()
+	path := config.Path(home)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return home
 }

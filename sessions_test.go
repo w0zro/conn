@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // testSessions2 is a project's suspended sessions as claudeSuspended
@@ -66,7 +68,7 @@ func TestSessionsLayOut(t *testing.T) {
 	if strings.Count(text, "▸") != 1 {
 		t.Errorf("the cursor marks %d rows", strings.Count(text, "▸"))
 	}
-	for _, r := range drawSessions(testSessions(""), 0, 48, 30, colored(connTheme.dark)) {
+	for _, r := range drawSessions(testSessions(""), 0, 48, 30, colored(theme.Conn.Dark)) {
 		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != 48 {
 			t.Errorf("a colored row paints %d columns", w)
 		}

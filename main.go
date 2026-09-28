@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,12 +29,12 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 	// machine is running in, or would come up in if none is up yet - not
 	// an argument of its own, so it never drifts from what conn itself
 	// is dressed in.
-	g := serverMode(socketPath(home), home).wear()
+	g := theme.ServerMode(socketPath(home), home).Wear()
 	switch args[0] {
 	case "claude":
 		return dressClaude(home, ask, g)
 	case "vim", "nvim":
-		return dressVim(home, g)
+		return theme.DressVim(home, g)
 	}
 	return fmt.Sprintf("conn theme: conn has no theme for %s; it has one for claude and one for vim\n", args[0]), false
 }
@@ -41,30 +43,30 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 // when nothing of the user's own is in the way: a settings file on one
 // of the themes Claude Code comes with, or on none. A custom theme is
 // somebody's own doing, and conn says what it is and leaves it.
-func dressClaude(home string, ask func(string) bool, g ground) (string, bool) {
-	path, err := writeClaudeTheme(home, g)
+func dressClaude(home string, ask func(string) bool, g theme.Ground) (string, bool) {
+	path, err := theme.WriteClaudeTheme(home, g)
 	if err != nil {
 		return fmt.Sprintf("conn theme: %v\n", err), false
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Wrote conn's theme for Claude Code to %s\n", config.Tilde(path, home))
-	in, ok := themeInUse(home)
+	in, ok := theme.ThemeInUse(home)
 	switch {
 	case !ok:
-		fmt.Fprintf(&b, "Claude Code has no settings file yet; it will read the theme once %q is its theme.\n", claudeThemeRef)
-	case in == claudeThemeRef:
+		fmt.Fprintf(&b, "Claude Code has no settings file yet; it will read the theme once %q is its theme.\n", theme.ClaudeThemeRef)
+	case in == theme.ClaudeThemeRef:
 		// Already on it, and the themes directory is watched: a session
 		// that is up has the new colors already.
-	case !builtinThemes[in]:
+	case !theme.BuiltinThemes[in]:
 		fmt.Fprintf(&b, "Claude Code is on %s, which is not conn's to change. Pick Conn with /theme when you want it.\n", in)
 	case ask != nil && ask("Put Claude Code on it now?"):
-		if err := useClaudeTheme(home); err != nil {
+		if err := theme.UseClaudeTheme(home); err != nil {
 			fmt.Fprintf(&b, "conn theme: %v\n", err)
 			return b.String(), false
 		}
-		fmt.Fprintf(&b, "Claude Code is on %s. A session that is up picks it up as the directory is watched.\n", claudeThemeRef)
+		fmt.Fprintf(&b, "Claude Code is on %s. A session that is up picks it up as the directory is watched.\n", theme.ClaudeThemeRef)
 	default:
-		fmt.Fprintf(&b, "Pick Conn with /theme, or set %q as the theme in ~/.claude/settings.json.\n", claudeThemeRef)
+		fmt.Fprintf(&b, "Pick Conn with /theme, or set %q as the theme in ~/.claude/settings.json.\n", theme.ClaudeThemeRef)
 	}
 	return b.String(), true
 }
@@ -97,7 +99,7 @@ func asks() func(string) bool {
 // in the history, and comes back piece by piece, in the form it is
 // wanted in.
 func main() {
-	args, override, err := parseModeFlags(os.Args[1:])
+	args, override, err := theme.ParseFlags(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "conn:", err)
 		os.Exit(2)
@@ -139,20 +141,20 @@ func main() {
 	// A pane of conn's own server draws in the mode the server already
 	// chose; anything else - no tmux, or the server could not come up -
 	// has nobody to ask but the terminal itself, or the flags.
-	var want mode
+	var want theme.Mode
 	if inside {
-		want = serverMode(srv.socket, home)
+		want = theme.ServerMode(srv.socket, home)
 	} else {
-		want = askMode(override, home)
+		want = theme.AskMode(override, home)
 	}
 	// The panel is drawn on the surface, a step off the ground the bay
 	// is on, and its pane is painted to match, so the ground shows the
 	// same past the rows conn draws.
-	g := want.wear()
+	g := want.Wear()
 	m := newModel(g)
 	m.srv, m.inside = srv, inside
 	if inside {
-		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+g.surface)
+		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+g.Surface)
 	}
 	m.self, _ = os.Executable()
 	if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {
@@ -199,7 +201,7 @@ var commands = []command{
 		if len(args) > 0 {
 			pid, _ = strconv.Atoi(args[0])
 		}
-		g := serverMode(socketPath(home), home).wear()
+		g := theme.ServerMode(socketPath(home), home).Wear()
 		if err := runReadout(findServer(home), pid, home, colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
@@ -208,7 +210,7 @@ var commands = []command{
 	}},
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		g := serverMode(socketPath(home), home).wear()
+		g := theme.ServerMode(socketPath(home), home).Wear()
 		if err := runHold(findServer(home), colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			return 1
@@ -220,7 +222,7 @@ var commands = []command{
 	// this in the pane it opens for them.
 	{"settings", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		if err := runSettings(findServer(home), home, serverMode(socketPath(home), home)); err != nil {
+		if err := runSettings(findServer(home), home, theme.ServerMode(socketPath(home), home)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn settings: %v\n", err)
 			return 1
 		}
@@ -231,7 +233,7 @@ var commands = []command{
 	// and conn runs this in the pane it opens for it.
 	{"manual", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		g := serverMode(socketPath(home), home).wear()
+		g := theme.ServerMode(socketPath(home), home).Wear()
 		path, err := writeManPage(home)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
@@ -258,7 +260,7 @@ func runCommand(name string, args []string) int {
 }
 
 // A flag conn takes ahead of a command, and what it does, for the
-// synopsis; the flags themselves are read by parseModeFlags.
+// synopsis; the flags themselves are read by theme.ParseFlags.
 var flags = []command{
 	{"--light", "say the ground is light, for a server coming up or one already up", nil},
 	{"--dark", "say the ground is dark", nil},

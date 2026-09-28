@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -94,7 +96,7 @@ func (m model) keys() string {
 	if m.view == viewConsole {
 		return ""
 	}
-	return statusLineWord(wordmarkLine, hex(m.g.ink), true, m.g)
+	return statusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
 }
 
 // wordmarkLine is conn's name as the band wears it.
@@ -115,7 +117,7 @@ func (m model) station() string {
 	if m.detour.to != noDetour {
 		return statusLineBlock(m.detour.to.word(), m.g)
 	}
-	return statusLineWord(wordmarkLine, hex(m.g.ink), true, m.g)
+	return statusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
 }
 
 // upWord is the right edge of the band: the time of day, local, as
@@ -132,7 +134,7 @@ func (m model) upWord() string {
 	if !m.up.IsZero() {
 		word += " · T+ " + strings.ToLower(uptime(m.up, m.now))
 	}
-	return statusLineWord(word+" ", m.g.gray, false, m.g)
+	return statusLineWord(word+" ", m.g.Gray, false, m.g)
 }
 
 // bar is the key bar across the foot of the window: the keys that work

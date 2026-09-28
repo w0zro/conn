@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // The panel is filed by project: a block per project, its rows in the
@@ -72,7 +74,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 		}
 	}
 	// What is not running is struck through, in color.
-	if lit := texts(drawProcesses(b, 5, panelWidth, 30, colored(connTheme.dark))); !strings.Contains(lit, "\x1b[9m") {
+	if lit := texts(drawProcesses(b, 5, panelWidth, 30, colored(theme.Conn.Dark))); !strings.Contains(lit, "\x1b[9m") {
 		t.Errorf("what is not running is not struck through:\n%s", lit)
 	}
 }
@@ -92,7 +94,7 @@ func TestMinutes(t *testing.T) {
 // keys that act at a project only inside the server. While a process
 // has the keys, it says the chords instead.
 func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, focused: true, g: connTheme.dark, panes: map[string]pane{"ttys001": {id: "%1"}}}
+	m := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark, panes: map[string]pane{"ttys001": {id: "%1"}}}
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
 		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
@@ -103,7 +105,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	m.declared = map[string]declared{"/w": {list: []declaration{{name: "worker", command: "npm run worker"}}}}
 	// The words are written in the lower case, whatever the hint says.
 	has := func(bar, key, does string) bool {
-		return strings.Contains(bar, key+" #[nobold fg="+connTheme.dark.gray+"]"+strings.ToLower(does))
+		return strings.Contains(bar, key+" #[nobold fg="+theme.Conn.Dark.Gray+"]"+strings.ToLower(does))
 	}
 	m.cursor = 1
 	bar := m.bar()
@@ -137,7 +139,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	}
 	// With nothing running there is no row and so no project to act at:
 	// the station's own keys are what is left.
-	empty := model{view: viewProcesses, inside: true, focused: true, g: connTheme.dark}
+	empty := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark}
 	if bar := empty.bar(); has(bar, "s", "Shell") || has(bar, "a", "New contact") ||
 		!has(bar, "p", "Projects") || !has(bar, ",", "Settings") || !has(bar, "?", "Help") {
 		t.Errorf("with no rows the bar offers %s", bar)

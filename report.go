@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 )
 
@@ -373,7 +375,7 @@ func configCheck(c config.State, home string) check {
 		k.status, k.fault = notWritten, true
 	case !c.Names:
 		k.status, k.fault = noRoots, true
-	case c.Theme != "" && !themeKnown(c.Theme):
+	case c.Theme != "" && !theme.Known(c.Theme):
 		k.status, k.fault = noTheme, true
 	case c.NoSuchGround:
 		k.status, k.fault = noGround, true

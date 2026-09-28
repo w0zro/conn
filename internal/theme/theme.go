@@ -1,4 +1,4 @@
-package main
+package theme
 
 import (
 	"encoding/json"
@@ -31,31 +31,31 @@ import (
 // Where Claude Code keeps what conn writes and what it reads back.
 const (
 	claudeDir      = ".claude"
-	claudeThemeRef = "custom:conn"
+	ClaudeThemeRef = "custom:conn"
 )
 
 // A token and what conn would have it drawn in.
-type token struct{ name, color string }
+type token struct{ Name, Color string }
 
-// claudeTheme is the theme, in the order the handoff lays it out: the
+// ClaudeTheme is the theme, in the order the handoff lays it out: the
 // mark, the words, the words that carry a verdict, the chrome that says
 // what Claude may do, the diffs, the bars, the meter, and the two agent
 // colors conn has an opinion about.
-func claudeTheme(g ground) [][]token {
+func ClaudeTheme(g Ground) [][]token {
 	var (
-		yellow, cyan  = g.scheme[3], g.scheme[6]
-		faint, accent = g.faint, g.accent
-		ink           = hex(g.ink)
+		yellow, cyan  = g.Scheme[3], g.Scheme[6]
+		faint, accent = g.Faint, g.Accent
+		ink           = Hex(g.Ink)
 	)
 	return [][]token{{
 		{"claude", accent},
-		{"claudeShimmer", g.shimmer},
+		{"claudeShimmer", g.Shimmer},
 	}, {
 		{"text", ink},
-		{"inverseText", hex(g.ground)},
-		{"inactive", g.gray},
+		{"inverseText", Hex(g.Ground)},
+		{"inactive", g.Gray},
 		{"subtle", faint},
-		{"suggestion", g.gray},
+		{"suggestion", g.Gray},
 		{"remember", cyan},
 	}, {
 		// A verdict is slot-shaped: it follows the pane's own sixteen.
@@ -69,28 +69,28 @@ func claudeTheme(g ground) [][]token {
 		// Claude may do.
 		{"promptBorder", faint},
 		{"permission", accent},
-		{"permissionShimmer", g.shimmer},
+		{"permissionShimmer", g.Shimmer},
 		{"planMode", cyan},
 		{"autoAccept", yellow},
-		{"bashBorder", g.parchment},
+		{"bashBorder", g.Parchment},
 		{"ide", cyan},
 		{"fastMode", yellow},
 	}, {
-		{"diffAdded", g.diffAddedBg},
-		{"diffRemoved", g.diffRemovedBg},
-		{"diffAddedDimmed", g.diffAddedDim},
-		{"diffRemovedDimmed", g.diffRemovedDim},
-		{"diffAddedWord", g.diffAddedWord},
-		{"diffRemovedWord", g.diffRemovedWord},
+		{"diffAdded", g.DiffAddedBg},
+		{"diffRemoved", g.DiffRemovedBg},
+		{"diffAddedDimmed", g.DiffAddedDim},
+		{"diffRemovedDimmed", g.DiffRemovedDim},
+		{"diffAddedWord", g.DiffAddedWord},
+		{"diffRemovedWord", g.DiffRemovedWord},
 	}, {
-		{"userMessageBackground", g.messageBg},
-		{"userMessageBackgroundHover", g.messageHoverBg},
-		{"selectionBg", g.border},
-		{"bashMessageBackgroundColor", g.toolBg},
-		{"memoryBackgroundColor", g.toolBg},
+		{"userMessageBackground", g.MessageBg},
+		{"userMessageBackgroundHover", g.MessageHoverBg},
+		{"selectionBg", g.Border},
+		{"bashMessageBackgroundColor", g.ToolBg},
+		{"memoryBackgroundColor", g.ToolBg},
 	}, {
 		{"rate_limit_fill", accent},
-		{"rate_limit_empty", g.border},
+		{"rate_limit_empty", g.Border},
 	}, {
 		// The rest of the agent colors keep Claude Code's own until conn
 		// has agents of its own to tell apart.
@@ -99,13 +99,13 @@ func claudeTheme(g ground) [][]token {
 	}}
 }
 
-// claudeThemeJSON is the theme as Claude Code reads it, written in the
+// ClaudeThemeJSON is the theme as Claude Code reads it, written in the
 // handoff's own order and grouping rather than sorted, so the file can
 // be read against the handoff line for line.
-func claudeThemeJSON(g ground) string {
+func ClaudeThemeJSON(g Ground) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "{\n  \"name\": \"Conn\",\n  \"base\": %q,\n  \"overrides\": {\n", g.claudeBase())
-	groups := claudeTheme(g)
+	fmt.Fprintf(&b, "{\n  \"name\": \"Conn\",\n  \"base\": %q,\n  \"overrides\": {\n", g.ClaudeBase())
+	groups := ClaudeTheme(g)
 	for i, g := range groups {
 		for j, t := range g {
 			last := i == len(groups)-1 && j == len(g)-1
@@ -113,7 +113,7 @@ func claudeThemeJSON(g ground) string {
 			if last {
 				comma = ""
 			}
-			fmt.Fprintf(&b, "    %q: %q%s\n", t.name, t.color, comma)
+			fmt.Fprintf(&b, "    %q: %q%s\n", t.Name, t.Color, comma)
 		}
 		if i < len(groups)-1 {
 			b.WriteString("\n")
@@ -123,51 +123,51 @@ func claudeThemeJSON(g ground) string {
 	return b.String()
 }
 
-// claudeBase is the base the theme sits on: the ansi theme Claude Code
+// ClaudeBase is the base the theme sits on: the ansi theme Claude Code
 // comes with for the ground conn is on, so a token conn says nothing
 // about falls through to a slot laid out for that ground.
-func (g ground) claudeBase() string {
-	if g.dark() {
+func (g Ground) ClaudeBase() string {
+	if g.Dark() {
 		return "dark-ansi"
 	}
 	return "light-ansi"
 }
 
-// writeClaudeTheme writes the theme for a ground where Claude Code
+// WriteClaudeTheme writes the theme for a ground where Claude Code
 // looks for it, and answers the path it wrote.
-func writeClaudeTheme(home string, g ground) (string, error) {
+func WriteClaudeTheme(home string, g Ground) (string, error) {
 	dir := filepath.Join(home, claudeDir, "themes")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	path := filepath.Join(dir, "conn.json")
-	return path, os.WriteFile(path, []byte(claudeThemeJSON(g)), 0o644)
+	return path, os.WriteFile(path, []byte(ClaudeThemeJSON(g)), 0o644)
 }
 
-// refreshClaudeTheme rewrites conn's theme for Claude Code if it has
+// RefreshClaudeTheme rewrites conn's theme for Claude Code if it has
 // already been written once, so a server that settles on a mode never
 // leaves the file behind on the mode it was last written under. It
 // writes nothing where `conn theme claude` has never run - that command
 // is still what puts the file there the first time.
-func refreshClaudeTheme(home string, g ground) {
+func RefreshClaudeTheme(home string, g Ground) {
 	path := filepath.Join(home, claudeDir, "themes", "conn.json")
 	if _, err := os.Stat(path); err != nil {
 		return
 	}
-	_, _ = writeClaudeTheme(home, g)
+	_, _ = WriteClaudeTheme(home, g)
 }
 
-// The themes Claude Code comes with. A settings file on one of these,
+// BuiltinThemes are the themes Claude Code comes with. A settings file on one of these,
 // or on none at all, is one conn can offer to point at itself; a custom
 // theme is somebody's own, and conn leaves it alone.
-var builtinThemes = map[string]bool{
+var BuiltinThemes = map[string]bool{
 	"": true, "dark": true, "light": true, "dark-ansi": true, "light-ansi": true,
 	"dark-daltonized": true, "light-daltonized": true,
 }
 
-// themeInUse is the theme named in Claude Code's settings, and whether
+// ThemeInUse is the theme named in Claude Code's settings, and whether
 // the file is there to be read at all.
-func themeInUse(home string) (string, bool) {
+func ThemeInUse(home string) (string, bool) {
 	b, err := os.ReadFile(filepath.Join(home, claudeDir, "settings.json"))
 	if err != nil {
 		return "", false
@@ -187,8 +187,8 @@ func themeInUse(home string) (string, bool) {
 // everything else in it are the user's still.
 var themeKey = regexp.MustCompile(`"theme"\s*:\s*"[^"]*"`)
 
-// useClaudeTheme points Claude Code's settings at conn's theme.
-func useClaudeTheme(home string) error {
+// UseClaudeTheme points Claude Code's settings at conn's theme.
+func UseClaudeTheme(home string) error {
 	path := filepath.Join(home, claudeDir, "settings.json")
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -198,7 +198,7 @@ func useClaudeTheme(home string) error {
 	if len(found) != 1 {
 		return fmt.Errorf(`%s names "theme" %d times; conn will not guess which`, path, len(found))
 	}
-	out := themeKey.ReplaceAll(b, []byte(`"theme": "`+claudeThemeRef+`"`))
+	out := themeKey.ReplaceAll(b, []byte(`"theme": "`+ClaudeThemeRef+`"`))
 	info, err := os.Stat(path)
 	if err != nil {
 		return err

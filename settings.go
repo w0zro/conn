@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 
 	"github.com/charmbracelet/x/ansi"
@@ -125,9 +127,9 @@ func composeSettings(home, inUse string, dark bool) settingsReport {
 		b.roots++
 	}
 	b.rows = append(b.rows, settingRow{kind: addRootSetting, text: addRootRow})
-	for _, t := range themes {
-		row := settingRow{kind: themeSetting, text: t.name}
-		switch t.name {
+	for _, t := range theme.All {
+		row := settingRow{kind: themeSetting, text: t.Name}
+		switch t.Name {
 		case inUse:
 			row.note = noteInUse
 		case c.Theme:
@@ -138,7 +140,7 @@ func composeSettings(home, inUse string, dark bool) settingsReport {
 		}
 		b.rows = append(b.rows, row)
 	}
-	if _, ok := themeNamed(c.Theme); c.Theme != "" && !ok {
+	if _, ok := theme.Named(c.Theme); c.Theme != "" && !ok {
 		b.unknownTheme = c.Theme
 	}
 	// The grounds, and under them the row that gives the choice back to

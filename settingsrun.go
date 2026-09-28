@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -34,9 +36,9 @@ import (
 type settingsModel struct {
 	srv           *server
 	home          string
-	self          string // the pane this conn runs in, for a reground
-	mode          mode   // the mode conn is in, which the rows note and a pick here changes
-	g             ground // the ground that mode wears, which the palette is built off and the bar is written from
+	self          string       // the pane this conn runs in, for a reground
+	mode          theme.Mode   // the mode conn is in, which the rows note and a pick here changes
+	g             theme.Ground // the ground that mode wears, which the palette is built off and the bar is written from
 	width, height int
 	p             palette
 	at            int    // the row the cursor is on
@@ -54,8 +56,8 @@ type settingsModel struct {
 }
 
 // runSettings is the settings in a mode, the one the server is in.
-func runSettings(srv *server, home string, in mode) error {
-	g := in.wear()
+func runSettings(srv *server, home string, in theme.Mode) error {
+	g := in.Wear()
 	m := settingsModel{srv: srv, home: home, self: ownPane(), mode: in, g: g, p: colored(g)}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
@@ -67,7 +69,7 @@ func (m settingsModel) Init() tea.Cmd { return m.saying() }
 // writing laid over the top: a save that failed is about the file the
 // view is showing.
 func (m settingsModel) report() settingsReport {
-	b := composeSettings(m.home, m.mode.theme, m.mode.dark)
+	b := composeSettings(m.home, m.mode.Theme, m.mode.Dark)
 	if m.err != "" {
 		b.err = m.err
 	}
@@ -233,14 +235,14 @@ func (m settingsModel) wroteRoots(roots []string) (settingsModel, tea.Cmd) {
 // left alone: the ground conn is on was settled when the server rose,
 // and picking a theme is not a reason to go back over it.
 func (m settingsModel) useTheme(name string) (settingsModel, tea.Cmd) {
-	if _, ok := themeNamed(name); !ok {
+	if _, ok := theme.Named(name); !ok {
 		return m, nil
 	}
 	if err := config.SaveTheme(m.home, name); err != nil {
 		m.err = err.Error()
 		return m, nil
 	}
-	return m.wearing(mode{theme: name, dark: m.mode.dark})
+	return m.wearing(theme.Mode{Theme: name, Dark: m.mode.Dark})
 }
 
 // useGround puts conn on a ground and writes it down, or, for a ground
@@ -266,7 +268,7 @@ func (m settingsModel) useGround(name string) (settingsModel, tea.Cmd) {
 		m.err = ""
 		return m, nil
 	}
-	return m.wearing(mode{theme: m.mode.theme, dark: dark})
+	return m.wearing(theme.Mode{Theme: m.mode.Theme, Dark: dark})
 }
 
 // wearing puts conn in a mode, now rather than on the next start: this
@@ -283,23 +285,23 @@ func (m settingsModel) useGround(name string) (settingsModel, tea.Cmd) {
 // at the top of the page the operator is working. The panel is not
 // started again either, a fresh conn there being the console; it is
 // told, and wears the mode where it stands.
-func (m settingsModel) wearing(want mode) (settingsModel, tea.Cmd) {
+func (m settingsModel) wearing(want theme.Mode) (settingsModel, tea.Cmd) {
 	m.err = ""
 	// The mode and its ground are this model's, so they are put on
 	// here, on the loop, and what the server is told is worked out here
 	// too and handed over ready: a command reading them off the model
 	// on another goroutine would be reading them while the next key
 	// changes them.
-	m.mode, m.g = want, want.wear()
+	m.mode, m.g = want, want.Wear()
 	m.p = colored(m.g)
-	refreshClaudeTheme(m.home, m.g)
-	refreshVimColorscheme(m.home, m.g)
+	theme.RefreshClaudeTheme(m.home, m.g)
+	theme.RefreshVimColorscheme(m.home, m.g)
 	// Outside the server there is nothing to dress but this conn, and
 	// it is dressed.
 	if m.srv == nil || m.self == "" {
 		return m, nil
 	}
-	srv, conf, bg, self := m.srv, tmuxConf(panelKey(), m.g), m.g.surface, m.self
+	srv, conf, bg, self := m.srv, tmuxConf(panelKey(), m.g), m.g.Surface, m.self
 	return m, func() tea.Msg {
 		_ = srv.rewear(conf, bg, self, want)
 		_ = srv.wearMode()

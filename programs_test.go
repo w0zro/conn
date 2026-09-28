@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // A row is a program conn knows by what it runs: postgres by its process
@@ -74,7 +76,7 @@ func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 		{pid: 302, kind: kindRun, command: "node server.js", cwd: "/w/a", status: statusActive, ports: []string{"3000"}},
 		{pid: 303, kind: kindShell, command: "zsh", cwd: "/w/a", status: statusActive, ports: []string{"5433"}, listener: "postgres -D data"},
 	}}}
-	has := func(bar string) bool { return strings.Contains(bar, "S #[nobold fg="+connTheme.dark.gray+"]psql") }
+	has := func(bar string) bool { return strings.Contains(bar, "S #[nobold fg="+theme.Conn.Dark.Gray+"]psql") }
 	for _, c := range []struct {
 		pid  int
 		want bool

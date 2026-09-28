@@ -1,4 +1,4 @@
-package main
+package theme
 
 import (
 	"reflect"
@@ -12,31 +12,31 @@ import (
 // is on a screen.
 func TestEveryThemeIsWholeOnBothGrounds(t *testing.T) {
 	isHex := regexp.MustCompile(`^#[0-9A-F]{6}$`)
-	for _, th := range themes {
+	for _, th := range All {
 		for _, on := range []struct {
 			name string
-			g    ground
-		}{{"dark", th.dark}, {"light", th.light}} {
+			g    Ground
+		}{{"dark", th.Dark}, {"light", th.Light}} {
 			g := on.g
-			if g.ground.A != 255 || g.ink.A != 255 {
-				t.Errorf("%s %s: the ground or the ink is unset", th.name, on.name)
+			if g.Ground.A != 255 || g.Ink.A != 255 {
+				t.Errorf("%s %s: the ground or the ink is unset", th.Name, on.name)
 			}
 			// A ground says which it is by its own luminance, and what
 			// follows from that - the base Claude Code's theme sits on,
 			// what nvim is told - is read off it; a dark ground that
 			// read as light would dress every program for the wrong one.
-			if g.dark() != (on.name == "dark") {
-				t.Errorf("%s %s: the ground %s reads as %s", th.name, on.name, hex(g.ground), map[bool]string{true: "dark", false: "light"}[g.dark()])
+			if g.Dark() != (on.name == "dark") {
+				t.Errorf("%s %s: the ground %s reads as %s", th.Name, on.name, Hex(g.Ground), map[bool]string{true: "dark", false: "light"}[g.Dark()])
 			}
-			for i, c := range g.scheme {
+			for i, c := range g.Scheme {
 				if !isHex.MatchString(c) {
-					t.Errorf("%s %s: slot %d is %q", th.name, on.name, i, c)
+					t.Errorf("%s %s: slot %d is %q", th.Name, on.name, i, c)
 				}
 			}
 			v := reflect.ValueOf(g)
 			for i := 0; i < v.NumField(); i++ {
 				if f := v.Field(i); f.Kind() == reflect.String && !isHex.MatchString(f.String()) {
-					t.Errorf("%s %s: %s is %q, not a hex", th.name, on.name, v.Type().Field(i).Name, f.String())
+					t.Errorf("%s %s: %s is %q, not a hex", th.Name, on.name, v.Type().Field(i).Name, f.String())
 				}
 			}
 		}
@@ -51,27 +51,27 @@ func TestEveryThemeIsWholeOnBothGrounds(t *testing.T) {
 // it is an edge.
 func TestTheRolesReadOnEveryGround(t *testing.T) {
 	const body, large = 4.5, 3 // WCAG AA
-	for _, th := range themes {
+	for _, th := range All {
 		for _, on := range []struct {
 			name string
-			g    ground
-		}{{"dark", th.dark}, {"light", th.light}} {
-			g, bg := on.g, hex(on.g.ground)
+			g    Ground
+		}{{"dark", th.Dark}, {"light", th.Light}} {
+			g, bg := on.g, Hex(on.g.Ground)
 			for _, r := range []struct {
 				name, hex string
 				least     float64
 			}{
-				{"ink", hex(g.ink), body}, {"parchment", g.parchment, body},
-				{"accent", g.accent, body}, {"shimmer", g.shimmer, body},
-				{"gray", g.gray, large}, {"faint", g.faint, 2},
+				{"ink", Hex(g.Ink), body}, {"parchment", g.Parchment, body},
+				{"accent", g.Accent, body}, {"shimmer", g.Shimmer, body},
+				{"gray", g.Gray, large}, {"faint", g.Faint, 2},
 			} {
 				if c := contrast(r.hex, bg); c < r.least {
 					t.Errorf("%s %s: the %s (%s) is %.2f:1 on %s; %.1f:1 is what it takes",
-						th.name, on.name, r.name, r.hex, c, bg, r.least)
+						th.Name, on.name, r.name, r.hex, c, bg, r.least)
 				}
 			}
-			if contrast(g.border, bg) >= contrast(hex(g.ink), bg) {
-				t.Errorf("%s %s: the border (%s) stands off the ground further than the ink does", th.name, on.name, g.border)
+			if contrast(g.Border, bg) >= contrast(Hex(g.Ink), bg) {
+				t.Errorf("%s %s: the border (%s) stands off the ground further than the ink does", th.Name, on.name, g.Border)
 			}
 		}
 	}

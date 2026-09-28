@@ -9,6 +9,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -212,7 +214,7 @@ func TestSmallAndPipedConsoles(t *testing.T) {
 // In color, every row is painted edge to edge on the ground and ends with
 // the terminal's own colors back; the words are the plain console's.
 func TestColoredConsolePaintsEveryRow(t *testing.T) {
-	p := colored(connTheme.dark)
+	p := colored(theme.Conn.Dark)
 	r := compose(testStation, testNow)
 	rows := screen(r, 120, 40, p)
 	for i, row := range rows {
@@ -243,7 +245,7 @@ func TestColoredConsolePaintsEveryRow(t *testing.T) {
 // with two grades of wrong makes the reader work out which grade a row
 // is before they can read it.
 func TestEverythingNotNominalTakesTheChip(t *testing.T) {
-	p := colored(connTheme.dark)
+	p := colored(theme.Conn.Dark)
 	st := testStation
 	st.machine.cpus = 0  // LOAD has no core count to check against
 	st.volume = volume{} // DISK went unanswered

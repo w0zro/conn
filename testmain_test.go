@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/config"
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // The tests run on one station, whatever machine they run on. A model
@@ -60,3 +61,7 @@ func writeConfig(t *testing.T, body string) string {
 	}
 	return home
 }
+
+// connOn is conn's own theme on one ground: what every server was
+// dressed in before there was a choice.
+func connOn(dark bool) theme.Mode { return theme.Mode{Theme: theme.Default, Dark: dark} }

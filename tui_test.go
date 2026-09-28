@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -19,7 +21,7 @@ import (
 // which is what every terminal was before conn learned to ask, and
 // drawn in the plain palette so that its rows are text.
 func plainModel() model {
-	m := newModel(connTheme.dark)
+	m := newModel(theme.Conn.Dark)
 	m.p = plain
 	return m
 }

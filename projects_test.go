@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // mkRepo makes a directory and puts a .git in it.
@@ -182,7 +184,7 @@ func TestProjectsLayOut(t *testing.T) {
 	if strings.Count(text, "▸") != 1 {
 		t.Errorf("the cursor marks %d rows", strings.Count(text, "▸"))
 	}
-	for _, r := range drawProjects(testList("conn"), 0, 48, 30, colored(connTheme.dark)) {
+	for _, r := range drawProjects(testList("conn"), 0, 48, 30, colored(theme.Conn.Dark)) {
 		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != 48 {
 			t.Errorf("a colored row paints %d columns", w)
 		}
@@ -384,7 +386,7 @@ func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
 func TestTheLiveListMatchesTheGolden(t *testing.T) {
 	b := composeProjects(testLive(), "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
 	golden(t, "projects-live-48x30.txt", texts(drawProjects(b, 9, 48, 30, plain)))
-	for _, r := range drawProjects(b, 9, panelWidth, 30, colored(connTheme.dark)) {
+	for _, r := range drawProjects(b, 9, panelWidth, 30, colored(theme.Conn.Dark)) {
 		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != panelWidth {
 			t.Fatalf("a colored row paints %d columns, not %d:\n%q", w, panelWidth, r.text)
 		}

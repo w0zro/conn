@@ -1,4 +1,4 @@
-package main
+package theme
 
 import (
 	"fmt"
@@ -23,69 +23,69 @@ import (
 // fresh or reads what the server chose, in place of guessing. What
 // each ground is made of is the theme's, in themes.go.
 
-// A mode is what a server came up in: a theme, by name, on one of its
+// A Mode is what a server came up in: a theme, by name, on one of its
 // grounds.
-type mode struct {
-	theme string
-	dark  bool
+type Mode struct {
+	Theme string
+	Dark  bool
 }
 
-// wear is the ground a mode puts conn on: the theme's, dark or light,
+// Wear is the ground a mode puts conn on: the theme's, dark or light,
 // which everything conn draws is then handed. A theme conn does not
 // have is conn's own, which is what a mode file from a build that had
 // the theme, read by one that does not, comes to.
-func (m mode) wear() ground {
-	t, ok := themeNamed(m.theme)
+func (m Mode) Wear() Ground {
+	t, ok := Named(m.Theme)
 	if !ok {
-		t = connTheme
+		t = Conn
 	}
-	return t.on(m.dark)
+	return t.on(m.Dark)
 }
 
-// modePath is where the mode a server came up in is kept, beside its
+// ModePath is where the mode a server came up in is kept, beside its
 // socket and its tmux.conf.
-func modePath(socket string) string {
+func ModePath(socket string) string {
 	return filepath.Join(filepath.Dir(socket), "mode")
 }
 
-// readModeFile is the mode written at modePath, and whether one was:
+// ReadModeFile is the mode written at ModePath, and whether one was:
 // a server that has not picked yet has nothing there. The file is one
 // line, the ground and then the theme: "light datum". A file from
 // before conn had themes says the ground alone, and is read as conn's.
-func readModeFile(socket string) (mode, bool) {
-	b, err := os.ReadFile(modePath(socket))
+func ReadModeFile(socket string) (Mode, bool) {
+	b, err := os.ReadFile(ModePath(socket))
 	if err != nil {
-		return mode{}, false
+		return Mode{}, false
 	}
 	words := strings.Fields(string(b))
-	m := mode{theme: defaultTheme, dark: len(words) == 0 || words[0] != "light"}
+	m := Mode{Theme: Default, Dark: len(words) == 0 || words[0] != "light"}
 	if len(words) > 1 {
-		if _, ok := themeNamed(words[1]); ok {
-			m.theme = words[1]
+		if _, ok := Named(words[1]); ok {
+			m.Theme = words[1]
 		}
 	}
 	return m, true
 }
 
-// writeMode records the mode a fresh server comes up in, so a later
+// WriteMode records the mode a fresh server comes up in, so a later
 // conn - attaching, or asking for a theme - reads the same one back
 // instead of asking the terminal again.
-func writeMode(socket string, m mode) error {
-	if err := os.MkdirAll(filepath.Dir(modePath(socket)), 0o700); err != nil {
+func WriteMode(socket string, m Mode) error {
+	if err := os.MkdirAll(filepath.Dir(ModePath(socket)), 0o700); err != nil {
 		return err
 	}
 	ground := "dark"
-	if !m.dark {
+	if !m.Dark {
 		ground = "light"
 	}
-	return os.WriteFile(modePath(socket), []byte(ground+" "+m.theme+"\n"), 0o600)
+	return os.WriteFile(ModePath(socket), []byte(ground+" "+m.Theme+"\n"), 0o600)
 }
 
-// serverMode is the mode the server on this socket came up in, or would
+// ServerMode is the mode the server on this socket came up in, or would
 // if none is up yet: what the configuration says, until one has picked
 // for itself.
-func serverMode(socket, home string) mode {
-	if m, ok := readModeFile(socket); ok {
+func ServerMode(socket, home string) Mode {
+	if m, ok := ReadModeFile(socket); ok {
 		return m
 	}
 	return configMode(home)
@@ -94,12 +94,12 @@ func serverMode(socket, home string) mode {
 // configMode is the mode the file asks for: its theme, and its ground
 // where it names one. A file naming no ground is dark here — this is
 // the mode for a conn with no server to read and nobody to ask, and
-// dark is what every terminal was before conn learned to ask. askMode
+// dark is what every terminal was before conn learned to ask. AskMode
 // is where the terminal is asked.
-func configMode(home string) mode {
-	m := mode{theme: configTheme(home), dark: true}
+func configMode(home string) Mode {
+	m := Mode{Theme: configTheme(home), Dark: true}
 	if dark, ok := config.GroundNamed(configGround(home)); ok {
-		m.dark = dark
+		m.Dark = dark
 	}
 	return m
 }
@@ -110,42 +110,42 @@ func configGround(home string) string {
 	return c.Ground
 }
 
-// An override is what the flags said ahead of the command: a ground,
+// An Override is what the flags said ahead of the command: a ground,
 // when --light or --dark was given, and a theme, when --theme was.
-type override struct {
-	dark  *bool
-	theme string
+type Override struct {
+	Dark  *bool
+	Theme string
 }
 
-// over is the mode with what the flags said laid over it; what they
+// Over is the mode with what the flags said laid over it; what they
 // did not say stands.
-func (o override) over(m mode) mode {
-	if o.dark != nil {
-		m.dark = *o.dark
+func (o Override) Over(m Mode) Mode {
+	if o.Dark != nil {
+		m.Dark = *o.Dark
 	}
-	if o.theme != "" {
-		m.theme = o.theme
+	if o.Theme != "" {
+		m.Theme = o.Theme
 	}
 	return m
 }
 
-// askMode is the mode a fresh server comes up in: what the flags said,
+// AskMode is the mode a fresh server comes up in: what the flags said,
 // and for what they did not, what the configuration says — the theme,
 // and the ground where it names one, the terminal's own asked fresh
 // where it does not. A file naming a ground is an operator who wants
 // the same one wherever they are; the question put to the terminal is
 // for everybody else, which is most stations.
-func askMode(o override, home string) mode {
+func AskMode(o Override, home string) Mode {
 	m := configMode(home)
-	if o.dark == nil {
+	if o.Dark == nil {
 		if _, named := config.GroundNamed(configGround(home)); !named {
-			m.dark = detectDark()
+			m.Dark = detectDark()
 		}
 	}
-	return o.over(m)
+	return o.Over(m)
 }
 
-// parseModeFlags reads --light, --dark and --theme NAME off the front
+// ParseFlags reads --light, --dark and --theme NAME off the front
 // of conn's own arguments, before any command name: which ground and
 // which theme to come up in, instead of asking the terminal, the
 // configuration or a server's mode file. It stops at the first
@@ -154,33 +154,33 @@ func askMode(o override, home string) mode {
 // --light, or --theme twice with two names, is a contradiction; a
 // theme conn does not have is an error that names the ones it does.
 // Neither leaves the choice where it always was.
-func parseModeFlags(args []string) (rest []string, o override, err error) {
+func ParseFlags(args []string) (rest []string, o Override, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--dark":
-			if o.dark != nil && !*o.dark {
-				return nil, override{}, fmt.Errorf("--dark and --light are a contradiction")
+			if o.Dark != nil && !*o.Dark {
+				return nil, Override{}, fmt.Errorf("--dark and --light are a contradiction")
 			}
 			dark := true
-			o.dark = &dark
+			o.Dark = &dark
 		case "--light":
-			if o.dark != nil && *o.dark {
-				return nil, override{}, fmt.Errorf("--dark and --light are a contradiction")
+			if o.Dark != nil && *o.Dark {
+				return nil, Override{}, fmt.Errorf("--dark and --light are a contradiction")
 			}
 			light := false
-			o.dark = &light
+			o.Dark = &light
 		case "--theme":
 			if i+1 == len(args) {
-				return nil, override{}, fmt.Errorf("--theme wants a theme's name: %s", themeNames())
+				return nil, Override{}, fmt.Errorf("--theme wants a theme's name: %s", themeNames())
 			}
 			name := args[i+1]
-			if _, ok := themeNamed(name); !ok {
-				return nil, override{}, fmt.Errorf("conn has no theme %s; it has %s", name, themeNames())
+			if _, ok := Named(name); !ok {
+				return nil, Override{}, fmt.Errorf("conn has no theme %s; it has %s", name, themeNames())
 			}
-			if o.theme != "" && o.theme != name {
-				return nil, override{}, fmt.Errorf("--theme %s and --theme %s are a contradiction", o.theme, name)
+			if o.Theme != "" && o.Theme != name {
+				return nil, Override{}, fmt.Errorf("--theme %s and --theme %s are a contradiction", o.Theme, name)
 			}
-			o.theme = name
+			o.Theme = name
 			i++
 		default:
 			return args[i:], o, nil
@@ -192,8 +192,8 @@ func parseModeFlags(args []string) (rest []string, o override, err error) {
 // themeNames is the themes conn has, said in a sentence.
 func themeNames() string {
 	var names []string
-	for _, t := range themes {
-		names = append(names, t.name)
+	for _, t := range All {
+		names = append(names, t.Name)
 	}
 	if len(names) < 2 {
 		return strings.Join(names, "")
@@ -224,12 +224,12 @@ func detectDark() bool {
 	if err != nil || bg == nil {
 		return true
 	}
-	return isDark(bg)
+	return IsDark(bg)
 }
 
-// isDark reads a ground as dark or light by the same relative luminance
+// IsDark reads a ground as dark or light by the same relative luminance
 // a screen reader uses to say if text passes on it: below half is dark.
-func isDark(c color.Color) bool {
+func IsDark(c color.Color) bool {
 	r, g, b, _ := c.RGBA()
 	luminance := 0.2126*float64(r) + 0.7152*float64(g) + 0.0722*float64(b)
 	return luminance/0xffff < 0.5

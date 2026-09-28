@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // conn writes the theme where Claude Code looks, says so, and offers to
@@ -75,7 +77,7 @@ func TestConnWritesTheThemeAndOffersOnce(t *testing.T) {
 	// A settings file that names the theme in more than one project is not
 	// conn's to edit by guessing which.
 	home = write(t, `{"theme": "dark", "somethingElse": {"theme": "of its own"}}`)
-	if err := useClaudeTheme(home); err == nil {
+	if err := theme.UseClaudeTheme(home); err == nil {
 		t.Error("conn guessed which theme to rewrite")
 	}
 }

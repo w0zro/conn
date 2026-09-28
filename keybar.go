@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // The keys, where the decision is made. Every key conn has was
@@ -38,21 +40,21 @@ var (
 // case, so the key is the one thing that stands up in the row; three
 // cells between one and the next, a cell in from the edge, on the
 // surface, which is the bar's ground.
-func keyBar(hints []keyHint, g ground) string {
+func keyBar(hints []keyHint, g theme.Ground) string {
 	var b strings.Builder
 	b.WriteString(" ")
 	for i, h := range hints {
 		if i > 0 {
 			b.WriteString("   ")
 		}
-		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", g.surface, hex(g.ink), h.key, g.gray, strings.ToLower(h.does))
+		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", g.Surface, theme.Hex(g.Ink), h.key, g.Gray, strings.ToLower(h.does))
 	}
 	return b.String()
 }
 
 // designation is the station's mark at the right of the key bar: the
 // host in capitals, and the conn that is running.
-func designation(host, version string, g ground) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", g.surface, g.gray,
+func designation(host, version string, g theme.Ground) string {
+	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", g.Surface, g.Gray,
 		strings.ReplaceAll(join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version)), "#", "##"))
 }

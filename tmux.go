@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 
 	"github.com/charmbracelet/x/ansi"
@@ -111,30 +113,30 @@ func (s *server) run(args ...string) (string, error) {
 // the other theme, where it stands, rather than keeping what it rose
 // in until conn down. tmux does not re-read -f on an attach, so that
 // takes sourcing the configuration again; see reground.
-func (s *server) attach(self, home string, o override) (int, error) {
+func (s *server) attach(self, home string, o theme.Override) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(s.socket), 0o700); err != nil {
 		return 0, err
 	}
-	have, ok := readModeFile(s.socket)
+	have, ok := theme.ReadModeFile(s.socket)
 	want, asked := have, false
 	switch {
 	case !ok:
-		want = askMode(o, home)
-		_ = writeMode(s.socket, want)
-	case o.over(have) != have:
-		want = o.over(have)
-		_ = writeMode(s.socket, want)
+		want = theme.AskMode(o, home)
+		_ = theme.WriteMode(s.socket, want)
+	case o.Over(have) != have:
+		want = o.Over(have)
+		_ = theme.WriteMode(s.socket, want)
 		asked = true
 	}
-	g := want.wear()
-	refreshClaudeTheme(home, g)
-	refreshVimColorscheme(home, g)
+	g := want.Wear()
+	theme.RefreshClaudeTheme(home, g)
+	theme.RefreshVimColorscheme(home, g)
 	conf := confPath(s.socket)
 	if err := os.WriteFile(conf, []byte(tmuxConf(panelKey(), g)), 0o600); err != nil {
 		return 0, err
 	}
 	if asked {
-		if err := s.reground(conf, g.surface, "", true); err != nil {
+		if err := s.reground(conf, g.Surface, "", true); err != nil {
 			return 0, err
 		}
 	}
@@ -177,8 +179,8 @@ func (s *server) attach(self, home string, o override) (int, error) {
 // left standing — it is told to wear the mode where it stands, and
 // killing it to change color would take the view the operator is
 // working with it.
-func (s *server) rewear(conf, bg, except string, m mode) error {
-	if err := writeMode(s.socket, m); err != nil {
+func (s *server) rewear(conf, bg, except string, m theme.Mode) error {
+	if err := theme.WriteMode(s.socket, m); err != nil {
 		return err
 	}
 	if err := os.WriteFile(confPath(s.socket), []byte(conf), 0o600); err != nil {
@@ -264,8 +266,8 @@ func (s *server) reground(conf, bg, except string, panel bool) error {
 // take it back. The cursor is the other way about: tmux does put the
 // server's on the terminal, and leaves it there when the client goes,
 // so conn asks for nothing and takes it back all the same.
-func oscColors(g ground) string {
-	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", hex(g.ink), paddingHex)
+func oscColors(g theme.Ground) string {
+	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", theme.Hex(g.Ink), paddingHex)
 }
 
 // paddingHex is what the terminal is asked to paint around the client:
@@ -907,7 +909,7 @@ func (s *server) detach() error {
 // and dress to match, the cursor in the orange and a selection on the
 // border color, and between the panel and the bay a line in that color
 // too, the same whichever side has focus.
-func tmuxConf(key string, g ground) string {
+func tmuxConf(key string, g theme.Ground) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
 # One key, from anywhere in the station: to the panel, which says where
@@ -956,11 +958,11 @@ set -g display-time 3000
 # a dead window that nothing in conn ever showed and nothing but conn
 # down ever cleared.
 `)
-	ground, ink := hex(g.ground), hex(g.ink)
+	ground, ink := theme.Hex(g.Ground), theme.Hex(g.Ink)
 	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)
-	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", g.accent)
-	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", g.border, ink)
-	for i, c := range g.scheme {
+	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", g.Accent)
+	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", g.Border, ink)
+	for i, c := range g.Scheme {
 		fmt.Fprintf(&b, "set -g pane-colours[%d] \"%s\"\n", i, c)
 	}
 	// The seam between the panel and the bay is the panel's surface
@@ -1025,7 +1027,7 @@ set -g display-time 3000
 // an option of its own and only when it changes, which is on a
 // keypress: nothing but a key moves the keys between views or arms a
 // question. Never on a beat.
-func statusLine(g ground) string {
+func statusLine(g theme.Ground) string {
 	var b strings.Builder
 	b.WriteString(`set -g status on
 set -g status-position bottom
@@ -1041,7 +1043,7 @@ set -g window-status-format ""
 set -g window-status-current-format ""
 set -g pane-border-status off
 `)
-	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", g.border, g.gray)
+	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", g.Border, g.Gray)
 	// Two rows across the foot. The upper is the band: a mode tmux knows
 	// itself first — COPY in copy mode — then where the keys are, by conn's word, while the keys are on the
 	// panel, and the station's word when they are not; and at the right
@@ -1056,7 +1058,7 @@ set -g pane-border-status off
 	// The key bar is on the surface, the panel's own ground, so the two
 	// rows are two things: the band the window's frame, the bar the
 	// panel's footer.
-	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{@conn_bar}#[align=right]#{@conn_ident}\"\n", g.surface, g.surface)
+	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{@conn_bar}#[align=right]#{@conn_ident}\"\n", g.Surface, g.Surface)
 	return b.String()
 }
 
@@ -1079,19 +1081,19 @@ set -g pane-border-status off
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
 // would read the style as the branches of the question.
-func statusLineBlock(word string, g ground) string {
+func statusLineBlock(word string, g theme.Ground) string {
 	if word == "" {
 		return ""
 	}
-	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", g.accent, hex(g.ground), word)
+	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", g.Accent, theme.Hex(g.Ground), word)
 }
 
 // statusLineSay is what conn says on the key bar in words, a question
 // armed: on the bar's own ground, the surface, in the parchment conn
 // titles with, one space in where the keys begin. A hash is tmux's own
 // character on this line and is doubled to be shown.
-func statusLineSay(text string, g ground) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold] %s", g.surface, g.parchment, strings.ReplaceAll(text, "#", "##"))
+func statusLineSay(text string, g theme.Ground) string {
+	return fmt.Sprintf("#[bg=%s fg=%s nobold] %s", g.Surface, g.Parchment, strings.ReplaceAll(text, "#", "##"))
 }
 
 // say puts what conn knows about its own keys on the server, and asks
@@ -1129,12 +1131,12 @@ func (s *server) sayBar(bar string) error {
 
 // statusLineWord is a word on the line's own ground: the wordmark in
 // the ink and bold, or a figure in the gray.
-func statusLineWord(text, color string, bold bool, g ground) string {
+func statusLineWord(text, color string, bold bool, g theme.Ground) string {
 	weight := "nobold"
 	if bold {
 		weight = "bold"
 	}
-	return fmt.Sprintf("#[bg=%s fg=%s %s]%s", g.border, color, weight, strings.ReplaceAll(text, "#", "##"))
+	return fmt.Sprintf("#[bg=%s fg=%s %s]%s", g.Border, color, weight, strings.ReplaceAll(text, "#", "##"))
 }
 
 // tellPanel sends the panel a key. A page of conn's own is a conn in a
@@ -1226,7 +1228,7 @@ func (s *server) up() bool {
 func (s *server) down() error {
 	_, err := s.run("kill-server")
 	if err == nil {
-		_ = os.Remove(modePath(s.socket))
+		_ = os.Remove(theme.ModePath(s.socket))
 	}
 	return err
 }

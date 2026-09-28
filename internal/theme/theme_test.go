@@ -1,4 +1,4 @@
-package main
+package theme
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 		Base      string            `json:"base"`
 		Overrides map[string]string `json:"overrides"`
 	}
-	out := claudeThemeJSON(connTheme.dark)
+	out := ClaudeThemeJSON(Conn.Dark)
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("not a theme file: %v\n%s", err, out)
 	}
@@ -26,12 +26,12 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	n := 0
-	for _, grp := range claudeTheme(connTheme.dark) {
+	for _, grp := range ClaudeTheme(Conn.Dark) {
 		for _, tk := range grp {
-			if seen[tk.name] {
-				t.Errorf("%s is written twice", tk.name)
+			if seen[tk.Name] {
+				t.Errorf("%s is written twice", tk.Name)
 			}
-			seen[tk.name] = true
+			seen[tk.Name] = true
 			n++
 		}
 	}
@@ -40,8 +40,8 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 	}
 	// The file is grouped the way the handoff groups it, so it can be
 	// read against it; the groups are what the blank lines separate.
-	if groups := strings.Count(out, "\n\n"); groups != len(claudeTheme(connTheme.dark))-1 {
-		t.Errorf("%d blank lines between %d groups", groups, len(claudeTheme(connTheme.dark)))
+	if groups := strings.Count(out, "\n\n"); groups != len(ClaudeTheme(Conn.Dark))-1 {
+		t.Errorf("%d blank lines between %d groups", groups, len(ClaudeTheme(Conn.Dark)))
 	}
 }
 
@@ -49,24 +49,24 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 // console's own, a reference to a slot, or one of the grounds no slot
 // has a name for. Nothing is a color from somewhere else.
 func TestTheThemeIsDrawnFromConnsOwn(t *testing.T) {
-	g := connTheme.dark
+	g := Conn.Dark
 	known := map[string]bool{
-		hex(g.ground): true, hex(g.ink): true, g.gray: true, g.border: true,
-		g.accent: true, g.shimmer: true, g.parchment: true, g.messageBg: true,
-		g.diffAddedBg: true, g.diffRemovedBg: true, g.diffAddedDim: true, g.diffRemovedDim: true,
-		g.diffAddedWord: true, g.diffRemovedWord: true,
-		g.messageHoverBg: true, g.toolBg: true,
+		Hex(g.Ground): true, Hex(g.Ink): true, g.Gray: true, g.Border: true,
+		g.Accent: true, g.Shimmer: true, g.Parchment: true, g.MessageBg: true,
+		g.DiffAddedBg: true, g.DiffRemovedBg: true, g.DiffAddedDim: true, g.DiffRemovedDim: true,
+		g.DiffAddedWord: true, g.DiffRemovedWord: true,
+		g.MessageHoverBg: true, g.ToolBg: true,
 	}
-	for _, c := range g.scheme {
+	for _, c := range g.Scheme {
 		known[c] = true
 	}
-	for _, grp := range claudeTheme(g) {
+	for _, grp := range ClaudeTheme(g) {
 		for _, tk := range grp {
-			if strings.HasPrefix(tk.color, "ansi:") {
+			if strings.HasPrefix(tk.Color, "ansi:") {
 				continue
 			}
-			if !known[tk.color] {
-				t.Errorf("%s is %s, which is no color of conn's", tk.name, tk.color)
+			if !known[tk.Color] {
+				t.Errorf("%s is %s, which is no color of conn's", tk.Name, tk.Color)
 			}
 		}
 	}
@@ -77,9 +77,9 @@ func TestTheThemeIsDrawnFromConnsOwn(t *testing.T) {
 // dialog that stops and waits, and the meter — never a mode.
 func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 	at := map[string]string{}
-	for _, grp := range claudeTheme(connTheme.dark) {
+	for _, grp := range ClaudeTheme(Conn.Dark) {
 		for _, tk := range grp {
-			at[tk.name] = tk.color
+			at[tk.Name] = tk.Color
 		}
 	}
 	for _, k := range []string{"success", "error", "warning", "merged"} {
@@ -87,7 +87,7 @@ func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 			t.Errorf("%s is %s, not a slot", k, at[k])
 		}
 	}
-	accent := connTheme.dark.accent
+	accent := Conn.Dark.Accent
 	for _, k := range []string{"claude", "permission", "rate_limit_fill"} {
 		if at[k] != accent {
 			t.Errorf("%s is %s, not the accent", k, at[k])
@@ -100,24 +100,24 @@ func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 	}
 }
 
-// refreshClaudeTheme keeps the file on the mode the server is on: it
+// RefreshClaudeTheme keeps the file on the mode the server is on: it
 // rewrites what conn theme claude already wrote, and writes nothing
 // where that command has never run.
 func TestRefreshClaudeThemeKeepsTheFileCurrent(t *testing.T) {
 	home := t.TempDir()
 
 	// Never written: refreshing writes nothing.
-	refreshClaudeTheme(home, connTheme.dark)
+	RefreshClaudeTheme(home, Conn.Dark)
 	if _, err := os.Stat(filepath.Join(home, ".claude", "themes", "conn.json")); err == nil {
-		t.Error("refreshClaudeTheme wrote a file conn theme claude never had")
+		t.Error("RefreshClaudeTheme wrote a file conn theme claude never had")
 	}
 
 	// Written once, on dark; the server moves to light; a refresh
 	// catches the file up without being asked again.
-	if _, err := writeClaudeTheme(home, connTheme.dark); err != nil {
+	if _, err := WriteClaudeTheme(home, Conn.Dark); err != nil {
 		t.Fatal(err)
 	}
-	refreshClaudeTheme(home, connTheme.light)
+	RefreshClaudeTheme(home, Conn.Light)
 	b, err := os.ReadFile(filepath.Join(home, ".claude", "themes", "conn.json"))
 	if err != nil || !strings.Contains(string(b), `"base": "light-ansi"`) {
 		t.Errorf("the file was not refreshed to light: %v\n%s", err, b)

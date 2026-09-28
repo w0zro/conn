@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -188,7 +190,7 @@ func TestProcessesLaysOut(t *testing.T) {
 			t.Errorf("status is not flush with %d: %q", margin+measure, r.text)
 		}
 	}
-	for i, r := range drawProcesses(testProcesses(), 70100, 120, 40, colored(connTheme.dark)) {
+	for i, r := range drawProcesses(testProcesses(), 70100, 120, 40, colored(theme.Conn.Dark)) {
 		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != 120 {
 			t.Errorf("colored row %d paints %d columns", i, w)
 		}
@@ -379,9 +381,9 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 func TestTheProcessesViewInsideTheServer(t *testing.T) {
 	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	w.inside = true
-	rows := drawProcesses(w, 67040, 120, 40, colored(connTheme.dark))
+	rows := drawProcesses(w, 67040, 120, 40, colored(theme.Conn.Dark))
 	text := texts(rows)
-	p := colored(connTheme.dark)
+	p := colored(theme.Conn.Dark)
 	// ttys005 is in no pane the server holds here, and is the cursor's
 	// row besides, so it reads at gray rather than faint; ttys007 is in
 	// a pane, so it reads at the plain gray of a row conn can reach.
@@ -476,7 +478,7 @@ func TestTheProcessesViewSaysNoKeys(t *testing.T) {
 // to raise — a pipe, a golden file — the row takes a mark instead, so
 // the record still says which one it is.
 func TestTheCursorIsAGround(t *testing.T) {
-	p := colored(connTheme.dark)
+	p := colored(theme.Conn.Dark)
 	rows := drawProcesses(testProcesses(), 67040, 120, 40, p)
 	on := 0
 	for _, r := range rows {
@@ -514,7 +516,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 // alone. Outside the server conn holds nothing, and dims nothing: the
 // distinction would be every row.
 func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
-	p := colored(connTheme.dark)
+	p := colored(theme.Conn.Dark)
 	held := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
 		testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
@@ -844,7 +846,7 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 		{pid: 12, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
 	}}}
 	b := composeProcesses(held, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
-	p := colored(connTheme.dark)
+	p := colored(theme.Conn.Dark)
 
 	b.lit = true
 	lit := texts(drawProcesses(b, 0, 80, 12, p))
@@ -879,7 +881,7 @@ func screenChipOf(t *testing.T) string {
 	t.Helper()
 	st := testStation
 	st.volume.free = 6_800_000_000
-	return texts(screen(compose(st, testNow), 120, 40, colored(connTheme.dark)))
+	return texts(screen(compose(st, testNow), 120, 40, colored(theme.Conn.Dark)))
 }
 
 // A nested block's title is a title: in the parchment and bold like one
@@ -894,7 +896,7 @@ func TestANestedTitleIsBoldLikeAnyTitle(t *testing.T) {
 	}
 	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), map[string]pane{"ttys030": {id: "%30"}, "ttys031": {id: "%31"}}, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
-	p := colored(connTheme.dark)
+	p := colored(theme.Conn.Dark)
 	for _, r := range drawProcesses(held, 100, 48, 30, p) {
 		if strings.Contains(r.text, "public-rides.com") && !strings.Contains(r.text, p.parchment+p.bold+"public-rides.com") {
 			t.Errorf("the nested title is not in the parchment and bold: %q", r.text)

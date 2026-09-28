@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -47,7 +49,7 @@ func wrote(t *testing.T, home string) config.File {
 // cursor on a row.
 func settingsAt(t *testing.T, home string, at int) settingsModel {
 	t.Helper()
-	return settingsModel{p: plain, mode: connOn(true), g: connTheme.dark, width: bayWidth, height: 40, home: home, at: at}
+	return settingsModel{p: plain, mode: connOn(true), g: theme.Conn.Dark, width: bayWidth, height: 40, home: home, at: at}
 }
 
 // bayWidth is a workspace to draw the settings in: what is left of a
@@ -74,7 +76,7 @@ func TestTheSettingsShowTheFile(t *testing.T) {
 	if !b.present || b.err != "" {
 		t.Fatalf("the file read as present %v, err %q", b.present, b.err)
 	}
-	if b.roots != 2 || len(b.rows) != 3+len(themes)+len(grounds) {
+	if b.roots != 2 || len(b.rows) != 3+len(theme.All)+len(grounds) {
 		t.Fatalf("%d roots in %d rows", b.roots, len(b.rows))
 	}
 	if b.rows[0].text != "~/projects" || b.rows[0].note != "" {
@@ -98,7 +100,7 @@ func TestTheSettingsSayWhenTheEnvironmentStandsInFront(t *testing.T) {
 	if !b.forced {
 		t.Fatal("the view does not know CONN_ROOTS is in force")
 	}
-	if len(b.rows) != 2+len(themes)+len(grounds) || b.rows[0].text != "~/projects" {
+	if len(b.rows) != 2+len(theme.All)+len(grounds) || b.rows[0].text != "~/projects" {
 		t.Fatalf("the rows are not the file's: %+v", b.rows)
 	}
 	var text strings.Builder
@@ -215,7 +217,7 @@ func TestXTakesARootOut(t *testing.T) {
 	if c := wrote(t, home); len(c.Roots) != 0 {
 		t.Errorf("the file still names %q", c.Roots)
 	}
-	if rows := m.report().rows; len(rows) != 1+len(themes)+len(grounds) || rows[0].kind != addRootSetting {
+	if rows := m.report().rows; len(rows) != 1+len(theme.All)+len(grounds) || rows[0].kind != addRootSetting {
 		t.Errorf("what is left is %+v", rows)
 	}
 }
@@ -330,10 +332,10 @@ func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects"]}`, "projects")
 	m := settingsAt(t, home, 0)
 	rows := m.report().rows
-	if got := keyBar(settingsHints(rows, 0), connTheme.dark); !strings.Contains(got, "take it out") {
+	if got := keyBar(settingsHints(rows, 0), theme.Conn.Dark); !strings.Contains(got, "take it out") {
 		t.Errorf("on a root the bar says %q", got)
 	}
-	if got := keyBar(settingsHints(rows, 1), connTheme.dark); !strings.Contains(got, "add one") {
+	if got := keyBar(settingsHints(rows, 1), theme.Conn.Dark); !strings.Contains(got, "add one") {
 		t.Errorf("on the add row the bar says %q", got)
 	}
 	// The theme conn is wearing takes no enter, so the bar offers none.
@@ -343,7 +345,7 @@ func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
 			at = i
 		}
 	}
-	if got := keyBar(settingsHints(rows, at), connTheme.dark); strings.Contains(got, "wear it") {
+	if got := keyBar(settingsHints(rows, at), theme.Conn.Dark); strings.Contains(got, "wear it") {
 		t.Errorf("the theme already worn offers %q", got)
 	}
 
@@ -393,7 +395,7 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 	rows := m.report().rows
 	at := -1
 	for i, r := range rows {
-		if r.kind == themeSetting && r.text != m.mode.theme {
+		if r.kind == themeSetting && r.text != m.mode.Theme {
 			at = i
 			break
 		}
@@ -404,13 +406,13 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 	want := rows[at].text
 	m.at = at
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.mode.theme != want {
-		t.Errorf("conn is wearing %q, not %q", m.mode.theme, want)
+	if m.mode.Theme != want {
+		t.Errorf("conn is wearing %q, not %q", m.mode.Theme, want)
 	}
-	if !m.mode.dark {
+	if !m.mode.Dark {
 		t.Error("picking a theme changed the ground under it")
 	}
-	if m.g != m.mode.wear() || m.p.ink != colored(m.g).ink {
+	if m.g != m.mode.Wear() || m.p.ink != colored(m.g).ink {
 		t.Error("the settings are not drawn in the theme they picked")
 	}
 	if c := wrote(t, home); c.Theme != want {
@@ -436,17 +438,17 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
 	home := t.TempDir()
 	socket := filepath.Join(home, "conn.sock")
-	if err := writeMode(socket, mode{theme: "datum", dark: false}); err != nil {
+	if err := theme.WriteMode(socket, theme.Mode{Theme: "datum", Dark: false}); err != nil {
 		t.Fatal(err)
 	}
 	m := plainModel()
 	m.view, m.inside, m.srv = viewProcesses, true, &server{socket: socket}
 	m.head.login.home = home
 	next, _ := m.key("alt+w") // what wearModeKey arrives as
-	if got := next.g; got != datumTheme.light {
+	if got := next.g; got != theme.Datum.Light {
 		t.Errorf("the panel is on %+v", got)
 	}
-	if next.p != colored(datumTheme.light).onSurface() {
+	if next.p != colored(theme.Datum.Light).onSurface() {
 		t.Error("the panel did not take the new palette")
 	}
 }
@@ -480,17 +482,17 @@ func TestTheSettingsMoveToBothEnds(t *testing.T) {
 func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects"],"theme":"datum"}`, "projects")
 	m := settingsAt(t, home, 0)
-	m.mode = mode{theme: "datum", dark: true}
-	m.g = m.mode.wear()
+	m.mode = theme.Mode{Theme: "datum", Dark: true}
+	m.g = m.mode.Wear()
 	m.at = rowFor(t, m, groundSetting, config.LightGround)
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.mode.dark {
+	if m.mode.Dark {
 		t.Error("conn is still on dark")
 	}
-	if m.mode.theme != "datum" {
-		t.Errorf("picking a ground put conn in the theme %q", m.mode.theme)
+	if m.mode.Theme != "datum" {
+		t.Errorf("picking a ground put conn in the theme %q", m.mode.Theme)
 	}
-	if m.g != datumTheme.light {
+	if m.g != theme.Datum.Light {
 		t.Error("the settings are not drawn on the ground they picked")
 	}
 	c := wrote(t, home)
@@ -499,7 +501,7 @@ func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 	}
 	// And a fresh server would come up on it without asking the
 	// terminal anything.
-	if askMode(override{}, home).dark {
+	if theme.AskMode(theme.Override{}, home).Dark {
 		t.Error("a fresh server would not come up on the ground in the file")
 	}
 	for _, r := range m.report().rows {
@@ -516,10 +518,10 @@ func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 func TestAskingTheTerminalTakesTheGroundOutOfTheFile(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects"],"ground":"light"}`, "projects")
 	m := settingsAt(t, home, 0)
-	m.mode, m.g = connOn(false), connTheme.light
+	m.mode, m.g = connOn(false), theme.Conn.Light
 	m.at = rowFor(t, m, groundSetting, "")
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.mode.dark || m.g != connTheme.light {
+	if m.mode.Dark || m.g != theme.Conn.Light {
 		t.Error("the ground changed under a server already up")
 	}
 	if c := wrote(t, home); c.Ground != "" || len(c.Roots) != 1 {

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/theme"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -165,7 +167,7 @@ type model struct {
 	now           time.Time
 	width, height int
 	p             palette
-	g             ground // the ground conn is on, which the palette is built off and the status line is written from
+	g             theme.Ground // the ground conn is on, which the palette is built off and the status line is written from
 
 	view     int
 	lit      bool // the annunciators are showing this half of the blink
@@ -268,7 +270,7 @@ type model struct {
 
 // newModel is conn on a ground: drawn in that ground's palette on the
 // surface, the panel's own, and speaking to tmux in its colors.
-func newModel(g ground) model {
+func newModel(g theme.Ground) model {
 	home, _ := os.UserHomeDir()
 	// A config that will not parse is the view's to report, not the
 	// model's to come up on: newModel takes the roots it is left with
@@ -1236,8 +1238,8 @@ func (m model) View() tea.View {
 	// rest of the mouse, the wheel and a drag into copy mode among it,
 	// and passes conn the presses in its pane.
 	v.MouseMode = tea.MouseModeCellMotion
-	v.BackgroundColor = m.g.ground
-	v.ForegroundColor = m.g.ink
+	v.BackgroundColor = m.g.Ground
+	v.ForegroundColor = m.g.Ink
 	v.WindowTitle = "conn"
 	return v
 }
@@ -1255,11 +1257,11 @@ func (m model) worn() (model, tea.Cmd) {
 	if m.srv == nil {
 		return m, nil
 	}
-	want, ok := readModeFile(m.srv.socket)
+	want, ok := theme.ReadModeFile(m.srv.socket)
 	if !ok {
 		return m, nil
 	}
-	m.g = want.wear()
+	m.g = want.Wear()
 	m.p = colored(m.g).onSurface()
 	return m, nil
 }

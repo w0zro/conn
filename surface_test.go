@@ -1,9 +1,13 @@
 package main
 
 import (
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/w0zro/conn/internal/theme"
 )
 
 // luminance is a hex color's relative brightness, enough to order
@@ -20,24 +24,48 @@ func luminance(h string) float64 {
 // way about. A panel on it stands off the bay without taking the
 // selection.
 func TestTheSurfaceIsBetweenTheGroundAndTheBorder(t *testing.T) {
-	for _, th := range themes {
-		for name, g := range map[string]ground{"dark": th.dark, "light": th.light} {
-			ground, surface, border := luminance(hex(g.ground)), luminance(g.surface), luminance(g.border)
+	for _, th := range theme.All {
+		for name, g := range map[string]theme.Ground{"dark": th.Dark, "light": th.Light} {
+			ground, surface, border := luminance(theme.Hex(g.Ground)), luminance(g.Surface), luminance(g.Border)
 			if name == "dark" && !(ground < surface && surface < border) {
-				t.Errorf("%s on dark: ground %.0f, surface %.0f, border %.0f", th.name, ground, surface, border)
+				t.Errorf("%s on dark: ground %.0f, surface %.0f, border %.0f", th.Name, ground, surface, border)
 			}
 			if name == "light" && !(ground > surface && surface > border) {
-				t.Errorf("%s on light: ground %.0f, surface %.0f, border %.0f", th.name, ground, surface, border)
+				t.Errorf("%s on light: ground %.0f, surface %.0f, border %.0f", th.Name, ground, surface, border)
 			}
 		}
 	}
 	// The palette on the surface paints its rows on it, and returns to
 	// it after every piece.
-	p := colored(connTheme.dark).onSurface()
-	if p.ground != groundIn(connTheme.dark.surface) || !strings.HasPrefix(p.normal, p.end+p.ground) {
+	p := colored(theme.Conn.Dark).onSurface()
+	if p.ground != groundIn(theme.Conn.Dark.Surface) || !strings.HasPrefix(p.normal, p.end+p.ground) {
 		t.Errorf("the surface palette grounds on %q", p.ground)
 	}
 	if got := plain.onSurface(); !got.plain || got.ground != "" {
 		t.Error("the plain palette took a ground")
 	}
+}
+
+// contrast is the WCAG ratio between two hexes, which is how every
+// color on a ground here was chosen.
+func contrast(a, b string) float64 {
+	lum := func(h string) float64 {
+		var r, g, bl int
+		if _, err := fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &bl); err != nil {
+			return 0
+		}
+		part := func(v int) float64 {
+			c := float64(v) / 255
+			if c <= 0.03928 {
+				return c / 12.92
+			}
+			return math.Pow((c+0.055)/1.055, 2.4)
+		}
+		return 0.2126*part(r) + 0.7152*part(g) + 0.0722*part(bl)
+	}
+	hi, lo := lum(a), lum(b)
+	if hi < lo {
+		hi, lo = lo, hi
+	}
+	return (hi + 0.05) / (lo + 0.05)
 }

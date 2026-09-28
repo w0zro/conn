@@ -253,14 +253,10 @@ type model struct {
 	acts   map[string]activitySeen
 	serves map[int]servingSeen
 	cpuAt  time.Time
-	// The list: the projects as the roots were last walked, and the line
-	// typed into to narrow them, with the cursor among the rows it leaves.
-	walked      []projectRow
-	find        typed
-	scanning    bool
-	projectsErr string
-	uid         int
-	roots       rooting // where the checkouts are kept, and the finders built on it
+
+	list  projectList // the list, which p puts up
+	uid   int
+	roots rooting // where the checkouts are kept, and the finders built on it
 
 	// The sessions view: a project's suspended sessions, as last read,
 	// what has narrowed them, and which of the rows the cursor is on.
@@ -407,61 +403,6 @@ func (m model) processesReport() processesReport {
 	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
 	w.spin = int(m.now.UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
 	return w
-}
-
-// listRows is the list as it stands before any filter: the projects the
-// walk found, each with the processes conn holds a pane for in it under
-// it, and the work happening off every project at the foot.
-func (m model) listRows() []projectRow {
-	return withProcesses(m.walked, m.projects, m.panes, m.roots.real, m.head.login.home)
-}
-
-// projectsReport is the list's words as things stand, and projectRows
-// the rows the filter leaves, which the cursor is an index into.
-func (m model) projectsReport() projectsReport {
-	b := composeProjectsAt(m.listRows(), m.find.text, m.roots.configured, m.head.login.home, m.scanning, m.projectsErr)
-	b.caret = m.find.cur
-	return b
-}
-
-func (m model) projectRows() []projectRow {
-	return matching(m.listRows(), m.find.text)
-}
-
-// atCursor is the row the list's cursor stands on, where there is one,
-// and followRow finds that row again once a reading has changed the
-// list under it: a process by its pid and a project by its path, and
-// where neither is still listed, the place it was. The list is read
-// live now, so a cursor that were only an index would walk on its own
-// as processes come and go.
-func (m model) atCursor() (projectRow, bool) {
-	rows := m.projectRows()
-	if m.find.at >= len(rows) {
-		return projectRow{}, false
-	}
-	return rows[m.find.at], true
-}
-
-func followRow(rows []projectRow, was projectRow, at int) int {
-	if was.pid != 0 {
-		for i, r := range rows {
-			if r.pid == was.pid {
-				return i
-			}
-		}
-	}
-	// The process has ended. Its project is where the operator was
-	// looking, and a process row carries that project's path, so the
-	// cursor falls back to the row the work was under rather than to
-	// whatever has moved up into its place.
-	if was.path != "" {
-		for i, r := range rows {
-			if r.pid == 0 && r.path == was.path {
-				return i
-			}
-		}
-	}
-	return clamp(at, len(rows))
 }
 
 func (m model) Init() tea.Cmd {
@@ -1382,11 +1323,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// machine may not keep.
 		if m.view == viewProjects {
 			cmds = append(cmds, m.processesTick())
-			if rows := m.projectRows(); hadRow {
-				m.find.at = followRow(rows, wasRow, m.find.at)
-			} else {
-				m.find.at = clamp(m.find.at, len(rows))
-			}
+			m.list.kept(m.projectRows(), wasRow, hadRow)
 			// The page is what the workspace holds here too, about the
 			// row the cursor is on.
 			mm, cmd := m.keepingPage()
@@ -1401,12 +1338,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.readProcesses()
 	case projectsMsg:
 		wasRow, hadRow := m.atCursor()
-		m.walked, m.projectsErr, m.scanning = msg.projects, msg.err, false
-		if rows := m.projectRows(); hadRow {
-			m.find.at = followRow(rows, wasRow, m.find.at)
-		} else {
-			m.find.at = clamp(m.find.at, len(rows))
-		}
+		m.list.walked, m.list.err, m.list.scanning = msg.projects, msg.err, false
+		m.list.kept(m.projectRows(), wasRow, hadRow)
 		// The walk has given the list its rows, and the page comes up
 		// for the one the cursor is on without anybody asking.
 		return m.keepingPage()
@@ -1798,56 +1731,6 @@ func (m model) openManual(came string) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmd, m.openHelp())
 }
 
-// projectKey answers a key in projects, which is a line typed into;
-// see typed for the keys every such line has. What is the list's own:
-// enter opens a shell at the row under the cursor and goes back to the
-// processes view, which is where the shell will show, or goes into the
-// row where it is a process; alt+a opens claude there instead, since
-// a plain a is a letter to type; alt+A opens the sessions view over
-// what claude left suspended at the row, group included, the same way
-// — not a plain A, which would take a letter the line can still be
-// typed with, and not ctrl+shift+a, which is not its own chord to any
-// terminal at all, alphabetic ctrl combinations being their letter's
-// own case already; esc goes back without opening anything, and ctrl+c
-// is what it is everywhere.
-func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
-	rows := m.projectRows()
-	switch {
-	case m.find.edit(k, len(rows)):
-	case k == "ctrl+c":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		return m, tea.Quit
-	case k == "esc":
-		return m.backFrom()
-	case k == "enter":
-		if !m.inside || m.find.at >= len(rows) {
-			return m, nil
-		}
-		row := rows[m.find.at]
-		// A process row is somewhere to go, not something to start: enter
-		// puts its pane in the bay and the keys in it, the way enter does
-		// on the row in the processes view. That is the whole of what this
-		// mode is for on a machine with more processes than rows.
-		if row.pid != 0 {
-			if reachable(m.panes[row.tty]) {
-				mm, cmd := m.toProcesses()
-				m = mm.(model)
-				return m, tea.Batch(cmd, m.reach(m.panes[row.tty], row.tty))
-			}
-			return m, nil
-		}
-		if row.path == "" {
-			return m, nil // work off every project: a heading, not a place
-		}
-		mm, cmd := m.toProcesses()
-		m = mm.(model)
-		return m, tea.Batch(cmd, m.openShell(row.path))
-	}
-	return m, nil
-}
-
 // slotted takes a terminal into the bay and remembers the one it is
 // replacing, so there is an other to go back to.
 //
@@ -2042,31 +1925,6 @@ func (m model) backIn() (tea.Model, tea.Cmd) {
 	return m, m.reach(p, m.lastIn)
 }
 
-// toProjects opens the list, from wherever conn is, and walks the roots
-// again for it: the list is what could be worked on rather than what is
-// being worked on, so it is read when it is asked for and not on a beat.
-//
-// From the console it gives the bay its side back, the way going to the
-// processes view does — the list is a panel view like the processes
-// view — and it calls off the console's wait on a reading, or that
-// reading would land a moment later and put the processes view up over
-// it.
-func (m model) toProjects() (tea.Model, tea.Cmd) {
-	console := m.view == viewConsole
-	m.view, m.scanning = viewProjects, true
-	m.find.clear()
-	m.entering = false
-	// The walk, and the reading: the list holds the processes running in
-	// each project as well as the projects, and the reading goes on for
-	// as long as it is up.
-	m.processesGen++
-	cmds := []tea.Cmd{m.scanProjects(), m.readProcesses()}
-	if console && m.inside {
-		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
-	}
-	return m, tea.Batch(cmds...)
-}
-
 // toProcesses leaves the list for the processes view, which starts
 // reading again.
 func (m model) toProcesses() (tea.Model, tea.Cmd) {
@@ -2121,7 +1979,7 @@ func (m model) atProject() (string, []string, bool) {
 		}
 	case viewProjects:
 		if row, ok := m.atCursor(); ok && row.path != "" {
-			return row.path, sessionDirs(m.walked, row), true
+			return row.path, sessionDirs(m.list.walked, row), true
 		}
 	case viewSessions:
 		if m.sessionsProject != "" {
@@ -2407,7 +2265,7 @@ func (m model) View() tea.View {
 	case m.view == viewProcesses:
 		rows = drawProcesses(m.processesReport(), m.cursor, width, m.height, m.p)
 	case m.view == viewProjects:
-		rows = drawProjects(m.projectsReport(), m.find.at, width, m.height, m.p)
+		rows = drawProjects(m.projectsReport(), m.list.find.at, width, m.height, m.p)
 	case m.view == viewSessions:
 		rows = drawSessions(m.sessionsReport(), m.rfind.at, width, m.height, m.p)
 	case m.view == viewRoots:

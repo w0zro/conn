@@ -366,7 +366,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.now = viewProjects, true, processesNow
 	m.head.login.home = dir
-	m.walked = []projectRow{{name: "w0zro/conn", path: "/Users/w0zro/projects/w0zro/conn"}}
+	m.list.walked = []projectRow{{name: "w0zro/conn", path: "/Users/w0zro/projects/w0zro/conn"}}
 	m.projects = []project{
 		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{{pid: 11, tty: "ttys001", kind: kindShell, command: "zsh", status: statusIdle}}},
 		{path: "", entries: []entry{{pid: 22, tty: "ttys002", kind: kindShell, command: "zsh", status: statusIdle}}},
@@ -410,7 +410,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	// and the walk landing is one of the moments it is asked for.
 	m.looking, m.focused = false, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: filepath.Join(dir, "tmux.sock")}
-	next, cmd := m.Update(projectsMsg{projects: m.walked})
+	next, cmd := m.Update(projectsMsg{projects: m.list.walked})
 	if got := next.(model); !got.looking || cmd == nil {
 		t.Error("the walk landing in the list did not put the page in the workspace")
 	}

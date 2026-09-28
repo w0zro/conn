@@ -664,20 +664,20 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 		return next.(model), cmd
 	}
 	m, cmd := key(m, "p")
-	if m.view != viewProjects || !m.scanning || cmd == nil {
-		t.Fatalf("after p: view %d, scanning %v, cmd %v", m.view, m.scanning, cmd != nil)
+	if m.view != viewProjects || !m.list.scanning || cmd == nil {
+		t.Fatalf("after p: view %d, scanning %v, cmd %v", m.view, m.list.scanning, cmd != nil)
 	}
 	next, _ := m.Update(projectsMsg{projects: testProjects})
 	m = next.(model)
-	if m.scanning || len(m.projectRows()) != len(testProjects) {
-		t.Errorf("with the roots walked: scanning %v, %d rows", m.scanning, len(m.projectRows()))
+	if m.list.scanning || len(m.projectRows()) != len(testProjects) {
+		t.Errorf("with the roots walked: scanning %v, %d rows", m.list.scanning, len(m.projectRows()))
 	}
 	// The letters the processes view is worked by are characters here.
 	for _, k := range []string{"c", "o", "n", "n"} {
 		m, _ = key(m, k)
 	}
-	if m.find.text != "conn" || m.view != viewProjects {
-		t.Fatalf("typed: filter %q, view %d", m.find.text, m.view)
+	if m.list.find.text != "conn" || m.view != viewProjects {
+		t.Fatalf("typed: filter %q, view %d", m.list.find.text, m.view)
 	}
 	if rows := m.projectRows(); len(rows) != 2 || rows[1].name != "conn" {
 		t.Errorf("conn leaves %d rows", len(rows))
@@ -686,25 +686,25 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 	for range 5 {
 		m, _ = key(m, "down")
 	}
-	if m.find.at != 1 {
-		t.Errorf("five rows down a ring of 2 left the cursor at %d", m.find.at)
+	if m.list.find.at != 1 {
+		t.Errorf("five rows down a ring of 2 left the cursor at %d", m.list.find.at)
 	}
 	m, _ = key(m, "down")
-	if m.find.at != 0 {
-		t.Errorf("down off the last of 2 rows left the cursor at %d", m.find.at)
+	if m.list.find.at != 0 {
+		t.Errorf("down off the last of 2 rows left the cursor at %d", m.list.find.at)
 	}
 	m, _ = key(m, "ctrl+p")
-	if m.find.at != 1 {
-		t.Errorf("ctrl+p off the first of 2 rows left the cursor at %d", m.find.at)
+	if m.list.find.at != 1 {
+		t.Errorf("ctrl+p off the first of 2 rows left the cursor at %d", m.list.find.at)
 	}
 	m, _ = key(m, "ctrl+n")
 	m, _ = key(m, "backspace")
-	if m.find.text != "con" || m.find.at != 0 {
-		t.Errorf("after backspace: filter %q, cursor %d", m.find.text, m.find.at)
+	if m.list.find.text != "con" || m.list.find.at != 0 {
+		t.Errorf("after backspace: filter %q, cursor %d", m.list.find.text, m.list.find.at)
 	}
 	m, _ = key(m, "ctrl+u")
-	if m.find.text != "" {
-		t.Errorf("ctrl+u left %q", m.find.text)
+	if m.list.find.text != "" {
+		t.Errorf("ctrl+u left %q", m.list.find.text)
 	}
 	m, cmd = key(m, "esc")
 	if m.view != viewProcesses || cmd == nil {
@@ -717,7 +717,7 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 // can be opened, and the list holds.
 func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	m := plainModel()
-	m.view, m.walked, m.find.at = viewProjects, testProjects, 3
+	m.view, m.list.walked, m.list.find.at = viewProjects, testProjects, 3
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
 	if m.view != viewProjects || cmd != nil {
@@ -741,7 +741,7 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 // the start of the line, so this is the list's key for it.
 func TestAltAOpensAnAgentAtTheProject(t *testing.T) {
 	m := plainModel()
-	m.view, m.walked, m.find.at = viewProjects, testProjects, 3
+	m.view, m.list.walked, m.list.find.at = viewProjects, testProjects, 3
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux"}
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
@@ -762,7 +762,7 @@ func TestAltAOpensAnAgentAtTheProject(t *testing.T) {
 // to give up typing a capital letter into the filter for it.
 func TestAltAOpensSessionsFromProjects(t *testing.T) {
 	m := plainModel()
-	m.view, m.walked, m.find.at = viewProjects, testProjects, 0 // arboreum.io, a group of two
+	m.view, m.list.walked, m.list.find.at = viewProjects, testProjects, 0 // arboreum.io, a group of two
 	m.inside = true
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+shift+a"}))
@@ -781,11 +781,11 @@ func TestAltAOpensSessionsFromProjects(t *testing.T) {
 
 	// A is a letter to type here, the same as a is: the sessions view does
 	// not take it from the filter.
-	m.view, m.find.text = viewProjects, ""
+	m.view, m.list.find.text = viewProjects, ""
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "A"}))
 	m = next.(model)
-	if m.view != viewProjects || m.find.text != "A" || cmd != nil {
-		t.Errorf("A did not type: view %d, filter %q, cmd %v", m.view, m.find.text, cmd != nil)
+	if m.view != viewProjects || m.list.find.text != "A" || cmd != nil {
+		t.Errorf("A did not type: view %d, filter %q, cmd %v", m.view, m.list.find.text, cmd != nil)
 	}
 }
 
@@ -961,7 +961,7 @@ func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 		m.inside, m.view = true, view
 		m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
 		m.cursor = 11
-		m.walked = []projectRow{{path: "/w/repo", name: "repo"}}
+		m.list.walked = []projectRow{{path: "/w/repo", name: "repo"}}
 		m.sessionsProject, m.sessionsDirs = "/w/had", []string{"/w/had"}
 		return m
 	}
@@ -1018,11 +1018,11 @@ func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 	if m, cmd = press(panel(viewConsole), "alt+s"); cmd != nil {
 		t.Error("a shell was opened from the console")
 	}
-	if m, _ = press(panel(viewProjects), "a"); m.find.text != "a" {
-		t.Errorf("a plain a stopped being a letter in the list: filter %q", m.find.text)
+	if m, _ = press(panel(viewProjects), "a"); m.list.find.text != "a" {
+		t.Errorf("a plain a stopped being a letter in the list: filter %q", m.list.find.text)
 	}
-	if m, _ = press(panel(viewProjects), "s"); m.find.text != "s" {
-		t.Errorf("a plain s stopped being a letter in the list: filter %q", m.find.text)
+	if m, _ = press(panel(viewProjects), "s"); m.list.find.text != "s" {
+		t.Errorf("a plain s stopped being a letter in the list: filter %q", m.list.find.text)
 	}
 }
 
@@ -1136,7 +1136,7 @@ func TestTheMotionsReachTheEnds(t *testing.T) {
 // than there are rows to draw.
 func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 	m := plainModel()
-	m.view, m.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
+	m.view, m.list.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
 	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
 	rows := m.projectRows()
 
@@ -1152,7 +1152,7 @@ func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 	// The contact waiting in conn: the view goes back to the processes
 	// view, which is where a pane in the bay shows, and the pane is
 	// reached rather than a shell being opened.
-	m.find.at = at(11)
+	m.list.find.at = at(11)
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	got := next.(model)
 	if got.view != viewProcesses || cmd == nil {
@@ -1176,14 +1176,14 @@ func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 	// enter starts a shell there like any other row. Only work conn could
 	// not place at all is a heading and not a place, and enter on it
 	// opens nothing.
-	m.find.at = at(55) - 1
+	m.list.find.at = at(55) - 1
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if got = next.(model); got.view != viewProcesses {
 		t.Errorf("on ~/Downloads the panel stayed at view %d", got.view)
 	}
 	m.projects = []project{{entries: []entry{{pid: 66, kind: "SHELL", command: "zsh", tty: "ttys006"}}}}
 	m.panes = map[string]pane{"ttys006": {id: "%6", tty: "ttys006"}}
-	m.view, m.find.at = viewProjects, len(m.projectRows())-2 // the NO PROJECT heading
+	m.view, m.list.find.at = viewProjects, len(m.projectRows())-2 // the NO PROJECT heading
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if got = next.(model); got.view != viewProjects || answered(cmd) != nil {
 		t.Errorf("on NO PROJECT: view %d, %T", got.view, answered(cmd))
@@ -1195,21 +1195,21 @@ func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 // project by its path — as processes come and go under it.
 func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
 	m := plainModel()
-	m.view, m.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
-	m.find.at = 0
+	m.view, m.list.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
+	m.list.find.at = 0
 	for i, r := range m.projectRows() {
 		if r.pid == 22 { // the shell in conn, below the contact waiting there
-			m.find.at = i
+			m.list.find.at = i
 		}
 	}
-	was := m.find.at
+	was := m.list.find.at
 
 	// The contact above it ends, and every row below moves up one.
 	thinner := append([]project{{path: testRunning[0].path, entries: testRunning[0].entries[1:]}}, testRunning[1:]...)
 	next, _ := m.Update(processesMsg{gen: m.processesGen, projects: thinner, panes: testPanes})
 	m = next.(model)
-	if m.find.at != was-1 {
-		t.Fatalf("the cursor is on row %d, want %d", m.find.at, was-1)
+	if m.list.find.at != was-1 {
+		t.Fatalf("the cursor is on row %d, want %d", m.list.find.at, was-1)
 	}
 	if row, ok := m.atCursor(); !ok || row.pid != 22 {
 		t.Errorf("the cursor stands on %+v, not the shell it was on", row)
@@ -1430,7 +1430,7 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	}
 
 	// From the list, on the project's row.
-	m.view, m.walked, m.find.at = viewProjects, []projectRow{{name: "w0zro/app", path: app}}, 0
+	m.view, m.list.walked, m.list.find.at = viewProjects, []projectRow{{name: "w0zro/app", path: app}}, 0
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+u"}))
 	m = next.(model)
 	if cmd == nil || m.view != viewProcesses {

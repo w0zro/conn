@@ -175,10 +175,6 @@ func (m model) declarationOf(e entry) (path string, d declaration, ok bool) {
 	return "", declaration{}, false
 }
 
-// contactProgram is the contact conn starts. Claude is the only kind
-// conn starts for now, so a is its key everywhere a shell's is s.
-const contactProgram = "claude"
-
 // startContact opens a contact at a project, off the loop, the way
 // openShell opens a shell there.
 func (m model) startContact(dir string) tea.Cmd {
@@ -282,7 +278,7 @@ func (m model) serverCmd(act func() error) tea.Cmd {
 // the pane waits, and the last words stay up to be read.
 func (m model) watchContainer(e entry) tea.Cmd {
 	srv, dir, id := m.srv, e.cwd, e.container
-	cmd := tmux.ShellQuote(dockerPath) + " logs --tail 2000 --follow " + tmux.ShellQuote(id) + " 2>&1; " + holdOpen
+	cmd := tmux.ShellQuote(dockerPath) + " logs --tail 2000 --follow " + tmux.ShellQuote(id) + " 2>&1; " + tmux.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenWatching(dir, cmd, id)
 		if err != nil {
@@ -309,7 +305,7 @@ func (m model) watchContainer(e entry) tea.Cmd {
 func (m model) shellInContainer(e entry) tea.Cmd {
 	srv, dir, id := m.srv, e.cwd, e.container
 	cmd := tmux.ShellQuote(dockerPath) + " exec -it " + tmux.ShellQuote(id) + " sh -c " +
-		tmux.ShellQuote(pickShell) + " 2>&1 || " + holdOpen
+		tmux.ShellQuote(pickShell) + " 2>&1 || " + tmux.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenShellIn(dir, cmd, id)
 		if err != nil {
@@ -340,7 +336,7 @@ func (m model) openClient(e entry, p *knownProgram, dir string) tea.Cmd {
 			if user == "" {
 				user = p.user
 			}
-			cmd := tmux.ShellQuote(dockerPath) + " exec -it " + tmux.ShellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + holdOpen
+			cmd := tmux.ShellQuote(dockerPath) + " exec -it " + tmux.ShellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + tmux.HoldOpen
 			sh, err := srv.OpenShellIn(dir, cmd, id)
 			if err != nil {
 				return nil
@@ -364,7 +360,7 @@ func (m model) openClient(e entry, p *knownProgram, dir string) tea.Cmd {
 		if client == "" {
 			return noticeMsg{p.client + " was not found on the path"}
 		}
-		cmd := tmux.ShellQuote(client) + " " + p.args(port) + " 2>&1 || " + holdOpen
+		cmd := tmux.ShellQuote(client) + " " + p.args(port) + " 2>&1 || " + tmux.HoldOpen
 		sh, err := srv.OpenCmd(dir, cmd)
 		if err != nil {
 			return noticeMsg{"the session could not be opened: " + err.Error()}
@@ -391,17 +387,6 @@ func containerEnv(id, name string) string {
 	return ""
 }
 
-// holdOpen keeps a pane standing after what it was opened for has
-// finished. cat with nothing to read waits on the terminal for as long
-// as the pane is there, which is exactly as long as wanted: the operator
-// leaves by going somewhere else, and the pane goes when its work is
-// replaced in the workspace.
-//
-// It is for a pane with something left to read in it — a log that ended,
-// an error docker printed. A pane whose work is over and has left
-// nothing behind should go, and a shell is that.
-const holdOpen = "exec cat"
-
 // pickShell is run inside the container to choose its shell. bash is
 // tested for rather than tried, because exec replaces the shell and a
 // failed exec ends it: exec bash || exec sh never reaches the fallback,
@@ -422,7 +407,7 @@ func (m model) watchBrew(e entry) tea.Cmd {
 		return nil
 	}
 	srv, dir, formula, log := m.srv, e.cwd, e.brew, svc.log
-	cmd := "tail -n 2000 -f " + tmux.ShellQuote(log) + " 2>&1; " + holdOpen
+	cmd := "tail -n 2000 -f " + tmux.ShellQuote(log) + " 2>&1; " + tmux.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenWatching(dir, cmd, brewMark(formula))
 		if err != nil {

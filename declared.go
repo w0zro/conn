@@ -367,7 +367,7 @@ func declaredLine(d declaration, bin string) string {
 	return d.command + "\n" +
 		tmux.ShellQuote(bin) + " set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\n" +
 		"printf '\\n[" + d.name + " exited]\\n'\n" +
-		holdOpen
+		tmux.HoldOpen
 }
 
 // exitStatus is the word for a declared process that ended, from what

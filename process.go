@@ -950,3 +950,10 @@ func withoutConnsOwn(procs []process, watching map[string]bool, panelTTY string)
 	}
 	return kept
 }
+
+// isRepo says whether a directory is the top of a git repository. .git
+// is a directory in a clone and a file in a worktree or a submodule.
+func isRepo(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
+}

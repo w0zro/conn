@@ -3,7 +3,6 @@ package main
 import (
 	"maps"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -358,11 +357,6 @@ func subjectOf(pid int, projects []project, records map[int]record) (readoutSubj
 		}
 	}
 	return readoutSubject{}, false
-}
-
-// sessionPath is where claude files a session had in a directory.
-func sessionPath(dir, id string) string {
-	return filepath.Join(claudeConfigDir(), "projects", encodePath(dir), id+".jsonl")
 }
 
 func (m readoutModel) View() tea.View {

@@ -175,13 +175,6 @@ func walkRoot(root string) ([]string, error) {
 	return found, nil
 }
 
-// isRepo says whether a directory is the top of a git repository. .git
-// is a directory in a clone and a file in a worktree or a submodule.
-func isRepo(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, ".git"))
-	return err == nil
-}
-
 // isCacheDir says whether a directory carries a CACHEDIR.TAG.
 func isCacheDir(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "CACHEDIR.TAG"))

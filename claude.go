@@ -271,27 +271,39 @@ func doingWord(name string, input map[string]json.RawMessage) string {
 	}
 	switch name {
 	case "Read":
-		return join(" ", "read", file())
+		return doing("read", file())
 	case "Edit", "NotebookEdit", "MultiEdit":
-		return join(" ", "edit", file())
+		return doing("edit", file())
 	case "Write":
-		return join(" ", "write", file())
+		return doing("write", file())
 	case "Bash":
 		return field("command")
 	case "Grep":
-		return join(" ", "grep", field("pattern"))
+		return doing("grep", field("pattern"))
 	case "Glob":
-		return join(" ", "glob", field("pattern"))
+		return doing("glob", field("pattern"))
 	case "Agent":
-		return join(" ", "agent", field("description"))
+		return doing("agent", field("description"))
 	case "WebFetch":
-		return join(" ", "fetch", field("url"))
+		return doing("fetch", field("url"))
 	case "WebSearch":
-		return join(" ", "search", field("query"))
+		return doing("search", field("query"))
 	case "AskUserQuestion":
 		return ""
 	}
-	return join(" ", strings.ToLower(name), askDetail(input))
+	return doing(strings.ToLower(name), askDetail(input))
+}
+
+// doing is a verb and what it is done to, where the transcript says.
+func doing(verb, object string) string {
+	verb, object = strings.TrimSpace(verb), strings.TrimSpace(object)
+	switch {
+	case verb == "":
+		return object
+	case object == "":
+		return verb
+	}
+	return verb + " " + object
 }
 
 // A transcript as it was last read for a row's activity: its size and
@@ -723,4 +735,13 @@ func tailLines(path string, max int64) ([][]byte, error) {
 		lines = lines[1:]
 	}
 	return lines, nil
+}
+
+// contactProgram is the contact conn starts. Claude is the only kind
+// conn starts for now, so a is its key everywhere a shell's is s.
+const contactProgram = "claude"
+
+// sessionPath is where claude files a session had in a directory.
+func sessionPath(dir, id string) string {
+	return filepath.Join(claudeConfigDir(), "projects", encodePath(dir), id+".jsonl")
 }

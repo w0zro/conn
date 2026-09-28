@@ -466,7 +466,7 @@ func (m model) openHelp() tea.Cmd {
 		if srv.showHelp(home, self) != nil {
 			return nil
 		}
-		return helpMsg{on: true}
+		return detourMsg{toManual}
 	}
 }
 
@@ -478,6 +478,6 @@ func (m model) openTheSettings() tea.Cmd {
 		if srv.showSettings(home, self) != nil {
 			return nil
 		}
-		return settingsMsg{on: true}
+		return detourMsg{toSettings}
 	}
 }

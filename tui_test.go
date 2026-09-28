@@ -912,8 +912,8 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	if got := press(m, "p"); got.view != viewProjects || got.from != "%2" || got.came != "" {
 		t.Errorf("p after the arrival: view %d, from %q, came %q", got.view, got.from, got.came)
 	}
-	if got := press(m, "?"); !got.helping || got.helpFrom != "%2" || got.came != "" {
-		t.Errorf("? after the arrival: helping %v, from %q, came %q", got.helping, got.helpFrom, got.came)
+	if got := press(m, "?"); got.detour.to != toManual || got.detour.from != "%2" || got.came != "" {
+		t.Errorf("? after the arrival: helping %v, from %q, came %q", got.detour.to == toManual, got.detour.from, got.came)
 	}
 	if got := press(m, "A"); got.view != viewSessions || got.from != "%2" {
 		t.Errorf("A after the arrival: view %d, from %q", got.view, got.from)
@@ -1603,7 +1603,7 @@ func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
 	}
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "?"}))
 	m = next.(model)
-	m.helping = false
+	m.detour.to = noDetour
 	if click(at("node vite")) {
 		t.Error("a click after a key went in")
 	}

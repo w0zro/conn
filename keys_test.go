@@ -138,7 +138,7 @@ func TestThePanelHoldsTheKeysWhileTheManualIsUp(t *testing.T) {
 	if strings.Contains(m.View().Content, "THE ROW") {
 		t.Fatal("the processes view is showing the keys with no manual up")
 	}
-	next, _ := m.Update(helpMsg{on: true})
+	next, _ := m.Update(detourMsg{toManual})
 	m = next.(model)
 	content := m.View().Content
 	for _, want := range []string{"KEYS", "THE ROW", "IN A PROCESS"} {

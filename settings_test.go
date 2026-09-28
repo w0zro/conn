@@ -249,14 +249,14 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: &server{}}
 	next, cmd := m.key(",")
 	m = next.(model)
-	if !m.setting || cmd == nil {
-		t.Fatalf("the comma left setting %v, cmd %v", m.setting, cmd != nil)
+	if m.detour.to != toSettings || cmd == nil {
+		t.Fatalf("the comma left setting %v, cmd %v", m.detour.to == toSettings, cmd != nil)
 	}
 	if m.view != viewProcesses {
 		t.Errorf("the comma took the panel off the processes view, to %d", m.view)
 	}
-	if m.cursor != 0 || m.settingCursor != 4321 {
-		t.Errorf("the row under the cursor is %d, kept as %d", m.cursor, m.settingCursor)
+	if m.cursor != 0 || m.detour.cursor != 4321 {
+		t.Errorf("the row under the cursor is %d, kept as %d", m.cursor, m.detour.cursor)
 	}
 	if got := m.keys(); !strings.Contains(got, settingsWord) || strings.Contains(got, wordmarkLine) {
 		t.Errorf("the band says %q", got)
@@ -270,10 +270,10 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 		t.Error("the comma opened the settings over the settings")
 	}
 	// Leaving puts the row back and the panel's own word with it.
-	next, cmd = m.leftSettings(false)
+	next, cmd = m.leftDetour(false)
 	m = next.(model)
-	if m.setting || m.cursor != 4321 {
-		t.Errorf("leaving left setting %v, cursor %d", m.setting, m.cursor)
+	if m.detour.to == toSettings || m.cursor != 4321 {
+		t.Errorf("leaving left setting %v, cursor %d", m.detour.to == toSettings, m.cursor)
 	}
 	if cmd == nil {
 		t.Error("the workspace was left holding the settings")
@@ -286,11 +286,11 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 // The settings say as they go, the way the manual does, and the panel
 // answers the key wherever it is and whatever view it is in.
 func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
-	m := model{view: viewProjects, inside: true, srv: &server{}, setting: true, settingFrom: "%4",
+	m := model{view: viewProjects, inside: true, srv: &server{}, detour: detour{to: toSettings, from: "%4"},
 		panes: map[string]pane{"ttys011": {id: "%4", tty: "ttys011"}}}
 	next, cmd := m.key("alt+,") // what leaveSettingsKey arrives as
-	if got := next.(model); got.setting || got.settingFrom != "" {
-		t.Errorf("the settings are still up: setting %v, from %q", got.setting, got.settingFrom)
+	if got := next.(model); got.detour.to == toSettings || got.detour.from != "" {
+		t.Errorf("the settings are still up: setting %v, from %q", got.detour.to == toSettings, got.detour.from)
 	}
 	if cmd == nil {
 		t.Error("nothing was done to put them away")
@@ -298,8 +298,8 @@ func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 	// The panel key is the other way out, and it does not put the keys
 	// back where they came from: the key says where to go.
 	next, _ = m.arrived("")
-	if got := next.(model); got.setting || got.settingFrom != "" {
-		t.Errorf("the panel key left setting %v, from %q", got.setting, got.settingFrom)
+	if got := next.(model); got.detour.to == toSettings || got.detour.from != "" {
+		t.Errorf("the panel key left setting %v, from %q", got.detour.to == toSettings, got.detour.from)
 	}
 }
 
@@ -309,14 +309,14 @@ func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 func TestTheReadingLeavesTheCursorAloneWhileSetting(t *testing.T) {
 	projects := []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}}}}
 	m := model{view: viewProcesses, inside: true, cursor: 0, projects: projects}
-	up := processesMsg{projects: projects, gen: m.processesGen, baySetting: true}
+	up := processesMsg{projects: projects, gen: m.processesGen, bayDetour: toSettings}
 	next, _ := m.Update(up)
-	if got := next.(model); got.cursor != 0 || !got.setting {
-		t.Errorf("the reading put the cursor back on %d (setting %v)", got.cursor, got.setting)
+	if got := next.(model); got.cursor != 0 || got.detour.to != toSettings {
+		t.Errorf("the reading put the cursor back on %d (setting %v)", got.cursor, got.detour.to == toSettings)
 	}
 	next, _ = m.Update(processesMsg{projects: projects, gen: m.processesGen})
-	if got := next.(model); got.cursor == 0 || got.setting {
-		t.Errorf("with no settings up the reading left the cursor at %d (setting %v)", got.cursor, got.setting)
+	if got := next.(model); got.cursor == 0 || got.detour.to == toSettings {
+		t.Errorf("with no settings up the reading left the cursor at %d (setting %v)", got.cursor, got.detour.to == toSettings)
 	}
 }
 
@@ -346,12 +346,12 @@ func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
 	}
 
 	// The panel writes the band and leaves the bar to them.
-	p := model{view: viewProcesses, inside: true, srv: &server{}, setting: true}
+	p := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toSettings}}
 	p, _ = p.saying()
 	if p.saidBar != "" {
 		t.Errorf("the panel wrote the bar while the settings had the keys: %q", p.saidBar)
 	}
-	p.setting = false
+	p.detour.to = noDetour
 	p, _ = p.saying()
 	if p.saidBar == "" {
 		t.Error("with the settings gone the panel does not write the bar again")

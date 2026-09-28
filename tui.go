@@ -108,8 +108,7 @@ type (
 		noBay      bool            // home has no bay beside the panel
 		bayDead    bool            // the bay's pane held on remain-on-exit, its process gone
 		bayReadout bool            // the bay holds the readout, so the page is up
-		bayHelp    bool            // the bay holds the manual, and the panel says HELP
-		baySetting bool            // the bay holds the settings, and the panel says SETTINGS
+		bayDetour  detourTo        // the page of conn's own the bay holds, if any
 		bayActive  bool            // the keys are in the bay, by tmux's own word
 		err        string
 		// The projects' .conn files as this reading found them, kept on
@@ -143,8 +142,7 @@ type (
 	raisedMsg        struct{ shells []shell } // declared processes were brought up, parked: a project's, or one
 	reachedMsg       struct{ tty string }     // a process was put in the bay
 	readoutMsg       struct{ on bool }        // the readout was put in the bay, or taken out of it
-	helpMsg          struct{ on bool }        // the manual was put in the bay
-	settingsMsg      struct{ on bool }        // the settings were put in the bay
+	detourMsg        struct{ to detourTo }    // the manual or the settings were put in the bay
 	blinkMsg         struct{ gen int }        // the chip's half is up
 	spinMsg          struct{ gen int }        // the spinner's next frame is due
 	projectsMsg      struct {                 // the roots were walked
@@ -185,19 +183,9 @@ type model struct {
 	// and a reading corrects it — asking tmux on every reading would be
 	// a process for something conn already knows.
 	looking bool
-	// helping is whether the manual is the thing in the workspace. While
-	// it is, the panel says HELP and no row is under the cursor: the
-	// manual is not a process, so there is no row it belongs to and a
-	// cursor left sitting on one would say the keys were about that row
-	// when they are about reading.
-	helping bool
-	// setting is whether the settings are the thing in the workspace,
-	// which is the same arrangement: the panel says SETTINGS and holds
-	// no row under the cursor, the keys being in the other pane. The
-	// panel goes on reading the machine while they stand — the list is
-	// what the station is for, and a configuration being edited beside
-	// it is no reason to stop.
-	setting bool
+	// The manual or the settings, where one is the thing in the
+	// workspace; see detour.go.
+	detour detour
 	// Whether the keys are on the panel. conn is told by the terminal
 	// when they arrive and when they leave, and knows on its own when
 	// its own reaching sent them away, so a terminal that reports no
@@ -258,16 +246,6 @@ type model struct {
 	roots rooting // where the checkouts are kept, and the finders built on it
 
 	sessions sessionList // the sessions view, which A puts up
-	// The manual: where the keys were when ? was pressed, and the row
-	// that was under the cursor, so that leaving it puts both back.
-	// See leftHelp.
-	helpFrom   string
-	helpCursor int
-	// The settings: where the keys were when , was pressed, and the row
-	// that was under the cursor. The same detour the manual is, and
-	// left the same way; see leftSettings.
-	settingFrom   string
-	settingCursor int
 
 	// The asking view: the first root being typed. It is the first start
 	// alone — a root changed on a conn already at work is typed in the
@@ -541,8 +519,13 @@ func (m model) readProcesses() tea.Cmd {
 			if bay, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
 			} else if ok {
-				msg.bay, msg.bayDead, msg.bayReadout, msg.bayHelp = bay.tty, bay.dead, bay.readout, bay.help
-				msg.baySetting = bay.settings
+				msg.bay, msg.bayDead, msg.bayReadout = bay.tty, bay.dead, bay.readout
+				switch {
+				case bay.help:
+					msg.bayDetour = toManual
+				case bay.settings:
+					msg.bayDetour = toSettings
+				}
 				msg.bayActive = bay.active
 			}
 		}
@@ -705,7 +688,7 @@ func (m model) saying() (model, tea.Cmd) {
 	// is forgotten rather than remembered, so the first telling after
 	// the settings are done writes the panel's own again whatever it
 	// says.
-	if m.setting {
+	if m.detour.to == toSettings {
 		bar = ""
 	}
 	if m.said && keys == m.saidKeys && station == m.saidStation && up == m.saidUp && bar == m.saidBar {
@@ -713,7 +696,7 @@ func (m model) saying() (model, tea.Cmd) {
 	}
 	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, keys, station, up, bar
 	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, m.g)
-	if m.setting {
+	if m.detour.to == toSettings {
 		return m, func() tea.Msg { _ = srv.sayBand(keys, station, up, ident); return nil }
 	}
 	return m, func() tea.Msg { _ = srv.say(keys, station, up, bar, ident); return nil }
@@ -740,11 +723,8 @@ func (m model) keys() string {
 	// Reading the manual, or keeping the settings, is a state the
 	// operator is in, like a question armed, and it outranks the
 	// wordmark: while either is up the panel is not being worked.
-	if m.helping && m.view == viewProcesses {
-		return statusLineBlock(helpWord, m.g)
-	}
-	if m.setting && m.view == viewProcesses {
-		return statusLineBlock(settingsWord, m.g)
+	if m.detour.to != noDetour && m.view == viewProcesses {
+		return statusLineBlock(m.detour.to.word(), m.g)
 	}
 	// The whole tree is a way of looking at the processes view rather
 	// than a view of its own, and the band says so while it is on.
@@ -767,13 +747,6 @@ const wordmarkLine = " CONN "
 // whole tree.
 const treeWord = "TREE"
 
-// helpWord is what the line says while the manual is up, and
-// settingsWord while the settings are.
-const (
-	helpWord     = "HELP"
-	settingsWord = "SETTINGS"
-)
-
 // station is what the line says while the keys are not on the panel.
 // Ordinarily nothing: the keys are in a process, and what that process
 // is doing is its own business and is on its own screen. The manual
@@ -782,11 +755,8 @@ const (
 // mistaken for a program the operator opened and has to get out of by
 // guessing.
 func (m model) station() string {
-	switch {
-	case m.helping:
-		return statusLineBlock(helpWord, m.g)
-	case m.setting:
-		return statusLineBlock(settingsWord, m.g)
+	if m.detour.to != noDetour {
+		return statusLineBlock(m.detour.to.word(), m.g)
 	}
 	return statusLineWord(wordmarkLine, hex(m.g.ink), true, m.g)
 }
@@ -818,7 +788,7 @@ func (m model) bar() string {
 		// The band says CONFIRM over it; the bar is the question and
 		// its answers, and says neither twice.
 		return statusLineSay(m.kill.prompt, m.g) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, m.g)
-	case m.helping:
+	case m.detour.to == toManual:
 		return keyBar(helpHints, m.g)
 	}
 	// While a process has the keys, none of the panel's work: what
@@ -1126,26 +1096,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.processesGen++
 		return m, tea.Batch(m.readProcesses(), nextBrew())
-	case helpMsg:
-		// The manual is up, and no row is under the cursor while it is.
-		// The manual is not a process; there is no row it belongs to,
-		// and a cursor left sitting on one would say these keys were
-		// about that row when they are about reading. Where the cursor
-		// was is kept, so j and k carry on from it.
+	case detourMsg:
+		// The page is up, and no row is under the cursor while it is;
+		// see detour. Where the cursor was is kept, so j and k carry on
+		// from it.
 		//
-		// The reading is taken again from here, as it is for the page,
-		// so one already in flight that saw the workspace as it was
-		// cannot land afterwards and say the manual is not up.
-		m.helping, m.cursor = msg.on, 0
-		m.processesGen++
-		return m.published(false), m.readProcesses()
-	case settingsMsg:
-		// The settings are up, and no row is under the cursor while
-		// they are, for the reason the manual clears it: they are not a
-		// process, so there is no row they belong to. Where the cursor
-		// was is kept, and the reading is taken again from here so one
-		// already in flight cannot land and say they are not up.
-		m.setting, m.cursor = msg.on, 0
+		// The reading is taken again from here, as it is for the
+		// readout, so one already in flight that saw the workspace as it
+		// was cannot land afterwards and say the page is not up.
+		m.detour.to, m.cursor = msg.to, 0
 		m.processesGen++
 		return m.published(false), m.readProcesses()
 	case readoutMsg:
@@ -1216,7 +1175,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
 		m.records, m.declared, m.tree = msg.records, msg.declared, msg.tree
-		m.looking, m.helping, m.setting = msg.bayReadout, msg.bayHelp, msg.baySetting
+		m.looking, m.detour.to = msg.bayReadout, msg.bayDetour
 		// Where the keys are, by the server's own word. conn is told by
 		// the terminal when they leave, and knows on its own when its
 		// reaching sent them away, but a reading can land between the
@@ -1254,7 +1213,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// one back every couple of seconds: the cursor is cleared on
 		// purpose, and stays cleared until the operator moves it
 		// themselves.
-		if !m.helping && !m.setting {
+		if m.detour.to == noDetour {
 			m.cursor, m.cursorAt = follow(m.projects, m.cursor, m.cursorAt)
 		}
 		// The reading the console was waiting on: the processes view goes up
@@ -1272,17 +1231,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// A home without its bay gets one; the next reading finds it.
 			case m.inside && msg.noBay:
 				cmds = append(cmds, m.processesTick(), m.openBay())
-			// A manual left behind: it says so as it goes, and this is
-			// the same answer for a manual that ended without saying —
-			// killed from outside, or gone while the keys were in the
-			// list and nobody was tending the workspace.
-			case m.inside && msg.bayDead && msg.bayHelp:
-				mm, cmd := m.leftHelp(true)
-				m = mm.(model)
-				cmds = append(cmds, m.processesTick(), cmd)
-			// The settings, the same way.
-			case m.inside && msg.bayDead && msg.baySetting:
-				mm, cmd := m.leftSettings(true)
+			// A manual or the settings left behind: each says so as it
+			// goes, and this is the same answer for one that ended
+			// without saying — killed from outside, or gone while the
+			// keys were in the list and nobody was tending the workspace.
+			case m.inside && msg.bayDead && msg.bayDetour != noDetour:
+				mm, cmd := m.leftDetour(true)
 				m = mm.(model)
 				cmds = append(cmds, m.processesTick(), cmd)
 			// A bay whose pane died stays the shape it was; only what is in it
@@ -1479,10 +1433,8 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 	// too: they have put the server in a mode, and the panel draws in
 	// colors it read when it came up.
 	switch k {
-	case "alt+esc":
-		return m.leftHelp(false)
-	case "alt+,":
-		return m.leftSettings(false)
+	case "alt+esc", "alt+,":
+		return m.leftDetour(false)
 	case "alt+w":
 		return m.worn()
 	}
@@ -1628,9 +1580,9 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 		// conn's own configuration, in the workspace. The comma is what
 		// a program of this shape is settled in everywhere, and it is
 		// not a letter the processes view wanted for anything.
-		return m.openSettings(came)
+		return m.openDetour(toSettings, came)
 	case k == "?":
-		return m.openManual(came)
+		return m.openDetour(toManual, came)
 	}
 	return m, nil
 }
@@ -1653,13 +1605,11 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 // The asking view is left alone: there are no processes to show until
 // it has been answered.
 func (m model) arrived(from string) (tea.Model, tea.Cmd) {
-	if m.helping || m.setting {
+	if m.detour.to != noDetour {
 		// The key says where to go, so where the page was asked from
 		// stops mattering: it is the one way out that does not put the
 		// keys back, and forgetting is what makes it that.
-		m.helping, m.helpFrom = false, ""
-		m.setting, m.settingFrom = false, ""
-		m = m.tookBackRow()
+		m = m.endDetour()
 		return m, tea.Batch(m.reviveBay(), m.processesTick())
 	}
 	if m.view == viewRoots {
@@ -1685,38 +1635,6 @@ func (m model) arrived(from string) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, tea.Batch(cmds...)
-}
-
-// openManual puts the manual in the workspace, which is what ? does in
-// the processes view, and takes with it where the keys were before the
-// panel key brought them here, so that leaving it puts them back.
-//
-// The manual is not reachable — it is conn's furniture, and the keys
-// step over furniture — so the panel key is the only thing that can
-// close it, and a manual that could be opened and not closed would be
-// a trap rather than a help.
-func (m model) openManual(came string) (tea.Model, tea.Cmd) {
-	if m.srv == nil || m.helping || m.setting {
-		return m, nil // nowhere to put it, or a page of conn's own up already
-	}
-	// Reading the manual is a detour and not a move, so leaving it puts
-	// the keys back where they were: in the pane the panel key brought
-	// them out of, if this was the key after it, and on the panel if
-	// the operator was working the view.
-	m.helpFrom = came
-	mm, cmd := m.toProcesses()
-	m = mm.(model)
-	// Said here rather than when the manual is up. Opening it is
-	// several turns of talking to tmux, and the page would be put in
-	// the workspace by a reading landing in the middle of that — the
-	// page goes up wherever a row is under the cursor, and it is this
-	// that takes the row out from under it.
-	// The row is kept rather than dropped. No row is under the cursor
-	// while the manual is up, but the operator has not unchosen it:
-	// they asked a question about the station and are coming back to
-	// whatever they were looking at.
-	m.helping, m.helpCursor, m.cursor = true, m.cursor, 0
-	return m, tea.Batch(cmd, m.openHelp())
 }
 
 // slotted takes a terminal into the bay and remembers the one it is
@@ -1940,7 +1858,7 @@ func (m model) keepingPage() (tea.Model, tea.Cmd) {
 	// under the cursor while one of them is up, which would stop this
 	// on its own; saying it plainly as well means the page cannot come
 	// back the moment the cursor does.
-	if !m.inside || m.looking || m.helping || m.setting || !m.focused {
+	if !m.inside || m.looking || m.detour.to != noDetour || !m.focused {
 		return m, nil
 	}
 	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions {
@@ -2196,7 +2114,7 @@ func (m model) View() tea.View {
 	// The manual is in the workspace with the keys in it, and the panel
 	// holds the keys themselves: what a hand looking for one has to
 	// read, in the half of the window where they are pressed.
-	case m.helping:
+	case m.detour.to == toManual:
 		rows = drawKeys(panelKeys(keyWord(panelKey())), "processes", width, m.height, m.p)
 	case m.view == viewProcesses:
 		rows = drawProcesses(m.processesReport(), m.cursor, width, m.height, m.p)
@@ -2240,60 +2158,6 @@ func (m model) View() tea.View {
 	return v
 }
 
-// openSettings puts the settings in the workspace, which is what , does
-// in the processes view, and takes with it where the keys were before
-// the panel key brought them here, so that leaving them puts the keys
-// back. It is the manual's arrangement for the same reasons; see
-// openManual.
-//
-// The settings are not reachable — they are conn's furniture, and the
-// keys step over furniture — so the panel key and their own esc are
-// the ways out of them.
-func (m model) openSettings(came string) (tea.Model, tea.Cmd) {
-	if m.srv == nil || m.setting || m.helping {
-		return m, nil // nowhere to put them, or a page of conn's own up already
-	}
-	m.settingFrom = came
-	mm, cmd := m.toProcesses()
-	m = mm.(model)
-	// Said here rather than when they are up, for the reason the
-	// manual says it here: opening is several turns of talking to
-	// tmux, and the page would be put in the workspace by a reading
-	// landing in the middle of that. The row is kept rather than
-	// dropped — the operator went to the settings and is coming back
-	// to whatever they were looking at.
-	m.setting, m.settingCursor, m.cursor = true, m.cursor, 0
-	return m, tea.Batch(cmd, m.openTheSettings())
-}
-
-// leftSettings is conn putting things back as the settings found them,
-// which is what leftHelp does for the manual and is the same detour;
-// see leftHelp for why the keys go back where they came from.
-func (m model) leftSettings(found bool) (tea.Model, tea.Cmd) {
-	m.setting = false
-	from := m.settingFrom
-	m.settingFrom = ""
-	m = m.tookBackRow()
-	if !m.inside || m.srv == nil {
-		return m, nil
-	}
-	toPanel := tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
-	if from != "" {
-		if p, tty, ok := m.paneByID(from); ok && reachable(p) {
-			return m, m.reach(p, tty)
-		}
-		return m, toPanel
-	}
-	if found {
-		mm, cmd := m.backIn()
-		m = mm.(model)
-		if cmd != nil {
-			return m, cmd
-		}
-	}
-	return m, toPanel
-}
-
 // worn is the settings saying they have put the server in a mode. The
 // panel reads the mode file where it stands and wears what it says: a
 // fresh conn in this pane would be the console, and the operator
@@ -2314,70 +2178,4 @@ func (m model) worn() (tea.Model, tea.Cmd) {
 	m.g = want.wear()
 	m.p = colored(m.g).onSurface()
 	return m, nil
-}
-
-// leftHelp is conn putting things back as the manual found them.
-// Reading is a detour: the operator asked a question in the middle of
-// something, and the answer to it is not a reason to move them.
-//
-// So the keys go back where the panel key took them from. Pressed in
-// the workspace, they go back into that pane — the work is put back in the
-// workspace first, since the manual displaced it to a window of its
-// own and selecting it there is nothing happening at all. Pressed on
-// the panel, they stay on the panel: the operator was working the view,
-// and the workspace takes a hold, with the page coming back to it on
-// the next reading as it always does.
-//
-// A manual found dead rather than leaving — killed from outside, or
-// gone while nobody was tending the workspace — knows of no pane the
-// keys came from, and falls back on the process the manual was
-// standing in front of.
-func (m model) leftHelp(found bool) (tea.Model, tea.Cmd) {
-	m.helping = false
-	from := m.helpFrom
-	m.helpFrom = ""
-	// The row the operator was on comes back with them. follow lets it
-	// go on the next reading if the process has ended meanwhile, which
-	// is what it does for a row nobody ever left.
-	m = m.tookBackRow()
-	if !m.inside || m.srv == nil {
-		return m, nil
-	}
-	toPanel := tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
-	if from != "" {
-		if p, tty, ok := m.paneByID(from); ok && reachable(p) {
-			return m, m.reach(p, tty)
-		}
-		// The pane the keys came from has gone while the manual was up.
-		// There is nothing to be put back into, and the panel is where
-		// conn is worked from.
-		return m, toPanel
-	}
-	// Nothing to go on: the manual ended without saying. Back into the
-	// work it was standing in front of, where there is any.
-	if found {
-		mm, cmd := m.backIn()
-		m = mm.(model)
-		if cmd != nil {
-			return m, cmd
-		}
-	}
-	return m, toPanel
-}
-
-// tookBackRow puts the cursor back on the row the manual or the
-// settings were asked from. Nothing happens where there was none:
-// either asked for with no row under the cursor leaves with none,
-// which is the same answer. They are never up at once, so the two
-// fields are one answer read from wherever it was put.
-func (m model) tookBackRow() model {
-	was := m.helpCursor
-	if was == 0 {
-		was = m.settingCursor
-	}
-	if was == 0 {
-		return m
-	}
-	m.cursor, m.helpCursor, m.settingCursor = was, 0, 0
-	return m.published(false)
 }

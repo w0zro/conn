@@ -460,8 +460,8 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.now = viewSessions, true, processesNow
 	m.head.login.home = dir
-	m.sessionsProject, m.sessionsDirs = "/Users/w0zro/projects/w0zro/conn", []string{"/Users/w0zro/projects/w0zro/conn"}
-	m.sessions = []session{
+	m.sessions.project, m.sessions.dirs = "/Users/w0zro/projects/w0zro/conn", []string{"/Users/w0zro/projects/w0zro/conn"}
+	m.sessions.read = []session{
 		{ID: "d81d7536-e545-4881-8daa-f1d291a03be1", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour),
 			Branch: "main", Prompt: "make the page follow the list", Model: "claude-opus-5", Carried: 571_592},
 		{ID: "0c1d2e3f-0000-4000-8000-000000000000", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-26 * time.Hour), Branch: "topic"},
@@ -507,7 +507,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	// The sessions landing puts the page up.
 	m.looking, m.focused = false, true
 	m.srv = &server{tmux: "/nonexistent/tmux", socket: filepath.Join(dir, "tmux.sock")}
-	next, cmd := m.Update(sessionsMsg{dirs: m.sessionsDirs, sessions: m.sessions})
+	next, cmd := m.Update(sessionsMsg{dirs: m.sessions.dirs, sessions: m.sessions.read})
 	if got := next.(model); !got.looking || cmd == nil {
 		t.Error("the sessions landing did not put the page in the workspace")
 	}

@@ -1,11 +1,13 @@
 package main
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -175,4 +177,83 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 		}
 	}
 	return c.rows
+}
+
+// The sessions view as the panel holds it: a project's suspended
+// sessions as last read, and the line typed into to narrow them, with
+// the cursor among the rows it leaves.
+type sessionList struct {
+	project string   // what the view is for
+	dirs    []string // the directories asked for; a stale answer's guard
+	read    []session
+	loading bool
+	find    typed
+}
+
+// landed takes a reading of sessions, and says whether it was this
+// view's: one opened on another project since has moved past the
+// answer.
+func (l *sessionList) landed(msg sessionsMsg) bool {
+	if !slices.Equal(msg.dirs, l.dirs) {
+		return false
+	}
+	l.read, l.loading = msg.sessions, false
+	l.find.at = clamp(l.find.at, len(l.rows()))
+	return true
+}
+
+// rows is the sessions the line leaves, which the cursor is an index
+// into, and at the one the cursor is on, where there is one.
+func (l sessionList) rows() []session {
+	return matchingSessions(l.read, l.find.text)
+}
+
+func (l sessionList) at() (session, bool) {
+	rows := l.rows()
+	if l.find.at >= len(rows) {
+		return session{}, false
+	}
+	return rows[l.find.at], true
+}
+
+// report is the sessions view's words as things stand.
+func (l sessionList) report(home string, now time.Time) sessionsReport {
+	b := composeSessionsAt(l.read, l.project, l.find.text, home, now, l.loading)
+	b.caret = l.find.cur
+	return b
+}
+
+// openSessions opens the sessions view over a project's suspended
+// sessions: project is what it is for, and dirs the directories a
+// transcript could be filed under, which for a group is a repository
+// under it, not the folder that names it.
+func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) {
+	m.view = viewSessions
+	m.sessions = sessionList{project: project, dirs: dirs, loading: true}
+	return m, m.scanSessions(dirs)
+}
+
+// sessionsKey answers a key on the sessions view, which is a line typed
+// into the same way the list is; see typed. What is the view's own:
+// enter continues the session under the cursor and goes back to the
+// processes view, esc goes back without continuing anything, and ctrl+c
+// is what it is everywhere.
+func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
+	switch {
+	case m.sessions.find.edit(k, len(m.sessions.rows())):
+	case k == "ctrl+c":
+		if m.inside {
+			return m, m.serverCmd(func() error { return m.srv.detach() })
+		}
+		return m, tea.Quit
+	case k == "esc":
+		return m.backFrom()
+	case k == "enter":
+		if c, ok := m.sessions.at(); m.inside && !m.sessions.loading && ok {
+			mm, cmd := m.toProcesses()
+			m = mm.(model)
+			return m, tea.Batch(cmd, m.openResumed(c.Dir, c.ID))
+		}
+	}
+	return m, nil
 }

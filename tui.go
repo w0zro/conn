@@ -3,7 +3,6 @@ package main
 import (
 	"maps"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -258,13 +257,7 @@ type model struct {
 	uid   int
 	roots rooting // where the checkouts are kept, and the finders built on it
 
-	// The sessions view: a project's suspended sessions, as last read,
-	// what has narrowed them, and which of the rows the cursor is on.
-	sessionsDirs    []string // the directories asked for; a stale answer's guard
-	sessionsProject string
-	sessions        []session
-	sessionsLoading bool
-	rfind           typed // the line typed into, and the cursor among the rows it leaves
+	sessions sessionList // the sessions view, which A puts up
 	// The manual: where the keys were when ? was pressed, and the row
 	// that was under the cursor, so that leaving it puts both back.
 	// See leftHelp.
@@ -861,10 +854,10 @@ func (m model) bar() string {
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewSessions:
-		if len(m.sessionsRows()) > 1 {
+		if len(m.sessions.rows()) > 1 {
 			hints = append(hints, moveHint)
 		}
-		if len(m.sessionsRows()) > 0 && m.inside {
+		if len(m.sessions.rows()) > 0 && m.inside {
 			hints = append(hints, keyHint{"enter", "Resume it here"})
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
@@ -995,7 +988,7 @@ func (m model) published(again bool) model {
 		}
 		tellCursor(cursorPath(m.head.login.home), at, &reading{
 			projects: projects, records: m.records, panes: m.panes,
-			inside: m.inside, containers: m.containers, brews: m.brews, sessions: m.sessions,
+			inside: m.inside, containers: m.containers, brews: m.brews, sessions: m.sessions.read,
 		})
 	}
 	return m
@@ -1018,8 +1011,8 @@ func (m model) subject() subject {
 			return subject{path: row.path}
 		}
 	case viewSessions:
-		if rows := m.sessionsRows(); m.rfind.at < len(rows) {
-			return subject{session: rows[m.rfind.at].ID}
+		if c, ok := m.sessions.at(); ok {
+			return subject{session: c.ID}
 		}
 	}
 	return subject{}
@@ -1346,11 +1339,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case sessionsMsg:
 		// Only the sessions view that asked for these dirs wants them; one
 		// opened on another project since has moved past the answer.
-		if !slices.Equal(msg.dirs, m.sessionsDirs) {
+		if !m.sessions.landed(msg) {
 			return m, nil
 		}
-		m.sessions, m.sessionsLoading = msg.sessions, false
-		m.rfind.at = clamp(m.rfind.at, len(m.sessionsRows()))
 		// The sessions have landed, and the page comes up for the one
 		// the cursor is on without anybody asking.
 		return m.keepingPage()
@@ -1982,8 +1973,8 @@ func (m model) atProject() (string, []string, bool) {
 			return row.path, sessionDirs(m.list.walked, row), true
 		}
 	case viewSessions:
-		if m.sessionsProject != "" {
-			return m.sessionsProject, m.sessionsDirs, true
+		if m.sessions.project != "" {
+			return m.sessions.project, m.sessions.dirs, true
 		}
 	}
 	return "", nil, false
@@ -2079,58 +2070,6 @@ func (m model) runsOf(head entry) (entry, bool) {
 		}
 	}
 	return entry{}, false
-}
-
-// openSessions opens the sessions view over a project's suspended
-// sessions: project is what it is for, and dirs the directories a
-// transcript could be filed under, which for a group is a repository
-// under it, not the folder that names it.
-func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) {
-	m.view = viewSessions
-	m.sessionsDirs, m.sessionsProject, m.sessionsLoading = dirs, project, true
-	m.sessions = nil
-	m.rfind.clear()
-	return m, m.scanSessions(dirs)
-}
-
-// sessionsRows is the sessions the filter leaves, which the cursor
-// is an index into.
-func (m model) sessionsRows() []session {
-	return matchingSessions(m.sessions, m.rfind.text)
-}
-
-// sessionsReport is the sessions view's words as things stand.
-func (m model) sessionsReport() sessionsReport {
-	b := composeSessionsAt(m.sessions, m.sessionsProject, m.rfind.text, m.head.login.home, m.now, m.sessionsLoading)
-	b.caret = m.rfind.cur
-	return b
-}
-
-// sessionsKey answers a key on the sessions view, which is a line typed
-// into the same way the list is; see typed. What is the view's own:
-// enter continues the session under the cursor and goes back to the
-// processes view, esc goes back without continuing anything, and ctrl+c
-// is what it is everywhere.
-func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
-	rows := m.sessionsRows()
-	switch {
-	case m.rfind.edit(k, len(rows)):
-	case k == "ctrl+c":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		return m, tea.Quit
-	case k == "esc":
-		return m.backFrom()
-	case k == "enter":
-		if m.inside && !m.sessionsLoading && m.rfind.at < len(rows) {
-			c := rows[m.rfind.at]
-			mm, cmd := m.toProcesses()
-			m = mm.(model)
-			return m, tea.Batch(cmd, m.openResumed(c.Dir, c.ID))
-		}
-	}
-	return m, nil
 }
 
 // clamp holds an index within the rows there are; with no rows it is
@@ -2267,7 +2206,7 @@ func (m model) View() tea.View {
 	case m.view == viewProjects:
 		rows = drawProjects(m.projectsReport(), m.list.find.at, width, m.height, m.p)
 	case m.view == viewSessions:
-		rows = drawSessions(m.sessionsReport(), m.rfind.at, width, m.height, m.p)
+		rows = drawSessions(m.sessions.report(m.head.login.home, m.now), m.sessions.find.at, width, m.height, m.p)
 	case m.view == viewRoots:
 		b := composeRootsAt(m.asking.text, m.head.login.home)
 		b.caret, b.err = m.asking.cur, m.rootErr

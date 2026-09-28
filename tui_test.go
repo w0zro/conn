@@ -497,10 +497,10 @@ func TestAltAOpensSessionsAtTheProject(t *testing.T) {
 	m.inside = true
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+shift+a"}))
 	m = next.(model)
-	if m.view != viewSessions || !m.sessionsLoading || cmd == nil {
-		t.Fatalf("in the server: view %d, loading %v, cmd %v", m.view, m.sessionsLoading, cmd != nil)
+	if m.view != viewSessions || !m.sessions.loading || cmd == nil {
+		t.Fatalf("in the server: view %d, loading %v, cmd %v", m.view, m.sessions.loading, cmd != nil)
 	}
-	if got := m.sessionsDirs; len(got) != 1 || got[0] != "/w" {
+	if got := m.sessions.dirs; len(got) != 1 || got[0] != "/w" {
 		t.Errorf("convosDirs = %v", got)
 	}
 	if msg, ok := cmd().(sessionsMsg); !ok || len(msg.dirs) != 1 || msg.dirs[0] != "/w" {
@@ -775,8 +775,8 @@ func TestAltAOpensSessionsFromProjects(t *testing.T) {
 		"/Users/w0zro/projects/arboreum.io/content",
 		"/Users/w0zro/projects/arboreum.io/welcome",
 	}
-	if !equal(m.sessionsDirs, want) {
-		t.Errorf("convosDirs = %v, want %v", m.sessionsDirs, want)
+	if !equal(m.sessions.dirs, want) {
+		t.Errorf("convosDirs = %v, want %v", m.sessions.dirs, want)
 	}
 
 	// A is a letter to type here, the same as a is: the sessions view does
@@ -795,7 +795,7 @@ func TestAltAOpensSessionsFromProjects(t *testing.T) {
 // anything.
 func TestSessionsIsALineTypedInto(t *testing.T) {
 	m := plainModel()
-	m.view, m.sessions = viewSessions, testSessions2
+	m.view, m.sessions.read = viewSessions, testSessions2
 	key := func(m model, k string) (model, tea.Cmd) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
 		return next.(model), cmd
@@ -803,16 +803,16 @@ func TestSessionsIsALineTypedInto(t *testing.T) {
 	for _, k := range []string{"t", "o", "p", "i", "c"} {
 		m, _ = key(m, k)
 	}
-	if m.rfind.text != "topic" || len(m.sessionsRows()) != 1 {
-		t.Fatalf("typed: filter %q, %d rows", m.rfind.text, len(m.sessionsRows()))
+	if m.sessions.find.text != "topic" || len(m.sessions.rows()) != 1 {
+		t.Fatalf("typed: filter %q, %d rows", m.sessions.find.text, len(m.sessions.rows()))
 	}
 	m, _ = key(m, "backspace")
-	if m.rfind.text != "topi" {
-		t.Errorf("after backspace: filter %q", m.rfind.text)
+	if m.sessions.find.text != "topi" {
+		t.Errorf("after backspace: filter %q", m.sessions.find.text)
 	}
 	m, _ = key(m, "ctrl+u")
-	if m.rfind.text != "" || len(m.sessionsRows()) != 2 {
-		t.Errorf("ctrl+u left filter %q, %d rows", m.rfind.text, len(m.sessionsRows()))
+	if m.sessions.find.text != "" || len(m.sessions.rows()) != 2 {
+		t.Errorf("ctrl+u left filter %q, %d rows", m.sessions.find.text, len(m.sessions.rows()))
 	}
 	m, cmd := key(m, "esc")
 	if m.view != viewProcesses || cmd == nil {
@@ -826,7 +826,7 @@ func TestSessionsIsALineTypedInto(t *testing.T) {
 // sessions view holds.
 func TestEnterResumesTheSessionUnderTheCursor(t *testing.T) {
 	m := plainModel()
-	m.view, m.sessions, m.rfind.at = viewSessions, testSessions2, 1
+	m.view, m.sessions.read, m.sessions.find.at = viewSessions, testSessions2, 1
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
 	if m.view != viewSessions || cmd != nil {
@@ -848,18 +848,18 @@ func TestEnterResumesTheSessionUnderTheCursor(t *testing.T) {
 // dirs wants them.
 func TestAStaleSessionsAnswerIsDropped(t *testing.T) {
 	m := plainModel()
-	m.view, m.sessionsDirs, m.sessionsLoading = viewSessions, []string{"/a"}, true
+	m.view, m.sessions.dirs, m.sessions.loading = viewSessions, []string{"/a"}, true
 
 	next, _ := m.Update(sessionsMsg{dirs: []string{"/b"}, sessions: testSessions2})
 	m = next.(model)
-	if !m.sessionsLoading || len(m.sessions) != 0 {
-		t.Errorf("a stale answer landed: loading %v, %d convos", m.sessionsLoading, len(m.sessions))
+	if !m.sessions.loading || len(m.sessions.read) != 0 {
+		t.Errorf("a stale answer landed: loading %v, %d convos", m.sessions.loading, len(m.sessions.read))
 	}
 
 	next, _ = m.Update(sessionsMsg{dirs: []string{"/a"}, sessions: testSessions2})
 	m = next.(model)
-	if m.sessionsLoading || len(m.sessions) != len(testSessions2) {
-		t.Errorf("the matching answer did not land: loading %v, %d convos", m.sessionsLoading, len(m.sessions))
+	if m.sessions.loading || len(m.sessions.read) != len(testSessions2) {
+		t.Errorf("the matching answer did not land: loading %v, %d convos", m.sessions.loading, len(m.sessions.read))
 	}
 }
 
@@ -962,7 +962,7 @@ func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 		m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}}}}
 		m.cursor = 11
 		m.list.walked = []projectRow{{path: "/w/repo", name: "repo"}}
-		m.sessionsProject, m.sessionsDirs = "/w/had", []string{"/w/had"}
+		m.sessions.project, m.sessions.dirs = "/w/had", []string{"/w/had"}
 		return m
 	}
 	press := func(m model, k string) (model, tea.Cmd) {
@@ -1005,11 +1005,11 @@ func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 
 	// alt+A goes to the sessions view rather than coming back, since it
 	// is somewhere to be and not something to open.
-	if m, _ = press(panel(viewProcesses), "alt+shift+a"); m.view != viewSessions || m.sessionsProject != "/w" {
-		t.Errorf("sessions from the processes view: view %d, at %q", m.view, m.sessionsProject)
+	if m, _ = press(panel(viewProcesses), "alt+shift+a"); m.view != viewSessions || m.sessions.project != "/w" {
+		t.Errorf("sessions from the processes view: view %d, at %q", m.view, m.sessions.project)
 	}
-	if m, _ = press(panel(viewProjects), "alt+shift+a"); m.view != viewSessions || m.sessionsProject != "/w/repo" {
-		t.Errorf("sessions from the list: view %d, at %q", m.view, m.sessionsProject)
+	if m, _ = press(panel(viewProjects), "alt+shift+a"); m.view != viewSessions || m.sessions.project != "/w/repo" {
+		t.Errorf("sessions from the list: view %d, at %q", m.view, m.sessions.project)
 	}
 
 	// The console is looking at the machine and not at a project, and

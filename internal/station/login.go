@@ -1,4 +1,4 @@
-package main
+package station
 
 import (
 	"net"
@@ -12,69 +12,69 @@ import (
 	"github.com/w0zro/conn/internal/config"
 )
 
-// A session is who is at the station and how, as read: the user, the
+// A Login is who is at the station and how, as read: the user, the
 // shell, the terminal, where conn was started from and what it is
 // running as. A blank field leaves its line off the readout.
-type login struct {
-	user        string
-	uid         string
-	admin       bool
-	host        string // the machine's name, short
-	home        string
-	shell       string // the shell's path
-	shellVer    string
-	tty         string // the terminal device, without /dev/
-	terminal    string // the terminal program, as it announces itself
-	terminalVer string
-	tmux        bool
-	sshFrom     string // the address conn is reached from over ssh
-	lang        string
-	zone        string // the time zone's name, where the system links to one
-	cwd         string
-	pid, ppid   int
-	envCount    int
-	pathCount   int
-	exe         string
-	exeSize     int64
-	term        string // TERM, and COLORTERM after it
-	goVersion   string
-	platform    string // GOOS/GOARCH
-	threads     int    // the threads the runtime will run at once
+type Login struct {
+	User        string
+	UID         string
+	Admin       bool
+	Host        string // the machine's name, short
+	Home        string
+	Shell       string // the shell's path
+	ShellVer    string
+	TTY         string // the terminal device, without /dev/
+	Terminal    string // the terminal program, as it announces itself
+	TerminalVer string
+	Tmux        bool
+	SSHFrom     string // the address conn is reached from over ssh
+	Lang        string
+	Zone        string // the time zone's name, where the system links to one
+	Cwd         string
+	PID, PPID   int
+	EnvCount    int
+	PathCount   int
+	Exe         string
+	ExeSize     int64
+	Term        string // TERM, and COLORTERM after it
+	GoVersion   string
+	Platform    string // GOOS/GOARCH
+	Threads     int    // the threads the runtime will run at once
 }
 
-// readLogin reads the session from the process and its environment.
-func readLogin() login {
-	s := login{pid: os.Getpid(), ppid: os.Getppid()}
+// ReadLogin reads the session from the process and its environment.
+func ReadLogin() Login {
+	s := Login{PID: os.Getpid(), PPID: os.Getppid()}
 	if u, err := user.Current(); err == nil {
-		s.user, s.uid, s.admin = u.Username, u.Uid, isAdmin(u)
+		s.User, s.UID, s.Admin = u.Username, u.Uid, isAdmin(u)
 	}
 	if host, err := os.Hostname(); err == nil {
-		s.host, _, _ = strings.Cut(host, ".")
+		s.Host, _, _ = strings.Cut(host, ".")
 	}
-	s.home, _ = os.UserHomeDir()
-	if s.shell = os.Getenv("SHELL"); s.shell != "" {
-		s.shellVer = firstVersion(run(s.shell, "--version"))
+	s.Home, _ = os.UserHomeDir()
+	if s.Shell = os.Getenv("SHELL"); s.Shell != "" {
+		s.ShellVer = FirstVersion(run(s.Shell, "--version"))
 	}
-	s.tty = ttyName()
-	s.tmux = os.Getenv("TMUX") != ""
+	s.TTY = ttyName()
+	s.Tmux = os.Getenv("TMUX") != ""
 	client := tmuxEnvironment()
-	s.terminal, s.terminalVer = terminalProgram(client)
-	s.sshFrom = sshOrigin(client)
-	s.lang = join(" · ", os.Getenv("LANG"), os.Getenv("LC_ALL"))
-	s.zone = zoneName()
-	s.cwd, _ = os.Getwd()
-	s.envCount = len(os.Environ())
-	s.pathCount = len(filepath.SplitList(os.Getenv("PATH")))
+	s.Terminal, s.TerminalVer = TerminalProgram(client)
+	s.SSHFrom = SSHOrigin(client)
+	s.Lang = join(" · ", os.Getenv("LANG"), os.Getenv("LC_ALL"))
+	s.Zone = zoneName()
+	s.Cwd, _ = os.Getwd()
+	s.EnvCount = len(os.Environ())
+	s.PathCount = len(filepath.SplitList(os.Getenv("PATH")))
 	if exe, err := os.Executable(); err == nil {
-		s.exe = exe
+		s.Exe = exe
 		if info, err := os.Stat(exe); err == nil {
-			s.exeSize = info.Size()
+			s.ExeSize = info.Size()
 		}
 	}
-	s.term = join(" · ", os.Getenv("TERM"), os.Getenv("COLORTERM"))
-	s.goVersion = runtime.Version()
-	s.platform = runtime.GOOS + "/" + runtime.GOARCH
-	s.threads = runtime.GOMAXPROCS(0)
+	s.Term = join(" · ", os.Getenv("TERM"), os.Getenv("COLORTERM"))
+	s.GoVersion = runtime.Version()
+	s.Platform = runtime.GOOS + "/" + runtime.GOARCH
+	s.Threads = runtime.GOMAXPROCS(0)
 	return s
 }
 
@@ -142,9 +142,9 @@ func zoneName() string {
 	return ""
 }
 
-// firstVersion picks the version out of what a program says of itself:
+// FirstVersion picks the version out of what a program says of itself:
 // the first word that starts with a digit, up to any parenthesis.
-func firstVersion(out string) string {
+func FirstVersion(out string) string {
 	for _, f := range strings.Fields(out) {
 		if f[0] >= '0' && f[0] <= '9' {
 			v, _, _ := strings.Cut(f, "(")
@@ -154,30 +154,30 @@ func firstVersion(out string) string {
 	return ""
 }
 
-// A network is the interfaces that are up, off loopback, with an address
+// A Network is the interfaces that are up, off loopback, with an address
 // that reaches past the link: how many, and the first by name and
 // address, an IPv4 one when there is one.
-type network struct {
-	up    int
-	first string
+type Network struct {
+	Up    int
+	First string
 	// The interface the machine reaches everything else through, and
 	// whether the route table could be read at all. An interface with
 	// an address on it says only that a cable is in: a virtual bridge,
 	// a tunnel stub and a link on a stale lease all have one. Where
 	// the machine's packets actually leave by is the reading the check
 	// was always reaching for.
-	route     string
-	routeRead bool
+	Route     string
+	RouteRead bool
 }
 
 // readNetwork reads the interfaces.
-func readNetwork() (network, bool) {
+func readNetwork() (Network, bool) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return network{}, false
+		return Network{}, false
 	}
-	var n network
-	n.route, n.routeRead = defaultRoute()
+	var n Network
+	n.Route, n.RouteRead = defaultRoute()
 	var firstV6, onRoute string
 	for _, ifc := range ifaces {
 		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 {
@@ -202,67 +202,67 @@ func readNetwork() (network, bool) {
 		if v4 == "" && v6 == "" {
 			continue
 		}
-		n.up++
-		if ifc.Name == n.route && onRoute == "" {
+		n.Up++
+		if ifc.Name == n.Route && onRoute == "" {
 			onRoute = join(" ", v4, v6)
 			if v4 != "" {
 				onRoute = v4
 			}
 		}
-		if n.first == "" && v4 != "" {
-			n.first = v4
+		if n.First == "" && v4 != "" {
+			n.First = v4
 		}
 		if firstV6 == "" {
 			firstV6 = v6
 		}
 	}
-	if n.first == "" {
-		n.first = firstV6
+	if n.First == "" {
+		n.First = firstV6
 	}
 	// The interface the route leaves by, where there is one, rather
 	// than whichever the machine happened to enumerate first.
 	if onRoute != "" {
-		n.first = onRoute
+		n.First = onRoute
 	}
 	return n, true
 }
 
-// The state directory: where conn keeps what it keeps, and what stands
-// in the way of writing there.
-type stateDir struct {
-	path    string
-	problem string // blank, notDir, readOnly or noPath
+// StateDir is the state directory: where conn keeps what it keeps, and
+// what stands in the way of writing there.
+type StateDir struct {
+	Path    string
+	Problem string // blank, StateNotDir, StateReadOnly or StateNoPath
 }
 
 const (
-	stateNotDir   = "not a directory"
-	stateReadOnly = "read only"
-	stateNoPath   = "no path"
+	StateNotDir   = "not a directory"
+	StateReadOnly = "read only"
+	StateNoPath   = "no path"
 )
 
 // readStateDir finds the state directory — XDG_STATE_HOME, or
 // ~/.local/state — and probes the nearest existing ancestor for whether
 // conn could write under it.
-func readStateDir(home string) stateDir {
+func readStateDir(home string) StateDir {
 	dir := filepath.Join(config.StateHome(home), "conn")
-	s := stateDir{path: dir}
+	s := StateDir{Path: dir}
 	for probe := dir; ; probe = filepath.Dir(probe) {
 		if info, err := os.Stat(probe); err == nil {
 			if !info.IsDir() {
-				s.problem = stateNotDir
+				s.Problem = StateNotDir
 			} else if syscall.Access(probe, 2) != nil {
-				s.problem = stateReadOnly
+				s.Problem = StateReadOnly
 			}
 			return s
 		}
 		if filepath.Dir(probe) == probe {
-			s.problem = stateNoPath
+			s.Problem = StateNoPath
 			return s
 		}
 	}
 }
 
-// terminalProgram is the terminal conn is being looked at through, and
+// TerminalProgram is the terminal conn is being looked at through, and
 // the version it gives for itself.
 //
 // Inside tmux, TERM_PROGRAM is tmux: the multiplexer announces itself
@@ -273,7 +273,7 @@ func readStateDir(home string) stateDir {
 // come and go. A terminal that announces nothing, or a tmux that was
 // not told to carry the answer, leaves the row with the one thing that
 // is true of it: that this is inside tmux.
-func terminalProgram(client map[string]string) (string, string) {
+func TerminalProgram(client map[string]string) (string, string) {
 	name, version := os.Getenv("TERM_PROGRAM"), os.Getenv("TERM_PROGRAM_VERSION")
 	if name != "tmux" {
 		return name, version
@@ -281,7 +281,7 @@ func terminalProgram(client map[string]string) (string, string) {
 	return client["TERM_PROGRAM"], client["TERM_PROGRAM_VERSION"]
 }
 
-// sshOrigin is the address this session is reached from over ssh, and
+// SSHOrigin is the address this session is reached from over ssh, and
 // is blank where nothing says it is reached from anywhere.
 //
 // The row said LOCAL whenever SSH_CONNECTION was unset, which is not a
@@ -297,7 +297,7 @@ func terminalProgram(client map[string]string) (string, string) {
 // variable as each client attaches, and it is the client that is
 // either here or somewhere else. A server that answers -SSH_CONNECTION
 // is saying the variable is unset, which is the same silence.
-func sshOrigin(client map[string]string) string {
+func SSHOrigin(client map[string]string) string {
 	origin := os.Getenv("SSH_CONNECTION")
 	if origin == "" {
 		origin = client["SSH_CONNECTION"]
@@ -331,4 +331,15 @@ func tmuxEnvironment() map[string]string {
 		held[name] = value
 	}
 	return held
+}
+
+// join is the parts that are not empty, with the separator between.
+func join(sep string, parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, sep)
 }

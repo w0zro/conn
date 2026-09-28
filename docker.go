@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/w0zro/conn/internal/station"
 )
 
 // A project on docker runs its services in containers, and a container is
@@ -85,7 +87,7 @@ func (c container) running() bool { return c.state == "running" }
 
 // dockerPath is where the docker client is, or nothing where there is
 // none: a machine without docker is asked nothing, ever.
-var dockerPath = lookPath("docker")
+var dockerPath = station.LookPath("docker")
 
 // docker is what docker last said, which stands while it does not answer.
 var docker struct {

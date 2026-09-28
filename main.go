@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -113,13 +115,13 @@ func main() {
 			fmt.Print(synopsis())
 			return
 		case "--version":
-			fmt.Println(join(" · ", "conn "+readBuild().tag, buildLine(readBuild())))
+			fmt.Println(join(" · ", "conn "+station.ReadBuild().Tag, buildLine(station.ReadBuild())))
 			return
 		}
 		os.Exit(runCommand(args[0], args[1:]))
 	}
 	if !stdoutIsTerminal() {
-		for _, r := range screen(compose(readStation(), time.Now()), minCols, 0, plain) {
+		for _, r := range screen(compose(station.Read(), time.Now()), minCols, 0, plain) {
 			fmt.Println(r.text)
 		}
 		return

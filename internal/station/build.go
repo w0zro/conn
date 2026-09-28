@@ -1,4 +1,4 @@
-package main
+package station
 
 import (
 	"regexp"
@@ -10,15 +10,15 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// A build is where this binary came from: the release it is on or past,
+// A Build is where this binary came from: the release it is on or past,
 // whether it is exactly that release, and the commit it was built from.
 // The version row says the release; the build row says the commit.
-type build struct {
-	tag      string    // the release: 0.7.0; blank when no tag is known
-	exact    bool      // built at the tag, unmodified
-	commit   string    // the commit, short
-	time     time.Time // when the commit was made
-	modified bool      // the tree had changes past the commit
+type Build struct {
+	Tag      string    // the release: 0.7.0; blank when no tag is known
+	Exact    bool      // built at the tag, unmodified
+	Commit   string    // the commit, short
+	Time     time.Time // when the commit was made
+	Modified bool      // the tree had changes past the commit
 }
 
 // version is stamped by the release build, with what git describe says.
@@ -26,19 +26,19 @@ type build struct {
 // records the commit and, past Go 1.24, a version derived from the tag.
 var version string
 
-// readBuild is the build, from the stamp and the module system together.
-func readBuild() build {
-	var b build
+// ReadBuild is the build, from the stamp and the module system together.
+func ReadBuild() Build {
+	var b Build
 	info, ok := debug.ReadBuildInfo()
 	if ok {
 		for _, s := range info.Settings {
 			switch s.Key {
 			case "vcs.revision":
-				b.commit = shortCommit(s.Value)
+				b.Commit = shortCommit(s.Value)
 			case "vcs.time":
-				b.time, _ = time.Parse(time.RFC3339, s.Value)
+				b.Time, _ = time.Parse(time.RFC3339, s.Value)
 			case "vcs.modified":
-				b.modified = s.Value == "true"
+				b.Modified = s.Value == "true"
 			}
 		}
 	}
@@ -46,11 +46,11 @@ func readBuild() build {
 	if !described && ok {
 		d = parseModuleVersion(info.Main.Version)
 	}
-	b.tag = d.tag
-	b.modified = b.modified || d.dirty
-	b.exact = d.tag != "" && d.ahead == 0 && !b.modified
-	if b.commit == "" {
-		b.commit = d.commit
+	b.Tag = d.tag
+	b.Modified = b.Modified || d.dirty
+	b.Exact = d.tag != "" && d.ahead == 0 && !b.Modified
+	if b.Commit == "" {
+		b.Commit = d.commit
 	}
 	return b
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -116,10 +118,10 @@ const (
 const spinEvery = 125 * time.Millisecond
 
 type (
-	stageMsg     struct{}          // the next stage is due
-	clockMsg     struct{}          // the second has turned
-	stationMsg   struct{ station } // the station is read
-	processesMsg struct {          // the process table is read
+	stageMsg     struct{}                  // the next stage is due
+	clockMsg     struct{}                  // the second has turned
+	stationMsg   struct{ station.Station } // the station is read
+	processesMsg struct {                  // the process table is read
 		projects   []project
 		panes      map[string]tmux.Pane // the server's panes by terminal
 		bay        string               // the terminal in the bay
@@ -164,8 +166,8 @@ type (
 )
 
 type model struct {
-	head          station // what the header needs: the build and who is at the station
-	console       console // the console, as far as it has come on
+	head          station.Station // what the header needs: the build and who is at the station
+	console       console         // the console, as far as it has come on
 	now           time.Time
 	width, height int
 	p             palette
@@ -286,7 +288,7 @@ func newModel(g theme.Ground) model {
 		// the blink going with everything else.
 		blink: beat{on: true},
 
-		head: station{build: readBuild(), login: readLogin()},
+		head: station.Station{Build: station.ReadBuild(), Login: station.ReadLogin()},
 		now:  time.Now(),
 		p:    colored(g).onSurface(),
 		g:    g,
@@ -337,7 +339,7 @@ func (m model) Init() tea.Cmd {
 }
 
 func readStationCmd() tea.Msg {
-	return stationMsg{readStation()}
+	return stationMsg{station.Read()}
 }
 
 // nextSecond ticks on the turn of the second, not a second after the
@@ -482,7 +484,7 @@ func (m model) published(again bool) model {
 	// With no home there is nowhere to say it: the path would be a
 	// relative one, and conn does not write beside whatever directory
 	// it happens to have been started in.
-	if !m.inside || m.head.login.home == "" {
+	if !m.inside || m.head.Login.Home == "" {
 		return m
 	}
 	// The processes view with no row at all has no subject either, and
@@ -508,7 +510,7 @@ func (m model) published(again bool) model {
 		if len(projects) == 0 {
 			projects = m.projects
 		}
-		tellCursor(cursorPath(m.head.login.home), at, &reading{
+		tellCursor(cursorPath(m.head.Login.Home), at, &reading{
 			projects: projects, records: m.records, panes: m.panes,
 			inside: m.inside, containers: m.containers, brews: m.brews, sessions: m.sessions.read,
 		})
@@ -570,7 +572,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			return m, m.serverCmd(func() error { return m.srv.HoldPanel() })
 		}
 	case stationMsg:
-		return m.stationRead(msg.station)
+		return m.stationRead(msg.Station)
 	case stageMsg:
 		return m.stageDue()
 	case clockMsg:
@@ -1209,9 +1211,9 @@ func (m model) View() tea.View {
 	case m.view == viewProjects:
 		rows = drawProjects(m.projectsReport(), m.list.find.at, width, m.height, m.p)
 	case m.view == viewSessions:
-		rows = drawSessions(m.sessions.report(m.head.login.home, m.now), m.sessions.find.at, width, m.height, m.p)
+		rows = drawSessions(m.sessions.report(m.head.Login.Home, m.now), m.sessions.find.at, width, m.height, m.p)
 	case m.view == viewRoots:
-		rows = drawRoots(m.asking.report(m.head.login.home), m.asking.line.at, width, m.height, m.p)
+		rows = drawRoots(m.asking.report(m.head.Login.Home), m.asking.line.at, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit

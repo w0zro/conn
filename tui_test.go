@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -55,7 +57,7 @@ func answered(cmd tea.Cmd) tea.Msg {
 func TestProgramComesOnInStages(t *testing.T) {
 	// ticking as newModel leaves it: conn comes up on the console, which
 	// annunciates, and Init sets the blink going.
-	m := model{head: station{build: testStation.build, login: login{user: "w0zro", host: "station"}}, now: testNow, p: plain, blink: beat{on: true},
+	m := model{head: station.Station{Build: testStation.Build, Login: station.Login{User: "w0zro", Host: "station"}}, now: testNow, p: plain, blink: beat{on: true},
 		roots: rooting{real: []string{"/Users/w0zro/projects"}}} // told where the work is; see toRoots
 	m.width, m.height = 120, 40
 	view := func() string { return m.View().Content }
@@ -111,7 +113,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 // The station arriving first, then the beat, comes on the same way; and
 // a key during the sequence skips to the end.
 func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
-	m := model{head: station{build: testStation.build}, now: testNow, p: plain, width: 120, height: 40, blink: beat{on: true}}
+	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: plain, width: 120, height: 40, blink: beat{on: true}}
 	next, cmd := m.Update(stationMsg{testStation})
 	m = next.(model)
 	if cmd != nil || m.console.stage != stageHeader {
@@ -145,7 +147,7 @@ func TestTheClockTicksOnTheSecond(t *testing.T) {
 }
 
 func m0() model {
-	return model{head: station{build: testStation.build}, now: testNow, p: plain}
+	return model{head: station.Station{Build: testStation.Build}, now: testNow, p: plain}
 }
 
 // The dark half is half the lit half, and each turn schedules the

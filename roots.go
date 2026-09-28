@@ -281,7 +281,7 @@ func (m model) toRoots() (model, tea.Cmd) {
 // view is gone.
 func (m model) rootsKey(k string) (model, tea.Cmd) {
 	switch {
-	case m.asking.edit(k, m.head.login.home):
+	case m.asking.edit(k, m.head.Login.Home):
 	case k == "ctrl+c":
 		return m.leave()
 	case k == "esc":
@@ -298,7 +298,7 @@ func (m model) rootsKey(k string) (model, tea.Cmd) {
 // takeRoot writes the root the operator settled on and puts conn to
 // work on it.
 func (m model) takeRoot() (model, tea.Cmd) {
-	home := m.head.login.home
+	home := m.head.Login.Home
 	root := m.asking.chosen(home)
 	if root == "" {
 		return m, nil

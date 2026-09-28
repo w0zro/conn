@@ -6,6 +6,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
@@ -20,13 +22,13 @@ import (
 
 // openBay opens the bay beside the panel, with the hold in it.
 func (m model) openBay() tea.Cmd {
-	home, self := m.head.login.home, m.self
+	home, self := m.head.Login.Home, m.self
 	return m.serverCmd(func() error { return m.srv.SplitBay(home, self) })
 }
 
 // reviveBay puts a hold in a bay whose pane died, in its own shape.
 func (m model) reviveBay() tea.Cmd {
-	home, self := m.head.login.home, m.self
+	home, self := m.head.Login.Home, m.self
 	return m.serverCmd(func() error { return m.srv.ReviveBay(home, self) })
 }
 
@@ -47,7 +49,7 @@ func (m model) reach(target tmux.Pane, tty string) tea.Cmd {
 // every row read: focus stays on the panel, and j and k carry the page
 // along with them.
 func (m model) openReadout() tea.Cmd {
-	home, self, srv := m.head.login.home, m.self, m.srv
+	home, self, srv := m.head.Login.Home, m.self, m.srv
 	return func() tea.Msg {
 		if srv.ShowReadout(home, self) != nil {
 			return nil
@@ -196,7 +198,7 @@ func (m model) startContact(dir string) tea.Cmd {
 // are then not the ones the operator asked for, and that is the first
 // thing to know.
 func (m model) scanProjects() tea.Cmd {
-	roots, cfgErr := config.Roots(m.head.login.home)
+	roots, cfgErr := config.Roots(m.head.Login.Home)
 	return func() tea.Msg {
 		if cfgErr != nil {
 			return projectsMsg{err: "THE CONFIG COULD NOT BE READ: " + cfgErr.Error()}
@@ -351,10 +353,10 @@ func (m model) openClient(e entry, p *knownProgram, dir string) tea.Cmd {
 	}
 	port, formula := e.ports[0], e.brew
 	return func() tea.Msg {
-		client := lookPath(p.client)
+		client := station.LookPath(p.client)
 		if client == "" && formula != "" {
 			if out, err := brewSays(brewWait, "--prefix", formula); err == nil {
-				if c := filepath.Join(strings.TrimSpace(string(out)), "bin", p.client); lookPath(c) != "" {
+				if c := filepath.Join(strings.TrimSpace(string(out)), "bin", p.client); station.LookPath(c) != "" {
 					client = c
 				}
 			}
@@ -465,7 +467,7 @@ func (m model) stopContainer(id, service string) tea.Cmd {
 // the binary first, so what is shown is the manual this conn was built
 // with rather than whatever is installed on the machine.
 func (m model) openHelp() tea.Cmd {
-	home, self, srv := m.head.login.home, m.self, m.srv
+	home, self, srv := m.head.Login.Home, m.self, m.srv
 	return func() tea.Msg {
 		if srv.ShowHelp(home, self) != nil {
 			return nil
@@ -477,7 +479,7 @@ func (m model) openHelp() tea.Cmd {
 // openTheSettings puts the settings in the workspace, the way the
 // manual goes there.
 func (m model) openTheSettings() tea.Cmd {
-	home, self, srv := m.head.login.home, m.self, m.srv
+	home, self, srv := m.head.Login.Home, m.self, m.srv
 	return func() tea.Msg {
 		if srv.ShowSettings(home, self) != nil {
 			return nil

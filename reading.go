@@ -17,7 +17,7 @@ import (
 // comes back.
 func (m model) readProcesses() tea.Cmd {
 	gen, uid := m.processesGen, m.uid
-	home, configured := m.head.login.home, m.roots.configured
+	home, configured := m.head.Login.Home, m.roots.configured
 	containers, brews := m.containers, m.brews
 	declared, full := m.declared, m.full
 	was := m.trace

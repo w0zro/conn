@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -82,7 +84,7 @@ func browse(url string) error {
 	if runtime.GOOS == "darwin" {
 		name = "open"
 	}
-	path := lookPath(name)
+	path := station.LookPath(name)
 	if path == "" {
 		return errors.New(name + " was not found on the path")
 	}

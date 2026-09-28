@@ -1,4 +1,4 @@
-package main
+package station
 
 import (
 	"os"
@@ -11,67 +11,67 @@ import (
 // readMachine asks sysctl, one name at a time, and pmset and csrutil for
 // what sysctl does not have. A name that goes unanswered leaves its
 // field zero.
-func readMachine() machine {
-	m := machine{available: -1, power: power{percent: -1}, page: os.Getpagesize()}
+func readMachine() Machine {
+	m := Machine{Available: -1, Power: Power{Percent: -1}, Page: os.Getpagesize()}
 	if v, err := unix.Sysctl("kern.osproductversion"); err == nil {
-		m.system = "macOS " + v
-		m.systemBuild, _ = unix.Sysctl("kern.osversion")
+		m.System = "macOS " + v
+		m.SystemBuild, _ = unix.Sysctl("kern.osversion")
 	}
 	if v, err := unix.Sysctl("kern.osrelease"); err == nil {
-		m.kernel = "Darwin " + v
+		m.Kernel = "Darwin " + v
 	}
-	m.model, _ = unix.Sysctl("hw.model")
-	m.processor, _ = unix.Sysctl("machdep.cpu.brand_string")
-	m.processor = strings.TrimSpace(m.processor)
+	m.Model, _ = unix.Sysctl("hw.model")
+	m.Processor, _ = unix.Sysctl("machdep.cpu.brand_string")
+	m.Processor = strings.TrimSpace(m.Processor)
 	if n, err := unix.SysctlUint32("hw.ncpu"); err == nil {
-		m.cpus = int(n)
+		m.CPUs = int(n)
 	}
 	p, perr := unix.SysctlUint32("hw.perflevel0.physicalcpu")
 	e, eerr := unix.SysctlUint32("hw.perflevel1.physicalcpu")
 	if perr == nil && eerr == nil && e > 0 {
-		m.perfCores, m.effCores = int(p), int(e)
+		m.PerfCores, m.EffCores = int(p), int(e)
 	}
 	if t, err := unix.SysctlUint32("sysctl.proc_translated"); err == nil && t == 1 {
-		m.rosetta = true
+		m.Rosetta = true
 	}
-	m.memory, _ = unix.SysctlUint64("hw.memsize")
+	m.Memory, _ = unix.SysctlUint64("hw.memsize")
 	// kern.memorystatus_level stood here and was read as the memory
 	// available to new work. It is not that: it counts the pages work
 	// is actively holding among the available ones, and read 83 on a
 	// machine with a sixteenth of its memory free and most of its swap
 	// in use. The classes are counted instead, which is what the label
 	// has always claimed.
-	if free, ok := parseVMStat(run("vm_stat")); ok && m.memory > 0 {
-		m.available = int(free * 100 / m.memory)
+	if free, ok := parseVMStat(run("vm_stat")); ok && m.Memory > 0 {
+		m.Available = int(free * 100 / m.Memory)
 	}
 	if level, err := unix.SysctlUint32("kern.memorystatus_vm_pressure_level"); err == nil {
 		switch level {
 		case 1:
-			m.pressure = pressureNormal
+			m.Pressure = PressureNormal
 		case 2:
-			m.pressure = pressureWarning
+			m.Pressure = PressureWarning
 		case 4:
-			m.pressure = pressureCritical
+			m.Pressure = PressureCritical
 		}
 	}
 	if raw, err := unix.SysctlRaw("vm.swapusage"); err == nil {
 		if total, used, encrypted, ok := parseSwapUsage(raw); ok {
-			m.swapTotal, m.swapUsed, m.swapEncrypt = total, used, encrypted
+			m.SwapTotal, m.SwapUsed, m.SwapEncrypt = total, used, encrypted
 		}
 	}
 	if tv, err := unix.SysctlTimeval("kern.boottime"); err == nil {
-		m.booted = time.Unix(tv.Sec, 0)
+		m.Booted = time.Unix(tv.Sec, 0)
 	}
 	if raw, err := unix.SysctlRaw("vm.loadavg"); err == nil {
 		if load, ok := parseLoadavg(raw); ok {
-			m.load, m.loadRead = load, true
+			m.Load, m.LoadRead = load, true
 		}
 	}
 	if procs, err := unix.SysctlKinfoProcSlice("kern.proc.all"); err == nil {
-		m.processes = len(procs)
+		m.Processes = len(procs)
 	}
-	m.power = parsePmset(run("pmset", "-g", "batt"))
-	m.sip = parseCSRUtil(run("csrutil", "status"))
+	m.Power = parsePmset(run("pmset", "-g", "batt"))
+	m.SIP = parseCSRUtil(run("csrutil", "status"))
 	return m
 }
 
@@ -93,4 +93,10 @@ func defaultRoute() (string, bool) {
 		return "", false
 	}
 	return parseRouteGet(out), true
+}
+
+// readTools is what conn needs on this platform past the kernel: tmux,
+// to hold the work, and lsof, for the working directories.
+func readTools() []Tool {
+	return []Tool{{Name: "tmux", Path: LookPath("tmux")}, {Name: "lsof", Path: LookPath("lsof")}}
 }

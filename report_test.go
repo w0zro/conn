@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/config"
 )
 
@@ -16,44 +18,44 @@ import (
 // built off a commit past the tag.
 var (
 	testNow     = time.Date(2026, 9, 8, 19, 58, 41, 0, time.FixedZone("PDT", -7*3600))
-	testStation = station{
-		machine: machine{
-			system: "macOS 26.6.2", systemBuild: "25G83", kernel: "Darwin 25.6.0",
-			model: "Mac15,6", processor: "Apple M3 Pro", cpus: 11, perfCores: 5, effCores: 6,
-			memory: 18 << 30, available: 77, pressure: pressureNormal,
-			swapTotal: 5 << 30, swapUsed: 3<<30 + 700<<20, swapEncrypt: true,
-			booted:    time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC),
-			load:      [3]float64{1.85, 2.07, 1.99},
-			loadRead:  true,
-			processes: 747,
-			power:     power{source: "battery", percent: 81, state: "discharging", remaining: "9:04"},
-			sip:       "enabled",
-			page:      16384,
+	testStation = station.Station{
+		Machine: station.Machine{
+			System: "macOS 26.6.2", SystemBuild: "25G83", Kernel: "Darwin 25.6.0",
+			Model: "Mac15,6", Processor: "Apple M3 Pro", CPUs: 11, PerfCores: 5, EffCores: 6,
+			Memory: 18 << 30, Available: 77, Pressure: station.PressureNormal,
+			SwapTotal: 5 << 30, SwapUsed: 3<<30 + 700<<20, SwapEncrypt: true,
+			Booted:    time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC),
+			Load:      [3]float64{1.85, 2.07, 1.99},
+			LoadRead:  true,
+			Processes: 747,
+			Power:     station.Power{Source: "battery", Percent: 81, State: "discharging", Remaining: "9:04"},
+			SIP:       "enabled",
+			Page:      16384,
 		},
-		login: login{
-			user: "w0zro", uid: "501", admin: true, host: "station", home: "/Users/w0zro",
-			shell: "/bin/zsh", shellVer: "5.9", tty: "ttys004",
-			terminal: "ghostty", terminalVer: "1.3.1",
-			lang: "en_US.UTF-8", zone: "America/Los_Angeles",
-			cwd: "/Users/w0zro/projects/w0zro/conn", pid: 67032, ppid: 67031,
-			sshFrom:  "10.0.0.5",
-			envCount: 62, pathCount: 23,
-			exe: "/Users/w0zro/projects/w0zro/conn/conn", exeSize: 5_500_000,
-			term:      "xterm-256color · truecolor",
-			goVersion: "go1.27.0", platform: "darwin/arm64", threads: 11,
+		Login: station.Login{
+			User: "w0zro", UID: "501", Admin: true, Host: "station", Home: "/Users/w0zro",
+			Shell: "/bin/zsh", ShellVer: "5.9", TTY: "ttys004",
+			Terminal: "ghostty", TerminalVer: "1.3.1",
+			Lang: "en_US.UTF-8", Zone: "America/Los_Angeles",
+			Cwd: "/Users/w0zro/projects/w0zro/conn", PID: 67032, PPID: 67031,
+			SSHFrom:  "10.0.0.5",
+			EnvCount: 62, PathCount: 23,
+			Exe: "/Users/w0zro/projects/w0zro/conn/conn", ExeSize: 5_500_000,
+			Term:      "xterm-256color · truecolor",
+			GoVersion: "go1.27.0", Platform: "darwin/arm64", Threads: 11,
 		},
-		build:   build{tag: "0.7.0", commit: "4af550d", time: time.Date(2026, 9, 9, 2, 55, 24, 0, time.UTC), modified: true},
-		volume:  volume{fs: "apfs", free: 412_000_000_000, total: 994_662_584_320},
-		network: network{up: 2, first: "en0 192.168.68.58"},
-		netRead: true,
-		state:   stateDir{path: "/Users/w0zro/.local/state/conn"},
-		config: config.State{
+		Build:   station.Build{Tag: "0.7.0", Commit: "4af550d", Time: time.Date(2026, 9, 9, 2, 55, 24, 0, time.UTC), Modified: true},
+		Volume:  station.Volume{FS: "apfs", Free: 412_000_000_000, Total: 994_662_584_320},
+		Network: station.Network{Up: 2, First: "en0 192.168.68.58"},
+		NetRead: true,
+		State:   station.StateDir{Path: "/Users/w0zro/.local/state/conn"},
+		Config: config.State{
 			Path: "/Users/w0zro/.config/conn/config.json", Present: true, Names: true, Source: config.RootsFile,
 			Roots: []config.RootState{{Path: "/Users/w0zro/projects"}, {Path: "/Users/w0zro/work/checkouts"}},
 		},
 		// A macOS station needs both, and the console of record is the
 		// console this station prints.
-		tools: []tool{{name: "tmux", path: "/opt/homebrew/bin/tmux"}, {name: "lsof", path: "/usr/sbin/lsof"}},
+		Tools: []station.Tool{{Name: "tmux", Path: "/opt/homebrew/bin/tmux"}, {Name: "lsof", Path: "/usr/sbin/lsof"}},
 	}
 )
 
@@ -119,7 +121,7 @@ func TestStationIsWorded(t *testing.T) {
 // A station with nothing read words to a header and a column of checks
 // that know they were not answered, and none of them a fault.
 func TestAnEmptyStationIsWorded(t *testing.T) {
-	r := compose(station{}, testNow)
+	r := compose(station.Station{}, testNow)
 	if r.station != "someone@somewhere" || r.version != "" || r.note != "(devel)" || r.build != "" {
 		t.Errorf("identification: %+v", r)
 	}
@@ -144,128 +146,128 @@ func TestChecksHoldTheirThresholds(t *testing.T) {
 	gb := uint64(1000 * 1000 * 1000)
 	for _, c := range []struct {
 		name string
-		v    volume
+		v    station.Volume
 		low  bool
 	}{
-		{"a tenth of a laptop", volume{free: 48 * gb, total: 494 * gb}, true},
-		{"just over a tenth", volume{free: 50 * gb, total: 494 * gb}, false},
-		{"a vast disk at a fiftieth", volume{free: 80 * gb, total: 4000 * gb}, false},
-		{"a vast disk under the ceiling", volume{free: 49 * gb, total: 4000 * gb}, true},
-		{"a small disk under the floor", volume{free: 4 * gb, total: 32 * gb}, true},
-		{"a small disk over the floor", volume{free: 6 * gb, total: 32 * gb}, false},
+		{"a tenth of a laptop", station.Volume{Free: 48 * gb, Total: 494 * gb}, true},
+		{"just over a tenth", station.Volume{Free: 50 * gb, Total: 494 * gb}, false},
+		{"a vast disk at a fiftieth", station.Volume{Free: 80 * gb, Total: 4000 * gb}, false},
+		{"a vast disk under the ceiling", station.Volume{Free: 49 * gb, Total: 4000 * gb}, true},
+		{"a small disk under the floor", station.Volume{Free: 4 * gb, Total: 32 * gb}, true},
+		{"a small disk over the floor", station.Volume{Free: 6 * gb, Total: 32 * gb}, false},
 	} {
 		if got := diskCheck(c.v); got.fault != c.low || (c.low && got.status != "LOW") {
 			t.Errorf("disk, %s: %+v", c.name, got)
 		}
 	}
-	if diskCheck(volume{}).status != unknown {
+	if diskCheck(station.Volume{}).status != unknown {
 		t.Error("an unread volume is not unknown")
 	}
 
 	// A kernel that keeps its own verdict is reported and not
 	// second-guessed, however much memory is left beside it.
-	m := testStation.machine
-	m.available = 9
+	m := testStation.Machine
+	m.Available = 9
 	if got := memoryCheck(m); got.fault || got.value != "NORMAL PRESSURE" {
 		t.Errorf("memory under a normal kernel: %+v", got)
 	}
-	m.pressure = pressureWarning
+	m.Pressure = station.PressureWarning
 	if got := memoryCheck(m); !got.fault || got.status != "WARNING" {
 		t.Errorf("memory under pressure: %+v", got)
 	}
-	m.pressure = pressureCritical
+	m.Pressure = station.PressureCritical
 	if got := memoryCheck(m); !got.fault || got.status != "CRITICAL" {
 		t.Errorf("memory under critical pressure: %+v", got)
 	}
 
 	// Without a verdict of the kernel's, the check is what is left.
-	m.pressure = ""
+	m.Pressure = ""
 	if got := memoryCheck(m); !got.fault || got.status != "LOW" {
 		t.Errorf("memory at 9%%: %+v", got)
 	}
-	m.available = 10
+	m.Available = 10
 	if got := memoryCheck(m); got.fault {
 		t.Errorf("memory at 10%%: %+v", got)
 	}
-	m.available = -1
+	m.Available = -1
 	if got := memoryCheck(m); got.status != unknown {
 		t.Errorf("memory unread: %+v", got)
 	}
 
-	m = testStation.machine
-	m.load[0] = 11.01
+	m = testStation.Machine
+	m.Load[0] = 11.01
 	if got := loadCheck(m); !got.fault || got.status != "HIGH" {
 		t.Errorf("load over the cores: %+v", got)
 	}
-	m.cpus = 0
+	m.CPUs = 0
 	if got := loadCheck(m); got.fault || got.status != unchecked {
 		t.Errorf("load with no core count: %+v", got)
 	}
 	// A machine with nothing running on it answered, and said zero.
-	m = testStation.machine
-	m.load = [3]float64{}
+	m = testStation.Machine
+	m.Load = [3]float64{}
 	if got := loadCheck(m); got.fault || got.status != nominal || got.value != "0.00 0.00 0.00 · 11 CORES" {
 		t.Errorf("load of nothing at all: %+v", got)
 	}
-	m.loadRead = false
+	m.LoadRead = false
 	if got := loadCheck(m); got.status != unknown {
 		t.Errorf("load unread: %+v", got)
 	}
 
-	if got := networkCheck(network{}, true); !got.fault || got.status != "DOWN" {
+	if got := networkCheck(station.Network{}, true); !got.fault || got.status != "DOWN" {
 		t.Errorf("no interface: %+v", got)
 	}
-	if got := networkCheck(network{up: 1, first: "eth0 2001:db8::1"}, true); got.fault || got.value != "eth0 2001:db8::1 · 1 UP" {
+	if got := networkCheck(station.Network{Up: 1, First: "eth0 2001:db8::1"}, true); got.fault || got.value != "eth0 2001:db8::1 · 1 UP" {
 		t.Errorf("an IPv6 interface: %+v", got)
 	}
-	if got := networkCheck(network{}, false); got.status != unknown {
+	if got := networkCheck(station.Network{}, false); got.status != unknown {
 		t.Errorf("unread network: %+v", got)
 	}
 	// Links up and nowhere to send what is not local. A table conn
 	// could not read says nothing either way and leaves the reading.
-	if got := networkCheck(network{up: 2, first: "en0 10.0.0.2", routeRead: true}, true); !got.fault || got.status != "DOWN" {
+	if got := networkCheck(station.Network{Up: 2, First: "en0 10.0.0.2", RouteRead: true}, true); !got.fault || got.status != "DOWN" {
 		t.Errorf("no default route: %+v", got)
 	}
-	if got := networkCheck(network{up: 2, first: "en0 10.0.0.2"}, true); got.fault {
+	if got := networkCheck(station.Network{Up: 2, First: "en0 10.0.0.2"}, true); got.fault {
 		t.Errorf("an unread route table faulted: %+v", got)
 	}
-	if got := networkCheck(network{up: 2, first: "en0 10.0.0.2", route: "en0", routeRead: true}, true); got.fault || got.value != "en0 10.0.0.2 · 2 UP" {
+	if got := networkCheck(station.Network{Up: 2, First: "en0 10.0.0.2", Route: "en0", RouteRead: true}, true); got.fault || got.value != "en0 10.0.0.2 · 2 UP" {
 		t.Errorf("a route out: %+v", got)
 	}
 
 	for _, c := range []struct {
-		p     power
+		p     station.Power
 		value string
 		low   bool
 	}{
-		{power{source: "battery", percent: 9, state: "discharging", remaining: "0:31"}, "BATTERY · 9% · discharging · 0:31 LEFT", true},
-		{power{source: "battery", percent: 10, state: "discharging"}, "BATTERY · 10% · discharging", false},
-		{power{source: "ac", percent: 9, state: "charging", remaining: "1:12"}, "AC POWER · 9% · charging · 1:12 TO FULL", false},
-		{power{source: "ac", percent: 100, state: "charged"}, "AC POWER · 100% · charged", false},
-		{power{source: "ac", percent: -1}, "AC POWER", false},
+		{station.Power{Source: "battery", Percent: 9, State: "discharging", Remaining: "0:31"}, "BATTERY · 9% · discharging · 0:31 LEFT", true},
+		{station.Power{Source: "battery", Percent: 10, State: "discharging"}, "BATTERY · 10% · discharging", false},
+		{station.Power{Source: "ac", Percent: 9, State: "charging", Remaining: "1:12"}, "AC POWER · 9% · charging · 1:12 TO FULL", false},
+		{station.Power{Source: "ac", Percent: 100, State: "charged"}, "AC POWER · 100% · charged", false},
+		{station.Power{Source: "ac", Percent: -1}, "AC POWER", false},
 	} {
 		got := powerCheck(c.p)
 		if got.value != c.value || got.fault != c.low {
 			t.Errorf("power %+v: %+v", c.p, got)
 		}
 	}
-	if powerCheck(power{percent: -1}).status != unknown {
+	if powerCheck(station.Power{Percent: -1}).status != unknown {
 		t.Error("unread power is not unknown")
 	}
 
-	b := testStation.build
-	if got := clockCheck(b, b.time.Add(-time.Hour)); !got.fault || got.status != "BEHIND" {
+	b := testStation.Build
+	if got := clockCheck(b, b.Time.Add(-time.Hour)); !got.fault || got.status != "BEHIND" {
 		t.Errorf("a clock before the build: %+v", got)
 	}
 	if got := clockCheck(b, testNow); got.fault || got.value != "AFTER THE BUILD OF 09-SEP-2026" {
 		t.Errorf("a clock after the build: %+v", got)
 	}
-	if got := clockCheck(build{}, testNow); got.status != unchecked {
+	if got := clockCheck(station.Build{}, testNow); got.status != unchecked {
 		t.Errorf("no build time: %+v", got)
 	}
 
-	for problem, status := range map[string]string{"": nominal, stateNotDir: "NOT A DIR", stateReadOnly: "READ ONLY", stateNoPath: "NO PATH"} {
-		got := stateCheck(stateDir{path: "/Users/w0zro/.local/state/conn", problem: problem}, "/Users/w0zro")
+	for problem, status := range map[string]string{"": nominal, station.StateNotDir: "NOT A DIR", station.StateReadOnly: "READ ONLY", station.StateNoPath: "NO PATH"} {
+		got := stateCheck(station.StateDir{Path: "/Users/w0zro/.local/state/conn", Problem: problem}, "/Users/w0zro")
 		if got.status != status || got.fault != (problem != "") || got.value != "~/.local/state/conn" || !got.path {
 			t.Errorf("state %q: %+v", problem, got)
 		}
@@ -280,8 +282,8 @@ func TestWordsForNumbers(t *testing.T) {
 	if sizeShort(4_400_000) != "4.2 MB" || sizeShort(2<<30) != "2 GB" || sizeShort(500) != "1 KB" || sizeShort(0) != "" {
 		t.Errorf("sizeShort: %q %q %q %q", sizeShort(4_400_000), sizeShort(2<<30), sizeShort(500), sizeShort(0))
 	}
-	if firstVersion("zsh 5.9 (arm-apple-darwin23.0.0)") != "5.9" || firstVersion("GNU bash, version 5.2.37(1)-release") != "5.2.37" || firstVersion("") != "" {
-		t.Errorf("firstVersion: %q %q", firstVersion("zsh 5.9 (arm-apple-darwin23.0.0)"), firstVersion("GNU bash, version 5.2.37(1)-release"))
+	if station.FirstVersion("zsh 5.9 (arm-apple-darwin23.0.0)") != "5.9" || station.FirstVersion("GNU bash, version 5.2.37(1)-release") != "5.2.37" || station.FirstVersion("") != "" {
+		t.Errorf("firstVersion: %q %q", station.FirstVersion("zsh 5.9 (arm-apple-darwin23.0.0)"), station.FirstVersion("GNU bash, version 5.2.37(1)-release"))
 	}
 	booted := time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC)
 	if got := uptime(booted, booted.Add(90*time.Minute)); got != "01H 30M" {
@@ -298,7 +300,7 @@ func TestWordsForNumbers(t *testing.T) {
 // The machine this test runs on can be read without a fuss, and what it
 // says is in shape. This is the one test that touches the machine.
 func TestTheStationCanBeRead(t *testing.T) {
-	st := readStation()
+	st := station.Read()
 	r := compose(st, time.Now())
 	if r.station == "" || strings.HasPrefix(r.station, "someone@") {
 		t.Errorf("no station: %q", r.station)
@@ -320,7 +322,7 @@ func TestTheStationCanBeRead(t *testing.T) {
 	}
 	// Seven checks conn always makes, the config file's own, a line for
 	// every root configured, and one per tool the platform needs.
-	want := 8 + len(st.config.Roots) + len(st.tools)
+	want := 8 + len(st.Config.Roots) + len(st.Tools)
 	if len(r.checks) != want {
 		t.Errorf("%d checks, not %d: %+v", len(r.checks), want, r.checks)
 	}
@@ -329,8 +331,8 @@ func TestTheStationCanBeRead(t *testing.T) {
 			t.Errorf("check incomplete: %+v", c)
 		}
 	}
-	if st.machine.page == 0 || st.machine.kernel == "" || st.login.goVersion == "" {
-		t.Errorf("the machine was not read: %+v", st.machine)
+	if st.Machine.Page == 0 || st.Machine.Kernel == "" || st.Login.GoVersion == "" {
+		t.Errorf("the machine was not read: %+v", st.Machine)
 	}
 }
 
@@ -340,33 +342,33 @@ func TestTheStationCanBeRead(t *testing.T) {
 func TestTheTerminalIsTheOneBeingLookedAt(t *testing.T) {
 	t.Setenv("TERM_PROGRAM", "ghostty")
 	t.Setenv("TERM_PROGRAM_VERSION", "1.3.1")
-	if name, ver := terminalProgram(nil); name != "ghostty" || ver != "1.3.1" {
+	if name, ver := station.TerminalProgram(nil); name != "ghostty" || ver != "1.3.1" {
 		t.Errorf("outside tmux: %q %q", name, ver)
 	}
 
 	t.Setenv("TERM_PROGRAM", "tmux")
 	t.Setenv("TERM_PROGRAM_VERSION", "3.5a")
 	client := map[string]string{"TERM_PROGRAM": "ghostty", "TERM_PROGRAM_VERSION": "1.3.1"}
-	if name, ver := terminalProgram(client); name != "ghostty" || ver != "1.3.1" {
+	if name, ver := station.TerminalProgram(client); name != "ghostty" || ver != "1.3.1" {
 		t.Errorf("inside a server that carries it: %q %q", name, ver)
 	}
 	// A server that was not told to carry it, or a terminal that
 	// announces nothing, leaves the row the one thing that is true.
-	if name, ver := terminalProgram(nil); name != "" || ver != "" {
+	if name, ver := station.TerminalProgram(nil); name != "" || ver != "" {
 		t.Errorf("inside a server that does not: %q %q", name, ver)
 	}
 
 	// The origin is read the same way, and the environment conn was
 	// started with is believed first: it is this process's own.
 	t.Setenv("SSH_CONNECTION", "10.0.0.5 51234 10.0.0.9 22")
-	if got := sshOrigin(map[string]string{"SSH_CONNECTION": "10.0.0.9 1 2 3"}); got != "10.0.0.5" {
+	if got := station.SSHOrigin(map[string]string{"SSH_CONNECTION": "10.0.0.9 1 2 3"}); got != "10.0.0.5" {
 		t.Errorf("own environment: %q", got)
 	}
 	t.Setenv("SSH_CONNECTION", "")
-	if got := sshOrigin(map[string]string{"SSH_CONNECTION": "10.0.0.9 1 2 3"}); got != "10.0.0.9" {
+	if got := station.SSHOrigin(map[string]string{"SSH_CONNECTION": "10.0.0.9 1 2 3"}); got != "10.0.0.9" {
 		t.Errorf("the server's answer: %q", got)
 	}
-	if got := sshOrigin(nil); got != "" {
+	if got := station.SSHOrigin(nil); got != "" {
 		t.Errorf("nobody saying: %q", got)
 	}
 }

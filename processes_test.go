@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -321,7 +323,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 // reads the table and reads it again on its tick; c brings the console
 // back, and a stale tick is dropped.
 func TestTheKeyContinuesToProcesses(t *testing.T) {
-	m := model{head: station{build: testStation.build, login: testStation.login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501,
+	m := model{head: station.Station{Build: testStation.Build, Login: testStation.Login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501,
 		// A conn that has been told where the work is. One that has not
 		// goes to the asking view instead of the processes view, which is
 		// its own test.
@@ -882,7 +884,7 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 func screenChipOf(t *testing.T) string {
 	t.Helper()
 	st := testStation
-	st.volume.free = 6_800_000_000
+	st.Volume.Free = 6_800_000_000
 	return texts(screen(compose(st, testNow), 120, 40, colored(theme.Conn.Dark)))
 }
 

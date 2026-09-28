@@ -1,4 +1,4 @@
-package main
+package station
 
 import (
 	"encoding/binary"
@@ -12,14 +12,14 @@ import (
 func TestPmsetIsParsed(t *testing.T) {
 	for _, c := range []struct {
 		file string
-		want power
+		want Power
 	}{
-		{"battery.txt", power{source: "battery", percent: 73, state: "discharging", remaining: "8:53"}},
-		{"charged.txt", power{source: "ac", percent: 100, state: "charged"}},
-		{"charging.txt", power{source: "ac", percent: 41, state: "charging", remaining: "1:12"}},
-		{"charging-no-estimate.txt", power{source: "ac", percent: 41, state: "charging"}},
-		{"desktop.txt", power{source: "ac", percent: -1}},
-		{"low.txt", power{source: "battery", percent: 7, state: "discharging", remaining: "0:31"}},
+		{"battery.txt", Power{Source: "battery", Percent: 73, State: "discharging", Remaining: "8:53"}},
+		{"charged.txt", Power{Source: "ac", Percent: 100, State: "charged"}},
+		{"charging.txt", Power{Source: "ac", Percent: 41, State: "charging", Remaining: "1:12"}},
+		{"charging-no-estimate.txt", Power{Source: "ac", Percent: 41, State: "charging"}},
+		{"desktop.txt", Power{Source: "ac", Percent: -1}},
+		{"low.txt", Power{Source: "battery", Percent: 7, State: "discharging", Remaining: "0:31"}},
 	} {
 		out, err := os.ReadFile(filepath.Join("testdata", "pmset", c.file))
 		if err != nil {
@@ -29,7 +29,7 @@ func TestPmsetIsParsed(t *testing.T) {
 			t.Errorf("%s: %+v, want %+v", c.file, got, c.want)
 		}
 	}
-	if got := parsePmset(""); got != (power{percent: -1}) {
+	if got := parsePmset(""); got != (Power{Percent: -1}) {
 		t.Errorf("no output: %+v", got)
 	}
 }
@@ -66,22 +66,22 @@ func TestSysctlStructsAreParsed(t *testing.T) {
 // What Linux keeps on file, read off a fixture tree: an EC2 instance
 // that, for the test, also has a battery.
 func TestLinuxFilesAreRead(t *testing.T) {
-	m := machine{available: -1}
+	m := Machine{Available: -1}
 	readLinuxFiles("testdata/linux", &m)
-	want := machine{
-		system:    "Ubuntu 24.04.2 LTS",
-		model:     "Amazon EC2 m6i.xlarge",
-		processor: "Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz",
-		cpus:      4,
-		available: 75,
-		power:     power{source: "battery", percent: 43, state: "discharging"},
+	want := Machine{
+		System:    "Ubuntu 24.04.2 LTS",
+		Model:     "Amazon EC2 m6i.xlarge",
+		Processor: "Intel(R) Xeon(R) Platinum 8375C CPU @ 2.90GHz",
+		CPUs:      4,
+		Available: 75,
+		Power:     Power{Source: "battery", Percent: 43, State: "discharging"},
 	}
 	if m != want {
 		t.Errorf("read\n%+v\nwant\n%+v", m, want)
 	}
-	m = machine{available: -1}
+	m = Machine{Available: -1}
 	readLinuxFiles(t.TempDir(), &m)
-	if m != (machine{available: -1, power: power{percent: -1}}) {
+	if m != (Machine{Available: -1, Power: Power{Percent: -1}}) {
 		t.Errorf("an empty tree read as %+v", m)
 	}
 }
@@ -102,7 +102,7 @@ func TestLinuxTextIsParsed(t *testing.T) {
 	if total != 1024000 || avail != 256000 {
 		t.Errorf("meminfo: %d %d", total, avail)
 	}
-	if p := readPowerSupply(filepath.Join(t.TempDir(), "none")); p != (power{percent: -1}) {
+	if p := readPowerSupply(filepath.Join(t.TempDir(), "none")); p != (Power{Percent: -1}) {
 		t.Errorf("no power_supply: %+v", p)
 	}
 }

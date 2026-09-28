@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/w0zro/conn/internal/station"
 )
 
 // What git says of a project, for the readout. A row stands for work,
@@ -54,7 +56,7 @@ func readGit(dir string) gitStatus {
 	// nothing about any project on it, and saying nothing of a
 	// repository because the tool is missing is a different silence
 	// from saying nothing because there is no repository.
-	if lookPath("git") == "" {
+	if station.LookPath("git") == "" {
 		g.problem = "NOT ON PATH"
 		return g
 	}

@@ -180,7 +180,7 @@ func TestEscLeavesARootAsItWas(t *testing.T) {
 		t.Errorf("esc wrote something: %q", c.Roots)
 	}
 	first := model{p: plain, width: tmux.PanelWidth, height: 40}
-	first.head.login.home = home
+	first.head.Login.Home = home
 	mm, _ := first.toRoots()
 	first = mm
 	next, _ := first.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -445,7 +445,7 @@ func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
 	}
 	m := plainModel()
 	m.view, m.inside, m.srv = viewProcesses, true, &tmux.Server{Socket: socket}
-	m.head.login.home = home
+	m.head.Login.Home = home
 	next, _ := m.key("alt+w") // what wearModeKey arrives as
 	if got := next.g; got != theme.Datum.Light {
 		t.Errorf("the panel is on %+v", got)

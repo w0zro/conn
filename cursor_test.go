@@ -72,7 +72,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 
 	m := plainModel()
 	m.view, m.inside, m.now = viewProcesses, true, processesNow
-	m.head.login.home = dir
+	m.head.Login.Home = dir
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 11, tty: "ttys001", status: statusIdle},
 		{pid: 22, tty: "ttys002", status: statusWaiting, since: processesNow.Add(-time.Minute)},
@@ -114,7 +114,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	// With no home there is nowhere to publish, and conn does not write
 	// beside whatever directory it was started in.
 	nowhere := m
-	nowhere.head.login.home, nowhere.told = "", subject{}
+	nowhere.head.Login.Home, nowhere.told = "", subject{}
 	tellCursor(path, subject{pid: 55}, nil)
 	nowhere.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))
 	if got, _ := askCursor(path); got.pid != 55 {
@@ -367,7 +367,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 
 	m := plainModel()
 	m.view, m.inside, m.now = viewProjects, true, processesNow
-	m.head.login.home = dir
+	m.head.Login.Home = dir
 	m.list.walked = []projectRow{{name: "w0zro/conn", path: "/Users/w0zro/projects/w0zro/conn"}}
 	m.projects = []project{
 		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{{pid: 11, tty: "ttys001", kind: kindShell, command: "zsh", status: statusIdle}}},
@@ -461,7 +461,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 
 	m := plainModel()
 	m.view, m.inside, m.now = viewSessions, true, processesNow
-	m.head.login.home = dir
+	m.head.Login.Home = dir
 	m.sessions.project, m.sessions.dirs = "/Users/w0zro/projects/w0zro/conn", []string{"/Users/w0zro/projects/w0zro/conn"}
 	m.sessions.read = []session{
 		{ID: "d81d7536-e545-4881-8daa-f1d291a03be1", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour),

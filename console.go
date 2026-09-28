@@ -3,6 +3,8 @@ package main
 import (
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -12,14 +14,14 @@ import (
 // read, then the readout once the station is read and its beat has
 // passed, then the checks one by one, then the verdict.
 type console struct {
-	st    *station // the station, once read
-	stage int      // the stage the console has come on to
-	due   bool     // the readout's beat has passed and it waits on the station
+	st    *station.Station // the station, once read
+	stage int              // the stage the console has come on to
+	due   bool             // the readout's beat has passed and it waits on the station
 }
 
 // stationRead is the station read. Where the readout's beat has already
 // passed and was waiting on it, the readout comes on now.
-func (m model) stationRead(st station) (model, tea.Cmd) {
+func (m model) stationRead(st station.Station) (model, tea.Cmd) {
 	m.console.st = &st
 	if !m.console.due {
 		return m, nil

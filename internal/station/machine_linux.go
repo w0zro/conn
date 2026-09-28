@@ -1,4 +1,4 @@
-package main
+package station
 
 import (
 	"fmt"
@@ -12,24 +12,24 @@ import (
 
 // readMachine reads uname and sysinfo, and the files under /etc, /proc
 // and /sys. What cannot be read leaves its field zero.
-func readMachine() machine {
-	m := machine{available: -1, power: power{percent: -1}, page: os.Getpagesize()}
+func readMachine() Machine {
+	m := Machine{Available: -1, Power: Power{Percent: -1}, Page: os.Getpagesize()}
 	var u syscall.Utsname
 	if err := syscall.Uname(&u); err == nil {
-		m.kernel = "Linux " + cstring(u.Release[:])
+		m.Kernel = "Linux " + cstring(u.Release[:])
 	}
 	var si syscall.Sysinfo_t
 	if err := syscall.Sysinfo(&si); err == nil {
 		unit := uint64(si.Unit)
-		m.memory = si.Totalram * unit
-		m.swapTotal = si.Totalswap * unit
-		m.swapUsed = (si.Totalswap - si.Freeswap) * unit
-		m.booted = time.Now().Add(-time.Duration(si.Uptime) * time.Second)
-		for i := range m.load {
-			m.load[i] = float64(si.Loads[i]) / 65536
+		m.Memory = si.Totalram * unit
+		m.SwapTotal = si.Totalswap * unit
+		m.SwapUsed = (si.Totalswap - si.Freeswap) * unit
+		m.Booted = time.Now().Add(-time.Duration(si.Uptime) * time.Second)
+		for i := range m.Load {
+			m.Load[i] = float64(si.Loads[i]) / 65536
 		}
-		m.loadRead = true
-		m.processes = int(si.Procs)
+		m.LoadRead = true
+		m.Processes = int(si.Procs)
 	}
 	readLinuxFiles("/", &m)
 	return m
@@ -89,4 +89,10 @@ func defaultRoute() (string, bool) {
 		return "", false
 	}
 	return parseProcNetRoute(string(out)), true
+}
+
+// readTools is what conn needs on this platform past the Kernel: tmux,
+// to hold the work.
+func readTools() []Tool {
+	return []Tool{{Name: "tmux", Path: LookPath("tmux")}}
 }

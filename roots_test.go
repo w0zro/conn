@@ -8,6 +8,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
@@ -162,7 +164,7 @@ func TestTheAskingViewSaysHowToAnswerIt(t *testing.T) {
 // machine with no checkouts looks like, and what a conn pointed at the
 // wrong directory looks like.
 func TestTheConsoleGoesToTheAskingViewWithNoRoots(t *testing.T) {
-	m := model{head: station{build: testStation.build, login: testStation.login},
+	m := model{head: station.Station{Build: testStation.Build, Login: testStation.Login},
 		now: testNow, p: plain, width: 120, height: 40, uid: 501, roots: rooting{rootOf: testRoots}}
 	st := testStation
 	m.console.st = &st
@@ -186,7 +188,7 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("CONN_ROOTS", "")
 	home := tree(t, "work", "work/conn")
-	m := model{head: station{login: login{home: home}}, p: plain, width: 120, height: 40}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain, width: 120, height: 40}
 	mm, _ := m.toRoots()
 	m = mm
 	for _, k := range []string{"w", "o", "r", "k"} {
@@ -223,7 +225,7 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 // It is not an answer: the line is filled and the asking goes on.
 func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	home := tree(t, "projects", "projects/conn", "prospect")
-	m := model{head: station{login: login{home: home}}, p: plain}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain}
 	mm, _ := m.toRoots()
 	m = mm
 	for _, k := range []string{"p", "r", "o"} {
@@ -268,7 +270,7 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("CONN_ROOTS", "")
 	home := tree(t, "work", "work/conn", "elsewhere", "elsewhere/api")
-	m := model{head: station{login: login{home: home}}, p: plain, uid: os.Getuid()}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain, uid: os.Getuid()}
 	m = m.rooted(rootOn([]string{filepath.Join(home, "work")}))
 
 	// The file as conn came up on it: the reading is made on the same
@@ -330,7 +332,7 @@ func TestAReadingAsksWhichDirectoriesAreProjectsAgain(t *testing.T) {
 	if err := config.SaveRoots(home, []string{root}); err != nil {
 		t.Fatal(err)
 	}
-	m := model{head: station{login: login{home: home}}, p: plain, uid: os.Getuid()}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain, uid: os.Getuid()}
 	m = m.rooted(rootOn([]string{root}))
 	real, _ := filepath.EvalSymlinks(root)
 	essays, group := filepath.Join(real, "w0zro", "essays"), filepath.Join(real, "w0zro")

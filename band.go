@@ -33,7 +33,7 @@ func (m model) saying() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.said = &now
-	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, m.g)
+	srv, ident := m.srv, designation(m.head.Login.Host, m.head.Build.Tag, m.g)
 	if m.detour.to == toSettings {
 		return m, func() tea.Msg { _ = srv.SayBand(now.keys, now.station, now.up, ident); return nil }
 	}

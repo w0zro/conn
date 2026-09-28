@@ -1,13 +1,14 @@
 package main
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"errors"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"golang.org/x/sys/unix"
 )

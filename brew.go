@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -43,7 +45,7 @@ const (
 	brewBeat = 15 * time.Second
 )
 
-var brewPath = lookPath("brew")
+var brewPath = station.LookPath("brew")
 
 // A brewService is one service as brew reports it.
 type brewService struct {

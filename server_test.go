@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -43,7 +45,7 @@ func startScratch(t *testing.T) *scratch {
 	if testing.Short() {
 		t.Skip("a real tmux server is not started under -short")
 	}
-	tmuxBin := lookPath("tmux")
+	tmuxBin := station.LookPath("tmux")
 	if tmuxBin == "" {
 		t.Skip("tmux is not installed")
 	}
@@ -751,7 +753,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 
 	// attach would take the terminal, which a test has none of; what is
 	// under test is the ground, so the same steps run without a client.
-	srv := &tmux.Server{Tmux: lookPath("tmux"), Socket: s.srv.Socket}
+	srv := &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}
 	conf := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	light := connOn(false).Wear()
 	if err := os.WriteFile(conf, []byte(tmux.Conf("C-Space", light)), 0o600); err != nil {
@@ -801,7 +803,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 		t.Fatalf("the server did not rise in conn: slot 0 is %q", got)
 	}
 
-	srv := &tmux.Server{Tmux: lookPath("tmux"), Socket: s.srv.Socket}
+	srv := &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}
 	conf := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	datum := theme.Mode{Theme: "datum", Dark: true}
 	if err := os.WriteFile(conf, []byte(tmux.Conf("C-Space", datum.Wear())), 0o600); err != nil {
@@ -989,7 +991,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	if testing.Short() {
 		t.Skip("a real tmux server is not started under -short")
 	}
-	tmuxBin := lookPath("tmux")
+	tmuxBin := station.LookPath("tmux")
 	if tmuxBin == "" {
 		t.Skip("tmux is not installed")
 	}

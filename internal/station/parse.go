@@ -1,4 +1,4 @@
-package main
+package station
 
 import (
 	"encoding/binary"
@@ -16,14 +16,14 @@ import (
 
 // parsePmset reads what pmset -g batt prints: what the machine draws
 // from and, with a battery, its charge, state and time left.
-func parsePmset(out string) power {
-	p := power{percent: -1}
+func parsePmset(out string) Power {
+	p := Power{Percent: -1}
 	if strings.TrimSpace(out) == "" {
 		return p
 	}
-	p.source = "ac"
+	p.Source = "ac"
 	if strings.Contains(out, "'Battery Power'") {
-		p.source = "battery"
+		p.Source = "battery"
 	}
 	for _, l := range strings.Split(out, "\n") {
 		if !strings.Contains(l, "InternalBattery") {
@@ -35,14 +35,14 @@ func parsePmset(out string) power {
 		}
 		parts := strings.Split(rest, ";")
 		if n, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSpace(parts[0]), "%")); err == nil {
-			p.percent = n
+			p.Percent = n
 		}
 		if len(parts) > 1 {
-			p.state = strings.TrimSpace(parts[1])
+			p.State = strings.TrimSpace(parts[1])
 		}
 		if len(parts) > 2 {
 			if r, _, ok := strings.Cut(strings.TrimSpace(parts[2]), " remaining"); ok && !strings.HasPrefix(r, "(") && r != "0:00" {
-				p.remaining = r
+				p.Remaining = r
 			}
 		}
 		break
@@ -131,8 +131,8 @@ func procValues(text, key string) []string {
 
 // readPowerSupply reads a /sys/class/power_supply directory: the first
 // battery's charge and state, or the mains when there is no battery.
-func readPowerSupply(dir string) power {
-	p := power{percent: -1}
+func readPowerSupply(dir string) Power {
+	p := Power{Percent: -1}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return p
@@ -144,16 +144,16 @@ func readPowerSupply(dir string) power {
 	for _, e := range entries {
 		switch read(e.Name(), "type") {
 		case "Battery":
-			p.percent, _ = strconv.Atoi(read(e.Name(), "capacity"))
-			p.state = strings.ToLower(read(e.Name(), "status"))
-			p.source = "battery"
-			if p.state == "charging" || p.state == "full" || p.state == "not charging" {
-				p.source = "ac"
+			p.Percent, _ = strconv.Atoi(read(e.Name(), "capacity"))
+			p.State = strings.ToLower(read(e.Name(), "status"))
+			p.Source = "battery"
+			if p.State == "charging" || p.State == "full" || p.State == "not charging" {
+				p.Source = "ac"
 			}
 			return p
 		case "Mains":
 			if read(e.Name(), "online") == "1" {
-				p.source = "ac"
+				p.Source = "ac"
 			}
 		}
 	}
@@ -164,25 +164,25 @@ func readPowerSupply(dir string) power {
 // on the machine and a fixture in the tests: the distribution and
 // whether it runs in a container or under WSL, the hardware, the
 // processor, the memory available, and the power supply.
-func readLinuxFiles(root string, m *machine) {
+func readLinuxFiles(root string, m *Machine) {
 	file := func(path string) string {
 		b, _ := os.ReadFile(filepath.Join(root, path))
 		return string(b)
 	}
-	m.system = parseOSRelease(file("etc/os-release"))
+	m.System = parseOSRelease(file("etc/os-release"))
 	if _, err := os.Stat(filepath.Join(root, ".dockerenv")); err == nil {
-		m.virtual = "container"
+		m.Virtual = "container"
 	} else if strings.Contains(strings.ToLower(file("proc/version")), "microsoft") {
-		m.virtual = "wsl"
+		m.Virtual = "wsl"
 	}
-	m.model = join(" ",
+	m.Model = join(" ",
 		strings.TrimSpace(file("sys/devices/virtual/dmi/id/sys_vendor")),
 		strings.TrimSpace(file("sys/devices/virtual/dmi/id/product_name")))
-	m.processor, m.cpus = parseCPUInfo(file("proc/cpuinfo"))
+	m.Processor, m.CPUs = parseCPUInfo(file("proc/cpuinfo"))
 	if total, avail := parseMeminfo(file("proc/meminfo")); total > 0 {
-		m.available = int(avail * 100 / total)
+		m.Available = int(avail * 100 / total)
 	}
-	m.power = readPowerSupply(filepath.Join(root, "sys/class/power_supply"))
+	m.Power = readPowerSupply(filepath.Join(root, "sys/class/power_supply"))
 }
 
 // parseVMStat is the memory free for new work, in bytes, as vm_stat

@@ -7,40 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/w0zro/conn/internal/config"
 )
-
-// A station is everything conn reads as it comes up, before a word is
-// put to any of it: the machine, the session, the build, the volume
-// under home, the network, and the state directory. readStation reads
-// it; compose words it. Keeping the two apart is what lets the words be
-// tested against a station on file, and re-said as the clock turns.
-type station struct {
-	machine machine
-	login   login
-	build   build
-	volume  volume
-	network network
-	netRead bool
-	state   stateDir
-	config  config.State
-	tools   []tool // what the platform needs past the kernel
-}
-
-// readStation reads the station. Nothing here waits on the network; the
-// programs it runs answer from disk and are given a moment each.
-func readStation() station {
-	st := station{build: readBuild(), login: readLogin()}
-	st.machine = readMachine()
-	st.volume = readVolume(st.login.home)
-	st.network, st.netRead = readNetwork()
-	st.state = readStateDir(st.login.home)
-	st.config = config.ReadState(st.login.home)
-	st.tools = readTools()
-	return st
-}
 
 // A fact is a line of the readout: what is reported and what was found.
 // A path is shown as it is, where every other value is set in capitals.
@@ -126,108 +98,108 @@ const (
 )
 
 // compose words the station as of a moment.
-func compose(st station, now time.Time) report {
-	who := st.login.user
+func compose(st station.Station, now time.Time) report {
+	who := st.Login.User
 	if who == "" {
 		who = "someone"
 	}
-	host := st.login.host
+	host := st.Login.Host
 	if host == "" {
 		host = "somewhere"
 	}
 	note := ""
-	if !st.build.exact {
+	if !st.Build.Exact {
 		note = "(devel)"
 	}
 	r := report{
-		version: st.build.tag,
+		version: st.Build.Tag,
 		note:    note,
-		build:   buildLine(st.build),
+		build:   buildLine(st.Build),
 		station: who + "@" + host,
-		term:    st.login.term,
+		term:    st.Login.Term,
 		clock:   zulu(now),
 		lit:     true,
 	}
 	r.system = systemFacts(st, now)
-	r.login = sessionFacts(st.login, now)
+	r.login = sessionFacts(st.Login, now)
 	r.checks = []check{
-		stateCheck(st.state, st.login.home),
-		configCheck(st.config, st.login.home),
+		stateCheck(st.State, st.Login.Home),
+		configCheck(st.Config, st.Login.Home),
 	}
-	r.checks = append(r.checks, rootChecks(st.config, st.login.home)...)
+	r.checks = append(r.checks, rootChecks(st.Config, st.Login.Home)...)
 	r.checks = append(r.checks, []check{
-		diskCheck(st.volume),
-		memoryCheck(st.machine),
-		loadCheck(st.machine),
-		networkCheck(st.network, st.netRead),
-		powerCheck(st.machine.power),
-		clockCheck(st.build, now),
+		diskCheck(st.Volume),
+		memoryCheck(st.Machine),
+		loadCheck(st.Machine),
+		networkCheck(st.Network, st.NetRead),
+		powerCheck(st.Machine.Power),
+		clockCheck(st.Build, now),
 	}...)
-	for _, t := range st.tools {
+	for _, t := range st.Tools {
 		r.checks = append(r.checks, toolCheck(t))
 	}
 	return r
 }
 
 // toolCheck is a program the platform needs: where it is, or MISSING.
-func toolCheck(t tool) check {
-	if t.path == "" {
-		return check{label: t.name, value: "NOT ON PATH", status: "MISSING", fault: true}
+func toolCheck(t station.Tool) check {
+	if t.Path == "" {
+		return check{label: t.Name, value: "NOT ON PATH", status: "MISSING", fault: true}
 	}
-	return check{label: t.name, value: t.path, status: nominal, path: true}
+	return check{label: t.Name, value: t.Path, status: nominal, path: true}
 }
 
 // buildLine is the commit, its date, and MODIFIED when the tree had
 // changes past it.
-func buildLine(b build) string {
+func buildLine(b station.Build) string {
 	when := ""
-	if !b.time.IsZero() {
-		when = strings.ToUpper(b.time.UTC().Format("02-Jan-2006"))
+	if !b.Time.IsZero() {
+		when = strings.ToUpper(b.Time.UTC().Format("02-Jan-2006"))
 	}
 	modified := ""
-	if b.modified {
+	if b.Modified {
 		modified = "MODIFIED"
 	}
-	return join(" · ", b.commit, when, modified)
+	return join(" · ", b.Commit, when, modified)
 }
 
 // systemFacts is the machine: what it is, what it has, and how it is
 // doing.
-func systemFacts(st station, now time.Time) []fact {
-	m := st.machine
-	system := m.system
-	if m.systemBuild != "" {
-		system += " (" + m.systemBuild + ")"
+func systemFacts(st station.Station, now time.Time) []fact {
+	m := st.Machine
+	system := m.System
+	if m.SystemBuild != "" {
+		system += " (" + m.SystemBuild + ")"
 	}
-	if m.virtual != "" {
-		system = join(" ", system, "("+m.virtual+")")
+	if m.Virtual != "" {
+		system = join(" ", system, "("+m.Virtual+")")
 	}
 	cores := ""
-	if m.cpus > 0 {
-		cores = strconv.Itoa(m.cpus) + " CORES"
-		if m.perfCores > 0 && m.effCores > 0 {
-			cores += fmt.Sprintf(" (%dP + %dE)", m.perfCores, m.effCores)
+	if m.CPUs > 0 {
+		cores = strconv.Itoa(m.CPUs) + " CORES"
+		if m.PerfCores > 0 && m.EffCores > 0 {
+			cores += fmt.Sprintf(" (%dP + %dE)", m.PerfCores, m.EffCores)
 		}
 	}
-	if m.rosetta {
+	if m.Rosetta {
 		cores = join(" · ", cores, "UNDER ROSETTA")
 	}
-	memory := gigabytes(m.memory, 1<<30)
-	if memory != "" && m.available >= 0 {
-		memory += " · " + strconv.Itoa(m.available) + "% AVAILABLE"
+	memory := gigabytes(m.Memory, 1<<30)
+	if memory != "" && m.Available >= 0 {
+		memory += " · " + strconv.Itoa(m.Available) + "% AVAILABLE"
 	}
 	swap := ""
-	if m.swapTotal > 0 {
-		swap = gigabytes(m.swapUsed, 1<<30) + " USED OF " + gigabytes(m.swapTotal, 1<<30)
-		if m.swapEncrypt {
+	if m.SwapTotal > 0 {
+		swap = gigabytes(m.SwapUsed, 1<<30) + " USED OF " + gigabytes(m.SwapTotal, 1<<30)
+		if m.SwapEncrypt {
 			swap += " · ENCRYPTED"
 		}
-	} else if m.memory > 0 {
+	} else if m.Memory > 0 {
 		swap = "NONE"
 	}
-	up := uptime(m.booted, now)
+	up := uptime(m.Booted, now)
 	if up != "" {
-		up += " · UP SINCE " + m.booted.UTC().Format("02-Jan 15:04") + " Z"
+		up += " · UP SINCE " + m.Booted.UTC().Format("02-Jan 15:04") + " Z"
 	}
 	// How many processes the machine is holding. It said RUNNING of
 	// every one of them, and almost none of them are: the kernel
@@ -236,24 +208,24 @@ func systemFacts(st station, now time.Time) []fact {
 	// running. The count is of what is there, which is what was ever
 	// read, and the word it cannot earn is not said.
 	processes := ""
-	if m.processes > 0 {
-		processes = strconv.Itoa(m.processes)
+	if m.Processes > 0 {
+		processes = strconv.Itoa(m.Processes)
 	}
 	sip := ""
-	if m.sip != "" {
-		sip = strings.ToUpper(m.sip)
+	if m.SIP != "" {
+		sip = strings.ToUpper(m.SIP)
 	}
 	// The host is not here. It is on the header, in the station's own
 	// name, and a column that said it again would be the second place
 	// to read one fact.
 	return kept([]fact{
 		{label: "SYSTEM", value: system},
-		{label: "KERNEL", value: join(" · ", m.kernel, pageSize(m.page))},
-		{label: "MODEL", value: m.model},
-		{label: "CPU", value: join(" · ", m.processor, cores)},
+		{label: "KERNEL", value: join(" · ", m.Kernel, pageSize(m.Page))},
+		{label: "MODEL", value: m.Model},
+		{label: "CPU", value: join(" · ", m.Processor, cores)},
 		{label: "MEMORY", value: memory},
 		{label: "SWAP", value: swap},
-		{label: "VOLUME", value: join(" · ", st.volume.fs, gigabytes(st.volume.total, 1e9))},
+		{label: "VOLUME", value: join(" · ", st.Volume.FS, gigabytes(st.Volume.Total, 1e9))},
 		{label: "UPTIME", value: up},
 		{label: "PROCESSES", value: processes},
 		{label: "SIP", value: sip},
@@ -262,57 +234,57 @@ func systemFacts(st station, now time.Time) []fact {
 
 // sessionFacts is who is at the station and how: the user, the shell,
 // the terminal, where and when, and the conn that is running.
-func sessionFacts(s login, now time.Time) []fact {
+func sessionFacts(s station.Login, now time.Time) []fact {
 	// Who, likewise, is on the header. What is left is what the header
 	// does not carry: which user that is to the kernel, and whether
 	// they can act as one.
 	userLine := ""
-	if s.uid != "" {
-		userLine = "UID " + s.uid
+	if s.UID != "" {
+		userLine = "UID " + s.UID
 	}
-	if s.admin {
+	if s.Admin {
 		userLine = join(" · ", userLine, "ADMIN")
 	}
 	shell := ""
-	if s.shell != "" {
-		shell = join(" ", filepath.Base(s.shell), s.shellVer)
+	if s.Shell != "" {
+		shell = join(" ", filepath.Base(s.Shell), s.ShellVer)
 	}
-	terminal := join(" ", s.terminal, s.terminalVer)
-	if s.tmux {
+	terminal := join(" ", s.Terminal, s.TerminalVer)
+	if s.Tmux {
 		terminal = join(" · ", terminal, "IN TMUX")
 	}
 	sessionLine := ""
-	if s.sshFrom != "" {
-		sessionLine = "SSH FROM " + s.sshFrom
+	if s.SSHFrom != "" {
+		sessionLine = "SSH FROM " + s.SSHFrom
 	}
 	binary := ""
-	if s.exe != "" {
-		binary = join(" · ", config.Tilde(s.exe, s.home), sizeShort(uint64(s.exeSize)))
+	if s.Exe != "" {
+		binary = join(" · ", config.Tilde(s.Exe, s.Home), sizeShort(uint64(s.ExeSize)))
 	}
 	process := ""
-	if s.pid > 0 {
-		process = fmt.Sprintf("PID %d · PARENT %d", s.pid, s.ppid)
+	if s.PID > 0 {
+		process = fmt.Sprintf("PID %d · PARENT %d", s.PID, s.PPID)
 	}
 	threads := ""
-	if s.threads > 0 {
-		threads = strconv.Itoa(s.threads) + " THREADS"
+	if s.Threads > 0 {
+		threads = strconv.Itoa(s.Threads) + " THREADS"
 	}
 	env := ""
-	if s.envCount > 0 {
-		env = fmt.Sprintf("%d VARIABLES · PATH %d ENTRIES", s.envCount, s.pathCount)
+	if s.EnvCount > 0 {
+		env = fmt.Sprintf("%d VARIABLES · PATH %d ENTRIES", s.EnvCount, s.PathCount)
 	}
 	return kept([]fact{
 		{label: "USER", value: userLine},
 		{label: "SHELL", value: shell},
-		{label: "TTY", value: s.tty},
+		{label: "TTY", value: s.TTY},
 		{label: "TERMINAL", value: terminal},
 		{label: "SESSION", value: sessionLine},
-		{label: "LOCALE", value: s.lang},
-		{label: "TIME ZONE", value: timeZone(s.zone, now)},
-		{label: "CWD", value: config.Tilde(s.cwd, s.home), path: true},
+		{label: "LOCALE", value: s.Lang},
+		{label: "TIME ZONE", value: timeZone(s.Zone, now)},
+		{label: "CWD", value: config.Tilde(s.Cwd, s.Home), path: true},
 		{label: "PROCESS", value: process},
 		{label: "ENV", value: env},
-		{label: "RUNTIME", value: join(" · ", s.goVersion, s.platform, threads)},
+		{label: "RUNTIME", value: join(" · ", s.GoVersion, s.Platform, threads)},
 		{label: "BINARY", value: binary, path: true},
 	})
 }
@@ -333,13 +305,13 @@ func timeZone(name string, now time.Time) string {
 
 // stateCheck is where conn keeps its state: the directory, or the one it
 // would be made in, must be writable.
-func stateCheck(s stateDir, home string) check {
-	c := check{label: "STATE", value: config.Tilde(s.path, home), path: true, status: nominal}
-	switch s.problem {
+func stateCheck(s station.StateDir, home string) check {
+	c := check{label: "STATE", value: config.Tilde(s.Path, home), path: true, status: nominal}
+	switch s.Problem {
 	case "":
-	case stateNotDir:
+	case station.StateNotDir:
 		c.status, c.fault = "NOT A DIR", true
-	case stateReadOnly:
+	case station.StateReadOnly:
 		c.status, c.fault = "READ ONLY", true
 	default:
 		c.status, c.fault = "NO PATH", true
@@ -408,14 +380,14 @@ func rootChecks(c config.State, home string) []check {
 // tenth of the volume, with the tenth held between 5 and 50 GB: a small
 // disk is not low at a few hundred megabytes short of a tenth, and a
 // vast one is not low with fifty gigabytes free.
-func diskCheck(v volume) check {
-	if v.total == 0 {
+func diskCheck(v station.Volume) check {
+	if v.Total == 0 {
 		return check{label: "DISK", value: "UNREAD", status: unknown}
 	}
 	// How much is left. How much there is altogether is the volume's
 	// own row, two columns to the left of this one.
-	c := check{label: "DISK", value: gigabytes(v.free, 1e9) + " FREE", status: nominal}
-	if v.free < min(max(v.total/diskLowShare, diskLowFloor), diskLowCeiling) {
+	c := check{label: "DISK", value: gigabytes(v.Free, 1e9) + " FREE", status: nominal}
+	if v.Free < min(max(v.Total/diskLowShare, diskLowFloor), diskLowCeiling) {
 		c.status, c.fault = "LOW", true
 	}
 	return c
@@ -430,20 +402,20 @@ func diskCheck(v volume) check {
 //
 // Where no verdict is published the check is the memory left for new
 // work, LOW under a tenth.
-func memoryCheck(m machine) check {
-	switch m.pressure {
-	case pressureNormal:
+func memoryCheck(m station.Machine) check {
+	switch m.Pressure {
+	case station.PressureNormal:
 		return check{label: "MEMORY", value: "NORMAL PRESSURE", status: nominal}
-	case pressureWarning:
+	case station.PressureWarning:
 		return check{label: "MEMORY", value: "UNDER PRESSURE", status: "WARNING", fault: true}
-	case pressureCritical:
+	case station.PressureCritical:
 		return check{label: "MEMORY", value: "UNDER PRESSURE", status: "CRITICAL", fault: true}
 	}
-	if m.available < 0 || m.memory == 0 {
+	if m.Available < 0 || m.Memory == 0 {
 		return check{label: "MEMORY", value: "UNREAD", status: unknown}
 	}
-	c := check{label: "MEMORY", value: strconv.Itoa(m.available) + "% OF " + gigabytes(m.memory, 1<<30) + " AVAILABLE", status: nominal}
-	if m.available < memoryLowPercent {
+	c := check{label: "MEMORY", value: strconv.Itoa(m.Available) + "% OF " + gigabytes(m.Memory, 1<<30) + " AVAILABLE", status: nominal}
+	if m.Available < memoryLowPercent {
 		c.status, c.fault = "LOW", true
 	}
 	return c
@@ -451,20 +423,20 @@ func memoryCheck(m machine) check {
 
 // loadCheck is the load average against the processors: HIGH when the
 // last minute's exceeds them.
-func loadCheck(m machine) check {
+func loadCheck(m station.Machine) check {
 	// Whether the machine answered, and not whether the answer was
 	// zero. A machine with nothing running on it has a load of exactly
 	// zero and has answered; reading that as a machine that would not
 	// answer called the quietest reading there is no reading at all.
-	if !m.loadRead {
+	if !m.LoadRead {
 		return check{label: "LOAD", value: "UNREAD", status: unknown}
 	}
-	load := fmt.Sprintf("%.2f %.2f %.2f", m.load[0], m.load[1], m.load[2])
-	if m.cpus == 0 {
+	load := fmt.Sprintf("%.2f %.2f %.2f", m.Load[0], m.Load[1], m.Load[2])
+	if m.CPUs == 0 {
 		return check{label: "LOAD", value: load + " · NO CORE COUNT TO CHECK AGAINST", status: unchecked}
 	}
-	c := check{label: "LOAD", value: fmt.Sprintf("%s · %d CORES", load, m.cpus), status: nominal}
-	if m.load[0] > float64(m.cpus) {
+	c := check{label: "LOAD", value: fmt.Sprintf("%s · %d CORES", load, m.CPUs), status: nominal}
+	if m.Load[0] > float64(m.CPUs) {
 		c.status, c.fault = "HIGH", true
 	}
 	return c
@@ -472,11 +444,11 @@ func loadCheck(m machine) check {
 
 // networkCheck is the interfaces that reach past the machine: DOWN when
 // none does.
-func networkCheck(n network, read bool) check {
+func networkCheck(n station.Network, read bool) check {
 	if !read {
 		return check{label: "NET", value: "UNREAD", status: unknown}
 	}
-	if n.up == 0 {
+	if n.Up == 0 {
 		return check{label: "NET", value: "NO INTERFACE UP", status: "DOWN", fault: true}
 	}
 	// An interface being up is a cable being in. Whether the machine
@@ -484,34 +456,34 @@ func networkCheck(n network, read bool) check {
 	// to send what is not local, and that is a thing the kernel knows
 	// and will say. A table conn could not read leaves the older
 	// reading standing rather than claiming either way.
-	if n.routeRead && n.route == "" {
-		return check{label: "NET", value: fmt.Sprintf("%d UP · NO DEFAULT ROUTE", n.up), status: "DOWN", fault: true}
+	if n.RouteRead && n.Route == "" {
+		return check{label: "NET", value: fmt.Sprintf("%d UP · NO DEFAULT ROUTE", n.Up), status: "DOWN", fault: true}
 	}
-	return check{label: "NET", value: fmt.Sprintf("%s · %d UP", n.first, n.up), status: nominal}
+	return check{label: "NET", value: fmt.Sprintf("%s · %d UP", n.First, n.Up), status: nominal}
 }
 
 // powerCheck is what the machine runs on: LOW on a battery under a tenth
 // that is discharging.
-func powerCheck(p power) check {
-	if p.source == "" {
+func powerCheck(p station.Power) check {
+	if p.Source == "" {
 		return check{label: "POWER", value: "UNREAD", status: unknown}
 	}
 	source := "AC POWER"
-	if p.source == "battery" {
+	if p.Source == "battery" {
 		source = "BATTERY"
 	}
 	value := source
-	if p.percent >= 0 {
-		value = join(" · ", source, strconv.Itoa(p.percent)+"%", p.state)
+	if p.Percent >= 0 {
+		value = join(" · ", source, strconv.Itoa(p.Percent)+"%", p.State)
 		switch {
-		case p.remaining != "" && p.state == "discharging":
-			value += " · " + p.remaining + " LEFT"
-		case p.remaining != "" && p.state == "charging":
-			value += " · " + p.remaining + " TO FULL"
+		case p.Remaining != "" && p.State == "discharging":
+			value += " · " + p.Remaining + " LEFT"
+		case p.Remaining != "" && p.State == "charging":
+			value += " · " + p.Remaining + " TO FULL"
 		}
 	}
 	c := check{label: "POWER", value: value, status: nominal}
-	if p.state == "discharging" && p.percent >= 0 && p.percent < powerLowPercent {
+	if p.State == "discharging" && p.Percent >= 0 && p.Percent < powerLowPercent {
 		c.status, c.fault = "LOW", true
 	}
 	return c
@@ -519,12 +491,12 @@ func powerCheck(p power) check {
 
 // clockCheck is the system clock against the one time conn knows for
 // sure has passed, the build's commit: a clock behind it is wrong.
-func clockCheck(b build, now time.Time) check {
-	if b.time.IsZero() {
+func clockCheck(b station.Build, now time.Time) check {
+	if b.Time.IsZero() {
 		return check{label: "CLOCK", value: "NO BUILD TIME TO CHECK AGAINST", status: unchecked}
 	}
-	day := strings.ToUpper(b.time.UTC().Format("02-Jan-2006"))
-	if now.Before(b.time) {
+	day := strings.ToUpper(b.Time.UTC().Format("02-Jan-2006"))
+	if now.Before(b.Time) {
 		return check{label: "CLOCK", value: "BEFORE THE BUILD OF " + day, status: "BEHIND", fault: true}
 	}
 	return check{label: "CLOCK", value: "AFTER THE BUILD OF " + day, status: nominal}
@@ -539,17 +511,6 @@ func kept(facts []fact) []fact {
 		}
 	}
 	return out
-}
-
-// join is the parts that are not empty, with the separator between.
-func join(sep string, parts ...string) string {
-	var kept []string
-	for _, p := range parts {
-		if p = strings.TrimSpace(p); p != "" {
-			kept = append(kept, p)
-		}
-	}
-	return strings.Join(kept, sep)
 }
 
 // zulu writes a time the way the old systems did, in UTC.
@@ -606,4 +567,15 @@ func pageSize(bytes int) string {
 		return strconv.Itoa(bytes/1024) + " KB PAGES"
 	}
 	return ""
+}
+
+// join is the parts that are not empty, with the separator between.
+func join(sep string, parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, sep)
 }

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/station"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/charmbracelet/x/ansi"
@@ -54,8 +56,8 @@ func TestConsoleMatchesTheGolden(t *testing.T) {
 // record too.
 func TestFaultedConsolesMatchTheGolden(t *testing.T) {
 	st := testStation
-	st.volume.free = 6_800_000_000
-	st.machine.power = power{source: "battery", percent: 7, state: "discharging", remaining: "0:31"}
+	st.Volume.Free = 6_800_000_000
+	st.Machine.Power = station.Power{Source: "battery", Percent: 7, State: "discharging", Remaining: "0:31"}
 	golden(t, "console-faults-100x36.txt", texts(screen(compose(st, testNow), 100, 36, plain)))
 	golden(t, "console-piped.txt", texts(screen(compose(st, testNow), 0, 0, plain)))
 	golden(t, "console-small-60x24.txt", texts(screen(compose(st, testNow), 60, 24, plain)))
@@ -68,14 +70,14 @@ func TestFaultedConsolesMatchTheGolden(t *testing.T) {
 // to fit a width nobody chose is a reading lost.
 func TestThePipedConsoleElidesNothing(t *testing.T) {
 	st := testStation
-	st.login.exe = "/Users/w0zro/Library/Caches/go-build/3c/3c7f8105cf5abd1baa5f58b9cf8c907eed6bf5ff84596c80c85d92931375d3fa-d/conn"
-	st.machine.kernel = "Darwin 25.6.0 and then some words to push it past eighty columns"
+	st.Login.Exe = "/Users/w0zro/Library/Caches/go-build/3c/3c7f8105cf5abd1baa5f58b9cf8c907eed6bf5ff84596c80c85d92931375d3fa-d/conn"
+	st.Machine.Kernel = "Darwin 25.6.0 and then some words to push it past eighty columns"
 	text := texts(screen(compose(st, testNow), 0, 0, plain))
 	if strings.Contains(text, "…") {
 		t.Errorf("the piped console elided something:\n%s", text)
 	}
 	// A path keeps its own case; every other value is set in capitals.
-	for _, want := range []string{"~" + st.login.exe[len("/Users/w0zro"):], "16 KB PAGES"} {
+	for _, want := range []string{"~" + st.Login.Exe[len("/Users/w0zro"):], "16 KB PAGES"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the piped console lost %q:\n%s", want, text)
 		}
@@ -131,7 +133,7 @@ func TestConsoleLaysOut(t *testing.T) {
 // A fault lights the chip, flush right, and the count in the verdict.
 func TestFaultsLightTheConsole(t *testing.T) {
 	st := testStation
-	st.volume.free = 6_800_000_000
+	st.Volume.Free = 6_800_000_000
 	rows := screen(compose(st, testNow), 120, 40, plain)
 	text := texts(rows)
 	if !strings.Contains(text, "6.8 GB FREE") || !strings.Contains(text, " LOW") || !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
@@ -165,7 +167,7 @@ func TestFaultsLightTheConsole(t *testing.T) {
 	if axis < 0 {
 		t.Error("no status word was found to check the axis against")
 	}
-	st.machine.power.percent, st.machine.power.state = 5, "discharging"
+	st.Machine.Power.Percent, st.Machine.Power.State = 5, "discharging"
 	if text := texts(screen(compose(st, testNow), 120, 40, plain)); !strings.Contains(text, "2 SYSTEMS NOT NOMINAL") {
 		t.Errorf("two faults not counted:\n%s", text)
 	}
@@ -247,8 +249,8 @@ func TestColoredConsolePaintsEveryRow(t *testing.T) {
 func TestEverythingNotNominalTakesTheChip(t *testing.T) {
 	p := colored(theme.Conn.Dark)
 	st := testStation
-	st.machine.cpus = 0  // LOAD has no core count to check against
-	st.volume = volume{} // DISK went unanswered
+	st.Machine.CPUs = 0          // LOAD has no core count to check against
+	st.Volume = station.Volume{} // DISK went unanswered
 	text := texts(screen(compose(st, testNow), 120, 40, p))
 	for _, want := range []string{" UNCHECKED ", " UNKNOWN "} {
 		if !strings.Contains(text, p.chip+want) {
@@ -284,7 +286,7 @@ func TestTheCountIsEveryCheckNotNominal(t *testing.T) {
 	// answers everything but its core count, so LOAD alone is unchecked
 	// — and it is counted with the disk that is low.
 	st := testStation
-	st.machine.cpus = 0
+	st.Machine.CPUs = 0
 	text := stripEscapes(texts(screen(compose(st, testNow), 120, 40, plain)))
 	if strings.Contains(text, allNominal) {
 		t.Errorf("the console called an unchecked system nominal:\n%s", text)
@@ -343,7 +345,7 @@ func TestPathsShortenFromTheMiddle(t *testing.T) {
 // the word that all is well.
 func TestTheAlarmsBlink(t *testing.T) {
 	st := testStation
-	st.volume.free = 6_800_000_000
+	st.Volume.Free = 6_800_000_000
 	r := compose(st, testNow)
 	if !r.lit {
 		t.Error("a reading is dark before anyone asks it to blink")
@@ -382,7 +384,7 @@ func TestTheAlarmsBlink(t *testing.T) {
 		t.Errorf("%d rows differ between lit and dark; the fault's and the verdict's should", moved)
 	}
 	// Two faults blink three rows: each chip, and the count.
-	st.machine.power.percent, st.machine.power.state = 5, "discharging"
+	st.Machine.Power.Percent, st.Machine.Power.State = 5, "discharging"
 	two := compose(st, testNow)
 	two.lit = false
 	twoDark := screen(two, 120, 40, plain)

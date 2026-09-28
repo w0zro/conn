@@ -1,4 +1,4 @@
-package main
+package station
 
 import "testing"
 
@@ -49,11 +49,11 @@ func TestModuleVersionIsParsed(t *testing.T) {
 // The build as this test binary knows it hangs together, whatever way
 // it was built.
 func TestBuildIsRead(t *testing.T) {
-	b := readBuild()
-	if b.exact && (b.tag == "" || b.modified) {
+	b := ReadBuild()
+	if b.Exact && (b.Tag == "" || b.Modified) {
 		t.Errorf("an exact build with no tag or with changes: %+v", b)
 	}
-	if b.commit != "" && len(b.commit) != 7 {
+	if b.Commit != "" && len(b.Commit) != 7 {
 		t.Errorf("commit is not short: %+v", b)
 	}
 }

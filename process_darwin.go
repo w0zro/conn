@@ -133,12 +133,6 @@ func ttyNames() map[uint32]string {
 	return names
 }
 
-// readTools is what conn needs on this platform past the kernel: tmux,
-// to hold the work, and lsof, for the working directories.
-func readTools() []tool {
-	return []tool{{name: "tmux", path: lookPath("tmux")}, {name: "lsof", path: lookPath("lsof")}}
-}
-
 // listingTimeout bounds a listing. lsof answers in tens of milliseconds
 // on a healthy machine; the bound is for the machine with a dead
 // network mount, where it hangs, and the processes view must come back

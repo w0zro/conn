@@ -695,13 +695,13 @@ func (l *projectList) kept(rows []projectRow, was projectRow, had bool) {
 // walk found, each with the processes conn holds a pane for in it under
 // it, and the work happening off every project at the foot.
 func (m model) listRows() []projectRow {
-	return withProcesses(m.list.walked, m.projects, m.panes, m.roots.real, m.head.login.home)
+	return withProcesses(m.list.walked, m.projects, m.panes, m.roots.real, m.head.Login.Home)
 }
 
 // projectsReport is the list's words as things stand, and projectRows
 // the rows the filter leaves, which the cursor is an index into.
 func (m model) projectsReport() projectsReport {
-	b := composeProjectsAt(m.listRows(), m.list.find.text, m.roots.configured, m.head.login.home, m.list.scanning, m.list.err)
+	b := composeProjectsAt(m.listRows(), m.list.find.text, m.roots.configured, m.head.Login.Home, m.list.scanning, m.list.err)
 	b.caret = m.list.find.cur
 	return b
 }

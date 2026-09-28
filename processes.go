@@ -740,27 +740,27 @@ func notes(b processesReport, width, measure int, p palette) []row {
 // came is the pane the panel key just brought the keys out of, for the
 // keys that begin a detour.
 func (m model) processesKey(k, came string) (model, tea.Cmd) {
-	switch {
-	case k == "ctrl+c" || k == "q":
+	switch k {
+	case "ctrl+c", "q":
 		return m.leave()
-	case k == "c":
+	case "c":
 		// The blink is not started here: what annunciates is decided in
 		// one place, and the tick follows the view on its own.
 		m.view = viewConsole
 		if m.inside {
 			return m, m.serverCmd(func() error { return m.srv.wide() })
 		}
-	case k == "j" || k == "down":
+	case "j", "down":
 		m = m.onRow(0, ring(m.cursorAt+1, rowsIn(m.projects)))
-	case k == "k" || k == "up":
+	case "k", "up":
 		m = m.onRow(0, ring(m.cursorAt-1, rowsIn(m.projects)))
-	case k == "g":
+	case "g":
 		// Nothing yet: g is the half of a motion, and what it means is
 		// decided by the key after it.
 		m.firstG = true
-	case k == "G":
+	case "G":
 		m = m.onRow(0, rowsIn(m.projects)-1)
-	case k == "z":
+	case "z":
 		// The whole tree, or the fold of it again. The rows are re-made
 		// from the reading held, so the change is at once; the cursor
 		// keeps its pid where the pid is still shown, and its row
@@ -773,18 +773,18 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 			}
 			m = m.onRow(m.cursor, m.cursorAt)
 		}
-	case k == "enter":
+	case "enter":
 		if e, _, ok := m.under(); ok {
 			_, cmd := m.enterOn(e)
 			return m, cmd
 		}
-	case k == "esc":
+	case "esc":
 		return m.backIn()
-	case k == "x":
+	case "x":
 		if e, _, ok := m.under(); ok {
 			m.kill = m.endOn(e)
 		}
-	case k == "s":
+	case "s":
 		// A shell here. On a container, here is inside it: the row stands
 		// for a machine of its own, and the directory it was started for
 		// is not where its work is going on.
@@ -796,7 +796,7 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 				return m, m.openShell(pl.path)
 			}
 		}
-	case k == "S":
+	case "S":
 		// A session with the server the row is, by its own client: psql
 		// on postgres. s beside it is a shell near the server; this is
 		// the server itself, talked to.
@@ -805,34 +805,34 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 				return m, m.openClient(e, p, pl.path)
 			}
 		}
-	case k == "o":
+	case "o":
 		// The row's port in the browser. It asks nothing of the server,
 		// so it works whether or not conn holds one: the port is on the
 		// row either way, and so is the machine the browser is on.
 		if e, _, ok := m.under(); ok && serving(e) {
 			return m, m.openServing(e)
 		}
-	case k == "a":
+	case "a":
 		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
 			return m, m.startContact(pl.path)
 		}
-	case k == "A":
+	case "A":
 		// The sessions at the project: the capital of the contact's
 		// key, a session being a contact's to pick back up.
 		return m.openAt("alt+shift+a", came)
-	case k == "tab":
+	case "tab":
 		return m.toWaiting()
-	case k == "p":
+	case "p":
 		// A detour: it ends where the keys were before it, which is the
 		// pane the panel key just brought them out of, or nowhere.
 		m.from = came
 		return m.toProjects()
-	case k == ",":
+	case ",":
 		// conn's own configuration, in the workspace. The comma is what
 		// a program of this shape is settled in everywhere, and it is
 		// not a letter the processes view wanted for anything.
 		return m.openDetour(toSettings, came)
-	case k == "?":
+	case "?":
 		return m.openDetour(toManual, came)
 	}
 	return m, nil

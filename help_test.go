@@ -209,18 +209,18 @@ func TestThePanelKeyLeavesTheManual(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual, from: "%4"},
 		panes: map[string]pane{"ttys011": {id: "%4", tty: "ttys011"}}}
 	next, cmd := m.key("alt+-")
-	if got := next.(model); got.detour.to == toManual {
+	if got := next; got.detour.to == toManual {
 		t.Error("the manual is still up")
 	}
 	// The key says where to go, so it does not put the keys back in the
 	// workspace the manual was asked from.
-	if got := next.(model); got.detour.from != "" {
+	if got := next; got.detour.from != "" {
 		t.Errorf("the panel key kept the pane the manual was asked from: %q", got.detour.from)
 	}
 	if cmd == nil {
 		t.Error("nothing was done to put it away")
 	}
-	if got := next.(model).keys(); !strings.Contains(got, wordmarkLine) {
+	if got := next.keys(); !strings.Contains(got, wordmarkLine) {
 		t.Errorf("the panel still says %q", got)
 	}
 	// With no manual up, pressed on the panel, it is the other process,
@@ -243,7 +243,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual, from: "%4"},
 		panes: panes, bay: bay{work: "ttys009"}}
 	next, cmd := m.leftDetour(false)
-	got := next.(model)
+	got := next
 	if got.detour.to == toManual || got.detour.from != "" {
 		t.Errorf("leaving left helping %v from %q", got.detour.to == toManual, got.detour.from)
 	}
@@ -256,7 +256,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 	m = model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual},
 		panes: panes, bay: bay{work: "ttys011"}}
 	next, cmd = m.leftDetour(false)
-	if got := next.(model); got.detour.to == toManual {
+	if got := next; got.detour.to == toManual {
 		t.Error("leaving from the panel left conn helping")
 	}
 	if cmd == nil {
@@ -281,7 +281,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual},
 		bay: bay{work: "ttys009"}, panes: map[string]pane{"ttys009": work}}
 	next, cmd := m.key("alt+esc")
-	got := next.(model)
+	got := next
 	if got.detour.to == toManual {
 		t.Error("conn still thinks the manual is up")
 	}
@@ -292,9 +292,9 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	// ended without saying is found dead by the reading, and handled the
 	// same way rather than by a second rule that could drift from this.
 	m.detour.to = toManual
-	next, cmd = m.Update(processesMsg{gen: m.processesGen, bayDead: true, bayDetour: toManual,
+	found, cmd := m.Update(processesMsg{gen: m.processesGen, bayDead: true, bayDetour: toManual,
 		panes: map[string]pane{"ttys009": work}})
-	if got := next.(model); got.detour.to == toManual {
+	if got := found.(model); got.detour.to == toManual {
 		t.Error("a manual found dead left conn still helping")
 	}
 	if cmd == nil {
@@ -308,7 +308,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 func TestLeavingTheManualWithNothingToGoBackTo(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual}}
 	next, cmd := m.key("alt+esc")
-	if got := next.(model); got.detour.to == toManual {
+	if got := next; got.detour.to == toManual {
 		t.Error("conn still thinks the manual is up")
 	}
 	if cmd == nil {
@@ -327,7 +327,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &server{}, projects: projects,
 		cursor: 22, cursorAt: 1}
 	next, _ := m.key("?")
-	m = next.(model)
+	m = next
 	if m.cursor != 0 {
 		t.Errorf("a row is still under the cursor while the manual is up: %d", m.cursor)
 	}
@@ -335,8 +335,8 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 		t.Errorf("the row was dropped rather than kept: %d", m.detour.cursor)
 	}
 	// A reading while the manual is up does not hand a row back either.
-	next, _ = m.Update(processesMsg{projects: projects, gen: m.processesGen, bayDetour: toManual})
-	m = next.(model)
+	read, _ := m.Update(processesMsg{projects: projects, gen: m.processesGen, bayDetour: toManual})
+	m = read.(model)
 	if m.cursor != 0 {
 		t.Errorf("the reading put a row under the cursor: %d", m.cursor)
 	}
@@ -344,7 +344,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 	// the list: a process that ended while the manual was up would have
 	// left another row standing where it was.
 	next, _ = m.key("alt+esc")
-	if got := next.(model); got.cursor != 22 || got.detour.cursor != 0 {
+	if got := next; got.cursor != 22 || got.detour.cursor != 0 {
 		t.Errorf("leaving came back to row %d (kept %d), want 22", got.cursor, got.detour.cursor)
 	}
 }
@@ -353,7 +353,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 func TestNoRowGoesInAndNoneComesBack(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual}}
 	next, _ := m.key("alt+esc")
-	if got := next.(model); got.cursor != 0 || got.detour.cursor != 0 {
+	if got := next; got.cursor != 0 || got.detour.cursor != 0 {
 		t.Errorf("leaving invented row %d", got.cursor)
 	}
 }

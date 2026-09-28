@@ -184,16 +184,16 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 	home := tree(t, "work", "work/conn")
 	m := model{head: station{login: login{home: home}}, p: plain, width: 120, height: 40}
 	mm, _ := m.toRoots()
-	m = mm.(model)
+	m = mm
 	for _, k := range []string{"w", "o", "r", "k"} {
 		next, _ := m.rootsKey(k)
-		m = next.(model)
+		m = next
 	}
 	if m.asking.line.text != "~/work" {
 		t.Fatalf("the line reads %q", m.asking.line.text)
 	}
 	next, cmd := m.rootsKey("enter")
-	m = next.(model)
+	m = next
 	if m.asking.err != "" {
 		t.Fatalf("saving said %q", m.asking.err)
 	}
@@ -221,14 +221,14 @@ func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	home := tree(t, "projects", "projects/conn", "prospect")
 	m := model{head: station{login: login{home: home}}, p: plain}
 	mm, _ := m.toRoots()
-	m = mm.(model)
+	m = mm
 	for _, k := range []string{"p", "r", "o"} {
 		next, _ := m.rootsKey(k)
-		m = next.(model)
+		m = next
 	}
 	// ~/pro answers with two; the cursor is on the first.
 	next, _ := m.rootsKey("tab")
-	m = next.(model)
+	m = next
 	if m.asking.line.text != "~/projects/" {
 		t.Fatalf("tab filled the line with %q", m.asking.line.text)
 	}
@@ -241,15 +241,15 @@ func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	}
 	// The cursor walks what answers, and tab takes the one it is on.
 	next, _ = m.rootsKey("ctrl+u")
-	m = next.(model)
+	m = next
 	for _, k := range []string{"~", "/", "p", "r", "o"} {
 		next, _ := m.rootsKey(k)
-		m = next.(model)
+		m = next
 	}
 	next, _ = m.rootsKey("down")
-	m = next.(model)
+	m = next
 	next, _ = m.rootsKey("tab")
-	if got := next.(model).asking.line.text; got != "~/prospect/" {
+	if got := next.asking.line.text; got != "~/prospect/" {
 		t.Errorf("tab on the second row filled the line with %q", got)
 	}
 }

@@ -889,14 +889,14 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 		m := base
 		m.view, m.from = view, "%1"
 		next, cmd := m.arrived("")
-		got := next.(model)
+		got := next
 		if got.view != viewProcesses || got.from != "" || cmd == nil {
 			t.Errorf("from view %d: view %d, from %q, cmd %v", view, got.view, got.from, cmd != nil)
 		}
 	}
 	m := base
 	m.view = viewRoots
-	if next, _ := m.arrived(""); next.(model).view != viewRoots {
+	if next, _ := m.arrived(""); next.view != viewRoots {
 		t.Error("the panel key left the asking view")
 	}
 
@@ -905,7 +905,7 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	m = base
 	m.view, m.cursor, m.cursorAt = viewProcesses, 23, 2
 	next, _ := m.arrived("%2")
-	m = next.(model)
+	m = next
 	if m.cursor != 22 || m.came != "%2" {
 		t.Fatalf("out of %%2: cursor %d, came %q", m.cursor, m.came)
 	}
@@ -937,7 +937,7 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	m = base
 	m.view = viewProcesses
 	next, _ = m.arrived("%9")
-	if got := next.(model); got.cursor != 11 || got.came != "%9" {
+	if got := next; got.cursor != 11 || got.came != "%9" {
 		t.Errorf("out of a pane the rows do not know: cursor %d, came %q", got.cursor, got.came)
 	}
 
@@ -1587,7 +1587,7 @@ func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
 	// cursor is and has something to do on every click.
 	click := func(y int) bool {
 		next, cmd := m.click(tea.MouseClickMsg{X: 3, Y: y, Button: tea.MouseLeft})
-		m = next.(model)
+		m = next
 		return cmd != nil
 	}
 	if click(at("zsh")) {

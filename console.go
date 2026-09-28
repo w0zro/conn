@@ -19,7 +19,7 @@ type console struct {
 
 // stationRead is the station read. Where the readout's beat has already
 // passed and was waiting on it, the readout comes on now.
-func (m model) stationRead(st station) (tea.Model, tea.Cmd) {
+func (m model) stationRead(st station) (model, tea.Cmd) {
 	m.console.st = &st
 	if !m.console.due {
 		return m, nil
@@ -30,7 +30,7 @@ func (m model) stationRead(st station) (tea.Model, tea.Cmd) {
 
 // stageDue is the next stage's beat: the readout waits for the station
 // to be read, and every other stage comes on.
-func (m model) stageDue() (tea.Model, tea.Cmd) {
+func (m model) stageDue() (model, tea.Cmd) {
 	if m.console.stage+1 == stageReadout && m.console.st == nil {
 		m.console.due = true
 		return m, nil
@@ -40,7 +40,7 @@ func (m model) stageDue() (tea.Model, tea.Cmd) {
 
 // consoleKey answers a key on the console. A key skips the sequence to
 // the end; a key at the end continues to the processes view.
-func (m model) consoleKey(k string) (tea.Model, tea.Cmd) {
+func (m model) consoleKey(k string) (model, tea.Cmd) {
 	if k == "ctrl+c" || k == "q" {
 		return m.leave()
 	}
@@ -108,7 +108,7 @@ func (m model) nextStage() tea.Cmd {
 }
 
 // advance brings the next stage on and sets the one after it going.
-func (m model) advance() (tea.Model, tea.Cmd) {
+func (m model) advance() (model, tea.Cmd) {
 	last := lastStage(m.report())
 	if m.console.stage < last {
 		m.console.stage++

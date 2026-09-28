@@ -54,12 +54,11 @@ func (d detourTo) word() string {
 // it where the keys were before the panel key brought them here: in the
 // pane the panel key brought them out of, if this was the key after it,
 // and on the panel if the operator was working the view.
-func (m model) openDetour(to detourTo, came string) (tea.Model, tea.Cmd) {
+func (m model) openDetour(to detourTo, came string) (model, tea.Cmd) {
 	if m.srv == nil || m.detour.to != noDetour {
 		return m, nil // nowhere to put it, or a page of conn's own up already
 	}
-	mm, cmd := m.toProcesses()
-	m = mm.(model)
+	m, cmd := m.toProcesses()
 	// Said here rather than when the page is up. Opening it is several
 	// turns of talking to tmux, and the readout would be put in the
 	// workspace by a reading landing in the middle of that — the readout
@@ -95,7 +94,7 @@ func (m model) openDetour(to detourTo, came string) (tea.Model, tea.Cmd) {
 // while nobody was tending the workspace — knows of no pane the keys
 // came from, and falls back on the process the page was standing in
 // front of.
-func (m model) leftDetour(found bool) (tea.Model, tea.Cmd) {
+func (m model) leftDetour(found bool) (model, tea.Cmd) {
 	from := m.detour.from
 	m = m.endDetour()
 	if !m.inside || m.srv == nil {
@@ -114,8 +113,8 @@ func (m model) leftDetour(found bool) (tea.Model, tea.Cmd) {
 	// Nothing to go on: the page ended without saying. Back into the
 	// work it was standing in front of, where there is any.
 	if found {
-		mm, cmd := m.backIn()
-		m = mm.(model)
+		var cmd tea.Cmd
+		m, cmd = m.backIn()
 		if cmd != nil {
 			return m, cmd
 		}

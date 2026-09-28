@@ -39,7 +39,7 @@ func TestTheBarOffersWhatTheKeysDo(t *testing.T) {
 				t.Errorf("inside %v, %s %s: the bar offers enter %v, enter does something %v", inside, e.command, e.status, offers("enter"), cmd != nil)
 			}
 			next, _ := m.key("x")
-			armed := next.(model).kill != nil
+			armed := next.kill != nil
 			if offers("x") != armed {
 				t.Errorf("inside %v, %s %s: the bar offers x %v, x arms %v", inside, e.command, e.status, offers("x"), armed)
 			}

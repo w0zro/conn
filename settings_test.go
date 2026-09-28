@@ -176,7 +176,7 @@ func TestEscLeavesARootAsItWas(t *testing.T) {
 	first := model{p: plain, width: panelWidth, height: 40}
 	first.head.login.home = home
 	mm, _ := first.toRoots()
-	first = mm.(model)
+	first = mm
 	next, _ := first.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if next.(model).view != viewRoots {
 		t.Error("esc found a way out of the first start, which has none")
@@ -248,7 +248,7 @@ func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 func TestTheCommaOpensTheSettings(t *testing.T) {
 	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: &server{}}
 	next, cmd := m.key(",")
-	m = next.(model)
+	m = next
 	if m.detour.to != toSettings || cmd == nil {
 		t.Fatalf("the comma left setting %v, cmd %v", m.detour.to == toSettings, cmd != nil)
 	}
@@ -271,7 +271,7 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 	}
 	// Leaving puts the row back and the panel's own word with it.
 	next, cmd = m.leftDetour(false)
-	m = next.(model)
+	m = next
 	if m.detour.to == toSettings || m.cursor != 4321 {
 		t.Errorf("leaving left setting %v, cursor %d", m.detour.to == toSettings, m.cursor)
 	}
@@ -289,7 +289,7 @@ func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 	m := model{view: viewProjects, inside: true, srv: &server{}, detour: detour{to: toSettings, from: "%4"},
 		panes: map[string]pane{"ttys011": {id: "%4", tty: "ttys011"}}}
 	next, cmd := m.key("alt+,") // what leaveSettingsKey arrives as
-	if got := next.(model); got.detour.to == toSettings || got.detour.from != "" {
+	if got := next; got.detour.to == toSettings || got.detour.from != "" {
 		t.Errorf("the settings are still up: setting %v, from %q", got.detour.to == toSettings, got.detour.from)
 	}
 	if cmd == nil {
@@ -298,7 +298,7 @@ func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 	// The panel key is the other way out, and it does not put the keys
 	// back where they came from: the key says where to go.
 	next, _ = m.arrived("")
-	if got := next.(model); got.detour.to == toSettings || got.detour.from != "" {
+	if got := next; got.detour.to == toSettings || got.detour.from != "" {
 		t.Errorf("the panel key left setting %v, from %q", got.detour.to == toSettings, got.detour.from)
 	}
 }
@@ -441,10 +441,10 @@ func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
 	m.view, m.inside, m.srv = viewProcesses, true, &server{socket: socket}
 	m.head.login.home = home
 	next, _ := m.key("alt+w") // what wearModeKey arrives as
-	if got := next.(model).g; got != datumTheme.light {
+	if got := next.g; got != datumTheme.light {
 		t.Errorf("the panel is on %+v", got)
 	}
-	if next.(model).p != colored(datumTheme.light).onSurface() {
+	if next.p != colored(datumTheme.light).onSurface() {
 		t.Error("the panel did not take the new palette")
 	}
 }

@@ -791,7 +791,7 @@ func followRow(rows []projectRow, was projectRow, at int) int {
 // view — and it calls off the console's wait on a reading, or that
 // reading would land a moment later and put the processes view up over
 // it.
-func (m model) toProjects() (tea.Model, tea.Cmd) {
+func (m model) toProjects() (model, tea.Cmd) {
 	console := m.view == viewConsole
 	m.view = viewProjects
 	m.list.walking()
@@ -819,7 +819,7 @@ func (m model) toProjects() (tea.Model, tea.Cmd) {
 // terminal at all, alphabetic ctrl combinations being their letter's
 // own case already; esc goes back without opening anything, and ctrl+c
 // is what it is everywhere.
-func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
+func (m model) projectKey(k string) (model, tea.Cmd) {
 	rows := m.projectRows()
 	switch {
 	case m.list.find.edit(k, len(rows)):
@@ -838,8 +838,8 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 		// mode is for on a machine with more processes than rows.
 		if row.pid != 0 {
 			if reachable(m.panes[row.tty]) {
-				mm, cmd := m.toProcesses()
-				m = mm.(model)
+				var cmd tea.Cmd
+				m, cmd = m.toProcesses()
 				return m, tea.Batch(cmd, m.reach(m.panes[row.tty], row.tty))
 			}
 			return m, nil
@@ -847,8 +847,8 @@ func (m model) projectKey(k string) (tea.Model, tea.Cmd) {
 		if row.path == "" {
 			return m, nil // work off every project: a heading, not a place
 		}
-		mm, cmd := m.toProcesses()
-		m = mm.(model)
+		var cmd tea.Cmd
+		m, cmd = m.toProcesses()
 		return m, tea.Batch(cmd, m.openShell(row.path))
 	}
 	return m, nil

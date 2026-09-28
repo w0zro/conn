@@ -626,23 +626,20 @@ func (m model) processesTick() tea.Cmd {
 // rather than at each of them: a move that forgot to say so would leave
 // the readout reading a row nobody is looking at.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	next, cmd := m.update(msg)
-	if nm, ok := next.(model); ok {
-		// A reading says it again whether or not it moved, so a file
-		// gone missing — a state directory swept, a server that came
-		// back — comes back on the next beat rather than staying gone
-		// until somebody presses j.
-		_, reading := msg.(processesMsg)
-		nm = nm.published(reading)
-		nm, said := nm.saying()
-		nm, blink := nm.blinked()
-		nm, spin := nm.turned()
-		if said != nil || blink != nil || spin != nil {
-			return nm, tea.Batch(cmd, said, blink, spin)
-		}
-		return nm, cmd
+	m, cmd := m.update(msg)
+	// A reading says it again whether or not it moved, so a file gone
+	// missing — a state directory swept, a server that came back — comes
+	// back on the next beat rather than staying gone until somebody
+	// presses j.
+	_, reading := msg.(processesMsg)
+	m = m.published(reading)
+	m, said := m.saying()
+	m, blink := m.blinked()
+	m, spin := m.turned()
+	if said != nil || blink != nil || spin != nil {
+		return m, tea.Batch(cmd, said, blink, spin)
 	}
-	return next, cmd
+	return m, cmd
 }
 
 // saying puts what conn knows about its own keys on the status line,
@@ -1014,7 +1011,7 @@ func recordsOf(procs []process, projects []project) map[int]record {
 	return out
 }
 
-func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -1209,8 +1206,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// without saying — killed from outside, or gone while the
 			// keys were in the list and nobody was tending the workspace.
 			case m.inside && msg.bayDead && msg.bayDetour != noDetour:
-				mm, cmd := m.leftDetour(true)
-				m = mm.(model)
+				var cmd tea.Cmd
+				m, cmd = m.leftDetour(true)
 				cmds = append(cmds, m.processesTick(), cmd)
 			// A bay whose pane died stays the shape it was; only what is in it
 			// is replaced, so the panel never has to give up its width and take
@@ -1230,8 +1227,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// And the page is what the workspace holds while the keys
 			// are here, so a view just come on, or one that has just
 			// got its first row, has it without anybody asking.
-			mm, cmd := m.keepingPage()
-			m = mm.(model)
+			var cmd tea.Cmd
+			m, cmd = m.keepingPage()
 			cmds = append(cmds, cmd)
 		}
 		// The list holds live processes too, so it is read for as long as
@@ -1243,8 +1240,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.kept(m.projectRows(), wasRow, hadRow)
 			// The page is what the workspace holds here too, about the
 			// row the cursor is on.
-			mm, cmd := m.keepingPage()
-			m = mm.(model)
+			var cmd tea.Cmd
+			m, cmd = m.keepingPage()
 			cmds = append(cmds, cmd)
 		}
 		return m, tea.Batch(cmds...)
@@ -1289,7 +1286,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // alt keys work from any view, and a page of conn's own speaks to the
 // panel on keys of its own. Anything else is the view's, and goes to
 // the view that has the keys.
-func (m model) key(k string) (tea.Model, tea.Cmd) {
+func (m model) key(k string) (model, tea.Cmd) {
 	// A notice stands until the next key, whatever it is: it was read,
 	// or it was not going to be.
 	m.notice = ""
@@ -1385,7 +1382,7 @@ func (m model) key(k string) (tea.Model, tea.Cmd) {
 
 // leave is ctrl+c, from any view, and q where q is not a letter being
 // typed: a detach in the server, and conn closing outside it.
-func (m model) leave() (tea.Model, tea.Cmd) {
+func (m model) leave() (model, tea.Cmd) {
 	if m.inside {
 		// A detach leaves the server and this conn standing, so the
 		// feed keeps its stream: there is something still watching.
@@ -1416,7 +1413,7 @@ func (m model) leave() (tea.Model, tea.Cmd) {
 //
 // The asking view is left alone: there are no processes to show until
 // it has been answered.
-func (m model) arrived(from string) (tea.Model, tea.Cmd) {
+func (m model) arrived(from string) (model, tea.Cmd) {
 	if m.detour.to != noDetour {
 		// The key says where to go, so where the page was asked from
 		// stops mattering: it is the one way out that does not put the
@@ -1433,8 +1430,9 @@ func (m model) arrived(from string) (tea.Model, tea.Cmd) {
 		// Come to the panel, whatever the list was begun from: the key
 		// says where to go.
 		m.from = ""
-		mm, cmd := m.toProcesses()
-		m, cmds = mm.(model), append(cmds, cmd)
+		var cmd tea.Cmd
+		m, cmd = m.toProcesses()
+		cmds = append(cmds, cmd)
 	case from == "":
 		return m.toOther()
 	}
@@ -1461,7 +1459,7 @@ func (m model) arrived(from string) (tea.Model, tea.Cmd) {
 // with the console up: you cannot be in a pane while the console is
 // over the window, so this is a press from the panel, and the answer
 // to it is a process.
-func (m model) toOther() (tea.Model, tea.Cmd) {
+func (m model) toOther() (model, tea.Cmd) {
 	// Asked as reachable and not merely as held, the way every other
 	// road into a pane asks it: a pane whose process has ended is an id
 	// conn still has and nowhere to be sent.
@@ -1515,11 +1513,10 @@ func (m model) cameFrom() string {
 // cancel is the view alone: you were not in a pane, so there is no pane
 // to be put back in. Work that ended while the list was up is the same
 // answer for the same reason.
-func (m model) backFrom() (tea.Model, tea.Cmd) {
+func (m model) backFrom() (model, tea.Cmd) {
 	from := m.from
 	m.from = ""
-	mm, cmd := m.toProcesses()
-	m = mm.(model)
+	m, cmd := m.toProcesses()
 	if from == "" || !m.inside {
 		return m, cmd
 	}
@@ -1558,7 +1555,7 @@ func (m model) paneByID(id string) (pane, string, bool) {
 // With nothing to go back into — a bay that has only ever held a hold,
 // work that has since ended, every row outside conn's own server — it
 // does nothing, and the cursor stays where the operator left it.
-func (m model) backIn() (tea.Model, tea.Cmd) {
+func (m model) backIn() (model, tea.Cmd) {
 	if !m.inside || m.bay.work == "" {
 		return m, nil
 	}
@@ -1571,7 +1568,7 @@ func (m model) backIn() (tea.Model, tea.Cmd) {
 
 // toProcesses leaves the list for the processes view, which starts
 // reading again.
-func (m model) toProcesses() (tea.Model, tea.Cmd) {
+func (m model) toProcesses() (model, tea.Cmd) {
 	// Coming to the view fresh, the page is what the workspace holds
 	// again: a close is for the stay it was made in.
 	m.view = viewProcesses
@@ -1590,7 +1587,7 @@ func (m model) toProcesses() (tea.Model, tea.Cmd) {
 // without the operator doing anything. looking is set here rather than
 // waited for, so the reading a moment later does not ask for a second
 // page on top of the first.
-func (m model) keepingPage() (tea.Model, tea.Cmd) {
+func (m model) keepingPage() (model, tea.Cmd) {
 	// The manual and the settings are in the workspace on purpose, and
 	// the page would put itself there over the top of either. No row is
 	// under the cursor while one of them is up, which would stop this
@@ -1640,7 +1637,7 @@ func (m model) atProject() (string, []string, bool) {
 // somewhere to be and is gone to, and takes with it the pane the panel
 // key just brought the keys out of, where it did, so that leaving it
 // puts them back.
-func (m model) openAt(k, came string) (tea.Model, tea.Cmd) {
+func (m model) openAt(k, came string) (model, tea.Cmd) {
 	path, dirs, ok := m.atProject()
 	if !m.inside || !ok {
 		return m, nil
@@ -1651,8 +1648,9 @@ func (m model) openAt(k, came string) (tea.Model, tea.Cmd) {
 	}
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
-		mm, cmd := m.toProcesses()
-		m, cmds = mm.(model), append(cmds, cmd)
+		var cmd tea.Cmd
+		m, cmd = m.toProcesses()
+		cmds = append(cmds, cmd)
 	}
 	if k == "alt+a" {
 		return m, tea.Batch(append(cmds, m.startContact(path))...)
@@ -1663,7 +1661,7 @@ func (m model) openAt(k, came string) (tea.Model, tea.Cmd) {
 // raiseAt brings up what the project the panel is looking at declares
 // and does not have running. From another view the processes view is
 // put up on the way, since that is where the rows will show.
-func (m model) raiseAt() (tea.Model, tea.Cmd) {
+func (m model) raiseAt() (model, tea.Cmd) {
 	// The file is read by the raise itself, off the loop, so a project
 	// with nothing running — whose file the reading has not read — is
 	// brought up from the list all the same.
@@ -1674,8 +1672,9 @@ func (m model) raiseAt() (tea.Model, tea.Cmd) {
 	up, held := upAndHeld(m.projects, m.panes, path)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
-		mm, cmd := m.toProcesses()
-		m, cmds = mm.(model), append(cmds, cmd)
+		var cmd tea.Cmd
+		m, cmd = m.toProcesses()
+		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(append(cmds, m.raiseAll(path, up, held))...)
 }
@@ -1810,7 +1809,7 @@ func (m model) View() tea.View {
 // the reground the settings asked for, and the sixteen every other
 // pane draws from went with it; what is left is the colors this conn
 // holds in memory.
-func (m model) worn() (tea.Model, tea.Cmd) {
+func (m model) worn() (model, tea.Cmd) {
 	if m.srv == nil {
 		return m, nil
 	}

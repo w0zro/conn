@@ -737,7 +737,7 @@ func notes(b processesReport, width, measure int, p palette) []row {
 //
 // came is the pane the panel key just brought the keys out of, for the
 // keys that begin a detour.
-func (m model) processesKey(k, came string) (tea.Model, tea.Cmd) {
+func (m model) processesKey(k, came string) (model, tea.Cmd) {
 	switch {
 	case k == "ctrl+c" || k == "q":
 		return m.leave()
@@ -855,7 +855,7 @@ func (m model) processesReport() processesReport {
 // again to find which row was under the press, since the view is drawn
 // from the model and the model keeps no picture of it. Anywhere else,
 // and any other button, is nothing yet.
-func (m model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
+func (m model) click(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	if m.view != viewProcesses || msg.Button != tea.MouseLeft {
 		return m, nil
 	}
@@ -887,7 +887,7 @@ func (m model) click(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 //
 // A process conn holds no pane for is still gone to, on the panel, and
 // the keys stay where they are.
-func (m model) toWaiting() (tea.Model, tea.Cmd) {
+func (m model) toWaiting() (model, tea.Cmd) {
 	round := waitingRound(m.projects)
 	if len(round) == 0 {
 		return m, nil
@@ -907,7 +907,7 @@ func (m model) toWaiting() (tea.Model, tea.Cmd) {
 // the row's pane goes into the bay with the keys, where conn holds
 // one. A row conn only reports is gone to on the panel, and the keys
 // stay where they are, there being nothing to put them in.
-func (m model) goTo(next entry) (tea.Model, tea.Cmd) {
+func (m model) goTo(next entry) (model, tea.Cmd) {
 	m = m.onRow(next.pid, m.cursorAt)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
@@ -928,7 +928,7 @@ func (m model) goTo(next entry) (tea.Model, tea.Cmd) {
 // raiseUnder is u: the row under the cursor brought up, as raiseOn
 // says. From the list the row is a project, and the project is what is
 // brought up.
-func (m model) raiseUnder() (tea.Model, tea.Cmd) {
+func (m model) raiseUnder() (model, tea.Cmd) {
 	if m.view != viewProcesses {
 		return m.raiseAt()
 	}

@@ -268,7 +268,7 @@ func typedIsADir(typed, home string) bool {
 // processes view when it has no roots. It comes up on the home, which
 // is where checkouts usually are and is a directory that certainly
 // exists, so the first thing shown is a list rather than nothing.
-func (m model) toRoots() (tea.Model, tea.Cmd) {
+func (m model) toRoots() (model, tea.Cmd) {
 	m.view, m.asking = viewRoots, askingFor("~/")
 	return m, nil
 }
@@ -277,7 +277,7 @@ func (m model) toRoots() (tea.Model, tea.Cmd) {
 // every root line; see rootLine. What is the view's own: enter takes the
 // root — the config is written and conn is working from it before the
 // view is gone.
-func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
+func (m model) rootsKey(k string) (model, tea.Cmd) {
 	switch {
 	case m.asking.edit(k, m.head.login.home):
 	case k == "ctrl+c":
@@ -295,7 +295,7 @@ func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
 
 // takeRoot writes the root the operator settled on and puts conn to
 // work on it.
-func (m model) takeRoot() (tea.Model, tea.Cmd) {
+func (m model) takeRoot() (model, tea.Cmd) {
 	home := m.head.login.home
 	root := m.asking.chosen(home)
 	if root == "" {

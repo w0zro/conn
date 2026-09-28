@@ -227,7 +227,7 @@ func (l sessionList) report(home string, now time.Time) sessionsReport {
 // sessions: project is what it is for, and dirs the directories a
 // transcript could be filed under, which for a group is a repository
 // under it, not the folder that names it.
-func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) {
+func (m model) openSessions(project string, dirs []string) (model, tea.Cmd) {
 	m.view = viewSessions
 	m.sessions = sessionList{project: project, dirs: dirs, loading: true}
 	return m, m.scanSessions(dirs)
@@ -238,7 +238,7 @@ func (m model) openSessions(project string, dirs []string) (tea.Model, tea.Cmd) 
 // enter continues the session under the cursor and goes back to the
 // processes view, esc goes back without continuing anything, and ctrl+c
 // is what it is everywhere.
-func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
+func (m model) sessionsKey(k string) (model, tea.Cmd) {
 	switch {
 	case m.sessions.find.edit(k, len(m.sessions.rows())):
 	case k == "ctrl+c":
@@ -247,8 +247,8 @@ func (m model) sessionsKey(k string) (tea.Model, tea.Cmd) {
 		return m.backFrom()
 	case k == "enter":
 		if c, ok := m.sessions.at(); m.inside && !m.sessions.loading && ok {
-			mm, cmd := m.toProcesses()
-			m = mm.(model)
+			var cmd tea.Cmd
+			m, cmd = m.toProcesses()
 			return m, tea.Batch(cmd, m.openResumed(c.Dir, c.ID))
 		}
 	}

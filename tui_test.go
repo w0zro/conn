@@ -51,7 +51,7 @@ func answered(cmd tea.Cmd) tea.Msg {
 func TestProgramComesOnInStages(t *testing.T) {
 	// ticking as newModel leaves it: conn comes up on the console, which
 	// annunciates, and Init sets the blink going.
-	m := model{head: station{build: testStation.build, login: login{user: "w0zro", host: "station"}}, now: testNow, p: plain, ticking: true,
+	m := model{head: station{build: testStation.build, login: login{user: "w0zro", host: "station"}}, now: testNow, p: plain, blink: beat{on: true},
 		roots: rooting{real: []string{"/Users/w0zro/projects"}}} // told where the work is; see toRoots
 	m.width, m.height = 120, 40
 	view := func() string { return m.View().Content }
@@ -107,7 +107,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 // The station arriving first, then the beat, comes on the same way; and
 // a key during the sequence skips to the end.
 func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
-	m := model{head: station{build: testStation.build}, now: testNow, p: plain, width: 120, height: 40, ticking: true}
+	m := model{head: station{build: testStation.build}, now: testNow, p: plain, width: 120, height: 40, blink: beat{on: true}}
 	next, cmd := m.Update(stationMsg{testStation})
 	m = next.(model)
 	if cmd != nil || m.stage != stageHeader {
@@ -154,7 +154,7 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if !m.lit {
 		t.Error("the chip starts dark")
 	}
-	next, ok := m.Update(blinkMsg{gen: m.blinkGen})
+	next, ok := m.Update(blinkMsg{gen: m.blink.gen})
 	m = next.(model)
 	if m.lit {
 		t.Error("the chip did not go dark on the turn")
@@ -162,7 +162,7 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if ok == nil {
 		t.Fatal("the blink stopped at the first turn")
 	}
-	next, ok = m.Update(blinkMsg{gen: m.blinkGen})
+	next, ok = m.Update(blinkMsg{gen: m.blink.gen})
 	if m = next.(model); !m.lit || ok == nil {
 		t.Error("the chip did not come back")
 	}
@@ -176,18 +176,18 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	next, _ = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	next, _ = m.Update(processesMsg{gen: m.processesGen})
-	if m = next.(model); m.view != viewProcesses || m.ticking {
+	if m = next.(model); m.view != viewProcesses || m.blink.on {
 		t.Errorf("on a view with nothing waiting the blink still ticks: view %d", m.view)
 	}
-	next, ok = m.Update(blinkMsg{gen: m.blinkGen})
+	next, ok = m.Update(blinkMsg{gen: m.blink.gen})
 	if m = next.(model); !m.lit || ok != nil {
 		t.Error("the blink went on with nothing to annunciate")
 	}
 	next, ok = m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	if m = next.(model); m.view != viewConsole || ok == nil || !m.ticking {
+	if m = next.(model); m.view != viewConsole || ok == nil || !m.blink.on {
 		t.Error("c did not start the blink again")
 	}
-	next, ok = m.Update(blinkMsg{gen: m.blinkGen - 1})
+	next, ok = m.Update(blinkMsg{gen: m.blink.gen - 1})
 	if m = next.(model); !m.lit || ok != nil {
 		t.Error("a turn from an earlier stay was not dropped")
 	}
@@ -1239,7 +1239,7 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	// spinner's first frame.
 	said := m.telling()
 	m.said = &said
-	m.turning = m.working()
+	m.spin.on = m.working()
 
 	press := func(m model, k string) (model, tea.Cmd) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))

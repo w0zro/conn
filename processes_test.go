@@ -698,16 +698,16 @@ func TestTheSpinnerTurnsOnlyForWhatWorks(t *testing.T) {
 	}
 	m.full = false
 	next, cmd := m.turned()
-	if !next.turning || cmd == nil {
-		t.Errorf("the spinner did not start: turning %v cmd %v", next.turning, cmd != nil)
+	if !next.spin.on || cmd == nil {
+		t.Errorf("the spinner did not start: turning %v cmd %v", next.spin.on, cmd != nil)
 	}
 	if _, again := next.turned(); again != nil {
 		t.Error("the spinner was started twice over")
 	}
 	next.projects = nil
 	stopped, cmd := next.turned()
-	if stopped.turning || cmd != nil {
-		t.Errorf("the spinner did not stop: turning %v", stopped.turning)
+	if stopped.spin.on || cmd != nil {
+		t.Errorf("the spinner did not stop: turning %v", stopped.spin.on)
 	}
 	// The frames, a turn a second: the eighth of a second after a frame
 	// is the next one, and the second after it is the same one again.
@@ -745,18 +745,18 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 	}
 	// Coming to it starts the tick; going off it stops the tick and
 	// leaves the word lit, which is where anything not blinking rests.
-	m.ticking, m.lit = false, false
+	m.blink.on, m.lit = false, false
 	next, cmd := m.blinked()
-	if !next.ticking || !next.lit || cmd == nil {
-		t.Errorf("the blink did not start: ticking %v lit %v cmd %v", next.ticking, next.lit, cmd != nil)
+	if !next.blink.on || !next.lit || cmd == nil {
+		t.Errorf("the blink did not start: ticking %v lit %v cmd %v", next.blink.on, next.lit, cmd != nil)
 	}
 	if _, again := next.blinked(); again != nil {
 		t.Error("the blink was started twice over")
 	}
 	next.projects = nil
 	stopped, cmd := next.blinked()
-	if stopped.ticking || !stopped.lit || cmd != nil {
-		t.Errorf("the blink did not stop: ticking %v lit %v", stopped.ticking, stopped.lit)
+	if stopped.blink.on || !stopped.lit || cmd != nil {
+		t.Errorf("the blink did not stop: ticking %v lit %v", stopped.blink.on, stopped.lit)
 	}
 }
 

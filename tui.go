@@ -167,10 +167,8 @@ type model struct {
 
 	view     int
 	lit      bool // the annunciators are showing this half of the blink
-	blinkGen int  // which run of the blink a turn belongs to
-	ticking  bool // the blink's tick is in flight, because something annunciates
-	spinGen  int  // which run of the spinner a frame belongs to
-	turning  bool // the spinner's tick is in flight, because a row is working
+	blink    beat // the blink's tick, in flight while something annunciates
+	spin     beat // the spinner's, in flight while a row is working
 	projects []project
 	cursor   int     // the pid the cursor is on
 	cursorAt int     // where in the rows it was, for when the pid goes
@@ -304,7 +302,7 @@ func newModel(g ground) model {
 		focused: true, // conn comes up with the keys in the panel
 		// conn comes up on the console, which annunciates, and Init sets
 		// the blink going with everything else.
-		ticking: true,
+		blink: beat{on: true},
 
 		head: station{build: readBuild(), login: readLogin()},
 		now:  time.Now(),
@@ -536,6 +534,26 @@ func nextSecond(now time.Time) tea.Cmd {
 	return tea.Tick(time.Until(now.Truncate(time.Second).Add(time.Second)), func(time.Time) tea.Msg { return clockMsg{} })
 }
 
+// A beat is a tick that runs only while something needs it: on is
+// whether its tick is in flight, and gen which run of it a tick belongs
+// to, so a tick from a run that has ended is dropped when it lands
+// rather than starting a second one beside the new.
+type beat struct {
+	gen int
+	on  bool
+}
+
+// set starts the beat or lets it stop, as it is wanted, and says
+// whether that changed anything. A tick already in flight belongs to
+// the run that has ended.
+func (b *beat) set(want bool) bool {
+	if want == b.on {
+		return false
+	}
+	b.on, b.gen = want, b.gen+1
+	return true
+}
+
 // annunciating says whether anything conn is drawing blinks as things
 // stand: the console's verdict while the console is up, and a row in
 // the processes view that is waiting on you. Nothing else does — a
@@ -559,15 +577,12 @@ func (m model) annunciating() bool {
 // through here means no view has to remember to start it: what blinks
 // is decided in one place and the tick follows.
 func (m model) blinked() (model, tea.Cmd) {
-	want := m.annunciating()
-	if want == m.ticking {
+	if !m.blink.set(m.annunciating()) {
 		return m, nil
 	}
-	// A turn already in flight belongs to the run that is ending, and is
-	// dropped when it lands; the lit half is where anything not blinking
-	// rests.
-	m.ticking, m.lit, m.blinkGen = want, true, m.blinkGen+1
-	if !want {
+	// The lit half is where anything not blinking rests.
+	m.lit = true
+	if !m.blink.on {
 		return m, nil
 	}
 	return m, m.nextBlink()
@@ -580,7 +595,7 @@ func (m model) nextBlink() tea.Cmd {
 	if !m.lit {
 		d = blinkDark
 	}
-	gen := m.blinkGen
+	gen := m.blink.gen
 	return tea.Tick(d, func(time.Time) tea.Msg { return blinkMsg{gen} })
 }
 
@@ -606,12 +621,7 @@ func (m model) working() bool {
 // redraws a second are nothing while something is seen to move, and
 // too many while nothing is.
 func (m model) turned() (model, tea.Cmd) {
-	want := m.working()
-	if want == m.turning {
-		return m, nil
-	}
-	m.turning, m.spinGen = want, m.spinGen+1
-	if !want {
+	if !m.spin.set(m.working()) || !m.spin.on {
 		return m, nil
 	}
 	return m, m.nextSpin()
@@ -620,7 +630,7 @@ func (m model) turned() (model, tea.Cmd) {
 // nextSpin is the spinner's next frame. A frame from an earlier run of
 // the spinner is dropped.
 func (m model) nextSpin() tea.Cmd {
-	gen := m.spinGen
+	gen := m.spin.gen
 	return tea.Tick(spinEvery, func(time.Time) tea.Msg { return spinMsg{gen} })
 }
 
@@ -1154,14 +1164,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.processesGen++
 		return m, m.readProcesses()
 	case blinkMsg:
-		if msg.gen != m.blinkGen || !m.annunciating() {
+		if msg.gen != m.blink.gen || !m.annunciating() {
 			m.lit = true
 			return m, nil
 		}
 		m.lit = !m.lit
 		return m, m.nextBlink()
 	case spinMsg:
-		if msg.gen != m.spinGen || !m.working() {
+		if msg.gen != m.spin.gen || !m.working() {
 			return m, nil
 		}
 		m.now = time.Now()

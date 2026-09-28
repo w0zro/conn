@@ -31,6 +31,7 @@ type Session struct {
 	When   time.Time // when it last moved
 	Branch string
 	Prompt string // the last thing its user asked of it
+	Title  string // what the session is called: its rename, or the title Claude Code gave it
 	// What the instance is waiting on, read only for one that is, and
 	// the moment its status became what it is when that was read, so
 	// the transcript is read again when the status changes and not
@@ -607,10 +608,82 @@ func ClaudeSuspended(dirs []string, projects []Project) []Session {
 	return out
 }
 
+// recentLimit is how many sessions the recent view reads, newest
+// first: every transcript on the machine is a stat, and only these are
+// read into, so a year of them costs the keystroke nothing.
+const recentLimit = 100
+
+// ClaudeRecent lists the sessions at rest in every project, newest
+// first, excluding the ones a live instance is carrying. Where
+// ClaudeSuspended is asked for directories, this has none to ask for,
+// and the directory a transcript is filed under cannot be read back
+// into a path — Claude encodes it lossily — so each session's Dir is
+// the directory its transcript says it was had in. A session that says
+// none is left out, there being nowhere to resume it.
+func ClaudeRecent(projects []Project) []Session {
+	live := liveSessions(projects)
+	root := filepath.Join(claudeConfigDir(), "projects")
+	dirs, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	type file struct {
+		id, path string
+		when     time.Time
+	}
+	var files []file
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		entries, err := os.ReadDir(filepath.Join(root, d.Name()))
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			id := strings.TrimSuffix(e.Name(), ".jsonl")
+			if e.IsDir() || id == e.Name() || !isSessionID(id) || live[id] {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			files = append(files, file{id, filepath.Join(root, d.Name(), e.Name()), info.ModTime()})
+		}
+	}
+	sort.Slice(files, func(i, j int) bool {
+		if !files[i].when.Equal(files[j].when) {
+			return files[i].when.After(files[j].when)
+		}
+		return files[i].id < files[j].id
+	})
+	var out []Session
+	seen := map[string]bool{}
+	for _, f := range files {
+		if len(out) == recentLimit {
+			break
+		}
+		if seen[f.id] {
+			continue
+		}
+		seen[f.id] = true
+		c := Session{ID: f.id, When: f.when}
+		ReadSessionMeta(f.path, &c)
+		if c.Dir != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // transcriptLine is the part of a transcript record the sessions view
 // reads.
 type transcriptLine struct {
 	Type        string `json:"type"`
+	Cwd         string `json:"cwd"`
+	AITitle     string `json:"aiTitle"`
+	CustomTitle string `json:"customTitle"`
 	IsSidechain bool   `json:"isSidechain"`
 	IsMeta      bool   `json:"isMeta"`
 	GitBranch   string `json:"gitBranch"`
@@ -652,6 +725,7 @@ func ReadSessionMeta(path string, c *Session) {
 	if err != nil {
 		return
 	}
+	named := false
 	for i := len(lines) - 1; i >= 0; i-- {
 		var rec transcriptLine
 		if err := json.Unmarshal(lines[i], &rec); err != nil {
@@ -662,6 +736,25 @@ func ReadSessionMeta(path string, c *Session) {
 		}
 		if c.Branch == "" {
 			c.Branch = rec.GitBranch
+		}
+		// Where it was had, for a session found without being asked
+		// for by directory; one asked for has it already.
+		if c.Dir == "" {
+			c.Dir = rec.Cwd
+		}
+		// What it is called. A renamed session has Claude Code write
+		// the rename again just before each title it writes itself, so
+		// the last title settles it: the record before it is the rename,
+		// where there is one, and the rename outranks it.
+		if !named && rec.Type == "custom-title" && rec.CustomTitle != "" {
+			c.Title, named = Flatten(rec.CustomTitle), true
+		}
+		if !named && rec.Type == "ai-title" && rec.AITitle != "" {
+			c.Title, named = Flatten(rec.AITitle), true
+			var prev transcriptLine
+			if i > 0 && json.Unmarshal(lines[i-1], &prev) == nil && prev.Type == "custom-title" && prev.CustomTitle != "" {
+				c.Title = Flatten(prev.CustomTitle)
+			}
 		}
 		if c.Prompt == "" && rec.Type == "last-prompt" {
 			c.Prompt = Flatten(rec.LastPrompt)
@@ -676,7 +769,7 @@ func ReadSessionMeta(path string, c *Session) {
 		if c.Model == "" && rec.Type == "assistant" && rec.Message.Model != "" {
 			c.Model, c.Carried = rec.Message.Model, rec.carried()
 		}
-		if c.Branch != "" && c.Prompt != "" && c.Model != "" {
+		if c.Branch != "" && c.Prompt != "" && c.Model != "" && c.Dir != "" && named {
 			return
 		}
 	}

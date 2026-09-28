@@ -297,6 +297,41 @@ func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
 	}
 }
 
+// The recent sessions are every project's, newest first, each with the
+// directory its transcript says it was had in, since the directory it
+// is filed under cannot be read back into a path. A rename, written
+// just before the title Claude Code writes itself, is what a session is
+// called; a session that says nowhere it was had is left out.
+func TestClaudeRecentIsEveryProjectNewestFirst(t *testing.T) {
+	claude := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claude)
+	now := time.Now()
+
+	writeTranscript(t, claude, "/w/conn", "11111111-1111-1111-1111-111111111111", []string{
+		`{"type":"user","cwd":"/w/conn/internal","gitBranch":"main","message":{"content":"split the packages"}}`,
+		`{"type":"custom-title","customTitle":"Package split"}`,
+		`{"type":"ai-title","aiTitle":"Splitting conn into packages"}`,
+	}, now.Add(-time.Hour))
+	writeTranscript(t, claude, "/w/rides", "22222222-2222-2222-2222-222222222222", []string{
+		`{"type":"user","cwd":"/w/rides","message":{"content":"fix the map"}}`,
+		`{"type":"ai-title","aiTitle":"Fixing the map"}`,
+	}, now)
+	writeTranscript(t, claude, "/w/nowhere", "33333333-3333-3333-3333-333333333333", []string{
+		`{"type":"user","message":{"content":"no cwd said"}}`,
+	}, now.Add(time.Minute))
+
+	cs := ClaudeRecent(nil)
+	if len(cs) != 2 {
+		t.Fatalf("ClaudeRecent found %d, want 2: %+v", len(cs), cs)
+	}
+	if cs[0].Dir != "/w/rides" || cs[0].Title != "Fixing the map" {
+		t.Errorf("newest: %+v", cs[0])
+	}
+	if cs[1].Dir != "/w/conn/internal" || cs[1].Title != "Package split" || cs[1].Branch != "main" {
+		t.Errorf("oldest: %+v", cs[1])
+	}
+}
+
 // The activity column says a tool call as a verb and an object: a file
 // by its base name, a command by itself, a question not at all.
 func TestDoingWordIsAVerbAndAnObject(t *testing.T) {

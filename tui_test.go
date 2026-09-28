@@ -271,8 +271,8 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 
 	next, cmd := m.Update(openedMsg{shell: shell{pane: pane{id: "%9", tty: "ttys009"}, pid: 4242}})
 	m = next.(model)
-	if cmd == nil || m.awaited != 4242 || m.bay != "ttys009" {
-		t.Errorf("after opening: cmd %v, awaited %d, bay %q", cmd != nil, m.awaited, m.bay)
+	if cmd == nil || m.awaited != 4242 || m.bay.tty != "ttys009" {
+		t.Errorf("after opening: cmd %v, awaited %d, bay %q", cmd != nil, m.awaited, m.bay.tty)
 	}
 	// A reading without it yet leaves the cursor, and the next read is soon.
 	m = read(m, here)
@@ -301,15 +301,15 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 // and the row that was shown stops saying so.
 func TestTheReachedRowIsTheBayAtOnce(t *testing.T) {
 	m := plainModel()
-	m.view, m.bay = viewProcesses, "ttys001"
+	m.view, m.bay.tty = viewProcesses, "ttys001"
 	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}}}}
 	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
 
 	gen := m.processesGen
 	next, cmd := m.Update(reachedMsg{"ttys002"})
 	m = next.(model)
-	if m.bay != "ttys002" {
-		t.Errorf("the bay is %q, not the reached terminal", m.bay)
+	if m.bay.tty != "ttys002" {
+		t.Errorf("the bay is %q, not the reached terminal", m.bay.tty)
 	}
 	if cmd == nil || m.processesGen == gen {
 		t.Error("the processes view was not read again after reaching")
@@ -929,7 +929,7 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	// Pressed on the panel, with the keys already here: the other
 	// process, which against no tmux is a reach that reaches nothing.
 	m = base
-	m.view, m.lastBay = viewProcesses, "ttys001"
+	m.view, m.bay.other = viewProcesses, "ttys001"
 	if _, cmd := m.arrived(""); cmd == nil {
 		t.Error("pressed on the panel, the key did not go to the other process")
 	}
@@ -1247,15 +1247,15 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	}
 	// Nothing has been worked in yet, so there is nowhere to go back to
 	// and esc asks for nothing.
-	if got, cmd := press(m, "esc"); cmd != nil || got.lastIn != "" {
-		t.Errorf("esc with nothing worked in: lastIn %q, cmd %v", got.lastIn, cmd != nil)
+	if got, cmd := press(m, "esc"); cmd != nil || got.bay.work != "" {
+		t.Errorf("esc with nothing worked in: lastIn %q, cmd %v", got.bay.work, cmd != nil)
 	}
 
 	// Going into the contact is what makes it the one to come back to.
 	next, _ := m.Update(reachedMsg{"ttys001"})
 	m = next.(model)
-	if m.lastIn != "ttys001" {
-		t.Fatalf("after reaching, lastIn is %q", m.lastIn)
+	if m.bay.work != "ttys001" {
+		t.Fatalf("after reaching, lastIn is %q", m.bay.work)
 	}
 
 	// The keys come to the panel and the page takes the bay: the work is
@@ -1267,8 +1267,8 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 		panes:    withPane(testPanes, pane{id: "%9", tty: "ttys009", hold: true, readout: true}),
 		bay:      "ttys009",
 	})
-	if m = next.(model); m.lastIn != "ttys001" {
-		t.Errorf("the page took the bay and lastIn with it: %q", m.lastIn)
+	if m = next.(model); m.bay.work != "ttys001" {
+		t.Errorf("the page took the bay and lastIn with it: %q", m.bay.work)
 	}
 
 	// And a hold standing in an empty bay is conn's own furniture too.
@@ -1278,8 +1278,8 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 		panes:    withPane(testPanes, pane{id: "%8", tty: "ttys008", hold: true}),
 		bay:      "ttys008",
 	})
-	if m = next.(model); m.lastIn != "ttys001" {
-		t.Errorf("a hold took lastIn: %q", m.lastIn)
+	if m = next.(model); m.bay.work != "ttys001" {
+		t.Errorf("a hold took lastIn: %q", m.bay.work)
 	}
 
 	// The cursor walks the list; the work stands where it was.
@@ -1297,17 +1297,17 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	if got.cursor != m.cursor {
 		t.Errorf("esc moved the cursor to %d", got.cursor)
 	}
-	if got.lastIn != "ttys001" {
-		t.Errorf("esc went back into %q", got.lastIn)
+	if got.bay.work != "ttys001" {
+		t.Errorf("esc went back into %q", got.bay.work)
 	}
 
 	// Work that has since ended is nowhere to go: conn holds no pane for
 	// it, and esc does nothing rather than reaching at a gone id.
-	m.lastIn = "ttys004" // the process conn can only report
+	m.bay.work = "ttys004" // the process conn can only report
 	if _, cmd := press(m, "esc"); cmd != nil {
 		t.Error("esc reached for a process conn holds no pane for")
 	}
-	m.lastIn, m.panes = "ttys001", withPane(testPanes, pane{id: "%1", tty: "ttys001", dead: true})
+	m.bay.work, m.panes = "ttys001", withPane(testPanes, pane{id: "%1", tty: "ttys001", dead: true})
 	if _, cmd := press(m, "esc"); cmd != nil {
 		t.Error("esc reached into a pane whose process has ended")
 	}
@@ -1349,11 +1349,11 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 	m = into(m, "ttysa")
 	m = page(m)
 	m = into(m, "ttysb")
-	if m.lastBay != "ttysa" {
-		t.Fatalf("the other is %q, not the work before this work", m.lastBay)
+	if m.bay.other != "ttysa" {
+		t.Fatalf("the other is %q, not the work before this work", m.bay.other)
 	}
-	if m.lastIn != "ttysb" {
-		t.Errorf("the work is %q", m.lastIn)
+	if m.bay.work != "ttysb" {
+		t.Errorf("the work is %q", m.bay.work)
 	}
 
 	// And the panel key, pressed on the panel, goes there rather than
@@ -1368,8 +1368,8 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 	// the one just left the other in its turn.
 	m = page(m)
 	m = into(m, "ttysa")
-	if m.lastBay != "ttysb" {
-		t.Errorf("after going back, the other is %q", m.lastBay)
+	if m.bay.other != "ttysb" {
+		t.Errorf("after going back, the other is %q", m.bay.other)
 	}
 
 	// Work whose pane has ended is nowhere to be sent, and is asked the
@@ -1563,7 +1563,7 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 // between the two, makes the next one a first again.
 func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
 	m := plainModel()
-	m.view, m.inside, m.focused, m.looking = viewProcesses, true, true, true
+	m.view, m.inside, m.focused, m.bay.readout = viewProcesses, true, true, true
 	m.srv, m.width, m.height = &server{}, panelWidth, 30
 	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
 	m.projects = []project{{path: "/w/a", entries: []entry{

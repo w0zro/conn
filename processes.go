@@ -838,7 +838,7 @@ func (m model) processesKey(k, came string) (tea.Model, tea.Cmd) {
 
 // processesReport is the processes view's words as things stand.
 func (m model) processesReport() processesReport {
-	w := composeProcesses(m.projects, m.panes, m.bay, m.roots.real, m.roots.isProject, m.head.login.home, m.now, m.processesErr, m.dockerStalled, !m.full)
+	w := composeProcesses(m.projects, m.panes, m.bay.tty, m.roots.real, m.roots.isProject, m.head.login.home, m.now, m.processesErr, m.dockerStalled, !m.full)
 	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
 	w.spin = int(m.now.UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
 	return w

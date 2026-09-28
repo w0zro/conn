@@ -792,18 +792,18 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	}
 
 	// A hold in the bay, then a process: the hold is not remembered.
-	m.bay = "ttys009"
+	m.bay.tty = "ttys009"
 	next, _ := m.Update(reachedMsg{"ttys001"})
 	m = next.(model)
-	if m.lastBay != "" {
-		t.Errorf("the hold was remembered as somewhere to go back to: %q", m.lastBay)
+	if m.bay.other != "" {
+		t.Errorf("the hold was remembered as somewhere to go back to: %q", m.bay.other)
 	}
 
 	// A second process: the first is where going back leads.
 	next, _ = m.Update(reachedMsg{"ttys002"})
 	m = next.(model)
-	if m.bay != "ttys002" || m.lastBay != "ttys001" {
-		t.Errorf("bay %q, other %q", m.bay, m.lastBay)
+	if m.bay.tty != "ttys002" || m.bay.other != "ttys001" {
+		t.Errorf("bay %q, other %q", m.bay.tty, m.bay.other)
 	}
 	m, cmd = other(m)
 	if cmd == nil {
@@ -813,8 +813,8 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	// swaps which is which: pressed again it is back where it started.
 	next, _ = m.Update(reachedMsg{"ttys001"})
 	m = next.(model)
-	if m.bay != "ttys001" || m.lastBay != "ttys002" {
-		t.Errorf("after going back: bay %q, other %q", m.bay, m.lastBay)
+	if m.bay.tty != "ttys001" || m.bay.other != "ttys002" {
+		t.Errorf("after going back: bay %q, other %q", m.bay.tty, m.bay.other)
 	}
 
 	// A process that has gone is not somewhere to go back to.

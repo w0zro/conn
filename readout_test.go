@@ -438,32 +438,32 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 	// A reading with the keys here and a row to be about asks for it.
 	m := panel()
 	next, cmd := m.Update(processesMsg{gen: m.processesGen, projects: m.projects})
-	if m = next.(model); !m.looking || cmd == nil {
-		t.Errorf("the page did not take the workspace: looking %v, cmd %v", m.looking, cmd != nil)
+	if m = next.(model); !m.bay.readout || cmd == nil {
+		t.Errorf("the page did not take the workspace: looking %v, cmd %v", m.bay.readout, cmd != nil)
 	}
 	// And not twice: the reading after it finds the page already there.
-	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); !next.(model).looking {
+	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); !next.(model).bay.readout {
 		t.Error("a second reading lost the page")
 	}
 
 	// Going into a process takes the keys, and the workspace is that
 	// process: the next reading does not pull the page back over it.
 	m = panel()
-	m.looking = true
+	m.bay.readout = true
 	next, _ = m.Update(reachedMsg{"ttys002"})
 	m = next.(model)
 	if m.focused {
 		t.Error("reaching a process left the keys on the panel")
 	}
-	m.looking = false
-	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); next.(model).looking {
+	m.bay.readout = false
+	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); next.(model).bay.readout {
 		t.Error("the page took the workspace back from a process the operator is in")
 	}
 
 	// The keys coming back bring it back.
 	next, cmd = m.Update(tea.FocusMsg{})
-	if m = next.(model); !m.focused || !m.looking || cmd == nil {
-		t.Errorf("the keys coming back did not bring the page: focused %v, looking %v", m.focused, m.looking)
+	if m = next.(model); !m.focused || !m.bay.readout || cmd == nil {
+		t.Errorf("the keys coming back did not bring the page: focused %v, looking %v", m.focused, m.bay.readout)
 	}
 
 	// There is no key for the page and none is needed: i is a letter
@@ -472,7 +472,7 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 	// workspace holding that instead.
 	m.cursor = 11
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "i"}))
-	if m = next.(model); !m.looking {
+	if m = next.(model); !m.bay.readout {
 		t.Error("i took the page away")
 	}
 }

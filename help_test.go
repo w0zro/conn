@@ -241,7 +241,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 
 	// Asked from the workspace: back into that pane.
 	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual, from: "%4"},
-		panes: panes, lastIn: "ttys009"}
+		panes: panes, bay: bay{work: "ttys009"}}
 	next, cmd := m.leftDetour(false)
 	got := next.(model)
 	if got.detour.to == toManual || got.detour.from != "" {
@@ -254,7 +254,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 	// Asked from the panel: the keys stay on the panel, and the pane the
 	// manual was standing in front of is not gone back into.
 	m = model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual},
-		panes: panes, lastIn: "ttys011"}
+		panes: panes, bay: bay{work: "ttys011"}}
 	next, cmd = m.leftDetour(false)
 	if got := next.(model); got.detour.to == toManual {
 		t.Error("leaving from the panel left conn helping")
@@ -279,7 +279,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	work := pane{id: "%2", tty: "ttys009"}
 	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual},
-		lastIn: "ttys009", panes: map[string]pane{"ttys009": work}}
+		bay: bay{work: "ttys009"}, panes: map[string]pane{"ttys009": work}}
 	next, cmd := m.key("alt+esc")
 	got := next.(model)
 	if got.detour.to == toManual {

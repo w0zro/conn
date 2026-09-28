@@ -153,11 +153,6 @@ type model struct {
 	// The table's record behind each row as last read, published with
 	// the rows for the page; see cursor.go.
 	records map[int]record
-	// Whether the readout is in the bay, so the page is not asked for
-	// twice. conn sets it when it puts the page there or takes it away,
-	// and a reading corrects it — asking tmux on every reading would be
-	// a process for something conn already knows.
-	looking bool
 	// The manual or the settings, where one is the thing in the
 	// workspace; see detour.go.
 	detour detour
@@ -227,10 +222,7 @@ type model struct {
 	inside bool            // this conn is the panel of the server's home window
 	self   string          // this binary, for the hold
 	panes  map[string]pane // the server's panes by terminal, as last read
-	bay    string          // the terminal in the bay, as last read
-	// The terminal that was in the bay before that one, which is where
-	// the panel key pressed on the panel goes back to.
-	lastBay string
+	bay    bay             // what is in the bay and what it has held; see bay.go
 
 	// What docker last said, and the feed that says it. The containers
 	// are read beside the process table rather than in it, so a reading
@@ -250,12 +242,6 @@ type model struct {
 	// What brew last said of its services, merged into every reading
 	// while any project declares one; see brew.go.
 	brews []brewService
-	// The last terminal the workspace held that was work: where esc
-	// goes back into. It is not the bay, because while the keys are on
-	// the panel the page is in the bay and the work has been put back
-	// in a window of its own; it is what the bay held before the page
-	// borrowed it, which is the process the operator was last in.
-	lastIn string
 }
 
 // newModel is conn on a ground: drawn in that ground's palette on the
@@ -457,17 +443,17 @@ func (m model) readProcesses() tea.Cmd {
 			msg.projects = fold(projects)
 		}
 		if srv != nil {
-			if bay, ok, err := srv.bay(); err == nil && !ok {
+			if in, ok, err := srv.bay(); err == nil && !ok {
 				msg.noBay = true
 			} else if ok {
-				msg.bay, msg.bayDead, msg.bayReadout = bay.tty, bay.dead, bay.readout
+				msg.bay, msg.bayDead, msg.bayReadout = in.tty, in.dead, in.readout
 				switch {
-				case bay.help:
+				case in.help:
 					msg.bayDetour = toManual
-				case bay.settings:
+				case in.settings:
 					msg.bayDetour = toSettings
 				}
-				msg.bayActive = bay.active
+				msg.bayActive = in.active
 			}
 		}
 		return msg
@@ -1009,7 +995,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The panel holds its width through a resize of the window, once it
 		// is a panel: with the bay beside it, in the processes view or the
 		// list.
-		if m.inside && m.view != viewConsole && m.bay != "" && m.width != panelWidth {
+		if m.inside && m.view != viewConsole && m.bay.tty != "" && m.width != panelWidth {
 			return m, m.serverCmd(func() error { return m.srv.holdPanel() })
 		}
 	case stationMsg:
@@ -1025,8 +1011,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The shell is in the bay; the table will have it in a moment, and
 		// the cursor goes to it then. Until then the processes view reads
 		// soon.
-		m = m.slotted(msg.shell.pane.tty)
-		m.looking, m.focused = false, false
+		m.bay.slotted(msg.shell.pane.tty)
+		m.focused = false
 		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
 		m.processesGen++
 		return m, m.readProcesses()
@@ -1083,7 +1069,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// way it goes. The reading is taken again from here so a reading
 		// already in flight, which saw the bay as it was before, cannot
 		// land afterwards and say otherwise.
-		m.looking = msg.on
+		m.bay.readout = msg.on
 		m.processesGen++
 		return m, m.readProcesses()
 	case tea.FocusMsg:
@@ -1110,8 +1096,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// row while the cursor sat on another — the sub-process looking
 		// picked out for being the one thing in the pane that is not
 		// what is in the bay.
-		m = m.slotted(msg.tty)
-		m.looking = false
+		m.bay.slotted(msg.tty)
 		if pid, at, ok := headOf(m.projects, msg.tty); ok {
 			m.cursor, m.cursorAt = pid, at
 		}
@@ -1143,9 +1128,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.rooted != nil {
 			m = m.rooted(*msg.rooted)
 		}
-		m.projects, m.panes, m.bay, m.processesErr = msg.projects, msg.panes, msg.bay, msg.err
+		m.projects, m.panes, m.processesErr = msg.projects, msg.panes, msg.err
 		m.records, m.declared, m.tree = msg.records, msg.declared, msg.tree
-		m.looking, m.detour.to = msg.bayReadout, msg.bayDetour
+		m.bay.read(msg.bay, msg.panes[msg.bay], msg.bayReadout)
+		m.detour.to = msg.bayDetour
 		// Where the keys are, by the server's own word. conn is told by
 		// the terminal when they leave, and knows on its own when its
 		// reaching sent them away, but a reading can land between the
@@ -1156,13 +1142,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// that does not, whatever conn has yet been told.
 		if msg.bayActive {
 			m.focused = false
-		}
-		// Work in the workspace is what esc goes back into, so a conn
-		// that came up to a bay it did not fill itself still knows where
-		// the operator was. The page and a hold are conn's own furniture
-		// and leave standing whatever the bay held before them.
-		if reachable(msg.panes[msg.bay]) {
-			m.lastIn = msg.bay
 		}
 		if msg.trace != nil {
 			m.trace = *msg.trace
@@ -1446,32 +1425,6 @@ func (m model) arrived(from string) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// slotted takes a terminal into the bay and remembers the one it is
-// replacing, so there is an other to go back to.
-//
-// Only a process is remembered. A hold standing in an empty bay and
-// the readout are conn's own furniture rather than somewhere you were
-// working, and going back to one would be going back to nothing.
-func (m model) slotted(tty string) model {
-	// The other is the work before this work, and it is read off lastIn
-	// rather than off the bay. The bay is not where the last thing you
-	// were in has been since you left it: the page takes the workspace
-	// the moment the keys reach the panel, so by the time anything is
-	// opened or reached the bay is the page, and a rule that refused to
-	// remember furniture — rightly — never remembered anything at all.
-	// The key did nothing for the whole of the page's life.
-	//
-	// lastIn is only ever work, being set here and, on a reading, only
-	// for a bay that can be reached. So one holds what you are in and
-	// the other what you were in before it, and the page cannot get
-	// between them.
-	if m.lastIn != "" && m.lastIn != tty {
-		m.lastBay = m.lastIn
-	}
-	m.bay, m.lastIn = tty, tty
-	return m
-}
-
 // toOther goes to the process that was in the bay before the one in it
 // now, and takes the one in it now as the one to come back to — so
 // pressed twice it is where it started, and pressed while working is
@@ -1488,10 +1441,10 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 	// Asked as reachable and not merely as held, the way every other
 	// road into a pane asks it: a pane whose process has ended is an id
 	// conn still has and nowhere to be sent.
-	if !m.inside || m.lastBay == "" || !reachable(m.panes[m.lastBay]) {
+	if !m.inside || m.bay.other == "" || !reachable(m.panes[m.bay.other]) {
 		return m, nil
 	}
-	cmds := []tea.Cmd{m.reach(m.panes[m.lastBay], m.lastBay)}
+	cmds := []tea.Cmd{m.reach(m.panes[m.bay.other], m.bay.other)}
 	if m.view == viewConsole {
 		m.view, m.entering = viewProcesses, false
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
@@ -1582,14 +1535,14 @@ func (m model) paneByID(id string) (pane, string, bool) {
 // work that has since ended, every row outside conn's own server — it
 // does nothing, and the cursor stays where the operator left it.
 func (m model) backIn() (tea.Model, tea.Cmd) {
-	if !m.inside || m.lastIn == "" {
+	if !m.inside || m.bay.work == "" {
 		return m, nil
 	}
-	p, ok := m.panes[m.lastIn]
+	p, ok := m.panes[m.bay.work]
 	if !ok || !reachable(p) {
 		return m, nil
 	}
-	return m, m.reach(p, m.lastIn)
+	return m, m.reach(p, m.bay.work)
 }
 
 // toProcesses leaves the list for the processes view, which starts
@@ -1619,7 +1572,7 @@ func (m model) keepingPage() (tea.Model, tea.Cmd) {
 	// under the cursor while one of them is up, which would stop this
 	// on its own; saying it plainly as well means the page cannot come
 	// back the moment the cursor does.
-	if !m.inside || m.looking || m.detour.to != noDetour || !m.focused {
+	if !m.inside || m.bay.readout || m.detour.to != noDetour || !m.focused {
 		return m, nil
 	}
 	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions {
@@ -1628,7 +1581,7 @@ func (m model) keepingPage() (tea.Model, tea.Cmd) {
 	if m.subject().none() {
 		return m, nil
 	}
-	m.looking = true
+	m.bay.readout = true
 	return m, m.openReadout()
 }
 

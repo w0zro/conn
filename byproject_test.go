@@ -58,6 +58,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// stamped with its word, and what is down saying so. The file of
 	// record is the panel's own width.
 	b := composeProcesses(fold(out), map[string]tmux.Pane{"ttys001": {ID: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
+	b.digits = true // the keys on the panel, where the contacts' digits are drawn
 	b.lit = true
 	rows := drawProcesses(b, 5, tmux.PanelWidth, 30, plain)
 	text := texts(rows)
@@ -539,6 +540,7 @@ func TestAMarkIsTheKindAndTheKindsAreDistinct(t *testing.T) {
 		{PID: 6, Kind: work.KindRun, Typed: "go build ./...", TTY: "ttys003", Status: work.StatusWorking},
 	}}})
 	b := composeProcesses(folded, nil, "", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
+	b.digits = true
 	text := texts(drawProcesses(b, 0, tmux.PanelWidth, 20, plain))
 	// The contact first, then the shell that is only a shell, then the
 	// work — the shell standing for vim among it, wearing the editor's

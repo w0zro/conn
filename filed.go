@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"strconv"
 	"strings"
 
@@ -208,12 +207,19 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			// is not one. Nothing is indented here — the rows are a list
 			// in the panel's own order, by kind; see byKind.
 			// The digit that goes to a contact stands between the mark
-			// and the command. Where any row has one, every row makes
-			// the room, so the commands keep their one column.
+			// and the command, a step under the mark: it is a key to
+			// press, and the mark is what the row is. Where any row has
+			// one, every row makes the room, whether or not the digits
+			// are drawn, so the commands keep their one column and do
+			// not step as the keys come and go.
 			if numbers {
+				num := " "
+				if b.digits && r.num != "" {
+					num = r.num
+				}
 				l.add(tone, markOf(r.stands))
 				l.add("", " ")
-				l.add(p.gray, cmp.Or(r.num, " "))
+				l.add(p.faint+p.dim, num)
 				l.add("", " ")
 			} else {
 				l.dot(tone, markOf(r.stands))

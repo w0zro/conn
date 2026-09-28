@@ -164,7 +164,7 @@ func TestProcessesLaysOut(t *testing.T) {
 		"\n         SHELL   bash -c go test ./...",
 		"\n           RUN     go test ./...",
 		"\n       EDITOR  vim notes.md",
-		"▸    0 CONTACT claude",
+		"▸      CONTACT claude",
 	} {
 		if !strings.Contains(text, s) {
 			t.Errorf("the view lacks %q:\n%s", s, text)

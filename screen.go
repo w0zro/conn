@@ -22,6 +22,7 @@ import (
 // sequences at all: the console is text, for a pipe and for the tests.
 type palette struct {
 	ground, border, ink, gray, faint, orange, parchment, bold, chip string
+	dim                                                             string // the terminal's own dimming, laid over an ink: a step under the faint
 	surface                                                         string // one step off the ground: the panel's own
 	edge, running, struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
 	selection                                                       string // the ground a chosen row sits on
@@ -56,6 +57,7 @@ func colored(g theme.Ground) palette {
 		orange:    inkIn(g.Accent),
 		parchment: inkIn(g.Parchment),
 		bold:      ansi.Style{}.Bold().String(),
+		dim:       ansi.Style{}.Faint().String(),
 		chip:      ansi.Style{}.BackgroundColor(theme.RGB(g.Accent)).ForegroundColor(g.Ground).Bold().String(),
 		selection: groundIn(g.Border),
 		surface:   groundIn(g.Surface),

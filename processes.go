@@ -52,6 +52,7 @@ type processesReport struct {
 	inside   bool   // conn is in its server, and rows can be reached
 	filed    bool   // the panel's drawing, folded and under eyebrows; z draws the tree
 	lit      bool   // the annunciators' lit half; see the waiting word below
+	digits   bool   // the contacts' digits are keys now: the processes view has the keys, and nothing is asked
 }
 
 type projectBlock struct {
@@ -603,9 +604,9 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			indent := min((bp.nest+1+r.depth)*treeIndent, max(commandW-4, 0))
 			// The digit that goes to a contact stands in the indent, a
 			// column of air before the kind word, which every row has.
-			if r.num != "" && indent >= 2 {
+			if b.digits && r.num != "" && indent >= 2 {
 				l.to(indent - 2)
-				l.add(p.gray, r.num)
+				l.add(p.faint+p.dim, r.num)
 			}
 			l.to(indent)
 			l.add(kind, fit(r.kind, kindCol-1, false))
@@ -876,6 +877,11 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 func (m model) processesReport() processesReport {
 	w := composeProcesses(m.projects, m.panes, m.bay.tty, m.roots.real, m.roots.isProject, m.head.Login.Home, m.now, m.processesErr, m.dockerStalled, !m.full)
 	w.inside, w.lit, w.notice = m.inside, m.lit, m.notice
+	// A digit is drawn only where pressing it goes somewhere: the keys
+	// on the panel, in this view, with no question armed to take them.
+	// While the keys are in a process the digit is two keys away, and
+	// the rows say nothing a press there would do.
+	w.digits = m.view == viewProcesses && m.focused && m.kill == nil
 	w.spin = int(m.now.UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
 	return w
 }

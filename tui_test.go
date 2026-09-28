@@ -468,6 +468,21 @@ func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 		}
 	}
 
+	// With the keys in a process, or a question armed, a digit is not a
+	// key, and the rows do not say one; the cell stays, so nothing moves.
+	for _, away := range []func(*model){
+		func(m *model) { m.focused = false },
+		func(m *model) { m.kill = &pendingKill{} },
+	} {
+		n := m
+		away(&n)
+		for _, r := range drawProcesses(n.processesReport(), n.cursor, tmux.PanelWidth, 0, plain) {
+			if r.pid == 22 && strings.Contains(r.text, markContact+" 0") {
+				t.Errorf("a digit drawn where it is not a key: %q", r.text)
+			}
+		}
+	}
+
 	// Ten contacts less one: 9 has none to go to.
 	m.projects[0].Entries = tenth[:7]
 	press('9')

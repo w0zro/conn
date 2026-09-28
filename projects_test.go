@@ -121,17 +121,6 @@ func TestTheRootsComeFromTheEnvironment(t *testing.T) {
 	}
 }
 
-// roots is the roots for a home that was meant to be read without
-// trouble; a test that is about the trouble asks projectRoots itself.
-func roots(t *testing.T, home string) []string {
-	t.Helper()
-	out, err := projectRoots(home)
-	if err != nil {
-		t.Fatalf("the roots could not be read: %v", err)
-	}
-	return out
-}
-
 // real is a directory as the walk answers it, symlinks resolved: on
 // macOS a temporary directory is reached through one.
 func real(t *testing.T, dir string) string {
@@ -418,5 +407,32 @@ func TestTheLiveListMatchesTheGolden(t *testing.T) {
 		if strings.Contains(r.text, "WAITING") && !strings.Contains(r.text, "CONTACT") {
 			t.Errorf("the block landed on its own row: %q", r.text)
 		}
+	}
+}
+
+// Told nowhere to look, the projects view says so and says what to do.
+// An empty list is not an answer here — it is the same empty list a
+// machine with no checkouts would show, and the two are not the same
+// thing at all.
+func TestTheProjectsViewSaysWhenConnHasNoRoots(t *testing.T) {
+	b := composeProjects(nil, "", nil, "/Users/w0zro", false, "")
+	if !strings.Contains(b.err, "no roots") {
+		t.Errorf("the view says %q", b.err)
+	}
+	// The panel is what this is read in, and it is narrow. A chip wider
+	// than the pane it is drawn in runs off the edge.
+	for _, row := range drawProjects(b, 0, panelWidth, 12, plain) {
+		if n := utf8.RuneCountInString(row.text); n > panelWidth {
+			t.Errorf("a row is %d wide in a %d panel: %q", n, panelWidth, row.text)
+		}
+	}
+	// A walk that failed has its own words, and keeps them.
+	b = composeProjects(nil, "", nil, "/Users/w0zro", false, "THE ROOTS COULD NOT BE WALKED: NO SUCH DIRECTORY")
+	if !strings.Contains(b.err, "COULD NOT BE WALKED") {
+		t.Errorf("the walk's own trouble was overwritten: %q", b.err)
+	}
+	// With roots, the view says nothing of its own.
+	if b := composeProjects(nil, "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, ""); b.err != "" {
+		t.Errorf("a conn with roots says %q", b.err)
 	}
 }

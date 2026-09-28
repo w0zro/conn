@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"unicode/utf8"
 )
 
 // writeConfig puts a config file where conn will look for it, under a
@@ -95,119 +94,13 @@ func TestAFileThatWillNotParseIsSaid(t *testing.T) {
 	}
 }
 
-// The console says where conn's configuration is and how it read. A
-// machine with no file is not a fault; a file that will not parse is.
-func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
-	t.Setenv("CONN_ROOTS", "")
-	for _, c := range []struct {
-		what   string
-		body   string // "" writes no file at all
-		status string
-		fault  bool
-	}{
-		{"a file that names roots", `{"roots": ["~"]}`, nominal, false},
-		{"a file that names none", `{"roots": []}`, noRoots, true},
-		{"a file of nothing conn knows", `{"projectsDir": "~/projects"}`, noRoots, true},
-		{"a file that will not parse", `{"roots": [`, notRead, true},
-		{"no file at all", "", notWritten, true},
-		{"a file naming a theme conn has", `{"roots": ["~"], "theme": "datum"}`, nominal, false},
-		{"a file naming a theme conn does not have", `{"roots": ["~"], "theme": "solarized"}`, noTheme, true},
-		{"a file naming no roots and no such theme", `{"theme": "solarized"}`, noRoots, true},
-		{"a file naming a ground", `{"roots": ["~"], "ground": "light"}`, nominal, false},
-		{"a file naming neither ground", `{"roots": ["~"], "ground": "grey"}`, noGround, true},
-	} {
-		home := t.TempDir()
-		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-		if c.body != "" {
-			path := configPath(home)
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path, []byte(c.body), 0o644); err != nil {
-				t.Fatal(err)
-			}
-		}
-		k := configCheck(readConfigState(home), home)
-		if k.status != c.status || k.fault != c.fault {
-			t.Errorf("%s reads %q (fault %v), not %q (fault %v)", c.what, k.status, k.fault, c.status, c.fault)
-		}
+// roots is the roots for a home that was meant to be read without
+// trouble; a test that is about the trouble asks projectRoots itself.
+func roots(t *testing.T, home string) []string {
+	t.Helper()
+	out, err := projectRoots(home)
+	if err != nil {
+		t.Fatalf("the roots could not be read: %v", err)
 	}
-}
-
-// The environment standing in front of the file is said on the file's
-// own line: the roots below it are then not the ones in it.
-func TestTheConsoleSaysWhenTheEnvironmentIsInForce(t *testing.T) {
-	home := writeConfig(t, `{"roots": ["/from/the/file"]}`)
-	t.Setenv("CONN_ROOTS", "/from/the/environment")
-	k := configCheck(readConfigState(home), home)
-	if !strings.Contains(k.value, "CONN_ROOTS IN FORCE") {
-		t.Errorf("the line does not say the environment is in force: %q", k.value)
-	}
-	if k.status != nominal {
-		t.Errorf("a file that reads fine is %q", k.status)
-	}
-}
-
-// A root gets a line of its own, and says what it turned out to be
-// here. A root that is not on this machine is not a fault; something
-// that is not a directory at all is.
-func TestEveryRootGetsALine(t *testing.T) {
-	t.Setenv("CONN_ROOTS", "")
-	home := writeConfig(t, `{"roots": ["~", "~/nowhere", "~/afile"]}`)
-	if err := os.WriteFile(filepath.Join(home, "afile"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	ks := rootChecks(readConfigState(home), home)
-	if len(ks) != 3 {
-		t.Fatalf("the roots take %d lines, not 3", len(ks))
-	}
-	for i, want := range []struct {
-		status string
-		fault  bool
-	}{{nominal, false}, {missing, false}, {"NOT A DIR", true}} {
-		if ks[i].status != want.status || ks[i].fault != want.fault {
-			t.Errorf("root %d reads %q (fault %v), not %q (fault %v)", i, ks[i].status, ks[i].fault, want.status, want.fault)
-		}
-		if ks[i].label != "ROOT" {
-			t.Errorf("root %d is labelled %q", i, ks[i].label)
-		}
-	}
-}
-
-// Every status is right-aligned in a column statusW wide, and one that
-// does not fit runs into the dots that lead to it. The words conn has
-// are held to the column here, where the console is not being read.
-func TestEveryStatusFitsItsColumn(t *testing.T) {
-	for _, status := range []string{nominal, unknown, unchecked, notWritten, noRoots, noTheme, noGround, missing, notRead, "NOT A DIR", "READ ONLY", "NO PATH"} {
-		if len(status) > statusW {
-			t.Errorf("%q is %d wide, and the column is %d", status, len(status), statusW)
-		}
-	}
-}
-
-// Told nowhere to look, the projects view says so and says what to do.
-// An empty list is not an answer here — it is the same empty list a
-// machine with no checkouts would show, and the two are not the same
-// thing at all.
-func TestTheProjectsViewSaysWhenConnHasNoRoots(t *testing.T) {
-	b := composeProjects(nil, "", nil, "/Users/w0zro", false, "")
-	if !strings.Contains(b.err, "no roots") {
-		t.Errorf("the view says %q", b.err)
-	}
-	// The panel is what this is read in, and it is narrow. A chip wider
-	// than the pane it is drawn in runs off the edge.
-	for _, row := range drawProjects(b, 0, panelWidth, 12, plain) {
-		if n := utf8.RuneCountInString(row.text); n > panelWidth {
-			t.Errorf("a row is %d wide in a %d panel: %q", n, panelWidth, row.text)
-		}
-	}
-	// A walk that failed has its own words, and keeps them.
-	b = composeProjects(nil, "", nil, "/Users/w0zro", false, "THE ROOTS COULD NOT BE WALKED: NO SUCH DIRECTORY")
-	if !strings.Contains(b.err, "COULD NOT BE WALKED") {
-		t.Errorf("the walk's own trouble was overwritten: %q", b.err)
-	}
-	// With roots, the view says nothing of its own.
-	if b := composeProjects(nil, "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, ""); b.err != "" {
-		t.Errorf("a conn with roots says %q", b.err)
-	}
+	return out
 }

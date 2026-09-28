@@ -77,14 +77,6 @@ func socketPath(home string) string {
 	return filepath.Join(stateHome(home), "conn", "tmux.sock")
 }
 
-// stateHome is where state goes: XDG_STATE_HOME, or ~/.local/state.
-func stateHome(home string) string {
-	if dir := os.Getenv("XDG_STATE_HOME"); dir != "" {
-		return dir
-	}
-	return filepath.Join(home, ".local", "state")
-}
-
 // insideConn says whether this process runs in a pane of conn's server:
 // tmux tells its panes the socket in TMUX, before the first comma.
 func insideConn(tmuxEnv, socket string) bool {

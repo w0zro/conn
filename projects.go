@@ -61,50 +61,6 @@ func (p projectRow) words() string {
 	return p.name
 }
 
-// roots are the directories conn looks for projects under: CONN_ROOTS,
-// a list in the path list separator's spelling, and otherwise the ones
-// the config file names. The environment is asked first because it is
-// the nearer word — a conn started for one job, on one set of roots,
-// ahead of the file that says what is usually meant. A root that is not
-// on this machine is still a root; the walk decides whether it is
-// there, not the environment.
-//
-// Told neither, conn has no roots and walks nothing. There was a
-// ~/projects underneath this and there is not any more: a default is a
-// guess at where somebody keeps their work, and a wrong guess is
-// invisible, because conn walks the wrong tree and every line of the
-// console still reads nominal. Where conn has not been told, it says so
-// and waits, which is something the operator can see and put right.
-//
-// A config file that will not parse is an error and no roots. The file
-// was meant to be read, it could not be, and conn is not going to
-// invent what it was probably about to say.
-func projectRoots(home string) ([]string, error) {
-	roots, _, err := resolveRoots(home)
-	return roots, err
-}
-
-// splitRoots is a list of roots as the environment writes one, in the
-// path list separator's spelling.
-func splitRoots(list, home string) []string {
-	if list == "" {
-		return nil
-	}
-	return cleanRoots(filepath.SplitList(list), home)
-}
-
-// cleanRoots is the roots as conn will walk them: the blanks dropped,
-// and a leading ~ made the home it stands for.
-func cleanRoots(roots []string, home string) []string {
-	var out []string
-	for _, d := range roots {
-		if d = strings.TrimSpace(d); d != "" {
-			out = append(out, expandHome(d, home))
-		}
-	}
-	return out
-}
-
 // realRoots is the roots as the process table has them. A root reached
 // through a symlink is one name for a directory and lsof answers with
 // the other, so the two are made the same name before anything is

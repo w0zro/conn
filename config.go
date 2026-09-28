@@ -57,17 +57,6 @@ func groundNamed(name string) (dark, ok bool) {
 	return false, false
 }
 
-// configTheme is the theme the file names, when conn has one by that
-// name, and conn's own otherwise: a file that cannot be read is the
-// console's to report, not a reason to come up in nothing.
-func configTheme(home string) string {
-	c, _ := readConfig(home)
-	if _, ok := themeNamed(c.Theme); ok {
-		return c.Theme
-	}
-	return defaultTheme
-}
-
 // configHome is where a program's configuration goes: XDG_CONFIG_HOME,
 // or ~/.config. conn keeps its own under here, and finds other
 // programs' directories the same way when it has something to write
@@ -158,11 +147,9 @@ type configState struct {
 	// since the environment standing in front of it does not make an
 	// unread file any less of a mistake.
 	names bool
-	// theme is the theme the file names, as written, and noSuchTheme
-	// whether conn has none by that name. A file naming none means
-	// conn's own, which is not a mistake.
-	theme       string
-	noSuchTheme bool
+	// theme is the theme the file names, as written. A file naming none
+	// means conn's own, which is not a mistake.
+	theme string
 	// ground is the ground the file names, as written, and
 	// noSuchGround whether it is a word conn knows. A file naming none
 	// means the terminal's own, which is not a mistake.
@@ -195,9 +182,6 @@ func readConfigState(home string) configState {
 	s.err = err
 	s.names = len(cleanRoots(c.Roots, home)) > 0
 	s.theme = c.Theme
-	if _, ok := themeNamed(c.Theme); c.Theme != "" && !ok {
-		s.noSuchTheme = true
-	}
 	s.ground = c.Ground
 	if _, ok := groundNamed(c.Ground); c.Ground != "" && !ok {
 		s.noSuchGround = true
@@ -296,4 +280,64 @@ func writeSetting(home, key string, set json.RawMessage) error {
 		return err
 	}
 	return os.WriteFile(path, append(out, '\n'), 0o644)
+}
+
+// roots are the directories conn looks for projects under: CONN_ROOTS,
+// a list in the path list separator's spelling, and otherwise the ones
+// the config file names. The environment is asked first because it is
+// the nearer word — a conn started for one job, on one set of roots,
+// ahead of the file that says what is usually meant. A root that is not
+// on this machine is still a root; the walk decides whether it is
+// there, not the environment.
+//
+// Told neither, conn has no roots and walks nothing. There was a
+// ~/projects underneath this and there is not any more: a default is a
+// guess at where somebody keeps their work, and a wrong guess is
+// invisible, because conn walks the wrong tree and every line of the
+// console still reads nominal. Where conn has not been told, it says so
+// and waits, which is something the operator can see and put right.
+//
+// A config file that will not parse is an error and no roots. The file
+// was meant to be read, it could not be, and conn is not going to
+// invent what it was probably about to say.
+func projectRoots(home string) ([]string, error) {
+	roots, _, err := resolveRoots(home)
+	return roots, err
+}
+
+// splitRoots is a list of roots as the environment writes one, in the
+// path list separator's spelling.
+func splitRoots(list, home string) []string {
+	if list == "" {
+		return nil
+	}
+	return cleanRoots(filepath.SplitList(list), home)
+}
+
+// cleanRoots is the roots as conn will walk them: the blanks dropped,
+// and a leading ~ made the home it stands for.
+func cleanRoots(roots []string, home string) []string {
+	var out []string
+	for _, d := range roots {
+		if d = strings.TrimSpace(d); d != "" {
+			out = append(out, expandHome(d, home))
+		}
+	}
+	return out
+}
+
+// tilde writes a path under home from ~.
+func tilde(path, home string) string {
+	if home != "" && (path == home || strings.HasPrefix(path, home+"/")) {
+		return "~" + strings.TrimPrefix(path, home)
+	}
+	return path
+}
+
+// stateHome is where state goes: XDG_STATE_HOME, or ~/.local/state.
+func stateHome(home string) string {
+	if dir := os.Getenv("XDG_STATE_HOME"); dir != "" {
+		return dir
+	}
+	return filepath.Join(home, ".local", "state")
 }

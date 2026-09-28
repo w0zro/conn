@@ -371,7 +371,7 @@ func configCheck(c configState, home string) check {
 		k.status, k.fault = notWritten, true
 	case !c.names:
 		k.status, k.fault = noRoots, true
-	case c.noSuchTheme:
+	case c.theme != "" && !themeKnown(c.theme):
 		k.status, k.fault = noTheme, true
 	case c.noSuchGround:
 		k.status, k.fault = noGround, true
@@ -546,14 +546,6 @@ func join(sep string, parts ...string) string {
 		}
 	}
 	return strings.Join(kept, sep)
-}
-
-// tilde writes a path under home from ~.
-func tilde(path, home string) string {
-	if home != "" && (path == home || strings.HasPrefix(path, home+"/")) {
-		return "~" + strings.TrimPrefix(path, home)
-	}
-	return path
 }
 
 // zulu writes a time the way the old systems did, in UTC.

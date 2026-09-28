@@ -65,6 +65,12 @@ func themeNamed(name string) (theme, bool) {
 	return theme{}, false
 }
 
+// themeKnown says whether conn has a theme by that name.
+func themeKnown(name string) bool {
+	_, ok := themeNamed(name)
+	return ok
+}
+
 // on is the theme on one ground: dark, or light.
 func (t theme) on(dark bool) ground {
 	if dark {
@@ -233,4 +239,15 @@ var connTheme = theme{
 // is read here too.
 func (g ground) dark() bool {
 	return isDark(g.ground)
+}
+
+// configTheme is the theme the file names, when conn has one by that
+// name, and conn's own otherwise: a file that cannot be read is the
+// console's to report, not a reason to come up in nothing.
+func configTheme(home string) string {
+	c, _ := readConfig(home)
+	if _, ok := themeNamed(c.Theme); ok {
+		return c.Theme
+	}
+	return defaultTheme
 }

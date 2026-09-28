@@ -348,12 +348,12 @@ func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
 	// The panel writes the band and leaves the bar to them.
 	p := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toSettings}}
 	p, _ = p.saying()
-	if p.saidBar != "" {
-		t.Errorf("the panel wrote the bar while the settings had the keys: %q", p.saidBar)
+	if p.said.bar != "" {
+		t.Errorf("the panel wrote the bar while the settings had the keys: %q", p.said.bar)
 	}
 	p.detour.to = noDetour
 	p, _ = p.saying()
-	if p.saidBar == "" {
+	if p.said.bar == "" {
 		t.Error("with the settings gone the panel does not write the bar again")
 	}
 }

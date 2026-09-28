@@ -1237,7 +1237,8 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	// turning already for the row at work, so what a key asks for here
 	// is the key's own asking and not the line's first telling or the
 	// spinner's first frame.
-	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
+	said := m.telling()
+	m.said = &said
 	m.turning = m.working()
 
 	press := func(m model, k string) (model, tea.Cmd) {

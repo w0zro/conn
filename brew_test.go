@@ -160,7 +160,8 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 		{pid: 24422, kind: kindService, command: "postgresql@14", brew: "postgresql@14", declared: markDeclared("/w/a", "db"), cwd: "/w/a", status: statusActive, ports: []string{"5432"}},
 		{pid: -7, kind: kindService, command: "herdr", brew: "herdr", declared: markDeclared("/w/a", "herd"), cwd: "/w/a", status: statusDown},
 	}}}
-	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, m.keys(), m.station(), m.upWord(), m.bar()
+	said := m.telling()
+	m.said = &said
 	has := func(bar, key, does string) bool {
 		return strings.Contains(bar, key+" #[nobold fg="+connTheme.dark.gray+"]"+strings.ToLower(does))
 	}

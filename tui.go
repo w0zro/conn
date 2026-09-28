@@ -192,20 +192,13 @@ type model struct {
 	// focus does not leave conn guessing where they are.
 	focused  bool
 	entering bool // the console is waiting on a reading to go to the processes view
-	// Whether conn has written the status line once since it started,
-	// and the words it last put there, so each is written when it
-	// changes and not on every pass through Update.
-	// The option outlives the conn that set it — a reground respawns the
+	// The words conn last put on the status line, so they are written
+	// when they change and not on every pass through Update. The
+	// option outlives the conn that set it — a reground respawns the
 	// panel, and the fresh conn inherits whatever the last one left — so
-	// an empty saidKeys means "not written yet", not "the server says
-	// nothing", and the first writing goes out whatever it holds.
-	said     bool
-	saidKeys string
-	// And the station's own word, for the line to wear while the keys
-	// are off the panel; see station.
-	saidStation string
-	saidUp      string
-	saidBar     string
+	// nil means "not written yet", not "the server says nothing", and
+	// the first writing goes out whatever it holds.
+	said *band
 	// A shell conn has just opened: the pid the cursor goes to once the
 	// process table has it, and how long that is waited for.
 	awaited      int
@@ -680,7 +673,28 @@ func (m model) saying() (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	keys, station, up, bar := m.keys(), m.station(), m.upWord(), m.bar()
+	now := m.telling()
+	if m.said != nil && *m.said == now {
+		return m, nil
+	}
+	m.said = &now
+	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, m.g)
+	if m.detour.to == toSettings {
+		return m, func() tea.Msg { _ = srv.sayBand(now.keys, now.station, now.up, ident); return nil }
+	}
+	return m, func() tea.Msg { _ = srv.say(now.keys, now.station, now.up, now.bar, ident); return nil }
+}
+
+// A band is the words conn puts on the status line: its word for the
+// keys, the station's own word for while they are off the panel, the
+// clock, and the key bar.
+type band struct {
+	keys, station, up, bar string
+}
+
+// telling is the band as things stand.
+func (m model) telling() band {
+	b := band{keys: m.keys(), station: m.station(), up: m.upWord(), bar: m.bar()}
 	// The settings have the keys and say what the keys do there, the
 	// bar being the keys that work on the row under the cursor and the
 	// cursor being in that pane. The panel writes the rest of the line
@@ -689,17 +703,9 @@ func (m model) saying() (model, tea.Cmd) {
 	// the settings are done writes the panel's own again whatever it
 	// says.
 	if m.detour.to == toSettings {
-		bar = ""
+		b.bar = ""
 	}
-	if m.said && keys == m.saidKeys && station == m.saidStation && up == m.saidUp && bar == m.saidBar {
-		return m, nil
-	}
-	m.said, m.saidKeys, m.saidStation, m.saidUp, m.saidBar = true, keys, station, up, bar
-	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, m.g)
-	if m.detour.to == toSettings {
-		return m, func() tea.Msg { _ = srv.sayBand(keys, station, up, ident); return nil }
-	}
-	return m, func() tea.Msg { _ = srv.say(keys, station, up, bar, ident); return nil }
+	return b
 }
 
 // keys is what conn knows about its own keys, for the left of the

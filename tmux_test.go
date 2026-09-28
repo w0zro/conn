@@ -306,15 +306,15 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	quiet := m
 	quiet.projects[1].entries[0].status = statusIdle
 	still, _ := quiet.saying()
-	if waiting.saidKeys != still.saidKeys {
-		t.Errorf("a contact waiting changed the status line: %q against %q", waiting.saidKeys, still.saidKeys)
+	if waiting.said.keys != still.said.keys {
+		t.Errorf("a contact waiting changed the status line: %q against %q", waiting.said.keys, still.said.keys)
 	}
 
 	// The first writing goes out whatever the server holds: the option
 	// outlives the conn that set it, and a reground respawns the panel
 	// under a fresh one that has said nothing yet.
 	first := m
-	first.said, first.saidKeys = false, m.keys()
+	first.said = nil
 	if _, cmd := first.saying(); cmd == nil {
 		t.Error("a conn that has said nothing yet left the status line as it found it")
 	}

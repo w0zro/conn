@@ -13,8 +13,6 @@ import (
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/w0zro/conn/internal/config"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 // conn holds a tmux server of its own. The first conn brings it up with
@@ -64,8 +62,8 @@ type server struct {
 
 // findServer is the server as this machine has it: no tmux, no server.
 func findServer(home string) *server {
-	tmux := lookPath("tmux")
-	if tmux == "" {
+	tmux, err := exec.LookPath("tmux")
+	if err != nil {
 		return nil
 	}
 	return &server{tmux: tmux, socket: socketPath(home)}
@@ -1231,43 +1229,4 @@ func (s *server) down() error {
 		_ = os.Remove(theme.ModePath(s.socket))
 	}
 	return err
-}
-
-// takeDown is conn down: it takes the server down and says what went
-// with it, a line for each window and one for the server, the way
-// docker compose down does. With no server up it says so, and that is
-// not a failure. It answers what to say and whether it went well.
-func takeDown(srv *server, home string) (string, bool) {
-	if srv == nil {
-		return "conn: tmux is not on PATH; there is no server to take down\n", false
-	}
-	if !srv.up() {
-		return fmt.Sprintf("conn: no server up on %s\n", config.Tilde(srv.socket, home)), true
-	}
-	ws, err := srv.windows()
-	if err != nil {
-		return fmt.Sprintf("conn: %v\n", err), false
-	}
-	if err := srv.down(); err != nil {
-		return fmt.Sprintf("conn: %v\n", err), false
-	}
-	return downReport(ws, srv.socket, home), true
-}
-
-// downReport is what conn down says of what it ended.
-func downReport(ws []window, socket, home string) string {
-	var lines []string
-	for _, w := range ws {
-		lines = append(lines, "Window "+join("  ", w.name, config.Tilde(w.path, home)))
-	}
-	lines = append(lines, "Server "+config.Tilde(socket, home))
-	width := 0
-	for _, l := range lines {
-		width = max(width, ansi.StringWidth(l))
-	}
-	var b strings.Builder
-	for _, l := range lines {
-		fmt.Fprintf(&b, " ✔ %-*s  ended\n", width, l)
-	}
-	return b.String()
 }

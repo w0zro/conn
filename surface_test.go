@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -44,28 +42,4 @@ func TestTheSurfaceIsBetweenTheGroundAndTheBorder(t *testing.T) {
 	if got := plain.onSurface(); !got.plain || got.ground != "" {
 		t.Error("the plain palette took a ground")
 	}
-}
-
-// contrast is the WCAG ratio between two hexes, which is how every
-// color on a ground here was chosen.
-func contrast(a, b string) float64 {
-	lum := func(h string) float64 {
-		var r, g, bl int
-		if _, err := fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &bl); err != nil {
-			return 0
-		}
-		part := func(v int) float64 {
-			c := float64(v) / 255
-			if c <= 0.03928 {
-				return c / 12.92
-			}
-			return math.Pow((c+0.055)/1.055, 2.4)
-		}
-		return 0.2126*part(r) + 0.7152*part(g) + 0.0722*part(bl)
-	}
-	hi, lo := lum(a), lum(b)
-	if hi < lo {
-		hi, lo = lo, hi
-	}
-	return (hi + 0.05) / (lo + 0.05)
 }

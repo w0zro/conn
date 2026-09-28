@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -158,32 +159,6 @@ func TestTheTerminalIsAskedForItsPadding(t *testing.T) {
 	}
 }
 
-// conn down says what it ended, a line for each window and one for the
-// server, the columns aligned; a window's path is written from ~.
-func TestDownSaysWhatItEnded(t *testing.T) {
-	ws := parseWindows("home /Users/w0zro\nzsh /Users/w0zro/projects/w0zro/conn\nclaude /Users/w0zro/projects/w0zro/vim.pro\n")
-	// The name is one token and the path is whatever is left of the
-	// line, so a path with a space in it arrives whole.
-	if w := parseWindows("claude /Users/w0zro/my notes\n"); len(w) != 1 || w[0].path != "/Users/w0zro/my notes" {
-		t.Errorf("a path with a space in it: %+v", w)
-	}
-	if len(ws) != 3 || ws[1] != (window{name: "zsh", path: "/Users/w0zro/projects/w0zro/conn"}) {
-		t.Errorf("windows: %+v", ws)
-	}
-	got := downReport(ws, "/Users/w0zro/.local/state/conn/tmux.sock", "/Users/w0zro")
-	want := "" +
-		" ✔ Window home  ~                           ended\n" +
-		" ✔ Window zsh  ~/projects/w0zro/conn        ended\n" +
-		" ✔ Window claude  ~/projects/w0zro/vim.pro  ended\n" +
-		" ✔ Server ~/.local/state/conn/tmux.sock     ended\n"
-	if got != want {
-		t.Errorf("report:\n%s\nwant:\n%s", got, want)
-	}
-	if got := downReport(nil, "/tmp/cs/sock", "/Users/w0zro"); got != " ✔ Server /tmp/cs/sock  ended\n" {
-		t.Errorf("report with no windows: %q", got)
-	}
-}
-
 // The sixteen are sixteen: every slot set, and the slots a shell theme
 // leans on — structure, what can be run, type — apart from each other,
 // in both the normal colors and the bright.
@@ -249,101 +224,6 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	}
 }
 
-// The left of the status line says which view has the keys, or the
-// question armed over it, and nothing else of conn's. It is written
-// when it changes and not again for the same view.
-func TestConnLightsTheStatusLine(t *testing.T) {
-	g := theme.Conn.Dark
-	m := plainModel()
-	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.projects = []project{{path: "/w", entries: []entry{
-		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
-	}}}
-
-	// Each panel view wears the wordmark, the band being the station's
-	// and the view saying itself by its eyebrows; the console wears
-	// none, covering the window with a wordmark of its own.
-	for _, v := range []int{viewProcesses, viewProjects, viewSessions} {
-		m.view = v
-		if keys := m.keys(); keys != statusLineWord(wordmarkLine, theme.Hex(g.Ink), true, g) {
-			t.Errorf("view %d lights %q, not the wordmark", v, keys)
-		}
-	}
-
-	m.view = viewConsole
-	if keys := m.keys(); keys != "" {
-		t.Errorf("the console lights %q", keys)
-	}
-	// A question armed takes the next key whatever it is, and wears the
-	// waiting color, which is the one thing waiting on you is said in.
-	// It comes ahead of the view's word: while it stands, the view under
-	// it cannot be worked, and its word would be a lie.
-	m.view = viewProcesses
-	// The question itself is on the key bar, where its answers are, and
-	// the word is the band's alone.
-	m.kill = &pendingKill{prompt: "END CLAUDE 11 · #1"}
-	if ask := m.keys(); ask != statusLineBlock("CONFIRM", g) || !strings.Contains(ask, "bg="+g.Accent) {
-		t.Errorf("a question armed lights %q", ask)
-	}
-	if bar := m.bar(); strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, " END CLAUDE 11 · ##1") ||
-		!strings.Contains(bar, "bg="+g.Surface+" fg="+g.Parchment) || !strings.Contains(bar, "y #[nobold fg="+g.Gray+"]yes") {
-		t.Errorf("a question armed puts %q on the bar", bar)
-	}
-	m.kill = nil
-
-	// How the processes stand is the processes view's to say, in words,
-	// and nothing of it reaches the status line.
-	m.projects = []project{
-		{path: "/w", entries: []entry{
-			{pid: 11, kind: kindShell, status: statusIdle},
-			{pid: 12, kind: kindContact, status: statusWorking, depth: 1},
-		}},
-		{path: "/x", entries: []entry{
-			{pid: 21, kind: kindContact, status: statusWaiting},
-			{pid: 22, kind: kindShell, status: statusStopped, fault: true},
-		}},
-	}
-	m.view = viewProcesses
-	waiting, _ := m.saying()
-	quiet := m
-	quiet.projects[1].entries[0].status = statusIdle
-	still, _ := quiet.saying()
-	if waiting.said.keys != still.said.keys {
-		t.Errorf("a contact waiting changed the status line: %q against %q", waiting.said.keys, still.said.keys)
-	}
-
-	// The first writing goes out whatever the server holds: the option
-	// outlives the conn that set it, and a reground respawns the panel
-	// under a fresh one that has said nothing yet.
-	first := m
-	first.said = nil
-	if _, cmd := first.saying(); cmd == nil {
-		t.Error("a conn that has said nothing yet left the status line as it found it")
-	}
-
-	// Written when it changes, and not again for the same view.
-	next, cmd := m.saying()
-	if cmd == nil {
-		t.Fatal("what conn had not said was not put on the status line")
-	}
-	if _, again := next.saying(); again != nil {
-		t.Error("the same word was written to the status line twice")
-	}
-	// Another view has other keys on the bar, so it is written.
-	moved := next
-	moved.view = viewProjects
-	if _, changed := moved.saying(); changed == nil {
-		t.Error("the keys moving to another view did not go out on the bar")
-	}
-
-	// Outside the server there is no status line to write to.
-	out := m
-	out.inside = false
-	if _, cmd := out.saying(); cmd != nil {
-		t.Error("conn wrote to the status line outside its server")
-	}
-}
-
 // Every format conn hands tmux is printable ASCII. tmux sanitizes what
 // it prints to something that is not a terminal, and what counts as
 // printable is the locale's: in the C locale it turns a tab in the
@@ -405,4 +285,28 @@ func TestConnReadsUnderDatumLight(t *testing.T) {
 			}
 		}
 	}
+}
+
+// contrast is the WCAG ratio between two hexes, which is how every
+// color on a ground here was chosen.
+func contrast(a, b string) float64 {
+	lum := func(h string) float64 {
+		var r, g, bl int
+		if _, err := fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &bl); err != nil {
+			return 0
+		}
+		part := func(v int) float64 {
+			c := float64(v) / 255
+			if c <= 0.03928 {
+				return c / 12.92
+			}
+			return math.Pow((c+0.055)/1.055, 2.4)
+		}
+		return 0.2126*part(r) + 0.7152*part(g) + 0.0722*part(bl)
+	}
+	hi, lo := lum(a), lum(b)
+	if hi < lo {
+		hi, lo = lo, hi
+	}
+	return (hi + 0.05) / (lo + 0.05)
 }

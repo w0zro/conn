@@ -13,6 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	term "github.com/charmbracelet/x/term"
 )
 
@@ -305,3 +306,42 @@ func stdoutIsTerminal() bool { return term.IsTerminal(os.Stdout.Fd()) }
 
 // stdinIsTerminal says whether there is somebody there to answer.
 func stdinIsTerminal() bool { return term.IsTerminal(os.Stdin.Fd()) }
+
+// takeDown is conn down: it takes the server down and says what went
+// with it, a line for each window and one for the server, the way
+// docker compose down does. With no server up it says so, and that is
+// not a failure. It answers what to say and whether it went well.
+func takeDown(srv *server, home string) (string, bool) {
+	if srv == nil {
+		return "conn: tmux is not on PATH; there is no server to take down\n", false
+	}
+	if !srv.up() {
+		return fmt.Sprintf("conn: no server up on %s\n", config.Tilde(srv.socket, home)), true
+	}
+	ws, err := srv.windows()
+	if err != nil {
+		return fmt.Sprintf("conn: %v\n", err), false
+	}
+	if err := srv.down(); err != nil {
+		return fmt.Sprintf("conn: %v\n", err), false
+	}
+	return downReport(ws, srv.socket, home), true
+}
+
+// downReport is what conn down says of what it ended.
+func downReport(ws []window, socket, home string) string {
+	var lines []string
+	for _, w := range ws {
+		lines = append(lines, "Window "+join("  ", w.name, config.Tilde(w.path, home)))
+	}
+	lines = append(lines, "Server "+config.Tilde(socket, home))
+	width := 0
+	for _, l := range lines {
+		width = max(width, ansi.StringWidth(l))
+	}
+	var b strings.Builder
+	for _, l := range lines {
+		fmt.Fprintf(&b, " ✔ %-*s  ended\n", width, l)
+	}
+	return b.String()
+}

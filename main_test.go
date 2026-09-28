@@ -119,3 +119,29 @@ func TestConnWritesTheVimColorscheme(t *testing.T) {
 		t.Errorf("XDG_CONFIG_HOME was not used: %v", err)
 	}
 }
+
+// conn down says what it ended, a line for each window and one for the
+// server, the columns aligned; a window's path is written from ~.
+func TestDownSaysWhatItEnded(t *testing.T) {
+	ws := parseWindows("home /Users/w0zro\nzsh /Users/w0zro/projects/w0zro/conn\nclaude /Users/w0zro/projects/w0zro/vim.pro\n")
+	// The name is one token and the path is whatever is left of the
+	// line, so a path with a space in it arrives whole.
+	if w := parseWindows("claude /Users/w0zro/my notes\n"); len(w) != 1 || w[0].path != "/Users/w0zro/my notes" {
+		t.Errorf("a path with a space in it: %+v", w)
+	}
+	if len(ws) != 3 || ws[1] != (window{name: "zsh", path: "/Users/w0zro/projects/w0zro/conn"}) {
+		t.Errorf("windows: %+v", ws)
+	}
+	got := downReport(ws, "/Users/w0zro/.local/state/conn/tmux.sock", "/Users/w0zro")
+	want := "" +
+		" ✔ Window home  ~                           ended\n" +
+		" ✔ Window zsh  ~/projects/w0zro/conn        ended\n" +
+		" ✔ Window claude  ~/projects/w0zro/vim.pro  ended\n" +
+		" ✔ Server ~/.local/state/conn/tmux.sock     ended\n"
+	if got != want {
+		t.Errorf("report:\n%s\nwant:\n%s", got, want)
+	}
+	if got := downReport(nil, "/tmp/cs/sock", "/Users/w0zro"); got != " ✔ Server /tmp/cs/sock  ended\n" {
+		t.Errorf("report with no windows: %q", got)
+	}
+}

@@ -119,7 +119,7 @@ func TestARootAddedFromTheSettingsKeepsTheRest(t *testing.T) {
 	if !m.asking || m.askingAt != -1 {
 		t.Fatalf("enter on the add row: asking %v, at %d", m.asking, m.askingAt)
 	}
-	m.line.set(filepath.Join(home, "work"))
+	m.root.line.set(filepath.Join(home, "work"))
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.asking {
 		t.Error("a root saved left the line up")
@@ -147,10 +147,10 @@ func TestARootIsTypedOverWhereItStands(t *testing.T) {
 	home := configured(t, `{"roots":["~/gone","~/projects"]}`, "projects", "work")
 	m := settingsAt(t, home, 0)
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.line.text != "~/gone" || m.askingAt != 0 {
-		t.Fatalf("enter on a root gave %q at %d", m.line.text, m.askingAt)
+	if m.root.line.text != "~/gone" || m.askingAt != 0 {
+		t.Fatalf("enter on a root gave %q at %d", m.root.line.text, m.askingAt)
 	}
-	m.line.set(filepath.Join(home, "work"))
+	m.root.line.set(filepath.Join(home, "work"))
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if c := wrote(t, home); len(c.Roots) != 2 || c.Roots[0] != "~/work" || c.Roots[1] != "~/projects" {
 		t.Errorf("the file names %q", c.Roots)
@@ -165,7 +165,7 @@ func TestEscLeavesARootAsItWas(t *testing.T) {
 	home := configured(t, `{"roots":["~/projects"]}`, "projects")
 	m := settingsAt(t, home, 0)
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
-	m.line.set("~/somewhere-else")
+	m.root.line.set("~/somewhere-else")
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if m.asking {
 		t.Fatal("esc from a root being typed left the line up")

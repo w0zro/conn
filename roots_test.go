@@ -170,8 +170,8 @@ func TestTheConsoleGoesToTheAskingViewWithNoRoots(t *testing.T) {
 	}
 	// It opens on the home, which certainly exists, so the first thing
 	// shown is a list rather than nothing.
-	if m.asking.text != "~/" {
-		t.Errorf("the line opens on %q", m.asking.text)
+	if m.asking.line.text != "~/" {
+		t.Errorf("the line opens on %q", m.asking.line.text)
 	}
 }
 
@@ -189,13 +189,13 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 		next, _ := m.rootsKey(k)
 		m = next.(model)
 	}
-	if m.asking.text != "~/work" {
-		t.Fatalf("the line reads %q", m.asking.text)
+	if m.asking.line.text != "~/work" {
+		t.Fatalf("the line reads %q", m.asking.line.text)
 	}
 	next, cmd := m.rootsKey("enter")
 	m = next.(model)
-	if m.rootErr != "" {
-		t.Fatalf("saving said %q", m.rootErr)
+	if m.asking.err != "" {
+		t.Fatalf("saving said %q", m.asking.err)
 	}
 	if m.view != viewProcesses || cmd == nil {
 		t.Errorf("answering left conn in view %d with cmd %v", m.view, cmd != nil)
@@ -229,14 +229,14 @@ func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	// ~/pro answers with two; the cursor is on the first.
 	next, _ := m.rootsKey("tab")
 	m = next.(model)
-	if m.asking.text != "~/projects/" {
-		t.Fatalf("tab filled the line with %q", m.asking.text)
+	if m.asking.line.text != "~/projects/" {
+		t.Fatalf("tab filled the line with %q", m.asking.line.text)
 	}
 	if m.view != viewRoots {
 		t.Error("tab answered the question instead of filling it in")
 	}
 	// And the line now looks inside what it named.
-	if got := composeRoots(m.asking.text, home); len(got.rows) != 1 || got.rows[0] != "~/projects/conn" {
+	if got := composeRoots(m.asking.line.text, home); len(got.rows) != 1 || got.rows[0] != "~/projects/conn" {
 		t.Errorf("after tab the line answers with %q", got.rows)
 	}
 	// The cursor walks what answers, and tab takes the one it is on.
@@ -249,7 +249,7 @@ func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	next, _ = m.rootsKey("down")
 	m = next.(model)
 	next, _ = m.rootsKey("tab")
-	if got := next.(model).asking.text; got != "~/prospect/" {
+	if got := next.(model).asking.line.text; got != "~/prospect/" {
 		t.Errorf("tab on the second row filled the line with %q", got)
 	}
 }

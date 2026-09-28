@@ -269,13 +269,10 @@ type model struct {
 	settingFrom   string
 	settingCursor int
 
-	// The asking view: the path being typed, with the cursor among the
-	// directories answering it, and what went wrong saving, where
-	// something did. It is the first start alone — a root changed on a
-	// conn already at work is typed in the settings, which are a pane
-	// of conn's own.
-	asking  typed
-	rootErr string
+	// The asking view: the first root being typed. It is the first start
+	// alone — a root changed on a conn already at work is typed in the
+	// settings, which are a pane of conn's own.
+	asking rootLine
 
 	// kill is a kill x has asked for and not yet answered; nothing else
 	// binds while it is not nil.
@@ -2208,9 +2205,7 @@ func (m model) View() tea.View {
 	case m.view == viewSessions:
 		rows = drawSessions(m.sessions.report(m.head.login.home, m.now), m.sessions.find.at, width, m.height, m.p)
 	case m.view == viewRoots:
-		b := composeRootsAt(m.asking.text, m.head.login.home)
-		b.caret, b.err = m.asking.cur, m.rootErr
-		rows = drawRoots(b, m.asking.at, width, m.height, m.p)
+		rows = drawRoots(m.asking.report(m.head.login.home), m.asking.line.at, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit
@@ -2319,107 +2314,6 @@ func (m model) worn() (tea.Model, tea.Cmd) {
 	m.g = want.wear()
 	m.p = colored(m.g).onSurface()
 	return m, nil
-}
-
-// toRoots is the asking view, which conn goes to instead of the
-// processes view when it has no roots. It comes up on the home, which
-// is where checkouts usually are and is a directory that certainly
-// exists, so the first thing shown is a list rather than nothing.
-func (m model) toRoots() (tea.Model, tea.Cmd) {
-	m.view, m.rootErr = viewRoots, ""
-	m.asking = typed{}
-	m.asking.set("~/")
-	return m, nil
-}
-
-// rootsKey is the asking view's keys. The line is typed into like the
-// list's; see typed. What is the view's own: tab fills the line in
-// with the directory under the cursor, and enter takes it — the config
-// is written and conn is working from it before the view is gone. A
-// line that changes takes what went wrong saving off the view with it,
-// since the error was about what was typed and that is not what is
-// typed now.
-func (m model) rootsKey(k string) (tea.Model, tea.Cmd) {
-	b := composeRoots(m.asking.text, m.head.login.home)
-	switch {
-	case m.asking.edit(k, len(b.rows)):
-		if m.asking.text != b.typed {
-			m.rootErr = ""
-		}
-	case k == "ctrl+c":
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.detach() })
-		}
-		return m, tea.Quit
-	case k == "tab":
-		// Filling the line in is not answering: what is typed becomes
-		// the directory under the cursor, with a separator after it, so
-		// the next keystroke is already looking inside it.
-		if m.asking.at < len(b.rows) {
-			m.asking.set(b.rows[m.asking.at] + "/")
-		}
-	case k == "esc":
-		// Nothing. The first start has nowhere to go back to: conn
-		// cannot show the processes view until this is answered, and a
-		// key that did nothing would be conn pretending there was a
-		// way past it.
-	case k == "enter":
-		return m.takeRoot(b)
-	}
-	return m, nil
-}
-
-// takeRoot writes the root the operator settled on and puts conn to
-// work on it. The root is what the cursor is on where the line has not
-// been typed past it, and what was typed otherwise: somebody who typed
-// a whole path and pressed enter meant that path, not the first thing
-// that happened to be listed under it.
-func (m model) takeRoot(b rootsReport) (tea.Model, tea.Cmd) {
-	home := m.head.login.home
-	root := strings.TrimSpace(m.asking.text)
-	if typedIsADir(root, home) {
-		// what was typed names a directory of its own: take it
-	} else if m.asking.at < len(b.rows) {
-		root = b.rows[m.asking.at]
-	}
-	if root == "" {
-		return m, nil
-	}
-	full := expandHome(root, home)
-	// The roots the file names, with this one added. The file is read
-	// again rather than taken off the model, since it is the file this
-	// writes and the operator may have edited it by hand since conn
-	// last read it.
-	c, err := readConfig(home)
-	if err != nil {
-		m.rootErr = err.Error()
-		return m, nil
-	}
-	roots := append(append([]string{}, c.Roots...), tilde(full, home))
-	if err := saveRoots(home, roots); err != nil {
-		m.rootErr = err.Error()
-		return m, nil
-	}
-	// conn works from it now, not on the next start: the roots the
-	// reading names projects by are the ones just written, and the walk
-	// and the table are asked again against them.
-	m = m.rooted(rootOn(cleanRoots(roots, home)))
-	m.view, m.processesGen = viewProcesses, m.processesGen+1
-	cmds := []tea.Cmd{m.readProcesses(), m.scanProjects()}
-	if m.inside {
-		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
-	}
-	return m, tea.Batch(cmds...)
-}
-
-// typedIsADir says whether what was typed already names a directory, so
-// that a path typed in full is taken as it stands.
-func typedIsADir(typed, home string) bool {
-	if strings.TrimSpace(typed) == "" {
-		return false
-	}
-	info, err := os.Stat(expandHome(strings.TrimSpace(typed), home))
-	return err == nil && info.IsDir()
 }
 
 // leftHelp is conn putting things back as the manual found them.

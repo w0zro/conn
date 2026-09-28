@@ -39,13 +39,12 @@ type settingsModel struct {
 	p             palette
 	at            int    // the row the cursor is on
 	err           string // what went wrong writing the file
-	// The root being typed. asking is whether the line is up at all;
-	// askingAt is the root it will be written over, or -1 for one being
-	// added, and rootErr what went wrong saving what was typed.
+	// The root being typed. asking is whether the line is up at all,
+	// and askingAt the root it will be written over, or -1 for one
+	// being added.
 	asking   bool
-	line     typed
+	root     rootLine
 	askingAt int
-	rootErr  string
 	// firstG is a g that has been pressed and is nothing on its own,
 	// the way it is on the panel: gg is the first row and a g thought
 	// better of costs nothing.
@@ -79,8 +78,8 @@ func (m settingsModel) report() settingsReport {
 // there is no workspace to ask in yet, so every root typed here is one
 // being changed or added to a conn already at work.
 func (m settingsModel) rootsReport() rootsReport {
-	b := composeRootsAt(m.line.text, m.home)
-	b.caret, b.editing, b.err = m.line.cur, true, m.rootErr
+	b := m.root.report(m.home)
+	b.editing = true
 	return b
 }
 
@@ -152,54 +151,29 @@ func (m settingsModel) key(k string) (settingsModel, tea.Cmd) {
 // machine is what the line is for, and is the reason a root is typed
 // here rather than into the file.
 func (m settingsModel) askRoot(at int, text string) (settingsModel, tea.Cmd) {
-	m.asking, m.askingAt, m.rootErr = true, at, ""
-	m.line = typed{}
-	m.line.set(text)
+	m.asking, m.askingAt, m.root = true, at, askingFor(text)
 	return m, nil
 }
 
-// rootKey answers a key on the line. The line is typed into like the
-// panel's own; see typed. What is the line's own: tab fills it in with
-// the directory under the cursor, enter takes it, and esc goes back to
-// the rows with nothing written. A line that changes takes what went
-// wrong saving off with it, since the error was about what was typed
-// and that is not what is typed now.
+// rootKey answers a key on the line, which is typed into like every
+// root line; see rootLine. What is the settings' own: enter takes the
+// root, and esc goes back to the rows with nothing written.
 func (m settingsModel) rootKey(k string) (settingsModel, tea.Cmd) {
-	b := composeRoots(m.line.text, m.home)
 	switch {
-	case m.line.edit(k, len(b.rows)):
-		if m.line.text != b.typed {
-			m.rootErr = ""
-		}
+	case m.root.edit(k, m.home):
 	case k == "ctrl+c":
 		return m, m.leaving()
-	case k == "tab":
-		// Filling the line in is not answering: what is typed becomes
-		// the directory under the cursor, with a separator after it, so
-		// the next keystroke is already looking inside it.
-		if m.line.at < len(b.rows) {
-			m.line.set(b.rows[m.line.at] + "/")
-		}
 	case k == "esc":
-		m.asking, m.rootErr = false, ""
+		m.asking = false
 	case k == "enter":
-		return m.takeRoot(b)
+		return m.takeRoot()
 	}
 	return m, nil
 }
 
-// takeRoot writes the root the operator settled on. The root is what
-// the cursor is on where the line has not been typed past it, and what
-// was typed otherwise: somebody who typed a whole path and pressed
-// enter meant that path, not the first thing that happened to be
-// listed under it.
-func (m settingsModel) takeRoot(b rootsReport) (settingsModel, tea.Cmd) {
-	root := strings.TrimSpace(m.line.text)
-	if typedIsADir(root, m.home) {
-		// what was typed names a directory of its own: take it
-	} else if m.line.at < len(b.rows) {
-		root = b.rows[m.line.at]
-	}
+// takeRoot writes the root the operator settled on.
+func (m settingsModel) takeRoot() (settingsModel, tea.Cmd) {
+	root := m.root.chosen(m.home)
 	if root == "" {
 		return m, nil
 	}
@@ -210,7 +184,7 @@ func (m settingsModel) takeRoot(b rootsReport) (settingsModel, tea.Cmd) {
 	// hand meanwhile.
 	c, err := readConfig(m.home)
 	if err != nil {
-		m.rootErr = err.Error()
+		m.root.err = err.Error()
 		return m, nil
 	}
 	roots := append([]string{}, c.Roots...)
@@ -219,7 +193,7 @@ func (m settingsModel) takeRoot(b rootsReport) (settingsModel, tea.Cmd) {
 	} else {
 		roots = append(roots, tilde(expandHome(root, m.home), m.home))
 	}
-	m.asking, m.rootErr = false, ""
+	m.asking = false
 	return m.wroteRoots(roots)
 }
 
@@ -368,7 +342,7 @@ func (m settingsModel) saying() tea.Cmd {
 func (m settingsModel) View() tea.View {
 	var rows []row
 	if m.asking {
-		rows = drawRoots(m.rootsReport(), m.line.at, max(m.width, 1), m.height, m.p)
+		rows = drawRoots(m.rootsReport(), m.root.line.at, max(m.width, 1), m.height, m.p)
 	} else {
 		rows = drawSettings(m.report(), m.at, max(m.width, 1), m.height, m.p)
 	}

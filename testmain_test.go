@@ -2,8 +2,11 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // The tests run on one station, whatever machine they run on. A model
@@ -39,4 +42,21 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	_ = os.RemoveAll(dir) // a temp directory the system sweeps anyway
 	os.Exit(code)
+}
+
+// writeConfig puts a config file where conn will look for it, under a
+// config home of the test's own, and answers the home it was written
+// for.
+func writeConfig(t *testing.T, body string) string {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	home := t.TempDir()
+	path := config.Path(home)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return home
 }

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -88,14 +90,14 @@ func TestOnlyDirectoriesAnswer(t *testing.T) {
 func TestSavingARootKeepsTheRestOfTheFile(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	home := t.TempDir()
-	path := configPath(home)
+	path := config.Path(home)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(`{"agentRuns": {"ollama": "ollama launch"}, "theme": "datum"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := saveRoots(home, []string{"~/projects"}); err != nil {
+	if err := config.SaveRoots(home, []string{"~/projects"}); err != nil {
 		t.Fatal(err)
 	}
 	var back map[string]json.RawMessage
@@ -113,7 +115,7 @@ func TestSavingARootKeepsTheRestOfTheFile(t *testing.T) {
 		t.Errorf("the save dropped the theme:\n%s", b)
 	}
 	t.Setenv("CONN_ROOTS", "")
-	got, err := projectRoots(home)
+	got, err := config.Roots(home)
 	if err != nil || len(got) != 1 || got[0] != filepath.Join(home, "projects") {
 		t.Errorf("conn reads back %q (%v) from the file it wrote", got, err)
 	}
@@ -123,10 +125,10 @@ func TestSavingARootKeepsTheRestOfTheFile(t *testing.T) {
 // written over: overwriting is how somebody's config is lost.
 func TestSavingWillNotWriteOverAFileItCannotRead(t *testing.T) {
 	home := writeConfig(t, `{"roots": [`)
-	if err := saveRoots(home, []string{"~/projects"}); err == nil {
+	if err := config.SaveRoots(home, []string{"~/projects"}); err == nil {
 		t.Fatal("conn wrote over a file it could not parse")
 	}
-	b, err := os.ReadFile(configPath(home))
+	b, err := os.ReadFile(config.Path(home))
 	if err != nil || string(b) != `{"roots": [` {
 		t.Errorf("the file was changed: %v %s", err, b)
 	}
@@ -201,7 +203,7 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 		t.Errorf("answering left conn in view %d with cmd %v", m.view, cmd != nil)
 	}
 	// On disk, and conn reading it back.
-	got, err := projectRoots(home)
+	got, err := config.Roots(home)
 	if err != nil || len(got) != 1 || got[0] != filepath.Join(home, "work") {
 		t.Fatalf("the config holds %q (%v)", got, err)
 	}
@@ -269,7 +271,7 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 
 	// The file as conn came up on it: the reading is made on the same
 	// roots.
-	if err := saveRoots(home, []string{filepath.Join(home, "work")}); err != nil {
+	if err := config.SaveRoots(home, []string{filepath.Join(home, "work")}); err != nil {
 		t.Fatal(err)
 	}
 	msg, ok := m.readProcesses()().(processesMsg)
@@ -282,7 +284,7 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 
 	// The file edited under a running conn: the reading finds it and
 	// says so, and the model goes onto the new roots.
-	if err := saveRoots(home, []string{filepath.Join(home, "elsewhere")}); err != nil {
+	if err := config.SaveRoots(home, []string{filepath.Join(home, "elsewhere")}); err != nil {
 		t.Fatal(err)
 	}
 	msg, ok = m.readProcesses()().(processesMsg)
@@ -323,7 +325,7 @@ func TestAReadingAsksWhichDirectoriesAreProjectsAgain(t *testing.T) {
 	t.Setenv("CONN_ROOTS", "")
 	home := tree(t, "work", "work/w0zro/conn/.git", "work/w0zro/essays")
 	root := filepath.Join(home, "work")
-	if err := saveRoots(home, []string{root}); err != nil {
+	if err := config.SaveRoots(home, []string{root}); err != nil {
 		t.Fatal(err)
 	}
 	m := model{head: station{login: login{home: home}}, p: plain, uid: os.Getuid()}

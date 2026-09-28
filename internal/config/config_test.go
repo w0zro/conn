@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"os"
@@ -14,7 +14,7 @@ func writeConfig(t *testing.T, body string) string {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	home := t.TempDir()
-	path := configPath(home)
+	path := Path(home)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func writeConfig(t *testing.T, body string) string {
 // config that says nothing rather than as an error.
 func TestNoConfigFileIsNoError(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	c, err := readConfig(t.TempDir())
+	c, err := Read(t.TempDir())
 	if err != nil {
 		t.Fatalf("a machine with no config file says %v", err)
 	}
@@ -82,7 +82,7 @@ func TestAFileThatNamesNoRootsLeavesConnWithNone(t *testing.T) {
 func TestAFileThatWillNotParseIsSaid(t *testing.T) {
 	t.Setenv("CONN_ROOTS", "")
 	home := writeConfig(t, `{"roots": ["~/projects",`)
-	got, err := projectRoots(home)
+	got, err := Roots(home)
 	if err == nil {
 		t.Fatal("a config file that will not parse says nothing")
 	}
@@ -95,12 +95,34 @@ func TestAFileThatWillNotParseIsSaid(t *testing.T) {
 }
 
 // roots is the roots for a home that was meant to be read without
-// trouble; a test that is about the trouble asks projectRoots itself.
+// trouble; a test that is about the trouble asks Roots itself.
 func roots(t *testing.T, home string) []string {
 	t.Helper()
-	out, err := projectRoots(home)
+	out, err := Roots(home)
 	if err != nil {
 		t.Fatalf("the roots could not be read: %v", err)
 	}
 	return out
+}
+
+// The roots come from the environment, and there are none when it says
+// nothing and there is no file to say otherwise.
+func TestTheRootsComeFromTheEnvironment(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // no config file of the machine's own
+	t.Setenv("CONN_ROOTS", "")
+	if got := roots(t, "/Users/w0zro"); len(got) != 0 {
+		t.Errorf("told nothing, conn took the roots %q", got)
+	}
+	t.Setenv("CONN_ROOTS", "/work"+string(filepath.ListSeparator)+"/Users/w0zro/projects")
+	if got := roots(t, "/Users/w0zro"); len(got) != 2 || got[0] != "/work" || got[1] != "/Users/w0zro/projects" {
+		t.Errorf("the roots are %q", got)
+	}
+}
+
+// A path under the home is written from ~, and nothing else is: a
+// sibling whose name only starts the same is not under it.
+func TestTilde(t *testing.T) {
+	if Tilde("/Users/x/p", "/Users/x") != "~/p" || Tilde("/Users/xy", "/Users/x") != "/Users/xy" || Tilde("/p", "") != "/p" {
+		t.Errorf("tilde: %q %q", Tilde("/Users/x/p", "/Users/x"), Tilde("/Users/xy", "/Users/x"))
+	}
 }

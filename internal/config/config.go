@@ -1,4 +1,14 @@
-package main
+// Package config is conn's own configuration: a file the operator
+// keeps, holding what conn cannot work out for itself and would
+// otherwise have to be told again on every start. What is in it was put
+// there on purpose, so a file that cannot be read is said out loud
+// rather than passed over for the defaults, and a file conn writes
+// keeps every key it did not come to change; see saveSetting.
+//
+// It is also where conn keeps things: the home, written from ~ and
+// back, and the directories under it that XDG names for configuration
+// and state.
+package config
 
 import (
 	"encoding/json"
@@ -10,17 +20,9 @@ import (
 	"strings"
 )
 
-// conn's own configuration: a file the operator keeps, holding what
-// conn cannot work out for itself and would otherwise have to be told
-// again on every start. What is in it was put there on purpose, so a
-// file that cannot be read is said out loud rather than passed over
-// for the defaults, and a file conn writes keeps every key it did not
-// come to change; see saveSetting, and settings.go for the view the
-// operator changes one in.
-
-// A config is what the file says. A field left out is not set, and what
+// A File is what the file says. A field left out is not set, and what
 // conn would have done without a file at all still stands.
-type config struct {
+type File struct {
 	// Roots are the directories conn looks for projects under. A path
 	// may be written with a leading ~, which is the home of whoever is
 	// running conn: the file is read by conn, not by a shell, so there
@@ -40,62 +42,62 @@ type config struct {
 
 // The grounds, as the file names them.
 const (
-	darkGround  = "dark"
-	lightGround = "light"
+	DarkGround  = "dark"
+	LightGround = "light"
 )
 
-// groundNamed reads a ground the file names: whether it is dark, and
+// GroundNamed reads a ground the file names: whether it is dark, and
 // whether conn has a ground by that name at all. Nothing named is not a
 // mistake — it is the terminal's to answer.
-func groundNamed(name string) (dark, ok bool) {
+func GroundNamed(name string) (dark, ok bool) {
 	switch name {
-	case darkGround:
+	case DarkGround:
 		return true, true
-	case lightGround:
+	case LightGround:
 		return false, true
 	}
 	return false, false
 }
 
-// configHome is where a program's configuration goes: XDG_CONFIG_HOME,
+// Home is where a program's configuration goes: XDG_CONFIG_HOME,
 // or ~/.config. conn keeps its own under here, and finds other
 // programs' directories the same way when it has something to write
 // them — a colorscheme for nvim.
-func configHome(home string) string {
+func Home(home string) string {
 	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
 		return dir
 	}
 	return filepath.Join(home, ".config")
 }
 
-// configPath is the file conn reads its configuration from.
-func configPath(home string) string {
-	return filepath.Join(configHome(home), "conn", "config.json")
+// Path is the file conn reads its configuration from.
+func Path(home string) string {
+	return filepath.Join(Home(home), "conn", "config.json")
 }
 
-// readConfig reads the file. No file is not an error: a machine without
+// Read reads the file. No file is not an error: a machine without
 // one is the ordinary case and every default holds. A file that is
 // there and will not parse is an error, and the error names the file,
 // since the reader's next move is to open it.
-func readConfig(home string) (config, error) {
-	path := configPath(home)
+func Read(home string) (File, error) {
+	path := Path(home)
 	b, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return config{}, nil
+		return File{}, nil
 	}
 	if err != nil {
-		return config{}, err
+		return File{}, err
 	}
-	var c config
+	var c File
 	if err := json.Unmarshal(b, &c); err != nil {
-		return config{}, fmt.Errorf("%s: %w", tilde(path, home), err)
+		return File{}, fmt.Errorf("%s: %w", Tilde(path, home), err)
 	}
 	return c, nil
 }
 
-// expandHome is a path as conn will use it: a leading ~ is the home,
+// ExpandHome is a path as conn will use it: a leading ~ is the home,
 // and everything else is left as it was written.
-func expandHome(path, home string) string {
+func ExpandHome(path, home string) string {
 	if home == "" || path == "" || path[0] != '~' {
 		return path
 	}
@@ -110,118 +112,118 @@ func expandHome(path, home string) string {
 
 // Which of the three answers the roots were taken from, for the console
 // to say where what it is showing came from.
-type rootSource int
+type RootSource int
 
 const (
-	rootsNone rootSource = iota
-	rootsEnv
-	rootsFile
+	rootsNone RootSource = iota
+	RootsEnv
+	RootsFile
 )
 
-// resolveRoots is projectRoots with the source it took them from.
-func resolveRoots(home string) ([]string, rootSource, error) {
+// ResolveRoots is Roots with the source it took them from.
+func ResolveRoots(home string) ([]string, RootSource, error) {
 	if out := splitRoots(os.Getenv("CONN_ROOTS"), home); len(out) > 0 {
-		return out, rootsEnv, nil
+		return out, RootsEnv, nil
 	}
-	c, err := readConfig(home)
+	c, err := Read(home)
 	if err != nil {
 		return nil, rootsNone, err
 	}
-	if out := cleanRoots(c.Roots, home); len(out) > 0 {
-		return out, rootsFile, nil
+	if out := CleanRoots(c.Roots, home); len(out) > 0 {
+		return out, RootsFile, nil
 	}
 	return nil, rootsNone, nil
 }
 
-// A configState is conn's configuration as the console found it: the
+// A State is conn's configuration as the console found it: the
 // file and how it read, and the roots in force with what each one turned
 // out to be on this machine.
-type configState struct {
-	path    string
-	present bool
-	err     error
+type State struct {
+	Path    string
+	Present bool
+	Err     error
 	// names is whether the file named roots conn understands. A file
 	// that is there, parses, and names none is the quiet mistake this
 	// has: conn goes on with the defaults and nothing says the file was
 	// wasted. It is read whether or not the file is what is in force,
 	// since the environment standing in front of it does not make an
 	// unread file any less of a mistake.
-	names bool
+	Names bool
 	// theme is the theme the file names, as written. A file naming none
 	// means conn's own, which is not a mistake.
-	theme string
+	Theme string
 	// ground is the ground the file names, as written, and
 	// noSuchGround whether it is a word conn knows. A file naming none
 	// means the terminal's own, which is not a mistake.
 	ground       string
-	noSuchGround bool
-	source       rootSource
-	roots        []rootState
+	NoSuchGround bool
+	Source       RootSource
+	Roots        []RootState
 }
 
-// A rootState is one configured directory and what is actually there.
-type rootState struct {
-	path    string
-	problem string // "", rootMissing, rootNotDir
+// A RootState is one configured directory and what is actually there.
+type RootState struct {
+	Path    string
+	Problem string // "", rootMissing, rootNotDir
 }
 
 const (
-	rootMissing = "missing"
-	rootNotDir  = "not a dir"
+	RootMissing = "missing"
+	RootNotDir  = "not a dir"
 )
 
-// readConfigState reads the configuration the way the console reports
+// ReadState reads the configuration the way the console reports
 // it: the file, the roots it settled on, and a look at each root, since
 // a root that is not there is the mistake this is most often made with.
-func readConfigState(home string) configState {
-	s := configState{path: configPath(home)}
-	if _, err := os.Stat(s.path); err == nil {
-		s.present = true
+func ReadState(home string) State {
+	s := State{Path: Path(home)}
+	if _, err := os.Stat(s.Path); err == nil {
+		s.Present = true
 	}
-	c, err := readConfig(home)
-	s.err = err
-	s.names = len(cleanRoots(c.Roots, home)) > 0
-	s.theme = c.Theme
+	c, err := Read(home)
+	s.Err = err
+	s.Names = len(CleanRoots(c.Roots, home)) > 0
+	s.Theme = c.Theme
 	s.ground = c.Ground
-	if _, ok := groundNamed(c.Ground); c.Ground != "" && !ok {
-		s.noSuchGround = true
+	if _, ok := GroundNamed(c.Ground); c.Ground != "" && !ok {
+		s.NoSuchGround = true
 	}
 	var roots []string
-	roots, s.source, _ = resolveRoots(home)
+	roots, s.Source, _ = ResolveRoots(home)
 	for _, r := range roots {
-		s.roots = append(s.roots, rootStateOf(r))
+		s.Roots = append(s.Roots, RootStateOf(r))
 	}
 	return s
 }
 
-// rootStateOf is what a configured directory turned out to be.
-func rootStateOf(path string) rootState {
+// RootStateOf is what a configured directory turned out to be.
+func RootStateOf(path string) RootState {
 	info, err := os.Stat(path)
 	switch {
 	case err != nil:
-		return rootState{path: path, problem: rootMissing}
+		return RootState{Path: path, Problem: RootMissing}
 	case !info.IsDir():
-		return rootState{path: path, problem: rootNotDir}
+		return RootState{Path: path, Problem: RootNotDir}
 	}
-	return rootState{path: path}
+	return RootState{Path: path}
 }
 
-// saveRoots writes the roots into the config file.
-func saveRoots(home string, roots []string) error {
+// SaveRoots writes the roots into the config file.
+func SaveRoots(home string, roots []string) error {
 	return saveSetting(home, "roots", roots)
 }
 
-// saveTheme writes the theme conn is to come up in.
-func saveTheme(home, name string) error {
+// SaveTheme writes the theme conn is to come up in.
+func SaveTheme(home, name string) error {
 	return saveSetting(home, "theme", name)
 }
 
-// saveGround writes the ground conn is to come up on, and takes the key
+// SaveGround writes the ground conn is to come up on, and takes the key
 // out again for a ground of nothing — which is not the same as a ground
 // written empty. The file is what conn reads; a key that is there says
 // somebody decided, and giving the choice back to the terminal is
 // taking the decision out rather than writing down a blank one.
-func saveGround(home, name string) error {
+func SaveGround(home, name string) error {
 	if name == "" {
 		return dropSetting(home, "ground")
 	}
@@ -257,14 +259,14 @@ func dropSetting(home, key string) error {
 // The keys are written in the order Go writes a map, which is sorted;
 // the file is small and the order is not what it is for.
 func writeSetting(home, key string, set json.RawMessage) error {
-	path := configPath(home)
+	path := Path(home)
 	fields := map[string]json.RawMessage{}
 	if b, err := os.ReadFile(path); err == nil {
 		// A file that will not parse is not merged into. conn cannot
 		// tell what is in it, so it cannot keep it, and overwriting is
 		// how somebody's file is lost.
 		if err := json.Unmarshal(b, &fields); err != nil {
-			return fmt.Errorf("%s will not parse, and conn will not write over it", tilde(path, home))
+			return fmt.Errorf("%s will not parse, and conn will not write over it", Tilde(path, home))
 		}
 	}
 	if set == nil {
@@ -282,7 +284,7 @@ func writeSetting(home, key string, set json.RawMessage) error {
 	return os.WriteFile(path, append(out, '\n'), 0o644)
 }
 
-// roots are the directories conn looks for projects under: CONN_ROOTS,
+// Roots are the directories conn looks for projects under: CONN_ROOTS,
 // a list in the path list separator's spelling, and otherwise the ones
 // the config file names. The environment is asked first because it is
 // the nearer word — a conn started for one job, on one set of roots,
@@ -300,8 +302,8 @@ func writeSetting(home, key string, set json.RawMessage) error {
 // A config file that will not parse is an error and no roots. The file
 // was meant to be read, it could not be, and conn is not going to
 // invent what it was probably about to say.
-func projectRoots(home string) ([]string, error) {
-	roots, _, err := resolveRoots(home)
+func Roots(home string) ([]string, error) {
+	roots, _, err := ResolveRoots(home)
 	return roots, err
 }
 
@@ -311,31 +313,31 @@ func splitRoots(list, home string) []string {
 	if list == "" {
 		return nil
 	}
-	return cleanRoots(filepath.SplitList(list), home)
+	return CleanRoots(filepath.SplitList(list), home)
 }
 
-// cleanRoots is the roots as conn will walk them: the blanks dropped,
+// CleanRoots is the roots as conn will walk them: the blanks dropped,
 // and a leading ~ made the home it stands for.
-func cleanRoots(roots []string, home string) []string {
+func CleanRoots(roots []string, home string) []string {
 	var out []string
 	for _, d := range roots {
 		if d = strings.TrimSpace(d); d != "" {
-			out = append(out, expandHome(d, home))
+			out = append(out, ExpandHome(d, home))
 		}
 	}
 	return out
 }
 
-// tilde writes a path under home from ~.
-func tilde(path, home string) string {
+// Tilde writes a path under home from ~.
+func Tilde(path, home string) string {
 	if home != "" && (path == home || strings.HasPrefix(path, home+"/")) {
 		return "~" + strings.TrimPrefix(path, home)
 	}
 	return path
 }
 
-// stateHome is where state goes: XDG_STATE_HOME, or ~/.local/state.
-func stateHome(home string) string {
+// StateHome is where state goes: XDG_STATE_HOME, or ~/.local/state.
+func StateHome(home string) string {
 	if dir := os.Getenv("XDG_STATE_HOME"); dir != "" {
 		return dir
 	}

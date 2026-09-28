@@ -8,6 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -54,7 +56,7 @@ func composeRoots(typed, home string) rootsReport {
 func composeRootsAt(typed, home string) rootsReport {
 	b := rootsReport{typed: typed}
 	for _, dir := range completeRoot(typed, home) {
-		b.rows = append(b.rows, tilde(dir, home))
+		b.rows = append(b.rows, config.Tilde(dir, home))
 	}
 	return b
 }
@@ -133,12 +135,12 @@ func (r rootLine) report(home string) rootsReport {
 // business.
 func completeRoot(typed, home string) []string {
 	// Whether the typing stopped on a separator is read off what was
-	// typed, not off the expansion: expandHome joins, and joining drops
-	// a trailing separator, which turned "~/" — a directory to look
-	// inside — into the name w0zro half-written under /Users.
+	// typed, not off the expansion: config.ExpandHome joins, and joining
+	// drops a trailing separator, which turned "~/" — a directory to
+	// look inside — into the name w0zro half-written under /Users.
 	raw := strings.TrimSpace(typed)
 	onSeparator := strings.HasSuffix(raw, string(filepath.Separator))
-	path := expandHome(raw, home)
+	path := config.ExpandHome(raw, home)
 	var dir, prefix string
 	switch {
 	case raw == "":
@@ -260,7 +262,7 @@ func typedIsADir(typed, home string) bool {
 	if strings.TrimSpace(typed) == "" {
 		return false
 	}
-	info, err := os.Stat(expandHome(strings.TrimSpace(typed), home))
+	info, err := os.Stat(config.ExpandHome(strings.TrimSpace(typed), home))
 	return err == nil && info.IsDir()
 }
 
@@ -301,25 +303,25 @@ func (m model) takeRoot() (model, tea.Cmd) {
 	if root == "" {
 		return m, nil
 	}
-	full := expandHome(root, home)
+	full := config.ExpandHome(root, home)
 	// The roots the file names, with this one added. The file is read
 	// again rather than taken off the model, since it is the file this
 	// writes and the operator may have edited it by hand since conn
 	// last read it.
-	c, err := readConfig(home)
+	c, err := config.Read(home)
 	if err != nil {
 		m.asking.err = err.Error()
 		return m, nil
 	}
-	roots := append(append([]string{}, c.Roots...), tilde(full, home))
-	if err := saveRoots(home, roots); err != nil {
+	roots := append(append([]string{}, c.Roots...), config.Tilde(full, home))
+	if err := config.SaveRoots(home, roots); err != nil {
 		m.asking.err = err.Error()
 		return m, nil
 	}
 	// conn works from it now, not on the next start: the roots the
 	// reading names projects by are the ones just written, and the walk
 	// and the table are asked again against them.
-	m = m.rooted(rootOn(cleanRoots(roots, home)))
+	m = m.rooted(rootOn(config.CleanRoots(roots, home)))
 	m.view, m.processesGen = viewProcesses, m.processesGen+1
 	cmds := []tea.Cmd{m.readProcesses(), m.scanProjects()}
 	if m.inside {

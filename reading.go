@@ -4,6 +4,8 @@ import (
 	"maps"
 	"time"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -43,7 +45,7 @@ func (m model) readProcesses() tea.Cmd {
 		// rows with the answers they were filed by, and no two readings
 		// share a memory across the loop.
 		if home != "" {
-			if now, err := projectRoots(home); err == nil {
+			if now, err := config.Roots(home); err == nil {
 				configured = now
 			}
 		}

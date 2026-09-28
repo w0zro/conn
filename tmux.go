@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/w0zro/conn/internal/config"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -74,7 +76,7 @@ func socketPath(home string) string {
 	if p := os.Getenv("CONN_SOCKET"); p != "" {
 		return p
 	}
-	return filepath.Join(stateHome(home), "conn", "tmux.sock")
+	return filepath.Join(config.StateHome(home), "conn", "tmux.sock")
 }
 
 // insideConn says whether this process runs in a pane of conn's server:
@@ -1244,7 +1246,7 @@ func takeDown(srv *server, home string) (string, bool) {
 		return "conn: tmux is not on PATH; there is no server to take down\n", false
 	}
 	if !srv.up() {
-		return fmt.Sprintf("conn: no server up on %s\n", tilde(srv.socket, home)), true
+		return fmt.Sprintf("conn: no server up on %s\n", config.Tilde(srv.socket, home)), true
 	}
 	ws, err := srv.windows()
 	if err != nil {
@@ -1260,9 +1262,9 @@ func takeDown(srv *server, home string) (string, bool) {
 func downReport(ws []window, socket, home string) string {
 	var lines []string
 	for _, w := range ws {
-		lines = append(lines, "Window "+join("  ", w.name, tilde(w.path, home)))
+		lines = append(lines, "Window "+join("  ", w.name, config.Tilde(w.path, home)))
 	}
-	lines = append(lines, "Server "+tilde(socket, home))
+	lines = append(lines, "Server "+config.Tilde(socket, home))
 	width := 0
 	for _, l := range lines {
 		width = max(width, ansi.StringWidth(l))

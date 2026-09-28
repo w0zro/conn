@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // A session is who is at the station and how, as read: the user, the
@@ -242,7 +244,7 @@ const (
 // ~/.local/state — and probes the nearest existing ancestor for whether
 // conn could write under it.
 func readStateDir(home string) stateDir {
-	dir := filepath.Join(stateHome(home), "conn")
+	dir := filepath.Join(config.StateHome(home), "conn")
 	s := stateDir{path: dir}
 	for probe := dir; ; probe = filepath.Dir(probe) {
 		if info, err := os.Stat(probe); err == nil {

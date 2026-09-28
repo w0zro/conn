@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 )
@@ -44,7 +46,7 @@ func dressClaude(home string, ask func(string) bool, g ground) (string, bool) {
 		return fmt.Sprintf("conn theme: %v\n", err), false
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Wrote conn's theme for Claude Code to %s\n", tilde(path, home))
+	fmt.Fprintf(&b, "Wrote conn's theme for Claude Code to %s\n", config.Tilde(path, home))
 	in, ok := themeInUse(home)
 	switch {
 	case !ok:

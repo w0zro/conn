@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -45,7 +47,7 @@ func composeSessions(sessions []session, project, filter, home string, now time.
 // start, for the view to put where it is.
 func composeSessionsAt(sessions []session, project, filter, home string, now time.Time, loading bool) sessionsReport {
 	return sessionsReport{
-		project: tilde(project, home), home: home, now: now, loading: loading,
+		project: config.Tilde(project, home), home: home, now: now, loading: loading,
 		rows: matchingSessions(sessions, filter), total: len(sessions), filter: filter,
 	}
 }
@@ -159,7 +161,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 			// is the more of the two a reader would recognize it by.
 			prompt, path := cv.Prompt, false
 			if prompt == "" {
-				prompt, path = tilde(cv.Dir, b.home), true
+				prompt, path = config.Tilde(cv.Dir, b.home), true
 			}
 			l.add(p.ink, fit(prompt, promptW, path))
 			l.to(ageCol)

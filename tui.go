@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -271,7 +273,7 @@ func newModel(g ground) model {
 	// A config that will not parse is the view's to report, not the
 	// model's to come up on: newModel takes the roots it is left with
 	// and the first scan says what is wrong with the file.
-	configured, _ := projectRoots(home)
+	configured, _ := config.Roots(home)
 	m := model{
 		up:      time.Now(),
 		lit:     true,

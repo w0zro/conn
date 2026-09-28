@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/config"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -210,12 +212,12 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("Project", tilde(s.project.path, home))
+	where.addPath("Project", config.Tilde(s.project.path, home))
 	// The project is the tree's, and a process below the root can have
 	// cd'd anywhere since; where it actually is is worth saying only
 	// when it is somewhere else.
 	if e.cwd != "" && e.cwd != s.project.path {
-		where.addPath("CWD", tilde(e.cwd, home))
+		where.addPath("CWD", config.Tilde(e.cwd, home))
 	}
 	where.add("TTY", e.tty)
 	// Whether conn can put you in front of this row, by the one rule
@@ -354,12 +356,12 @@ func composeBrewPage(b readoutReport, e entry, svc *brewService, p pane, inside 
 			what.add("Process", strconv.Itoa(svc.pid))
 		}
 		what.addAsWritten("Command", svc.command)
-		what.addPath("Log", tilde(svc.log, home))
+		what.addPath("Log", config.Tilde(svc.log, home))
 	}
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("Project", tilde(e.cwd, home))
+	where.addPath("Project", config.Tilde(e.cwd, home))
 	if e.shared > 1 {
 		where.add("Shared", strconv.Itoa(e.shared)+" projects")
 	}
@@ -466,9 +468,9 @@ func gitGroups(git gitStatus, now time.Time) []readoutGroup {
 // rows conn has running in it — the same three things the processes
 // view and the page say of a row, said of the place instead.
 func composeProject(path string, t readoutTable, home string, now time.Time) readoutReport {
-	b := readoutReport{name: tilde(path, home)}
+	b := readoutReport{name: config.Tilde(path, home)}
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("Project", tilde(path, home))
+	where.addPath("Project", config.Tilde(path, home))
 	b.groups = append(b.groups, where)
 	b.groups = append(b.groups, gitGroups(t.git[path], now)...)
 	// What is running there, as the processes view lists it: each row
@@ -521,7 +523,7 @@ func composeSession(c session, t readoutTable, home string, now time.Time) reado
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("Project", tilde(c.Dir, home))
+	where.addPath("Project", config.Tilde(c.Dir, home))
 	b.groups = append(b.groups, where)
 	b.groups = append(b.groups, gitGroups(t.git[c.Dir], now)...)
 	return b
@@ -742,7 +744,7 @@ func composeService(b readoutReport, c container, p pane, inside bool, home stri
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}
-	where.addPath("Project", tilde(c.dir, home))
+	where.addPath("Project", config.Tilde(c.dir, home))
 	// The compose project, which is what its siblings share and what
 	// docker compose down would take with it.
 	if c.project != "" {

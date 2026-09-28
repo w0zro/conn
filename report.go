@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // A station is everything conn reads as it comes up, before a word is
@@ -21,7 +23,7 @@ type station struct {
 	network network
 	netRead bool
 	state   stateDir
-	config  configState
+	config  config.State
 	tools   []tool // what the platform needs past the kernel
 }
 
@@ -33,7 +35,7 @@ func readStation() station {
 	st.volume = readVolume(st.login.home)
 	st.network, st.netRead = readNetwork()
 	st.state = readStateDir(st.login.home)
-	st.config = readConfigState(st.login.home)
+	st.config = config.ReadState(st.login.home)
 	st.tools = readTools()
 	return st
 }
@@ -283,7 +285,7 @@ func sessionFacts(s login, now time.Time) []fact {
 	}
 	binary := ""
 	if s.exe != "" {
-		binary = join(" · ", tilde(s.exe, s.home), sizeShort(uint64(s.exeSize)))
+		binary = join(" · ", config.Tilde(s.exe, s.home), sizeShort(uint64(s.exeSize)))
 	}
 	process := ""
 	if s.pid > 0 {
@@ -305,7 +307,7 @@ func sessionFacts(s login, now time.Time) []fact {
 		{label: "SESSION", value: sessionLine},
 		{label: "LOCALE", value: s.lang},
 		{label: "TIME ZONE", value: timeZone(s.zone, now)},
-		{label: "CWD", value: tilde(s.cwd, s.home), path: true},
+		{label: "CWD", value: config.Tilde(s.cwd, s.home), path: true},
 		{label: "PROCESS", value: process},
 		{label: "ENV", value: env},
 		{label: "RUNTIME", value: join(" · ", s.goVersion, s.platform, threads)},
@@ -330,7 +332,7 @@ func timeZone(name string, now time.Time) string {
 // stateCheck is where conn keeps its state: the directory, or the one it
 // would be made in, must be writable.
 func stateCheck(s stateDir, home string) check {
-	c := check{label: "STATE", value: tilde(s.path, home), path: true, status: nominal}
+	c := check{label: "STATE", value: config.Tilde(s.path, home), path: true, status: nominal}
 	switch s.problem {
 	case "":
 	case stateNotDir:
@@ -353,27 +355,27 @@ func stateCheck(s stateDir, home string) check {
 // roots themselves, which would be the same word on every one of them.
 // The environment in force is worth saying beside the file it is
 // standing in front of: the roots below are then not the file's.
-func configCheck(c configState, home string) check {
-	k := check{label: "CONFIG", value: tilde(c.path, home), path: true, status: nominal}
-	if c.source == rootsEnv {
+func configCheck(c config.State, home string) check {
+	k := check{label: "CONFIG", value: config.Tilde(c.Path, home), path: true, status: nominal}
+	if c.Source == config.RootsEnv {
 		k.value = join(" · ", k.value, "CONN_ROOTS IN FORCE")
 	}
 	// A station nothing was read of has no config to report on, and a
 	// fault is a claim conn cannot back up.
-	if c.path == "" {
+	if c.Path == "" {
 		k.status = unchecked
 		return k
 	}
 	switch {
-	case c.err != nil:
+	case c.Err != nil:
 		k.status, k.fault = notRead, true
-	case !c.present:
+	case !c.Present:
 		k.status, k.fault = notWritten, true
-	case !c.names:
+	case !c.Names:
 		k.status, k.fault = noRoots, true
-	case c.theme != "" && !themeKnown(c.theme):
+	case c.Theme != "" && !themeKnown(c.Theme):
 		k.status, k.fault = noTheme, true
-	case c.noSuchGround:
+	case c.NoSuchGround:
 		k.status, k.fault = noGround, true
 	}
 	return k
@@ -385,14 +387,14 @@ func configCheck(c configState, home string) check {
 // between machines names roots that are only on some of them — but it
 // is not nominal either, and says so in the color a second look is
 // asked for in.
-func rootChecks(c configState, home string) []check {
-	out := make([]check, 0, len(c.roots))
-	for _, r := range c.roots {
-		k := check{label: rootLabel, value: tilde(r.path, home), path: true, status: nominal}
-		switch r.problem {
-		case rootMissing:
+func rootChecks(c config.State, home string) []check {
+	out := make([]check, 0, len(c.Roots))
+	for _, r := range c.Roots {
+		k := check{label: rootLabel, value: config.Tilde(r.Path, home), path: true, status: nominal}
+		switch r.Problem {
+		case config.RootMissing:
 			k.status = missing
-		case rootNotDir:
+		case config.RootNotDir:
 			k.status, k.fault = "NOT A DIR", true
 		}
 		out = append(out, k)

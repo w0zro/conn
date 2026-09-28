@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -411,7 +413,7 @@ func composeProjectsAt(ps []projectRow, filter string, roots []string, home stri
 		b.err = "conn has no roots"
 	}
 	for _, root := range roots {
-		b.roots = append(b.roots, tilde(root, home))
+		b.roots = append(b.roots, config.Tilde(root, home))
 	}
 	return b
 }

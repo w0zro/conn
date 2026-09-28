@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // panelW is the panel's width, as tmux reports a pane's: the tests ask
@@ -928,10 +930,10 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	if m, ok := readModeFile(s.srv.socket); !ok || m.dark || m.theme != "datum" {
 		t.Errorf("the mode file says %+v, found %v", m, ok)
 	}
-	if c, err := readConfig(filepath.Join(s.dir, "home")); err != nil || c.Ground != lightGround {
+	if c, err := config.Read(filepath.Join(s.dir, "home")); err != nil || c.Ground != config.LightGround {
 		t.Errorf("the file names the ground %q: %v", c.Ground, err)
 	}
-	c, err := readConfig(filepath.Join(s.dir, "home"))
+	c, err := config.Read(filepath.Join(s.dir, "home"))
 	if err != nil || c.Theme != "datum" {
 		t.Errorf("the file names the theme %q: %v", c.Theme, err)
 	}

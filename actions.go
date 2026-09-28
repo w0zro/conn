@@ -6,6 +6,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -192,7 +194,7 @@ func (m model) startContact(dir string) tea.Cmd {
 // are then not the ones the operator asked for, and that is the first
 // thing to know.
 func (m model) scanProjects() tea.Cmd {
-	roots, cfgErr := projectRoots(m.head.login.home)
+	roots, cfgErr := config.Roots(m.head.login.home)
 	return func() tea.Msg {
 		if cfgErr != nil {
 			return projectsMsg{err: "THE CONFIG COULD NOT BE READ: " + cfgErr.Error()}

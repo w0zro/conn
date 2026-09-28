@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/config"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -78,8 +80,8 @@ const (
 // conn has, and the one that is not a ground at all — the terminal's
 // answer, which is what conn does with no ground named.
 var grounds = []struct{ text, value string }{
-	{"DARK", darkGround},
-	{"LIGHT", lightGround},
+	{"DARK", config.DarkGround},
+	{"LIGHT", config.LightGround},
 	{askTheTerminal, ""},
 }
 
@@ -98,11 +100,11 @@ const (
 // that edits the file, and a view that showed CONN_ROOTS's directories
 // would be offering to edit rows that are not in the file at all.
 func composeSettings(home, inUse string, dark bool) settingsReport {
-	b := settingsReport{path: tilde(configPath(home), home)}
-	if _, err := os.Stat(configPath(home)); err == nil {
+	b := settingsReport{path: config.Tilde(config.Path(home), home)}
+	if _, err := os.Stat(config.Path(home)); err == nil {
 		b.present = true
 	}
-	c, err := readConfig(home)
+	c, err := config.Read(home)
 	if err != nil {
 		// A file that will not parse gets no rows. conn cannot tell
 		// what is in it, so it cannot keep what it does not understand,
@@ -111,13 +113,13 @@ func composeSettings(home, inUse string, dark bool) settingsReport {
 		b.err = err.Error()
 		return b
 	}
-	if _, source, _ := resolveRoots(home); source == rootsEnv {
+	if _, source, _ := config.ResolveRoots(home); source == config.RootsEnv {
 		b.forced = true
 	}
 	for i, r := range c.Roots {
 		row := settingRow{kind: rootSetting, text: r, at: i}
-		if s := rootStateOf(expandHome(strings.TrimSpace(r), home)); s.problem != "" {
-			row.note = strings.ToUpper(s.problem)
+		if s := config.RootStateOf(config.ExpandHome(strings.TrimSpace(r), home)); s.Problem != "" {
+			row.note = strings.ToUpper(s.Problem)
 		}
 		b.rows = append(b.rows, row)
 		b.roots++
@@ -144,13 +146,13 @@ func composeSettings(home, inUse string, dark bool) settingsReport {
 	// like the others: what conn does about the ground is one question
 	// with three answers, and two of them in a list with the third
 	// somewhere else would be conn hiding its own default.
-	named, isNamed := groundNamed(c.Ground)
+	named, isNamed := config.GroundNamed(c.Ground)
 	for _, g := range grounds {
 		row := settingRow{kind: groundSetting, text: g.text, value: g.value}
 		switch {
-		case g.value != "" && dark == (g.value == darkGround):
+		case g.value != "" && dark == (g.value == config.DarkGround):
 			row.note = noteInUse
-		case g.value != "" && isNamed && named == (g.value == darkGround):
+		case g.value != "" && isNamed && named == (g.value == config.DarkGround):
 			row.note = noteInFile
 		case g.value == "" && !isNamed:
 			// The file names no ground conn knows, so the terminal is

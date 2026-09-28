@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -32,9 +34,9 @@ func configured(t *testing.T, config string, dirs ...string) string {
 }
 
 // wrote is the config file as it now stands.
-func wrote(t *testing.T, home string) config {
+func wrote(t *testing.T, home string) config.File {
 	t.Helper()
-	c, err := readConfig(home)
+	c, err := config.Read(home)
 	if err != nil {
 		t.Fatalf("the file conn wrote: %v", err)
 	}
@@ -362,13 +364,13 @@ func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
 // root written by the view comes back off disk as the same root.
 func TestWhatTheViewWritesIsWhatConnReads(t *testing.T) {
 	home := configured(t, "", "projects")
-	if err := saveRoots(home, []string{"~/projects"}); err != nil {
+	if err := config.SaveRoots(home, []string{"~/projects"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := saveTheme(home, "datum"); err != nil {
+	if err := config.SaveTheme(home, "datum"); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(configPath(home))
+	b, err := os.ReadFile(config.Path(home))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,7 +482,7 @@ func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 	m := settingsAt(t, home, 0)
 	m.mode = mode{theme: "datum", dark: true}
 	m.g = m.mode.wear()
-	m.at = rowFor(t, m, groundSetting, lightGround)
+	m.at = rowFor(t, m, groundSetting, config.LightGround)
 	m = m.press(t, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.mode.dark {
 		t.Error("conn is still on dark")
@@ -492,7 +494,7 @@ func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 		t.Error("the settings are not drawn on the ground they picked")
 	}
 	c := wrote(t, home)
-	if c.Ground != lightGround || c.Theme != "datum" || len(c.Roots) != 1 {
+	if c.Ground != config.LightGround || c.Theme != "datum" || len(c.Roots) != 1 {
 		t.Errorf("the file came out %+v", c)
 	}
 	// And a fresh server would come up on it without asking the
@@ -501,7 +503,7 @@ func TestAGroundPickedIsWrittenAndWorn(t *testing.T) {
 		t.Error("a fresh server would not come up on the ground in the file")
 	}
 	for _, r := range m.report().rows {
-		if r.kind == groundSetting && r.value == lightGround && r.note != noteInUse {
+		if r.kind == groundSetting && r.value == config.LightGround && r.note != noteInUse {
 			t.Errorf("the ground worn is noted %q", r.note)
 		}
 	}
@@ -525,7 +527,7 @@ func TestAskingTheTerminalTakesTheGroundOutOfTheFile(t *testing.T) {
 	}
 	// The key is gone rather than written empty: conn reads the file,
 	// and a key that is there says somebody decided.
-	b, err := os.ReadFile(configPath(home))
+	b, err := os.ReadFile(config.Path(home))
 	if err != nil || strings.Contains(string(b), "ground") {
 		t.Errorf("the file still names a ground: %s (%v)", b, err)
 	}

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"image/color"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // A theme is everything conn dresses a server in, by name: the ground
@@ -245,7 +247,7 @@ func (g ground) dark() bool {
 // name, and conn's own otherwise: a file that cannot be read is the
 // console's to report, not a reason to come up in nothing.
 func configTheme(home string) string {
-	c, _ := readConfig(home)
+	c, _ := config.Read(home)
 	if _, ok := themeNamed(c.Theme); ok {
 		return c.Theme
 	}

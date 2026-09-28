@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // The manual conn carries: man/conn.1, written by hand and built into
@@ -24,7 +26,7 @@ var manPage []byte
 // because it costs nothing and a stale copy is the thing this exists to
 // avoid.
 func manPath(home string) string {
-	return filepath.Join(stateHome(home), "conn", "conn.1")
+	return filepath.Join(config.StateHome(home), "conn", "conn.1")
 }
 
 // writeManPage puts the manual where man can be pointed at it.

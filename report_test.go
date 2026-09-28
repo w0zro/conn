@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // A station on file: a laptop on battery, in the evening in Los Angeles,
@@ -45,9 +47,9 @@ var (
 		network: network{up: 2, first: "en0 192.168.68.58"},
 		netRead: true,
 		state:   stateDir{path: "/Users/w0zro/.local/state/conn"},
-		config: configState{
-			path: "/Users/w0zro/.config/conn/config.json", present: true, names: true, source: rootsFile,
-			roots: []rootState{{path: "/Users/w0zro/projects"}, {path: "/Users/w0zro/work/checkouts"}},
+		config: config.State{
+			Path: "/Users/w0zro/.config/conn/config.json", Present: true, Names: true, Source: config.RootsFile,
+			Roots: []config.RootState{{Path: "/Users/w0zro/projects"}, {Path: "/Users/w0zro/work/checkouts"}},
 		},
 		// A macOS station needs both, and the console of record is the
 		// console this station prints.
@@ -281,9 +283,6 @@ func TestWordsForNumbers(t *testing.T) {
 	if firstVersion("zsh 5.9 (arm-apple-darwin23.0.0)") != "5.9" || firstVersion("GNU bash, version 5.2.37(1)-release") != "5.2.37" || firstVersion("") != "" {
 		t.Errorf("firstVersion: %q %q", firstVersion("zsh 5.9 (arm-apple-darwin23.0.0)"), firstVersion("GNU bash, version 5.2.37(1)-release"))
 	}
-	if tilde("/Users/x/p", "/Users/x") != "~/p" || tilde("/Users/xy", "/Users/x") != "/Users/xy" || tilde("/p", "") != "/p" {
-		t.Errorf("tilde: %q %q", tilde("/Users/x/p", "/Users/x"), tilde("/Users/xy", "/Users/x"))
-	}
 	booted := time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC)
 	if got := uptime(booted, booted.Add(90*time.Minute)); got != "01H 30M" {
 		t.Errorf("uptime: %q", got)
@@ -321,7 +320,7 @@ func TestTheStationCanBeRead(t *testing.T) {
 	}
 	// Seven checks conn always makes, the config file's own, a line for
 	// every root configured, and one per tool the platform needs.
-	want := 8 + len(st.config.roots) + len(st.tools)
+	want := 8 + len(st.config.Roots) + len(st.tools)
 	if len(r.checks) != want {
 		t.Errorf("%d checks, not %d: %+v", len(r.checks), want, r.checks)
 	}
@@ -396,7 +395,7 @@ func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 		if c.body != "" {
-			path := configPath(home)
+			path := config.Path(home)
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -404,7 +403,7 @@ func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		k := configCheck(readConfigState(home), home)
+		k := configCheck(config.ReadState(home), home)
 		if k.status != c.status || k.fault != c.fault {
 			t.Errorf("%s reads %q (fault %v), not %q (fault %v)", c.what, k.status, k.fault, c.status, c.fault)
 		}
@@ -416,7 +415,7 @@ func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 func TestTheConsoleSaysWhenTheEnvironmentIsInForce(t *testing.T) {
 	home := writeConfig(t, `{"roots": ["/from/the/file"]}`)
 	t.Setenv("CONN_ROOTS", "/from/the/environment")
-	k := configCheck(readConfigState(home), home)
+	k := configCheck(config.ReadState(home), home)
 	if !strings.Contains(k.value, "CONN_ROOTS IN FORCE") {
 		t.Errorf("the line does not say the environment is in force: %q", k.value)
 	}
@@ -434,7 +433,7 @@ func TestEveryRootGetsALine(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, "afile"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	ks := rootChecks(readConfigState(home), home)
+	ks := rootChecks(config.ReadState(home), home)
 	if len(ks) != 3 {
 		t.Fatalf("the roots take %d lines, not 3", len(ks))
 	}

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -393,7 +395,7 @@ func projectName(path string, roots []string, home string) string {
 			return relName(root, path)
 		}
 	}
-	return tilde(path, home)
+	return config.Tilde(path, home)
 }
 
 // The processes view's columns, from the right: the status flush with

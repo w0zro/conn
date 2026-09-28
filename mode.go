@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/w0zro/conn/internal/config"
+
 	"charm.land/lipgloss/v2"
 	term "github.com/charmbracelet/x/term"
 )
@@ -96,7 +98,7 @@ func serverMode(socket, home string) mode {
 // is where the terminal is asked.
 func configMode(home string) mode {
 	m := mode{theme: configTheme(home), dark: true}
-	if dark, ok := groundNamed(configGround(home)); ok {
+	if dark, ok := config.GroundNamed(configGround(home)); ok {
 		m.dark = dark
 	}
 	return m
@@ -104,7 +106,7 @@ func configMode(home string) mode {
 
 // configGround is the ground the file names, as written.
 func configGround(home string) string {
-	c, _ := readConfig(home)
+	c, _ := config.Read(home)
 	return c.Ground
 }
 
@@ -136,7 +138,7 @@ func (o override) over(m mode) mode {
 func askMode(o override, home string) mode {
 	m := configMode(home)
 	if o.dark == nil {
-		if _, named := groundNamed(configGround(home)); !named {
+		if _, named := config.GroundNamed(configGround(home)); !named {
 			m.dark = detectDark()
 		}
 	}

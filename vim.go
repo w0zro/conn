@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/w0zro/conn/internal/config"
 )
 
 // nvim is the other program conn holds that draws in its own hex rather
@@ -359,7 +361,7 @@ func (h hl) line() string {
 // writeVimColorscheme writes the colorscheme for a ground where nvim
 // looks for one, and answers the path it wrote.
 func writeVimColorscheme(home string, g ground) (string, error) {
-	dir := filepath.Join(configHome(home), "nvim", "colors")
+	dir := filepath.Join(config.Home(home), "nvim", "colors")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -379,7 +381,7 @@ func writeVimColorscheme(home string, g ground) (string, error) {
 // ground changes when the server does, and the editors opened after it
 // are the ones there are.
 func refreshVimColorscheme(home string, g ground) {
-	path := filepath.Join(configHome(home), "nvim", "colors", "conn.vim")
+	path := filepath.Join(config.Home(home), "nvim", "colors", "conn.vim")
 	if _, err := os.Stat(path); err != nil {
 		return
 	}
@@ -394,7 +396,7 @@ func dressVim(home string, g ground) (string, bool) {
 		return fmt.Sprintf("conn theme: %v\n", err), false
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "Wrote conn's colorscheme for nvim to %s\n", tilde(path, home))
+	fmt.Fprintf(&b, "Wrote conn's colorscheme for nvim to %s\n", config.Tilde(path, home))
 	b.WriteString("nvim takes it with `colorscheme conn`. CONN is set in the server, so a\n")
 	b.WriteString("config can reach for it in conn and keep its own everywhere else.\n")
 	return b.String(), true

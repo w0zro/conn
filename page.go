@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/config"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -52,7 +54,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	}
 	c.where = join(" · ", projectName(s.project.path, nil, home), s.git.branch)
 	if c.where == "" {
-		c.where = tilde(s.project.path, home)
+		c.where = config.Tilde(s.project.path, home)
 	}
 	if a, ok := contacts[program(e.asTyped())]; ok {
 		c.with = join(" ", a.name, s.sess.Version)
@@ -215,9 +217,9 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 		add("Git", s.git.problem)
 		add("", "")
 	}
-	add("Folder", tilde(s.project.path, home))
+	add("Folder", config.Tilde(s.project.path, home))
 	if e.cwd != "" && e.cwd != s.project.path {
-		add("Working in", tilde(e.cwd, home))
+		add("Working in", config.Tilde(e.cwd, home))
 	}
 	switch {
 	case !s.inside:

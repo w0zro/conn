@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/config"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -182,16 +184,16 @@ func (m settingsModel) takeRoot() (settingsModel, tea.Cmd) {
 	// file is read again rather than kept from the last reading, since
 	// it is the file this writes and the operator may have edited it by
 	// hand meanwhile.
-	c, err := readConfig(m.home)
+	c, err := config.Read(m.home)
 	if err != nil {
 		m.root.err = err.Error()
 		return m, nil
 	}
 	roots := append([]string{}, c.Roots...)
 	if m.askingAt >= 0 && m.askingAt < len(roots) {
-		roots[m.askingAt] = tilde(expandHome(root, m.home), m.home)
+		roots[m.askingAt] = config.Tilde(config.ExpandHome(root, m.home), m.home)
 	} else {
-		roots = append(roots, tilde(expandHome(root, m.home), m.home))
+		roots = append(roots, config.Tilde(config.ExpandHome(root, m.home), m.home))
 	}
 	m.asking = false
 	return m.wroteRoots(roots)
@@ -202,7 +204,7 @@ func (m settingsModel) takeRoot() (settingsModel, tea.Cmd) {
 // is left at once, and conn is not going to make a habit of asking
 // twice about work that is not a process.
 func (m settingsModel) dropRoot(at int) (settingsModel, tea.Cmd) {
-	c, err := readConfig(m.home)
+	c, err := config.Read(m.home)
 	if err != nil {
 		m.err = err.Error()
 		return m, nil
@@ -218,7 +220,7 @@ func (m settingsModel) dropRoot(at int) (settingsModel, tea.Cmd) {
 // is on the new roots a beat later without either conn telling the
 // other anything.
 func (m settingsModel) wroteRoots(roots []string) (settingsModel, tea.Cmd) {
-	if err := saveRoots(m.home, roots); err != nil {
+	if err := config.SaveRoots(m.home, roots); err != nil {
 		m.err = err.Error()
 		return m, nil
 	}
@@ -234,7 +236,7 @@ func (m settingsModel) useTheme(name string) (settingsModel, tea.Cmd) {
 	if _, ok := themeNamed(name); !ok {
 		return m, nil
 	}
-	if err := saveTheme(m.home, name); err != nil {
+	if err := config.SaveTheme(m.home, name); err != nil {
 		m.err = err.Error()
 		return m, nil
 	}
@@ -252,11 +254,11 @@ func (m settingsModel) useTheme(name string) (settingsModel, tea.Cmd) {
 // and that is where it is asked. So the row that gives the choice back
 // changes nothing now and says so; what is on stays on until conn down.
 func (m settingsModel) useGround(name string) (settingsModel, tea.Cmd) {
-	dark, named := groundNamed(name)
+	dark, named := config.GroundNamed(name)
 	if name != "" && !named {
 		return m, nil
 	}
-	if err := saveGround(m.home, name); err != nil {
+	if err := config.SaveGround(m.home, name); err != nil {
 		m.err = err.Error()
 		return m, nil
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,6 +73,7 @@ type processRow struct {
 	age                               string   // how long a waiting row has waited, as the panel says it
 	stands                            string   // the kind the panel marks it as; a folded shell's is not its own
 	ports                             []string // the ports it listens on or publishes, said at the right of a panel row and after the command in the tree
+	num                               string   // the digit that goes to it, on the first ten contacts as drawn; see numbered
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -150,10 +152,30 @@ func composeProcesses(projects []work.Project, panes map[string]tmux.Pane, bay s
 	}
 	if filed {
 		b.projects = flat(b.projects, roots, home)
-		return b
+	} else {
+		b.projects = nested(b.projects, isProject, roots, home)
 	}
-	b.projects = nested(b.projects, isProject, roots, home)
+	numbered(b.projects)
 	return b
+}
+
+// numbered gives the first ten contacts their digits, 0 to 9, counted
+// down the blocks as they will be drawn, which is not the order of the
+// reading: the panel sorts its projects by path, and the tree nests
+// them. The digit on a row and the key that goes to it are read off
+// the same count, so the two cannot disagree.
+func numbered(blocks []projectBlock) {
+	n := 0
+	for i := range blocks {
+		for j := range blocks[i].rows {
+			r := &blocks[i].rows[j]
+			if r.kind != work.KindContact || n > 9 {
+				continue
+			}
+			r.num = strconv.Itoa(n)
+			n++
+		}
+	}
 }
 
 // flat is the blocks as the panel has them: the projects alone, in the
@@ -579,6 +601,12 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			// command gives up what the indent takes; a tree too deep for
 			// the room there is stops taking more.
 			indent := min((bp.nest+1+r.depth)*treeIndent, max(commandW-4, 0))
+			// The digit that goes to a contact stands in the indent, a
+			// column of air before the kind word, which every row has.
+			if r.num != "" && indent >= 2 {
+				l.to(indent - 2)
+				l.add(p.gray, r.num)
+			}
 			l.to(indent)
 			l.add(kind, fit(r.kind, kindCol-1, false))
 			l.to(kindCol + indent)
@@ -910,43 +938,28 @@ func (m model) toWaiting() (model, tea.Cmd) {
 	return m.goTo(next)
 }
 
-// toContact goes to a contact by its place among the contacts, in the
-// order the panel draws them: 1 the first, 9 the ninth, and 0 the
-// tenth, since 0 is where the tenth is on the row of digits. From inside
-// a process it is the panel key and the digit, which is how a window is
-// picked by number in tmux. A place with no contact in it is nothing.
+// toContact goes to the contact whose row carries the digit pressed:
+// the first ten contacts down the panel as it draws them, 0 the first,
+// as tmux numbers its windows. From inside a process it is the panel
+// key and the digit, which is how a window is picked by number in tmux.
+// A digit no row carries is nothing.
 func (m model) toContact(k string) (model, tea.Cmd) {
-	n := int(k[0]-'0') - 1
-	if n < 0 {
-		n = 9
-	}
-	pids := contactPIDs(m.processesReport())
-	if n >= len(pids) {
-		return m, nil
+	pid := 0
+	for _, bp := range m.processesReport().projects {
+		for _, r := range bp.rows {
+			if r.num == k {
+				pid = r.pid
+			}
+		}
 	}
 	for _, pl := range m.projects {
 		for _, e := range pl.Entries {
-			if e.PID == pids[n] {
+			if pid != 0 && e.PID == pid {
 				return m.goTo(e)
 			}
 		}
 	}
 	return m, nil
-}
-
-// contactPIDs is the contacts on the panel, top to bottom, as it draws
-// them: the report's blocks are in the order they are drawn, which is
-// not the order of the reading.
-func contactPIDs(b processesReport) []int {
-	var pids []int
-	for _, bp := range b.projects {
-		for _, r := range bp.rows {
-			if r.kind == work.KindContact {
-				pids = append(pids, r.pid)
-			}
-		}
-	}
-	return pids
 }
 
 // goTo puts the cursor on a row and the operator in front of it: the

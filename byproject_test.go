@@ -67,7 +67,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// and a shell running a build is the build — work, and not a way in
 	// to a pane.
 	for _, want := range []string{"conn ─", "conjurer ─", "─  WAITING", " 9 MIN", " 2 MIN",
-		"⣾ ○  go test ./...", "○  node vite", ":5173", "❯  zsh", markContact + "  claude", "▯  vim", "○  worker", " STOPPED", " DOWN"} {
+		"⣾ ○   go test ./...", "○   node vite", ":5173", "❯   zsh", markContact + " 0 claude", "▯   vim", "○   worker", " STOPPED", " DOWN"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the panel lacks %q:\n%s", want, text)
 		}
@@ -543,12 +543,14 @@ func TestAMarkIsTheKindAndTheKindsAreDistinct(t *testing.T) {
 	// The contact first, then the shell that is only a shell, then the
 	// work — the shell standing for vim among it, wearing the editor's
 	// mark and not the prompt's. See byKind.
+	// The contact carries its digit between the mark and the command,
+	// and every other row keeps the cell for it blank.
 	want := []string{
-		markContact + "  claude",
-		markShell + "  zsh",
-		markEditor + "  vim notes.md",
-		markService + "  postgres",
-		markRun + "  go build ./...",
+		markContact + " 0 claude",
+		markShell + "   zsh",
+		markEditor + "   vim notes.md",
+		markService + "   postgres",
+		markRun + "   go build ./...",
 	}
 	at := 0
 	for _, line := range strings.Split(text, "\n") {

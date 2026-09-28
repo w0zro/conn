@@ -37,7 +37,7 @@ func panelKeys(px string) []keyGroup {
 			{"j k", "a row"},
 			{"gg G", "first row, last row"},
 			{"tab", "next waiting"},
-			{"1-9 0", "contact 1 to 10"},
+			{"0-9", "contact 0 to 9"},
 			{"z", "the whole tree"},
 		},
 	}, {
@@ -65,7 +65,7 @@ func panelKeys(px string) []keyGroup {
 			{px, "the panel"},
 			{px + " " + px, "the last process"},
 			{px + " tab", "next waiting"},
-			{px + " 1-9 0", "contact 1 to 10"},
+			{px + " 0-9", "contact 0 to 9"},
 			{px + " ?", "these keys"},
 		},
 	}}

@@ -1,14 +1,14 @@
 
    w0zro ───────────────────────────  STOPPED
-   ❯  zsh
-   ▯  vim notes.md                    STOPPED
+   ❯   zsh
+   ▯   vim notes.md                   STOPPED
 
    conn ──────────────────────────────────────
-   ❯  zsh
+   ❯   zsh
 
    conjurer ──────────────────────────────────
-▸  ✻  claude
-▌  ❯  zsh
+▸  ✻ 0 claude
+▌  ❯   zsh
 
 
 

@@ -409,10 +409,11 @@ func TestTabWalksTheWaitingLongestFirst(t *testing.T) {
 	}
 }
 
-// A digit goes to a contact by its place down the panel as drawn: 1
-// the first, 0 the tenth. The panel draws its projects by path, so the
+// A digit goes to a contact by its place down the panel as drawn: 0
+// the first, 9 the tenth. The panel draws its projects by path, so the
 // count is the drawing's and not the reading's, and a row that is not a
-// contact is not counted. A place with no contact in it moves nothing.
+// contact is not counted. The digit is drawn on the row it goes to. A
+// place with no contact in it moves nothing.
 func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 	m := plainModel()
 	m.view = viewProcesses
@@ -438,18 +439,40 @@ func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 	for _, c := range []struct {
 		key rune
 		pid int
-	}{{'1', 22}, {'2', 44}, {'3', 300}, {'0', 307}, {'1', 22}} {
+	}{{'0', 22}, {'1', 44}, {'2', 300}, {'9', 307}, {'0', 22}} {
 		press(c.key)
 		if m.cursor != c.pid {
 			t.Errorf("%c put the cursor on %d, want %d", c.key, m.cursor, c.pid)
 		}
 	}
 
-	// Ten contacts less one: 0 has none to go to.
+	// Each digit is on the row it goes to, and on no other; the rest of
+	// the rows keep the commands in one column.
+	rows := drawProcesses(m.processesReport(), m.cursor, tmux.PanelWidth, 0, plain)
+	for _, want := range []struct {
+		pid int
+		num string
+	}{{22, "0"}, {44, "1"}, {307, "9"}, {11, " "}, {33, " "}} {
+		found := false
+		for _, r := range rows {
+			if r.pid != want.pid {
+				continue
+			}
+			found = true
+			if !strings.Contains(r.text+" ", " "+want.num+" ") {
+				t.Errorf("pid %d drawn %q, want its digit %q", want.pid, r.text, want.num)
+			}
+		}
+		if !found {
+			t.Errorf("pid %d not drawn", want.pid)
+		}
+	}
+
+	// Ten contacts less one: 9 has none to go to.
 	m.projects[0].Entries = tenth[:7]
-	press('0')
+	press('9')
 	if m.cursor != 22 {
-		t.Errorf("0 with nine contacts moved the cursor to %d", m.cursor)
+		t.Errorf("9 with nine contacts moved the cursor to %d", m.cursor)
 	}
 }
 

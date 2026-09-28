@@ -3,7 +3,7 @@
      SHELL   zsh                          IDLE
 
    w0zro/public-rides
-     CONTACT claude                     ACTIVE
+   0 CONTACT claude                     ACTIVE
      public-rides.com
        SHELL   zsh                      ACTIVE
 ▸        RUN     ruby ride              ACTIVE

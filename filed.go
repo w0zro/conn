@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"strconv"
 	"strings"
 
@@ -114,6 +115,12 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 
 	var body []row
 	cursorRow := -1
+	numbers := false
+	for _, bp := range b.projects {
+		for _, r := range bp.rows {
+			numbers = numbers || r.num != ""
+		}
+	}
 	d := canvas{p: p, width: width}
 	for _, bp := range b.projects {
 		// Every block is at the margin, with a row of air before it.
@@ -200,7 +207,17 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			// the panel is read down, and a column that steps in and out
 			// is not one. Nothing is indented here — the rows are a list
 			// in the panel's own order, by kind; see byKind.
-			l.dot(tone, markOf(r.stands))
+			// The digit that goes to a contact stands between the mark
+			// and the command. Where any row has one, every row makes
+			// the room, so the commands keep their one column.
+			if numbers {
+				l.add(tone, markOf(r.stands))
+				l.add("", " ")
+				l.add(p.gray, cmp.Or(r.num, " "))
+				l.add("", " ")
+			} else {
+				l.dot(tone, markOf(r.stands))
+			}
 			// The right of a row is one column, and two things want it:
 			// the word a row stands by, and the ports it serves on. The
 			// word takes it wherever there is one — a row that is

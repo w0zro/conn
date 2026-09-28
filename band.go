@@ -182,6 +182,9 @@ func (m model) bar() string {
 				hints = append(hints, keyHint{"enter", "Open a shell there"}, keyHint{"alt-a", "New contact"}, keyHint{"alt-A", "Sessions"})
 			}
 		}
+		if m.inside {
+			hints = append(hints, keyHint{"alt-r", "Recent"})
+		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewSessions:
 		if len(m.sessions.rows()) > 1 {
@@ -195,6 +198,11 @@ func (m model) bar() string {
 				word = "Resume it"
 			}
 			hints = append(hints, keyHint{"enter", word})
+		}
+		// From one project's sessions, every project's; the recent
+		// view is that already.
+		if m.inside && !m.sessions.recent {
+			hints = append(hints, keyHint{"alt-r", "Recent"})
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewRoots:
@@ -237,7 +245,11 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"U", "Bring up all"})
 		}
 	}
-	return keyBar(append(hints, keyHint{"p", "Projects"}, keyHint{",", "Settings"}, keyHint{"?", "Help"}), m.g)
+	hints = append(hints, keyHint{"p", "Projects"})
+	if m.inside {
+		hints = append(hints, keyHint{"r", "Recent"})
+	}
+	return keyBar(append(hints, keyHint{",", "Settings"}, keyHint{"?", "Help"}), m.g)
 }
 
 // keyWord is the panel key as the bar writes it: ^space for C-Space,

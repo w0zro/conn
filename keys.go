@@ -67,6 +67,7 @@ func panelKeys(px string) []keyGroup {
 			{px + " " + px, "the last process"},
 			{px + " tab", "next waiting"},
 			{px + " 0-9", "contact 0 to 9"},
+			{px + " r", "recent sessions"},
 			{px + " ?", "these keys"},
 		},
 	}}

@@ -271,13 +271,13 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 
 	next, cmd := m.Update(openedMsg{shell: shell{pane: pane{id: "%9", tty: "ttys009"}, pid: 4242}})
 	m = next.(model)
-	if cmd == nil || m.awaited != 4242 || m.bay.tty != "ttys009" {
-		t.Errorf("after opening: cmd %v, awaited %d, bay %q", cmd != nil, m.awaited, m.bay.tty)
+	if cmd == nil || m.awaited.pid != 4242 || m.bay.tty != "ttys009" {
+		t.Errorf("after opening: cmd %v, awaited %d, bay %q", cmd != nil, m.awaited.pid, m.bay.tty)
 	}
 	// A reading without it yet leaves the cursor, and the next read is soon.
 	m = read(m, here)
-	if m.cursor != 11 || m.awaited != 4242 {
-		t.Errorf("before the shell is read: cursor %d, awaited %d", m.cursor, m.awaited)
+	if m.cursor != 11 || m.awaited.pid != 4242 {
+		t.Errorf("before the shell is read: cursor %d, awaited %d", m.cursor, m.awaited.pid)
 	}
 	if next, _ := m.Update(processesTickMsg{gen: m.processesGen}); next == nil {
 		t.Error("the tick should read")
@@ -285,14 +285,14 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 	// The reading that brings the shell puts the cursor on it.
 	withIt := []project{{path: "/w", entries: []entry{{pid: 4242, kind: kindShell}, {pid: 11}, {pid: 22}}}}
 	m = read(m, withIt)
-	if m.cursor != 4242 || m.awaited != 0 {
-		t.Errorf("with the shell read: cursor %d, awaited %d", m.cursor, m.awaited)
+	if m.cursor != 4242 || m.awaited.pid != 0 {
+		t.Errorf("with the shell read: cursor %d, awaited %d", m.cursor, m.awaited.pid)
 	}
 	// A shell that never comes up is given up on once the wait is out.
-	m.awaited, m.until, m.cursor = 9999, time.Now().Add(-time.Second), 11
+	m.awaited, m.cursor = awaited{pid: 9999, until: time.Now().Add(-time.Second)}, 11
 	m = read(m, here)
-	if m.awaited != 0 || m.cursor != 11 {
-		t.Errorf("after the wait: awaited %d, cursor %d", m.awaited, m.cursor)
+	if m.awaited.pid != 0 || m.cursor != 11 {
+		t.Errorf("after the wait: awaited %d, cursor %d", m.awaited.pid, m.cursor)
 	}
 }
 
@@ -473,8 +473,8 @@ func TestAOpensAContactAtTheProject(t *testing.T) {
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
 	m = next.(model)
 	// Nothing is opened and nothing is waited for.
-	if m.awaited != 0 {
-		t.Errorf("off any project: awaited %d", m.awaited)
+	if m.awaited.pid != 0 {
+		t.Errorf("off any project: awaited %d", m.awaited.pid)
 	}
 }
 
@@ -1426,8 +1426,8 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	gen := m.processesGen
 	next, cmd = m.Update(raisedMsg{shells: []shell{{pid: 500}, {pid: 501}}})
 	m = next.(model)
-	if m.awaited != 500 || m.processesGen != gen+1 || cmd == nil {
-		t.Errorf("raised: awaited %d, gen %d from %d, cmd %v", m.awaited, m.processesGen, gen, cmd != nil)
+	if m.awaited.pid != 500 || m.processesGen != gen+1 || cmd == nil {
+		t.Errorf("raised: awaited %d, gen %d from %d, cmd %v", m.awaited.pid, m.processesGen, gen, cmd != nil)
 	}
 
 	// From the list, on the project's row.

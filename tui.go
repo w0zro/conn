@@ -72,6 +72,35 @@ const (
 	waitForOpened  = 3 * time.Second
 )
 
+// awaited is a process conn has just started — a shell, or the first
+// of what a bring-up opened — which the cursor goes to once the process
+// table has it, and until when that is waited for. A zero pid waits on
+// nothing.
+type awaited struct {
+	pid   int
+	until time.Time
+}
+
+// awaiting is a wait on pid, for as long as an opened process is worth
+// waiting for.
+func awaiting(pid int) awaited {
+	return awaited{pid: pid, until: time.Now().Add(waitForOpened)}
+}
+
+// found is a reading's answer to the wait: over, with the pid where the
+// rows now have it, or with none where the wait has run out.
+func (w awaited) found(projects []project, now time.Time) (pid int, over bool) {
+	switch {
+	case w.pid == 0:
+		return 0, false
+	case hasPid(projects, w.pid):
+		return w.pid, true
+	case now.After(w.until):
+		return 0, true
+	}
+	return 0, false
+}
+
 // The console's alarms blink like annunciators on a panel: lit for a
 // second, dark for half of one. The dark is the shorter half — the
 // blink is there to catch the eye, not to take the words away.
@@ -168,11 +197,8 @@ type model struct {
 	// panel, and the fresh conn inherits whatever the last one left — so
 	// nil means "not written yet", not "the server says nothing", and
 	// the first writing goes out whatever it holds.
-	said *band
-	// A shell conn has just opened: the pid the cursor goes to once the
-	// process table has it, and how long that is waited for.
-	awaited      int
-	until        time.Time
+	said         *band
+	awaited      awaited // a process conn has just started, which the cursor goes to
 	processesErr string
 	// What the server would not do, in its own words, said under the
 	// rows until the next key. A shell that could not be opened left
@@ -587,7 +613,7 @@ func (m model) nextSpin() tea.Cmd {
 // waits on a shell conn opened, and at its own pace otherwise.
 func (m model) processesTick() tea.Cmd {
 	gen, every := m.processesGen, processesEvery
-	if m.awaited != 0 {
+	if m.awaited.pid != 0 {
 		every = processesSoon
 	}
 	return tea.Tick(every, func(time.Time) tea.Msg { return processesTickMsg{gen} })
@@ -1013,14 +1039,14 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// soon.
 		m.bay.slotted(msg.shell.pane.tty)
 		m.focused = false
-		m.awaited, m.until = msg.shell.pid, time.Now().Add(waitForOpened)
+		m.awaited = awaiting(msg.shell.pid)
 		m.processesGen++
 		return m, m.readProcesses()
 	case raisedMsg:
 		// The panes are parked and the keys stayed here; the cursor
 		// goes to the first of them once the table has it.
 		if len(msg.shells) > 0 {
-			m.awaited, m.until = msg.shells[0].pid, time.Now().Add(waitForOpened)
+			m.awaited = awaiting(msg.shells[0].pid)
 		}
 		m.processesGen++
 		return m, m.readProcesses()
@@ -1148,13 +1174,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// The shell conn opened is the cursor's once the reading has it;
 		// one that never comes is given up on when the wait is out.
-		if m.awaited != 0 {
-			switch {
-			case hasPid(m.projects, m.awaited):
-				m.cursor, m.awaited = m.awaited, 0
-			case time.Now().After(m.until):
-				m.awaited = 0
+		if pid, over := m.awaited.found(m.projects, time.Now()); over {
+			if pid != 0 {
+				m.cursor = pid
 			}
+			m.awaited = awaited{}
 		}
 		// follow's job is to keep hold of the row the operator was on
 		// while the rows change under it. With the manual or the

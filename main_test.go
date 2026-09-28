@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -123,13 +125,13 @@ func TestConnWritesTheVimColorscheme(t *testing.T) {
 // conn down says what it ended, a line for each window and one for the
 // server, the columns aligned; a window's path is written from ~.
 func TestDownSaysWhatItEnded(t *testing.T) {
-	ws := parseWindows("home /Users/w0zro\nzsh /Users/w0zro/projects/w0zro/conn\nclaude /Users/w0zro/projects/w0zro/vim.pro\n")
+	ws := tmux.ParseWindows("home /Users/w0zro\nzsh /Users/w0zro/projects/w0zro/conn\nclaude /Users/w0zro/projects/w0zro/vim.pro\n")
 	// The name is one token and the path is whatever is left of the
 	// line, so a path with a space in it arrives whole.
-	if w := parseWindows("claude /Users/w0zro/my notes\n"); len(w) != 1 || w[0].path != "/Users/w0zro/my notes" {
+	if w := tmux.ParseWindows("claude /Users/w0zro/my notes\n"); len(w) != 1 || w[0].Path != "/Users/w0zro/my notes" {
 		t.Errorf("a path with a space in it: %+v", w)
 	}
-	if len(ws) != 3 || ws[1] != (window{name: "zsh", path: "/Users/w0zro/projects/w0zro/conn"}) {
+	if len(ws) != 3 || ws[1] != (tmux.Window{Name: "zsh", Path: "/Users/w0zro/projects/w0zro/conn"}) {
 		t.Errorf("windows: %+v", ws)
 	}
 	got := downReport(ws, "/Users/w0zro/.local/state/conn/tmux.sock", "/Users/w0zro")

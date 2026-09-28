@@ -3,6 +3,7 @@ package main
 import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"github.com/w0zro/conn/internal/tmux"
 )
 
 // The manual, in a pane of conn's own. conn runs it as `conn manual`,
@@ -20,19 +21,19 @@ import (
 // A manualModel is the manual being read: the page, and the viewport
 // it is read through, which does the scrolling.
 type manualModel struct {
-	srv  *server
+	srv  *tmux.Server
 	path string
 	page viewport.Model
 	p    palette
 }
 
-func newManual(srv *server, path string, p palette) manualModel {
+func newManual(srv *tmux.Server, path string, p palette) manualModel {
 	page := viewport.New()
 	page.KeyMap = manualKeys()
 	return manualModel{srv: srv, path: path, page: page, p: p}
 }
 
-func runManual(srv *server, path string, p palette) error {
+func runManual(srv *tmux.Server, path string, p palette) error {
 	_, err := tea.NewProgram(newManual(srv, path, p), programOptions()...).Run()
 	return err
 }
@@ -75,7 +76,7 @@ func (m manualModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Sequence(
 				func() tea.Msg {
 					if srv != nil {
-						_ = srv.leaveHelp()
+						_ = srv.LeaveHelp()
 					}
 					return nil
 				},

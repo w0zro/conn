@@ -1,5 +1,7 @@
 package main
 
+import "github.com/w0zro/conn/internal/tmux"
+
 // The bay as the panel knows it: the terminal in it, as last read or as
 // conn last put there; whether that is the readout; and the work it has
 // held, which is where the keys go back into.
@@ -48,9 +50,9 @@ func (b *bay) slotted(tty string) {
 // puts the readout there or takes it away — and the reading corrects
 // it; asking tmux on every reading would be a process for something
 // conn already knows.
-func (b *bay) read(tty string, p pane, readout bool) {
+func (b *bay) read(tty string, p tmux.Pane, readout bool) {
 	b.tty, b.readout = tty, readout
-	if reachable(p) {
+	if tmux.Reachable(p) {
 		b.work = tty
 	}
 }

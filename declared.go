@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/w0zro/conn/internal/tmux"
 )
 
 // A project's .conn: the processes it is worked by, written down once
@@ -361,9 +363,9 @@ func declaredPID(project, name string) int {
 // tmux tells a pane its own id in TMUX_PANE, and is told it back: a
 // client with no terminal is otherwise pointed at whichever pane the
 // server counts as current, which is not this one.
-func declaredLine(d declaration, tmux string) string {
+func declaredLine(d declaration, bin string) string {
 	return d.command + "\n" +
-		shellQuote(tmux) + " set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\n" +
+		tmux.ShellQuote(bin) + " set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\n" +
 		"printf '\\n[" + d.name + " exited]\\n'\n" +
 		holdOpen
 }
@@ -386,7 +388,7 @@ const exitWord = "EXIT "
 // holding one that ended, by the mark, which a raise replaces. It reads
 // the rows rather than the panes, since a pane whose rows are not yet
 // read is not yet anything.
-func upAndHeld(projects []project, panes map[string]pane, path string) (up map[string]bool, held map[string]string) {
+func upAndHeld(projects []project, panes map[string]tmux.Pane, path string) (up map[string]bool, held map[string]string) {
 	up, held = map[string]bool{}, map[string]string{}
 	for _, pl := range projects {
 		for _, e := range pl.entries {
@@ -411,8 +413,8 @@ func upAndHeld(projects []project, panes map[string]pane, path string) (up map[s
 				}
 				continue
 			}
-			if p := panes[e.tty]; p.exit != "" {
-				held[e.declared] = p.id
+			if p := panes[e.tty]; p.Exit != "" {
+				held[e.declared] = p.ID
 			} else {
 				up[e.declared] = true
 			}
@@ -428,21 +430,21 @@ func upAndHeld(projects []project, panes map[string]pane, path string) (up map[s
 // that would not read is the block's note. A project with no block —
 // nothing running in it — is given one, holding what it declares,
 // down.
-func attachDeclared(projects []project, declared map[string]declared, panes map[string]pane) []project {
+func attachDeclared(projects []project, declared map[string]declared, panes map[string]tmux.Pane) []project {
 	if len(declared) == 0 {
 		return projects
 	}
-	byMark := map[string]pane{}
+	byMark := map[string]tmux.Pane{}
 	for _, p := range panes {
-		if p.declared == "" {
+		if p.Declared == "" {
 			continue
 		}
 		// Two panes for one declaration is a raise that overlapped a
 		// reading; the one still running is the one that counts.
-		if was, ok := byMark[p.declared]; ok && was.exit == "" {
+		if was, ok := byMark[p.Declared]; ok && was.Exit == "" {
 			continue
 		}
-		byMark[p.declared] = p
+		byMark[p.Declared] = p
 	}
 	out := make([]project, len(projects))
 	copy(out, projects)
@@ -487,8 +489,8 @@ func attachDeclared(projects []project, declared map[string]declared, panes map[
 				// got yet has no row this beat, rather than a down row
 				// that is not true. A service compose would bring up
 				// that has no container yet is down under it.
-				if pid, ok := headPID(out, p.tty); ok {
-					relabel(out, pid, decl, mark, p.exit)
+				if pid, ok := headPID(out, p.TTY); ok {
+					relabel(out, pid, decl, mark, p.Exit)
 					servicesUnder(out, pid, path, decl, d.services[decl.name])
 				}
 				continue

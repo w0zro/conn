@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	tea "charm.land/bubbletea/v2"
@@ -33,9 +35,9 @@ func (m model) saying() (model, tea.Cmd) {
 	m.said = &now
 	srv, ident := m.srv, designation(m.head.login.host, m.head.build.tag, m.g)
 	if m.detour.to == toSettings {
-		return m, func() tea.Msg { _ = srv.sayBand(now.keys, now.station, now.up, ident); return nil }
+		return m, func() tea.Msg { _ = srv.SayBand(now.keys, now.station, now.up, ident); return nil }
 	}
-	return m, func() tea.Msg { _ = srv.say(now.keys, now.station, now.up, now.bar, ident); return nil }
+	return m, func() tea.Msg { _ = srv.Say(now.keys, now.station, now.up, now.bar, ident); return nil }
 }
 
 // A band is the words conn puts on the status line: its word for the
@@ -77,18 +79,18 @@ func (m model) telling() band {
 func (m model) keys() string {
 	if m.kill != nil {
 		// The question itself is on the key bar, where the answer is.
-		return statusLineBlock("CONFIRM", m.g)
+		return tmux.StatusLineBlock("CONFIRM", m.g)
 	}
 	// Reading the manual, or keeping the settings, is a state the
 	// operator is in, like a question armed, and it outranks the
 	// wordmark: while either is up the panel is not being worked.
 	if m.detour.to != noDetour && m.view == viewProcesses {
-		return statusLineBlock(m.detour.to.word(), m.g)
+		return tmux.StatusLineBlock(m.detour.to.word(), m.g)
 	}
 	// The whole tree is a way of looking at the processes view rather
 	// than a view of its own, and the band says so while it is on.
 	if m.full && m.view == viewProcesses {
-		return statusLineBlock(treeWord, m.g)
+		return tmux.StatusLineBlock(treeWord, m.g)
 	}
 	// Otherwise the wordmark: the band is the station's, and the panel
 	// says which view it is in by its own eyebrows. The console says
@@ -96,7 +98,7 @@ func (m model) keys() string {
 	if m.view == viewConsole {
 		return ""
 	}
-	return statusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
+	return tmux.StatusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
 }
 
 // wordmarkLine is conn's name as the band wears it.
@@ -115,9 +117,9 @@ const treeWord = "TREE"
 // guessing.
 func (m model) station() string {
 	if m.detour.to != noDetour {
-		return statusLineBlock(m.detour.to.word(), m.g)
+		return tmux.StatusLineBlock(m.detour.to.word(), m.g)
 	}
-	return statusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
+	return tmux.StatusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
 }
 
 // upWord is the right edge of the band: the time of day, local, as
@@ -134,7 +136,7 @@ func (m model) upWord() string {
 	if !m.up.IsZero() {
 		word += " · T+ " + strings.ToLower(uptime(m.up, m.now))
 	}
-	return statusLineWord(word+" ", m.g.Gray, false, m.g)
+	return tmux.StatusLineWord(word+" ", m.g.Gray, false, m.g)
 }
 
 // bar is the key bar across the foot of the window: the keys that work
@@ -146,7 +148,7 @@ func (m model) bar() string {
 	case m.kill != nil:
 		// The band says CONFIRM over it; the bar is the question and
 		// its answers, and says neither twice.
-		return statusLineSay(m.kill.prompt, m.g) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, m.g)
+		return tmux.StatusLineSay(m.kill.prompt, m.g) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, m.g)
 	case m.detour.to == toManual:
 		return keyBar(helpHints, m.g)
 	}
@@ -155,7 +157,7 @@ func (m model) bar() string {
 	// and after it any key of the panel's. The bar says the key, and
 	// the pairs that matter most from there.
 	if m.inside && !m.focused && m.view != viewConsole {
-		px := keyWord(panelKey())
+		px := keyWord(tmux.PanelKey())
 		hints := []keyHint{{px, "Panel"}}
 		if len(waitingRound(m.projects)) > 0 {
 			hints = append(hints, keyHint{px + " tab", "Next waiting"})

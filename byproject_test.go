@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -53,9 +55,9 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// at the end of the rule, a wait stamped with its age, a fault
 	// stamped with its word, and what is down saying so. The file of
 	// record is the panel's own width.
-	b := composeProcesses(fold(out), map[string]pane{"ttys001": {id: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
+	b := composeProcesses(fold(out), map[string]tmux.Pane{"ttys001": {ID: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
 	b.lit = true
-	rows := drawProcesses(b, 5, panelWidth, 30, plain)
+	rows := drawProcesses(b, 5, tmux.PanelWidth, 30, plain)
 	text := texts(rows)
 	golden(t, "processes-filed-44x30.txt", text)
 	// The mark is the kind and the color on it is the state: a contact
@@ -69,12 +71,12 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 		}
 	}
 	for _, r := range rows {
-		if n := len([]rune(r.text)); n > panelWidth {
-			t.Errorf("a row is %d wide in %d: %q", n, panelWidth, r.text)
+		if n := len([]rune(r.text)); n > tmux.PanelWidth {
+			t.Errorf("a row is %d wide in %d: %q", n, tmux.PanelWidth, r.text)
 		}
 	}
 	// What is not running is struck through, in color.
-	if lit := texts(drawProcesses(b, 5, panelWidth, 30, colored(theme.Conn.Dark))); !strings.Contains(lit, "\x1b[9m") {
+	if lit := texts(drawProcesses(b, 5, tmux.PanelWidth, 30, colored(theme.Conn.Dark))); !strings.Contains(lit, "\x1b[9m") {
 		t.Errorf("what is not running is not struck through:\n%s", lit)
 	}
 }
@@ -94,7 +96,7 @@ func TestMinutes(t *testing.T) {
 // keys that act at a project only inside the server. While a process
 // has the keys, it says the chords instead.
 func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark, panes: map[string]pane{"ttys001": {id: "%1"}}}
+	m := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark, panes: map[string]tmux.Pane{"ttys001": {ID: "%1"}}}
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
 		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
@@ -291,7 +293,7 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 	}
 	// Drawn at the end of the rule, and a wait's blinks with the rows.
 	m := plainModel()
-	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
+	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, tmux.PanelWidth, 20, processesNow
 	m.projects = []project{
 		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 			{pid: 1, kind: kindShell, command: "zsh", status: statusIdle},
@@ -303,7 +305,7 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 	}
 	b := m.processesReport()
 	b.lit = true
-	text := texts(drawProcesses(b, 1, panelWidth, 20, plain))
+	text := texts(drawProcesses(b, 1, tmux.PanelWidth, 20, plain))
 	golden(t, "processes-verdicts-44x20.txt", text)
 	for _, line := range strings.Split(text, "\n") {
 		if strings.Contains(line, "conn ─") && !strings.HasSuffix(strings.TrimRight(line, " "), "─") {
@@ -342,12 +344,12 @@ func isPanelRow(line string) bool {
 func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 	long := "/Volumes/work/some-organization-name/auditboard-backend-services"
 	m := plainModel()
-	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
+	m.view, m.inside, m.width, m.height = viewProcesses, true, tmux.PanelWidth, 20
 	m.projects = []project{{path: long, entries: []entry{
 		{pid: 5, kind: kindRun, command: "pnpm start --host --strict-port", cwd: long, status: statusActive, ports: []string{"3000"}},
 		{pid: 6, kind: kindRun, command: "node server.js", cwd: long, status: statusActive, ports: []string{"8080", "8081"}},
 	}}}
-	for _, width := range []int{panelWidth, 50, 40} {
+	for _, width := range []int{tmux.PanelWidth, 50, 40} {
 		text := texts(drawProcesses(m.processesReport(), 5, width, 20, plain))
 		if !strings.Contains(text, ":3000") || !strings.Contains(text, ":8080 :8081") {
 			t.Errorf("at %d wide the rows lost their ports:\n%s", width, text)
@@ -373,7 +375,7 @@ func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 // serve or have something to say, and the two never want it at once.
 func TestThePortsEndAtOneColumn(t *testing.T) {
 	m := plainModel()
-	m.view, m.inside, m.width, m.height = viewProcesses, true, panelWidth, 20
+	m.view, m.inside, m.width, m.height = viewProcesses, true, tmux.PanelWidth, 20
 	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 5, kind: kindRun, command: "node server.js", status: statusActive, ports: []string{"8080"}},
 		{pid: 6, kind: kindRun, command: "caddy run", status: statusActive, ports: []string{"443", "80"}},
@@ -382,7 +384,7 @@ func TestThePortsEndAtOneColumn(t *testing.T) {
 	}}}
 	ends := map[string]int{}
 	var serves, quiet, ended string
-	for _, line := range strings.Split(texts(drawProcesses(m.processesReport(), 0, panelWidth, 20, plain)), "\n") {
+	for _, line := range strings.Split(texts(drawProcesses(m.processesReport(), 0, tmux.PanelWidth, 20, plain)), "\n") {
 		for _, at := range []struct {
 			word string
 			line *string
@@ -422,7 +424,7 @@ func TestThePortsEndAtOneColumn(t *testing.T) {
 // not the thing to say about it.
 func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
 	m := plainModel()
-	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
+	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, tmux.PanelWidth, 20, processesNow
 	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 5, kind: kindRun, command: "npm run build", status: statusDown, ports: []string{"4000"}},
 		{pid: 6, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute), ports: []string{"7000"}},
@@ -430,7 +432,7 @@ func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
 	b := m.processesReport()
 	for _, lit := range []bool{true, false} {
 		b.lit = lit
-		text := texts(drawProcesses(b, 0, panelWidth, 20, plain))
+		text := texts(drawProcesses(b, 0, tmux.PanelWidth, 20, plain))
 		if !strings.Contains(text, "DOWN") {
 			t.Errorf("lit %v: the down row lost its word:\n%s", lit, text)
 		}
@@ -449,16 +451,16 @@ func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
 // both halves.
 func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 	m := plainModel()
-	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, panelWidth, 20, processesNow
+	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, tmux.PanelWidth, 20, processesNow
 	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
 		{pid: 1, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute)},
 		{pid: 2, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
 	}}}
 	b := m.processesReport()
 	b.lit = true
-	on := drawProcesses(b, 0, panelWidth, 20, plain)
+	on := drawProcesses(b, 0, tmux.PanelWidth, 20, plain)
 	b.lit = false
-	off := drawProcesses(b, 0, panelWidth, 20, plain)
+	off := drawProcesses(b, 0, tmux.PanelWidth, 20, plain)
 	if !strings.Contains(texts(on), " 9 MIN") || strings.Contains(texts(on), "9 min") {
 		t.Errorf("the lit half does not stamp the wait:\n%s", texts(on))
 	}
@@ -486,19 +488,19 @@ func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 func TestThePanelSaysWhenThereIsNothingToList(t *testing.T) {
 	for _, filed := range []bool{true, false} {
 		empty := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, filed)
-		if out := texts(drawProcesses(empty, 0, panelWidth, 20, plain)); !strings.Contains(out, "NO PROCESSES") {
+		if out := texts(drawProcesses(empty, 0, tmux.PanelWidth, 20, plain)); !strings.Contains(out, "NO PROCESSES") {
 			t.Errorf("nothing running, filed %v, says nothing:\n%s", filed, out)
 		}
 		unread := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false, filed)
 		unread.stalled = true
-		out := texts(drawProcesses(unread, 0, panelWidth, 20, plain))
+		out := texts(drawProcesses(unread, 0, tmux.PanelWidth, 20, plain))
 		if !strings.Contains(out, "LSOF: NOT FOUND") {
 			t.Errorf("the table could not be read, filed %v, and the view says nothing:\n%s", filed, out)
 		}
 		if !strings.Contains(out, "DOCKER NOT ANSWERING") {
 			t.Errorf("the notes are lost where there are no rows, filed %v:\n%s", filed, out)
 		}
-		if len(drawProcesses(unread, 0, panelWidth, 20, plain)) != 20 {
+		if len(drawProcesses(unread, 0, tmux.PanelWidth, 20, plain)) != 20 {
 			t.Errorf("the drawing is not the height it was given, filed %v", filed)
 		}
 	}
@@ -535,7 +537,7 @@ func TestAMarkIsTheKindAndTheKindsAreDistinct(t *testing.T) {
 		{pid: 6, kind: kindRun, typed: "go build ./...", tty: "ttys003", status: statusWorking},
 	}}})
 	b := composeProcesses(folded, nil, "", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
-	text := texts(drawProcesses(b, 0, panelWidth, 20, plain))
+	text := texts(drawProcesses(b, 0, tmux.PanelWidth, 20, plain))
 	// The contact first, then the shell that is only a shell, then the
 	// work — the shell standing for vim among it, wearing the editor's
 	// mark and not the prompt's. See byKind.

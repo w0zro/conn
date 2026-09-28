@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -66,7 +68,7 @@ func TestTheClientReachesTheServer(t *testing.T) {
 func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
 	m.containers = []container{{id: "abc", image: "postgres:16", state: "running", dir: "/w/a"}}
 	m.projects = []project{{path: "/w/a", entries: []entry{
 		{pid: 300, kind: kindRun, command: "postgres -D data", cwd: "/w/a", status: statusActive, ports: []string{"5432"}},

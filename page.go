@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/config"
 
 	"github.com/charmbracelet/x/ansi"
@@ -223,12 +225,12 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	}
 	switch {
 	case !s.inside:
-	case reachable(s.pane):
-		add("Pane", s.pane.id)
-	case s.pane.dead:
-		add("Pane", s.pane.id+" · ended")
-	case s.pane.id != "":
-		add("Pane", s.pane.id+" · cannot be reached")
+	case tmux.Reachable(s.pane):
+		add("Pane", s.pane.ID)
+	case s.pane.Dead:
+		add("Pane", s.pane.ID+" · ended")
+	case s.pane.ID != "":
+		add("Pane", s.pane.ID+" · cannot be reached")
 	default:
 		add("Pane", "None · conn did not open it")
 	}

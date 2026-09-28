@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -290,14 +292,14 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 			{pid: -99, kind: kindService, command: "web", ports: []string{"8438"}, tty: "", status: statusActive, cwd: "/w", container: "abc123def456"},
 		}}},
 		records:    map[int]record{11: {pid: 11, state: 'S', foreground: false}, 22: {pid: 22, state: 'S', foreground: true, cpu: 90 * time.Second}},
-		panes:      map[string]pane{"ttys002": {id: "%3", tty: "ttys002"}},
+		panes:      map[string]tmux.Pane{"ttys002": {ID: "%3", TTY: "ttys002"}},
 		inside:     true,
 		containers: []container{{id: "abc123def456", service: "web", image: "nginx", state: "running", dir: "/w"}},
 	}
 	tellCursor(path, subject{pid: 22}, &r)
 	at, got := askCursor(path)
 	if at.pid != 22 || got == nil || len(got.projects) != 1 || got.records[22].cpu != 90*time.Second ||
-		got.panes["ttys002"].id != "%3" || !got.inside || len(got.containers) != 1 {
+		got.panes["ttys002"].ID != "%3" || !got.inside || len(got.containers) != 1 {
 		t.Fatalf("the reading did not travel whole: %+v, %+v", at, got)
 	}
 	if row := got.projects[0].entries[1]; row.status != statusWorking || row.doing != "edit tui.go" {
@@ -371,7 +373,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{{pid: 11, tty: "ttys001", kind: kindShell, command: "zsh", status: statusIdle}}},
 		{path: "", entries: []entry{{pid: 22, tty: "ttys002", kind: kindShell, command: "zsh", status: statusIdle}}},
 	}
-	m.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
+	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	rows := m.projectRows()
 	if len(rows) != 4 {
 		t.Fatalf("the list has %d rows: %+v", len(rows), rows)
@@ -409,7 +411,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	// view: the keys on the panel and a row under the cursor is enough,
 	// and the walk landing is one of the moments it is asked for.
 	m.bay.readout, m.focused = false, true
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: filepath.Join(dir, "tmux.sock")}
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: filepath.Join(dir, "tmux.sock")}
 	next, cmd := m.Update(projectsMsg{projects: m.list.walked})
 	if got := next.(model); !got.bay.readout || cmd == nil {
 		t.Error("the walk landing in the list did not put the page in the workspace")
@@ -506,7 +508,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 
 	// The sessions landing puts the page up.
 	m.bay.readout, m.focused = false, true
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: filepath.Join(dir, "tmux.sock")}
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: filepath.Join(dir, "tmux.sock")}
 	next, cmd := m.Update(sessionsMsg{dirs: m.sessions.dirs, sessions: m.sessions.read})
 	if got := next.(model); !got.bay.readout || cmd == nil {
 		t.Error("the sessions landing did not put the page in the workspace")

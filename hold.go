@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -19,12 +21,12 @@ import (
 const holdWord = "VACANT"
 
 type holdModel struct {
-	srv           *server
+	srv           *tmux.Server
 	width, height int
 	p             palette
 }
 
-func runHold(srv *server, p palette) error {
+func runHold(srv *tmux.Server, p palette) error {
 	_, err := tea.NewProgram(holdModel{srv: srv, p: p}, programOptions()...).Run()
 	return err
 }
@@ -37,7 +39,7 @@ func (h holdModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.width, h.height = msg.Width, msg.Height
 	case tea.KeyPressMsg:
 		if h.srv != nil {
-			return h, func() tea.Msg { _ = h.srv.focusPanel(); return nil }
+			return h, func() tea.Msg { _ = h.srv.FocusPanel(); return nil }
 		}
 	}
 	return h, nil

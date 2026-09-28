@@ -1,4 +1,4 @@
-package main
+package tmux
 
 import (
 	"fmt"
@@ -15,15 +15,15 @@ import (
 func TestTheServerIsFoundBySocket(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "")
 	t.Setenv("CONN_SOCKET", "")
-	if got := socketPath("/Users/w0zro"); got != "/Users/w0zro/.local/state/conn/tmux.sock" {
+	if got := SocketPath("/Users/w0zro"); got != "/Users/w0zro/.local/state/conn/tmux.sock" {
 		t.Errorf("socket: %q", got)
 	}
 	t.Setenv("XDG_STATE_HOME", "/tmp/state")
-	if got := socketPath("/Users/w0zro"); got != "/tmp/state/conn/tmux.sock" {
+	if got := SocketPath("/Users/w0zro"); got != "/tmp/state/conn/tmux.sock" {
 		t.Errorf("socket under XDG_STATE_HOME: %q", got)
 	}
 	t.Setenv("CONN_SOCKET", "/tmp/cs/sock")
-	if got := socketPath("/Users/w0zro"); got != "/tmp/cs/sock" {
+	if got := SocketPath("/Users/w0zro"); got != "/tmp/cs/sock" {
 		t.Errorf("socket by CONN_SOCKET: %q", got)
 	}
 	for env, in := range map[string]bool{
@@ -32,8 +32,8 @@ func TestTheServerIsFoundBySocket(t *testing.T) {
 		"/tmp/tmux-501/default,1": false,
 		"":                        false,
 	} {
-		if got := insideConn(env, "/tmp/cs/sock"); got != in {
-			t.Errorf("insideConn(%q) = %v", env, got)
+		if got := InsideConn(env, "/tmp/cs/sock"); got != in {
+			t.Errorf("InsideConn(%q) = %v", env, got)
 		}
 	}
 }
@@ -64,14 +64,14 @@ func TestPanesAreParsed(t *testing.T) {
 		// A pane conn opened for a declared process says which, and
 		// how the process ended once it has.
 		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0 6 \n\n"
-	want := map[string]pane{
-		"ttys004": {id: "%0", tty: "ttys004", width: 48, height: 40, active: true, index: 0},
-		"ttys007": {id: "%1", tty: "ttys007", width: 138, height: 40, hold: true, index: 1},
-		"ttys008": {id: "%5", tty: "ttys008", width: 138, height: 40, dead: true, index: 2},
-		"ttys009": {id: "%7", tty: "ttys009", width: 138, height: 40, hold: true, readout: true, help: true, settings: true, index: 3},
-		"ttys010": {id: "%9", tty: "ttys010", width: 138, height: 40, container: "9f1c2d3e4a5b", index: 4},
-		"ttys011": {id: "%11", tty: "ttys011", width: 138, height: 40, shellIn: "9f1c2d3e4a5b", index: 5},
-		"ttys012": {id: "%13", tty: "ttys012", width: 138, height: 40, declared: "web@%2FUsers%2Fw0zro%2Fapp", exit: "1", index: 6},
+	want := map[string]Pane{
+		"ttys004": {ID: "%0", TTY: "ttys004", Width: 48, Height: 40, Active: true, index: 0},
+		"ttys007": {ID: "%1", TTY: "ttys007", Width: 138, Height: 40, Hold: true, index: 1},
+		"ttys008": {ID: "%5", TTY: "ttys008", Width: 138, Height: 40, Dead: true, index: 2},
+		"ttys009": {ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Hold: true, Readout: true, Help: true, Settings: true, index: 3},
+		"ttys010": {ID: "%9", TTY: "ttys010", Width: 138, Height: 40, Container: "9f1c2d3e4a5b", index: 4},
+		"ttys011": {ID: "%11", TTY: "ttys011", Width: 138, Height: 40, ShellIn: "9f1c2d3e4a5b", index: 5},
+		"ttys012": {ID: "%13", TTY: "ttys012", Width: 138, Height: 40, Declared: "web@%2FUsers%2Fw0zro%2Fapp", Exit: "1", index: 6},
 	}
 	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)
@@ -86,7 +86,7 @@ func TestPanesAreParsed(t *testing.T) {
 // with a quote in it survives quoting.
 func TestTheConfigurationHolds(t *testing.T) {
 	g := theme.Conn.Dark
-	conf := tmuxConf("C-Space", g)
+	conf := Conf("C-Space", g)
 	for _, s := range []string{
 		"set -g prefix None", "set -g prefix2 None",
 		`bind -n C-Space set -gF @conn_from "#{pane_id}" \; select-pane -t conn:home.0 \; send-keys -t conn:home.0 M--`,
@@ -108,30 +108,30 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 1 || strings.Contains(conf, "unbind -T") || strings.Contains(conf, "C-b") || strings.Contains(tmuxConf("C-a", g), "C-Space") {
+	if strings.Count(conf, "\nbind ") != 1 || strings.Contains(conf, "unbind -T") || strings.Contains(conf, "C-b") || strings.Contains(Conf("C-a", g), "C-Space") {
 		t.Errorf("configuration binds more than the panel key, or ignores the key given:\n%s", conf)
 	}
 	// The key is bound whatever the key is, and in the root table, or it
 	// would not reach through a process.
-	if !strings.Contains(tmuxConf("C-a", g), "bind -n C-a set -gF @conn_from") {
-		t.Errorf("the panel key is not bound in the root table:\n%s", tmuxConf("C-a", g))
+	if !strings.Contains(Conf("C-a", g), "bind -n C-a set -gF @conn_from") {
+		t.Errorf("the panel key is not bound in the root table:\n%s", Conf("C-a", g))
 	}
 	t.Setenv("CONN_KEY", "")
-	if panelKey() != "C-Space" {
-		t.Errorf("default key: %q", panelKey())
+	if PanelKey() != "C-Space" {
+		t.Errorf("default key: %q", PanelKey())
 	}
 	t.Setenv("CONN_KEY", "C-a")
-	if panelKey() != "C-a" {
-		t.Errorf("key from the environment: %q", panelKey())
+	if PanelKey() != "C-a" {
+		t.Errorf("key from the environment: %q", PanelKey())
 	}
-	if got := shellQuote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
+	if got := ShellQuote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
 		t.Errorf("quoted: %s", got)
 	}
 }
 
 // The client's environment carries no tmux of its own.
 func TestTheClientEnvironmentDropsTmux(t *testing.T) {
-	got := withoutTmux([]string{"HOME=/h", "TMUX=/tmp/x,1,0", "TERM=xterm", "TMUX_PANE=%3"})
+	got := WithoutTmux([]string{"HOME=/h", "TMUX=/tmp/x,1,0", "TERM=xterm", "TMUX_PANE=%3"})
 	if !reflect.DeepEqual(got, []string{"HOME=/h", "TERM=xterm"}) {
 		t.Errorf("environment: %q", got)
 	}
@@ -154,7 +154,7 @@ func TestTheTerminalIsAskedForItsPadding(t *testing.T) {
 	if oscOwnColors != "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\" {
 		t.Errorf("colors given back: %q", oscOwnColors)
 	}
-	if want := "bg=" + theme.Hex(theme.Conn.Dark.Ground) + ",fg=" + theme.Hex(theme.Conn.Dark.Ink); !strings.Contains(tmuxConf("C-Space", theme.Conn.Dark), want) {
+	if want := "bg=" + theme.Hex(theme.Conn.Dark.Ground) + ",fg=" + theme.Hex(theme.Conn.Dark.Ink); !strings.Contains(Conf("C-Space", theme.Conn.Dark), want) {
 		t.Errorf("the panes are not drawn in %s", want)
 	}
 }
@@ -164,7 +164,7 @@ func TestTheTerminalIsAskedForItsPadding(t *testing.T) {
 // in both the normal colors and the bright.
 func TestTheSixteenAreSixteen(t *testing.T) {
 	scheme := theme.Conn.Dark.Scheme
-	conf := tmuxConf(defaultKey, theme.Conn.Dark)
+	conf := Conf(DefaultKey, theme.Conn.Dark)
 	for i, c := range scheme {
 		if want := fmt.Sprintf("set -g pane-colours[%d] %q", i, c); !strings.Contains(conf, want) {
 			t.Errorf("configuration lacks %q", want)
@@ -192,7 +192,7 @@ func TestTheSixteenAreSixteen(t *testing.T) {
 // nothing on it is re-read on a beat.
 func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	g := theme.Conn.Dark
-	conf := tmuxConf("C-Space", g)
+	conf := Conf("C-Space", g)
 	for _, gone := range []string{"@conn_in", "@conn_note", "@conn_rail", "@conn_slot", "@conn_lamps", "status-interval 1"} {
 		if strings.Contains(conf, gone) {
 			t.Errorf("the status line still asks conn for %q", gone)
@@ -230,7 +230,7 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 // answer into an underscore, and conn read no panes at all. A space
 // tells the fields apart in every locale there is.
 func TestNoFormatAsksTmuxForAControlCharacter(t *testing.T) {
-	conf := tmuxConf("C-Space", theme.Conn.Dark)
+	conf := Conf("C-Space", theme.Conn.Dark)
 	for _, f := range []string{paneFormat, openFormat, windowFormat, statusLine(theme.Conn.Dark), conf} {
 		for i, r := range f {
 			if r == '\n' || r == '\t' && f == conf {
@@ -259,7 +259,7 @@ func TestConnReadsUnderDatumLight(t *testing.T) {
 	if c := contrast(g.Parchment, bg); c < readable {
 		t.Errorf("the parchment (%s) is %.2f:1 on datum light", g.Parchment, c)
 	}
-	if say := statusLineSay("HELLO", g); !strings.Contains(say, "fg="+g.Parchment) {
+	if say := StatusLineSay("HELLO", g); !strings.Contains(say, "fg="+g.Parchment) {
 		t.Errorf("the status line says its word in %q, not the parchment", say)
 	}
 	at := map[string]string{}

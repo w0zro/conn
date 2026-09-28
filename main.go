@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/w0zro/conn/internal/config"
@@ -30,7 +32,7 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 	// machine is running in, or would come up in if none is up yet - not
 	// an argument of its own, so it never drifts from what conn itself
 	// is dressed in.
-	g := theme.ServerMode(socketPath(home), home).Wear()
+	g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
 	switch args[0] {
 	case "claude":
 		return dressClaude(home, ask, g)
@@ -123,13 +125,13 @@ func main() {
 		return
 	}
 	home, _ := os.UserHomeDir()
-	srv := findServer(home)
-	inside := srv != nil && insideConn(os.Getenv("TMUX"), srv.socket)
+	srv := tmux.Find(home)
+	inside := srv != nil && tmux.InsideConn(os.Getenv("TMUX"), srv.Socket)
 	if srv != nil && !inside {
 		self, err := os.Executable()
 		if err == nil {
 			var code int
-			code, err = srv.attach(self, home, override)
+			code, err = srv.Attach(self, home, override)
 			if err == nil {
 				os.Exit(code)
 			}
@@ -144,7 +146,7 @@ func main() {
 	// has nobody to ask but the terminal itself, or the flags.
 	var want theme.Mode
 	if inside {
-		want = theme.ServerMode(srv.socket, home)
+		want = theme.ServerMode(srv.Socket, home)
 	} else {
 		want = theme.AskMode(override, home)
 	}
@@ -155,7 +157,7 @@ func main() {
 	m := newModel(g)
 	m.srv, m.inside = srv, inside
 	if inside {
-		_, _ = srv.run("select-pane", "-t", srv.panel(), "-P", "bg="+g.Surface)
+		_, _ = srv.Run("select-pane", "-t", srv.Panel(), "-P", "bg="+g.Surface)
 	}
 	m.self, _ = os.Executable()
 	if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {
@@ -190,7 +192,7 @@ type command struct {
 var commands = []command{
 	{"down", "take the server down, with everything in it", func([]string) int {
 		home, _ := os.UserHomeDir()
-		return say(takeDown(findServer(home), home))
+		return say(takeDown(tmux.Find(home), home))
 	}},
 	{"theme", "write conn's theme for a program that draws its own: claude, vim", func(args []string) int {
 		home, _ := os.UserHomeDir()
@@ -202,8 +204,8 @@ var commands = []command{
 		if len(args) > 0 {
 			pid, _ = strconv.Atoi(args[0])
 		}
-		g := theme.ServerMode(socketPath(home), home).Wear()
-		if err := runReadout(findServer(home), pid, home, colored(g)); err != nil {
+		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
+		if err := runReadout(tmux.Find(home), pid, home, colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
 		}
@@ -211,8 +213,8 @@ var commands = []command{
 	}},
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		g := theme.ServerMode(socketPath(home), home).Wear()
-		if err := runHold(findServer(home), colored(g)); err != nil {
+		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
+		if err := runHold(tmux.Find(home), colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			return 1
 		}
@@ -223,7 +225,7 @@ var commands = []command{
 	// this in the pane it opens for them.
 	{"settings", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		if err := runSettings(findServer(home), home, theme.ServerMode(socketPath(home), home)); err != nil {
+		if err := runSettings(tmux.Find(home), home, theme.ServerMode(tmux.SocketPath(home), home)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn settings: %v\n", err)
 			return 1
 		}
@@ -234,13 +236,13 @@ var commands = []command{
 	// and conn runs this in the pane it opens for it.
 	{"manual", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		g := theme.ServerMode(socketPath(home), home).Wear()
+		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
 		path, err := writeManPage(home)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}
-		if err := runManual(findServer(home), path, colored(g)); err != nil {
+		if err := runManual(tmux.Find(home), path, colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}
@@ -311,28 +313,28 @@ func stdinIsTerminal() bool { return term.IsTerminal(os.Stdin.Fd()) }
 // with it, a line for each window and one for the server, the way
 // docker compose down does. With no server up it says so, and that is
 // not a failure. It answers what to say and whether it went well.
-func takeDown(srv *server, home string) (string, bool) {
+func takeDown(srv *tmux.Server, home string) (string, bool) {
 	if srv == nil {
 		return "conn: tmux is not on PATH; there is no server to take down\n", false
 	}
-	if !srv.up() {
-		return fmt.Sprintf("conn: no server up on %s\n", config.Tilde(srv.socket, home)), true
+	if !srv.Up() {
+		return fmt.Sprintf("conn: no server up on %s\n", config.Tilde(srv.Socket, home)), true
 	}
-	ws, err := srv.windows()
+	ws, err := srv.Windows()
 	if err != nil {
 		return fmt.Sprintf("conn: %v\n", err), false
 	}
-	if err := srv.down(); err != nil {
+	if err := srv.Down(); err != nil {
 		return fmt.Sprintf("conn: %v\n", err), false
 	}
-	return downReport(ws, srv.socket, home), true
+	return downReport(ws, srv.Socket, home), true
 }
 
 // downReport is what conn down says of what it ended.
-func downReport(ws []window, socket, home string) string {
+func downReport(ws []tmux.Window, socket, home string) string {
 	var lines []string
 	for _, w := range ws {
-		lines = append(lines, "Window "+join("  ", w.name, config.Tilde(w.path, home)))
+		lines = append(lines, "Window "+join("  ", w.Name, config.Tilde(w.Path, home)))
 	}
 	lines = append(lines, "Server "+config.Tilde(socket, home))
 	width := 0

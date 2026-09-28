@@ -1,6 +1,9 @@
 package main
 
-import tea "charm.land/bubbletea/v2"
+import (
+	tea "charm.land/bubbletea/v2"
+	"github.com/w0zro/conn/internal/tmux"
+)
 
 // A detour is a page of conn's own put in the workspace: the manual,
 // which ? puts there, or the settings, which , does. Either is a
@@ -100,9 +103,9 @@ func (m model) leftDetour(found bool) (model, tea.Cmd) {
 	if !m.inside || m.srv == nil {
 		return m, nil
 	}
-	toPanel := tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.focusPanel() }))
+	toPanel := tea.Batch(m.reviveBay(), m.serverCmd(func() error { return m.srv.FocusPanel() }))
 	if from != "" {
-		if p, tty, ok := m.paneByID(from); ok && reachable(p) {
+		if p, tty, ok := m.paneByID(from); ok && tmux.Reachable(p) {
 			return m, m.reach(p, tty)
 		}
 		// The pane the keys came from has gone while the page was up.

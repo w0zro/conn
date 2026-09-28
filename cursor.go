@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"time"
+
+	"github.com/w0zro/conn/internal/tmux"
 )
 
 // Where the panel's cursor is, for the readout to follow. The two are
@@ -39,7 +41,7 @@ import (
 // neither moves the other's cursor.
 
 // cursorPath is where a server's panel publishes its cursor.
-func cursorPath(home string) string { return socketPath(home) + ".cursor" }
+func cursorPath(home string) string { return tmux.SocketPath(home) + ".cursor" }
 
 // A subject is what the page is about: a process, by its pid; a
 // project, by its path; or a suspended session, by its id. The
@@ -73,7 +75,7 @@ type cursorNote struct {
 type reading struct {
 	projects   []project
 	records    map[int]record
-	panes      map[string]pane
+	panes      map[string]tmux.Pane
 	inside     bool
 	containers []container
 	brews      []brewService // what brew said of its services; see brew.go
@@ -180,7 +182,7 @@ func askCursor(path string) (subject, *reading) {
 type readingWire struct {
 	Projects   []project
 	Records    []record
-	Panes      []pane
+	Panes      []tmux.Pane
 	Inside     bool
 	Containers []container
 	Brews      []brewService
@@ -204,12 +206,12 @@ func (r *reading) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*r = reading{projects: w.Projects, inside: w.Inside, containers: w.Containers, brews: w.Brews, sessions: w.Sessions,
-		records: map[int]record{}, panes: map[string]pane{}}
+		records: map[int]record{}, panes: map[string]tmux.Pane{}}
 	for _, rec := range w.Records {
 		r.records[rec.pid] = rec
 	}
 	for _, p := range w.Panes {
-		r.panes[p.tty] = p
+		r.panes[p.TTY] = p
 	}
 	return nil
 }
@@ -327,31 +329,5 @@ func (r *record) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*r = record{pid: w.PID, state: w.State, foreground: w.Foreground, cpu: w.CPU}
-	return nil
-}
-
-type paneWire struct {
-	ID, TTY                   string
-	Width, Height             int
-	Hold, Readout, Dead, Help bool
-	Active                    bool
-	Container, ShellIn        string
-	Declared, Exit            string
-}
-
-func (p pane) MarshalJSON() ([]byte, error) {
-	return json.Marshal(paneWire{ID: p.id, TTY: p.tty, Width: p.width, Height: p.height,
-		Hold: p.hold, Readout: p.readout, Dead: p.dead, Help: p.help, Active: p.active,
-		Container: p.container, ShellIn: p.shellIn, Declared: p.declared, Exit: p.exit})
-}
-
-func (p *pane) UnmarshalJSON(b []byte) error {
-	var w paneWire
-	if err := json.Unmarshal(b, &w); err != nil {
-		return err
-	}
-	*p = pane{id: w.ID, tty: w.TTY, width: w.Width, height: w.Height,
-		hold: w.Hold, readout: w.Readout, dead: w.Dead, help: w.Help, active: w.Active,
-		container: w.Container, shellIn: w.ShellIn, declared: w.Declared, exit: w.Exit}
 	return nil
 }

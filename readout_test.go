@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -31,7 +33,7 @@ func readoutSubj() readoutSubject {
 			tty: "ttys003", status: statusActive},
 		children: []entry{{pid: 49300, kind: kindRun, command: "caffeinate -i -t 300",
 			tty: "ttys003", status: statusActive, depth: 2}},
-		pane:   pane{id: "%2"},
+		pane:   tmux.Pane{ID: "%2"},
 		inside: true,
 		sess: sessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
@@ -202,7 +204,7 @@ func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 // none of them says nothing about the row.
 func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 	s := readoutSubj()
-	s.inside, s.pane = false, pane{}
+	s.inside, s.pane = false, tmux.Pane{}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
 	if strings.Contains(text, "Pane") {
 		t.Errorf("outside the server the page still spoke of panes:\n%s", text)
@@ -426,11 +428,11 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 	panel := func() model {
 		m := plainModel()
 		m.inside, m.view, m.focused = true, viewProcesses, true
-		m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+		m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
 		m.projects = []project{{path: "/w", entries: []entry{
 			{pid: 11, tty: "ttys001"}, {pid: 12, tty: "ttys002"},
 		}}}
-		m.panes = map[string]pane{"ttys002": {id: "%2", tty: "ttys002"}}
+		m.panes = map[string]tmux.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
 		m.cursor = 11
 		return m
 	}

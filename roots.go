@@ -325,7 +325,7 @@ func (m model) takeRoot() (model, tea.Cmd) {
 	m.view, m.processesGen = viewProcesses, m.processesGen+1
 	cmds := []tea.Cmd{m.readProcesses(), m.scanProjects()}
 	if m.inside {
-		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
+		cmds = append(cmds, m.serverCmd(func() error { return m.srv.Narrow() }))
 	}
 	return m, tea.Batch(cmds...)
 }

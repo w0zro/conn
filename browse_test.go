@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -17,7 +19,7 @@ import (
 func TestOIsOfferedWhereARowServes(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
 	m.projects = []project{{path: "/w/a", entries: []entry{
 		{pid: 300, kind: kindRun, command: "node vite", cwd: "/w/a", status: statusActive, ports: []string{"5173", "24678"}},
 		{pid: 301, kind: kindRun, command: "node build.js", cwd: "/w/a", status: statusActive},

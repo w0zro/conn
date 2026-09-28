@@ -7,6 +7,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -250,11 +252,11 @@ var testRunning = []project{
 
 // testPanes holds every terminal of testRunning but ttys004, which is
 // the process conn can only report.
-var testPanes = map[string]pane{
-	"ttys001": {id: "%1", tty: "ttys001"},
-	"ttys002": {id: "%2", tty: "ttys002"},
-	"ttys003": {id: "%3", tty: "ttys003"},
-	"ttys005": {id: "%5", tty: "ttys005"},
+var testPanes = map[string]tmux.Pane{
+	"ttys001": {ID: "%1", TTY: "ttys001"},
+	"ttys002": {ID: "%2", TTY: "ttys002"},
+	"ttys003": {ID: "%3", TTY: "ttys003"},
+	"ttys005": {ID: "%5", TTY: "ttys005"},
 }
 
 func testLive() []projectRow {
@@ -360,7 +362,7 @@ func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
 		{pid: 11, kind: kindContact, command: "claude", typed: "claude", title: "Fix the login bug", tty: "ttys001", status: statusIdle},
 		{pid: 22, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys002", status: statusActive, ports: []string{"5173"}},
 	}}}
-	panes := map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}, "ttys002": {id: "%2", tty: "ttys002"}}
+	panes := map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	live := withProcesses(testProjects, running, panes, []string{"/Users/w0zro/projects"}, "/Users/w0zro")
 	contact := "    " + kindContact + " Fix the login bug"
 	server := "    " + kindRun + " node vite"
@@ -386,12 +388,12 @@ func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
 func TestTheLiveListMatchesTheGolden(t *testing.T) {
 	b := composeProjects(testLive(), "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
 	golden(t, "projects-live-48x30.txt", texts(drawProjects(b, 9, 48, 30, plain)))
-	for _, r := range drawProjects(b, 9, panelWidth, 30, colored(theme.Conn.Dark)) {
-		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != panelWidth {
-			t.Fatalf("a colored row paints %d columns, not %d:\n%q", w, panelWidth, r.text)
+	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, colored(theme.Conn.Dark)) {
+		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != tmux.PanelWidth {
+			t.Fatalf("a colored row paints %d columns, not %d:\n%q", w, tmux.PanelWidth, r.text)
 		}
 	}
-	for _, r := range drawProjects(b, 9, panelWidth, 30, plain) {
+	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, plain) {
 		if strings.Contains(r.text, "WAITING") && !strings.Contains(r.text, "CONTACT") {
 			t.Errorf("the block landed on its own row: %q", r.text)
 		}
@@ -409,9 +411,9 @@ func TestTheProjectsViewSaysWhenConnHasNoRoots(t *testing.T) {
 	}
 	// The panel is what this is read in, and it is narrow. A chip wider
 	// than the pane it is drawn in runs off the edge.
-	for _, row := range drawProjects(b, 0, panelWidth, 12, plain) {
-		if n := utf8.RuneCountInString(row.text); n > panelWidth {
-			t.Errorf("a row is %d wide in a %d panel: %q", n, panelWidth, row.text)
+	for _, row := range drawProjects(b, 0, tmux.PanelWidth, 12, plain) {
+		if n := utf8.RuneCountInString(row.text); n > tmux.PanelWidth {
+			t.Errorf("a row is %d wide in a %d panel: %q", n, tmux.PanelWidth, row.text)
 		}
 	}
 	// A walk that failed has its own words, and keeps them.

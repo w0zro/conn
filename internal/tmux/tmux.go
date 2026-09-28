@@ -1,4 +1,18 @@
-package main
+// Package tmux is the tmux server conn holds of its own. The first conn
+// brings it up with one window, home, running conn, and attaches; a
+// later conn attaches to what is there. Home is a panel on the left,
+// which is the processes view, and a bay on the right, which is the
+// process reached from it. Work lives in the server as windows of its
+// own, out of sight; reaching a process swaps its pane into the bay and
+// the bay's last pane back out to where it came from, so a process
+// stays when the client goes. q detaches; the server and everything in
+// it keep on. The conn that attached stays behind the client, to give
+// the terminal its own colors back when the client returns, which tmux
+// does not.
+//
+// The socket is under the state directory, or where CONN_SOCKET says,
+// which is how a test brings up a server of its own.
+package tmux
 
 import (
 	"fmt"
@@ -10,47 +24,32 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/w0zro/conn/internal/theme"
-
 	"github.com/w0zro/conn/internal/config"
+	"github.com/w0zro/conn/internal/theme"
 )
-
-// conn holds a tmux server of its own. The first conn brings it up with
-// one window, home, running conn, and attaches; a later conn attaches
-// to what is there. Home is a panel on the left, which is the processes
-// view, and a bay on the right, which is the process reached from it.
-// Work lives in the server as windows of its own, out of sight;
-// reaching a process swaps its pane into the bay and the bay's last
-// pane back out to where it came from, so a process stays when the
-// client goes. q detaches; the server and everything in it keep on. The
-// conn that attached stays behind the client, to give the terminal its
-// own colors back when the client returns, which tmux does not.
-//
-// The socket is under the state directory, or where CONN_SOCKET says,
-// which is how a test brings up a server of its own.
 
 const (
-	sessionName = "conn"
-	homeWindow  = "home"
-	panelWidth  = 44 // the panel's columns; the bay has the rest
-	defaultKey  = "C-Space"
+	SessionName = "conn"
+	HomeWindow  = "home"
+	PanelWidth  = 44 // the panel's columns; the bay has the rest
+	DefaultKey  = "C-Space"
 )
 
-// panelKey is the one key tmux takes for conn from anywhere in the
+// PanelKey is the one key tmux takes for conn from anywhere in the
 // station: ctrl+space, or what CONN_KEY says, in tmux's spelling of a
 // key. It brings the keys to the panel, and the panel answers the key
 // after it.
-func panelKey() string {
+func PanelKey() string {
 	if p := os.Getenv("CONN_KEY"); p != "" {
 		return p
 	}
-	return defaultKey
+	return DefaultKey
 }
 
-// A server is conn's tmux server: the tmux program and the socket.
-type server struct {
-	tmux   string
-	socket string
+// A Server is conn's tmux server: the tmux program and the socket.
+type Server struct {
+	Tmux   string
+	Socket string
 	// One change to the bay at a time. Each is a run of tmux commands
 	// that reads the bay and then swaps against it, and two of them at
 	// once — the page being put in as the operator opens a shell — each
@@ -60,35 +59,35 @@ type server struct {
 	swaps sync.Mutex
 }
 
-// findServer is the server as this machine has it: no tmux, no server.
-func findServer(home string) *server {
+// Find is the server as this machine has it: no tmux, no server.
+func Find(home string) *Server {
 	tmux, err := exec.LookPath("tmux")
 	if err != nil {
 		return nil
 	}
-	return &server{tmux: tmux, socket: socketPath(home)}
+	return &Server{Tmux: tmux, Socket: SocketPath(home)}
 }
 
-// socketPath is where the server listens: CONN_SOCKET, or tmux.sock in
+// SocketPath is where the server listens: CONN_SOCKET, or tmux.sock in
 // the state directory.
-func socketPath(home string) string {
+func SocketPath(home string) string {
 	if p := os.Getenv("CONN_SOCKET"); p != "" {
 		return p
 	}
 	return filepath.Join(config.StateHome(home), "conn", "tmux.sock")
 }
 
-// insideConn says whether this process runs in a pane of conn's server:
+// InsideConn says whether this process runs in a pane of conn's server:
 // tmux tells its panes the socket in TMUX, before the first comma.
-func insideConn(tmuxEnv, socket string) bool {
+func InsideConn(tmuxEnv, socket string) bool {
 	sock, _, _ := strings.Cut(tmuxEnv, ",")
 	return sock != "" && filepath.Clean(sock) == filepath.Clean(socket)
 }
 
-// run runs a tmux command against the server and answers what it
+// Run runs a tmux command against the server and answers what it
 // printed.
-func (s *server) run(args ...string) (string, error) {
-	out, err := exec.Command(s.tmux, append([]string{"-S", s.socket}, args...)...).Output()
+func (s *Server) Run(args ...string) (string, error) {
+	out, err := exec.Command(s.Tmux, append([]string{"-S", s.Socket}, args...)...).Output()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok && len(ee.Stderr) > 0 {
 			return "", fmt.Errorf("tmux %s: %s", args[0], strings.TrimSpace(string(ee.Stderr)))
@@ -98,7 +97,7 @@ func (s *server) run(args ...string) (string, error) {
 	return string(out), nil
 }
 
-// attach brings the server up if it is down, with the processes view
+// Attach brings the server up if it is down, with the processes view
 // window running conn, and puts this terminal on it until the client
 // detaches or the server ends. It answers how the client exited; an
 // error is one of its own, before the client had the terminal.
@@ -111,47 +110,47 @@ func (s *server) run(args ...string) (string, error) {
 // the other theme, where it stands, rather than keeping what it rose
 // in until conn down. tmux does not re-read -f on an attach, so that
 // takes sourcing the configuration again; see reground.
-func (s *server) attach(self, home string, o theme.Override) (int, error) {
-	if err := os.MkdirAll(filepath.Dir(s.socket), 0o700); err != nil {
+func (s *Server) Attach(self, home string, o theme.Override) (int, error) {
+	if err := os.MkdirAll(filepath.Dir(s.Socket), 0o700); err != nil {
 		return 0, err
 	}
-	have, ok := theme.ReadModeFile(s.socket)
+	have, ok := theme.ReadModeFile(s.Socket)
 	want, asked := have, false
 	switch {
 	case !ok:
 		want = theme.AskMode(o, home)
-		_ = theme.WriteMode(s.socket, want)
+		_ = theme.WriteMode(s.Socket, want)
 	case o.Over(have) != have:
 		want = o.Over(have)
-		_ = theme.WriteMode(s.socket, want)
+		_ = theme.WriteMode(s.Socket, want)
 		asked = true
 	}
 	g := want.Wear()
 	theme.RefreshClaudeTheme(home, g)
 	theme.RefreshVimColorscheme(home, g)
-	conf := confPath(s.socket)
-	if err := os.WriteFile(conf, []byte(tmuxConf(panelKey(), g)), 0o600); err != nil {
+	conf := confPath(s.Socket)
+	if err := os.WriteFile(conf, []byte(Conf(PanelKey(), g)), 0o600); err != nil {
 		return 0, err
 	}
 	if asked {
-		if err := s.reground(conf, g.Surface, "", true); err != nil {
+		if err := s.Reground(conf, g.Surface, "", true); err != nil {
 			return 0, err
 		}
 	}
 	// A server that is up but has lost its home window gets one back.
-	if _, err := s.run("has-session", "-t", "="+sessionName); err == nil {
+	if _, err := s.Run("has-session", "-t", "="+SessionName); err == nil {
 		if !s.hasHome() {
-			if _, err := s.run("new-window", "-d", "-t", sessionName+":", "-n", homeWindow, "-c", home, "exec "+shellQuote(self)); err != nil {
+			if _, err := s.Run("new-window", "-d", "-t", SessionName+":", "-n", HomeWindow, "-c", home, "exec "+ShellQuote(self)); err != nil {
 				return 0, err
 			}
 		}
 	}
-	cmd := exec.Command(s.tmux, "-S", s.socket, "-f", conf,
-		"new-session", "-A", "-s", sessionName, "-n", homeWindow, "-c", home, "exec "+shellQuote(self))
+	cmd := exec.Command(s.Tmux, "-S", s.Socket, "-f", conf,
+		"new-session", "-A", "-s", SessionName, "-n", HomeWindow, "-c", home, "exec "+ShellQuote(self))
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	// A tmux inside another tmux refuses to attach while TMUX is set; the
 	// terminal is this conn's to give.
-	cmd.Env = withoutTmux(os.Environ())
+	cmd.Env = WithoutTmux(os.Environ())
 	// The terminal takes black and the ink for its own before the
 	// client has it, so the padding around the client is the terminal's
 	// own edge, on either ground. The conn in the pane asks tmux for
@@ -171,20 +170,20 @@ func (s *server) attach(self, home string, o theme.Override) (int, error) {
 	return 0, nil
 }
 
-// rewear puts the server into a mode conn has just taken on. It is
+// Rewear puts the server into a mode conn has just taken on. It is
 // reground for a conn already in the server: the mode is written down
 // first, since the panes that come up again read it, and the panel is
 // left standing — it is told to wear the mode where it stands, and
 // killing it to change color would take the view the operator is
 // working with it.
-func (s *server) rewear(conf, bg, except string, m theme.Mode) error {
-	if err := theme.WriteMode(s.socket, m); err != nil {
+func (s *Server) Rewear(conf, bg, except string, m theme.Mode) error {
+	if err := theme.WriteMode(s.Socket, m); err != nil {
 		return err
 	}
-	if err := os.WriteFile(confPath(s.socket), []byte(conf), 0o600); err != nil {
+	if err := os.WriteFile(confPath(s.Socket), []byte(conf), 0o600); err != nil {
 		return err
 	}
-	return s.reground(confPath(s.socket), bg, except, false)
+	return s.Reground(confPath(s.Socket), bg, except, false)
 }
 
 // confPath is the tmux configuration conn writes for its server, beside
@@ -193,7 +192,7 @@ func confPath(socket string) string {
 	return filepath.Join(filepath.Dir(socket), "tmux.conf")
 }
 
-// reground puts a server already up into the mode the mode file now
+// Reground puts a server already up into the mode the mode file now
 // says. Sourcing the configuration again is what tmux has instead of
 // re-reading -f: every set -g in it lands on the live server, so each
 // pane takes the new sixteen and the new ground without going down.
@@ -214,20 +213,20 @@ func confPath(socket string) string {
 // conn's own: it has put the mode on itself already, and starting it
 // again would take the operator back to the top of the page they are
 // working.
-func (s *server) reground(conf, bg, except string, panel bool) error {
-	if !s.up() {
+func (s *Server) Reground(conf, bg, except string, panel bool) error {
+	if !s.Up() {
 		return nil
 	}
-	if _, err := s.run("source-file", conf); err != nil {
+	if _, err := s.Run("source-file", conf); err != nil {
 		return err
 	}
-	panes, err := s.panes()
+	panes, err := s.Panes()
 	if err != nil {
 		return err
 	}
 	for _, p := range panes {
-		if p.hold && p.id != except {
-			if _, err := s.run("respawn-pane", "-k", "-t", p.id); err != nil {
+		if p.Hold && p.ID != except {
+			if _, err := s.Run("respawn-pane", "-k", "-t", p.ID); err != nil {
 				return err
 			}
 		}
@@ -242,14 +241,14 @@ func (s *server) reground(conf, bg, except string, panel bool) error {
 	// conn that asked for a ground — it had the keys already — and
 	// with the settings in the workspace it took them out from under
 	// the operator mid-page.
-	target := sessionName + ":" + homeWindow + ".0"
-	if _, err := s.run("set-option", "-p", "-t", target, "window-style", "bg="+bg); err != nil {
+	target := SessionName + ":" + HomeWindow + ".0"
+	if _, err := s.Run("set-option", "-p", "-t", target, "window-style", "bg="+bg); err != nil {
 		return err
 	}
 	if !panel {
 		return nil
 	}
-	_, err = s.run("respawn-pane", "-k", "-t", target)
+	_, err = s.Run("respawn-pane", "-k", "-t", target)
 	return err
 }
 
@@ -274,8 +273,8 @@ const paddingHex = "#000000"
 
 const oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\"
 
-// withoutTmux is an environment with tmux's own variables dropped.
-func withoutTmux(env []string) []string {
+// WithoutTmux is an environment with tmux's own variables dropped.
+func WithoutTmux(env []string) []string {
 	out := env[:0:0]
 	for _, kv := range env {
 		if strings.HasPrefix(kv, "TMUX=") || strings.HasPrefix(kv, "TMUX_PANE=") {
@@ -287,20 +286,20 @@ func withoutTmux(env []string) []string {
 }
 
 // hasHome says whether the session has its home window.
-func (s *server) hasHome() bool {
-	out, err := s.run("list-windows", "-t", sessionName, "-F", "#{window_name}")
+func (s *Server) hasHome() bool {
+	out, err := s.Run("list-windows", "-t", SessionName, "-F", "#{window_name}")
 	if err != nil {
 		return false
 	}
 	for _, name := range strings.Split(out, "\n") {
-		if name == homeWindow {
+		if name == HomeWindow {
 			return true
 		}
 	}
 	return false
 }
 
-// A pane of the server: its id, which holds through swaps; the terminal
+// A Pane of the server: its id, which holds through swaps; the terminal
 // it holds; its size; whether it is conn's own furniture and whether
 // that furniture is a readout; and whether remain-on-exit is the only
 // thing keeping it up, its process already gone.
@@ -309,12 +308,12 @@ func (s *server) hasHome() bool {
 // so it carries the hold's own mark and everything that acts on holds
 // acts on it — but the panel has to tell the two apart to know whether
 // the page is up, and a mark of its own is how.
-type pane struct {
-	id, tty       string
-	width, height int
-	hold          bool
-	readout       bool
-	dead          bool
+type Pane struct {
+	ID, TTY       string
+	Width, Height int
+	Hold          bool
+	Readout       bool
+	Dead          bool
 	// The container this pane is watching, where it is one conn opened
 	// to read a service's output. A container has no terminal of its
 	// own, so this is how its row comes to have one: the pane conn
@@ -327,30 +326,30 @@ type pane struct {
 	// that happens to be running in there, and a second pane claiming
 	// to be the service's terminal would leave the row pointing at
 	// whichever of the two a map ranged over last.
-	container string
-	shellIn   string
+	Container string
+	ShellIn   string
 	// The declaration this pane was opened for, as declared.go marks
 	// it, and, once the command in it has ended, the status it ended
 	// with, which the pane's own line records. A pane that is a
 	// declaration's is the work itself and is listed like any other.
-	declared string
-	exit     string
+	Declared string
+	Exit     string
 	// The manual, which ? puts in the workspace. It is conn's
 	// own furniture like the readout: it carries the hold's mark as
 	// well, so everything that steps over furniture steps over it, and
 	// this says which furniture it is.
-	help bool
+	Help bool
 	// The settings, which , puts in the workspace. Furniture again,
 	// and marked apart from the manual for the same reason the manual
 	// is marked apart from the readout: the panel says which of them
 	// is standing, and answers for the keys that are in it.
-	settings bool
+	Settings bool
 	// Whether this is its window's active pane, which is tmux's word
 	// for where the keys are in that window. The panel is told by the
 	// terminal when the keys leave it and knows on its own when its
 	// reaching sent them away; this is the same fact read off the
 	// server, for a reading that lands between the two.
-	active bool
+	Active bool
 	// Where it stands in its window, which is how the bay is told from
 	// anything else beside the panel: home has two panes, the panel at
 	// 0 and the bay at 1, and a third is a mistake to be mended rather
@@ -382,23 +381,23 @@ const (
 // added in one place and the two cannot fall out of step.
 var paneFields = []struct {
 	format string
-	read   func(p *pane, v string)
+	read   func(p *Pane, v string)
 }{
-	{"#{pane_id}", func(p *pane, v string) { p.id = v }},
-	{"#{pane_tty}", func(p *pane, v string) { p.tty = strings.TrimPrefix(v, "/dev/") }},
-	{"#{pane_width}", func(p *pane, v string) { p.width, _ = strconv.Atoi(v) }},
-	{"#{pane_height}", func(p *pane, v string) { p.height, _ = strconv.Atoi(v) }},
-	{"#{@conn_hold}", func(p *pane, v string) { p.hold = v == "1" }},
-	{"#{pane_dead}", func(p *pane, v string) { p.dead = v == "1" }},
-	{"#{@conn_readout}", func(p *pane, v string) { p.readout = v == "1" }},
-	{"#{@conn_container}", func(p *pane, v string) { p.container = v }},
-	{"#{@conn_shell_in}", func(p *pane, v string) { p.shellIn = v }},
-	{"#{@conn_help}", func(p *pane, v string) { p.help = v == "1" }},
-	{"#{@conn_declared}", func(p *pane, v string) { p.declared = v }},
-	{"#{@conn_exit}", func(p *pane, v string) { p.exit = v }},
-	{"#{pane_active}", func(p *pane, v string) { p.active = v == "1" }},
-	{"#{pane_index}", func(p *pane, v string) { p.index, _ = strconv.Atoi(v) }},
-	{"#{@conn_settings}", func(p *pane, v string) { p.settings = v == "1" }},
+	{"#{pane_id}", func(p *Pane, v string) { p.ID = v }},
+	{"#{pane_tty}", func(p *Pane, v string) { p.TTY = strings.TrimPrefix(v, "/dev/") }},
+	{"#{pane_width}", func(p *Pane, v string) { p.Width, _ = strconv.Atoi(v) }},
+	{"#{pane_height}", func(p *Pane, v string) { p.Height, _ = strconv.Atoi(v) }},
+	{"#{@conn_hold}", func(p *Pane, v string) { p.Hold = v == "1" }},
+	{"#{pane_dead}", func(p *Pane, v string) { p.Dead = v == "1" }},
+	{"#{@conn_readout}", func(p *Pane, v string) { p.Readout = v == "1" }},
+	{"#{@conn_container}", func(p *Pane, v string) { p.Container = v }},
+	{"#{@conn_shell_in}", func(p *Pane, v string) { p.ShellIn = v }},
+	{"#{@conn_help}", func(p *Pane, v string) { p.Help = v == "1" }},
+	{"#{@conn_declared}", func(p *Pane, v string) { p.Declared = v }},
+	{"#{@conn_exit}", func(p *Pane, v string) { p.Exit = v }},
+	{"#{pane_active}", func(p *Pane, v string) { p.Active = v == "1" }},
+	{"#{pane_index}", func(p *Pane, v string) { p.index, _ = strconv.Atoi(v) }},
+	{"#{@conn_settings}", func(p *Pane, v string) { p.Settings = v == "1" }},
 }
 
 // paneFormat is the fields, as list-panes is asked for them.
@@ -410,9 +409,9 @@ var paneFormat = func() string {
 	return strings.Join(formats, " ")
 }()
 
-// panes is every pane in the server, by the terminal it holds.
-func (s *server) panes() (map[string]pane, error) {
-	out, err := s.run("list-panes", "-a", "-F", paneFormat)
+// Panes is every pane in the server, by the terminal it holds.
+func (s *Server) Panes() (map[string]Pane, error) {
+	out, err := s.Run("list-panes", "-a", "-F", paneFormat)
 	if err != nil {
 		return nil, err
 	}
@@ -421,52 +420,52 @@ func (s *server) panes() (map[string]pane, error) {
 
 // parsePanes reads list-panes in paneFormat, with each terminal's /dev/
 // dropped to match how a process names its own.
-func parsePanes(out string) map[string]pane {
-	panes := map[string]pane{}
+func parsePanes(out string) map[string]Pane {
+	panes := map[string]Pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
 		if len(f) != len(paneFields) || f[0] == "" {
 			continue
 		}
-		var p pane
+		var p Pane
 		for i, field := range paneFields {
 			field.read(&p, f[i])
 		}
-		panes[p.tty] = p
+		panes[p.TTY] = p
 	}
 	return panes
 }
 
-// reachable says whether conn can put a pane in front of you: it holds
+// Reachable says whether conn can put a pane in front of you: it holds
 // one, that pane has work in it rather than conn's own furniture, and
 // the process in it has not ended. It is the one rule, so that what
 // enter does, what the ring steps through, what the bay takes when its
 // own ends, and what the page reports cannot drift apart into four
 // slightly different answers to one question.
-func reachable(p pane) bool {
-	return p.id != "" && !p.hold && !p.readout && !p.dead
+func Reachable(p Pane) bool {
+	return p.ID != "" && !p.Hold && !p.Readout && !p.Dead
 }
 
-// The panel is the pane this conn runs in; tmux names it in TMUX_PANE.
-func (s *server) panel() string {
-	return ownPane()
+// Panel is the pane this conn runs in; tmux names it in TMUX_PANE.
+func (s *Server) Panel() string {
+	return OwnPane()
 }
 
-// ownPane is the pane this conn runs in, whichever conn it is: the
+// OwnPane is the pane this conn runs in, whichever conn it is: the
 // panel for the one that draws the panel, and its own pane for a page
 // of conn's own standing in the workspace. A page asking the server to
 // change color names it, so that it is the one pane not started again.
-func ownPane() string {
+func OwnPane() string {
 	return os.Getenv("TMUX_PANE")
 }
 
 // home is every pane of the home window, in the order they stand.
-func (s *server) home() ([]pane, error) {
-	out, err := s.run("list-panes", "-t", s.panel(), "-F", paneFormat)
+func (s *Server) home() ([]Pane, error) {
+	out, err := s.Run("list-panes", "-t", s.Panel(), "-F", paneFormat)
 	if err != nil {
 		return nil, err
 	}
-	var panes []pane
+	var panes []Pane
 	for _, p := range parsePanes(out) {
 		panes = append(panes, p)
 	}
@@ -474,29 +473,29 @@ func (s *server) home() ([]pane, error) {
 	return panes, nil
 }
 
-// bay is the pane beside the panel in the home window, when there is
+// Bay is the pane beside the panel in the home window, when there is
 // one: the first pane after the panel, by where it stands. The panes
 // were read out of a map, in whatever order the map gave them, which
 // was one answer while home had two panes and a coin toss once it had
 // three — and a swap against the wrong one of the three, both in
 // home, sized home to the bay's width and left the operator a window
 // one column wide.
-func (s *server) bay() (pane, bool, error) {
+func (s *Server) Bay() (Pane, bool, error) {
 	panes, err := s.home()
 	if err != nil {
-		return pane{}, false, err
+		return Pane{}, false, err
 	}
 	for _, p := range panes {
-		if p.id != s.panel() {
+		if p.ID != s.Panel() {
 			return p, true, nil
 		}
 	}
-	return pane{}, false, nil
+	return Pane{}, false, nil
 }
 
-// splitBay opens the bay beside the panel, with a hold in it, and sets
+// SplitBay opens the bay beside the panel, with a hold in it, and sets
 // the panel to its width. Focus stays on the panel.
-func (s *server) splitBay(home, self string) error {
+func (s *Server) SplitBay(home, self string) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
 	return s.split(home, self)
@@ -508,17 +507,17 @@ func (s *server) splitBay(home, self string) error {
 // in, and home stood with three panes — the second hold beside the
 // first, and whatever came next swapped against whichever of the two
 // the lookup happened on.
-func (s *server) split(home, self string) error {
-	if _, ok, err := s.bay(); err != nil {
+func (s *Server) split(home, self string) error {
+	if _, ok, err := s.Bay(); err != nil {
 		return err
 	} else if ok {
 		return nil
 	}
-	id, err := s.run("split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "-t", s.panel(), "-c", home, "exec "+shellQuote(self)+" hold")
+	id, err := s.Run("split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "-t", s.Panel(), "-c", home, "exec "+ShellQuote(self)+" hold")
 	if err != nil {
 		return err
 	}
-	if _, err := s.run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_hold", "1"); err != nil {
+	if _, err := s.Run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_hold", "1"); err != nil {
 		return err
 	}
 	// A pane in this window whose process ends stays instead of
@@ -528,29 +527,29 @@ func (s *server) split(home, self string) error {
 	// and not the server's, since the bay is the only place conn has a
 	// layout to protect. Everywhere else a window whose work has ended
 	// is a window that is done.
-	if _, err := s.run("set-option", "-w", "-t", strings.TrimSpace(id), "remain-on-exit", "on"); err != nil {
+	if _, err := s.Run("set-option", "-w", "-t", strings.TrimSpace(id), "remain-on-exit", "on"); err != nil {
 		return err
 	}
-	return s.holdPanel()
+	return s.HoldPanel()
 }
 
-// holdPanel sets the panel to its width. tmux keeps the panes in
+// HoldPanel sets the panel to its width. tmux keeps the panes in
 // proportion when the window is resized, so the panel is put back each
 // time it is not its width.
-func (s *server) holdPanel() error {
-	_, err := s.run("resize-pane", "-t", s.panel(), "-x", strconv.Itoa(panelWidth))
+func (s *Server) HoldPanel() error {
+	_, err := s.Run("resize-pane", "-t", s.Panel(), "-x", strconv.Itoa(PanelWidth))
 	return err
 }
 
-// reviveBay puts a hold in a bay whose pane has died: remain-on-exit
+// ReviveBay puts a hold in a bay whose pane has died: remain-on-exit
 // kept it there, its process gone, so this is a swap into the bay's
 // own shape rather than a split — nothing about the window's layout
 // moves. Without a bay at all, which a swap has nothing to land in,
 // it falls back to splitBay.
-func (s *server) reviveBay(home, self string) error {
+func (s *Server) ReviveBay(home, self string) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
-	bay, ok, err := s.bay()
+	bay, ok, err := s.Bay()
 	if err != nil {
 		return err
 	}
@@ -564,20 +563,20 @@ func (s *server) reviveBay(home, self string) error {
 // of whatever was there. It is a swap rather than a split so nothing
 // about the window's layout moves, and the panel never has to give up
 // its width and take it back.
-func (s *server) holdBay(home, self string, bay pane) error {
-	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, "exec "+shellQuote(self)+" hold")
+func (s *Server) holdBay(home, self string, bay Pane) error {
+	id, err := s.Run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, "exec "+ShellQuote(self)+" hold")
 	if err != nil {
 		return err
 	}
 	hold := strings.TrimSpace(id)
-	if _, err := s.run("set-option", "-p", "-t", hold, "@conn_hold", "1"); err != nil {
+	if _, err := s.Run("set-option", "-p", "-t", hold, "@conn_hold", "1"); err != nil {
 		return err
 	}
-	_, err = s.run("swap-pane", "-d", "-s", hold, "-t", bay.id, ";", "kill-pane", "-t", bay.id)
+	_, err = s.Run("swap-pane", "-d", "-s", hold, "-t", bay.ID, ";", "kill-pane", "-t", bay.ID)
 	return err
 }
 
-// showReadout puts the readout in the bay, and leaves focus on the
+// ShowReadout puts the readout in the bay, and leaves focus on the
 // panel. Focus stays where it was because the readout is a reading,
 // not a project to be.
 //
@@ -585,24 +584,24 @@ func (s *server) holdBay(home, self string, bay pane) error {
 // panel's cursor is on". One page then serves the whole list, j and k
 // carrying it along, where a page opened per row would spawn a window a
 // keystroke and blank the bay between each.
-func (s *server) showReadout(home, self string) error {
+func (s *Server) ShowReadout(home, self string) error {
 	return s.showOwn(home, self, "readout", "@conn_readout", false)
 }
 
-// showHelp puts the manual in the workspace, with the keys in it: it is
+// ShowHelp puts the manual in the workspace, with the keys in it: it is
 // a page to be read, and a page that cannot be scrolled cannot be read.
 // The panel says HELP while it stands, so where the keys have gone is
 // not left to be guessed at.
-func (s *server) showHelp(home, self string) error {
+func (s *Server) ShowHelp(home, self string) error {
 	return s.showOwn(home, self, "manual", "@conn_help", true)
 }
 
-// showSettings puts the settings in the workspace, with the keys in it.
+// ShowSettings puts the settings in the workspace, with the keys in it.
 // The workspace is where conn puts what is being worked on, and the
 // configuration is that while it is open: the panel is the list of
 // what is running and has no room to be a form as well. The panel says
 // SETTINGS while it stands and goes on reading the machine beside it.
-func (s *server) showSettings(home, self string) error {
+func (s *Server) ShowSettings(home, self string) error {
 	return s.showOwn(home, self, "settings", "@conn_settings", true)
 }
 
@@ -623,21 +622,21 @@ func (s *server) showSettings(home, self string) error {
 //
 // What was in the bay goes back to a window of its own, still running,
 // unless it was conn's own furniture and has nothing to go back to.
-func (s *server) showOwn(home, self, cmd, mark string, keys bool) error {
+func (s *Server) showOwn(home, self, cmd, mark string, keys bool) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
-	id, err := s.run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
-		"exec "+shellQuote(self)+" "+cmd)
+	id, err := s.Run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
+		"exec "+ShellQuote(self)+" "+cmd)
 	if err != nil {
 		return err
 	}
 	page := strings.TrimSpace(id)
 	for _, opt := range []string{"@conn_hold", mark} {
-		if _, err := s.run("set-option", "-p", "-t", page, opt, "1"); err != nil {
+		if _, err := s.Run("set-option", "-p", "-t", page, opt, "1"); err != nil {
 			return err
 		}
 	}
-	bay, ok, err := s.bay()
+	bay, ok, err := s.Bay()
 	if err != nil {
 		return err
 	}
@@ -648,29 +647,29 @@ func (s *server) showOwn(home, self, cmd, mark string, keys bool) error {
 		if err := s.split(home, self); err != nil {
 			return err
 		}
-		if bay, ok, err = s.bay(); err != nil {
+		if bay, ok, err = s.Bay(); err != nil {
 			return err
 		} else if !ok {
 			return fmt.Errorf("home has no bay")
 		}
 	}
-	args := []string{"swap-pane", "-d", "-s", page, "-t", bay.id}
-	if bay.width > 0 && bay.height > 0 {
-		args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
+	args := []string{"swap-pane", "-d", "-s", page, "-t", bay.ID}
+	if bay.Width > 0 && bay.Height > 0 {
+		args = append(args, ";", "resize-window", "-t", bay.ID, "-x", strconv.Itoa(bay.Width), "-y", strconv.Itoa(bay.Height))
 	}
-	if bay.hold {
-		args = append(args, ";", "kill-pane", "-t", bay.id)
+	if bay.Hold {
+		args = append(args, ";", "kill-pane", "-t", bay.ID)
 	}
-	if _, err := s.run(args...); err != nil {
+	if _, err := s.Run(args...); err != nil {
 		return err
 	}
 	if keys {
 		return s.focusPane(page)
 	}
-	return s.focusPanel()
+	return s.FocusPanel()
 }
 
-// show puts a pane in the bay and focus on it. The pane that was in the
+// Show puts a pane in the bay and focus on it. The pane that was in the
 // bay goes back to where this one came from, and its window takes the
 // bay's size so it keeps its shape; a hold that leaves the bay is
 // done with, and so is a pane whose process has ended, which
@@ -681,10 +680,10 @@ func (s *server) showOwn(home, self, cmd, mark string, keys bool) error {
 // panel. There was one, and a reading that landed in it saw a bay with
 // no page in it under a panel that still had the keys, and put the
 // page back over the process the operator had just gone into.
-func (s *server) show(target pane) error {
+func (s *Server) Show(target Pane) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
-	bay, ok, err := s.bay()
+	bay, ok, err := s.Bay()
 	if err != nil {
 		return err
 	}
@@ -698,181 +697,181 @@ func (s *server) show(target pane) error {
 	inHome := false
 	if panes, err := s.home(); err == nil {
 		for _, p := range panes {
-			inHome = inHome || p.id == target.id
+			inHome = inHome || p.ID == target.ID
 		}
 	}
 	var args []string
-	if target.id != bay.id {
-		args = []string{"swap-pane", "-d", "-s", target.id, "-t", bay.id}
-		if bay.width > 0 && bay.height > 0 && !inHome {
-			args = append(args, ";", "resize-window", "-t", bay.id, "-x", strconv.Itoa(bay.width), "-y", strconv.Itoa(bay.height))
+	if target.ID != bay.ID {
+		args = []string{"swap-pane", "-d", "-s", target.ID, "-t", bay.ID}
+		if bay.Width > 0 && bay.Height > 0 && !inHome {
+			args = append(args, ";", "resize-window", "-t", bay.ID, "-x", strconv.Itoa(bay.Width), "-y", strconv.Itoa(bay.Height))
 		}
-		if bay.hold || bay.dead {
-			args = append(args, ";", "kill-pane", "-t", bay.id)
+		if bay.Hold || bay.Dead {
+			args = append(args, ";", "kill-pane", "-t", bay.ID)
 		}
 		args = append(args, ";")
 	}
-	_, err = s.run(append(args, "select-pane", "-t", target.id)...)
+	_, err = s.Run(append(args, "select-pane", "-t", target.ID)...)
 	return err
 }
 
-// A shell conn opened, as tmux answers when it makes the window: the
+// A Shell conn opened, as tmux answers when it makes the window: the
 // pane it is in and the process in it. What tmux says the process is
 // called at that instant is tmux itself, before the shell has taken
 // over, so the name is left to the process table.
-type shell struct {
-	pane pane
-	pid  int
+type Shell struct {
+	Pane Pane
+	PID  int
 }
 
-// open opens a shell at a directory, in a window of its own, and shows
+// Open opens a shell at a directory, in a window of its own, and shows
 // it in the bay.
-func (s *server) open(dir string) (shell, error) {
-	return s.openCmd(dir, "")
+func (s *Server) Open(dir string) (Shell, error) {
+	return s.OpenCmd(dir, "")
 }
 
-// openCmd is open, running a command instead of the directory's own
+// OpenCmd is open, running a command instead of the directory's own
 // shell — what a opens claude with.
-func (s *server) openCmd(dir, cmd string) (shell, error) {
+func (s *Server) OpenCmd(dir, cmd string) (Shell, error) {
 	args := []string{"new-window", "-d", "-P", "-F", openFormat, "-c", dir}
 	if cmd != "" {
 		args = append(args, cmd)
 	}
-	out, err := s.run(args...)
+	out, err := s.Run(args...)
 	if err != nil {
-		return shell{}, err
+		return Shell{}, err
 	}
 	sh := parseOpened(out)
-	return sh, s.show(sh.pane)
+	return sh, s.Show(sh.Pane)
 }
 
-// openWatching opens a pane conn made to watch a container, marked with
+// OpenWatching opens a pane conn made to watch a container, marked with
 // the container it is watching. The mark is what makes the pane the
 // terminal the container's row stands on, and what keeps the watcher
 // itself off the view: a docker logs listed beside the service it is
 // showing would be the same thing twice.
-func (s *server) openWatching(dir, cmd, id string) (shell, error) {
+func (s *Server) OpenWatching(dir, cmd, id string) (Shell, error) {
 	sh, err := s.openMarked(dir, cmd, "@conn_container", id)
 	if err != nil {
-		return shell{}, err
+		return Shell{}, err
 	}
-	sh.pane.container = id
-	return sh, s.show(sh.pane)
+	sh.Pane.Container = id
+	return sh, s.Show(sh.Pane)
 }
 
-// openShellIn opens a pane running a shell inside a container. It is
+// OpenShellIn opens a pane running a shell inside a container. It is
 // marked as a shell in that container and not as the container's own
 // terminal: the service is read in one pane and worked in from another,
 // and only the reader stands in for the terminal the service has not
 // got.
-func (s *server) openShellIn(dir, cmd, id string) (shell, error) {
+func (s *Server) OpenShellIn(dir, cmd, id string) (Shell, error) {
 	sh, err := s.openMarked(dir, cmd, "@conn_shell_in", id)
 	if err != nil {
-		return shell{}, err
+		return Shell{}, err
 	}
-	sh.pane.shellIn = id
-	return sh, s.show(sh.pane)
+	sh.Pane.ShellIn = id
+	return sh, s.Show(sh.Pane)
 }
 
-// raiseDeclared opens a declared process's pane, marked as the
+// RaiseDeclared opens a declared process's pane, marked as the
 // declaration, in place of the pane that last held it where one is
 // still standing with its last output in it. Shown, it goes into the
 // bay with the keys in it; not shown, it is parked in a window of its
 // own for the reading to list, which is how a project is brought up
 // whole without the bay ending on whichever pane opened last.
-func (s *server) raiseDeclared(dir, cmd, mark, replace string, show bool) (shell, error) {
+func (s *Server) RaiseDeclared(dir, cmd, mark, replace string, show bool) (Shell, error) {
 	if replace != "" {
-		_, _ = s.run("kill-pane", "-t", replace)
+		_, _ = s.Run("kill-pane", "-t", replace)
 	}
 	sh, err := s.openMarked(dir, cmd, "@conn_declared", mark)
 	if err != nil {
-		return shell{}, err
+		return Shell{}, err
 	}
-	sh.pane.declared = mark
+	sh.Pane.Declared = mark
 	if show {
-		return sh, s.show(sh.pane)
+		return sh, s.Show(sh.Pane)
 	}
 	return sh, nil
 }
 
-// paneExit is what a declared process's pane has recorded of its end:
+// PaneExit is what a declared process's pane has recorded of its end:
 // the code, or nothing while it is still going. An error is a pane
 // that is not there to ask.
-func (s *server) paneExit(id string) (string, error) {
-	out, err := s.run("display-message", "-p", "-t", id, "#{@conn_exit}")
+func (s *Server) PaneExit(id string) (string, error) {
+	out, err := s.Run("display-message", "-p", "-t", id, "#{@conn_exit}")
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
 }
 
-// interrupt is ctrl-c in a pane, as tmux types it: what a hand does to
+// Interrupt is ctrl-c in a pane, as tmux types it: what a hand does to
 // stop the thing it ran there.
-func (s *server) interrupt(id string) error {
-	_, err := s.run("send-keys", "-t", id, "C-c")
+func (s *Server) Interrupt(id string) error {
+	_, err := s.Run("send-keys", "-t", id, "C-c")
 	return err
 }
 
-// closePane takes a pane down: a declared process's, once its output
+// ClosePane takes a pane down: a declared process's, once its output
 // has been read, or once it was asked to end.
-func (s *server) closePane(id string) error {
-	_, err := s.run("kill-pane", "-t", id)
+func (s *Server) ClosePane(id string) error {
+	_, err := s.Run("kill-pane", "-t", id)
 	return err
 }
 
 // openMarked opens a pane running a command and sets one option on it,
 // which is how conn remembers what it opened a pane for.
-func (s *server) openMarked(dir, cmd, option, value string) (shell, error) {
+func (s *Server) openMarked(dir, cmd, option, value string) (Shell, error) {
 	args := []string{"new-window", "-d", "-P", "-F", openFormat, "-c", dir}
 	if cmd != "" {
 		args = append(args, cmd)
 	}
-	out, err := s.run(args...)
+	out, err := s.Run(args...)
 	if err != nil {
-		return shell{}, err
+		return Shell{}, err
 	}
 	sh := parseOpened(out)
-	if _, err := s.run("set-option", "-p", "-t", sh.pane.id, option, value); err != nil {
-		return shell{}, err
+	if _, err := s.Run("set-option", "-p", "-t", sh.Pane.ID, option, value); err != nil {
+		return Shell{}, err
 	}
 	return sh, nil
 }
 
 // parseOpened reads what new-window printed for the pane it made.
-func parseOpened(out string) shell {
+func parseOpened(out string) Shell {
 	f := strings.Split(strings.TrimSpace(out), " ")
 	for len(f) < 3 {
 		f = append(f, "")
 	}
-	sh := shell{pane: pane{id: f[0], tty: strings.TrimPrefix(f[2], "/dev/")}}
-	sh.pid, _ = strconv.Atoi(f[1])
+	sh := Shell{Pane: Pane{ID: f[0], TTY: strings.TrimPrefix(f[2], "/dev/")}}
+	sh.PID, _ = strconv.Atoi(f[1])
 	return sh
 }
 
-// wide gives the panel the whole window, which is what the console
-// wants: it is a page, not a panel. narrow gives the bay its side back.
+// Wide gives the panel the whole window, which is what the console
+// wants: it is a page, not a panel. Narrow gives the bay its side back.
 // tmux has one key for both, so each looks first at how the window
 // stands; on a home with no bay yet there is nothing to zoom and both
 // are nothing.
-func (s *server) wide() error { return s.zoom(true) }
+func (s *Server) Wide() error { return s.zoom(true) }
 
-func (s *server) narrow() error { return s.zoom(false) }
+func (s *Server) Narrow() error { return s.zoom(false) }
 
-func (s *server) zoom(on bool) error {
-	out, err := s.run("display-message", "-p", "-t", s.panel(), "#{window_zoomed_flag}")
+func (s *Server) zoom(on bool) error {
+	out, err := s.Run("display-message", "-p", "-t", s.Panel(), "#{window_zoomed_flag}")
 	if err != nil {
 		return err
 	}
 	if (strings.TrimSpace(out) == "1") == on {
 		return nil
 	}
-	_, err = s.run("resize-pane", "-Z", "-t", s.panel())
+	_, err = s.Run("resize-pane", "-Z", "-t", s.Panel())
 	return err
 }
 
-// focusPanel puts focus on the panel.
-func (s *server) focusPanel() error {
-	return s.focusPane(s.panel())
+// FocusPanel puts focus on the panel.
+func (s *Server) FocusPanel() error {
+	return s.focusPane(s.Panel())
 }
 
 // focusPane puts the keys in a pane by its id, which reaches only a
@@ -880,18 +879,18 @@ func (s *server) focusPanel() error {
 // own way back, and not a way to somewhere else. Putting the keys in a
 // process means reaching it: show brings the pane into the workspace
 // first, and the window the client is on is the one it was already on.
-func (s *server) focusPane(id string) error {
-	_, err := s.run("select-pane", "-t", id)
+func (s *Server) focusPane(id string) error {
+	_, err := s.Run("select-pane", "-t", id)
 	return err
 }
 
-// detach lets the client go; the server keeps on.
-func (s *server) detach() error {
-	_, err := s.run("detach-client")
+// Detach lets the client go; the server keeps on.
+func (s *Server) Detach() error {
+	_, err := s.Run("detach-client")
 	return err
 }
 
-// tmuxConf is the server's configuration: the panel key, and how
+// Conf is the server's configuration: the panel key, and how
 // every pane is drawn, on a ground. tmux has no prefix here, so none of its keys or
 // actions are reachable through conn; the one key it takes is the
 // panel's, bound in the root table so that it works from inside a
@@ -907,7 +906,7 @@ func (s *server) detach() error {
 // and dress to match, the cursor in the orange and a selection on the
 // border color, and between the panel and the bay a line in that color
 // too, the same whichever side has focus.
-func tmuxConf(key string, g theme.Ground) string {
+func Conf(key string, g theme.Ground) string {
 	var b strings.Builder
 	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
 # One key, from anywhere in the station: to the panel, which says where
@@ -917,7 +916,7 @@ func tmuxConf(key string, g theme.Ground) string {
 # holds, and nothing is pressed for it.
 set -g prefix None
 set -g prefix2 None
-bind -n ` + key + ` set -gF @conn_from "#{pane_id}" \; select-pane -t ` + sessionName + ":" + homeWindow + `.0 \; send-keys -t ` + sessionName + ":" + homeWindow + `.0 M--
+bind -n ` + key + ` set -gF @conn_from "#{pane_id}" \; select-pane -t ` + SessionName + ":" + HomeWindow + `.0 \; send-keys -t ` + SessionName + ":" + HomeWindow + `.0 M--
 set -g mouse on
 # The panel's width is conn's to hold; a drag of the border would only be
 # put back.
@@ -1048,9 +1047,9 @@ set -g pane-border-status off
 	// edge the clock. The lower is the key bar: the keys that work where
 	// the cursor is, or a question armed, and at the right the station's
 	// designation.
-	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", homeWindow)
+	onPanel := fmt.Sprintf("#{&&:#{==:#{window_name},%s},#{==:#{pane_index},0}}", HomeWindow)
 	fmt.Fprintf(&b, "set -g status-left \"#{?pane_in_mode,%s,#{?%s,#{@conn_keys},#{@conn_station}}}\"\n",
-		statusLineBlock("COPY", g), onPanel)
+		StatusLineBlock("COPY", g), onPanel)
 	b.WriteString("set -g status-right \"#{@conn_up}\"\n")
 	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
 	// The key bar is on the surface, the panel's own ground, so the two
@@ -1060,7 +1059,7 @@ set -g pane-border-status off
 	return b.String()
 }
 
-// statusLineBlock is a mode as the status line wears it: the ground
+// StatusLineBlock is a mode as the status line wears it: the ground
 // knocked out of a block of the orange, flush to the edge, the word
 // keeping its own space inside. The ground and not a fixed white, so it
 // inverts with everything else — the orange on paper is a dark brick,
@@ -1079,25 +1078,25 @@ set -g pane-border-status off
 // The attributes of a style are parted by spaces and not by commas: a
 // comma inside a style is a comma to the conditional around it, and tmux
 // would read the style as the branches of the question.
-func statusLineBlock(word string, g theme.Ground) string {
+func StatusLineBlock(word string, g theme.Ground) string {
 	if word == "" {
 		return ""
 	}
 	return fmt.Sprintf("#[bg=%s fg=%s bold] %s ", g.Accent, theme.Hex(g.Ground), word)
 }
 
-// statusLineSay is what conn says on the key bar in words, a question
+// StatusLineSay is what conn says on the key bar in words, a question
 // armed: on the bar's own ground, the surface, in the parchment conn
 // titles with, one space in where the keys begin. A hash is tmux's own
 // character on this line and is doubled to be shown.
-func statusLineSay(text string, g theme.Ground) string {
+func StatusLineSay(text string, g theme.Ground) string {
 	return fmt.Sprintf("#[bg=%s fg=%s nobold] %s", g.Surface, g.Parchment, strings.ReplaceAll(text, "#", "##"))
 }
 
-// say puts what conn knows about its own keys on the server, and asks
+// Say puts what conn knows about its own keys on the server, and asks
 // the clients to draw, so the status line never lags what changed it.
-func (s *server) say(keys, station, up, bar, ident string) error {
-	_, err := s.run("set-option", "-g", "@conn_keys", keys,
+func (s *Server) Say(keys, station, up, bar, ident string) error {
+	_, err := s.Run("set-option", "-g", "@conn_keys", keys,
 		";", "set-option", "-g", "@conn_station", station,
 		";", "set-option", "-g", "@conn_up", up,
 		";", "set-option", "-g", "@conn_bar", bar,
@@ -1106,10 +1105,10 @@ func (s *server) say(keys, station, up, bar, ident string) error {
 	return err
 }
 
-// sayBand is say without the key bar, for the panel while a page of
+// SayBand is say without the key bar, for the panel while a page of
 // conn's own has the keys and is writing that position itself.
-func (s *server) sayBand(keys, station, up, ident string) error {
-	_, err := s.run("set-option", "-g", "@conn_keys", keys,
+func (s *Server) SayBand(keys, station, up, ident string) error {
+	_, err := s.Run("set-option", "-g", "@conn_keys", keys,
 		";", "set-option", "-g", "@conn_station", station,
 		";", "set-option", "-g", "@conn_up", up,
 		";", "set-option", "-g", "@conn_ident", ident,
@@ -1117,19 +1116,19 @@ func (s *server) sayBand(keys, station, up, ident string) error {
 	return err
 }
 
-// sayBar is the key bar alone, for a page of conn's own that has the
+// SayBar is the key bar alone, for a page of conn's own that has the
 // keys: what the keys do there is its own to say, since the bar says
 // the keys that work where the cursor is and the cursor is in that
 // pane. The panel leaves the position alone while such a page stands;
 // see saying in tui.go.
-func (s *server) sayBar(bar string) error {
-	_, err := s.run("set-option", "-g", "@conn_bar", bar, ";", "refresh-client", "-S")
+func (s *Server) SayBar(bar string) error {
+	_, err := s.Run("set-option", "-g", "@conn_bar", bar, ";", "refresh-client", "-S")
 	return err
 }
 
-// statusLineWord is a word on the line's own ground: the wordmark in
+// StatusLineWord is a word on the line's own ground: the wordmark in
 // the ink and bold, or a figure in the gray.
-func statusLineWord(text, color string, bold bool, g theme.Ground) string {
+func StatusLineWord(text, color string, bold bool, g theme.Ground) string {
 	weight := "nobold"
 	if bold {
 		weight = "bold"
@@ -1143,12 +1142,12 @@ func statusLineWord(text, color string, bold bool, g theme.Ground) string {
 //
 // The keys it sends are alt keys the panel answers to and nothing else
 // does; see leaveKey and worn.
-func (s *server) tellPanel(key string) error {
-	_, err := s.run("send-keys", "-t", sessionName+":"+homeWindow+".0", key)
+func (s *Server) tellPanel(key string) error {
+	_, err := s.Run("send-keys", "-t", SessionName+":"+HomeWindow+".0", key)
 	return err
 }
 
-// leaveHelp tells the panel the manual is done with, and leaveSettings
+// LeaveHelp tells the panel the manual is done with, and leaveSettings
 // the same of the settings.
 //
 // Each says so rather than ending and letting the panel notice. The
@@ -1156,10 +1155,10 @@ func (s *server) tellPanel(key string) error {
 // only happens at all while the processes view has the keys — so a
 // page that just ended left a dead pane standing in the workspace,
 // which is the one thing the workspace should never be showing.
-func (s *server) leaveHelp() error     { return s.tellPanel(leaveHelpKey) }
-func (s *server) leaveSettings() error { return s.tellPanel(leaveSettingsKey) }
+func (s *Server) LeaveHelp() error     { return s.tellPanel(leaveHelpKey) }
+func (s *Server) LeaveSettings() error { return s.tellPanel(leaveSettingsKey) }
 
-// wearMode tells the panel the mode has changed under it: the settings
+// WearMode tells the panel the mode has changed under it: the settings
 // have just written one and put it on the server, and the panel draws
 // in colors of its own that it read when it came up.
 //
@@ -1168,7 +1167,7 @@ func (s *server) leaveSettings() error { return s.tellPanel(leaveSettingsKey) }
 // on the console — the operator picked a theme and would be handed
 // back the boot screen — so the panel reads the mode file again where
 // it stands and wears what it now says.
-func (s *server) wearMode() error { return s.tellPanel(wearModeKey) }
+func (s *Server) WearMode() error { return s.tellPanel(wearModeKey) }
 
 // The keys a page of conn's own sends the panel. They are alt keys
 // because the panel answers those wherever the keys are and whatever
@@ -1180,29 +1179,29 @@ const (
 	wearModeKey      = "M-w"
 )
 
-// shellQuote quotes a path for a tmux command line.
-func shellQuote(s string) string {
+// ShellQuote quotes a path for a tmux command line.
+func ShellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// A window of the server, for the report of what conn down ends: its
+// A Window of the server, for the report of what conn down ends: its
 // name and the directory its pane is in.
-type window struct {
-	name, path string
+type Window struct {
+	Name, Path string
 }
 
-// windows is every window in the server.
-func (s *server) windows() ([]window, error) {
-	out, err := s.run("list-windows", "-a", "-F", windowFormat)
+// Windows is every window in the server.
+func (s *Server) Windows() ([]Window, error) {
+	out, err := s.Run("list-windows", "-a", "-F", windowFormat)
 	if err != nil {
 		return nil, err
 	}
-	return parseWindows(out), nil
+	return ParseWindows(out), nil
 }
 
-// parseWindows reads list-windows: a name and a path per line.
-func parseWindows(out string) []window {
-	var ws []window
+// ParseWindows reads list-windows: a name and a path per line.
+func ParseWindows(out string) []Window {
+	var ws []Window
 	for _, l := range strings.Split(out, "\n") {
 		// The name is one token and the path is whatever is left, so a
 		// path with a space in it arrives whole.
@@ -1210,23 +1209,23 @@ func parseWindows(out string) []window {
 		if !ok {
 			continue
 		}
-		ws = append(ws, window{name: name, path: path})
+		ws = append(ws, Window{Name: name, Path: path})
 	}
 	return ws
 }
 
-// up says whether the server is up.
-func (s *server) up() bool {
-	_, err := s.run("has-session")
+// Up says whether the server is up.
+func (s *Server) Up() bool {
+	_, err := s.Run("has-session")
 	return err == nil
 }
 
-// down ends the server and everything in it, and clears the ground it
+// Down ends the server and everything in it, and clears the ground it
 // came up on, so the next one to rise picks fresh.
-func (s *server) down() error {
-	_, err := s.run("kill-server")
+func (s *Server) Down() error {
+	_, err := s.Run("kill-server")
 	if err == nil {
-		_ = os.Remove(theme.ModePath(s.socket))
+		_ = os.Remove(theme.ModePath(s.Socket))
 	}
 	return err
 }

@@ -6,6 +6,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -19,21 +21,21 @@ import (
 // openBay opens the bay beside the panel, with the hold in it.
 func (m model) openBay() tea.Cmd {
 	home, self := m.head.login.home, m.self
-	return m.serverCmd(func() error { return m.srv.splitBay(home, self) })
+	return m.serverCmd(func() error { return m.srv.SplitBay(home, self) })
 }
 
 // reviveBay puts a hold in a bay whose pane died, in its own shape.
 func (m model) reviveBay() tea.Cmd {
 	home, self := m.head.login.home, m.self
-	return m.serverCmd(func() error { return m.srv.reviveBay(home, self) })
+	return m.serverCmd(func() error { return m.srv.ReviveBay(home, self) })
 }
 
 // reach puts a process in the bay, off the loop, and passes back the
 // terminal that is in the bay once it is there.
-func (m model) reach(target pane, tty string) tea.Cmd {
+func (m model) reach(target tmux.Pane, tty string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		if srv.show(target) != nil {
+		if srv.Show(target) != nil {
 			return nil
 		}
 		return reachedMsg{tty}
@@ -47,7 +49,7 @@ func (m model) reach(target pane, tty string) tea.Cmd {
 func (m model) openReadout() tea.Cmd {
 	home, self, srv := m.head.login.home, m.self, m.srv
 	return func() tea.Msg {
-		if srv.showReadout(home, self) != nil {
+		if srv.ShowReadout(home, self) != nil {
 			return nil
 		}
 		return readoutMsg{on: true}
@@ -59,7 +61,7 @@ func (m model) openReadout() tea.Cmd {
 func (m model) openShell(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.open(dir)
+		sh, err := srv.Open(dir)
 		if err != nil {
 			return noticeMsg{"the shell could not be opened: " + err.Error()}
 		}
@@ -74,12 +76,12 @@ func (m model) openShell(dir string) tea.Cmd {
 func (m model) raise(path string, d declaration, replace string, enter bool) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.raiseDeclared(d.at(path), declaredLine(d, srv.tmux), markDeclared(path, d.name), replace, enter)
+		sh, err := srv.RaiseDeclared(d.at(path), declaredLine(d, srv.Tmux), markDeclared(path, d.name), replace, enter)
 		if err != nil {
 			return nil
 		}
 		if !enter {
-			return raisedMsg{shells: []shell{sh}}
+			return raisedMsg{shells: []tmux.Shell{sh}}
 		}
 		return openedMsg{shell: sh}
 	}
@@ -97,7 +99,7 @@ func (m model) raiseAll(path string, up map[string]bool, held map[string]string)
 		if err != nil {
 			return nil
 		}
-		var shells []shell
+		var shells []tmux.Shell
 		for _, d := range list {
 			mark := markDeclared(path, d.name)
 			if up[mark] {
@@ -108,7 +110,7 @@ func (m model) raiseAll(path string, up map[string]bool, held map[string]string)
 				_, _ = brewSays(brewWait, "services", "start", formula)
 				continue
 			}
-			sh, err := srv.raiseDeclared(d.at(path), declaredLine(d, srv.tmux), mark, held[mark], false)
+			sh, err := srv.RaiseDeclared(d.at(path), declaredLine(d, srv.Tmux), mark, held[mark], false)
 			if err != nil {
 				continue
 			}
@@ -129,15 +131,15 @@ func (m model) raiseAll(path string, up map[string]bool, held map[string]string)
 func (m model) interruptDeclared(pane, command string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		if err := srv.interrupt(pane); err == nil {
+		if err := srv.Interrupt(pane); err == nil {
 			deadline := time.Now().Add(closeWait)
 			for time.Now().Before(deadline) {
-				exit, err := srv.paneExit(pane)
+				exit, err := srv.PaneExit(pane)
 				if err != nil {
 					break // the pane is gone, and so is the process
 				}
 				if exit != "" {
-					_ = srv.closePane(pane)
+					_ = srv.ClosePane(pane)
 					break
 				}
 				time.Sleep(closePoll)
@@ -151,7 +153,7 @@ func (m model) interruptDeclared(pane, command string) tea.Cmd {
 func (m model) closeHeld(id, name string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		_ = srv.closePane(id)
+		_ = srv.ClosePane(id)
 		return killedMsg{command: name}
 	}
 }
@@ -180,7 +182,7 @@ const contactProgram = "claude"
 func (m model) startContact(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.openCmd(dir, contactCommand(srv.socket))
+		sh, err := srv.OpenCmd(dir, contactCommand(srv.Socket))
 		if err != nil {
 			return noticeMsg{"the contact could not be opened: " + err.Error()}
 		}
@@ -222,7 +224,7 @@ func (m model) scanSessions(dirs []string) tea.Cmd {
 func (m model) openResumed(dir, id string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.openCmd(dir, resumeCommand(srv.socket, id))
+		sh, err := srv.OpenCmd(dir, resumeCommand(srv.Socket, id))
 		if err != nil {
 			return nil
 		}
@@ -278,9 +280,9 @@ func (m model) serverCmd(act func() error) tea.Cmd {
 // the pane waits, and the last words stay up to be read.
 func (m model) watchContainer(e entry) tea.Cmd {
 	srv, dir, id := m.srv, e.cwd, e.container
-	cmd := shellQuote(dockerPath) + " logs --tail 2000 --follow " + shellQuote(id) + " 2>&1; " + holdOpen
+	cmd := tmux.ShellQuote(dockerPath) + " logs --tail 2000 --follow " + tmux.ShellQuote(id) + " 2>&1; " + holdOpen
 	return func() tea.Msg {
-		sh, err := srv.openWatching(dir, cmd, id)
+		sh, err := srv.OpenWatching(dir, cmd, id)
 		if err != nil {
 			return nil
 		}
@@ -304,10 +306,10 @@ func (m model) watchContainer(e entry) tea.Cmd {
 // typed and looked for all the world like a shell that had hung.
 func (m model) shellInContainer(e entry) tea.Cmd {
 	srv, dir, id := m.srv, e.cwd, e.container
-	cmd := shellQuote(dockerPath) + " exec -it " + shellQuote(id) + " sh -c " +
-		shellQuote(pickShell) + " 2>&1 || " + holdOpen
+	cmd := tmux.ShellQuote(dockerPath) + " exec -it " + tmux.ShellQuote(id) + " sh -c " +
+		tmux.ShellQuote(pickShell) + " 2>&1 || " + holdOpen
 	return func() tea.Msg {
-		sh, err := srv.openShellIn(dir, cmd, id)
+		sh, err := srv.OpenShellIn(dir, cmd, id)
 		if err != nil {
 			return nil
 		}
@@ -336,8 +338,8 @@ func (m model) openClient(e entry, p *knownProgram, dir string) tea.Cmd {
 			if user == "" {
 				user = p.user
 			}
-			cmd := shellQuote(dockerPath) + " exec -it " + shellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + holdOpen
-			sh, err := srv.openShellIn(dir, cmd, id)
+			cmd := tmux.ShellQuote(dockerPath) + " exec -it " + tmux.ShellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + holdOpen
+			sh, err := srv.OpenShellIn(dir, cmd, id)
 			if err != nil {
 				return nil
 			}
@@ -360,8 +362,8 @@ func (m model) openClient(e entry, p *knownProgram, dir string) tea.Cmd {
 		if client == "" {
 			return noticeMsg{p.client + " was not found on the path"}
 		}
-		cmd := shellQuote(client) + " " + p.args(port) + " 2>&1 || " + holdOpen
-		sh, err := srv.openCmd(dir, cmd)
+		cmd := tmux.ShellQuote(client) + " " + p.args(port) + " 2>&1 || " + holdOpen
+		sh, err := srv.OpenCmd(dir, cmd)
 		if err != nil {
 			return noticeMsg{"the session could not be opened: " + err.Error()}
 		}
@@ -418,9 +420,9 @@ func (m model) watchBrew(e entry) tea.Cmd {
 		return nil
 	}
 	srv, dir, formula, log := m.srv, e.cwd, e.brew, svc.log
-	cmd := "tail -n 2000 -f " + shellQuote(log) + " 2>&1; " + holdOpen
+	cmd := "tail -n 2000 -f " + tmux.ShellQuote(log) + " 2>&1; " + holdOpen
 	return func() tea.Msg {
-		sh, err := srv.openWatching(dir, cmd, brewMark(formula))
+		sh, err := srv.OpenWatching(dir, cmd, brewMark(formula))
 		if err != nil {
 			return nil
 		}
@@ -465,7 +467,7 @@ func (m model) stopContainer(id, service string) tea.Cmd {
 func (m model) openHelp() tea.Cmd {
 	home, self, srv := m.head.login.home, m.self, m.srv
 	return func() tea.Msg {
-		if srv.showHelp(home, self) != nil {
+		if srv.ShowHelp(home, self) != nil {
 			return nil
 		}
 		return detourMsg{toManual}
@@ -477,7 +479,7 @@ func (m model) openHelp() tea.Cmd {
 func (m model) openTheSettings() tea.Cmd {
 	home, self, srv := m.head.login.home, m.self, m.srv
 	return func() tea.Msg {
-		if srv.showSettings(home, self) != nil {
+		if srv.ShowSettings(home, self) != nil {
 			return nil
 		}
 		return detourMsg{toSettings}

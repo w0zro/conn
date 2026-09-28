@@ -74,7 +74,7 @@ func (m model) consoleKey(k string) (model, tea.Cmd) {
 	}
 	m.view = viewProcesses
 	if m.inside {
-		return m, tea.Batch(m.readProcesses(), m.serverCmd(func() error { return m.srv.narrow() }))
+		return m, tea.Batch(m.readProcesses(), m.serverCmd(func() error { return m.srv.Narrow() }))
 	}
 	return m, m.readProcesses()
 }

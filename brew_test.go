@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	tea "charm.land/bubbletea/v2"
@@ -156,7 +158,7 @@ func TestAServiceTwoProjectsDeclareStandsUnderEach(t *testing.T) {
 func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
 	m.brews, _ = parseBrewServices([]byte(brewInfo))
 	m.projects = []project{{path: "/w/a", entries: []entry{
 		{pid: 24422, kind: kindService, command: "postgresql@14", brew: "postgresql@14", declared: markDeclared("/w/a", "db"), cwd: "/w/a", status: statusActive, ports: []string{"5432"}},
@@ -246,7 +248,7 @@ func TestSocketsAndBrewTravelWithTheReading(t *testing.T) {
 	r := reading{projects: []project{{path: "/w", entries: []entry{
 		{pid: 24422, kind: kindService, command: "postgresql@14", brew: "postgresql@14", shared: 2, ports: []string{"5432"},
 			sockets: []socket{{"TCP", "127.0.0.1:5432", "LISTEN"}}},
-	}}}, brews: services, records: map[int]record{}, panes: map[string]pane{}}
+	}}}, brews: services, records: map[int]record{}, panes: map[string]tmux.Pane{}}
 	b, err := json.Marshal(r)
 	if err != nil {
 		t.Fatal(err)

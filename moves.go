@@ -3,6 +3,8 @@ package main
 import (
 	"syscall"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -30,7 +32,7 @@ func (m model) enterOn(e entry) (string, tea.Cmd) {
 	// the first enter opens its output and the next goes back into the
 	// pane holding it; a brew service up, its log, the same way.
 	switch {
-	case reachable(m.panes[e.tty]):
+	case tmux.Reachable(m.panes[e.tty]):
 		return "Open", m.reach(m.panes[e.tty], e.tty)
 	case e.brew != "" && e.status == statusActive:
 		if cmd := m.watchBrew(e); cmd != nil {
@@ -81,7 +83,7 @@ func (m model) endOn(e entry) *pendingKill {
 	// A declaration in a pane conn opened for it is stopped in that
 	// pane. One started by hand is a process like any other, wherever it
 	// runs, and is signalled as one.
-	case e.declared != "" && (e.status == statusDown || m.panes[e.tty].declared == e.declared):
+	case e.declared != "" && (e.status == statusDown || m.panes[e.tty].Declared == e.declared):
 		return m.endDeclared(e)
 	// A row that is down is nothing running, and a pid below one is a
 	// pid conn made up to hold the cursor with: there is nothing to end,
@@ -119,8 +121,8 @@ func (m model) endDeclared(e entry) *pendingKill {
 		return nil
 	}
 	_, name, _ := unmarkDeclared(e.declared)
-	id := m.panes[e.tty].id
-	if m.panes[e.tty].exit != "" {
+	id := m.panes[e.tty].ID
+	if m.panes[e.tty].Exit != "" {
 		return &pendingKill{prompt: closePrompt(id, name), end: m.closeHeld(id, name)}
 	}
 	return &pendingKill{prompt: interruptPrompt(id, name), end: m.interruptDeclared(id, name)}
@@ -141,13 +143,13 @@ func (m model) raiseOn(e entry) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	return m.raise(path, d, m.panes[e.tty].id, false)
+	return m.raise(path, d, m.panes[e.tty].ID, false)
 }
 
 // rowDown says whether a row is a declaration that is not up, which is
 // what u would bring up: down, or ended and holding its pane; a brew
 // service, by brew's word.
-func rowDown(e entry, panes map[string]pane) bool {
+func rowDown(e entry, panes map[string]tmux.Pane) bool {
 	switch {
 	case e.declared == "":
 		return false
@@ -156,5 +158,5 @@ func rowDown(e entry, panes map[string]pane) bool {
 	case e.tty == "":
 		return e.status == statusDown
 	}
-	return panes[e.tty].exit != ""
+	return panes[e.tty].Exit != ""
 }

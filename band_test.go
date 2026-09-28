@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -13,7 +15,7 @@ import (
 func TestConnLightsTheStatusLine(t *testing.T) {
 	g := theme.Conn.Dark
 	m := plainModel()
-	m.inside, m.srv = true, &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
 	m.projects = []project{{path: "/w", entries: []entry{
 		{pid: 11, kind: kindContact, command: "claude", tty: "ttys004", status: statusWaiting},
 	}}}
@@ -23,7 +25,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// none, covering the window with a wordmark of its own.
 	for _, v := range []int{viewProcesses, viewProjects, viewSessions} {
 		m.view = v
-		if keys := m.keys(); keys != statusLineWord(wordmarkLine, theme.Hex(g.Ink), true, g) {
+		if keys := m.keys(); keys != tmux.StatusLineWord(wordmarkLine, theme.Hex(g.Ink), true, g) {
 			t.Errorf("view %d lights %q, not the wordmark", v, keys)
 		}
 	}
@@ -40,7 +42,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// The question itself is on the key bar, where its answers are, and
 	// the word is the band's alone.
 	m.kill = &pendingKill{prompt: "END CLAUDE 11 · #1"}
-	if ask := m.keys(); ask != statusLineBlock("CONFIRM", g) || !strings.Contains(ask, "bg="+g.Accent) {
+	if ask := m.keys(); ask != tmux.StatusLineBlock("CONFIRM", g) || !strings.Contains(ask, "bg="+g.Accent) {
 		t.Errorf("a question armed lights %q", ask)
 	}
 	if bar := m.bar(); strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, " END CLAUDE 11 · ##1") ||

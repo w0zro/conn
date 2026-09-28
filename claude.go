@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/w0zro/conn/internal/tmux"
 )
 
 // Claude Code leaves a suspended session's transcript behind when its
@@ -105,7 +107,7 @@ func insideNote(socket string) string {
 // contactCommand is what conn runs to start a contact: the program,
 // told where it is.
 func contactCommand(socket string) string {
-	return contactProgram + " --append-system-prompt " + shellQuote(insideNote(socket))
+	return contactProgram + " --append-system-prompt " + tmux.ShellQuote(insideNote(socket))
 }
 
 // resumeCommand is the command that picks a suspended session back

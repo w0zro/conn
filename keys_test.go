@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/w0zro/conn/internal/tmux"
 )
 
 // The card is the manual's rows put where the decision is made, so
@@ -102,7 +104,7 @@ func boldWord(page, word string) bool {
 // is not made wider for it: a row that does not fit is elided, and a
 // key whose word is cut in half is a key the card did not say.
 func TestTheCardFitsThePanel(t *testing.T) {
-	rows := drawKeys(panelKeys("^space"), "processes", panelWidth, 0, plain)
+	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 0, plain)
 	if len(rows) < 20 {
 		t.Fatalf("the card came to %d rows", len(rows))
 	}
@@ -110,8 +112,8 @@ func TestTheCardFitsThePanel(t *testing.T) {
 		if strings.Contains(r.text, "…") {
 			t.Errorf("the panel cuts a row of the card: %q", r.text)
 		}
-		if w := utf8.RuneCountInString(r.text); w > panelWidth {
-			t.Errorf("a row runs %d columns past the panel: %q", w-panelWidth, r.text)
+		if w := utf8.RuneCountInString(r.text); w > tmux.PanelWidth {
+			t.Errorf("a row runs %d columns past the panel: %q", w-tmux.PanelWidth, r.text)
 		}
 	}
 }
@@ -119,7 +121,7 @@ func TestTheCardFitsThePanel(t *testing.T) {
 // A card too tall for the pane says how much of it is below rather than
 // running off the foot of the window.
 func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
-	rows := drawKeys(panelKeys("^space"), "processes", panelWidth, 12, plain)
+	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 12, plain)
 	if len(rows) != 12 {
 		t.Fatalf("the card came to %d rows in a pane of 12", len(rows))
 	}
@@ -133,7 +135,7 @@ func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
 // the manual's own pane — so the half of the window beside it says what
 // the keys are rather than showing a list going nowhere.
 func TestThePanelHoldsTheKeysWhileTheManualIsUp(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, p: plain, width: panelWidth, height: 40,
+	m := model{view: viewProcesses, inside: true, p: plain, width: tmux.PanelWidth, height: 40,
 		projects: []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001", command: "vim"}}}}}
 	if strings.Contains(m.View().Content, "THE ROW") {
 		t.Fatal("the processes view is showing the keys with no manual up")

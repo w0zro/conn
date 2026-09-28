@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	tea "charm.land/bubbletea/v2"
@@ -29,7 +31,7 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	golden(t, "processes-empty-80x24.txt", texts(drawProcesses(empty, 0, 80, 24, plain)))
 	failed := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false, false)
 	golden(t, "processes-unread-80x24.txt", texts(drawProcesses(failed, 0, 80, 24, plain)))
-	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	panel.inside = true
 	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, plain)))
 	// A project's declarations: one up, in a pane marked as its own and
@@ -50,10 +52,10 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 		process{pid: 910, ppid: 1, uid: 501, tty: "ttys021", state: 'S', command: "cat", args: []string{"cat"}, started: processesNow.Add(-time.Hour), cwd: app + "/api"},
 		process{pid: 67040, ppid: 1, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
 	)
-	panes := map[string]pane{
-		"ttys020": {id: "%20", tty: "ttys020", declared: markDeclared(app, "web")},
-		"ttys021": {id: "%21", tty: "ttys021", declared: markDeclared(app, "api"), exit: "0"},
-		"ttys005": {id: "%0", tty: "ttys005"},
+	panes := map[string]tmux.Pane{
+		"ttys020": {ID: "%20", TTY: "ttys020", Declared: markDeclared(app, "web")},
+		"ttys021": {ID: "%21", TTY: "ttys021", Declared: markDeclared(app, "api"), Exit: "0"},
+		"ttys005": {ID: "%0", TTY: "ttys005"},
 	}
 	isProject := func(dir string) bool { return dir == app || testIsProject(dir) }
 	projects := attachDeclared(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), declared, panes)
@@ -66,7 +68,7 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	// fault. It is drawn as the panel and not as the tree: folded rows
 	// stand in the panel's order, by kind, and the tree's indent over
 	// them would say a contact runs under the shell standing below it.
-	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
+	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
 	quiet.inside = true
 	golden(t, "processes-quiet-48x30.txt", texts(drawProcesses(quiet, 70100, 48, 30, plain)))
 }
@@ -91,7 +93,7 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 		{pid: 400, ppid: 1, uid: 501, tty: "ttys033", foreground: true, state: 'S', command: "vim", args: []string{"vim", "todo.md"}, started: processesNow.Add(-time.Hour), cwd: rides + "-notes"},
 		{pid: 67040, ppid: 1, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
 	}
-	panes := map[string]pane{"ttys030": {id: "%30"}, "ttys031": {id: "%31"}, "ttys032": {id: "%32"}, "ttys033": {id: "%33"}, "ttys005": {id: "%0"}}
+	panes := map[string]tmux.Pane{"ttys030": {ID: "%30"}, "ttys031": {ID: "%31"}, "ttys032": {ID: "%32"}, "ttys033": {ID: "%33"}, "ttys005": {ID: "%0"}}
 	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
 	golden(t, "processes-nested-48x30.txt", texts(drawProcesses(held, 201, 48, 30, plain)))
@@ -379,7 +381,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 // In the server, the keys say what can be done, and a terminal the
 // server does not hold is faint.
 func TestTheProcessesViewInsideTheServer(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	w.inside = true
 	rows := drawProcesses(w, 67040, 120, 40, colored(theme.Conn.Dark))
 	text := texts(rows)
@@ -411,8 +413,8 @@ func TestTheProcessesViewInsideTheServer(t *testing.T) {
 // server, n opens a shell at its project, and q detaches; each says why
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}, inside: true}
-	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]pane{"ttys007": {id: "%3", tty: "ttys007"}}})
+	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}, inside: true}
+	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]tmux.Pane{"ttys007": {ID: "%3", TTY: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: k})
@@ -456,7 +458,7 @@ func TestKeysInsideTheServer(t *testing.T) {
 // The processes view says no keys. They are learned once; a legend on
 // every row of every reading is a thing to read past forever.
 func TestTheProcessesViewSaysNoKeys(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]pane{"ttys007": {id: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
@@ -518,7 +520,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored(theme.Conn.Dark)
 	held := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil),
-		map[string]pane{"ttys005": {id: "%0"}, "ttys007": {id: "%3"}}, "ttys007",
+		map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007",
 		testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
 	// The cursor is on a row conn holds a pane for, away from the rows
@@ -577,8 +579,8 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 // nothing to reflow.
 func TestThePanelDrawsToItsOwnWidth(t *testing.T) {
 	m := model{p: plain, width: 140, height: 40, inside: true, view: viewProcesses}
-	if got := m.cols(); got != panelWidth {
-		t.Errorf("the panel drew to %d columns, not the panel's %d", got, panelWidth)
+	if got := m.cols(); got != tmux.PanelWidth {
+		t.Errorf("the panel drew to %d columns, not the panel's %d", got, tmux.PanelWidth)
 	}
 	// The console is the whole window, and takes the width it is given.
 	m.view = viewConsole
@@ -771,11 +773,11 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.now = viewProcesses, true, processesNow
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
-	m.panes = map[string]pane{
-		"ttys001": {id: "%1", tty: "ttys001"},
-		"ttys002": {id: "%2", tty: "ttys002"},
-		"ttys009": {id: "%9", tty: "ttys009", hold: true},
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.panes = map[string]tmux.Pane{
+		"ttys001": {ID: "%1", TTY: "ttys001"},
+		"ttys002": {ID: "%2", TTY: "ttys002"},
+		"ttys009": {ID: "%9", TTY: "ttys009", Hold: true},
 	}
 	// The status line already says what view this is, so the only thing
 	// a key can ask the server for here is the pane swap under test.
@@ -821,7 +823,7 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 
 	// A process that has gone is not somewhere to go back to.
 	gone := m
-	gone.panes = map[string]pane{"ttys001": {id: "%1", tty: "ttys001"}}
+	gone.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}}
 	if _, cmd := other(gone); cmd != nil {
 		t.Error("a pane that has gone was gone back to")
 	}
@@ -894,7 +896,7 @@ func TestANestedTitleIsBoldLikeAnyTitle(t *testing.T) {
 		{pid: 100, ppid: 1, uid: 501, tty: "ttys030", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: processesNow.Add(-time.Hour), cwd: rides},
 		{pid: 200, ppid: 1, uid: 501, tty: "ttys031", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.com"},
 	}
-	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), map[string]pane{"ttys030": {id: "%30"}, "ttys031": {id: "%31"}}, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
+	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), map[string]tmux.Pane{"ttys030": {ID: "%30"}, "ttys031": {ID: "%31"}}, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
 	p := colored(theme.Conn.Dark)
 	for _, r := range drawProcesses(held, 100, 48, 30, p) {

@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/w0zro/conn/internal/config"
@@ -34,7 +36,7 @@ import (
 // rows, what went wrong writing, and the root being typed where one
 // is.
 type settingsModel struct {
-	srv           *server
+	srv           *tmux.Server
 	home          string
 	self          string       // the pane this conn runs in, for a reground
 	mode          theme.Mode   // the mode conn is in, which the rows note and a pick here changes
@@ -56,9 +58,9 @@ type settingsModel struct {
 }
 
 // runSettings is the settings in a mode, the one the server is in.
-func runSettings(srv *server, home string, in theme.Mode) error {
+func runSettings(srv *tmux.Server, home string, in theme.Mode) error {
 	g := in.Wear()
-	m := settingsModel{srv: srv, home: home, self: ownPane(), mode: in, g: g, p: colored(g)}
+	m := settingsModel{srv: srv, home: home, self: tmux.OwnPane(), mode: in, g: g, p: colored(g)}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
 }
@@ -301,10 +303,10 @@ func (m settingsModel) wearing(want theme.Mode) (settingsModel, tea.Cmd) {
 	if m.srv == nil || m.self == "" {
 		return m, nil
 	}
-	srv, conf, bg, self := m.srv, tmuxConf(panelKey(), m.g), m.g.Surface, m.self
+	srv, conf, bg, self := m.srv, tmux.Conf(tmux.PanelKey(), m.g), m.g.Surface, m.self
 	return m, func() tea.Msg {
-		_ = srv.rewear(conf, bg, self, want)
-		_ = srv.wearMode()
+		_ = srv.Rewear(conf, bg, self, want)
+		_ = srv.WearMode()
 		return nil
 	}
 }
@@ -318,7 +320,7 @@ func (m settingsModel) leaving() tea.Cmd {
 	return tea.Sequence(
 		func() tea.Msg {
 			if srv != nil {
-				_ = srv.leaveSettings()
+				_ = srv.LeaveSettings()
 			}
 			return nil
 		},
@@ -340,7 +342,7 @@ func (m settingsModel) saying() tea.Cmd {
 		bar = keyBar(settingsHints(m.report().rows, m.at), m.g)
 	}
 	srv := m.srv
-	return func() tea.Msg { _ = srv.sayBar(bar); return nil }
+	return func() tea.Msg { _ = srv.SayBar(bar); return nil }
 }
 
 func (m settingsModel) View() tea.View {

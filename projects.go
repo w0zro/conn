@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -316,11 +318,11 @@ func relName(root, path string) string {
 // could not reach. It gets a heading of its own, named the way the
 // processes view names it, at the foot of the list: it is not a project
 // and has no place in the order the walk put the projects in.
-func withProcesses(ps []projectRow, projects []project, panes map[string]pane, roots []string, home string) []projectRow {
+func withProcesses(ps []projectRow, projects []project, panes map[string]tmux.Pane, roots []string, home string) []projectRow {
 	under := map[string][]projectRow{}
 	for _, pl := range projects {
 		for _, e := range pl.entries {
-			if !reachable(panes[e.tty]) {
+			if !tmux.Reachable(panes[e.tty]) {
 				continue
 			}
 			under[pl.path] = append(under[pl.path], projectRow{
@@ -760,7 +762,7 @@ func (m model) toProjects() (model, tea.Cmd) {
 	m.processesGen++
 	cmds := []tea.Cmd{m.scanProjects(), m.readProcesses()}
 	if console && m.inside {
-		cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
+		cmds = append(cmds, m.serverCmd(func() error { return m.srv.Narrow() }))
 	}
 	return m, tea.Batch(cmds...)
 }
@@ -795,7 +797,7 @@ func (m model) projectKey(k string) (model, tea.Cmd) {
 		// on the row in the processes view. That is the whole of what this
 		// mode is for on a machine with more processes than rows.
 		if row.pid != 0 {
-			if reachable(m.panes[row.tty]) {
+			if tmux.Reachable(m.panes[row.tty]) {
 				var cmd tea.Cmd
 				m, cmd = m.toProcesses()
 				return m, tea.Batch(cmd, m.reach(m.panes[row.tty], row.tty))

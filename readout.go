@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/config"
 
 	"github.com/charmbracelet/x/ansi"
@@ -50,7 +52,7 @@ type readoutSubject struct {
 	project  project
 	parent   entry   // what runs it, where anything conn can see does
 	children []entry // what it runs, in the order the tree has them
-	pane     pane
+	pane     tmux.Pane
 	inside   bool
 	sess     sessionFile // what a contact says of itself, when conn can ask
 	carried  session
@@ -228,12 +230,12 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	case !s.inside:
 		// conn holds no panes outside its server, so saying this row is
 		// in none of them says nothing about the row.
-	case reachable(s.pane):
-		where.add("Pane", s.pane.id+" · can be reached")
-	case s.pane.dead:
-		where.add("Pane", s.pane.id+" · its pane has ended")
-	case s.pane.id != "":
-		where.add("Pane", s.pane.id+" · cannot be reached")
+	case tmux.Reachable(s.pane):
+		where.add("Pane", s.pane.ID+" · can be reached")
+	case s.pane.Dead:
+		where.add("Pane", s.pane.ID+" · its pane has ended")
+	case s.pane.ID != "":
+		where.add("Pane", s.pane.ID+" · cannot be reached")
 	default:
 		where.add("Pane", "None · conn did not open it")
 	}
@@ -340,7 +342,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 // where it belongs, and what it has open. A service brew has not
 // reported — brew not asked yet, or the formula not installed — is
 // said as the declaration alone.
-func composeBrewPage(b readoutReport, e entry, svc *brewService, p pane, inside bool, home string) readoutReport {
+func composeBrewPage(b readoutReport, e entry, svc *brewService, p tmux.Pane, inside bool, home string) readoutReport {
 	b.name = e.brew
 	what := readoutGroup{title: "WHAT"}
 	what.add("Kind", said(kindService)+" · Homebrew")
@@ -370,10 +372,10 @@ func composeBrewPage(b readoutReport, e entry, svc *brewService, p pane, inside 
 	}
 	switch {
 	case !inside:
-	case reachable(p):
-		where.add("Pane", p.id+" · can be reached")
-	case p.dead:
-		where.add("Pane", p.id+" · its pane has ended")
+	case tmux.Reachable(p):
+		where.add("Pane", p.ID+" · can be reached")
+	case p.Dead:
+		where.add("Pane", p.ID+" · its pane has ended")
 	case svc != nil && svc.log != "":
 		where.add("Pane", "None · Enter opens its log")
 	}
@@ -712,7 +714,7 @@ func tokens(n int) string {
 // has is an image, a service name its siblings are named beside, ports
 // it publishes on the host, and a health check that may disagree with
 // the fact that it is running.
-func composeService(b readoutReport, c container, p pane, inside bool, home string, now time.Time) readoutReport {
+func composeService(b readoutReport, c container, p tmux.Pane, inside bool, home string, now time.Time) readoutReport {
 	b.name = c.id
 
 	what := readoutGroup{title: "WHAT"}
@@ -760,10 +762,10 @@ func composeService(b readoutReport, c container, p pane, inside bool, home stri
 	// watch it, when it has, and that is what enter goes into.
 	switch {
 	case !inside:
-	case reachable(p):
-		where.add("Pane", p.id+" · can be reached")
-	case p.dead:
-		where.add("Pane", p.id+" · its pane has ended")
+	case tmux.Reachable(p):
+		where.add("Pane", p.ID+" · can be reached")
+	case p.Dead:
+		where.add("Pane", p.ID+" · its pane has ended")
 	default:
 		where.add("Pane", "None · Enter opens its log")
 	}

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -293,7 +295,7 @@ func TestAContainerTakesThePaneConnOpenedForIt(t *testing.T) {
 func TestEnterAndSActOnTheContainer(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
 	said := m.telling()
 	m.said = &said
 	m.projects = []project{{path: "/p", entries: []entry{
@@ -373,7 +375,7 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 func TestXStopsAContainer(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &server{tmux: "/nonexistent/tmux", socket: "/tmp/none"}
+	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
 	m.projects = []project{{path: "/p", entries: []entry{
 		{pid: -99, kind: kindService, command: "web", ports: []string{"8438"}, container: "abc123", cwd: "/p", status: statusActive},
 		{pid: -98, kind: kindService, command: "worker", container: "def456", cwd: "/p", status: statusEnded},

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 
 	tea "charm.land/bubbletea/v2"
@@ -208,8 +210,8 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 // else can reach it: a manual that opened and would not close would be
 // a trap rather than a help.
 func TestThePanelKeyLeavesTheManual(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual, from: "%4"},
-		panes: map[string]pane{"ttys011": {id: "%4", tty: "ttys011"}}}
+	m := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toManual, from: "%4"},
+		panes: map[string]tmux.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
 	next, cmd := m.key("alt+-")
 	if got := next; got.detour.to == toManual {
 		t.Error("the manual is still up")
@@ -238,11 +240,11 @@ func TestThePanelKeyLeavesTheManual(t *testing.T) {
 // where they were, and on the panel where the operator was working the
 // view. An answer to a question is not a reason to move somebody.
 func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
-	work := pane{id: "%4", tty: "ttys011"}
-	panes := map[string]pane{"ttys011": work}
+	work := tmux.Pane{ID: "%4", TTY: "ttys011"}
+	panes := map[string]tmux.Pane{"ttys011": work}
 
 	// Asked from the workspace: back into that pane.
-	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual, from: "%4"},
+	m := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toManual, from: "%4"},
 		panes: panes, bay: bay{work: "ttys009"}}
 	next, cmd := m.leftDetour(false)
 	got := next
@@ -255,7 +257,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 
 	// Asked from the panel: the keys stay on the panel, and the pane the
 	// manual was standing in front of is not gone back into.
-	m = model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual},
+	m = model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toManual},
 		panes: panes, bay: bay{work: "ttys011"}}
 	next, cmd = m.leftDetour(false)
 	if got := next; got.detour.to == toManual {
@@ -267,7 +269,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 
 	// The pane the chord came from can go while the manual is up; then
 	// there is nothing to be put back into.
-	m = model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual, from: "%9"},
+	m = model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toManual, from: "%9"},
 		panes: panes}
 	if _, cmd := m.leftDetour(false); cmd == nil {
 		t.Error("a chord from a pane that has gone left the workspace as it was")
@@ -279,9 +281,9 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 // the panel — so the workspace is filled in the same breath instead of
 // holding a dead pane until the next reading comes round.
 func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
-	work := pane{id: "%2", tty: "ttys009"}
-	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual},
-		bay: bay{work: "ttys009"}, panes: map[string]pane{"ttys009": work}}
+	work := tmux.Pane{ID: "%2", TTY: "ttys009"}
+	m := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toManual},
+		bay: bay{work: "ttys009"}, panes: map[string]tmux.Pane{"ttys009": work}}
 	next, cmd := m.key("alt+esc")
 	got := next
 	if got.detour.to == toManual {
@@ -295,7 +297,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	// same way rather than by a second rule that could drift from this.
 	m.detour.to = toManual
 	found, cmd := m.Update(processesMsg{gen: m.processesGen, bayDead: true, bayDetour: toManual,
-		panes: map[string]pane{"ttys009": work}})
+		panes: map[string]tmux.Pane{"ttys009": work}})
 	if got := found.(model); got.detour.to == toManual {
 		t.Error("a manual found dead left conn still helping")
 	}
@@ -308,7 +310,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 // come to the panel: reading is over, and a placard is not somewhere to
 // leave the operator standing.
 func TestLeavingTheManualWithNothingToGoBackTo(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual}}
+	m := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toManual}}
 	next, cmd := m.key("alt+esc")
 	if got := next; got.detour.to == toManual {
 		t.Error("conn still thinks the manual is up")
@@ -326,7 +328,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 	projects := []project{{path: "/w", entries: []entry{
 		{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}, {pid: 33, tty: "ttys003"},
 	}}}
-	m := model{view: viewProcesses, inside: true, srv: &server{}, projects: projects,
+	m := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, projects: projects,
 		cursor: 22, cursorAt: 1}
 	next, _ := m.key("?")
 	m = next
@@ -353,7 +355,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 
 // Asked with no row under the cursor, the manual leaves with none.
 func TestNoRowGoesInAndNoneComesBack(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, srv: &server{}, detour: detour{to: toManual}}
+	m := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toManual}}
 	next, _ := m.key("alt+esc")
 	if got := next; got.cursor != 0 || got.detour.cursor != 0 {
 		t.Errorf("leaving invented row %d", got.cursor)
@@ -389,8 +391,8 @@ func TestTheManPageIsHeldToTheBinary(t *testing.T) {
 			t.Errorf("the page offers %q, which conn does not answer to", line)
 		}
 	}
-	bound := regexp.MustCompile(`(?m)^bind (\S+) (\S+) `).FindAllStringSubmatch(tmuxConf(defaultKey, theme.Conn.Dark), -1)
-	if len(bound) != 1 || bound[0][1] != "-n" || bound[0][2] != defaultKey {
+	bound := regexp.MustCompile(`(?m)^bind (\S+) (\S+) `).FindAllStringSubmatch(tmux.Conf(tmux.DefaultKey, theme.Conn.Dark), -1)
+	if len(bound) != 1 || bound[0][1] != "-n" || bound[0][2] != tmux.DefaultKey {
 		t.Fatalf("conn binds %v, not the panel key alone in the root table", bound)
 	}
 	k := strings.Index(page, ".SH KEYS")
@@ -398,7 +400,7 @@ func TestTheManPageIsHeldToTheBinary(t *testing.T) {
 		t.Fatal("the page has no keys section")
 	}
 	keys := strings.ReplaceAll(page[k:], `\-`, "-")
-	say := strings.ToLower(strings.ReplaceAll(defaultKey, "C-", "ctrl-"))
+	say := strings.ToLower(strings.ReplaceAll(tmux.DefaultKey, "C-", "ctrl-"))
 	for _, want := range []string{say, "CONN_KEY"} {
 		if !strings.Contains(keys, want) {
 			t.Errorf("the page's keys section lacks %s", want)

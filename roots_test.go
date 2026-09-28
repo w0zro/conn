@@ -8,6 +8,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -139,12 +141,12 @@ func TestSavingWillNotWriteOverAFileItCannotRead(t *testing.T) {
 func TestTheAskingViewSaysHowToAnswerIt(t *testing.T) {
 	home := tree(t, "projects")
 	b := composeRoots("~/pro", home)
-	rows := drawRoots(b, 0, panelWidth, 12, plain)
+	rows := drawRoots(b, 0, tmux.PanelWidth, 12, plain)
 	var text []string
 	for _, r := range rows {
 		text = append(text, r.text)
-		if n := utf8.RuneCountInString(r.text); n > panelWidth {
-			t.Errorf("a row is %d wide in a %d panel: %q", n, panelWidth, r.text)
+		if n := utf8.RuneCountInString(r.text); n > tmux.PanelWidth {
+			t.Errorf("a row is %d wide in a %d panel: %q", n, tmux.PanelWidth, r.text)
 		}
 	}
 	all := strings.Join(text, "\n")

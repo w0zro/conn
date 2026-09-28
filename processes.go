@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -125,7 +127,7 @@ func worked(projects []project) []project {
 	return out
 }
 
-func composeProcesses(projects []project, panes map[string]pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
+func composeProcesses(projects []project, panes map[string]tmux.Pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
 	b := processesReport{err: err, stalled: stalled, filed: filed}
 	head, _, marked := headOf(projects, bay)
 	for _, pl := range projects {
@@ -133,9 +135,9 @@ func composeProcesses(projects []project, panes map[string]pane, bay string, roo
 		for _, e := range pl.entries {
 			bp.rows = append(bp.rows, processRow{
 				pid: e.pid, kind: e.kind, command: activityOf(e), tty: e.tty, since: sinceWord(e.since, now),
-				status: e.status, fault: e.fault, reach: panes[e.tty].id,
+				status: e.status, fault: e.fault, reach: panes[e.tty].ID,
 				shown: marked && e.pid == head, depth: e.depth,
-				over:   e.declared != "" && panes[e.tty].exit != "",
+				over:   e.declared != "" && panes[e.tty].Exit != "",
 				name:   rowName(e),
 				age:    waitedFor(e, now),
 				stands: panelKind(e),
@@ -748,7 +750,7 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 		// one place, and the tick follows the view on its own.
 		m.view = viewConsole
 		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.wide() })
+			return m, m.serverCmd(func() error { return m.srv.Wide() })
 		}
 	case "j", "down":
 		m = m.onRow(0, ring(m.cursorAt+1, rowsIn(m.projects)))
@@ -918,10 +920,10 @@ func (m model) goTo(next entry) (model, tea.Cmd) {
 		m.processesGen++
 		cmds = append(cmds, m.readProcesses())
 		if console && m.inside {
-			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
+			cmds = append(cmds, m.serverCmd(func() error { return m.srv.Narrow() }))
 		}
 	}
-	if m.inside && reachable(m.panes[next.tty]) {
+	if m.inside && tmux.Reachable(m.panes[next.tty]) {
 		cmds = append(cmds, m.reach(m.panes[next.tty], next.tty))
 	}
 	return m, tea.Batch(cmds...)
@@ -959,7 +961,7 @@ func (m model) nextReachable() (entry, bool) {
 	}
 	for k := range all {
 		e := all[(start+k)%len(all)]
-		if p := m.panes[e.tty]; reachable(p) {
+		if p := m.panes[e.tty]; tmux.Reachable(p) {
 			return e, true
 		}
 	}

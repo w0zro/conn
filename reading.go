@@ -4,6 +4,8 @@ import (
 	"maps"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -19,7 +21,7 @@ func (m model) readProcesses() tea.Cmd {
 	containers, brews := m.containers, m.brews
 	declared, full := m.declared, m.full
 	was := m.trace
-	var srv *server
+	var srv *tmux.Server
 	if m.inside {
 		srv = m.srv
 	}
@@ -66,9 +68,9 @@ func (m model) readProcesses() tea.Cmd {
 		// that container's row will stand on, and a process that must
 		// not stand for itself. A docker logs beside the service it is
 		// showing would be the same thing listed twice.
-		var panes map[string]pane
+		var panes map[string]tmux.Pane
 		if srv != nil {
-			panes, _ = srv.panes()
+			panes, _ = srv.Panes()
 		}
 		// A pane reading a service stands in for that service's
 		// terminal and is kept off the view, since a docker logs listed
@@ -79,11 +81,11 @@ func (m model) readProcesses() tea.Cmd {
 		// terminal is in.
 		paneOf, shellIn, watching := map[string]string{}, map[string]string{}, map[string]bool{}
 		for tty, p := range panes {
-			if p.container != "" {
-				paneOf[p.container], watching[tty] = tty, true
+			if p.Container != "" {
+				paneOf[p.Container], watching[tty] = tty, true
 			}
-			if p.shellIn != "" {
-				shellIn[tty] = p.shellIn
+			if p.ShellIn != "" {
+				shellIn[tty] = p.ShellIn
 			}
 		}
 		// And the panel's own terminal, where nothing of the operator's
@@ -91,7 +93,7 @@ func (m model) readProcesses() tea.Cmd {
 		panelTTY := ""
 		if srv != nil {
 			for tty, p := range panes {
-				if p.id == srv.panel() {
+				if p.ID == srv.Panel() {
 					panelTTY = tty
 				}
 			}
@@ -138,17 +140,17 @@ func (m model) readProcesses() tea.Cmd {
 			msg.projects = fold(projects)
 		}
 		if srv != nil {
-			if in, ok, err := srv.bay(); err == nil && !ok {
+			if in, ok, err := srv.Bay(); err == nil && !ok {
 				msg.noBay = true
 			} else if ok {
-				msg.bay, msg.bayDead, msg.bayReadout = in.tty, in.dead, in.readout
+				msg.bay, msg.bayDead, msg.bayReadout = in.TTY, in.Dead, in.Readout
 				switch {
-				case in.help:
+				case in.Help:
 					msg.bayDetour = toManual
-				case in.settings:
+				case in.Settings:
 					msg.bayDetour = toSettings
 				}
-				msg.bayActive = in.active
+				msg.bayActive = in.Active
 			}
 		}
 		return msg
@@ -196,7 +198,7 @@ func (m model) landed(msg processesMsg) (model, tea.Cmd) {
 	if m.entering {
 		m.entering, m.view = false, viewProcesses
 		if m.inside {
-			cmds = append(cmds, m.serverCmd(func() error { return m.srv.narrow() }))
+			cmds = append(cmds, m.serverCmd(func() error { return m.srv.Narrow() }))
 		}
 	}
 	switch m.view {

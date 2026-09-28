@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/tmux"
 )
 
 // The file is one process a line, name [dir]: command; comments and
@@ -218,10 +220,10 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 		lib: {list: []declaration{{name: "docs", command: "mkdocs serve"}}},
 		zed: {err: ".conn: line 1: want name [dir]: command"},
 	}
-	panes := map[string]pane{
-		"ttys002": {id: "%2", tty: "ttys002", declared: markDeclared(app, "web")},
-		"ttys003": {id: "%3", tty: "ttys003", declared: markDeclared(app, "api"), exit: "1"},
-		"ttys009": {id: "%9", tty: "ttys009", declared: markDeclared(app, "ghost")},
+	panes := map[string]tmux.Pane{
+		"ttys002": {ID: "%2", TTY: "ttys002", Declared: markDeclared(app, "web")},
+		"ttys003": {ID: "%3", TTY: "ttys003", Declared: markDeclared(app, "api"), Exit: "1"},
+		"ttys009": {ID: "%9", TTY: "ttys009", Declared: markDeclared(app, "ghost")},
 	}
 	got := attachDeclared(projects, declared, panes)
 	var rows []string
@@ -257,7 +259,7 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	if e := got[0].entries[3]; !e.fault {
 		t.Error("an exit of 1 is not a fault")
 	}
-	panes["ttys003"] = pane{id: "%3", tty: "ttys003", declared: markDeclared(app, "api"), exit: "0"}
+	panes["ttys003"] = tmux.Pane{ID: "%3", TTY: "ttys003", Declared: markDeclared(app, "api"), Exit: "0"}
 	if e := attachDeclared(projects, declared, panes)[0].entries[3]; e.status != statusEnded || e.fault {
 		t.Errorf("a clean end: %s, fault %v", e.status, e.fault)
 	}
@@ -290,10 +292,10 @@ func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
 		// Started by hand, somewhere with no terminal conn can see.
 		{pid: 5, status: statusActive, declared: markDeclared(app, "cron")},
 	}}}
-	panes := map[string]pane{
-		"ttys001": {id: "%1", tty: "ttys001"},
-		"ttys002": {id: "%2", tty: "ttys002", exit: "1"},
-		"ttys004": {id: "%4", tty: "ttys004"},
+	panes := map[string]tmux.Pane{
+		"ttys001": {ID: "%1", TTY: "ttys001"},
+		"ttys002": {ID: "%2", TTY: "ttys002", Exit: "1"},
+		"ttys004": {ID: "%4", TTY: "ttys004"},
 	}
 	up, held := upAndHeld(projects, panes, app)
 	if !reflect.DeepEqual(up, map[string]bool{markDeclared(app, "web"): true, markDeclared(app, "cron"): true}) {
@@ -380,7 +382,7 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 		{pid: -6, kind: kindService, command: "web", typed: "web", ports: []string{"8080"}, status: statusActive, depth: 2, container: "bbb"},
 		{pid: 300, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys003", status: statusIdle},
 	}}}
-	panes := map[string]pane{"ttys002": {id: "%2", tty: "ttys002", declared: mark}}
+	panes := map[string]tmux.Pane{"ttys002": {ID: "%2", TTY: "ttys002", Declared: mark}}
 	got = attachDeclared(up, declared, panes)
 	want = []string{"RUN stack · docker compose up ACTIVE", " RUN docker compose up ACTIVE", "  SERVICE api ACTIVE", "  SERVICE web ACTIVE", " SERVICE db DOWN", "SHELL zsh IDLE"}
 	if !slices.Equal(rows(got[0]), want) {

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -51,7 +53,7 @@ const (
 )
 
 type readoutModel struct {
-	srv           *server
+	srv           *tmux.Server
 	at            subject
 	follow        bool   // the subject is the panel's cursor, not a pid given
 	cursor        string // where the panel publishes it
@@ -77,7 +79,7 @@ type readoutReadMsg struct {
 	ok     bool // the subject was found, and the report is about it
 }
 
-func runReadout(srv *server, pid int, home string, p palette) error {
+func runReadout(srv *tmux.Server, pid int, home string, p palette) error {
 	m := readoutModel{srv: srv, at: subject{pid: pid}, follow: pid == 0, cursor: cursorPath(home), p: p,
 		report: readoutReport{pid: pid}}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
@@ -152,7 +154,7 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.tick()
 	case tea.KeyPressMsg:
 		if m.srv != nil {
-			return m, func() tea.Msg { _ = m.srv.focusPanel(); return nil }
+			return m, func() tea.Msg { _ = m.srv.FocusPanel(); return nil }
 		}
 	}
 	return m, nil

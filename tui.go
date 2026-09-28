@@ -117,18 +117,8 @@ type (
 		// The projects whole, where projects is the fold of them.
 		tree []project
 		gen  int
-		// The processor time every process had used as of this reading,
-		// and when it was taken: what the next reading asks against to
-		// tell work from waiting.
-		cpu   map[int]time.Duration
-		cpuAt time.Time
-		// Each row as this reading saw it stand, and since when: what
-		// the next reading dates a row's status against.
-		stood map[int]stood
-		acts  map[string]activitySeen
-		// Each row conn has seen listening, and how many readings it
-		// has had nothing open since: what says a listener has gone.
-		serves map[int]servingSeen
+		// What this reading leaves for the next to read against.
+		trace *trace
 		// The table's record behind each row, for the page; see cursor.go.
 		records map[int]record
 		// The rooting the reading was made on: the roots it found the
@@ -222,15 +212,8 @@ type model struct {
 	// held for the one key after it: p, ? and A begin a detour, and a
 	// detour ends where the keys were before it. Any other key is the
 	// operator working the view, and the arrival is over.
-	came string
-	// The last reading's processor times, and when they were read: a
-	// process is working by what it has spent since, not by what it has
-	// spent altogether.
-	cpuWas map[int]time.Duration
-	stood  map[int]stood
-	acts   map[string]activitySeen
-	serves map[int]servingSeen
-	cpuAt  time.Time
+	came  string
+	trace trace // what the last reading left for the next to read against
 
 	list  projectList // the list, which p puts up
 	uid   int
@@ -388,7 +371,7 @@ func (m model) readProcesses() tea.Cmd {
 	home, configured := m.head.login.home, m.roots.configured
 	containers, brews := m.containers, m.brews
 	declared, full := m.declared, m.full
-	was, wasAt, stoodWas, actsWas, servesWas := m.cpuWas, m.cpuAt, m.stood, m.acts, m.serves
+	was := m.trace
 	var srv *server
 	if m.inside {
 		srv = m.srv
@@ -427,7 +410,7 @@ func (m model) readProcesses() tea.Cmd {
 		// itself instead - working, or waiting on you.
 		now, nowAt := cpuOf(procs), time.Now()
 		how := map[int]status{}
-		for pid := range cpuWorking(was, wasAt, procs, nowAt) {
+		for pid := range cpuWorking(was.cpu, was.at, procs, nowAt) {
 			how[pid] = status{working: true}
 		}
 		maps.Copy(how, contactStatuses(procs))
@@ -499,10 +482,11 @@ func (m model) readProcesses() tea.Cmd {
 		// And which of them have lost the listener they had, which is a
 		// fault and so is worded before the rows are dated: a row that
 		// has come to say CLOSED came to say it now.
-		serves := markClosed(projects, servesWas)
-		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen, cpu: now, cpuAt: nowAt,
-			stood: sinceSeen(projects, stoodWas, wasAt, nowAt), acts: activities(projects, actsWas),
-			serves: serves, records: records, rooted: &rooting, declared: declared}
+		serves := markClosed(projects, was.serves)
+		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen,
+			trace: &trace{cpu: now, at: nowAt, stood: sinceSeen(projects, was.stood, was.at, nowAt),
+				acts: activities(projects, was.acts), serves: serves},
+			records: records, rooted: &rooting, declared: declared}
 		if !full {
 			msg.projects = fold(projects)
 		}
@@ -522,6 +506,23 @@ func (m model) readProcesses() tea.Cmd {
 		}
 		return msg
 	}
+}
+
+// A trace is what a reading leaves for the next one to read against.
+type trace struct {
+	// The processor time every process had used, and when that was
+	// taken: a process is working by what it has spent since, not by
+	// what it has spent altogether.
+	cpu map[int]time.Duration
+	at  time.Time
+	// Each row as it stood, and since when: what the next reading dates
+	// a row's status against.
+	stood map[int]stood
+	// Each contact's transcript as it was read for its activity.
+	acts map[string]activitySeen
+	// Each row seen listening, and how many readings it has had nothing
+	// open since: what says a listener has gone.
+	serves map[int]servingSeen
 }
 
 func (m model) nextStage() tea.Cmd {
@@ -1210,8 +1211,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if reachable(msg.panes[msg.bay]) {
 			m.lastIn = msg.bay
 		}
-		if msg.cpu != nil {
-			m.cpuWas, m.cpuAt, m.stood, m.acts, m.serves = msg.cpu, msg.cpuAt, msg.stood, msg.acts, msg.serves
+		if msg.trace != nil {
+			m.trace = *msg.trace
 		}
 		// The shell conn opened is the cursor's once the reading has it;
 		// one that never comes is given up on when the wait is out.

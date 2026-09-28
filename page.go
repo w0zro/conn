@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
@@ -42,7 +44,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	e := s.entry
 	name := s.sess.Name
 	if name == "" {
-		name = program(e.asTyped())
+		name = work.Program(e.AsTyped())
 	}
 	badge := name
 	if i := strings.LastIndex(name, "-"); i >= 0 && i+1 < len(name) {
@@ -51,15 +53,15 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	// The sheet is headed by what the session is about where the
 	// transcript says; the designation keeps the handle.
 	c := contactPage{badge: strings.ToUpper(badge), name: name}
-	if e.title != "" {
-		c.name = e.title
+	if e.Title != "" {
+		c.name = e.Title
 	}
-	c.where = join(" · ", projectName(s.project.path, nil, home), s.git.branch)
+	c.where = join(" · ", projectName(s.project.Path, nil, home), s.git.branch)
 	if c.where == "" {
-		c.where = config.Tilde(s.project.path, home)
+		c.where = config.Tilde(s.project.Path, home)
 	}
-	if a, ok := contacts[program(e.asTyped())]; ok {
-		c.with = join(" ", a.name, s.sess.Version)
+	if a, ok := work.Contacts[work.Program(e.AsTyped())]; ok {
+		c.with = join(" ", a.Name, s.sess.Version)
 	}
 	if s.carried.Carried > 0 {
 		c.with = join(" · ", c.with, strings.ToLower(tokens(s.carried.Carried))+" of context carried")
@@ -67,10 +69,10 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 
 	// The question, where there is one: what it asked in its own words,
 	// and with what, and when.
-	c.waiting = e.status == statusWaiting
+	c.waiting = e.Status == work.StatusWaiting
 	if c.waiting {
-		c.waited = minutes(now.Sub(e.since))
-		if e.since.IsZero() {
+		c.waited = work.Minutes(now.Sub(e.Since))
+		if e.Since.IsZero() {
 			c.waited = ""
 		}
 		c.asked = s.carried.Ask.Detail
@@ -78,21 +80,21 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 			c.asked = s.carried.Ask.Said
 		}
 		if c.asked == "" {
-			c.asked = e.asking
+			c.asked = e.Asking
 		}
 		if s.carried.Ask.Tool != "" {
 			c.askedWith = "Asked with " + s.carried.Ask.Tool
-			if !e.since.IsZero() {
-				c.askedWith += " at " + e.since.Local().Format("15:04")
+			if !e.Since.IsZero() {
+				c.askedWith += " at " + e.Since.Local().Format("15:04")
 			}
 		}
 	} else {
-		c.standing = said(e.status)
-		if e.doing != "" {
-			c.standing += " · " + e.doing
+		c.standing = work.Said(e.Status)
+		if e.Doing != "" {
+			c.standing += " · " + e.Doing
 		}
-		if !e.since.IsZero() && e.status == statusWorking {
-			c.standing += " · for " + span(now.Sub(e.since))
+		if !e.Since.IsZero() && e.Status == work.StatusWorking {
+			c.standing += " · for " + span(now.Sub(e.Since))
 		}
 	}
 
@@ -135,32 +137,32 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	// has been up instead. The moment it came up is known and the moment
 	// it was last asked is not, so the two are not put in one clause as
 	// though the one dated the other.
-	if !e.started.IsZero() {
-		stopped := e.since
-		if stopped.Before(e.started) {
+	if !e.Started.IsZero() {
+		stopped := e.Since
+		if stopped.Before(e.Started) {
 			stopped = time.Time{}
 		}
-		atRest := (c.waiting || e.status == statusIdle) && !stopped.IsZero()
+		atRest := (c.waiting || e.Status == work.StatusIdle) && !stopped.IsZero()
 		if atRest {
-			c.worked = stopped.Sub(e.started)
+			c.worked = stopped.Sub(e.Started)
 			c.rested = max(now.Sub(stopped), 0)
 			c.restWord = "waiting"
 			if !c.waiting {
 				c.restWord = "idle"
 			}
-		} else if e.status == statusWorking {
-			c.worked = now.Sub(e.started)
+		} else if e.Status == work.StatusWorking {
+			c.worked = now.Sub(e.Started)
 		}
-		story := "It came up at " + e.started.Local().Format("15:04")
+		story := "It came up at " + e.Started.Local().Format("15:04")
 		switch {
 		case atRest && c.waiting:
 			story += " and worked for " + span(c.worked) + ", then stopped to ask."
 		case atRest:
 			story += " and worked for " + span(c.worked) + ", then stopped."
-		case e.status == statusWorking:
+		case e.Status == work.StatusWorking:
 			story += " and has been at work for " + span(c.worked) + "."
 		default:
-			story += " and has been up " + span(now.Sub(e.started)) + "."
+			story += " and has been up " + span(now.Sub(e.Started)) + "."
 		}
 		if s.carried.Prompt != "" {
 			story += " You last gave it “" + s.carried.Prompt + "”."
@@ -176,8 +178,8 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 		}
 	}
 	add("Designation", strings.ToUpper(name))
-	if !e.started.IsZero() {
-		add("Given", given(e.started, now))
+	if !e.Started.IsZero() {
+		add("Given", given(e.Started, now))
 	}
 	if c.worked > 0 {
 		add("Worked", span(c.worked))
@@ -219,9 +221,9 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 		add("Git", s.git.problem)
 		add("", "")
 	}
-	add("Folder", config.Tilde(s.project.path, home))
-	if e.cwd != "" && e.cwd != s.project.path {
-		add("Working in", config.Tilde(e.cwd, home))
+	add("Folder", config.Tilde(s.project.Path, home))
+	if e.Cwd != "" && e.Cwd != s.project.Path {
+		add("Working in", config.Tilde(e.Cwd, home))
 	}
 	switch {
 	case !s.inside:
@@ -234,27 +236,27 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	default:
 		add("Pane", "None · conn did not open it")
 	}
-	add("Process", strconv.Itoa(e.pid))
-	add("Terminal", e.tty)
+	add("Process", strconv.Itoa(e.PID))
+	add("Terminal", e.TTY)
 	// What stands around it: what runs it, and what it runs, each by
 	// what it is and its program, the whole line being on its own page.
-	if s.parent.pid != 0 {
-		add("Under", said(s.parent.kind)+" "+program(s.parent.asTyped())+" · "+strconv.Itoa(s.parent.pid))
+	if s.parent.PID != 0 {
+		add("Under", work.Said(s.parent.Kind)+" "+work.Program(s.parent.AsTyped())+" · "+strconv.Itoa(s.parent.PID))
 	}
 	for i, k := range s.children {
 		label := "Runs"
 		if i > 0 {
 			label = " "
 		}
-		add(label, said(k.kind)+" "+program(k.asTyped())+" · "+strconv.Itoa(k.pid))
+		add(label, work.Said(k.Kind)+" "+work.Program(k.AsTyped())+" · "+strconv.Itoa(k.PID))
 	}
 	add("", "")
-	add("Command", e.asTyped())
+	add("Command", e.AsTyped())
 	add("Model", s.carried.Model)
-	if !strings.Contains(e.asTyped(), s.sess.SessionID) {
+	if !strings.Contains(e.AsTyped(), s.sess.SessionID) {
 		add("Session", s.sess.SessionID)
 	}
-	if s.sess.Kind != "" && s.sess.Kind != interactiveSession {
+	if s.sess.Kind != "" && s.sess.Kind != work.InteractiveSession {
 		add("Running", s.sess.Kind)
 	}
 	// The branch the session recorded, where the project has since
@@ -275,7 +277,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 // lower case the sheet is written in. spell is the console's, in
 // capitals, and the sheet is not the console.
 func span(d time.Duration) string {
-	return strings.ToLower(spell(d))
+	return strings.ToLower(work.Spell(d))
 }
 
 // given is when a contact was given its work, as a person says it:
@@ -461,7 +463,7 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 		if c.worked > 0 || c.rested > 0 {
 			caption := "worked " + span(c.worked)
 			if c.rested > 0 {
-				caption += " · " + c.restWord + " " + strings.ToLower(brief(c.rested))
+				caption += " · " + c.restWord + " " + strings.ToLower(work.Brief(c.rested))
 			}
 			// The caption sits after the bar where the width has room
 			// for both, and under it where it has not.

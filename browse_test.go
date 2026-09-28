@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -20,11 +22,11 @@ func TestOIsOfferedWhereARowServes(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
-	m.projects = []project{{path: "/w/a", entries: []entry{
-		{pid: 300, kind: kindRun, command: "node vite", cwd: "/w/a", status: statusActive, ports: []string{"5173", "24678"}},
-		{pid: 301, kind: kindRun, command: "node build.js", cwd: "/w/a", status: statusActive},
-		{pid: 302, kind: kindContact, command: "claude", cwd: "/w/a", status: statusWaiting, ports: []string{"7000"}},
-		{pid: 303, kind: kindRun, command: "npm run dev", cwd: "/w/a", status: statusDown, declared: markDeclared("/w/a", "dev"), ports: []string{"5174"}},
+	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
+		{PID: 300, Kind: work.KindRun, Command: "node vite", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5173", "24678"}},
+		{PID: 301, Kind: work.KindRun, Command: "node build.js", Cwd: "/w/a", Status: work.StatusActive},
+		{PID: 302, Kind: work.KindContact, Command: "claude", Cwd: "/w/a", Status: work.StatusWaiting, Ports: []string{"7000"}},
+		{PID: 303, Kind: work.KindRun, Command: "npm run dev", Cwd: "/w/a", Status: work.StatusDown, Declared: work.MarkDeclared("/w/a", "dev"), Ports: []string{"5174"}},
 	}}}
 	// With nothing on the path there is no browser to open, so the key
 	// answers a notice and no browser is started by the test.

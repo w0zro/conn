@@ -4,6 +4,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // A knownProgram is a program conn knows by name: a server with a client of its own,
@@ -44,21 +46,21 @@ var knownPrograms = []knownProgram{{
 // command is the server's own; anything else by the process name, its
 // own or the listener's it folded, since a postgres under a shell is
 // the shell's row on the panel and the port on it is the server's.
-func programOf(e entry, c *container) *knownProgram {
+func programOf(e work.Entry, c *work.Container) *knownProgram {
 	for i := range knownPrograms {
 		p := &knownPrograms[i]
 		switch {
-		case e.brew != "":
-			if formulaBase(e.brew) == p.formula {
+		case e.Brew != "":
+			if formulaBase(e.Brew) == p.formula {
 				return p
 			}
 		case c != nil:
-			if imageBase(c.image) == p.image {
+			if imageBase(c.Image) == p.image {
 				return p
 			}
 		default:
-			for _, command := range []string{e.command, e.listener} {
-				if command != "" && slices.Contains(p.commands, path.Base(program(command))) {
+			for _, command := range []string{e.Command, e.Listener} {
+				if command != "" && slices.Contains(p.commands, path.Base(work.Program(command))) {
 					return p
 				}
 			}
@@ -87,9 +89,9 @@ func imageBase(image string) string {
 // opened: in its container, or on the port it listens on. A server
 // with no port conn can see, a brew service that is down, has nothing
 // to connect to.
-func (m model) programUnder(e entry) *knownProgram {
-	p := programOf(e, m.containerAt(e.pid))
-	if p == nil || e.container == "" && len(e.ports) == 0 {
+func (m model) programUnder(e work.Entry) *knownProgram {
+	p := programOf(e, m.containerAt(e.PID))
+	if p == nil || e.Container == "" && len(e.Ports) == 0 {
 		return nil
 	}
 	return p

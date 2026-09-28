@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/station"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -20,8 +22,8 @@ import (
 // seven minutes; nothing else has a moment, the way a first reading
 // has none.
 func testProcesses() processesReport {
-	how := map[int]status{70100: {working: true, since: processesNow.Add(-7 * time.Minute)}}
-	return composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	how := map[int]work.Status{70100: {Working: true, Since: processesNow.Add(-7 * time.Minute)}}
+	return composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 }
 
 // The processes view at 120 by 40 is a file of record, as are the empty
@@ -33,44 +35,44 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	golden(t, "processes-empty-80x24.txt", texts(drawProcesses(empty, 0, 80, 24, plain)))
 	failed := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false, false)
 	golden(t, "processes-unread-80x24.txt", texts(drawProcesses(failed, 0, 80, 24, plain)))
-	panel := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	panel := composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	panel.inside = true
 	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, plain)))
 	// A project's declarations: one up, in a pane marked as its own and
 	// relabelled; one ended, holding its pane and dimmed; one down; and
 	// a project whose file would not read, saying so under its rows.
 	app := "/Users/w0zro/projects/w0zro/app"
-	declared := map[string]declared{
-		app: {list: []declaration{
-			{name: "web", command: "npm run dev"},
-			{name: "api", command: "go run ./cmd/api", dir: "api"},
-			{name: "worker", command: "make run"},
+	declared := map[string]work.Declared{
+		app: {List: []work.Declaration{
+			{Name: "web", Command: "npm run dev"},
+			{Name: "api", Command: "go run ./cmd/api", Dir: "api"},
+			{Name: "worker", Command: "make run"},
 		}},
-		"/Users/w0zro/projects/w0zro/conn": {err: ".conn: line 2: want name [dir]: command"},
+		"/Users/w0zro/projects/w0zro/conn": {Err: ".conn: line 2: want name [dir]: command"},
 	}
-	procs := append([]process{},
-		process{pid: 900, ppid: 1, uid: 501, tty: "ttys020", state: 'S', command: "sh", args: []string{"sh", "-c", "npm run dev"}, started: processesNow.Add(-time.Hour), cwd: app},
-		process{pid: 901, ppid: 900, uid: 501, tty: "ttys020", state: 'S', command: "node", args: []string{"npm", "run", "dev"}, started: processesNow.Add(-time.Hour), cwd: app},
-		process{pid: 910, ppid: 1, uid: 501, tty: "ttys021", state: 'S', command: "cat", args: []string{"cat"}, started: processesNow.Add(-time.Hour), cwd: app + "/api"},
-		process{pid: 67040, ppid: 1, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+	procs := append([]work.Process{},
+		work.Process{PID: 900, PPID: 1, UID: 501, TTY: "ttys020", State: 'S', Command: "sh", Args: []string{"sh", "-c", "npm run dev"}, Started: processesNow.Add(-time.Hour), Cwd: app},
+		work.Process{PID: 901, PPID: 900, UID: 501, TTY: "ttys020", State: 'S', Command: "node", Args: []string{"npm", "run", "dev"}, Started: processesNow.Add(-time.Hour), Cwd: app},
+		work.Process{PID: 910, PPID: 1, UID: 501, TTY: "ttys021", State: 'S', Command: "cat", Args: []string{"cat"}, Started: processesNow.Add(-time.Hour), Cwd: app + "/api"},
+		work.Process{PID: 67040, PPID: 1, UID: 501, TTY: "ttys005", State: 'S', Command: "zsh", Args: []string{"-zsh"}, Started: processesNow.Add(-90 * time.Second), Cwd: "/Users/w0zro/projects/w0zro/conn"},
 	)
 	panes := map[string]tmux.Pane{
-		"ttys020": {ID: "%20", TTY: "ttys020", Declared: markDeclared(app, "web")},
-		"ttys021": {ID: "%21", TTY: "ttys021", Declared: markDeclared(app, "api"), Exit: "0"},
+		"ttys020": {ID: "%20", TTY: "ttys020", Declared: work.MarkDeclared(app, "web")},
+		"ttys021": {ID: "%21", TTY: "ttys021", Declared: work.MarkDeclared(app, "api"), Exit: "0"},
 		"ttys005": {ID: "%0", TTY: "ttys005"},
 	}
 	isProject := func(dir string) bool { return dir == app || testIsProject(dir) }
-	projects := attachDeclared(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), declared, panes)
+	projects := work.AttachDeclared(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), declared, panes)
 	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	shown.inside = true
-	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, declaredPID(app, "worker"), 48, 30, plain)))
+	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, work.DeclaredPID(app, "worker"), 48, 30, plain)))
 	// The panel at rest: the same processes, folded and filed as the
 	// panel files them. The shell over claude keeps the contact and the
 	// shell says what else it runs; the stopped vim stays for being a
 	// fault. It is drawn as the panel and not as the tree: folded rows
 	// stand in the panel's order, by kind, and the tree's indent over
 	// them would say a contact runs under the shell standing below it.
-	quiet := composeProcesses(fold(projectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
+	quiet := composeProcesses(fold(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
 	quiet.inside = true
 	golden(t, "processes-quiet-48x30.txt", texts(drawProcesses(quiet, 70100, 48, 30, plain)))
 }
@@ -87,21 +89,21 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 	isProject := func(dir string) bool {
 		return dir == rides || dir == rides+"/public-rides.com" || dir == rides+"/public-rides.org" || dir == rides+"-notes" || testIsProject(dir)
 	}
-	procs := []process{
-		{pid: 100, ppid: 1, uid: 501, tty: "ttys030", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: processesNow.Add(-time.Hour), cwd: rides},
-		{pid: 200, ppid: 1, uid: 501, tty: "ttys031", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.com"},
-		{pid: 201, ppid: 200, uid: 501, tty: "ttys031", foreground: true, state: 'S', command: "ruby", args: []string{"ruby", "ride"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.com"},
-		{pid: 300, ppid: 1, uid: 501, tty: "ttys032", foreground: true, state: 'S', command: "python3", args: []string{"python3", "data"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.org"},
-		{pid: 400, ppid: 1, uid: 501, tty: "ttys033", foreground: true, state: 'S', command: "vim", args: []string{"vim", "todo.md"}, started: processesNow.Add(-time.Hour), cwd: rides + "-notes"},
-		{pid: 67040, ppid: 1, uid: 501, tty: "ttys005", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-90 * time.Second), cwd: "/Users/w0zro/projects/w0zro/conn"},
+	procs := []work.Process{
+		{PID: 100, PPID: 1, UID: 501, TTY: "ttys030", Foreground: true, State: 'S', Command: "claude", Args: []string{"claude"}, Started: processesNow.Add(-time.Hour), Cwd: rides},
+		{PID: 200, PPID: 1, UID: 501, TTY: "ttys031", State: 'S', Command: "zsh", Args: []string{"-zsh"}, Started: processesNow.Add(-time.Hour), Cwd: rides + "/public-rides.com"},
+		{PID: 201, PPID: 200, UID: 501, TTY: "ttys031", Foreground: true, State: 'S', Command: "ruby", Args: []string{"ruby", "ride"}, Started: processesNow.Add(-time.Hour), Cwd: rides + "/public-rides.com"},
+		{PID: 300, PPID: 1, UID: 501, TTY: "ttys032", Foreground: true, State: 'S', Command: "python3", Args: []string{"python3", "data"}, Started: processesNow.Add(-time.Hour), Cwd: rides + "/public-rides.org"},
+		{PID: 400, PPID: 1, UID: 501, TTY: "ttys033", Foreground: true, State: 'S', Command: "vim", Args: []string{"vim", "todo.md"}, Started: processesNow.Add(-time.Hour), Cwd: rides + "-notes"},
+		{PID: 67040, PPID: 1, UID: 501, TTY: "ttys005", State: 'S', Command: "zsh", Args: []string{"-zsh"}, Started: processesNow.Add(-90 * time.Second), Cwd: "/Users/w0zro/projects/w0zro/conn"},
 	}
 	panes := map[string]tmux.Pane{"ttys030": {ID: "%30"}, "ttys031": {ID: "%31"}, "ttys032": {ID: "%32"}, "ttys033": {ID: "%33"}, "ttys005": {ID: "%0"}}
-	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
+	held := composeProcesses(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
 	golden(t, "processes-nested-48x30.txt", texts(drawProcesses(held, 201, 48, 30, plain)))
 	// The same with nothing running in the folder itself: its heading
 	// stands, made for the blocks under it.
-	empty := composeProcesses(projectsFrom(procs[1:], 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
+	empty := composeProcesses(work.ProjectsFrom(procs[1:], 501, work.RootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	names := []string{}
 	for _, bp := range empty.projects {
 		names = append(names, strings.Repeat("  ", bp.nest)+bp.path)
@@ -114,7 +116,7 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 	// the folder itself: no heading is made over one thing. The
 	// repository stands at the margin by its whole name, the way it
 	// did before folders were headings at all.
-	alone := composeProcesses(projectsFrom(append(procs[1:3:3], procs[5]), 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
+	alone := composeProcesses(work.ProjectsFrom(append(procs[1:3:3], procs[5]), 501, work.RootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	names = names[:0]
 	for _, bp := range alone.projects {
 		names = append(names, strings.Repeat("  ", bp.nest)+bp.path)
@@ -125,7 +127,7 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 	}
 	// A folder something runs in is a block of its own, and holds even
 	// one repository under it: the heading is not made, it is there.
-	one := composeProcesses(projectsFrom(append(procs[0:3:3], procs[5]), 501, rootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
+	one := composeProcesses(work.ProjectsFrom(append(procs[0:3:3], procs[5]), 501, work.RootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	names = names[:0]
 	for _, bp := range one.projects {
 		names = append(names, strings.Repeat("  ", bp.nest)+bp.path)
@@ -233,7 +235,7 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 // stops at an end.
 func TestJAndKGoRoundTheRows(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
-	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
+	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	press := func(k string) {
 		next, _ := m.Update(tea.KeyPressMsg{Code: rune(k[0]), Text: k})
@@ -258,7 +260,7 @@ func TestJAndKGoRoundTheRows(t *testing.T) {
 
 func TestTheCursorFollowsItsProcess(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
-	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
+	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	// The rows read by project and then oldest first: home's shell and
 	// the vim it holds stopped, then conn's shell, then the conjurer's
@@ -287,7 +289,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	}
 	// A reading that still has the pid keeps the cursor on it, wherever
 	// in the rows it has moved to.
-	next, _ = m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
+	next, _ = m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	if m.cursor != 80002 || m.cursorAt != 1 {
 		t.Errorf("the cursor left the pid it was on: %d at %d", m.cursor, m.cursorAt)
@@ -301,13 +303,13 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	if m.cursor != 70100 || m.cursorAt != 4 {
 		t.Errorf("the cursor is on %d at %d, not on claude", m.cursor, m.cursorAt)
 	}
-	var without []process
+	var without []work.Process
 	for _, p := range testProcs {
-		if p.pid != 70100 {
+		if p.PID != 70100 {
 			without = append(without, p)
 		}
 	}
-	next, _ = m.Update(processesMsg{projects: projectsFrom(without, 501, testRoots, testIsProject, nil)})
+	next, _ = m.Update(processesMsg{projects: work.ProjectsFrom(without, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	if m.cursorAt != 4 || m.cursor != 70212 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
@@ -342,7 +344,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 	if !strings.Contains(m.View().Content, "START-UP CHECKS") {
 		t.Errorf("the console should still be up while the reading is on its way:\n%s", m.View().Content)
 	}
-	next, cmd = m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil), gen: m.processesGen})
+	next, cmd = m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), gen: m.processesGen})
 	m = next.(model)
 	if m.view != viewProcesses || m.entering {
 		t.Fatalf("the reading the console was waiting on did not put the processes view up")
@@ -383,7 +385,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 // In the server, the keys say what can be done, and a terminal the
 // server does not hold is faint.
 func TestTheProcessesViewInsideTheServer(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	w := composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	w.inside = true
 	rows := drawProcesses(w, 67040, 120, 40, colored(theme.Conn.Dark))
 	text := texts(rows)
@@ -416,7 +418,7 @@ func TestTheProcessesViewInsideTheServer(t *testing.T) {
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
 	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}, inside: true}
-	next, _ := m.Update(processesMsg{projects: projectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]tmux.Pane{"ttys007": {ID: "%3", TTY: "ttys007"}}})
+	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]tmux.Pane{"ttys007": {ID: "%3", TTY: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: k})
@@ -460,7 +462,7 @@ func TestKeysInsideTheServer(t *testing.T) {
 // The processes view says no keys. They are learned once; a legend on
 // every row of every reading is a thing to read past forever.
 func TestTheProcessesViewSaysNoKeys(t *testing.T) {
-	w := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+	w := composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
@@ -521,7 +523,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 // distinction would be every row.
 func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	p := colored(theme.Conn.Dark)
-	held := composeProcesses(projectsFrom(testProcs, 501, testRoots, testIsProject, nil),
+	held := composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007",
 		testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
@@ -638,20 +640,20 @@ func TestAProjectIsNamedByWhatTellsItApart(t *testing.T) {
 // ground and nothing around them moves — a word that jumped its
 // neighbours about would be worse than one that never blinked.
 func TestTheWaitingWordBlinks(t *testing.T) {
-	held := []project{{path: "/w", entries: []entry{
-		{pid: 11, kind: kindShell, command: "zsh", status: statusActive},
-		{pid: 12, kind: kindContact, command: "claude", status: statusWaiting, depth: 1, since: processesNow.Add(-time.Minute)},
+	held := []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 11, Kind: work.KindShell, Command: "zsh", Status: work.StatusActive},
+		{PID: 12, Kind: work.KindContact, Command: "claude", Status: work.StatusWaiting, Depth: 1, Since: processesNow.Add(-time.Minute)},
 	}}}
 	b := composeProcesses(held, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 
 	b.lit = true
 	on := texts(drawProcesses(b, 0, 60, 12, plain))
-	if !strings.Contains(on, statusWaiting) {
+	if !strings.Contains(on, work.StatusWaiting) {
 		t.Errorf("the lit half has no word:\n%s", on)
 	}
 	b.lit = false
 	off := texts(drawProcesses(b, 0, 60, 12, plain))
-	if strings.Contains(off, statusWaiting) {
+	if strings.Contains(off, work.StatusWaiting) {
 		t.Errorf("the dark half still says it:\n%s", off)
 	}
 	// Only the word goes. Every row is the same shape on both halves, so
@@ -664,17 +666,17 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 		t.Fatalf("the halves are %d rows and %d", len(onRows), len(offRows))
 	}
 	for i := range onRows {
-		if lit, dark := onRows[i].text, offRows[i].text; lit != dark && !strings.Contains(lit, statusWaiting) {
+		if lit, dark := onRows[i].text, offRows[i].text; lit != dark && !strings.Contains(lit, work.StatusWaiting) {
 			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
 		}
 	}
 	// What is merely active does not blink, and neither does a fault: a
 	// process you suspended yourself is not asking anything of you.
-	steady := composeProcesses([]project{{path: "/w", entries: []entry{
-		{pid: 21, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
+	steady := composeProcesses([]work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 21, Kind: work.KindEditor, Command: "vim", Status: work.StatusStopped, Fault: true},
 	}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	steady.lit = false
-	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, plain)), statusStopped) {
+	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, plain)), work.StatusStopped) {
 		t.Error("a fault went dark with the blink")
 	}
 }
@@ -690,11 +692,11 @@ func TestTheSpinnerTurnsOnlyForWhatWorks(t *testing.T) {
 		t.Error("the console has a spinner turning")
 	}
 	m.view = viewProcesses
-	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}}}}
+	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, Status: work.StatusIdle}}}}
 	if m.working() {
 		t.Error("an idle row has a spinner turning")
 	}
-	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, status: statusIdle}, {pid: 12, status: statusWorking}}}}
+	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, Status: work.StatusIdle}, {PID: 12, Status: work.StatusWorking}}}}
 	if !m.working() {
 		t.Error("a working row has no spinner turning")
 	}
@@ -741,11 +743,11 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 		t.Error("the console does not annunciate")
 	}
 	m.view = viewProcesses
-	m.projects = []project{{path: "/w", entries: []entry{{pid: 11, status: statusActive}}}}
+	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, Status: work.StatusActive}}}}
 	if m.annunciating() {
 		t.Error("a view with nothing waiting annunciates")
 	}
-	m.projects[0].entries = append(m.projects[0].entries, entry{pid: 12, status: statusWaiting, since: processesNow})
+	m.projects[0].Entries = append(m.projects[0].Entries, work.Entry{PID: 12, Status: work.StatusWaiting, Since: processesNow})
 	if !m.annunciating() {
 		t.Error("a row waiting on you does not annunciate")
 	}
@@ -845,9 +847,9 @@ func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 // A fault beside it wears the same stamp and holds still; the blink is
 // the difference between a thing to look at and a thing to answer.
 func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
-	held := []project{{path: "/w", entries: []entry{
-		{pid: 11, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-time.Minute)},
-		{pid: 12, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
+	held := []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 11, Kind: work.KindContact, Command: "claude", Status: work.StatusWaiting, Since: processesNow.Add(-time.Minute)},
+		{PID: 12, Kind: work.KindEditor, Command: "vim", Status: work.StatusStopped, Fault: true},
 	}}}
 	b := composeProcesses(held, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	p := colored(theme.Conn.Dark)
@@ -855,8 +857,8 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 	b.lit = true
 	lit := texts(drawProcesses(b, 0, 80, 12, p))
 	for what, want := range map[string]string{
-		"the word that asks":  p.chip + " " + statusWaiting + " ",
-		"the fault beside it": p.chip + " " + statusStopped + " ",
+		"the word that asks":  p.chip + " " + work.StatusWaiting + " ",
+		"the fault beside it": p.chip + " " + work.StatusStopped + " ",
 	} {
 		if !strings.Contains(lit, want) {
 			t.Errorf("%s is not stamped:\n%s", what, stripEscapes(lit))
@@ -871,10 +873,10 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 	// is answered, the other is only looked at.
 	b.lit = false
 	dark := texts(drawProcesses(b, 0, 80, 12, p))
-	if strings.Contains(dark, statusWaiting) {
+	if strings.Contains(dark, work.StatusWaiting) {
 		t.Errorf("the dark half still says it:\n%s", stripEscapes(dark))
 	}
-	if !strings.Contains(dark, p.chip+" "+statusStopped+" ") {
+	if !strings.Contains(dark, p.chip+" "+work.StatusStopped+" ") {
 		t.Errorf("the fault blinked with it:\n%s", stripEscapes(dark))
 	}
 }
@@ -894,11 +896,11 @@ func screenChipOf(t *testing.T) string {
 func TestANestedTitleIsBoldLikeAnyTitle(t *testing.T) {
 	rides := "/Users/w0zro/projects/w0zro/public-rides"
 	isProject := func(dir string) bool { return dir == rides || dir == rides+"/public-rides.com" || testIsProject(dir) }
-	procs := []process{
-		{pid: 100, ppid: 1, uid: 501, tty: "ttys030", foreground: true, state: 'S', command: "claude", args: []string{"claude"}, started: processesNow.Add(-time.Hour), cwd: rides},
-		{pid: 200, ppid: 1, uid: 501, tty: "ttys031", state: 'S', command: "zsh", args: []string{"-zsh"}, started: processesNow.Add(-time.Hour), cwd: rides + "/public-rides.com"},
+	procs := []work.Process{
+		{PID: 100, PPID: 1, UID: 501, TTY: "ttys030", Foreground: true, State: 'S', Command: "claude", Args: []string{"claude"}, Started: processesNow.Add(-time.Hour), Cwd: rides},
+		{PID: 200, PPID: 1, UID: 501, TTY: "ttys031", State: 'S', Command: "zsh", Args: []string{"-zsh"}, Started: processesNow.Add(-time.Hour), Cwd: rides + "/public-rides.com"},
 	}
-	held := composeProcesses(projectsFrom(procs, 501, rootFinder(isProject), isProject, nil), map[string]tmux.Pane{"ttys030": {ID: "%30"}, "ttys031": {ID: "%31"}}, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
+	held := composeProcesses(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), map[string]tmux.Pane{"ttys030": {ID: "%30"}, "ttys031": {ID: "%31"}}, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
 	p := colored(theme.Conn.Dark)
 	for _, r := range drawProcesses(held, 100, 48, 30, p) {
@@ -915,21 +917,21 @@ func TestANestedTitleIsBoldLikeAnyTitle(t *testing.T) {
 // the shell it was launched from is held by walking up from it, and a
 // process on any other terminal is untouched.
 func TestConnsOwnDoingIsNoRow(t *testing.T) {
-	procs := []process{
-		{pid: 10, ppid: 1, tty: "ttys001", args: []string{"conn"}},
-		{pid: 11, ppid: 1, tty: "ttys001", args: []string{"curl", "https://analytics.brew.sh"}},
-		{pid: 12, ppid: 1, tty: "ttys002", args: []string{"tail", "-f", "log"}},
-		{pid: 13, ppid: 1, tty: "ttys003", args: []string{"zsh"}},
+	procs := []work.Process{
+		{PID: 10, PPID: 1, TTY: "ttys001", Args: []string{"conn"}},
+		{PID: 11, PPID: 1, TTY: "ttys001", Args: []string{"curl", "https://analytics.brew.sh"}},
+		{PID: 12, PPID: 1, TTY: "ttys002", Args: []string{"tail", "-f", "log"}},
+		{PID: 13, PPID: 1, TTY: "ttys003", Args: []string{"zsh"}},
 	}
-	got := withoutConnsOwn(procs, map[string]bool{"ttys002": true}, "ttys001")
+	got := work.WithoutConnsOwn(procs, map[string]bool{"ttys002": true}, "ttys001")
 	var pids []int
 	for _, p := range got {
-		pids = append(pids, p.pid)
+		pids = append(pids, p.PID)
 	}
 	if !slices.Equal(pids, []int{10, 13}) {
 		t.Errorf("the table kept %v, not conn and the shell", pids)
 	}
-	if n := len(withoutConnsOwn(procs, nil, "")); n != 4 {
+	if n := len(work.WithoutConnsOwn(procs, nil, "")); n != 4 {
 		t.Errorf("with nothing to take out, %d of 4 were kept", n)
 	}
 }
@@ -939,17 +941,17 @@ func TestConnsOwnDoingIsNoRow(t *testing.T) {
 // of what could be started. Something up in it — a process, or a
 // service brew holds for it — lists it, with what is down under it.
 func TestAProjectNothingIsUpInIsNotListed(t *testing.T) {
-	down := entry{pid: -17000000, kind: kindRun, command: "npm run dev", status: statusDown}
-	projects := []project{
-		{path: "/r/app", entries: []entry{{pid: 1, kind: kindShell, command: "zsh", status: statusIdle}, down}},
-		{path: "/r/lib", entries: []entry{down}},
-		{path: "/r/db", entries: []entry{down, {pid: 2, kind: kindService, command: "postgresql@14", status: statusActive, brew: "postgresql@14"}}},
-		{path: "/r/zed", note: ".conn: line 1: want name [dir]: command"},
-		{path: "/r/gone"},
+	down := work.Entry{PID: -17000000, Kind: work.KindRun, Command: "npm run dev", Status: work.StatusDown}
+	projects := []work.Project{
+		{Path: "/r/app", Entries: []work.Entry{{PID: 1, Kind: work.KindShell, Command: "zsh", Status: work.StatusIdle}, down}},
+		{Path: "/r/lib", Entries: []work.Entry{down}},
+		{Path: "/r/db", Entries: []work.Entry{down, {PID: 2, Kind: work.KindService, Command: "postgresql@14", Status: work.StatusActive, Brew: "postgresql@14"}}},
+		{Path: "/r/zed", Note: ".conn: line 1: want name [dir]: command"},
+		{Path: "/r/gone"},
 	}
 	var got []string
 	for _, pl := range worked(projects) {
-		got = append(got, pl.path)
+		got = append(got, pl.Path)
 	}
 	want := []string{"/r/app", "/r/db", "/r/zed"}
 	if !slices.Equal(got, want) {
@@ -957,7 +959,7 @@ func TestAProjectNothingIsUpInIsNotListed(t *testing.T) {
 	}
 	// What is down under a project something is up in stays: a
 	// declaration is worth reading beside work already happening.
-	if rows := worked(projects)[0].entries; len(rows) != 2 || rows[1].status != statusDown {
+	if rows := worked(projects)[0].Entries; len(rows) != 2 || rows[1].Status != work.StatusDown {
 		t.Errorf("the down row was dropped with its project: %+v", rows)
 	}
 }

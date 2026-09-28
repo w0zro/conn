@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/station"
 )
 
@@ -65,7 +67,7 @@ func readGit(dir string) gitStatus {
 	// date. %D is empty on a detached head, which is how that is known.
 	out, err, late := gitOut(dir, "log", "-1", "--no-color", "--format=%h%x00%s%x00%cI%x00%D")
 	if late {
-		g.problem = "NO ANSWER IN " + brief(gitWait)
+		g.problem = "NO ANSWER IN " + work.Brief(gitWait)
 		return g
 	}
 	if err != nil {

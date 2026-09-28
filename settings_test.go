@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -313,7 +315,7 @@ func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 // let go, the way it does for the manual: there is no row the keys are
 // about while they stand, and follow would hand one back on the beat.
 func TestTheReadingLeavesTheCursorAloneWhileSetting(t *testing.T) {
-	projects := []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}}}}
+	projects := []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}}}}
 	m := model{view: viewProcesses, inside: true, cursor: 0, projects: projects}
 	up := processesMsg{projects: projects, gen: m.processesGen, bayDetour: toSettings}
 	next, _ := m.Update(up)

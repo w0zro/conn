@@ -1,4 +1,4 @@
-package main
+package work
 
 import (
 	enchex "encoding/hex"
@@ -19,43 +19,43 @@ import (
 // the operator's, and the page says it; what the panel makes of it is
 // a later step.
 
-// A socket is one thing a process has open: the protocol, the address
+// A Socket is one thing a process has open: the protocol, the address
 // as the system prints it — *:8438, 127.0.0.1:5173, [::1]:3000, a
 // connection as local->peer, or a unix socket's path — and for TCP
 // the state, LISTEN or ESTABLISHED or what it is.
-type socket struct {
-	proto string // TCP, UDP, unix
-	addr  string
-	state string
+type Socket struct {
+	Proto string // TCP, UDP, unix
+	Addr  string
+	State string
 }
 
-// listening says whether a socket is one something could connect to: a
+// Listening says whether a socket is one something could connect to: a
 // TCP socket in LISTEN, a UDP socket bound to a port, a unix socket by
 // path. A UDP socket bound nowhere, *:*, is what a resolver holds and
 // says nothing.
-func (s socket) listening() bool {
-	switch s.proto {
+func (s Socket) Listening() bool {
+	switch s.Proto {
 	case "TCP":
-		return s.state == "LISTEN"
+		return s.State == "LISTEN"
 	case "UDP":
-		return !strings.HasSuffix(s.addr, ":*") && !strings.Contains(s.addr, "->")
+		return !strings.HasSuffix(s.Addr, ":*") && !strings.Contains(s.Addr, "->")
 	case "unix":
 		return true
 	}
 	return false
 }
 
-// listeningPorts is the TCP ports something could connect to, once
+// ListeningPorts is the TCP ports something could connect to, once
 // each however many addresses they are bound on, lowest first: what
 // the row says of a server. A UDP port and a unix socket are said on
 // the page and not here; a port is what you would go to.
-func listeningPorts(sockets []socket) []string {
+func ListeningPorts(sockets []Socket) []string {
 	var ports []int
 	for _, s := range sockets {
-		if s.proto != "TCP" || !s.listening() {
+		if s.Proto != "TCP" || !s.Listening() {
 			continue
 		}
-		_, port, err := net.SplitHostPort(s.addr)
+		_, port, err := net.SplitHostPort(s.Addr)
 		if err != nil {
 			continue
 		}
@@ -75,34 +75,34 @@ func listeningPorts(sockets []socket) []string {
 
 // String is the socket as the page says it: the protocol and the
 // address, and the state where it is not the one the address implies.
-func (s socket) String() string {
-	out := s.proto + " " + s.addr
-	if s.proto == "TCP" && s.state != "" && s.state != "LISTEN" && s.state != "ESTABLISHED" {
-		out += " · " + strings.ToLower(s.state)
+func (s Socket) String() string {
+	out := s.Proto + " " + s.Addr
+	if s.Proto == "TCP" && s.State != "" && s.State != "LISTEN" && s.State != "ESTABLISHED" {
+		out += " · " + strings.ToLower(s.State)
 	}
 	return out
 }
 
-// parseSockets reads lsof -nP -a -i -F pcnPT: for each process, its
+// ParseSockets reads lsof -nP -a -i -F pcnPT: for each process, its
 // internet sockets, one per descriptor, the protocol and name and the
 // TCP state on their own lines. A socket held on two descriptors is
 // one socket.
-func parseSockets(out string) map[int][]socket {
-	held := map[int][]socket{}
+func ParseSockets(out string) map[int][]Socket {
+	held := map[int][]Socket{}
 	pid := 0
-	var cur socket
-	seen := map[int]map[socket]bool{}
+	var cur Socket
+	seen := map[int]map[Socket]bool{}
 	flush := func() {
-		if pid > 0 && cur.addr != "" {
+		if pid > 0 && cur.Addr != "" {
 			if seen[pid] == nil {
-				seen[pid] = map[socket]bool{}
+				seen[pid] = map[Socket]bool{}
 			}
 			if !seen[pid][cur] {
 				seen[pid][cur] = true
 				held[pid] = append(held[pid], cur)
 			}
 		}
-		cur = socket{}
+		cur = Socket{}
 	}
 	for _, l := range strings.Split(out, "\n") {
 		if l == "" {
@@ -115,12 +115,12 @@ func parseSockets(out string) map[int][]socket {
 		case 'f':
 			flush()
 		case 'P':
-			cur.proto = l[1:]
+			cur.Proto = l[1:]
 		case 'n':
-			cur.addr = l[1:]
+			cur.Addr = l[1:]
 		case 'T':
 			if v, ok := strings.CutPrefix(l[1:], "ST="); ok {
-				cur.state = v
+				cur.State = v
 			}
 		}
 	}
@@ -128,11 +128,11 @@ func parseSockets(out string) map[int][]socket {
 	return held
 }
 
-// parseUnixSockets reads lsof -nP -a -U -F pcn: for each process, the
+// ParseUnixSockets reads lsof -nP -a -U -F pcn: for each process, the
 // unix sockets it holds that have a path. One without is a pair of
 // ends nobody else can reach, and is not said.
-func parseUnixSockets(out string) map[int][]socket {
-	held := map[int][]socket{}
+func ParseUnixSockets(out string) map[int][]Socket {
+	held := map[int][]Socket{}
 	pid := 0
 	seen := map[int]map[string]bool{}
 	for _, l := range strings.Split(out, "\n") {
@@ -152,7 +152,7 @@ func parseUnixSockets(out string) map[int][]socket {
 			}
 			if !seen[pid][path] {
 				seen[pid][path] = true
-				held[pid] = append(held[pid], socket{proto: "unix", addr: path})
+				held[pid] = append(held[pid], Socket{Proto: "unix", Addr: path})
 			}
 		}
 	}
@@ -170,19 +170,19 @@ var tcpStates = map[string]string{
 
 // procNetTable reads one of /proc/net/tcp, tcp6, udp and udp6: each
 // row a socket, its addresses in hex and its inode, keyed by inode.
-func procNetTable(text, proto string) map[string]socket {
-	out := map[string]socket{}
+func procNetTable(text, proto string) map[string]Socket {
+	out := map[string]Socket{}
 	for i, l := range strings.Split(text, "\n") {
 		f := strings.Fields(l)
 		if i == 0 || len(f) < 10 {
 			continue
 		}
-		local, remote, state, inode := hexAddr(f[1]), hexAddr(f[2]), f[3], f[9]
-		s := socket{proto: proto, addr: local}
+		local, remote, state, inode := HexAddr(f[1]), HexAddr(f[2]), f[3], f[9]
+		s := Socket{Proto: proto, Addr: local}
 		if proto == "TCP" {
-			s.state = tcpStates[state]
-			if s.state != "LISTEN" {
-				s.addr += "->" + remote
+			s.State = tcpStates[state]
+			if s.State != "LISTEN" {
+				s.Addr += "->" + remote
 			}
 		}
 		out[inode] = s
@@ -190,9 +190,9 @@ func procNetTable(text, proto string) map[string]socket {
 	return out
 }
 
-// hexAddr is a /proc/net address, ADDR:PORT in hex with the address in
+// HexAddr is a /proc/net address, ADDR:PORT in hex with the address in
 // the host's byte order, as lsof would print it.
-func hexAddr(s string) string {
+func HexAddr(s string) string {
 	addr, port, ok := strings.Cut(s, ":")
 	if !ok {
 		return s
@@ -231,22 +231,22 @@ func hexAddr(s string) string {
 
 // procNetUnix reads /proc/net/unix: each row a unix socket, its path
 // where it has one, keyed by inode.
-func procNetUnix(text string) map[string]socket {
-	out := map[string]socket{}
+func procNetUnix(text string) map[string]Socket {
+	out := map[string]Socket{}
 	for i, l := range strings.Split(text, "\n") {
 		f := strings.Fields(l)
 		if i == 0 || len(f) < 8 || !strings.HasPrefix(f[7], "/") {
 			continue
 		}
-		out[f[6]] = socket{proto: "unix", addr: f[7]}
+		out[f[6]] = Socket{Proto: "unix", Addr: f[7]}
 	}
 	return out
 }
 
-// procSocketTables is every socket the kernel has, by inode, read off
+// ProcSocketTables is every socket the kernel has, by inode, read off
 // the tables under root/net.
-func procSocketTables(root string) map[string]socket {
-	all := map[string]socket{}
+func ProcSocketTables(root string) map[string]Socket {
+	all := map[string]Socket{}
 	for _, t := range []struct{ file, proto string }{{"tcp", "TCP"}, {"tcp6", "TCP"}, {"udp", "UDP"}, {"udp6", "UDP"}} {
 		if text, err := os.ReadFile(filepath.Join(root, "net", t.file)); err == nil {
 			for inode, s := range procNetTable(string(text), t.proto) {
@@ -262,15 +262,15 @@ func procSocketTables(root string) map[string]socket {
 	return all
 }
 
-// fdSockets is the sockets a process holds, read off its descriptors:
+// FdSockets is the sockets a process holds, read off its descriptors:
 // each that is a socket names its inode, which the tables know.
-func fdSockets(dir string, tables map[string]socket) []socket {
+func FdSockets(dir string, tables map[string]Socket) []Socket {
 	fds, err := os.ReadDir(filepath.Join(dir, "fd"))
 	if err != nil {
 		return nil
 	}
-	var out []socket
-	seen := map[socket]bool{}
+	var out []Socket
+	seen := map[Socket]bool{}
 	for _, fd := range fds {
 		link, err := os.Readlink(filepath.Join(dir, "fd", fd.Name()))
 		if err != nil {
@@ -289,7 +289,7 @@ func fdSockets(dir string, tables map[string]socket) []socket {
 	return out
 }
 
-// closedAfter is how many readings running a row must have had nothing
+// ClosedAfter is how many readings running a row must have had nothing
 // listening before conn says its listener is gone. One is not enough:
 // the sockets are a listing of their own, and one that does not come
 // back costs the reading every port on the machine at once, which
@@ -297,18 +297,18 @@ func fdSockets(dir string, tables map[string]socket) []socket {
 // and binds it again between two readings is the same shape. Two
 // readings running is a port that is really gone, and says so a couple
 // of seconds after it went.
-const closedAfter = 2
+const ClosedAfter = 2
 
-// A servingSeen is a process conn has seen listening: which process it
+// A ServingSeen is a process conn has seen listening: which process it
 // was, by the moment it began, so a pid come round again on another
 // process is not taken for it, and how many readings running it has
 // had nothing open since.
-type servingSeen struct {
-	started time.Time
-	lost    int
+type ServingSeen struct {
+	Started time.Time
+	Lost    int
 }
 
-// markClosed words the rows whose listener has gone while the process
+// MarkClosed words the rows whose listener has gone while the process
 // is still there, and answers what to hold for the next reading. A
 // server alive on no port is a server nobody can reach, and without
 // this the row simply dropped the port it had been saying and stood
@@ -325,26 +325,26 @@ type servingSeen struct {
 // and what ended is said by its own word. A row that is already a
 // fault, or waiting on the operator, keeps the word it has: that is
 // the thing to look at, and the port is the lesser fact beside it.
-func markClosed(projects []project, was map[int]servingSeen) map[int]servingSeen {
-	next := map[int]servingSeen{}
+func MarkClosed(projects []Project, was map[int]ServingSeen) map[int]ServingSeen {
+	next := map[int]ServingSeen{}
 	for i := range projects {
-		for j := range projects[i].entries {
-			e := &projects[i].entries[j]
-			if e.pid <= 0 || e.kind == kindContact || over(e.status) {
+		for j := range projects[i].Entries {
+			e := &projects[i].Entries[j]
+			if e.PID <= 0 || e.Kind == KindContact || Over(e.Status) {
 				continue
 			}
-			if len(e.ports) > 0 {
-				next[e.pid] = servingSeen{started: e.started}
+			if len(e.Ports) > 0 {
+				next[e.PID] = ServingSeen{Started: e.Started}
 				continue
 			}
-			prev, ok := was[e.pid]
-			if !ok || !prev.started.Equal(e.started) {
+			prev, ok := was[e.PID]
+			if !ok || !prev.Started.Equal(e.Started) {
 				continue
 			}
-			prev.lost++
-			next[e.pid] = prev
-			if prev.lost >= closedAfter && !e.fault && e.status != statusWaiting {
-				e.status, e.fault = statusClosed, true
+			prev.Lost++
+			next[e.PID] = prev
+			if prev.Lost >= ClosedAfter && !e.Fault && e.Status != StatusWaiting {
+				e.Status, e.Fault = StatusClosed, true
 			}
 		}
 	}

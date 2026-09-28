@@ -1,5 +1,7 @@
 package main
 
+import "github.com/w0zro/conn/internal/work"
+
 // The processes view at rest is quiet. A machine at work carries a tree
 // under every head — the shell a contact runs, the servers the contact
 // started, the build under the shell, the test under the build — and a
@@ -33,16 +35,16 @@ package main
 // It is done here rather than where the rows are drawn because the
 // cursor walks this reading and the panel draws it, and the two would
 // otherwise disagree about which row is next.
-func fold(projects []project) []project {
-	out := make([]project, 0, len(projects))
+func fold(projects []work.Project) []work.Project {
+	out := make([]work.Project, 0, len(projects))
 	for _, pl := range projects {
-		kept := project{path: pl.path, note: pl.note}
+		kept := work.Project{Path: pl.Path, Note: pl.Note}
 		// For each depth of the tree as read, the row it stands under in
 		// what is kept: the index into kept.entries, and its depth there.
 		var at []int
 		var depth []int
-		for _, e := range pl.entries {
-			d := e.depth
+		for _, e := range pl.Entries {
+			d := e.Depth
 			if d >= len(at) {
 				at = append(at, make([]int, d+1-len(at))...)
 				depth = append(depth, make([]int, d+1-len(depth))...)
@@ -51,23 +53,23 @@ func fold(projects []project) []project {
 			if d > 0 {
 				parent, parentDepth = at[d-1], depth[d-1]
 			}
-			if d == 0 || e.kind == kindContact || e.kind == kindService || len(e.ports) > 0 || e.fault || e.status == statusWaiting || e.status == statusDown {
-				e.depth = parentDepth + 1
-				kept.entries = append(kept.entries, e)
-				at[d], depth[d] = len(kept.entries)-1, e.depth
+			if d == 0 || e.Kind == work.KindContact || e.Kind == work.KindService || len(e.Ports) > 0 || e.Fault || e.Status == work.StatusWaiting || e.Status == work.StatusDown {
+				e.Depth = parentDepth + 1
+				kept.Entries = append(kept.Entries, e)
+				at[d], depth[d] = len(kept.Entries)-1, e.Depth
 				continue
 			}
 			// Folded: what stands under it stands under what it stood
 			// under, and a shell it stood under says what it runs.
 			at[d], depth[d] = parent, parentDepth
 			if parent >= 0 {
-				p := &kept.entries[parent]
-				if p.kind == kindShell && (p.under == "" || p.underShell && e.kind != kindShell) {
-					p.under, p.underShell, p.underKind = e.asTyped(), e.kind == kindShell, e.kind
+				p := &kept.Entries[parent]
+				if p.Kind == work.KindShell && (p.Under == "" || p.UnderShell && e.Kind != work.KindShell) {
+					p.Under, p.UnderShell, p.UnderKind = e.AsTyped(), e.Kind == work.KindShell, e.Kind
 				}
 			}
 		}
-		kept.entries = byKind(liftListener(kept.entries))
+		kept.Entries = byKind(liftListener(kept.Entries))
 		out = append(out, kept)
 	}
 	return out
@@ -83,20 +85,20 @@ func fold(projects []project) []project {
 // keeps its row. The head takes the ports and the sockets, and says
 // whose they were, and what stood under the listener stands under the
 // head.
-func liftListener(rows []entry) []entry {
+func liftListener(rows []work.Entry) []work.Entry {
 	drop := map[int]bool{}
 	for j := range rows {
 		h := &rows[j]
-		if h.kind == kindContact || h.kind == kindService || len(h.ports) > 0 {
+		if h.Kind == work.KindContact || h.Kind == work.KindService || len(h.Ports) > 0 {
 			continue
 		}
 		listener, ports := -1, 0
-		for i := j + 1; i < len(rows) && rows[i].depth > h.depth; i++ {
-			if len(rows[i].ports) == 0 {
+		for i := j + 1; i < len(rows) && rows[i].Depth > h.Depth; i++ {
+			if len(rows[i].Ports) == 0 {
 				continue
 			}
 			ports++
-			if rows[i].depth == h.depth+1 && plainListener(rows[i]) {
+			if rows[i].Depth == h.Depth+1 && plainListener(rows[i]) {
 				listener = i
 			}
 		}
@@ -104,17 +106,17 @@ func liftListener(rows []entry) []entry {
 			continue
 		}
 		l := rows[listener]
-		h.ports, h.listener = l.ports, l.asTyped()
-		h.sockets = append(append([]socket(nil), h.sockets...), l.sockets...)
+		h.Ports, h.Listener = l.Ports, l.AsTyped()
+		h.Sockets = append(append([]work.Socket(nil), h.Sockets...), l.Sockets...)
 		drop[listener] = true
-		for i := listener + 1; i < len(rows) && rows[i].depth > rows[listener].depth; i++ {
-			rows[i].depth--
+		for i := listener + 1; i < len(rows) && rows[i].Depth > rows[listener].Depth; i++ {
+			rows[i].Depth--
 		}
 	}
 	if len(drop) == 0 {
 		return rows
 	}
-	out := make([]entry, 0, len(rows)-len(drop))
+	out := make([]work.Entry, 0, len(rows)-len(drop))
 	for i, e := range rows {
 		if !drop[i] {
 			out = append(out, e)
@@ -126,10 +128,10 @@ func liftListener(rows []entry) []entry {
 // plainListener says whether a row is a process alive on a port and
 // nothing else the panel keeps a row for: not a contact, not a
 // service, not a fault, and not waiting.
-func plainListener(e entry) bool {
+func plainListener(e work.Entry) bool {
 	switch {
-	case e.kind == kindContact, e.kind == kindService, e.fault, e.status == statusWaiting:
+	case e.Kind == work.KindContact, e.Kind == work.KindService, e.Fault, e.Status == work.StatusWaiting:
 		return false
 	}
-	return len(e.ports) > 0
+	return len(e.Ports) > 0
 }

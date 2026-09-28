@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -159,7 +161,7 @@ func (m model) bar() string {
 	if m.inside && !m.focused && m.view != viewConsole {
 		px := keyWord(tmux.PanelKey())
 		hints := []keyHint{{px, "Panel"}}
-		if len(waitingRound(m.projects)) > 0 {
+		if len(work.WaitingRound(m.projects)) > 0 {
 			hints = append(hints, keyHint{px + " tab", "Next waiting"})
 		}
 		return keyBar(append(hints, keyHint{px + " " + px, "Last process"}, keyHint{px + " ?", "Help"}), m.g)
@@ -201,13 +203,13 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"enter", word})
 		}
 	}
-	if len(waitingRound(m.projects)) > 0 {
+	if len(work.WaitingRound(m.projects)) > 0 {
 		hints = append(hints, keyHint{"tab", "Next waiting"})
 	}
 	// The port itself is the word: the bar has enter saying Open beside
 	// it, and what tells the two apart is that this one names a port.
 	if ok && serving(e) {
-		hints = append(hints, keyHint{"o", "Open " + portsColumn(e.ports[:1])})
+		hints = append(hints, keyHint{"o", "Open " + portsColumn(e.Ports[:1])})
 	}
 	if ok && m.endOn(e) != nil {
 		hints = append(hints, keyHint{"x", "End it"})
@@ -225,7 +227,7 @@ func (m model) bar() string {
 		if m.raiseOn(e) != nil {
 			hints = append(hints, keyHint{"u", "Bring it up"})
 		}
-		if projectHasDown(m.projects, pl.path) {
+		if projectHasDown(m.projects, pl.Path) {
 			hints = append(hints, keyHint{"U", "Bring up all"})
 		}
 	}
@@ -249,10 +251,10 @@ func keyWord(p string) string {
 
 // projectHasDown says whether a project has anything declared and not
 // running, which is what U would bring up.
-func projectHasDown(projects []project, path string) bool {
+func projectHasDown(projects []work.Project, path string) bool {
 	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if e.status == statusDown && pl.path == path {
+		for _, e := range pl.Entries {
+			if e.Status == work.StatusDown && pl.Path == path {
 				return true
 			}
 		}

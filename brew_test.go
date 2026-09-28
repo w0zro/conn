@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
 
@@ -13,62 +13,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 )
-
-// brew services info --all --json as brew writes it: a service never
-// started, one running under a pid, and one whose last run ended badly.
-const brewInfo = `[
-  {"name": "herdr", "running": false, "loaded": false, "pid": null, "exit_code": null, "status": "none",
-   "command": "/opt/homebrew/opt/herdr/bin/herdr server", "log_path": "/opt/homebrew/var/log/herdr.log"},
-  {"name": "postgresql@14", "running": true, "loaded": true, "pid": 24422, "exit_code": 0, "status": "started",
-   "command": "/opt/homebrew/opt/postgresql@14/bin/postgres -D /opt/homebrew/var/postgresql@14",
-   "log_path": "/opt/homebrew/var/log/postgresql@14.log"},
-  {"name": "redis", "running": false, "loaded": true, "pid": null, "exit_code": 78, "status": "error",
-   "command": "/opt/homebrew/opt/redis/bin/redis-server /opt/homebrew/etc/redis.conf", "log_path": "/opt/homebrew/var/log/redis.log"}
-]`
-
-// A declaration that starts a service with brew names the formula; any
-// other line, and a brew line that is not a start, does not.
-func TestABrewDeclarationNamesItsFormula(t *testing.T) {
-	for command, want := range map[string]string{
-		"brew services start postgresql@14": "postgresql@14",
-		"brew services run redis":           "redis",
-		"brew services start --all":         "",
-		"brew services stop redis":          "",
-		"brew install redis":                "",
-		"npm run dev":                       "",
-	} {
-		got, ok := brewArgs(command)
-		if got != want || ok != (want != "") {
-			t.Errorf("%q names %q, want %q", command, got, want)
-		}
-	}
-}
-
-// Brew's answer is read for what each service is: running under what
-// pid, or not, and with what exit where its last run ended badly. A
-// nought exit is no exit.
-func TestBrewServicesAreReadFromBrew(t *testing.T) {
-	services, err := parseBrewServices([]byte(brewInfo))
-	if err != nil || len(services) != 3 {
-		t.Fatalf("read %d services, %v", len(services), err)
-	}
-	pg := brewServiceNamed(services, "postgresql@14")
-	if pg == nil || !pg.running || pg.pid != 24422 || pg.exit != "" || pg.log != "/opt/homebrew/var/log/postgresql@14.log" {
-		t.Errorf("postgres read as %+v", pg)
-	}
-	if word, fault := brewStatus(*pg); word != statusActive || fault {
-		t.Errorf("a running service reads %s", word)
-	}
-	if word, fault := brewStatus(*brewServiceNamed(services, "herdr")); word != statusDown || fault {
-		t.Errorf("a service never started reads %s", word)
-	}
-	if word, fault := brewStatus(*brewServiceNamed(services, "redis")); word != "EXIT 78" || !fault {
-		t.Errorf("a service that ended badly reads %s, fault %v", word, fault)
-	}
-	if brewServiceNamed(services, "nothing") != nil {
-		t.Error("a formula brew did not report was found")
-	}
-}
 
 // A declared brew service is a row of its project as brew reports it:
 // down before brew has said anything of it, and active with the pid
@@ -78,77 +22,44 @@ func TestBrewServicesAreReadFromBrew(t *testing.T) {
 // one for what it declares, and the ordinary declared rows do not take
 // it for a pane to raise.
 func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
-	services, _ := parseBrewServices([]byte(brewInfo))
-	decl := map[string]declared{
-		"/w/a": {list: []declaration{{name: "db", command: "brew services start postgresql@14"}, {name: "web", command: "npm run dev"}}},
-		"/w/q": {list: []declaration{{name: "db", command: "brew services start postgresql@14"}}},
+	services, _ := work.ParseBrewServices([]byte(brewInfo))
+	decl := map[string]work.Declared{
+		"/w/a": {List: []work.Declaration{{Name: "db", Command: "brew services start postgresql@14"}, {Name: "web", Command: "npm run dev"}}},
+		"/w/q": {List: []work.Declaration{{Name: "db", Command: "brew services start postgresql@14"}}},
 	}
-	projects := []project{{path: "/w/a", entries: []entry{{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusIdle}}}}
-	sockets := map[int][]socket{24422: {{"TCP", "127.0.0.1:5432", "LISTEN"}, {"TCP", "[::1]:5432", "LISTEN"}, {"unix", "/tmp/.s.PGSQL.5432", ""}}}
+	projects := []work.Project{{Path: "/w/a", Entries: []work.Entry{{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusIdle}}}}
+	sockets := map[int][]work.Socket{24422: {{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}, {Proto: "TCP", Addr: "[::1]:5432", State: "LISTEN"}, {Proto: "unix", Addr: "/tmp/.s.PGSQL.5432", State: ""}}}
 
-	out := attachDeclared(projects, decl, nil)
-	if n := len(out[0].entries); n != 2 {
+	out := work.AttachDeclared(projects, decl, nil)
+	if n := len(out[0].Entries); n != 2 {
 		t.Fatalf("the declarations made %d rows; the brew one is not a pane's", n-1)
 	}
-	if e := out[0].entries[1]; !strings.HasPrefix(e.command, "web") || e.status != statusDown {
+	if e := out[0].Entries[1]; !strings.HasPrefix(e.Command, "web") || e.Status != work.StatusDown {
 		t.Errorf("the ordinary declaration is %+v", e)
 	}
 
-	out = attachBrew(out, decl, nil, nil, nil)
+	out = work.AttachBrew(out, decl, nil, nil, nil)
 	if n := len(out); n != 2 {
 		t.Fatalf("the project that only declares has no block: %d projects", n)
 	}
-	if n := len(out[0].entries); n != 3 {
+	if n := len(out[0].Entries); n != 3 {
 		t.Fatalf("the brew service is not a row: %d rows", n)
 	}
-	down := out[0].entries[2]
-	if down.kind != kindService || down.brew != "postgresql@14" || down.command != "postgresql@14" || down.status != statusDown || down.pid >= 0 || declaredNameOf(down) != "db" {
+	down := out[0].Entries[2]
+	if down.Kind != work.KindService || down.Brew != "postgresql@14" || down.Command != "postgresql@14" || down.Status != work.StatusDown || down.PID >= 0 || declaredNameOf(down) != "db" {
 		t.Errorf("before brew has spoken the row is %+v", down)
 	}
 
-	out = attachBrew(attachDeclared(projects, decl, nil), decl, services, sockets, map[string]string{brewMark("postgresql@14"): "ttys009"})
-	up := out[0].entries[2]
-	if up.status != statusActive || up.fault || up.pid != 24422 || strings.Join(up.ports, " ") != "5432" || len(up.sockets) != 3 || up.tty != "ttys009" || up.cwd != "/w/a" {
+	out = work.AttachBrew(work.AttachDeclared(projects, decl, nil), decl, services, sockets, map[string]string{work.BrewMark("postgresql@14"): "ttys009"})
+	up := out[0].Entries[2]
+	if up.Status != work.StatusActive || up.Fault || up.PID != 24422 || strings.Join(up.Ports, " ") != "5432" || len(up.Sockets) != 3 || up.TTY != "ttys009" || up.Cwd != "/w/a" {
 		t.Errorf("as brew reports it the row is %+v", up)
 	}
 	// Up by brew's word, for u to leave alone; the other declaration
 	// is down and would be raised.
-	upBy, _ := upAndHeld(out, nil, "/w/a")
-	if !upBy[markDeclared("/w/a", "db")] || upBy[markDeclared("/w/a", "web")] {
+	upBy, _ := work.UpAndHeld(out, nil, "/w/a")
+	if !upBy[work.MarkDeclared("/w/a", "db")] || upBy[work.MarkDeclared("/w/a", "web")] {
 		t.Errorf("u sees as up: %v", upBy)
-	}
-}
-
-// A service two projects declare stands under each of them: both
-// declare it, either is where you would go to it, and each row counts
-// how many projects share it, which the page says. It was filed once,
-// under the first, while the panel was filed by state and a second row
-// of one service in one block would have been the same thing twice.
-func TestAServiceTwoProjectsDeclareStandsUnderEach(t *testing.T) {
-	services, _ := parseBrewServices([]byte(brewInfo))
-	decl := map[string]declared{
-		"/w/a": {list: []declaration{{name: "db", command: "brew services start postgresql@14"}}},
-		"/w/q": {list: []declaration{{name: "pg", command: "brew services start postgresql@14"}, {name: "cache", command: "brew services start redis"}}},
-	}
-	projects := []project{
-		{path: "/w/a", entries: []entry{{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusIdle}}},
-		{path: "/w/q", entries: []entry{{pid: 2, kind: kindShell, command: "zsh", tty: "ttys002", status: statusIdle}}},
-	}
-	sockets := map[int][]socket{24422: {{"TCP", "127.0.0.1:5432", "LISTEN"}}}
-	out := attachBrew(projects, decl, services, sockets, nil)
-	var rows []string
-	for _, pl := range out {
-		for _, e := range pl.entries {
-			if e.brew != "" {
-				rows = append(rows, pl.path+" "+e.brew+" "+e.status+" x"+string(rune('0'+e.shared)))
-			}
-		}
-	}
-	// A service that ended badly is not running, with its stamp
-	// saying how it went, as a container that exited is.
-	want := "/w/a postgresql@14 ACTIVE x2, /w/q postgresql@14 ACTIVE x2, /w/q redis EXIT 78 x1"
-	if got := strings.Join(rows, ", "); got != want {
-		t.Errorf("the rows are %q, want %q", got, want)
 	}
 }
 
@@ -159,10 +70,10 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
-	m.brews, _ = parseBrewServices([]byte(brewInfo))
-	m.projects = []project{{path: "/w/a", entries: []entry{
-		{pid: 24422, kind: kindService, command: "postgresql@14", brew: "postgresql@14", declared: markDeclared("/w/a", "db"), cwd: "/w/a", status: statusActive, ports: []string{"5432"}},
-		{pid: -7, kind: kindService, command: "herdr", brew: "herdr", declared: markDeclared("/w/a", "herd"), cwd: "/w/a", status: statusDown},
+	m.brews, _ = work.ParseBrewServices([]byte(brewInfo))
+	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
+		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Declared: work.MarkDeclared("/w/a", "db"), Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5432"}},
+		{PID: -7, Kind: work.KindService, Command: "herdr", Brew: "herdr", Declared: work.MarkDeclared("/w/a", "herd"), Cwd: "/w/a", Status: work.StatusDown},
 	}}}
 	said := m.telling()
 	m.said = &said
@@ -203,11 +114,11 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 // how many projects declare it, and what it has open; before brew has
 // reported it, the page says so.
 func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
-	services, _ := parseBrewServices([]byte(brewInfo))
-	e := entry{pid: 24422, kind: kindService, command: "postgresql@14", brew: "postgresql@14", cwd: "/Users/w0zro/projects/w0zro/conn",
-		status: statusActive, ports: []string{"5432"}, shared: 2,
-		sockets: []socket{{"TCP", "127.0.0.1:5432", "LISTEN"}, {"unix", "/tmp/.s.PGSQL.5432", ""}}}
-	text := texts(drawReadout(composeReadout(readoutSubject{entry: e, brew: brewServiceNamed(services, "postgresql@14"), inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
+	services, _ := work.ParseBrewServices([]byte(brewInfo))
+	e := work.Entry{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Cwd: "/Users/w0zro/projects/w0zro/conn",
+		Status: work.StatusActive, Ports: []string{"5432"}, Shared: 2,
+		Sockets: []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}, {Proto: "unix", Addr: "/tmp/.s.PGSQL.5432", State: ""}}}
+	text := texts(drawReadout(composeReadout(readoutSubject{entry: e, brew: work.BrewServiceNamed(services, "postgresql@14"), inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
 	for _, want := range []string{
 		"READOUT", "postgresql@14",
 		"Kind ...... Service · Homebrew",
@@ -230,12 +141,12 @@ func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
 	if strings.Contains(text, "Wrong") || strings.Contains(text, "PID ") {
 		t.Errorf("the page says what is not so:\n%s", text)
 	}
-	e.status, e.fault, e.pid, e.ports, e.sockets = "EXIT 78", true, -7, nil, nil
-	text = texts(drawReadout(composeReadout(readoutSubject{entry: entry{pid: -7, kind: kindService, command: "redis", brew: "redis", cwd: "/w", status: "EXIT 78", fault: true}, brew: brewServiceNamed(services, "redis"), inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
+	e.Status, e.Fault, e.PID, e.Ports, e.Sockets = "EXIT 78", true, -7, nil, nil
+	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -7, Kind: work.KindService, Command: "redis", Brew: "redis", Cwd: "/w", Status: "EXIT 78", Fault: true}, brew: work.BrewServiceNamed(services, "redis"), inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
 	if !strings.Contains(text, "Wrong ..... Exit 78") || !strings.Contains(text, "Status .... Error") {
 		t.Errorf("a service that ended badly does not say so:\n%s", text)
 	}
-	text = texts(drawReadout(composeReadout(readoutSubject{entry: entry{pid: -8, kind: kindService, command: "vault", brew: "vault", cwd: "/w", status: statusDown}, inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
+	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -8, Kind: work.KindService, Command: "vault", Brew: "vault", Cwd: "/w", Status: work.StatusDown}, inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
 	if !strings.Contains(text, "Status .... Not reported by brew") {
 		t.Errorf("a service brew has not reported does not say so:\n%s", text)
 	}
@@ -244,10 +155,10 @@ func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
 // What a row has open, and what brew said, travel with the reading to
 // the page.
 func TestSocketsAndBrewTravelWithTheReading(t *testing.T) {
-	services, _ := parseBrewServices([]byte(brewInfo))
-	r := reading{projects: []project{{path: "/w", entries: []entry{
-		{pid: 24422, kind: kindService, command: "postgresql@14", brew: "postgresql@14", shared: 2, ports: []string{"5432"},
-			sockets: []socket{{"TCP", "127.0.0.1:5432", "LISTEN"}}},
+	services, _ := work.ParseBrewServices([]byte(brewInfo))
+	r := reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Shared: 2, Ports: []string{"5432"},
+			Sockets: []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}}},
 	}}}, brews: services, records: map[int]record{}, panes: map[string]tmux.Pane{}}
 	b, err := json.Marshal(r)
 	if err != nil {
@@ -257,26 +168,11 @@ func TestSocketsAndBrewTravelWithTheReading(t *testing.T) {
 	if err := json.Unmarshal(b, &back); err != nil {
 		t.Fatal(err)
 	}
-	e := back.projects[0].entries[0]
-	if e.brew != "postgresql@14" || e.shared != 2 || strings.Join(e.ports, "") != "5432" || len(e.sockets) != 1 || e.sockets[0].addr != "127.0.0.1:5432" {
+	e := back.projects[0].Entries[0]
+	if e.Brew != "postgresql@14" || e.Shared != 2 || strings.Join(e.Ports, "") != "5432" || len(e.Sockets) != 1 || e.Sockets[0].Addr != "127.0.0.1:5432" {
 		t.Errorf("the row came back as %+v", e)
 	}
-	if svc := back.brewOf(e); svc == nil || svc.pid != 24422 || svc.log == "" {
+	if svc := back.brewOf(e); svc == nil || svc.PID != 24422 || svc.Log == "" {
 		t.Errorf("brew's word came back as %+v", svc)
-	}
-}
-
-// An asking of brew sends nothing anywhere: brew's analytics, its update
-// check and its hints are off in the environment conn gives it, and the
-// beat between askings is slow enough that booting brew's ruby costs
-// the machine little.
-func TestBrewIsAskedQuietly(t *testing.T) {
-	for _, want := range []string{"HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ENV_HINTS=1"} {
-		if !slices.Contains(brewEnv, want) {
-			t.Errorf("brew is asked without %s", want)
-		}
-	}
-	if brewBeat < 10*time.Second {
-		t.Errorf("brew is asked every %s", brewBeat)
 	}
 }

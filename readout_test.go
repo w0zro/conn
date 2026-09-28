@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,30 +18,30 @@ import (
 // directory of its own under its project, a pane conn holds, what it
 // runs and what runs it, a session, and a project with a git status.
 func readoutSubj() readoutSubject {
-	e := entry{
-		pid: 49212, kind: kindContact,
-		command: "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1",
-		tty:     "ttys003", started: processesNow.Add(-92 * time.Minute),
-		status: statusWaiting, since: processesNow.Add(-7 * time.Minute),
-		cwd: "/Users/w0zro/projects/w0zro/conn/tools", asking: "input needed",
-		depth: 1,
+	e := work.Entry{
+		PID: 49212, Kind: work.KindContact,
+		Command: "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1",
+		TTY:     "ttys003", Started: processesNow.Add(-92 * time.Minute),
+		Status: work.StatusWaiting, Since: processesNow.Add(-7 * time.Minute),
+		Cwd: "/Users/w0zro/projects/w0zro/conn/tools", Asking: "input needed",
+		Depth: 1,
 	}
 	return readoutSubject{
 		entry: e,
-		proc: record{pid: e.pid, state: 'S', foreground: true,
+		proc: record{pid: e.PID, state: 'S', foreground: true,
 			cpu: 2*time.Minute + 14*time.Second},
-		project: project{path: "/Users/w0zro/projects/w0zro/conn"},
-		parent: entry{pid: 49200, kind: kindShell, command: "zsh",
-			tty: "ttys003", status: statusActive},
-		children: []entry{{pid: 49300, kind: kindRun, command: "caffeinate -i -t 300",
-			tty: "ttys003", status: statusActive, depth: 2}},
+		project: work.Project{Path: "/Users/w0zro/projects/w0zro/conn"},
+		parent: work.Entry{PID: 49200, Kind: work.KindShell, Command: "zsh",
+			TTY: "ttys003", Status: work.StatusActive},
+		children: []work.Entry{{PID: 49300, Kind: work.KindRun, Command: "caffeinate -i -t 300",
+			TTY: "ttys003", Status: work.StatusActive, Depth: 2}},
 		pane:   tmux.Pane{ID: "%2"},
 		inside: true,
-		sess: sessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
+		sess: work.SessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
-		carried: session{Branch: "main", Prompt: "i want the info to use the pane on the right",
+		carried: work.Session{Branch: "main", Prompt: "i want the info to use the pane on the right",
 			Model: "claude-opus-5", Carried: 571_592,
-			Ask: ask{Tool: "AskUserQuestion", Detail: "Does the status line still say PROCS while this question waits?"}},
+			Ask: work.Ask{Tool: "AskUserQuestion", Detail: "Does the status line still say PROCS while this question waits?"}},
 		git: gitStatus{repo: true, branch: "main", dirty: 3,
 			commit: "263cf91", subject: "The readout: what conn knows of a row",
 			when: processesNow.Add(-3 * time.Hour), upstream: "origin/main", ahead: 142},
@@ -53,9 +55,9 @@ func TestTheReadoutIsWhatItWas(t *testing.T) {
 	golden(t, "readout-120x40.txt", texts(drawReadout(b, 120, 40, plain)))
 	golden(t, "readout-narrow-60x40.txt", texts(drawReadout(b, 60, 40, plain)))
 	s := readoutSubj()
-	s.entry.kind, s.entry.command, s.entry.typed, s.entry.status, s.entry.asking = kindShell, "zsh", "", statusActive, ""
-	s.entry.sockets = []socket{{"TCP", "*:5173", "LISTEN"}}
-	s.sess, s.carried = sessionFile{}, session{}
+	s.entry.Kind, s.entry.Command, s.entry.Typed, s.entry.Status, s.entry.Asking = work.KindShell, "zsh", "", work.StatusActive, ""
+	s.entry.Sockets = []work.Socket{{Proto: "TCP", Addr: "*:5173", State: "LISTEN"}}
+	s.sess, s.carried = work.SessionFile{}, work.Session{}
 	golden(t, "readout-shell-100x40.txt", texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 40, plain)))
 }
 
@@ -126,12 +128,12 @@ func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
 		since              time.Time
 		grows              bool
 	}{
-		{what: "a contact stopped on an ask", status: statusWaiting, rest: "waiting", since: processesNow.Add(-7 * time.Minute)},
-		{what: "a contact whose turn is over", status: statusIdle, rest: "idle", since: processesNow.Add(-7 * time.Minute)},
-		{what: "a contact at work", status: statusWorking, since: processesNow.Add(-7 * time.Minute), grows: true},
+		{what: "a contact stopped on an ask", status: work.StatusWaiting, rest: "waiting", since: processesNow.Add(-7 * time.Minute)},
+		{what: "a contact whose turn is over", status: work.StatusIdle, rest: "idle", since: processesNow.Add(-7 * time.Minute)},
+		{what: "a contact at work", status: work.StatusWorking, since: processesNow.Add(-7 * time.Minute), grows: true},
 	} {
 		s := readoutSubj()
-		s.entry.status, s.entry.since = c.status, c.since
+		s.entry.Status, s.entry.Since = c.status, c.since
 		was := composeContact(s, "/Users/w0zro", processesNow)
 		is := composeContact(s, "/Users/w0zro", later)
 		switch {
@@ -155,8 +157,8 @@ func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
 	// and conn knows no moment work stopped: it says how long the
 	// contact has been up and claims no span of work.
 	s := readoutSubj()
-	s.entry.status, s.entry.since = statusActive, time.Time{}
-	s.sess, s.carried = sessionFile{}, session{}
+	s.entry.Status, s.entry.Since = work.StatusActive, time.Time{}
+	s.sess, s.carried = work.SessionFile{}, work.Session{}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
 	if !strings.Contains(text, "It came up at 18:28 and has been up 1h 32m.") {
 		t.Errorf("a contact conn cannot read was not said to be merely up:\n%s", text)
@@ -174,11 +176,11 @@ func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
 // it is there twice.
 func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 	s := readoutSubject{
-		entry: entry{pid: 88, kind: kindShell, command: "zsh", tty: "ttys009",
-			started: processesNow.Add(-time.Hour), status: statusIdle,
-			cwd: "/Users/w0zro/projects/w0zro/conn"},
+		entry: work.Entry{PID: 88, Kind: work.KindShell, Command: "zsh", TTY: "ttys009",
+			Started: processesNow.Add(-time.Hour), Status: work.StatusIdle,
+			Cwd: "/Users/w0zro/projects/w0zro/conn"},
 		proc:    record{pid: 88, state: 'S'},
-		project: project{path: "/Users/w0zro/projects/w0zro/conn"},
+		project: work.Project{Path: "/Users/w0zro/projects/w0zro/conn"},
 		inside:  true,
 	}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
@@ -216,7 +218,7 @@ func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 // which is not when anything stopped it.
 func TestTheReadoutDoesNotDateAFaultFromTheContactsClock(t *testing.T) {
 	s := readoutSubj()
-	s.entry.status, s.entry.fault, s.entry.asking = statusStopped, true, ""
+	s.entry.Status, s.entry.Fault, s.entry.Asking = work.StatusStopped, true, ""
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
 	if strings.Contains(text, "Stopped · for") {
 		t.Errorf("a stopped row was dated from the contact's clock:\n%s", text)
@@ -243,32 +245,32 @@ func TestTheReadoutSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
 // not a child, and the next row at the same depth is a sibling, not
 // kin.
 func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
-	pl := project{path: "/w", entries: []entry{
-		{pid: 1, kind: kindShell, command: "zsh", depth: 0},
-		{pid: 2, kind: kindContact, command: "claude", depth: 1},
-		{pid: 3, kind: kindRun, command: "go test", depth: 2},
-		{pid: 4, kind: kindRun, command: "compile", depth: 3}, // a grandchild
-		{pid: 5, kind: kindRun, command: "caffeinate", depth: 2},
-		{pid: 6, kind: kindShell, command: "zsh", depth: 0}, // another tree
+	pl := work.Project{Path: "/w", Entries: []work.Entry{
+		{PID: 1, Kind: work.KindShell, Command: "zsh", Depth: 0},
+		{PID: 2, Kind: work.KindContact, Command: "claude", Depth: 1},
+		{PID: 3, Kind: work.KindRun, Command: "go test", Depth: 2},
+		{PID: 4, Kind: work.KindRun, Command: "compile", Depth: 3}, // a grandchild
+		{PID: 5, Kind: work.KindRun, Command: "caffeinate", Depth: 2},
+		{PID: 6, Kind: work.KindShell, Command: "zsh", Depth: 0}, // another tree
 	}}
-	s, ok := subjectOf(2, []project{pl}, nil)
+	s, ok := subjectOf(2, []work.Project{pl}, nil)
 	if !ok {
 		t.Fatal("pid 2 was not found")
 	}
-	if s.parent.pid != 1 {
-		t.Errorf("claude runs under pid %d, want 1", s.parent.pid)
+	if s.parent.PID != 1 {
+		t.Errorf("claude runs under pid %d, want 1", s.parent.PID)
 	}
 	var kids []int
 	for _, k := range s.children {
-		kids = append(kids, k.pid)
+		kids = append(kids, k.PID)
 	}
 	if len(kids) != 2 || kids[0] != 3 || kids[1] != 5 {
 		t.Errorf("claude runs %v, want [3 5] — the grandchild is not a child", kids)
 	}
 	// A root has nothing above it, and the next tree is not its child.
-	s, _ = subjectOf(6, []project{pl}, nil)
-	if s.parent.pid != 0 || len(s.children) != 0 {
-		t.Errorf("a bare root stands under %d with %d children", s.parent.pid, len(s.children))
+	s, _ = subjectOf(6, []work.Project{pl}, nil)
+	if s.parent.PID != 0 || len(s.children) != 0 {
+		t.Errorf("a bare root stands under %d with %d children", s.parent.PID, len(s.children))
 	}
 }
 
@@ -289,7 +291,7 @@ func TestTheReadoutSaysWhenItsRowIsGone(t *testing.T) {
 // the page, which is the one thing a column of facts must not do.
 func TestEveryReadoutLabelFitsTheLeader(t *testing.T) {
 	seen := map[string]bool{}
-	for _, s := range []readoutSubject{readoutSubj(), {entry: entry{pid: 1, kind: kindShell}, inside: true}} {
+	for _, s := range []readoutSubject{readoutSubj(), {entry: work.Entry{PID: 1, Kind: work.KindShell}, inside: true}} {
 		for _, g := range composeReadout(s, "/Users/w0zro", processesNow).groups {
 			for _, f := range g.facts {
 				seen[f.label] = true
@@ -327,13 +329,13 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	// A contact conn raised carries the note conn appends to it: a
 	// thousand characters of conn's own prose, with newlines through
 	// it. The processes view has always dropped it and so does this.
-	s.entry.typed = s.entry.command
-	s.entry.command = "claude --append-system-prompt " + insideNote("/tmp/sock") + " --resume d81d7536-e545-4881-8daa-f1d291a03be1"
+	s.entry.Typed = s.entry.Command
+	s.entry.Command = "claude --append-system-prompt " + work.InsideNote("/tmp/sock") + " --resume d81d7536-e545-4881-8daa-f1d291a03be1"
 	// A shell a contact runs carries the environment snapshot it was
 	// started with, which is a screen of somebody else's quoting.
-	s.children = append(s.children, entry{pid: 49301, kind: kindShell, tty: "ttys003",
-		command: "zsh -c source /Users/w0zro/.claude/shell-snapshots/snapshot-zsh-1789.sh 2>/dev/null || true && eval 'go build'",
-		status:  statusActive, depth: 2})
+	s.children = append(s.children, work.Entry{PID: 49301, Kind: work.KindShell, TTY: "ttys003",
+		Command: "zsh -c source /Users/w0zro/.claude/shell-snapshots/snapshot-zsh-1789.sh 2>/dev/null || true && eval 'go build'",
+		Status:  work.StatusActive, Depth: 2})
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
 
 	for what, gone := range map[string]string{
@@ -403,7 +405,7 @@ func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
 	// A maker conn is not sure of is left off; the agent's own name is
 	// the part that answers the question.
 	s = readoutSubj()
-	s.entry.command, s.entry.typed = "aider --model sonnet", ""
+	s.entry.Command, s.entry.Typed = "aider --model sonnet", ""
 	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain)); !strings.Contains(got, "  Aider 2.1.267") {
 		t.Errorf("an agent with no maker named:\n%s", got)
 	}
@@ -429,8 +431,8 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 		m := plainModel()
 		m.inside, m.view, m.focused = true, viewProcesses, true
 		m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
-		m.projects = []project{{path: "/w", entries: []entry{
-			{pid: 11, tty: "ttys001"}, {pid: 12, tty: "ttys002"},
+		m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
+			{PID: 11, TTY: "ttys001"}, {PID: 12, TTY: "ttys002"},
 		}}}
 		m.panes = map[string]tmux.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
 		m.cursor = 11
@@ -508,13 +510,13 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	// A contact that gives no account of itself says that, rather than
 	// leaving a group with one row in it and no reason.
 	s = readoutSubj()
-	s.sess, s.carried = sessionFile{}, session{}
+	s.sess, s.carried = work.SessionFile{}, work.Session{}
 	got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
 	if !strings.Contains(got, "Says ......... Nothing conn can read") {
 		t.Errorf("a contact conn cannot ask went unsaid:\n%s", got)
 	}
 	// And a row that is no contact at all has no such channel to read.
-	s.entry.kind, s.entry.command, s.entry.typed = kindRun, "sleep 300", ""
+	s.entry.Kind, s.entry.Command, s.entry.Typed = work.KindRun, "sleep 300", ""
 	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain)); strings.Contains(got, "CONTACT") {
 		t.Errorf("a run was given a contact group:\n%s", got)
 	}
@@ -524,15 +526,15 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 // filed under a number of conn's own, and the page names the row
 // rather than showing that number as a pid.
 func TestAMadeUpPidIsNotShownAsOne(t *testing.T) {
-	for _, e := range []entry{
-		{pid: declaredPID("/w", "stack"), kind: kindRun, command: "stack · docker compose up", typed: "stack · docker compose up", status: statusDown, cwd: "/w"},
-		{pid: declaredPID("/w", "stack/web"), kind: kindService, command: "web", typed: "web", status: statusDown, cwd: "/w", depth: 1},
+	for _, e := range []work.Entry{
+		{PID: work.DeclaredPID("/w", "stack"), Kind: work.KindRun, Command: "stack · docker compose up", Typed: "stack · docker compose up", Status: work.StatusDown, Cwd: "/w"},
+		{PID: work.DeclaredPID("/w", "stack/web"), Kind: work.KindService, Command: "web", Typed: "web", Status: work.StatusDown, Cwd: "/w", Depth: 1},
 	} {
-		text := texts(drawReadout(composeReadout(readoutSubject{entry: e, project: project{path: "/w"}}, "/Users/w0zro", processesNow), 120, 20, plain))
+		text := texts(drawReadout(composeReadout(readoutSubject{entry: e, project: work.Project{Path: "/w"}}, "/Users/w0zro", processesNow), 120, 20, plain))
 		if strings.Contains(text, "PID -") {
 			t.Errorf("the page shows conn's own number as a pid:\n%s", text)
 		}
-		if want := program(e.typed); !strings.Contains(text, want) {
+		if want := work.Program(e.Typed); !strings.Contains(text, want) {
 			t.Errorf("the page does not name the row %q:\n%s", want, text)
 		}
 	}

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
@@ -78,7 +80,7 @@ type processRow struct {
 // belongs on once the pane is reached, and both ask here so that the
 // two can never disagree about which row the pane is. It answers the
 // row's place in the reading too, for the cursor to hold.
-func headOf(projects []project, tty string) (pid, at int, ok bool) {
+func headOf(projects []work.Project, tty string) (pid, at int, ok bool) {
 	if tty == "" {
 		return 0, 0, false
 	}
@@ -87,9 +89,9 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 	// not the head of their terminal, the shell is.
 	i, best, bestAt, bestDepth := 0, 0, 0, -1
 	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if e.tty == tty && (bestDepth < 0 || e.depth < bestDepth) {
-				best, bestAt, bestDepth = e.pid, i, e.depth
+		for _, e := range pl.Entries {
+			if e.TTY == tty && (bestDepth < 0 || e.Depth < bestDepth) {
+				best, bestAt, bestDepth = e.PID, i, e.Depth
 			}
 			i++
 		}
@@ -116,32 +118,32 @@ func headOf(projects []project, tty string) (pid, at int, ok bool) {
 //
 // A project whose .conn would not read stays whatever its rows are.
 // That is a fault, and a fault is to be answered.
-func worked(projects []project) []project {
-	out := make([]project, 0, len(projects))
+func worked(projects []work.Project) []work.Project {
+	out := make([]work.Project, 0, len(projects))
 	for _, pl := range projects {
-		up := slices.ContainsFunc(pl.entries, func(e entry) bool { return e.status != statusDown })
-		if up || pl.note != "" {
+		up := slices.ContainsFunc(pl.Entries, func(e work.Entry) bool { return e.Status != work.StatusDown })
+		if up || pl.Note != "" {
 			out = append(out, pl)
 		}
 	}
 	return out
 }
 
-func composeProcesses(projects []project, panes map[string]tmux.Pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
+func composeProcesses(projects []work.Project, panes map[string]tmux.Pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
 	b := processesReport{err: err, stalled: stalled, filed: filed}
 	head, _, marked := headOf(projects, bay)
 	for _, pl := range projects {
-		bp := projectBlock{path: pl.path, note: pl.note}
-		for _, e := range pl.entries {
+		bp := projectBlock{path: pl.Path, note: pl.Note}
+		for _, e := range pl.Entries {
 			bp.rows = append(bp.rows, processRow{
-				pid: e.pid, kind: e.kind, command: activityOf(e), tty: e.tty, since: sinceWord(e.since, now),
-				status: e.status, fault: e.fault, reach: panes[e.tty].ID,
-				shown: marked && e.pid == head, depth: e.depth,
-				over:   e.declared != "" && panes[e.tty].Exit != "",
+				pid: e.PID, kind: e.Kind, command: activityOf(e), tty: e.TTY, since: work.SinceWord(e.Since, now),
+				status: e.Status, fault: e.Fault, reach: panes[e.TTY].ID,
+				shown: marked && e.PID == head, depth: e.Depth,
+				over:   e.Declared != "" && panes[e.TTY].Exit != "",
 				name:   rowName(e),
 				age:    waitedFor(e, now),
 				stands: panelKind(e),
-				ports:  e.ports,
+				ports:  e.Ports,
 			})
 		}
 		b.projects = append(b.projects, bp)
@@ -238,11 +240,11 @@ func leafNames(blocks []projectBlock, roots []string, home string) map[string]st
 // waitedFor is how long a waiting row has waited, for the panel to say
 // at its right; nothing for a row that is not waiting, or whose moment
 // is not known.
-func waitedFor(e entry, now time.Time) string {
-	if e.status != statusWaiting || e.since.IsZero() {
+func waitedFor(e work.Entry, now time.Time) string {
+	if e.Status != work.StatusWaiting || e.Since.IsZero() {
 		return ""
 	}
-	return minutes(now.Sub(e.since))
+	return work.Minutes(now.Sub(e.Since))
 }
 
 // nested is the blocks as they draw: each under the project that holds
@@ -339,30 +341,30 @@ func nested(blocks []projectBlock, isProject func(string) bool, roots []string, 
 // are what it is doing. A contact with nothing
 // in flight says its command, which reads as the intelligence
 // composing.
-func activityOf(e entry) string {
-	if e.doing != "" {
-		return e.doing
+func activityOf(e work.Entry) string {
+	if e.Doing != "" {
+		return e.Doing
 	}
-	if e.under != "" {
-		return e.under
+	if e.Under != "" {
+		return e.Under
 	}
-	return e.asTyped()
+	return e.AsTyped()
 }
 
 // rowName is the name a row goes by in place of its command, where it
 // has one: a declaration's declared name, and a contact's session
 // title while the contact is not working. A working contact's row
 // says what it is doing, which is the one thing about it that changes.
-func rowName(e entry) string {
-	if e.kind == kindContact && e.doing == "" {
-		return e.title
+func rowName(e work.Entry) string {
+	if e.Kind == work.KindContact && e.Doing == "" {
+		return e.Title
 	}
 	return declaredNameOf(e)
 }
 
 // rowLabel is what the panel calls a row: its name where it has one,
 // and what it is doing where it has not.
-func rowLabel(e entry) string {
+func rowLabel(e work.Entry) string {
 	if name := rowName(e); name != "" {
 		return name
 	}
@@ -372,8 +374,8 @@ func rowLabel(e entry) string {
 // declaredNameOf is the name a declared row goes by, where it is one:
 // what the panel calls it, the command being in the file and on the
 // page. Anything else has none.
-func declaredNameOf(e entry) string {
-	if _, name, ok := unmarkDeclared(e.declared); ok {
+func declaredNameOf(e work.Entry) string {
+	if _, name, ok := work.UnmarkDeclared(e.Declared); ok {
 		return name
 	}
 	return ""
@@ -393,7 +395,7 @@ func declaredNameOf(e entry) string {
 // left of it after itself is nothing.
 func projectName(path string, roots []string, home string) string {
 	for _, root := range roots {
-		if path != root && within(path, root) {
+		if path != root && work.Within(path, root) {
 			return relName(root, path)
 		}
 	}
@@ -428,7 +430,7 @@ func panelStatusWidth(b processesReport) int {
 	for _, bp := range b.projects {
 		for _, r := range bp.rows {
 			n := ansi.StringWidth(r.status)
-			if r.fault || r.status == statusWaiting {
+			if r.fault || r.status == work.StatusWaiting {
 				n += 2
 			}
 			w = max(w, n)
@@ -595,7 +597,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			case r.fault:
 				l.to(measure - ansi.StringWidth(r.status) - 2)
 				l.add(p.chip, " "+r.status+" ")
-			case r.status == statusWaiting:
+			case r.status == work.StatusWaiting:
 				// The one word here that asks something of you, and the
 				// only one worth finding without looking. It is stamped
 				// the way the console stamps a fault and the status line
@@ -791,11 +793,11 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 		// for a machine of its own, and the directory it was started for
 		// is not where its work is going on.
 		if e, pl, ok := m.under(); m.inside && ok {
-			if e.container != "" {
+			if e.Container != "" {
 				return m, m.shellInContainer(e)
 			}
-			if pl.path != "" {
-				return m, m.openShell(pl.path)
+			if pl.Path != "" {
+				return m, m.openShell(pl.Path)
 			}
 		}
 	case "S":
@@ -804,7 +806,7 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 		// the server itself, talked to.
 		if e, pl, ok := m.under(); m.inside && ok {
 			if p := m.programUnder(e); p != nil {
-				return m, m.openClient(e, p, pl.path)
+				return m, m.openClient(e, p, pl.Path)
 			}
 		}
 	case "o":
@@ -815,8 +817,8 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 			return m, m.openServing(e)
 		}
 	case "a":
-		if _, pl, ok := m.under(); m.inside && ok && pl.path != "" {
-			return m, m.startContact(pl.path)
+		if _, pl, ok := m.under(); m.inside && ok && pl.Path != "" {
+			return m, m.startContact(pl.Path)
 		}
 	case "A":
 		// The sessions at the project: the capital of the contact's
@@ -892,13 +894,13 @@ func (m model) click(msg tea.MouseClickMsg) (model, tea.Cmd) {
 // A process conn holds no pane for is still gone to, on the panel, and
 // the keys stay where they are.
 func (m model) toWaiting() (model, tea.Cmd) {
-	round := waitingRound(m.projects)
+	round := work.WaitingRound(m.projects)
 	if len(round) == 0 {
 		return m, nil
 	}
 	next := round[0]
 	for i, e := range round {
-		if e.pid == m.cursor {
+		if e.PID == m.cursor {
 			next = round[(i+1)%len(round)]
 			break
 		}
@@ -911,8 +913,8 @@ func (m model) toWaiting() (model, tea.Cmd) {
 // the row's pane goes into the bay with the keys, where conn holds
 // one. A row conn only reports is gone to on the panel, and the keys
 // stay where they are, there being nothing to put them in.
-func (m model) goTo(next entry) (model, tea.Cmd) {
-	m = m.onRow(next.pid, m.cursorAt)
+func (m model) goTo(next work.Entry) (model, tea.Cmd) {
+	m = m.onRow(next.PID, m.cursorAt)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
 		console := m.view == viewConsole
@@ -923,8 +925,8 @@ func (m model) goTo(next entry) (model, tea.Cmd) {
 			cmds = append(cmds, m.serverCmd(func() error { return m.srv.Narrow() }))
 		}
 	}
-	if m.inside && tmux.Reachable(m.panes[next.tty]) {
-		cmds = append(cmds, m.reach(m.panes[next.tty], next.tty))
+	if m.inside && tmux.Reachable(m.panes[next.TTY]) {
+		cmds = append(cmds, m.reach(m.panes[next.TTY], next.TTY))
 	}
 	return m, tea.Batch(cmds...)
 }
@@ -947,36 +949,36 @@ func (m model) raiseUnder() (model, tea.Cmd) {
 // that conn holds a live pane for: what the bay takes when what was in
 // it ends. A hold, the readout and a pane that has died are not
 // processes.
-func (m model) nextReachable() (entry, bool) {
-	var all []entry
+func (m model) nextReachable() (work.Entry, bool) {
+	var all []work.Entry
 	for _, pl := range m.projects {
-		all = append(all, pl.entries...)
+		all = append(all, pl.Entries...)
 	}
 	start := 0
 	for i, e := range all {
-		if e.pid == m.cursor {
+		if e.PID == m.cursor {
 			start = i
 			break
 		}
 	}
 	for k := range all {
 		e := all[(start+k)%len(all)]
-		if p := m.panes[e.tty]; tmux.Reachable(p) {
+		if p := m.panes[e.TTY]; tmux.Reachable(p) {
 			return e, true
 		}
 	}
-	return entry{}, false
+	return work.Entry{}, false
 }
 
-func (m model) under() (entry, project, bool) {
+func (m model) under() (work.Entry, work.Project, bool) {
 	for _, pl := range m.projects {
-		for _, e := range pl.entries {
-			if e.pid == m.cursor {
+		for _, e := range pl.Entries {
+			if e.PID == m.cursor {
 				return e, pl, true
 			}
 		}
 	}
-	return entry{}, project{}, false
+	return work.Entry{}, work.Project{}, false
 }
 
 // onRow puts the cursor on the row of pid where it is listed, and on
@@ -989,11 +991,11 @@ func (m model) onRow(pid, at int) model {
 // follow finds the cursor after the rows change: the row of its pid,
 // where that is still listed, else the row where it was, held within
 // the rows there are. It answers the pid and the row.
-func follow(projects []project, pid, at int) (int, int) {
+func follow(projects []work.Project, pid, at int) (int, int) {
 	var pids []int
 	for _, pl := range projects {
-		for _, e := range pl.entries {
-			pids = append(pids, e.pid)
+		for _, e := range pl.Entries {
+			pids = append(pids, e.PID)
 		}
 	}
 	if len(pids) == 0 {
@@ -1011,10 +1013,10 @@ func follow(projects []project, pid, at int) (int, int) {
 // rowsIn is how many process rows the projects hold: what a motion to
 // the end or the middle of them counts against. It counts the processes
 // and not the titles above them, which is the list j and k walk.
-func rowsIn(projects []project) int {
+func rowsIn(projects []work.Project) int {
 	n := 0
 	for _, pl := range projects {
-		n += len(pl.entries)
+		n += len(pl.Entries)
 	}
 	return n
 }

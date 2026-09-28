@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
@@ -194,9 +196,9 @@ func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 type readoutTable struct {
 	reading
 	published bool // the panel has published a reading at all
-	sess      map[int]sessionFile
+	sess      map[int]work.SessionFile
 	git       map[string]gitStatus // what git said of a project, by its path
-	carried   map[int]session      // which session a row was carrying
+	carried   map[int]work.Session // which session a row was carrying
 }
 
 // on is the table with the panel's latest reading for its machine, and
@@ -232,7 +234,7 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 		t.git = map[string]gitStatus{}
 	}
 	if t.carried == nil {
-		t.carried = map[int]session{}
+		t.carried = map[int]work.Session{}
 	}
 	// A project is asked after by git alone: the rows in it are the
 	// panel's, already in hand. A session the same, for the project it
@@ -248,7 +250,7 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 		return t
 	}
 	pid := at.pid
-	t.sess = claudeSessions()
+	t.sess = work.ClaudeSessions()
 
 	s, ok := subjectOf(pid, t.projects, t.records)
 	if !ok {
@@ -256,28 +258,28 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 	}
 	// Which session a contact is carrying — the session file names
 	// it, and the transcript is where the branch and the last ask are.
-	if s.entry.kind == kindContact {
-		if f := t.sess[pid]; f.SessionID != "" && f.wroteBy(s.entry.started) {
-			dir := s.entry.cwd
+	if s.entry.Kind == work.KindContact {
+		if f := t.sess[pid]; f.SessionID != "" && f.WroteBy(s.entry.Started) {
+			dir := s.entry.Cwd
 			if f.Cwd != "" {
 				dir = f.Cwd
 			}
-			c := session{ID: f.SessionID, Dir: dir}
-			readSessionMeta(sessionPath(dir, f.SessionID), &c)
+			c := work.Session{ID: f.SessionID, Dir: dir}
+			work.ReadSessionMeta(work.SessionPath(dir, f.SessionID), &c)
 			// What it is waiting on is read for a waiting row, and read
 			// again only when its status changed: the transcript is
 			// the same file until it does.
-			if s.entry.status == statusWaiting {
-				if was, ok := held.carried[pid]; ok && was.Ask != (ask{}) && was.AskAt.Equal(s.entry.since) {
+			if s.entry.Status == work.StatusWaiting {
+				if was, ok := held.carried[pid]; ok && was.Ask != (work.Ask{}) && was.AskAt.Equal(s.entry.Since) {
 					c.Ask, c.AskAt = was.Ask, was.AskAt
 				} else {
-					c.Ask, c.AskAt = readAsk(sessionPath(dir, f.SessionID)), s.entry.since
+					c.Ask, c.AskAt = work.ReadAsk(work.SessionPath(dir, f.SessionID)), s.entry.Since
 				}
 			}
 			t.carried[pid] = c
 		}
 	}
-	t.askGit(s.project.path)
+	t.askGit(s.project.Path)
 	return t
 }
 
@@ -316,22 +318,22 @@ func readoutPage(at subject, t readoutTable) (readoutReport, bool) {
 	s.container = t.containerOf(s.entry)
 	s.brew = t.brewOf(s.entry)
 	if t.inside {
-		s.pane, s.inside = t.panes[s.entry.tty], true
+		s.pane, s.inside = t.panes[s.entry.TTY], true
 	}
-	if s.entry.kind == kindContact {
+	if s.entry.Kind == work.KindContact {
 		s.sess, s.carried = t.sess[pid], t.carried[pid]
 	}
-	s.git = t.git[s.project.path]
+	s.git = t.git[s.project.Path]
 	return composeReadout(s, home, time.Now()), true
 }
 
 // subjectOf finds a pid among the projects and gathers what stands
 // around it: the table's own record, its project, what runs it and what
 // it runs.
-func subjectOf(pid int, projects []project, records map[int]record) (readoutSubject, bool) {
+func subjectOf(pid int, projects []work.Project, records map[int]record) (readoutSubject, bool) {
 	for _, pl := range projects {
-		for i, e := range pl.entries {
-			if e.pid != pid {
+		for i, e := range pl.Entries {
+			if e.PID != pid {
 				continue
 			}
 			s := readoutSubject{entry: e, proc: records[pid], project: pl}
@@ -340,17 +342,17 @@ func subjectOf(pid int, projects []project, records map[int]record) (readoutSubj
 			// what it runs is the rows below it until the depth comes
 			// back to its own.
 			for j := i - 1; j >= 0; j-- {
-				if pl.entries[j].depth < e.depth {
-					s.parent = pl.entries[j]
+				if pl.Entries[j].Depth < e.Depth {
+					s.parent = pl.Entries[j]
 					break
 				}
 			}
-			for j := i + 1; j < len(pl.entries); j++ {
-				if pl.entries[j].depth <= e.depth {
+			for j := i + 1; j < len(pl.Entries); j++ {
+				if pl.Entries[j].Depth <= e.Depth {
 					break
 				}
-				if pl.entries[j].depth == e.depth+1 {
-					s.children = append(s.children, pl.entries[j])
+				if pl.Entries[j].Depth == e.Depth+1 {
+					s.children = append(s.children, pl.Entries[j])
 				}
 			}
 			return s, true

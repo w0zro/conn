@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // The panel is filed by project: a block per project under an eyebrow
@@ -57,8 +59,8 @@ import (
 // headOf finds the process a pane was opened on, which is what the
 // bay's bar goes on and where the cursor belongs once the pane is
 // reached.
-func byKind(rows []entry) []entry {
-	slices.SortStableFunc(rows, func(a, b entry) int {
+func byKind(rows []work.Entry) []work.Entry {
+	slices.SortStableFunc(rows, func(a, b work.Entry) int {
 		return cmp.Compare(rank(panelKind(a)), rank(panelKind(b)))
 	})
 	return rows
@@ -74,24 +76,24 @@ func byKind(rows []entry) []entry {
 // The tree on z keeps the program's own kind in its kind column, where
 // the shell and what it runs are two rows and neither stands for the
 // other.
-func panelKind(e entry) string {
-	if e.kind == kindShell && e.under != "" && e.underKind != "" {
-		return e.underKind
+func panelKind(e work.Entry) string {
+	if e.Kind == work.KindShell && e.Under != "" && e.UnderKind != "" {
+		return e.UnderKind
 	}
-	return e.kind
+	return e.Kind
 }
 
 // rank is where a kind stands in that order. A kind conn does not tell
 // apart is a run, and ranks last with the rest of the work.
 func rank(kind string) int {
 	switch kind {
-	case kindContact:
+	case work.KindContact:
 		return 0
-	case kindShell:
+	case work.KindShell:
 		return 1
-	case kindEditor:
+	case work.KindEditor:
 		return 2
-	case kindService:
+	case work.KindService:
 		return 3
 	}
 	return 4
@@ -122,28 +124,18 @@ const (
 // over, since the code is the thing to look at.
 func stateOf(status string, fault bool) int {
 	switch {
-	case status == statusWaiting:
+	case status == work.StatusWaiting:
 		return standWaiting
 	case fault:
 		return standFault
-	case status == statusDown:
+	case status == work.StatusDown:
 		return standDown
-	case over(status):
+	case work.Over(status):
 		return standOver
-	case status == statusWorking:
+	case status == work.StatusWorking:
 		return standWorking
 	}
 	return standRests
-}
-
-// over says whether a row is not running: declared and never came up,
-// or ended, cleanly or with a code. Its command is struck through.
-func over(status string) bool {
-	switch status {
-	case statusDown, statusEnded:
-		return true
-	}
-	return strings.HasPrefix(status, exitWord)
 }
 
 // serving says whether a row is a thing to reach: it is alive and has
@@ -152,11 +144,11 @@ func over(status string) bool {
 // node that serves from a node that builds, both of which the process
 // table calls the same. A contact is filed by what it asks of you and
 // never by what it has open, and what is not running serves nothing.
-func serving(e entry) bool {
-	if over(e.status) {
+func serving(e work.Entry) bool {
+	if work.Over(e.Status) {
 		return false
 	}
-	return e.kind != kindContact && len(e.ports) > 0
+	return e.Kind != work.KindContact && len(e.Ports) > 0
 }
 
 // portsWord is how a row of the tree says its ports after its command:

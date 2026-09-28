@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/station"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -91,7 +93,7 @@ func awaiting(pid int) awaited {
 
 // found is a reading's answer to the wait: over, with the pid where the
 // rows now have it, or with none where the wait has run out.
-func (w awaited) found(projects []project, now time.Time) (pid int, over bool) {
+func (w awaited) found(projects []work.Project, now time.Time) (pid int, over bool) {
 	switch {
 	case w.pid == 0:
 		return 0, false
@@ -122,7 +124,7 @@ type (
 	clockMsg     struct{}                  // the second has turned
 	stationMsg   struct{ station.Station } // the station is read
 	processesMsg struct {                  // the process table is read
-		projects   []project
+		projects   []work.Project
 		panes      map[string]tmux.Pane // the server's panes by terminal
 		bay        string               // the terminal in the bay
 		noBay      bool                 // home has no bay beside the panel
@@ -133,9 +135,9 @@ type (
 		err        string
 		// The projects' .conn files as this reading found them, kept on
 		// the model for the next reading to stat against; see declared.go.
-		declared map[string]declared
+		declared map[string]work.Declared
 		// The projects whole, where projects is the fold of them.
-		tree []project
+		tree []work.Project
 		gen  int
 		// What this reading leaves for the next to read against.
 		trace *trace
@@ -161,7 +163,7 @@ type (
 	}
 	sessionsMsg struct { // a project's suspended sessions were read
 		dirs     []string
-		sessions []session
+		sessions []work.Session
 	}
 )
 
@@ -177,7 +179,7 @@ type model struct {
 	lit      bool // the annunciators are showing this half of the blink
 	blink    beat // the blink's tick, in flight while something annunciates
 	spin     beat // the spinner's, in flight while a row is working
-	projects []project
+	projects []work.Project
 	cursor   int     // the pid the cursor is on
 	cursorAt int     // where in the rows it was, for when the pid goes
 	told     subject // the subject as last published for the readout to follow
@@ -257,19 +259,19 @@ type model struct {
 	// merges what is already here and never waits on the daemon; stalled
 	// is docker having gone quiet, which the view admits rather than
 	// showing yesterday's rows as though they were today's.
-	containers []container
+	containers []work.Container
 	// The projects' .conn files as last read; see declared.go.
-	declared map[string]declared
+	declared map[string]work.Declared
 	// The processes as read, whole, and whether the view shows them
 	// so: at rest it shows the fold of them; see fold.go.
-	tree          []project
+	tree          []work.Project
 	full          bool
 	up            time.Time // when this conn came up, for the band's clock
-	dockerFeed    *dockerFeed
+	dockerFeed    *work.DockerFeed
 	dockerStalled bool
 	// What brew last said of its services, merged into every reading
 	// while any project declares one; see brew.go.
-	brews []brewService
+	brews []work.BrewService
 }
 
 // newModel is conn on a ground: drawn in that ground's palette on the
@@ -312,8 +314,8 @@ type rooting struct {
 // rootOn is the rooting for a set of configured roots.
 func rootOn(configured []string) rooting {
 	r := rooting{configured: configured, real: realRoots(configured)}
-	r.isProject = projectDirs(r.real)
-	r.rootOf = rootFinder(r.isProject)
+	r.isProject = work.ProjectDirs(r.real)
+	r.rootOf = work.RootFinder(r.isProject)
 	return r
 }
 
@@ -328,9 +330,9 @@ func (m model) rooted(r rooting) model {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{readStationCmd, startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
-	if brewPath != "" {
-		cmds = append(cmds, nextBrew())
+	cmds := []tea.Cmd{readStationCmd, work.StartDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
+	if work.BrewPath != "" {
+		cmds = append(cmds, work.NextBrew())
 	}
 	if m.inside {
 		cmds = append(cmds, m.serverCmd(func() error { return m.srv.Wide() }))
@@ -379,7 +381,7 @@ func (m model) annunciating() bool {
 	case viewConsole:
 		return true
 	case viewProcesses:
-		return len(waitingRound(m.projects)) > 0
+		return len(work.WaitingRound(m.projects)) > 0
 	default:
 		return false
 	}
@@ -421,8 +423,8 @@ func (m model) working() bool {
 		return false
 	}
 	for _, pl := range m.projects {
-		for _, e := range pl.entries {
-			if e.status == statusWorking {
+		for _, e := range pl.Entries {
+			if e.Status == work.StatusWorking {
 				return true
 			}
 		}
@@ -544,16 +546,16 @@ func (m model) subject() subject {
 
 // brewAt is the brew service of a formula, as the panel has it from
 // brew, where brew has reported it.
-func (m model) brewAt(formula string) *brewService {
-	return brewServiceNamed(m.brews, formula)
+func (m model) brewAt(formula string) *work.BrewService {
+	return work.BrewServiceNamed(m.brews, formula)
 }
 
 // containerAt is the container a row stands for, where it is one, as the
 // panel has it from docker.
-func (m model) containerAt(pid int) *container {
+func (m model) containerAt(pid int) *work.Container {
 	for _, pl := range m.projects {
-		for _, e := range pl.entries {
-			if e.pid == pid {
+		for _, e := range pl.Entries {
+			if e.PID == pid {
 				return reading{containers: m.containers}.containerOf(e)
 			}
 		}
@@ -597,34 +599,34 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 		m.processesGen++
 		return m, m.readProcesses()
-	case dockerReadyMsg:
+	case work.DockerReadyMsg:
 		// The feed is running; from here conn waits on its word rather
 		// than asking docker anything on a beat.
-		m.dockerFeed = msg.feed
-		return m, nextDocker(m.dockerFeed)
-	case dockerMsg:
+		m.dockerFeed = msg.Feed
+		return m, work.NextDocker(m.dockerFeed)
+	case work.DockerMsg:
 		// Docker's word, held for the next reading to merge. The rows
 		// are drawn again at once rather than on the next beat, which is
 		// the whole point of a feed: a container is on its row as it
 		// starts, not up to two seconds later.
-		m.containers, m.dockerStalled = msg.containers, msg.stalled
+		m.containers, m.dockerStalled = msg.Containers, msg.Stalled
 		m.processesGen++
-		return m, tea.Batch(m.readProcesses(), nextDocker(m.dockerFeed))
-	case brewTickMsg:
+		return m, tea.Batch(m.readProcesses(), work.NextDocker(m.dockerFeed))
+	case work.BrewTickMsg:
 		// Brew is asked only while some project declares a service of
 		// its own; otherwise the beat passes.
-		if brewDeclared(m.declared) {
-			return m, readBrew
+		if work.BrewDeclared(m.declared) {
+			return m, work.ReadBrew
 		}
-		return m, nextBrew()
-	case brewMsg:
+		return m, work.NextBrew()
+	case work.BrewMsg:
 		// Brew's word, drawn again at once, as docker's is. An answer
 		// that failed leaves what it last said standing.
-		if msg.err == nil {
-			m.brews = msg.services
+		if msg.Err == nil {
+			m.brews = msg.Services
 		}
 		m.processesGen++
-		return m, tea.Batch(m.readProcesses(), nextBrew())
+		return m, tea.Batch(m.readProcesses(), work.NextBrew())
 	case detourMsg:
 		// The page is up, and no row is under the cursor while it is;
 		// see detour. Where the cursor was is kept, so j and k carry on
@@ -840,7 +842,7 @@ func (m model) leave() (model, tea.Cmd) {
 	// is a child conn started, and a child outlives the parent that
 	// abandons it — it would sit reparented to init until the next
 	// container event pushed a write down a pipe nobody holds.
-	m.dockerFeed.close()
+	m.dockerFeed.Close()
 	return m, tea.Quit
 }
 
@@ -1063,8 +1065,8 @@ func (m model) keepingPage() (model, tea.Cmd) {
 func (m model) atProject() (string, []string, bool) {
 	switch m.view {
 	case viewProcesses:
-		if _, pl, ok := m.under(); ok && pl.path != "" {
-			return pl.path, []string{pl.path}, true
+		if _, pl, ok := m.under(); ok && pl.Path != "" {
+			return pl.Path, []string{pl.Path}, true
 		}
 	case viewProjects:
 		if row, ok := m.atCursor(); ok && row.path != "" {
@@ -1117,7 +1119,7 @@ func (m model) raiseAt() (model, tea.Cmd) {
 	if !m.inside || !ok || path == "" {
 		return m, nil
 	}
-	up, held := upAndHeld(m.projects, m.panes, path)
+	up, held := work.UpAndHeld(m.projects, m.panes, path)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
 		var cmd tea.Cmd
@@ -1131,32 +1133,32 @@ func (m model) raiseAt() (model, tea.Cmd) {
 // it that is not a shell itself, looking through a bash -c to the
 // command it was given, the way the fold does for the shell's own row;
 // with nothing but shells under it, the first of those.
-func (m model) runsOf(head entry) (entry, bool) {
+func (m model) runsOf(head work.Entry) (work.Entry, bool) {
 	projects := m.tree
 	if len(projects) == 0 {
 		projects = m.projects
 	}
 	for _, pl := range projects {
-		for i, e := range pl.entries {
-			if e.pid != head.pid {
+		for i, e := range pl.Entries {
+			if e.PID != head.PID {
 				continue
 			}
-			var first entry
-			for _, under := range pl.entries[i+1:] {
-				if under.depth <= e.depth {
+			var first work.Entry
+			for _, under := range pl.Entries[i+1:] {
+				if under.Depth <= e.Depth {
 					break
 				}
-				if under.kind != kindShell {
+				if under.Kind != work.KindShell {
 					return under, true
 				}
-				if first.pid == 0 {
+				if first.PID == 0 {
 					first = under
 				}
 			}
-			return first, first.pid != 0
+			return first, first.PID != 0
 		}
 	}
-	return entry{}, false
+	return work.Entry{}, false
 }
 
 // clamp holds an index within the rows there are; with no rows it is

@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -52,13 +54,13 @@ const (
 // run, which is what kindOf makes of it.
 func markOf(kind string) string {
 	switch kind {
-	case kindContact:
+	case work.KindContact:
 		return markContact
-	case kindShell:
+	case work.KindShell:
 		return markShell
-	case kindEditor:
+	case work.KindEditor:
 		return markEditor
-	case kindService:
+	case work.KindService:
 		return markService
 	}
 	return markRun

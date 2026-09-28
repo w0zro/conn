@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -33,15 +35,15 @@ import (
 // of them to answer first is said by nothing else.
 func rowWord(r processRow) (word string, stamped, blinks bool) {
 	switch {
-	case r.status == statusWaiting:
+	case r.status == work.StatusWaiting:
 		word = strings.ToUpper(r.age)
 		if word == "" {
-			word = statusWaiting
+			word = work.StatusWaiting
 		}
 		return word, true, true
 	case r.fault:
 		return r.status, true, false
-	case over(r.status):
+	case work.Over(r.status):
 		return r.status, false, false
 	}
 	return "", false, false
@@ -69,13 +71,13 @@ func verdict(rows []processRow) (word string, stamped, blinks bool) {
 	}
 	switch {
 	case waiting > 0:
-		return counted(waiting, statusWaiting), true, true
+		return counted(waiting, work.StatusWaiting), true, true
 	case faults == 1:
 		return fault, true, false
 	case faults > 1:
 		return strconv.Itoa(faults) + " FAULTS", true, false
 	case down > 0:
-		return counted(down, statusDown), false, false
+		return counted(down, work.StatusDown), false, false
 	}
 	return "", false, false
 }
@@ -153,7 +155,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 				// named here rather than left to fall through, so that a
 				// declared row holding a port it no longer answers on
 				// cannot be taken for one at work.
-			case stand == standWorking, r.kind != kindContact && len(r.ports) > 0:
+			case stand == standWorking, r.kind != work.KindContact && len(r.ports) > 0:
 				// A contact stands by what it asks of you and never by
 				// what it has open, as serving has it; anything else
 				// alive on a port is at its work.
@@ -163,7 +165,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			if stand == standWaiting {
 				command += p.bold
 			}
-			if over(r.status) {
+			if work.Over(r.status) {
 				command = p.faint + p.struck
 			}
 			if b.inside && (r.reach == "" || r.over) && !r.shown {
@@ -190,7 +192,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 				command += p.bold
 				cursorRow = len(body) + len(d.rows)
 			}
-			if r.status == statusWorking {
+			if r.status == work.StatusWorking {
 				l.turn = spinner[b.spin%len(spinner)]
 			}
 			// The marks stand in one column down the block and the

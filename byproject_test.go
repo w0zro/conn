@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -21,17 +23,17 @@ import (
 // drawing them cannot disagree about which row is next.
 func TestThePanelIsFiledByProject(t *testing.T) {
 	now := processesNow
-	out := []project{
-		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-			{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
-			{pid: 2, kind: kindContact, command: "claude", tty: "ttys001", status: statusWaiting, depth: 1, since: now.Add(-2 * time.Minute)},
-			{pid: 4, kind: kindEditor, command: "vim", tty: "ttys001", status: statusStopped, depth: 1, fault: true},
-			{pid: 3, kind: kindRun, command: "node vite", tty: "ttys004", status: statusActive, ports: []string{"5173"}},
-			{pid: 6, kind: kindRun, command: "worker", tty: "", status: statusDown, depth: 1},
+	out := []work.Project{
+		{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+			{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusActive},
+			{PID: 2, Kind: work.KindContact, Command: "claude", TTY: "ttys001", Status: work.StatusWaiting, Depth: 1, Since: now.Add(-2 * time.Minute)},
+			{PID: 4, Kind: work.KindEditor, Command: "vim", TTY: "ttys001", Status: work.StatusStopped, Depth: 1, Fault: true},
+			{PID: 3, Kind: work.KindRun, Command: "node vite", TTY: "ttys004", Status: work.StatusActive, Ports: []string{"5173"}},
+			{PID: 6, Kind: work.KindRun, Command: "worker", TTY: "", Status: work.StatusDown, Depth: 1},
 		}},
-		{path: "/Users/w0zro/projects/w0zro/vim.pro/conjurer", entries: []entry{
-			{pid: 5, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting, since: now.Add(-9 * time.Minute)},
-			{pid: 7, kind: kindShell, command: "zsh", tty: "ttys003", status: statusWorking, under: "go test ./...", underKind: kindRun},
+		{Path: "/Users/w0zro/projects/w0zro/vim.pro/conjurer", Entries: []work.Entry{
+			{PID: 5, Kind: work.KindContact, Command: "claude", TTY: "ttys002", Status: work.StatusWaiting, Since: now.Add(-9 * time.Minute)},
+			{PID: 7, Kind: work.KindShell, Command: "zsh", TTY: "ttys003", Status: work.StatusWorking, Under: "go test ./...", UnderKind: work.KindRun},
 		}},
 	}
 	if pid, _, ok := headOf(out, "ttys001"); !ok || pid != 1 {
@@ -43,8 +45,8 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// The page of a row is its project's, and says what runs it and
 	// what it runs.
 	s, ok := subjectOf(2, out, nil)
-	if !ok || s.project.path != "/Users/w0zro/projects/w0zro/conn" || s.parent.pid != 1 {
-		t.Errorf("the row's page: project %q, parent %d", s.project.path, s.parent.pid)
+	if !ok || s.project.Path != "/Users/w0zro/projects/w0zro/conn" || s.parent.PID != 1 {
+		t.Errorf("the row's page: project %q, parent %d", s.project.Path, s.parent.PID)
 	}
 	s, _ = subjectOf(1, out, nil)
 	if len(s.children) != 2 {
@@ -84,7 +86,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 // The waited word is in minutes under an hour, and spelled above it.
 func TestMinutes(t *testing.T) {
 	for d, want := range map[time.Duration]string{0: "0 min", 22 * time.Minute: "22 min", 59*time.Minute + 59*time.Second: "59 min", 85 * time.Minute: "1h 25m"} {
-		if got := minutes(d); got != want {
+		if got := work.Minutes(d); got != want {
 			t.Errorf("minutes(%v) = %q, want %q", d, got, want)
 		}
 	}
@@ -97,14 +99,14 @@ func TestMinutes(t *testing.T) {
 // has the keys, it says the chords instead.
 func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark, panes: map[string]tmux.Pane{"ttys001": {ID: "%1"}}}
-	m.projects = []project{{path: "/w", entries: []entry{
-		{pid: 1, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
-		{pid: 2, kind: kindContact, command: "claude", tty: "ttys002", status: statusWaiting},
-		{pid: -9, kind: kindRun, command: "worker", status: statusDown, declared: "worker@/w"},
+	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusActive},
+		{PID: 2, Kind: work.KindContact, Command: "claude", TTY: "ttys002", Status: work.StatusWaiting},
+		{PID: -9, Kind: work.KindRun, Command: "worker", Status: work.StatusDown, Declared: "worker@/w"},
 	}}}
 	// The row's declaration, as the file was last read: what enter and u
 	// bring up.
-	m.declared = map[string]declared{"/w": {list: []declaration{{name: "worker", command: "npm run worker"}}}}
+	m.declared = map[string]work.Declared{"/w": {List: []work.Declaration{{Name: "worker", Command: "npm run worker"}}}}
 	// The words are written in the lower case, whatever the hint says.
 	has := func(bar, key, does string) bool {
 		return strings.Contains(bar, key+" #[nobold fg="+theme.Conn.Dark.Gray+"]"+strings.ToLower(does))
@@ -127,9 +129,9 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	if bar := m.bar(); !has(bar, "enter", "Bring it up, go in") || !has(bar, "u", "Bring it up") || has(bar, "x", "End it") {
 		t.Errorf("on a down declaration the bar offers %s", bar)
 	}
-	for i := range m.projects[0].entries {
-		if m.projects[0].entries[i].pid == 2 {
-			m.projects[0].entries[i].status = statusIdle
+	for i := range m.projects[0].Entries {
+		if m.projects[0].Entries[i].PID == 2 {
+			m.projects[0].Entries[i].Status = work.StatusIdle
 		}
 	}
 	if bar := m.bar(); has(bar, "tab", "Next waiting") {
@@ -170,26 +172,26 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 // running serves nothing; and a port under a shell is the shell's to
 // say, the fold carrying it up onto the row that stays.
 func TestAServingRowIsKnownByItsPort(t *testing.T) {
-	listens := []socket{{proto: "TCP", addr: "127.0.0.1:5173", state: "LISTEN"}, {proto: "TCP", addr: "[::1]:5173", state: "LISTEN"},
-		{proto: "TCP", addr: "127.0.0.1:5173->127.0.0.1:50122", state: "ESTABLISHED"}, {proto: "UDP", addr: "*:5353"},
-		{proto: "unix", addr: "/tmp/vite.sock"}, {proto: "TCP", addr: "*:24678", state: "LISTEN"}}
-	if got := strings.Join(listeningPorts(listens), " "); got != "5173 24678" {
+	listens := []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5173", State: "LISTEN"}, {Proto: "TCP", Addr: "[::1]:5173", State: "LISTEN"},
+		{Proto: "TCP", Addr: "127.0.0.1:5173->127.0.0.1:50122", State: "ESTABLISHED"}, {Proto: "UDP", Addr: "*:5353"},
+		{Proto: "unix", Addr: "/tmp/vite.sock"}, {Proto: "TCP", Addr: "*:24678", State: "LISTEN"}}
+	if got := strings.Join(work.ListeningPorts(listens), " "); got != "5173 24678" {
 		t.Errorf("the ports are %q, want the TCP listeners once each, lowest first", got)
 	}
 	for _, c := range []struct {
-		e    entry
+		e    work.Entry
 		want bool
 	}{
-		{entry{kind: kindRun, command: "node", status: statusActive, ports: []string{"5173"}}, true},
-		{entry{kind: kindService, command: "web", status: statusActive, ports: []string{"8438"}}, true},
-		{entry{kind: kindService, command: "db", status: "UNHEALTHY", fault: true, ports: []string{"5432"}}, true},
-		{entry{kind: kindRun, command: "node", status: statusActive}, false},
-		{entry{kind: kindService, command: "web", status: statusDown, ports: []string{"8438"}}, false},
-		{entry{kind: kindRun, command: "web · npm run dev", status: statusEnded, ports: []string{"8438"}}, false},
-		{entry{kind: kindContact, command: "claude", status: statusIdle, ports: []string{"41231"}}, false},
+		{work.Entry{Kind: work.KindRun, Command: "node", Status: work.StatusActive, Ports: []string{"5173"}}, true},
+		{work.Entry{Kind: work.KindService, Command: "web", Status: work.StatusActive, Ports: []string{"8438"}}, true},
+		{work.Entry{Kind: work.KindService, Command: "db", Status: "UNHEALTHY", Fault: true, Ports: []string{"5432"}}, true},
+		{work.Entry{Kind: work.KindRun, Command: "node", Status: work.StatusActive}, false},
+		{work.Entry{Kind: work.KindService, Command: "web", Status: work.StatusDown, Ports: []string{"8438"}}, false},
+		{work.Entry{Kind: work.KindRun, Command: "web · npm run dev", Status: work.StatusEnded, Ports: []string{"8438"}}, false},
+		{work.Entry{Kind: work.KindContact, Command: "claude", Status: work.StatusIdle, Ports: []string{"41231"}}, false},
 	} {
 		if got := serving(c.e); got != c.want {
-			t.Errorf("%s %s with ports %v serves %v, want %v", c.e.kind, c.e.command, c.e.ports, got, c.want)
+			t.Errorf("%s %s with ports %v serves %v, want %v", c.e.Kind, c.e.Command, c.e.Ports, got, c.want)
 		}
 	}
 	// How a row stands, which is the mark it takes and what its block
@@ -201,31 +203,31 @@ func TestAServingRowIsKnownByItsPort(t *testing.T) {
 		fault  bool
 		want   int
 	}{
-		{statusWaiting, false, standWaiting},
-		{statusStopped, true, standFault},
+		{work.StatusWaiting, false, standWaiting},
+		{work.StatusStopped, true, standFault},
 		{"UNHEALTHY", true, standFault},
 		{"EXIT 3", true, standFault},
-		{statusDown, false, standDown},
-		{statusEnded, false, standOver},
+		{work.StatusDown, false, standDown},
+		{work.StatusEnded, false, standOver},
 		{"EXIT 3", false, standOver},
-		{statusWorking, false, standWorking},
-		{statusActive, false, standRests},
-		{statusIdle, false, standRests},
+		{work.StatusWorking, false, standWorking},
+		{work.StatusActive, false, standRests},
+		{work.StatusIdle, false, standRests},
 	} {
 		if got := stateOf(c.status, c.fault); got != c.want {
 			t.Errorf("%s (fault %v) stands %d, want %d", c.status, c.fault, got, c.want)
 		}
 	}
-	folded := fold([]project{{path: "/w", entries: []entry{
-		{pid: 1, kind: kindShell, command: "zsh", typed: "zsh", tty: "ttys001", status: statusActive},
-		{pid: 2, kind: kindRun, command: "npm run dev", typed: "npm run dev", tty: "ttys001", status: statusActive, depth: 1, ports: []string{"24678"}},
-		{pid: 3, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys001", status: statusActive, depth: 2, ports: []string{"5173"}},
-		{pid: 4, kind: kindContact, command: "claude", typed: "claude", tty: "ttys002", status: statusWorking},
-		{pid: 5, kind: kindRun, command: "python -m http.server", typed: "python -m http.server", tty: "ttys002", status: statusActive, depth: 1, ports: []string{"8000"}},
+	folded := fold([]work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 1, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: work.StatusActive},
+		{PID: 2, Kind: work.KindRun, Command: "npm run dev", Typed: "npm run dev", TTY: "ttys001", Status: work.StatusActive, Depth: 1, Ports: []string{"24678"}},
+		{PID: 3, Kind: work.KindRun, Command: "node vite", Typed: "node vite", TTY: "ttys001", Status: work.StatusActive, Depth: 2, Ports: []string{"5173"}},
+		{PID: 4, Kind: work.KindContact, Command: "claude", Typed: "claude", TTY: "ttys002", Status: work.StatusWorking},
+		{PID: 5, Kind: work.KindRun, Command: "python -m http.server", Typed: "python -m http.server", TTY: "ttys002", Status: work.StatusActive, Depth: 1, Ports: []string{"8000"}},
 	}}})
 	var rows []string
-	for _, e := range folded[0].entries {
-		rows = append(rows, strings.Repeat(" ", e.depth)+activityOf(e)+portsWord(e.ports))
+	for _, e := range folded[0].Entries {
+		rows = append(rows, strings.Repeat(" ", e.Depth)+activityOf(e)+portsWord(e.Ports))
 	}
 	// A process that listens stands as a row of its own under whatever
 	// started it, with its own command and its own port: the row to
@@ -237,10 +239,10 @@ func TestAServingRowIsKnownByItsPort(t *testing.T) {
 	if want := []string{"claude", "zsh", " npm run dev · :24678", "  node vite · :5173", " python -m http.server · :8000"}; !slices.Equal(rows, want) {
 		t.Errorf("the fold kept %q, want %q", rows, want)
 	}
-	if !serving(rowOf(folded[0].entries, 2)) {
+	if !serving(rowOf(folded[0].Entries, 2)) {
 		t.Error("the server does not read as one")
 	}
-	if serving(rowOf(folded[0].entries, 1)) {
+	if serving(rowOf(folded[0].Entries, 1)) {
 		t.Error("the shell that ran the server reads as a server itself")
 	}
 	// Drawn narrow, the port is the last thing to go: in eight cells
@@ -278,13 +280,13 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 		want    string
 		stamped bool
 	}{
-		{[]processRow{row(statusIdle, false), row(statusWorking, false)}, "", false},
-		{[]processRow{row(statusDown, false)}, "DOWN", false},
-		{[]processRow{row(statusDown, false), row(statusDown, false)}, "2 DOWN", false},
-		{[]processRow{row("EXIT 1", true), row(statusDown, false)}, "EXIT 1", true},
-		{[]processRow{row("EXIT 1", true), row(statusStopped, true)}, "2 FAULTS", true},
-		{[]processRow{row(statusWaiting, false), row("EXIT 1", true)}, "WAITING", true},
-		{[]processRow{row(statusWaiting, false), row(statusWaiting, false)}, "2 WAITING", true},
+		{[]processRow{row(work.StatusIdle, false), row(work.StatusWorking, false)}, "", false},
+		{[]processRow{row(work.StatusDown, false)}, "DOWN", false},
+		{[]processRow{row(work.StatusDown, false), row(work.StatusDown, false)}, "2 DOWN", false},
+		{[]processRow{row("EXIT 1", true), row(work.StatusDown, false)}, "EXIT 1", true},
+		{[]processRow{row("EXIT 1", true), row(work.StatusStopped, true)}, "2 FAULTS", true},
+		{[]processRow{row(work.StatusWaiting, false), row("EXIT 1", true)}, "WAITING", true},
+		{[]processRow{row(work.StatusWaiting, false), row(work.StatusWaiting, false)}, "2 WAITING", true},
 	} {
 		got, stamped, _ := verdict(c.rows)
 		if got != c.want || stamped != c.stamped {
@@ -294,13 +296,13 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 	// Drawn at the end of the rule, and a wait's blinks with the rows.
 	m := plainModel()
 	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, tmux.PanelWidth, 20, processesNow
-	m.projects = []project{
-		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-			{pid: 1, kind: kindShell, command: "zsh", status: statusIdle},
+	m.projects = []work.Project{
+		{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+			{PID: 1, Kind: work.KindShell, Command: "zsh", Status: work.StatusIdle},
 		}},
-		{path: "/Users/w0zro/projects/w0zro/vim.pro/conjurer", entries: []entry{
-			{pid: 2, kind: kindRun, command: "api", status: statusDown},
-			{pid: 3, kind: kindRun, command: "web", status: statusDown},
+		{Path: "/Users/w0zro/projects/w0zro/vim.pro/conjurer", Entries: []work.Entry{
+			{PID: 2, Kind: work.KindRun, Command: "api", Status: work.StatusDown},
+			{PID: 3, Kind: work.KindRun, Command: "web", Status: work.StatusDown},
 		}},
 	}
 	b := m.processesReport()
@@ -345,9 +347,9 @@ func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 	long := "/Volumes/work/some-organization-name/auditboard-backend-services"
 	m := plainModel()
 	m.view, m.inside, m.width, m.height = viewProcesses, true, tmux.PanelWidth, 20
-	m.projects = []project{{path: long, entries: []entry{
-		{pid: 5, kind: kindRun, command: "pnpm start --host --strict-port", cwd: long, status: statusActive, ports: []string{"3000"}},
-		{pid: 6, kind: kindRun, command: "node server.js", cwd: long, status: statusActive, ports: []string{"8080", "8081"}},
+	m.projects = []work.Project{{Path: long, Entries: []work.Entry{
+		{PID: 5, Kind: work.KindRun, Command: "pnpm start --host --strict-port", Cwd: long, Status: work.StatusActive, Ports: []string{"3000"}},
+		{PID: 6, Kind: work.KindRun, Command: "node server.js", Cwd: long, Status: work.StatusActive, Ports: []string{"8080", "8081"}},
 	}}}
 	for _, width := range []int{tmux.PanelWidth, 50, 40} {
 		text := texts(drawProcesses(m.processesReport(), 5, width, 20, plain))
@@ -376,11 +378,11 @@ func TestARowKeepsItsPortWhenTheWidthIsShort(t *testing.T) {
 func TestThePortsEndAtOneColumn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.width, m.height = viewProcesses, true, tmux.PanelWidth, 20
-	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-		{pid: 5, kind: kindRun, command: "node server.js", status: statusActive, ports: []string{"8080"}},
-		{pid: 6, kind: kindRun, command: "caddy run", status: statusActive, ports: []string{"443", "80"}},
-		{pid: 7, kind: kindShell, command: "zsh", status: statusIdle},
-		{pid: 8, kind: kindRun, command: "npm run build", status: statusDown, ports: []string{"4000"}},
+	m.projects = []work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+		{PID: 5, Kind: work.KindRun, Command: "node server.js", Status: work.StatusActive, Ports: []string{"8080"}},
+		{PID: 6, Kind: work.KindRun, Command: "caddy run", Status: work.StatusActive, Ports: []string{"443", "80"}},
+		{PID: 7, Kind: work.KindShell, Command: "zsh", Status: work.StatusIdle},
+		{PID: 8, Kind: work.KindRun, Command: "npm run build", Status: work.StatusDown, Ports: []string{"4000"}},
 	}}}
 	ends := map[string]int{}
 	var serves, quiet, ended string
@@ -425,9 +427,9 @@ func TestThePortsEndAtOneColumn(t *testing.T) {
 func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, tmux.PanelWidth, 20, processesNow
-	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-		{pid: 5, kind: kindRun, command: "npm run build", status: statusDown, ports: []string{"4000"}},
-		{pid: 6, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute), ports: []string{"7000"}},
+	m.projects = []work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+		{PID: 5, Kind: work.KindRun, Command: "npm run build", Status: work.StatusDown, Ports: []string{"4000"}},
+		{PID: 6, Kind: work.KindContact, Command: "claude", Status: work.StatusWaiting, Since: processesNow.Add(-9 * time.Minute), Ports: []string{"7000"}},
 	}}}
 	b := m.processesReport()
 	for _, lit := range []bool{true, false} {
@@ -452,9 +454,9 @@ func TestARowsWordTakesTheColumnFromItsPort(t *testing.T) {
 func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.width, m.height, m.now = viewProcesses, true, tmux.PanelWidth, 20, processesNow
-	m.projects = []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-		{pid: 1, kind: kindContact, command: "claude", status: statusWaiting, since: processesNow.Add(-9 * time.Minute)},
-		{pid: 2, kind: kindEditor, command: "vim", status: statusStopped, fault: true},
+	m.projects = []work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+		{PID: 1, Kind: work.KindContact, Command: "claude", Status: work.StatusWaiting, Since: processesNow.Add(-9 * time.Minute)},
+		{PID: 2, Kind: work.KindEditor, Command: "vim", Status: work.StatusStopped, Fault: true},
 	}}}
 	b := m.processesReport()
 	b.lit = true
@@ -476,7 +478,7 @@ func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 	// Only what the wait is stamped on differs between the halves:
 	// the row, and the eyebrow saying the project is waiting.
 	for i := range on {
-		if lit, dark := on[i].text, off[i].text; lit != dark && !strings.Contains(lit, "9 MIN") && !strings.Contains(lit, statusWaiting) {
+		if lit, dark := on[i].text, off[i].text; lit != dark && !strings.Contains(lit, "9 MIN") && !strings.Contains(lit, work.StatusWaiting) {
 			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
 		}
 	}
@@ -512,8 +514,8 @@ func TestThePanelSaysWhenThereIsNothingToList(t *testing.T) {
 // says nothing about what it is.
 func TestAMarkIsTheKindAndTheKindsAreDistinct(t *testing.T) {
 	for kind, want := range map[string]string{
-		kindContact: markContact, kindShell: markShell, kindEditor: markEditor,
-		kindService: markService, kindRun: markRun,
+		work.KindContact: markContact, work.KindShell: markShell, work.KindEditor: markEditor,
+		work.KindService: markService, work.KindRun: markRun,
 		"SOMETHING CONN DOES NOT KNOW": markRun,
 	} {
 		if got := markOf(kind); got != want {
@@ -528,13 +530,13 @@ func TestAMarkIsTheKindAndTheKindsAreDistinct(t *testing.T) {
 	// of the two things a shell can be: a prompt you type at, and a row
 	// standing for what it runs, which wears what it runs.
 	now := processesNow
-	folded := fold([]project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-		{pid: 1, kind: kindShell, typed: "zsh", tty: "ttys001", status: statusIdle},
-		{pid: 2, kind: kindEditor, typed: "vim notes.md", tty: "ttys001", status: statusActive, depth: 1},
-		{pid: 3, kind: kindShell, typed: "zsh", tty: "ttys002", status: statusIdle},
-		{pid: 4, kind: kindContact, typed: "claude", tty: "ttys002", status: statusWorking, depth: 1},
-		{pid: 5, kind: kindService, typed: "postgres", status: statusActive, ports: []string{"5432"}},
-		{pid: 6, kind: kindRun, typed: "go build ./...", tty: "ttys003", status: statusWorking},
+	folded := fold([]work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+		{PID: 1, Kind: work.KindShell, Typed: "zsh", TTY: "ttys001", Status: work.StatusIdle},
+		{PID: 2, Kind: work.KindEditor, Typed: "vim notes.md", TTY: "ttys001", Status: work.StatusActive, Depth: 1},
+		{PID: 3, Kind: work.KindShell, Typed: "zsh", TTY: "ttys002", Status: work.StatusIdle},
+		{PID: 4, Kind: work.KindContact, Typed: "claude", TTY: "ttys002", Status: work.StatusWorking, Depth: 1},
+		{PID: 5, Kind: work.KindService, Typed: "postgres", Status: work.StatusActive, Ports: []string{"5432"}},
+		{PID: 6, Kind: work.KindRun, Typed: "go build ./...", TTY: "ttys003", Status: work.StatusWorking},
 	}}})
 	b := composeProcesses(folded, nil, "", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
 	text := texts(drawProcesses(b, 0, tmux.PanelWidth, 20, plain))

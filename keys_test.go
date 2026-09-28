@@ -5,6 +5,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -136,7 +138,7 @@ func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
 // the keys are rather than showing a list going nowhere.
 func TestThePanelHoldsTheKeysWhileTheManualIsUp(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, p: plain, width: tmux.PanelWidth, height: 40,
-		projects: []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001", command: "vim"}}}}}
+		projects: []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001", Command: "vim"}}}}}
 	if strings.Contains(m.View().Content, "THE ROW") {
 		t.Fatal("the processes view is showing the keys with no manual up")
 	}

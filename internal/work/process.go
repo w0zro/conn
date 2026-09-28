@@ -1,4 +1,9 @@
-package main
+// Package work reads the work on this machine and files it by project:
+// the process table and what each process has open, the containers
+// docker holds up and the services brew does, what each contact is
+// doing and the sessions it left, and what each project's .conn says
+// should be running. It reads; what the panel makes of it is main's.
+package work
 
 import (
 	"fmt"
@@ -11,39 +16,39 @@ import (
 	"time"
 )
 
-// A process, as the kernel describes it: who runs it, what terminal it
+// A Process, as the kernel describes it: who runs it, what terminal it
 // holds, where it is working, what it was started as and when. The
 // platform files read the table; the processes view is composed from
 // it.
-type process struct {
-	pid, ppid, pgid int
-	uid             int
-	tty             string // ttys004, pts/3; blank without a terminal
-	foreground      bool   // its group holds the terminal
-	state           byte   // R running, S sleeping, T stopped, Z ended, I idle, D in disk wait
-	started         time.Time
-	command         string   // the program's name
-	args            []string // what it was started as, when that could be read
-	cwd             string
+type Process struct {
+	PID, PPID, PGID int
+	UID             int
+	TTY             string // ttys004, pts/3; blank without a terminal
+	Foreground      bool   // its group holds the terminal
+	State           byte   // R running, S sleeping, T stopped, Z ended, I idle, D in disk wait
+	Started         time.Time
+	Command         string   // the program's name
+	Args            []string // what it was started as, when that could be read
+	Cwd             string
 	// cpu is all the processor time this process has used, which says
 	// nothing on its own: what it has used since the last reading is
 	// how the processes view tells work from waiting.
-	cpu time.Duration
+	CPU time.Duration
 	// What it has open to the world: the ports it listens on, the
 	// connections it holds, the unix sockets it has by path; see
 	// sockets.go.
-	sockets []socket
+	Sockets []Socket
 }
 
 // The kinds of process the processes view tells apart, by the program's
 // name. Everything else is a run: a build, a test, a server, a script.
 const (
-	kindShell   = "SHELL"
-	kindContact = "CONTACT"
-	kindEditor  = "EDITOR"
-	kindConn    = "CONN" // conn itself; not in the processes view
-	kindRun     = "RUN"
-	kindHold    = "HOLD" // conn standing in an empty bay; not in the processes view
+	KindShell   = "SHELL"
+	KindContact = "CONTACT"
+	KindEditor  = "EDITOR"
+	KindConn    = "CONN" // conn itself; not in the processes view
+	KindRun     = "RUN"
+	KindHold    = "HOLD" // conn standing in an empty bay; not in the processes view
 )
 
 // A name is a contact's when the name means an agent and means little
@@ -69,9 +74,9 @@ var (
 // matched by name, the same kind of thing as knowing zsh is a shell.
 // A maker conn is not sure of is left off rather than guessed at: the
 // agent's own name is the part that answers the question.
-type agent struct{ name, maker string }
+type agent struct{ Name, Maker string }
 
-var contacts = map[string]agent{
+var Contacts = map[string]agent{
 	"claude":   {"Claude Code", "Anthropic"},
 	"codex":    {"Codex", "OpenAI"},
 	"gemini":   {"Gemini CLI", "Google"},
@@ -83,33 +88,33 @@ var contacts = map[string]agent{
 
 // isContact says whether a program's name is an agent's.
 func isContact(name string) bool {
-	_, ok := contacts[name]
+	_, ok := Contacts[name]
 	return ok
 }
 
-// kindOf is the kind of a process, from the name of its program. A
+// KindOf is the kind of a process, from the name of its program. A
 // program that writes its own title puts its name first and what it is
 // at after it — claude bg-spare is claude, at its spare work — so the
 // name is the first word of what it was started as.
-func kindOf(p process) string {
-	name := strings.TrimPrefix(filepath.Base(p.command), "-")
-	if len(p.args) > 0 {
-		name = strings.TrimPrefix(filepath.Base(p.args[0]), "-")
+func KindOf(p Process) string {
+	name := strings.TrimPrefix(filepath.Base(p.Command), "-")
+	if len(p.Args) > 0 {
+		name = strings.TrimPrefix(filepath.Base(p.Args[0]), "-")
 	}
 	name, _, _ = strings.Cut(name, " ")
 	switch {
-	case name == "conn" && len(p.args) > 1 && p.args[1] == "hold":
-		return kindHold
+	case name == "conn" && len(p.Args) > 1 && p.Args[1] == "hold":
+		return KindHold
 	case name == "conn":
-		return kindConn
+		return KindConn
 	case slices.Contains(shells, name):
-		return kindShell
+		return KindShell
 	case isContact(name):
-		return kindContact
+		return KindContact
 	case slices.Contains(editors, name):
-		return kindEditor
+		return KindEditor
 	default:
-		return kindRun
+		return KindRun
 	}
 }
 
@@ -118,113 +123,113 @@ func kindOf(p process) string {
 // everything runnable - so alive alone is ACTIVE, and WORKING is kept
 // for a process that did something between one reading and the next.
 const (
-	statusWorking = "WORKING" // doing something, right now
-	statusWaiting = "WAITING" // a contact stopped on an ask it put to you
-	statusActive  = "ACTIVE"  // alive, and not doing anything
-	statusIdle    = "IDLE"    // a shell at its prompt, or a contact at rest
-	statusStopped = "STOPPED" // suspended
-	statusEnded   = "ENDED"   // finished, and not yet collected
-	statusDown    = "DOWN"    // declared in the project's .conn, and not running
-	statusClosed  = "CLOSED"  // it was listening, and the listener has gone while it lives
+	StatusWorking = "WORKING" // doing something, right now
+	StatusWaiting = "WAITING" // a contact stopped on an ask it put to you
+	StatusActive  = "ACTIVE"  // alive, and not doing anything
+	StatusIdle    = "IDLE"    // a shell at its prompt, or a contact at rest
+	StatusStopped = "STOPPED" // suspended
+	StatusEnded   = "ENDED"   // finished, and not yet collected
+	StatusDown    = "DOWN"    // declared in the project's .conn, and not running
+	StatusClosed  = "CLOSED"  // it was listening, and the listener has gone while it lives
 )
 
-// said is a status as a row says it. The vocabulary is the machine's and
+// Said is a status as a row says it. The vocabulary is the machine's and
 // stays in capitals wherever conn reasons about it — the manual's table
 // of every word a row can say is that list — and what the operator
 // reads is a word: Working, Waiting, Stopped. Capitals are for labels,
 // and a status is not a label but a fact about a thing.
-func said(status string) string {
+func Said(status string) string {
 	if status == "" {
 		return ""
 	}
 	return strings.ToUpper(status[:1]) + strings.ToLower(status[1:])
 }
 
-// status is what conn learned about a process past what the table
+// Status is what conn learned about a process past what the table
 // says of it. Anything can be working, read off the processor time it
 // spent. Only a contact says more, being the only thing here that knows
 // its own mind: mid-turn, stopped on an ask it put to you, or stopped
 // with its turn over and nothing pending.
-type status struct {
-	working bool
-	waiting bool   // stopped on something it asked of you
-	idle    bool   // stopped with its turn over, asking nothing
+type Status struct {
+	Working bool
+	Waiting bool   // stopped on something it asked of you
+	Idle    bool   // stopped with its turn over, asking nothing
 	asking  string // what a waiting contact is stopped on, in its own words
 	// When it came to stand this way, where it says so; zero where it
 	// does not. Only a contact knows the moment it stopped, and only
 	// waiting is worth the moment: how long a thing has been held up on
 	// you is the order to answer it in.
-	since time.Time
+	Since time.Time
 }
 
-// An entry is a row of the processes view: one process, standing for
+// An Entry is a row of the processes view: one process, standing for
 // its own work, at its project in the tree the processes it is among
 // actually are.
-type entry struct {
-	pid     int
-	kind    string
-	command string // what it was started as, the program by its base name
-	typed   string // the same less what conn itself added, which is what was typed
-	tty     string
-	started time.Time
-	status  string
-	fault   bool      // a status to be looked at: STOPPED, ENDED
-	depth   int       // how deep under its project's own root; the root at 0
-	since   time.Time // when it came to stand as it does, where that is known
+type Entry struct {
+	PID     int
+	Kind    string
+	Command string // what it was started as, the program by its base name
+	Typed   string // the same less what conn itself added, which is what was typed
+	TTY     string
+	Started time.Time
+	Status  string
+	Fault   bool      // a status to be looked at: STOPPED, ENDED
+	Depth   int       // how deep under its project's own root; the root at 0
+	Since   time.Time // when it came to stand as it does, where that is known
 	// What the processes view has no column for and the readout reads:
 	// where the process itself is, whatever project its tree belongs to,
 	// and what a contact says it is stopped on.
-	cwd    string
-	asking string
+	Cwd    string
+	Asking string
 	// What it has open to the world, for the page; see sockets.go. The
 	// TCP ports it listens on are the row's own fact, said after its
 	// command and filing it under SERVING; a service carries the ports
 	// it publishes on the host here.
-	sockets []socket
-	ports   []string
+	Sockets []Socket
+	Ports   []string
 	// What a working contact is doing, read off its transcript: the
 	// tool it has in flight, as a verb and an object.
-	doing string
+	Doing string
 	// What a contact's session is about, read off its transcript: the
 	// title Claude Code gave it from its first prompt, or the name it
 	// was renamed to. It is the row's label while the contact is not
 	// working, since claude says nothing and the pid says less.
-	title string
+	Title string
 	// The container this row is, where it is one: the id docker knows it
 	// by, which the keys act on. A process row carries nothing here.
-	container string
+	Container string
 	// The declaration this row is, or stands for, as its pane is marked;
 	// see declared.go. A process row carries nothing here.
-	declared string
+	Declared string
 	// The Homebrew service this row is, by its formula, where it is one
 	// a project declares; see brew.go. And how many projects declare
 	// it, where more than one does: the panel files them as one row,
 	// and says * for the project.
-	brew   string
-	shared int
+	Brew   string
+	Shared int
 	// What runs under a shell whose rows are folded, for its activity
 	// column; see fold.go. underShell says it is a shell itself, and a
 	// command found later under it is taken instead. underKind is that
 	// command's own kind, which the row wears on the panel: a shell
 	// standing for the vim it runs is an editor there, and one standing
 	// for a build is work. See panelKind.
-	under      string
-	underShell bool
-	underKind  string
+	Under      string
+	UnderShell bool
+	UnderKind  string
 	// The command of the one listener folded into this row, whose
 	// ports and sockets the row carries; see fold.go. A program conn
 	// knows by name is known here too, so the row takes the client.
-	listener string
+	Listener string
 }
 
-// A project is a directory work is happening in, and the entries at it.
-type project struct {
-	path    string // as read; the processes view writes it from ~
-	entries []entry
-	note    string // what is wrong with the project's .conn, where something is
+// A Project is a directory work is happening in, and the entries at it.
+type Project struct {
+	Path    string // as read; the processes view writes it from ~
+	Entries []Entry
+	Note    string // what is wrong with the project's .conn, where something is
 }
 
-// projectsFrom composes the projects from the process table: the
+// ProjectsFrom composes the projects from the process table: the
 // processes of one user with a terminal, each standing for its own
 // work, nested under whatever candidate process runs it — the tree they
 // actually are, rather than one leaf apiece. rootOf turns a working
@@ -253,10 +258,10 @@ type project struct {
 // either: the tmux server conn runs inside has no terminal and works in
 // the repository like anything else there, and is no more a row than
 // conn is.
-func projectsFrom(procs []process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]status) []project {
-	byPid := map[int]process{}
+func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]Status) []Project {
+	byPid := map[int]Process{}
 	for _, p := range procs {
-		byPid[p.pid] = p
+		byPid[p.PID] = p
 	}
 	// holding is what conn is standing on: the shell the operator typed
 	// conn into, and whatever stands between that shell and conn — a go
@@ -277,66 +282,66 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	// which is right: it is work, and it is waiting for them.
 	holding := map[int]bool{}
 	for _, p := range procs {
-		if p.uid != uid || p.tty == "" {
+		if p.UID != uid || p.TTY == "" {
 			continue
 		}
-		if k := kindOf(p); k != kindConn && k != kindHold {
+		if k := KindOf(p); k != KindConn && k != KindHold {
 			continue
 		}
 		seen := map[int]bool{}
-		for pid := p.ppid; pid > 0 && !seen[pid]; {
+		for pid := p.PPID; pid > 0 && !seen[pid]; {
 			seen[pid] = true
 			a, ok := byPid[pid]
-			if !ok || a.tty != p.tty {
+			if !ok || a.TTY != p.TTY {
 				break
 			}
-			holding[a.pid] = true
-			pid = a.ppid
+			holding[a.PID] = true
+			pid = a.PPID
 		}
 	}
 	// A candidate is a process of the user with a terminal, that conn is
 	// not itself standing on.
 	candidate := map[int]bool{}
 	for _, p := range procs {
-		candidate[p.pid] = p.uid == uid && p.tty != "" && !holding[p.pid]
+		candidate[p.PID] = p.UID == uid && p.TTY != "" && !holding[p.PID]
 	}
 	// covered says whether conn stands anywhere above a process: the tmux
 	// client conn holds is conn's own doing, not work of yours, and goes
 	// off the processes view with it rather than hanging from whatever
 	// happens to be above conn.
-	covered := func(p process) bool {
+	covered := func(p Process) bool {
 		seen := map[int]bool{}
-		for pid := p.ppid; pid > 0 && !seen[pid]; {
+		for pid := p.PPID; pid > 0 && !seen[pid]; {
 			seen[pid] = true
 			a, ok := byPid[pid]
 			if !ok {
 				return false
 			}
-			if candidate[a.pid] {
-				switch kindOf(a) {
-				case kindConn, kindHold:
+			if candidate[a.PID] {
+				switch KindOf(a) {
+				case KindConn, KindHold:
 					return true
 				}
 			}
-			pid = a.ppid
+			pid = a.PPID
 		}
 		return false
 	}
 	// treeParent is the nearest candidate ancestor a process hangs
 	// from, climbing past whatever is not one itself. Nothing covered
 	// gets this far, so no ancestor it can find is conn's.
-	treeParent := func(p process) (int, bool) {
+	treeParent := func(p Process) (int, bool) {
 		seen := map[int]bool{}
-		for pid := p.ppid; pid > 0 && !seen[pid]; {
+		for pid := p.PPID; pid > 0 && !seen[pid]; {
 			seen[pid] = true
 			a, ok := byPid[pid]
 			if !ok {
 				return 0, false
 			}
-			if candidate[a.pid] {
-				return a.pid, true
+			if candidate[a.PID] {
+				return a.PID, true
 			}
-			pid = a.ppid
+			pid = a.PPID
 		}
 		return 0, false
 	}
@@ -345,14 +350,14 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	// lets the processes view speak for anything else running there.
 	worked := map[string]bool{}
 	for _, p := range procs {
-		if !candidate[p.pid] || covered(p) || p.cwd == "" {
+		if !candidate[p.PID] || covered(p) || p.Cwd == "" {
 			continue
 		}
-		switch kindOf(p) {
-		case kindConn, kindHold:
+		switch KindOf(p) {
+		case KindConn, KindHold:
 			continue
 		}
-		if root := rootOf(p.cwd); isProject(root) {
+		if root := rootOf(p.Cwd); isProject(root) {
 			worked[root] = true
 		}
 	}
@@ -362,20 +367,20 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	// shell, and stays a row.
 	scaffolding := map[int]bool{}
 	for _, p := range procs {
-		switch kindOf(p) {
-		case kindConn, kindHold:
+		switch KindOf(p) {
+		case KindConn, KindHold:
 		default:
 			continue
 		}
 		seen := map[int]bool{}
-		for pid := p.ppid; pid > 0 && !seen[pid]; {
+		for pid := p.PPID; pid > 0 && !seen[pid]; {
 			seen[pid] = true
 			scaffolding[pid] = true
 			a, ok := byPid[pid]
 			if !ok {
 				break
 			}
-			pid = a.ppid
+			pid = a.PPID
 		}
 	}
 	// A process of the user with no terminal, working inside one of
@@ -383,12 +388,12 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	// other, hanging from whatever runs it, or rooting a tree of its
 	// own where nothing does.
 	for _, p := range procs {
-		if candidate[p.pid] || p.uid != uid || p.tty != "" || p.cwd == "" || scaffolding[p.pid] {
+		if candidate[p.PID] || p.UID != uid || p.TTY != "" || p.Cwd == "" || scaffolding[p.PID] {
 			continue
 		}
 		for root := range worked {
-			if within(p.cwd, root) {
-				candidate[p.pid] = true
+			if Within(p.Cwd, root) {
+				candidate[p.PID] = true
 				break
 			}
 		}
@@ -396,17 +401,17 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	children := map[int][]int{}
 	var roots []int
 	for _, p := range procs {
-		if !candidate[p.pid] || covered(p) {
+		if !candidate[p.PID] || covered(p) {
 			continue
 		}
-		switch kindOf(p) {
-		case kindConn, kindHold:
+		switch KindOf(p) {
+		case KindConn, KindHold:
 			continue
 		}
 		if parent, ok := treeParent(p); ok {
-			children[parent] = append(children[parent], p.pid)
+			children[parent] = append(children[parent], p.PID)
 		} else {
-			roots = append(roots, p.pid)
+			roots = append(roots, p.PID)
 		}
 	}
 	// The table is read a process at a time, not all at once, so what
@@ -433,7 +438,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	// The pid breaks a tie, so two things started in the same instant
 	// come out the same way on every reading whatever order the table
 	// was read in.
-	startedAt := func(pid int) time.Time { return byPid[pid].started }
+	startedAt := func(pid int) time.Time { return byPid[pid].Started }
 	byStart := func(pids []int) {
 		sort.SliceStable(pids, func(i, j int) bool {
 			a, b := startedAt(pids[i]), startedAt(pids[j])
@@ -448,7 +453,7 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		byStart(children[pid])
 	}
 
-	projects := map[string]*project{}
+	projects := map[string]*Project{}
 	var order []string
 	var walk func(pid, depth int, path string)
 	walk = func(pid, depth int, path string) {
@@ -457,24 +462,24 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 		}
 		walked[pid] = true
 		p := byPid[pid]
-		kind := kindOf(p)
-		e := entry{pid: p.pid, kind: kind, command: commandLine(p), typed: typedLine(p), tty: p.tty, started: p.started, depth: depth,
-			since: how[p.pid].since, cwd: p.cwd, asking: how[p.pid].asking, sockets: p.sockets, ports: listeningPorts(p.sockets)}
-		e.status, e.fault = statusOf(p, kind, len(children[pid]) > 0, how[p.pid])
+		kind := KindOf(p)
+		e := Entry{PID: p.PID, Kind: kind, Command: CommandLine(p), Typed: TypedLine(p), TTY: p.TTY, Started: p.Started, Depth: depth,
+			Since: how[p.PID].Since, Cwd: p.Cwd, Asking: how[p.PID].asking, Sockets: p.Sockets, Ports: ListeningPorts(p.Sockets)}
+		e.Status, e.Fault = StatusOf(p, kind, len(children[pid]) > 0, how[p.PID])
 		if projects[path] == nil {
-			projects[path] = &project{path: path}
+			projects[path] = &Project{Path: path}
 			order = append(order, path)
 		}
-		projects[path].entries = append(projects[path].entries, e)
+		projects[path].Entries = append(projects[path].Entries, e)
 		for _, c := range children[pid] {
 			walk(c, depth+1, path)
 		}
 	}
 	for _, rootPid := range roots {
-		walk(rootPid, 0, rootOf(byPid[rootPid].cwd))
+		walk(rootPid, 0, rootOf(byPid[rootPid].Cwd))
 	}
 
-	out := make([]project, 0, len(projects))
+	out := make([]Project, 0, len(projects))
 	for _, path := range order {
 		out = append(out, *projects[path])
 	}
@@ -484,21 +489,21 @@ func projectsFrom(procs []process, uid int, rootOf func(string) string, isProjec
 	// work there began before, which put the same project at the top one
 	// day and at the bottom the next, and the view was learnt again each
 	// morning.
-	sort.SliceStable(out, func(i, j int) bool { return out[i].path < out[j].path })
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out
 }
 
-// waitingRound is the order to answer the waiting in: longest held up
+// WaitingRound is the order to answer the waiting in: longest held up
 // first. A contact that cannot say when it stopped goes last — it is
 // waiting, which is what the word is for, but it cannot claim a turn
 // ahead of one that can prove it waited longer. The order is the same
 // on every reading, so a key stepping through it steps through the
 // same ring; ties go by pid rather than by however the table came out.
-func waitingRound(projects []project) []entry {
-	var out []entry
+func WaitingRound(projects []Project) []Entry {
+	var out []Entry
 	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if e.status == statusWaiting {
+		for _, e := range pl.Entries {
+			if e.Status == StatusWaiting {
 				out = append(out, e)
 			}
 		}
@@ -506,12 +511,12 @@ func waitingRound(projects []project) []entry {
 	sort.SliceStable(out, func(i, j int) bool {
 		a, b := out[i], out[j]
 		switch {
-		case a.since.IsZero() != b.since.IsZero():
-			return b.since.IsZero() // what cannot say goes last
-		case !a.since.Equal(b.since):
-			return a.since.Before(b.since)
+		case a.Since.IsZero() != b.Since.IsZero():
+			return b.Since.IsZero() // what cannot say goes last
+		case !a.Since.Equal(b.Since):
+			return a.Since.Before(b.Since)
 		default:
-			return a.pid < b.pid
+			return a.PID < b.PID
 		}
 	})
 	return out
@@ -524,7 +529,7 @@ func waitingRound(projects []project) []entry {
 // everything look busier than it is.
 const workingShare = 20
 
-// cpuWorking is every process that spent processor time over the time
+// CpuWorking is every process that spent processor time over the time
 // there was to spend it in. What a process has used altogether says
 // nothing on its own — a server up for a week has plenty and may be
 // doing nothing at all — so what is asked is the difference since the
@@ -550,39 +555,39 @@ const workingShare = 20
 // two seconds and has idled ever since would read as working for the
 // first beat and correct itself on the second — a reading that lies,
 // at the one moment the processes view is being read hardest.
-func cpuWorking(was map[int]time.Duration, wasAt time.Time, procs []process, nowAt time.Time) map[int]bool {
+func CpuWorking(was map[int]time.Duration, wasAt time.Time, procs []Process, nowAt time.Time) map[int]bool {
 	busy := map[int]bool{}
 	if wasAt.IsZero() {
 		return busy
 	}
 	for _, p := range procs {
 		var spent, over time.Duration
-		switch before, ok := was[p.pid]; {
+		switch before, ok := was[p.PID]; {
 		case ok:
-			spent, over = p.cpu-before, nowAt.Sub(wasAt)
-		case p.started.After(wasAt):
-			spent, over = p.cpu, nowAt.Sub(p.started)
+			spent, over = p.CPU-before, nowAt.Sub(wasAt)
+		case p.Started.After(wasAt):
+			spent, over = p.CPU, nowAt.Sub(p.Started)
 		default:
 			continue
 		}
 		if over > 0 && spent > 0 && spent*workingShare >= over {
-			busy[p.pid] = true
+			busy[p.PID] = true
 		}
 	}
 	return busy
 }
 
-// cpuOf is the processor time each process has used, to be held until
+// CpuOf is the processor time each process has used, to be held until
 // the next reading and asked against.
-func cpuOf(procs []process) map[int]time.Duration {
+func CpuOf(procs []Process) map[int]time.Duration {
 	out := make(map[int]time.Duration, len(procs))
 	for _, p := range procs {
-		out[p.pid] = p.cpu
+		out[p.PID] = p.CPU
 	}
 	return out
 }
 
-// statusOf is the word for a process as it stands. A shell is only
+// StatusOf is the word for a process as it stands. A shell is only
 // idle bare, at its prompt; running anything, even nested many levels
 // down, it is active the way what it runs is. Working is narrower than
 // active and is the one worth watching: the process was doing
@@ -604,38 +609,38 @@ func cpuOf(procs []process) map[int]time.Duration {
 // on a socket is waiting on the socket - so the word is only ever
 // about a person. It is no fault, nothing having gone wrong, so it is
 // a word of its own rather than a chip.
-func statusOf(p process, kind string, hasChildren bool, how status) (string, bool) {
+func StatusOf(p Process, kind string, hasChildren bool, how Status) (string, bool) {
 	switch {
-	case p.state == 'T':
-		return statusStopped, true
-	case p.state == 'Z':
-		return statusEnded, true
-	case how.waiting:
-		return statusWaiting, false
-	case how.working:
-		return statusWorking, false
-	case how.idle:
-		return statusIdle, false
-	case kind == kindShell && !hasChildren:
-		return statusIdle, false
+	case p.State == 'T':
+		return StatusStopped, true
+	case p.State == 'Z':
+		return StatusEnded, true
+	case how.Waiting:
+		return StatusWaiting, false
+	case how.Working:
+		return StatusWorking, false
+	case how.Idle:
+		return StatusIdle, false
+	case kind == KindShell && !hasChildren:
+		return StatusIdle, false
 	default:
-		return statusActive, false
+		return StatusActive, false
 	}
 }
 
-// commandLine is what a process was started as: the program by its base
+// CommandLine is what a process was started as: the program by its base
 // name and its arguments, or the program's name alone when the arguments
 // could not be read.
-func commandLine(p process) string {
+func CommandLine(p Process) string {
 	return strings.Join(commandWords(p, false), " ")
 }
 
-// typedLine is the command as the operator typed it: the same words
+// TypedLine is the command as the operator typed it: the same words
 // less the argument conn adds when it starts a contact. A contact conn
 // raised read on the watch as claude --app…, which was conn showing the
 // operator the noise conn itself had made. The readout keeps the whole
 // line, being where the whole of anything goes.
-func typedLine(p process) string {
+func TypedLine(p Process) string {
 	return strings.Join(commandWords(p, true), " ")
 }
 
@@ -663,13 +668,13 @@ func ownFlag(a string) (own, joined bool) {
 // is one line however it was written: a python -c handed a script
 // with newlines in it is one process, and its row is one row, where
 // the newline written out took the rows under it down with it.
-func commandWords(p process, lessOwn bool) []string {
-	if len(p.args) == 0 {
-		return []string{strings.TrimPrefix(filepath.Base(p.command), "-")}
+func commandWords(p Process, lessOwn bool) []string {
+	if len(p.Args) == 0 {
+		return []string{strings.TrimPrefix(filepath.Base(p.Command), "-")}
 	}
-	words := []string{strings.TrimPrefix(filepath.Base(p.args[0]), "-")}
-	for i := 1; i < len(p.args); i++ {
-		a := p.args[i]
+	words := []string{strings.TrimPrefix(filepath.Base(p.Args[0]), "-")}
+	for i := 1; i < len(p.Args); i++ {
+		a := p.Args[i]
 		if lessOwn {
 			if own, joined := ownFlag(a); own {
 				if !joined {
@@ -692,18 +697,18 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
-// asTyped is the command as typed, or as written where nothing was
+// AsTyped is the command as typed, or as written where nothing was
 // read of what was typed.
-func (e entry) asTyped() string {
-	if e.typed != "" {
-		return e.typed
+func (e Entry) AsTyped() string {
+	if e.Typed != "" {
+		return e.Typed
 	}
-	return e.command
+	return e.Command
 }
 
-// program is a command line's first word: what a process is called by
+// Program is a command line's first word: what a process is called by
 // where the whole line is too much, as on the kill's question.
-func program(command string) string {
+func Program(command string) string {
 	if f := strings.Fields(command); len(f) > 0 {
 		return f[0]
 	}
@@ -722,8 +727,8 @@ func program(command string) string {
 // apart from conn in the processes view, which is not two pieces of
 // work and should not have been two blocks.
 
-// within says whether a directory is at or under a root.
-func within(dir, root string) bool {
+// Within says whether a directory is at or under a root.
+func Within(dir, root string) bool {
 	if root == "" {
 		return false
 	}
@@ -741,14 +746,14 @@ func holdsRepo(dir string) bool {
 		return false
 	}
 	for _, e := range entries {
-		if isRepo(filepath.Join(dir, e.Name())) {
+		if IsRepo(filepath.Join(dir, e.Name())) {
 			return true
 		}
 	}
 	return false
 }
 
-// projectDirs says whether a directory is a project: a repository, or a
+// ProjectDirs says whether a directory is a project: a repository, or a
 // folder under one of conn's roots holding one. The roots are what
 // keeps the second half of that honest — any folder anywhere with a
 // checkout somewhere below it would make a project of your home
@@ -758,7 +763,7 @@ func holdsRepo(dir string) bool {
 // projects list draws when it groups them. It remembers what it found,
 // since the processes view asks after the same directories on every
 // reading.
-func projectDirs(roots []string) func(string) bool {
+func ProjectDirs(roots []string) func(string) bool {
 	known := map[string]bool{}
 	return func(dir string) bool {
 		if dir == "" {
@@ -767,10 +772,10 @@ func projectDirs(roots []string) func(string) bool {
 		if is, ok := known[dir]; ok {
 			return is
 		}
-		is := isRepo(dir)
+		is := IsRepo(dir)
 		if !is {
 			for _, root := range roots {
-				if dir != root && within(dir, root) {
+				if dir != root && Within(dir, root) {
 					is = holdsRepo(dir)
 					break
 				}
@@ -781,14 +786,14 @@ func projectDirs(roots []string) func(string) bool {
 	}
 }
 
-// rootFinder finds the project that holds a directory: the nearest
+// RootFinder finds the project that holds a directory: the nearest
 // project at or above it — the repository the work is in, or the folder
 // the checkouts are kept in where the work is beside them rather than
 // inside one. A directory with no project above it stands for itself.
 //
 // rootFinder remembers what it found, since the processes view asks for
 // the same directories on every read.
-func rootFinder(isProject func(string) bool) func(string) string {
+func RootFinder(isProject func(string) bool) func(string) string {
 	known := map[string]string{}
 	return func(dir string) string {
 		if dir == "" {
@@ -812,41 +817,41 @@ func rootFinder(isProject func(string) bool) func(string) string {
 	}
 }
 
-// age is how long since a time, in the two largest units that apply.
-func age(since, now time.Time) string {
+// Age is how long since a time, in the two largest units that apply.
+func Age(since, now time.Time) string {
 	if since.IsZero() {
 		return ""
 	}
-	return spell(now.Sub(since))
+	return Spell(now.Sub(since))
 }
 
-// minutes is how long a wait has stood, as the panel says it beside
+// Minutes is how long a wait has stood, as the panel says it beside
 // the row: in minutes under an hour, since a wait is answered in
 // minutes, and above that as the hours and minutes are spelled.
-func minutes(d time.Duration) string {
+func Minutes(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
 	if d < time.Hour {
 		return strconv.Itoa(int(d.Minutes())) + " min"
 	}
-	return strings.ToLower(spell(d))
+	return strings.ToLower(Spell(d))
 }
 
-// sinceWord is how long a row has stood as it does, for the processes
+// SinceWord is how long a row has stood as it does, for the processes
 // view's column: the one largest unit that applies, and nothing where
 // the moment is not known. Two units were four columns of precision the
 // column is not read for; the number is glanced at, against the status
 // beside it.
-func sinceWord(since, now time.Time) string {
+func SinceWord(since, now time.Time) string {
 	if since.IsZero() {
 		return ""
 	}
-	return brief(now.Sub(since))
+	return Brief(now.Sub(since))
 }
 
-// brief writes a span in its one largest unit.
-func brief(d time.Duration) string {
+// Brief writes a span in its one largest unit.
+func Brief(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
@@ -862,16 +867,16 @@ func brief(d time.Duration) string {
 	}
 }
 
-// stood is a row as conn last saw it stand: its status, when it took
+// Stood is a row as conn last saw it stand: its status, when it took
 // it, and when its process began, so a pid come round again is not
 // taken for the process that had it.
-type stood struct {
+type Stood struct {
 	status  string
 	at      time.Time
 	started time.Time
 }
 
-// sinceSeen fills in when each row came to stand as it does, where the
+// SinceSeen fills in when each row came to stand as it does, where the
 // row does not say so itself, and answers what to hold for the next
 // reading. A contact says its own moment and keeps it. Anything else is
 // dated by conn's own eye: a row whose status differs from the last
@@ -880,32 +885,32 @@ type stood struct {
 // it did keeps the moment it had. What conn was not watching it has no
 // moment for, and says nothing: the first reading dates nothing, and a
 // shell idle since before conn came up stays undated until it changes.
-func sinceSeen(projects []project, was map[int]stood, wasAt, now time.Time) map[int]stood {
-	next := map[int]stood{}
+func SinceSeen(projects []Project, was map[int]Stood, wasAt, now time.Time) map[int]Stood {
+	next := map[int]Stood{}
 	for i := range projects {
-		for j := range projects[i].entries {
-			e := &projects[i].entries[j]
-			if e.since.IsZero() {
-				prev, ok := was[e.pid]
+		for j := range projects[i].Entries {
+			e := &projects[i].Entries[j]
+			if e.Since.IsZero() {
+				prev, ok := was[e.PID]
 				switch {
-				case ok && prev.started.Equal(e.started) && prev.status == e.status:
-					e.since = prev.at
-				case ok && prev.started.Equal(e.started):
-					e.since = now
-				case !wasAt.IsZero() && e.started.After(wasAt):
-					e.since = e.started
+				case ok && prev.started.Equal(e.Started) && prev.status == e.Status:
+					e.Since = prev.at
+				case ok && prev.started.Equal(e.Started):
+					e.Since = now
+				case !wasAt.IsZero() && e.Started.After(wasAt):
+					e.Since = e.Started
 				}
 			}
-			next[e.pid] = stood{status: e.status, at: e.since, started: e.started}
+			next[e.PID] = Stood{status: e.Status, at: e.Since, started: e.Started}
 		}
 	}
 	return next
 }
 
-// spell writes a span the way the processes view's age column does, for
+// Spell writes a span the way the processes view's age column does, for
 // a span that is not the distance from a moment to now: processor time
 // spent, say, which has no moment to count from.
-func spell(d time.Duration) string {
+func Spell(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
@@ -925,7 +930,7 @@ func spell(d time.Duration) string {
 	}
 }
 
-// withoutConnsOwn is the table less what is conn's own doing and not
+// WithoutConnsOwn is the table less what is conn's own doing and not
 // the operator's: the panes watching a service, whose tail is the
 // service's row and not a row beside it; and whatever else is on the
 // panel's own terminal. conn is the one thing that runs there, and a
@@ -934,16 +939,16 @@ func spell(d time.Duration) string {
 // for it. covered cannot find conn above a child conn has let go of,
 // but the terminal it carries is enough to know it by. conn itself
 // stays: the shell it was launched from is held by walking up from it.
-func withoutConnsOwn(procs []process, watching map[string]bool, panelTTY string) []process {
+func WithoutConnsOwn(procs []Process, watching map[string]bool, panelTTY string) []Process {
 	if len(watching) == 0 && panelTTY == "" {
 		return procs
 	}
 	kept := procs[:0]
 	for _, p := range procs {
-		if watching[p.tty] {
+		if watching[p.TTY] {
 			continue
 		}
-		if p.tty == panelTTY && kindOf(p) != kindConn {
+		if p.TTY == panelTTY && KindOf(p) != KindConn {
 			continue
 		}
 		kept = append(kept, p)
@@ -951,9 +956,19 @@ func withoutConnsOwn(procs []process, watching map[string]bool, panelTTY string)
 	return kept
 }
 
-// isRepo says whether a directory is the top of a git repository. .git
+// IsRepo says whether a directory is the top of a git repository. .git
 // is a directory in a clone and a file in a worktree or a submodule.
-func isRepo(dir string) bool {
+func IsRepo(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, ".git"))
 	return err == nil
+}
+
+// Over says whether a row is not running: declared and never came up,
+// or ended, cleanly or with a code. Its command is struck through.
+func Over(status string) bool {
+	switch status {
+	case StatusDown, StatusEnded:
+		return true
+	}
+	return strings.HasPrefix(status, exitWord)
 }

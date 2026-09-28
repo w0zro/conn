@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -112,7 +114,7 @@ func TestHelpIsThePanelsWordOnlyInTheProcessesView(t *testing.T) {
 // it, and with the manual up there is no such row — without this the
 // cursor came back on the next beat, a couple of seconds later.
 func TestTheReadingLeavesTheCursorAloneWhileHelping(t *testing.T) {
-	projects := []project{{path: "/w", entries: []entry{{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}}}}
+	projects := []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}}}}
 	m := model{view: viewProcesses, inside: true, cursor: 0, projects: projects}
 	// A reading that finds the manual in the workspace: conn is helping,
 	// and the cursor it was told to let go of stays let go.
@@ -132,8 +134,8 @@ func TestTheReadingLeavesTheCursorAloneWhileHelping(t *testing.T) {
 // the processes view: conn's own processes are not among the processes
 // conn is holding for the operator.
 func TestTheManualIsNotOneOfTheProcesses(t *testing.T) {
-	p := process{command: "/usr/local/bin/conn", args: []string{"/usr/local/bin/conn", "manual"}}
-	if got := kindOf(p); got != kindConn {
+	p := work.Process{Command: "/usr/local/bin/conn", Args: []string{"/usr/local/bin/conn", "manual"}}
+	if got := work.KindOf(p); got != work.KindConn {
 		t.Errorf("conn manual reads as %s, and would take a row", got)
 	}
 }
@@ -325,8 +327,8 @@ func TestLeavingTheManualWithNothingToGoBackTo(t *testing.T) {
 // coming back to the view with a different row picked out would be conn
 // deciding they had.
 func TestTheRowComesBackFromTheManual(t *testing.T) {
-	projects := []project{{path: "/w", entries: []entry{
-		{pid: 11, tty: "ttys001"}, {pid: 22, tty: "ttys002"}, {pid: 33, tty: "ttys003"},
+	projects := []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}, {PID: 33, TTY: "ttys003"},
 	}}}
 	m := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, projects: projects,
 		cursor: 22, cursorAt: 1}

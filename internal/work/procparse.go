@@ -1,4 +1,4 @@
-package main
+package work
 
 import (
 	"encoding/binary"
@@ -13,15 +13,15 @@ import (
 // The parsers behind the process table, pure over what the platform
 // processes over, and tested on every platform against captures.
 
-// parseLsof reads lsof -F pcn: for each process, a p line with its pid,
+// ParseLsof reads lsof -F pcn: for each process, a p line with its pid,
 // a c line with its command, and an n line with the path of the file
 // asked for, which here is its working directory.
-func parseLsof(out string) map[int]process {
-	procs := map[int]process{}
-	var cur process
+func ParseLsof(out string) map[int]Process {
+	procs := map[int]Process{}
+	var cur Process
 	flush := func() {
-		if cur.pid > 0 {
-			procs[cur.pid] = cur
+		if cur.PID > 0 {
+			procs[cur.PID] = cur
 		}
 	}
 	for _, l := range strings.Split(out, "\n") {
@@ -32,21 +32,21 @@ func parseLsof(out string) map[int]process {
 		case 'p':
 			flush()
 			pid, _ := strconv.Atoi(l[1:])
-			cur = process{pid: pid}
+			cur = Process{PID: pid}
 		case 'c':
-			cur.command = l[1:]
+			cur.Command = l[1:]
 		case 'n':
-			cur.cwd = l[1:]
+			cur.Cwd = l[1:]
 		}
 	}
 	flush()
 	return procs
 }
 
-// parseProcargs reads what sysctl kern.procargs2 returns for a process:
+// ParseProcargs reads what sysctl kern.procargs2 returns for a process:
 // the count of arguments, the path it was executed as, padding, then the
 // arguments, each ended by NUL, with the environment after them.
-func parseProcargs(raw []byte) []string {
+func ParseProcargs(raw []byte) []string {
 	if len(raw) < 4 {
 		return nil
 	}
@@ -71,32 +71,32 @@ func parseProcargs(raw []byte) []string {
 	return args
 }
 
-// parseProcStat reads /proc/<pid>/stat: the pid, the command in
+// ParseProcStat reads /proc/<pid>/stat: the pid, the command in
 // parentheses, which may hold spaces and parentheses of its own, then
 // the fields by position — state, ppid, pgrp, session, tty_nr, tpgid,
 // and at the twenty-second the start, in ticks since boot.
-func parseProcStat(line string, boot time.Time, hz int) (process, bool) {
+func ParseProcStat(line string, boot time.Time, hz int) (Process, bool) {
 	open, closeParen := strings.IndexByte(line, '('), strings.LastIndexByte(line, ')')
 	if open < 0 || closeParen < open {
-		return process{}, false
+		return Process{}, false
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(line[:open]))
 	if err != nil {
-		return process{}, false
+		return Process{}, false
 	}
 	f := strings.Fields(line[closeParen+1:])
 	if len(f) < 20 {
-		return process{}, false
+		return Process{}, false
 	}
-	p := process{pid: pid, command: line[open+1 : closeParen], state: f[0][0]}
-	p.ppid, _ = strconv.Atoi(f[1])
-	p.pgid, _ = strconv.Atoi(f[2])
+	p := Process{PID: pid, Command: line[open+1 : closeParen], State: f[0][0]}
+	p.PPID, _ = strconv.Atoi(f[1])
+	p.PGID, _ = strconv.Atoi(f[2])
 	ttyNr, _ := strconv.Atoi(f[4])
 	tpgid, _ := strconv.Atoi(f[5])
-	p.tty = linuxTTY(ttyNr)
-	p.foreground = tpgid == p.pgid
+	p.TTY = LinuxTTY(ttyNr)
+	p.Foreground = tpgid == p.PGID
 	if ticks, err := strconv.ParseInt(f[19], 10, 64); err == nil && hz > 0 && !boot.IsZero() {
-		p.started = boot.Add(time.Duration(ticks) * time.Second / time.Duration(hz))
+		p.Started = boot.Add(time.Duration(ticks) * time.Second / time.Duration(hz))
 	}
 	// utime and stime, fields 14 and 15, which are f[11] and f[12] here:
 	// what the process has spent on a processor, in and out of the
@@ -105,15 +105,15 @@ func parseProcStat(line string, boot time.Time, hz int) (process, bool) {
 		user, uerr := strconv.ParseInt(f[11], 10, 64)
 		sys, serr := strconv.ParseInt(f[12], 10, 64)
 		if uerr == nil && serr == nil {
-			p.cpu = time.Duration(user+sys) * time.Second / time.Duration(hz)
+			p.CPU = time.Duration(user+sys) * time.Second / time.Duration(hz)
 		}
 	}
 	return p, true
 }
 
-// parsePsTimes reads what `ps -axo pid=,time=` printed: a pid and the
+// ParsePsTimes reads what `ps -axo pid=,time=` printed: a pid and the
 // processor time it has used, one process to a line.
-func parsePsTimes(out string) map[int]time.Duration {
+func ParsePsTimes(out string) map[int]time.Duration {
 	times := map[int]time.Duration{}
 	for line := range strings.SplitSeq(out, "\n") {
 		f := strings.Fields(line)
@@ -124,18 +124,18 @@ func parsePsTimes(out string) map[int]time.Duration {
 		if err != nil {
 			continue
 		}
-		if d, ok := parsePsTime(f[1]); ok {
+		if d, ok := ParsePsTime(f[1]); ok {
 			times[pid] = d
 		}
 	}
 	return times
 }
 
-// parsePsTime reads one of ps's elapsed times: seconds at the end,
+// ParsePsTime reads one of ps's elapsed times: seconds at the end,
 // minutes and then hours before it, and days off the front behind a
 // dash. The minutes can run past sixty on macOS, where nothing larger
 // is printed, so no field is held to its usual range.
-func parsePsTime(s string) (time.Duration, bool) {
+func ParsePsTime(s string) (time.Duration, bool) {
 	var total time.Duration
 	if days, rest, ok := strings.Cut(s, "-"); ok {
 		n, err := strconv.ParseFloat(days, 64)
@@ -161,9 +161,9 @@ func parsePsTime(s string) (time.Duration, bool) {
 	return total, true
 }
 
-// linuxTTY names the terminal behind a tty_nr: a pseudo-terminal under
+// LinuxTTY names the terminal behind a tty_nr: a pseudo-terminal under
 // pts, a console under tty, or nothing.
-func linuxTTY(nr int) string {
+func LinuxTTY(nr int) string {
 	if nr == 0 {
 		return ""
 	}
@@ -179,17 +179,17 @@ func linuxTTY(nr int) string {
 	}
 }
 
-// readProcTree reads the process table off a proc file system at root:
+// ReadProcTree reads the process table off a proc file system at root:
 // every numbered directory's stat, cmdline and cwd, and the owner of the
 // directory for the uid. A process that goes away between the listing
 // and the reading is left out.
-func readProcTree(root string, boot time.Time, hz int) []process {
+func ReadProcTree(root string, boot time.Time, hz int) []Process {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil
 	}
-	tables := procSocketTables(root)
-	var procs []process
+	tables := ProcSocketTables(root)
+	var procs []Process
 	for _, e := range entries {
 		if _, err := strconv.Atoi(e.Name()); err != nil {
 			continue
@@ -199,16 +199,16 @@ func readProcTree(root string, boot time.Time, hz int) []process {
 		if err != nil {
 			continue
 		}
-		p, ok := parseProcStat(strings.TrimSpace(string(stat)), boot, hz)
+		p, ok := ParseProcStat(strings.TrimSpace(string(stat)), boot, hz)
 		if !ok {
 			continue
 		}
-		p.uid = ownerOf(dir)
+		p.UID = ownerOf(dir)
 		if cmd, err := os.ReadFile(filepath.Join(dir, "cmdline")); err == nil && len(cmd) > 0 {
-			p.args = strings.Split(strings.TrimRight(string(cmd), "\x00"), "\x00")
+			p.Args = strings.Split(strings.TrimRight(string(cmd), "\x00"), "\x00")
 		}
-		p.cwd, _ = os.Readlink(filepath.Join(dir, "cwd"))
-		p.sockets = fdSockets(dir, tables)
+		p.Cwd, _ = os.Readlink(filepath.Join(dir, "cwd"))
+		p.Sockets = FdSockets(dir, tables)
 		procs = append(procs, p)
 	}
 	return procs
@@ -226,8 +226,8 @@ func ownerOf(path string) int {
 	return -1
 }
 
-// parseBootTime reads btime out of /proc/stat.
-func parseBootTime(stat string) time.Time {
+// ParseBootTime reads btime out of /proc/stat.
+func ParseBootTime(stat string) time.Time {
 	for _, l := range strings.Split(stat, "\n") {
 		if v, ok := strings.CutPrefix(l, "btime "); ok {
 			if n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {

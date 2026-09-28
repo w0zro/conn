@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -29,7 +31,7 @@ type sessionsReport struct {
 	home    string
 	now     time.Time
 	loading bool
-	rows    []session
+	rows    []work.Session
 	total   int
 	filter  string
 	caret   int // where in the filter the caret is, in runes
@@ -37,7 +39,7 @@ type sessionsReport struct {
 
 // composeSessions words the sessions view: the filter's rows out of the
 // whole number found.
-func composeSessions(sessions []session, project, filter, home string, now time.Time, loading bool) sessionsReport {
+func composeSessions(sessions []work.Session, project, filter, home string, now time.Time, loading bool) sessionsReport {
 	b := composeSessionsAt(sessions, project, filter, home, now, loading)
 	b.caret = utf8.RuneCountInString(filter)
 	return b
@@ -45,7 +47,7 @@ func composeSessions(sessions []session, project, filter, home string, now time.
 
 // composeSessionsAt is composeSessions with the caret left at the
 // start, for the view to put where it is.
-func composeSessionsAt(sessions []session, project, filter, home string, now time.Time, loading bool) sessionsReport {
+func composeSessionsAt(sessions []work.Session, project, filter, home string, now time.Time, loading bool) sessionsReport {
 	return sessionsReport{
 		project: config.Tilde(project, home), home: home, now: now, loading: loading,
 		rows: matchingSessions(sessions, filter), total: len(sessions), filter: filter,
@@ -55,12 +57,12 @@ func composeSessionsAt(sessions []session, project, filter, home string, now tim
 // matchingSessions is the sessions a filter leaves: one answers by
 // its branch, the last thing it was asked, or the directory it was had
 // in, the same three a reader would recognize it by.
-func matchingSessions(cs []session, filter string) []session {
+func matchingSessions(cs []work.Session, filter string) []work.Session {
 	f := strings.ToLower(strings.TrimSpace(filter))
 	if f == "" {
 		return cs
 	}
-	var out []session
+	var out []work.Session
 	for _, c := range cs {
 		if strings.Contains(strings.ToLower(c.Prompt), f) ||
 			strings.Contains(strings.ToLower(c.Branch), f) ||
@@ -165,7 +167,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 			}
 			l.add(p.ink, fit(prompt, promptW, path))
 			l.to(ageCol)
-			l.add(p.gray, age(cv.When, b.now))
+			l.add(p.gray, work.Age(cv.When, b.now))
 			d.emit(l, 0, false)
 		}
 		body = d.rows
@@ -187,7 +189,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 type sessionList struct {
 	project string   // what the view is for
 	dirs    []string // the directories asked for; a stale answer's guard
-	read    []session
+	read    []work.Session
 	loading bool
 	find    typed
 }
@@ -206,14 +208,14 @@ func (l *sessionList) landed(msg sessionsMsg) bool {
 
 // rows is the sessions the line leaves, which the cursor is an index
 // into, and at the one the cursor is on, where there is one.
-func (l sessionList) rows() []session {
+func (l sessionList) rows() []work.Session {
 	return matchingSessions(l.read, l.find.text)
 }
 
-func (l sessionList) at() (session, bool) {
+func (l sessionList) at() (work.Session, bool) {
 	rows := l.rows()
 	if l.find.at >= len(rows) {
-		return session{}, false
+		return work.Session{}, false
 	}
 	return rows[l.find.at], true
 }

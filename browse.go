@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/station"
 
 	tea "charm.land/bubbletea/v2"
@@ -102,8 +104,8 @@ func browse(url string) error {
 // the lowest, which is the first one it says; what conn cannot do it
 // says in a notice under the rows, the way a shell it could not open
 // is said.
-func (m model) openServing(e entry) tea.Cmd {
-	port := e.ports[0]
+func (m model) openServing(e work.Entry) tea.Cmd {
+	port := e.Ports[0]
 	return func() tea.Msg {
 		if err := browse(localURL(port)); err != nil {
 			return noticeMsg{err.Error()}

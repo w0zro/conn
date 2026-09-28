@@ -7,6 +7,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // signal refuses init and conn itself outright, whatever permission
@@ -60,10 +62,10 @@ func TestSignalEndsALiveProcess(t *testing.T) {
 // work, proven by hand against bash and zsh both — and SIGTERM for
 // anything it runs.
 func TestKillSignalIsKillForAShellAndTermForWhatItRuns(t *testing.T) {
-	if got := killSignal(kindShell); got != syscall.SIGKILL {
+	if got := killSignal(work.KindShell); got != syscall.SIGKILL {
 		t.Errorf("killSignal(shell) = %v", got)
 	}
-	for _, kind := range []string{kindContact, kindEditor, kindRun} {
+	for _, kind := range []string{work.KindContact, work.KindEditor, work.KindRun} {
 		if got := killSignal(kind); got != syscall.SIGTERM {
 			t.Errorf("killSignal(%s) = %v", kind, got)
 		}

@@ -4,6 +4,8 @@ import (
 	"maps"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
@@ -26,7 +28,7 @@ func (m model) readProcesses() tea.Cmd {
 		srv = m.srv
 	}
 	return func() tea.Msg {
-		procs, err := readProcesses(uid)
+		procs, err := work.ReadProcesses(uid)
 		if err != nil {
 			return processesMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
@@ -57,12 +59,12 @@ func (m model) readProcesses() tea.Cmd {
 		// working by the processor time it spent since the last reading,
 		// which is why that reading is kept, and a contact answers for
 		// itself instead - working, or waiting on you.
-		now, nowAt := cpuOf(procs), time.Now()
-		how := map[int]status{}
-		for pid := range cpuWorking(was.cpu, was.at, procs, nowAt) {
-			how[pid] = status{working: true}
+		now, nowAt := work.CpuOf(procs), time.Now()
+		how := map[int]work.Status{}
+		for pid := range work.CpuWorking(was.cpu, was.at, procs, nowAt) {
+			how[pid] = work.Status{Working: true}
 		}
-		maps.Copy(how, contactStatuses(procs))
+		maps.Copy(how, work.ContactStatuses(procs))
 		// The panes come first, because a pane conn opened to watch a
 		// container is two things to the reading at once: the terminal
 		// that container's row will stand on, and a process that must
@@ -98,8 +100,8 @@ func (m model) readProcesses() tea.Cmd {
 				}
 			}
 		}
-		procs = withoutConnsOwn(procs, watching, panelTTY)
-		projects := projectsFrom(procs, uid, roots, isProject, how)
+		procs = work.WithoutConnsOwn(procs, watching, panelTTY)
+		projects := work.ProjectsFrom(procs, uid, roots, isProject, how)
 		records := recordsOf(procs, projects)
 		// And what docker is holding up, which the table cannot show: a
 		// container is not a process of this machine, and compose says
@@ -107,23 +109,23 @@ func (m model) readProcesses() tea.Cmd {
 		// docker last said is already here — the feed brings it as it
 		// happens — so this costs the reading nothing and waits on no
 		// daemon.
-		projects = attachContainers(projects, containers, roots, paneOf, shellIn)
+		projects = work.AttachContainers(projects, containers, roots, paneOf, shellIn)
 		// And what the projects declare should be working them, which
 		// the table has no word for until it is: a stat per project,
 		// and a read where a file changed.
-		declared = refreshDeclared(declared, declaredPaths(projects, declared, isProject))
-		projects = attachDeclared(projects, declared, panes)
+		declared = work.RefreshDeclared(declared, work.DeclaredPaths(projects, declared, isProject))
+		projects = work.AttachDeclared(projects, declared, panes)
 		// And the services brew holds up for them, as brew last said,
 		// each with the sockets of the process running it, which the
 		// table has and files nowhere.
-		if brewDeclared(declared) {
-			sockets := map[int][]socket{}
+		if work.BrewDeclared(declared) {
+			sockets := map[int][]work.Socket{}
 			for _, p := range procs {
-				if len(p.sockets) > 0 {
-					sockets[p.pid] = p.sockets
+				if len(p.Sockets) > 0 {
+					sockets[p.PID] = p.Sockets
 				}
 			}
-			projects = attachBrew(projects, declared, brews, sockets, paneOf)
+			projects = work.AttachBrew(projects, declared, brews, sockets, paneOf)
 		}
 		// And out go the projects nothing is up in, whose every row is
 		// a declaration of what is not running; see worked.
@@ -131,10 +133,10 @@ func (m model) readProcesses() tea.Cmd {
 		// And which of them have lost the listener they had, which is a
 		// fault and so is worded before the rows are dated: a row that
 		// has come to say CLOSED came to say it now.
-		serves := markClosed(projects, was.serves)
+		serves := work.MarkClosed(projects, was.serves)
 		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen,
-			trace: &trace{cpu: now, at: nowAt, stood: sinceSeen(projects, was.stood, was.at, nowAt),
-				acts: activities(projects, was.acts), serves: serves},
+			trace: &trace{cpu: now, at: nowAt, stood: work.SinceSeen(projects, was.stood, was.at, nowAt),
+				acts: work.Activities(projects, was.acts), serves: serves},
 			records: records, rooted: &rooting, declared: declared}
 		if !full {
 			msg.projects = fold(projects)
@@ -176,12 +178,12 @@ type trace struct {
 	at  time.Time
 	// Each row as it stood, and since when: what the next reading dates
 	// a row's status against.
-	stood map[int]stood
+	stood map[int]work.Stood
 	// Each contact's transcript as it was read for its activity.
-	acts map[string]activitySeen
+	acts map[string]work.ActivitySeen
 	// Each row seen listening, and how many readings it has had nothing
 	// open since: what says a listener has gone.
-	serves map[int]servingSeen
+	serves map[int]work.ServingSeen
 }
 
 // landed is a reading come back: taken onto the model, and then what
@@ -295,7 +297,7 @@ func (m model) tended(msg processesMsg) (model, tea.Cmd) {
 	// reach does the bay hold a placard.
 	case msg.bayDead:
 		if e, ok := m.nextReachable(); ok {
-			return m, m.reach(m.panes[e.tty], e.tty)
+			return m, m.reach(m.panes[e.TTY], e.TTY)
 		}
 		return m, m.reviveBay()
 	}
@@ -305,16 +307,16 @@ func (m model) tended(msg processesMsg) (model, tea.Cmd) {
 // recordsOf is the table's record behind each row, for the page: what
 // the page reads of a process that the row does not carry, kept for
 // the rows alone rather than for the whole table.
-func recordsOf(procs []process, projects []project) map[int]record {
-	byPid := map[int]process{}
+func recordsOf(procs []work.Process, projects []work.Project) map[int]record {
+	byPid := map[int]work.Process{}
 	for _, p := range procs {
-		byPid[p.pid] = p
+		byPid[p.PID] = p
 	}
 	out := map[int]record{}
 	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if p, ok := byPid[e.pid]; ok {
-				out[e.pid] = recordOf(p)
+		for _, e := range pl.Entries {
+			if p, ok := byPid[e.PID]; ok {
+				out[e.PID] = recordOf(p)
 			}
 		}
 	}

@@ -8,6 +8,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	tea "charm.land/bubbletea/v2"
 
 	"golang.org/x/sys/unix"
@@ -62,7 +64,7 @@ func interruptPrompt(pane, name string) string {
 // shell, since asking it nicely does not work; SIGTERM for anything it
 // runs.
 func killSignal(kind string) syscall.Signal {
-	if kind == kindShell {
+	if kind == work.KindShell {
 		return syscall.SIGKILL
 	}
 	return syscall.SIGTERM

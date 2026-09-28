@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
@@ -73,10 +75,10 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.now = viewProcesses, true, processesNow
 	m.head.Login.Home = dir
-	m.projects = []project{{path: "/w", entries: []entry{
-		{pid: 11, tty: "ttys001", status: statusIdle},
-		{pid: 22, tty: "ttys002", status: statusWaiting, since: processesNow.Add(-time.Minute)},
-		{pid: 33, tty: "ttys003", status: statusIdle},
+	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 11, TTY: "ttys001", Status: work.StatusIdle},
+		{PID: 22, TTY: "ttys002", Status: work.StatusWaiting, Since: processesNow.Add(-time.Minute)},
+		{PID: 33, TTY: "ttys003", Status: work.StatusIdle},
 	}}}
 	m.cursor, m.cursorAt = 11, 0
 
@@ -103,8 +105,8 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	// missing comes back on the next beat rather than staying gone
 	// until somebody presses a key.
 	tellCursor(path, subject{pid: 0}, nil)
-	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: []project{{path: "/w", entries: []entry{
-		{pid: 22, tty: "ttys002", status: statusIdle},
+	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 22, TTY: "ttys002", Status: work.StatusIdle},
 	}}}})
 	m = next.(model)
 	if published() != 22 {
@@ -221,9 +223,9 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	path := cursorPath("/nowhere")
 
 	held := readoutTable{
-		reading: reading{projects: []project{{path: "/w", entries: []entry{
-			{pid: 11, kind: kindShell, command: "zsh", tty: "ttys001"},
-			{pid: 22, kind: kindRun, command: "go test ./...", tty: "ttys002"},
+		reading: reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+			{PID: 11, Kind: work.KindShell, Command: "zsh", TTY: "ttys001"},
+			{PID: 22, Kind: work.KindRun, Command: "go test ./...", TTY: "ttys002"},
 		}}}},
 		git: map[string]gitStatus{"/w": {repo: true, branch: "main"}},
 	}
@@ -283,18 +285,18 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	// The panel's reading: a shell running a contact that is working,
 	// on a tool, for a while; the record behind each; the panes it
 	// holds; and a container docker said, on its own row.
-	shown := entry{pid: 22, kind: kindContact, command: "claude", typed: "claude", tty: "ttys002",
-		status: statusWorking, doing: "edit tui.go", since: time.Now().Add(-40 * time.Second), cwd: "/w", depth: 1}
+	shown := work.Entry{PID: 22, Kind: work.KindContact, Command: "claude", Typed: "claude", TTY: "ttys002",
+		Status: work.StatusWorking, Doing: "edit tui.go", Since: time.Now().Add(-40 * time.Second), Cwd: "/w", Depth: 1}
 	r := reading{
-		projects: []project{{path: "/w", entries: []entry{
-			{pid: 11, kind: kindShell, command: "zsh", tty: "ttys001", status: statusActive},
+		projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+			{PID: 11, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusActive},
 			shown,
-			{pid: -99, kind: kindService, command: "web", ports: []string{"8438"}, tty: "", status: statusActive, cwd: "/w", container: "abc123def456"},
+			{PID: -99, Kind: work.KindService, Command: "web", Ports: []string{"8438"}, TTY: "", Status: work.StatusActive, Cwd: "/w", Container: "abc123def456"},
 		}}},
 		records:    map[int]record{11: {pid: 11, state: 'S', foreground: false}, 22: {pid: 22, state: 'S', foreground: true, cpu: 90 * time.Second}},
 		panes:      map[string]tmux.Pane{"ttys002": {ID: "%3", TTY: "ttys002"}},
 		inside:     true,
-		containers: []container{{id: "abc123def456", service: "web", image: "nginx", state: "running", dir: "/w"}},
+		containers: []work.Container{{ID: "abc123def456", Service: "web", Image: "nginx", State: "running", Dir: "/w"}},
 	}
 	tellCursor(path, subject{pid: 22}, &r)
 	at, got := askCursor(path)
@@ -302,7 +304,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 		got.panes["ttys002"].ID != "%3" || !got.inside || len(got.containers) != 1 {
 		t.Fatalf("the reading did not travel whole: %+v, %+v", at, got)
 	}
-	if row := got.projects[0].entries[1]; row.status != statusWorking || row.doing != "edit tui.go" {
+	if row := got.projects[0].Entries[1]; row.Status != work.StatusWorking || row.Doing != "edit tui.go" {
 		t.Fatalf("the row did not travel: %+v", row)
 	}
 
@@ -322,7 +324,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	// A row that stays put and changes its word is said again: the note
 	// changed, so the page reads it, and nothing is asked after for a
 	// cursor that did not move.
-	r.projects[0].entries[1].status, r.projects[0].entries[1].doing = statusIdle, ""
+	r.projects[0].Entries[1].Status, r.projects[0].Entries[1].Doing = work.StatusIdle, ""
 	tellCursor(path, subject{pid: 22}, &r)
 	before := m.read
 	next, _ = m.Update(readoutTickMsg{})
@@ -347,7 +349,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	// panel's cursor is always in the panel's own reading, so only a
 	// pinned pid can be missing from it.
 	pinned := readoutModel{at: subject{pid: 22}, follow: false, cursor: path, p: plain, report: readoutReport{pid: 22}, read: time.Now()}
-	r.projects[0].entries = r.projects[0].entries[:1]
+	r.projects[0].Entries = r.projects[0].Entries[:1]
 	tellCursor(path, subject{pid: 11}, &r)
 	next, _ = pinned.Update(readoutTickMsg{})
 	if got := next.(readoutModel).report; !got.gone || got.pid != 22 {
@@ -369,9 +371,9 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	m.view, m.inside, m.now = viewProjects, true, processesNow
 	m.head.Login.Home = dir
 	m.list.walked = []projectRow{{name: "w0zro/conn", path: "/Users/w0zro/projects/w0zro/conn"}}
-	m.projects = []project{
-		{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{{pid: 11, tty: "ttys001", kind: kindShell, command: "zsh", status: statusIdle}}},
-		{path: "", entries: []entry{{pid: 22, tty: "ttys002", kind: kindShell, command: "zsh", status: statusIdle}}},
+	m.projects = []work.Project{
+		{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{{PID: 11, TTY: "ttys001", Kind: work.KindShell, Command: "zsh", Status: work.StatusIdle}}},
+		{Path: "", Entries: []work.Entry{{PID: 22, TTY: "ttys002", Kind: work.KindShell, Command: "zsh", Status: work.StatusIdle}}},
 	}
 	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	rows := m.projectRows()
@@ -424,9 +426,9 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 func TestAProjectHasAPageOfItsOwn(t *testing.T) {
 	t.Setenv("CONN_SOCKET", filepath.Join(t.TempDir(), "tmux.sock"))
 	held := readoutTable{
-		reading: reading{projects: []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-			{pid: 11, kind: kindShell, command: "zsh", typed: "zsh", status: statusActive},
-			{pid: 22, kind: kindRun, command: "go test ./...", typed: "go test ./...", status: statusWorking, depth: 1},
+		reading: reading{projects: []work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+			{PID: 11, Kind: work.KindShell, Command: "zsh", Typed: "zsh", Status: work.StatusActive},
+			{PID: 22, Kind: work.KindRun, Command: "go test ./...", Typed: "go test ./...", Status: work.StatusWorking, Depth: 1},
 		}}}},
 		git: map[string]gitStatus{"/Users/w0zro/projects/w0zro/conn": {repo: true, branch: "main", dirty: 2, commit: "abc1234", subject: "A thing", when: processesNow.Add(-time.Hour)}},
 	}
@@ -463,7 +465,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	m.view, m.inside, m.now = viewSessions, true, processesNow
 	m.head.Login.Home = dir
 	m.sessions.project, m.sessions.dirs = "/Users/w0zro/projects/w0zro/conn", []string{"/Users/w0zro/projects/w0zro/conn"}
-	m.sessions.read = []session{
+	m.sessions.read = []work.Session{
 		{ID: "d81d7536-e545-4881-8daa-f1d291a03be1", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour),
 			Branch: "main", Prompt: "make the page follow the list", Model: "claude-opus-5", Carried: 571_592},
 		{ID: "0c1d2e3f-0000-4000-8000-000000000000", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-26 * time.Hour), Branch: "topic"},

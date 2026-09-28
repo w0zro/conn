@@ -7,6 +7,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -236,17 +238,17 @@ func TestAListThatWillNotFitScrolls(t *testing.T) {
 // testProjects: work in one of a group's repositories, work in a
 // project that stands alone, a process conn holds no pane for, and a
 // shell where the walk found no project at all.
-var testRunning = []project{
-	{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-		{pid: 11, kind: "CONTACT", command: "claude", doing: "READ tui.go", tty: "ttys001", status: statusWaiting},
-		{pid: 22, kind: "SHELL", command: "zsh", tty: "ttys002", status: statusIdle},
+var testRunning = []work.Project{
+	{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+		{PID: 11, Kind: "CONTACT", Command: "claude", Doing: "READ tui.go", TTY: "ttys001", Status: work.StatusWaiting},
+		{PID: 22, Kind: "SHELL", Command: "zsh", TTY: "ttys002", Status: work.StatusIdle},
 	}},
-	{path: "/Users/w0zro/projects/compose-demo", entries: []entry{
-		{pid: 33, kind: "COMMAND", command: "docker compose up", tty: "ttys003", status: statusWorking},
-		{pid: 44, kind: "SHELL", command: "zsh", tty: "ttys004", status: statusIdle},
+	{Path: "/Users/w0zro/projects/compose-demo", Entries: []work.Entry{
+		{PID: 33, Kind: "COMMAND", Command: "docker compose up", TTY: "ttys003", Status: work.StatusWorking},
+		{PID: 44, Kind: "SHELL", Command: "zsh", TTY: "ttys004", Status: work.StatusIdle},
 	}},
-	{path: "/Users/w0zro/Downloads", entries: []entry{
-		{pid: 55, kind: "SHELL", command: "zsh", tty: "ttys005", status: statusIdle},
+	{Path: "/Users/w0zro/Downloads", Entries: []work.Entry{
+		{PID: 55, Kind: "SHELL", Command: "zsh", TTY: "ttys005", Status: work.StatusIdle},
 	}},
 }
 
@@ -358,14 +360,14 @@ func TestTheFilterReachesTheProcesses(t *testing.T) {
 // by its session's title as well as by claude, a server by its port,
 // and a row by how it stands.
 func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
-	running := []project{{path: "/Users/w0zro/projects/w0zro/conn", entries: []entry{
-		{pid: 11, kind: kindContact, command: "claude", typed: "claude", title: "Fix the login bug", tty: "ttys001", status: statusIdle},
-		{pid: 22, kind: kindRun, command: "node vite", typed: "node vite", tty: "ttys002", status: statusActive, ports: []string{"5173"}},
+	running := []work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+		{PID: 11, Kind: work.KindContact, Command: "claude", Typed: "claude", Title: "Fix the login bug", TTY: "ttys001", Status: work.StatusIdle},
+		{PID: 22, Kind: work.KindRun, Command: "node vite", Typed: "node vite", TTY: "ttys002", Status: work.StatusActive, Ports: []string{"5173"}},
 	}}}
 	panes := map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	live := withProcesses(testProjects, running, panes, []string{"/Users/w0zro/projects"}, "/Users/w0zro")
-	contact := "    " + kindContact + " Fix the login bug"
-	server := "    " + kindRun + " node vite"
+	contact := "    " + work.KindContact + " Fix the login bug"
+	server := "    " + work.KindRun + " node vite"
 	for _, c := range []struct {
 		filter string
 		want   []string

@@ -1,4 +1,4 @@
-package main
+package work
 
 import (
 	"bufio"
@@ -31,34 +31,34 @@ import (
 // conn asking forever meant it never did — a laptop kept awake by the
 // instrument watching it.
 
-// dockerMsg carries what docker says of its containers, and whether it
+// DockerMsg carries what docker says of its containers, and whether it
 // said it in time: stalled means the list is what it last said.
-type dockerMsg struct {
-	containers []container
-	stalled    bool
+type DockerMsg struct {
+	Containers []Container
+	Stalled    bool
 }
 
-// dockerReadyMsg carries the feed, once it is running.
-type dockerReadyMsg struct{ feed *dockerFeed }
+// DockerReadyMsg carries the feed, once it is running.
+type DockerReadyMsg struct{ Feed *DockerFeed }
 
-// dockerFeed is the subscription: a goroutine reading docker's events and
+// DockerFeed is the subscription: a goroutine reading docker's events and
 // answering each with a list, a heartbeat, and a poke.
-type dockerFeed struct {
-	msgs chan tea.Msg
-	poke chan struct{}
-	stop chan struct{}
+type DockerFeed struct {
+	Msgs chan tea.Msg
+	Poke chan struct{}
+	Stop chan struct{}
 	// done is closed when the feed's goroutine has let go of its stream,
 	// which is what close waits for.
-	done chan struct{}
+	Done chan struct{}
 
 	// The pieces a test replaces: the stream of events, the list, and the
 	// paces. A feed whose stream is a pipe the test writes to, and whose
 	// paces are milliseconds, is the same feed.
-	events    func(ctx context.Context) (io.ReadCloser, error)
-	list      func() ([]container, bool)
-	heartbeat time.Duration
-	retry     time.Duration
-	settle    time.Duration
+	Events    func(ctx context.Context) (io.ReadCloser, error)
+	List      func() ([]Container, bool)
+	Heartbeat time.Duration
+	Retry     time.Duration
+	Settle    time.Duration
 }
 
 // The feed's paces: the heartbeat that covers a missed event, the wait
@@ -71,29 +71,29 @@ const (
 	dockerSettle    = 300 * time.Millisecond
 )
 
-// startDocker begins the feed, or nothing where docker is not installed.
-func startDocker() tea.Msg {
-	if dockerPath == "" {
-		return dockerReadyMsg{}
+// StartDocker begins the feed, or nothing where docker is not installed.
+func StartDocker() tea.Msg {
+	if DockerPath == "" {
+		return DockerReadyMsg{}
 	}
-	f := &dockerFeed{
-		msgs:      make(chan tea.Msg, 1),
-		poke:      make(chan struct{}, 1),
-		stop:      make(chan struct{}),
-		done:      make(chan struct{}),
-		events:    dockerEvents,
-		list:      readContainers,
-		heartbeat: dockerHeartbeat,
-		retry:     dockerRetry,
-		settle:    dockerSettle,
+	f := &DockerFeed{
+		Msgs:      make(chan tea.Msg, 1),
+		Poke:      make(chan struct{}, 1),
+		Stop:      make(chan struct{}),
+		Done:      make(chan struct{}),
+		Events:    dockerEvents,
+		List:      readContainers,
+		Heartbeat: dockerHeartbeat,
+		Retry:     dockerRetry,
+		Settle:    dockerSettle,
 	}
-	go f.run()
-	return dockerReadyMsg{feed: f}
+	go f.Run()
+	return DockerReadyMsg{Feed: f}
 }
 
 // dockerEvents opens docker's stream of container events, one to a line.
 func dockerEvents(ctx context.Context) (io.ReadCloser, error) {
-	cmd := exec.CommandContext(ctx, dockerPath, "events", "--filter", "type=container", "--format", "{{.Status}}")
+	cmd := exec.CommandContext(ctx, DockerPath, "events", "--filter", "type=container", "--format", "{{.Status}}")
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -118,27 +118,27 @@ func (s *eventStream) Close() error {
 	return err
 }
 
-// nextDocker is the command that waits for the feed's next word.
-func nextDocker(f *dockerFeed) tea.Cmd {
+// NextDocker is the command that waits for the feed's next word.
+func NextDocker(f *DockerFeed) tea.Cmd {
 	if f == nil {
 		return nil
 	}
-	return func() tea.Msg { return <-f.msgs }
+	return func() tea.Msg { return <-f.Msgs }
 }
 
-// ask asks the feed to list again now, without waiting for an event to
+// Ask asks the feed to list again now, without waiting for an event to
 // say so. A poke already pending is the same ask.
-func (f *dockerFeed) ask() {
+func (f *DockerFeed) Ask() {
 	if f == nil {
 		return
 	}
 	select {
-	case f.poke <- struct{}{}:
+	case f.Poke <- struct{}{}:
 	default:
 	}
 }
 
-// close ends the feed and waits for it to let go of its stream. The wait
+// Close ends the feed and waits for it to let go of its stream. The wait
 // is the point: docker events is a child conn started, and asking the
 // goroutine to stop without waiting would race conn's own exit — the
 // program would be gone before the kill went out, and the child would be
@@ -147,33 +147,33 @@ func (f *dockerFeed) ask() {
 //
 // The wait is bounded all the same. Taking a moment to be tidy is worth
 // it; hanging on the way out never is.
-func (f *dockerFeed) close() {
+func (f *DockerFeed) Close() {
 	if f == nil {
 		return
 	}
-	close(f.stop)
+	close(f.Stop)
 	select {
-	case <-f.done:
+	case <-f.Done:
 	case <-time.After(2 * time.Second):
 	}
 }
 
-// run is the feed: a list at the start, then one for every burst of
+// Run is the feed: a list at the start, then one for every burst of
 // events, every heartbeat and every poke, and the stream opened again
 // after a wait when it ends.
-func (f *dockerFeed) run() {
-	defer close(f.done)
+func (f *DockerFeed) Run() {
+	defer close(f.Done)
 	f.tell()
 	first := true
 	for {
 		ctx, cancel := context.WithCancel(context.Background())
-		stream, err := f.events(ctx)
+		stream, err := f.Events(ctx)
 		if err != nil {
 			cancel()
 			select {
-			case <-time.After(f.retry):
+			case <-time.After(f.Retry):
 				continue
-			case <-f.stop:
+			case <-f.Stop:
 				return
 			}
 		}
@@ -202,8 +202,8 @@ func (f *dockerFeed) run() {
 			return
 		}
 		select {
-		case <-time.After(f.retry):
-		case <-f.stop:
+		case <-time.After(f.Retry):
+		case <-f.Stop:
 			return
 		}
 	}
@@ -211,8 +211,8 @@ func (f *dockerFeed) run() {
 
 // follow answers the stream's events, the heartbeat and the pokes with a
 // list each, until the stream ends — true — or the feed is closed.
-func (f *dockerFeed) follow(lines, ended chan struct{}) bool {
-	beat := time.NewTicker(f.heartbeat)
+func (f *DockerFeed) follow(lines, ended chan struct{}) bool {
+	beat := time.NewTicker(f.Heartbeat)
 	defer beat.Stop()
 	var settle <-chan time.Time
 	for {
@@ -220,18 +220,18 @@ func (f *dockerFeed) follow(lines, ended chan struct{}) bool {
 		case <-lines:
 			// A burst of events is one list, once it has settled.
 			if settle == nil {
-				settle = time.After(f.settle)
+				settle = time.After(f.Settle)
 			}
 		case <-settle:
 			settle = nil
 			f.tell()
 		case <-beat.C:
 			f.tell()
-		case <-f.poke:
+		case <-f.Poke:
 			f.tell()
 		case <-ended:
 			return true
-		case <-f.stop:
+		case <-f.Stop:
 			return false
 		}
 	}
@@ -240,16 +240,16 @@ func (f *dockerFeed) follow(lines, ended chan struct{}) bool {
 // tell lists the containers and says so. A word not yet heard is replaced
 // by the newer: the panel wants what is true now, not the history of what
 // docker has said.
-func (f *dockerFeed) tell() {
-	cs, stalled := f.list()
-	msg := dockerMsg{containers: cs, stalled: stalled}
+func (f *DockerFeed) tell() {
+	cs, stalled := f.List()
+	msg := DockerMsg{Containers: cs, Stalled: stalled}
 	select {
-	case f.msgs <- msg:
+	case f.Msgs <- msg:
 	default:
 		select {
-		case <-f.msgs:
+		case <-f.Msgs:
 		default:
 		}
-		f.msgs <- msg
+		f.Msgs <- msg
 	}
 }

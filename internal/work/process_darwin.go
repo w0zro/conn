@@ -1,4 +1,4 @@
-package main
+package work
 
 import (
 	"context"
@@ -14,11 +14,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// readProcesses reads the process table: sysctl for every process's
+// ReadProcesses reads the process table: sysctl for every process's
 // parent, group, owner, terminal, state and start; lsof for the working
 // directory and name of each of the user's, which sysctl does not have;
 // and kern.procargs2 for what each of the user's was started as.
-func readProcesses(uid int) ([]process, error) {
+func ReadProcesses(uid int) ([]Process, error) {
 	kinfo, err := unix.SysctlKinfoProcSlice("kern.proc.all")
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func readProcesses(uid int) ([]process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lsof: %w", err)
 	}
-	dirs := parseLsof(out)
+	dirs := ParseLsof(out)
 	if len(dirs) == 0 {
 		return nil, errors.New("lsof answered for no process")
 	}
@@ -42,52 +42,52 @@ func readProcesses(uid int) ([]process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ps: %w", err)
 	}
-	cpu := parsePsTimes(out)
+	cpu := ParsePsTimes(out)
 	// And what each has open to the world: lsof again, for the internet
 	// sockets and for the unix ones, which it will not list in one
 	// breath with the working directories. A listing that fails here
 	// costs the reading the sockets and nothing else: a row is a row
 	// without them.
-	sockets := map[int][]socket{}
+	sockets := map[int][]Socket{}
 	if out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-i", "-F", "pcnPT"); err == nil {
-		sockets = parseSockets(out)
+		sockets = ParseSockets(out)
 	}
 	if out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-U", "-F", "pcn"); err == nil {
-		for pid, held := range parseUnixSockets(out) {
+		for pid, held := range ParseUnixSockets(out) {
 			sockets[pid] = append(sockets[pid], held...)
 		}
 	}
 	ttys := ttyNames()
-	procs := make([]process, 0, len(kinfo))
+	procs := make([]Process, 0, len(kinfo))
 	for _, k := range kinfo {
-		p := process{
-			pid:     int(k.Proc.P_pid),
-			ppid:    int(k.Eproc.Ppid),
-			pgid:    int(k.Eproc.Pgid),
-			uid:     int(k.Eproc.Ucred.Uid),
-			started: time.Unix(k.Proc.P_starttime.Sec, int64(k.Proc.P_starttime.Usec)*1000),
-			state:   darwinState(k.Proc.P_stat),
+		p := Process{
+			PID:     int(k.Proc.P_pid),
+			PPID:    int(k.Eproc.Ppid),
+			PGID:    int(k.Eproc.Pgid),
+			UID:     int(k.Eproc.Ucred.Uid),
+			Started: time.Unix(k.Proc.P_starttime.Sec, int64(k.Proc.P_starttime.Usec)*1000),
+			State:   darwinState(k.Proc.P_stat),
 		}
 		if uint32(k.Eproc.Tdev) != 0xffffffff {
-			p.tty = ttys[uint32(k.Eproc.Tdev)]
-			p.foreground = k.Eproc.Tpgid == k.Eproc.Pgid
+			p.TTY = ttys[uint32(k.Eproc.Tdev)]
+			p.Foreground = k.Eproc.Tpgid == k.Eproc.Pgid
 		}
-		if d, ok := dirs[p.pid]; ok {
-			p.cwd, p.command = d.cwd, d.command
+		if d, ok := dirs[p.PID]; ok {
+			p.Cwd, p.Command = d.Cwd, d.Command
 		}
 		// lsof lists nothing for a process that has ended and not been
 		// collected, there being no directory left to list, and its
 		// arguments are gone with it; the kernel still has its name,
 		// and a row that says sleep and ENDED is a row that can be
 		// read, where a row with no name was not.
-		if p.command == "" {
-			p.command = unix.ByteSliceToString(k.Proc.P_comm[:])
+		if p.Command == "" {
+			p.Command = unix.ByteSliceToString(k.Proc.P_comm[:])
 		}
-		p.cpu = cpu[p.pid]
-		p.sockets = sockets[p.pid]
-		if p.uid == uid {
-			if raw, err := unix.SysctlRaw("kern.procargs2", p.pid); err == nil {
-				p.args = parseProcargs(raw)
+		p.CPU = cpu[p.PID]
+		p.Sockets = sockets[p.PID]
+		if p.UID == uid {
+			if raw, err := unix.SysctlRaw("kern.procargs2", p.PID); err == nil {
+				p.Args = ParseProcargs(raw)
 			}
 		}
 		procs = append(procs, p)
@@ -145,10 +145,10 @@ const listingTimeout = 5 * time.Second
 // a program that is not there, or one that did not answer in time.
 // WaitDelay is for the process the timeout's kill does not take on.
 func listing(name string, args ...string) (string, error) {
-	return listingWithin(listingTimeout, name, args...)
+	return ListingWithin(listingTimeout, name, args...)
 }
 
-func listingWithin(timeout time.Duration, name string, args ...string) (string, error) {
+func ListingWithin(timeout time.Duration, name string, args ...string) (string, error) {
 	if _, err := exec.LookPath(name); err != nil {
 		return "", err
 	}

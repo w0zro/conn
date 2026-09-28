@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // At rest a tree shows its head and, under it, only what can want you:
@@ -13,26 +15,26 @@ import (
 // looking through a bash -c to the command. What is kept stands under
 // the nearest row kept, a level in.
 func TestTheViewAtRestIsTheFold(t *testing.T) {
-	projects := []project{{path: "/w", entries: []entry{
-		{pid: 1, kind: kindShell, typed: "zsh", status: statusActive},
-		{pid: 2, kind: kindShell, typed: "bash -c go test ./...", status: statusActive, depth: 1},
-		{pid: 3, kind: kindRun, typed: "go test ./...", status: statusActive, depth: 2},
-		{pid: 4, kind: kindRun, typed: "conn.test", status: statusActive, depth: 3},
-		{pid: 5, kind: kindContact, typed: "claude", status: statusWorking, doing: "read tui.go", depth: 2},
-		{pid: 6, kind: kindRun, typed: "node mcp.js", status: statusActive, depth: 3},
-		{pid: 7, kind: kindShell, typed: "bash -c make", status: statusWaiting, depth: 3},
-		{pid: 8, kind: kindEditor, typed: "vim notes.md", status: statusStopped, fault: true, depth: 1},
-		{pid: 9, kind: kindRun, typed: "sleep 9", status: statusActive},
-		{pid: 10, kind: kindRun, typed: "npm run dev", status: statusActive, depth: 1},
-	}}, {path: "/x", note: "a note", entries: []entry{
-		{pid: 20, kind: kindShell, typed: "zsh", status: statusIdle},
+	projects := []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 1, Kind: work.KindShell, Typed: "zsh", Status: work.StatusActive},
+		{PID: 2, Kind: work.KindShell, Typed: "bash -c go test ./...", Status: work.StatusActive, Depth: 1},
+		{PID: 3, Kind: work.KindRun, Typed: "go test ./...", Status: work.StatusActive, Depth: 2},
+		{PID: 4, Kind: work.KindRun, Typed: "conn.test", Status: work.StatusActive, Depth: 3},
+		{PID: 5, Kind: work.KindContact, Typed: "claude", Status: work.StatusWorking, Doing: "read tui.go", Depth: 2},
+		{PID: 6, Kind: work.KindRun, Typed: "node mcp.js", Status: work.StatusActive, Depth: 3},
+		{PID: 7, Kind: work.KindShell, Typed: "bash -c make", Status: work.StatusWaiting, Depth: 3},
+		{PID: 8, Kind: work.KindEditor, Typed: "vim notes.md", Status: work.StatusStopped, Fault: true, Depth: 1},
+		{PID: 9, Kind: work.KindRun, Typed: "sleep 9", Status: work.StatusActive},
+		{PID: 10, Kind: work.KindRun, Typed: "npm run dev", Status: work.StatusActive, Depth: 1},
+	}}, {Path: "/x", Note: "a note", Entries: []work.Entry{
+		{PID: 20, Kind: work.KindShell, Typed: "zsh", Status: work.StatusIdle},
 	}}}
 	got := fold(projects)
 	var rows []string
 	for _, pl := range got {
-		rows = append(rows, pl.path+" "+pl.note)
-		for _, e := range pl.entries {
-			rows = append(rows, strings.Repeat(" ", e.depth+1)+e.kind+" "+activityOf(e)+" "+e.status)
+		rows = append(rows, pl.Path+" "+pl.Note)
+		for _, e := range pl.Entries {
+			rows = append(rows, strings.Repeat(" ", e.Depth+1)+e.Kind+" "+activityOf(e)+" "+e.Status)
 		}
 	}
 	// What is kept stands in the panel's order, by kind: the contact,
@@ -55,11 +57,11 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 	}
 	// The row's own command is kept under what it says: the kill
 	// question and the page name the shell, not what it runs.
-	if e := rowOf(got[0].entries, 1); e.asTyped() != "zsh" || e.under != "go test ./..." {
-		t.Errorf("the head: typed %q, under %q", e.asTyped(), e.under)
+	if e := rowOf(got[0].Entries, 1); e.AsTyped() != "zsh" || e.Under != "go test ./..." {
+		t.Errorf("the head: typed %q, under %q", e.AsTyped(), e.Under)
 	}
 	// The projects given are left as they were.
-	if len(projects[0].entries) != 10 || projects[0].entries[0].under != "" {
+	if len(projects[0].Entries) != 10 || projects[0].Entries[0].Under != "" {
 		t.Error("the tree given was written to")
 	}
 }
@@ -75,16 +77,16 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 // holds what is on z — and the thing to reach is the service, which is
 // the row the operator wants first.
 func TestAServiceStaysAtRest(t *testing.T) {
-	projects := []project{{path: "/w", entries: []entry{
-		{pid: 500, kind: kindRun, command: "stack · docker compose up", typed: "stack · docker compose up", tty: "ttys040", status: statusActive},
-		{pid: 501, kind: kindRun, command: "docker compose up", typed: "docker compose up", tty: "ttys040", status: statusActive, depth: 1},
-		{pid: 502, kind: kindRun, command: "docker-compose compose up", typed: "docker-compose compose up", tty: "ttys040", status: statusActive, depth: 2},
-		{pid: -5, kind: kindService, command: "web", typed: "web", ports: []string{"8080"}, status: statusActive, depth: 3, container: "aaa"},
-		{pid: -6, kind: kindService, command: "db", typed: "db", status: "UNHEALTHY", fault: true, depth: 3, container: "bbb"},
+	projects := []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 500, Kind: work.KindRun, Command: "stack · docker compose up", Typed: "stack · docker compose up", TTY: "ttys040", Status: work.StatusActive},
+		{PID: 501, Kind: work.KindRun, Command: "docker compose up", Typed: "docker compose up", TTY: "ttys040", Status: work.StatusActive, Depth: 1},
+		{PID: 502, Kind: work.KindRun, Command: "docker-compose compose up", Typed: "docker-compose compose up", TTY: "ttys040", Status: work.StatusActive, Depth: 2},
+		{PID: -5, Kind: work.KindService, Command: "web", Typed: "web", Ports: []string{"8080"}, Status: work.StatusActive, Depth: 3, Container: "aaa"},
+		{PID: -6, Kind: work.KindService, Command: "db", Typed: "db", Status: "UNHEALTHY", Fault: true, Depth: 3, Container: "bbb"},
 	}}}
 	var rows []string
-	for _, e := range fold(projects)[0].entries {
-		rows = append(rows, strings.Repeat(" ", e.depth)+e.kind+" "+e.command)
+	for _, e := range fold(projects)[0].Entries {
+		rows = append(rows, strings.Repeat(" ", e.Depth)+e.Kind+" "+e.Command)
 	}
 	want := []string{" SERVICE web", " SERVICE db", "RUN stack · docker compose up"}
 	if !slices.Equal(rows, want) {
@@ -101,24 +103,24 @@ func TestAServiceStaysAtRest(t *testing.T) {
 // the contact's to leave alone; and what stood under the listener
 // stands under the head.
 func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
-	projects := []project{{path: "/w", entries: []entry{
-		{pid: 1, kind: kindRun, typed: "npm run dev", status: statusActive},
-		{pid: 2, kind: kindRun, typed: "node /w/node_modules/.bin/vite", status: statusActive, depth: 1, ports: []string{"5174"}, sockets: []socket{{"TCP", "*:5174", "LISTEN"}, {"TCP", "127.0.0.1:5174->127.0.0.1:60322", "ESTABLISHED"}}},
-		{pid: 3, kind: kindShell, typed: "zsh", status: statusActive},
-		{pid: 4, kind: kindRun, typed: "npm run dev:web", status: statusActive, depth: 1},
-		{pid: 5, kind: kindRun, typed: "node vite", status: statusActive, depth: 2, ports: []string{"5173"}},
-		{pid: 6, kind: kindShell, typed: "bash -c make", status: statusWaiting, depth: 3},
-		{pid: 7, kind: kindRun, typed: "npm run dev", status: statusActive, ports: []string{"24678"}},
-		{pid: 8, kind: kindRun, typed: "node vite", status: statusActive, depth: 1, ports: []string{"5175"}},
-		{pid: 9, kind: kindRun, typed: "turbo dev", status: statusActive},
-		{pid: 10, kind: kindRun, typed: "next dev", status: statusActive, depth: 1, ports: []string{"3000"}},
-		{pid: 11, kind: kindRun, typed: "node api.js", status: statusActive, depth: 1, ports: []string{"4000"}},
-		{pid: 12, kind: kindContact, typed: "claude", status: statusWorking},
-		{pid: 13, kind: kindRun, typed: "python -m http.server", status: statusActive, depth: 1, ports: []string{"8000"}},
+	projects := []work.Project{{Path: "/w", Entries: []work.Entry{
+		{PID: 1, Kind: work.KindRun, Typed: "npm run dev", Status: work.StatusActive},
+		{PID: 2, Kind: work.KindRun, Typed: "node /w/node_modules/.bin/vite", Status: work.StatusActive, Depth: 1, Ports: []string{"5174"}, Sockets: []work.Socket{{Proto: "TCP", Addr: "*:5174", State: "LISTEN"}, {Proto: "TCP", Addr: "127.0.0.1:5174->127.0.0.1:60322", State: "ESTABLISHED"}}},
+		{PID: 3, Kind: work.KindShell, Typed: "zsh", Status: work.StatusActive},
+		{PID: 4, Kind: work.KindRun, Typed: "npm run dev:web", Status: work.StatusActive, Depth: 1},
+		{PID: 5, Kind: work.KindRun, Typed: "node vite", Status: work.StatusActive, Depth: 2, Ports: []string{"5173"}},
+		{PID: 6, Kind: work.KindShell, Typed: "bash -c make", Status: work.StatusWaiting, Depth: 3},
+		{PID: 7, Kind: work.KindRun, Typed: "npm run dev", Status: work.StatusActive, Ports: []string{"24678"}},
+		{PID: 8, Kind: work.KindRun, Typed: "node vite", Status: work.StatusActive, Depth: 1, Ports: []string{"5175"}},
+		{PID: 9, Kind: work.KindRun, Typed: "turbo dev", Status: work.StatusActive},
+		{PID: 10, Kind: work.KindRun, Typed: "next dev", Status: work.StatusActive, Depth: 1, Ports: []string{"3000"}},
+		{PID: 11, Kind: work.KindRun, Typed: "node api.js", Status: work.StatusActive, Depth: 1, Ports: []string{"4000"}},
+		{PID: 12, Kind: work.KindContact, Typed: "claude", Status: work.StatusWorking},
+		{PID: 13, Kind: work.KindRun, Typed: "python -m http.server", Status: work.StatusActive, Depth: 1, Ports: []string{"8000"}},
 	}}}
 	var rows []string
-	for _, e := range fold(projects)[0].entries {
-		rows = append(rows, strings.Repeat(" ", e.depth)+e.kind+" "+activityOf(e)+portsWord(e.ports))
+	for _, e := range fold(projects)[0].Entries {
+		rows = append(rows, strings.Repeat(" ", e.Depth)+e.Kind+" "+activityOf(e)+portsWord(e.Ports))
 	}
 	// In the panel's order, by kind: the contact, then the shell that is
 	// only a shell, then the work — which the two shells standing for
@@ -142,8 +144,8 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 	// page go by its pid, and its command is what it was. It says whose
 	// port it carries, and carries the sockets too, so its page says
 	// what it listens on and is connected to.
-	head := rowOf(fold(projects)[0].entries, 1)
-	if head.pid != 1 || head.asTyped() != "npm run dev" || head.listener != "node /w/node_modules/.bin/vite" || len(head.sockets) != 2 {
+	head := rowOf(fold(projects)[0].Entries, 1)
+	if head.PID != 1 || head.AsTyped() != "npm run dev" || head.Listener != "node /w/node_modules/.bin/vite" || len(head.Sockets) != 2 {
 		t.Errorf("the head: %+v", head)
 	}
 	s := readoutSubj()
@@ -154,7 +156,7 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 			t.Errorf("the folded head's page lacks %q:\n%s", want, text)
 		}
 	}
-	if len(projects[0].entries[0].ports) != 0 || len(projects[0].entries[0].sockets) != 0 {
+	if len(projects[0].Entries[0].Ports) != 0 || len(projects[0].Entries[0].Sockets) != 0 {
 		t.Error("the tree given was written to")
 	}
 }
@@ -162,11 +164,11 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 // rowOf is a row by its pid among those a fold kept, for the tests that
 // mean one row and not whichever stands first: the rows are in the
 // panel's order, by kind, and not the order they were written in.
-func rowOf(rows []entry, pid int) entry {
+func rowOf(rows []work.Entry, pid int) work.Entry {
 	for _, e := range rows {
-		if e.pid == pid {
+		if e.PID == pid {
 			return e
 		}
 	}
-	return entry{}
+	return work.Entry{}
 }

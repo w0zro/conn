@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -73,18 +75,18 @@ type cursorNote struct {
 // by id, and the sessions the sessions list has in hand, which its
 // rows name by id.
 type reading struct {
-	projects   []project
+	projects   []work.Project
 	records    map[int]record
 	panes      map[string]tmux.Pane
 	inside     bool
-	containers []container
-	brews      []brewService // what brew said of its services; see brew.go
-	sessions   []session
+	containers []work.Container
+	brews      []work.BrewService // what brew said of its services; see brew.go
+	sessions   []work.Session
 }
 
 // sessionOf is the suspended session of an id among those the panel
 // has in hand, where it is one.
-func (r reading) sessionOf(id string) *session {
+func (r reading) sessionOf(id string) *work.Session {
 	for i := range r.sessions {
 		if r.sessions[i].ID == id {
 			return &r.sessions[i]
@@ -105,27 +107,27 @@ type record struct {
 }
 
 // recordOf is a process's record.
-func recordOf(p process) record {
-	return record{pid: p.pid, state: p.state, foreground: p.foreground, cpu: p.cpu}
+func recordOf(p work.Process) record {
+	return record{pid: p.PID, state: p.State, foreground: p.Foreground, cpu: p.CPU}
 }
 
 // containerOf is the container a row stands for among those docker
 // said, where it is one.
 // brewOf is the brew service a row stands for among those brew
 // reported, where it is one.
-func (r reading) brewOf(e entry) *brewService {
-	if e.brew == "" {
+func (r reading) brewOf(e work.Entry) *work.BrewService {
+	if e.Brew == "" {
 		return nil
 	}
-	return brewServiceNamed(r.brews, e.brew)
+	return work.BrewServiceNamed(r.brews, e.Brew)
 }
 
-func (r reading) containerOf(e entry) *container {
-	if e.container == "" {
+func (r reading) containerOf(e work.Entry) *work.Container {
+	if e.Container == "" {
 		return nil
 	}
 	for i := range r.containers {
-		if r.containers[i].id == e.container {
+		if r.containers[i].ID == e.Container {
 			return &r.containers[i]
 		}
 	}
@@ -175,18 +177,18 @@ func askCursor(path string) (subject, *reading) {
 }
 
 // The shapes conn's own types cross between its programs in: the same
-// fields, exported so that encoding/json carries them, each kept
-// beside the type it mirrors rather than a second definition to keep
-// in step. containerWire is in docker.go.
+// fields, exported so that encoding/json carries them, for the types
+// of main's own whose fields are not. What internal/work and
+// internal/tmux hand over is exported already and crosses as it is.
 
 type readingWire struct {
-	Projects   []project
+	Projects   []work.Project
 	Records    []record
 	Panes      []tmux.Pane
 	Inside     bool
-	Containers []container
-	Brews      []brewService
-	Sessions   []session
+	Containers []work.Container
+	Brews      []work.BrewService
+	Sessions   []work.Session
 }
 
 func (r reading) MarshalJSON() ([]byte, error) {
@@ -213,102 +215,6 @@ func (r *reading) UnmarshalJSON(b []byte) error {
 	for _, p := range w.Panes {
 		r.panes[p.TTY] = p
 	}
-	return nil
-}
-
-type projectWire struct {
-	Path    string
-	Entries []entry
-	Note    string
-}
-
-func (p project) MarshalJSON() ([]byte, error) {
-	return json.Marshal(projectWire{Path: p.path, Entries: p.entries, Note: p.note})
-}
-
-func (p *project) UnmarshalJSON(b []byte) error {
-	var w projectWire
-	if err := json.Unmarshal(b, &w); err != nil {
-		return err
-	}
-	*p = project{path: w.Path, entries: w.Entries, note: w.Note}
-	return nil
-}
-
-type entryWire struct {
-	PID                       int
-	Kind, Command, Typed, TTY string
-	Started                   time.Time
-	Status                    string
-	Fault                     bool
-	Depth                     int
-	Since                     time.Time
-	Cwd, Asking, Doing, Title string
-	Container, Declared       string
-	Sockets                   []socket
-	Ports                     []string
-	Brew                      string
-	Shared                    int
-}
-
-func (e entry) MarshalJSON() ([]byte, error) {
-	return json.Marshal(entryWire{
-		PID: e.pid, Kind: e.kind, Command: e.command, Typed: e.typed, TTY: e.tty,
-		Started: e.started, Status: e.status, Fault: e.fault, Depth: e.depth,
-		Since: e.since, Cwd: e.cwd, Asking: e.asking, Doing: e.doing, Title: e.title, Container: e.container,
-		Declared: e.declared, Sockets: e.sockets, Ports: e.ports, Brew: e.brew, Shared: e.shared,
-	})
-}
-
-func (e *entry) UnmarshalJSON(b []byte) error {
-	var w entryWire
-	if err := json.Unmarshal(b, &w); err != nil {
-		return err
-	}
-	*e = entry{
-		pid: w.PID, kind: w.Kind, command: w.Command, typed: w.Typed, tty: w.TTY,
-		started: w.Started, status: w.Status, fault: w.Fault, depth: w.Depth,
-		since: w.Since, cwd: w.Cwd, asking: w.Asking, doing: w.Doing, title: w.Title, container: w.Container,
-		declared: w.Declared, sockets: w.Sockets, ports: w.Ports, brew: w.Brew, shared: w.Shared,
-	}
-	return nil
-}
-
-type socketWire struct{ Proto, Addr, State string }
-
-func (s socket) MarshalJSON() ([]byte, error) {
-	return json.Marshal(socketWire{Proto: s.proto, Addr: s.addr, State: s.state})
-}
-
-func (s *socket) UnmarshalJSON(b []byte) error {
-	var w socketWire
-	if err := json.Unmarshal(b, &w); err != nil {
-		return err
-	}
-	*s = socket{proto: w.Proto, addr: w.Addr, state: w.State}
-	return nil
-}
-
-type brewWire struct {
-	Name    string
-	Running bool
-	PID     int
-	Exit    string
-	Status  string
-	Command string
-	Log     string
-}
-
-func (s brewService) MarshalJSON() ([]byte, error) {
-	return json.Marshal(brewWire{Name: s.name, Running: s.running, PID: s.pid, Exit: s.exit, Status: s.status, Command: s.command, Log: s.log})
-}
-
-func (s *brewService) UnmarshalJSON(b []byte) error {
-	var w brewWire
-	if err := json.Unmarshal(b, &w); err != nil {
-		return err
-	}
-	*s = brewService{name: w.Name, running: w.Running, pid: w.PID, exit: w.Exit, status: w.Status, command: w.Command, log: w.Log}
 	return nil
 }
 

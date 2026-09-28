@@ -6,12 +6,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
 // testSessions2 is a project's suspended sessions as claudeSuspended
 // would give them: newest first, one with nothing read of it yet.
-var testSessions2 = []session{
+var testSessions2 = []work.Session{
 	{ID: "aaaaaaaa-0000-0000-0000-000000000001", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour), Branch: "main", Prompt: "fix the flaky build test"},
 	{ID: "bbbbbbbb-0000-0000-0000-000000000002", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-3 * 24 * time.Hour), Branch: "topic/resume"},
 }

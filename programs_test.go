@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -16,22 +18,22 @@ import (
 func TestARowIsAKnownProgramByCommandFormulaOrImage(t *testing.T) {
 	for _, c := range []struct {
 		what      string
-		e         entry
-		container *container
+		e         work.Entry
+		container *work.Container
 		want      string
 	}{
-		{"a bare server", entry{command: "postgres -D /opt/homebrew/var/postgresql@14"}, nil, "psql"},
-		{"a postmaster", entry{command: "/usr/lib/postgresql/16/bin/postmaster -D /var/lib/postgresql"}, nil, "psql"},
-		{"a brew service", entry{command: "postgresql@14", brew: "postgresql@14"}, nil, "psql"},
-		{"a tapped formula", entry{command: "x", brew: "homebrew/core/postgresql"}, nil, "psql"},
-		{"a container", entry{container: "abc"}, &container{id: "abc", image: "postgres:16"}, "psql"},
-		{"a registry's image", entry{container: "abc"}, &container{id: "abc", image: "docker.io/library/postgres@sha256:0123"}, "psql"},
-		{"a node server", entry{command: "node server.js"}, nil, ""},
-		{"another brew service", entry{command: "redis", brew: "redis"}, nil, ""},
-		{"another image", entry{container: "abc"}, &container{id: "abc", image: "redis:7"}, ""},
-		{"a shell", entry{command: "zsh", kind: kindShell}, nil, ""},
-		{"a shell a postgres folded into", entry{command: "zsh", kind: kindShell, listener: "postgres -D data"}, nil, "psql"},
-		{"a wrapper a node folded into", entry{command: "npm start", listener: "node server.js"}, nil, ""},
+		{"a bare server", work.Entry{Command: "postgres -D /opt/homebrew/var/postgresql@14"}, nil, "psql"},
+		{"a postmaster", work.Entry{Command: "/usr/lib/postgresql/16/bin/postmaster -D /var/lib/postgresql"}, nil, "psql"},
+		{"a brew service", work.Entry{Command: "postgresql@14", Brew: "postgresql@14"}, nil, "psql"},
+		{"a tapped formula", work.Entry{Command: "x", Brew: "homebrew/core/postgresql"}, nil, "psql"},
+		{"a container", work.Entry{Container: "abc"}, &work.Container{ID: "abc", Image: "postgres:16"}, "psql"},
+		{"a registry's image", work.Entry{Container: "abc"}, &work.Container{ID: "abc", Image: "docker.io/library/postgres@sha256:0123"}, "psql"},
+		{"a node server", work.Entry{Command: "node server.js"}, nil, ""},
+		{"another brew service", work.Entry{Command: "redis", Brew: "redis"}, nil, ""},
+		{"another image", work.Entry{Container: "abc"}, &work.Container{ID: "abc", Image: "redis:7"}, ""},
+		{"a shell", work.Entry{Command: "zsh", Kind: work.KindShell}, nil, ""},
+		{"a shell a postgres folded into", work.Entry{Command: "zsh", Kind: work.KindShell, Listener: "postgres -D data"}, nil, "psql"},
+		{"a wrapper a node folded into", work.Entry{Command: "npm start", Listener: "node server.js"}, nil, ""},
 	} {
 		got := ""
 		if p := programOf(c.e, c.container); p != nil {
@@ -47,7 +49,7 @@ func TestARowIsAKnownProgramByCommandFormulaOrImage(t *testing.T) {
 // machine by the row's port, in a container as the user the image was
 // given, or postgres unless it says.
 func TestTheClientReachesTheServer(t *testing.T) {
-	p := programOf(entry{command: "postgres"}, nil)
+	p := programOf(work.Entry{Command: "postgres"}, nil)
 	if p == nil {
 		t.Fatal("postgres is not known")
 	}
@@ -69,14 +71,14 @@ func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
-	m.containers = []container{{id: "abc", image: "postgres:16", state: "running", dir: "/w/a"}}
-	m.projects = []project{{path: "/w/a", entries: []entry{
-		{pid: 300, kind: kindRun, command: "postgres -D data", cwd: "/w/a", status: statusActive, ports: []string{"5432"}},
-		{pid: 301, kind: kindRun, command: "postgres -D data", cwd: "/w/a", status: statusActive},
-		{pid: -7, kind: kindService, command: "postgresql@14", brew: "postgresql@14", declared: markDeclared("/w/a", "db"), cwd: "/w/a", status: statusDown},
-		{pid: -8, kind: kindService, command: "web", container: "abc", cwd: "/w/a", status: statusActive},
-		{pid: 302, kind: kindRun, command: "node server.js", cwd: "/w/a", status: statusActive, ports: []string{"3000"}},
-		{pid: 303, kind: kindShell, command: "zsh", cwd: "/w/a", status: statusActive, ports: []string{"5433"}, listener: "postgres -D data"},
+	m.containers = []work.Container{{ID: "abc", Image: "postgres:16", State: "running", Dir: "/w/a"}}
+	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
+		{PID: 300, Kind: work.KindRun, Command: "postgres -D data", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5432"}},
+		{PID: 301, Kind: work.KindRun, Command: "postgres -D data", Cwd: "/w/a", Status: work.StatusActive},
+		{PID: -7, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Declared: work.MarkDeclared("/w/a", "db"), Cwd: "/w/a", Status: work.StatusDown},
+		{PID: -8, Kind: work.KindService, Command: "web", Container: "abc", Cwd: "/w/a", Status: work.StatusActive},
+		{PID: 302, Kind: work.KindRun, Command: "node server.js", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"3000"}},
+		{PID: 303, Kind: work.KindShell, Command: "zsh", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5433"}, Listener: "postgres -D data"},
 	}}}
 	has := func(bar string) bool { return strings.Contains(bar, "S #[nobold fg="+theme.Conn.Dark.Gray+"]psql") }
 	for _, c := range []struct {

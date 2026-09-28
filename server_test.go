@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/station"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -258,7 +260,7 @@ func (s *scratch) rowSays(name, word string) bool {
 		}
 		t := strings.TrimRight(line, " ")
 		if word == "" {
-			if !strings.HasSuffix(t, " "+statusDown) && !strings.HasSuffix(t, " "+statusEnded) {
+			if !strings.HasSuffix(t, " "+work.StatusDown) && !strings.HasSuffix(t, " "+work.StatusEnded) {
 				return true
 			}
 			continue
@@ -1279,7 +1281,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	// sleeper answers ctrl-c slowly, the way a docker compose up does
 	// while it stops its services: six seconds, past the five a first
 	// cut of the close gave before leaving the pane standing.
-	if err := os.WriteFile(filepath.Join(repo, declaredName), []byte("sleeper: perl -e '$SIG{INT} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, work.DeclaredName), []byte("sleeper: perl -e '$SIG{INT} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the console to finish", func() bool { return s.finished() })
@@ -1292,7 +1294,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 
 	// A declared row goes by its name on the panel, which is where these
 	// rows are read.
-	s.until("the two down rows", func() bool { return s.rowSays("sleeper", statusDown) && s.rowSays("quick", statusDown) })
+	s.until("the two down rows", func() bool { return s.rowSays("sleeper", work.StatusDown) && s.rowSays("quick", work.StatusDown) })
 
 	// marked is the id of the pane carrying a declaration's mark, and
 	// what it recorded of its end.
@@ -1318,7 +1320,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		return sleeper != "" && quick != "" && exit == "0"
 	})
 	s.until("sleeper ACTIVE and quick ENDED on the panel", func() bool {
-		return s.rowSays("sleeper", "") && s.rowSays("quick", statusEnded)
+		return s.rowSays("sleeper", "") && s.rowSays("quick", work.StatusEnded)
 	})
 	// The panes were parked: the bay still holds the shell it held.
 	if !s.shellIn("home.1") {
@@ -1340,7 +1342,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.keys("y")
 	s.until("the pane gone and quick down again", func() bool {
 		id, _ := marked("quick")
-		return id == "" && s.rowSays("quick", statusDown) && s.rowSays("sleeper", "")
+		return id == "" && s.rowSays("quick", work.StatusDown) && s.rowSays("sleeper", "")
 	})
 
 	// sleeper is still running. x on its head row asks for ctrl-c in
@@ -1380,6 +1382,6 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	s.until("sleeper's pane gone and its row down", func() bool {
 		id, _ := marked("sleeper")
-		return id == "" && s.rowSays("sleeper", statusDown) && s.rowSays("quick", statusDown)
+		return id == "" && s.rowSays("sleeper", work.StatusDown) && s.rowSays("quick", work.StatusDown)
 	})
 }

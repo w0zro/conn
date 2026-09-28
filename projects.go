@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/work"
+
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
@@ -156,7 +158,7 @@ func walkRoot(root string) ([]string, error) {
 		if path != root && (skipDirs[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
 			return fs.SkipDir
 		}
-		if isRepo(path) {
+		if work.IsRepo(path) {
 			found = append(found, path)
 			return fs.SkipDir
 		}
@@ -311,17 +313,17 @@ func relName(root, path string) string {
 // could not reach. It gets a heading of its own, named the way the
 // processes view names it, at the foot of the list: it is not a project
 // and has no place in the order the walk put the projects in.
-func withProcesses(ps []projectRow, projects []project, panes map[string]tmux.Pane, roots []string, home string) []projectRow {
+func withProcesses(ps []projectRow, projects []work.Project, panes map[string]tmux.Pane, roots []string, home string) []projectRow {
 	under := map[string][]projectRow{}
 	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if !tmux.Reachable(panes[e.tty]) {
+		for _, e := range pl.Entries {
+			if !tmux.Reachable(panes[e.TTY]) {
 				continue
 			}
-			under[pl.path] = append(under[pl.path], projectRow{
-				path: pl.path, pid: e.pid, tty: e.tty, kind: e.kind,
-				doing: rowLabel(e), waiting: e.status == statusWaiting,
-				command: activityOf(e), ports: e.ports, status: e.status,
+			under[pl.Path] = append(under[pl.Path], projectRow{
+				path: pl.Path, pid: e.PID, tty: e.TTY, kind: e.Kind,
+				doing: rowLabel(e), waiting: e.Status == work.StatusWaiting,
+				command: activityOf(e), ports: e.Ports, status: e.Status,
 			})
 		}
 	}
@@ -341,14 +343,14 @@ func withProcesses(ps []projectRow, projects []project, panes map[string]tmux.Pa
 	}
 	var elsewhere []projectRow
 	for _, pl := range projects {
-		if listed[pl.path] || len(under[pl.path]) == 0 {
+		if listed[pl.Path] || len(under[pl.Path]) == 0 {
 			continue
 		}
-		name := projectName(pl.path, roots, home)
+		name := projectName(pl.Path, roots, home)
 		if name == "" {
 			name = "NO PROJECT"
 		}
-		elsewhere = append(elsewhere, projectRow{name: name, path: pl.path})
+		elsewhere = append(elsewhere, projectRow{name: name, path: pl.Path})
 	}
 	slices.SortFunc(elsewhere, byName)
 	for _, p := range elsewhere {
@@ -606,15 +608,15 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 				in := pr.nest * nestW
 				doingW := measure - in - kindW
 				if pr.waiting {
-					doingW -= len(statusWaiting) + 3
+					doingW -= len(work.StatusWaiting) + 3
 				}
 				l.to(in)
 				l.add(p.gray, fit(pr.kind, kindW-1, false))
 				l.to(in + kindW)
 				l.add(p.ink, fit(pr.doing, doingW, false))
 				if pr.waiting {
-					l.to(measure - len(statusWaiting) - 2)
-					l.add(p.chip, " "+statusWaiting+" ")
+					l.to(measure - len(work.StatusWaiting) - 2)
+					l.add(p.chip, " "+work.StatusWaiting+" ")
 				}
 			case pr.repos > 0:
 				count := strconv.Itoa(pr.repos) + " REPO"

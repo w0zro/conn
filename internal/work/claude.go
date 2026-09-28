@@ -1,4 +1,4 @@
-package main
+package work
 
 import (
 	"bytes"
@@ -23,9 +23,9 @@ import (
 // — vetted against the process table, so a session file an ended
 // instance left behind cannot hide one still going.
 
-// session is a talk claude had in a directory and could pick back
+// Session is a talk claude had in a directory and could pick back
 // up: its transcript is on disk, and no live instance is carrying it.
-type session struct {
+type Session struct {
 	ID     string
 	Dir    string    // where it was had, which is where resuming belongs
 	When   time.Time // when it last moved
@@ -35,7 +35,7 @@ type session struct {
 	// the moment its status became what it is when that was read, so
 	// the transcript is read again when the status changes and not
 	// on a beat.
-	Ask   ask
+	Ask   Ask
 	AskAt time.Time
 	// What answered last and what it was carrying, off the end of the
 	// transcript: the model by the name the API knows it by, and the
@@ -60,12 +60,12 @@ func claudeConfigDir() string {
 // every character that is not a letter or digit becomes a dash.
 var notAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 
-func encodePath(p string) string { return notAlnum.ReplaceAllString(p, "-") }
+func EncodePath(p string) string { return notAlnum.ReplaceAllString(p, "-") }
 
-// isSessionID reports whether a transcript's stem is shaped like the
+// IsSessionID reports whether a transcript's stem is shaped like the
 // ids Claude writes — hex and dashes. The id ends up on a shell command
 // line, so anything else found beside the transcripts is not one.
-func isSessionID(id string) bool {
+func IsSessionID(id string) bool {
 	if id == "" {
 		return false
 	}
@@ -79,7 +79,7 @@ func isSessionID(id string) bool {
 	return true
 }
 
-// insideNote is what conn tells a contact it starts about where it is.
+// InsideNote is what conn tells a contact it starts about where it is.
 // A contact that backgrounds a dev server leaves it with no terminal:
 // no pane to attach to, no scrollback to read, and its output wherever
 // the contact happened to send it. A window of its own costs the
@@ -91,7 +91,7 @@ func isSessionID(id string) bool {
 // anybody's settings. It travels with conn, so a conn on another
 // machine tells its contacts the same thing, and a machine conn is gone
 // from is as conn found it.
-func insideNote(socket string) string {
+func InsideNote(socket string) string {
 	return "You are running inside conn, which holds this terminal as a tmux pane " +
 		"and watches the processes working this project. Start anything long-lived " +
 		"— a dev server, a file watcher, a build that stays up — in a window of its " +
@@ -104,16 +104,16 @@ func insideNote(socket string) string {
 		"only be read through whatever file its output was sent to."
 }
 
-// contactCommand is what conn runs to start a contact: the program,
+// ContactCommand is what conn runs to start a contact: the program,
 // told where it is.
-func contactCommand(socket string) string {
-	return contactProgram + " --append-system-prompt " + tmux.ShellQuote(insideNote(socket))
+func ContactCommand(socket string) string {
+	return ContactProgram + " --append-system-prompt " + tmux.ShellQuote(InsideNote(socket))
 }
 
-// resumeCommand is the command that picks a suspended session back
+// ResumeCommand is the command that picks a suspended session back
 // up, told the same. The id travels onto a shell command line, so only
 // ids claudeSuspended vetted are ever handed here.
-func resumeCommand(socket, id string) string { return contactCommand(socket) + " --resume " + id }
+func ResumeCommand(socket, id string) string { return ContactCommand(socket) + " --resume " + id }
 
 // What Claude Code calls itself, in the file it keeps per instance.
 // The vocabulary is closed at four, and these are all of them, read
@@ -132,7 +132,7 @@ func resumeCommand(socket, id string) string { return contactCommand(socket) + "
 // interactiveSession is what Claude Code calls a session somebody is
 // working in, as against one running behind another. It is the ordinary
 // case and the readout says nothing of it.
-const interactiveSession = "interactive"
+const InteractiveSession = "interactive"
 
 const (
 	busyStatus    = "busy"
@@ -141,11 +141,11 @@ const (
 	idleStatus    = "idle"
 )
 
-// sessionFile is the part conn reads of what Claude Code writes for
+// SessionFile is the part conn reads of what Claude Code writes for
 // each instance it is running, at sessions/<pid>.json: which
 // session the instance is carrying, and whether it is working on
 // it this moment. Small enough to read on every reading of the table.
-type sessionFile struct {
+type SessionFile struct {
 	SessionID string `json:"sessionId"`
 	Status    string `json:"status"`
 	// When the status last became what it is, in milliseconds since the
@@ -176,14 +176,14 @@ type sessionFile struct {
 // Pacific machine: the file said 16:43:50 and ps said 09:43:50.
 const procStartLayout = "Mon Jan _2 15:04:05 2006"
 
-// wroteBy says whether this file was written by a process that began
+// WroteBy says whether this file was written by a process that began
 // at the given moment. A session file is named by pid and outlives the
 // process that wrote it, and a pid comes round again; the file says
 // when its process began, and a process that began at another time is
 // another process. A file too old to say is believed only if its
 // status changed after the process began, since a file written before
 // a process existed cannot be about it.
-func (f sessionFile) wroteBy(started time.Time) bool {
+func (f SessionFile) WroteBy(started time.Time) bool {
 	if started.IsZero() {
 		return true
 	}
@@ -201,13 +201,13 @@ func (f sessionFile) wroteBy(started time.Time) bool {
 	return true
 }
 
-// An ask is what a waiting contact wants, in its own words, read off
+// An Ask is what a waiting contact wants, in its own words, read off
 // the end of its transcript. The session file says only that it is
 // stopped and on what sort of thing, one phrase from a closed set; the
 // transcript has the thing itself: the tool it asked to use and has no
 // answer for yet, or, with nothing pending, the last thing it said,
 // which is the question when a turn ended on one.
-type ask struct {
+type Ask struct {
 	Tool   string // the tool waiting on an answer, as Claude names it
 	Detail string // what it asked to do with it, in its own words
 	Doing  string // the same as the row says it: a verb and an object
@@ -216,7 +216,7 @@ type ask struct {
 
 // String is the ask on one line: the tool and what it asked, or what
 // was said, or nothing.
-func (a ask) String() string {
+func (a Ask) String() string {
 	switch {
 	case a.Tool != "" && a.Detail != "":
 		return a.Tool + " · " + a.Detail
@@ -236,28 +236,28 @@ func askDetail(input map[string]json.RawMessage) string {
 			Question string `json:"question"`
 		}
 		if json.Unmarshal(raw, &qs) == nil && len(qs) > 0 && qs[0].Question != "" {
-			return flatten(qs[0].Question)
+			return Flatten(qs[0].Question)
 		}
 	}
 	for _, k := range []string{"description", "prompt", "command", "file_path", "path", "url", "pattern", "query"} {
 		var v string
 		if raw, ok := input[k]; ok && json.Unmarshal(raw, &v) == nil && v != "" {
-			return flatten(v)
+			return Flatten(v)
 		}
 	}
 	return ""
 }
 
-// doingWord is a tool call as the processes view's activity column says it: a
+// DoingWord is a tool call as the processes view's activity column says it: a
 // verb and an object, in the lower case a command is typed in. A file
 // is named by its base name, a command by itself, and anything else by
 // the tool's own name and what it was asked. A question put to the
 // operator is not an activity and gets no word.
-func doingWord(name string, input map[string]json.RawMessage) string {
+func DoingWord(name string, input map[string]json.RawMessage) string {
 	field := func(k string) string {
 		var v string
 		if raw, ok := input[k]; ok && json.Unmarshal(raw, &v) == nil {
-			return flatten(v)
+			return Flatten(v)
 		}
 		return ""
 	}
@@ -310,70 +310,70 @@ func doing(verb, object string) string {
 // its moment, and the word read off it. The file is the same file
 // until those change, and a working contact's transcript is read on
 // every beat otherwise.
-type activitySeen struct {
+type ActivitySeen struct {
 	size  int64
 	mod   time.Time
-	word  string
-	title string
+	Word  string
+	Title string
 }
 
-// activities fills in what each contact's session is about and, for a
+// Activities fills in what each contact's session is about and, for a
 // working one, what it is doing, both read off the end of its
 // transcript, and answers what to hold for the next reading. Every
 // contact is asked for its title; only a row that is WORKING is asked
 // what it is doing: an idle contact is doing nothing, and a waiting
 // one is stopped on a question, which is not an activity and is not
 // the row's to say.
-func activities(projects []project, was map[string]activitySeen) map[string]activitySeen {
-	next := map[string]activitySeen{}
-	var sessions map[int]sessionFile
+func Activities(projects []Project, was map[string]ActivitySeen) map[string]ActivitySeen {
+	next := map[string]ActivitySeen{}
+	var sessions map[int]SessionFile
 	for i := range projects {
-		for j := range projects[i].entries {
-			e := &projects[i].entries[j]
-			if e.kind != kindContact {
+		for j := range projects[i].Entries {
+			e := &projects[i].Entries[j]
+			if e.Kind != KindContact {
 				continue
 			}
 			if sessions == nil {
-				sessions = claudeSessions()
+				sessions = ClaudeSessions()
 			}
-			f, ok := sessions[e.pid]
-			if !ok || f.SessionID == "" || !f.wroteBy(e.started) {
+			f, ok := sessions[e.PID]
+			if !ok || f.SessionID == "" || !f.WroteBy(e.Started) {
 				continue
 			}
-			dir := e.cwd
+			dir := e.Cwd
 			if f.Cwd != "" {
 				dir = f.Cwd
 			}
-			path := sessionPath(dir, f.SessionID)
+			path := SessionPath(dir, f.SessionID)
 			st, err := os.Stat(path)
 			if err != nil {
 				continue
 			}
-			seen := activitySeen{size: st.Size(), mod: st.ModTime()}
+			seen := ActivitySeen{size: st.Size(), mod: st.ModTime()}
 			if w, ok := was[path]; ok && w.size == seen.size && w.mod.Equal(seen.mod) {
-				seen.word, seen.title = w.word, w.title
+				seen.Word, seen.Title = w.Word, w.Title
 			} else if lines, err := tailLines(path, sessionTail); err == nil {
-				seen.word, seen.title = askOf(lines).Doing, titleOf(lines)
+				seen.Word, seen.Title = askOf(lines).Doing, titleOf(lines)
 			}
-			if e.status == statusWorking {
-				e.doing = seen.word
+			if e.Status == StatusWorking {
+				e.Doing = seen.Word
 			}
-			e.title = seen.title
+			e.Title = seen.Title
 			next[path] = seen
 		}
 	}
 	return next
 }
 
-// readAsk reads the end of a transcript for what the contact is waiting
+// ReadAsk reads the end of a transcript for what the contact is waiting
 // on: the tool uses of its last turn, less the ones that have been
 // answered, or what it last said. A turn is written as several records,
 // the text and each tool use on a line of its own, so the reading
 // walks back through all of them, to the prompt that began the turn.
-func readAsk(path string) ask {
+func ReadAsk(path string) Ask {
 	lines, err := tailLines(path, sessionTail)
 	if err != nil {
-		return ask{}
+		return Ask{}
 	}
 	return askOf(lines)
 }
@@ -389,16 +389,16 @@ func titleOf(lines [][]byte) string {
 			Title string `json:"aiTitle"`
 		}
 		if json.Unmarshal(lines[i], &rec) == nil && rec.Type == "ai-title" && rec.Title != "" {
-			return flatten(rec.Title)
+			return Flatten(rec.Title)
 		}
 	}
 	return ""
 }
 
 // askOf is readAsk over the lines already read.
-func askOf(lines [][]byte) ask {
+func askOf(lines [][]byte) Ask {
 	answered := map[string]bool{}
-	var a ask
+	var a Ask
 	for i := len(lines) - 1; i >= 0; i-- {
 		var rec struct {
 			Type        string `json:"type"`
@@ -439,10 +439,10 @@ func askOf(lines [][]byte) ask {
 				switch it.Type {
 				case "tool_use":
 					if !answered[it.ID] && a.Tool == "" {
-						a.Tool, a.Detail, a.Doing = it.Name, askDetail(it.Input), doingWord(it.Name, it.Input)
+						a.Tool, a.Detail, a.Doing = it.Name, askDetail(it.Input), DoingWord(it.Name, it.Input)
 					}
 				case "text":
-					if t := flatten(it.Text); t != "" && a.Said == "" {
+					if t := Flatten(it.Text); t != "" && a.Said == "" {
 						a.Said = t
 					}
 				}
@@ -458,16 +458,16 @@ func askOf(lines [][]byte) ask {
 	return a
 }
 
-// claudeSessions is what every claude instance says of itself, by the
+// ClaudeSessions is what every claude instance says of itself, by the
 // pid it says it is. A file here can outlive the process that wrote
 // it, so callers pair a pid with the process table before believing
 // anything of it.
-func claudeSessions() map[int]sessionFile {
+func ClaudeSessions() map[int]SessionFile {
 	entries, err := os.ReadDir(filepath.Join(claudeConfigDir(), "sessions"))
 	if err != nil {
 		return nil
 	}
-	out := map[int]sessionFile{}
+	out := map[int]SessionFile{}
 	for _, e := range entries {
 		name := e.Name()
 		if e.IsDir() || !strings.HasSuffix(name, ".json") {
@@ -481,7 +481,7 @@ func claudeSessions() map[int]sessionFile {
 		if err != nil {
 			continue
 		}
-		var f sessionFile
+		var f SessionFile
 		if json.Unmarshal(b, &f) == nil {
 			out[pid] = f
 		}
@@ -489,7 +489,7 @@ func claudeSessions() map[int]sessionFile {
 	return out
 }
 
-// contactStatuses is what every contact says of itself: working, or
+// ContactStatuses is what every contact says of itself: working, or
 // stopped and waiting on you. A contact is asked rather than measured —
 // it knows whether it is mid-turn, where the processor time it happens
 // to be using says little, a model answering being barely any and
@@ -505,15 +505,15 @@ func claudeSessions() map[int]sessionFile {
 // where the table still has it status as a contact; a contact with no
 // file to read - another maker's, or one too old to write one - says
 // nothing of itself, and reads as alive like anything else.
-func contactStatuses(procs []process) map[int]status {
-	byPid := map[int]process{}
+func ContactStatuses(procs []Process) map[int]Status {
+	byPid := map[int]Process{}
 	for _, p := range procs {
-		byPid[p.pid] = p
+		byPid[p.PID] = p
 	}
-	how := map[int]status{}
-	for pid, s := range claudeSessions() {
+	how := map[int]Status{}
+	for pid, s := range ClaudeSessions() {
 		p, ok := byPid[pid]
-		if !ok || kindOf(p) != kindContact || s.Status == "" || !s.wroteBy(p.started) {
+		if !ok || KindOf(p) != KindContact || s.Status == "" || !s.WroteBy(p.Started) {
 			continue
 		}
 		var since time.Time
@@ -522,11 +522,11 @@ func contactStatuses(procs []process) map[int]status {
 		}
 		switch s.Status {
 		case busyStatus, shellStatus:
-			how[pid] = status{working: true, since: since}
+			how[pid] = Status{Working: true, Since: since}
 		case waitingStatus:
-			how[pid] = status{waiting: true, since: since, asking: s.WaitingFor}
+			how[pid] = Status{Waiting: true, Since: since, asking: s.WaitingFor}
 		case idleStatus:
-			how[pid] = status{idle: true, since: since}
+			how[pid] = Status{Idle: true, Since: since}
 		}
 		// A word outside the four is a Claude newer than this conn, and
 		// conn says nothing of a contact it cannot understand — the same
@@ -542,18 +542,18 @@ func contactStatuses(procs []process) map[int]status {
 // instance is carrying. A session file can outlive the process that
 // wrote it, so a pid is only believed when the process table still has
 // it, status as a contact.
-func liveSessions(projects []project) map[string]bool {
+func liveSessions(projects []Project) map[string]bool {
 	began := map[int]time.Time{}
 	for _, pl := range projects {
-		for _, e := range pl.entries {
-			if e.kind == kindContact {
-				began[e.pid] = e.started
+		for _, e := range pl.Entries {
+			if e.Kind == KindContact {
+				began[e.PID] = e.Started
 			}
 		}
 	}
 	live := map[string]bool{}
-	for pid, f := range claudeSessions() {
-		if at, ok := began[pid]; ok && f.SessionID != "" && f.wroteBy(at) {
+	for pid, f := range ClaudeSessions() {
+		if at, ok := began[pid]; ok && f.SessionID != "" && f.WroteBy(at) {
 			live[f.SessionID] = true
 		}
 	}
@@ -566,10 +566,10 @@ func liveSessions(projects []project) map[string]bool {
 // keystroke.
 const sessionTail = 256 * 1024
 
-// claudeSuspended lists the sessions at rest under the given
+// ClaudeSuspended lists the sessions at rest under the given
 // directories, newest first, excluding the ones a live instance is
 // carrying.
-func claudeSuspended(dirs []string, projects []project) []session {
+func ClaudeSuspended(dirs []string, projects []Project) []Session {
 	live := liveSessions(projects)
 	root := filepath.Join(claudeConfigDir(), "projects")
 
@@ -577,15 +577,15 @@ func claudeSuspended(dirs []string, projects []project) []session {
 	// transcript directory; each session is taken once, for the
 	// first directory that reached it.
 	seen := map[string]bool{}
-	var out []session
+	var out []Session
 	for _, dir := range dirs {
-		entries, err := os.ReadDir(filepath.Join(root, encodePath(dir)))
+		entries, err := os.ReadDir(filepath.Join(root, EncodePath(dir)))
 		if err != nil {
 			continue
 		}
 		for _, e := range entries {
 			id := strings.TrimSuffix(e.Name(), ".jsonl")
-			if e.IsDir() || id == e.Name() || !isSessionID(id) || live[id] || seen[id] {
+			if e.IsDir() || id == e.Name() || !IsSessionID(id) || live[id] || seen[id] {
 				continue
 			}
 			info, err := e.Info()
@@ -593,8 +593,8 @@ func claudeSuspended(dirs []string, projects []project) []session {
 				continue
 			}
 			seen[id] = true
-			c := session{ID: id, Dir: dir, When: info.ModTime()}
-			readSessionMeta(filepath.Join(root, encodePath(dir), e.Name()), &c)
+			c := Session{ID: id, Dir: dir, When: info.ModTime()}
+			ReadSessionMeta(filepath.Join(root, EncodePath(dir), e.Name()), &c)
 			out = append(out, c)
 		}
 	}
@@ -643,11 +643,11 @@ func (l transcriptLine) carried() int {
 	return u.Input + u.CacheRead + u.CacheMade
 }
 
-// readSessionMeta fills in what a reader recognizes a session by:
+// ReadSessionMeta fills in what a reader recognizes a session by:
 // the branch it was on and the last thing asked of it. It reads
 // backwards from the end and takes the first answer it finds — many
 // files are read on one keystroke, so it stops as soon as it has both.
-func readSessionMeta(path string, c *session) {
+func ReadSessionMeta(path string, c *Session) {
 	lines, err := tailLines(path, sessionTail)
 	if err != nil {
 		return
@@ -664,7 +664,7 @@ func readSessionMeta(path string, c *session) {
 			c.Branch = rec.GitBranch
 		}
 		if c.Prompt == "" && rec.Type == "last-prompt" {
-			c.Prompt = flatten(rec.LastPrompt)
+			c.Prompt = Flatten(rec.LastPrompt)
 		}
 		if c.Prompt == "" && rec.Type == "user" && !rec.IsMeta {
 			c.Prompt = userPrompt(rec.Message.Content)
@@ -695,11 +695,11 @@ func userPrompt(content json.RawMessage) string {
 	if text == "" || strings.HasPrefix(text, "<") || strings.HasPrefix(text, "Caveat:") {
 		return ""
 	}
-	return flatten(text)
+	return Flatten(text)
 }
 
-// flatten lays prose on one line, the way a row must read.
-func flatten(s string) string {
+// Flatten lays prose on one line, the way a row must read.
+func Flatten(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
@@ -737,11 +737,11 @@ func tailLines(path string, max int64) ([][]byte, error) {
 	return lines, nil
 }
 
-// contactProgram is the contact conn starts. Claude is the only kind
+// ContactProgram is the contact conn starts. Claude is the only kind
 // conn starts for now, so a is its key everywhere a shell's is s.
-const contactProgram = "claude"
+const ContactProgram = "claude"
 
-// sessionPath is where claude files a session had in a directory.
-func sessionPath(dir, id string) string {
-	return filepath.Join(claudeConfigDir(), "projects", encodePath(dir), id+".jsonl")
+// SessionPath is where claude files a session had in a directory.
+func SessionPath(dir, id string) string {
+	return filepath.Join(claudeConfigDir(), "projects", EncodePath(dir), id+".jsonl")
 }

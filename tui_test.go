@@ -58,8 +58,8 @@ func answered(cmd tea.Cmd) tea.Msg {
 // continues to the processes view; the clock turns on the second.
 func TestProgramComesOnInStages(t *testing.T) {
 	// ticking as newModel leaves it: conn comes up on the console, which
-	// annunciates, and Init sets the blink going.
-	m := model{head: station.Station{Build: testStation.Build, Login: station.Login{User: "w0zro", Host: "station"}}, now: testNow, p: plain, blink: beat{on: true},
+	// annunciates, and Init sets the blink going and the station read.
+	m := model{head: station.Station{Build: testStation.Build, Login: station.Login{User: "w0zro", Host: "station"}}, now: testNow, p: plain, blink: beat{on: true}, survey: beat{on: true},
 		roots: rooting{real: []string{"/Users/w0zro/projects"}}} // told where the work is; see toRoots
 	m.width, m.height = 120, 40
 	view := func() string { return m.View().Content }
@@ -77,7 +77,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if cmd != nil || !m.console.due || has("HOST ...") {
 		t.Errorf("the readout came on before the station was read:\n%s", view())
 	}
-	next, cmd = m.Update(stationMsg{testStation})
+	next, cmd = m.Update(stationMsg{Station: testStation})
 	m = next.(model)
 	if cmd == nil || m.console.due || !has("SYSTEM .... MACOS 26.6.2 (25G83)") || has("SCREEN") {
 		t.Errorf("the readout should come on with the station:\n%s", view())
@@ -112,16 +112,61 @@ func TestProgramComesOnInStages(t *testing.T) {
 	}
 }
 
+// The console reads the station again while it stands, so what it says
+// of the machine is the machine now: each reading sets the next going,
+// a reading changes what the console says, leaving the console lets the
+// beat stop, and c brings it back with a reading at once.
+func TestTheConsoleReadsTheStationWhileItStands(t *testing.T) {
+	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: plain, width: 120, height: 40, blink: beat{on: true}, survey: beat{on: true}}
+	next, cmd := m.Update(stationMsg{Station: testStation})
+	m = next.(model)
+	if _, ok := answered(cmd).(stationTickMsg); !ok {
+		t.Fatalf("a reading on the console did not set the next going: %T", answered(cmd))
+	}
+
+	// A later reading is what the console says.
+	later := testStation
+	later.Machine.Processes = testStation.Machine.Processes + 7
+	next, _ = m.Update(stationMsg{Station: later, gen: m.survey.gen})
+	m = next.(model)
+	if m.console.st.Machine.Processes != later.Machine.Processes {
+		t.Errorf("the console kept the first reading")
+	}
+
+	// Off the console the beat stops: its tick is dropped, and a
+	// reading already on its way is taken and asks for no other.
+	m.view = viewProcesses
+	next, _ = m.Update(clockMsg{})
+	m = next.(model)
+	if m.survey.on {
+		t.Fatal("the station's beat ran on past the console")
+	}
+	if _, cmd := m.Update(stationTickMsg{gen: m.survey.gen - 1}); cmd != nil {
+		t.Errorf("a tick from the console's run read the station off it")
+	}
+	if _, cmd := m.Update(stationMsg{Station: later, gen: m.survey.gen - 1}); answered(cmd) != nil {
+		t.Errorf("a late reading asked for another off the console")
+	}
+
+	// c brings the console back and reads the station at once.
+	next, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
+	m = next.(model)
+	if m.view != viewConsole || !m.survey.on || cmd == nil {
+		t.Fatalf("c: view %v, beat %v", m.view, m.survey.on)
+	}
+}
+
 // The station arriving first, then the beat, comes on the same way; and
 // a key during the sequence skips to the end.
 func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
-	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: plain, width: 120, height: 40, blink: beat{on: true}}
-	next, cmd := m.Update(stationMsg{testStation})
+	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: plain, width: 120, height: 40, blink: beat{on: true}, survey: beat{on: true}}
+	// The reading sets the next one going, and nothing else.
+	next, _ := m.Update(stationMsg{Station: testStation})
 	m = next.(model)
-	if cmd != nil || m.console.stage != stageHeader {
+	if m.console.stage != stageHeader {
 		t.Errorf("the station alone should not bring the readout on")
 	}
-	next, cmd = m.Update(stageMsg{})
+	next, cmd := m.Update(stageMsg{})
 	m = next.(model)
 	if cmd == nil || m.console.stage != stageReadout {
 		t.Errorf("the beat after the station should bring the readout on: stage %d", m.console.stage)

@@ -121,10 +121,14 @@ const (
 const spinEvery = 125 * time.Millisecond
 
 type (
-	stageMsg     struct{}                  // the next stage is due
-	clockMsg     struct{}                  // the second has turned
-	stationMsg   struct{ station.Station } // the station is read
-	processesMsg struct {                  // the process table is read
+	stageMsg   struct{} // the next stage is due
+	clockMsg   struct{} // the second has turned
+	stationMsg struct { // the station is read
+		station.Station
+		gen int // the run of the station's beat that read it
+	}
+	stationTickMsg struct{ gen int } // the station is due to be read again
+	processesMsg   struct {          // the process table is read
 		projects   []work.Project
 		panes      map[string]tmux.Pane // the server's panes by terminal
 		bay        string               // the terminal in the bay
@@ -181,6 +185,7 @@ type model struct {
 	lit      bool // the annunciators are showing this half of the blink
 	blink    beat // the blink's tick, in flight while something annunciates
 	spin     beat // the spinner's, in flight while a row is working
+	survey   beat // the station's reading, in flight while the console is up
 	projects []work.Project
 	cursor   int     // the pid the cursor is on
 	cursorAt int     // where in the rows it was, for when the pid goes
@@ -291,6 +296,9 @@ func newModel(g theme.Ground) model {
 		// conn comes up on the console, which annunciates, and Init sets
 		// the blink going with everything else.
 		blink: beat{on: true},
+		// And the station is read with it, and again while the console
+		// stands; see surveyed.
+		survey: beat{on: true},
 
 		head: station.Station{Build: station.ReadBuild(), Login: station.ReadLogin()},
 		now:  time.Now(),
@@ -332,7 +340,7 @@ func (m model) rooted(r rooting) model {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{readStationCmd, work.StartDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
+	cmds := []tea.Cmd{readStation(m.survey.gen), work.StartDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
 	if work.BrewPath != "" {
 		cmds = append(cmds, work.NextBrew())
 	}
@@ -342,8 +350,29 @@ func (m model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func readStationCmd() tea.Msg {
-	return stationMsg{station.Read()}
+// readStation reads the station off the loop, for a run of the
+// station's beat.
+func readStation(gen int) tea.Cmd {
+	return func() tea.Msg { return stationMsg{station.Read(), gen} }
+}
+
+// stationEvery is how often the station is read again while the console
+// is up: the table's own beat, so the console's memory, load, disk and
+// power move with the rows. A reading runs a handful of programs and
+// takes under half a second, and runs only while the console stands.
+const stationEvery = processesEvery
+
+// surveyed starts the station's beat when the console comes up and lets
+// it stop when it goes. The console read the station once, as conn came
+// up, and said it again against the clock from then on: memory, swap,
+// load, disk and power as they stood at the start of a stay that can
+// run for days. Coming up it reads at once, so the console brought back
+// with c says the machine as it is and not as it was.
+func (m model) surveyed() (model, tea.Cmd) {
+	if !m.survey.set(m.view == viewConsole) || !m.survey.on {
+		return m, nil
+	}
+	return m, readStation(m.survey.gen)
 }
 
 // nextSecond ticks on the turn of the second, not a second after the
@@ -469,8 +498,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m, said := m.saying()
 	m, blink := m.blinked()
 	m, spin := m.turned()
-	if said != nil || blink != nil || spin != nil {
-		return m, tea.Batch(cmd, said, blink, spin)
+	m, survey := m.surveyed()
+	if said != nil || blink != nil || spin != nil || survey != nil {
+		return m, tea.Batch(cmd, said, blink, spin, survey)
 	}
 	return m, cmd
 }
@@ -576,7 +606,20 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 			return m, m.serverCmd(func() error { return m.srv.HoldPanel() })
 		}
 	case stationMsg:
-		return m.stationRead(msg.Station)
+		// A reading is the station as it is, whichever run asked for it;
+		// only the run in flight asks for the next.
+		var next tea.Cmd
+		if msg.gen == m.survey.gen && m.survey.on {
+			gen := m.survey.gen
+			next = tea.Tick(stationEvery, func(time.Time) tea.Msg { return stationTickMsg{gen} })
+		}
+		m, cmd := m.stationRead(msg.Station)
+		return m, tea.Batch(cmd, next)
+	case stationTickMsg:
+		if msg.gen != m.survey.gen || !m.survey.on {
+			return m, nil
+		}
+		return m, readStation(msg.gen)
 	case stageMsg:
 		return m.stageDue()
 	case clockMsg:

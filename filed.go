@@ -54,8 +54,15 @@ func rowWord(r processRow) (word string, stamped, blinks bool) {
 // of it, and nothing where the project wants nothing. Several faults
 // are counted rather than named, since two words cannot both be the
 // one word there is room for and the rows say which is which.
+//
+// What wants you is a wait or a fault. A declared process that is down
+// was once said here too, and it wants nothing: it is at rest, often on
+// purpose — a check run when it is wanted, a server not wanted today —
+// and the row says DOWN where it stands. Said again on the rule, one
+// such row read as the project being down, which a project on the panel
+// never is: one with nothing up is not listed.
 func verdict(rows []processRow) (word string, stamped, blinks bool) {
-	waiting, faults, down, fault := 0, 0, 0, ""
+	waiting, faults, fault := 0, 0, ""
 	for _, r := range rows {
 		switch stateOf(r.status, r.fault) {
 		case standWaiting:
@@ -65,8 +72,6 @@ func verdict(rows []processRow) (word string, stamped, blinks bool) {
 			if fault == "" {
 				fault = r.status
 			}
-		case standDown:
-			down++
 		}
 	}
 	switch {
@@ -76,8 +81,6 @@ func verdict(rows []processRow) (word string, stamped, blinks bool) {
 		return fault, true, false
 	case faults > 1:
 		return strconv.Itoa(faults) + " FAULTS", true, false
-	case down > 0:
-		return counted(down, work.StatusDown), false, false
 	}
 	return "", false, false
 }

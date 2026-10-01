@@ -268,8 +268,9 @@ func TestAServingRowIsKnownByItsPort(t *testing.T) {
 }
 
 // The eyebrow says what the project wants of you: a wait before a
-// fault, a fault before a down row, counted where there is more than
-// one of it, and nothing where the project wants nothing. It is the
+// fault, counted where there is more than one of it, and nothing where
+// the project wants nothing — which a row that is down is, since it
+// says DOWN where it stands. It is the
 // whole of the triage in one line a project rather than one a process,
 // and it holds while the rows it is about are scrolled away.
 func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
@@ -282,8 +283,8 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 		stamped bool
 	}{
 		{[]processRow{row(work.StatusIdle, false), row(work.StatusWorking, false)}, "", false},
-		{[]processRow{row(work.StatusDown, false)}, "DOWN", false},
-		{[]processRow{row(work.StatusDown, false), row(work.StatusDown, false)}, "2 DOWN", false},
+		{[]processRow{row(work.StatusDown, false)}, "", false},
+		{[]processRow{row(work.StatusIdle, false), row(work.StatusDown, false), row(work.StatusDown, false)}, "", false},
 		{[]processRow{row("EXIT 1", true), row(work.StatusDown, false)}, "EXIT 1", true},
 		{[]processRow{row("EXIT 1", true), row(work.StatusStopped, true)}, "2 FAULTS", true},
 		{[]processRow{row(work.StatusWaiting, false), row("EXIT 1", true)}, "WAITING", true},
@@ -315,8 +316,14 @@ func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
 			t.Errorf("a project that wants nothing says something: %q", line)
 		}
 	}
-	if !strings.Contains(text, " 2 DOWN") {
-		t.Errorf("the project with nothing up does not say so:\n%s", text)
+	// Down rows say so on themselves, and the rule over them nothing.
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, "conjurer ─") && !strings.HasSuffix(strings.TrimRight(line, " "), "─") {
+			t.Errorf("the rule over down rows says something: %q", line)
+		}
+	}
+	if strings.Count(text, " DOWN") != 2 {
+		t.Errorf("the down rows do not each say DOWN:\n%s", text)
 	}
 	// Every block is at the margin: the folder the two projects share
 	// is not a project and nothing is happening in it.

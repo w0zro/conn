@@ -8,11 +8,16 @@ version: 2
 project_name: conn
 
 # The man page in the archive is stamped with the release being cut,
-# rather than the one it last recorded.
+# rather than the one it last recorded. The stamped copy goes in build/,
+# which git ignores: stamping man/conn.1 itself would leave the tree
+# dirty and every binary marked MODIFIED. Not dist/, which goreleaser
+# insists is empty after the hooks have run.
 before:
   hooks:
+    - mkdir -p build
+    - cp man/conn.1 build/conn.1
     - >-
-      perl -pi -e 's/^\.TH CONN 1 "[^"]*" "conn [^"]*"/.TH CONN 1 "{{ .Now.Format "2006-01-02" }}" "conn {{ .Version }}"/' man/conn.1
+      perl -pi -e 's/^\.TH CONN 1 "[^"]*" "conn [^"]*"/.TH CONN 1 "{{ .Now.Format "2006-01-02" }}" "conn {{ .Version }}"/' build/conn.1
 
 builds:
   - env:
@@ -33,7 +38,7 @@ archives:
   - formats: [tar.gz]
     name_template: "conn_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
-      - src: man/conn.1
+      - src: build/conn.1
         dst: conn.1
 
 checksum:

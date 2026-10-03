@@ -233,6 +233,14 @@ func (m model) bar() string {
 			}
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
+	case viewOutput:
+		if len(m.out.matches()) > 1 {
+			hints = append(hints, keyHint{"up down", "Move"})
+		}
+		if _, _, ok := m.out.outAt(); ok && m.inside {
+			hints = append(hints, keyHint{"enter", "Go to it"})
+		}
+		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	}
 	if rowsIn(m.projects) > 1 {
 		hints = append(hints, moveHint)
@@ -263,7 +271,7 @@ func (m model) bar() string {
 		if p := m.programUnder(e); p != nil {
 			hints = append(hints, keyHint{"S", p.client})
 		}
-		hints = append(hints, keyHint{"a", "New contact"})
+		hints = append(hints, keyHint{"a", "New contact"}, keyHint{"/", "Find in output"})
 		if m.raiseOn(e) != nil {
 			hints = append(hints, keyHint{"u", "Bring it up"})
 		}

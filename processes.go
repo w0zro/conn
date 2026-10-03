@@ -853,6 +853,13 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 		// The sessions at the project: the capital of the contact's
 		// key, a session being a contact's to pick back up.
 		return m.openAt("alt+shift+a", came)
+	case "/":
+		// What the row's project has written, searched: the slash is
+		// the search key everywhere a hand has pressed one. It ends
+		// where the keys were before it, as the other detours do.
+		if _, pl, ok := m.under(); ok && pl.Path != "" {
+			return m.openOutput(pl.Path, came)
+		}
 	case "tab":
 		return m.toWaiting()
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9", "0":

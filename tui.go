@@ -62,8 +62,9 @@ const (
 	viewProcesses
 	viewProjects
 	viewSessions
-	viewRoots // the first root being typed, on a conn told nowhere to look
-	viewLog   // the panel over time, which l puts up; see log.go
+	viewRoots  // the first root being typed, on a conn told nowhere to look
+	viewLog    // the panel over time, which l puts up; see log.go
+	viewOutput // a project's output searched, which / puts up; see output.go
 )
 
 // processesEvery is how often the processes view reads the process
@@ -246,6 +247,8 @@ type model struct {
 	log     logList
 	seen    []work.Project
 	seenAny bool
+
+	out outList // the output view, which / puts up; see output.go
 
 	// The asking view: the first root being typed. It is the first start
 	// alone — a root changed on a conn already at work is typed in the
@@ -587,6 +590,11 @@ func (m model) subject() subject {
 				return subject{pid: r.PID}
 			}
 		}
+	case viewOutput:
+		// A match is about the row its pane is.
+		if _, pane, ok := m.out.outAt(); ok {
+			return subject{pid: pane.pid}
+		}
 	}
 	return subject{}
 }
@@ -756,12 +764,14 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 		return m.landed(msg)
 	case processesTickMsg:
-		if msg.gen != m.processesGen || (m.view != viewProcesses && m.view != viewProjects && m.view != viewLog) {
+		if msg.gen != m.processesGen || (m.view != viewProcesses && m.view != viewProjects && m.view != viewLog && m.view != viewOutput) {
 			return m, nil
 		}
 		return m, m.readProcesses()
 	case logMsg:
 		return m.landedLog(msg), nil
+	case outMsg:
+		return m.landedOutput(msg), nil
 	case projectsMsg:
 		wasRow, hadRow := m.atCursor()
 		m.list.walked, m.list.err, m.list.scanning = msg.projects, msg.err, false
@@ -900,6 +910,8 @@ func (m model) key(k string) (model, tea.Cmd) {
 		return m.rootsKey(k)
 	case viewLog:
 		return m.logKey(k)
+	case viewOutput:
+		return m.outputKey(k)
 	}
 	return m.processesKey(k, came)
 }
@@ -1120,7 +1132,7 @@ func (m model) keepingPage() (model, tea.Cmd) {
 	if !m.inside || m.bay.readout || m.detour.to != noDetour || !m.focused {
 		return m, nil
 	}
-	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions && m.view != viewLog {
+	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions && m.view != viewLog && m.view != viewOutput {
 		return m, nil
 	}
 	if m.subject().none() {
@@ -1301,6 +1313,8 @@ func (m model) View() tea.View {
 		rows = drawRoots(m.asking.report(m.head.Login.Home), m.asking.line.at, width, m.height, m.p)
 	case m.view == viewLog:
 		rows = drawLog(m.logReport(), m.log.at, width, m.height, m.p)
+	case m.view == viewOutput:
+		rows = drawOutput(m.outputReport(), m.out.find.at, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit

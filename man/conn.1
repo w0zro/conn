@@ -149,6 +149,31 @@ goes back.
 The log is a file; see
 .B FILES
 below.
+.SS The output view
+.B /
+opens what the cursor's project has written, searched: a line to type
+into, and under it the lines of every pane
+.B conn
+holds for the project that say what the line says, under the row each
+pane is, newest first.
+Case is ignored while the text is in the lower case, as tmux and vim
+take a search.
+Before anything is typed, the panes and how many lines each has said.
+.B enter
+goes into the match's pane in tmux's copy mode, the cursor on the match
+and the text as the search in hand, so
+.B n
+and
+.B N
+go on from there and
+.B q
+leaves, as in any pane.
+From the log,
+.B /
+searches the output of the line's project.
+A row
+.B conn
+only reports has no pane, and nothing of its output is here.
 .SS The settings
 \fB,\fR opens
 .BR conn 's
@@ -267,6 +292,11 @@ The log; see
 .B l
 below.
 .TP
+.B ctrl\-space /
+The output view, over the project of the pane you left; see
+.B /
+below.
+.TP
 .B ctrl\-space ctrl\-space
 To the process you were in before this one.
 Pressed again, back.
@@ -360,6 +390,9 @@ The recent view: every project's suspended sessions, newest first.
 The log: every change the panel saw, newest first.
 Pressed again there, back.
 .TP
+.B /
+The output view: what the row's project has written, searched.
+.TP
 .B u
 Bring up the row's declared process or Homebrew service.
 The keys stay on the panel.
@@ -397,8 +430,8 @@ The first click on a row is always the readout.
 The wheel and a drag are tmux's: the wheel scrolls a pane, a drag
 copies.
 .SS On a line typed into
-The projects list, the sessions view and the roots view each have a
-line to type into.
+The projects list, the sessions view, the output view and the roots
+view each have a line to type into.
 A character types; the rows narrow to what the line says, and the
 cursor goes to the first of them.
 The line is edited as
@@ -417,6 +450,7 @@ Projects: on a project, open a shell there and return to the processes
 view; on a process, go in.
 Sessions: resume the session in a new pane and return to the processes
 view.
+Output: into the match's pane, in copy mode, the cursor on the match.
 Roots: take what was typed if it names a directory, else the directory
 under the cursor, and write it to the file \(em over the root the
 settings sent, or beside the ones already there.

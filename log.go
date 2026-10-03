@@ -189,8 +189,8 @@ func (m model) logEntry(e work.Event) (work.Entry, bool) {
 }
 
 // logKey answers a key on the log view: j and k move among the lines,
-// enter goes to the line's process where it is still there, and esc or
-// l again goes back.
+// enter goes to the line's process where it is still there, / searches
+// the output of the line's project, and esc or l again goes back.
 func (m model) logKey(k string) (model, tea.Cmd) {
 	switch k {
 	case "ctrl+c", "q":
@@ -203,6 +203,12 @@ func (m model) logKey(k string) (model, tea.Cmd) {
 		m.log.at = ring(m.log.at-1, len(m.log.read))
 	case "G":
 		m.log.at = max(len(m.log.read)-1, 0)
+	case "/":
+		// The output of the line's project, searched: a line says a run
+		// ended with a code, and the search is what the pane said.
+		if e, ok := m.log.logAt(); ok {
+			return m.openOutput(e.Project, m.from)
+		}
 	case "enter":
 		if e, ok := m.log.logAt(); ok {
 			if r, ok := m.logEntry(e); ok {

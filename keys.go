@@ -50,6 +50,7 @@ func panelKeys(px string) []keyGroup {
 			{"o", "open its port"},
 			{"a", "a new contact"},
 			{"A", "its sessions"},
+			{"/", "find in its project's output"},
 			{"u U", "bring up, bring up all"},
 		},
 	}, {
@@ -70,6 +71,7 @@ func panelKeys(px string) []keyGroup {
 			{px + " 0-9", "contact 0 to 9"},
 			{px + " r", "recent sessions"},
 			{px + " l", "the log"},
+			{px + " /", "find in the output"},
 			{px + " ?", "these keys"},
 		},
 	}}

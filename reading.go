@@ -222,6 +222,11 @@ func (m model) landed(msg processesMsg) (model, tea.Cmd) {
 		// readings that write it: a line lands on the view as the change
 		// is seen, and the lines' rows are known to be there or gone.
 		cmds = append(cmds, m.processesTick())
+	case viewOutput:
+		// The output view reads on too, and its panes with it: a process
+		// that says something while the view is up is searched as it
+		// says it.
+		cmds = append(cmds, m.processesTick(), m.captureOutput())
 	default:
 		return m, tea.Batch(cmds...)
 	}

@@ -1,0 +1,30 @@
+
+   LOG                                   2 NEW
+   ───────────────────────────────────────────
+
+   TODAY ─────────────────────────────────────
+▸  14:09 w0zro/conn  the station log      IDLE
+   14:02 w0zro/conn  the station log  WAITING
+   11:41 web         go test ./...     EXIT 1
+   09:04 web         api                ACTIVE
+
+   YESTERDAY ─────────────────────────────────
+   23:58 web         zsh                  GONE
+   18:09 w0zro/conn  the station log   WORKING
+   18:02 w0zro/conn  the station log  WAITING
+
+   30 SEP ────────────────────────────────────
+   09:12 web         worker               DOWN
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -193,10 +193,12 @@ func (m model) landed(msg processesMsg) (model, tea.Cmd) {
 	// rows it is an index into.
 	wasRow, hadRow := m.atCursor()
 	m = m.took(msg)
+	// What changed since the last reading, to the log; see log.go.
+	m, wrote := m.logging(msg)
 	// The reading the console was waiting on: the processes view goes up
 	// with its rows already in it, drawn at the panel's width, and the
 	// bay opens beside a frame that is already the shape it will be.
-	var cmds []tea.Cmd
+	cmds := []tea.Cmd{wrote}
 	if m.entering {
 		m.entering, m.view = false, viewProcesses
 		if m.inside {
@@ -215,6 +217,11 @@ func (m model) landed(msg processesMsg) (model, tea.Cmd) {
 		// machine may not keep.
 		cmds = append(cmds, m.processesTick())
 		m.list.kept(m.projectRows(), wasRow, hadRow)
+	case viewLog:
+		// The log is read for as long as it is up, since it is the
+		// readings that write it: a line lands on the view as the change
+		// is seen, and the lines' rows are known to be there or gone.
+		cmds = append(cmds, m.processesTick())
 	default:
 		return m, tea.Batch(cmds...)
 	}

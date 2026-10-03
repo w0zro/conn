@@ -37,7 +37,9 @@ A project's `.conn` file declares what works it, one process a line,
 so conn can say what is not running and bring it up. Claude Code
 sessions are contacts: conn reads their state, shows the question a
 waiting one asked, and lists the sessions left suspended, at a project
-with `A` or across every project with `r`.
+with `A` or across every project with `r`. `l` opens the log: every
+change the panel saw while you were in a pane, newest first, and the
+band counts the lines since you last looked.
 
 `man conn`, or `?` inside conn, is the reference. The operating
 manual is at [conn.w0zro.com](https://conn.w0zro.com).

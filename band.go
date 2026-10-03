@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/w0zro/conn/internal/work"
@@ -100,7 +101,22 @@ func (m model) keys() string {
 	if m.view == viewConsole {
 		return ""
 	}
-	return tmux.StatusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
+	return m.wordmark()
+}
+
+// wordmark is conn's name as the band wears it, and beside it, lit,
+// how many lines the log has had since it was last opened: the one
+// thing the band says on its own about what happened while the
+// operator was not looking. It is on the band because the band is
+// under every pane, and inside a process is where the operator was
+// not looking from. Nothing while the log has nothing new, since an
+// annunciator that is always lit is one nobody sees.
+func (m model) wordmark() string {
+	w := tmux.StatusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
+	if m.log.unseen > 0 {
+		w += tmux.StatusLineBlock("LOG "+strconv.Itoa(m.log.unseen), m.g)
+	}
+	return w
 }
 
 // wordmarkLine is conn's name as the band wears it.
@@ -121,7 +137,7 @@ func (m model) station() string {
 	if m.detour.to != noDetour {
 		return tmux.StatusLineBlock(m.detour.to.word(), m.g)
 	}
-	return tmux.StatusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
+	return m.wordmark()
 }
 
 // upWord is the right edge of the band: the time of day, local, as
@@ -207,6 +223,16 @@ func (m model) bar() string {
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewRoots:
 		return keyBar(rootsHints, m.g)
+	case viewLog:
+		if len(m.log.read) > 1 {
+			hints = append(hints, moveHint)
+		}
+		if e, ok := m.log.logAt(); ok && m.inside {
+			if _, ok := m.logEntry(e); ok {
+				hints = append(hints, keyHint{"enter", "Go in"})
+			}
+		}
+		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	}
 	if rowsIn(m.projects) > 1 {
 		hints = append(hints, moveHint)
@@ -249,6 +275,7 @@ func (m model) bar() string {
 	if m.inside {
 		hints = append(hints, keyHint{"r", "Recent"})
 	}
+	hints = append(hints, keyHint{"l", "Log"})
 	return keyBar(append(hints, keyHint{",", "Settings"}, keyHint{"?", "Help"}), m.g)
 }
 

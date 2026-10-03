@@ -63,6 +63,7 @@ const (
 	viewProjects
 	viewSessions
 	viewRoots // the first root being typed, on a conn told nowhere to look
+	viewLog   // the panel over time, which l puts up; see log.go
 )
 
 // processesEvery is how often the processes view reads the process
@@ -239,6 +240,12 @@ type model struct {
 	roots rooting // where the checkouts are kept, and the finders built on it
 
 	sessions sessionList // the sessions view, which A puts up
+
+	// The log, which l puts up, and the rows as the last reading filed
+	// them, which the next is read against for it; see log.go.
+	log     logList
+	seen    []work.Project
+	seenAny bool
 
 	// The asking view: the first root being typed. It is the first start
 	// alone — a root changed on a conn already at work is typed in the
@@ -572,6 +579,14 @@ func (m model) subject() subject {
 		if c, ok := m.sessions.at(); ok {
 			return subject{session: c.ID}
 		}
+	case viewLog:
+		// A line about a row still on the panel is about that row; a
+		// line about one that is gone is about nothing the page can say.
+		if e, ok := m.log.logAt(); ok {
+			if r, ok := m.logEntry(e); ok {
+				return subject{pid: r.PID}
+			}
+		}
 	}
 	return subject{}
 }
@@ -741,10 +756,12 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 		return m.landed(msg)
 	case processesTickMsg:
-		if msg.gen != m.processesGen || (m.view != viewProcesses && m.view != viewProjects) {
+		if msg.gen != m.processesGen || (m.view != viewProcesses && m.view != viewProjects && m.view != viewLog) {
 			return m, nil
 		}
 		return m, m.readProcesses()
+	case logMsg:
+		return m.landedLog(msg), nil
 	case projectsMsg:
 		wasRow, hadRow := m.atCursor()
 		m.list.walked, m.list.err, m.list.scanning = msg.projects, msg.err, false
@@ -841,6 +858,10 @@ func (m model) key(k string) (model, tea.Cmd) {
 	if k == "alt+r" || k == "r" && m.view == viewProcesses {
 		return m.openRecent(came)
 	}
+	// The log: l in the processes view, and alt+l on a line typed into.
+	if k == "alt+l" || k == "l" && m.view == viewProcesses {
+		return m.openLog(came)
+	}
 	// What is under the cursor, brought up: u in the processes view,
 	// and alt+u from the list, where u is a letter being typed. On a
 	// process's row it is that one process, and the keys stay on the
@@ -877,6 +898,8 @@ func (m model) key(k string) (model, tea.Cmd) {
 		return m.sessionsKey(k)
 	case viewRoots:
 		return m.rootsKey(k)
+	case viewLog:
+		return m.logKey(k)
 	}
 	return m.processesKey(k, came)
 }
@@ -1097,7 +1120,7 @@ func (m model) keepingPage() (model, tea.Cmd) {
 	if !m.inside || m.bay.readout || m.detour.to != noDetour || !m.focused {
 		return m, nil
 	}
-	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions {
+	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions && m.view != viewLog {
 		return m, nil
 	}
 	if m.subject().none() {
@@ -1276,6 +1299,8 @@ func (m model) View() tea.View {
 		rows = drawSessions(m.sessions.report(m.head.Login.Home, m.now, m.roots.rootOf), m.sessions.find.at, width, m.height, m.p)
 	case m.view == viewRoots:
 		rows = drawRoots(m.asking.report(m.head.Login.Home), m.asking.line.at, width, m.height, m.p)
+	case m.view == viewLog:
+		rows = drawLog(m.logReport(), m.log.at, width, m.height, m.p)
 	default:
 		r := m.report()
 		r.lit = m.lit

@@ -128,6 +128,27 @@ opens the same view over every project, headed
 what was being done anywhere, where
 .B A
 is what was being done here.
+.SS The log
+.B l
+opens the log: the panel over time.
+One line for each change the panel saw between one reading and the
+next, newest first, under the day it happened on: the time, the
+project, what the panel called the row, and the row's word as the
+panel said it, WAITING or EXIT 1 or DOWN, and GONE for a row that
+left.
+A change between working, active and idle is not a line, except a
+contact's, whose turn beginning and ending it is.
+The lines written since the view was last opened are in the ink and
+counted at the head; the band says the count beside the wordmark,
+.BR "LOG 3" ,
+until the view is opened.
+.B enter
+goes to the line's process where it is still on the panel;
+.B esc
+goes back.
+The log is a file; see
+.B FILES
+below.
 .SS The settings
 \fB,\fR opens
 .BR conn 's
@@ -241,6 +262,11 @@ The recent view; see
 .B r
 below.
 .TP
+.B ctrl\-space l
+The log; see
+.B l
+below.
+.TP
 .B ctrl\-space ctrl\-space
 To the process you were in before this one.
 Pressed again, back.
@@ -330,6 +356,10 @@ The sessions view for the row's project.
 .B r
 The recent view: every project's suspended sessions, newest first.
 .TP
+.B l
+The log: every change the panel saw, newest first.
+Pressed again there, back.
+.TP
 .B u
 Bring up the row's declared process or Homebrew service.
 The keys stay on the panel.
@@ -410,6 +440,9 @@ Projects, sessions: the sessions view for the row's project.
 .TP
 .B alt\-r
 Projects, sessions: the recent view.
+.TP
+.B alt\-l
+Projects, sessions: the log.
 .TP
 .BR alt\-u ", " alt\-U
 Projects, sessions: bring up the row's project's declared processes.
@@ -1259,6 +1292,10 @@ in the manual,
 with a question armed,
 .B COPY
 in tmux's copy mode.
+Beside the wordmark, lit, how many lines the log has had since it was
+last opened, as
+.BR "LOG 3" ;
+nothing while it has had none.
 At the right, the time of day, local, and how long
 .B conn
 has been up, as
@@ -1435,6 +1472,10 @@ tells tmux;
 the ground and theme the server came up in;
 .I tmux.sock.cursor
 the row under the cursor, for the page;
+.I log
+the log, a line a change, its fields parted by tabs: the time, the
+project's path, what the panel called the row, its pid, and its word;
+the older half is let go once the file passes a megabyte;
 .I conn.1
 this page, written for
 .BR man .

@@ -56,6 +56,7 @@ func panelKeys(px string) []keyGroup {
 		"THE STATION", []keyHint{
 			{"p", "the projects"},
 			{"r", "recent sessions"},
+			{"l", "the log"},
 			{"c", "the console"},
 			{",", "the settings"},
 			{"?", "these keys"},
@@ -68,6 +69,7 @@ func panelKeys(px string) []keyGroup {
 			{px + " tab", "next waiting"},
 			{px + " 0-9", "contact 0 to 9"},
 			{px + " r", "recent sessions"},
+			{px + " l", "the log"},
 			{px + " ?", "these keys"},
 		},
 	}}

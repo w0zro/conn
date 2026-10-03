@@ -669,6 +669,56 @@ func (s *Server) showOwn(home, self, cmd, mark string, keys bool) error {
 	return s.FocusPanel()
 }
 
+// Scrollback is everything a pane has written that tmux still holds:
+// its history and its screen, a line each, oldest first, with the
+// count of history lines among them. The lines are the pane's own
+// rows and not joined where a long line wrapped, so a line's index is
+// the line copy mode counts to.
+func (s *Server) Scrollback(id string) (lines []string, history int, err error) {
+	out, err := s.Run("display-message", "-p", "-t", id, "#{history_size}")
+	if err != nil {
+		return nil, 0, err
+	}
+	history, _ = strconv.Atoi(strings.TrimSpace(out))
+	out, err = s.Run("capture-pane", "-p", "-S", "-", "-E", "-", "-t", id)
+	if err != nil {
+		return nil, 0, err
+	}
+	lines = strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	return lines, history, nil
+}
+
+// Land puts a pane in copy mode with its cursor on a line of its
+// scrollback, at the first of the text on it, and the text as the
+// search in hand, so n and N carry on from there as they do in any
+// pane. The line is counted as Scrollback counts them. It is tmux's
+// own copy mode and search, which the operator already knows how to
+// leave; conn only says where to start.
+func (s *Server) Land(id string, history, line int, text string) error {
+	_, err := s.Run(landArgs(id, history, line, text)...)
+	return err
+}
+
+// landArgs is the command Land runs. Copy mode counts its scroll from
+// the bottom: goto-line n puts the view's top n lines up from the end
+// of the history, so the line above the match is put at the top, the
+// cursor on its end, and the search forward from there finds the match
+// on the next line and no earlier one. The first line of all has no
+// line above it; the cursor goes to the top's start instead.
+func landArgs(id string, history, line int, text string) []string {
+	above := max(line-1, 0)
+	scroll := min(max(history-above, 0), history)
+	args := []string{"copy-mode", "-t", id,
+		";", "send-keys", "-t", id, "-X", "goto-line", strconv.Itoa(scroll),
+		";", "send-keys", "-t", id, "-X", "top-line"}
+	if line > 0 {
+		args = append(args, ";", "send-keys", "-t", id, "-X", "end-of-line")
+	} else {
+		args = append(args, ";", "send-keys", "-t", id, "-X", "start-of-line")
+	}
+	return append(args, ";", "send-keys", "-t", id, "-X", "search-forward-text", text)
+}
+
 // Show puts a pane in the bay and focus on it. The pane that was in the
 // bay goes back to where this one came from, and its window takes the
 // bay's size so it keeps its shape; a hold that leaves the bay is

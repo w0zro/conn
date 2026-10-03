@@ -96,10 +96,41 @@ func TestTheRecordPaginatesAsItGrows(t *testing.T) {
 		t.Errorf("40 rows should take two record pages:\n%s", got)
 	}
 	first := got[strings.Index(got, `aria-label="Page R-1"`):strings.Index(got, `aria-label="Page R-2"`)]
-	if n := strings.Count(first, `<div class="row"><span>`); n != firstPageRows {
-		t.Errorf("the first record page holds %d rows, want %d", n, firstPageRows)
+	if n, want := strings.Count(first, `<div class="row"><span>`), firstPageHeight/rowHeight; n != want {
+		t.Errorf("the first record page holds %d rows, want %d", n, want)
 	}
 	if strings.Count(got, "<h2>Revisions</h2>") != 1 {
 		t.Error("only the first record page carries the heading")
+	}
+}
+
+func TestARowThatWrapsTakesMoreOfThePage(t *testing.T) {
+	// The column is as many characters wide as the stylesheet makes it; a
+	// description past that wraps, and the wrapped line is paid for, so a
+	// page of long descriptions holds fewer rows than a page of short ones
+	// and the column stays on the page.
+	short := tag{desc: "Release."}
+	long := tag{desc: strings.Repeat("word ", 20)} // 99 characters: two lines
+	if h := height(short); h != rowHeight {
+		t.Errorf("a one-line row is %d tall, want %d", h, rowHeight)
+	}
+	if h := height(long); h != rowHeight+lineHeight {
+		t.Errorf("a two-line row is %d tall, want %d", h, rowHeight+lineHeight)
+	}
+	edge := tag{desc: strings.Repeat("x", descColumns)}
+	if h := height(edge); h != rowHeight {
+		t.Errorf("a description that just fits the column is %d tall, want %d", h, rowHeight)
+	}
+	var listing strings.Builder
+	for i := 1; i <= 24; i++ {
+		fmt.Fprintf(&listing, "v0.%d.0\t2026-09-01\t%s\n", i, strings.TrimSpace(long.desc))
+	}
+	got, err := record(sample, parseTags(listing.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := got[strings.Index(got, `aria-label="Page R-1"`):strings.Index(got, `aria-label="Page R-2"`)]
+	if n, want := strings.Count(first, `<div class="row"><span>`), firstPageHeight/(rowHeight+lineHeight); n != want {
+		t.Errorf("the first record page holds %d two-line rows, want %d", n, want)
 	}
 }

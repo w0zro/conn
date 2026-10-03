@@ -87,12 +87,52 @@ var (
 
 // The cover's share of the record, and a record page's: the cover has
 // room for a few rows beside the stamp; a page of its own holds a column
-// of them under a heading, and the pages after it, without one, more.
+// of them under a heading, and the pages after it, without one, more. A
+// page is letter size and does not reflow, so the column is measured as
+// the stylesheet lays it: a row is a line of description tall, with its
+// padding and its rule, and a description longer than the column wraps,
+// each further line costing a line and no more. The widths and heights
+// are the stylesheet's, at the record table's size.
 const (
-	coverRows     = 3
-	firstPageRows = 24
-	nextPageRows  = 30
+	coverRows       = 3
+	descColumns     = 59 // characters of description on one line of the column
+	rowHeight       = 29 // a row of one line, padding and rule included
+	lineHeight      = 14 // each further line a description wraps onto
+	firstPageHeight = 24 * rowHeight
+	nextPageHeight  = 30 * rowHeight
 )
+
+// height is the room a row takes in the column: a row, and a line for
+// each line past the first its description wraps onto. The browser
+// breaks at spaces and keeps a word whole, so the count does the same.
+func height(t tag) int {
+	lines, col := 1, 0
+	for _, word := range strings.Fields(t.desc) {
+		switch {
+		case col == 0:
+			col = len(word)
+		case col+1+len(word) <= descColumns:
+			col += 1 + len(word)
+		default:
+			lines++
+			col = len(word)
+		}
+	}
+	return rowHeight + (lines-1)*lineHeight
+}
+
+// fit is how many of the rows the column holds, in order, the first of
+// them whatever its height: a page always carries a row.
+func fit(rows []tag, room int) int {
+	n := 0
+	for _, t := range rows {
+		if room -= height(t); room < 0 && n > 0 {
+			break
+		}
+		n++
+	}
+	return n
+}
 
 // parseTags reads for-each-ref's lines: the tag, the date it was cut, and
 // its message's first line, tab-separated, oldest first.
@@ -191,13 +231,11 @@ func recordPages(tags []tag, change string) string {
 	var b bytes.Buffer
 	rest := tags
 	for n := 1; len(rest) > 0 || n == 1; n++ {
-		take := nextPageRows
+		room := nextPageHeight
 		if n == 1 {
-			take = firstPageRows
+			room = firstPageHeight
 		}
-		if take > len(rest) {
-			take = len(rest)
-		}
+		take := fit(rest, room)
 		these, remaining := rest[:take], rest[take:]
 		rest = remaining
 		fmt.Fprintf(&b, `<section class="page" aria-label="Page R-%d">

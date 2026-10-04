@@ -37,6 +37,10 @@ type Event struct {
 	Label   string // what the panel called the row
 	PID     int
 	Word    string // the row's status as the panel says it, or GONE
+	// What the line has to add, read later: how long the state that
+	// ended had stood, or what a wait is on, in the contact's words.
+	// Blank where there is nothing to add.
+	Note string
 }
 
 // LogGone is the word for a row that left the table: a shell closed, a
@@ -83,7 +87,7 @@ func Changes(was, now []Project, label func(Entry) string, at time.Time) []Event
 			if !ok || !news(prev.Entry, e) {
 				continue
 			}
-			events = append(events, Event{At: at, Project: pl.Path, Label: label(e), PID: e.PID, Word: e.Status})
+			events = append(events, Event{At: at, Project: pl.Path, Label: label(e), PID: e.PID, Word: e.Status, Note: note(prev.Entry, e, at)})
 		}
 	}
 	for k := range before {
@@ -95,9 +99,60 @@ func Changes(was, now []Project, label func(Entry) string, at time.Time) []Event
 	sort.Slice(gone, func(i, j int) bool { return gone[i].pid < gone[j].pid })
 	for _, k := range gone {
 		prev := before[k]
-		events = append(events, Event{At: at, Project: prev.project, Label: label(prev.Entry), PID: prev.PID, Word: LogGone})
+		events = append(events, Event{At: at, Project: prev.project, Label: label(prev.Entry), PID: prev.PID, Word: LogGone, Note: ran(prev.Entry, at)})
 	}
 	return events
+}
+
+// note is what a line adds to its word, for a reader who was not
+// there. A wait begun says what it is on, in the contact's own words.
+// A state over says how long it stood: a contact's turn over says how
+// long the turn took, or how long it waited where the turn ended on a
+// wait; a row that ended or went down says how long it ran; a row up
+// again says how long it was down. A row whose moment conn never saw
+// says nothing of the length.
+func note(prev, e Entry, at time.Time) string {
+	switch {
+	case e.Status == StatusWaiting:
+		return firstLine(e.Asking)
+	case e.Kind == KindContact && e.Status == StatusIdle && prev.Status == StatusWaiting:
+		return stood("waited", prev.Since, at)
+	case e.Kind == KindContact && e.Status == StatusIdle:
+		return stood("took", prev.Since, at)
+	case prev.Status == StatusDown:
+		return stood("down", prev.Since, at)
+	case e.Status == StatusDown, e.Fault, e.Status == StatusClosed:
+		return ran(prev, at)
+	}
+	return ""
+}
+
+// ran is how long a row had been running when it ended, counted from
+// its start, which the table always knows.
+func ran(e Entry, at time.Time) string {
+	return stood("ran", e.Started, at)
+}
+
+// stood is a word and a span since a moment: waited 9 min, ran 3h
+// 02m; and nothing where the moment is not known.
+func stood(word string, since, at time.Time) string {
+	if since.IsZero() || at.Before(since) {
+		return ""
+	}
+	d := at.Sub(since)
+	if d < time.Minute {
+		return word + " " + strconv.Itoa(int(d.Seconds())) + " s"
+	}
+	return word + " " + Minutes(d)
+}
+
+// firstLine is a text's first line, trimmed: a question is read as its
+// opening, and a line of the log is one line.
+func firstLine(s string) string {
+	if i := strings.IndexAny(s, "\n\r"); i >= 0 {
+		s = s[:i]
+	}
+	return strings.TrimSpace(s)
 }
 
 // news says whether a row's word changing is worth a line: the row has
@@ -193,14 +248,19 @@ func (e Event) Line() string {
 			return r
 		}, s)
 	}
-	return strings.Join([]string{e.At.Format(logStamp), flat(e.Project), flat(e.Label), strconv.Itoa(e.PID), flat(e.Word)}, "\t")
+	fields := []string{e.At.Format(logStamp), flat(e.Project), flat(e.Label), strconv.Itoa(e.PID), flat(e.Word)}
+	if e.Note != "" {
+		fields = append(fields, flat(e.Note))
+	}
+	return strings.Join(fields, "\t")
 }
 
 // parseLogLine reads a line of the file back, and says whether it was
 // one: a line of another shape is not the log's, and is passed over.
+// The note is the sixth field, and a line without one has five.
 func parseLogLine(line string) (Event, bool) {
 	f := strings.Split(line, "\t")
-	if len(f) != 5 {
+	if len(f) < 5 || len(f) > 6 {
 		return Event{}, false
 	}
 	at, err := time.ParseInLocation(logStamp, f[0], time.Local)
@@ -211,7 +271,11 @@ func parseLogLine(line string) (Event, bool) {
 	if err != nil {
 		return Event{}, false
 	}
-	return Event{At: at, Project: f[1], Label: f[2], PID: pid, Word: f[4]}, true
+	e := Event{At: at, Project: f[1], Label: f[2], PID: pid, Word: f[4]}
+	if len(f) == 6 {
+		e.Note = f[5]
+	}
+	return e, true
 }
 
 // ReadLog is the log's last lines, oldest first, up to max of them;

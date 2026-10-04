@@ -4,22 +4,22 @@
 
    TODAY ─────────────────────────────────────
    14:09 w0zro/conn  the station log      IDLE
+                     took 6 min
    14:02 w0zro/conn  the station log  WAITING
+                     Allow Edit: log.go?
    11:41 web         go test ./...     EXIT 1
+                     ran 2 min
    09:04 web         api                ACTIVE
 
    YESTERDAY ─────────────────────────────────
    23:58 web         zsh                  GONE
 ▸  18:09 w0zro/conn  the station log      IDLE
+                     waited 7 min
    18:02 w0zro/conn  the station log  WAITING
+                     Allow Bash: go test ./..…
 
    30 SEP ────────────────────────────────────
    09:12 web         worker               DOWN
-
-
-
-
-
 
 
 

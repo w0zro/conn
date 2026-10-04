@@ -228,8 +228,9 @@ type logRow struct {
 	project string // the project as the panel names its block
 	label   string
 	word    string
-	alive   bool // its row is still on the panel
-	fresh   bool // written since the view was last opened
+	note    string // what the line adds, on a row of its own under it
+	alive   bool   // its row is still on the panel
+	fresh   bool   // written since the view was last opened
 }
 
 // logReport is the log view's words as things stand.
@@ -248,7 +249,7 @@ func composeLog(events []work.Event, fresh int, alive func(work.Event) bool, roo
 	for i := len(events) - 1; i >= 0; i-- {
 		e := events[i]
 		b.rows = append(b.rows, logRow{
-			at: e.At, project: projectName(e.Project, roots, home), label: e.Label, word: e.Word,
+			at: e.At, project: projectName(e.Project, roots, home), label: e.Label, word: e.Word, note: e.Note,
 			alive: alive != nil && alive(e), fresh: len(events)-1-i < fresh,
 		})
 	}
@@ -363,6 +364,17 @@ func drawLog(b logReport, cursor, width, height int, p palette) []row {
 			l.add(p.gray, r.word)
 		}
 		d.emit(l, 0, false)
+		// What the line adds, under it in the gray, from the label's
+		// column: how long the state stood, or what the wait is on.
+		if r.note != "" {
+			l := d.line()
+			if i == cursor {
+				l.p = p.chosen()
+			}
+			l.to(logTimeW + 1 + logProjectW)
+			l.add(p.gray, fit(r.note, measure-l.cells, false))
+			d.emit(l, 0, false)
+		}
 	}
 	if len(b.rows) > 0 {
 		body = d.rows

@@ -21,13 +21,13 @@ func testLogEvents() []work.Event {
 	}
 	return []work.Event{
 		{At: day(3, 9, 12), Project: web, Label: "worker", PID: 40, Word: work.StatusDown},
-		{At: day(1, 18, 2), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWaiting},
-		{At: day(1, 18, 9), Project: conn, Label: "the station log", PID: 10, Word: work.StatusIdle},
+		{At: day(1, 18, 2), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWaiting, Note: "Allow Bash: go test ./... in conn?"},
+		{At: day(1, 18, 9), Project: conn, Label: "the station log", PID: 10, Word: work.StatusIdle, Note: "waited 7 min"},
 		{At: day(1, 23, 58), Project: web, Label: "zsh", PID: 31, Word: work.LogGone},
 		{At: day(0, 9, 4), Project: web, Label: "api", PID: 41, Word: work.StatusActive},
-		{At: day(0, 11, 41), Project: web, Label: "go test ./...", PID: 42, Word: "EXIT 1"},
-		{At: day(0, 14, 2), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWaiting},
-		{At: day(0, 14, 9), Project: conn, Label: "the station log", PID: 10, Word: work.StatusIdle},
+		{At: day(0, 11, 41), Project: web, Label: "go test ./...", PID: 42, Word: "EXIT 1", Note: "ran 2 min"},
+		{At: day(0, 14, 2), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWaiting, Note: "Allow Edit: log.go?"},
+		{At: day(0, 14, 9), Project: conn, Label: "the station log", PID: 10, Word: work.StatusIdle, Note: "took 6 min"},
 	}
 }
 

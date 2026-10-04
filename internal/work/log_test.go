@@ -75,6 +75,48 @@ func TestAContactsTurnOverIsNewsAndItsTurnBegunIsNot(t *testing.T) {
 	}
 }
 
+func TestALineSaysWhatItIsOnOrHowLongItStood(t *testing.T) {
+	began := logNow.Add(-3 * time.Hour)
+	was := logProjects(
+		Entry{PID: 10, Kind: KindContact, Command: "claude", Status: StatusWorking, Since: logNow.Add(-6 * time.Minute), Started: began},
+		Entry{PID: 11, Kind: KindContact, Command: "claude", Status: StatusWaiting, Since: logNow.Add(-9 * time.Minute), Started: began},
+		Entry{PID: 12, Kind: KindContact, Command: "claude", Status: StatusWorking, Since: logNow.Add(-4 * time.Second), Started: began},
+		Entry{PID: 13, Kind: KindRun, Command: "api", Status: StatusActive, Started: began},
+		Entry{PID: 14, Kind: KindRun, Command: "worker", Status: StatusDown, Since: logNow.Add(-2 * time.Minute), Started: began},
+		Entry{PID: 15, Kind: KindRun, Command: "node", Status: StatusActive, Started: logNow.Add(-125 * time.Minute)},
+		Entry{PID: 16, Kind: KindContact, Command: "claude", Status: StatusWorking, Started: began},
+	)
+	now := logProjects(
+		Entry{PID: 10, Kind: KindContact, Command: "claude", Status: StatusIdle, Started: began},
+		Entry{PID: 11, Kind: KindContact, Command: "claude", Status: StatusIdle, Started: began},
+		Entry{PID: 12, Kind: KindContact, Command: "claude", Status: StatusWaiting, Asking: "Allow Bash: rm -rf node_modules?\nThis is the second line", Started: began},
+		Entry{PID: 13, Kind: KindRun, Command: "api", Status: "EXIT 1", Fault: true, Started: began},
+		Entry{PID: 14, Kind: KindRun, Command: "worker", Status: StatusActive, Started: began},
+		Entry{PID: 16, Kind: KindContact, Command: "claude", Status: StatusIdle, Started: began},
+	)
+	got := map[int]string{}
+	for _, e := range Changes(was, now, logLabel, logNow) {
+		got[e.PID] = e.Word + " | " + e.Note
+	}
+	want := map[int]string{
+		10: "IDLE | took 6 min",
+		11: "IDLE | waited 9 min",
+		12: "WAITING | Allow Bash: rm -rf node_modules?",
+		13: "EXIT 1 | ran 3h 00m",
+		14: "ACTIVE | down 2 min",
+		15: "GONE | ran 2h 05m",
+		16: "IDLE | ", // conn never saw when its turn began
+	}
+	for pid, w := range want {
+		if got[pid] != w {
+			t.Errorf("pid %d: %q, want %q", pid, got[pid], w)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("got %d lines, want %d: %v", len(got), len(want), got)
+	}
+}
+
 func TestAPidComeRoundAgainIsANewRow(t *testing.T) {
 	was := logProjects(Entry{PID: 10, Kind: KindRun, Command: "worker", Status: StatusActive, Started: logNow.Add(-time.Hour)})
 	now := logProjects(Entry{PID: 10, Kind: KindRun, Command: "worker", Status: StatusActive, Started: logNow})
@@ -87,7 +129,7 @@ func TestAPidComeRoundAgainIsANewRow(t *testing.T) {
 func TestTheLogIsAFileOfTabbedLines(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "conn", "log")
 	events := []Event{
-		{At: logNow, Project: "/Users/w0zro/projects/w0zro/conn", Label: "claude", PID: 10, Word: StatusWaiting},
+		{At: logNow, Project: "/Users/w0zro/projects/w0zro/conn", Label: "claude", PID: 10, Word: StatusWaiting, Note: "Allow Bash: rm -rf?"},
 		{At: logNow.Add(time.Second), Project: "/Users/w0zro/projects/web", Label: "go\ttest ./...", PID: 12, Word: "EXIT 1"},
 	}
 	if err := AppendLog(path, events); err != nil {
@@ -97,7 +139,7 @@ func TestTheLogIsAFileOfTabbedLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "2026-10-03 14:02:11\t/Users/w0zro/projects/w0zro/conn\tclaude\t10\tWAITING\n" +
+	want := "2026-10-03 14:02:11\t/Users/w0zro/projects/w0zro/conn\tclaude\t10\tWAITING\tAllow Bash: rm -rf?\n" +
 		"2026-10-03 14:02:12\t/Users/w0zro/projects/web\tgo test ./...\t12\tEXIT 1\n"
 	if string(b) != want {
 		t.Errorf("the file reads:\n%s\nwant:\n%s", b, want)

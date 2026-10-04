@@ -11,7 +11,6 @@ import (
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
 // conn walks where it was told and nowhere else, so a conn that has
@@ -179,34 +178,20 @@ func completeRoot(typed, home string) []string {
 // with what conn has, the line being typed into, the directories that
 // answer it, and the chip saying what pressing enter will do.
 func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
-
-	c.blank(0)
-	l := c.line()
-	l.add(p.orange+p.bold, "ROOTS")
 	right := "NONE SET"
 	if len(b.rows) > 0 {
 		right = strconv.Itoa(len(b.rows)) + " UNDER IT"
 	}
-	l.to(measure - ansi.StringWidth(right))
-	l.add(p.gray, right)
-	c.emit(l, 0, false)
-	c.rule(0, measure)
+	c, measure := head("ROOTS", right, width, p)
 
-	l = c.line()
+	l := c.line()
 	before, after := typedRuns(b.typed, b.caret, measure-rootsW-2, true)
 	l.field(0, measure-rootsW, "ROOT", before, after)
 	c.emit(l, 0, false)
 
-	room := height
-	if height == 0 {
-		room = 1 << 30
-	}
 	var body []row
 	cursorRow := -1
-	d := canvas{p: p, width: width}
+	d := canvas{p: p, width: c.width}
 	say := func(color, s string) {
 		d.blank(0)
 		ln := d.line()
@@ -240,12 +225,11 @@ func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
 	// the keys do here: this view exists to be answered, and an operator
 	// who cannot see how to answer it is stuck in the one place conn
 	// offers no way out of.
-	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows)-1, width, p)...)
-	if height > 0 {
-		for len(c.rows) < height-1 {
-			c.blank(0)
-		}
+	kept := height
+	if kept > 0 {
+		kept--
 	}
+	c.foot(body, cursorRow, kept)
 	l = c.line()
 	word := " CONN HAS NO ROOTS · ENTER SAVES ONE "
 	if b.editing {

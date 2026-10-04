@@ -11,7 +11,6 @@ import (
 	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
 // The output view: what a project's processes have written, searched.
@@ -409,15 +408,8 @@ func around(text string, at, room int) (string, int) {
 // drawOutput renders the output view for a terminal of the given size,
 // with the cursor on the given match.
 func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
-
 	// The header: the name of the view, and against the right how many
 	// lines say the text, or how many lines there are to say it.
-	c.blank(0)
-	l := c.line()
-	l.add(p.orange+p.bold, "OUTPUT")
 	right := strconv.Itoa(b.lines) + " LINES"
 	switch {
 	case b.loading && b.lines == 0:
@@ -428,13 +420,10 @@ func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 			right += "ES"
 		}
 	}
-	l.to(measure - ansi.StringWidth(right))
-	l.add(p.gray, right)
-	c.emit(l, 0, false)
-	c.rule(0, measure)
+	c, measure := head("OUTPUT", right, width, p)
 
 	// The project it is over, the way a project titles its block.
-	l = c.line()
+	l := c.line()
 	l.add(p.parchment+p.bold, fit(b.project, measure, true))
 	c.emit(l, 0, false)
 
@@ -444,13 +433,9 @@ func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 	l.field(0, measure-findW, "FIND", before, after)
 	c.emit(l, 0, false)
 
-	room := height
-	if height == 0 {
-		room = 1 << 30
-	}
 	var body []row
 	cursorRow := -1
-	d := canvas{p: p, width: width}
+	d := canvas{p: p, width: c.width}
 	say := func(color, s string) {
 		d.blank(0)
 		l := d.line()
@@ -508,12 +493,5 @@ func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 		}
 		body = d.rows
 	}
-	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
-
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-	}
-	return c.rows
+	return c.foot(body, cursorRow, height)
 }

@@ -206,16 +206,10 @@ func settingsHints(rows []settingRow, at int) []keyHint {
 // drawSettings renders the view for a pane of the given size, with the
 // cursor on the given row.
 func drawSettings(b settingsReport, cursor, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
-
 	// The header: the view, and the file it is of, since a setting that
 	// is not doing what was meant is answered by opening that file and
 	// the operator should not have to be told twice where it is.
-	c.blank(0)
-	l := c.line()
-	l.add(p.orange+p.bold, "SETTINGS")
+	measure := measureAt(max(width, panelMinCols))
 	right := b.path
 	if !b.present {
 		right += " · NEW"
@@ -223,16 +217,9 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 	if w := measure - ansi.StringWidth("SETTINGS") - 2; ansi.StringWidth(right) > w {
 		right = fit(right, w, true)
 	}
-	l.to(measure - ansi.StringWidth(right))
-	l.add(p.gray, right)
-	c.emit(l, 0, false)
-	c.rule(0, measure)
+	c, _ := head("SETTINGS", right, width, p)
 
-	room := height
-	if height == 0 {
-		room = 1 << 30
-	}
-	d := canvas{p: p, width: width}
+	d := canvas{p: p, width: c.width}
 	cursorRow := -1
 	say := func(color, s string) {
 		l := d.line()
@@ -328,11 +315,5 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 		d.emit(l, 0, false)
 	}
 
-	c.rows = append(c.rows, scrolled(d.rows, cursorRow, room-len(c.rows), width, p)...)
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-	}
-	return c.rows
+	return c.foot(d.rows, cursorRow, height)
 }

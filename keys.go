@@ -2,8 +2,6 @@ package main
 
 import (
 	"strings"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 // The keys, on the screen. ? used to hand the workspace to the manual
@@ -102,20 +100,9 @@ func keysWidth(keys string) int {
 // drawKeys renders the card: the view the keys belong to against the
 // right, and under a rule the groups, a heading and its keys each.
 func drawKeys(groups []keyGroup, view string, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
+	c, measure := head("KEYS", strings.ToUpper(view), width, p)
 
-	c.blank(0)
-	l := c.line()
-	l.add(p.orange+p.bold, "KEYS")
-	right := strings.ToUpper(view)
-	l.to(measure - ansi.StringWidth(right))
-	l.add(p.gray, right)
-	c.emit(l, 0, false)
-	c.rule(0, measure)
-
-	d := canvas{p: p, width: width}
+	d := canvas{p: p, width: c.width}
 	for _, g := range groups {
 		col := 0
 		for _, h := range g.keys {
@@ -141,15 +128,5 @@ func drawKeys(groups []keyGroup, view string, width, height int, p palette) []ro
 		}
 	}
 
-	room := height
-	if height == 0 {
-		room = 1 << 30
-	}
-	c.rows = append(c.rows, scrolled(d.rows, -1, room-len(c.rows), width, p)...)
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-	}
-	return c.rows
+	return c.foot(d.rows, -1, height)
 }

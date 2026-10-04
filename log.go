@@ -281,31 +281,17 @@ const (
 // drawLog renders the log view for a terminal of the given size, with
 // the cursor on the given line from the newest.
 func drawLog(b logReport, cursor, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
-
 	// The header: the name of the view, and against the right how many
 	// lines are new since it was last opened, or how many there are.
-	c.blank(0)
-	l := c.line()
-	l.add(p.orange+p.bold, "LOG")
 	right := strconv.Itoa(b.total) + " LINES"
 	if b.fresh > 0 {
 		right = strconv.Itoa(b.fresh) + " NEW"
 	}
-	l.to(measure - ansi.StringWidth(right))
-	l.add(p.gray, right)
-	c.emit(l, 0, false)
-	c.rule(0, measure)
+	c, measure := head("LOG", right, width, p)
 
-	room := height
-	if height == 0 {
-		room = 1 << 30
-	}
 	var body []row
 	cursorRow := -1
-	d := canvas{p: p, width: width}
+	d := canvas{p: p, width: c.width}
 	if len(b.rows) == 0 {
 		d.blank(0)
 		l := d.line()
@@ -379,12 +365,5 @@ func drawLog(b logReport, cursor, width, height int, p palette) []row {
 	if len(b.rows) > 0 {
 		body = d.rows
 	}
-	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
-
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-	}
-	return c.rows
+	return c.foot(body, cursorRow, height)
 }

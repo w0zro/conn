@@ -569,6 +569,46 @@ func (c *canvas) rule(stage, measure int) {
 	c.emit(l, stage, false)
 }
 
+// A view on the panel opens and closes the same way: its title in the
+// accent against a figure in the gray, a rule under them, and at the
+// foot its body kept to the room there is with the cursor's row in
+// view and the ground filling the rest. What stands between is the
+// view's own. Eight views opened and closed this way in eight copies,
+// and a ninth would have been a ninth.
+
+// head opens a view: the canvas at the panel's width with the title
+// row and the rule on it, and the measure the view draws to.
+func head(title, right string, width int, p palette) (canvas, int) {
+	width = max(width, panelMinCols)
+	measure := measureAt(width)
+	c := canvas{p: p, width: width}
+	c.blank(0)
+	l := c.line()
+	l.add(p.orange+p.bold, title)
+	l.to(measure - ansi.StringWidth(right))
+	l.add(p.gray, right)
+	c.emit(l, 0, false)
+	c.rule(0, measure)
+	return c, measure
+}
+
+// foot closes a view: the body under what the canvas holds, kept to
+// the room with the cursor's row in view, -1 for none, and the ground
+// to the height where one is given; a height of 0 is every row. The
+// rows are left on the canvas as well as answered, for a view with a
+// row of its own to add under them.
+func (c *canvas) foot(body []row, cursorRow, height int) []row {
+	room := height
+	if height == 0 {
+		room = 1 << 30
+	}
+	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), c.width, c.p)...)
+	for height > 0 && len(c.rows) < height {
+		c.blank(0)
+	}
+	return c.rows
+}
+
 // scrolled is a body of rows kept to the room there is for it, with the
 // cursor's row in view: the rows out of view are counted on a row of
 // their own at the foot, which is part of the room.

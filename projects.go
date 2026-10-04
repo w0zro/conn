@@ -530,15 +530,8 @@ const (
 // drawProjects renders the list for a terminal of the given size, with
 // the cursor on the given row.
 func drawProjects(b projectsReport, cursor, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
-
 	// The header: the name of the view, and against the right the count
 	// — of everything, or of what the filter left out of it.
-	c.blank(0)
-	l := c.line()
-	l.add(p.orange+p.bold, "PROJECTS")
 	right := strconv.Itoa(b.total) + " FOUND"
 	switch {
 	case b.scanning && b.total == 0:
@@ -546,25 +539,18 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	l.to(measure - ansi.StringWidth(right))
-	l.add(p.gray, right)
-	c.emit(l, 0, false)
-	c.rule(0, measure)
+	c, measure := head("PROJECTS", right, width, p)
 
 	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
-	l = c.line()
+	l := c.line()
 	before, after := typedRuns(b.filter, b.caret, measure-findW-2, false)
 	l.field(0, measure-findW, "FIND", before, after)
 	c.emit(l, 0, false)
 
-	room := height
-	if height == 0 {
-		room = 1 << 30
-	}
 	var body []row
 	cursorRow := -1
-	d := canvas{p: p, width: width}
+	d := canvas{p: p, width: c.width}
 	say := func(color, s string) {
 		d.blank(0)
 		l := d.line()
@@ -636,15 +622,7 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 		}
 		body = d.rows
 	}
-	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
-
-	// The ground fills what the rows do not, as in the processes view.
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-	}
-	return c.rows
+	return c.foot(body, cursorRow, height)
 }
 
 // The list as the panel holds it: the projects as the roots were last

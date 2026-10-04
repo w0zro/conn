@@ -14,7 +14,6 @@ import (
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
 // The sessions view: a project's suspended sessions, filtered the way
@@ -99,20 +98,13 @@ const (
 // drawSessions renders the sessions view for a terminal of the given
 // size, with the cursor on the given row.
 func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
-
 	// The header: the name of the view, and against the right the count
 	// — of everything found at the project, or of what the filter left out
 	// of it.
-	c.blank(0)
-	l := c.line()
 	word := "SESSIONS"
 	if b.recent {
 		word = "RECENT"
 	}
-	l.add(p.orange+p.bold, word)
 	right := strconv.Itoa(b.total) + " SUSPENDED"
 	switch {
 	case b.loading && b.total == 0:
@@ -120,14 +112,11 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	l.to(measure - ansi.StringWidth(right))
-	l.add(p.gray, right)
-	c.emit(l, 0, false)
-	c.rule(0, measure)
+	c, measure := head(word, right, width, p)
 
 	// The project it is for, the way a project titles its block in the
 	// processes view; the recent view is for every one.
-	l = c.line()
+	l := c.line()
 	if b.recent {
 		l.add(p.parchment+p.bold, "Every project")
 	} else {
@@ -142,13 +131,9 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	l.field(0, measure-findW, "FIND", before, after)
 	c.emit(l, 0, false)
 
-	room := height
-	if height == 0 {
-		room = 1 << 30
-	}
 	var body []row
 	cursorRow := -1
-	d := canvas{p: p, width: width}
+	d := canvas{p: p, width: c.width}
 	say := func(color, s string) {
 		d.blank(0)
 		l := d.line()
@@ -198,15 +183,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 		}
 		body = d.rows
 	}
-	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
-
-	// The ground fills what the rows do not, as in projects.
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-	}
-	return c.rows
+	return c.foot(body, cursorRow, height)
 }
 
 // The sessions view as the panel holds it: a project's suspended

@@ -1114,6 +1114,20 @@ set -g display-time 3000
 	ground, ink := theme.Hex(g.Ground), theme.Hex(g.Ink)
 	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)
 	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", g.Accent)
+	// The cursor keeps the accent in copy mode. tmux draws a pane in a
+	// mode from a screen of the mode's own, which carries no cursor
+	// colour, and sends the terminal a reset the moment the mode comes
+	// on: the cursor went to whatever the terminal's own colour is for
+	// as long as the pane was in copy mode. The option is applied to
+	// whichever screen a pane is showing at the time, so it is applied
+	// again, a beat after the mode has changed, when the mode's screen
+	// is the one showing, and unset again so no pane carries a colour
+	// of its own past the theme's. Deferred, since the hook fires before
+	// the mode's screen is in place; a beat of nothing is the next turn
+	// of tmux's loop, after the reset has gone. tmux then sends the
+	// accent itself, from its own account of the terminal. Established
+	// against tmux 3.5a with a client logged under a pty.
+	fmt.Fprintf(&b, "set-hook -g pane-mode-changed \"run-shell -b -d 0 -C \\\"set -p -t '#{hook_pane}' cursor-colour '%s' ; set -pu -t '#{hook_pane}' cursor-colour\\\"\"\n", g.Accent)
 	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", g.Border, ink)
 	// A search's matches, in copy mode: every saying of the text in a
 	// quiet mark, and the one the cursor is on in the accent, the way

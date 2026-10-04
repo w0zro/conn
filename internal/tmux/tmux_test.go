@@ -212,6 +212,9 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.
 		"#[bg=" + g.Accent + " fg=" + theme.Hex(g.Ground) + " bold] COPY ",
+		// The cursor keeps the accent in copy mode: the option applied
+		// again to the mode's screen a beat after the mode comes on.
+		`set-hook -g pane-mode-changed "run-shell -b -d 0 -C \"set -p -t '#{hook_pane}' cursor-colour '` + g.Accent + `' ; set -pu -t '#{hook_pane}' cursor-colour\""`,
 	} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("the status line lacks %q:\n%s", want, conf)

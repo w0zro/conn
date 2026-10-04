@@ -183,9 +183,9 @@ func (e Event) Line() string {
 	return strings.Join([]string{e.At.Format(logStamp), flat(e.Project), flat(e.Label), strconv.Itoa(e.PID), flat(e.Word)}, "\t")
 }
 
-// ParseLogLine reads a line of the file back, and says whether it was
+// parseLogLine reads a line of the file back, and says whether it was
 // one: a line of another shape is not the log's, and is passed over.
-func ParseLogLine(line string) (Event, bool) {
+func parseLogLine(line string) (Event, bool) {
 	f := strings.Split(line, "\t")
 	if len(f) != 5 {
 		return Event{}, false
@@ -211,18 +211,21 @@ func ReadLog(path string, max int) ([]Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	var events []Event
 	s := bufio.NewScanner(f)
 	for s.Scan() {
-		if e, ok := ParseLogLine(s.Text()); ok {
+		if e, ok := parseLogLine(s.Text()); ok {
 			events = append(events, e)
 		}
+	}
+	err = s.Err()
+	if cerr := f.Close(); err == nil {
+		err = cerr
 	}
 	if max > 0 && len(events) > max {
 		events = events[len(events)-max:]
 	}
-	return events, s.Err()
+	return events, err
 }
 
 // trimLog lets the older half of the file go once it is past the cap,

@@ -22,7 +22,7 @@ func testLogEvents() []work.Event {
 	return []work.Event{
 		{At: day(3, 9, 12), Project: web, Label: "worker", PID: 40, Word: work.StatusDown},
 		{At: day(1, 18, 2), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWaiting},
-		{At: day(1, 18, 9), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWorking},
+		{At: day(1, 18, 9), Project: conn, Label: "the station log", PID: 10, Word: work.StatusIdle},
 		{At: day(1, 23, 58), Project: web, Label: "zsh", PID: 31, Word: work.LogGone},
 		{At: day(0, 9, 4), Project: web, Label: "api", PID: 41, Word: work.StatusActive},
 		{At: day(0, 11, 41), Project: web, Label: "go test ./...", PID: 42, Word: "EXIT 1"},
@@ -96,6 +96,18 @@ func TestLOpensTheLogAndLAgainCloses(t *testing.T) {
 	m, _ = m.key("l")
 	if m.view != viewProcesses {
 		t.Error("l again did not go back")
+	}
+}
+
+func TestTheLogIsKeptBesideTheSocket(t *testing.T) {
+	t.Setenv("CONN_SOCKET", "/tmp/cs-x/sock")
+	if got := logPath("/Users/w0zro"); got != "/tmp/cs-x/log" {
+		t.Errorf("a server on its own socket logs to %q", got)
+	}
+	t.Setenv("CONN_SOCKET", "")
+	t.Setenv("XDG_STATE_HOME", "")
+	if got := logPath("/Users/w0zro"); got != "/Users/w0zro/.local/state/conn/log" {
+		t.Errorf("the station logs to %q", got)
 	}
 }
 

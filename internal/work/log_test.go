@@ -23,15 +23,19 @@ func TestTheLogRecordsWhatThePanelWouldSay(t *testing.T) {
 		Entry{PID: 11, Kind: KindShell, Command: "zsh", Status: StatusIdle, Started: began},
 		Entry{PID: 12, Kind: KindRun, Command: "worker", Status: StatusActive, Started: began},
 		Entry{PID: 13, Kind: KindShell, Command: "zsh", Status: StatusIdle, Started: began},
+		Entry{PID: 15, Kind: KindRun, Command: "api", Status: StatusDown, Started: began},
+		Entry{PID: 16, Kind: KindRun, Command: "node", Status: StatusActive, Started: began},
+		Entry{PID: 17, Kind: KindEditor, Command: "vim", Status: StatusActive, Started: began},
 	)
 	now := logProjects(
 		Entry{PID: 10, Kind: KindContact, Command: "claude", Status: StatusWaiting, Started: began},
 		Entry{PID: 11, Kind: KindShell, Command: "zsh", Status: StatusActive, Started: began},
 		Entry{PID: 12, Kind: KindRun, Command: "worker", Status: "EXIT 1", Fault: true, Started: began},
 		Entry{PID: 14, Kind: KindService, Command: "postgres", Status: StatusActive, Started: logNow},
+		Entry{PID: 15, Kind: KindRun, Command: "api", Status: StatusActive, Started: began},
 	)
 	got := Changes(was, now, logLabel, logNow)
-	want := []string{"claude WAITING", "worker EXIT 1", "postgres ACTIVE", "zsh GONE"}
+	want := []string{"claude WAITING", "worker EXIT 1", "api ACTIVE", "node GONE"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d events, want %d:\n%v", len(got), len(want), got)
 	}
@@ -43,35 +47,40 @@ func TestTheLogRecordsWhatThePanelWouldSay(t *testing.T) {
 			t.Errorf("event %d is filed under %q at %v", i, e.Project, e.At)
 		}
 	}
-	// The shell going from idle to active is the shell running a command,
-	// and is not among them; the gone shell is 13's, not 11's.
-	if got[3].PID != 13 {
-		t.Errorf("the row that left is pid %d, want 13", got[3].PID)
+	// The shell running a command, the service the operator started,
+	// the shell and the editor closed are not among them; the run that
+	// was there and is not is.
+	if got[3].PID != 16 {
+		t.Errorf("the row that left is pid %d, want 16", got[3].PID)
 	}
 }
 
-func TestAContactsTurnIsNewsAndAServersRequestIsNot(t *testing.T) {
+func TestAContactsTurnOverIsNewsAndItsTurnBegunIsNot(t *testing.T) {
 	began := logNow.Add(-time.Hour)
 	was := logProjects(
 		Entry{PID: 10, Kind: KindContact, Command: "claude", Status: StatusWorking, Started: began},
+		Entry{PID: 11, Kind: KindContact, Command: "claude", Status: StatusIdle, Started: began},
+		Entry{PID: 12, Kind: KindContact, Command: "claude", Status: StatusWaiting, Started: began},
 		Entry{PID: 20, Kind: KindService, Command: "node", Status: StatusActive, Started: began},
 	)
 	now := logProjects(
 		Entry{PID: 10, Kind: KindContact, Command: "claude", Status: StatusIdle, Started: began},
+		Entry{PID: 11, Kind: KindContact, Command: "claude", Status: StatusWorking, Started: began},
+		Entry{PID: 12, Kind: KindContact, Command: "claude", Status: StatusIdle, Started: began},
 		Entry{PID: 20, Kind: KindService, Command: "node", Status: StatusWorking, Started: began},
 	)
 	got := Changes(was, now, logLabel, logNow)
-	if len(got) != 1 || got[0].PID != 10 || got[0].Word != StatusIdle {
-		t.Errorf("want the contact's turn over and nothing else, got %v", got)
+	if len(got) != 2 || got[0].PID != 10 || got[0].Word != StatusIdle || got[1].PID != 12 || got[1].Word != StatusIdle {
+		t.Errorf("want the two turns over and nothing else, got %v", got)
 	}
 }
 
 func TestAPidComeRoundAgainIsANewRow(t *testing.T) {
-	was := logProjects(Entry{PID: 10, Kind: KindShell, Command: "zsh", Status: StatusIdle, Started: logNow.Add(-time.Hour)})
-	now := logProjects(Entry{PID: 10, Kind: KindShell, Command: "vim", Status: StatusIdle, Started: logNow})
+	was := logProjects(Entry{PID: 10, Kind: KindRun, Command: "worker", Status: StatusActive, Started: logNow.Add(-time.Hour)})
+	now := logProjects(Entry{PID: 10, Kind: KindRun, Command: "worker", Status: StatusActive, Started: logNow})
 	got := Changes(was, now, logLabel, logNow)
-	if len(got) != 2 || got[0].Word != StatusIdle || got[0].Label != "vim" || got[1].Word != LogGone || got[1].Label != "zsh" {
-		t.Errorf("want vim arrived and zsh gone, got %v", got)
+	if len(got) != 1 || got[0].Word != LogGone {
+		t.Errorf("want the old worker gone and the new one unremarked, got %v", got)
 	}
 }
 

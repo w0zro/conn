@@ -20,6 +20,7 @@ import (
 //
 // A line says what the panel would have said: the row's own word,
 // WAITING or EXIT 1 or DOWN, and GONE for a row that left the table.
+// Not every change is a line: see news and left for which are.
 // Nothing is read from inside a pane for it. The words are the panel's
 // vocabulary and no other, so a line in the log is a row of the panel
 // read later.
@@ -44,9 +45,15 @@ type Event struct {
 const LogGone = "GONE"
 
 // Changes is what moved between two readings, as the log records it:
-// a row that is new, a row that is gone, and a row whose word changed
-// where the change is news. label is what the panel calls a row. The
+// a row whose word changed where the change is news, and a row that is
+// gone where its going is. label is what the panel calls a row. The
 // events stand in the panel's order, the rows that left after them.
+//
+// A row that is new is not a line. What appears on the panel the
+// operator put there — a shell opened, a contact started, a process
+// brought up — and a log of one's own doing is read past; the log is
+// what happened while the operator was not looking, which is what the
+// panel came to say of a row that was already there.
 //
 // A row is the same row across the two readings by its pid and when it
 // started, so a pid come round again is a new row and not the old one
@@ -73,14 +80,16 @@ func Changes(was, now []Project, label func(Entry) string, at time.Time) []Event
 			k := key{e.PID, e.Started}
 			prev, ok := before[k]
 			delete(before, k)
-			if ok && !news(prev.Entry, e) {
+			if !ok || !news(prev.Entry, e) {
 				continue
 			}
 			events = append(events, Event{At: at, Project: pl.Path, Label: label(e), PID: e.PID, Word: e.Status})
 		}
 	}
 	for k := range before {
-		gone = append(gone, k)
+		if left(before[k].Entry) {
+			gone = append(gone, k)
+		}
 	}
 	// The rows that left, in a settled order: the map's own is none.
 	sort.Slice(gone, func(i, j int) bool { return gone[i].pid < gone[j].pid })
@@ -91,32 +100,36 @@ func Changes(was, now []Project, label func(Entry) string, at time.Time) []Event
 	return events
 }
 
-// quiet is a word that comes and goes with the work itself: a shell
-// between commands, a server between requests, a build between files.
-func quiet(status string) bool {
-	switch status {
-	case StatusWorking, StatusActive, StatusIdle:
+// news says whether a row's word changing is worth a line: the row has
+// come to want something of the operator, or to say something is over.
+// A wait begun, a fault, a listener gone, a declared process down, and
+// a declared process up again from down, since what was down and is
+// not is a thing that happened. A contact's turn over is news too —
+// idle after working or waiting is the answer the operator was waiting
+// on — but its turn begun is not, the operator having begun it. A
+// shell between commands, a server between requests and a build
+// between files change their word every reading, and a log of that is
+// a log nobody reads.
+func news(prev, e Entry) bool {
+	switch {
+	case prev.Status == e.Status:
+		return false
+	case e.Status == StatusWaiting, e.Status == StatusDown, e.Status == StatusClosed, e.Fault:
+		return true
+	case prev.Status == StatusDown:
+		return true
+	case e.Kind == KindContact && e.Status == StatusIdle:
 		return true
 	}
 	return false
 }
 
-// news says whether a row's word changing is worth a line. A change
-// between two quiet words is not: a shell runs a command every minute
-// and a server answers a request every second, and a log of that is a
-// log nobody reads. A contact is the exception, its quiet being its
-// turn: working is a turn begun and idle is a turn over, which is the
-// thing the operator was waiting on. Anything else that changes — a
-// wait begun or answered, a fault, a declared process down or up, a
-// listener gone — is the panel's word changing, and is news.
-func news(prev, e Entry) bool {
-	if prev.Status == e.Status {
-		return false
-	}
-	if quiet(prev.Status) && quiet(e.Status) && e.Kind != KindContact {
-		return false
-	}
-	return true
+// left says whether a row's going is worth a line. A shell closed and
+// an editor quit are the operator's own doing, ten times a day; a
+// contact gone, a run that was there and is not, a service taken down
+// are what the operator would ask about.
+func left(e Entry) bool {
+	return e.Kind != KindShell && e.Kind != KindEditor
 }
 
 // Faulty says whether a word is a fault's: a thing to look at, which

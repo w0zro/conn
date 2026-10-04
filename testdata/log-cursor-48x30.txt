@@ -10,7 +10,7 @@
 
    YESTERDAY ─────────────────────────────────
    23:58 web         zsh                  GONE
-▸  18:09 w0zro/conn  the station log   WORKING
+▸  18:09 w0zro/conn  the station log      IDLE
    18:02 w0zro/conn  the station log  WAITING
 
    30 SEP ────────────────────────────────────

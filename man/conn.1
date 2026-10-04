@@ -136,8 +136,14 @@ next, newest first, under the day it happened on: the time, the
 project, what the panel called the row, and the row's word as the
 panel said it, WAITING or EXIT 1 or DOWN, and GONE for a row that
 left.
-A change between working, active and idle is not a line, except a
-contact's, whose turn beginning and ending it is.
+Not every change is a line.
+A line is a row come to want something of you or to say something is
+over: a wait begun, a fault, a listener gone, a declared process down
+or up again, a contact's turn over, and a row gone that was not a
+shell or an editor.
+A row appearing is your own doing and is not a line, nor is a shell
+between commands, a server between requests or a contact's turn
+begun.
 The lines written since the view was last opened are in the ink and
 counted at the head; the band says the count beside the wordmark,
 .BR "LOG 3" ,
@@ -1519,7 +1525,8 @@ the row under the cursor, for the page;
 .I log
 the log, a line a change, its fields parted by tabs: the time, the
 project's path, what the panel called the row, its pid, and its word;
-the older half is let go once the file passes a megabyte;
+the older half is let go once the file passes a megabyte; it is kept
+beside the socket, so a server on a socket of its own keeps its own;
 .I conn.1
 this page, written for
 .BR man .

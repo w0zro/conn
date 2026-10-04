@@ -8,7 +8,7 @@ import (
 
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/config"
+	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -49,10 +49,12 @@ type logList struct {
 	unseen int // lines written since the view was last opened, for the band
 }
 
-// logPath is the log's file, under the state directory beside the
-// socket and the manual.
+// logPath is the log's file: beside the server's socket, which is in
+// the state directory unless a socket is named, so a server on a
+// socket of its own — a test's, a scratch one — keeps a log of its own
+// and never writes into the station's.
 func logPath(home string) string {
-	return filepath.Join(config.StateHome(home), "conn", "log")
+	return filepath.Join(filepath.Dir(tmux.SocketPath(home)), "log")
 }
 
 // logged takes the changes a reading found: onto the view where it is

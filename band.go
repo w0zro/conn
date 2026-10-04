@@ -104,17 +104,20 @@ func (m model) keys() string {
 	return m.wordmark()
 }
 
-// wordmark is conn's name as the band wears it, and beside it, lit,
-// how many lines the log has had since it was last opened: the one
-// thing the band says on its own about what happened while the
-// operator was not looking. It is on the band because the band is
-// under every pane, and inside a process is where the operator was
-// not looking from. Nothing while the log has nothing new, since an
-// annunciator that is always lit is one nobody sees.
+// wordmark is conn's name as the band wears it, and after it how many
+// lines the log has had since it was last opened: the one thing the
+// band says on its own about what happened while the operator was not
+// looking. It is on the band because the band is under every pane,
+// and inside a process is where the operator was not looking from. It
+// is a figure, and is written as the band writes its figures, in the
+// gray after a dot the way the clock is, and not as a block: a block
+// is a state the keys are in, and a count lit like one read as an
+// alarm when it is a number to glance at. Nothing while the log has
+// nothing new.
 func (m model) wordmark() string {
 	w := tmux.StatusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
 	if m.log.unseen > 0 {
-		w += tmux.StatusLineBlock("LOG "+strconv.Itoa(m.log.unseen), m.g)
+		w += tmux.StatusLineWord("· LOG "+strconv.Itoa(m.log.unseen)+" ", m.g.Gray, false, m.g)
 	}
 	return w
 }

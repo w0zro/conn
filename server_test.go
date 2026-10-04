@@ -279,10 +279,22 @@ func (s *scratch) rowSays(name, word string) bool {
 func (s *scratch) cursorAmongShells() int {
 	out, _ := s.srv.Run("capture-pane", "-e", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".0")
 	raised := "48;2;" + rgbOf(theme.Conn.Dark.Border)
-	n := 0
+	// Only the scratch project's shells are counted, as shellRows
+	// counts them: the machine may have a shell of its own standing
+	// under another project, above these, and it is not one of the
+	// shells the test opened.
+	n, under := 0, false
 	for _, line := range strings.Split(out, "\n") {
 		plain := stripEscapes(line)
-		if !isShell(rowCommand(plain)) {
+		switch {
+		case strings.HasPrefix(strings.TrimSpace(plain), scratchProject+" ─"):
+			under = true
+			continue
+		case isEyebrow(plain):
+			under = false
+			continue
+		}
+		if !under || !isShell(rowCommand(plain)) {
 			continue
 		}
 		if strings.Contains(line[:min(len(line), 60)], raised) {
@@ -766,7 +778,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	}
 	// reground paints the panel's pane on the surface of the ground
 	// asked for.
-	if err := srv.Reground(conf, light.Surface, "", true); err != nil {
+	if err := srv.Reground(conf, light.Surface, "", filepath.Join(s.dir, "conn"), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -816,7 +828,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	}
 	// reground paints the panel's pane on the surface of the ground
 	// asked for.
-	if err := srv.Reground(conf, datum.Wear().Surface, "", true); err != nil {
+	if err := srv.Reground(conf, datum.Wear().Surface, "", filepath.Join(s.dir, "conn"), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1384,4 +1396,60 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		id, _ := marked("sleeper")
 		return id == "" && s.rowSays("sleeper", work.StatusDown) && s.rowSays("quick", work.StatusDown)
 	})
+}
+
+// A reground starts the panel and the hold again from the conn that
+// asked, not from the command each pane first rose on. The scratch's
+// binary is moved out from under the server, the way Go's cache trim
+// takes a go run's, and the reground is handed the binary where it now
+// is: both panes come up from there, alive.
+func TestARegroundStartsThePanesFromTheConnAsking(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return s.finished() })
+	s.keys("Space")
+	s.until("the bay to open", func() bool {
+		return s.display("#{pane_width}") == panelW && strings.Contains(s.panes(), "home.1:conn:")
+	})
+	moved := filepath.Join(s.dir, "conn-rebuilt")
+	if err := os.Rename(filepath.Join(s.dir, "conn"), moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.srv.Reground(filepath.Join(s.dir, "tmux.conf"), theme.Conn.Dark.Surface, "", moved, true); err != nil {
+		t.Fatal(err)
+	}
+	s.until("the panel up again from the moved binary", func() bool {
+		return s.display("#{pane_dead}") == "0" && strings.Contains(s.display("#{pane_start_command}"), moved) && s.finished()
+	})
+	// tmux answers the command in quotes of its own.
+	hold, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{pane_dead} #{pane_start_command}")
+	if hold = strings.Trim(strings.TrimSpace(hold), `"`); !strings.HasPrefix(hold, "0 ") || !strings.Contains(hold, moved) || !strings.HasSuffix(hold, " hold") {
+		t.Errorf("the hold did not come up again from the moved binary: %q", hold)
+	}
+}
+
+// A conn attaching to a server whose panel has died starts the panel
+// again from its own binary. The home window stays once the bay has
+// opened, with the dead pane in it, and the attach would otherwise
+// land on a panel saying its file was not found.
+func TestAnAttachStartsADeadPanelAgain(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return s.finished() })
+	s.keys("Space")
+	s.until("the bay to open", func() bool {
+		return s.display("#{pane_width}") == panelW && strings.Contains(s.panes(), "home.1:conn:")
+	})
+	gone := filepath.Join(s.dir, "gone")
+	if _, err := s.srv.Run("respawn-pane", "-k", "-t", tmux.SessionName+":"+tmux.HomeWindow+".0", "exec "+tmux.ShellQuote(gone)); err != nil {
+		t.Fatal(err)
+	}
+	s.until("the panel to have died", func() bool { return s.display("#{pane_dead}") == "1" })
+	if err := s.srv.RestoreHome(filepath.Join(s.dir, "home"), filepath.Join(s.dir, "conn")); err != nil {
+		t.Fatal(err)
+	}
+	s.until("the panel up again", func() bool {
+		return s.display("#{pane_dead}") == "0" && strings.Contains(s.panes(), "home.0:conn:") && s.finished()
+	})
+	if got := s.display("#{window_panes}"); got != "2" {
+		t.Errorf("home has %s panes after the panel came back, not the panel and the bay", got)
+	}
 }

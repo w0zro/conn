@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -39,6 +40,7 @@ type settingsModel struct {
 	srv           *tmux.Server
 	home          string
 	self          string       // the pane this conn runs in, for a reground
+	exe           string       // this conn's binary, which a reground starts the other panes from
 	mode          theme.Mode   // the mode conn is in, which the rows note and a pick here changes
 	g             theme.Ground // the ground that mode wears, which the palette is built off and the bar is written from
 	width, height int
@@ -60,7 +62,8 @@ type settingsModel struct {
 // runSettings is the settings in a mode, the one the server is in.
 func runSettings(srv *tmux.Server, home string, in theme.Mode) error {
 	g := in.Wear()
-	m := settingsModel{srv: srv, home: home, self: tmux.OwnPane(), mode: in, g: g, p: colored(g)}
+	exe, _ := os.Executable()
+	m := settingsModel{srv: srv, home: home, self: tmux.OwnPane(), exe: exe, mode: in, g: g, p: colored(g)}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
 }
@@ -303,9 +306,9 @@ func (m settingsModel) wearing(want theme.Mode) (settingsModel, tea.Cmd) {
 	if m.srv == nil || m.self == "" {
 		return m, nil
 	}
-	srv, conf, bg, self := m.srv, tmux.Conf(tmux.PanelKey(), m.g), m.g.Surface, m.self
+	srv, conf, bg, self, exe := m.srv, tmux.Conf(tmux.PanelKey(), m.g), m.g.Surface, m.self, m.exe
 	return m, func() tea.Msg {
-		_ = srv.Rewear(conf, bg, self, want)
+		_ = srv.Rewear(conf, bg, self, exe, want)
 		_ = srv.WearMode()
 		return nil
 	}

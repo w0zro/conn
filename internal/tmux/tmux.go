@@ -133,17 +133,12 @@ func (s *Server) Attach(self, home string, o theme.Override) (int, error) {
 		return 0, err
 	}
 	if asked {
-		if err := s.Reground(conf, g.Surface, "", true); err != nil {
+		if err := s.Reground(conf, g.Surface, "", self, true); err != nil {
 			return 0, err
 		}
 	}
-	// A server that is up but has lost its home window gets one back.
-	if _, err := s.Run("has-session", "-t", "="+SessionName); err == nil {
-		if !s.hasHome() {
-			if _, err := s.Run("new-window", "-d", "-t", SessionName+":", "-n", HomeWindow, "-c", home, "exec "+ShellQuote(self)); err != nil {
-				return 0, err
-			}
-		}
+	if err := s.RestoreHome(home, self); err != nil {
+		return 0, err
 	}
 	cmd := exec.Command(s.Tmux, "-S", s.Socket, "-f", conf,
 		"new-session", "-A", "-s", SessionName, "-n", HomeWindow, "-c", home, "exec "+ShellQuote(self))
@@ -176,14 +171,14 @@ func (s *Server) Attach(self, home string, o theme.Override) (int, error) {
 // left standing — it is told to wear the mode where it stands, and
 // killing it to change color would take the view the operator is
 // working with it.
-func (s *Server) Rewear(conf, bg, except string, m theme.Mode) error {
+func (s *Server) Rewear(conf, bg, except, self string, m theme.Mode) error {
 	if err := theme.WriteMode(s.Socket, m); err != nil {
 		return err
 	}
 	if err := os.WriteFile(confPath(s.Socket), []byte(conf), 0o600); err != nil {
 		return err
 	}
-	return s.Reground(confPath(s.Socket), bg, except, false)
+	return s.Reground(confPath(s.Socket), bg, except, self, false)
 }
 
 // confPath is the tmux configuration conn writes for its server, beside
@@ -213,7 +208,14 @@ func confPath(socket string) string {
 // conn's own: it has put the mode on itself already, and starting it
 // again would take the operator back to the top of the page they are
 // working.
-func (s *Server) Reground(conf, bg, except string, panel bool) error {
+//
+// self is the conn each pane is started again from. Left to itself,
+// respawn-pane runs the command the pane first rose on, which is the
+// path of whatever conn started it, and that path need not still be
+// there: a conn run with go run is the build cache's, and Go trims the
+// cache of what it has not run in days, so the pane came up dead with
+// the shell saying the file was not found.
+func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 	if !s.Up() {
 		return nil
 	}
@@ -226,7 +228,7 @@ func (s *Server) Reground(conf, bg, except string, panel bool) error {
 	}
 	for _, p := range panes {
 		if p.Hold && p.ID != except {
-			if _, err := s.Run("respawn-pane", "-k", "-t", p.ID); err != nil {
+			if _, err := s.Run("respawn-pane", "-k", "-t", p.ID, "exec "+ShellQuote(self)+" hold"); err != nil {
 				return err
 			}
 		}
@@ -241,15 +243,46 @@ func (s *Server) Reground(conf, bg, except string, panel bool) error {
 	// conn that asked for a ground — it had the keys already — and
 	// with the settings in the workspace it took them out from under
 	// the operator mid-page.
-	target := SessionName + ":" + HomeWindow + ".0"
-	if _, err := s.Run("set-option", "-p", "-t", target, "window-style", "bg="+bg); err != nil {
+	if _, err := s.Run("set-option", "-p", "-t", panelTarget, "window-style", "bg="+bg); err != nil {
 		return err
 	}
 	if !panel {
 		return nil
 	}
-	_, err = s.Run("respawn-pane", "-k", "-t", target)
+	_, err = s.Run("respawn-pane", "-k", "-t", panelTarget, "exec "+ShellQuote(self))
 	return err
+}
+
+// panelTarget is the panel's pane as tmux is asked for it from outside
+// the server: the first pane of the home window, where conn put it.
+var panelTarget = SessionName + ":" + HomeWindow + ".0"
+
+// RestoreHome puts the home window back on a server that is up and has
+// lost it, and starts the panel again where the window stands but the
+// panel in it has died: once the bay has opened the window keeps a
+// pane whose process has ended, so a panel that ended stays, dead, and
+// an attach would land on it. Either starts from the conn attaching,
+// the one binary known to be there, and not from what the pane first
+// rose on; see Reground for why that may be gone.
+func (s *Server) RestoreHome(home, self string) error {
+	if _, err := s.Run("has-session", "-t", "="+SessionName); err != nil {
+		return nil
+	}
+	if !s.hasHome() {
+		_, err := s.Run("new-window", "-d", "-t", SessionName+":", "-n", HomeWindow, "-c", home, "exec "+ShellQuote(self))
+		return err
+	}
+	if !s.panelDead() {
+		return nil
+	}
+	_, err := s.Run("respawn-pane", "-k", "-t", panelTarget, "exec "+ShellQuote(self))
+	return err
+}
+
+// panelDead says whether the panel's pane stands with its process gone.
+func (s *Server) panelDead() bool {
+	out, err := s.Run("display-message", "-p", "-t", panelTarget, "#{pane_dead}")
+	return err == nil && strings.TrimSpace(out) == "1"
 }
 
 // oscColors asks the terminal to take the ink of a ground and a ground

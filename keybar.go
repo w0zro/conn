@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/w0zro/conn/internal/tmux"
+
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -35,21 +37,15 @@ var (
 	helpHints = []keyHint{moveHint, {"space b", "Page"}, {"g G", "Top, end"}, {"esc", "Back"}}
 )
 
-// keyBar is the hints as the bar writes them on a ground: each key in
-// the ink and bold, what it does in the gray after it and in the lower
-// case, so the key is the one thing that stands up in the row; three
-// cells between one and the next, a cell in from the edge, on the
-// surface, which is the bar's ground.
+// keyBar is the hints as the bar writes them; the writing is the
+// status line's own, in tmux.KeyBar, where the bar for copy mode is
+// written too.
 func keyBar(hints []keyHint, g theme.Ground) string {
-	var b strings.Builder
-	b.WriteString(" ")
+	hs := make([]tmux.Hint, len(hints))
 	for i, h := range hints {
-		if i > 0 {
-			b.WriteString("   ")
-		}
-		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", g.Surface, theme.Hex(g.Ink), h.key, g.Gray, strings.ToLower(h.does))
+		hs[i] = tmux.Hint{Key: h.key, Does: h.does}
 	}
-	return b.String()
+	return tmux.KeyBar(hs, g)
 }
 
 // designation is the station's mark at the right of the key bar: the

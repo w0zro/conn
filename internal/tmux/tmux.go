@@ -721,35 +721,89 @@ func (s *Server) Scrollback(id string) (lines []string, history int, err error) 
 	return lines, history, nil
 }
 
-// Land puts a pane in copy mode with its cursor on a line of its
-// scrollback, at the first of the text on it, and the text as the
-// search in hand, so n and N carry on from there as they do in any
-// pane. The line is counted as Scrollback counts them. It is tmux's
-// own copy mode and search, which the operator already knows how to
-// leave; conn only says where to start.
-func (s *Server) Land(id string, history, line int, text string) error {
-	_, err := s.Run(landArgs(id, history, line, text)...)
+// Land puts a pane in copy mode with its cursor on the k-th saying of
+// a text counted back from the pane's end, the text as the search in
+// hand, and the line in the middle of the pane with its context either
+// side. It is tmux's own copy mode and search, which the operator
+// already knows how to leave; conn only says where to start, so n and N
+// go on from there as in any pane.
+//
+// The match is found by searching and not by a line's number: a pane
+// that takes the bay's width wraps its history again, and a number
+// counted before the move lands a line off, where the k-th saying of a
+// text is the same saying at any width. tmux puts a match it had to
+// scroll to a quarter up from the foot; the pane is then scrolled to
+// put the line in the middle, and the search run again from the end
+// of the line above it, which finds that saying and no other and
+// leaves the search in hand.
+func (s *Server) Land(id string, k int, text string) error {
+	s.Unmode(id)
+	if _, err := s.Run(landSearch(id, k, text)...); err != nil {
+		return err
+	}
+	out, err := s.Run("display-message", "-p", "-t", id, "#{copy_cursor_y} #{scroll_position} #{history_size} #{pane_height}")
+	if err != nil {
+		return err
+	}
+	var cy, oy, hs, sy int
+	if _, err := fmt.Sscan(out, &cy, &oy, &hs, &sy); err != nil {
+		return err
+	}
+	scroll, row := centering(cy, oy, hs, sy)
+	_, err = s.Run(landCenter(id, scroll, row, text)...)
 	return err
 }
 
-// landArgs is the command Land runs. Copy mode counts its scroll from
-// the bottom: goto-line n puts the view's top n lines up from the end
-// of the history, so the line above the match is put at the top, the
-// cursor on its end, and the search forward from there finds the match
-// on the next line and no earlier one. The first line of all has no
-// line above it; the cursor goes to the top's start instead.
-func landArgs(id string, history, line int, text string) []string {
-	above := max(line-1, 0)
-	scroll := min(max(history-above, 0), history)
+// landSearch is the search that finds the saying: copy mode from the
+// pane's end, back to the last saying of the text, and k more back.
+func landSearch(id string, k int, text string) []string {
 	args := []string{"copy-mode", "-t", id,
-		";", "send-keys", "-t", id, "-X", "goto-line", strconv.Itoa(scroll),
+		";", "send-keys", "-t", id, "-X", "history-bottom",
+		";", "send-keys", "-t", id, "-X", "end-of-line",
+		";", "send-keys", "-t", id, "-X", "search-backward-text", text}
+	if k > 0 {
+		args = append(args, ";", "send-keys", "-t", id, "-X", "-N", strconv.Itoa(k), "search-again")
+	}
+	return args
+}
+
+// centering is where to scroll a pane so the cursor's line sits in the
+// middle, and which row the line is on once it does: the cursor is at
+// row cy with the view scrolled oy lines up its history of hs lines on
+// a pane sy rows tall. Copy mode counts its scroll from the bottom, and
+// cannot scroll past either end, so a line near the top of a short
+// history sits as near the middle as the history allows.
+func centering(cy, oy, hs, sy int) (scroll, row int) {
+	target := (sy - 1) / 2
+	scroll = min(max(oy-cy+target, 0), hs)
+	return scroll, cy + scroll - oy
+}
+
+// landCenter scrolls the pane to the centring and puts the cursor on
+// the saying again: the view to the scroll, the cursor to the end of
+// the row above the line, and the search forward from there. The
+// first row has no row above it, and the cursor starts at its start.
+func landCenter(id string, scroll, row int, text string) []string {
+	args := []string{"send-keys", "-t", id, "-X", "goto-line", strconv.Itoa(scroll),
 		";", "send-keys", "-t", id, "-X", "top-line"}
-	if line > 0 {
+	switch {
+	case row > 1:
+		args = append(args, ";", "send-keys", "-t", id, "-X", "-N", strconv.Itoa(row-1), "cursor-down")
+		fallthrough
+	case row == 1:
 		args = append(args, ";", "send-keys", "-t", id, "-X", "end-of-line")
-	} else {
+	default:
 		args = append(args, ";", "send-keys", "-t", id, "-X", "start-of-line")
 	}
 	return append(args, ";", "send-keys", "-t", id, "-X", "search-forward-text", text)
+}
+
+// Unmode takes a pane out of copy mode, where it is in it. A pane left
+// in copy mode by a preview the keys never went into would stand frozen
+// on its screen for whoever next went in; a pane not in a mode is left
+// alone, tmux's word that it is not being nothing to do.
+func (s *Server) Unmode(id string) {
+	_, _ = s.Run("send-keys", "-t", id, "-X", "cancel")
 }
 
 // Show puts a pane in the bay and focus on it. The pane that was in the
@@ -764,6 +818,18 @@ func landArgs(id string, history, line int, text string) []string {
 // no page in it under a panel that still had the keys, and put the
 // page back over the process the operator had just gone into.
 func (s *Server) Show(target Pane) error {
+	return s.show(target, true)
+}
+
+// Preview puts a pane in the bay and leaves the keys on the panel: the
+// pane is being looked at, the way the readout is, and not gone into.
+// A pane already in the bay is left as it is.
+func (s *Server) Preview(target Pane) error {
+	return s.show(target, false)
+}
+
+// show is Show and Preview: the swap, and the keys with it or not.
+func (s *Server) show(target Pane, focus bool) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
 	bay, ok, err := s.Bay()
@@ -794,7 +860,14 @@ func (s *Server) Show(target Pane) error {
 		}
 		args = append(args, ";")
 	}
-	_, err = s.Run(append(args, "select-pane", "-t", target.ID)...)
+	if focus {
+		args = append(args, "select-pane", "-t", target.ID)
+	} else if len(args) == 0 {
+		return nil
+	} else {
+		args = args[:len(args)-1]
+	}
+	_, err = s.Run(args...)
 	return err
 }
 
@@ -1042,6 +1115,13 @@ set -g display-time 3000
 	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)
 	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", g.Accent)
 	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", g.Border, ink)
+	// A search's matches, in copy mode: every saying of the text in a
+	// quiet mark, and the one the cursor is on in the accent, the way
+	// the cursor is everywhere else. tmux's own are a cyan and a
+	// magenta, which would be the two colors on the station that are
+	// nobody's.
+	fmt.Fprintf(&b, "set -g copy-mode-match-style \"bg=%s,fg=%s\"\n", g.Gray, ground)
+	fmt.Fprintf(&b, "set -g copy-mode-current-match-style \"bg=%s,fg=%s,bold\"\n", g.Accent, ground)
 	for i, c := range g.Scheme {
 		fmt.Fprintf(&b, "set -g pane-colours[%d] \"%s\"\n", i, c)
 	}
@@ -1138,7 +1218,41 @@ set -g pane-border-status off
 	// The key bar is on the surface, the panel's own ground, so the two
 	// rows are two things: the band the window's frame, the bar the
 	// panel's footer.
-	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{@conn_bar}#[align=right]#{@conn_ident}\"\n", g.Surface, g.Surface)
+	//
+	// While a pane is in copy mode the bar says copy mode's keys, since
+	// the keys in the pane are tmux's and not the process's, and a
+	// hand that has not learned them is in a screen it cannot scroll
+	// or leave. It goes by tmux's own word for the mode, as the band
+	// does, so a pane scrolled with the wheel says its keys too.
+	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{?pane_in_mode,%s,#{@conn_bar}}#[align=right]#{@conn_ident}\"\n",
+		g.Surface, g.Surface, KeyBar(CopyHints, g))
+	return b.String()
+}
+
+// A Hint is a key and a word for what it does, as the key bar writes
+// them; see KeyBar.
+type Hint struct{ Key, Does string }
+
+// CopyHints is what the bar says while a pane is in copy mode: tmux's
+// own keys in vi mode, which is the mode conn sets. The words have no
+// comma in them, since the bar is written inside a conditional of the
+// format's own and a comma there is the conditional's.
+var CopyHints = []Hint{{"n N", "Next and previous"}, {"/ ?", "Search down and up"}, {"v y", "Select and copy"}, {"q", "Leave"}}
+
+// KeyBar is the hints as the bar writes them on a ground: each key in
+// the ink and bold, what it does in the gray after it and in the lower
+// case, so the key is the one thing that stands up in the row; three
+// cells between one and the next, a cell in from the edge, on the
+// surface, which is the bar's ground.
+func KeyBar(hints []Hint, g theme.Ground) string {
+	var b strings.Builder
+	b.WriteString(" ")
+	for i, h := range hints {
+		if i > 0 {
+			b.WriteString("   ")
+		}
+		fmt.Fprintf(&b, "#[bg=%s fg=%s bold]%s #[nobold fg=%s]%s", g.Surface, theme.Hex(g.Ink), h.Key, g.Gray, strings.ToLower(h.Does))
+	}
 	return b.String()
 }
 

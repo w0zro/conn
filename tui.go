@@ -168,7 +168,8 @@ type (
 		projects []projectRow
 		err      string
 	}
-	sessionsMsg struct { // a project's suspended sessions were read, or every project's
+	previewTickMsg struct{ gen int } // the output view's cursor has rested, and the bay follows it
+	sessionsMsg    struct {          // a project's suspended sessions were read, or every project's
 		dirs     []string
 		recent   bool
 		sessions []work.Session
@@ -590,12 +591,10 @@ func (m model) subject() subject {
 				return subject{pid: r.PID}
 			}
 		}
-	case viewOutput:
-		// A match is about the row its pane is.
-		if _, pane, ok := m.out.outAt(); ok {
-			return subject{pid: pane.pid}
-		}
 	}
+	// The output view has the bay follow its cursor itself, with the
+	// match's pane rather than the page, and has no subject for the page
+	// to take the bay with.
 	return subject{}
 }
 
@@ -771,7 +770,14 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	case logMsg:
 		return m.landedLog(msg), nil
 	case outMsg:
-		return m.landedOutput(msg), nil
+		return m.landedOutput(msg)
+	case previewTickMsg:
+		// The moves have stopped, if this is the tick the last of them
+		// set going; an earlier one is passed over.
+		if msg.gen != m.out.previews || m.view != viewOutput {
+			return m, nil
+		}
+		return m.preview()
 	case projectsMsg:
 		wasRow, hadRow := m.atCursor()
 		m.list.walked, m.list.err, m.list.scanning = msg.projects, msg.err, false
@@ -1105,11 +1111,18 @@ func (m model) backIn() (model, tea.Cmd) {
 // toProcesses leaves the list for the processes view, which starts
 // reading again.
 func (m model) toProcesses() (model, tea.Cmd) {
+	// The output view had the bay showing a pane in copy mode; left by
+	// any road, the pane is taken out of it, so the one way out that
+	// keeps it in, going in, says so before coming here.
+	var left tea.Cmd
+	if m.view == viewOutput {
+		m, left = m.leaveOutput()
+	}
 	// Coming to the view fresh, the page is what the workspace holds
 	// again: a close is for the stay it was made in.
 	m.view = viewProcesses
 	m.processesGen++
-	return m, m.readProcesses()
+	return m, tea.Batch(left, m.readProcesses())
 }
 
 // keepingPage puts the page in the workspace, the page being what the

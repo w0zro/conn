@@ -205,7 +205,9 @@ func TestOnlyTmuxDrawsTheStatusLine(t *testing.T) {
 	for _, want := range []string{
 		"#{?pane_in_mode,", "#{@conn_keys}", "#{@conn_station}",
 		"set -g status-right \"#{@conn_up}\"",
-		`set -g status-format[1] "#[fill=` + g.Surface + ` bg=` + g.Surface + `]#{@conn_bar}#[align=right]#{@conn_ident}"`,
+		// The bar is conn's word, or copy mode's own keys while a pane
+		// is in it, which tmux knows for nothing too.
+		`set -g status-format[1] "#[fill=` + g.Surface + ` bg=` + g.Surface + `]#{?pane_in_mode,` + KeyBar(CopyHints, g) + `,#{@conn_bar}}#[align=right]#{@conn_ident}"`,
 		"#{&&:#{==:#{window_name},home},#{==:#{pane_index},0}}",
 		"status-interval 0", "set -g pane-border-status off",
 		// Every mode a block of the orange, the ground knocked out of it.

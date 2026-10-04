@@ -159,15 +159,23 @@ pane is, newest first.
 Case is ignored while the text is in the lower case, as tmux and vim
 take a search.
 Before anything is typed, the panes and how many lines each has said.
+The workspace follows the cursor, as the page does: the match's pane
+is put there in tmux's copy mode, the line in the middle with its
+context either side, every saying of the text marked and the one under
+the cursor in the accent, and the keys stay on the panel.
 .B enter
-goes into the match's pane in tmux's copy mode, the cursor on the match
-and the text as the search in hand, so
+puts the keys in; from there
 .B n
 and
 .B N
-go on from there and
+go on to the next saying and
 .B q
 leaves, as in any pane.
+.B esc
+goes back, and the page takes the workspace again.
+The view keeps its text while it stays over one project, so
+.B ctrl\-space /
+from a pane just landed in is the list where it was left.
 From the log,
 .B /
 searches the output of the line's project.
@@ -1336,6 +1344,8 @@ has been up, as
 .BR "14:32 · T+ 02h 13m" .
 .SS The key bar
 The keys that work where the cursor is, each with a word.
+While a pane is in copy mode, copy mode's own keys:
+.BR n ", " N ", " / ", " ? ", " v ", " y ", " q .
 At the right, the host and the version.
 .
 .SH COMMANDS

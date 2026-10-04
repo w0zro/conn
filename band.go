@@ -241,7 +241,7 @@ func (m model) bar() string {
 			hints = append(hints, keyHint{"up down", "Move"})
 		}
 		if _, _, ok := m.out.outAt(); ok && m.inside {
-			hints = append(hints, keyHint{"enter", "Go to it"})
+			hints = append(hints, keyHint{"enter", "Go in"})
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	}

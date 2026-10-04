@@ -18,6 +18,10 @@ type bay struct {
 	readout bool   // it is the readout, so the readout is not asked for twice
 	work    string // the last terminal the bay held that was work: where esc goes back into
 	other   string // the work before that: where the panel key pressed on the panel goes
+	// The terminal the output view has the bay showing, which is being
+	// looked at and not gone into: furniture for as long as it is this,
+	// and not work a reading should take for where the operator was.
+	preview string
 }
 
 // slotted is a terminal taken into the bay by conn: work, and the work
@@ -52,7 +56,7 @@ func (b *bay) slotted(tty string) {
 // conn already knows.
 func (b *bay) read(tty string, p tmux.Pane, readout bool) {
 	b.tty, b.readout = tty, readout
-	if tmux.Reachable(p) {
+	if tmux.Reachable(p) && tty != b.preview {
 		b.work = tty
 	}
 }

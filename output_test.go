@@ -107,7 +107,7 @@ func TestSlashOpensTheOutputOverTheRowsProject(t *testing.T) {
 	if m.view != viewOutput || m.out.project != "/Users/w0zro/projects/web" || !m.out.loading {
 		t.Fatalf("/ did not open the output view over the row's project: view %d, project %q", m.view, m.out.project)
 	}
-	m = m.landedOutput(outMsg{project: m.out.project, panes: testOutPanes()})
+	m, _ = m.landedOutput(outMsg{project: m.out.project, panes: testOutPanes()})
 	for _, k := range []string{"e", "r", "r", "o", "r"} {
 		m, _ = m.key(k)
 	}
@@ -118,18 +118,98 @@ func TestSlashOpensTheOutputOverTheRowsProject(t *testing.T) {
 	if hit, pane, ok := m.out.outAt(); !ok || pane.label != "go test ./..." || hit.line != 3 {
 		t.Errorf("down is the next match: %+v in %q", hit, pane.label)
 	}
-	// The page is about the match's row.
-	if s := m.subject(); s.pid != 42 {
-		t.Errorf("the subject is pid %d, want the match's pane's row", s.pid)
+	// The bay follows the cursor itself; the page has no subject here.
+	if s := m.subject(); !s.none() {
+		t.Errorf("the subject is %+v, want none", s)
 	}
 	// A reading for another project is not this view's.
-	m = m.landedOutput(outMsg{project: "/elsewhere", panes: nil})
+	m, _ = m.landedOutput(outMsg{project: "/elsewhere", panes: nil})
 	if len(m.out.panes) != 2 {
 		t.Error("another project's panes landed on the view")
 	}
 	m, _ = m.key("esc")
 	if m.view != viewProcesses {
 		t.Error("esc did not go back")
+	}
+	// Opened again over the same project, the view is where it was
+	// left; over another, it is a fresh line.
+	m, _ = m.key("/")
+	if m.out.find.text != "error" || m.out.find.at != 1 {
+		t.Errorf("the view forgot its text %q and cursor %d", m.out.find.text, m.out.find.at)
+	}
+	m, _ = m.key("esc")
+	m.projects[0].Path = "/Users/w0zro/projects/other"
+	m, _ = m.key("/")
+	if m.out.find.text != "" {
+		t.Error("another project kept the last one's text")
+	}
+}
+
+func TestEachSayingIsCountedBackFromTheEnd(t *testing.T) {
+	panes := []outPane{{tty: "ttys001", id: "%4", label: "api", lines: []string{
+		"aa aa end", // two sayings on one line: the row lands on the first, k 3 and 2 back
+		"nothing",
+		"aa once", // k 1
+		"last aa", // k 0
+	}}}
+	hits := linesSaying("aa", panes)
+	got := []int{}
+	for _, h := range hits {
+		got = append(got, h.k)
+	}
+	if len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 3 {
+		t.Errorf("the sayings count back from the end as %v, want [0 1 3]", got)
+	}
+	if n := sayings("aaa", "aa", false); n != 2 {
+		t.Errorf("overlapping sayings count as tmux counts them: %d, want 2", n)
+	}
+	if n := sayings("AA aa", "aa", true); n != 2 {
+		t.Errorf("a lower-case search ignores case in the count: %d, want 2", n)
+	}
+}
+
+func TestTheBayFollowsTheCursorAfterItRests(t *testing.T) {
+	m := model{p: plain, width: 48, height: 40, view: viewOutput, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m.out = outList{project: "/Users/w0zro/projects/web", panes: testOutPanes()}
+	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}}
+	for _, k := range []string{"e", "r", "r", "o", "r"} {
+		m, _ = m.key(k)
+	}
+	// Each letter sets a tick going; only the last one's is answered.
+	gen := m.out.previews
+	if gen != 5 {
+		t.Fatalf("five letters set %d ticks going", gen)
+	}
+	m, _ = m.update(previewTickMsg{gen: gen - 1})
+	if m.out.shown != (outShown{}) {
+		t.Error("an earlier tick asked the bay")
+	}
+	m, cmd := m.update(previewTickMsg{gen: gen})
+	want := outShown{tty: "ttys001", k: 0, text: "error"}
+	if m.out.shown != want || m.bay.preview != "ttys001" || cmd == nil {
+		t.Errorf("the tick asked for %+v with preview %q", m.out.shown, m.bay.preview)
+	}
+	// Resting on the same match asks nothing more.
+	m.out.previews++
+	m, cmd = m.update(previewTickMsg{gen: m.out.previews})
+	if cmd != nil {
+		t.Error("the same match was asked for again")
+	}
+	// A reading that finds the previewed pane in the bay does not take
+	// it for where the operator was.
+	m.bay.read("ttys001", tmux.Pane{ID: "%4", TTY: "ttys001"}, false)
+	if m.bay.work == "ttys001" {
+		t.Error("a previewed pane was taken for work")
+	}
+	// Down is the other pane, and leaving clears the preview.
+	m, _ = m.key("down")
+	m, _ = m.update(previewTickMsg{gen: m.out.previews})
+	if m.out.shown.tty != "ttys002" || m.out.shown.k != 0 {
+		t.Errorf("down previews %+v", m.out.shown)
+	}
+	m, _ = m.key("esc")
+	if m.bay.preview != "" || m.out.shown != (outShown{}) {
+		t.Error("esc left the preview standing")
 	}
 }
 

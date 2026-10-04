@@ -3,6 +3,7 @@ package main
 import (
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/w0zro/conn/internal/work"
@@ -20,17 +21,25 @@ import (
 // typed is looked for in the scrollback of every pane conn holds for
 // the project, and the lines that say it are the rows, under the row
 // each pane is, newest first within it, since the last thing a process
-// said is usually the thing being looked for. Enter goes into the pane
-// in tmux's own copy mode, the cursor on the match and the text as the
-// search in hand, so n and N go on from there and q leaves as it does
-// in any pane. The output is the panes' own and is read with
-// capture-pane; nothing of it is kept.
+// said is usually the thing being looked for.
+//
+// The bay follows the cursor, the way the page does: the match's pane
+// is put in the bay in tmux's own copy mode, the line in the middle
+// with its context either side, every saying of the text marked and
+// the one under the cursor in the accent, and the keys stay on the
+// panel. Enter puts the keys in, and from there n and N go on to the
+// next saying and q leaves, as in any pane. Esc goes back where the
+// keys were, and the page takes the bay again. The output is the
+// panes' own and is read with capture-pane; nothing of it is kept, and
+// the view keeps its text while it stays over one project, so the panel
+// key then / from a pane just landed in is the list where it was left.
 //
 // Rows conn only reports have no pane, and nothing of theirs is here:
 // what a process wrote to a terminal conn does not hold is not conn's
 // to read. The search is tmux's search: the text as typed, and case
 // ignored while it is typed in the lower case, which is how tmux and
-// vim both take a search.
+// vim both take a search, so the saying the view counts is the saying
+// tmux lands on.
 
 // An outPane is one pane of the project, as read for the view: the row
 // it is on the panel, and what it holds.
@@ -56,6 +65,19 @@ type outList struct {
 	panes   []outPane
 	loading bool
 	find    typed
+	// The match the bay was last asked to show, so moving to the same
+	// one again asks nothing, and the pane it was shown in, which is
+	// taken out of copy mode when the view is left without going in.
+	shown    outShown
+	previews int // which asking of the bay the next tick belongs to
+}
+
+// An outShown is a match as the bay shows it: the pane, and the saying
+// of the text in it counted back from the end.
+type outShown struct {
+	tty  string
+	k    int
+	text string
 }
 
 // An outMatch is a line that says the text: which pane, which of its
@@ -64,6 +86,10 @@ type outMatch struct {
 	pane, line int
 	text       string
 	at         int // where in the line the text begins, in bytes
+	// Which saying of the text the line's first one is, counted back
+	// from the pane's end: what the pane is told to land on, which
+	// holds whatever width it is wrapped to; see tmux.Land.
+	k int
 }
 
 // linesSaying is the lines of the panes that say the text, the panes in
@@ -77,13 +103,36 @@ func linesSaying(text string, panes []outPane) []outMatch {
 	lower := strings.ToLower(text) == text
 	var out []outMatch
 	for i, p := range panes {
+		k := 0
 		for j := len(p.lines) - 1; j >= 0; j-- {
-			if at := indexFold(p.lines[j], text, lower); at >= 0 {
-				out = append(out, outMatch{pane: i, line: j, text: p.lines[j], at: at})
+			at := indexFold(p.lines[j], text, lower)
+			if at < 0 {
+				continue
 			}
+			// A line that says the text more than once is one row, on
+			// its first saying, which is the last one a search back from
+			// the end reaches.
+			n := sayings(p.lines[j], text, lower)
+			out = append(out, outMatch{pane: i, line: j, text: p.lines[j], at: at, k: k + n - 1})
+			k += n
 		}
 	}
 	return out
+}
+
+// sayings is how many times a line says the text, counted as tmux's
+// search counts them: every place it begins, overlapping or not.
+func sayings(line, text string, fold bool) int {
+	if fold {
+		line = strings.ToLower(line)
+	}
+	n := 0
+	for i := 0; i+len(text) <= len(line); i++ {
+		if line[i:i+len(text)] == text {
+			n++
+		}
+	}
+	return n
 }
 
 // indexFold is where text begins in line, or -1: as typed, or with
@@ -137,8 +186,14 @@ func (m model) openOutput(project, came string) (model, tea.Cmd) {
 	}
 	m.from = came
 	m.view = viewOutput
-	m.out = outList{project: project, loading: true}
-	m.out.find.clear()
+	// Opened again over the project it was last over, the view is
+	// where it was left, text and cursor: a pane just landed in is a
+	// list to come back to. Another project is a fresh line.
+	if m.out.project != project {
+		m.out = outList{project: project}
+		m.out.find.clear()
+	}
+	m.out.loading, m.out.shown = true, outShown{}
 	m.processesGen++
 	return m, tea.Batch(m.readProcesses(), m.captureOutput())
 }
@@ -163,13 +218,73 @@ func (m model) captureOutput() tea.Cmd {
 
 // landedOutput takes the panes as read, where they are the view's: one
 // opened on another project since has moved past the answer.
-func (m model) landedOutput(msg outMsg) model {
+func (m model) landedOutput(msg outMsg) (model, tea.Cmd) {
 	if m.view != viewOutput || msg.project != m.out.project {
-		return m
+		return m, nil
 	}
 	m.out.panes, m.out.loading = msg.panes, false
 	m.out.find.at = clamp(m.out.find.at, len(m.out.matches()))
-	return m
+	return m.previewing()
+}
+
+// previewDelay is how long the view waits after the cursor moves
+// before the bay is asked to follow: a word typed is five moves, and
+// the bay follows the word rather than each letter of it.
+const previewDelay = 120 * time.Millisecond
+
+// previewing has the bay follow the cursor, after a moment. It is asked
+// on every move of the cursor and every reading, and asks the bay for
+// the match under the cursor once the moves have stopped.
+func (m model) previewing() (model, tea.Cmd) {
+	if !m.inside || m.view != viewOutput {
+		return m, nil
+	}
+	m.out.previews++
+	gen := m.out.previews
+	return m, tea.Tick(previewDelay, func(time.Time) tea.Msg { return previewTickMsg{gen} })
+}
+
+// preview is the bay asked to show the match under the cursor, where
+// it is not showing it already: the pane into the bay, keys staying on
+// the panel, and the pane in copy mode on the saying. A pane it was
+// showing before is taken out of copy mode on its way out.
+func (m model) preview() (model, tea.Cmd) {
+	hit, pane, ok := m.out.outAt()
+	if !ok {
+		return m, nil
+	}
+	want := outShown{tty: pane.tty, k: hit.k, text: m.out.find.text}
+	target, held := m.panes[pane.tty]
+	if want == m.out.shown || !held {
+		return m, nil
+	}
+	was := m.out.shown
+	m.out.shown = want
+	m.bay.preview = pane.tty
+	srv, before := m.srv, m.panes[was.tty].ID
+	return m, func() tea.Msg {
+		if before != "" && before != target.ID {
+			srv.Unmode(before)
+		}
+		if srv.Preview(target) != nil {
+			return nil
+		}
+		_ = srv.Land(target.ID, want.k, want.text)
+		return nil
+	}
+}
+
+// leaveOutput is the view left without going in: the pane the bay was
+// showing is taken out of copy mode, since the keys never went into
+// it, and the bay is the page's to take again.
+func (m model) leaveOutput() (model, tea.Cmd) {
+	var cmd tea.Cmd
+	if id := m.panes[m.out.shown.tty].ID; id != "" && m.srv != nil {
+		srv := m.srv
+		cmd = func() tea.Msg { srv.Unmode(id); return nil }
+	}
+	m.out.shown, m.bay.preview = outShown{}, ""
+	return m, cmd
 }
 
 // matches is the lines the typed text leaves, which the cursor is an
@@ -195,9 +310,12 @@ func (l outList) outAt() (outMatch, outPane, bool) {
 func (m model) outputKey(k string) (model, tea.Cmd) {
 	switch {
 	case m.out.find.edit(k, len(m.out.matches())):
+		return m.previewing()
 	case k == "ctrl+c":
 		return m.leave()
 	case k == "esc":
+		// The pane the bay was showing is let go of on the way out,
+		// which toProcesses does for every way out of the view.
 		return m.backFrom()
 	case k == "enter":
 		if hit, pane, ok := m.out.outAt(); m.inside && ok {
@@ -206,24 +324,27 @@ func (m model) outputKey(k string) (model, tea.Cmd) {
 				return m, nil
 			}
 			m.from = ""
+			m.out.shown, m.bay.preview = outShown{}, ""
 			m = m.onRow(pane.pid, m.cursorAt)
 			var cmd tea.Cmd
 			m, cmd = m.toProcesses()
-			return m, tea.Batch(cmd, m.landIn(target, pane.tty, pane.history, hit.line, m.out.find.text))
+			return m, tea.Batch(cmd, m.landIn(target, pane.tty, hit.k, m.out.find.text))
 		}
 	}
 	return m, nil
 }
 
-// landIn puts a pane in the bay with the keys in it, as reach does, and
-// then in copy mode on a line of its scrollback; see tmux.Land.
-func (m model) landIn(target tmux.Pane, tty string, history, line int, text string) tea.Cmd {
+// landIn puts a pane in the bay with the keys in it, as reach does, in
+// copy mode on the saying; see tmux.Land. The bay may be showing it
+// already, in which case the landing is the same one again and only
+// the keys move.
+func (m model) landIn(target tmux.Pane, tty string, k int, text string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
 		if srv.Show(target) != nil {
 			return nil
 		}
-		_ = srv.Land(target.ID, history, line, text)
+		_ = srv.Land(target.ID, k, text)
 		return reachedMsg{tty}
 	}
 }

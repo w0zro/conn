@@ -40,7 +40,7 @@ waiting one asked, and lists the sessions left suspended, at a project
 with `A` or across every project with `r`. `l` opens the log: every
 change the panel saw while you were in a pane, newest first, and the
 band counts the lines since you last looked. `/` searches what a
-project's processes have written and lands in the pane on the match.
+project's processes have written, the workspace following the match.
 
 `man conn`, or `?` inside conn, is the reference. The operating
 manual is at [conn.w0zro.com](https://conn.w0zro.com).

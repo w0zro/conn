@@ -46,12 +46,21 @@ func manText(path string, width int) []string {
 	cmd := exec.Command("man", path)
 	cmd.Env = append(os.Environ(),
 		"MANPAGER=cat", "PAGER=cat",
-		"MANWIDTH="+strconv.Itoa(max(width, minCols)))
+		"MANWIDTH="+strconv.Itoa(manWidth(width)))
 	out, err := cmd.Output()
 	if err != nil {
 		return []string{"the manual could not be read: " + err.Error()}
 	}
 	return strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+}
+
+// manWidth is the width man wraps the page to for a pane: the pane
+// less the margin the rows are laid in from, since a line man fills to
+// the pane's width and the canvas then stands three columns in ran
+// past the pane's right edge; and never under the console's width,
+// which is as narrow as the page reads.
+func manWidth(width int) int {
+	return max(width-margin, minCols)
 }
 
 // A run of the manual's text: what it says, and whether man set it

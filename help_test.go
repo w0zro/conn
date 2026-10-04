@@ -13,6 +13,7 @@ import (
 	"github.com/w0zro/conn/internal/theme"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The manual conn shows is the one it was built with. A conn run out of
@@ -406,6 +407,25 @@ func TestTheManPageIsHeldToTheBinary(t *testing.T) {
 	for _, want := range []string{say, "CONN_KEY"} {
 		if !strings.Contains(keys, want) {
 			t.Errorf("the page's keys section lacks %s", want)
+		}
+	}
+}
+
+// The page is wrapped inside the margin: a line man fills to its width
+// stands three columns in and ends inside the pane, where a line
+// filled to the pane's own width ran past its right edge.
+func TestTheManualIsWrappedInsideTheMargin(t *testing.T) {
+	if got := manWidth(100); got != 100-margin {
+		t.Errorf("a pane of 100 asks man for %d, want %d", got, 100-margin)
+	}
+	if got := manWidth(40); got != minCols {
+		t.Errorf("a narrow pane asks man for %d, want the floor %d", got, minCols)
+	}
+	m := manualModel{p: plain}
+	line := strings.Repeat("x", manWidth(100))
+	for _, r := range m.rows([]string{line}, 100, 1) {
+		if w := ansi.StringWidth(r); w > 100 {
+			t.Errorf("a full line is %d cells in a pane of 100", w)
 		}
 	}
 }

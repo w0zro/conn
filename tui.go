@@ -57,8 +57,11 @@ import (
 // ctrl+c close conn.
 
 // The views.
+// A view is what the panel is showing.
+type view int
+
 const (
-	viewConsole = iota
+	viewConsole view = iota
 	viewProcesses
 	viewProjects
 	viewSessions
@@ -66,6 +69,32 @@ const (
 	viewLog    // the panel over time, which l puts up; see log.go
 	viewOutput // a project's output searched, which / puts up; see output.go
 )
+
+// reads says whether the table is read again on a beat while the view
+// is up: the views whose rows are the processes, or lean on them. The
+// processes view is the table; the list holds live processes under its
+// projects; the log says whether a line's row is still there; the
+// output view searches panes the table names. The console reads the
+// station instead, the sessions view and the roots view nothing.
+func (v view) reads() bool {
+	switch v {
+	case viewProcesses, viewProjects, viewLog, viewOutput:
+		return true
+	}
+	return false
+}
+
+// paged says whether the page follows the view's cursor in the
+// workspace: the views with a cursor on something the page can be
+// about. The output view has the bay follow its cursor itself, with
+// the match's pane; see subject.
+func (v view) paged() bool {
+	switch v {
+	case viewProcesses, viewProjects, viewSessions, viewLog, viewOutput:
+		return true
+	}
+	return false
+}
 
 // processesEvery is how often the processes view reads the process
 // table at rest. While it is waiting on a shell conn has just opened,
@@ -184,7 +213,7 @@ type model struct {
 	p             palette
 	g             theme.Ground // the ground conn is on, which the palette is built off and the status line is written from
 
-	view     int
+	view     view
 	lit      bool // the annunciators are showing this half of the blink
 	blink    beat // the blink's tick, in flight while something annunciates
 	spin     beat // the spinner's, in flight while a row is working
@@ -763,7 +792,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 		return m.landed(msg)
 	case processesTickMsg:
-		if msg.gen != m.processesGen || (m.view != viewProcesses && m.view != viewProjects && m.view != viewLog && m.view != viewOutput) {
+		if msg.gen != m.processesGen || !m.view.reads() {
 			return m, nil
 		}
 		return m, m.readProcesses()
@@ -1145,7 +1174,7 @@ func (m model) keepingPage() (model, tea.Cmd) {
 	if !m.inside || m.bay.readout || m.detour.to != noDetour || !m.focused {
 		return m, nil
 	}
-	if m.view != viewProcesses && m.view != viewProjects && m.view != viewSessions && m.view != viewLog && m.view != viewOutput {
+	if !m.view.paged() {
 		return m, nil
 	}
 	if m.subject().none() {

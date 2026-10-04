@@ -1020,7 +1020,7 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 		return next.(model)
 	}
 
-	for _, view := range []int{viewProjects, viewSessions} {
+	for _, view := range []view{viewProjects, viewSessions} {
 		m := base
 		m.view, m.from = view, "%1"
 		next, cmd := m.arrived("")
@@ -1091,9 +1091,9 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 // since in the list and in the sessions view a plain s or a is a
 // letter being typed.
 func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
-	panel := func(view int) model {
+	panel := func(v view) model {
 		m := plainModel()
-		m.inside, m.view = true, view
+		m.inside, m.view = true, v
 		m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}}}}
 		m.cursor = 11
 		m.list.walked = []projectRow{{path: "/w/repo", name: "repo"}}
@@ -1126,7 +1126,7 @@ func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 
 	// In a line typed into, ctrl is readline's: ctrl+s opened a shell
 	// once, and opens nothing now, in the list or anywhere.
-	for _, view := range []int{viewProcesses, viewProjects, viewSessions} {
+	for _, view := range []view{viewProcesses, viewProjects, viewSessions} {
 		if m, cmd = press(panel(view), "ctrl+s"); cmd != nil && m.view == viewProcesses && view != viewProcesses {
 			t.Errorf("ctrl+s from view %d opened a shell", view)
 		}
@@ -1801,7 +1801,7 @@ func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
 // conn and takes the docker feed's stream with it, which it once did
 // from the processes view alone.
 func TestCtrlCClosesTheFeedFromEveryView(t *testing.T) {
-	for _, view := range []int{viewProcesses, viewProjects, viewSessions, viewRoots} {
+	for _, view := range []view{viewProcesses, viewProjects, viewSessions, viewRoots} {
 		done := make(chan struct{})
 		close(done)
 		m := plainModel()

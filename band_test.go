@@ -25,7 +25,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// Each panel view wears the wordmark, the band being the station's
 	// and the view saying itself by its eyebrows; the console wears
 	// none, covering the window with a wordmark of its own.
-	for _, v := range []int{viewProcesses, viewProjects, viewSessions} {
+	for _, v := range []view{viewProcesses, viewProjects, viewSessions} {
 		m.view = v
 		if keys := m.keys(); keys != tmux.StatusLineWord(wordmarkLine, theme.Hex(g.Ink), true, g) {
 			t.Errorf("view %d lights %q, not the wordmark", v, keys)

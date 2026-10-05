@@ -193,8 +193,10 @@ func (m model) landed(msg processesMsg) (model, tea.Cmd) {
 	// rows it is an index into.
 	wasRow, hadRow := m.atCursor()
 	m = m.took(msg)
-	// What changed since the last reading, to the log; see log.go.
+	// What changed since the last reading, to the log; see log.go. And
+	// what every held pane has said since, read on the beat; see said.go.
 	m, wrote := m.logging(msg)
+	wrote = tea.Batch(wrote, m.listen())
 	// The reading the console was waiting on: the processes view goes up
 	// with its rows already in it, drawn at the panel's width, and the
 	// bay opens beside a frame that is already the shape it will be.

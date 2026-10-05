@@ -38,8 +38,9 @@ so conn can say what is not running and bring it up. Claude Code
 sessions are contacts: conn reads their state, shows the question a
 waiting one asked, and lists the sessions left suspended, at a project
 with `A` or across every project with `r`. `l` opens the log: what
-changed while you were in a pane, a wait, a fault, a turn over, newest
-first, and the band counts the lines since you last looked. `/` searches what a
+changed while you were in a pane, a wait, a fault, a turn over, a pane
+that said panic or FAIL, newest first, and the band counts the lines
+since you last looked. `/` searches what a
 project's processes have written, the workspace following the match.
 
 `man conn`, or `?` inside conn, is the reference. The operating

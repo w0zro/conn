@@ -721,6 +721,17 @@ func (s *Server) Scrollback(id string) (lines []string, history int, err error) 
 	return lines, history, nil
 }
 
+// Tail is the last n lines a pane holds, history and screen, oldest
+// first: what it has said lately, for a listener that reads it again
+// on a beat and wants the end and not the whole.
+func (s *Server) Tail(id string, n int) ([]string, error) {
+	out, err := s.Run("capture-pane", "-p", "-S", "-"+strconv.Itoa(n), "-E", "-", "-t", id)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.TrimSuffix(out, "\n"), "\n"), nil
+}
+
 // Land puts a pane in copy mode with its cursor on the k-th saying of
 // a text counted back from the pane's end, the text as the search in
 // hand, and the line in the middle of the pane with its context either

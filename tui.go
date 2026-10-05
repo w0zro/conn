@@ -280,6 +280,10 @@ type model struct {
 
 	out outList // the output view, which / puts up; see output.go
 
+	// The tail of every held pane as last read, by pane id, for what
+	// each has said since; see said.go.
+	tails map[string][]string
+
 	// The asking view: the first root being typed. It is the first start
 	// alone — a root changed on a conn already at work is typed in the
 	// settings, which are a pane of conn's own.
@@ -800,6 +804,8 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		return m.landedLog(msg), nil
 	case outMsg:
 		return m.landedOutput(msg)
+	case saidMsg:
+		return m.heard(msg)
 	case previewTickMsg:
 		// The moves have stopped, if this is the tick the last of them
 		// set going; an earlier one is passed over.

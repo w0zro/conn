@@ -196,6 +196,8 @@ func Faulty(word string) bool {
 		return true
 	case strings.HasPrefix(word, exitWord):
 		return true
+	case SaidWords[word]:
+		return true
 	}
 	return false
 }

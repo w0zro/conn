@@ -155,6 +155,28 @@ shell or an editor.
 A row appearing is your own doing and is not a line, nor is a shell
 between commands, a server between requests or a contact's turn
 begun.
+A pane saying its stack's word for something gone wrong is a line too,
+the word as the stack says it, with the line it said under it:
+.B PANIC
+and
+.B FATAL
+and go test's
+.BR FAIL ,
+a Python
+.BR TRACEBACK ,
+an uncaught
+.B ERROR
+from node, and
+.B EADDRINUSE
+from any server; one line a pane a reading, and nothing a pane had
+said before
+.B conn
+was listening.
+The words are
+.BR conn 's
+knowledge of the stacks, not a setting; a stack
+.B conn
+does not know says nothing.
 Under a line, what it adds: how long the state that ended had stood
 \(em a turn took 6 min, a wait waited 9 min, a run ran 3h 02m, a
 process was down 2 min \(em or what a wait is on, in the contact's own

@@ -29,6 +29,19 @@ A process is a shell, an editor, a coding agent, a dev server, a
 container, a Homebrew service, or anything else with a terminal whose
 working directory is inside one of your projects.
 .PP
+.B conn
+reads what the machine already records: the process table, tmux,
+docker, brew, and the files Claude Code keeps of its own sessions.
+It asks you to write something only where the machine keeps no record
+of it, and then the least that says it: where your checkouts are, in
+.IR config.json ,
+and what should be running in a project, in its
+.IR .conn .
+What a program is, which client talks to it, and what its stack says
+when something has gone wrong,
+.B conn
+knows by name.
+.PP
 On a machine with
 .BR tmux (1),
 the first

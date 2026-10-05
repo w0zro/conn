@@ -192,7 +192,7 @@ func (m model) bar() string {
 	case viewProjects:
 		rows := m.projectRows()
 		if len(rows) > 1 {
-			hints = append(hints, moveHint)
+			hints = append(hints, typedMoveHint)
 		}
 		if row, ok := m.atCursor(); ok && m.inside {
 			if row.pid != 0 {
@@ -207,7 +207,7 @@ func (m model) bar() string {
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewSessions:
 		if len(m.sessions.rows()) > 1 {
-			hints = append(hints, moveHint)
+			hints = append(hints, typedMoveHint)
 		}
 		if len(m.sessions.rows()) > 0 && m.inside {
 			// Here is the project the view is for; the recent view is
@@ -234,11 +234,12 @@ func (m model) bar() string {
 			if _, ok := m.logEntry(e); ok {
 				hints = append(hints, keyHint{"enter", "Go in"})
 			}
+			hints = append(hints, keyHint{"/", "Find in output"})
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	case viewOutput:
 		if len(m.out.matches()) > 1 {
-			hints = append(hints, keyHint{"up down", "Move"})
+			hints = append(hints, typedMoveHint)
 		}
 		if _, _, ok := m.out.outAt(); ok && m.inside {
 			hints = append(hints, keyHint{"enter", "Go in"})

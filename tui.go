@@ -870,6 +870,10 @@ func (m model) key(k string) (model, tea.Cmd) {
 	half := m.firstG
 	m.firstG = false
 	if half && k == "g" {
+		if m.view == viewLog {
+			m.log.at = 0
+			return m, nil
+		}
 		m = m.onRow(0, 0)
 		return m, nil
 	}

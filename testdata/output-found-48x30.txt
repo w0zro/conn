@@ -4,10 +4,10 @@
    web
    FIND   error▏
 
-   api ───────────────────────────────────── 1
+   api ─────────────────────────────── 1 MATCH
    ERROR: dial tcp 127.0.0.1:5432: connection…
 
-   go test ./... ─────────────────────────── 1
+   go test ./... ───────────────────── 1 MATCH
 ▸  error: exit status 1
 
 

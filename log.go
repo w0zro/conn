@@ -17,13 +17,14 @@ import (
 // The log view: the panel over time, which l puts up. The panel is all
 // present tense — what each row is doing now, and how long it has
 // stood so — and says nothing of what happened while the operator was
-// in a pane. The log is that: one line a change the panel saw, newest
+// in a pane. The log is that: a line for each change worth one, newest
 // first, under the day it happened on. A line is the moment, the
-// project, what the panel called the row, and the row's word as the
-// panel said it, so a line reads as a row of the panel read later. The
-// band counts the lines written since the view was last opened, so an
-// operator coming out of a pane is told that something happened before
-// they go looking for what.
+// project, what the panel called the row, the row's word as the panel
+// said it, and under it what the line adds, how long the state stood
+// or what a wait is on, so a line reads as a row of the panel read
+// later. The band counts the lines written since the view was last
+// opened, so an operator coming out of a pane is told that something
+// happened before they go looking for what.
 //
 // The lines are written as the readings land, whatever view is up and
 // wherever the keys are, and read back from the file when the view
@@ -191,8 +192,9 @@ func (m model) logEntry(e work.Event) (work.Entry, bool) {
 }
 
 // logKey answers a key on the log view: j and k move among the lines,
-// enter goes to the line's process where it is still there, / searches
-// the output of the line's project, and esc or l again goes back.
+// gg and G to the newest and the oldest, enter goes to the line's
+// process where it is still there, / searches the output of the line's
+// project, and esc or l again goes back.
 func (m model) logKey(k string) (model, tea.Cmd) {
 	switch k {
 	case "ctrl+c", "q":
@@ -203,6 +205,9 @@ func (m model) logKey(k string) (model, tea.Cmd) {
 		m.log.at = ring(m.log.at+1, len(m.log.read))
 	case "k", "up":
 		m.log.at = ring(m.log.at-1, len(m.log.read))
+	case "g":
+		// The half of gg; see key.
+		m.firstG = true
 	case "G":
 		m.log.at = max(len(m.log.read)-1, 0)
 	case "/":

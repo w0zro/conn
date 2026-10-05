@@ -23,9 +23,12 @@ type keyHint struct{ key, does string }
 // The keys the bar says where the view has no cursor to ask; the
 // rest are chosen by what the cursor's row can take, in bar.
 var (
-	moveHint     = keyHint{"j k", "Move"}
-	rootsHints   = []keyHint{moveHint, {"enter", "Saves it"}}
-	consoleHints = []keyHint{{"any key", "Continue"}}
+	moveHint = keyHint{"j k", "Move"}
+	// On a line typed into, j and k are letters, and the cursor moves
+	// on the arrows and readline's own pair; the bar says the arrows.
+	typedMoveHint = keyHint{"up down", "Move"}
+	rootsHints    = []keyHint{typedMoveHint, {"enter", "Saves it"}}
+	consoleHints  = []keyHint{{"any key", "Continue"}}
 	// A root typed in the settings, where esc is a way back to the
 	// rows. The first start has none: conn cannot show anything until
 	// the line is answered, and a key that did nothing would be conn

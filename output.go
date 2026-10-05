@@ -11,6 +11,7 @@ import (
 	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // The output view: what a project's processes have written, searched.
@@ -405,20 +406,25 @@ func around(text string, at, room int) (string, int) {
 	return fit("…"+kept, room, false), len("…") + len(string(r[lead-8:lead]))
 }
 
+// plural is a figure and its noun: 1 LINE, 2 LINES.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.Itoa(n) + " " + many
+}
+
 // drawOutput renders the output view for a terminal of the given size,
 // with the cursor on the given match.
 func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 	// The header: the name of the view, and against the right how many
 	// lines say the text, or how many lines there are to say it.
-	right := strconv.Itoa(b.lines) + " LINES"
+	right := plural(b.lines, "LINE", "LINES")
 	switch {
 	case b.loading && b.lines == 0:
 		right = ""
 	case b.filter != "":
-		right = strconv.Itoa(len(b.rows)) + " MATCH"
-		if len(b.rows) != 1 {
-			right += "ES"
-		}
+		right = plural(len(b.rows), "MATCH", "MATCHES")
 	}
 	c, measure := head("OUTPUT", right, width, p)
 
@@ -454,7 +460,8 @@ func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 		for _, pane := range b.panes {
 			d.blank(0)
 			l := d.line()
-			l.eyebrow(0, fit(pane.label, measure-12, false), measure, strconv.Itoa(pane.lines))
+			count := plural(pane.lines, "LINE", "LINES")
+			l.eyebrow(0, fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
 			d.emit(l, 0, false)
 		}
 		body = d.rows
@@ -468,7 +475,8 @@ func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 				pane := b.panes[r.pane]
 				d.blank(0)
 				l := d.line()
-				l.eyebrow(0, fit(pane.label, measure-8, false), measure, strconv.Itoa(pane.hits))
+				count := plural(pane.hits, "MATCH", "MATCHES")
+				l.eyebrow(0, fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
 				d.emit(l, 0, false)
 			}
 			l := d.line()

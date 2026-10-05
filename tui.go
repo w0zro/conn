@@ -1354,7 +1354,7 @@ func (m model) View() tea.View {
 	case m.view == viewProjects:
 		rows = drawProjects(m.projectsReport(), m.list.find.at, width, m.height, m.p)
 	case m.view == viewSessions:
-		rows = drawSessions(m.sessions.report(m.head.Login.Home, m.now, m.roots.rootOf), m.sessions.find.at, width, m.height, m.p)
+		rows = drawSessions(m.sessions.report(m.head.Login.Home, m.roots.real, m.now, m.roots.rootOf), m.sessions.find.at, width, m.height, m.p)
 	case m.view == viewRoots:
 		rows = drawRoots(m.asking.report(m.head.Login.Home), m.asking.line.at, width, m.height, m.p)
 	case m.view == viewLog:

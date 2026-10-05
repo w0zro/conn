@@ -35,7 +35,7 @@ import (
 // sessions had, or none yet read — is not an error; there is none for
 // the sessions view to say.
 type sessionsReport struct {
-	project string            // the project it was opened on, tilde'd; empty for the recent view
+	project string            // the project it was opened on, as the panel names its block; empty for the recent view
 	recent  bool              // every project's, named by project and by title
 	names   map[string]string // the project each row's directory is in, by its leaf, for the recent view
 	home    string
@@ -49,17 +49,19 @@ type sessionsReport struct {
 
 // composeSessions words the sessions view: the filter's rows out of the
 // whole number found.
-func composeSessions(sessions []work.Session, project, filter, home string, now time.Time, loading bool) sessionsReport {
-	b := composeSessionsAt(sessions, project, filter, home, now, loading)
+func composeSessions(sessions []work.Session, project, filter, home string, roots []string, now time.Time, loading bool) sessionsReport {
+	b := composeSessionsAt(sessions, project, filter, home, roots, now, loading)
 	b.caret = utf8.RuneCountInString(filter)
 	return b
 }
 
 // composeSessionsAt is composeSessions with the caret left at the
-// start, for the view to put where it is.
-func composeSessionsAt(sessions []work.Session, project, filter, home string, now time.Time, loading bool) sessionsReport {
+// start, for the view to put where it is. The project is named the way
+// the panel names its block, from the root the checkouts are kept
+// under; see projectName.
+func composeSessionsAt(sessions []work.Session, project, filter, home string, roots []string, now time.Time, loading bool) sessionsReport {
 	return sessionsReport{
-		project: config.Tilde(project, home), home: home, now: now, loading: loading,
+		project: projectName(project, roots, home), home: home, now: now, loading: loading,
 		rows: matchingSessions(sessions, filter), total: len(sessions), filter: filter,
 	}
 }
@@ -226,8 +228,8 @@ func (l sessionList) at() (work.Session, bool) {
 
 // report is the sessions view's words as things stand. rootOf is the
 // project that holds a directory, which the recent view names a row by.
-func (l sessionList) report(home string, now time.Time, rootOf func(string) string) sessionsReport {
-	b := composeSessionsAt(l.read, l.project, l.find.text, home, now, l.loading)
+func (l sessionList) report(home string, roots []string, now time.Time, rootOf func(string) string) sessionsReport {
+	b := composeSessionsAt(l.read, l.project, l.find.text, home, roots, now, l.loading)
 	b.caret = l.find.cur
 	if l.recent {
 		b.recent, b.names = true, map[string]string{}

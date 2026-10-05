@@ -1,7 +1,7 @@
 
    SESSIONS                        2 SUSPENDED
    ───────────────────────────────────────────
-   ~/projects/w0zro/conn
+   w0zro/conn
    FIND   ▏
 
 ▸  main          fix the flaky buil… 2H 00M

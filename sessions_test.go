@@ -21,7 +21,7 @@ var testSessions2 = []work.Session{
 }
 
 func testSessions(filter string) sessionsReport {
-	return composeSessions(testSessions2, "/Users/w0zro/projects/w0zro/conn", filter, "/Users/w0zro", processesNow, false)
+	return composeSessions(testSessions2, "/Users/w0zro/projects/w0zro/conn", filter, "/Users/w0zro", []string{"/Users/w0zro/projects"}, processesNow, false)
 }
 
 // A session answers the filter by its branch, the last thing it
@@ -48,9 +48,9 @@ func TestMatchingSessionsAnswersByBranchPromptOrDir(t *testing.T) {
 func TestSessionsMatchesTheGolden(t *testing.T) {
 	golden(t, "sessions-48x30.txt", texts(drawSessions(testSessions(""), 0, 48, 30, plain)))
 	golden(t, "sessions-filtered-48x30.txt", texts(drawSessions(testSessions("flaky"), 0, 48, 30, plain)))
-	loading := composeSessions(nil, "/Users/w0zro/projects/w0zro/conn", "", "/Users/w0zro", processesNow, true)
+	loading := composeSessions(nil, "/Users/w0zro/projects/w0zro/conn", "", "/Users/w0zro", []string{"/Users/w0zro/projects"}, processesNow, true)
 	golden(t, "sessions-loading-48x30.txt", texts(drawSessions(loading, 0, 48, 30, plain)))
-	empty := composeSessions(nil, "/Users/w0zro/projects/w0zro/conn", "", "/Users/w0zro", processesNow, false)
+	empty := composeSessions(nil, "/Users/w0zro/projects/w0zro/conn", "", "/Users/w0zro", []string{"/Users/w0zro/projects"}, processesNow, false)
 	golden(t, "sessions-empty-48x30.txt", texts(drawSessions(empty, 0, 48, 30, plain)))
 }
 
@@ -62,7 +62,7 @@ func TestSessionsLayOut(t *testing.T) {
 	rows := drawSessions(testSessions(""), 1, 48, 30, plain)
 	text := texts(rows)
 	for _, s := range []string{
-		"SESSIONS", "2 SUSPENDED", "FIND   ▏", "~/projects/w0zro/conn",
+		"SESSIONS", "2 SUSPENDED", "FIND   ▏", "w0zro/conn",
 		"main", "fix the flaky", "topic/resume", "2H 00M", "3D 00H",
 	} {
 		if !strings.Contains(text, s) {
@@ -115,7 +115,7 @@ func TestTheRecentViewIsEveryProjectsSessions(t *testing.T) {
 		}
 		return dir
 	}
-	b := m.sessions.report("/Users/w0zro", processesNow, rootOf)
+	b := m.sessions.report("/Users/w0zro", []string{"/Users/w0zro/projects"}, processesNow, rootOf)
 	rows := drawSessions(b, 0, 48, 30, plain)
 	golden(t, "sessions-recent-48x30.txt", texts(rows))
 	text := texts(rows)

@@ -394,9 +394,11 @@ func TestTheManPageIsHeldToTheBinary(t *testing.T) {
 			t.Errorf("the page offers %q, which conn does not answer to", line)
 		}
 	}
-	bound := regexp.MustCompile(`(?m)^bind (\S+) (\S+) `).FindAllStringSubmatch(tmux.Conf(tmux.DefaultKey, theme.Conn.Dark), -1)
-	if len(bound) != 1 || bound[0][1] != "-n" || bound[0][2] != tmux.DefaultKey {
-		t.Fatalf("conn binds %v, not the panel key alone in the root table", bound)
+	// The root table is what reaches through a process; copy mode's own
+	// table binds the keys the key bar says there, and takes nothing.
+	bound := regexp.MustCompile(`(?m)^bind -n (\S+) `).FindAllStringSubmatch(tmux.Conf(tmux.DefaultKey, theme.Conn.Dark), -1)
+	if len(bound) != 1 || bound[0][1] != tmux.DefaultKey {
+		t.Fatalf("conn binds %v in the root table, not the panel key alone", bound)
 	}
 	k := strings.Index(page, ".SH KEYS")
 	if k < 0 {

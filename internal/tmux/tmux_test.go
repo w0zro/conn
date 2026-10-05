@@ -108,8 +108,21 @@ func TestTheConfigurationHolds(t *testing.T) {
 			t.Errorf("configuration lacks %q", s)
 		}
 	}
-	if strings.Count(conf, "\nbind ") != 1 || strings.Contains(conf, "unbind -T") || strings.Contains(conf, "C-b") || strings.Contains(Conf("C-a", g), "C-Space") {
-		t.Errorf("configuration binds more than the panel key, or ignores the key given:\n%s", conf)
+	if strings.Count(conf, "\nbind -n ") != 1 || strings.Contains(conf, "unbind -T") || strings.Contains(conf, "C-b") || strings.Contains(Conf("C-a", g), "C-Space") {
+		t.Errorf("the root table binds more than the panel key, or ignores the key given:\n%s", conf)
+	}
+	// Copy mode selects and copies as the bar says, the way vim does.
+	for _, s := range []string{
+		"bind -T copy-mode-vi v send-keys -X begin-selection",
+		"bind -T copy-mode-vi C-v send-keys -X rectangle-toggle",
+		"bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel",
+	} {
+		if !strings.Contains(conf, s) {
+			t.Errorf("configuration lacks %q", s)
+		}
+	}
+	if n := strings.Count(conf, "\nbind "); n != 4 {
+		t.Errorf("configuration binds %d keys, not the panel key and copy mode's three", n)
 	}
 	// The key is bound whatever the key is, and in the root table, or it
 	// would not reach through a process.

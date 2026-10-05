@@ -1234,6 +1234,14 @@ set -g history-limit 10000
 set -g window-size latest
 set -g set-clipboard on
 set -g mode-keys vi
+# Copy mode selects and copies as vim does, which is what the bar says:
+# v a selection, V lines, ctrl-v a block, y copied. tmux's own vi table
+# begins a selection on space and copies on enter, has v toggle a block
+# without beginning anything, and leaves y unbound. A copy goes to the
+# terminal's clipboard by set-clipboard.
+bind -T copy-mode-vi v send-keys -X begin-selection
+bind -T copy-mode-vi C-v send-keys -X rectangle-toggle
+bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel
 set -g set-titles on
 set -g set-titles-string "conn"
 set -g escape-time 10

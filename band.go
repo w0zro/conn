@@ -119,6 +119,11 @@ func (m model) wordmark() string {
 	if m.log.unseen > 0 {
 		w += tmux.StatusLineWord("· LOG "+strconv.Itoa(m.log.unseen)+" ", m.g.Gray, false, m.g)
 	}
+	// The panel this one relieved, until the next key: the station came
+	// back on another build, and nothing in the view would say so.
+	if m.relieved {
+		w += tmux.StatusLineWord("· RESTARTED ", m.g.Gray, false, m.g)
+	}
 	return w
 }
 

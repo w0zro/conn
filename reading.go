@@ -202,7 +202,7 @@ func (m model) landed(msg processesMsg) (model, tea.Cmd) {
 	// bay opens beside a frame that is already the shape it will be.
 	cmds := []tea.Cmd{wrote}
 	if m.entering {
-		m.entering, m.view = false, viewProcesses
+		m.entering, m.resumed, m.view = false, false, viewProcesses
 		if m.inside {
 			cmds = append(cmds, m.serverCmd(func() error { return m.srv.Narrow() }))
 		}

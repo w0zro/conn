@@ -15,7 +15,10 @@
 package tmux
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -132,7 +135,13 @@ func (s *Server) Attach(self, home string, o theme.Override) (int, error) {
 	if err := os.WriteFile(conf, []byte(Conf(PanelKey(), g)), 0o600); err != nil {
 		return 0, err
 	}
-	if asked {
+	// A server on another build is relieved, which sources the
+	// configuration and starts the panel again as a reground would.
+	relieved, err := s.Relieve(conf, self)
+	if err != nil {
+		return 0, err
+	}
+	if asked && !relieved {
 		if err := s.Reground(conf, g.Surface, "", self, true); err != nil {
 			return 0, err
 		}
@@ -152,7 +161,7 @@ func (s *Server) Attach(self, home string, o theme.Override) (int, error) {
 	// the pane's own ground, which tmux keeps to the pane; the terminal
 	// outside hears it from here.
 	fmt.Print(oscColors(g))
-	err := cmd.Run()
+	err = cmd.Run()
 	// The client is gone and the terminal is ours again: the colors conn
 	// asked it to take go back to its own.
 	fmt.Print(oscOwnColors)
@@ -179,6 +188,15 @@ func (s *Server) Rewear(conf, bg, except, self string, m theme.Mode) error {
 		return err
 	}
 	return s.Reground(confPath(s.Socket), bg, except, self, false)
+}
+
+// WriteConf writes the configuration for the server as it stands, in
+// the mode it is in, for a conn that did not bring it up or attach to
+// it: one typed in a pane of the station. It answers where.
+func (s *Server) WriteConf(home string) (string, error) {
+	conf := confPath(s.Socket)
+	g := theme.ServerMode(s.Socket, home).Wear()
+	return conf, os.WriteFile(conf, []byte(Conf(PanelKey(), g)), 0o600)
 }
 
 // confPath is the tmux configuration conn writes for its server, beside
@@ -226,24 +244,14 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 	if err != nil {
 		return err
 	}
-	for _, p := range panes {
-		if p.Hold && p.ID != except {
-			if _, err := s.Run("respawn-pane", "-k", "-t", p.ID, "exec "+ShellQuote(self)+" hold"); err != nil {
-				return err
-			}
-		}
+	if err := s.respawnOwn(panes, except, self); err != nil {
+		return err
 	}
 	// The panel's pane is painted on the new ground's surface here as
 	// well as by the conn that comes up in it, so the window is right
 	// in the same breath as the rest and not a moment after.
 	//
-	// The style is set as the pane's own option rather than with
-	// select-pane -P, which paints a pane by first making it the pane
-	// the keys are in. That was nothing while the panel was the only
-	// conn that asked for a ground — it had the keys already — and
-	// with the settings in the workspace it took them out from under
-	// the operator mid-page.
-	if _, err := s.Run("set-option", "-p", "-t", panelTarget, "window-style", "bg="+bg); err != nil {
+	if err := s.Paint(panelTarget, bg); err != nil {
 		return err
 	}
 	if !panel {
@@ -251,6 +259,140 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 	}
 	_, err = s.Run("respawn-pane", "-k", "-t", panelTarget, "exec "+ShellQuote(self))
 	return err
+}
+
+// Paint sets the ground a pane is painted on past what is drawn in it.
+//
+// The style is set as the pane's own option rather than with
+// select-pane -P, which paints a pane by first making it the pane the
+// keys are in. That was nothing while the panel only came up with the
+// keys already in it. With the settings in the workspace it took them
+// out from under the operator mid-page, and a panel started again on a
+// new build took them out of the process they were working in.
+func (s *Server) Paint(pane, bg string) error {
+	_, err := s.Run("set-option", "-p", "-t", pane, "window-style", "bg="+bg)
+	return err
+}
+
+// respawnOwn starts every page of conn's own in the workspace again
+// from self, each as the command it is — the readout, the manual, the
+// settings or a hold — except the pane named, which asked and has
+// seen to itself.
+func (s *Server) respawnOwn(panes map[string]Pane, except, self string) error {
+	for _, p := range panes {
+		if p.Hold && p.ID != except {
+			if _, err := s.Run("respawn-pane", "-k", "-t", p.ID, "exec "+ShellQuote(self)+" "+ownCommand(p)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// ownCommand is the command of conn's a page of its own runs, read off
+// the page's marks.
+func ownCommand(p Pane) string {
+	switch {
+	case p.Readout:
+		return "readout"
+	case p.Help:
+		return "manual"
+	case p.Settings:
+		return "settings"
+	}
+	return "hold"
+}
+
+// The server is on a build: the binary every pane of conn's own runs,
+// which the panel names on the server as it comes up, by Fingerprint.
+// A conn of another build that reaches the server relieves it — puts
+// its own panes on the new binary — and leaves the operator's alone, so
+// an update is had by running the new conn, and not by conn down, which
+// takes the work with it.
+const (
+	buildOption  = "@conn_build"
+	resumeOption = "@conn_resume"
+)
+
+// Fingerprint names a binary by its contents. Its path will not do: an
+// install writes the new conn over the old one's path, and go run puts
+// an unchanged build back at the path it had.
+func Fingerprint(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16], nil
+}
+
+// Build is the fingerprint the panel named on the server, blank where
+// no panel has: a server brought up before conn named its builds.
+func (s *Server) Build() string {
+	out, _ := s.Run("show-options", "-gqv", buildOption)
+	return strings.TrimSpace(out)
+}
+
+// SayBuild is the panel naming the build it runs.
+func (s *Server) SayBuild(print string) error {
+	_, err := s.Run("set-option", "-g", buildOption, print)
+	return err
+}
+
+// Relieve puts the server on self where it runs another build. The
+// configuration is sourced again, since a new build may write another;
+// every page of conn's own is started again as the command it is; and
+// the panel is started again told to resume, so it comes up on the
+// processes view and not on the console. Every other pane — the work —
+// is left running. It answers whether there was anything to relieve.
+func (s *Server) Relieve(conf, self string) (bool, error) {
+	print, err := Fingerprint(self)
+	if err != nil {
+		return false, err
+	}
+	if !s.Up() || s.Build() == print {
+		return false, nil
+	}
+	if _, err := s.Run("source-file", conf); err != nil {
+		return false, err
+	}
+	panes, err := s.Panes()
+	if err != nil {
+		return false, err
+	}
+	if err := s.respawnOwn(panes, "", self); err != nil {
+		return false, err
+	}
+	// A home that is gone is RestoreHome's to put back, and the conn it
+	// starts is this one.
+	if !s.hasHome() {
+		return true, nil
+	}
+	_, err = s.Run("set-option", "-g", resumeOption, "1",
+		";", "respawn-pane", "-k", "-t", panelTarget, "exec "+ShellQuote(self))
+	return true, err
+}
+
+// Resuming says whether the panel coming up was started by Relieve, and
+// clears it, so the panel started after it by anything else comes up
+// on the console as it always has.
+func (s *Server) Resuming() bool {
+	out, err := s.Run("show-options", "-gqv", resumeOption)
+	if err != nil || strings.TrimSpace(out) != "1" {
+		return false
+	}
+	_, _ = s.Run("set-option", "-gu", resumeOption)
+	return true
+}
+
+// IsPanel says whether a pane, by id, is the panel's.
+func (s *Server) IsPanel(pane string) bool {
+	out, err := s.Run("display-message", "-p", "-t", panelTarget, "#{pane_id}")
+	return err == nil && strings.TrimSpace(out) == pane
 }
 
 // panelTarget is the panel's pane as tmux is asked for it from outside

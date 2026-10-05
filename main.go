@@ -143,6 +143,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "conn: the tmux server could not be brought up: %v\n", err)
 		srv = nil
 	}
+	// conn typed in a pane of the server, rather than the panel's own:
+	// the server is put on this build, and the pane is left as it was.
+	if inside && !srv.IsPanel(tmux.OwnPane()) {
+		os.Exit(say(relieve(srv, home)))
+	}
 	// A pane of conn's own server draws in the mode the server already
 	// chose; anything else - no tmux, or the server could not come up -
 	// has nobody to ask but the terminal itself, or the flags.
@@ -158,8 +163,11 @@ func main() {
 	g := want.Wear()
 	m := newModel(g)
 	m.srv, m.inside = srv, inside
+	if inside && srv.Resuming() {
+		m = m.resuming(home)
+	}
 	if inside {
-		_, _ = srv.Run("select-pane", "-t", srv.Panel(), "-P", "bg="+g.Surface)
+		_ = srv.Paint(srv.Panel(), g.Surface)
 	}
 	m.self, _ = os.Executable()
 	if _, err := tea.NewProgram(m, programOptions()...).Run(); err != nil {
@@ -348,4 +356,29 @@ func downReport(ws []tmux.Window, socket, home string) string {
 		fmt.Fprintf(&b, " ✔ %-*s  ended\n", width, l)
 	}
 	return b.String()
+}
+
+// relieve is conn typed in a pane of its own server: the server is
+// put on this build, its pages and its panel started again, and the
+// work left running. It answers what to say and whether it went well.
+func relieve(srv *tmux.Server, home string) (string, bool) {
+	self, err := os.Executable()
+	if err != nil {
+		return fmt.Sprintf("conn: %v\n", err), false
+	}
+	conf, err := srv.WriteConf(home)
+	if err != nil {
+		return fmt.Sprintf("conn: %v\n", err), false
+	}
+	relieved, err := srv.Relieve(conf, self)
+	if err == nil {
+		err = srv.RestoreHome(home, self)
+	}
+	switch {
+	case err != nil:
+		return fmt.Sprintf("conn: %v\n", err), false
+	case !relieved:
+		return "conn: the server is on this build already\n", true
+	}
+	return "conn: the server is on this build now; the processes in it were left running\n", true
 }

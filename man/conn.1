@@ -59,6 +59,13 @@ on a row puts that process in the workspace and the keys in it.
 A later
 .B conn
 attaches to the server that is up.
+A
+.B conn
+of another build restarts the panel and
+.BR conn 's
+own pages on itself first, and leaves every other process running:
+an update is had by running the new
+.BR conn .
 .B q
 detaches;
 the server and every process keep running.
@@ -1418,6 +1425,16 @@ At the right, the host and the version.
 .B conn
 The console, then the processes view.
 In the server: attach.
+On a server running another build of
+.BR conn ,
+the panel and
+.BR conn 's
+own pages are restarted on this one first, and the processes in the
+server are left running;
+the panel comes back on the processes view, and the status line says
+.B RESTARTED
+until the next key on the panel.
+Typed in a pane of the server, it does the same and stays in that pane.
 .TP
 .B conn down
 Take the server down with every process in it.
@@ -1700,6 +1717,14 @@ goes on without a server.
 .TP
 .B conn: tmux is not on PATH; there is no server to take down
 Exit 1.
+.TP
+.B conn: the server is on this build now; the processes in it were left running
+Typed in a pane of the server.
+Exit 0.
+.TP
+.B conn: the server is on this build already
+Typed in a pane of the server.
+Exit 0.
 .TP
 .BI "conn: no server up on " socket
 From

@@ -234,6 +234,10 @@ type model struct {
 	// focus does not leave conn guessing where they are.
 	focused  bool
 	entering bool // the console is waiting on a reading to go to the processes view
+	// This panel came up relieving one of another build; see resuming.
+	// resumed holds the console dark until the first reading lands, and
+	// relieved has the band say so until the next key.
+	resumed, relieved bool
 	// The words conn last put on the status line, so they are written
 	// when they change and not on every pass through Update. The
 	// option outlives the conn that set it — a reground respawns the
@@ -389,9 +393,41 @@ func (m model) Init() tea.Cmd {
 		cmds = append(cmds, work.NextBrew())
 	}
 	if m.inside {
-		cmds = append(cmds, m.serverCmd(func() error { return m.srv.Wide() }))
+		// The panel names the build it runs, which is how a conn of
+		// another one knows to relieve it; see tmux.Relieve.
+		srv, self := m.srv, m.self
+		cmds = append(cmds, m.serverCmd(func() error {
+			print, err := tmux.Fingerprint(self)
+			if err != nil {
+				return err
+			}
+			return srv.SayBuild(print)
+		}))
+		if m.resumed {
+			cmds = append(cmds, m.readProcesses())
+		} else {
+			cmds = append(cmds, m.serverCmd(func() error { return m.srv.Wide() }))
+		}
 	}
 	return tea.Batch(cmds...)
+}
+
+// resuming is the panel come up in place of one of another build. The
+// operator was at work and asked for nothing but the new build, so it
+// goes to the processes view on its first reading, the cursor on the
+// row the last panel had it on, and the console stays dark: the
+// workspace stays the shape it was rather than giving the window to a
+// page nobody asked for. Told nowhere to look, there is no processes
+// view to go to, and conn comes up on the console as it always has.
+func (m model) resuming(home string) model {
+	if len(m.roots.real) == 0 {
+		return m
+	}
+	at, _ := askCursor(cursorPath(home))
+	m.cursor = at.pid
+	m.processesGen++
+	m.resumed, m.relieved, m.entering = true, true, true
+	return m
 }
 
 // readStation reads the station off the loop, for a run of the
@@ -853,6 +889,7 @@ func (m model) key(k string) (model, tea.Cmd) {
 	// A notice stands until the next key, whatever it is: it was read,
 	// or it was not going to be.
 	m.notice = ""
+	m.relieved = false
 	// A key between two clicks makes the second a first one again.
 	m.clicked = 0
 	// So does the arrival: the pane the keys came out of is for the key
@@ -1378,7 +1415,7 @@ func (m model) View() tea.View {
 		if i >= m.height && m.height > 0 {
 			break
 		}
-		if m.view == viewConsole && r.stage > m.console.stage {
+		if m.view == viewConsole && (m.resumed || r.stage > m.console.stage) {
 			texts = append(texts, ground)
 		} else {
 			texts = append(texts, r.text)

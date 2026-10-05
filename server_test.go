@@ -1398,8 +1398,9 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	})
 }
 
-// A reground starts the panel and the hold again from the conn that
-// asked, not from the command each pane first rose on. The scratch's
+// A reground starts the panel and the page in the workspace again from
+// the conn that asked, not from the command each pane first rose on,
+// and the page as the page it was: the readout, not a hold. The scratch's
 // binary is moved out from under the server, the way Go's cache trim
 // takes a go run's, and the reground is handed the binary where it now
 // is: both panes come up from there, alive.
@@ -1422,8 +1423,64 @@ func TestARegroundStartsThePanesFromTheConnAsking(t *testing.T) {
 	})
 	// tmux answers the command in quotes of its own.
 	hold, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{pane_dead} #{pane_start_command}")
-	if hold = strings.Trim(strings.TrimSpace(hold), `"`); !strings.HasPrefix(hold, "0 ") || !strings.Contains(hold, moved) || !strings.HasSuffix(hold, " hold") {
-		t.Errorf("the hold did not come up again from the moved binary: %q", hold)
+	if hold = strings.Trim(strings.TrimSpace(hold), `"`); !strings.HasPrefix(hold, "0 ") || !strings.Contains(hold, moved) || !strings.HasSuffix(hold, " readout") {
+		t.Errorf("the readout did not come up again from the moved binary: %q", hold)
+	}
+}
+
+// A conn of another build reaching the server relieves it: the panel
+// comes up again from the new binary, straight onto the processes view
+// with no console between, and the work goes on — the shell in the
+// workspace in the same process, with the keys still in it, and the
+// process in a window of its own untouched. The panel of another build
+// is had by saying the server is on one; building a second conn to
+// differ would test the linker.
+func TestAConnOfAnotherBuildRelievesTheServer(t *testing.T) {
+	s := startScratch(t)
+	s.until("the console to finish", func() bool { return s.finished() })
+	s.keys("Space")
+	s.until("the bay to open", func() bool {
+		return s.display("#{pane_width}") == panelW && strings.Contains(s.panes(), "home.1:conn:")
+	})
+	s.until("the panel to name its build", func() bool { return s.srv.Build() != "" })
+	s.openShell()
+	s.until("a shell in the bay with the keys", func() bool { return s.shellIn("home.1") && s.active("#{pane_index}") == "1" })
+	shell := s.bayPane()
+	repo := filepath.Join(s.dir, "home", "repo")
+	work, err := s.srv.Run("new-window", "-d", "-P", "-F", "#{pane_pid}", "-c", repo, "exec sleep 600")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.srv.SayBuild("another"); err != nil {
+		t.Fatal(err)
+	}
+	bin, conf := filepath.Join(s.dir, "conn"), filepath.Join(s.dir, "tmux.conf")
+	relieved, err := s.srv.Relieve(conf, bin)
+	if err != nil || !relieved {
+		t.Fatalf("Relieve = %v, %v; want the station relieved", relieved, err)
+	}
+	print, _ := tmux.Fingerprint(bin)
+	s.until("the panel up again on this build, on the processes view", func() bool {
+		return s.srv.Build() == print && strings.Contains(s.panel(), scratchProject)
+	})
+	if s.finished() {
+		t.Error("the relieved panel came up on the console")
+	}
+	if s.srv.Resuming() {
+		t.Error("the panel left the word to resume standing for the next one")
+	}
+	if got := s.display("#{window_zoomed_flag}"); got != "0" {
+		t.Error("the relieved panel took the whole window, as the console does")
+	}
+	pids, _ := s.srv.Run("list-panes", "-a", "-F", "#{pane_pid}")
+	if !strings.Contains(" "+strings.Join(strings.Fields(pids), " ")+" ", " "+strings.TrimSpace(work)+" ") {
+		t.Errorf("the work was not left running: pane pid %s gone from %q", strings.TrimSpace(work), pids)
+	}
+	if s.bayPane() != shell || s.active("#{pane_index}") != "1" {
+		t.Errorf("the shell lost the workspace or the keys: bay %s, keys in pane %s", s.bayPane(), s.active("#{pane_index}"))
+	}
+	if relieved, err := s.srv.Relieve(conf, bin); err != nil || relieved {
+		t.Errorf("Relieve on a station already on the build = %v, %v; want nothing done", relieved, err)
 	}
 }
 

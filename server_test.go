@@ -1400,7 +1400,11 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 
 // A reground starts the panel and the page in the workspace again from
 // the conn that asked, not from the command each pane first rose on,
-// and the page as the page it was: the readout, not a hold. The scratch's
+// and the page as the page it is: its command is the one its marks
+// say, the readout's for the readout and a hold's for a hold. Which of
+// the two stands depends on whether the cursor has a row to read, and
+// the panel may put the readout up at any reading, so the page is read
+// with its marks in one go rather than against what stood before. The scratch's
 // binary is moved out from under the server, the way Go's cache trim
 // takes a go run's, and the reground is handed the binary where it now
 // is: both panes come up from there, alive.
@@ -1422,9 +1426,14 @@ func TestARegroundStartsThePanesFromTheConnAsking(t *testing.T) {
 		return s.display("#{pane_dead}") == "0" && strings.Contains(s.display("#{pane_start_command}"), moved) && s.finished()
 	})
 	// tmux answers the command in quotes of its own.
-	hold, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{pane_dead} #{pane_start_command}")
-	if hold = strings.Trim(strings.TrimSpace(hold), `"`); !strings.HasPrefix(hold, "0 ") || !strings.Contains(hold, moved) || !strings.HasSuffix(hold, " readout") {
-		t.Errorf("the readout did not come up again from the moved binary: %q", hold)
+	out, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{@conn_readout}|#{pane_dead} #{pane_start_command}")
+	readout, page, _ := strings.Cut(strings.TrimSpace(out), "|")
+	want := " hold"
+	if readout == "1" {
+		want = " readout"
+	}
+	if page = strings.Trim(page, `"`); !strings.HasPrefix(page, "0 ") || !strings.Contains(page, moved) || !strings.HasSuffix(page, want) {
+		t.Errorf("the page did not come up again from the moved binary as%s: %q", want, page)
 	}
 }
 

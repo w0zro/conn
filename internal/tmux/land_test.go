@@ -65,6 +65,14 @@ func TestLandingOnARealPane(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _, _ = s.Run("kill-server") }()
+	// Copy mode's keys as conn's server has them. Left to itself tmux
+	// takes vi or emacs from EDITOR and VISUAL, and an emacs search
+	// leaves the cursor at the end of the match, not its start: the
+	// test passed under an editor of vi's and failed in CI, which has
+	// none.
+	if _, err := s.Run("set-option", "-g", "mode-keys", "vi"); err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(300 * time.Millisecond)
 	if _, err := s.Run("send-keys", "-t", "t", "seq 1 300; echo aa aa end; seq 1 3", "Enter"); err != nil {
 		t.Fatal(err)

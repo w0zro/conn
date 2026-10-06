@@ -75,6 +75,7 @@ type processRow struct {
 	stands                            string   // the kind the panel marks it as; a folded shell's is not its own
 	ports                             []string // the ports it listens on or publishes, said at the right of a panel row and after the command in the tree
 	num                               string   // the digit that goes to it, on the first ten contacts as drawn; see numbered
+	carried                           string   // what a contact carries, as the panel says it at the right
 	heavy                             string   // what a contact past HeavyContext carries, as the row stamps it
 }
 
@@ -142,6 +143,16 @@ func heavy(e work.Entry) string {
 	return tokens(e.Carried)
 }
 
+// carriedWord is the figure a contact carries, as the panel says it at
+// a row's right, and nothing for any other row or a contact with no
+// turn read yet.
+func carriedWord(e work.Entry) string {
+	if e.Kind != work.KindContact || e.Carried <= 0 {
+		return ""
+	}
+	return tokens(e.Carried)
+}
+
 func composeProcesses(projects []work.Project, panes map[string]tmux.Pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
 	b := processesReport{err: err, stalled: stalled, filed: filed}
 	head, _, marked := headOf(projects, bay)
@@ -152,12 +163,13 @@ func composeProcesses(projects []work.Project, panes map[string]tmux.Pane, bay s
 				pid: e.PID, kind: e.Kind, command: activityOf(e), tty: e.TTY, since: work.SinceWord(e.Since, now),
 				status: e.Status, fault: e.Fault, reach: panes[e.TTY].ID,
 				shown: marked && e.PID == head, depth: e.Depth,
-				over:   e.Declared != "" && panes[e.TTY].Exit != "",
-				name:   rowName(e),
-				age:    waitedFor(e, now),
-				stands: panelKind(e),
-				ports:  e.Ports,
-				heavy:  heavy(e),
+				over:    e.Declared != "" && panes[e.TTY].Exit != "",
+				name:    rowName(e),
+				age:     waitedFor(e, now),
+				stands:  panelKind(e),
+				ports:   e.Ports,
+				heavy:   heavy(e),
+				carried: carriedWord(e),
 			})
 		}
 		b.projects = append(b.projects, bp)

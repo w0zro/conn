@@ -754,7 +754,7 @@ func carriedOf(lines [][]byte) int {
 // than set: past it a contact's answers are worth less than a fresh
 // session's, whatever the window it runs in could still take, and the
 // window is nowhere Claude Code writes; see carried.
-const HeavyContext = 150_000
+const HeavyContext = 500_000
 
 // ReadSessionMeta fills in what a reader recognizes a session by:
 // the branch it was on and the last thing asked of it. It reads

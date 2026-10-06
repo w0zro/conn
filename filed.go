@@ -21,10 +21,11 @@ import (
 
 // What a row says at its right, and only where there is something to
 // say: how long a wait has waited, a fault's word, or the word for a
-// row that is not running. Everything else says nothing there — a row
-// at work turns a spinner, a row that serves says its port, a row at
-// rest has nothing to report — and a word on every row is a column of
-// words that are read past to find the one that is not.
+// row that is not running. Everything else says no word there — a row
+// at work turns a spinner, a row that serves says its port, a contact
+// says the context it carries, a row at rest has nothing to report —
+// and a word on every row is a column of words that are read past to
+// find the one that is not.
 //
 // The wait is stamped and blinks on the console's cadence, since the
 // row that wants you should be seen before it is read and the row that
@@ -240,12 +241,18 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			// word takes it wherever there is one — a row that is
 			// waiting, or at fault, or over is telling you the thing to
 			// know about it, and where it is going is not that — and
-			// otherwise the ports stand there. So every row says one
-			// thing at the edge, and the ports of every row that has
-			// nothing else to say line up down it.
+			// otherwise the ports stand there, or for a contact, which
+			// stands by what it asks of you and not what it has open,
+			// the context it carries. So every row says one thing at the
+			// edge, and the figures of every row that has nothing else
+			// to say line up down it.
 			say, stamped, blinks := rowWord(r)
 			tail, tailColor := say, word
-			if say == "" {
+			switch {
+			case say != "":
+			case r.carried != "":
+				tail, tailColor = r.carried, ports
+			default:
 				tail, tailColor = portsColumn(r.ports), ports
 			}
 			tailW := ansi.StringWidth(tail)

@@ -33,6 +33,12 @@ import (
 // look at and a thing to answer. A wait says its age rather than its
 // word: that both rows are waiting is said by the two stamps, and which
 // of them to answer first is said by nothing else.
+//
+// A contact carrying past work.HeavyContext is stamped with the figure
+// and blinks: it asks something of you too, a session to end or
+// compact, and a figure that held still all afternoon would stop being
+// seen. A wait or a fault outranks it, and the figure is back when
+// either is over.
 func rowWord(r processRow) (word string, stamped, blinks bool) {
 	switch {
 	case r.status == work.StatusWaiting:
@@ -43,6 +49,8 @@ func rowWord(r processRow) (word string, stamped, blinks bool) {
 		return word, true, true
 	case r.fault:
 		return r.status, true, false
+	case r.heavy != "":
+		return r.heavy, true, true
 	case work.Over(r.status):
 		return r.status, false, false
 	}

@@ -195,6 +195,9 @@ type Entry struct {
 	// was renamed to. It is the row's label while the contact is not
 	// working, since claude says nothing and the pid says less.
 	Title string
+	// The tokens a contact's latest turn carried, read off its
+	// transcript with its title; see carried.
+	Carried int
 	// The container this row is, where it is one: the id docker knows it
 	// by, which the keys act on. A process row carries nothing here.
 	Container string

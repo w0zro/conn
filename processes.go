@@ -75,6 +75,7 @@ type processRow struct {
 	stands                            string   // the kind the panel marks it as; a folded shell's is not its own
 	ports                             []string // the ports it listens on or publishes, said at the right of a panel row and after the command in the tree
 	num                               string   // the digit that goes to it, on the first ten contacts as drawn; see numbered
+	heavy                             string   // what a contact past HeavyContext carries, as the row stamps it
 }
 
 // headOf is the first row of a terminal in the projects as read: the
@@ -132,6 +133,15 @@ func worked(projects []work.Project) []work.Project {
 	return out
 }
 
+// heavy is the figure a contact's row is stamped with when what it
+// carries is past work.HeavyContext, and nothing otherwise.
+func heavy(e work.Entry) string {
+	if e.Kind != work.KindContact || e.Carried <= work.HeavyContext {
+		return ""
+	}
+	return tokens(e.Carried)
+}
+
 func composeProcesses(projects []work.Project, panes map[string]tmux.Pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
 	b := processesReport{err: err, stalled: stalled, filed: filed}
 	head, _, marked := headOf(projects, bay)
@@ -147,6 +157,7 @@ func composeProcesses(projects []work.Project, panes map[string]tmux.Pane, bay s
 				age:    waitedFor(e, now),
 				stands: panelKind(e),
 				ports:  e.Ports,
+				heavy:  heavy(e),
 			})
 		}
 		b.projects = append(b.projects, bp)
@@ -456,6 +467,9 @@ func panelStatusWidth(b processesReport) int {
 			if r.fault || r.status == work.StatusWaiting {
 				n += 2
 			}
+			if r.heavy != "" {
+				n = max(n, ansi.StringWidth(r.heavy)+2)
+			}
 			w = max(w, n)
 		}
 	}
@@ -650,6 +664,18 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				if b.lit {
 					l.to(measure - ansi.StringWidth(r.status) - 2)
 					l.add(p.chip, " "+r.status+" ")
+				}
+			// A contact carrying more than is good for it is stamped with
+			// the figure where a fault's word goes, and blinks with the
+			// waiting word: it is something to do something about, a
+			// session to end or compact, and a figure that held still all
+			// afternoon would stop being seen. Waiting outranks it, being
+			// a question, and the figure is back when the question is
+			// answered.
+			case r.heavy != "":
+				if b.lit {
+					l.to(measure - ansi.StringWidth(r.heavy) - 2)
+					l.add(p.chip, " "+r.heavy+" ")
 				}
 			default:
 				l.to(measure - ansi.StringWidth(r.status))

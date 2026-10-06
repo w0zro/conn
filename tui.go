@@ -3,6 +3,7 @@ package main
 import (
 	"cmp"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -483,7 +484,8 @@ func (b *beat) set(want bool) bool {
 
 // annunciating says whether anything conn is drawing blinks as things
 // stand: the console's verdict while the console is up, and a row in
-// the processes view that is waiting on you. Nothing else does — a
+// the processes view that is waiting on you, or carrying more context
+// than is good for it. Nothing else does — a
 // fault in the processes view wears a chip and keeps it, since a
 // process you suspended yourself is not asking anything of you, and a
 // word that blinks all day is a word that is never seen.
@@ -492,7 +494,9 @@ func (m model) annunciating() bool {
 	case viewConsole:
 		return true
 	case viewProcesses:
-		return len(work.WaitingRound(m.projects)) > 0
+		return len(work.WaitingRound(m.projects)) > 0 || slices.ContainsFunc(m.projects, func(pl work.Project) bool {
+			return slices.ContainsFunc(pl.Entries, func(e work.Entry) bool { return heavy(e) != "" })
+		})
 	default:
 		return false
 	}

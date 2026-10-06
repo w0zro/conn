@@ -312,10 +312,11 @@ func doing(verb, object string) string {
 // is the same file until those change, and a working contact's
 // transcript is read on every beat otherwise.
 type ActivitySeen struct {
-	size  int64
-	mod   time.Time
-	Word  string
-	Title string
+	size    int64
+	mod     time.Time
+	Word    string
+	Title   string
+	Carried int
 }
 
 // Activities fills in what each contact's session is about and, for a
@@ -352,14 +353,14 @@ func Activities(projects []Project, was map[string]ActivitySeen) map[string]Acti
 			}
 			seen := ActivitySeen{size: st.Size(), mod: st.ModTime()}
 			if w, ok := was[path]; ok && w.size == seen.size && w.mod.Equal(seen.mod) {
-				seen.Word, seen.Title = w.Word, w.Title
+				seen.Word, seen.Title, seen.Carried = w.Word, w.Title, w.Carried
 			} else if lines, err := tailLines(path, sessionTail); err == nil {
-				seen.Word, seen.Title = askOf(lines).Doing, titleOf(lines)
+				seen.Word, seen.Title, seen.Carried = askOf(lines).Doing, titleOf(lines), carriedOf(lines)
 			}
 			if e.Status == StatusWorking {
 				e.Doing = seen.Word
 			}
-			e.Title = seen.Title
+			e.Title, e.Carried = seen.Title, seen.Carried
 			next[path] = seen
 		}
 	}
@@ -731,6 +732,29 @@ func (l transcriptLine) carried() int {
 	u := l.Message.Usage
 	return u.Input + u.CacheRead + u.CacheMade
 }
+
+// carriedOf is what the latest assistant turn of a transcript's own
+// session carried, a subagent's turns left out: they are written to the
+// same file and carry a context of their own.
+func carriedOf(lines [][]byte) int {
+	for i := len(lines) - 1; i >= 0; i-- {
+		var rec transcriptLine
+		if json.Unmarshal(lines[i], &rec) != nil || rec.IsSidechain {
+			continue
+		}
+		if rec.Type == "assistant" && rec.Message.Model != "" {
+			return rec.carried()
+		}
+	}
+	return 0
+}
+
+// HeavyContext is the context past which a contact's row is stamped
+// with what it carries. The figure is the operator's, held here rather
+// than set: past it a contact's answers are worth less than a fresh
+// session's, whatever the window it runs in could still take, and the
+// window is nowhere Claude Code writes; see carried.
+const HeavyContext = 150_000
 
 // ReadSessionMeta fills in what a reader recognizes a session by:
 // the branch it was on and the last thing asked of it. It reads

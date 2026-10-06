@@ -681,6 +681,53 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 	}
 }
 
+// A contact carrying past HeavyContext is stamped with the figure where
+// a fault's word goes, and the stamp blinks. Waiting outranks it, and
+// the figure is back when the wait is over; a contact at the line and
+// not past it is not stamped.
+func TestAHeavyContactIsStampedAndBlinks(t *testing.T) {
+	contact := work.Entry{PID: 12, Kind: work.KindContact, Command: "claude", Status: work.StatusIdle, Carried: 184_000}
+	draw := func(e work.Entry, lit bool) string {
+		b := composeProcesses([]work.Project{{Path: "/w", Entries: []work.Entry{e}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
+		b.lit = lit
+		return texts(drawProcesses(b, 0, 60, 12, plain))
+	}
+	if on := draw(contact, true); !strings.Contains(on, "184K") || strings.Contains(on, work.StatusIdle) {
+		t.Errorf("the lit half is not the figure in the status's place:\n%s", on)
+	}
+	if off := draw(contact, false); strings.Contains(off, "184K") {
+		t.Errorf("the dark half still says the figure:\n%s", off)
+	}
+	waiting := contact
+	waiting.Status, waiting.Since = work.StatusWaiting, processesNow.Add(-time.Minute)
+	if on := draw(waiting, true); !strings.Contains(on, work.StatusWaiting) || strings.Contains(on, "184K") {
+		t.Errorf("a heavy contact waiting does not say WAITING alone:\n%s", on)
+	}
+	light := contact
+	light.Carried = work.HeavyContext
+	if on := draw(light, true); !strings.Contains(on, work.StatusIdle) {
+		t.Errorf("a contact at the line, not past it, was stamped:\n%s", on)
+	}
+	// The panel's own drawing says the same, at the row's right.
+	filed := func(e work.Entry, lit bool) string {
+		b := composeProcesses([]work.Project{{Path: "/w", Entries: []work.Entry{e}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
+		b.lit = lit
+		return texts(drawFiled(b, 0, 44, 6, plain))
+	}
+	if on, off := filed(contact, true), filed(contact, false); !strings.Contains(on, "184K") || strings.Contains(off, "184K") {
+		t.Errorf("the panel does not blink the figure:\n%s\n%s", on, off)
+	}
+	if on := filed(waiting, true); strings.Contains(on, "184K") {
+		t.Errorf("the panel says the figure over a wait:\n%s", on)
+	}
+	m := plainModel()
+	m.view = viewProcesses
+	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{contact}}}
+	if !m.annunciating() {
+		t.Error("a heavy contact does not set the blink going")
+	}
+}
+
 // The spinner's tick runs while a row is working on the panel by state
 // and stops when none is, or when the tree is up, or off the view: the
 // panel is redrawn eight times a second for something seen to move and

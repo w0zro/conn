@@ -58,7 +58,8 @@ func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
 			t.Fatal(err)
 		}
 		lines := `{"type":"user","message":{"content":"do the thing"}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./..."}}]}}
+{"type":"assistant","message":{"model":"claude-opus-5-5","usage":{"input_tokens":2,"cache_read_input_tokens":160000,"cache_creation_input_tokens":998},"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./..."}}]}}
+{"type":"assistant","isSidechain":true,"message":{"model":"claude-haiku-4-5","usage":{"input_tokens":9000},"content":[]}}
 {"type":"ai-title","aiTitle":"The first title","sessionId":"s"}
 {"type":"ai-title","aiTitle":"Do the thing","sessionId":"s"}
 `
@@ -86,6 +87,11 @@ func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
 	}
 	if len(was) != 2 {
 		t.Errorf("%d transcripts were held, not both", len(was))
+	}
+	// What the session's own latest turn carried, a subagent's turn
+	// after it left out.
+	if got := projects[0].Entries[1].Carried; got != 161_000 {
+		t.Errorf("the contact carries %d, want 161000", got)
 	}
 	// The same file is not read again: the word and the title held are
 	// answered.

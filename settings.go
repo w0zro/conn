@@ -205,35 +205,35 @@ func settingsHints(rows []settingRow, at int) []keyHint {
 
 // drawSettings renders the view for a pane of the given size, with the
 // cursor on the given row.
-func drawSettings(b settingsReport, cursor, width, height int, p palette) []row {
+func drawSettings(b settingsReport, cursor, width, height int, p Palette) []Row {
 	// The header: the view, and the file it is of, since a setting that
 	// is not doing what was meant is answered by opening that file and
 	// the operator should not have to be told twice where it is.
-	measure := measureAt(max(width, panelMinCols))
+	measure := MeasureAt(max(width, PanelMinCols))
 	right := b.path
 	if !b.present {
 		right += " · NEW"
 	}
 	if w := measure - ansi.StringWidth("SETTINGS") - 2; ansi.StringWidth(right) > w {
-		right = fit(right, w, true)
+		right = Fit(right, w, true)
 	}
-	c, _ := head("SETTINGS", right, width, p)
+	c, _ := Head("SETTINGS", right, width, p)
 
-	d := canvas{p: p, width: c.width}
+	d := Canvas{P: p, Width: c.Width}
 	cursorRow := -1
 	say := func(color, s string) {
-		l := d.line()
-		l.add(color, fit(s, measure, false))
-		d.emit(l, 0, false)
+		l := d.Line()
+		l.Add(color, Fit(s, measure, false))
+		d.Emit(l, 0, false)
 	}
 	if b.err != "" {
-		d.blank(0)
-		l := d.line()
-		l.add(p.chip, " "+strings.ToUpper(fit(b.err, measure-2, false))+" ")
-		d.emit(l, 0, false)
+		d.Blank(0)
+		l := d.Line()
+		l.Add(p.Chip, " "+strings.ToUpper(Fit(b.err, measure-2, false))+" ")
+		d.Emit(l, 0, false)
 		if len(b.rows) == 0 {
-			d.blank(0)
-			say(p.gray, "CONN WILL NOT WRITE OVER A FILE IT CANNOT READ")
+			d.Blank(0)
+			say(p.Gray, "CONN WILL NOT WRITE OVER A FILE IT CANNOT READ")
 		}
 	}
 	kind := settingKind(-1)
@@ -243,18 +243,18 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 			// against the right: how many roots it names, and nothing
 			// for the themes and the grounds, which are as many as conn
 			// has either way.
-			d.blank(0)
-			l := d.line()
+			d.Blank(0)
+			l := d.Line()
 			switch r.kind {
 			case themeSetting:
-				l.eyebrow(0, "THEME", measure, "")
+				l.Eyebrow(0, "THEME", measure, "")
 			case groundSetting:
-				l.eyebrow(0, "GROUND", measure, "")
+				l.Eyebrow(0, "GROUND", measure, "")
 			default:
-				l.eyebrow(0, "ROOTS", measure, strconv.Itoa(b.roots))
+				l.Eyebrow(0, "ROOTS", measure, strconv.Itoa(b.roots))
 			}
-			d.emit(l, 0, false)
-			d.blank(0)
+			d.Emit(l, 0, false)
+			d.Blank(0)
 			// What the file says of this setting that conn could not
 			// use, under the heading it belongs to. The console says so
 			// too, in a word; this is the view the operator came to to
@@ -266,25 +266,25 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 					// rather than left to the console, because this is
 					// the view where somebody edits a root and waits
 					// for the list to change.
-					say(p.gray, "CONN_ROOTS STANDS IN FRONT OF THESE")
-					d.blank(0)
+					say(p.Gray, "CONN_ROOTS STANDS IN FRONT OF THESE")
+					d.Blank(0)
 				}
 			case r.kind == themeSetting && b.unknownTheme != "":
-				say(p.gray, "CONN HAS NO THEME NAMED "+strings.ToUpper(b.unknownTheme))
-				d.blank(0)
+				say(p.Gray, "CONN HAS NO THEME NAMED "+strings.ToUpper(b.unknownTheme))
+				d.Blank(0)
 			case r.kind == groundSetting && b.unknownGround != "":
-				say(p.gray, strings.ToUpper(b.unknownGround)+" IS NEITHER GROUND")
-				d.blank(0)
+				say(p.Gray, strings.ToUpper(b.unknownGround)+" IS NEITHER GROUND")
+				d.Blank(0)
 			}
 		}
 		kind = r.kind
-		l := d.line()
+		l := d.Line()
 		if i == cursor {
-			l.p = p.chosen()
-			if p.plain {
-				l.mark = "▸"
+			l.P = p.Chosen()
+			if p.Plain {
+				l.Mark = "▸"
 			}
-			cursorRow = len(d.rows)
+			cursorRow = len(d.Rows)
 		}
 		text, note := r.text, r.note
 		if r.kind == themeSetting {
@@ -294,11 +294,11 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 		if note != "" {
 			room -= ansi.StringWidth(note) + 2
 		}
-		color := l.p.ink
+		color := l.P.Ink
 		if r.kind == addRootSetting {
-			color = l.p.gray
+			color = l.P.Gray
 		}
-		l.add(color, fit(text, room, r.kind == rootSetting))
+		l.Add(color, Fit(text, room, r.kind == rootSetting))
 		// The note against the right, with the console's own leader
 		// carrying the eye to it. On the panel the two were a glance
 		// apart; the settings are worked in the workspace now, and a
@@ -307,13 +307,13 @@ func drawSettings(b settingsReport, cursor, width, height int, p palette) []row 
 		// the console and the readout state already wears.
 		if note != "" {
 			at := measure - ansi.StringWidth(note)
-			l.add("", " ")
-			l.add(l.p.faint, strings.Repeat(".", max(at-l.cells-1, 1)))
-			l.to(at)
-			l.add(l.p.gray, note)
+			l.Add("", " ")
+			l.Add(l.P.Faint, strings.Repeat(".", max(at-l.Cells-1, 1)))
+			l.To(at)
+			l.Add(l.P.Gray, note)
 		}
-		d.emit(l, 0, false)
+		d.Emit(l, 0, false)
 	}
 
-	return c.foot(d.rows, cursorRow, height)
+	return c.Foot(d.Rows, cursorRow, height)
 }

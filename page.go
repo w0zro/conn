@@ -303,139 +303,139 @@ const (
 // drawContact draws the sheet at a width: two columns where there is
 // room for them, the sheet on the left and the specifications on the
 // right; one column otherwise, the specifications under the sheet.
-func drawContact(b readoutReport, c contactPage, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureOf(width)
+func drawContact(b readoutReport, c contactPage, width, height int, p Palette) []Row {
+	width = max(width, PanelMinCols)
+	measure := MeasureOf(width)
 	if width < twoColumns {
-		cv := canvas{p: p, width: width}
-		cv.rows = append(cv.rows, drawSheet(c, measure, width, p)...)
-		cv.rows = append(cv.rows, drawSpecs(c, measure, width, p)...)
-		return padTo(cv, height)
+		cv := Canvas{P: p, Width: width}
+		cv.Rows = append(cv.Rows, drawSheet(c, measure, width, p)...)
+		cv.Rows = append(cv.Rows, drawSpecs(c, measure, width, p)...)
+		return PadTo(cv, height)
 	}
 	// Side by side: each column is a canvas of its own width, framed
 	// with its own margins, and a row of the page is a row of each
 	// joined. A plain row is trimmed as it is framed, so the left is
 	// padded back out to its width before the right is put after it.
-	rightW := specW + 2*margin
+	rightW := specW + 2*Margin
 	leftW := width - rightW
-	left := drawSheet(c, leftW-2*margin, leftW, p)
+	left := drawSheet(c, leftW-2*Margin, leftW, p)
 	right := drawSpecs(c, specW, rightW, p)
-	cv := canvas{p: p, width: width}
+	cv := Canvas{P: p, Width: width}
 	for i := 0; i < max(len(left), len(right)); i++ {
-		l, r := blankRow(p, leftW), ""
+		l, r := BlankRow(p, leftW), ""
 		if i < len(left) {
-			l = left[i].text
+			l = left[i].Text
 		}
 		if i < len(right) {
-			r = right[i].text
+			r = right[i].Text
 		}
-		if p.plain {
+		if p.Plain {
 			l += strings.Repeat(" ", max(leftW-ansi.StringWidth(l), 0))
-			cv.rows = append(cv.rows, row{text: strings.TrimRight(l+r, " ")})
+			cv.Rows = append(cv.Rows, Row{Text: strings.TrimRight(l+r, " ")})
 			continue
 		}
 		if r == "" {
-			r = blankRow(p, rightW)
+			r = BlankRow(p, rightW)
 		}
-		cv.rows = append(cv.rows, row{text: l + r})
+		cv.Rows = append(cv.Rows, Row{Text: l + r})
 	}
-	return padTo(cv, height)
+	return PadTo(cv, height)
 }
 
 // drawSheet is the left of the page: who, the card, the procedure, the
 // caution and the story, at a width of its own.
-func drawSheet(c contactPage, measure, width int, p palette) []row {
-	cv := canvas{p: p, width: width}
-	blank := func() { cv.blank(0) }
-	newLine := func() *line { return cv.line() }
-	emit := func(l *line) { cv.emit(l, 0, false) }
+func drawSheet(c contactPage, measure, width int, p Palette) []Row {
+	cv := Canvas{P: p, Width: width}
+	blank := func() { cv.Blank(0) }
+	newLine := func() *Line { return cv.Line() }
+	emit := func(l *Line) { cv.Emit(l, 0, false) }
 
 	blank()
 	l := newLine()
-	l.eyebrow(0, "CONTACT", measure, "")
+	l.Eyebrow(0, "CONTACT", measure, "")
 	emit(l)
 	blank()
 	l = newLine()
-	l.add(p.chip, " "+c.badge+" ")
-	l.add("", "  ")
-	l.add(p.ink+p.bold, c.name)
+	l.Add(p.Chip, " "+c.badge+" ")
+	l.Add("", "  ")
+	l.Add(p.Ink+p.Bold, c.name)
 	if c.where != "" {
-		l.add(p.gray, "   "+fit(c.where, measure-l.cells-3, true))
+		l.Add(p.Gray, "   "+Fit(c.where, measure-l.Cells-3, true))
 	}
 	emit(l)
 	if c.with != "" {
 		l = newLine()
-		l.to(ansi.StringWidth(c.badge) + 4)
-		l.add(p.faint, fit(c.with, measure-l.cells, false))
+		l.To(ansi.StringWidth(c.badge) + 4)
+		l.Add(p.Faint, Fit(c.with, measure-l.Cells, false))
 		emit(l)
 	}
 
 	if c.waiting {
 		blank()
-		cv.card(cardAbove, 0, measure, 0)
-		cardLine := func(parts ...func(*line)) {
+		cv.Card(CardAbove, 0, measure, 0)
+		cardLine := func(parts ...func(*Line)) {
 			l := newLine()
-			l.p = p.lifted()
-			l.add(l.p.orange+l.p.bold, cursorBar)
-			l.add("", "  ")
+			l.P = p.Lifted()
+			l.Add(l.P.Orange+l.P.Bold, CursorBar)
+			l.Add("", "  ")
 			for _, part := range parts {
 				part(l)
 			}
 			emit(l)
 		}
-		cardLine(func(l *line) {
-			l.add(l.p.orange+l.p.bold, "WAITING FOR YOU")
+		cardLine(func(l *Line) {
+			l.Add(l.P.Orange+l.P.Bold, "WAITING FOR YOU")
 			if c.waited != "" {
-				l.to(measure - ansi.StringWidth(c.waited))
-				l.add(l.p.orange+l.p.bold, c.waited)
+				l.To(measure - ansi.StringWidth(c.waited))
+				l.Add(l.P.Orange+l.P.Bold, c.waited)
 			}
 		})
 		if c.asked != "" {
 			cardLine()
-			for _, part := range wrapValue("“"+c.asked+"”", measure-4) {
-				cardLine(func(l *line) { l.add(l.p.ink+l.p.bold, part) })
+			for _, part := range WrapValue("“"+c.asked+"”", measure-4) {
+				cardLine(func(l *Line) { l.Add(l.P.Ink+l.P.Bold, part) })
 			}
 		}
 		if c.askedWith != "" {
 			cardLine()
-			cardLine(func(l *line) { l.add(l.p.gray, fit(c.askedWith, measure-3, false)) })
+			cardLine(func(l *Line) { l.Add(l.P.Gray, Fit(c.askedWith, measure-3, false)) })
 		}
-		cv.card(cardBelow, 0, measure, 0)
+		cv.Card(CardBelow, 0, measure, 0)
 	} else if c.standing != "" {
 		blank()
 		l = newLine()
-		l.add(p.gray, fit(c.standing, measure, false))
+		l.Add(p.Gray, Fit(c.standing, measure, false))
 		emit(l)
 	}
 
 	blank()
 	l = newLine()
-	l.eyebrow(0, "PROCEDURE", measure, "")
+	l.Eyebrow(0, "PROCEDURE", measure, "")
 	emit(l)
 	blank()
 	keyCol := 0
 	for _, h := range c.procedure {
-		keyCol = max(keyCol, keyWidth(h.key)+3)
+		keyCol = max(keyCol, KeyWidth(h.key)+3)
 	}
 	for i, h := range c.procedure {
 		l = newLine()
-		l.add(p.faint, strconv.Itoa(i+1))
-		l.to(4)
-		l.key(h.key)
-		l.to(4 + keyCol)
-		l.add(p.ink, fit(h.does, measure-l.cells, false))
+		l.Add(p.Faint, strconv.Itoa(i+1))
+		l.To(4)
+		l.Key(h.key)
+		l.To(4 + keyCol)
+		l.Add(p.Ink, Fit(h.does, measure-l.Cells, false))
 		emit(l)
 	}
 
 	if c.caution != "" {
 		blank()
 		l = newLine()
-		l.eyebrowIn(p.orange+p.bold, 0, "CAUTION", measure, "")
+		l.EyebrowIn(p.Orange+p.Bold, 0, "CAUTION", measure, "")
 		emit(l)
 		blank()
-		for _, part := range wrapValue(c.caution, measure) {
+		for _, part := range WrapValue(c.caution, measure) {
 			l = newLine()
-			l.add(p.ink, part)
+			l.Add(p.Ink, part)
 			emit(l)
 		}
 	}
@@ -443,7 +443,7 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 	if c.story != "" {
 		blank()
 		l = newLine()
-		l.eyebrow(0, "HOW THE WORK HAS GONE", measure, "")
+		l.Eyebrow(0, "HOW THE WORK HAS GONE", measure, "")
 		emit(l)
 		blank()
 		// The bar: what was worked in the running green, what it has
@@ -469,58 +469,58 @@ func drawSheet(c contactPage, measure, width int, p palette) []row {
 			if total > 0 && c.rested > 0 {
 				rested = max(int(float64(barW)*float64(c.rested)/float64(total)), 1)
 			}
-			restInk := p.gray
+			restInk := p.Gray
 			if c.waiting {
-				restInk = p.orange
+				restInk = p.Orange
 			}
 			l = newLine()
-			l.add(p.running, strings.Repeat("█", barW-rested))
+			l.Add(p.Running, strings.Repeat("█", barW-rested))
 			if rested > 0 {
-				l.add(restInk, strings.Repeat("█", rested))
+				l.Add(restInk, strings.Repeat("█", rested))
 			}
 			if beside {
-				l.add("", "  ")
+				l.Add("", "  ")
 			} else {
 				emit(l)
 				l = newLine()
 			}
-			l.add(p.gray, fit(caption, measure, false))
+			l.Add(p.Gray, Fit(caption, measure, false))
 			emit(l)
 			blank()
 		}
-		for _, part := range wrapValue(c.story, measure) {
+		for _, part := range WrapValue(c.story, measure) {
 			l = newLine()
-			l.add(p.gray, part)
+			l.Add(p.Gray, part)
 			emit(l)
 		}
 	}
-	return cv.rows
+	return cv.Rows
 }
 
 // drawSpecs is the specifications: the eyebrow, and the figures with
 // leaders under it, a row of air where the sheet leaves one.
-func drawSpecs(c contactPage, measure, width int, p palette) []row {
-	cv := canvas{p: p, width: width}
-	cv.blank(0)
-	l := cv.line()
-	l.eyebrow(0, "SPECIFICATIONS", measure, "")
-	cv.emit(l, 0, false)
-	cv.blank(0)
+func drawSpecs(c contactPage, measure, width int, p Palette) []Row {
+	cv := Canvas{P: p, Width: width}
+	cv.Blank(0)
+	l := cv.Line()
+	l.Eyebrow(0, "SPECIFICATIONS", measure, "")
+	cv.Emit(l, 0, false)
+	cv.Blank(0)
 	for _, f := range c.specs {
 		if f.label == "" {
-			cv.blank(0)
+			cv.Blank(0)
 			continue
 		}
-		for i, part := range wrapValue(f.value, measure-specCol) {
-			l := cv.line()
+		for i, part := range WrapValue(f.value, measure-specCol) {
+			l := cv.Line()
 			if i == 0 && f.label != " " {
-				l.leader(f.label, specCol-1, p.border)
+				l.Leader(f.label, specCol-1, p.Border)
 			} else {
-				l.to(specCol)
+				l.To(specCol)
 			}
-			l.add(p.ink, part)
-			cv.emit(l, 0, false)
+			l.Add(p.Ink, part)
+			cv.Emit(l, 0, false)
 		}
 	}
-	return cv.rows
+	return cv.Rows
 }

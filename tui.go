@@ -211,7 +211,7 @@ type model struct {
 	console       console         // the console, as far as it has come on
 	now           time.Time
 	width, height int
-	p             palette
+	p             Palette
 	g             theme.Ground // the ground conn is on, which the palette is built off and the status line is written from
 
 	view     view
@@ -347,7 +347,7 @@ func newModel(g theme.Ground) model {
 
 		head: station.Station{Build: station.ReadBuild(), Login: station.ReadLogin()},
 		now:  time.Now(),
-		p:    colored(g).onSurface(),
+		p:    Colored(g).OnSurface(),
 		g:    g,
 		uid:  os.Getuid(),
 	}
@@ -1382,7 +1382,7 @@ func (m model) cols() int {
 }
 
 func (m model) View() tea.View {
-	var rows []row
+	var rows []Row
 	width := m.cols()
 	switch {
 	// The manual is in the workspace with the keys in it, and the panel
@@ -1407,16 +1407,16 @@ func (m model) View() tea.View {
 		r.lit = m.lit
 		rows = screen(r, width, m.height, m.p)
 	}
-	ground := rows[0].text // the first row is blank, on the ground, at the rows' width
+	ground := rows[0].Text // the first row is blank, on the ground, at the rows' width
 	texts := make([]string, 0, len(rows))
 	for i, r := range rows {
 		if i >= m.height && m.height > 0 {
 			break
 		}
-		if m.view == viewConsole && (m.resumed || r.stage > m.console.stage) {
+		if m.view == viewConsole && (m.resumed || r.Stage > m.console.stage) {
 			texts = append(texts, ground)
 		} else {
-			texts = append(texts, r.text)
+			texts = append(texts, r.Text)
 		}
 	}
 	v := tea.NewView(strings.Join(texts, "\n"))
@@ -1454,6 +1454,6 @@ func (m model) worn() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.g = want.Wear()
-	m.p = colored(m.g).onSurface()
+	m.p = Colored(m.g).OnSurface()
 	return m, nil
 }

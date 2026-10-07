@@ -99,7 +99,7 @@ const (
 
 // drawSessions renders the sessions view for a terminal of the given
 // size, with the cursor on the given row.
-func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row {
+func drawSessions(b sessionsReport, cursor, width, height int, p Palette) []Row {
 	// The header: the name of the view, and against the right the count
 	// — of everything found at the project, or of what the filter left out
 	// of it.
@@ -114,63 +114,63 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	c, measure := head(word, right, width, p)
+	c, measure := Head(word, right, width, p)
 
 	// The project it is for, the way a project titles its block in the
 	// processes view; the recent view is for every one.
-	l := c.line()
+	l := c.Line()
 	if b.recent {
-		l.add(p.parchment+p.bold, "Every project")
+		l.Add(p.Parchment+p.Bold, "Every project")
 	} else {
-		l.add(p.parchment+p.bold, fit(b.project, measure, true))
+		l.Add(p.Parchment+p.Bold, Fit(b.project, measure, true))
 	}
-	c.emit(l, 0, false)
+	c.Emit(l, 0, false)
 
 	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
-	l = c.line()
-	before, after := typedRuns(b.filter, b.caret, measure-findW-2, false)
-	l.field(0, measure-findW, "FIND", before, after)
-	c.emit(l, 0, false)
+	l = c.Line()
+	before, after := TypedRuns(b.filter, b.caret, measure-findW-2, false)
+	l.Field(0, measure-findW, "FIND", before, after)
+	c.Emit(l, 0, false)
 
-	var body []row
+	var body []Row
 	cursorRow := -1
-	d := canvas{p: p, width: c.width}
+	d := Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
-		d.blank(0)
-		l := d.line()
-		l.add(color, s)
-		d.emit(l, 0, true)
-		body = d.rows
+		d.Blank(0)
+		l := d.Line()
+		l.Add(color, s)
+		d.Emit(l, 0, true)
+		body = d.Rows
 	}
 	switch {
 	case b.loading && len(b.rows) == 0:
-		say(p.gray, "LOOKING")
+		say(p.Gray, "LOOKING")
 	case len(b.rows) == 0 && b.filter != "":
-		say(p.gray, "NOTHING ANSWERS TO "+strings.ToUpper(b.filter))
+		say(p.Gray, "NOTHING ANSWERS TO "+strings.ToUpper(b.filter))
 	case len(b.rows) == 0 && b.recent:
-		say(p.gray, "NOTHING SUSPENDED")
+		say(p.Gray, "NOTHING SUSPENDED")
 	case len(b.rows) == 0:
-		say(p.gray, "NOTHING SUSPENDED HERE")
+		say(p.Gray, "NOTHING SUSPENDED HERE")
 	default:
-		d.blank(0)
+		d.Blank(0)
 		ageCol := measure - sessionsAgeW
 		promptW := ageCol - 1 - branchW
 		for i, cv := range b.rows {
-			l := d.line()
+			l := d.Line()
 			if i == cursor {
-				l.p = p.chosen()
-				if p.plain {
-					l.mark = "▸"
+				l.P = p.Chosen()
+				if p.Plain {
+					l.Mark = "▸"
 				}
-				cursorRow = len(d.rows)
+				cursorRow = len(d.Rows)
 			}
 			first, prompt := cv.Branch, cv.Prompt
 			if b.recent {
 				first, prompt = b.names[cv.Dir], cmp.Or(cv.Title, cv.Prompt)
 			}
-			l.add(p.gray, fit(first, branchW-1, false))
-			l.to(branchW)
+			l.Add(p.Gray, Fit(first, branchW-1, false))
+			l.To(branchW)
 			// A session with nothing read of it is named by where it
 			// was had; one with a prompt is named by that instead, since it
 			// is the more of the two a reader would recognize it by.
@@ -178,14 +178,14 @@ func drawSessions(b sessionsReport, cursor, width, height int, p palette) []row 
 			if prompt == "" {
 				prompt, path = config.Tilde(cv.Dir, b.home), true
 			}
-			l.add(p.ink, fit(prompt, promptW, path))
-			l.to(ageCol)
-			l.add(p.gray, work.Age(cv.When, b.now))
-			d.emit(l, 0, false)
+			l.Add(p.Ink, Fit(prompt, promptW, path))
+			l.To(ageCol)
+			l.Add(p.Gray, work.Age(cv.When, b.now))
+			d.Emit(l, 0, false)
 		}
-		body = d.rows
+		body = d.Rows
 	}
-	return c.foot(body, cursorRow, height)
+	return c.Foot(body, cursorRow, height)
 }
 
 // The sessions view as the panel holds it: a project's suspended

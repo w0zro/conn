@@ -17,13 +17,13 @@ func TestAStalledDockerIsSaidUnderTheRows(t *testing.T) {
 	if !m.dockerStalled || len(m.containers) != 1 {
 		t.Fatalf("the panel did not take docker's word: stalled %v, %d containers", m.dockerStalled, len(m.containers))
 	}
-	if text := texts(drawProcesses(m.processesReport(), m.cursor, 48, 30, plain)); !strings.Contains(text, "AS LAST SEEN") {
+	if text := texts(drawProcesses(m.processesReport(), m.cursor, 48, 30, Plain)); !strings.Contains(text, "AS LAST SEEN") {
 		t.Errorf("the view does not say docker is quiet:\n%s", text)
 	}
 	// And it stops saying so once docker answers again.
 	next, _ = m.Update(work.DockerMsg{Containers: []work.Container{{ID: "abc", Service: "web", State: "running"}}})
 	m = next.(model)
-	if text := texts(drawProcesses(m.processesReport(), m.cursor, 48, 30, plain)); strings.Contains(text, "AS LAST SEEN") {
+	if text := texts(drawProcesses(m.processesReport(), m.cursor, 48, 30, Plain)); strings.Contains(text, "AS LAST SEEN") {
 		t.Errorf("the view still says docker is quiet:\n%s", text)
 	}
 }

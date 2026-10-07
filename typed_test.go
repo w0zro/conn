@@ -152,7 +152,7 @@ func TestTheDrawnLineKeepsTheCaretOnScreen(t *testing.T) {
 		{"/a/b/c/d/e", 0, 5, true, "", "/a/b…"},
 		{"ab", 1, 1, false, "", ""},
 	} {
-		before, after := typedRuns(c.text, c.caret, c.room, c.path)
+		before, after := TypedRuns(c.text, c.caret, c.room, c.path)
 		if before != c.before || after != c.after {
 			t.Errorf("typedRuns(%q, %d, %d, %v) = %q, %q; want %q, %q", c.text, c.caret, c.room, c.path, before, after, c.before, c.after)
 		}

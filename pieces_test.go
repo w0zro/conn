@@ -10,12 +10,12 @@ import (
 
 // drawn is what a piece comes to on a line, in a palette: the row as
 // emit frames it, which is what a view puts on the screen.
-func drawn(p palette, width int, draw func(*line)) string {
-	c := canvas{p: p, width: width}
-	l := c.line()
+func drawn(p Palette, width int, draw func(*Line)) string {
+	c := Canvas{P: p, Width: width}
+	l := c.Line()
 	draw(l)
-	c.emit(l, 0, false)
-	return c.rows[0].text
+	c.Emit(l, 0, false)
+	return c.Rows[0].Text
 }
 
 // A piece keeps in the plain palette whatever it says in glyphs, and
@@ -24,27 +24,27 @@ func drawn(p palette, width int, draw func(*line)) string {
 // rounded off, and with no color to round they are two stray
 // characters where a word should start.
 func TestAPieceKeepsItsGlyphsAndDropsItsColor(t *testing.T) {
-	stamped := drawn(plain, 40, func(l *line) { l.stamp("WAITING 7M") })
+	stamped := drawn(Plain, 40, func(l *Line) { l.Stamp("WAITING 7M") })
 	if strings.Contains(stamped, stampLeft) || strings.Contains(stamped, stampRight) {
 		t.Errorf("the plain stamp is capped: %q", stamped)
 	}
 	if !strings.Contains(stamped, "WAITING 7M") {
 		t.Errorf("the plain stamp does not say its word: %q", stamped)
 	}
-	if w := stampWidth("WAITING 7M", plain); w != 12 {
+	if w := StampWidth("WAITING 7M", Plain); w != 12 {
 		t.Errorf("the plain stamp is %d cells, want 12", w)
 	}
 
-	lit := drawn(colored(theme.Conn.Dark), 40, func(l *line) { l.stamp("WAITING 7M") })
+	lit := drawn(Colored(theme.Conn.Dark), 40, func(l *Line) { l.Stamp("WAITING 7M") })
 	if !strings.Contains(lit, stampLeft) || !strings.Contains(lit, stampRight) {
 		t.Errorf("the stamp is not capped at half a cell: %q", lit)
 	}
-	if w := stampWidth("WAITING 7M", colored(theme.Conn.Dark)); w != 14 {
+	if w := StampWidth("WAITING 7M", Colored(theme.Conn.Dark)); w != 14 {
 		t.Errorf("the stamp is %d cells, want 14", w)
 	}
 
 	for _, d := range marks {
-		if got := drawn(plain, 40, func(l *line) { l.dot("", d) }); !strings.Contains(got, d) {
+		if got := drawn(Plain, 40, func(l *Line) { l.Dot("", d) }); !strings.Contains(got, d) {
 			t.Errorf("the plain palette dropped the mark %q: %q", d, got)
 		}
 	}
@@ -56,21 +56,21 @@ func TestAPieceKeepsItsGlyphsAndDropsItsColor(t *testing.T) {
 // them. It is what a box was for, at the cost of one row and no
 // columns.
 func TestAnEyebrowRunsToItsCount(t *testing.T) {
-	got := drawn(plain, 40, func(l *line) { l.eyebrow(0, "WAITING FOR YOU", 30, "2") })
-	want := strings.Repeat(" ", margin) + "WAITING FOR YOU " + strings.Repeat("─", 12) + " 2"
+	got := drawn(Plain, 40, func(l *Line) { l.Eyebrow(0, "WAITING FOR YOU", 30, "2") })
+	want := strings.Repeat(" ", Margin) + "WAITING FOR YOU " + strings.Repeat("─", 12) + " 2"
 	if got != want {
 		t.Errorf("eyebrow:\n got %q\nwant %q", got, want)
 	}
 	// A label is drawn in the case it was given: a project is named by
 	// its path, and the path keeps its own.
-	got = drawn(plain, 40, func(l *line) { l.eyebrow(0, "w0zro/conn", 24, "") })
-	want = strings.Repeat(" ", margin) + "w0zro/conn " + strings.Repeat("─", 13)
+	got = drawn(Plain, 40, func(l *Line) { l.Eyebrow(0, "w0zro/conn", 24, "") })
+	want = strings.Repeat(" ", Margin) + "w0zro/conn " + strings.Repeat("─", 13)
 	if got != want {
 		t.Errorf("a path in an eyebrow:\n got %q\nwant %q", got, want)
 	}
 	// With nothing to count, the rule runs to the edge itself.
-	got = drawn(plain, 40, func(l *line) { l.eyebrow(0, "PROCEDURE", 20, "") })
-	want = strings.Repeat(" ", margin) + "PROCEDURE " + strings.Repeat("─", 10)
+	got = drawn(Plain, 40, func(l *Line) { l.Eyebrow(0, "PROCEDURE", 20, "") })
+	want = strings.Repeat(" ", Margin) + "PROCEDURE " + strings.Repeat("─", 10)
 	if got != want {
 		t.Errorf("eyebrow with no count:\n got %q\nwant %q", got, want)
 	}
@@ -81,24 +81,24 @@ func TestAnEyebrowRunsToItsCount(t *testing.T) {
 // holds its width whether anything has been typed or not, so the row
 // does not change shape as it is typed into.
 func TestAFieldHoldsItsWidth(t *testing.T) {
-	c := canvas{p: colored(theme.Conn.Dark), width: 40}
-	empty, typed := c.line(), c.line()
-	empty.field(0, 20, "FIND", "", "")
-	typed.field(0, 20, "FIND", "pr", "o")
-	if empty.cells != typed.cells {
-		t.Errorf("a field typed into is %d cells and an empty one %d", typed.cells, empty.cells)
+	c := Canvas{P: Colored(theme.Conn.Dark), Width: 40}
+	empty, typed := c.Line(), c.Line()
+	empty.Field(0, 20, "FIND", "", "")
+	typed.Field(0, 20, "FIND", "pr", "o")
+	if empty.Cells != typed.Cells {
+		t.Errorf("a field typed into is %d cells and an empty one %d", typed.Cells, empty.Cells)
 	}
 	// The field is cut down to the ground, not raised to the ground a
 	// chosen row sits on: a box to type into is told from the cursor.
 	g := theme.Conn.Dark
-	if got := drawn(colored(g).onSurface(), 40, func(l *line) { l.field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, groundIn(theme.Hex(g.Ground))+inkIn(theme.Hex(g.Ink))) || strings.Contains(got, groundIn(g.Border)) {
+	if got := drawn(Colored(g).OnSurface(), 40, func(l *Line) { l.Field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, groundIn(theme.Hex(g.Ground))+inkIn(theme.Hex(g.Ink))) || strings.Contains(got, groundIn(g.Border)) {
 		t.Errorf("the field is not on the ground under the surface: %q", got)
 	}
-	if got := drawn(plain, 40, func(l *line) { l.field(0, 20, "FIND", "pro", "") }); !strings.Contains(got, "FIND   pro"+caret) {
+	if got := drawn(Plain, 40, func(l *Line) { l.Field(0, 20, "FIND", "pro", "") }); !strings.Contains(got, "FIND   pro"+Caret) {
 		t.Errorf("the field does not say what was typed: %q", got)
 	}
 	// The caret stands where the typing left it, not at the end.
-	if got := drawn(plain, 40, func(l *line) { l.field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, "pr"+caret+"o") {
+	if got := drawn(Plain, 40, func(l *Line) { l.Field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, "pr"+Caret+"o") {
 		t.Errorf("the caret is not where it was left: %q", got)
 	}
 }
@@ -106,10 +106,10 @@ func TestAFieldHoldsItsWidth(t *testing.T) {
 // A key is the manual's row, put where the decision is made: the word
 // with a cell of ground each side, and the width a caller places it by.
 func TestAKeyIsTheWordAndItsGround(t *testing.T) {
-	if got := drawn(plain, 40, func(l *line) { l.key("Enter") }); !strings.Contains(got, " Enter") {
+	if got := drawn(Plain, 40, func(l *Line) { l.Key("Enter") }); !strings.Contains(got, " Enter") {
 		t.Errorf("key: %q", got)
 	}
-	if w := keyWidth("Enter"); w != 7 {
+	if w := KeyWidth("Enter"); w != 7 {
 		t.Errorf("a key of five letters is %d cells, want 7", w)
 	}
 }
@@ -120,19 +120,19 @@ func TestAKeyIsTheWordAndItsGround(t *testing.T) {
 // whole cells. The plain palette has no surface, so a card is its rows
 // and nothing around them.
 func TestACardHasAnEdgeAboveAndBelow(t *testing.T) {
-	c := canvas{p: colored(theme.Conn.Dark), width: 40}
-	c.card(cardAbove, 4, 20, 0)
-	c.card(cardBelow, 4, 20, 0)
-	if len(c.rows) != 2 {
-		t.Fatalf("a card drew %d edges, want 2", len(c.rows))
+	c := Canvas{P: Colored(theme.Conn.Dark), Width: 40}
+	c.Card(CardAbove, 4, 20, 0)
+	c.Card(CardBelow, 4, 20, 0)
+	if len(c.Rows) != 2 {
+		t.Fatalf("a card drew %d edges, want 2", len(c.Rows))
 	}
-	if !strings.Contains(c.rows[0].text, strings.Repeat(cardAbove, 20)) {
-		t.Errorf("the edge above: %q", c.rows[0].text)
+	if !strings.Contains(c.Rows[0].Text, strings.Repeat(CardAbove, 20)) {
+		t.Errorf("the edge above: %q", c.Rows[0].Text)
 	}
-	if !strings.Contains(c.rows[1].text, strings.Repeat(cardBelow, 20)) {
-		t.Errorf("the edge below: %q", c.rows[1].text)
+	if !strings.Contains(c.Rows[1].Text, strings.Repeat(CardBelow, 20)) {
+		t.Errorf("the edge below: %q", c.Rows[1].Text)
 	}
-	if !strings.Contains(c.rows[0].text, colored(theme.Conn.Dark).edge) {
+	if !strings.Contains(c.Rows[0].Text, Colored(theme.Conn.Dark).Edge) {
 		t.Error("the edge is not drawn in the surface")
 	}
 }
@@ -141,21 +141,21 @@ func TestACardHasAnEdgeAboveAndBelow(t *testing.T) {
 // edge to edge, and is not the ground a chosen row sits on. The plain
 // palette has no ground to raise, and lifts nothing.
 func TestTheSurfaceIsNotTheSelection(t *testing.T) {
-	p := colored(theme.Conn.Dark)
-	if p.lifted().ground == p.chosen().ground {
+	p := Colored(theme.Conn.Dark)
+	if p.Lifted().Ground == p.Chosen().Ground {
 		t.Error("a block set apart and a row chosen sit on the same ground")
 	}
-	if p.lifted().ground == p.ground {
+	if p.Lifted().Ground == p.Ground {
 		t.Error("a block lifted sits on the ground it was lifted off")
 	}
-	if plain.lifted() != plain {
+	if Plain.Lifted() != Plain {
 		t.Error("the plain palette lifted something")
 	}
 }
 
 // The marks a row can wear, for the tests that tell a row from an
 // eyebrow by what stands at the head of it.
-var marks = []string{markContact, markShell, markEditor, markService, markRun}
+var marks = []string{MarkContact, MarkShell, MarkEditor, MarkService, MarkRun}
 
 // isMark says whether a word is a row's mark.
 func isMark(s string) bool { return slices.Contains(marks, s) }

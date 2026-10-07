@@ -18,10 +18,10 @@ import (
 
 var update = flag.Bool("update", false, "write the golden consoles under testdata")
 
-func texts(rows []row) string {
+func texts(rows []Row) string {
 	var b []string
 	for _, r := range rows {
-		b = append(b, r.text)
+		b = append(b, r.Text)
 	}
 	return strings.Join(b, "\n")
 }
@@ -49,7 +49,7 @@ func golden(t *testing.T, name, got string) {
 
 // The console at 120 by 40, all nominal, is the file of record.
 func TestConsoleMatchesTheGolden(t *testing.T) {
-	golden(t, "console-120x40.txt", texts(screen(compose(testStation, testNow), 120, 40, plain)))
+	golden(t, "console-120x40.txt", texts(screen(compose(testStation, testNow), 120, 40, Plain)))
 }
 
 // The console with faults, and the one off a terminal, are files of
@@ -58,10 +58,10 @@ func TestFaultedConsolesMatchTheGolden(t *testing.T) {
 	st := testStation
 	st.Volume.Free = 6_800_000_000
 	st.Machine.Power = station.Power{Source: "battery", Percent: 7, State: "discharging", Remaining: "0:31"}
-	golden(t, "console-faults-100x36.txt", texts(screen(compose(st, testNow), 100, 36, plain)))
-	golden(t, "console-piped.txt", texts(screen(compose(st, testNow), 0, 0, plain)))
-	golden(t, "console-small-60x24.txt", texts(screen(compose(st, testNow), 60, 24, plain)))
-	golden(t, "console-small-100x12.txt", texts(screen(compose(st, testNow), 100, 12, plain)))
+	golden(t, "console-faults-100x36.txt", texts(screen(compose(st, testNow), 100, 36, Plain)))
+	golden(t, "console-piped.txt", texts(screen(compose(st, testNow), 0, 0, Plain)))
+	golden(t, "console-small-60x24.txt", texts(screen(compose(st, testNow), 60, 24, Plain)))
+	golden(t, "console-small-100x12.txt", texts(screen(compose(st, testNow), 100, 12, Plain)))
 }
 
 // Off a terminal the page keeps every value whole. There is no screen
@@ -72,7 +72,7 @@ func TestThePipedConsoleElidesNothing(t *testing.T) {
 	st := testStation
 	st.Login.Exe = "/Users/w0zro/Library/Caches/go-build/3c/3c7f8105cf5abd1baa5f58b9cf8c907eed6bf5ff84596c80c85d92931375d3fa-d/conn"
 	st.Machine.Kernel = "Darwin 25.6.0 and then some words to push it past eighty columns"
-	text := texts(screen(compose(st, testNow), 0, 0, plain))
+	text := texts(screen(compose(st, testNow), 0, 0, Plain))
 	if strings.Contains(text, "…") {
 		t.Errorf("the piped console elided something:\n%s", text)
 	}
@@ -83,7 +83,7 @@ func TestThePipedConsoleElidesNothing(t *testing.T) {
 		}
 	}
 	// A terminal is a width somebody chose, and the page is cut to it.
-	if narrow := texts(screen(compose(st, testNow), 80, 40, plain)); !strings.Contains(narrow, "…") {
+	if narrow := texts(screen(compose(st, testNow), 80, 40, Plain)); !strings.Contains(narrow, "…") {
 		t.Error("an eighty column terminal elided nothing")
 	}
 }
@@ -93,7 +93,7 @@ func TestThePipedConsoleElidesNothing(t *testing.T) {
 // case, no row past the width.
 func TestConsoleLaysOut(t *testing.T) {
 	r := compose(testStation, testNow)
-	rows := screen(r, 120, 40, plain)
+	rows := screen(r, 120, 40, Plain)
 	measure, rightCol, _ := columns(120)
 	text := texts(rows)
 	for _, s := range []string{
@@ -109,23 +109,23 @@ func TestConsoleLaysOut(t *testing.T) {
 	if strings.Contains(text, "\x1b") || strings.Contains(text, "NOT NOMINAL") {
 		t.Errorf("console carries an escape or a fault:\n%s", text)
 	}
-	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
-		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
+	if len(rows) != 40 || strings.TrimSpace(rows[39].Text) != "" {
+		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].Text)
 	}
 	for _, row := range rows {
 		// NOMINAL stands a cell in from the column's edge, centered in
 		// the field the widest status fills; see the axis check below.
-		if strings.HasSuffix(row.text, nominal) && strings.Contains(row.text, "...") && utf8.RuneCountInString(row.text) != margin+measure-1 {
-			t.Errorf("status is not a cell in from column %d: %q", margin+measure, row.text)
+		if strings.HasSuffix(row.Text, nominal) && strings.Contains(row.Text, "...") && utf8.RuneCountInString(row.Text) != Margin+measure-1 {
+			t.Errorf("status is not a cell in from column %d: %q", Margin+measure, row.Text)
 		}
-		if i := strings.Index(row.text, "USER ..."); i >= 0 && utf8.RuneCountInString(row.text[:i]) != margin+rightCol {
-			t.Errorf("session column is not at %d: %q", margin+rightCol, row.text)
+		if i := strings.Index(row.Text, "USER ..."); i >= 0 && utf8.RuneCountInString(row.Text[:i]) != Margin+rightCol {
+			t.Errorf("session column is not at %d: %q", Margin+rightCol, row.Text)
 		}
-		if w := utf8.RuneCountInString(row.text); w > 120 {
-			t.Errorf("row is %d columns: %q", w, row.text)
+		if w := utf8.RuneCountInString(row.Text); w > 120 {
+			t.Errorf("row is %d columns: %q", w, row.Text)
 		}
 	}
-	if rowsNeeded(r) != len(body(r, 120, check{}, plain)) {
+	if rowsNeeded(r) != len(body(r, 120, check{}, Plain)) {
 		t.Errorf("rowsNeeded %d is not the body", rowsNeeded(r))
 	}
 }
@@ -134,7 +134,7 @@ func TestConsoleLaysOut(t *testing.T) {
 func TestFaultsLightTheConsole(t *testing.T) {
 	st := testStation
 	st.Volume.Free = 6_800_000_000
-	rows := screen(compose(st, testNow), 120, 40, plain)
+	rows := screen(compose(st, testNow), 120, 40, Plain)
 	text := texts(rows)
 	if !strings.Contains(text, "6.8 GB FREE") || !strings.Contains(text, " LOW") || !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
 		t.Errorf("fault not lit:\n%s", text)
@@ -154,13 +154,13 @@ func TestFaultsLightTheConsole(t *testing.T) {
 		for _, word := range []string{"NOMINAL", "LOW", "UNCHECKED"} {
 			// A check's row, which has leaders; the verdict ends in the
 			// word too and is centered on the page instead.
-			if !strings.HasSuffix(strings.TrimSpace(row.text), word) || !strings.Contains(row.text, "...") {
+			if !strings.HasSuffix(strings.TrimSpace(row.Text), word) || !strings.Contains(row.Text, "...") {
 				continue
 			}
-			if m := middle(row.text, word); axis < 0 {
+			if m := middle(row.Text, word); axis < 0 {
 				axis = m
 			} else if m != axis {
-				t.Errorf("%s is centered on column %d/2 where the rest are on %d/2: %q", word, m, axis, row.text)
+				t.Errorf("%s is centered on column %d/2 where the rest are on %d/2: %q", word, m, axis, row.Text)
 			}
 		}
 	}
@@ -168,7 +168,7 @@ func TestFaultsLightTheConsole(t *testing.T) {
 		t.Error("no status word was found to check the axis against")
 	}
 	st.Machine.Power.Percent, st.Machine.Power.State = 5, "discharging"
-	if text := texts(screen(compose(st, testNow), 120, 40, plain)); !strings.Contains(text, "2 SYSTEMS NOT NOMINAL") {
+	if text := texts(screen(compose(st, testNow), 120, 40, Plain)); !strings.Contains(text, "2 SYSTEMS NOT NOMINAL") {
 		t.Errorf("two faults not counted:\n%s", text)
 	}
 }
@@ -190,7 +190,7 @@ func TestSmallAndPipedConsoles(t *testing.T) {
 	for _, c := range []struct{ w, h, need int }{
 		{60, 24, need}, {100, 12, need}, {100, need - 1, need}, {79, 50, tall}, {20, 5, need},
 	} {
-		rows := screen(r, c.w, c.h, plain)
+		rows := screen(r, c.w, c.h, Plain)
 		text := texts(rows)
 		if !strings.Contains(text, " SMALL") || !strings.Contains(text, "NEEDS 80×"+strconv.Itoa(c.need)) {
 			t.Errorf("%dx%d is not called small:\n%s", c.w, c.h, text)
@@ -199,15 +199,15 @@ func TestSmallAndPipedConsoles(t *testing.T) {
 			t.Errorf("%dx%d renders %d rows", c.w, c.h, len(rows))
 		}
 		for _, row := range rows {
-			if w := utf8.RuneCountInString(row.text); w > c.w {
-				t.Errorf("%dx%d has a row %d wide: %q", c.w, c.h, w, row.text)
+			if w := utf8.RuneCountInString(row.Text); w > c.w {
+				t.Errorf("%dx%d has a row %d wide: %q", c.w, c.h, w, row.Text)
 			}
 		}
 	}
-	if rows := screen(r, 100, need, plain); strings.Contains(texts(rows), "SMALL") || len(rows) != need {
+	if rows := screen(r, 100, need, Plain); strings.Contains(texts(rows), "SMALL") || len(rows) != need {
 		t.Errorf("a terminal of exactly the rows needed is small, or %d rows", len(rows))
 	}
-	piped := texts(screen(r, 0, 0, plain))
+	piped := texts(screen(r, 0, 0, Plain))
 	if !strings.Contains(piped, "SCREEN .... NO TERMINAL") || !strings.Contains(piped, " UNCHECKED") {
 		t.Errorf("off a terminal:\n%s", piped)
 	}
@@ -216,25 +216,25 @@ func TestSmallAndPipedConsoles(t *testing.T) {
 // In color, every row is painted edge to edge on the ground and ends with
 // the terminal's own colors back; the words are the plain console's.
 func TestColoredConsolePaintsEveryRow(t *testing.T) {
-	p := colored(theme.Conn.Dark)
+	p := Colored(theme.Conn.Dark)
 	r := compose(testStation, testNow)
 	rows := screen(r, 120, 40, p)
 	for i, row := range rows {
-		if !strings.HasPrefix(row.text, p.normal) || !strings.HasSuffix(row.text, p.end) {
-			t.Errorf("row %d is not painted from the ground to the end: %q", i, row.text)
+		if !strings.HasPrefix(row.Text, p.Normal) || !strings.HasSuffix(row.Text, p.End) {
+			t.Errorf("row %d is not painted from the ground to the end: %q", i, row.Text)
 		}
-		if w := utf8.RuneCountInString(stripEscapes(row.text)); w != 120 {
-			t.Errorf("row %d paints %d columns: %q", i, w, stripEscapes(row.text))
+		if w := utf8.RuneCountInString(stripEscapes(row.Text)); w != 120 {
+			t.Errorf("row %d paints %d columns: %q", i, w, stripEscapes(row.Text))
 		}
 	}
-	plainText := texts(screen(r, 120, 40, plain))
+	plainText := texts(screen(r, 120, 40, Plain))
 	for i, row := range rows {
-		if want := strings.Split(plainText, "\n")[i]; strings.TrimRight(stripEscapes(row.text), " ") != want {
-			t.Errorf("row %d reads %q in color and %q plain", i, strings.TrimRight(stripEscapes(row.text), " "), want)
+		if want := strings.Split(plainText, "\n")[i]; strings.TrimRight(stripEscapes(row.Text), " ") != want {
+			t.Errorf("row %d reads %q in color and %q plain", i, strings.TrimRight(stripEscapes(row.Text), " "), want)
 		}
 	}
 	for i, row := range screen(r, 60, 24, p) {
-		if w := utf8.RuneCountInString(stripEscapes(row.text)); w != 60 {
+		if w := utf8.RuneCountInString(stripEscapes(row.Text)); w != 60 {
 			t.Errorf("small row %d paints %d columns", i, w)
 		}
 	}
@@ -247,21 +247,21 @@ func TestColoredConsolePaintsEveryRow(t *testing.T) {
 // with two grades of wrong makes the reader work out which grade a row
 // is before they can read it.
 func TestEverythingNotNominalTakesTheChip(t *testing.T) {
-	p := colored(theme.Conn.Dark)
+	p := Colored(theme.Conn.Dark)
 	st := testStation
 	st.Machine.CPUs = 0          // LOAD has no core count to check against
 	st.Volume = station.Volume{} // DISK went unanswered
 	text := texts(screen(compose(st, testNow), 120, 40, p))
 	for _, want := range []string{" UNCHECKED ", " UNKNOWN "} {
-		if !strings.Contains(text, p.chip+want) {
+		if !strings.Contains(text, p.Chip+want) {
 			t.Errorf("%q is not annunciated:\n%s", strings.TrimSpace(want), stripEscapes(text))
 		}
 	}
-	if !strings.Contains(text, p.gray+"NOMINAL") {
+	if !strings.Contains(text, p.Gray+"NOMINAL") {
 		t.Errorf("NOMINAL is not painted gray:\n%s", stripEscapes(text))
 	}
 	// Nominal is the only word that does not take one.
-	if strings.Contains(text, p.chip+" NOMINAL ") {
+	if strings.Contains(text, p.Chip+" NOMINAL ") {
 		t.Errorf("a nominal check was annunciated:\n%s", stripEscapes(text))
 	}
 }
@@ -287,7 +287,7 @@ func TestTheCountIsEveryCheckNotNominal(t *testing.T) {
 	// — and it is counted with the disk that is low.
 	st := testStation
 	st.Machine.CPUs = 0
-	text := stripEscapes(texts(screen(compose(st, testNow), 120, 40, plain)))
+	text := stripEscapes(texts(screen(compose(st, testNow), 120, 40, Plain)))
 	if strings.Contains(text, allNominal) {
 		t.Errorf("the console called an unchecked system nominal:\n%s", text)
 	}
@@ -332,7 +332,7 @@ func TestPathsShortenFromTheMiddle(t *testing.T) {
 		{"/NOT/A/PATH/BY/ITS/FLAG", 12, false, "/NOT/A/PATH…"},
 		{"/a/b", 1, true, ""},
 	} {
-		if got := fit(c.in, c.w, c.path); got != c.want || utf8.RuneCountInString(got) > c.w {
+		if got := Fit(c.in, c.w, c.path); got != c.want || utf8.RuneCountInString(got) > c.w {
 			t.Errorf("fit(%q, %d, %v) = %q, want %q", c.in, c.w, c.path, got, c.want)
 		}
 	}
@@ -350,9 +350,9 @@ func TestTheAlarmsBlink(t *testing.T) {
 	if !r.lit {
 		t.Error("a reading is dark before anyone asks it to blink")
 	}
-	lit := screen(r, 120, 40, plain)
+	lit := screen(r, 120, 40, Plain)
 	r.lit = false
-	dark := screen(r, 120, 40, plain)
+	dark := screen(r, 120, 40, Plain)
 	for _, s := range []string{"1 SYSTEM NOT NOMINAL", " LOW"} {
 		if !strings.Contains(texts(lit), s) {
 			t.Errorf("%q is not up on the lit half:\n%s", s, texts(lit))
@@ -376,7 +376,7 @@ func TestTheAlarmsBlink(t *testing.T) {
 	}
 	moved := 0
 	for i := range lit {
-		if lit[i].text != dark[i].text {
+		if lit[i].Text != dark[i].Text {
 			moved++
 		}
 	}
@@ -387,11 +387,11 @@ func TestTheAlarmsBlink(t *testing.T) {
 	st.Machine.Power.Percent, st.Machine.Power.State = 5, "discharging"
 	two := compose(st, testNow)
 	two.lit = false
-	twoDark := screen(two, 120, 40, plain)
-	twoLit := screen(compose(st, testNow), 120, 40, plain)
+	twoDark := screen(two, 120, 40, Plain)
+	twoLit := screen(compose(st, testNow), 120, 40, Plain)
 	moved = 0
 	for i := range twoLit {
-		if twoLit[i].text != twoDark[i].text {
+		if twoLit[i].Text != twoDark[i].Text {
 			moved++
 		}
 	}
@@ -401,7 +401,7 @@ func TestTheAlarmsBlink(t *testing.T) {
 	// All being well is a word, not an annunciator.
 	well := compose(testStation, testNow)
 	well.lit = false
-	if !strings.Contains(texts(screen(well, 120, 40, plain)), "ALL SYSTEMS NOMINAL") {
+	if !strings.Contains(texts(screen(well, 120, 40, Plain)), "ALL SYSTEMS NOMINAL") {
 		t.Error("the word that all is well blinked")
 	}
 }
@@ -418,11 +418,11 @@ func TestValuesAreHeldToCellsNotCharacters(t *testing.T) {
 	} {
 		for w := 2; w <= 24; w++ {
 			for _, path := range []bool{false, true} {
-				if got := fit(s, w, path); ansi.StringWidth(got) > w {
+				if got := Fit(s, w, path); ansi.StringWidth(got) > w {
 					t.Errorf("fit(%q, %d, %v) = %q, %d cells", s, w, path, got, ansi.StringWidth(got))
 				}
 			}
-			for _, l := range wrapValue(s, w) {
+			for _, l := range WrapValue(s, w) {
 				if ansi.StringWidth(l) > w {
 					t.Errorf("wrapValue(%q, %d) gave %q, %d cells", s, w, l, ansi.StringWidth(l))
 				}
@@ -431,7 +431,7 @@ func TestValuesAreHeldToCellsNotCharacters(t *testing.T) {
 	}
 	// A character wider than the line goes on a line of its own, rather
 	// than holding the wrap in place for ever.
-	if got := wrapValue("漢字", 1); len(got) != 2 {
+	if got := WrapValue("漢字", 1); len(got) != 2 {
 		t.Errorf("wrapValue of wide characters in one cell = %q", got)
 	}
 }

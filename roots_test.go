@@ -143,12 +143,12 @@ func TestSavingWillNotWriteOverAFileItCannotRead(t *testing.T) {
 func TestTheAskingViewSaysHowToAnswerIt(t *testing.T) {
 	home := tree(t, "projects")
 	b := composeRoots("~/pro", home)
-	rows := drawRoots(b, 0, tmux.PanelWidth, 12, plain)
+	rows := drawRoots(b, 0, tmux.PanelWidth, 12, Plain)
 	var text []string
 	for _, r := range rows {
-		text = append(text, r.text)
-		if n := utf8.RuneCountInString(r.text); n > tmux.PanelWidth {
-			t.Errorf("a row is %d wide in a %d panel: %q", n, tmux.PanelWidth, r.text)
+		text = append(text, r.Text)
+		if n := utf8.RuneCountInString(r.Text); n > tmux.PanelWidth {
+			t.Errorf("a row is %d wide in a %d panel: %q", n, tmux.PanelWidth, r.Text)
 		}
 	}
 	all := strings.Join(text, "\n")
@@ -165,7 +165,7 @@ func TestTheAskingViewSaysHowToAnswerIt(t *testing.T) {
 // wrong directory looks like.
 func TestTheConsoleGoesToTheAskingViewWithNoRoots(t *testing.T) {
 	m := model{head: station.Station{Build: testStation.Build, Login: testStation.Login},
-		now: testNow, p: plain, width: 120, height: 40, uid: 501, roots: rooting{rootOf: testRoots}}
+		now: testNow, p: Plain, width: 120, height: 40, uid: 501, roots: rooting{rootOf: testRoots}}
 	st := testStation
 	m.console.st = &st
 	m.console.stage = lastStage(m.report())
@@ -188,7 +188,7 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("CONN_ROOTS", "")
 	home := tree(t, "work", "work/conn")
-	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain, width: 120, height: 40}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: Plain, width: 120, height: 40}
 	mm, _ := m.toRoots()
 	m = mm
 	for _, k := range []string{"w", "o", "r", "k"} {
@@ -225,7 +225,7 @@ func TestAnsweringTheAskingViewPutsConnToWork(t *testing.T) {
 // It is not an answer: the line is filled and the asking goes on.
 func TestTabFillsInTheLineWithoutAnsweringIt(t *testing.T) {
 	home := tree(t, "projects", "projects/conn", "prospect")
-	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: Plain}
 	mm, _ := m.toRoots()
 	m = mm
 	for _, k := range []string{"p", "r", "o"} {
@@ -270,7 +270,7 @@ func TestAReadingTakesTheRootsAsTheFileNowNamesThem(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("CONN_ROOTS", "")
 	home := tree(t, "work", "work/conn", "elsewhere", "elsewhere/api")
-	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain, uid: os.Getuid()}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: Plain, uid: os.Getuid()}
 	m = m.rooted(rootOn([]string{filepath.Join(home, "work")}))
 
 	// The file as conn came up on it: the reading is made on the same
@@ -332,7 +332,7 @@ func TestAReadingAsksWhichDirectoriesAreProjectsAgain(t *testing.T) {
 	if err := config.SaveRoots(home, []string{root}); err != nil {
 		t.Fatal(err)
 	}
-	m := model{head: station.Station{Login: station.Login{Home: home}}, p: plain, uid: os.Getuid()}
+	m := model{head: station.Station{Login: station.Login{Home: home}}, p: Plain, uid: os.Getuid()}
 	m = m.rooted(rootOn([]string{root}))
 	real, _ := filepath.EvalSymlinks(root)
 	essays, group := filepath.Join(real, "w0zro", "essays"), filepath.Join(real, "w0zro")

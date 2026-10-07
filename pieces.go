@@ -43,27 +43,27 @@ import (
 // it takes the lightest mark there is, so that a panel of ordinary work
 // is quiet and the kinds worth finding stand out of it.
 const (
-	markContact = "✻" // a star: the one kind with a mind at the other end
-	markShell   = "❯" // the prompt it shows you
-	markEditor  = "▯" // a page, open: it has the terminal and asks nothing
-	markService = "◉" // a lamp on a console: a thing held up, and watched
-	markRun     = "○" // anything else, and the commonest row: the lightest mark
+	MarkContact = "✻" // a star: the one kind with a mind at the other end
+	MarkShell   = "❯" // the prompt it shows you
+	MarkEditor  = "▯" // a page, open: it has the terminal and asks nothing
+	MarkService = "◉" // a lamp on a console: a thing held up, and watched
+	MarkRun     = "○" // anything else, and the commonest row: the lightest mark
 )
 
-// markOf is the mark a kind wears. A kind conn does not tell apart is a
+// MarkOf is the mark a kind wears. A kind conn does not tell apart is a
 // run, which is what kindOf makes of it.
-func markOf(kind string) string {
+func MarkOf(kind string) string {
 	switch kind {
 	case work.KindContact:
-		return markContact
+		return MarkContact
 	case work.KindShell:
-		return markShell
+		return MarkShell
 	case work.KindEditor:
-		return markEditor
+		return MarkEditor
 	case work.KindService:
-		return markService
+		return MarkService
 	}
-	return markRun
+	return MarkRun
 }
 
 // The half-cells a stamp is capped with, so it begins and ends at half a
@@ -76,81 +76,81 @@ const (
 // A card is a block of the surface with half a cell of it above and
 // below, which is how a fill gets an edge in a grid of whole cells.
 const (
-	cardAbove = "▄"
-	cardBelow = "▀"
+	CardAbove = "▄"
+	CardBelow = "▀"
 )
 
 // The bar down the left of a row the cursor is on, for the views that
 // mark it rather than raising the ground under it.
-const cursorBar = "▌"
+const CursorBar = "▌"
 
-// dot is the mark at the head of a row — its kind — in a color the
+// Dot is the mark at the head of a row — its kind — in a color the
 // caller picks for how it stands: the accent for what wants you, the
 // green for what is working, the faint for what is quiet or over.
-func (l *line) dot(color, glyph string) {
-	l.add(color, glyph)
-	l.add("", "  ")
+func (l *Line) Dot(color, glyph string) {
+	l.Add(color, glyph)
+	l.Add("", "  ")
 }
 
-// activity is what a row is doing, in a width: the command, and after
+// Activity is what a row is doing, in a width: the command, and after
 // it the ports it has, in the gray, as web · :8438. The command gives
 // up what the ports take; where the width has no room for the ports
 // past a few cells of command, the ports go and the command has it.
-func (l *line) activity(color, portsColor, command string, ports []string, width int) {
+func (l *Line) Activity(color, portsColor, command string, ports []string, width int) {
 	// The ports are the row's own fact, where you would go, and the
 	// last thing a narrow row gives up: the command is elided to what
 	// is left beside them, down to a letter, and past that the ports
 	// stand alone. Only a width the ports themselves do not fit gives
 	// the whole of it to the command.
-	word := portsWord(ports)
+	word := PortsWord(ports)
 	w := ansi.StringWidth(word)
 	switch {
 	case w == 0:
 	case width-w >= 2:
-		l.add(color, fit(command, width-w, false))
-		l.add(portsColor, word)
+		l.Add(color, Fit(command, width-w, false))
+		l.Add(portsColor, word)
 		return
 	case width >= w-3:
-		l.add(portsColor, strings.TrimPrefix(word, " · "))
+		l.Add(portsColor, strings.TrimPrefix(word, " · "))
 		return
 	}
-	l.add(color, fit(command, width, false))
+	l.Add(color, Fit(command, width, false))
 }
 
-// stamp is a word knocked out of the accent — WAITING, and how long it
+// Stamp is a word knocked out of the accent — WAITING, and how long it
 // has been. It is the one piece that is read before it is read: a block
 // of color in a row of text is seen first and understood after.
-func (l *line) stamp(s string) {
-	if l.p.plain {
-		l.add(l.p.chip, " "+s+" ")
+func (l *Line) Stamp(s string) {
+	if l.P.Plain {
+		l.Add(l.P.Chip, " "+s+" ")
 		return
 	}
-	l.add(l.p.orange, stampLeft)
-	l.add(l.p.chip, " "+s+" ")
-	l.add(l.p.orange, stampRight)
+	l.Add(l.P.Orange, stampLeft)
+	l.Add(l.P.Chip, " "+s+" ")
+	l.Add(l.P.Orange, stampRight)
 }
 
-// stampWidth is the cells a stamp takes, for a caller placing one
+// StampWidth is the cells a stamp takes, for a caller placing one
 // against the measure.
-func stampWidth(s string, p palette) int {
+func StampWidth(s string, p Palette) int {
 	w := ansi.StringWidth(s) + 2
-	if p.plain {
+	if p.Plain {
 		return w
 	}
 	return w + 2
 }
 
-// key is a key you can press, on the raised ground: a shape that says
+// Key is a Key you can press, on the raised ground: a shape that says
 // press me without a word saying so. The manual is the one text, and
 // this is the manual's rows put where the decision is made.
-func (l *line) key(k string) {
-	l.add(l.p.selection+l.p.ink+l.p.bold, " "+k+" ")
+func (l *Line) Key(k string) {
+	l.Add(l.P.Selection+l.P.Ink+l.P.Bold, " "+k+" ")
 }
 
-// keyWidth is the cells a key takes.
-func keyWidth(k string) int { return ansi.StringWidth(k) + 2 }
+// KeyWidth is the cells a key takes.
+func KeyWidth(k string) int { return ansi.StringWidth(k) + 2 }
 
-// eyebrow is a block's name: a small label, a rule running off it to the
+// Eyebrow is a block's name: a small label, a rule running off it to the
 // right edge, and what it counts at the end. It is what a box was for —
 // saying where a block begins and what is in it — without a box, which
 // costs two rows and two columns and encloses what does not need
@@ -160,98 +160,98 @@ func keyWidth(k string) int { return ansi.StringWidth(k) + 2 }
 // names itself shouts, and is the one place conn still does; a project
 // is named by its path, and a path keeps its own case, since its case
 // is part of it.
-func (l *line) eyebrow(col int, label string, right int, count string) {
-	l.eyebrowIn(l.p.gray+l.p.bold, col, label, right, count)
+func (l *Line) Eyebrow(col int, label string, right int, count string) {
+	l.EyebrowIn(l.P.Gray+l.P.Bold, col, label, right, count)
 }
 
-// eyebrowIn is an eyebrow with its label in a color of the caller's:
+// EyebrowIn is an eyebrow with its label in a color of the caller's:
 // the accent, for a block that is an alarm.
-func (l *line) eyebrowIn(color string, col int, label string, right int, count string) {
-	l.eyebrowTail(color, col, label, right, ansi.StringWidth(count))
+func (l *Line) EyebrowIn(color string, col int, label string, right int, count string) {
+	l.EyebrowTail(color, col, label, right, ansi.StringWidth(count))
 	if count != "" {
-		l.add(l.p.ink+l.p.bold, count)
+		l.Add(l.P.Ink+l.P.Bold, count)
 	}
 }
 
-// eyebrowTail is an eyebrow whose figure at the end of the rule the
+// EyebrowTail is an eyebrow whose figure at the end of the rule the
 // caller draws itself, in the width it says: a block that says how it
 // stands rather than how many rows it has puts a stamp there, and a
 // stamp is not a word in a color. The line is left at the column the
 // figure begins at.
-func (l *line) eyebrowTail(color string, col int, label string, right, tailW int) {
-	l.to(col)
-	l.add(color, label)
-	l.add("", " ")
+func (l *Line) EyebrowTail(color string, col int, label string, right, tailW int) {
+	l.To(col)
+	l.Add(color, label)
+	l.Add("", " ")
 	tail := 0
 	if tailW > 0 {
 		tail = tailW + 1
 	}
-	if n := right - l.cells - tail; n > 0 {
-		l.add(l.p.border, strings.Repeat("─", n))
+	if n := right - l.Cells - tail; n > 0 {
+		l.Add(l.P.Border, strings.Repeat("─", n))
 	}
 	if tailW > 0 {
-		l.add("", " ")
+		l.Add("", " ")
 	}
 }
 
-// field is a line typed into, drawn as a field rather than as a word and
+// Field is a line typed into, drawn as a Field rather than as a word and
 // a caret loose on the ground: a well cut through the surface down to
 // the ground says where the typing goes, and holds its width whether
 // anything has been typed or not. The caret stands where the typing
 // left it, so what is before it and what is after it are given apart.
-func (l *line) field(col, width int, label, before, after string) {
-	l.to(col)
-	l.add(l.p.gray, label)
-	l.add("", "  ")
-	start := l.cells
-	l.add(l.p.well+l.p.ink+l.p.bold, " "+before)
-	l.add(l.p.well+l.p.orange+l.p.bold, caret)
-	l.add(l.p.well+l.p.ink+l.p.bold, after)
-	if n := width - (l.cells - start); n > 0 {
-		l.add(l.p.well, strings.Repeat(" ", n))
+func (l *Line) Field(col, width int, label, before, after string) {
+	l.To(col)
+	l.Add(l.P.Gray, label)
+	l.Add("", "  ")
+	start := l.Cells
+	l.Add(l.P.Well+l.P.Ink+l.P.Bold, " "+before)
+	l.Add(l.P.Well+l.P.Orange+l.P.Bold, Caret)
+	l.Add(l.P.Well+l.P.Ink+l.P.Bold, after)
+	if n := width - (l.Cells - start); n > 0 {
+		l.Add(l.P.Well, strings.Repeat(" ", n))
 	}
 }
 
-// card draws the edge above or below a block of the surface, from a
+// Card draws the edge above or below a block of the surface, from a
 // column, for a width. Between them the rows are drawn in the lifted
 // palette, which puts them on the same surface edge to edge.
-func (c *canvas) card(edge string, col, width, stage int) {
-	l := c.line()
-	l.to(col)
-	l.add(c.p.edge, strings.Repeat(edge, width))
-	c.emit(l, stage, false)
+func (c *Canvas) Card(edge string, col, width, stage int) {
+	l := c.Line()
+	l.To(col)
+	l.Add(c.P.Edge, strings.Repeat(edge, width))
+	c.Emit(l, stage, false)
 }
 
-// panelMinCols is the narrowest a view is drawn: a panel narrower is
+// PanelMinCols is the narrowest a view is drawn: a panel narrower is
 // drawn at this width and cut by the pane.
-const panelMinCols = 40
+const PanelMinCols = 40
 
-// caret is where typing goes on a line typed into.
-const caret = "▏"
+// Caret is where typing goes on a line typed into.
+const Caret = "▏"
 
-// The spinner's frames: the cell full but for one dot, the gap going
+// The Spinner's frames: the cell full but for one dot, the gap going
 // round, a full turn in eight, and a turn a second (spinEvery, in
 // tui.go). A single dot going round was a trace too faint to be seen
 // turning beside a row of text; the full cell has the weight of the
 // dot beside it, and the gap is what moves. It turns in the margin,
 // where the rows at work make a column of their own and the text they
 // are about keeps its line.
-var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
+var Spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
 
-// portsWord is how a row of the tree says its ports after its command:
+// PortsWord is how a row of the tree says its ports after its command:
 // web · :8438, or every port it has, lowest first. Nothing for a row
 // with none. The panel stands them at its right instead, as a column,
 // and asks for portsColumn.
-func portsWord(ports []string) string {
+func PortsWord(ports []string) string {
 	if len(ports) == 0 {
 		return ""
 	}
-	return " · " + portsColumn(ports)
+	return " · " + PortsColumn(ports)
 }
 
-// portsColumn is the ports written together: :8438, or every port
+// PortsColumn is the ports written together: :8438, or every port
 // lowest first. Nothing for none.
-func portsColumn(ports []string) string {
+func PortsColumn(ports []string) string {
 	if len(ports) == 0 {
 		return ""
 	}

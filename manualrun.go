@@ -24,16 +24,16 @@ type manualModel struct {
 	srv  *tmux.Server
 	path string
 	page viewport.Model
-	p    palette
+	p    Palette
 }
 
-func newManual(srv *tmux.Server, path string, p palette) manualModel {
+func newManual(srv *tmux.Server, path string, p Palette) manualModel {
 	page := viewport.New()
 	page.KeyMap = manualKeys()
 	return manualModel{srv: srv, path: path, page: page, p: p}
 }
 
-func runManual(srv *tmux.Server, path string, p palette) error {
+func runManual(srv *tmux.Server, path string, p Palette) error {
 	_, err := tea.NewProgram(newManual(srv, path, p), programOptions()...).Run()
 	return err
 }
@@ -99,22 +99,22 @@ func (m manualModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // it bold, on the ground; and down to the foot of the pane, on the
 // ground still, where the page is shorter than the pane.
 func (m manualModel) rows(lines []string, width, height int) []string {
-	c := canvas{p: m.p, width: max(width, 1)}
+	c := Canvas{P: m.p, Width: max(width, 1)}
 	for _, text := range lines {
-		l := c.line()
+		l := c.Line()
 		for _, run := range manLine(text) {
-			color := m.p.ink
+			color := m.p.Ink
 			if run.bold {
-				color = m.p.ink + m.p.bold
+				color = m.p.Ink + m.p.Bold
 			}
-			l.add(color, run.text)
+			l.Add(color, run.text)
 		}
-		c.emit(l, 0, false)
+		c.Emit(l, 0, false)
 	}
-	for len(c.rows) < height {
-		c.blank(0)
+	for len(c.Rows) < height {
+		c.Blank(0)
 	}
-	return textsOf(c.rows)
+	return Texts(c.Rows)
 }
 
 func (m manualModel) View() tea.View {

@@ -92,41 +92,41 @@ func keysWidth(keys string) int {
 		if i > 0 {
 			w++
 		}
-		w += keyWidth(k)
+		w += KeyWidth(k)
 	}
 	return w
 }
 
 // drawKeys renders the card: the view the keys belong to against the
 // right, and under a rule the groups, a heading and its keys each.
-func drawKeys(groups []keyGroup, view string, width, height int, p palette) []row {
-	c, measure := head("KEYS", strings.ToUpper(view), width, p)
+func drawKeys(groups []keyGroup, view string, width, height int, p Palette) []Row {
+	c, measure := Head("KEYS", strings.ToUpper(view), width, p)
 
-	d := canvas{p: p, width: c.width}
+	d := Canvas{P: p, Width: c.Width}
 	for _, g := range groups {
 		col := 0
 		for _, h := range g.keys {
 			col = max(col, keysWidth(h.key)+3)
 		}
-		d.blank(0)
-		l := d.line()
-		l.eyebrow(0, g.title, measure, "")
-		d.emit(l, 0, false)
-		d.blank(0)
+		d.Blank(0)
+		l := d.Line()
+		l.Eyebrow(0, g.title, measure, "")
+		d.Emit(l, 0, false)
+		d.Blank(0)
 		for _, h := range g.keys {
-			l := d.line()
-			l.to(1)
+			l := d.Line()
+			l.To(1)
 			for i, k := range strings.Fields(h.key) {
 				if i > 0 {
-					l.add("", " ")
+					l.Add("", " ")
 				}
-				l.key(k)
+				l.Key(k)
 			}
-			l.to(col)
-			l.add(p.ink, fit(h.does, measure-l.cells, false))
-			d.emit(l, 0, false)
+			l.To(col)
+			l.Add(p.Ink, Fit(h.does, measure-l.Cells, false))
+			d.Emit(l, 0, false)
 		}
 	}
 
-	return c.foot(d.rows, -1, height)
+	return c.Foot(d.Rows, -1, height)
 }

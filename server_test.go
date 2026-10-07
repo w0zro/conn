@@ -240,7 +240,7 @@ func isRow(line string) bool {
 func rowFields(line string) []string {
 	var out []string
 	for _, f := range strings.Fields(line) {
-		f = strings.TrimLeft(f, "▸"+cursorBar+strings.Join(spinner, ""))
+		f = strings.TrimLeft(f, "▸"+CursorBar+strings.Join(Spinner, ""))
 		if f == "" {
 			continue
 		}

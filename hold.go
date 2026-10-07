@@ -23,10 +23,10 @@ const holdWord = "VACANT"
 type holdModel struct {
 	srv           *tmux.Server
 	width, height int
-	p             palette
+	p             Palette
 }
 
-func runHold(srv *tmux.Server, p palette) error {
+func runHold(srv *tmux.Server, p Palette) error {
 	_, err := tea.NewProgram(holdModel{srv: srv, p: p}, programOptions()...).Run()
 	return err
 }
@@ -46,17 +46,17 @@ func (h holdModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (h holdModel) View() tea.View {
-	c := canvas{p: h.p, width: max(h.width, 1)}
-	for len(c.rows) < h.height/2 {
-		c.blank(0)
+	c := Canvas{P: h.p, Width: max(h.width, 1)}
+	for len(c.Rows) < h.height/2 {
+		c.Blank(0)
 	}
-	l := c.line()
-	l.add(h.p.faint, holdWord)
-	c.emit(l, 0, true)
-	for len(c.rows) < h.height {
-		c.blank(0)
+	l := c.Line()
+	l.Add(h.p.Faint, holdWord)
+	c.Emit(l, 0, true)
+	for len(c.Rows) < h.height {
+		c.Blank(0)
 	}
-	v := tea.NewView(strings.Join(textsOf(c.rows), "\n"))
+	v := tea.NewView(strings.Join(Texts(c.Rows), "\n"))
 	v.AltScreen = true
 	return v
 }

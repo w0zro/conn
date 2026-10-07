@@ -489,7 +489,7 @@ func panelStatusWidth(b processesReport) int {
 
 // drawProcesses renders the processes view for a terminal of the given
 // size, with the cursor on the row of the given pid.
-func drawProcesses(b processesReport, cursor int, width, height int, p palette) []row {
+func drawProcesses(b processesReport, cursor int, width, height int, p Palette) []Row {
 	// Nothing to list is drawn the same way whichever drawing is up,
 	// and so is drawn before the choice between them: the fold and the
 	// tree differ in how rows are arranged under their projects, and
@@ -504,10 +504,10 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	if b.filed {
 		return drawFiled(b, cursor, width, height, p)
 	}
-	panel := width < minCols
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
+	panel := width < MinCols
+	width = max(width, PanelMinCols)
+	measure := MeasureAt(width)
+	c := Canvas{P: p, Width: width}
 	statusCol := measure - statusW
 	sinceCol := statusCol - 1 - sinceW
 	ttyCol := sinceCol - 1 - ttyW
@@ -541,10 +541,10 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 	if height == 0 {
 		room = 1 << 30
 	}
-	var body []row
+	var body []Row
 	cursorRow := -1
 	project := func(bp projectBlock) {
-		d := canvas{p: p, width: width}
+		d := Canvas{P: p, Width: width}
 		// A row of air before each block at the margin, the first
 		// included. Furniture can sit on the edge of a pane — a rule is
 		// an edge, and the head row that used to be here was flush for
@@ -557,7 +557,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		// its indent already sets it apart; air before each of them
 		// spread a folder of three repositories over half a panel.
 		if bp.nest == 0 {
-			d.blank(0)
+			d.Blank(0)
 		}
 		// The title alone. It carried a count of its rows on the right,
 		// which was the kernel's word for them and a figure the operator
@@ -567,17 +567,17 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 		// row, and a folder of repositories read as a wall of rows with
 		// nothing to catch the eye between one block and the next. The
 		// indent says what is under what; the weight says what is a name.
-		l := d.line()
+		l := d.Line()
 		titleIn := 0
 		if bp.nest > 0 {
 			titleIn = min(bp.nest*treeIndent, max(commandW-4, 0))
 		}
-		l.to(titleIn)
-		l.add(p.parchment+p.bold, fit(bp.path, measure-titleIn, true))
-		d.emit(l, 0, false)
+		l.To(titleIn)
+		l.Add(p.Parchment+p.Bold, Fit(bp.path, measure-titleIn, true))
+		d.Emit(l, 0, false)
 		for _, r := range bp.rows {
-			l := d.line()
-			l.pid = r.pid
+			l := d.Line()
+			l.PID = r.pid
 			cursored := r.pid == cursor
 			// What conn can do with a row is said two ways, and they are
 			// not the same kind of saying. Dimming is a rank the whole
@@ -594,20 +594,20 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			// row is a lot of orange, and the status column especially
 			// is not the orange's to take — WAITING is already a color
 			// close to it, and the two together say neither.
-			kind, command, ttyColor, sinceColor, word := p.gray, p.ink, p.gray, p.gray, p.gray
+			kind, command, ttyColor, sinceColor, word := p.Gray, p.Ink, p.Gray, p.Gray, p.Gray
 			switch {
 			case r.shown:
-				kind = p.orange + p.bold
+				kind = p.Orange + p.Bold
 			case b.inside && (r.reach == "" || r.over):
 				// A row conn can only report, or a declared process
 				// that has ended and holds its pane for its output:
 				// reachable, and over.
-				dim := p.faint
+				dim := p.Faint
 				if cursored {
 					// Faint on the raised ground is barely there. The row
 					// under the cursor is the one being read, so it gives
 					// up a rank of the dimming rather than the reading.
-					dim = p.gray
+					dim = p.Gray
 				}
 				kind, command, ttyColor, sinceColor, word = dim, dim, dim, dim, dim
 			}
@@ -615,12 +615,12 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				// The row under the cursor is the one on the raised ground,
 				// edge to edge; where there is no color to raise it, it takes
 				// a mark in the margin instead.
-				l.p = p.chosen()
-				if p.plain {
-					l.mark = "▸"
+				l.P = p.Chosen()
+				if p.Plain {
+					l.Mark = "▸"
 				}
-				command += p.bold
-				cursorRow = len(body) + len(d.rows)
+				command += p.Bold
+				cursorRow = len(body) + len(d.Rows)
 			}
 			// A row indents under its block's title, and under the row
 			// that runs it, kind and command shifted in together; the
@@ -630,27 +630,27 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			// The digit that goes to a contact stands in the indent, a
 			// column of air before the kind word, which every row has.
 			if b.digits && r.num != "" && indent >= 2 {
-				l.to(indent - 2)
-				l.add(p.faint+p.dim, r.num)
+				l.To(indent - 2)
+				l.Add(p.Faint+p.Dim, r.num)
 			}
-			l.to(indent)
-			l.add(kind, fit(r.kind, kindCol-1, false))
-			l.to(kindCol + indent)
+			l.To(indent)
+			l.Add(kind, Fit(r.kind, kindCol-1, false))
+			l.To(kindCol + indent)
 			activity := r.command
 			if panel && r.name != "" {
 				activity = r.name
 			}
-			l.activity(command, p.gray, activity, r.ports, commandW-indent)
+			l.Activity(command, p.Gray, activity, r.ports, commandW-indent)
 			if !panel {
-				l.to(ttyCol)
-				l.add(ttyColor, fit(strings.ToUpper(r.tty), ttyW, false))
-				l.to(sinceCol)
-				l.add(sinceColor, r.since)
+				l.To(ttyCol)
+				l.Add(ttyColor, Fit(strings.ToUpper(r.tty), ttyW, false))
+				l.To(sinceCol)
+				l.Add(sinceColor, r.since)
 			}
 			switch {
 			case r.fault:
-				l.to(measure - ansi.StringWidth(r.status) - 2)
-				l.add(p.chip, " "+r.status+" ")
+				l.To(measure - ansi.StringWidth(r.status) - 2)
+				l.Add(p.Chip, " "+r.status+" ")
 			case r.status == work.StatusWaiting:
 				// The one word here that asks something of you, and the
 				// only one worth finding without looking. It is stamped
@@ -673,8 +673,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 				// dark: a word that jumped its neighbours about would be
 				// worse than one that never blinked.
 				if b.lit {
-					l.to(measure - ansi.StringWidth(r.status) - 2)
-					l.add(p.chip, " "+r.status+" ")
+					l.To(measure - ansi.StringWidth(r.status) - 2)
+					l.Add(p.Chip, " "+r.status+" ")
 				}
 			// A contact carrying more than is good for it is stamped with
 			// the figure where a fault's word goes, and blinks with the
@@ -685,73 +685,73 @@ func drawProcesses(b processesReport, cursor int, width, height int, p palette) 
 			// answered.
 			case r.heavy != "":
 				if b.lit {
-					l.to(measure - ansi.StringWidth(r.heavy) - 2)
-					l.add(p.chip, " "+r.heavy+" ")
+					l.To(measure - ansi.StringWidth(r.heavy) - 2)
+					l.Add(p.Chip, " "+r.heavy+" ")
 				}
 			default:
-				l.to(measure - ansi.StringWidth(r.status))
-				l.add(word, r.status)
+				l.To(measure - ansi.StringWidth(r.status))
+				l.Add(word, r.status)
 			}
-			d.emit(l, 0, false)
+			d.Emit(l, 0, false)
 		}
 		// What is wrong with the project's .conn, under its rows, as a
 		// fault is stamped: the file was written to be read, and a
 		// project that shows none of what it declares should say why.
 		if bp.note != "" {
-			l := d.line()
+			l := d.Line()
 			in := min((bp.nest+1)*treeIndent, max(commandW-4, 0))
-			l.to(in)
-			l.add(p.chip, " "+fit(strings.ToUpper(bp.note), measure-in-2, false)+" ")
-			d.emit(l, 0, false)
+			l.To(in)
+			l.Add(p.Chip, " "+Fit(strings.ToUpper(bp.note), measure-in-2, false)+" ")
+			d.Emit(l, 0, false)
 		}
-		body = append(body, d.rows...)
+		body = append(body, d.Rows...)
 	}
 	for _, bp := range b.projects {
 		project(bp)
 	}
-	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
+	c.Rows = append(c.Rows, Scrolled(body, cursorRow, room-len(c.Rows), width, p)...)
 
-	c.rows = append(c.rows, notes(b, width, measure, p)...)
+	c.Rows = append(c.Rows, notes(b, width, measure, p)...)
 
 	// The ground fills what the rows do not: the keys are learned once,
 	// and a legend on every row of every reading is a thing to read
 	// past forever.
 	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
+		for len(c.Rows) < height {
+			c.Blank(0)
 		}
 	}
-	return c.rows
+	return c.Rows
 }
 
 // drawNoRows is the view where there is nothing to list: why the table
 // could not be read, or, where it read and held nothing, that nothing
 // is running. Either is a line at the middle of the panel, with
 // whatever the notes have to say under it.
-func drawNoRows(b processesReport, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	c := canvas{p: p, width: width}
-	c.blank(0)
-	l := c.line()
+func drawNoRows(b processesReport, width, height int, p Palette) []Row {
+	width = max(width, PanelMinCols)
+	c := Canvas{P: p, Width: width}
+	c.Blank(0)
+	l := c.Line()
 	if b.err != "" {
-		l.add(p.chip, " "+strings.ToUpper(b.err)+" ")
+		l.Add(p.Chip, " "+strings.ToUpper(b.err)+" ")
 	} else {
-		l.add(p.gray, "NO PROCESSES")
+		l.Add(p.Gray, "NO PROCESSES")
 	}
-	c.emit(l, 0, true)
-	c.rows = append(c.rows, notes(b, width, measureAt(width), p)...)
+	c.Emit(l, 0, true)
+	c.Rows = append(c.Rows, notes(b, width, MeasureAt(width), p)...)
 	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
+		for len(c.Rows) < height {
+			c.Blank(0)
 		}
 	}
-	return c.rows
+	return c.Rows
 }
 
 // notes is what is said under the rows of either drawing of the view:
 // docker having gone quiet, and what the server would not do.
-func notes(b processesReport, width, measure int, p palette) []row {
-	c := canvas{p: p, width: width}
+func notes(b processesReport, width, measure int, p Palette) []Row {
+	c := Canvas{P: p, Width: width}
 	// Docker having gone quiet is said under the rows it is about. The
 	// services are still listed — what docker last said stands, which is
 	// better than dropping them — but a row that may be minutes stale
@@ -764,15 +764,15 @@ func notes(b processesReport, width, measure int, p palette) []row {
 	// this list; a word about how these rows were come by belongs beside
 	// them, where the eye already is.
 	if b.stalled {
-		d := canvas{p: p, width: width}
-		d.blank(0)
-		l := d.line()
+		d := Canvas{P: p, Width: width}
+		d.Blank(0)
+		l := d.Line()
 		// Short enough for the panel's own measure, which is what this
 		// view is usually read at: a note cut off mid-word says less
 		// than no note.
-		l.add(p.faint, fit("DOCKER NOT ANSWERING · AS LAST SEEN", measure, false))
-		d.emit(l, 0, false)
-		c.rows = append(c.rows, d.rows...)
+		l.Add(p.Faint, Fit("DOCKER NOT ANSWERING · AS LAST SEEN", measure, false))
+		d.Emit(l, 0, false)
+		c.Rows = append(c.Rows, d.Rows...)
 	}
 	// What the server would not do is a fault to be looked at, and is
 	// stamped like one, in the server's own words: the tmux command
@@ -782,17 +782,17 @@ func notes(b processesReport, width, measure int, p palette) []row {
 	// It is wrapped rather than cut: an error cut mid-word is an error
 	// nobody can act on, and the panel is narrow.
 	if b.notice != "" {
-		d := canvas{p: p, width: width}
-		d.blank(0)
-		for _, part := range wrapValue(strings.ToUpper(b.notice), measure-2) {
-			l := d.line()
-			l.add(p.chip, " "+part+" ")
-			d.emit(l, 0, false)
+		d := Canvas{P: p, Width: width}
+		d.Blank(0)
+		for _, part := range WrapValue(strings.ToUpper(b.notice), measure-2) {
+			l := d.Line()
+			l.Add(p.Chip, " "+part+" ")
+			d.Emit(l, 0, false)
 		}
-		c.rows = append(c.rows, d.rows...)
+		c.Rows = append(c.Rows, d.Rows...)
 	}
 
-	return c.rows
+	return c.Rows
 }
 
 // processesKey answers a key in the processes view: q and ctrl+c
@@ -926,7 +926,7 @@ func (m model) processesReport() processesReport {
 	// While the keys are in a process the digit is two keys away, and
 	// the rows say nothing a press there would do.
 	w.digits = m.view == viewProcesses && m.focused && m.kill == nil
-	w.spin = int(m.now.UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
+	w.spin = int(m.now.UnixMilli()/spinEvery.Milliseconds()) % len(Spinner)
 	return w
 }
 
@@ -943,10 +943,10 @@ func (m model) click(msg tea.MouseClickMsg) (model, tea.Cmd) {
 		return m, nil
 	}
 	rows := drawProcesses(m.processesReport(), m.cursor, m.cols(), m.height, m.p)
-	if msg.Y < 0 || msg.Y >= len(rows) || rows[msg.Y].pid == 0 {
+	if msg.Y < 0 || msg.Y >= len(rows) || rows[msg.Y].PID == 0 {
 		return m, nil
 	}
-	pid := rows[msg.Y].pid
+	pid := rows[msg.Y].PID
 	m = m.onRow(pid, m.cursorAt)
 	if e, _, ok := m.under(); ok {
 		if _, cmd := m.enterOn(e); cmd != nil {

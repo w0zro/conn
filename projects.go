@@ -62,7 +62,7 @@ type projectRow struct {
 // title as well as by claude, a server by its port.
 func (p projectRow) words() string {
 	if p.pid != 0 {
-		return strings.Join([]string{p.kind, p.doing, p.command, portsColumn(p.ports), p.status}, " ")
+		return strings.Join([]string{p.kind, p.doing, p.command, PortsColumn(p.ports), p.status}, " ")
 	}
 	return p.name
 }
@@ -528,7 +528,7 @@ const (
 
 // drawProjects renders the list for a terminal of the given size, with
 // the cursor on the given row.
-func drawProjects(b projectsReport, cursor, width, height int, p palette) []row {
+func drawProjects(b projectsReport, cursor, width, height int, p Palette) []Row {
 	// The header: the name of the view, and against the right the count
 	// — of everything, or of what the filter left out of it.
 	right := strconv.Itoa(b.total) + " FOUND"
@@ -538,44 +538,44 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	c, measure := head("PROJECTS", right, width, p)
+	c, measure := Head("PROJECTS", right, width, p)
 
 	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
-	l := c.line()
-	before, after := typedRuns(b.filter, b.caret, measure-findW-2, false)
-	l.field(0, measure-findW, "FIND", before, after)
-	c.emit(l, 0, false)
+	l := c.Line()
+	before, after := TypedRuns(b.filter, b.caret, measure-findW-2, false)
+	l.Field(0, measure-findW, "FIND", before, after)
+	c.Emit(l, 0, false)
 
-	var body []row
+	var body []Row
 	cursorRow := -1
-	d := canvas{p: p, width: c.width}
+	d := Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
-		d.blank(0)
-		l := d.line()
-		l.add(color, s)
-		d.emit(l, 0, true)
-		body = d.rows
+		d.Blank(0)
+		l := d.Line()
+		l.Add(color, s)
+		d.Emit(l, 0, true)
+		body = d.Rows
 	}
 	switch {
 	case b.err != "":
-		say(p.chip, " "+strings.ToUpper(b.err)+" ")
+		say(p.Chip, " "+strings.ToUpper(b.err)+" ")
 	case b.scanning && len(b.rows) == 0:
-		say(p.gray, "SCANNING")
+		say(p.Gray, "SCANNING")
 	case len(b.rows) == 0 && b.filter != "":
-		say(p.gray, "NOTHING ANSWERS TO "+strings.ToUpper(b.filter))
+		say(p.Gray, "NOTHING ANSWERS TO "+strings.ToUpper(b.filter))
 	case len(b.rows) == 0:
-		say(p.gray, "NO REPOSITORIES UNDER "+strings.ToUpper(strings.Join(b.roots, " · ")))
+		say(p.Gray, "NO REPOSITORIES UNDER "+strings.ToUpper(strings.Join(b.roots, " · ")))
 	default:
-		d.blank(0)
+		d.Blank(0)
 		for i, pr := range b.rows {
-			l := d.line()
+			l := d.Line()
 			if i == cursor {
-				l.p = p.chosen()
-				if p.plain {
-					l.mark = "▸"
+				l.P = p.Chosen()
+				if p.Plain {
+					l.Mark = "▸"
 				}
-				cursorRow = len(d.rows)
+				cursorRow = len(d.Rows)
 			}
 			// A group is a title with its repositories under it, the way a
 			// project is in the processes view; a repository that stands alone
@@ -595,33 +595,33 @@ func drawProjects(b projectsReport, cursor, width, height int, p palette) []row 
 				if pr.waiting {
 					doingW -= len(work.StatusWaiting) + 3
 				}
-				l.to(in)
-				l.add(p.gray, fit(pr.kind, kindW-1, false))
-				l.to(in + kindW)
-				l.add(p.ink, fit(pr.doing, doingW, false))
+				l.To(in)
+				l.Add(p.Gray, Fit(pr.kind, kindW-1, false))
+				l.To(in + kindW)
+				l.Add(p.Ink, Fit(pr.doing, doingW, false))
 				if pr.waiting {
-					l.to(measure - len(work.StatusWaiting) - 2)
-					l.add(p.chip, " "+work.StatusWaiting+" ")
+					l.To(measure - len(work.StatusWaiting) - 2)
+					l.Add(p.Chip, " "+work.StatusWaiting+" ")
 				}
 			case pr.repos > 0:
 				count := strconv.Itoa(pr.repos) + " REPO"
 				if pr.repos != 1 {
 					count += "S"
 				}
-				l.add(p.parchment+p.bold, fit(pr.name, measure-ansi.StringWidth(count)-2, true))
-				l.to(measure - ansi.StringWidth(count))
-				l.add(p.gray, count)
+				l.Add(p.Parchment+p.Bold, Fit(pr.name, measure-ansi.StringWidth(count)-2, true))
+				l.To(measure - ansi.StringWidth(count))
+				l.Add(p.Gray, count)
 			case pr.grouped:
-				l.to(nestW)
-				l.add(p.ink, fit(pr.name, measure-nestW, true))
+				l.To(nestW)
+				l.Add(p.Ink, Fit(pr.name, measure-nestW, true))
 			default:
-				l.add(p.ink, fit(pr.name, measure, true))
+				l.Add(p.Ink, Fit(pr.name, measure, true))
 			}
-			d.emit(l, 0, false)
+			d.Emit(l, 0, false)
 		}
-		body = d.rows
+		body = d.Rows
 	}
-	return c.foot(body, cursorRow, height)
+	return c.Foot(body, cursorRow, height)
 }
 
 // The list as the panel holds it: the projects as the roots were last

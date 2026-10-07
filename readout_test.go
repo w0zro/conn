@@ -52,13 +52,13 @@ func readoutSubj() readoutSubject {
 // and the page of groups every other row gets, here a shell's.
 func TestTheReadoutIsWhatItWas(t *testing.T) {
 	b := composeReadout(readoutSubj(), "/Users/w0zro", processesNow)
-	golden(t, "readout-120x40.txt", texts(drawReadout(b, 120, 40, plain)))
-	golden(t, "readout-narrow-60x40.txt", texts(drawReadout(b, 60, 40, plain)))
+	golden(t, "readout-120x40.txt", texts(drawReadout(b, 120, 40, Plain)))
+	golden(t, "readout-narrow-60x40.txt", texts(drawReadout(b, 60, 40, Plain)))
 	s := readoutSubj()
 	s.entry.Kind, s.entry.Command, s.entry.Typed, s.entry.Status, s.entry.Asking = work.KindShell, "zsh", "", work.StatusActive, ""
 	s.entry.Sockets = []work.Socket{{Proto: "TCP", Addr: "*:5173", State: "LISTEN"}}
 	s.sess, s.carried = work.SessionFile{}, work.Session{}
-	golden(t, "readout-shell-100x40.txt", texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 40, plain)))
+	golden(t, "readout-shell-100x40.txt", texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 40, Plain)))
 }
 
 // The page says the things the processes view's columns have no room
@@ -69,7 +69,7 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 	// Tall enough for the whole page, and narrow enough for one column,
 	// so a value stands whole on its own line rather than wrapped beside
 	// the sheet.
-	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 100, 60, plain))
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 100, 60, Plain))
 
 	// The command as it was written, not in conn's own upper case: it is
 	// a thing somebody might retype.
@@ -148,7 +148,7 @@ func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
 		if is.rested-was.rested != time.Minute {
 			t.Errorf("%s: it stood %s, then %s a minute later", c.what, span(was.rested), span(is.rested))
 		}
-		if want := "· " + c.rest + " 8m"; !strings.Contains(texts(drawReadout(composeReadout(s, "/Users/w0zro", later), 100, 60, plain)), want) {
+		if want := "· " + c.rest + " 8m"; !strings.Contains(texts(drawReadout(composeReadout(s, "/Users/w0zro", later), 100, 60, Plain)), want) {
 			t.Errorf("%s: the bar's caption does not say %q", c.what, want)
 		}
 	}
@@ -159,7 +159,7 @@ func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
 	s := readoutSubj()
 	s.entry.Status, s.entry.Since = work.StatusActive, time.Time{}
 	s.sess, s.carried = work.SessionFile{}, work.Session{}
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 	if !strings.Contains(text, "It came up at 18:28 and has been up 1h 32m.") {
 		t.Errorf("a contact conn cannot read was not said to be merely up:\n%s", text)
 	}
@@ -183,7 +183,7 @@ func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 		project: work.Project{Path: "/Users/w0zro/projects/w0zro/conn"},
 		inside:  true,
 	}
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, Plain))
 
 	for _, gone := range []string{"WAITING", "ASKS", "SAID", "CONTACT", "PROJECT\n", "TREE", "CWD", "CPU"} {
 		if strings.Contains(text, gone) {
@@ -207,7 +207,7 @@ func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 	s := readoutSubj()
 	s.inside, s.pane = false, tmux.Pane{}
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, Plain))
 	if strings.Contains(text, "Pane") {
 		t.Errorf("outside the server the page still spoke of panes:\n%s", text)
 	}
@@ -219,7 +219,7 @@ func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 func TestTheReadoutDoesNotDateAFaultFromTheContactsClock(t *testing.T) {
 	s := readoutSubj()
 	s.entry.Status, s.entry.Fault, s.entry.Asking = work.StatusStopped, true, ""
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, Plain))
 	if strings.Contains(text, "Stopped · for") {
 		t.Errorf("a stopped row was dated from the contact's clock:\n%s", text)
 	}
@@ -230,7 +230,7 @@ func TestTheReadoutDoesNotDateAFaultFromTheContactsClock(t *testing.T) {
 func TestTheReadoutSaysNothingOfTrackingWithNoUpstream(t *testing.T) {
 	s := readoutSubj()
 	s.git.upstream, s.git.ahead, s.git.dirty = "", 0, 0
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, Plain))
 	if strings.Contains(text, "Tracking") {
 		t.Errorf("a branch with no upstream was given one:\n%s", text)
 	}
@@ -277,7 +277,7 @@ func TestSubjectOfReadsTheLineOfDescent(t *testing.T) {
 // A row that ends while its page is up says so rather than going blank
 // or holding the last thing it read.
 func TestTheReadoutSaysWhenItsRowIsGone(t *testing.T) {
-	text := texts(drawReadout(readoutReport{pid: 49212, gone: true}, 120, 40, plain))
+	text := texts(drawReadout(readoutReport{pid: 49212, gone: true}, 120, 40, Plain))
 	if !strings.Contains(text, "no longer listed") {
 		t.Errorf("a page whose row went says:\n%s", text)
 	}
@@ -305,7 +305,7 @@ func TestEveryReadoutLabelFitsTheLeader(t *testing.T) {
 		t.Errorf("only %d labels were seen; the check is not reaching the page", len(seen))
 	}
 	// And the values do line up, which is what the width is for.
-	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 120, 40, plain))
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 120, 40, Plain))
 	col := -1
 	for _, line := range strings.Split(text, "\n") {
 		i := strings.Index(line, ". ")
@@ -336,7 +336,7 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	s.children = append(s.children, work.Entry{PID: 49301, Kind: work.KindShell, TTY: "ttys003",
 		Command: "zsh -c source /Users/w0zro/.claude/shell-snapshots/snapshot-zsh-1789.sh 2>/dev/null || true && eval 'go build'",
 		Status:  work.StatusActive, Depth: 2})
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 
 	for what, gone := range map[string]string{
 		"the note conn appended":      "running inside conn",
@@ -366,7 +366,7 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	// A session running behind another is not the ordinary case and is
 	// worth its line; so is a branch the project has since left.
 	s.sess.Kind, s.carried.Branch = "bg-spare", "topic/resume"
-	text = texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	text = texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 	if !strings.Contains(text, "Running ...... bg-spare") || !strings.Contains(text, "Its branch ... topic/resume") {
 		t.Errorf("what is not ordinary went unsaid:\n%s", text)
 	}
@@ -376,7 +376,7 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 // The station sees a process and a transcript; these say what is at the
 // other end of it.
 func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
-	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 100, 60, plain))
+	text := texts(drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), 100, 60, Plain))
 	for what, want := range map[string]string{
 		"the agent and what it is": "Claude Code 2.1.267",
 		"what is answering":        "Model ........ claude-opus-5",
@@ -390,7 +390,7 @@ func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
 	// A contact conn cannot read says none of it rather than guessing.
 	s := readoutSubj()
 	s.carried.Model, s.carried.Carried = "", 0
-	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 	for _, gone := range []string{"Model ...", "context carried"} {
 		if strings.Contains(quiet, gone) {
 			t.Errorf("%q is on the page for a contact that said nothing:\n%s", gone, quiet)
@@ -406,7 +406,7 @@ func TestTheReadoutSaysWhoTheContactIsWith(t *testing.T) {
 	// the part that answers the question.
 	s = readoutSubj()
 	s.entry.Command, s.entry.Typed = "aider --model sonnet", ""
-	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain)); !strings.Contains(got, "  Aider 2.1.267") {
+	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain)); !strings.Contains(got, "  Aider 2.1.267") {
 		t.Errorf("an agent with no maker named:\n%s", got)
 	}
 }
@@ -492,7 +492,7 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	// A directory with no repository in it says nothing about one.
 	s := readoutSubj()
 	s.git = gitStatus{}
-	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 	if strings.Contains(quiet, "Git ...") {
 		t.Errorf("a directory that is no repository was reported as unread:\n%s", quiet)
 	}
@@ -501,7 +501,7 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	for _, why := range []string{"NOT ON PATH", "NO ANSWER IN 2S"} {
 		s = readoutSubj()
 		s.git = gitStatus{problem: why}
-		got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+		got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 		if !strings.Contains(got, "Git .......... "+why) {
 			t.Errorf("a git that could not be asked (%q) went unsaid:\n%s", why, got)
 		}
@@ -511,13 +511,13 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	// leaving a group with one row in it and no reason.
 	s = readoutSubj()
 	s.sess, s.carried = work.SessionFile{}, work.Session{}
-	got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 	if !strings.Contains(got, "Says ......... Nothing conn can read") {
 		t.Errorf("a contact conn cannot ask went unsaid:\n%s", got)
 	}
 	// And a row that is no contact at all has no such channel to read.
 	s.entry.Kind, s.entry.Command, s.entry.Typed = work.KindRun, "sleep 300", ""
-	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, plain)); strings.Contains(got, "CONTACT") {
+	if got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 60, Plain)); strings.Contains(got, "CONTACT") {
 		t.Errorf("a run was given a contact group:\n%s", got)
 	}
 }
@@ -530,7 +530,7 @@ func TestAMadeUpPidIsNotShownAsOne(t *testing.T) {
 		{PID: work.DeclaredPID("/w", "stack"), Kind: work.KindRun, Command: "stack · docker compose up", Typed: "stack · docker compose up", Status: work.StatusDown, Cwd: "/w"},
 		{PID: work.DeclaredPID("/w", "stack/web"), Kind: work.KindService, Command: "web", Typed: "web", Status: work.StatusDown, Cwd: "/w", Depth: 1},
 	} {
-		text := texts(drawReadout(composeReadout(readoutSubject{entry: e, project: work.Project{Path: "/w"}}, "/Users/w0zro", processesNow), 120, 20, plain))
+		text := texts(drawReadout(composeReadout(readoutSubject{entry: e, project: work.Project{Path: "/w"}}, "/Users/w0zro", processesNow), 120, 20, Plain))
 		if strings.Contains(text, "PID -") {
 			t.Errorf("the page shows conn's own number as a pid:\n%s", text)
 		}
@@ -544,10 +544,10 @@ func TestAMadeUpPidIsNotShownAsOne(t *testing.T) {
 // row past the edge is a row tmux cuts, and nothing on the sheet is
 // worth less than seeing it end.
 func TestTheSheetFitsEveryWidth(t *testing.T) {
-	for _, w := range []int{panelMinCols, 60, twoColumns - 1, twoColumns, 120, 160} {
-		for _, r := range drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), w, 0, plain) {
-			if n := utf8.RuneCountInString(r.text); n > w {
-				t.Errorf("at %d a row is %d wide: %q", w, n, r.text)
+	for _, w := range []int{PanelMinCols, 60, twoColumns - 1, twoColumns, 120, 160} {
+		for _, r := range drawReadout(composeReadout(readoutSubj(), "/Users/w0zro", processesNow), w, 0, Plain) {
+			if n := utf8.RuneCountInString(r.Text); n > w {
+				t.Errorf("at %d a row is %d wide: %q", w, n, r.Text)
 			}
 		}
 	}

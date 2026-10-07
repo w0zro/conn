@@ -399,11 +399,11 @@ func around(text string, at, room int) (string, int) {
 	}
 	lead := utf8.RuneCountInString(text[:at])
 	if lead+8 <= room {
-		return fit(text, room, false), at
+		return Fit(text, room, false), at
 	}
 	// The start is cut so the match sits a few cells in, after the mark.
 	kept := string(r[lead-8:])
-	return fit("…"+kept, room, false), len("…") + len(string(r[lead-8:lead]))
+	return Fit("…"+kept, room, false), len("…") + len(string(r[lead-8:lead]))
 }
 
 // plural is a figure and its noun: 1 LINE, 2 LINES.
@@ -416,7 +416,7 @@ func plural(n int, one, many string) string {
 
 // drawOutput renders the output view for a terminal of the given size,
 // with the cursor on the given match.
-func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
+func drawOutput(b outputReport, cursor, width, height int, p Palette) []Row {
 	// The header: the name of the view, and against the right how many
 	// lines say the text, or how many lines there are to say it.
 	right := plural(b.lines, "LINE", "LINES")
@@ -426,67 +426,67 @@ func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 	case b.filter != "":
 		right = plural(len(b.rows), "MATCH", "MATCHES")
 	}
-	c, measure := head("OUTPUT", right, width, p)
+	c, measure := Head("OUTPUT", right, width, p)
 
 	// The project it is over, the way a project titles its block.
-	l := c.line()
-	l.add(p.parchment+p.bold, fit(b.project, measure, true))
-	c.emit(l, 0, false)
+	l := c.Line()
+	l.Add(p.Parchment+p.Bold, Fit(b.project, measure, true))
+	c.Emit(l, 0, false)
 
 	// The line typed into.
-	l = c.line()
-	before, after := typedRuns(b.filter, b.caret, measure-findW-2, false)
-	l.field(0, measure-findW, "FIND", before, after)
-	c.emit(l, 0, false)
+	l = c.Line()
+	before, after := TypedRuns(b.filter, b.caret, measure-findW-2, false)
+	l.Field(0, measure-findW, "FIND", before, after)
+	c.Emit(l, 0, false)
 
-	var body []row
+	var body []Row
 	cursorRow := -1
-	d := canvas{p: p, width: c.width}
+	d := Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
-		d.blank(0)
-		l := d.line()
-		l.add(color, s)
-		d.emit(l, 0, true)
-		body = d.rows
+		d.Blank(0)
+		l := d.Line()
+		l.Add(color, s)
+		d.Emit(l, 0, true)
+		body = d.Rows
 	}
 	switch {
 	case b.loading && len(b.panes) == 0:
-		say(p.gray, "READING")
+		say(p.Gray, "READING")
 	case len(b.panes) == 0:
-		say(p.gray, "NOTHING HELD HERE")
+		say(p.Gray, "NOTHING HELD HERE")
 	case b.filter == "":
 		// Nothing typed yet: the panes that will be searched, each with
 		// what it has said, so the scope is plain before the text is.
 		for _, pane := range b.panes {
-			d.blank(0)
-			l := d.line()
+			d.Blank(0)
+			l := d.Line()
 			count := plural(pane.lines, "LINE", "LINES")
-			l.eyebrow(0, fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
-			d.emit(l, 0, false)
+			l.Eyebrow(0, Fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
+			d.Emit(l, 0, false)
 		}
-		body = d.rows
+		body = d.Rows
 	case len(b.rows) == 0:
-		say(p.gray, "NOTHING SAYS "+strings.ToUpper(b.filter))
+		say(p.Gray, "NOTHING SAYS "+strings.ToUpper(b.filter))
 	default:
 		last := -1
 		for i, r := range b.rows {
 			if r.pane != last {
 				last = r.pane
 				pane := b.panes[r.pane]
-				d.blank(0)
-				l := d.line()
+				d.Blank(0)
+				l := d.Line()
 				count := plural(pane.hits, "MATCH", "MATCHES")
-				l.eyebrow(0, fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
-				d.emit(l, 0, false)
+				l.Eyebrow(0, Fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
+				d.Emit(l, 0, false)
 			}
-			l := d.line()
+			l := d.Line()
 			if i == cursor {
-				l.p = p.chosen()
-				l.mark = cursorBar
-				if p.plain {
-					l.mark = "▸"
+				l.P = p.Chosen()
+				l.Mark = CursorBar
+				if p.Plain {
+					l.Mark = "▸"
 				}
-				cursorRow = len(d.rows)
+				cursorRow = len(d.Rows)
 			}
 			lead := len(r.text) - len(strings.TrimLeft(r.text, " "))
 			text, at := around(r.text[lead:], r.at-lead, measure)
@@ -494,12 +494,12 @@ func drawOutput(b outputReport, cursor, width, height int, p palette) []row {
 			for end < len(text) && !utf8.RuneStart(text[end]) {
 				end--
 			}
-			l.add(p.gray, text[:at])
-			l.add(p.ink+p.bold, text[at:end])
-			l.add(p.gray, text[end:])
-			d.emit(l, 0, false)
+			l.Add(p.Gray, text[:at])
+			l.Add(p.Ink+p.Bold, text[at:end])
+			l.Add(p.Gray, text[end:])
+			d.Emit(l, 0, false)
 		}
-		body = d.rows
+		body = d.Rows
 	}
-	return c.foot(body, cursorRow, height)
+	return c.Foot(body, cursorRow, height)
 }

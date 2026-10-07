@@ -29,15 +29,15 @@ func testProcesses() processesReport {
 // The processes view at 120 by 40 is a file of record, as are the empty
 // view and the one that could not be read.
 func TestProcessesMatchesTheGolden(t *testing.T) {
-	golden(t, "processes-120x40.txt", texts(drawProcesses(testProcesses(), 67040, 120, 40, plain)))
-	golden(t, "processes-cursor-100x9.txt", texts(drawProcesses(testProcesses(), 80002, 100, 9, plain)))
+	golden(t, "processes-120x40.txt", texts(drawProcesses(testProcesses(), 67040, 120, 40, Plain)))
+	golden(t, "processes-cursor-100x9.txt", texts(drawProcesses(testProcesses(), 80002, 100, 9, Plain)))
 	empty := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
-	golden(t, "processes-empty-80x24.txt", texts(drawProcesses(empty, 0, 80, 24, plain)))
+	golden(t, "processes-empty-80x24.txt", texts(drawProcesses(empty, 0, 80, 24, Plain)))
 	failed := composeProcesses(nil, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "the process table could not be read: lsof: not found", false, false)
-	golden(t, "processes-unread-80x24.txt", texts(drawProcesses(failed, 0, 80, 24, plain)))
+	golden(t, "processes-unread-80x24.txt", texts(drawProcesses(failed, 0, 80, 24, Plain)))
 	panel := composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	panel.inside = true
-	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, plain)))
+	golden(t, "processes-panel-48x30.txt", texts(drawProcesses(panel, 70100, 48, 30, Plain)))
 	// A project's declarations: one up, in a pane marked as its own and
 	// relabelled; one ended, holding its pane and dimmed; one down; and
 	// a project whose file would not read, saying so under its rows.
@@ -65,7 +65,7 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	projects := work.AttachDeclared(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), declared, panes)
 	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	shown.inside = true
-	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, work.DeclaredPID(app, "worker"), 48, 30, plain)))
+	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, work.DeclaredPID(app, "worker"), 48, 30, Plain)))
 	// The panel at rest: the same processes, folded and filed as the
 	// panel files them. The shell over claude keeps the contact and the
 	// shell says what else it runs; the stopped vim stays for being a
@@ -74,7 +74,7 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	// them would say a contact runs under the shell standing below it.
 	quiet := composeProcesses(fold(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)), map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
 	quiet.inside = true
-	golden(t, "processes-quiet-48x30.txt", texts(drawProcesses(quiet, 70100, 48, 30, plain)))
+	golden(t, "processes-quiet-48x30.txt", texts(drawProcesses(quiet, 70100, 48, 30, Plain)))
 }
 
 // A folder of checkouts is a project of its own, and the checkouts in
@@ -100,7 +100,7 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 	panes := map[string]tmux.Pane{"ttys030": {ID: "%30"}, "ttys031": {ID: "%31"}, "ttys032": {ID: "%32"}, "ttys033": {ID: "%33"}, "ttys005": {ID: "%0"}}
 	held := composeProcesses(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
-	golden(t, "processes-nested-48x30.txt", texts(drawProcesses(held, 201, 48, 30, plain)))
+	golden(t, "processes-nested-48x30.txt", texts(drawProcesses(held, 201, 48, 30, Plain)))
 	// The same with nothing running in the folder itself: its heading
 	// stands, made for the blocks under it.
 	empty := composeProcesses(work.ProjectsFrom(procs[1:], 501, work.RootFinder(isProject), isProject, nil), panes, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
@@ -143,7 +143,7 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 // path from ~, the time in status where a moment is known, no legend,
 // no row past the width.
 func TestProcessesLaysOut(t *testing.T) {
-	rows := drawProcesses(testProcesses(), 70100, 120, 40, plain)
+	rows := drawProcesses(testProcesses(), 70100, 120, 40, Plain)
 	text := texts(rows)
 	measure, _, _ := columns(120)
 	for _, s := range []string{
@@ -176,28 +176,28 @@ func TestProcessesLaysOut(t *testing.T) {
 	// not start hard against the edge of a pane — the heads that used to
 	// sit there were furniture, which can. None below: the indent says
 	// what is under the name, and a blank row means a new thing begins.
-	if got := strings.TrimSpace(rows[0].text); got != "" {
+	if got := strings.TrimSpace(rows[0].Text); got != "" {
 		t.Errorf("the first row is %q, not a row of air", got)
 	}
-	if got := strings.TrimSpace(rows[1].text); got != "~" {
+	if got := strings.TrimSpace(rows[1].Text); got != "~" {
 		t.Errorf("the second row is %q, not the first project's name", got)
 	}
-	if got := rows[2].text; !strings.HasPrefix(got, "     SHELL") {
+	if got := rows[2].Text; !strings.HasPrefix(got, "     SHELL") {
 		t.Errorf("the name's first row is not a level in under it: %q", got)
 	}
-	if len(rows) != 40 || strings.TrimSpace(rows[39].text) != "" {
-		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].text)
+	if len(rows) != 40 || strings.TrimSpace(rows[39].Text) != "" {
+		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].Text)
 	}
 	for _, r := range rows {
-		if w := utf8.RuneCountInString(r.text); w > 120 {
-			t.Errorf("row is %d wide: %q", w, r.text)
+		if w := utf8.RuneCountInString(r.Text); w > 120 {
+			t.Errorf("row is %d wide: %q", w, r.Text)
 		}
-		if strings.HasSuffix(r.text, "ACTIVE") && utf8.RuneCountInString(r.text) != margin+measure {
-			t.Errorf("status is not flush with %d: %q", margin+measure, r.text)
+		if strings.HasSuffix(r.Text, "ACTIVE") && utf8.RuneCountInString(r.Text) != Margin+measure {
+			t.Errorf("status is not flush with %d: %q", Margin+measure, r.Text)
 		}
 	}
-	for i, r := range drawProcesses(testProcesses(), 70100, 120, 40, colored(theme.Conn.Dark)) {
-		if w := utf8.RuneCountInString(stripEscapes(r.text)); w != 120 {
+	for i, r := range drawProcesses(testProcesses(), 70100, 120, 40, Colored(theme.Conn.Dark)) {
+		if w := utf8.RuneCountInString(stripEscapes(r.Text)); w != 120 {
 			t.Errorf("colored row %d paints %d columns", i, w)
 		}
 	}
@@ -210,12 +210,12 @@ func TestProcessesLaysOut(t *testing.T) {
 // and says how many rows are above and below. The name is the status
 // line's, so nine rows of terminal are nine of the view.
 func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
-	rows := drawProcesses(testProcesses(), 80001, 100, 9, plain)
+	rows := drawProcesses(testProcesses(), 80001, 100, 9, Plain)
 	text := texts(rows)
 	if len(rows) != 9 || !strings.Contains(text, "… 6 BELOW") || strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸    SHELL") {
 		t.Errorf("at 100x9 with the cursor on the first row:\n%s", text)
 	}
-	rows = drawProcesses(testProcesses(), 70301, 100, 9, plain)
+	rows = drawProcesses(testProcesses(), 70301, 100, 9, Plain)
 	text = texts(rows)
 	// The cursor's mark keeps the margin, and the row it marks still
 	// steps in for the level it is at: the last row is the go three deep
@@ -223,7 +223,7 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 	if len(rows) != 9 || !strings.Contains(text, "ABOVE") || strings.Contains(text, "BELOW") || !strings.Contains(text, "▸          RUN") {
 		t.Errorf("at 100x9 with the cursor on the last row:\n%s", text)
 	}
-	if piped := drawProcesses(testProcesses(), 80001, 0, 0, plain); strings.Contains(texts(piped), "ABOVE") {
+	if piped := drawProcesses(testProcesses(), 80001, 0, 0, Plain); strings.Contains(texts(piped), "ABOVE") {
 		t.Errorf("off a terminal:\n%s", texts(piped))
 	}
 }
@@ -234,7 +234,7 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 // j on the last is the first, so cycling through the processes never
 // stops at an end.
 func TestJAndKGoRoundTheRows(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
+	m := model{p: Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
 	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	press := func(k string) {
@@ -259,7 +259,7 @@ func TestJAndKGoRoundTheRows(t *testing.T) {
 }
 
 func TestTheCursorFollowsItsProcess(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
+	m := model{p: Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
 	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
 	m = next.(model)
 	// The rows read by project and then oldest first: home's shell and
@@ -325,7 +325,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 // reads the table and reads it again on its tick; c brings the console
 // back, and a stale tick is dropped.
 func TestTheKeyContinuesToProcesses(t *testing.T) {
-	m := model{head: station.Station{Build: testStation.Build, Login: testStation.Login}, now: processesNow, p: plain, width: 120, height: 40, uid: 501,
+	m := model{head: station.Station{Build: testStation.Build, Login: testStation.Login}, now: processesNow, p: Plain, width: 120, height: 40, uid: 501,
 		// A conn that has been told where the work is. One that has not
 		// goes to the asking view instead of the processes view, which is
 		// its own test.
@@ -387,28 +387,28 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 func TestTheProcessesViewInsideTheServer(t *testing.T) {
 	w := composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), map[string]tmux.Pane{"ttys007": {ID: "%3"}}, "ttys007", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	w.inside = true
-	rows := drawProcesses(w, 67040, 120, 40, colored(theme.Conn.Dark))
+	rows := drawProcesses(w, 67040, 120, 40, Colored(theme.Conn.Dark))
 	text := texts(rows)
-	p := colored(theme.Conn.Dark)
+	p := Colored(theme.Conn.Dark)
 	// ttys005 is in no pane the server holds here, and is the cursor's
 	// row besides, so it reads at gray rather than faint; ttys007 is in
 	// a pane, so it reads at the plain gray of a row conn can reach.
-	if !strings.Contains(text, p.gray+"TTYS005") || !strings.Contains(text, p.gray+"TTYS007") {
+	if !strings.Contains(text, p.Gray+"TTYS005") || !strings.Contains(text, p.Gray+"TTYS007") {
 		t.Errorf("the terminals are not colored by reach:\n%s", text)
 	}
 	// The bay's mark is on the kind of its head, which is the shell,
 	// not the contact under it.
-	if !strings.Contains(text, p.orange+p.bold+"SHELL") {
+	if !strings.Contains(text, p.Orange+p.Bold+"SHELL") {
 		t.Errorf("the bay's head is not marked:\n%s", text)
 	}
 	// In the panel there is no terminal column, and the rows close up.
-	panelText := texts(drawProcesses(w, 67040, 48, 30, plain))
+	panelText := texts(drawProcesses(w, 67040, 48, 30, Plain))
 	if strings.Contains(panelText, "TTY") || !strings.Contains(panelText, "CONTACT claude ") {
 		t.Errorf("the panel:\n%s", panelText)
 	}
-	for _, r := range drawProcesses(w, 67040, 48, 30, plain) {
-		if w := utf8.RuneCountInString(r.text); w > 48 {
-			t.Errorf("panel row is %d wide: %q", w, r.text)
+	for _, r := range drawProcesses(w, 67040, 48, 30, Plain) {
+		if w := utf8.RuneCountInString(r.Text); w > 48 {
+			t.Errorf("panel row is %d wide: %q", w, r.Text)
 		}
 	}
 }
@@ -417,7 +417,7 @@ func TestTheProcessesViewInsideTheServer(t *testing.T) {
 // server, n opens a shell at its project, and q detaches; each says why
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
-	m := model{p: plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}, inside: true}
+	m := model{p: Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}, inside: true}
 	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]tmux.Pane{"ttys007": {ID: "%3", TTY: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
@@ -466,7 +466,7 @@ func TestTheProcessesViewSaysNoKeys(t *testing.T) {
 	for _, inside := range []bool{false, true} {
 		w.inside = inside
 		for _, size := range [][2]int{{120, 40}, {48, 30}, {100, 9}, {0, 0}} {
-			text := stripEscapes(texts(drawProcesses(w, 67040, size[0], size[1], plain)))
+			text := stripEscapes(texts(drawProcesses(w, 67040, size[0], size[1], Plain)))
 			for _, key := range []string{"MOVE", "REACHES", "OPENS", "DETACHES", "CLOSES", "CONSOLE"} {
 				if strings.Contains(text, key) {
 					t.Errorf("inside=%v at %dx%d the processes view still says %q:\n%s", inside, size[0], size[1], key, text)
@@ -474,7 +474,7 @@ func TestTheProcessesViewSaysNoKeys(t *testing.T) {
 			}
 		}
 	}
-	if rows := drawProcesses(w, 67040, 120, 40, plain); len(rows) != 40 {
+	if rows := drawProcesses(w, 67040, 120, 40, Plain); len(rows) != 40 {
 		t.Errorf("the processes view fills %d of 40 rows", len(rows))
 	}
 }
@@ -484,22 +484,22 @@ func TestTheProcessesViewSaysNoKeys(t *testing.T) {
 // to raise — a pipe, a golden file — the row takes a mark instead, so
 // the record still says which one it is.
 func TestTheCursorIsAGround(t *testing.T) {
-	p := colored(theme.Conn.Dark)
+	p := Colored(theme.Conn.Dark)
 	rows := drawProcesses(testProcesses(), 67040, 120, 40, p)
 	on := 0
 	for _, r := range rows {
-		if strings.Contains(r.text, p.selection) {
+		if strings.Contains(r.Text, p.Selection) {
 			on++
 			// conn's own project holds one row, the shell conn was not
 			// started from, and it stands at the root of its tree, a
 			// level in under the project's name.
-			if !strings.HasPrefix(stripEscapes(r.text), "     SHELL   zsh") {
-				t.Errorf("the raised row is not the cursor's: %q", stripEscapes(r.text))
+			if !strings.HasPrefix(stripEscapes(r.Text), "     SHELL   zsh") {
+				t.Errorf("the raised row is not the cursor's: %q", stripEscapes(r.Text))
 			}
 			// Raised from edge to edge: the row never falls back to the
 			// ground partway along.
-			if strings.Contains(r.text, p.ground) {
-				t.Errorf("the raised row falls back to the ground: %q", r.text)
+			if strings.Contains(r.Text, p.Ground) {
+				t.Errorf("the raised row falls back to the ground: %q", r.Text)
 			}
 		}
 	}
@@ -510,7 +510,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 		t.Error("the cursor is still a mark where it has a ground")
 	}
 	// In plain text there is no ground to raise, so the mark stays.
-	plainRows := texts(drawProcesses(testProcesses(), 67040, 120, 40, plain))
+	plainRows := texts(drawProcesses(testProcesses(), 67040, 120, 40, Plain))
 	if !strings.Contains(plainRows, "▸    SHELL   zsh") {
 		t.Errorf("the plain view lost its cursor:\n%s", plainRows)
 	}
@@ -522,7 +522,7 @@ func TestTheCursorIsAGround(t *testing.T) {
 // alone. Outside the server conn holds nothing, and dims nothing: the
 // distinction would be every row.
 func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
-	p := colored(theme.Conn.Dark)
+	p := Colored(theme.Conn.Dark)
 	held := composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil),
 		map[string]tmux.Pane{"ttys005": {ID: "%0"}, "ttys007": {ID: "%3"}}, "ttys007",
 		testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
@@ -536,10 +536,10 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	// nothing else. Not its command, not its terminal, not its status —
 	// a row is a lot of orange, and the status column is a color of its
 	// own already.
-	if !strings.Contains(text, p.orange+p.bold+"SHELL") {
+	if !strings.Contains(text, p.Orange+p.Bold+"SHELL") {
 		t.Errorf("the bay's head is not marked:\n%s", text)
 	}
-	for _, notIn := range []string{p.orange + "zsh", p.orange + "TTYS007", p.orange + "ACTIVE"} {
+	for _, notIn := range []string{p.Orange + "zsh", p.Orange + "TTYS007", p.Orange + "ACTIVE"} {
 		if strings.Contains(text, notIn) {
 			t.Errorf("the orange ran past the kind: %q\n%s", notIn, text)
 		}
@@ -547,28 +547,28 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 	// What hangs under the head is in the same pane and just as much in
 	// the bay; it reads as the other true thing about it, which is that
 	// conn holds a pane for it.
-	if !strings.Contains(text, p.ink+"claude") {
+	if !strings.Contains(text, p.Ink+"claude") {
 		t.Errorf("what hangs under the bay's head is not in the ink:\n%s", text)
 	}
 	// In nobody's pane: a rank down, and every column of it.
-	for _, in := range []string{p.faint + "vim notes.md", p.faint + "TTYS009"} {
+	for _, in := range []string{p.Faint + "vim notes.md", p.Faint + "TTYS009"} {
 		if !strings.Contains(text, in) {
 			t.Errorf("what conn cannot reach is not dimmed: %q missing\n%s", in, text)
 		}
 	}
-	if strings.Contains(text, p.ink+"vim notes.md") {
+	if strings.Contains(text, p.Ink+"vim notes.md") {
 		t.Error("what conn cannot reach is written in the ink")
 	}
 	// The row under the cursor gives a rank of the dimming back rather
 	// than the reading: faint on the raised ground is barely there.
 	onIt := texts(drawProcesses(held, 80002, 120, 40, p))
-	if !strings.Contains(onIt, p.gray+p.bold+"vim notes.md") {
+	if !strings.Contains(onIt, p.Gray+p.Bold+"vim notes.md") {
 		t.Errorf("the dimmed row under the cursor is not read back up:\n%s", onIt)
 	}
 	// Outside the server, every command is the ink: conn can reach none
 	// of them, so dimming would say nothing.
 	out := texts(drawProcesses(testProcesses(), 67040, 120, 40, p))
-	for _, in := range []string{p.ink + p.bold + "zsh", p.ink + "claude", p.ink + "vim notes.md"} {
+	for _, in := range []string{p.Ink + p.Bold + "zsh", p.Ink + "claude", p.Ink + "vim notes.md"} {
 		if !strings.Contains(out, in) {
 			t.Errorf("outside the server a command is not in the ink:\n%s", out)
 		}
@@ -582,7 +582,7 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 // shape the pane is about to be, so the split that opens the bay has
 // nothing to reflow.
 func TestThePanelDrawsToItsOwnWidth(t *testing.T) {
-	m := model{p: plain, width: 140, height: 40, inside: true, view: viewProcesses}
+	m := model{p: Plain, width: 140, height: 40, inside: true, view: viewProcesses}
 	if got := m.cols(); got != tmux.PanelWidth {
 		t.Errorf("the panel drew to %d columns, not the panel's %d", got, tmux.PanelWidth)
 	}
@@ -647,26 +647,26 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 	b := composeProcesses(held, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 
 	b.lit = true
-	on := texts(drawProcesses(b, 0, 60, 12, plain))
+	on := texts(drawProcesses(b, 0, 60, 12, Plain))
 	if !strings.Contains(on, work.StatusWaiting) {
 		t.Errorf("the lit half has no word:\n%s", on)
 	}
 	b.lit = false
-	off := texts(drawProcesses(b, 0, 60, 12, plain))
+	off := texts(drawProcesses(b, 0, 60, 12, Plain))
 	if strings.Contains(off, work.StatusWaiting) {
 		t.Errorf("the dark half still says it:\n%s", off)
 	}
 	// Only the word goes. Every row is the same shape on both halves, so
 	// nothing around it moves.
 	b.lit = true
-	onRows := drawProcesses(b, 0, 60, 12, plain)
+	onRows := drawProcesses(b, 0, 60, 12, Plain)
 	b.lit = false
-	offRows := drawProcesses(b, 0, 60, 12, plain)
+	offRows := drawProcesses(b, 0, 60, 12, Plain)
 	if len(onRows) != len(offRows) {
 		t.Fatalf("the halves are %d rows and %d", len(onRows), len(offRows))
 	}
 	for i := range onRows {
-		if lit, dark := onRows[i].text, offRows[i].text; lit != dark && !strings.Contains(lit, work.StatusWaiting) {
+		if lit, dark := onRows[i].Text, offRows[i].Text; lit != dark && !strings.Contains(lit, work.StatusWaiting) {
 			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
 		}
 	}
@@ -676,7 +676,7 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 		{PID: 21, Kind: work.KindEditor, Command: "vim", Status: work.StatusStopped, Fault: true},
 	}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	steady.lit = false
-	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, plain)), work.StatusStopped) {
+	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, Plain)), work.StatusStopped) {
 		t.Error("a fault went dark with the blink")
 	}
 }
@@ -690,7 +690,7 @@ func TestAHeavyContactIsStampedAndBlinks(t *testing.T) {
 	draw := func(e work.Entry, lit bool) string {
 		b := composeProcesses([]work.Project{{Path: "/w", Entries: []work.Entry{e}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 		b.lit = lit
-		return texts(drawProcesses(b, 0, 60, 12, plain))
+		return texts(drawProcesses(b, 0, 60, 12, Plain))
 	}
 	if on := draw(contact, true); !strings.Contains(on, "612K") || strings.Contains(on, work.StatusIdle) {
 		t.Errorf("the lit half is not the figure in the status's place:\n%s", on)
@@ -712,7 +712,7 @@ func TestAHeavyContactIsStampedAndBlinks(t *testing.T) {
 	filed := func(e work.Entry, lit bool) string {
 		b := composeProcesses([]work.Project{{Path: "/w", Entries: []work.Entry{e}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, true)
 		b.lit = lit
-		return texts(drawFiled(b, 0, 44, 6, plain))
+		return texts(drawFiled(b, 0, 44, 6, Plain))
 	}
 	if on, off := filed(contact, true), filed(contact, false); !strings.Contains(on, "612K") || strings.Contains(off, "612K") {
 		t.Errorf("the panel does not blink the figure:\n%s\n%s", on, off)
@@ -775,15 +775,15 @@ func TestTheSpinnerTurnsOnlyForWhatWorks(t *testing.T) {
 	m.now = time.Unix(100, 0)
 	first := m.processesReport().spin
 	m.now = m.now.Add(spinEvery)
-	if second := m.processesReport().spin; second != (first+1)%len(spinner) {
+	if second := m.processesReport().spin; second != (first+1)%len(Spinner) {
 		t.Errorf("a tick on, the frame is %d after %d", second, first)
 	}
 	m.now = time.Unix(101, 0)
 	if again := m.processesReport().spin; again != first {
 		t.Errorf("a second on, the frame is %d, not %d again", again, first)
 	}
-	if spinEvery*time.Duration(len(spinner)) != time.Second {
-		t.Errorf("a turn is %v, not a second", spinEvery*time.Duration(len(spinner)))
+	if spinEvery*time.Duration(len(Spinner)) != time.Second {
+		t.Errorf("a turn is %v, not a second", spinEvery*time.Duration(len(Spinner)))
 	}
 }
 
@@ -905,20 +905,20 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 		{PID: 12, Kind: work.KindEditor, Command: "vim", Status: work.StatusStopped, Fault: true},
 	}}}
 	b := composeProcesses(held, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
-	p := colored(theme.Conn.Dark)
+	p := Colored(theme.Conn.Dark)
 
 	b.lit = true
 	lit := texts(drawProcesses(b, 0, 80, 12, p))
 	for what, want := range map[string]string{
-		"the word that asks":  p.chip + " " + work.StatusWaiting + " ",
-		"the fault beside it": p.chip + " " + work.StatusStopped + " ",
+		"the word that asks":  p.Chip + " " + work.StatusWaiting + " ",
+		"the fault beside it": p.Chip + " " + work.StatusStopped + " ",
 	} {
 		if !strings.Contains(lit, want) {
 			t.Errorf("%s is not stamped:\n%s", what, stripEscapes(lit))
 		}
 	}
 	// The stamp is the console's own, not a second orange of its own.
-	if !strings.Contains(screenChipOf(t), p.chip) {
+	if !strings.Contains(screenChipOf(t), p.Chip) {
 		t.Error("the console and the processes view stamp in different colors")
 	}
 
@@ -929,7 +929,7 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 	if strings.Contains(dark, work.StatusWaiting) {
 		t.Errorf("the dark half still says it:\n%s", stripEscapes(dark))
 	}
-	if !strings.Contains(dark, p.chip+" "+work.StatusStopped+" ") {
+	if !strings.Contains(dark, p.Chip+" "+work.StatusStopped+" ") {
 		t.Errorf("the fault blinked with it:\n%s", stripEscapes(dark))
 	}
 }
@@ -940,7 +940,7 @@ func screenChipOf(t *testing.T) string {
 	t.Helper()
 	st := testStation
 	st.Volume.Free = 6_800_000_000
-	return texts(screen(compose(st, testNow), 120, 40, colored(theme.Conn.Dark)))
+	return texts(screen(compose(st, testNow), 120, 40, Colored(theme.Conn.Dark)))
 }
 
 // A nested block's title is a title: in the parchment and bold like one
@@ -955,10 +955,10 @@ func TestANestedTitleIsBoldLikeAnyTitle(t *testing.T) {
 	}
 	held := composeProcesses(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), map[string]tmux.Pane{"ttys030": {ID: "%30"}, "ttys031": {ID: "%31"}}, "", testProjRoots, isProject, "/Users/w0zro", processesNow, "", false, false)
 	held.inside = true
-	p := colored(theme.Conn.Dark)
+	p := Colored(theme.Conn.Dark)
 	for _, r := range drawProcesses(held, 100, 48, 30, p) {
-		if strings.Contains(r.text, "public-rides.com") && !strings.Contains(r.text, p.parchment+p.bold+"public-rides.com") {
-			t.Errorf("the nested title is not in the parchment and bold: %q", r.text)
+		if strings.Contains(r.Text, "public-rides.com") && !strings.Contains(r.Text, p.Parchment+p.Bold+"public-rides.com") {
+			t.Errorf("the nested title is not in the parchment and bold: %q", r.Text)
 		}
 	}
 }

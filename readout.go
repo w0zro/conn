@@ -577,10 +577,10 @@ func stamp(at time.Time) string {
 }
 
 // drawReadout renders the readout for a pane of the given size.
-func drawReadout(b readoutReport, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureOf(width)
-	c := canvas{p: p, width: width}
+func drawReadout(b readoutReport, width, height int, p Palette) []Row {
+	width = max(width, PanelMinCols)
+	measure := MeasureOf(width)
+	c := Canvas{P: p, Width: width}
 
 	// A contact's page is a sheet of its own, with no header over it:
 	// who it is stands at the head; see page.go.
@@ -593,14 +593,14 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	// which read as a page about a row that does not exist — and a
 	// test on a slow runner took that pid for the row's.
 	if b.pid == 0 && b.name == "" && !b.gone && len(b.groups) == 0 {
-		return padTo(c, height)
+		return PadTo(c, height)
 	}
 
 	// The header: the view's name, and against the right the pid, which
 	// is what the page is about and the one thing about a row that
 	// cannot be mistaken for another row.
-	c.blank(0)
-	l := c.line()
+	c.Blank(0)
+	l := c.Line()
 	right := "PID " + strconv.Itoa(b.pid)
 	// A container is known by its id. The number conn files it under is
 	// its own bookkeeping — below zero, where no process is, so the
@@ -609,15 +609,15 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 	if b.name != "" {
 		right = b.name
 	}
-	l.eyebrow(0, "READOUT", measure, right)
-	c.emit(l, 0, false)
+	l.Eyebrow(0, "READOUT", measure, right)
+	c.Emit(l, 0, false)
 
 	if b.gone {
-		c.blank(0)
-		l := c.line()
-		l.stamp("The row is no longer listed")
-		c.emit(l, 0, false)
-		return padTo(c, height)
+		c.Blank(0)
+		l := c.Line()
+		l.Stamp("The row is no longer listed")
+		c.Emit(l, 0, false)
+		return PadTo(c, height)
 	}
 
 	// The groups: a title, then a fact a line, the value wrapped rather
@@ -627,27 +627,27 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 		if len(g.facts) == 0 {
 			continue
 		}
-		c.blank(0)
-		l := c.line()
+		c.Blank(0)
+		l := c.Line()
 		// The group's name, with a rule running off it to the edge of
 		// the page: the same mark a group's name takes on the panel,
 		// since the page and the panel are the same instrument speaking.
-		l.eyebrow(0, g.title, measure, "")
-		c.emit(l, 0, false)
+		l.Eyebrow(0, g.title, measure, "")
+		c.Emit(l, 0, false)
 		for _, f := range g.facts {
-			for i, part := range wrapValue(f.value, measure-pageCol-1) {
-				l := c.line()
+			for i, part := range WrapValue(f.value, measure-pageCol-1) {
+				l := c.Line()
 				if i == 0 && f.label != "" {
-					l.leader(f.label, pageCol-1, p.faint)
+					l.Leader(f.label, pageCol-1, p.Faint)
 				} else {
-					l.to(pageCol)
+					l.To(pageCol)
 				}
-				l.add(p.ink, part)
-				c.emit(l, 0, false)
+				l.Add(p.Ink, part)
+				c.Emit(l, 0, false)
 			}
 		}
 	}
-	return padTo(c, height)
+	return PadTo(c, height)
 }
 
 // tokens is a count of tokens, in the largest unit that keeps it short:

@@ -106,16 +106,16 @@ func boldWord(page, word string) bool {
 // is not made wider for it: a row that does not fit is elided, and a
 // key whose word is cut in half is a key the card did not say.
 func TestTheCardFitsThePanel(t *testing.T) {
-	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 0, plain)
+	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 0, Plain)
 	if len(rows) < 20 {
 		t.Fatalf("the card came to %d rows", len(rows))
 	}
 	for _, r := range rows {
-		if strings.Contains(r.text, "…") {
-			t.Errorf("the panel cuts a row of the card: %q", r.text)
+		if strings.Contains(r.Text, "…") {
+			t.Errorf("the panel cuts a row of the card: %q", r.Text)
 		}
-		if w := utf8.RuneCountInString(r.text); w > tmux.PanelWidth {
-			t.Errorf("a row runs %d columns past the panel: %q", w-tmux.PanelWidth, r.text)
+		if w := utf8.RuneCountInString(r.Text); w > tmux.PanelWidth {
+			t.Errorf("a row runs %d columns past the panel: %q", w-tmux.PanelWidth, r.Text)
 		}
 	}
 }
@@ -123,12 +123,12 @@ func TestTheCardFitsThePanel(t *testing.T) {
 // A card too tall for the pane says how much of it is below rather than
 // running off the foot of the window.
 func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
-	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 12, plain)
+	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 12, Plain)
 	if len(rows) != 12 {
 		t.Fatalf("the card came to %d rows in a pane of 12", len(rows))
 	}
-	if !strings.Contains(rows[len(rows)-1].text, "BELOW") {
-		t.Errorf("the foot of a cut card says %q", rows[len(rows)-1].text)
+	if !strings.Contains(rows[len(rows)-1].Text, "BELOW") {
+		t.Errorf("the foot of a cut card says %q", rows[len(rows)-1].Text)
 	}
 }
 
@@ -137,7 +137,7 @@ func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
 // the manual's own pane — so the half of the window beside it says what
 // the keys are rather than showing a list going nowhere.
 func TestThePanelHoldsTheKeysWhileTheManualIsUp(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, p: plain, width: tmux.PanelWidth, height: 40,
+	m := model{view: viewProcesses, inside: true, p: Plain, width: tmux.PanelWidth, height: 40,
 		projects: []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001", Command: "vim"}}}}}
 	if strings.Contains(m.View().Content, "THE ROW") {
 		t.Fatal("the processes view is showing the keys with no manual up")

@@ -177,48 +177,48 @@ func completeRoot(typed, home string) []string {
 // drawRoots draws the asking view, in the list's own shape: the header
 // with what conn has, the line being typed into, the directories that
 // answer it, and the chip saying what pressing enter will do.
-func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
+func drawRoots(b rootsReport, cursor, width, height int, p Palette) []Row {
 	right := "NONE SET"
 	if len(b.rows) > 0 {
 		right = strconv.Itoa(len(b.rows)) + " UNDER IT"
 	}
-	c, measure := head("ROOTS", right, width, p)
+	c, measure := Head("ROOTS", right, width, p)
 
-	l := c.line()
-	before, after := typedRuns(b.typed, b.caret, measure-rootsW-2, true)
-	l.field(0, measure-rootsW, "ROOT", before, after)
-	c.emit(l, 0, false)
+	l := c.Line()
+	before, after := TypedRuns(b.typed, b.caret, measure-rootsW-2, true)
+	l.Field(0, measure-rootsW, "ROOT", before, after)
+	c.Emit(l, 0, false)
 
-	var body []row
+	var body []Row
 	cursorRow := -1
-	d := canvas{p: p, width: c.width}
+	d := Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
-		d.blank(0)
-		ln := d.line()
-		ln.add(color, s)
-		d.emit(ln, 0, true)
-		body = d.rows
+		d.Blank(0)
+		ln := d.Line()
+		ln.Add(color, s)
+		d.Emit(ln, 0, true)
+		body = d.Rows
 	}
 	switch {
 	case b.err != "":
-		say(p.chip, " "+strings.ToUpper(b.err)+" ")
+		say(p.Chip, " "+strings.ToUpper(b.err)+" ")
 	case len(b.rows) == 0:
-		say(p.gray, "NOTHING UNDER "+strings.ToUpper(b.typed))
+		say(p.Gray, "NOTHING UNDER "+strings.ToUpper(b.typed))
 	default:
-		d.blank(0)
+		d.Blank(0)
 		for i, dir := range b.rows {
-			ln := d.line()
+			ln := d.Line()
 			if i == cursor {
-				ln.p = p.chosen()
-				if p.plain {
-					ln.mark = "▸"
+				ln.P = p.Chosen()
+				if p.Plain {
+					ln.Mark = "▸"
 				}
-				cursorRow = len(d.rows)
+				cursorRow = len(d.Rows)
 			}
-			ln.add(ln.p.ink, fit(dir, measure, true))
-			d.emit(ln, 0, false)
+			ln.Add(ln.P.Ink, Fit(dir, measure, true))
+			d.Emit(ln, 0, false)
 		}
-		body = d.rows
+		body = d.Rows
 	}
 
 	// One row is kept back for the chip at the foot, which says what
@@ -229,15 +229,15 @@ func drawRoots(b rootsReport, cursor, width, height int, p palette) []row {
 	if kept > 0 {
 		kept--
 	}
-	c.foot(body, cursorRow, kept)
-	l = c.line()
+	c.Foot(body, cursorRow, kept)
+	l = c.Line()
 	word := " CONN HAS NO ROOTS · ENTER SAVES ONE "
 	if b.editing {
 		word = " ENTER SAVES IT · ESC GOES BACK "
 	}
-	l.add(p.chip, word)
-	c.emit(l, 0, true)
-	return c.rows
+	l.Add(p.Chip, word)
+	c.Emit(l, 0, true)
+	return c.Rows
 }
 
 // typedIsADir says whether what was typed already names a directory, so

@@ -145,7 +145,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	if m.cursor != 0 || got.pid != 22 || r == nil || len(r.projects) != 0 {
 		t.Errorf("with the last row gone the cursor is %d, and %d was published with a reading of %v", m.cursor, got.pid, r != nil)
 	}
-	held := readoutModel{at: subject{pid: 22}, follow: true, cursor: path, p: plain}
+	held := readoutModel{at: subject{pid: 22}, follow: true, cursor: path, p: Plain}
 	next, _ = held.Update(readoutTickMsg{})
 	if got := next.(readoutModel).report; !got.gone || got.pid != 22 {
 		t.Errorf("the readout did not hear the row was gone: %+v", got)
@@ -156,7 +156,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 // anything: putting it up would be the page flicking back to a row
 // nobody is looking at.
 func TestTheReadoutDropsAReadingItHasMovedPast(t *testing.T) {
-	m := readoutModel{at: subject{pid: 22}, follow: true, p: plain}
+	m := readoutModel{at: subject{pid: 22}, follow: true, p: Plain}
 	stale := readoutReport{pid: 11, groups: []readoutGroup{{title: "STALE"}}}
 	fresh := readoutReport{pid: 22, groups: []readoutGroup{{title: "FRESH"}}}
 
@@ -179,7 +179,7 @@ func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 	path := cursorPath("/nowhere")
 	tellCursor(path, subject{pid: 77}, nil)
 
-	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: plain, read: time.Now()}
+	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: Plain, read: time.Now()}
 	next, cmd := m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
 	if m.at.pid != 77 {
@@ -189,7 +189,7 @@ func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 		t.Error("a subject that moved was not read again")
 	}
 
-	pinned := readoutModel{at: subject{pid: 11}, follow: false, cursor: path, p: plain, read: time.Now()}
+	pinned := readoutModel{at: subject{pid: 11}, follow: false, cursor: path, p: Plain, read: time.Now()}
 	next, _ = pinned.Update(readoutTickMsg{})
 	if got := next.(readoutModel).at.pid; got != 11 {
 		t.Errorf("a pinned page moved to pid %d", got)
@@ -198,7 +198,7 @@ func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 	// A cursor that has not moved is not read again on every poll — only
 	// on the beat — or the table and git would be read three times a
 	// second for a page nobody is moving.
-	steady := readoutModel{at: subject{pid: 77}, follow: true, cursor: path, p: plain, read: time.Now()}
+	steady := readoutModel{at: subject{pid: 77}, follow: true, cursor: path, p: Plain, read: time.Now()}
 	before := steady.read
 	next, _ = steady.Update(readoutTickMsg{})
 	if got := next.(readoutModel); !got.read.Equal(before) {
@@ -206,7 +206,7 @@ func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 	}
 	// Once the beat has passed it reads regardless, so a page nobody is
 	// moving still keeps up with its row.
-	stale := readoutModel{at: subject{pid: 77}, follow: true, cursor: path, p: plain, read: time.Now().Add(-2 * readoutBeat)}
+	stale := readoutModel{at: subject{pid: 77}, follow: true, cursor: path, p: Plain, read: time.Now().Add(-2 * readoutBeat)}
 	next, _ = stale.Update(readoutTickMsg{})
 	if got := next.(readoutModel); got.read.Equal(stale.read) {
 		t.Error("a page past its beat did not read its subject again")
@@ -229,7 +229,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 		}}}},
 		git: map[string]gitStatus{"/w": {repo: true, branch: "main"}},
 	}
-	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: plain, table: held,
+	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: Plain, table: held,
 		report: readoutReport{pid: 11}, read: time.Now()}
 
 	tellCursor(path, subject{pid: 22}, nil)
@@ -238,7 +238,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	if m.report.pid != 22 {
 		t.Errorf("the page is still about pid %d after the cursor moved", m.report.pid)
 	}
-	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "go test ./...") {
+	if text := texts(drawReadout(m.report, 120, 40, Plain)); !strings.Contains(text, "go test ./...") {
 		t.Errorf("the row the cursor landed on was not said out of the table already read:\n%s", text)
 	}
 
@@ -261,7 +261,7 @@ func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 // dropped while what it was told is kept: the row the cursor went to
 // is in the same project as often as not, and git is a process.
 func TestTheReadoutKeepsWhatADroppedAskingWasTold(t *testing.T) {
-	m := readoutModel{at: subject{pid: 22}, follow: true, p: plain}
+	m := readoutModel{at: subject{pid: 22}, follow: true, p: Plain}
 	table := readoutTable{git: map[string]gitStatus{"/w": {repo: true, branch: "main"}}}
 
 	next, _ := m.Update(readoutReadMsg{at: subject{pid: 11}, report: readoutReport{pid: 11}, table: table, ok: true})
@@ -311,10 +311,10 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	// The page, with nothing of its own yet, says the row as the panel
 	// says it, with what stands around it and what the record adds: the
 	// contact's sheet, since the cursor is on the contact.
-	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: plain, report: readoutReport{pid: 11}, read: time.Now()}
+	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: Plain, report: readoutReport{pid: 11}, read: time.Now()}
 	next, _ := m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
-	text := texts(drawReadout(m.report, 120, 40, plain))
+	text := texts(drawReadout(m.report, 120, 40, Plain))
 	for _, want := range []string{"Working · edit tui.go · for", "Under ........ Shell zsh · 11", "It has the terminal and is sleeping.", "Processor .... 1m 30s", "Pane ......... %3"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page does not say %q:\n%s", want, text)
@@ -329,7 +329,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	before := m.read
 	next, _ = m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
-	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "Idle") {
+	if text := texts(drawReadout(m.report, 120, 40, Plain)); !strings.Contains(text, "Idle") {
 		t.Errorf("the page did not follow the row's word:\n%s", text)
 	}
 	if !m.read.Equal(before) {
@@ -341,14 +341,14 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	tellCursor(path, subject{pid: -99}, &r)
 	next, _ = m.Update(readoutTickMsg{})
 	m = next.(readoutModel)
-	if text := texts(drawReadout(m.report, 120, 40, plain)); !strings.Contains(text, "nginx") || !strings.Contains(text, "abc123def456") {
+	if text := texts(drawReadout(m.report, 120, 40, Plain)); !strings.Contains(text, "nginx") || !strings.Contains(text, "abc123def456") {
 		t.Errorf("the service's page was not composed from what the panel said of it:\n%s", text)
 	}
 
 	// A row the panel's reading has not got is a row that has gone: the
 	// panel's cursor is always in the panel's own reading, so only a
 	// pinned pid can be missing from it.
-	pinned := readoutModel{at: subject{pid: 22}, follow: false, cursor: path, p: plain, report: readoutReport{pid: 22}, read: time.Now()}
+	pinned := readoutModel{at: subject{pid: 22}, follow: false, cursor: path, p: Plain, report: readoutReport{pid: 22}, read: time.Now()}
 	r.projects[0].Entries = r.projects[0].Entries[:1]
 	tellCursor(path, subject{pid: 11}, &r)
 	next, _ = pinned.Update(readoutTickMsg{})
@@ -436,7 +436,7 @@ func TestAProjectHasAPageOfItsOwn(t *testing.T) {
 	if !ok {
 		t.Fatal("a project was not there to be worded")
 	}
-	text := texts(drawReadout(page, 120, 40, plain))
+	text := texts(drawReadout(page, 120, 40, Plain))
 	for _, want := range []string{"READOUT", "w0zro/conn", "PROJECT", "main · 2 changed", "RUNNING", "Shell zsh · 11 · Active", "  Run go test ./... · 22 · Working"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the project's page does not say %q:\n%s", want, text)
@@ -446,7 +446,7 @@ func TestAProjectHasAPageOfItsOwn(t *testing.T) {
 		t.Errorf("a project's page names a pid:\n%s", text)
 	}
 	bare, _ := readoutPage(subject{path: "/elsewhere"}, readoutTable{})
-	if text := texts(drawReadout(bare, 120, 40, plain)); strings.Contains(text, "RUNNING") || strings.Contains(text, "BRANCH") {
+	if text := texts(drawReadout(bare, 120, 40, Plain)); strings.Contains(text, "RUNNING") || strings.Contains(text, "BRANCH") {
 		t.Errorf("a project with nothing to say said it anyway:\n%s", text)
 	}
 }
@@ -496,7 +496,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	if !ok {
 		t.Fatal("a session the panel published was not there to be worded")
 	}
-	text := texts(drawReadout(page, 120, 40, plain))
+	text := texts(drawReadout(page, 120, 40, Plain))
 	for _, want := range []string{"d81d7536-e545-4881-8daa-f1d291a03be1", "Session", "Claude Code · Anthropic", " ago · ", "main", "make the page follow the list",
 		"claude-opus-5", "571k carried", "claude --resume d81d7536-e545-4881-8daa-f1d291a03be1", "w0zro/conn", "Branch"} {
 		if !strings.Contains(text, want) {

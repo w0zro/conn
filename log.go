@@ -285,24 +285,24 @@ const (
 
 // drawLog renders the log view for a terminal of the given size, with
 // the cursor on the given line from the newest.
-func drawLog(b logReport, cursor, width, height int, p palette) []row {
+func drawLog(b logReport, cursor, width, height int, p Palette) []Row {
 	// The header: the name of the view, and against the right how many
 	// lines are new since it was last opened, or how many there are.
 	right := strconv.Itoa(b.total) + " LINES"
 	if b.fresh > 0 {
 		right = strconv.Itoa(b.fresh) + " NEW"
 	}
-	c, measure := head("LOG", right, width, p)
+	c, measure := Head("LOG", right, width, p)
 
-	var body []row
+	var body []Row
 	cursorRow := -1
-	d := canvas{p: p, width: c.width}
+	d := Canvas{P: p, Width: c.Width}
 	if len(b.rows) == 0 {
-		d.blank(0)
-		l := d.line()
-		l.add(p.gray, "NOTHING YET")
-		d.emit(l, 0, true)
-		body = d.rows
+		d.Blank(0)
+		l := d.Line()
+		l.Add(p.Gray, "NOTHING YET")
+		d.Emit(l, 0, true)
+		body = d.Rows
 	}
 	// The widest word, so the words stand in one column: a stamp's two
 	// cells counted, and never under the panel's floor.
@@ -310,7 +310,7 @@ func drawLog(b logReport, cursor, width, height int, p palette) []row {
 	for _, r := range b.rows {
 		w := ansi.StringWidth(r.word)
 		if r.word == work.StatusWaiting || work.Faulty(r.word) {
-			w = stampWidth(r.word, p)
+			w = StampWidth(r.word, p)
 		}
 		wordW = max(wordW, w)
 	}
@@ -318,57 +318,57 @@ func drawLog(b logReport, cursor, width, height int, p palette) []row {
 	for i, r := range b.rows {
 		if on := logDay(r.at, b.now); on != day {
 			day = on
-			d.blank(0)
-			l := d.line()
-			l.eyebrow(0, day, measure, "")
-			d.emit(l, 0, false)
+			d.Blank(0)
+			l := d.Line()
+			l.Eyebrow(0, day, measure, "")
+			d.Emit(l, 0, false)
 		}
-		l := d.line()
+		l := d.Line()
 		if i == cursor {
-			l.p = p.chosen()
-			l.mark = cursorBar
-			if p.plain {
-				l.mark = "▸"
+			l.P = p.Chosen()
+			l.Mark = CursorBar
+			if p.Plain {
+				l.Mark = "▸"
 			}
-			cursorRow = len(d.rows)
+			cursorRow = len(d.Rows)
 		}
-		ink := p.faint
+		ink := p.Faint
 		if r.fresh {
-			ink = p.ink
+			ink = p.Ink
 		}
-		l.add(p.gray, r.at.Format("15:04"))
-		l.to(logTimeW + 1)
-		l.add(p.gray, fit(r.project, logProjectW-1, true))
-		l.to(logTimeW + 1 + logProjectW)
-		labelW := measure - l.cells - wordW - 1
+		l.Add(p.Gray, r.at.Format("15:04"))
+		l.To(logTimeW + 1)
+		l.Add(p.Gray, Fit(r.project, logProjectW-1, true))
+		l.To(logTimeW + 1 + logProjectW)
+		labelW := measure - l.Cells - wordW - 1
 		if r.alive {
-			l.add(ink+p.bold, fit(r.label, labelW, false))
+			l.Add(ink+p.Bold, Fit(r.label, labelW, false))
 		} else {
-			l.add(ink, fit(r.label, labelW, false))
+			l.Add(ink, Fit(r.label, labelW, false))
 		}
 		switch {
 		case r.word == work.StatusWaiting || work.Faulty(r.word):
-			l.to(measure - stampWidth(r.word, p))
-			l.stamp(r.word)
+			l.To(measure - StampWidth(r.word, p))
+			l.Stamp(r.word)
 		default:
-			l.to(measure - ansi.StringWidth(r.word))
-			l.add(p.gray, r.word)
+			l.To(measure - ansi.StringWidth(r.word))
+			l.Add(p.Gray, r.word)
 		}
-		d.emit(l, 0, false)
+		d.Emit(l, 0, false)
 		// What the line adds, under it in the gray, from the label's
 		// column: how long the state stood, or what the wait is on.
 		if r.note != "" {
-			l := d.line()
+			l := d.Line()
 			if i == cursor {
-				l.p = p.chosen()
+				l.P = p.Chosen()
 			}
-			l.to(logTimeW + 1 + logProjectW)
-			l.add(p.gray, fit(r.note, measure-l.cells, false))
-			d.emit(l, 0, false)
+			l.To(logTimeW + 1 + logProjectW)
+			l.Add(p.Gray, Fit(r.note, measure-l.Cells, false))
+			d.Emit(l, 0, false)
 		}
 	}
 	if len(b.rows) > 0 {
-		body = d.rows
+		body = d.Rows
 	}
-	return c.foot(body, cursorRow, height)
+	return c.Foot(body, cursorRow, height)
 }

@@ -118,7 +118,7 @@ func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
 	e := work.Entry{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Cwd: "/Users/w0zro/projects/w0zro/conn",
 		Status: work.StatusActive, Ports: []string{"5432"}, Shared: 2,
 		Sockets: []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}, {Proto: "unix", Addr: "/tmp/.s.PGSQL.5432", State: ""}}}
-	text := texts(drawReadout(composeReadout(readoutSubject{entry: e, brew: work.BrewServiceNamed(services, "postgresql@14"), inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
+	text := texts(drawReadout(composeReadout(readoutSubject{entry: e, brew: work.BrewServiceNamed(services, "postgresql@14"), inside: true}, "/Users/w0zro", processesNow), 100, 40, Plain))
 	for _, want := range []string{
 		"READOUT", "postgresql@14",
 		"Kind ...... Service · Homebrew",
@@ -142,11 +142,11 @@ func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
 		t.Errorf("the page says what is not so:\n%s", text)
 	}
 	e.Status, e.Fault, e.PID, e.Ports, e.Sockets = "EXIT 78", true, -7, nil, nil
-	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -7, Kind: work.KindService, Command: "redis", Brew: "redis", Cwd: "/w", Status: "EXIT 78", Fault: true}, brew: work.BrewServiceNamed(services, "redis"), inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
+	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -7, Kind: work.KindService, Command: "redis", Brew: "redis", Cwd: "/w", Status: "EXIT 78", Fault: true}, brew: work.BrewServiceNamed(services, "redis"), inside: true}, "/Users/w0zro", processesNow), 100, 40, Plain))
 	if !strings.Contains(text, "Wrong ..... Exit 78") || !strings.Contains(text, "Status .... Error") {
 		t.Errorf("a service that ended badly does not say so:\n%s", text)
 	}
-	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -8, Kind: work.KindService, Command: "vault", Brew: "vault", Cwd: "/w", Status: work.StatusDown}, inside: true}, "/Users/w0zro", processesNow), 100, 40, plain))
+	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -8, Kind: work.KindService, Command: "vault", Brew: "vault", Cwd: "/w", Status: work.StatusDown}, inside: true}, "/Users/w0zro", processesNow), 100, 40, Plain))
 	if !strings.Contains(text, "Status .... Not reported by brew") {
 		t.Errorf("a service brew has not reported does not say so:\n%s", text)
 	}

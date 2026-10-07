@@ -53,7 +53,7 @@ func wrote(t *testing.T, home string) config.File {
 // cursor on a row.
 func settingsAt(t *testing.T, home string, at int) settingsModel {
 	t.Helper()
-	return settingsModel{p: plain, mode: connOn(true), g: theme.Conn.Dark, width: bayWidth, height: 40, home: home, at: at}
+	return settingsModel{p: Plain, mode: connOn(true), g: theme.Conn.Dark, width: bayWidth, height: 40, home: home, at: at}
 }
 
 // bayWidth is a workspace to draw the settings in: what is left of a
@@ -108,8 +108,8 @@ func TestTheSettingsSayWhenTheEnvironmentStandsInFront(t *testing.T) {
 		t.Fatalf("the rows are not the file's: %+v", b.rows)
 	}
 	var text strings.Builder
-	for _, r := range drawSettings(b, 0, tmux.PanelWidth, 0, plain) {
-		text.WriteString(r.text + "\n")
+	for _, r := range drawSettings(b, 0, tmux.PanelWidth, 0, Plain) {
+		text.WriteString(r.Text + "\n")
 	}
 	if !strings.Contains(text.String(), "CONN_ROOTS") {
 		t.Errorf("the view does not say what is in force:\n%s", text.String())
@@ -181,7 +181,7 @@ func TestEscLeavesARootAsItWas(t *testing.T) {
 	if c := wrote(t, home); len(c.Roots) != 1 || c.Roots[0] != "~/projects" {
 		t.Errorf("esc wrote something: %q", c.Roots)
 	}
-	first := model{p: plain, width: tmux.PanelWidth, height: 40}
+	first := model{p: Plain, width: tmux.PanelWidth, height: 40}
 	first.head.Login.Home = home
 	mm, _ := first.toRoots()
 	first = mm
@@ -416,7 +416,7 @@ func TestAThemePickedIsWrittenAndWorn(t *testing.T) {
 	if !m.mode.Dark {
 		t.Error("picking a theme changed the ground under it")
 	}
-	if m.g != m.mode.Wear() || m.p.ink != colored(m.g).ink {
+	if m.g != m.mode.Wear() || m.p.Ink != Colored(m.g).Ink {
 		t.Error("the settings are not drawn in the theme they picked")
 	}
 	if c := wrote(t, home); c.Theme != want {
@@ -452,7 +452,7 @@ func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
 	if got := next.g; got != theme.Datum.Light {
 		t.Errorf("the panel is on %+v", got)
 	}
-	if next.p != colored(theme.Datum.Light).onSurface() {
+	if next.p != Colored(theme.Datum.Light).OnSurface() {
 		t.Error("the panel did not take the new palette")
 	}
 }
@@ -555,8 +555,8 @@ func TestTheSettingsSayWhatTheFileNamesAndConnHasNot(t *testing.T) {
 		t.Fatalf("the view read them as %q and %q", b.unknownTheme, b.unknownGround)
 	}
 	var text strings.Builder
-	for _, r := range drawSettings(b, 0, tmux.PanelWidth, 0, plain) {
-		text.WriteString(r.text + "\n")
+	for _, r := range drawSettings(b, 0, tmux.PanelWidth, 0, Plain) {
+		text.WriteString(r.Text + "\n")
 	}
 	for _, want := range []string{"CONN HAS NO THEME NAMED SOLARIZED", "GREY IS NEITHER GROUND"} {
 		if !strings.Contains(text.String(), want) {

@@ -91,15 +91,15 @@ func testOutput(filter string) outputReport {
 }
 
 func TestTheOutputViewMatchesTheGolden(t *testing.T) {
-	golden(t, "output-48x30.txt", texts(drawOutput(testOutput(""), 0, 48, 30, plain)))
-	golden(t, "output-found-48x30.txt", texts(drawOutput(testOutput("error"), 1, 48, 30, plain)))
-	golden(t, "output-none-48x30.txt", texts(drawOutput(testOutput("nowhere"), 0, 48, 30, plain)))
+	golden(t, "output-48x30.txt", texts(drawOutput(testOutput(""), 0, 48, 30, Plain)))
+	golden(t, "output-found-48x30.txt", texts(drawOutput(testOutput("error"), 1, 48, 30, Plain)))
+	golden(t, "output-none-48x30.txt", texts(drawOutput(testOutput("nowhere"), 0, 48, 30, Plain)))
 	loading := composeOutput(outList{project: "/Users/w0zro/projects/web", loading: true}, "web")
-	golden(t, "output-reading-48x30.txt", texts(drawOutput(loading, 0, 48, 30, plain)))
+	golden(t, "output-reading-48x30.txt", texts(drawOutput(loading, 0, 48, 30, Plain)))
 }
 
 func TestSlashOpensTheOutputOverTheRowsProject(t *testing.T) {
-	m := model{p: plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	m.projects = []work.Project{{Path: "/Users/w0zro/projects/web", Entries: []work.Entry{{PID: 41, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusIdle}}}}
 	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}}
 	m.cursor = 41
@@ -169,7 +169,7 @@ func TestEachSayingIsCountedBackFromTheEnd(t *testing.T) {
 }
 
 func TestTheBayFollowsTheCursorAfterItRests(t *testing.T) {
-	m := model{p: plain, width: 48, height: 40, view: viewOutput, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: Plain, width: 48, height: 40, view: viewOutput, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	m.out = outList{project: "/Users/w0zro/projects/web", panes: testOutPanes()}
 	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}}
 	for _, k := range []string{"e", "r", "r", "o", "r"} {
@@ -214,7 +214,7 @@ func TestTheBayFollowsTheCursorAfterItRests(t *testing.T) {
 }
 
 func TestTheOutputViewIsNotOpenedOutsideTheServer(t *testing.T) {
-	m := model{p: plain, width: 48, height: 40, view: viewProcesses}
+	m := model{p: Plain, width: 48, height: 40, view: viewProcesses}
 	m.projects = []work.Project{{Path: "/p", Entries: []work.Entry{{PID: 1, TTY: "ttys001"}}}}
 	m.cursor = 1
 	m, _ = m.key("/")

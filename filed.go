@@ -106,16 +106,16 @@ func counted(n int, word string) string {
 // drawFiled renders the panel for a terminal of the given size, with
 // the cursor on the row of the given pid. The blocks are the projects,
 // folded.
-func drawFiled(b processesReport, cursor int, width, height int, p palette) []row {
-	width = max(width, panelMinCols)
-	measure := measureAt(width)
-	c := canvas{p: p, width: width}
+func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Row {
+	width = max(width, PanelMinCols)
+	measure := MeasureAt(width)
+	c := Canvas{P: p, Width: width}
 	room := height
 	if height == 0 {
 		room = 1 << 30
 	}
 
-	var body []row
+	var body []Row
 	cursorRow := -1
 	numbers := false
 	for _, bp := range b.projects {
@@ -123,39 +123,39 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			numbers = numbers || r.num != ""
 		}
 	}
-	d := canvas{p: p, width: width}
+	d := Canvas{P: p, Width: width}
 	for _, bp := range b.projects {
 		// Every block is at the margin, with a row of air before it.
 		// The projects are a list and not a tree here; see flat.
-		d.blank(0)
-		l := d.line()
+		d.Blank(0)
+		l := d.Line()
 		wants, wantStamped, wantBlinks := verdict(bp.rows)
 		wantW := ansi.StringWidth(wants)
 		if wantStamped {
-			wantW = stampWidth(wants, p)
+			wantW = StampWidth(wants, p)
 		}
-		l.eyebrowTail(p.parchment+p.bold, 0, fit(bp.path, max(measure-wantW-1, 1), true), measure, wantW)
+		l.EyebrowTail(p.Parchment+p.Bold, 0, Fit(bp.path, max(measure-wantW-1, 1), true), measure, wantW)
 		switch {
 		case wantBlinks && !b.lit:
 		case wantStamped:
-			l.stamp(wants)
+			l.Stamp(wants)
 		case wants != "":
-			l.add(p.ink+p.bold, wants)
+			l.Add(p.Ink+p.Bold, wants)
 		}
-		d.emit(l, 0, false)
+		d.Emit(l, 0, false)
 		for _, r := range bp.rows {
-			l := d.line()
-			l.pid = r.pid
+			l := d.Line()
+			l.PID = r.pid
 			cursored := r.pid == cursor
 			stand := stateOf(r.status, r.fault)
 			// The mark is the row's kind and never its state; the color
 			// on it is how the kind stands. See the marks in pieces.go.
-			tone := p.faint
+			tone := p.Faint
 			switch {
 			case stand == standWaiting:
-				tone = p.orange + p.bold
+				tone = p.Orange + p.Bold
 			case stand == standFault:
-				tone = p.orange
+				tone = p.Orange
 			case stand == standOver, stand == standDown:
 				// The faint it has already. A row that is not running is
 				// said by its command struck through and by its word at
@@ -168,41 +168,41 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 				// A contact stands by what it asks of you and never by
 				// what it has open, as serving has it; anything else
 				// alive on a port is at its work.
-				tone = p.running
+				tone = p.Running
 			}
-			command, ports, word := p.ink, p.gray, p.gray
+			command, ports, word := p.Ink, p.Gray, p.Gray
 			if stand == standWaiting {
-				command += p.bold
+				command += p.Bold
 			}
 			if work.Over(r.status) {
-				command = p.faint + p.struck
+				command = p.Faint + p.Struck
 			}
 			if b.inside && (r.reach == "" || r.over) && !r.shown {
 				// A row conn can only report, or a declared process
 				// that has ended and holds its pane for its output: a
 				// rank down, and every column of it.
-				dim := p.faint
+				dim := p.Faint
 				if cursored {
-					dim = p.gray
+					dim = p.Gray
 				}
 				command, ports, word = dim, dim, dim
 			}
 			if r.shown {
-				l.mark = cursorBar
+				l.Mark = CursorBar
 			}
 			if cursored {
 				// The row under the cursor is on the raised ground with
 				// the bar in the margin; in plain text, the mark alone.
-				l.p = p.chosen()
-				l.mark = cursorBar
-				if p.plain {
-					l.mark = "▸"
+				l.P = p.Chosen()
+				l.Mark = CursorBar
+				if p.Plain {
+					l.Mark = "▸"
 				}
-				command += p.bold
-				cursorRow = len(body) + len(d.rows)
+				command += p.Bold
+				cursorRow = len(body) + len(d.Rows)
 			}
 			if r.status == work.StatusWorking {
-				l.turn = spinner[b.spin%len(spinner)]
+				l.Turn = Spinner[b.spin%len(Spinner)]
 			}
 			// The marks stand in one column down the block and the
 			// commands start in one column beside it: the two are what
@@ -220,12 +220,12 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 				if b.digits && r.num != "" {
 					num = r.num
 				}
-				l.add(tone, markOf(r.stands))
-				l.add("", " ")
-				l.add(p.faint+p.dim, num)
-				l.add("", " ")
+				l.Add(tone, MarkOf(r.stands))
+				l.Add("", " ")
+				l.Add(p.Faint+p.Dim, num)
+				l.Add("", " ")
 			} else {
-				l.dot(tone, markOf(r.stands))
+				l.Dot(tone, MarkOf(r.stands))
 			}
 			// The right of a row is one column, and two things want it:
 			// the word a row stands by, and the ports it serves on. The
@@ -244,17 +244,17 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 			case r.carried != "":
 				tail, tailColor = r.carried, ports
 			default:
-				tail, tailColor = portsColumn(r.ports), ports
+				tail, tailColor = PortsColumn(r.ports), ports
 			}
 			tailW := ansi.StringWidth(tail)
 			if stamped {
-				tailW = stampWidth(tail, p)
+				tailW = StampWidth(tail, p)
 			}
 			activity := r.command
 			if r.name != "" {
 				activity = r.name
 			}
-			l.add(command, fit(activity, max(measure-l.cells-tailW-1, 0), false))
+			l.Add(command, Fit(activity, max(measure-l.Cells-tailW-1, 0), false))
 			switch {
 			case blinks && !b.lit:
 				// The column is the word's for as long as the word is
@@ -263,31 +263,31 @@ func drawFiled(b processesReport, cursor int, width, height int, p palette) []ro
 				// second, and a blink is one thing appearing and not
 				// two things taking turns.
 			case stamped:
-				l.to(measure - tailW)
-				l.stamp(tail)
+				l.To(measure - tailW)
+				l.Stamp(tail)
 			case tail != "":
-				l.to(measure - tailW)
-				l.add(tailColor, tail)
+				l.To(measure - tailW)
+				l.Add(tailColor, tail)
 			}
-			d.emit(l, 0, false)
+			d.Emit(l, 0, false)
 		}
 		// What is wrong with the project's .conn, under its rows, as a
 		// fault is stamped: the file was written to be read, and a
 		// project that shows none of what it declares should say why.
 		if bp.note != "" {
-			l := d.line()
-			l.to(3)
-			l.add(p.chip, " "+fit(strings.ToUpper(bp.note), max(measure-5, 1), false)+" ")
-			d.emit(l, 0, false)
+			l := d.Line()
+			l.To(3)
+			l.Add(p.Chip, " "+Fit(strings.ToUpper(bp.note), max(measure-5, 1), false)+" ")
+			d.Emit(l, 0, false)
 		}
 	}
-	body = d.rows
-	c.rows = append(c.rows, scrolled(body, cursorRow, room-len(c.rows), width, p)...)
-	c.rows = append(c.rows, notes(b, width, measure, p)...)
+	body = d.Rows
+	c.Rows = append(c.Rows, Scrolled(body, cursorRow, room-len(c.Rows), width, p)...)
+	c.Rows = append(c.Rows, notes(b, width, measure, p)...)
 	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
+		for len(c.Rows) < height {
+			c.Blank(0)
 		}
 	}
-	return c.rows
+	return c.Rows
 }

@@ -120,7 +120,7 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 	}}}
 	var rows []string
 	for _, e := range fold(projects)[0].Entries {
-		rows = append(rows, strings.Repeat(" ", e.Depth)+e.Kind+" "+activityOf(e)+portsWord(e.Ports))
+		rows = append(rows, strings.Repeat(" ", e.Depth)+e.Kind+" "+activityOf(e)+PortsWord(e.Ports))
 	}
 	// In the panel's order, by kind: the contact, then the shell that is
 	// only a shell, then the work — which the two shells standing for
@@ -150,7 +150,7 @@ func TestALoneListenerFoldsIntoItsHead(t *testing.T) {
 	}
 	s := readoutSubj()
 	s.entry = head
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
 	for _, want := range []string{"Command ... npm run dev", "Listens ... TCP *:5174", "Connected . TCP 127.0.0.1:5174->127.0.0.1:60322"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the folded head's page lacks %q:\n%s", want, text)

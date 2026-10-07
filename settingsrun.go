@@ -355,11 +355,7 @@ func (m settingsModel) View() tea.View {
 	} else {
 		rows = drawSettings(m.report(), m.at, max(m.width, 1), m.height, m.p)
 	}
-	texts := make([]string, len(rows))
-	for i, r := range rows {
-		texts[i] = r.text
-	}
-	v := tea.NewView(strings.Join(texts, "\n"))
+	v := tea.NewView(strings.Join(textsOf(rows), "\n"))
 	v.AltScreen = true
 	return v
 }

@@ -103,15 +103,6 @@ func counted(n int, word string) string {
 	return strconv.Itoa(n) + " " + word
 }
 
-// The spinner's frames: the cell full but for one dot, the gap going
-// round, a full turn in eight, and a turn a second (spinEvery, in
-// tui.go). A single dot going round was a trace too faint to be seen
-// turning beside a row of text; the full cell has the weight of the
-// dot beside it, and the gap is what moves. It turns in the margin,
-// where the rows at work make a column of their own and the text they
-// are about keeps its line.
-var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
-
 // drawFiled renders the panel for a terminal of the given size, with
 // the cursor on the row of the given pid. The blocks are the projects,
 // folded.

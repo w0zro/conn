@@ -305,7 +305,7 @@ const (
 // right; one column otherwise, the specifications under the sheet.
 func drawContact(b readoutReport, c contactPage, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
-	measure, _, _ := columns(width)
+	measure := measureOf(width)
 	if width < twoColumns {
 		cv := canvas{p: p, width: width}
 		cv.rows = append(cv.rows, drawSheet(c, measure, width, p)...)
@@ -340,14 +340,6 @@ func drawContact(b readoutReport, c contactPage, width, height int, p palette) [
 		cv.rows = append(cv.rows, row{text: l + r})
 	}
 	return padTo(cv, height)
-}
-
-// blankRow is a row of nothing at a width, in a palette, as emit frames
-// one.
-func blankRow(p palette, width int) string {
-	cv := canvas{p: p, width: width}
-	cv.blank(0)
-	return cv.rows[0].text
 }
 
 // drawSheet is the left of the page: who, the card, the procedure, the

@@ -221,3 +221,39 @@ func (c *canvas) card(edge string, col, width, stage int) {
 	l.add(c.p.edge, strings.Repeat(edge, width))
 	c.emit(l, stage, false)
 }
+
+// panelMinCols is the narrowest a view is drawn: a panel narrower is
+// drawn at this width and cut by the pane.
+const panelMinCols = 40
+
+// caret is where typing goes on a line typed into.
+const caret = "▏"
+
+// The spinner's frames: the cell full but for one dot, the gap going
+// round, a full turn in eight, and a turn a second (spinEvery, in
+// tui.go). A single dot going round was a trace too faint to be seen
+// turning beside a row of text; the full cell has the weight of the
+// dot beside it, and the gap is what moves. It turns in the margin,
+// where the rows at work make a column of their own and the text they
+// are about keeps its line.
+var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
+
+// portsWord is how a row of the tree says its ports after its command:
+// web · :8438, or every port it has, lowest first. Nothing for a row
+// with none. The panel stands them at its right instead, as a column,
+// and asks for portsColumn.
+func portsWord(ports []string) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	return " · " + portsColumn(ports)
+}
+
+// portsColumn is the ports written together: :8438, or every port
+// lowest first. Nothing for none.
+func portsColumn(ports []string) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	return ":" + strings.Join(ports, " :")
+}

@@ -56,11 +56,7 @@ func (h holdModel) View() tea.View {
 	for len(c.rows) < h.height {
 		c.blank(0)
 	}
-	texts := make([]string, len(c.rows))
-	for i, r := range c.rows {
-		texts[i] = r.text
-	}
-	v := tea.NewView(strings.Join(texts, "\n"))
+	v := tea.NewView(strings.Join(textsOf(c.rows), "\n"))
 	v.AltScreen = true
 	return v
 }

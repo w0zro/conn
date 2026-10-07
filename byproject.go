@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"slices"
-	"strings"
 
 	"github.com/w0zro/conn/internal/work"
 )
@@ -149,24 +148,4 @@ func serving(e work.Entry) bool {
 		return false
 	}
 	return e.Kind != work.KindContact && len(e.Ports) > 0
-}
-
-// portsWord is how a row of the tree says its ports after its command:
-// web · :8438, or every port it has, lowest first. Nothing for a row
-// with none. The panel stands them at its right instead, as a column,
-// and asks for portsColumn.
-func portsWord(ports []string) string {
-	if len(ports) == 0 {
-		return ""
-	}
-	return " · " + portsColumn(ports)
-}
-
-// portsColumn is the ports written together: :8438, or every port
-// lowest first. Nothing for none.
-func portsColumn(ports []string) string {
-	if len(ports) == 0 {
-		return ""
-	}
-	return ":" + strings.Join(ports, " :")
 }

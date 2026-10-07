@@ -4,15 +4,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
-
-	"github.com/charmbracelet/x/ansi"
 )
 
 // The readout: what conn knows about a row, read without entering it.
@@ -582,7 +579,7 @@ func stamp(at time.Time) string {
 // drawReadout renders the readout for a pane of the given size.
 func drawReadout(b readoutReport, width, height int, p palette) []row {
 	width = max(width, panelMinCols)
-	measure, _, _ := columns(width)
+	measure := measureOf(width)
 	c := canvas{p: p, width: width}
 
 	// A contact's page is a sheet of its own, with no header over it:
@@ -651,49 +648,6 @@ func drawReadout(b readoutReport, width, height int, p palette) []row {
 		}
 	}
 	return padTo(c, height)
-}
-
-// padTo fills the page out to the pane's height, so a short reading
-// does not leave older rows showing under it.
-func padTo(c canvas, height int) []row {
-	if height > 0 {
-		for len(c.rows) < height {
-			c.blank(0)
-		}
-		c.rows = c.rows[:height]
-	}
-	return c.rows
-}
-
-// wrapValue breaks a value to a width, on spaces where there are any
-// and hard where there are none — a command line is mostly spaces and a
-// path is none, and both have to arrive whole. It is conn's own rather
-// than x/ansi's, which breaks at every hyphen too: a command's flags and
-// a tmux verb are words that have hyphens in them, and a line that ends
-// in --res is a command nobody can read back.
-func wrapValue(s string, width int) []string {
-	width = max(width, 1)
-	var out []string
-	for ansi.StringWidth(s) > width {
-		head := ansi.Truncate(s, width, "")
-		if head == "" {
-			// A character wider than the line goes on one of its own.
-			_, n := utf8.DecodeRuneInString(s)
-			head = s[:n]
-		}
-		cut := strings.LastIndexByte(head, ' ')
-		if cut <= 0 {
-			out = append(out, head)
-			s = s[len(head):]
-			continue
-		}
-		out = append(out, s[:cut])
-		s = strings.TrimLeft(s[cut:], " ")
-	}
-	if s == "" && len(out) > 0 {
-		return out
-	}
-	return append(out, s)
 }
 
 // tokens is a count of tokens, in the largest unit that keeps it short:

@@ -524,7 +524,6 @@ func sessionDirs(all []projectRow, p projectRow) []string {
 const (
 	nestW = 2
 	findW = 6
-	caret = "▏"
 )
 
 // drawProjects renders the list for a terminal of the given size, with

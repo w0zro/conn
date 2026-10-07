@@ -363,11 +363,7 @@ func subjectOf(pid int, projects []work.Project, records map[int]record) (readou
 
 func (m readoutModel) View() tea.View {
 	rows := drawReadout(m.report, max(m.width, 1), m.height, m.p)
-	texts := make([]string, len(rows))
-	for i, r := range rows {
-		texts[i] = r.text
-	}
-	v := tea.NewView(strings.Join(texts, "\n"))
+	v := tea.NewView(strings.Join(textsOf(rows), "\n"))
 	v.AltScreen = true
 	return v
 }

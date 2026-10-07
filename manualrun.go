@@ -114,11 +114,7 @@ func (m manualModel) rows(lines []string, width, height int) []string {
 	for len(c.rows) < height {
 		c.blank(0)
 	}
-	texts := make([]string, len(c.rows))
-	for i, r := range c.rows {
-		texts[i] = r.text
-	}
-	return texts
+	return textsOf(c.rows)
 }
 
 func (m manualModel) View() tea.View {

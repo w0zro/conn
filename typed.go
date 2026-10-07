@@ -125,39 +125,3 @@ func (l *typed) set(text string) {
 func (l *typed) clear() {
 	l.set("")
 }
-
-// typedRuns is the line as drawn: the text either side of the caret,
-// fitted to the room. A line longer than the room shows the part
-// around the caret, and where there is room for more, the start of a
-// filter, which is read from its start, or the end of a path, which
-// is read from its end; a cut end is marked. The caret is always on
-// screen.
-func typedRuns(text string, caret, room int, path bool) (before, after string) {
-	r := []rune(text)
-	caret = min(max(caret, 0), len(r))
-	if len(r) <= room {
-		return string(r[:caret]), string(r[caret:])
-	}
-	if room <= 1 {
-		return "", ""
-	}
-	start := 0
-	if path {
-		start = len(r) - room
-	}
-	if caret < start {
-		start = caret
-	}
-	if caret > start+room {
-		start = caret - room
-	}
-	end := min(start+room, len(r))
-	w := append([]rune{}, r[start:end]...)
-	if start > 0 {
-		w[0] = '…'
-	}
-	if end < len(r) {
-		w[len(w)-1] = '…'
-	}
-	return string(w[:caret-start]), string(w[caret-start:])
-}

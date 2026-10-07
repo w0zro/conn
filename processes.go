@@ -464,7 +464,6 @@ const (
 	sinceW       = 5
 	panelKindW   = 8
 	panelStatusW = 7 // WORKING, WAITING, STOPPED: the floor the column holds at
-	panelMinCols = 40
 	treeIndent   = 2 // columns a row gives up per level under its root
 )
 

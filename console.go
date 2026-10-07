@@ -3,6 +3,7 @@ package main
 import (
 	"time"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/station"
 
 	tea "charm.land/bubbletea/v2"
@@ -13,7 +14,7 @@ import (
 // time — the header at once, from what is known before anything is
 // read, then the readout once the station is read and its beat has
 // passed, then the checks one by one, then the verdict.
-type console struct {
+type consoleOn struct {
 	st    *station.Station // the station, once read
 	stage int              // the stage the console has come on to
 	due   bool             // the readout's beat has passed and it waits on the station
@@ -33,7 +34,7 @@ func (m model) stationRead(st station.Station) (model, tea.Cmd) {
 // stageDue is the next stage's beat: the readout waits for the station
 // to be read, and every other stage comes on.
 func (m model) stageDue() (model, tea.Cmd) {
-	if m.console.stage+1 == StageReadout && m.console.st == nil {
+	if m.console.stage+1 == console.StageReadout && m.console.st == nil {
 		m.console.due = true
 		return m, nil
 	}
@@ -46,7 +47,7 @@ func (m model) consoleKey(k string) (model, tea.Cmd) {
 	if k == "ctrl+c" || k == "q" {
 		return m.leave()
 	}
-	if last := LastStage(m.report()); m.console.stage < last {
+	if last := console.LastStage(m.report()); m.console.stage < last {
 		m.console.stage = last
 		return m, nil
 	}
@@ -86,19 +87,19 @@ func (m model) consoleKey(k string) (model, tea.Cmd) {
 // in hand can hold them. The stages are counted off the report the
 // screen will actually draw, so a console that gave up its per-root
 // lines does not go on ticking through stages that have no row.
-func (m model) report() Report {
+func (m model) report() console.Report {
 	st := m.head
 	if m.console.st != nil {
 		st = *m.console.st
 	}
-	return Fitted(Compose(st, m.now), m.height)
+	return console.Fitted(console.Compose(st, m.now), m.height)
 }
 
 // The time before each stage after the header: a beat for the readout
 // and the verdict, less for each check.
 func (m model) stageDelay(stage int) time.Duration {
 	switch stage {
-	case StageReadout, LastStage(m.report()):
+	case console.StageReadout, console.LastStage(m.report()):
 		return 150 * time.Millisecond
 	default:
 		return 80 * time.Millisecond
@@ -111,7 +112,7 @@ func (m model) nextStage() tea.Cmd {
 
 // advance brings the next stage on and sets the one after it going.
 func (m model) advance() (model, tea.Cmd) {
-	last := LastStage(m.report())
+	last := console.LastStage(m.report())
 	if m.console.stage < last {
 		m.console.stage++
 	}

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
@@ -121,7 +122,7 @@ func (s *scratch) pageUp() bool {
 // does not tell the end from the middle.
 func (s *scratch) finished() bool {
 	panel := s.panel()
-	return strings.Contains(panel, AllNominal) || strings.Contains(panel, "NOT NOMINAL")
+	return strings.Contains(panel, console.AllNominal) || strings.Contains(panel, "NOT NOMINAL")
 }
 
 // scratchProject is what the panel calls the scratch root's repository:

@@ -1,4 +1,4 @@
-package main
+package console
 
 import (
 	"maps"
@@ -66,8 +66,8 @@ func TestStationIsWorded(t *testing.T) {
 	if r.version != "0.7.0" || r.note != "(devel)" || r.build != "4af550d · 09-SEP-2026 · MODIFIED" {
 		t.Errorf("identification: %q %q %q", r.version, r.note, r.build)
 	}
-	if r.station != "w0zro@station" || r.clock != "09-Sep-2026  02:58:41 Z" {
-		t.Errorf("station and clock: %q %q", r.station, r.clock)
+	if r.station != "w0zro@station" || r.Clock != "09-Sep-2026  02:58:41 Z" {
+		t.Errorf("station and clock: %q %q", r.station, r.Clock)
 	}
 	want := map[string]string{
 		"SYSTEM":    "macOS 26.6.2 (25G83)",

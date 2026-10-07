@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/station"
 
@@ -116,13 +117,13 @@ func main() {
 			fmt.Print(synopsis())
 			return
 		case "--version":
-			fmt.Println(draw.Join(" · ", "conn "+station.ReadBuild().Tag, BuildLine(station.ReadBuild())))
+			fmt.Println(draw.Join(" · ", "conn "+station.ReadBuild().Tag, console.BuildLine(station.ReadBuild())))
 			return
 		}
 		os.Exit(runCommand(args[0], args[1:]))
 	}
 	if !stdoutIsTerminal() {
-		for _, r := range Screen(Compose(station.Read(), time.Now()), draw.MinCols, 0, draw.Plain) {
+		for _, r := range console.Screen(console.Compose(station.Read(), time.Now()), draw.MinCols, 0, draw.Plain) {
 			fmt.Println(r.Text)
 		}
 		return

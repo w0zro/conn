@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
@@ -333,7 +334,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 		roots: rooting{rootOf: testRoots, isProject: testIsProject, real: []string{"/Users/w0zro/projects"}}}
 	st := testStation
 	m.console.st = &st
-	m.console.stage = LastStage(m.report())
+	m.console.stage = console.LastStage(m.report())
 	next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	if m.view != viewConsole || !m.entering || cmd == nil {
@@ -941,7 +942,7 @@ func screenChipOf(t *testing.T) string {
 	t.Helper()
 	st := testStation
 	st.Volume.Free = 6_800_000_000
-	return texts(Screen(Compose(st, testNow), 120, 40, draw.Colored(theme.Conn.Dark)))
+	return texts(console.Screen(console.Compose(st, testNow), 120, 40, draw.Colored(theme.Conn.Dark)))
 }
 
 // A nested block's title is a title: in the parchment and bold like one

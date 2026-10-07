@@ -8,6 +8,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/station"
 
@@ -169,7 +170,7 @@ func TestTheConsoleGoesToTheAskingViewWithNoRoots(t *testing.T) {
 		now: testNow, p: draw.Plain, width: 120, height: 40, uid: 501, roots: rooting{rootOf: testRoots}}
 	st := testStation
 	m.console.st = &st
-	m.console.stage = LastStage(m.report())
+	m.console.stage = console.LastStage(m.report())
 	next, _ := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	if m.view != viewRoots {

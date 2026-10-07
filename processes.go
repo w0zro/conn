@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
@@ -509,7 +510,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p draw.Pale
 	width = max(width, draw.PanelMinCols)
 	measure := draw.MeasureAt(width)
 	c := draw.Canvas{P: p, Width: width}
-	statusCol := measure - StatusW
+	statusCol := measure - console.StatusW
 	sinceCol := statusCol - 1 - sinceW
 	ttyCol := sinceCol - 1 - ttyW
 	commandW := ttyCol - 1 - kindW

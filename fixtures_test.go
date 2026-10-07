@@ -1,12 +1,17 @@
 package main
 
 import (
+	"flag"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/config"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/station"
 	"github.com/w0zro/conn/internal/work"
 )
 
@@ -109,3 +114,97 @@ var marks = []string{draw.MarkContact, draw.MarkShell, draw.MarkEditor, draw.Mar
 
 // isMark says whether a word is a row's mark.
 func isMark(s string) bool { return slices.Contains(marks, s) }
+
+// The rows of a view as text, a line to a row; golden holds them to
+// the files of record under testdata. internal/console has its own,
+// for its own files.
+var update = flag.Bool("update", false, "write the golden views under testdata")
+
+func texts(rows []draw.Row) string {
+	var b []string
+	for _, r := range rows {
+		b = append(b, r.Text)
+	}
+	return strings.Join(b, "\n")
+}
+
+// golden holds a rendering to the file of record under testdata. Run
+// the tests with -update to write what the console renders now, and
+// read the diff before committing it: the file is the design.
+func golden(t *testing.T, name, got string) {
+	t.Helper()
+	path := filepath.Join("testdata", name)
+	got += "\n"
+	if *update {
+		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%v (run with -update to write it)", err)
+	}
+	if string(want) != got {
+		t.Errorf("%s differs from the golden file; run with -update if the change is meant:\n%s", name, got)
+	}
+}
+
+// stripEscapes drops the color sequences, leaving the cells.
+func stripEscapes(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == 0x1b {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// The station the console is composed from in internal/console's tests,
+// for the tests here that bring the console up.
+var (
+	testNow     = time.Date(2026, 9, 8, 19, 58, 41, 0, time.FixedZone("PDT", -7*3600))
+	testStation = station.Station{
+		Machine: station.Machine{
+			System: "macOS 26.6.2", SystemBuild: "25G83", Kernel: "Darwin 25.6.0",
+			Model: "Mac15,6", Processor: "Apple M3 Pro", CPUs: 11, PerfCores: 5, EffCores: 6,
+			Memory: 18 << 30, Available: 77, Pressure: station.PressureNormal,
+			SwapTotal: 5 << 30, SwapUsed: 3<<30 + 700<<20, SwapEncrypt: true,
+			Booted:    time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC),
+			Load:      [3]float64{1.85, 2.07, 1.99},
+			LoadRead:  true,
+			Processes: 747,
+			Power:     station.Power{Source: "battery", Percent: 81, State: "discharging", Remaining: "9:04"},
+			SIP:       "enabled",
+			Page:      16384,
+		},
+		Login: station.Login{
+			User: "w0zro", UID: "501", Admin: true, Host: "station", Home: "/Users/w0zro",
+			Shell: "/bin/zsh", ShellVer: "5.9", TTY: "ttys004",
+			Terminal: "ghostty", TerminalVer: "1.3.1",
+			Lang: "en_US.UTF-8", Zone: "America/Los_Angeles",
+			Cwd: "/Users/w0zro/projects/w0zro/conn", PID: 67032, PPID: 67031,
+			SSHFrom:  "10.0.0.5",
+			EnvCount: 62, PathCount: 23,
+			Exe: "/Users/w0zro/projects/w0zro/conn/conn", ExeSize: 5_500_000,
+			Term:      "xterm-256color · truecolor",
+			GoVersion: "go1.27.0", Platform: "darwin/arm64", Threads: 11,
+		},
+		Build:   station.Build{Tag: "0.7.0", Commit: "4af550d", Time: time.Date(2026, 9, 9, 2, 55, 24, 0, time.UTC), Modified: true},
+		Volume:  station.Volume{FS: "apfs", Free: 412_000_000_000, Total: 994_662_584_320},
+		Network: station.Network{Up: 2, First: "en0 192.168.68.58"},
+		NetRead: true,
+		State:   station.StateDir{Path: "/Users/w0zro/.local/state/conn"},
+		Config: config.State{
+			Path: "/Users/w0zro/.config/conn/config.json", Present: true, Names: true, Source: config.RootsFile,
+			Roots: []config.RootState{{Path: "/Users/w0zro/projects"}, {Path: "/Users/w0zro/work/checkouts"}},
+		},
+		// A macOS station needs both, and the console of record is the
+		// console this station prints.
+		Tools: []station.Tool{{Name: "tmux", Path: "/opt/homebrew/bin/tmux"}, {Name: "lsof", Path: "/usr/sbin/lsof"}},
+	}
+)

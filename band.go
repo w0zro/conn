@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
@@ -161,7 +162,7 @@ func (m model) upWord() string {
 	}
 	word := m.now.Format("15:04")
 	if !m.up.IsZero() {
-		word += " · T+ " + strings.ToLower(Uptime(m.up, m.now))
+		word += " · T+ " + strings.ToLower(console.Uptime(m.up, m.now))
 	}
 	return tmux.StatusLineWord(word+" ", m.g.Gray, false, m.g)
 }

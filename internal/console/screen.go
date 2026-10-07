@@ -1,4 +1,4 @@
-package main
+package console
 
 import (
 	"strconv"
@@ -155,7 +155,7 @@ func body(r Report, width int, own check, p draw.Palette) []draw.Row {
 	station := [][2]string{
 		{p.Bold, strings.TrimSpace("CONN " + r.version)},
 		{p.Gray, "STATION  " + strings.ToUpper(r.station)},
-		{p.Gray, strings.ToUpper(r.clock)},
+		{p.Gray, strings.ToUpper(r.Clock)},
 		{p.Gray, r.build},
 	}
 	for i, m := range wordmark {

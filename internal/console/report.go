@@ -1,4 +1,4 @@
-package main
+package console
 
 import (
 	"fmt"
@@ -67,7 +67,7 @@ const (
 // is who is at it and how; and the checks, of what the machine itself
 // can fail at. The screen adds its own check, since it knows its size.
 type Report struct {
-	version, note, build, station, term, clock string
+	version, note, build, station, term, Clock string
 	system, login                              []draw.Fact
 	checks                                     []check
 	// The verdict's chip is an annunciator: Lit on one second, dark on
@@ -106,7 +106,7 @@ func Compose(st station.Station, now time.Time) Report {
 		build:   BuildLine(st.Build),
 		station: who + "@" + host,
 		term:    st.Login.Term,
-		clock:   zulu(now),
+		Clock:   zulu(now),
 		Lit:     true,
 	}
 	r.system = systemFacts(st, now)

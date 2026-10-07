@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
@@ -209,7 +210,7 @@ type (
 
 type model struct {
 	head          station.Station // what the header needs: the build and who is at the station
-	console       console         // the console, as far as it has come on
+	console       consoleOn       // the console, as far as it has come on
 	now           time.Time
 	width, height int
 	p             draw.Palette
@@ -1406,7 +1407,7 @@ func (m model) View() tea.View {
 	default:
 		r := m.report()
 		r.Lit = m.lit
-		rows = Screen(r, width, m.height, m.p)
+		rows = console.Screen(r, width, m.height, m.p)
 	}
 	ground := rows[0].Text // the first row is blank, on the ground, at the rows' width
 	texts := make([]string, 0, len(rows))

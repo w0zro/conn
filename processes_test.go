@@ -146,7 +146,7 @@ func TestProjectsNestUnderTheFolderThatHoldsThem(t *testing.T) {
 func TestProcessesLaysOut(t *testing.T) {
 	rows := drawProcesses(testProcesses(), 70100, 120, 40, draw.Plain)
 	text := texts(rows)
-	measure, _, _ := columns(120)
+	measure := draw.MeasureOf(120)
 	for _, s := range []string{
 		// No name over it: that is the status line's now, at the bottom left
 		// of the window. No rule and no column heads either: the view
@@ -333,7 +333,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 		roots: rooting{rootOf: testRoots, isProject: testIsProject, real: []string{"/Users/w0zro/projects"}}}
 	st := testStation
 	m.console.st = &st
-	m.console.stage = lastStage(m.report())
+	m.console.stage = LastStage(m.report())
 	next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
 	if m.view != viewConsole || !m.entering || cmd == nil {
@@ -941,7 +941,7 @@ func screenChipOf(t *testing.T) string {
 	t.Helper()
 	st := testStation
 	st.Volume.Free = 6_800_000_000
-	return texts(screen(compose(st, testNow), 120, 40, draw.Colored(theme.Conn.Dark)))
+	return texts(Screen(Compose(st, testNow), 120, 40, draw.Colored(theme.Conn.Dark)))
 }
 
 // A nested block's title is a title: in the parchment and bold like one

@@ -33,7 +33,7 @@ func (m model) stationRead(st station.Station) (model, tea.Cmd) {
 // stageDue is the next stage's beat: the readout waits for the station
 // to be read, and every other stage comes on.
 func (m model) stageDue() (model, tea.Cmd) {
-	if m.console.stage+1 == stageReadout && m.console.st == nil {
+	if m.console.stage+1 == StageReadout && m.console.st == nil {
 		m.console.due = true
 		return m, nil
 	}
@@ -46,7 +46,7 @@ func (m model) consoleKey(k string) (model, tea.Cmd) {
 	if k == "ctrl+c" || k == "q" {
 		return m.leave()
 	}
-	if last := lastStage(m.report()); m.console.stage < last {
+	if last := LastStage(m.report()); m.console.stage < last {
 		m.console.stage = last
 		return m, nil
 	}
@@ -86,19 +86,19 @@ func (m model) consoleKey(k string) (model, tea.Cmd) {
 // in hand can hold them. The stages are counted off the report the
 // screen will actually draw, so a console that gave up its per-root
 // lines does not go on ticking through stages that have no row.
-func (m model) report() report {
+func (m model) report() Report {
 	st := m.head
 	if m.console.st != nil {
 		st = *m.console.st
 	}
-	return fitted(compose(st, m.now), m.height)
+	return Fitted(Compose(st, m.now), m.height)
 }
 
 // The time before each stage after the header: a beat for the readout
 // and the verdict, less for each check.
 func (m model) stageDelay(stage int) time.Duration {
 	switch stage {
-	case stageReadout, lastStage(m.report()):
+	case StageReadout, LastStage(m.report()):
 		return 150 * time.Millisecond
 	default:
 		return 80 * time.Millisecond
@@ -111,7 +111,7 @@ func (m model) nextStage() tea.Cmd {
 
 // advance brings the next stage on and sets the one after it going.
 func (m model) advance() (model, tea.Cmd) {
-	last := lastStage(m.report())
+	last := LastStage(m.report())
 	if m.console.stage < last {
 		m.console.stage++
 	}

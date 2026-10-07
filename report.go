@@ -62,19 +62,19 @@ const (
 	rootsLabel = "ROOTS"
 )
 
-// A report is the station worded for the console: the identification
+// A Report is the station worded for the console: the identification
 // in the header; the system, which is the machine; the session, which
 // is who is at it and how; and the checks, of what the machine itself
 // can fail at. The screen adds its own check, since it knows its size.
-type report struct {
+type Report struct {
 	version, note, build, station, term, clock string
 	system, login                              []draw.Fact
 	checks                                     []check
-	// The verdict's chip is an annunciator: lit on one second, dark on
+	// The verdict's chip is an annunciator: Lit on one second, dark on
 	// the next, while the console is up. Everywhere else — a pipe, a
 	// test, a reading that is not being watched turn by turn — it is
-	// lit, since there is no second to be dark on.
-	lit bool
+	// Lit, since there is no second to be dark on.
+	Lit bool
 }
 
 // The thresholds the checks hold the machine to.
@@ -86,8 +86,8 @@ const (
 	diskLowCeiling   = 50 * 1000 * 1000 * 1000 // ...and with this many free never is
 )
 
-// compose words the station as of a moment.
-func compose(st station.Station, now time.Time) report {
+// Compose words the station as of a moment.
+func Compose(st station.Station, now time.Time) Report {
 	who := st.Login.User
 	if who == "" {
 		who = "someone"
@@ -100,14 +100,14 @@ func compose(st station.Station, now time.Time) report {
 	if !st.Build.Exact {
 		note = "(devel)"
 	}
-	r := report{
+	r := Report{
 		version: st.Build.Tag,
 		note:    note,
-		build:   buildLine(st.Build),
+		build:   BuildLine(st.Build),
 		station: who + "@" + host,
 		term:    st.Login.Term,
 		clock:   zulu(now),
-		lit:     true,
+		Lit:     true,
 	}
 	r.system = systemFacts(st, now)
 	r.login = sessionFacts(st.Login, now)
@@ -138,9 +138,9 @@ func toolCheck(t station.Tool) check {
 	return check{label: t.Name, value: t.Path, status: nominal, path: true}
 }
 
-// buildLine is the commit, its date, and MODIFIED when the tree had
+// BuildLine is the commit, its date, and MODIFIED when the tree had
 // changes past it.
-func buildLine(b station.Build) string {
+func BuildLine(b station.Build) string {
 	when := ""
 	if !b.Time.IsZero() {
 		when = strings.ToUpper(b.Time.UTC().Format("02-Jan-2006"))
@@ -186,7 +186,7 @@ func systemFacts(st station.Station, now time.Time) []draw.Fact {
 	} else if m.Memory > 0 {
 		swap = "NONE"
 	}
-	up := uptime(m.Booted, now)
+	up := Uptime(m.Booted, now)
 	if up != "" {
 		up += " · UP SINCE " + m.Booted.UTC().Format("02-Jan 15:04") + " Z"
 	}
@@ -535,8 +535,8 @@ func sizeShort(n uint64) string {
 	}
 }
 
-// uptime is how long the machine has been up, in days, hours and minutes.
-func uptime(booted, now time.Time) string {
+// Uptime is how long the machine has been up, in days, hours and minutes.
+func Uptime(booted, now time.Time) string {
 	if booted.IsZero() {
 		return ""
 	}

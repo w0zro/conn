@@ -23,7 +23,7 @@ import (
 // the fixed columns; the rows it needs depend on the report.
 const (
 	checkCol   = 12 // a check's value, from the margin
-	statusW    = 9  // the widest status: UNCHECKED, NOT A DIR
+	StatusW    = 9  // the widest status: UNCHECKED, NOT A DIR
 	stationGap = 5  // between the wordmark and the station block
 )
 
@@ -32,36 +32,36 @@ const (
 // of the widest status and a space.
 func columns(width int) (measure, rightCol, leaderEnd int) {
 	measure = draw.MeasureOf(width)
-	return measure, measure / 2, measure - statusW - 2
+	return measure, measure / 2, measure - StatusW - 2
 }
 
 // The stages: the header at once, the readout, each check in turn, and
 // the verdict last.
 const (
-	stageHeader = iota
-	stageReadout
-	stageChecks // the first check; each after is one more
+	StageHeader = iota
+	StageReadout
+	StageChecks // the first check; each after is one more
 )
 
-// lastStage is the verdict's, after the screen's check and the report's.
-func lastStage(r report) int {
-	return stageChecks + 1 + len(r.checks)
+// LastStage is the verdict's, after the screen's check and the report's.
+func LastStage(r Report) int {
+	return StageChecks + 1 + len(r.checks)
 }
 
 // rowsNeeded is how many rows the console takes for a report: the
 // body, the verdict its last row. It is counted off the layout, not
 // summed by hand. The key bar at the foot says how to go on, so the
 // console has no row of its own to say it.
-func rowsNeeded(r report) int {
+func rowsNeeded(r Report) int {
 	return len(body(r, draw.MinCols, check{}, draw.Plain))
 }
 
-// screen renders the console for a terminal of the given size, in the
+// Screen renders the console for a terminal of the given size, in the
 // palette: rows the terminal's width, painted on the ground, to its
 // height. Off a terminal, height is 0, and the rows are the body alone.
 // A terminal too small for the body gets the small console instead.
-func screen(r report, width, height int, p draw.Palette) []draw.Row {
-	r = fitted(r, height)
+func Screen(r Report, width, height int, p draw.Palette) []draw.Row {
+	r = Fitted(r, height)
 	need := rowsNeeded(r)
 	own := screenCheck(r.term, width, height, need)
 	if own.fault {
@@ -75,14 +75,14 @@ func screen(r report, width, height int, p draw.Palette) []draw.Row {
 	if height > 0 {
 		c := draw.Canvas{P: p, Width: max(width, draw.MinCols), Rows: rows}
 		for len(c.Rows) < height {
-			c.Blank(lastStage(r))
+			c.Blank(LastStage(r))
 		}
 		rows = c.Rows
 	}
 	return rows
 }
 
-// fitted is the report as a terminal of this height can hold it. The
+// Fitted is the report as a terminal of this height can hold it. The
 // roots are a line each, which is how a root that is not there says so
 // on its own account; where the rows for that are not there they become
 // one line carrying all of them, under the worst word any of them
@@ -91,8 +91,8 @@ func screen(r report, width, height int, p draw.Palette) []draw.Row {
 // console that says less than one that refuses to draw because a root
 // was added. Off a terminal, height is 0 and nothing is given up.
 //
-// It is idempotent: a report already fitted is returned as it is.
-func fitted(r report, height int) report {
+// It is idempotent: a report already Fitted is returned as it is.
+func Fitted(r Report, height int) Report {
 	if height <= 0 || rowsNeeded(r) <= height {
 		return r
 	}
@@ -103,7 +103,7 @@ func fitted(r report, height int) report {
 // paths are joined the way conn joins values, and the status is the
 // worst of them: the line stands for all of them, so it cannot say
 // NOMINAL while one of them is missing.
-func joinRoots(r report) report {
+func joinRoots(r Report) Report {
 	var paths []string
 	var worst check
 	var at, n int
@@ -144,13 +144,13 @@ func worse(k, than check) bool {
 
 // body is the console proper, at a width no less than minCols, with the
 // screen's own check first among the checks.
-func body(r report, width int, own check, p draw.Palette) []draw.Row {
+func body(r Report, width int, own check, p draw.Palette) []draw.Row {
 	measure, rightCol, leaderEnd := columns(width)
 	c := draw.Canvas{P: p, Width: width}
 
 	// The header: the wordmark, the station block beside it on its first
 	// rows, and a rule under it.
-	c.Blank(stageHeader)
+	c.Blank(StageHeader)
 	markW := ansi.StringWidth(wordmark[0])
 	station := [][2]string{
 		{p.Bold, strings.TrimSpace("CONN " + r.version)},
@@ -168,9 +168,9 @@ func body(r report, width int, own check, p draw.Palette) []draw.Row {
 				l.Add(p.Gray, " "+r.note)
 			}
 		}
-		c.Emit(l, stageHeader, false)
+		c.Emit(l, StageHeader, false)
 	}
-	c.Rule(stageHeader, measure)
+	c.Rule(StageHeader, measure)
 
 	// The readout: the machine in the left column, the session in the
 	// right, each under its title. The left column was titled SYSTEM
@@ -186,7 +186,7 @@ func body(r report, width int, own check, p draw.Palette) []draw.Row {
 	l := c.Line()
 	l.Title(0, "MACHINE")
 	l.Title(rightCol, "SESSION")
-	c.Emit(l, stageReadout, false)
+	c.Emit(l, StageReadout, false)
 	for i := 0; i < max(len(r.system), len(r.login)); i++ {
 		l := c.Line()
 		if i < len(r.system) {
@@ -195,16 +195,16 @@ func body(r report, width int, own check, p draw.Palette) []draw.Row {
 		if i < len(r.login) {
 			factLine(l, rightCol, measure-rightCol, r.login[i])
 		}
-		c.Emit(l, stageReadout, false)
+		c.Emit(l, StageReadout, false)
 	}
 
 	// The checks: the title, then the screen's own line and the report's,
 	// each to the status column. A fault's chip blinks with the verdict's;
 	// what is nominal stays put.
-	c.Blank(stageChecks)
+	c.Blank(StageChecks)
 	l = c.Line()
 	l.Title(0, "START-UP CHECKS")
-	c.Emit(l, stageChecks, false)
+	c.Emit(l, StageChecks, false)
 	var stood tally
 	for i, k := range append([]check{own}, r.checks...) {
 		l := c.Line()
@@ -228,14 +228,14 @@ func body(r report, width int, own check, p draw.Palette) []draw.Row {
 		// words rather than a ragged right edge of boxes.
 		word := strings.ToUpper(k.status)
 		if k.status == nominal {
-			l.To(measure - statusW + (statusW-ansi.StringWidth(word))/2)
+			l.To(measure - StatusW + (StatusW-ansi.StringWidth(word))/2)
 			l.Add(p.Gray, word)
-		} else if r.lit {
+		} else if r.Lit {
 			word = " " + word + " "
-			l.To(measure - statusW + (statusW-ansi.StringWidth(word))/2)
+			l.To(measure - StatusW + (StatusW-ansi.StringWidth(word))/2)
 			l.Add(p.Chip, word)
 		}
-		c.Emit(l, stageChecks+i, false)
+		c.Emit(l, StageChecks+i, false)
 	}
 
 	// The verdict: a rule, then the count of faults as a chip, or what
@@ -243,14 +243,14 @@ func body(r report, width int, own check, p draw.Palette) []draw.Row {
 	// second lit against half of one dark, and the faults' own chips
 	// blink with it; on the dark half those cells are the ground, and
 	// nothing around them moves.
-	last := lastStage(r)
+	last := LastStage(r)
 	c.Blank(last)
 	c.Rule(last, measure)
 	l = c.Line()
 	switch {
 	case stood.off == 0:
-		l.Add(p.Gray, allNominal)
-	case !r.lit:
+		l.Add(p.Gray, AllNominal)
+	case !r.Lit:
 		// dark this second
 	case stood.off > 1:
 		l.Add(p.Chip, " "+strconv.Itoa(stood.off)+" SYSTEMS NOT NOMINAL ")
@@ -261,8 +261,8 @@ func body(r report, width int, own check, p draw.Palette) []draw.Row {
 	return c.Rows
 }
 
-// allNominal is the one sentence a console with nothing to report says.
-const allNominal = "ALL SYSTEMS NOMINAL"
+// AllNominal is the one sentence a console with nothing to report says.
+const AllNominal = "ALL SYSTEMS NOMINAL"
 
 // A tally is what the start-up checks came to: the ones that passed,
 // and the ones that did not. A check conn could not make counts among
@@ -285,31 +285,31 @@ func (t *tally) count(k check) {
 func small(own check, width, height, need int, p draw.Palette) []draw.Row {
 	c := draw.Canvas{P: p, Width: width}
 	measure, _, _ := columns(width)
-	c.Blank(stageHeader)
+	c.Blank(StageHeader)
 	if markW := ansi.StringWidth(wordmark[0]); measure >= markW && height >= len(wordmark)+5 {
 		for _, m := range wordmark {
 			l := c.Line()
 			l.Add(p.Orange+p.Bold, m)
-			c.Emit(l, stageHeader, false)
+			c.Emit(l, StageHeader, false)
 		}
 	} else {
 		l := c.Line()
 		l.Add(p.Orange+p.Bold, "CONN")
-		c.Emit(l, stageHeader, false)
+		c.Emit(l, StageHeader, false)
 	}
-	c.Blank(stageHeader)
+	c.Blank(StageHeader)
 	l := c.Line()
 	l.Add(p.Gray, "SCREEN ")
 	l.Add(p.Ink, draw.Fit(strings.ToUpper(own.value), measure-len("SCREEN ")-len(" SMALL ")-1, false))
 	l.To(measure - len(" SMALL "))
 	l.Add(p.Chip, " SMALL ")
-	c.Emit(l, stageHeader, false)
+	c.Emit(l, StageHeader, false)
 	l = c.Line()
 	l.Add(p.Gray, "NEEDS ")
 	l.Add(p.Ink, strconv.Itoa(draw.MinCols)+"×"+strconv.Itoa(need))
-	c.Emit(l, stageHeader, false)
+	c.Emit(l, StageHeader, false)
 	for height > 0 && len(c.Rows) < height {
-		c.Blank(stageHeader)
+		c.Blank(StageHeader)
 	}
 	return c.Rows
 }
@@ -344,7 +344,7 @@ func screenCheck(term string, width, height, need int) check {
 // columns of half the measure, its value past the label and a space; a
 // check runs from the margin to the leaders, which stop short of the
 // widest status.
-func wide(r report, own check) int {
+func wide(r Report, own check) int {
 	measure := draw.MinCols - 2*draw.Margin
 	for _, side := range [][]draw.Fact{r.system, r.login} {
 		for _, f := range side {
@@ -352,7 +352,7 @@ func wide(r report, own check) int {
 		}
 	}
 	for _, k := range append([]check{own}, r.checks...) {
-		measure = max(measure, ansi.StringWidth(draw.Cased(k.value, k.path))+checkCol+statusW+4)
+		measure = max(measure, ansi.StringWidth(draw.Cased(k.value, k.path))+checkCol+StatusW+4)
 	}
 	return measure + 2*draw.Margin
 }

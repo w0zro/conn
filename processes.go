@@ -509,7 +509,7 @@ func drawProcesses(b processesReport, cursor int, width, height int, p draw.Pale
 	width = max(width, draw.PanelMinCols)
 	measure := draw.MeasureAt(width)
 	c := draw.Canvas{P: p, Width: width}
-	statusCol := measure - statusW
+	statusCol := measure - StatusW
 	sinceCol := statusCol - 1 - sinceW
 	ttyCol := sinceCol - 1 - ttyW
 	commandW := ttyCol - 1 - kindW

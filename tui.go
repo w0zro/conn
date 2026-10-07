@@ -1405,8 +1405,8 @@ func (m model) View() tea.View {
 		rows = drawOutput(m.outputReport(), m.out.find.at, width, m.height, m.p)
 	default:
 		r := m.report()
-		r.lit = m.lit
-		rows = screen(r, width, m.height, m.p)
+		r.Lit = m.lit
+		rows = Screen(r, width, m.height, m.p)
 	}
 	ground := rows[0].Text // the first row is blank, on the ground, at the rows' width
 	texts := make([]string, 0, len(rows))

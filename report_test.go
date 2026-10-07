@@ -62,7 +62,7 @@ var (
 
 // The station is worded as the console says it.
 func TestStationIsWorded(t *testing.T) {
-	r := compose(testStation, testNow)
+	r := Compose(testStation, testNow)
 	if r.version != "0.7.0" || r.note != "(devel)" || r.build != "4af550d · 09-SEP-2026 · MODIFIED" {
 		t.Errorf("identification: %q %q %q", r.version, r.note, r.build)
 	}
@@ -122,7 +122,7 @@ func TestStationIsWorded(t *testing.T) {
 // A station with nothing read words to a header and a column of checks
 // that know they were not answered, and none of them a fault.
 func TestAnEmptyStationIsWorded(t *testing.T) {
-	r := compose(station.Station{}, testNow)
+	r := Compose(station.Station{}, testNow)
 	if r.station != "someone@somewhere" || r.version != "" || r.note != "(devel)" || r.build != "" {
 		t.Errorf("identification: %+v", r)
 	}
@@ -284,7 +284,7 @@ func TestWordsForNumbers(t *testing.T) {
 		t.Errorf("sizeShort: %q %q %q %q", sizeShort(4_400_000), sizeShort(2<<30), sizeShort(500), sizeShort(0))
 	}
 	booted := time.Date(2026, 9, 8, 10, 0, 0, 0, time.UTC)
-	if got := uptime(booted, booted.Add(90*time.Minute)); got != "01H 30M" {
+	if got := Uptime(booted, booted.Add(90*time.Minute)); got != "01H 30M" {
 		t.Errorf("uptime: %q", got)
 	}
 	if got := timeZone("", testNow); got != "PDT · UTC-07:00 · 19:58 LOCAL" {
@@ -299,7 +299,7 @@ func TestWordsForNumbers(t *testing.T) {
 // says is in shape. This is the one test that touches the machine.
 func TestTheStationCanBeRead(t *testing.T) {
 	st := station.Read()
-	r := compose(st, time.Now())
+	r := Compose(st, time.Now())
 	if r.station == "" || strings.HasPrefix(r.station, "someone@") {
 		t.Errorf("no station: %q", r.station)
 	}
@@ -418,8 +418,8 @@ func TestEveryRootGetsALine(t *testing.T) {
 // are held to the column here, where the console is not being read.
 func TestEveryStatusFitsItsColumn(t *testing.T) {
 	for _, status := range []string{nominal, unknown, unchecked, notWritten, noRoots, noTheme, noGround, missing, notRead, "NOT A DIR", "READ ONLY", "NO PATH"} {
-		if len(status) > statusW {
-			t.Errorf("%q is %d wide, and the column is %d", status, len(status), statusW)
+		if len(status) > StatusW {
+			t.Errorf("%q is %d wide, and the column is %d", status, len(status), StatusW)
 		}
 	}
 }

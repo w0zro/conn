@@ -88,7 +88,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 	if !has("SCREEN") || has("STATE ...") {
 		t.Errorf("the screen check should be up third, alone:\n%s", view())
 	}
-	for m.console.stage < lastStage(m.report()) {
+	for m.console.stage < LastStage(m.report()) {
 		next, _ = m.Update(stageMsg{})
 		m = next.(model)
 	}
@@ -99,8 +99,8 @@ func TestProgramComesOnInStages(t *testing.T) {
 	// roots on a line each now this terminal has the rows, and two
 	// tools; the screen's own check and the verdict are the two stages
 	// past them.
-	if lastStage(m.report()) != stageChecks+13 {
-		t.Errorf("last stage is %d", lastStage(m.report()))
+	if LastStage(m.report()) != StageChecks+13 {
+		t.Errorf("last stage is %d", LastStage(m.report()))
 	}
 	if next, cmd := m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"}); cmd == nil || next.(model).view != viewConsole || !next.(model).entering {
 		t.Errorf("a key at the end should read the processes view and hold the console for the answer")
@@ -164,17 +164,17 @@ func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
 	// The reading sets the next one going, and nothing else.
 	next, _ := m.Update(stationMsg{Station: testStation})
 	m = next.(model)
-	if m.console.stage != stageHeader {
+	if m.console.stage != StageHeader {
 		t.Errorf("the station alone should not bring the readout on")
 	}
 	next, cmd := m.Update(stageMsg{})
 	m = next.(model)
-	if cmd == nil || m.console.stage != stageReadout {
+	if cmd == nil || m.console.stage != StageReadout {
 		t.Errorf("the beat after the station should bring the readout on: stage %d", m.console.stage)
 	}
 	next, cmd = m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	m = next.(model)
-	if cmd != nil || m.console.stage != lastStage(m.report()) {
+	if cmd != nil || m.console.stage != LastStage(m.report()) {
 		t.Errorf("a key should skip to the end: stage %d", m.console.stage)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"}); cmd == nil {
@@ -184,7 +184,7 @@ func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
 
 // The clock ticks on the turn of the second.
 func TestTheClockTicksOnTheSecond(t *testing.T) {
-	if d := m0().stageDelay(stageReadout); d != 150*time.Millisecond {
+	if d := m0().stageDelay(StageReadout); d != 150*time.Millisecond {
 		t.Errorf("the readout's beat is %v", d)
 	}
 	start := time.Now()

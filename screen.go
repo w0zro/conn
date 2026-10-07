@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/draw"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -30,7 +32,7 @@ const (
 // second column of the readout, and where a check's leaders stop, short
 // of the widest status and a space.
 func columns(width int) (measure, rightCol, leaderEnd int) {
-	measure = MeasureOf(width)
+	measure = draw.MeasureOf(width)
 	return measure, measure / 2, measure - statusW - 2
 }
 
@@ -52,27 +54,27 @@ func lastStage(r report) int {
 // summed by hand. The key bar at the foot says how to go on, so the
 // console has no row of its own to say it.
 func rowsNeeded(r report) int {
-	return len(body(r, MinCols, check{}, Plain))
+	return len(body(r, draw.MinCols, check{}, draw.Plain))
 }
 
 // screen renders the console for a terminal of the given size, in the
 // palette: rows the terminal's width, painted on the ground, to its
 // height. Off a terminal, height is 0, and the rows are the body alone.
 // A terminal too small for the body gets the small console instead.
-func screen(r report, width, height int, p Palette) []Row {
+func screen(r report, width, height int, p draw.Palette) []draw.Row {
 	r = fitted(r, height)
 	need := rowsNeeded(r)
 	own := screenCheck(r.term, width, height, need)
 	if own.fault {
 		return small(own, width, height, need, p)
 	}
-	cols := max(width, MinCols)
+	cols := max(width, draw.MinCols)
 	if height == 0 {
 		cols = wide(r, own)
 	}
 	rows := body(r, cols, own, p)
 	if height > 0 {
-		c := Canvas{P: p, Width: max(width, MinCols), Rows: rows}
+		c := draw.Canvas{P: p, Width: max(width, draw.MinCols), Rows: rows}
 		for len(c.Rows) < height {
 			c.Blank(lastStage(r))
 		}
@@ -143,9 +145,9 @@ func worse(k, than check) bool {
 
 // body is the console proper, at a width no less than minCols, with the
 // screen's own check first among the checks.
-func body(r report, width int, own check, p Palette) []Row {
+func body(r report, width int, own check, p draw.Palette) []draw.Row {
 	measure, rightCol, leaderEnd := columns(width)
-	c := Canvas{P: p, Width: width}
+	c := draw.Canvas{P: p, Width: width}
 
 	// The header: the wordmark, the station block beside it on its first
 	// rows, and a rule under it.
@@ -177,10 +179,10 @@ func body(r report, width int, own check, p Palette) []Row {
 	// directly under a title of the same word. The column is the
 	// machine and the row is the operating system on it, and now each
 	// says which it is.
-	factLine := func(l *Line, col, width int, f fact) {
+	factLine := func(l *draw.Line, col, width int, f fact) {
 		l.To(col)
 		l.Leader(strings.ToUpper(f.label), col+factCol-1, p.Faint)
-		l.Add(p.Ink, Fit(Cased(f.value, f.path), width-factCol-2, f.path))
+		l.Add(p.Ink, draw.Fit(draw.Cased(f.value, f.path), width-factCol-2, f.path))
 	}
 	l := c.Line()
 	l.Title(0, "MACHINE")
@@ -208,7 +210,7 @@ func body(r report, width int, own check, p Palette) []Row {
 	for i, k := range append([]check{own}, r.checks...) {
 		l := c.Line()
 		l.Leader(strings.ToUpper(k.label), checkCol-1, p.Gray)
-		l.Add(p.Ink, Fit(Cased(k.value, k.path), leaderEnd-checkCol-2, k.path))
+		l.Add(p.Ink, draw.Fit(draw.Cased(k.value, k.path), leaderEnd-checkCol-2, k.path))
 		l.Add("", " ")
 		l.Add(p.Border, strings.Repeat(".", max(leaderEnd-l.Cells, 1)))
 		stood.count(k)
@@ -281,8 +283,8 @@ func (t *tally) count(k check) {
 // when there is room for it, the name otherwise, and the screen's check
 // with the size it needs, all at once. Nothing is clipped, so the reason
 // is always in view.
-func small(own check, width, height, need int, p Palette) []Row {
-	c := Canvas{P: p, Width: width}
+func small(own check, width, height, need int, p draw.Palette) []draw.Row {
+	c := draw.Canvas{P: p, Width: width}
 	measure, _, _ := columns(width)
 	c.Blank(stageHeader)
 	if markW := ansi.StringWidth(wordmark[0]); measure >= markW && height >= len(wordmark)+5 {
@@ -299,13 +301,13 @@ func small(own check, width, height, need int, p Palette) []Row {
 	c.Blank(stageHeader)
 	l := c.Line()
 	l.Add(p.Gray, "SCREEN ")
-	l.Add(p.Ink, Fit(strings.ToUpper(own.value), measure-len("SCREEN ")-len(" SMALL ")-1, false))
+	l.Add(p.Ink, draw.Fit(strings.ToUpper(own.value), measure-len("SCREEN ")-len(" SMALL ")-1, false))
 	l.To(measure - len(" SMALL "))
 	l.Add(p.Chip, " SMALL ")
 	c.Emit(l, stageHeader, false)
 	l = c.Line()
 	l.Add(p.Gray, "NEEDS ")
-	l.Add(p.Ink, strconv.Itoa(MinCols)+"×"+strconv.Itoa(need))
+	l.Add(p.Ink, strconv.Itoa(draw.MinCols)+"×"+strconv.Itoa(need))
 	c.Emit(l, stageHeader, false)
 	for height > 0 && len(c.Rows) < height {
 		c.Blank(stageHeader)
@@ -321,7 +323,7 @@ func screenCheck(term string, width, height, need int) check {
 		return check{label: "SCREEN", value: join(" · ", "NO TERMINAL", term), status: unchecked}
 	}
 	value := join(" · ", strconv.Itoa(width)+"×"+strconv.Itoa(height), term)
-	if width < MinCols || height < need {
+	if width < draw.MinCols || height < need {
 		return check{label: "SCREEN", value: value, status: "SMALL", fault: true}
 	}
 	return check{label: "SCREEN", value: value, status: nominal}
@@ -344,14 +346,14 @@ func screenCheck(term string, width, height, need int) check {
 // check runs from the margin to the leaders, which stop short of the
 // widest status.
 func wide(r report, own check) int {
-	measure := MinCols - 2*Margin
+	measure := draw.MinCols - 2*draw.Margin
 	for _, side := range [][]fact{r.system, r.login} {
 		for _, f := range side {
-			measure = max(measure, 2*(ansi.StringWidth(Cased(f.value, f.path))+factCol+2))
+			measure = max(measure, 2*(ansi.StringWidth(draw.Cased(f.value, f.path))+factCol+2))
 		}
 	}
 	for _, k := range append([]check{own}, r.checks...) {
-		measure = max(measure, ansi.StringWidth(Cased(k.value, k.path))+checkCol+statusW+4)
+		measure = max(measure, ansi.StringWidth(draw.Cased(k.value, k.path))+checkCol+statusW+4)
 	}
-	return measure + 2*Margin
+	return measure + 2*draw.Margin
 }

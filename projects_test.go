@@ -7,6 +7,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -159,19 +160,19 @@ func testList(filter string) projectsReport {
 // The list in the panel, the list narrowed, and the list with nothing
 // found yet are files of record.
 func TestProjectsMatchTheGolden(t *testing.T) {
-	golden(t, "projects-48x30.txt", texts(drawProjects(testList(""), 0, 48, 30, Plain)))
-	golden(t, "projects-filtered-48x30.txt", texts(drawProjects(testList("pro"), 2, 48, 30, Plain)))
+	golden(t, "projects-48x30.txt", texts(drawProjects(testList(""), 0, 48, 30, draw.Plain)))
+	golden(t, "projects-filtered-48x30.txt", texts(drawProjects(testList("pro"), 2, 48, 30, draw.Plain)))
 	empty := composeProjects(nil, "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", true, "")
-	golden(t, "projects-scanning-48x30.txt", texts(drawProjects(empty, 0, 48, 30, Plain)))
+	golden(t, "projects-scanning-48x30.txt", texts(drawProjects(empty, 0, 48, 30, draw.Plain)))
 	failed := composeProjects(nil, "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "THE ROOTS COULD NOT BE WALKED: no such directory")
-	golden(t, "projects-unwalked-48x30.txt", texts(drawProjects(failed, 0, 48, 30, Plain)))
+	golden(t, "projects-unwalked-48x30.txt", texts(drawProjects(failed, 0, 48, 30, draw.Plain)))
 }
 
 // The list's rows hold: the count against the right, the filter on its
 // own line, a group's repositories indented under it, the cursor on one
 // row, and no row past the width.
 func TestProjectsLayOut(t *testing.T) {
-	rows := drawProjects(testList(""), 6, 48, 30, Plain)
+	rows := drawProjects(testList(""), 6, 48, 30, draw.Plain)
 	text := texts(rows)
 	for _, s := range []string{
 		"PROJECTS", "10 FOUND", "FIND   ▏",
@@ -188,14 +189,14 @@ func TestProjectsLayOut(t *testing.T) {
 	if strings.Count(text, "▸") != 1 {
 		t.Errorf("the cursor marks %d rows", strings.Count(text, "▸"))
 	}
-	for _, r := range drawProjects(testList("conn"), 0, 48, 30, Colored(theme.Conn.Dark)) {
+	for _, r := range drawProjects(testList("conn"), 0, 48, 30, draw.Colored(theme.Conn.Dark)) {
 		if w := utf8.RuneCountInString(stripEscapes(r.Text)); w != 48 {
 			t.Errorf("a colored row paints %d columns", w)
 		}
 	}
 	// The filter is on the header's count.
 	b := testList("pro")
-	text = texts(drawProjects(b, 0, 48, 30, Plain))
+	text = texts(drawProjects(b, 0, 48, 30, draw.Plain))
 	if !strings.Contains(text, "3 OF 10") {
 		t.Errorf("narrowed:\n%s", text)
 	}
@@ -227,7 +228,7 @@ func TestTheFilterAnswersByNameAndByGroup(t *testing.T) {
 
 // A list taller than the terminal scrolls to keep the cursor in view.
 func TestAListThatWillNotFitScrolls(t *testing.T) {
-	rows := drawProjects(testList(""), 9, 48, 10, Plain)
+	rows := drawProjects(testList(""), 9, 48, 10, draw.Plain)
 	text := texts(rows)
 	if len(rows) != 10 || !strings.Contains(text, "ABOVE") || !strings.Contains(text, "▸    vim.pro") {
 		t.Errorf("at 48x10 with the cursor on the last row:\n%s", text)
@@ -389,13 +390,13 @@ func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
 // which is the most any row of this list has ever had to fit.
 func TestTheLiveListMatchesTheGolden(t *testing.T) {
 	b := composeProjects(testLive(), "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
-	golden(t, "projects-live-48x30.txt", texts(drawProjects(b, 9, 48, 30, Plain)))
-	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, Colored(theme.Conn.Dark)) {
+	golden(t, "projects-live-48x30.txt", texts(drawProjects(b, 9, 48, 30, draw.Plain)))
+	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, draw.Colored(theme.Conn.Dark)) {
 		if w := utf8.RuneCountInString(stripEscapes(r.Text)); w != tmux.PanelWidth {
 			t.Fatalf("a colored row paints %d columns, not %d:\n%q", w, tmux.PanelWidth, r.Text)
 		}
 	}
-	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, Plain) {
+	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, draw.Plain) {
 		if strings.Contains(r.Text, "WAITING") && !strings.Contains(r.Text, "CONTACT") {
 			t.Errorf("the block landed on its own row: %q", r.Text)
 		}
@@ -413,7 +414,7 @@ func TestTheProjectsViewSaysWhenConnHasNoRoots(t *testing.T) {
 	}
 	// The panel is what this is read in, and it is narrow. A chip wider
 	// than the pane it is drawn in runs off the edge.
-	for _, row := range drawProjects(b, 0, tmux.PanelWidth, 12, Plain) {
+	for _, row := range drawProjects(b, 0, tmux.PanelWidth, 12, draw.Plain) {
 		if n := utf8.RuneCountInString(row.Text); n > tmux.PanelWidth {
 			t.Errorf("a row is %d wide in a %d panel: %q", n, tmux.PanelWidth, row.Text)
 		}

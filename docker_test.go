@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -31,7 +32,7 @@ func TestContainersStandUnderTheComposeThatRunsThem(t *testing.T) {
 	rows := out[0].Entries
 	var got []string
 	for _, e := range rows {
-		got = append(got, strings.Repeat("  ", e.Depth)+e.Kind+" "+e.Command+PortsWord(e.Ports))
+		got = append(got, strings.Repeat("  ", e.Depth)+e.Kind+" "+e.Command+draw.PortsWord(e.Ports))
 	}
 	// A service carries the ports it publishes on the host, which is
 	// where you would go to reach it; a worker with none is named alone.
@@ -80,7 +81,7 @@ func TestDetachedContainersRootTheirOwnProject(t *testing.T) {
 		if e.Depth != 0 {
 			t.Errorf("%s stands at depth %d with no compose above it", e.Command, e.Depth)
 		}
-		got = append(got, e.Command+PortsWord(e.Ports))
+		got = append(got, e.Command+draw.PortsWord(e.Ports))
 	}
 	want := "cache · :6390, web · :8438, worker"
 	if strings.Join(got, ", ") != want {
@@ -143,7 +144,7 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 	if b.name != c.ID {
 		t.Errorf("the page is headed %q, not the container's id", b.name)
 	}
-	text := texts(drawReadout(b, 60, 24, Plain))
+	text := texts(drawReadout(b, 60, 24, draw.Plain))
 	for _, want := range []string{
 		"94e3da190ba7", // the header, in place of a pid conn invented
 		"Image ..... nginx:alpine",
@@ -169,7 +170,7 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 	// A service that went wrong says so past docker's sentence, since
 	// that buries it: Exited (3) reads as a fact, not as a fault.
 	c.State, c.Exit, c.Health, c.Status = "exited", "3", "", "Exited (3) 8 seconds ago"
-	text = texts(drawReadout(composeReadout(readoutSubject{container: &c, inside: true}, "/Users/w0zro", now), 60, 24, Plain))
+	text = texts(drawReadout(composeReadout(readoutSubject{container: &c, inside: true}, "/Users/w0zro", now), 60, 24, draw.Plain))
 	if !strings.Contains(text, "Wrong ..... Exit 3") {
 		t.Errorf("a dead service does not say what went wrong:\n%s", text)
 	}

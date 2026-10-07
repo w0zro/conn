@@ -5,6 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -106,7 +107,7 @@ func boldWord(page, word string) bool {
 // is not made wider for it: a row that does not fit is elided, and a
 // key whose word is cut in half is a key the card did not say.
 func TestTheCardFitsThePanel(t *testing.T) {
-	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 0, Plain)
+	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 0, draw.Plain)
 	if len(rows) < 20 {
 		t.Fatalf("the card came to %d rows", len(rows))
 	}
@@ -123,7 +124,7 @@ func TestTheCardFitsThePanel(t *testing.T) {
 // A card too tall for the pane says how much of it is below rather than
 // running off the foot of the window.
 func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
-	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 12, Plain)
+	rows := drawKeys(panelKeys("^space"), "processes", tmux.PanelWidth, 12, draw.Plain)
 	if len(rows) != 12 {
 		t.Fatalf("the card came to %d rows in a pane of 12", len(rows))
 	}
@@ -137,7 +138,7 @@ func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
 // the manual's own pane — so the half of the window beside it says what
 // the keys are rather than showing a list going nowhere.
 func TestThePanelHoldsTheKeysWhileTheManualIsUp(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, p: Plain, width: tmux.PanelWidth, height: 40,
+	m := model{view: viewProcesses, inside: true, p: draw.Plain, width: tmux.PanelWidth, height: 40,
 		projects: []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001", Command: "vim"}}}}}
 	if strings.Contains(m.View().Content, "THE ROW") {
 		t.Fatal("the processes view is showing the keys with no manual up")

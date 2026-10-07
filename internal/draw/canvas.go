@@ -1,4 +1,4 @@
-package main
+package draw
 
 import (
 	"strconv"
@@ -145,7 +145,7 @@ type Canvas struct {
 
 // A Line is built from painted pieces; cells counts the columns. A mark
 // is set in the margin, before the Line, where there is no color to say
-// which row is the cursor's — see palette.chosen. A turn is set in the
+// which row is the cursor's — see Palette.Chosen. A turn is set in the
 // margin too, in the column after the mark: a frame of something going
 // round beside the row it belongs to.
 type Line struct {
@@ -154,7 +154,7 @@ type Line struct {
 	Cells int
 	Mark  string
 	Turn  string
-	PID   int // the entry the line is, where it is one; see row
+	PID   int // the entry the line is, where it is one; see Row
 }
 
 func (c *Canvas) Line() *Line {
@@ -411,7 +411,7 @@ func WrapValue(s string, width int) []string {
 	return append(out, s)
 }
 
-// BlankRow is a row of nothing at a width, in a palette, as emit frames
+// BlankRow is a row of nothing at a width, in a palette, as Emit frames
 // one.
 func BlankRow(p Palette, width int) string {
 	cv := Canvas{P: p, Width: width}

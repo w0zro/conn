@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/charmbracelet/x/ansi"
@@ -106,16 +107,16 @@ func counted(n int, word string) string {
 // drawFiled renders the panel for a terminal of the given size, with
 // the cursor on the row of the given pid. The blocks are the projects,
 // folded.
-func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Row {
-	width = max(width, PanelMinCols)
-	measure := MeasureAt(width)
-	c := Canvas{P: p, Width: width}
+func drawFiled(b processesReport, cursor int, width, height int, p draw.Palette) []draw.Row {
+	width = max(width, draw.PanelMinCols)
+	measure := draw.MeasureAt(width)
+	c := draw.Canvas{P: p, Width: width}
 	room := height
 	if height == 0 {
 		room = 1 << 30
 	}
 
-	var body []Row
+	var body []draw.Row
 	cursorRow := -1
 	numbers := false
 	for _, bp := range b.projects {
@@ -123,7 +124,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 			numbers = numbers || r.num != ""
 		}
 	}
-	d := Canvas{P: p, Width: width}
+	d := draw.Canvas{P: p, Width: width}
 	for _, bp := range b.projects {
 		// Every block is at the margin, with a row of air before it.
 		// The projects are a list and not a tree here; see flat.
@@ -132,9 +133,9 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 		wants, wantStamped, wantBlinks := verdict(bp.rows)
 		wantW := ansi.StringWidth(wants)
 		if wantStamped {
-			wantW = StampWidth(wants, p)
+			wantW = draw.StampWidth(wants, p)
 		}
-		l.EyebrowTail(p.Parchment+p.Bold, 0, Fit(bp.path, max(measure-wantW-1, 1), true), measure, wantW)
+		l.EyebrowTail(p.Parchment+p.Bold, 0, draw.Fit(bp.path, max(measure-wantW-1, 1), true), measure, wantW)
 		switch {
 		case wantBlinks && !b.lit:
 		case wantStamped:
@@ -149,7 +150,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 			cursored := r.pid == cursor
 			stand := stateOf(r.status, r.fault)
 			// The mark is the row's kind and never its state; the color
-			// on it is how the kind stands. See the marks in pieces.go.
+			// on it is how the kind stands. See the marks in internal/draw.
 			tone := p.Faint
 			switch {
 			case stand == standWaiting:
@@ -188,13 +189,13 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 				command, ports, word = dim, dim, dim
 			}
 			if r.shown {
-				l.Mark = CursorBar
+				l.Mark = draw.CursorBar
 			}
 			if cursored {
 				// The row under the cursor is on the raised ground with
 				// the bar in the margin; in plain text, the mark alone.
 				l.P = p.Chosen()
-				l.Mark = CursorBar
+				l.Mark = draw.CursorBar
 				if p.Plain {
 					l.Mark = "▸"
 				}
@@ -202,7 +203,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 				cursorRow = len(body) + len(d.Rows)
 			}
 			if r.status == work.StatusWorking {
-				l.Turn = Spinner[b.spin%len(Spinner)]
+				l.Turn = draw.Spinner[b.spin%len(draw.Spinner)]
 			}
 			// The marks stand in one column down the block and the
 			// commands start in one column beside it: the two are what
@@ -220,12 +221,12 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 				if b.digits && r.num != "" {
 					num = r.num
 				}
-				l.Add(tone, MarkOf(r.stands))
+				l.Add(tone, draw.MarkOf(r.stands))
 				l.Add("", " ")
 				l.Add(p.Faint+p.Dim, num)
 				l.Add("", " ")
 			} else {
-				l.Dot(tone, MarkOf(r.stands))
+				l.Dot(tone, draw.MarkOf(r.stands))
 			}
 			// The right of a row is one column, and two things want it:
 			// the word a row stands by, and the ports it serves on. The
@@ -244,17 +245,17 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 			case r.carried != "":
 				tail, tailColor = r.carried, ports
 			default:
-				tail, tailColor = PortsColumn(r.ports), ports
+				tail, tailColor = draw.PortsColumn(r.ports), ports
 			}
 			tailW := ansi.StringWidth(tail)
 			if stamped {
-				tailW = StampWidth(tail, p)
+				tailW = draw.StampWidth(tail, p)
 			}
 			activity := r.command
 			if r.name != "" {
 				activity = r.name
 			}
-			l.Add(command, Fit(activity, max(measure-l.Cells-tailW-1, 0), false))
+			l.Add(command, draw.Fit(activity, max(measure-l.Cells-tailW-1, 0), false))
 			switch {
 			case blinks && !b.lit:
 				// The column is the word's for as long as the word is
@@ -277,12 +278,12 @@ func drawFiled(b processesReport, cursor int, width, height int, p Palette) []Ro
 		if bp.note != "" {
 			l := d.Line()
 			l.To(3)
-			l.Add(p.Chip, " "+Fit(strings.ToUpper(bp.note), max(measure-5, 1), false)+" ")
+			l.Add(p.Chip, " "+draw.Fit(strings.ToUpper(bp.note), max(measure-5, 1), false)+" ")
 			d.Emit(l, 0, false)
 		}
 	}
 	body = d.Rows
-	c.Rows = append(c.Rows, Scrolled(body, cursorRow, room-len(c.Rows), width, p)...)
+	c.Rows = append(c.Rows, draw.Scrolled(body, cursorRow, room-len(c.Rows), width, p)...)
 	c.Rows = append(c.Rows, notes(b, width, measure, p)...)
 	if height > 0 {
 		for len(c.Rows) < height {

@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -46,12 +47,12 @@ func TestMatchingSessionsAnswersByBranchPromptOrDir(t *testing.T) {
 // The sessions view at rest, filtered, loading, and with nothing found
 // are files of record.
 func TestSessionsMatchesTheGolden(t *testing.T) {
-	golden(t, "sessions-48x30.txt", texts(drawSessions(testSessions(""), 0, 48, 30, Plain)))
-	golden(t, "sessions-filtered-48x30.txt", texts(drawSessions(testSessions("flaky"), 0, 48, 30, Plain)))
+	golden(t, "sessions-48x30.txt", texts(drawSessions(testSessions(""), 0, 48, 30, draw.Plain)))
+	golden(t, "sessions-filtered-48x30.txt", texts(drawSessions(testSessions("flaky"), 0, 48, 30, draw.Plain)))
 	loading := composeSessions(nil, "/Users/w0zro/projects/w0zro/conn", "", "/Users/w0zro", []string{"/Users/w0zro/projects"}, processesNow, true)
-	golden(t, "sessions-loading-48x30.txt", texts(drawSessions(loading, 0, 48, 30, Plain)))
+	golden(t, "sessions-loading-48x30.txt", texts(drawSessions(loading, 0, 48, 30, draw.Plain)))
 	empty := composeSessions(nil, "/Users/w0zro/projects/w0zro/conn", "", "/Users/w0zro", []string{"/Users/w0zro/projects"}, processesNow, false)
-	golden(t, "sessions-empty-48x30.txt", texts(drawSessions(empty, 0, 48, 30, Plain)))
+	golden(t, "sessions-empty-48x30.txt", texts(drawSessions(empty, 0, 48, 30, draw.Plain)))
 }
 
 // The sessions view's rows hold: the project it is for, the count
@@ -59,7 +60,7 @@ func TestSessionsMatchesTheGolden(t *testing.T) {
 // age, a session with nothing read of it named by its directory
 // instead, and the cursor on one row.
 func TestSessionsLayOut(t *testing.T) {
-	rows := drawSessions(testSessions(""), 1, 48, 30, Plain)
+	rows := drawSessions(testSessions(""), 1, 48, 30, draw.Plain)
 	text := texts(rows)
 	for _, s := range []string{
 		"SESSIONS", "2 SUSPENDED", "FIND   ▏", "w0zro/conn",
@@ -72,13 +73,13 @@ func TestSessionsLayOut(t *testing.T) {
 	if strings.Count(text, "▸") != 1 {
 		t.Errorf("the cursor marks %d rows", strings.Count(text, "▸"))
 	}
-	for _, r := range drawSessions(testSessions(""), 0, 48, 30, Colored(theme.Conn.Dark)) {
+	for _, r := range drawSessions(testSessions(""), 0, 48, 30, draw.Colored(theme.Conn.Dark)) {
 		if w := utf8.RuneCountInString(stripEscapes(r.Text)); w != 48 {
 			t.Errorf("a colored row paints %d columns", w)
 		}
 	}
 	b := testSessions("flaky")
-	text = texts(drawSessions(b, 0, 48, 30, Plain))
+	text = texts(drawSessions(b, 0, 48, 30, draw.Plain))
 	if !strings.Contains(text, "1 OF 2") {
 		t.Errorf("narrowed:\n%s", text)
 	}
@@ -116,7 +117,7 @@ func TestTheRecentViewIsEveryProjectsSessions(t *testing.T) {
 		return dir
 	}
 	b := m.sessions.report("/Users/w0zro", []string{"/Users/w0zro/projects"}, processesNow, rootOf)
-	rows := drawSessions(b, 0, 48, 30, Plain)
+	rows := drawSessions(b, 0, 48, 30, draw.Plain)
 	golden(t, "sessions-recent-48x30.txt", texts(rows))
 	text := texts(rows)
 	for _, want := range []string{"RECENT", "conn          Package split", "rides         fix the map"} {

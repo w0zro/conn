@@ -1,4 +1,4 @@
-package main
+package draw
 
 import (
 	"strings"
@@ -11,8 +11,7 @@ import (
 // The pieces conn draws a row and a page out of: the mark at the head of
 // a row, the stamp on the one that wants you, the key you can press, the
 // label with a rule running off it to a count, the line typed into, and
-// a card's two edges. They are here rather than in screen.go because
-// screen.go is the console and these are drawn on every view.
+// a card's two edges. canvas.go is what they are painted on.
 //
 // A piece is what it looks like and nothing about what it means: which
 // mark a row takes is its view's to decide, and a piece asked for is

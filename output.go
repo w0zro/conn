@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -399,11 +400,11 @@ func around(text string, at, room int) (string, int) {
 	}
 	lead := utf8.RuneCountInString(text[:at])
 	if lead+8 <= room {
-		return Fit(text, room, false), at
+		return draw.Fit(text, room, false), at
 	}
 	// The start is cut so the match sits a few cells in, after the mark.
 	kept := string(r[lead-8:])
-	return Fit("…"+kept, room, false), len("…") + len(string(r[lead-8:lead]))
+	return draw.Fit("…"+kept, room, false), len("…") + len(string(r[lead-8:lead]))
 }
 
 // plural is a figure and its noun: 1 LINE, 2 LINES.
@@ -416,7 +417,7 @@ func plural(n int, one, many string) string {
 
 // drawOutput renders the output view for a terminal of the given size,
 // with the cursor on the given match.
-func drawOutput(b outputReport, cursor, width, height int, p Palette) []Row {
+func drawOutput(b outputReport, cursor, width, height int, p draw.Palette) []draw.Row {
 	// The header: the name of the view, and against the right how many
 	// lines say the text, or how many lines there are to say it.
 	right := plural(b.lines, "LINE", "LINES")
@@ -426,22 +427,22 @@ func drawOutput(b outputReport, cursor, width, height int, p Palette) []Row {
 	case b.filter != "":
 		right = plural(len(b.rows), "MATCH", "MATCHES")
 	}
-	c, measure := Head("OUTPUT", right, width, p)
+	c, measure := draw.Head("OUTPUT", right, width, p)
 
 	// The project it is over, the way a project titles its block.
 	l := c.Line()
-	l.Add(p.Parchment+p.Bold, Fit(b.project, measure, true))
+	l.Add(p.Parchment+p.Bold, draw.Fit(b.project, measure, true))
 	c.Emit(l, 0, false)
 
 	// The line typed into.
 	l = c.Line()
-	before, after := TypedRuns(b.filter, b.caret, measure-findW-2, false)
+	before, after := draw.TypedRuns(b.filter, b.caret, measure-findW-2, false)
 	l.Field(0, measure-findW, "FIND", before, after)
 	c.Emit(l, 0, false)
 
-	var body []Row
+	var body []draw.Row
 	cursorRow := -1
-	d := Canvas{P: p, Width: c.Width}
+	d := draw.Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
 		d.Blank(0)
 		l := d.Line()
@@ -461,7 +462,7 @@ func drawOutput(b outputReport, cursor, width, height int, p Palette) []Row {
 			d.Blank(0)
 			l := d.Line()
 			count := plural(pane.lines, "LINE", "LINES")
-			l.Eyebrow(0, Fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
+			l.Eyebrow(0, draw.Fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
 			d.Emit(l, 0, false)
 		}
 		body = d.Rows
@@ -476,13 +477,13 @@ func drawOutput(b outputReport, cursor, width, height int, p Palette) []Row {
 				d.Blank(0)
 				l := d.Line()
 				count := plural(pane.hits, "MATCH", "MATCHES")
-				l.Eyebrow(0, Fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
+				l.Eyebrow(0, draw.Fit(pane.label, measure-ansi.StringWidth(count)-2, false), measure, count)
 				d.Emit(l, 0, false)
 			}
 			l := d.Line()
 			if i == cursor {
 				l.P = p.Chosen()
-				l.Mark = CursorBar
+				l.Mark = draw.CursorBar
 				if p.Plain {
 					l.Mark = "▸"
 				}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/station"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -121,7 +122,7 @@ func main() {
 		os.Exit(runCommand(args[0], args[1:]))
 	}
 	if !stdoutIsTerminal() {
-		for _, r := range screen(compose(station.Read(), time.Now()), MinCols, 0, Plain) {
+		for _, r := range screen(compose(station.Read(), time.Now()), draw.MinCols, 0, draw.Plain) {
 			fmt.Println(r.Text)
 		}
 		return
@@ -215,7 +216,7 @@ var commands = []command{
 			pid, _ = strconv.Atoi(args[0])
 		}
 		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
-		if err := runReadout(tmux.Find(home), pid, home, Colored(g)); err != nil {
+		if err := runReadout(tmux.Find(home), pid, home, draw.Colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
 		}
@@ -224,7 +225,7 @@ var commands = []command{
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()
 		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
-		if err := runHold(tmux.Find(home), Colored(g)); err != nil {
+		if err := runHold(tmux.Find(home), draw.Colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			return 1
 		}
@@ -252,7 +253,7 @@ var commands = []command{
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}
-		if err := runManual(tmux.Find(home), path, Colored(g)); err != nil {
+		if err := runManual(tmux.Find(home), path, draw.Colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}

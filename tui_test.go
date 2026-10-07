@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -28,7 +29,7 @@ import (
 // drawn in the plain palette so that its rows are text.
 func plainModel() model {
 	m := newModel(theme.Conn.Dark)
-	m.p = Plain
+	m.p = draw.Plain
 	return m
 }
 
@@ -59,7 +60,7 @@ func answered(cmd tea.Cmd) tea.Msg {
 func TestProgramComesOnInStages(t *testing.T) {
 	// ticking as newModel leaves it: conn comes up on the console, which
 	// annunciates, and Init sets the blink going and the station read.
-	m := model{head: station.Station{Build: testStation.Build, Login: station.Login{User: "w0zro", Host: "station"}}, now: testNow, p: Plain, blink: beat{on: true}, survey: beat{on: true},
+	m := model{head: station.Station{Build: testStation.Build, Login: station.Login{User: "w0zro", Host: "station"}}, now: testNow, p: draw.Plain, blink: beat{on: true}, survey: beat{on: true},
 		roots: rooting{real: []string{"/Users/w0zro/projects"}}} // told where the work is; see toRoots
 	m.width, m.height = 120, 40
 	view := func() string { return m.View().Content }
@@ -117,7 +118,7 @@ func TestProgramComesOnInStages(t *testing.T) {
 // a reading changes what the console says, leaving the console lets the
 // beat stop, and c brings it back with a reading at once.
 func TestTheConsoleReadsTheStationWhileItStands(t *testing.T) {
-	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: Plain, width: 120, height: 40, blink: beat{on: true}, survey: beat{on: true}}
+	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: draw.Plain, width: 120, height: 40, blink: beat{on: true}, survey: beat{on: true}}
 	next, cmd := m.Update(stationMsg{Station: testStation})
 	m = next.(model)
 	if _, ok := answered(cmd).(stationTickMsg); !ok {
@@ -159,7 +160,7 @@ func TestTheConsoleReadsTheStationWhileItStands(t *testing.T) {
 // The station arriving first, then the beat, comes on the same way; and
 // a key during the sequence skips to the end.
 func TestStationBeforeTheBeatAndAKeySkips(t *testing.T) {
-	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: Plain, width: 120, height: 40, blink: beat{on: true}, survey: beat{on: true}}
+	m := model{head: station.Station{Build: testStation.Build}, now: testNow, p: draw.Plain, width: 120, height: 40, blink: beat{on: true}, survey: beat{on: true}}
 	// The reading sets the next one going, and nothing else.
 	next, _ := m.Update(stationMsg{Station: testStation})
 	m = next.(model)
@@ -194,7 +195,7 @@ func TestTheClockTicksOnTheSecond(t *testing.T) {
 }
 
 func m0() model {
-	return model{head: station.Station{Build: testStation.Build}, now: testNow, p: Plain}
+	return model{head: station.Station{Build: testStation.Build}, now: testNow, p: draw.Plain}
 }
 
 // The dark half is half the lit half, and each turn schedules the
@@ -249,7 +250,7 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 // A reading that finds home without its bay has the bay opened; a
 // reading with the bay only ticks.
 func TestAHomeWithoutItsBayGetsOne(t *testing.T) {
-	m := model{p: Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	_, cmd := m.Update(processesMsg{noBay: true})
 	if cmd == nil {
 		t.Fatal("no command for a home without its bay")
@@ -264,7 +265,7 @@ func TestAHomeWithoutItsBayGetsOne(t *testing.T) {
 // nothing to reach, a hold takes the bay; with a process to reach, that
 // process does.
 func TestABayWhosePaneDiedIsRevived(t *testing.T) {
-	m := model{p: Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	_, cmd := m.Update(processesMsg{bay: "ttys009", bayDead: true})
 	if cmd == nil {
 		t.Fatal("no command for a bay whose pane died")
@@ -279,7 +280,7 @@ func TestABayWhosePaneDiedIsRevived(t *testing.T) {
 // readout and a dead pane are passed over, and with nothing to reach
 // there is nothing.
 func TestTheBayTakesTheNextProcessWhenItsOwnEnds(t *testing.T) {
-	m := model{p: Plain, view: viewProcesses, inside: true}
+	m := model{p: draw.Plain, view: viewProcesses, inside: true}
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 1, TTY: "ttys001"}, {PID: 2, TTY: "ttys002"}, {PID: 3, TTY: "ttys003"}, {PID: 4, TTY: "ttys004"},
 	}}}
@@ -493,7 +494,7 @@ func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 
 	// Each digit is on the row it goes to, and on no other; the rest of
 	// the rows keep the commands in one column.
-	rows := drawProcesses(m.processesReport(), m.cursor, tmux.PanelWidth, 0, Plain)
+	rows := drawProcesses(m.processesReport(), m.cursor, tmux.PanelWidth, 0, draw.Plain)
 	for _, want := range []struct {
 		pid int
 		num string
@@ -521,8 +522,8 @@ func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 	} {
 		n := m
 		away(&n)
-		for _, r := range drawProcesses(n.processesReport(), n.cursor, tmux.PanelWidth, 0, Plain) {
-			if r.PID == 22 && strings.Contains(r.Text, MarkContact+" 0") {
+		for _, r := range drawProcesses(n.processesReport(), n.cursor, tmux.PanelWidth, 0, draw.Plain) {
+			if r.PID == 22 && strings.Contains(r.Text, draw.MarkContact+" 0") {
 				t.Errorf("a digit drawn where it is not a key: %q", r.Text)
 			}
 		}
@@ -1683,7 +1684,7 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 	m.view, m.inside = viewProcesses, true
 	next, _ := m.Update(noticeMsg{"the shell could not be opened: tmux swap-pane: can't find pane: %9"})
 	m = next.(model)
-	if text := texts(drawProcesses(m.processesReport(), 0, 48, 30, Plain)); !strings.Contains(text, "SWAP-PANE: CAN'T FIND PANE") {
+	if text := texts(drawProcesses(m.processesReport(), 0, 48, 30, draw.Plain)); !strings.Contains(text, "SWAP-PANE: CAN'T FIND PANE") {
 		t.Errorf("the notice is not under the rows:\n%s", text)
 	}
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "j"}))

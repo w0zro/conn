@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -211,7 +212,7 @@ type model struct {
 	console       console         // the console, as far as it has come on
 	now           time.Time
 	width, height int
-	p             Palette
+	p             draw.Palette
 	g             theme.Ground // the ground conn is on, which the palette is built off and the status line is written from
 
 	view     view
@@ -347,7 +348,7 @@ func newModel(g theme.Ground) model {
 
 		head: station.Station{Build: station.ReadBuild(), Login: station.ReadLogin()},
 		now:  time.Now(),
-		p:    Colored(g).OnSurface(),
+		p:    draw.Colored(g).OnSurface(),
 		g:    g,
 		uid:  os.Getuid(),
 	}
@@ -1382,7 +1383,7 @@ func (m model) cols() int {
 }
 
 func (m model) View() tea.View {
-	var rows []Row
+	var rows []draw.Row
 	width := m.cols()
 	switch {
 	// The manual is in the workspace with the keys in it, and the panel
@@ -1454,6 +1455,6 @@ func (m model) worn() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.g = want.Wear()
-	m.p = Colored(m.g).OnSurface()
+	m.p = draw.Colored(m.g).OnSurface()
 	return m, nil
 }

@@ -1,6 +1,8 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
 // The keys every typed line has, answered in one place: a character
 // goes in at the caret and puts the cursor back on the first row, the
@@ -130,31 +132,4 @@ func TestATypedLineIsEditedLikeReadline(t *testing.T) {
 	// A line filled in from outside is edited from its end.
 	l.set("~/pro")
 	step("backspace", "~/pr", 4)
-}
-
-// The line as drawn keeps the caret on screen. What fits is drawn
-// whole; a filter longer than the room shows its start until the caret
-// goes past it, and a path shows its end until the caret goes before
-// it; a cut end is marked.
-func TestTheDrawnLineKeepsTheCaretOnScreen(t *testing.T) {
-	for _, c := range []struct {
-		text          string
-		caret, room   int
-		path          bool
-		before, after string
-	}{
-		{"conn", 4, 10, false, "conn", ""},
-		{"conn", 1, 10, false, "c", "onn"},
-		{"abcdefghij", 10, 5, false, "…ghij", ""},
-		{"abcdefghij", 0, 5, false, "", "abcd…"},
-		{"abcdefghij", 6, 5, false, "…cde…", ""},
-		{"/a/b/c/d/e", 10, 5, true, "…/d/e", ""},
-		{"/a/b/c/d/e", 0, 5, true, "", "/a/b…"},
-		{"ab", 1, 1, false, "", ""},
-	} {
-		before, after := TypedRuns(c.text, c.caret, c.room, c.path)
-		if before != c.before || after != c.after {
-			t.Errorf("typedRuns(%q, %d, %d, %v) = %q, %q; want %q, %q", c.text, c.caret, c.room, c.path, before, after, c.before, c.after)
-		}
-	}
 }

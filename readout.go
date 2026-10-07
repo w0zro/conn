@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -577,10 +578,10 @@ func stamp(at time.Time) string {
 }
 
 // drawReadout renders the readout for a pane of the given size.
-func drawReadout(b readoutReport, width, height int, p Palette) []Row {
-	width = max(width, PanelMinCols)
-	measure := MeasureOf(width)
-	c := Canvas{P: p, Width: width}
+func drawReadout(b readoutReport, width, height int, p draw.Palette) []draw.Row {
+	width = max(width, draw.PanelMinCols)
+	measure := draw.MeasureOf(width)
+	c := draw.Canvas{P: p, Width: width}
 
 	// A contact's page is a sheet of its own, with no header over it:
 	// who it is stands at the head; see page.go.
@@ -593,7 +594,7 @@ func drawReadout(b readoutReport, width, height int, p Palette) []Row {
 	// which read as a page about a row that does not exist — and a
 	// test on a slow runner took that pid for the row's.
 	if b.pid == 0 && b.name == "" && !b.gone && len(b.groups) == 0 {
-		return PadTo(c, height)
+		return draw.PadTo(c, height)
 	}
 
 	// The header: the view's name, and against the right the pid, which
@@ -617,7 +618,7 @@ func drawReadout(b readoutReport, width, height int, p Palette) []Row {
 		l := c.Line()
 		l.Stamp("The row is no longer listed")
 		c.Emit(l, 0, false)
-		return PadTo(c, height)
+		return draw.PadTo(c, height)
 	}
 
 	// The groups: a title, then a fact a line, the value wrapped rather
@@ -635,7 +636,7 @@ func drawReadout(b readoutReport, width, height int, p Palette) []Row {
 		l.Eyebrow(0, g.title, measure, "")
 		c.Emit(l, 0, false)
 		for _, f := range g.facts {
-			for i, part := range WrapValue(f.value, measure-pageCol-1) {
+			for i, part := range draw.WrapValue(f.value, measure-pageCol-1) {
 				l := c.Line()
 				if i == 0 && f.label != "" {
 					l.Leader(f.label, pageCol-1, p.Faint)
@@ -647,7 +648,7 @@ func drawReadout(b readoutReport, width, height int, p Palette) []Row {
 			}
 		}
 	}
-	return PadTo(c, height)
+	return draw.PadTo(c, height)
 }
 
 // tokens is a count of tokens, in the largest unit that keeps it short:

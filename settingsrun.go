@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -44,7 +45,7 @@ type settingsModel struct {
 	mode          theme.Mode   // the mode conn is in, which the rows note and a pick here changes
 	g             theme.Ground // the ground that mode wears, which the palette is built off and the bar is written from
 	width, height int
-	p             Palette
+	p             draw.Palette
 	at            int    // the row the cursor is on
 	err           string // what went wrong writing the file
 	// The root being typed. asking is whether the line is up at all,
@@ -63,7 +64,7 @@ type settingsModel struct {
 func runSettings(srv *tmux.Server, home string, in theme.Mode) error {
 	g := in.Wear()
 	exe, _ := os.Executable()
-	m := settingsModel{srv: srv, home: home, self: tmux.OwnPane(), exe: exe, mode: in, g: g, p: Colored(g)}
+	m := settingsModel{srv: srv, home: home, self: tmux.OwnPane(), exe: exe, mode: in, g: g, p: draw.Colored(g)}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
 }
@@ -298,7 +299,7 @@ func (m settingsModel) wearing(want theme.Mode) (settingsModel, tea.Cmd) {
 	// on another goroutine would be reading them while the next key
 	// changes them.
 	m.mode, m.g = want, want.Wear()
-	m.p = Colored(m.g)
+	m.p = draw.Colored(m.g)
 	theme.RefreshClaudeTheme(m.home, m.g)
 	theme.RefreshVimColorscheme(m.home, m.g)
 	// Outside the server there is nothing to dress but this conn, and
@@ -349,13 +350,13 @@ func (m settingsModel) saying() tea.Cmd {
 }
 
 func (m settingsModel) View() tea.View {
-	var rows []Row
+	var rows []draw.Row
 	if m.asking {
 		rows = drawRoots(m.rootsReport(), m.root.line.at, max(m.width, 1), m.height, m.p)
 	} else {
 		rows = drawSettings(m.report(), m.at, max(m.width, 1), m.height, m.p)
 	}
-	v := tea.NewView(strings.Join(Texts(rows), "\n"))
+	v := tea.NewView(strings.Join(draw.Texts(rows), "\n"))
 	v.AltScreen = true
 	return v
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/config"
@@ -99,7 +100,7 @@ const (
 
 // drawSessions renders the sessions view for a terminal of the given
 // size, with the cursor on the given row.
-func drawSessions(b sessionsReport, cursor, width, height int, p Palette) []Row {
+func drawSessions(b sessionsReport, cursor, width, height int, p draw.Palette) []draw.Row {
 	// The header: the name of the view, and against the right the count
 	// — of everything found at the project, or of what the filter left out
 	// of it.
@@ -114,7 +115,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p Palette) []Row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	c, measure := Head(word, right, width, p)
+	c, measure := draw.Head(word, right, width, p)
 
 	// The project it is for, the way a project titles its block in the
 	// processes view; the recent view is for every one.
@@ -122,20 +123,20 @@ func drawSessions(b sessionsReport, cursor, width, height int, p Palette) []Row 
 	if b.recent {
 		l.Add(p.Parchment+p.Bold, "Every project")
 	} else {
-		l.Add(p.Parchment+p.Bold, Fit(b.project, measure, true))
+		l.Add(p.Parchment+p.Bold, draw.Fit(b.project, measure, true))
 	}
 	c.Emit(l, 0, false)
 
 	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
 	l = c.Line()
-	before, after := TypedRuns(b.filter, b.caret, measure-findW-2, false)
+	before, after := draw.TypedRuns(b.filter, b.caret, measure-findW-2, false)
 	l.Field(0, measure-findW, "FIND", before, after)
 	c.Emit(l, 0, false)
 
-	var body []Row
+	var body []draw.Row
 	cursorRow := -1
-	d := Canvas{P: p, Width: c.Width}
+	d := draw.Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
 		d.Blank(0)
 		l := d.Line()
@@ -169,7 +170,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p Palette) []Row 
 			if b.recent {
 				first, prompt = b.names[cv.Dir], cmp.Or(cv.Title, cv.Prompt)
 			}
-			l.Add(p.Gray, Fit(first, branchW-1, false))
+			l.Add(p.Gray, draw.Fit(first, branchW-1, false))
 			l.To(branchW)
 			// A session with nothing read of it is named by where it
 			// was had; one with a prompt is named by that instead, since it
@@ -178,7 +179,7 @@ func drawSessions(b sessionsReport, cursor, width, height int, p Palette) []Row 
 			if prompt == "" {
 				prompt, path = config.Tilde(cv.Dir, b.home), true
 			}
-			l.Add(p.Ink, Fit(prompt, promptW, path))
+			l.Add(p.Ink, draw.Fit(prompt, promptW, path))
 			l.To(ageCol)
 			l.Add(p.Gray, work.Age(cv.When, b.now))
 			d.Emit(l, 0, false)

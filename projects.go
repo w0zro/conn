@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -62,7 +63,7 @@ type projectRow struct {
 // title as well as by claude, a server by its port.
 func (p projectRow) words() string {
 	if p.pid != 0 {
-		return strings.Join([]string{p.kind, p.doing, p.command, PortsColumn(p.ports), p.status}, " ")
+		return strings.Join([]string{p.kind, p.doing, p.command, draw.PortsColumn(p.ports), p.status}, " ")
 	}
 	return p.name
 }
@@ -528,7 +529,7 @@ const (
 
 // drawProjects renders the list for a terminal of the given size, with
 // the cursor on the given row.
-func drawProjects(b projectsReport, cursor, width, height int, p Palette) []Row {
+func drawProjects(b projectsReport, cursor, width, height int, p draw.Palette) []draw.Row {
 	// The header: the name of the view, and against the right the count
 	// — of everything, or of what the filter left out of it.
 	right := strconv.Itoa(b.total) + " FOUND"
@@ -538,18 +539,18 @@ func drawProjects(b projectsReport, cursor, width, height int, p Palette) []Row 
 	case b.filter != "":
 		right = strconv.Itoa(len(b.rows)) + " OF " + strconv.Itoa(b.total)
 	}
-	c, measure := Head("PROJECTS", right, width, p)
+	c, measure := draw.Head("PROJECTS", right, width, p)
 
 	// The line typed into: the word, and the filter with the caret in
 	// it, so it is plain that the keys go here.
 	l := c.Line()
-	before, after := TypedRuns(b.filter, b.caret, measure-findW-2, false)
+	before, after := draw.TypedRuns(b.filter, b.caret, measure-findW-2, false)
 	l.Field(0, measure-findW, "FIND", before, after)
 	c.Emit(l, 0, false)
 
-	var body []Row
+	var body []draw.Row
 	cursorRow := -1
-	d := Canvas{P: p, Width: c.Width}
+	d := draw.Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
 		d.Blank(0)
 		l := d.Line()
@@ -596,9 +597,9 @@ func drawProjects(b projectsReport, cursor, width, height int, p Palette) []Row 
 					doingW -= len(work.StatusWaiting) + 3
 				}
 				l.To(in)
-				l.Add(p.Gray, Fit(pr.kind, kindW-1, false))
+				l.Add(p.Gray, draw.Fit(pr.kind, kindW-1, false))
 				l.To(in + kindW)
-				l.Add(p.Ink, Fit(pr.doing, doingW, false))
+				l.Add(p.Ink, draw.Fit(pr.doing, doingW, false))
 				if pr.waiting {
 					l.To(measure - len(work.StatusWaiting) - 2)
 					l.Add(p.Chip, " "+work.StatusWaiting+" ")
@@ -608,14 +609,14 @@ func drawProjects(b projectsReport, cursor, width, height int, p Palette) []Row 
 				if pr.repos != 1 {
 					count += "S"
 				}
-				l.Add(p.Parchment+p.Bold, Fit(pr.name, measure-ansi.StringWidth(count)-2, true))
+				l.Add(p.Parchment+p.Bold, draw.Fit(pr.name, measure-ansi.StringWidth(count)-2, true))
 				l.To(measure - ansi.StringWidth(count))
 				l.Add(p.Gray, count)
 			case pr.grouped:
 				l.To(nestW)
-				l.Add(p.Ink, Fit(pr.name, measure-nestW, true))
+				l.Add(p.Ink, draw.Fit(pr.name, measure-nestW, true))
 			default:
-				l.Add(p.Ink, Fit(pr.name, measure, true))
+				l.Add(p.Ink, draw.Fit(pr.name, measure, true))
 			}
 			d.Emit(l, 0, false)
 		}

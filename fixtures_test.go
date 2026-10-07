@@ -1,10 +1,12 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 )
 
@@ -100,3 +102,10 @@ const brewInfo = `[
   {"name": "redis", "running": false, "loaded": true, "pid": null, "exit_code": 78, "status": "error",
    "command": "/opt/homebrew/opt/redis/bin/redis-server /opt/homebrew/etc/redis.conf", "log_path": "/opt/homebrew/var/log/redis.log"}
 ]`
+
+// The marks a row can wear, for the tests that tell a row from an
+// eyebrow by what stands at the head of it.
+var marks = []string{draw.MarkContact, draw.MarkShell, draw.MarkEditor, draw.MarkService, draw.MarkRun}
+
+// isMark says whether a word is a row's mark.
+func isMark(s string) bool { return slices.Contains(marks, s) }

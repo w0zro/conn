@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/w0zro/conn/internal/config"
+	"github.com/w0zro/conn/internal/draw"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -177,21 +178,21 @@ func completeRoot(typed, home string) []string {
 // drawRoots draws the asking view, in the list's own shape: the header
 // with what conn has, the line being typed into, the directories that
 // answer it, and the chip saying what pressing enter will do.
-func drawRoots(b rootsReport, cursor, width, height int, p Palette) []Row {
+func drawRoots(b rootsReport, cursor, width, height int, p draw.Palette) []draw.Row {
 	right := "NONE SET"
 	if len(b.rows) > 0 {
 		right = strconv.Itoa(len(b.rows)) + " UNDER IT"
 	}
-	c, measure := Head("ROOTS", right, width, p)
+	c, measure := draw.Head("ROOTS", right, width, p)
 
 	l := c.Line()
-	before, after := TypedRuns(b.typed, b.caret, measure-rootsW-2, true)
+	before, after := draw.TypedRuns(b.typed, b.caret, measure-rootsW-2, true)
 	l.Field(0, measure-rootsW, "ROOT", before, after)
 	c.Emit(l, 0, false)
 
-	var body []Row
+	var body []draw.Row
 	cursorRow := -1
-	d := Canvas{P: p, Width: c.Width}
+	d := draw.Canvas{P: p, Width: c.Width}
 	say := func(color, s string) {
 		d.Blank(0)
 		ln := d.Line()
@@ -215,7 +216,7 @@ func drawRoots(b rootsReport, cursor, width, height int, p Palette) []Row {
 				}
 				cursorRow = len(d.Rows)
 			}
-			ln.Add(ln.P.Ink, Fit(dir, measure, true))
+			ln.Add(ln.P.Ink, draw.Fit(dir, measure, true))
 			d.Emit(ln, 0, false)
 		}
 		body = d.Rows

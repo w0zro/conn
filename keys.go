@@ -2,6 +2,8 @@ package main
 
 import (
 	"strings"
+
+	"github.com/w0zro/conn/internal/draw"
 )
 
 // The keys, on the screen. ? used to hand the workspace to the manual
@@ -92,17 +94,17 @@ func keysWidth(keys string) int {
 		if i > 0 {
 			w++
 		}
-		w += KeyWidth(k)
+		w += draw.KeyWidth(k)
 	}
 	return w
 }
 
 // drawKeys renders the card: the view the keys belong to against the
 // right, and under a rule the groups, a heading and its keys each.
-func drawKeys(groups []keyGroup, view string, width, height int, p Palette) []Row {
-	c, measure := Head("KEYS", strings.ToUpper(view), width, p)
+func drawKeys(groups []keyGroup, view string, width, height int, p draw.Palette) []draw.Row {
+	c, measure := draw.Head("KEYS", strings.ToUpper(view), width, p)
 
-	d := Canvas{P: p, Width: c.Width}
+	d := draw.Canvas{P: p, Width: c.Width}
 	for _, g := range groups {
 		col := 0
 		for _, h := range g.keys {
@@ -123,7 +125,7 @@ func drawKeys(groups []keyGroup, view string, width, height int, p Palette) []Ro
 				l.Key(k)
 			}
 			l.To(col)
-			l.Add(p.Ink, Fit(h.does, measure-l.Cells, false))
+			l.Add(p.Ink, draw.Fit(h.does, measure-l.Cells, false))
 			d.Emit(l, 0, false)
 		}
 	}

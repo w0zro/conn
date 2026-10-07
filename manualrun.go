@@ -1,9 +1,11 @@
 package main
 
 import (
+	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/tmux"
+
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // The manual, in a pane of conn's own. conn runs it as `conn manual`,
@@ -24,16 +26,16 @@ type manualModel struct {
 	srv  *tmux.Server
 	path string
 	page viewport.Model
-	p    Palette
+	p    draw.Palette
 }
 
-func newManual(srv *tmux.Server, path string, p Palette) manualModel {
+func newManual(srv *tmux.Server, path string, p draw.Palette) manualModel {
 	page := viewport.New()
 	page.KeyMap = manualKeys()
 	return manualModel{srv: srv, path: path, page: page, p: p}
 }
 
-func runManual(srv *tmux.Server, path string, p Palette) error {
+func runManual(srv *tmux.Server, path string, p draw.Palette) error {
 	_, err := tea.NewProgram(newManual(srv, path, p), programOptions()...).Run()
 	return err
 }
@@ -99,7 +101,7 @@ func (m manualModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // it bold, on the ground; and down to the foot of the pane, on the
 // ground still, where the page is shorter than the pane.
 func (m manualModel) rows(lines []string, width, height int) []string {
-	c := Canvas{P: m.p, Width: max(width, 1)}
+	c := draw.Canvas{P: m.p, Width: max(width, 1)}
 	for _, text := range lines {
 		l := c.Line()
 		for _, run := range manLine(text) {
@@ -114,7 +116,7 @@ func (m manualModel) rows(lines []string, width, height int) []string {
 	for len(c.Rows) < height {
 		c.Blank(0)
 	}
-	return Texts(c.Rows)
+	return draw.Texts(c.Rows)
 }
 
 func (m manualModel) View() tea.View {

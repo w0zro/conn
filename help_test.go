@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -177,7 +178,7 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 	for i := range lines {
 		lines[i] = "line"
 	}
-	m := newManual(nil, "", Plain)
+	m := newManual(nil, "", draw.Plain)
 	m.page.SetWidth(80)
 	m.page.SetHeight(10)
 	m.page.SetContentLines(m.rows(lines, 80, 10))
@@ -417,13 +418,13 @@ func TestTheManPageIsHeldToTheBinary(t *testing.T) {
 // stands three columns in and ends inside the pane, where a line
 // filled to the pane's own width ran past its right edge.
 func TestTheManualIsWrappedInsideTheMargin(t *testing.T) {
-	if got := manWidth(100); got != 100-Margin {
-		t.Errorf("a pane of 100 asks man for %d, want %d", got, 100-Margin)
+	if got := manWidth(100); got != 100-draw.Margin {
+		t.Errorf("a pane of 100 asks man for %d, want %d", got, 100-draw.Margin)
 	}
-	if got := manWidth(40); got != MinCols {
-		t.Errorf("a narrow pane asks man for %d, want the floor %d", got, MinCols)
+	if got := manWidth(40); got != draw.MinCols {
+		t.Errorf("a narrow pane asks man for %d, want the floor %d", got, draw.MinCols)
 	}
-	m := manualModel{p: Plain}
+	m := manualModel{p: draw.Plain}
 	line := strings.Repeat("x", manWidth(100))
 	for _, r := range m.rows([]string{line}, 100, 1) {
 		if w := ansi.StringWidth(r); w > 100 {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/w0zro/conn/internal/config"
@@ -205,31 +206,31 @@ func settingsHints(rows []settingRow, at int) []keyHint {
 
 // drawSettings renders the view for a pane of the given size, with the
 // cursor on the given row.
-func drawSettings(b settingsReport, cursor, width, height int, p Palette) []Row {
+func drawSettings(b settingsReport, cursor, width, height int, p draw.Palette) []draw.Row {
 	// The header: the view, and the file it is of, since a setting that
 	// is not doing what was meant is answered by opening that file and
 	// the operator should not have to be told twice where it is.
-	measure := MeasureAt(max(width, PanelMinCols))
+	measure := draw.MeasureAt(max(width, draw.PanelMinCols))
 	right := b.path
 	if !b.present {
 		right += " · NEW"
 	}
 	if w := measure - ansi.StringWidth("SETTINGS") - 2; ansi.StringWidth(right) > w {
-		right = Fit(right, w, true)
+		right = draw.Fit(right, w, true)
 	}
-	c, _ := Head("SETTINGS", right, width, p)
+	c, _ := draw.Head("SETTINGS", right, width, p)
 
-	d := Canvas{P: p, Width: c.Width}
+	d := draw.Canvas{P: p, Width: c.Width}
 	cursorRow := -1
 	say := func(color, s string) {
 		l := d.Line()
-		l.Add(color, Fit(s, measure, false))
+		l.Add(color, draw.Fit(s, measure, false))
 		d.Emit(l, 0, false)
 	}
 	if b.err != "" {
 		d.Blank(0)
 		l := d.Line()
-		l.Add(p.Chip, " "+strings.ToUpper(Fit(b.err, measure-2, false))+" ")
+		l.Add(p.Chip, " "+strings.ToUpper(draw.Fit(b.err, measure-2, false))+" ")
 		d.Emit(l, 0, false)
 		if len(b.rows) == 0 {
 			d.Blank(0)
@@ -298,7 +299,7 @@ func drawSettings(b settingsReport, cursor, width, height int, p Palette) []Row 
 		if r.kind == addRootSetting {
 			color = l.P.Gray
 		}
-		l.Add(color, Fit(text, room, r.kind == rootSetting))
+		l.Add(color, draw.Fit(text, room, r.kind == rootSetting))
 		// The note against the right, with the console's own leader
 		// carrying the eye to it. On the panel the two were a glance
 		// apart; the settings are worked in the workspace now, and a

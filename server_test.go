@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -240,7 +241,7 @@ func isRow(line string) bool {
 func rowFields(line string) []string {
 	var out []string
 	for _, f := range strings.Fields(line) {
-		f = strings.TrimLeft(f, "▸"+CursorBar+strings.Join(Spinner, ""))
+		f = strings.TrimLeft(f, "▸"+draw.CursorBar+strings.Join(draw.Spinner, ""))
 		if f == "" {
 			continue
 		}

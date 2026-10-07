@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 )
 
@@ -37,10 +38,10 @@ func testLog(fresh int) logReport {
 }
 
 func TestTheLogViewMatchesTheGolden(t *testing.T) {
-	golden(t, "log-48x30.txt", texts(drawLog(testLog(2), 0, 48, 30, Plain)))
-	golden(t, "log-cursor-48x30.txt", texts(drawLog(testLog(0), 5, 48, 30, Plain)))
+	golden(t, "log-48x30.txt", texts(drawLog(testLog(2), 0, 48, 30, draw.Plain)))
+	golden(t, "log-cursor-48x30.txt", texts(drawLog(testLog(0), 5, 48, 30, draw.Plain)))
 	empty := composeLog(nil, 0, nil, nil, "/Users/w0zro", logNow)
-	golden(t, "log-empty-48x30.txt", texts(drawLog(empty, 0, 48, 30, Plain)))
+	golden(t, "log-empty-48x30.txt", texts(drawLog(empty, 0, 48, 30, draw.Plain)))
 }
 
 func TestTheLogIsNewestFirstUnderItsDays(t *testing.T) {
@@ -69,7 +70,7 @@ func TestTheLogIsNewestFirstUnderItsDays(t *testing.T) {
 }
 
 func TestLOpensTheLogAndLAgainCloses(t *testing.T) {
-	m := model{p: Plain, width: 48, height: 40, view: viewProcesses}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses}
 	m.log.unseen = 3
 	m, _ = m.key("l")
 	if m.view != viewLog {
@@ -119,7 +120,7 @@ func TestAReadingWritesTheLogAndTheBandCounts(t *testing.T) {
 	second := []work.Project{{Path: "/Users/w0zro/projects/web", Entries: []work.Entry{
 		{PID: 10, Kind: work.KindContact, Command: "claude", Title: "the station log", Status: work.StatusWaiting, Started: began},
 	}}}
-	m := model{p: Plain, width: 48, height: 40, view: viewProcesses}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses}
 	// The first reading is read against nothing.
 	m, _ = m.logging(processesMsg{projects: first, tree: first})
 	if m.log.unseen != 0 || !m.seenAny {

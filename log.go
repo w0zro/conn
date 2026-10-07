@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -285,18 +286,18 @@ const (
 
 // drawLog renders the log view for a terminal of the given size, with
 // the cursor on the given line from the newest.
-func drawLog(b logReport, cursor, width, height int, p Palette) []Row {
+func drawLog(b logReport, cursor, width, height int, p draw.Palette) []draw.Row {
 	// The header: the name of the view, and against the right how many
 	// lines are new since it was last opened, or how many there are.
 	right := strconv.Itoa(b.total) + " LINES"
 	if b.fresh > 0 {
 		right = strconv.Itoa(b.fresh) + " NEW"
 	}
-	c, measure := Head("LOG", right, width, p)
+	c, measure := draw.Head("LOG", right, width, p)
 
-	var body []Row
+	var body []draw.Row
 	cursorRow := -1
-	d := Canvas{P: p, Width: c.Width}
+	d := draw.Canvas{P: p, Width: c.Width}
 	if len(b.rows) == 0 {
 		d.Blank(0)
 		l := d.Line()
@@ -310,7 +311,7 @@ func drawLog(b logReport, cursor, width, height int, p Palette) []Row {
 	for _, r := range b.rows {
 		w := ansi.StringWidth(r.word)
 		if r.word == work.StatusWaiting || work.Faulty(r.word) {
-			w = StampWidth(r.word, p)
+			w = draw.StampWidth(r.word, p)
 		}
 		wordW = max(wordW, w)
 	}
@@ -326,7 +327,7 @@ func drawLog(b logReport, cursor, width, height int, p Palette) []Row {
 		l := d.Line()
 		if i == cursor {
 			l.P = p.Chosen()
-			l.Mark = CursorBar
+			l.Mark = draw.CursorBar
 			if p.Plain {
 				l.Mark = "▸"
 			}
@@ -338,17 +339,17 @@ func drawLog(b logReport, cursor, width, height int, p Palette) []Row {
 		}
 		l.Add(p.Gray, r.at.Format("15:04"))
 		l.To(logTimeW + 1)
-		l.Add(p.Gray, Fit(r.project, logProjectW-1, true))
+		l.Add(p.Gray, draw.Fit(r.project, logProjectW-1, true))
 		l.To(logTimeW + 1 + logProjectW)
 		labelW := measure - l.Cells - wordW - 1
 		if r.alive {
-			l.Add(ink+p.Bold, Fit(r.label, labelW, false))
+			l.Add(ink+p.Bold, draw.Fit(r.label, labelW, false))
 		} else {
-			l.Add(ink, Fit(r.label, labelW, false))
+			l.Add(ink, draw.Fit(r.label, labelW, false))
 		}
 		switch {
 		case r.word == work.StatusWaiting || work.Faulty(r.word):
-			l.To(measure - StampWidth(r.word, p))
+			l.To(measure - draw.StampWidth(r.word, p))
 			l.Stamp(r.word)
 		default:
 			l.To(measure - ansi.StringWidth(r.word))
@@ -363,7 +364,7 @@ func drawLog(b logReport, cursor, width, height int, p Palette) []Row {
 				l.P = p.Chosen()
 			}
 			l.To(logTimeW + 1 + logProjectW)
-			l.Add(p.Gray, Fit(r.note, measure-l.Cells, false))
+			l.Add(p.Gray, draw.Fit(r.note, measure-l.Cells, false))
 			d.Emit(l, 0, false)
 		}
 	}

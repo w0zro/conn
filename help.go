@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/w0zro/conn/internal/config"
+	"github.com/w0zro/conn/internal/draw"
 )
 
 // The manual conn carries: man/conn.1, written by hand and built into
@@ -60,7 +61,7 @@ func manText(path string, width int) []string {
 // past the pane's right edge; and never under the console's width,
 // which is as narrow as the page reads.
 func manWidth(width int) int {
-	return max(width-Margin, MinCols)
+	return max(width-draw.Margin, draw.MinCols)
 }
 
 // A run of the manual's text: what it says, and whether man set it

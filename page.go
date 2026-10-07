@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -303,26 +304,26 @@ const (
 // drawContact draws the sheet at a width: two columns where there is
 // room for them, the sheet on the left and the specifications on the
 // right; one column otherwise, the specifications under the sheet.
-func drawContact(b readoutReport, c contactPage, width, height int, p Palette) []Row {
-	width = max(width, PanelMinCols)
-	measure := MeasureOf(width)
+func drawContact(b readoutReport, c contactPage, width, height int, p draw.Palette) []draw.Row {
+	width = max(width, draw.PanelMinCols)
+	measure := draw.MeasureOf(width)
 	if width < twoColumns {
-		cv := Canvas{P: p, Width: width}
+		cv := draw.Canvas{P: p, Width: width}
 		cv.Rows = append(cv.Rows, drawSheet(c, measure, width, p)...)
 		cv.Rows = append(cv.Rows, drawSpecs(c, measure, width, p)...)
-		return PadTo(cv, height)
+		return draw.PadTo(cv, height)
 	}
 	// Side by side: each column is a canvas of its own width, framed
 	// with its own margins, and a row of the page is a row of each
 	// joined. A plain row is trimmed as it is framed, so the left is
 	// padded back out to its width before the right is put after it.
-	rightW := specW + 2*Margin
+	rightW := specW + 2*draw.Margin
 	leftW := width - rightW
-	left := drawSheet(c, leftW-2*Margin, leftW, p)
+	left := drawSheet(c, leftW-2*draw.Margin, leftW, p)
 	right := drawSpecs(c, specW, rightW, p)
-	cv := Canvas{P: p, Width: width}
+	cv := draw.Canvas{P: p, Width: width}
 	for i := 0; i < max(len(left), len(right)); i++ {
-		l, r := BlankRow(p, leftW), ""
+		l, r := draw.BlankRow(p, leftW), ""
 		if i < len(left) {
 			l = left[i].Text
 		}
@@ -331,24 +332,24 @@ func drawContact(b readoutReport, c contactPage, width, height int, p Palette) [
 		}
 		if p.Plain {
 			l += strings.Repeat(" ", max(leftW-ansi.StringWidth(l), 0))
-			cv.Rows = append(cv.Rows, Row{Text: strings.TrimRight(l+r, " ")})
+			cv.Rows = append(cv.Rows, draw.Row{Text: strings.TrimRight(l+r, " ")})
 			continue
 		}
 		if r == "" {
-			r = BlankRow(p, rightW)
+			r = draw.BlankRow(p, rightW)
 		}
-		cv.Rows = append(cv.Rows, Row{Text: l + r})
+		cv.Rows = append(cv.Rows, draw.Row{Text: l + r})
 	}
-	return PadTo(cv, height)
+	return draw.PadTo(cv, height)
 }
 
 // drawSheet is the left of the page: who, the card, the procedure, the
 // caution and the story, at a width of its own.
-func drawSheet(c contactPage, measure, width int, p Palette) []Row {
-	cv := Canvas{P: p, Width: width}
+func drawSheet(c contactPage, measure, width int, p draw.Palette) []draw.Row {
+	cv := draw.Canvas{P: p, Width: width}
 	blank := func() { cv.Blank(0) }
-	newLine := func() *Line { return cv.Line() }
-	emit := func(l *Line) { cv.Emit(l, 0, false) }
+	newLine := func() *draw.Line { return cv.Line() }
+	emit := func(l *draw.Line) { cv.Emit(l, 0, false) }
 
 	blank()
 	l := newLine()
@@ -360,30 +361,30 @@ func drawSheet(c contactPage, measure, width int, p Palette) []Row {
 	l.Add("", "  ")
 	l.Add(p.Ink+p.Bold, c.name)
 	if c.where != "" {
-		l.Add(p.Gray, "   "+Fit(c.where, measure-l.Cells-3, true))
+		l.Add(p.Gray, "   "+draw.Fit(c.where, measure-l.Cells-3, true))
 	}
 	emit(l)
 	if c.with != "" {
 		l = newLine()
 		l.To(ansi.StringWidth(c.badge) + 4)
-		l.Add(p.Faint, Fit(c.with, measure-l.Cells, false))
+		l.Add(p.Faint, draw.Fit(c.with, measure-l.Cells, false))
 		emit(l)
 	}
 
 	if c.waiting {
 		blank()
-		cv.Card(CardAbove, 0, measure, 0)
-		cardLine := func(parts ...func(*Line)) {
+		cv.Card(draw.CardAbove, 0, measure, 0)
+		cardLine := func(parts ...func(*draw.Line)) {
 			l := newLine()
 			l.P = p.Lifted()
-			l.Add(l.P.Orange+l.P.Bold, CursorBar)
+			l.Add(l.P.Orange+l.P.Bold, draw.CursorBar)
 			l.Add("", "  ")
 			for _, part := range parts {
 				part(l)
 			}
 			emit(l)
 		}
-		cardLine(func(l *Line) {
+		cardLine(func(l *draw.Line) {
 			l.Add(l.P.Orange+l.P.Bold, "WAITING FOR YOU")
 			if c.waited != "" {
 				l.To(measure - ansi.StringWidth(c.waited))
@@ -392,19 +393,19 @@ func drawSheet(c contactPage, measure, width int, p Palette) []Row {
 		})
 		if c.asked != "" {
 			cardLine()
-			for _, part := range WrapValue("“"+c.asked+"”", measure-4) {
-				cardLine(func(l *Line) { l.Add(l.P.Ink+l.P.Bold, part) })
+			for _, part := range draw.WrapValue("“"+c.asked+"”", measure-4) {
+				cardLine(func(l *draw.Line) { l.Add(l.P.Ink+l.P.Bold, part) })
 			}
 		}
 		if c.askedWith != "" {
 			cardLine()
-			cardLine(func(l *Line) { l.Add(l.P.Gray, Fit(c.askedWith, measure-3, false)) })
+			cardLine(func(l *draw.Line) { l.Add(l.P.Gray, draw.Fit(c.askedWith, measure-3, false)) })
 		}
-		cv.Card(CardBelow, 0, measure, 0)
+		cv.Card(draw.CardBelow, 0, measure, 0)
 	} else if c.standing != "" {
 		blank()
 		l = newLine()
-		l.Add(p.Gray, Fit(c.standing, measure, false))
+		l.Add(p.Gray, draw.Fit(c.standing, measure, false))
 		emit(l)
 	}
 
@@ -415,7 +416,7 @@ func drawSheet(c contactPage, measure, width int, p Palette) []Row {
 	blank()
 	keyCol := 0
 	for _, h := range c.procedure {
-		keyCol = max(keyCol, KeyWidth(h.key)+3)
+		keyCol = max(keyCol, draw.KeyWidth(h.key)+3)
 	}
 	for i, h := range c.procedure {
 		l = newLine()
@@ -423,7 +424,7 @@ func drawSheet(c contactPage, measure, width int, p Palette) []Row {
 		l.To(4)
 		l.Key(h.key)
 		l.To(4 + keyCol)
-		l.Add(p.Ink, Fit(h.does, measure-l.Cells, false))
+		l.Add(p.Ink, draw.Fit(h.does, measure-l.Cells, false))
 		emit(l)
 	}
 
@@ -433,7 +434,7 @@ func drawSheet(c contactPage, measure, width int, p Palette) []Row {
 		l.EyebrowIn(p.Orange+p.Bold, 0, "CAUTION", measure, "")
 		emit(l)
 		blank()
-		for _, part := range WrapValue(c.caution, measure) {
+		for _, part := range draw.WrapValue(c.caution, measure) {
 			l = newLine()
 			l.Add(p.Ink, part)
 			emit(l)
@@ -484,11 +485,11 @@ func drawSheet(c contactPage, measure, width int, p Palette) []Row {
 				emit(l)
 				l = newLine()
 			}
-			l.Add(p.Gray, Fit(caption, measure, false))
+			l.Add(p.Gray, draw.Fit(caption, measure, false))
 			emit(l)
 			blank()
 		}
-		for _, part := range WrapValue(c.story, measure) {
+		for _, part := range draw.WrapValue(c.story, measure) {
 			l = newLine()
 			l.Add(p.Gray, part)
 			emit(l)
@@ -499,8 +500,8 @@ func drawSheet(c contactPage, measure, width int, p Palette) []Row {
 
 // drawSpecs is the specifications: the eyebrow, and the figures with
 // leaders under it, a row of air where the sheet leaves one.
-func drawSpecs(c contactPage, measure, width int, p Palette) []Row {
-	cv := Canvas{P: p, Width: width}
+func drawSpecs(c contactPage, measure, width int, p draw.Palette) []draw.Row {
+	cv := draw.Canvas{P: p, Width: width}
 	cv.Blank(0)
 	l := cv.Line()
 	l.Eyebrow(0, "SPECIFICATIONS", measure, "")
@@ -511,7 +512,7 @@ func drawSpecs(c contactPage, measure, width int, p Palette) []Row {
 			cv.Blank(0)
 			continue
 		}
-		for i, part := range WrapValue(f.value, measure-specCol) {
+		for i, part := range draw.WrapValue(f.value, measure-specCol) {
 			l := cv.Line()
 			if i == 0 && f.label != " " {
 				l.Leader(f.label, specCol-1, p.Border)

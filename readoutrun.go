@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -60,7 +61,7 @@ type readoutModel struct {
 	cursor        string // where the panel publishes it
 	note          string // what the panel last said there, to tell a change by
 	width, height int
-	p             Palette
+	p             draw.Palette
 	report        readoutReport
 	table         readoutTable // what the page was last composed out of
 	read          time.Time    // when the subject was last asked after in full
@@ -80,7 +81,7 @@ type readoutReadMsg struct {
 	ok     bool // the subject was found, and the report is about it
 }
 
-func runReadout(srv *tmux.Server, pid int, home string, p Palette) error {
+func runReadout(srv *tmux.Server, pid int, home string, p draw.Palette) error {
 	m := readoutModel{srv: srv, at: subject{pid: pid}, follow: pid == 0, cursor: cursorPath(home), p: p,
 		report: readoutReport{pid: pid}}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
@@ -363,7 +364,7 @@ func subjectOf(pid int, projects []work.Project, records map[int]record) (readou
 
 func (m readoutModel) View() tea.View {
 	rows := drawReadout(m.report, max(m.width, 1), m.height, m.p)
-	v := tea.NewView(strings.Join(Texts(rows), "\n"))
+	v := tea.NewView(strings.Join(draw.Texts(rows), "\n"))
 	v.AltScreen = true
 	return v
 }

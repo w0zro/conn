@@ -1,7 +1,6 @@
-package main
+package draw
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -9,7 +8,7 @@ import (
 )
 
 // drawn is what a piece comes to on a line, in a palette: the row as
-// emit frames it, which is what a view puts on the screen.
+// Emit frames it, which is what a view puts on the screen.
 func drawn(p Palette, width int, draw func(*Line)) string {
 	c := Canvas{P: p, Width: width}
 	l := c.Line()
@@ -153,9 +152,5 @@ func TestTheSurfaceIsNotTheSelection(t *testing.T) {
 	}
 }
 
-// The marks a row can wear, for the tests that tell a row from an
-// eyebrow by what stands at the head of it.
+// The marks a row can wear.
 var marks = []string{MarkContact, MarkShell, MarkEditor, MarkService, MarkRun}
-
-// isMark says whether a word is a row's mark.
-func isMark(s string) bool { return slices.Contains(marks, s) }

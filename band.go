@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -266,7 +267,7 @@ func (m model) bar() string {
 	// The port itself is the word: the bar has enter saying Open beside
 	// it, and what tells the two apart is that this one names a port.
 	if ok && serving(e) {
-		hints = append(hints, keyHint{"o", "Open " + PortsColumn(e.Ports[:1])})
+		hints = append(hints, keyHint{"o", "Open " + draw.PortsColumn(e.Ports[:1])})
 	}
 	if ok && m.endOn(e) != nil {
 		hints = append(hints, keyHint{"x", "End it"})

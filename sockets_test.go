@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 )
 
@@ -22,7 +23,7 @@ func TestThePageSaysWhatARowListensOn(t *testing.T) {
 		{Proto: "UDP", Addr: "*:*", State: ""},
 		{Proto: "unix", Addr: "/tmp/dev.sock", State: ""},
 	}
-	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain))
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, draw.Plain))
 	for _, want := range []string{"SOCKETS", "Listens ... TCP *:5173", "Connected . TCP 127.0.0.1:5173->127.0.0.1:60322", "Unix ...... /tmp/dev.sock"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page lacks %q:\n%s", want, text)
@@ -35,7 +36,7 @@ func TestThePageSaysWhatARowListensOn(t *testing.T) {
 		t.Errorf("what listens is not said first:\n%s", text)
 	}
 	s.entry.Sockets = nil
-	if quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, Plain)); strings.Contains(quiet, "SOCKETS") {
+	if quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, draw.Plain)); strings.Contains(quiet, "SOCKETS") {
 		t.Errorf("a row with nothing open has a sockets group:\n%s", quiet)
 	}
 }

@@ -82,11 +82,11 @@ type readoutReport struct {
 // to report.
 type readoutGroup struct {
 	title string
-	facts []fact
+	facts []draw.Fact
 }
 
 // pageCol is where a value starts on the page, from the margin.
-const pageCol = factCol
+const pageCol = draw.FactCol
 
 // labelW is the widest a label may be. The leader pads to pageCol-1
 // and then adds a space, so a label that fills the field leaves one dot
@@ -100,7 +100,7 @@ const labelW = pageCol - 3
 // with an empty value after it says less than no label at all.
 func (g *readoutGroup) add(label, value string) {
 	if value != "" {
-		g.facts = append(g.facts, fact{label: label, value: value})
+		g.facts = append(g.facts, draw.Fact{Label: label, Value: value})
 	}
 }
 
@@ -114,7 +114,7 @@ func (g *readoutGroup) addAsWritten(label, value string) {
 	// start those lines at column nothing, under the leaders rather
 	// than beside them.
 	if value = work.Flatten(value); value != "" {
-		g.facts = append(g.facts, fact{label: label, value: value, verbatim: true})
+		g.facts = append(g.facts, draw.Fact{Label: label, Value: value, Verbatim: true})
 	}
 }
 
@@ -122,7 +122,7 @@ func (g *readoutGroup) addAsWritten(label, value string) {
 // the head when it has to be, the tail being the telling part.
 func (g *readoutGroup) addPath(label, value string) {
 	if value != "" {
-		g.facts = append(g.facts, fact{label: label, value: value, path: true})
+		g.facts = append(g.facts, draw.Fact{Label: label, Value: value, Path: true})
 	}
 }
 
@@ -203,7 +203,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	what.add("Status", status)
 	what.add("State", stateWord(s.proc.state, s.proc.foreground))
 	if !e.Started.IsZero() {
-		what.add("Up", join(" · ", elapsed(e.Started, now), "since "+stamp(e.Started)))
+		what.add("Up", draw.Join(" · ", elapsed(e.Started, now), "since "+stamp(e.Started)))
 	}
 	// What it has actually spent, which is the measure behind WORKING and
 	// is nowhere in the processes view. Under a second is none worth
@@ -255,7 +255,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// it is, which is the first thing anybody asks of a thing that
 	// answers back.
 	if a, ok := work.Contacts[work.Program(e.AsTyped())]; ok {
-		contact.add("With", join(" · ", a.Name, a.Maker))
+		contact.add("With", draw.Join(" · ", a.Name, a.Maker))
 	}
 	// Which model is answering, by the name the API knows it by. A
 	// session can change model part way through, so this is the one
@@ -327,10 +327,10 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		if i > 0 {
 			label = ""
 		}
-		tree.facts = append(tree.facts, fact{
-			label:    label,
-			value:    work.Said(k.Kind) + " " + work.Program(k.AsTyped()) + " · " + strconv.Itoa(k.PID) + " · " + work.Said(k.Status),
-			verbatim: true,
+		tree.facts = append(tree.facts, draw.Fact{
+			Label:    label,
+			Value:    work.Said(k.Kind) + " " + work.Program(k.AsTyped()) + " · " + strconv.Itoa(k.PID) + " · " + work.Said(k.Status),
+			Verbatim: true,
 		})
 	}
 	b.groups = append(b.groups, tree)
@@ -409,7 +409,7 @@ func socketGroup(sockets []work.Socket) readoutGroup {
 			if i > 0 {
 				label = ""
 			}
-			g.facts = append(g.facts, fact{label: label, value: line, verbatim: true})
+			g.facts = append(g.facts, draw.Fact{Label: label, Value: line, Verbatim: true})
 		}
 	}
 	return g
@@ -436,12 +436,12 @@ func gitGroups(git gitStatus, now time.Time) []readoutGroup {
 			branch = "detached"
 		}
 		if git.dirty > 0 {
-			branch = join(" · ", branch, strconv.Itoa(git.dirty)+" changed")
+			branch = draw.Join(" · ", branch, strconv.Itoa(git.dirty)+" changed")
 		} else {
-			branch = join(" · ", branch, "clean")
+			branch = draw.Join(" · ", branch, "clean")
 		}
 		g.add("Branch", branch)
-		g.addAsWritten("Commit", join(" · ", git.commit, git.subject))
+		g.addAsWritten("Commit", draw.Join(" · ", git.commit, git.subject))
 		g.add("Committed", elapsed(git.when, now)+" ago")
 		// Against what it tracks, when it tracks anything: a branch with
 		// no upstream is not behind by nothing, there is nothing for it
@@ -488,10 +488,10 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 			if len(running.facts) == 0 {
 				label = "Rows"
 			}
-			running.facts = append(running.facts, fact{
-				label:    label,
-				value:    strings.Repeat("  ", e.Depth) + work.Said(e.Kind) + " " + activityOf(e) + " · " + strconv.Itoa(e.PID) + " · " + work.Said(e.Status),
-				verbatim: true,
+			running.facts = append(running.facts, draw.Fact{
+				Label:    label,
+				Value:    strings.Repeat("  ", e.Depth) + work.Said(e.Kind) + " " + activityOf(e) + " · " + strconv.Itoa(e.PID) + " · " + work.Said(e.Status),
+				Verbatim: true,
 			})
 		}
 	}
@@ -510,7 +510,7 @@ func composeSession(c work.Session, t readoutTable, home string, now time.Time) 
 	what := readoutGroup{title: "WHAT"}
 	what.add("Kind", work.Said("SESSION"))
 	if a, ok := work.Contacts[work.ContactProgram]; ok {
-		what.add("With", join(" · ", a.Name, a.Maker))
+		what.add("With", draw.Join(" · ", a.Name, a.Maker))
 	}
 	if !c.When.IsZero() {
 		what.add("Moved", elapsed(c.When, now)+" ago · "+stamp(c.When))
@@ -636,10 +636,10 @@ func drawReadout(b readoutReport, width, height int, p draw.Palette) []draw.Row 
 		l.Eyebrow(0, g.title, measure, "")
 		c.Emit(l, 0, false)
 		for _, f := range g.facts {
-			for i, part := range draw.WrapValue(f.value, measure-pageCol-1) {
+			for i, part := range draw.WrapValue(f.Value, measure-pageCol-1) {
 				l := c.Line()
-				if i == 0 && f.label != "" {
-					l.Leader(f.label, pageCol-1, p.Faint)
+				if i == 0 && f.Label != "" {
+					l.Leader(f.Label, pageCol-1, p.Faint)
 				} else {
 					l.To(pageCol)
 				}

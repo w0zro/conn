@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
@@ -55,5 +56,5 @@ func keyBar(hints []keyHint, g theme.Ground) string {
 // host in capitals, and the conn that is running.
 func designation(host, version string, g theme.Ground) string {
 	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", g.Surface, g.Gray,
-		strings.ReplaceAll(join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version)), "#", "##"))
+		strings.ReplaceAll(draw.Join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version)), "#", "##"))
 }

@@ -7,24 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/station"
 
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/w0zro/conn/internal/config"
 )
-
-// A fact is a line of the readout: what is reported and what was found.
-// A path is shown as it is, where every other value is set in capitals.
-type fact struct {
-	label, value string
-	path         bool
-	// The value is the world's text rather than conn's own vocabulary —
-	// a command line, something typed — and is kept as it was written.
-	// Paths are kept too, but they are kept and elided head-first,
-	// which is a path's own business and not this.
-	verbatim bool
-}
 
 // A check is a line of the start-up checks: what was checked, what was
 // found, the word for how it stands, and whether that is a fault.
@@ -79,7 +68,7 @@ const (
 // can fail at. The screen adds its own check, since it knows its size.
 type report struct {
 	version, note, build, station, term, clock string
-	system, login                              []fact
+	system, login                              []draw.Fact
 	checks                                     []check
 	// The verdict's chip is an annunciator: lit on one second, dark on
 	// the next, while the console is up. Everywhere else — a pipe, a
@@ -160,19 +149,19 @@ func buildLine(b station.Build) string {
 	if b.Modified {
 		modified = "MODIFIED"
 	}
-	return join(" · ", b.Commit, when, modified)
+	return draw.Join(" · ", b.Commit, when, modified)
 }
 
 // systemFacts is the machine: what it is, what it has, and how it is
 // doing.
-func systemFacts(st station.Station, now time.Time) []fact {
+func systemFacts(st station.Station, now time.Time) []draw.Fact {
 	m := st.Machine
 	system := m.System
 	if m.SystemBuild != "" {
 		system += " (" + m.SystemBuild + ")"
 	}
 	if m.Virtual != "" {
-		system = join(" ", system, "("+m.Virtual+")")
+		system = draw.Join(" ", system, "("+m.Virtual+")")
 	}
 	cores := ""
 	if m.CPUs > 0 {
@@ -182,7 +171,7 @@ func systemFacts(st station.Station, now time.Time) []fact {
 		}
 	}
 	if m.Rosetta {
-		cores = join(" · ", cores, "UNDER ROSETTA")
+		cores = draw.Join(" · ", cores, "UNDER ROSETTA")
 	}
 	memory := gigabytes(m.Memory, 1<<30)
 	if memory != "" && m.Available >= 0 {
@@ -218,23 +207,23 @@ func systemFacts(st station.Station, now time.Time) []fact {
 	// The host is not here. It is on the header, in the station's own
 	// name, and a column that said it again would be the second place
 	// to read one fact.
-	return kept([]fact{
-		{label: "SYSTEM", value: system},
-		{label: "KERNEL", value: join(" · ", m.Kernel, pageSize(m.Page))},
-		{label: "MODEL", value: m.Model},
-		{label: "CPU", value: join(" · ", m.Processor, cores)},
-		{label: "MEMORY", value: memory},
-		{label: "SWAP", value: swap},
-		{label: "VOLUME", value: join(" · ", st.Volume.FS, gigabytes(st.Volume.Total, 1e9))},
-		{label: "UPTIME", value: up},
-		{label: "PROCESSES", value: processes},
-		{label: "SIP", value: sip},
+	return kept([]draw.Fact{
+		{Label: "SYSTEM", Value: system},
+		{Label: "KERNEL", Value: draw.Join(" · ", m.Kernel, pageSize(m.Page))},
+		{Label: "MODEL", Value: m.Model},
+		{Label: "CPU", Value: draw.Join(" · ", m.Processor, cores)},
+		{Label: "MEMORY", Value: memory},
+		{Label: "SWAP", Value: swap},
+		{Label: "VOLUME", Value: draw.Join(" · ", st.Volume.FS, gigabytes(st.Volume.Total, 1e9))},
+		{Label: "UPTIME", Value: up},
+		{Label: "PROCESSES", Value: processes},
+		{Label: "SIP", Value: sip},
 	})
 }
 
 // sessionFacts is who is at the station and how: the user, the shell,
 // the terminal, where and when, and the conn that is running.
-func sessionFacts(s station.Login, now time.Time) []fact {
+func sessionFacts(s station.Login, now time.Time) []draw.Fact {
 	// Who, likewise, is on the header. What is left is what the header
 	// does not carry: which user that is to the kernel, and whether
 	// they can act as one.
@@ -243,15 +232,15 @@ func sessionFacts(s station.Login, now time.Time) []fact {
 		userLine = "UID " + s.UID
 	}
 	if s.Admin {
-		userLine = join(" · ", userLine, "ADMIN")
+		userLine = draw.Join(" · ", userLine, "ADMIN")
 	}
 	shell := ""
 	if s.Shell != "" {
-		shell = join(" ", filepath.Base(s.Shell), s.ShellVer)
+		shell = draw.Join(" ", filepath.Base(s.Shell), s.ShellVer)
 	}
-	terminal := join(" ", s.Terminal, s.TerminalVer)
+	terminal := draw.Join(" ", s.Terminal, s.TerminalVer)
 	if s.Tmux {
-		terminal = join(" · ", terminal, "IN TMUX")
+		terminal = draw.Join(" · ", terminal, "IN TMUX")
 	}
 	sessionLine := ""
 	if s.SSHFrom != "" {
@@ -259,7 +248,7 @@ func sessionFacts(s station.Login, now time.Time) []fact {
 	}
 	binary := ""
 	if s.Exe != "" {
-		binary = join(" · ", config.Tilde(s.Exe, s.Home), sizeShort(uint64(s.ExeSize)))
+		binary = draw.Join(" · ", config.Tilde(s.Exe, s.Home), sizeShort(uint64(s.ExeSize)))
 	}
 	process := ""
 	if s.PID > 0 {
@@ -273,19 +262,19 @@ func sessionFacts(s station.Login, now time.Time) []fact {
 	if s.EnvCount > 0 {
 		env = fmt.Sprintf("%d VARIABLES · PATH %d ENTRIES", s.EnvCount, s.PathCount)
 	}
-	return kept([]fact{
-		{label: "USER", value: userLine},
-		{label: "SHELL", value: shell},
-		{label: "TTY", value: s.TTY},
-		{label: "TERMINAL", value: terminal},
-		{label: "SESSION", value: sessionLine},
-		{label: "LOCALE", value: s.Lang},
-		{label: "TIME ZONE", value: timeZone(s.Zone, now)},
-		{label: "CWD", value: config.Tilde(s.Cwd, s.Home), path: true},
-		{label: "PROCESS", value: process},
-		{label: "ENV", value: env},
-		{label: "RUNTIME", value: join(" · ", s.GoVersion, s.Platform, threads)},
-		{label: "BINARY", value: binary, path: true},
+	return kept([]draw.Fact{
+		{Label: "USER", Value: userLine},
+		{Label: "SHELL", Value: shell},
+		{Label: "TTY", Value: s.TTY},
+		{Label: "TERMINAL", Value: terminal},
+		{Label: "SESSION", Value: sessionLine},
+		{Label: "LOCALE", Value: s.Lang},
+		{Label: "TIME ZONE", Value: timeZone(s.Zone, now)},
+		{Label: "CWD", Value: config.Tilde(s.Cwd, s.Home), Path: true},
+		{Label: "PROCESS", Value: process},
+		{Label: "ENV", Value: env},
+		{Label: "RUNTIME", Value: draw.Join(" · ", s.GoVersion, s.Platform, threads)},
+		{Label: "BINARY", Value: binary, Path: true},
 	})
 }
 
@@ -300,7 +289,7 @@ func timeZone(name string, now time.Time) string {
 	if name == "" {
 		name = abbr
 	}
-	return join(" · ", name, utc, now.Format("15:04")+" LOCAL")
+	return draw.Join(" · ", name, utc, now.Format("15:04")+" LOCAL")
 }
 
 // stateCheck is where conn keeps its state: the directory, or the one it
@@ -332,7 +321,7 @@ func stateCheck(s station.StateDir, home string) check {
 func configCheck(c config.State, home string) check {
 	k := check{label: "CONFIG", value: config.Tilde(c.Path, home), path: true, status: nominal}
 	if c.Source == config.RootsEnv {
-		k.value = join(" · ", k.value, "CONN_ROOTS IN FORCE")
+		k.value = draw.Join(" · ", k.value, "CONN_ROOTS IN FORCE")
 	}
 	// A station nothing was read of has no config to report on, and a
 	// fault is a claim conn cannot back up.
@@ -474,7 +463,7 @@ func powerCheck(p station.Power) check {
 	}
 	value := source
 	if p.Percent >= 0 {
-		value = join(" · ", source, strconv.Itoa(p.Percent)+"%", p.State)
+		value = draw.Join(" · ", source, strconv.Itoa(p.Percent)+"%", p.State)
 		switch {
 		case p.Remaining != "" && p.State == "discharging":
 			value += " · " + p.Remaining + " LEFT"
@@ -503,10 +492,10 @@ func clockCheck(b station.Build, now time.Time) check {
 }
 
 // kept is the facts with something to say.
-func kept(facts []fact) []fact {
-	var out []fact
+func kept(facts []draw.Fact) []draw.Fact {
+	var out []draw.Fact
 	for _, f := range facts {
-		if strings.TrimSpace(f.value) != "" {
+		if strings.TrimSpace(f.Value) != "" {
 			out = append(out, f)
 		}
 	}
@@ -567,15 +556,4 @@ func pageSize(bytes int) string {
 		return strconv.Itoa(bytes/1024) + " KB PAGES"
 	}
 	return ""
-}
-
-// join is the parts that are not empty, with the separator between.
-func join(sep string, parts ...string) string {
-	var kept []string
-	for _, p := range parts {
-		if p = strings.TrimSpace(p); p != "" {
-			kept = append(kept, p)
-		}
-	}
-	return strings.Join(kept, sep)
 }

@@ -464,3 +464,14 @@ func Texts(rows []Row) []string {
 	}
 	return out
 }
+
+// Join is the parts that are not empty, with the separator between.
+func Join(sep string, parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, sep)
+}

@@ -22,7 +22,6 @@ import (
 // half of it, the checks' statuses flush with its right edge. These are
 // the fixed columns; the rows it needs depend on the report.
 const (
-	factCol    = 12 // a fact's value, from its column
 	checkCol   = 12 // a check's value, from the margin
 	statusW    = 9  // the widest status: UNCHECKED, NOT A DIR
 	stationGap = 5  // between the wordmark and the station block
@@ -179,10 +178,10 @@ func body(r report, width int, own check, p draw.Palette) []draw.Row {
 	// directly under a title of the same word. The column is the
 	// machine and the row is the operating system on it, and now each
 	// says which it is.
-	factLine := func(l *draw.Line, col, width int, f fact) {
+	factLine := func(l *draw.Line, col, width int, f draw.Fact) {
 		l.To(col)
-		l.Leader(strings.ToUpper(f.label), col+factCol-1, p.Faint)
-		l.Add(p.Ink, draw.Fit(draw.Cased(f.value, f.path), width-factCol-2, f.path))
+		l.Leader(strings.ToUpper(f.Label), col+draw.FactCol-1, p.Faint)
+		l.Add(p.Ink, draw.Fit(draw.Cased(f.Value, f.Path), width-draw.FactCol-2, f.Path))
 	}
 	l := c.Line()
 	l.Title(0, "MACHINE")
@@ -320,9 +319,9 @@ func small(own check, width, height, need int, p draw.Palette) []draw.Row {
 // screen to check.
 func screenCheck(term string, width, height, need int) check {
 	if height == 0 {
-		return check{label: "SCREEN", value: join(" · ", "NO TERMINAL", term), status: unchecked}
+		return check{label: "SCREEN", value: draw.Join(" · ", "NO TERMINAL", term), status: unchecked}
 	}
-	value := join(" · ", strconv.Itoa(width)+"×"+strconv.Itoa(height), term)
+	value := draw.Join(" · ", strconv.Itoa(width)+"×"+strconv.Itoa(height), term)
 	if width < draw.MinCols || height < need {
 		return check{label: "SCREEN", value: value, status: "SMALL", fault: true}
 	}
@@ -347,9 +346,9 @@ func screenCheck(term string, width, height, need int) check {
 // widest status.
 func wide(r report, own check) int {
 	measure := draw.MinCols - 2*draw.Margin
-	for _, side := range [][]fact{r.system, r.login} {
+	for _, side := range [][]draw.Fact{r.system, r.login} {
 		for _, f := range side {
-			measure = max(measure, 2*(ansi.StringWidth(draw.Cased(f.value, f.path))+factCol+2))
+			measure = max(measure, 2*(ansi.StringWidth(draw.Cased(f.Value, f.Path))+draw.FactCol+2))
 		}
 	}
 	for _, k := range append([]check{own}, r.checks...) {

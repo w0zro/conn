@@ -37,7 +37,7 @@ type contactPage struct {
 	worked, rested           time.Duration // how the work has gone: what it worked, and what it has stood since
 	restWord                 string        // what that standing is called: waiting, or idle
 	story                    string        // the same, as a sentence
-	specs                    []fact        // the specifications, a blank label for a row of air
+	specs                    []draw.Fact   // the specifications, a blank label for a row of air
 }
 
 // composeContact words a contact's page.
@@ -57,15 +57,15 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	if e.Title != "" {
 		c.name = e.Title
 	}
-	c.where = join(" · ", projectName(s.project.Path, nil, home), s.git.branch)
+	c.where = draw.Join(" · ", projectName(s.project.Path, nil, home), s.git.branch)
 	if c.where == "" {
 		c.where = config.Tilde(s.project.Path, home)
 	}
 	if a, ok := work.Contacts[work.Program(e.AsTyped())]; ok {
-		c.with = join(" ", a.Name, s.sess.Version)
+		c.with = draw.Join(" ", a.Name, s.sess.Version)
 	}
 	if s.carried.Carried > 0 {
-		c.with = join(" · ", c.with, strings.ToLower(tokens(s.carried.Carried))+" of context carried")
+		c.with = draw.Join(" · ", c.with, strings.ToLower(tokens(s.carried.Carried))+" of context carried")
 	}
 
 	// The question, where there is one: what it asked in its own words,
@@ -175,7 +175,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	// between one kind of thing and the next.
 	add := func(label, value string) {
 		if value != "" || label == "" {
-			c.specs = append(c.specs, fact{label: label, value: value})
+			c.specs = append(c.specs, draw.Fact{Label: label, Value: value})
 		}
 	}
 	add("Designation", strings.ToUpper(name))
@@ -198,9 +198,9 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 			branch = "detached"
 		}
 		if s.git.dirty > 0 {
-			branch = join(" · ", branch, strconv.Itoa(s.git.dirty)+" changed")
+			branch = draw.Join(" · ", branch, strconv.Itoa(s.git.dirty)+" changed")
 		} else {
-			branch = join(" · ", branch, "clean")
+			branch = draw.Join(" · ", branch, "clean")
 		}
 		add("Branch", branch)
 		add("Commit", s.git.commit)
@@ -268,7 +268,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	if s.sess.SessionID == "" {
 		add("Says", "Nothing conn can read")
 	}
-	for len(c.specs) > 0 && c.specs[len(c.specs)-1].label == "" {
+	for len(c.specs) > 0 && c.specs[len(c.specs)-1].Label == "" {
 		c.specs = c.specs[:len(c.specs)-1]
 	}
 	return c
@@ -508,14 +508,14 @@ func drawSpecs(c contactPage, measure, width int, p draw.Palette) []draw.Row {
 	cv.Emit(l, 0, false)
 	cv.Blank(0)
 	for _, f := range c.specs {
-		if f.label == "" {
+		if f.Label == "" {
 			cv.Blank(0)
 			continue
 		}
-		for i, part := range draw.WrapValue(f.value, measure-specCol) {
+		for i, part := range draw.WrapValue(f.Value, measure-specCol) {
 			l := cv.Line()
-			if i == 0 && f.label != " " {
-				l.Leader(f.label, specCol-1, p.Border)
+			if i == 0 && f.Label != " " {
+				l.Leader(f.Label, specCol-1, p.Border)
 			} else {
 				l.To(specCol)
 			}

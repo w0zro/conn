@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
 
 	tea "charm.land/bubbletea/v2"
@@ -161,5 +162,5 @@ func brewStopPrompt(formula, name string) string {
 // command, what it is about where the command does not say, and y or
 // n. The command keeps the case it would be typed in.
 func question(command, about string) string {
-	return join(" · ", command, about) + "?"
+	return draw.Join(" · ", command, about) + "?"
 }

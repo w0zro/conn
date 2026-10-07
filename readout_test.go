@@ -295,9 +295,9 @@ func TestEveryReadoutLabelFitsTheLeader(t *testing.T) {
 	for _, s := range []readoutSubject{readoutSubj(), {entry: work.Entry{PID: 1, Kind: work.KindShell}, inside: true}} {
 		for _, g := range composeReadout(s, "/Users/w0zro", processesNow).groups {
 			for _, f := range g.facts {
-				seen[f.label] = true
-				if len(f.label) > labelW {
-					t.Errorf("the label %q is %d wide, past the leader's %d", f.label, len(f.label), labelW)
+				seen[f.Label] = true
+				if len(f.Label) > labelW {
+					t.Errorf("the label %q is %d wide, past the leader's %d", f.Label, len(f.Label), labelW)
 				}
 			}
 		}

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/station"
 
 	"github.com/w0zro/conn/internal/config"
@@ -89,16 +90,16 @@ func TestStationIsWorded(t *testing.T) {
 		"RUNTIME":   "go1.27.0 · darwin/arm64 · 11 THREADS",
 		"BINARY":    "~/projects/w0zro/conn/conn · 5.2 MB",
 	}
-	got := map[string]fact{}
+	got := map[string]draw.Fact{}
 	for _, f := range append(r.system, r.login...) {
-		got[f.label] = f
+		got[f.Label] = f
 	}
 	for label, value := range want {
-		if got[label].value != value {
-			t.Errorf("%s: %q, want %q", label, got[label].value, value)
+		if got[label].Value != value {
+			t.Errorf("%s: %q, want %q", label, got[label].Value, value)
 		}
 	}
-	if !got["CWD"].path || !got["BINARY"].path || got["SHELL"].path {
+	if !got["CWD"].Path || !got["BINARY"].Path || got["SHELL"].Path {
 		t.Error("the paths are not marked as paths, or a shell is")
 	}
 	if len(r.system) != 10 || len(r.login) != 12 {
@@ -129,7 +130,7 @@ func TestAnEmptyStationIsWorded(t *testing.T) {
 	// process rather than from the station. Where a session is reached
 	// from is not known of a station nothing was read of, and the row
 	// that used to call every such station LOCAL is not written.
-	if len(r.system) != 0 || len(r.login) != 1 || r.login[0].label != "TIME ZONE" {
+	if len(r.system) != 0 || len(r.login) != 1 || r.login[0].Label != "TIME ZONE" {
 		t.Errorf("readout: %+v %+v", r.system, r.login)
 	}
 	for _, c := range r.checks {
@@ -289,7 +290,7 @@ func TestWordsForNumbers(t *testing.T) {
 	if got := timeZone("", testNow); got != "PDT · UTC-07:00 · 19:58 LOCAL" {
 		t.Errorf("time zone without a name: %q", got)
 	}
-	if got := join(" · ", "", " a ", "", "b"); got != "a · b" {
+	if got := draw.Join(" · ", "", " a ", "", "b"); got != "a · b" {
 		t.Errorf("join: %q", got)
 	}
 }
@@ -311,7 +312,7 @@ func TestTheStationCanBeRead(t *testing.T) {
 	must := map[string]bool{"USER": true, "TIME ZONE": true, "CWD": true,
 		"PROCESS": true, "ENV": true, "RUNTIME": true, "BINARY": true}
 	for _, f := range r.login {
-		delete(must, f.label)
+		delete(must, f.Label)
 	}
 	if len(must) > 0 || len(r.system) < 6 {
 		t.Errorf("readout thin: %d system, session went unread: %v\n%+v\n%+v",

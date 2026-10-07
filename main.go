@@ -116,7 +116,7 @@ func main() {
 			fmt.Print(synopsis())
 			return
 		case "--version":
-			fmt.Println(join(" · ", "conn "+station.ReadBuild().Tag, buildLine(station.ReadBuild())))
+			fmt.Println(draw.Join(" · ", "conn "+station.ReadBuild().Tag, buildLine(station.ReadBuild())))
 			return
 		}
 		os.Exit(runCommand(args[0], args[1:]))
@@ -345,7 +345,7 @@ func takeDown(srv *tmux.Server, home string) (string, bool) {
 func downReport(ws []tmux.Window, socket, home string) string {
 	var lines []string
 	for _, w := range ws {
-		lines = append(lines, "Window "+join("  ", w.Name, config.Tilde(w.Path, home)))
+		lines = append(lines, "Window "+draw.Join("  ", w.Name, config.Tilde(w.Path, home)))
 	}
 	lines = append(lines, "Server "+config.Tilde(socket, home))
 	width := 0

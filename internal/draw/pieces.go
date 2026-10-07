@@ -203,11 +203,11 @@ func (l *Line) Field(col, width int, label, before, after string) {
 	l.Add(l.P.Gray, label)
 	l.Add("", "  ")
 	start := l.Cells
-	l.Add(l.P.Well+l.P.Ink+l.P.Bold, " "+before)
-	l.Add(l.P.Well+l.P.Orange+l.P.Bold, Caret)
-	l.Add(l.P.Well+l.P.Ink+l.P.Bold, after)
+	l.Add(l.P.well+l.P.Ink+l.P.Bold, " "+before)
+	l.Add(l.P.well+l.P.Orange+l.P.Bold, caret)
+	l.Add(l.P.well+l.P.Ink+l.P.Bold, after)
 	if n := width - (l.Cells - start); n > 0 {
-		l.Add(l.P.Well, strings.Repeat(" ", n))
+		l.Add(l.P.well, strings.Repeat(" ", n))
 	}
 }
 
@@ -217,7 +217,7 @@ func (l *Line) Field(col, width int, label, before, after string) {
 func (c *Canvas) Card(edge string, col, width, stage int) {
 	l := c.Line()
 	l.To(col)
-	l.Add(c.P.Edge, strings.Repeat(edge, width))
+	l.Add(c.P.edge, strings.Repeat(edge, width))
 	c.Emit(l, stage, false)
 }
 
@@ -225,8 +225,8 @@ func (c *Canvas) Card(edge string, col, width, stage int) {
 // drawn at this width and cut by the pane.
 const PanelMinCols = 40
 
-// Caret is where typing goes on a line typed into.
-const Caret = "▏"
+// caret is where typing goes on a line typed into.
+const caret = "▏"
 
 // The Spinner's frames: the cell full but for one dot, the gap going
 // round, a full turn in eight, and a turn a second (spinEvery, in

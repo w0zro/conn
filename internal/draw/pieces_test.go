@@ -93,11 +93,11 @@ func TestAFieldHoldsItsWidth(t *testing.T) {
 	if got := drawn(Colored(g).OnSurface(), 40, func(l *Line) { l.Field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, groundIn(theme.Hex(g.Ground))+inkIn(theme.Hex(g.Ink))) || strings.Contains(got, groundIn(g.Border)) {
 		t.Errorf("the field is not on the ground under the surface: %q", got)
 	}
-	if got := drawn(Plain, 40, func(l *Line) { l.Field(0, 20, "FIND", "pro", "") }); !strings.Contains(got, "FIND   pro"+Caret) {
+	if got := drawn(Plain, 40, func(l *Line) { l.Field(0, 20, "FIND", "pro", "") }); !strings.Contains(got, "FIND   pro"+caret) {
 		t.Errorf("the field does not say what was typed: %q", got)
 	}
 	// The caret stands where the typing left it, not at the end.
-	if got := drawn(Plain, 40, func(l *Line) { l.Field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, "pr"+Caret+"o") {
+	if got := drawn(Plain, 40, func(l *Line) { l.Field(0, 20, "FIND", "pr", "o") }); !strings.Contains(got, "pr"+caret+"o") {
 		t.Errorf("the caret is not where it was left: %q", got)
 	}
 }
@@ -131,7 +131,7 @@ func TestACardHasAnEdgeAboveAndBelow(t *testing.T) {
 	if !strings.Contains(c.Rows[1].Text, strings.Repeat(CardBelow, 20)) {
 		t.Errorf("the edge below: %q", c.Rows[1].Text)
 	}
-	if !strings.Contains(c.Rows[0].Text, Colored(theme.Conn.Dark).Edge) {
+	if !strings.Contains(c.Rows[0].Text, Colored(theme.Conn.Dark).edge) {
 		t.Error("the edge is not drawn in the surface")
 	}
 }

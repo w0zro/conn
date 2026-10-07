@@ -253,11 +253,7 @@ type model struct {
 	// nothing on the screen at all: the operator pressed a key and
 	// nothing happened, which is the one thing conn should never leave
 	// them with.
-	notice string
-	// The row the last click put the readout on. A click on a row is
-	// the readout first, always; a second click on the same row goes
-	// in, the way enter does. Any key, or going in, starts it over.
-	clicked      int
+	notice       string
 	processesGen int // which stay in the processes view the ticks belong to
 	// The pane the keys were in when the panel key brought them here
 	// and a detour was begun with the next key, for a view there is
@@ -894,8 +890,6 @@ func (m model) key(k string) (model, tea.Cmd) {
 	// or it was not going to be.
 	m.notice = ""
 	m.relieved = false
-	// A key between two clicks makes the second a first one again.
-	m.clicked = 0
 	// So does the arrival: the pane the keys came out of is for the key
 	// after the panel key and no other, whatever that key is.
 	came := m.came

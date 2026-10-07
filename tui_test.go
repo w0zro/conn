@@ -1692,11 +1692,10 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 	}
 }
 
-// A row's clicks go between its readout and its process. The first
-// click is the readout, even on the row the cursor is already on; the
-// second on the same row goes in; a click on another row, or a key
-// between the two, makes the next one a first again.
-func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
+// A click on a row goes into it, the first click as much as any, on
+// the row the cursor is on or another. Outside the server there is
+// nothing to go into, and a click is the readout.
+func TestAClickOnARowGoesIn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.focused, m.bay.readout = viewProcesses, true, true, true
 	m.srv, m.width, m.height = &tmux.Server{}, tmux.PanelWidth, 30
@@ -1725,23 +1724,15 @@ func TestARowsClicksGoBetweenItsReadoutAndItsProcess(t *testing.T) {
 		m = next
 		return cmd != nil
 	}
-	if click(at("zsh")) {
-		t.Error("the first click on the row the cursor was on went in")
-	}
 	if !click(at("zsh")) {
-		t.Error("the second click did not go in")
+		t.Error("a click on the row the cursor was on did not go in")
 	}
-	if click(at("zsh")) {
-		t.Error("the click after going in went in again")
+	if !click(at("node vite")) || m.cursor != 12 {
+		t.Errorf("a click on another row did not go in, or missed it: cursor %d", m.cursor)
 	}
-	if click(at("node vite")) || m.cursor != 12 {
-		t.Errorf("the first click on another row went in, or missed it: cursor %d", m.cursor)
-	}
-	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "?"}))
-	m = next.(model)
-	m.detour.to = noDetour
-	if click(at("node vite")) {
-		t.Error("a click after a key went in")
+	m.inside = false
+	if click(at("zsh")) || m.cursor != 11 {
+		t.Errorf("a click outside the server went in, or missed the row: cursor %d", m.cursor)
 	}
 }
 

@@ -933,15 +933,12 @@ func (m model) processesReport() processesReport {
 
 // click is the mouse pressed on the panel. tmux has the mouse, and
 // hands a press in conn's pane on to conn since conn asks for it. A
-// press on a row of the processes view puts the cursor on the row, the
-// way j and k do, and the readout in the workspace; the same row
-// pressed again goes in, the way enter does. Pressing the row once
-// more from inside brings the keys back to the panel and the readout
-// back with them, so a row's clicks go between its readout and its
-// process, and the first is always the readout. The rows are drawn
-// again to find which row was under the press, since the view is drawn
-// from the model and the model keeps no picture of it. Anywhere else,
-// and any other button, is nothing yet.
+// press on a row of the processes view puts the cursor on the row and
+// goes in, the way enter does; a row with nothing to go into puts its
+// readout in the workspace instead. The rows are drawn again to find
+// which row was under the press, since the view is drawn from the
+// model and the model keeps no picture of it. Anywhere else, and any
+// other button, is nothing yet.
 func (m model) click(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	if m.view != viewProcesses || msg.Button != tea.MouseLeft {
 		return m, nil
@@ -952,15 +949,11 @@ func (m model) click(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	}
 	pid := rows[msg.Y].pid
 	m = m.onRow(pid, m.cursorAt)
-	if m.clicked == pid {
-		m.clicked = 0
-		if e, _, ok := m.under(); ok {
-			_, cmd := m.enterOn(e)
+	if e, _, ok := m.under(); ok {
+		if _, cmd := m.enterOn(e); cmd != nil {
 			return m, cmd
 		}
-		return m, nil
 	}
-	m.clicked = pid
 	return m.keepingPage()
 }
 

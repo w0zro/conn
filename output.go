@@ -7,9 +7,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-
-	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -160,7 +159,7 @@ func written(lines []string) int {
 // heldPanes is the panes conn holds for a project's rows, each once
 // and in the panel's order: a pane holds a tree of processes, and the
 // pane is read once for all of them.
-func heldPanes(projects []work.Project, panes map[string]tmux.Pane, project string) []outPane {
+func heldPanes(projects []work.Project, panes map[string]room.Pane, project string) []outPane {
 	var out []outPane
 	seen := map[string]bool{}
 	for _, pl := range projects {
@@ -339,7 +338,7 @@ func (m model) outputKey(k string) (model, tea.Cmd) {
 // copy mode on the saying; see tmux.Land. The bay may be showing it
 // already, in which case the landing is the same one again and only
 // the keys move.
-func (m model) landIn(target tmux.Pane, tty string, k int, text string) tea.Cmd {
+func (m model) landIn(target room.Pane, tty string, k int, text string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
 		if srv.Show(target) != nil {

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // A declared command that runs compose is read for what it hands
@@ -115,7 +113,7 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 		lib: {List: []Declaration{{Name: "docs", Command: "mkdocs serve"}}},
 		zed: {Err: ".conn: line 1: want name [dir]: command"},
 	}
-	panes := map[string]tmux.Pane{
+	panes := map[string]DeclaredPane{
 		"ttys002": {ID: "%2", TTY: "ttys002", Declared: MarkDeclared(app, "web")},
 		"ttys003": {ID: "%3", TTY: "ttys003", Declared: MarkDeclared(app, "api"), Exit: "1"},
 		"ttys009": {ID: "%9", TTY: "ttys009", Declared: MarkDeclared(app, "ghost")},
@@ -154,7 +152,7 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	if e := got[0].Entries[3]; !e.Fault {
 		t.Error("an exit of 1 is not a fault")
 	}
-	panes["ttys003"] = tmux.Pane{ID: "%3", TTY: "ttys003", Declared: MarkDeclared(app, "api"), Exit: "0"}
+	panes["ttys003"] = DeclaredPane{ID: "%3", TTY: "ttys003", Declared: MarkDeclared(app, "api"), Exit: "0"}
 	if e := AttachDeclared(projects, declared, panes)[0].Entries[3]; e.Status != StatusEnded || e.Fault {
 		t.Errorf("a clean end: %s, fault %v", e.Status, e.Fault)
 	}
@@ -261,16 +259,6 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 	}
 }
 
-// The line run in the pane is the command as written, then the exit
-// recorded and the hold, each on a line of its own.
-func TestTheLineRunInThePane(t *testing.T) {
-	got := DeclaredLine(Declaration{Name: "web", Command: "npm run dev # dev"}, "/opt/bin/tmux")
-	want := "npm run dev # dev\n'/opt/bin/tmux' set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\nprintf '\\n[web exited]\\n'\nexec cat"
-	if got != want {
-		t.Errorf("line:\n%s\nwant:\n%s", got, want)
-	}
-}
-
 // A mark carries the name and the project with no space in it, and
 // reads back; the pid is below every container's and the same every
 // time, and differs across projects for one name.
@@ -321,7 +309,7 @@ func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
 		// Started by hand, somewhere with no terminal conn can see.
 		{PID: 5, Status: StatusActive, Declared: MarkDeclared(app, "cron")},
 	}}}
-	panes := map[string]tmux.Pane{
+	panes := map[string]DeclaredPane{
 		"ttys001": {ID: "%1", TTY: "ttys001"},
 		"ttys002": {ID: "%2", TTY: "ttys002", Exit: "1"},
 		"ttys004": {ID: "%4", TTY: "ttys004"},

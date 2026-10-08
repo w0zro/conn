@@ -13,8 +13,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // A project's .conn: the processes it is worked by, written down once
@@ -355,21 +353,6 @@ func DeclaredPID(project, name string) int {
 	return -(1<<24 + int(h.Sum32()&0xffffff)) - 2
 }
 
-// DeclaredLine is what runs in a declaration's pane: the command as
-// written, then the pane told how it ended, a word of that for the
-// operator, and the hold, so the last output stays up to be read. On
-// lines of their own, not after semicolons: a comment or an & on the
-// end of the operator's line would otherwise take the rest with it.
-// tmux tells a pane its own id in TMUX_PANE, and is told it back: a
-// client with no terminal is otherwise pointed at whichever pane the
-// server counts as current, which is not this one.
-func DeclaredLine(d Declaration, bin string) string {
-	return d.Command + "\n" +
-		tmux.ShellQuote(bin) + " set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\n" +
-		"printf '\\n[" + d.Name + " exited]\\n'\n" +
-		tmux.HoldOpen
-}
-
 // exitStatus is the word for a declared process that ended, from what
 // its pane recorded: ENDED for a clean end, which is no fault, and the
 // code otherwise, which is — the same words a container's end gets.
@@ -383,12 +366,20 @@ func exitStatus(code string) (string, bool) {
 // exitWord is what a status that ended with a code begins with.
 const exitWord = "EXIT "
 
+// A DeclaredPane is a terminal conn opened for a declaration, as the
+// rows are read against it: the pane, the terminal it holds, the
+// declaration it was opened for, by its mark, and how its command
+// ended, blank while it runs. They are handed over by the terminal.
+type DeclaredPane struct {
+	ID, TTY, Declared, Exit string
+}
+
 // UpAndHeld is what a project already has panes for, by mark: the
 // declarations that are up, which a raise passes over, and the panes
 // holding one that ended, by the mark, which a raise replaces. It reads
 // the rows rather than the panes, since a pane whose rows are not yet
 // read is not yet anything.
-func UpAndHeld(projects []Project, panes map[string]tmux.Pane, path string) (up map[string]bool, held map[string]string) {
+func UpAndHeld(projects []Project, panes map[string]DeclaredPane, path string) (up map[string]bool, held map[string]string) {
 	up, held = map[string]bool{}, map[string]string{}
 	for _, pl := range projects {
 		for _, e := range pl.Entries {
@@ -430,11 +421,11 @@ func UpAndHeld(projects []Project, panes map[string]tmux.Pane, path string) (up 
 // that would not read is the block's note. A project with no block —
 // nothing running in it — is given one, holding what it declares,
 // down.
-func AttachDeclared(projects []Project, declared map[string]Declared, panes map[string]tmux.Pane) []Project {
+func AttachDeclared(projects []Project, declared map[string]Declared, panes map[string]DeclaredPane) []Project {
 	if len(declared) == 0 {
 		return projects
 	}
-	byMark := map[string]tmux.Pane{}
+	byMark := map[string]DeclaredPane{}
 	for _, p := range panes {
 		if p.Declared == "" {
 			continue

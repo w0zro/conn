@@ -37,7 +37,7 @@ func readoutSubj() readoutSubject {
 			TTY: "ttys003", Status: work.StatusActive},
 		children: []work.Entry{{PID: 49300, Kind: work.KindRun, Command: "caffeinate -i -t 300",
 			TTY: "ttys003", Status: work.StatusActive, Depth: 2}},
-		pane:   tmux.Pane{ID: "%2"},
+		pane:   room.Pane{ID: "%2"},
 		inside: true,
 		sess: work.SessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
@@ -208,7 +208,7 @@ func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 // none of them says nothing about the row.
 func TestTheReadoutSaysNothingOfPanesOutsideTheServer(t *testing.T) {
 	s := readoutSubj()
-	s.inside, s.pane = false, tmux.Pane{}
+	s.inside, s.pane = false, room.Pane{}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 120, 40, draw.Plain))
 	if strings.Contains(text, "Pane") {
 		t.Errorf("outside the server the page still spoke of panes:\n%s", text)
@@ -436,7 +436,7 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 		m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 			{PID: 11, TTY: "ttys001"}, {PID: 12, TTY: "ttys002"},
 		}}}
-		m.panes = map[string]tmux.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
+		m.panes = map[string]room.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
 		m.cursor = 11
 		return m
 	}

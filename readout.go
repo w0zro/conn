@@ -9,8 +9,6 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	"github.com/w0zro/conn/internal/config"
 )
 
@@ -53,7 +51,7 @@ type readoutSubject struct {
 	project  work.Project
 	parent   work.Entry   // what runs it, where anything conn can see does
 	children []work.Entry // what it runs, in the order the tree has them
-	pane     tmux.Pane
+	pane     room.Pane
 	inside   bool
 	sess     work.SessionFile // what a contact says of itself, when conn can ask
 	carried  work.Session
@@ -343,7 +341,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 // where it belongs, and what it has open. A service brew has not
 // reported — brew not asked yet, or the formula not installed — is
 // said as the declaration alone.
-func composeBrewPage(b readoutReport, e work.Entry, svc *work.BrewService, p tmux.Pane, inside bool, home string) readoutReport {
+func composeBrewPage(b readoutReport, e work.Entry, svc *work.BrewService, p room.Pane, inside bool, home string) readoutReport {
 	b.name = e.Brew
 	what := readoutGroup{title: "WHAT"}
 	what.add("Kind", work.Said(work.KindService)+" · Homebrew")
@@ -672,7 +670,7 @@ func tokens(n int) string {
 // has is an image, a service name its siblings are named beside, ports
 // it publishes on the host, and a health check that may disagree with
 // the fact that it is running.
-func composeService(b readoutReport, c work.Container, p tmux.Pane, inside bool, home string, now time.Time) readoutReport {
+func composeService(b readoutReport, c work.Container, p room.Pane, inside bool, home string, now time.Time) readoutReport {
 	b.name = c.ID
 
 	what := readoutGroup{title: "WHAT"}

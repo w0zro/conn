@@ -14,8 +14,6 @@ import (
 
 	"github.com/w0zro/conn/internal/station"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	"github.com/w0zro/conn/internal/theme"
 
 	"github.com/w0zro/conn/internal/config"
@@ -165,7 +163,7 @@ type (
 	stationTickMsg struct{ gen int } // the station is due to be read again
 	processesMsg   struct {          // the process table is read
 		projects   []work.Project
-		panes      map[string]tmux.Pane // the server's panes by terminal
+		panes      map[string]room.Pane // the server's panes by terminal
 		bay        string               // the terminal in the bay
 		noBay      bool                 // home has no bay beside the panel
 		bayDead    bool                 // the bay's pane held on remain-on-exit, its process gone
@@ -189,9 +187,9 @@ type (
 		rooted *rooting
 	}
 	processesTickMsg struct{ gen int }             // the processes view is due to be read again
-	openedMsg        struct{ shell tmux.Shell }    // a shell was opened; the cursor goes to it once it is read
+	openedMsg        struct{ shell room.Shell }    // a shell was opened; the cursor goes to it once it is read
 	noticeMsg        struct{ text string }         // something asked of the server was not done, and this is why
-	raisedMsg        struct{ shells []tmux.Shell } // declared processes were brought up, parked: a project's, or one
+	raisedMsg        struct{ shells []room.Shell } // declared processes were brought up, parked: a project's, or one
 	reachedMsg       struct{ tty string }          // a process was put in the bay
 	readoutMsg       struct{ on bool }             // the readout was put in the bay, or taken out of it
 	detourMsg        struct{ to detourTo }         // the manual or the settings were put in the bay
@@ -306,7 +304,7 @@ type model struct {
 	srv    *room.Server         // conn's tmux server, when there is one
 	inside bool                 // this conn is the panel of the server's home window
 	self   string               // this binary, for the hold
-	panes  map[string]tmux.Pane // the server's panes by terminal, as last read
+	panes  map[string]room.Pane // the server's panes by terminal, as last read
 	bay    bay                  // what is in the bay and what it has held; see bay.go
 
 	// What docker last said, and the feed that says it. The containers
@@ -394,7 +392,7 @@ func (m model) Init() tea.Cmd {
 	}
 	if m.inside {
 		// The panel names the build it runs, which is how a conn of
-		// another one knows to relieve it; see tmux.Relieve.
+		// another one knows to relieve it; see room.Relieve.
 		srv, self := m.srv, m.self
 		cmds = append(cmds, m.serverCmd(func() error {
 			print, err := room.Fingerprint(self)
@@ -1142,13 +1140,13 @@ func (m model) backFrom() (model, tea.Cmd) {
 // on. conn holds its panes by terminal, a terminal being what a row
 // is; the panel key names the pane it fired from by id, which is what
 // tmux knows of it.
-func (m model) paneByID(id string) (tmux.Pane, string, bool) {
+func (m model) paneByID(id string) (room.Pane, string, bool) {
 	for tty, p := range m.panes {
 		if p.ID == id {
 			return p, tty, true
 		}
 	}
-	return tmux.Pane{}, "", false
+	return room.Pane{}, "", false
 }
 
 // backIn puts the keys back in the process they came out of, which is
@@ -1296,7 +1294,7 @@ func (m model) raiseAt() (model, tea.Cmd) {
 	if !m.inside || !ok || path == "" {
 		return m, nil
 	}
-	up, held := work.UpAndHeld(m.projects, m.panes, path)
+	up, held := work.UpAndHeld(m.projects, declaredPanes(m.panes), path)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
 		var cmd tea.Cmd

@@ -17,7 +17,7 @@ func TestAPaneSayingItsStacksWordIsALine(t *testing.T) {
 		{PID: 43, Kind: work.KindRun, Command: "go", Typed: "go run .", TTY: "ttys001", Status: work.StatusActive},
 		{PID: 42, Kind: work.KindRun, Command: "node", Typed: "node server.js", TTY: "ttys002", Status: work.StatusActive},
 	}}}
-	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}}
 	m.seenAny, m.log.loaded = true, true // the view has read its file, so a line lands on it as it is written
 	// Two rows share a pane, and the pane is listened to once, under
 	// the row the pane is.

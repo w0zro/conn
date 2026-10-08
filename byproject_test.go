@@ -11,8 +11,6 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -59,7 +57,7 @@ func TestThePanelIsFiledByProject(t *testing.T) {
 	// at the end of the rule, a wait stamped with its age, a fault
 	// stamped with its word, and what is down saying so. The file of
 	// record is the panel's own width.
-	b := composeProcesses(fold(out), map[string]tmux.Pane{"ttys001": {ID: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
+	b := composeProcesses(fold(out), map[string]room.Pane{"ttys001": {ID: "%1"}}, "ttys001", testProjRoots, testIsProject, "/Users/w0zro", now, "", false, true)
 	b.digits = true // the keys on the panel, where the contacts' digits are drawn
 	b.lit = true
 	rows := drawProcesses(b, 5, room.PanelWidth, 30, draw.Plain)
@@ -101,7 +99,7 @@ func TestMinutes(t *testing.T) {
 // keys that act at a project only inside the server. While a process
 // has the keys, it says the chords instead.
 func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark, panes: map[string]tmux.Pane{"ttys001": {ID: "%1"}}}
+	m := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark, panes: map[string]room.Pane{"ttys001": {ID: "%1"}}}
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusActive},
 		{PID: 2, Kind: work.KindContact, Command: "claude", TTY: "ttys002", Status: work.StatusWaiting},

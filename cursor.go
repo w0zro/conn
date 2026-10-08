@@ -7,8 +7,6 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // Where the panel's cursor is, for the readout to follow. The two are
@@ -78,7 +76,7 @@ type cursorNote struct {
 type reading struct {
 	projects   []work.Project
 	records    map[int]record
-	panes      map[string]tmux.Pane
+	panes      map[string]room.Pane
 	inside     bool
 	containers []work.Container
 	brews      []work.BrewService // what brew said of its services; see brew.go
@@ -185,7 +183,7 @@ func askCursor(path string) (subject, *reading) {
 type readingWire struct {
 	Projects   []work.Project
 	Records    []record
-	Panes      []tmux.Pane
+	Panes      []room.Pane
 	Inside     bool
 	Containers []work.Container
 	Brews      []work.BrewService
@@ -209,7 +207,7 @@ func (r *reading) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*r = reading{projects: w.Projects, inside: w.Inside, containers: w.Containers, brews: w.Brews, sessions: w.Sessions,
-		records: map[int]record{}, panes: map[string]tmux.Pane{}}
+		records: map[int]record{}, panes: map[string]room.Pane{}}
 	for _, rec := range w.Records {
 		r.records[rec.pid] = rec
 	}

@@ -63,7 +63,7 @@ func TestAPaneIsReadOnceForAllItsRows(t *testing.T) {
 		{PID: 42, Kind: work.KindRun, Command: "go", Typed: "go test ./...", TTY: "ttys002"},
 		{PID: 50, Kind: work.KindService, Command: "postgres", TTY: ""},
 	}}, {Path: "/Users/w0zro/projects/other", Entries: []work.Entry{{PID: 60, TTY: "ttys003"}}}}
-	panes := map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}, "ttys003": {ID: "%6", TTY: "ttys003"}}
+	panes := map[string]room.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}, "ttys003": {ID: "%6", TTY: "ttys003"}}
 	got := heldPanes(projects, panes, "/Users/w0zro/projects/web")
 	if len(got) != 2 || got[0].id != "%4" || got[0].pid != 41 || got[1].id != "%5" || got[1].label != "go test ./..." {
 		t.Errorf("the project's held panes are %+v", got)
@@ -103,7 +103,7 @@ func TestTheOutputViewMatchesTheGolden(t *testing.T) {
 func TestSlashOpensTheOutputOverTheRowsProject(t *testing.T) {
 	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}}
 	m.projects = []work.Project{{Path: "/Users/w0zro/projects/web", Entries: []work.Entry{{PID: 41, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusIdle}}}}
-	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}}
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}}
 	m.cursor = 41
 	m, _ = m.key("/")
 	if m.view != viewOutput || m.out.project != "/Users/w0zro/projects/web" || !m.out.loading {
@@ -173,7 +173,7 @@ func TestEachSayingIsCountedBackFromTheEnd(t *testing.T) {
 func TestTheBayFollowsTheCursorAfterItRests(t *testing.T) {
 	m := model{p: draw.Plain, width: 48, height: 40, view: viewOutput, inside: true, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}}
 	m.out = outList{project: "/Users/w0zro/projects/web", panes: testOutPanes()}
-	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}}
 	for _, k := range []string{"e", "r", "r", "o", "r"} {
 		m, _ = m.key(k)
 	}
@@ -199,7 +199,7 @@ func TestTheBayFollowsTheCursorAfterItRests(t *testing.T) {
 	}
 	// A reading that finds the previewed pane in the bay does not take
 	// it for where the operator was.
-	m.bay.read("ttys001", tmux.Pane{ID: "%4", TTY: "ttys001"}, false)
+	m.bay.read("ttys001", room.Pane{ID: "%4", TTY: "ttys001"}, false)
 	if m.bay.work == "ttys001" {
 		t.Error("a previewed pane was taken for work")
 	}

@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -36,7 +37,7 @@ func (m model) reviveBay() tea.Cmd {
 
 // reach puts a process in the bay, off the loop, and passes back the
 // terminal that is in the bay once it is there.
-func (m model) reach(target tmux.Pane, tty string) tea.Cmd {
+func (m model) reach(target room.Pane, tty string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
 		if srv.Show(target) != nil {
@@ -80,12 +81,12 @@ func (m model) openShell(dir string) tea.Cmd {
 func (m model) raise(path string, d work.Declaration, replace string, enter bool) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.RaiseDeclared(d.At(path), work.DeclaredLine(d, srv.Tmux), work.MarkDeclared(path, d.Name), replace, enter)
+		sh, err := srv.RaiseDeclared(d.At(path), d.Command, d.Name, work.MarkDeclared(path, d.Name), replace, enter)
 		if err != nil {
 			return nil
 		}
 		if !enter {
-			return raisedMsg{shells: []tmux.Shell{sh}}
+			return raisedMsg{shells: []room.Shell{sh}}
 		}
 		return openedMsg{shell: sh}
 	}
@@ -103,7 +104,7 @@ func (m model) raiseAll(path string, up map[string]bool, held map[string]string)
 		if err != nil {
 			return nil
 		}
-		var shells []tmux.Shell
+		var shells []room.Shell
 		for _, d := range list {
 			mark := work.MarkDeclared(path, d.Name)
 			if up[mark] {
@@ -114,7 +115,7 @@ func (m model) raiseAll(path string, up map[string]bool, held map[string]string)
 				_, _ = work.BrewSays(work.BrewWait, "services", "start", formula)
 				continue
 			}
-			sh, err := srv.RaiseDeclared(d.At(path), work.DeclaredLine(d, srv.Tmux), mark, held[mark], false)
+			sh, err := srv.RaiseDeclared(d.At(path), d.Command, d.Name, mark, held[mark], false)
 			if err != nil {
 				continue
 			}

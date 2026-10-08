@@ -206,7 +206,7 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 // from self, each as the command it is — the readout, the manual, the
 // settings or a hold — except the pane named, which asked and has
 // seen to itself.
-func (s *Server) respawnOwn(panes map[string]tmux.Pane, except, self string) error {
+func (s *Server) respawnOwn(panes map[string]Pane, except, self string) error {
 	for _, p := range panes {
 		if p.Hold && p.ID != except {
 			if _, err := s.Do(tmux.Respawn(p.ID, "exec "+tmux.ShellQuote(self)+" "+ownCommand(p))); err != nil {
@@ -219,7 +219,7 @@ func (s *Server) respawnOwn(panes map[string]tmux.Pane, except, self string) err
 
 // ownCommand is the command of conn's a page of its own runs, read off
 // the page's marks.
-func ownCommand(p tmux.Pane) string {
+func ownCommand(p Pane) string {
 	switch {
 	case p.Readout:
 		return "readout"
@@ -373,7 +373,7 @@ func (s *Server) hasHome() bool {
 // enter does, what the ring steps through, what the bay takes when its
 // own ends, and what the page reports cannot drift apart into four
 // slightly different answers to one question.
-func Reachable(p tmux.Pane) bool {
+func Reachable(p Pane) bool {
 	return p.ID != "" && !p.Hold && !p.Readout && !p.Dead
 }
 
@@ -390,11 +390,6 @@ func OwnPane() string {
 	return os.Getenv("TMUX_PANE")
 }
 
-// home is every pane of the home window, in the order they stand.
-func (s *Server) home() ([]tmux.Pane, error) {
-	return s.WindowPanes(s.Panel())
-}
-
 // Bay is the pane beside the panel in the home window, when there is
 // one: the first pane after the panel, by where it stands. The panes
 // were read out of a map, in whatever order the map gave them, which
@@ -402,17 +397,17 @@ func (s *Server) home() ([]tmux.Pane, error) {
 // three — and a swap against the wrong one of the three, both in
 // home, sized home to the bay's width and left the operator a window
 // one column wide.
-func (s *Server) Bay() (tmux.Pane, bool, error) {
+func (s *Server) Bay() (Pane, bool, error) {
 	panes, err := s.home()
 	if err != nil {
-		return tmux.Pane{}, false, err
+		return Pane{}, false, err
 	}
 	for _, p := range panes {
 		if p.ID != s.Panel() {
 			return p, true, nil
 		}
 	}
-	return tmux.Pane{}, false, nil
+	return Pane{}, false, nil
 }
 
 // SplitBay opens the bay beside the panel, with a hold in it, and sets
@@ -439,7 +434,7 @@ func (s *Server) split(home, self string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := s.Do(tmux.SetPane(id, "@conn_hold", "1")); err != nil {
+	if _, err := s.Do(tmux.SetPane(id, holdMark, "1")); err != nil {
 		return err
 	}
 	// A pane in this window whose process ends stays instead of
@@ -485,13 +480,13 @@ func (s *Server) ReviveBay(home, self string) error {
 // of whatever was there. It is a swap rather than a split so nothing
 // about the window's layout moves, and the panel never has to give up
 // its width and take it back.
-func (s *Server) holdBay(home, self string, bay tmux.Pane) error {
+func (s *Server) holdBay(home, self string, bay Pane) error {
 	sh, err := s.NewWindow(home, "exec "+tmux.ShellQuote(self)+" hold")
 	if err != nil {
 		return err
 	}
 	hold := sh.Pane.ID
-	if _, err := s.Do(tmux.SetPane(hold, "@conn_hold", "1")); err != nil {
+	if _, err := s.Do(tmux.SetPane(hold, holdMark, "1")); err != nil {
 		return err
 	}
 	_, err = s.Do(tmux.Swap(hold, bay.ID), tmux.Kill(bay.ID))
@@ -507,7 +502,7 @@ func (s *Server) holdBay(home, self string, bay tmux.Pane) error {
 // carrying it along, where a page opened per row would spawn a window a
 // keystroke and blank the bay between each.
 func (s *Server) ShowReadout(home, self string) error {
-	return s.showOwn(home, self, "readout", "@conn_readout", false)
+	return s.showOwn(home, self, "readout", readoutMark, false)
 }
 
 // ShowHelp puts the manual in the workspace, with the keys in it: it is
@@ -515,7 +510,7 @@ func (s *Server) ShowReadout(home, self string) error {
 // The panel says HELP while it stands, so where the keys have gone is
 // not left to be guessed at.
 func (s *Server) ShowHelp(home, self string) error {
-	return s.showOwn(home, self, "manual", "@conn_help", true)
+	return s.showOwn(home, self, "manual", helpMark, true)
 }
 
 // ShowSettings puts the settings in the workspace, with the keys in it.
@@ -524,7 +519,7 @@ func (s *Server) ShowHelp(home, self string) error {
 // what is running and has no room to be a form as well. The panel says
 // SETTINGS while it stands and goes on reading the machine beside it.
 func (s *Server) ShowSettings(home, self string) error {
-	return s.showOwn(home, self, "settings", "@conn_settings", true)
+	return s.showOwn(home, self, "settings", settingsMark, true)
 }
 
 // showOwn puts one of conn's own pages in the bay: the readout, the
@@ -552,7 +547,7 @@ func (s *Server) showOwn(home, self, cmd, mark string, keys bool) error {
 		return err
 	}
 	page := sh.Pane.ID
-	for _, opt := range []string{"@conn_hold", mark} {
+	for _, opt := range []string{holdMark, mark} {
 		if _, err := s.Do(tmux.SetPane(page, opt, "1")); err != nil {
 			return err
 		}
@@ -601,19 +596,19 @@ func (s *Server) showOwn(home, self, cmd, mark string, keys bool) error {
 // panel. There was one, and a reading that landed in it saw a bay with
 // no page in it under a panel that still had the keys, and put the
 // page back over the process the operator had just gone into.
-func (s *Server) Show(target tmux.Pane) error {
+func (s *Server) Show(target Pane) error {
 	return s.show(target, true)
 }
 
 // Preview puts a pane in the bay and leaves the keys on the panel: the
 // pane is being looked at, the way the readout is, and not gone into.
 // A pane already in the bay is left as it is.
-func (s *Server) Preview(target tmux.Pane) error {
+func (s *Server) Preview(target Pane) error {
 	return s.show(target, false)
 }
 
 // show is Show and Preview: the swap, and the keys with it or not.
-func (s *Server) show(target tmux.Pane, focus bool) error {
+func (s *Server) show(target Pane, focus bool) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
 	bay, ok, err := s.Bay()
@@ -655,16 +650,16 @@ func (s *Server) show(target tmux.Pane, focus bool) error {
 
 // Open opens a shell at a directory, in a window of its own, and shows
 // it in the bay.
-func (s *Server) Open(dir string) (tmux.Shell, error) {
+func (s *Server) Open(dir string) (Shell, error) {
 	return s.OpenCmd(dir, "")
 }
 
 // OpenCmd is open, running a command instead of the directory's own
 // shell — what a opens claude with.
-func (s *Server) OpenCmd(dir, cmd string) (tmux.Shell, error) {
-	sh, err := s.NewWindow(dir, cmd)
+func (s *Server) OpenCmd(dir, cmd string) (Shell, error) {
+	sh, err := s.open(dir, cmd)
 	if err != nil {
-		return tmux.Shell{}, err
+		return Shell{}, err
 	}
 	return sh, s.Show(sh.Pane)
 }
@@ -674,10 +669,10 @@ func (s *Server) OpenCmd(dir, cmd string) (tmux.Shell, error) {
 // terminal the container's row stands on, and what keeps the watcher
 // itself off the view: a docker logs listed beside the service it is
 // showing would be the same thing twice.
-func (s *Server) OpenWatching(dir, cmd, id string) (tmux.Shell, error) {
-	sh, err := s.openMarked(dir, cmd, "@conn_container", id)
+func (s *Server) OpenWatching(dir, cmd, id string) (Shell, error) {
+	sh, err := s.openMarked(dir, cmd, containerMark, id)
 	if err != nil {
-		return tmux.Shell{}, err
+		return Shell{}, err
 	}
 	sh.Pane.Container = id
 	return sh, s.Show(sh.Pane)
@@ -688,10 +683,10 @@ func (s *Server) OpenWatching(dir, cmd, id string) (tmux.Shell, error) {
 // terminal: the service is read in one pane and worked in from another,
 // and only the reader stands in for the terminal the service has not
 // got.
-func (s *Server) OpenShellIn(dir, cmd, id string) (tmux.Shell, error) {
-	sh, err := s.openMarked(dir, cmd, "@conn_shell_in", id)
+func (s *Server) OpenShellIn(dir, cmd, id string) (Shell, error) {
+	sh, err := s.openMarked(dir, cmd, shellInMark, id)
 	if err != nil {
-		return tmux.Shell{}, err
+		return Shell{}, err
 	}
 	sh.Pane.ShellIn = id
 	return sh, s.Show(sh.Pane)
@@ -703,13 +698,16 @@ func (s *Server) OpenShellIn(dir, cmd, id string) (tmux.Shell, error) {
 // bay with the keys in it; not shown, it is parked in a window of its
 // own for the reading to list, which is how a project is brought up
 // whole without the bay ending on whichever pane opened last.
-func (s *Server) RaiseDeclared(dir, cmd, mark, replace string, show bool) (tmux.Shell, error) {
+//
+// command is the declaration's own, as written, and name what it is
+// called; the pane runs declaredLine around it.
+func (s *Server) RaiseDeclared(dir, command, name, mark, replace string, show bool) (Shell, error) {
 	if replace != "" {
 		_, _ = s.Do(tmux.Kill(replace))
 	}
-	sh, err := s.openMarked(dir, cmd, "@conn_declared", mark)
+	sh, err := s.openMarked(dir, declaredLine(command, name, s.Tmux), declaredMark, mark)
 	if err != nil {
-		return tmux.Shell{}, err
+		return Shell{}, err
 	}
 	sh.Pane.Declared = mark
 	if show {
@@ -718,15 +716,30 @@ func (s *Server) RaiseDeclared(dir, cmd, mark, replace string, show bool) (tmux.
 	return sh, nil
 }
 
+// declaredLine is what runs in a declaration's pane: the command as
+// written, then the pane told how it ended, a word of that for the
+// operator, and the hold, so the last output stays up to be read. On
+// lines of their own, not after semicolons: a comment or an & on the
+// end of the operator's line would otherwise take the rest with it.
+// tmux tells a pane its own id in TMUX_PANE, and is told it back: a
+// client with no terminal is otherwise pointed at whichever pane the
+// server counts as current, which is not this one.
+func declaredLine(command, name, bin string) string {
+	return command + "\n" +
+		tmux.ShellQuote(bin) + " set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$?\"\n" +
+		"printf '\\n[" + name + " exited]\\n'\n" +
+		tmux.HoldOpen
+}
+
 // openMarked opens a pane running a command and sets one option on it,
 // which is how conn remembers what it opened a pane for.
-func (s *Server) openMarked(dir, cmd, option, value string) (tmux.Shell, error) {
-	sh, err := s.NewWindow(dir, cmd)
+func (s *Server) openMarked(dir, cmd, option, value string) (Shell, error) {
+	sh, err := s.open(dir, cmd)
 	if err != nil {
-		return tmux.Shell{}, err
+		return Shell{}, err
 	}
 	if _, err := s.Do(tmux.SetPane(sh.Pane.ID, option, value)); err != nil {
-		return tmux.Shell{}, err
+		return Shell{}, err
 	}
 	return sh, nil
 }

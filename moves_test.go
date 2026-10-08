@@ -4,9 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // The bar offers enter, x and u on a row exactly where the key does
@@ -30,7 +29,7 @@ func TestTheBarOffersWhatTheKeysDo(t *testing.T) {
 		{PID: -7, Kind: work.KindService, Command: "pg", Status: work.StatusDown, Declared: pg, Brew: "postgresql@14"},
 	}
 	for _, inside := range []bool{true, false} {
-		m := model{view: viewProcesses, inside: inside, focused: true, panes: map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}}}
+		m := model{view: viewProcesses, inside: inside, focused: true, panes: map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}}}
 		m.projects = []work.Project{{Path: "/w", Entries: rows}}
 		m.declared = map[string]work.Declared{"/w": {List: []work.Declaration{{Name: "web", Command: "npm run dev"}, {Name: "pg", Command: "brew services run postgresql@14"}}}}
 		for _, e := range rows {
@@ -58,7 +57,7 @@ func TestTheBarOffersWhatTheKeysDo(t *testing.T) {
 // A declaration started by hand is up: enter has no pane of conn's to
 // go into, and does not bring a second one up beside it.
 func TestEnterOnADeclarationStartedByHandBringsNothingUp(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, panes: map[string]tmux.Pane{}}
+	m := model{view: viewProcesses, inside: true, panes: map[string]room.Pane{}}
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 5, Kind: work.KindRun, Command: "web", Status: work.StatusActive, Declared: work.MarkDeclared("/w", "web")},
 	}}}

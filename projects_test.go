@@ -11,8 +11,6 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	"github.com/w0zro/conn/internal/theme"
 )
 
@@ -256,7 +254,7 @@ var testRunning = []work.Project{
 
 // testPanes holds every terminal of testRunning but ttys004, which is
 // the process conn can only report.
-var testPanes = map[string]tmux.Pane{
+var testPanes = map[string]room.Pane{
 	"ttys001": {ID: "%1", TTY: "ttys001"},
 	"ttys002": {ID: "%2", TTY: "ttys002"},
 	"ttys003": {ID: "%3", TTY: "ttys003"},
@@ -366,7 +364,7 @@ func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
 		{PID: 11, Kind: work.KindContact, Command: "claude", Typed: "claude", Title: "Fix the login bug", TTY: "ttys001", Status: work.StatusIdle},
 		{PID: 22, Kind: work.KindRun, Command: "node vite", Typed: "node vite", TTY: "ttys002", Status: work.StatusActive, Ports: []string{"5173"}},
 	}}}
-	panes := map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
+	panes := map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	live := withProcesses(testProjects, running, panes, []string{"/Users/w0zro/projects"}, "/Users/w0zro")
 	contact := "    " + work.KindContact + " Fix the login bug"
 	server := "    " + work.KindRun + " node vite"

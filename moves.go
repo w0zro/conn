@@ -6,8 +6,6 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -152,7 +150,7 @@ func (m model) raiseOn(e work.Entry) tea.Cmd {
 // rowDown says whether a row is a declaration that is not up, which is
 // what u would bring up: down, or ended and holding its pane; a brew
 // service, by brew's word.
-func rowDown(e work.Entry, panes map[string]tmux.Pane) bool {
+func rowDown(e work.Entry, panes map[string]room.Pane) bool {
 	switch {
 	case e.Declared == "":
 		return false

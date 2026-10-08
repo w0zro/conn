@@ -296,7 +296,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 			{PID: -99, Kind: work.KindService, Command: "web", Ports: []string{"8438"}, TTY: "", Status: work.StatusActive, Cwd: "/w", Container: "abc123def456"},
 		}}},
 		records:    map[int]record{11: {pid: 11, state: 'S', foreground: false}, 22: {pid: 22, state: 'S', foreground: true, cpu: 90 * time.Second}},
-		panes:      map[string]tmux.Pane{"ttys002": {ID: "%3", TTY: "ttys002"}},
+		panes:      map[string]room.Pane{"ttys002": {ID: "%3", TTY: "ttys002"}},
 		inside:     true,
 		containers: []work.Container{{ID: "abc123def456", Service: "web", Image: "nginx", State: "running", Dir: "/w"}},
 	}
@@ -377,7 +377,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 		{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{{PID: 11, TTY: "ttys001", Kind: work.KindShell, Command: "zsh", Status: work.StatusIdle}}},
 		{Path: "", Entries: []work.Entry{{PID: 22, TTY: "ttys002", Kind: work.KindShell, Command: "zsh", Status: work.StatusIdle}}},
 	}
-	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	rows := m.projectRows()
 	if len(rows) != 4 {
 		t.Fatalf("the list has %d rows: %+v", len(rows), rows)

@@ -286,7 +286,7 @@ func TestTheBayTakesTheNextProcessWhenItsOwnEnds(t *testing.T) {
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 1, TTY: "ttys001"}, {PID: 2, TTY: "ttys002"}, {PID: 3, TTY: "ttys003"}, {PID: 4, TTY: "ttys004"},
 	}}}
-	m.panes = map[string]tmux.Pane{
+	m.panes = map[string]room.Pane{
 		"ttys001": {ID: "%1", TTY: "ttys001"},
 		"ttys002": {ID: "%2", TTY: "ttys002", Dead: true},
 		"ttys003": {ID: "%3", TTY: "ttys003", Hold: true},
@@ -299,7 +299,7 @@ func TestTheBayTakesTheNextProcessWhenItsOwnEnds(t *testing.T) {
 	if e, ok := m.nextReachable(); !ok || e.PID != 1 {
 		t.Errorf("the cursor's own row when it can be reached: %+v %v", e, ok)
 	}
-	m.panes["ttys004"] = tmux.Pane{ID: "%4", TTY: "ttys004"}
+	m.panes["ttys004"] = room.Pane{ID: "%4", TTY: "ttys004"}
 	m.cursor = 2
 	if e, ok := m.nextReachable(); !ok || e.PID != 4 {
 		t.Errorf("the next down before round again: %+v %v", e, ok)
@@ -325,7 +325,7 @@ func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 	m.view, m.cursor, m.now = viewProcesses, 11, time.Now()
 	m = read(m, here)
 
-	next, cmd := m.Update(openedMsg{shell: tmux.Shell{Pane: tmux.Pane{ID: "%9", TTY: "ttys009"}, PID: 4242}})
+	next, cmd := m.Update(openedMsg{shell: room.Shell{Pane: room.Pane{ID: "%9", TTY: "ttys009"}, PID: 4242}})
 	m = next.(model)
 	if cmd == nil || m.awaited.pid != 4242 || m.bay.tty != "ttys009" {
 		t.Errorf("after opening: cmd %v, awaited %d, bay %q", cmd != nil, m.awaited.pid, m.bay.tty)
@@ -359,7 +359,7 @@ func TestTheReachedRowIsTheBayAtOnce(t *testing.T) {
 	m := plainModel()
 	m.view, m.bay.tty = viewProcesses, "ttys001"
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}}}}
-	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 
 	gen := m.processesGen
 	next, cmd := m.Update(reachedMsg{"ttys002"})
@@ -399,7 +399,7 @@ func TestReachingFromInsideATreePutsTheCursorOnItsHead(t *testing.T) {
 		{PID: 12, TTY: "ttys002", Depth: 1}, // the contact it runs
 		{PID: 13, TTY: "ttys002", Depth: 2}, // and what the contact runs
 	}}}
-	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	m.cursor, m.cursorAt = 13, 3 // down inside the tree
 
 	next, _ := m.Update(reachedMsg{"ttys002"})
@@ -550,7 +550,7 @@ func TestTabReachesTheWaitingContact(t *testing.T) {
 		{PID: 11, Status: work.StatusIdle, TTY: "ttys001"},
 		{PID: 22, Status: work.StatusWaiting, TTY: "ttys002", Since: time.Now().Add(-time.Minute)},
 	}}}
-	m.panes = map[string]tmux.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
 	m.cursor = 11
 
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
@@ -573,7 +573,7 @@ func TestTabReachesTheWaitingContact(t *testing.T) {
 
 	// From the console: the processes view comes up and the process is
 	// reached.
-	m.panes = map[string]tmux.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys002": {ID: "%2", TTY: "ttys002"}}
 	m.view, m.cursor = viewConsole, 11
 	next, cmd = m.toWaiting()
 	m = next.(model)
@@ -718,7 +718,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 40, Kind: work.KindRun, Command: "web · npm run dev", Typed: "web · npm run dev", TTY: "/dev/ttys009", Declared: mark},
 	}}}
-	m.panes = map[string]tmux.Pane{"/dev/ttys009": {ID: "%7", TTY: "/dev/ttys009", Declared: mark}}
+	m.panes = map[string]room.Pane{"/dev/ttys009": {ID: "%7", TTY: "/dev/ttys009", Declared: mark}}
 	m.cursor = 40
 
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
@@ -730,7 +730,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 		t.Errorf("the question: kill %+v", m.kill)
 	}
 
-	m.panes["/dev/ttys009"] = tmux.Pane{ID: "%7", TTY: "/dev/ttys009", Declared: mark, Exit: "0"}
+	m.panes["/dev/ttys009"] = room.Pane{ID: "%7", TTY: "/dev/ttys009", Declared: mark, Exit: "0"}
 	m.kill = nil
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
 	m = next.(model)
@@ -1016,7 +1016,7 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	base.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}, {PID: 23, TTY: "ttys002", Depth: 1},
 	}}}
-	base.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
+	base.panes = map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	base.cursor, base.cursorAt = 11, 0
 	press := func(m model, k string) model {
 		next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: k}))
@@ -1320,7 +1320,7 @@ func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 		t.Errorf("on ~/Downloads the panel stayed at view %d", got.view)
 	}
 	m.projects = []work.Project{{Entries: []work.Entry{{PID: 66, Kind: "SHELL", Command: "zsh", TTY: "ttys006"}}}}
-	m.panes = map[string]tmux.Pane{"ttys006": {ID: "%6", TTY: "ttys006"}}
+	m.panes = map[string]room.Pane{"ttys006": {ID: "%6", TTY: "ttys006"}}
 	m.view, m.list.find.at = viewProjects, len(m.projectRows())-2 // the NO PROJECT heading
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	if got = next.(model); got.view != viewProjects || answered(cmd) != nil {
@@ -1402,7 +1402,7 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	next, _ = m.Update(processesMsg{
 		gen:      m.processesGen,
 		projects: testRunning,
-		panes:    withPane(testPanes, tmux.Pane{ID: "%9", TTY: "ttys009", Hold: true, Readout: true}),
+		panes:    withPane(testPanes, room.Pane{ID: "%9", TTY: "ttys009", Hold: true, Readout: true}),
 		bay:      "ttys009",
 	})
 	if m = next.(model); m.bay.work != "ttys001" {
@@ -1413,7 +1413,7 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	next, _ = m.Update(processesMsg{
 		gen:      m.processesGen,
 		projects: testRunning,
-		panes:    withPane(testPanes, tmux.Pane{ID: "%8", TTY: "ttys008", Hold: true}),
+		panes:    withPane(testPanes, room.Pane{ID: "%8", TTY: "ttys008", Hold: true}),
 		bay:      "ttys008",
 	})
 	if m = next.(model); m.bay.work != "ttys001" {
@@ -1445,14 +1445,14 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	if _, cmd := press(m, "esc"); cmd != nil {
 		t.Error("esc reached for a process conn holds no pane for")
 	}
-	m.bay.work, m.panes = "ttys001", withPane(testPanes, tmux.Pane{ID: "%1", TTY: "ttys001", Dead: true})
+	m.bay.work, m.panes = "ttys001", withPane(testPanes, room.Pane{ID: "%1", TTY: "ttys001", Dead: true})
 	if _, cmd := press(m, "esc"); cmd != nil {
 		t.Error("esc reached into a pane whose process has ended")
 	}
 }
 
 // withPane is testPanes with one more pane in it, the map left alone.
-func withPane(panes map[string]tmux.Pane, p tmux.Pane) map[string]tmux.Pane {
+func withPane(panes map[string]room.Pane, p room.Pane) map[string]room.Pane {
 	out := maps.Clone(panes)
 	out[p.TTY] = p
 	return out
@@ -1468,7 +1468,7 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 	m := plainModel()
 	m.inside, m.view = true, viewProcesses
 	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
-	m.panes = map[string]tmux.Pane{
+	m.panes = map[string]room.Pane{
 		"ttysa": {ID: "%1", TTY: "ttysa"},
 		"ttysb": {ID: "%2", TTY: "ttysb"},
 		"ttysp": {ID: "%9", TTY: "ttysp", Hold: true, Readout: true},
@@ -1512,7 +1512,7 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 
 	// Work whose pane has ended is nowhere to be sent, and is asked the
 	// way every other road into a pane asks it.
-	m.panes["ttysb"] = tmux.Pane{ID: "%2", TTY: "ttysb", Dead: true}
+	m.panes["ttysb"] = room.Pane{ID: "%2", TTY: "ttysb", Dead: true}
 	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+-"})); cmd != nil {
 		t.Error("the key reached into a pane whose process has ended")
 	}
@@ -1562,7 +1562,7 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	// The panes come back parked: the cursor waits on the first of
 	// them, and the table is read again.
 	gen := m.processesGen
-	next, cmd = m.Update(raisedMsg{shells: []tmux.Shell{{PID: 500}, {PID: 501}}})
+	next, cmd = m.Update(raisedMsg{shells: []room.Shell{{PID: 500}, {PID: 501}}})
 	m = next.(model)
 	if m.awaited.pid != 500 || m.processesGen != gen+1 || cmd == nil {
 		t.Errorf("raised: awaited %d, gen %d from %d, cmd %v", m.awaited.pid, m.processesGen, gen, cmd != nil)
@@ -1605,7 +1605,7 @@ func TestXOnADeclaredRow(t *testing.T) {
 		{PID: 400, Kind: work.KindRun, Command: "web · npm run dev", TTY: "ttys004", Status: work.StatusActive, Declared: mark},
 		{PID: 401, Kind: work.KindRun, Command: "npm run dev", TTY: "ttys004", Status: work.StatusActive, Depth: 1},
 	}}}
-	m.panes = map[string]tmux.Pane{
+	m.panes = map[string]room.Pane{
 		"ttys003": {ID: "%3", TTY: "ttys003", Declared: mark, Exit: "0"},
 		"ttys004": {ID: "%4", TTY: "ttys004", Declared: mark},
 	}
@@ -1702,7 +1702,7 @@ func TestAClickOnARowGoesIn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.focused, m.bay.readout = viewProcesses, true, true, true
 	m.srv, m.width, m.height = &room.Server{Server: &tmux.Server{}}, room.PanelWidth, 30
-	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
 		{PID: 11, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: work.StatusIdle},
 		{PID: 12, Kind: work.KindRun, Command: "node vite", Typed: "node vite", TTY: "ttys002", Status: work.StatusActive},

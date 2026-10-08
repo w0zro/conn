@@ -7,8 +7,6 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -71,7 +69,7 @@ func (m model) readProcesses() tea.Cmd {
 		// that container's row will stand on, and a process that must
 		// not stand for itself. A docker logs beside the service it is
 		// showing would be the same thing listed twice.
-		var panes map[string]tmux.Pane
+		var panes map[string]room.Pane
 		if srv != nil {
 			panes, _ = srv.Panes()
 		}
@@ -115,7 +113,7 @@ func (m model) readProcesses() tea.Cmd {
 		// the table has no word for until it is: a stat per project,
 		// and a read where a file changed.
 		declared = work.RefreshDeclared(declared, work.DeclaredPaths(projects, declared, isProject))
-		projects = work.AttachDeclared(projects, declared, panes)
+		projects = work.AttachDeclared(projects, declared, declaredPanes(panes))
 		// And the services brew holds up for them, as brew last said,
 		// each with the sockets of the process running it, which the
 		// table has and files nowhere.
@@ -333,6 +331,18 @@ func recordsOf(procs []work.Process, projects []work.Project) map[int]record {
 			if p, ok := byPid[e.PID]; ok {
 				out[e.PID] = recordOf(p)
 			}
+		}
+	}
+	return out
+}
+
+// declaredPanes is the panes conn opened for declarations, by the
+// terminal each holds, as the rows are read against them.
+func declaredPanes(panes map[string]room.Pane) map[string]work.DeclaredPane {
+	out := map[string]work.DeclaredPane{}
+	for tty, p := range panes {
+		if p.Declared != "" {
+			out[tty] = work.DeclaredPane{ID: p.ID, TTY: p.TTY, Declared: p.Declared, Exit: p.Exit}
 		}
 	}
 	return out

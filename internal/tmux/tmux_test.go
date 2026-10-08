@@ -5,45 +5,30 @@ import (
 	"testing"
 )
 
-// list-panes, as tmux prints it for the format asked.
+// list-panes, as tmux prints it for the format asked: the fields every
+// pane is read with, then the user options asked for, in the order
+// asked, blank where a pane has none.
 func TestPanesAreParsed(t *testing.T) {
-	// The last three fields are tmux's word for where the keys are in
-	// the window — the panel has them here, and nothing else does —
-	// where each pane stands in it, and conn's own mark for the
-	// settings.
-	out := "%0 /dev/ttys004 48 40         1 0 \n" +
-		"%1 /dev/ttys007 138 40 1        0 1 \n" +
-		"%5 /dev/ttys008 138 40  1       0 2 \n" +
-		// A readout carries the hold's own mark as well as its own: it is
-		// furniture like a hold, and everything that acts on holds acts on
-		// it. Only the panel has to tell the two apart. The manual and the
-		// settings are furniture the same way; this pane wears every mark
-		// at once, so the parse is read for all of them together.
-		"%7 /dev/ttys009 138 40 1  1   1   0 3 1\n" +
-		// A pane conn opened for a container says which: it is the
-		// terminal that container has not got, and its row is reached
-		// through it.
-		"%9 /dev/ttys010 138 40    9f1c2d3e4a5b     0 4 \n" +
-		// A pane holding a shell inside a container says which container,
-		// on the other mark: it is work of the operator's own, not the
-		// service being read.
-		"%11 /dev/ttys011 138 40     9f1c2d3e4a5b    0 5 \n" +
-		// A pane conn opened for a declared process says which, and
-		// how the process ended once it has.
-		"%13 /dev/ttys012 138 40       web@%2FUsers%2Fw0zro%2Fapp 1 0 6 \n\n"
+	opts := []string{"@a", "@b"}
+	// The fields are the id, the terminal, the size, whether the
+	// process has ended, whether the keys are in it, and where it stands
+	// in its window.
+	out := "%0 /dev/ttys004 48 40  1 0  \n" +
+		"%5 /dev/ttys008 138 40 1  1 1 \n" +
+		"%9 /dev/ttys010 138 40   2 9f1c2d3e4a5b x\n\n"
 	want := map[string]Pane{
-		"ttys004": {ID: "%0", TTY: "ttys004", Width: 48, Height: 40, Active: true, index: 0},
-		"ttys007": {ID: "%1", TTY: "ttys007", Width: 138, Height: 40, Hold: true, index: 1},
-		"ttys008": {ID: "%5", TTY: "ttys008", Width: 138, Height: 40, Dead: true, index: 2},
-		"ttys009": {ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Hold: true, Readout: true, Help: true, Settings: true, index: 3},
-		"ttys010": {ID: "%9", TTY: "ttys010", Width: 138, Height: 40, Container: "9f1c2d3e4a5b", index: 4},
-		"ttys011": {ID: "%11", TTY: "ttys011", Width: 138, Height: 40, ShellIn: "9f1c2d3e4a5b", index: 5},
-		"ttys012": {ID: "%13", TTY: "ttys012", Width: 138, Height: 40, Declared: "web@%2FUsers%2Fw0zro%2Fapp", Exit: "1", index: 6},
+		"ttys004": {ID: "%0", TTY: "ttys004", Width: 48, Height: 40, Active: true, index: 0, Opts: map[string]string{"@a": "", "@b": ""}},
+		"ttys008": {ID: "%5", TTY: "ttys008", Width: 138, Height: 40, Dead: true, index: 1, Opts: map[string]string{"@a": "1", "@b": ""}},
+		"ttys010": {ID: "%9", TTY: "ttys010", Width: 138, Height: 40, index: 2, Opts: map[string]string{"@a": "9f1c2d3e4a5b", "@b": "x"}},
 	}
-	if got := parsePanes(out); !reflect.DeepEqual(got, want) {
+	if got := parsePanes(out, opts); !reflect.DeepEqual(got, want) {
 		t.Errorf("panes: %v", got)
 	}
-	if got := parsePanes(""); len(got) != 0 {
+	// Asked for nothing past the fields, a pane carries no options.
+	if got := parsePanes("%0 /dev/ttys004 48 40  1 0", nil); got["ttys004"].Opts != nil || got["ttys004"].ID != "%0" {
+		t.Errorf("a pane read with no options: %+v", got)
+	}
+	if got := parsePanes("", opts); len(got) != 0 {
 		t.Errorf("no panes parsed as %v", got)
 	}
 }
@@ -62,7 +47,7 @@ func TestTheClientEnvironmentDropsTmux(t *testing.T) {
 // answer into an underscore, and conn read no panes at all. A space
 // tells the fields apart in every locale there is.
 func TestNoFormatAsksTmuxForAControlCharacter(t *testing.T) {
-	for _, f := range []string{paneFormat, openFormat, windowFormat} {
+	for _, f := range []string{paneFormat(nil), paneFormat([]string{"@a", "@b"}), openFormat, windowFormat} {
 		for i, r := range f {
 			if r < 0x20 || r == 0x7f {
 				t.Errorf("a format asks tmux for %q at %d: %q", r, i, f)

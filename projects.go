@@ -14,8 +14,6 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -315,7 +313,7 @@ func relName(root, path string) string {
 // could not reach. It gets a heading of its own, named the way the
 // processes view names it, at the foot of the list: it is not a project
 // and has no place in the order the walk put the projects in.
-func withProcesses(ps []projectRow, projects []work.Project, panes map[string]tmux.Pane, roots []string, home string) []projectRow {
+func withProcesses(ps []projectRow, projects []work.Project, panes map[string]room.Pane, roots []string, home string) []projectRow {
 	under := map[string][]projectRow{}
 	for _, pl := range projects {
 		for _, e := range pl.Entries {

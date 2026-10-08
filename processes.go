@@ -12,8 +12,6 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
-	"github.com/w0zro/conn/internal/tmux"
-
 	"github.com/w0zro/conn/internal/config"
 
 	tea "charm.land/bubbletea/v2"
@@ -156,7 +154,7 @@ func carriedWord(e work.Entry) string {
 	return tokens(e.Carried)
 }
 
-func composeProcesses(projects []work.Project, panes map[string]tmux.Pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
+func composeProcesses(projects []work.Project, panes map[string]room.Pane, bay string, roots []string, isProject func(string) bool, home string, now time.Time, err string, stalled bool, filed bool) processesReport {
 	b := processesReport{err: err, stalled: stalled, filed: filed}
 	head, _, marked := headOf(projects, bay)
 	for _, pl := range projects {

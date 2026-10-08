@@ -159,7 +159,7 @@ func TestSocketsAndBrewTravelWithTheReading(t *testing.T) {
 	r := reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Shared: 2, Ports: []string{"5432"},
 			Sockets: []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}}},
-	}}}, brews: services, records: map[int]record{}, panes: map[string]tmux.Pane{}}
+	}}}, brews: services, records: map[int]record{}, panes: map[string]room.Pane{}}
 	b, err := json.Marshal(r)
 	if err != nil {
 		t.Fatal(err)

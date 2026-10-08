@@ -32,7 +32,7 @@ func TestWindowsAreReadNameThenPath(t *testing.T) {
 func TestAnOpenedPaneIsReadBack(t *testing.T) {
 	got := parseOpened("%4 8123 /dev/ttys005\n")
 	want := Shell{Pane: Pane{ID: "%4", TTY: "ttys005"}, PID: 8123}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parseOpened read %+v, want %+v", got, want)
 	}
 	// A short answer is not a crash: the fields it lacks are blank.

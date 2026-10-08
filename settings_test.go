@@ -297,7 +297,7 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 // answers the key wherever it is and whatever view it is in.
 func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 	m := model{view: viewProjects, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toSettings, from: "%4"},
-		panes: map[string]tmux.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
+		panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
 	next, cmd := m.key("alt+,") // what leaveSettingsKey arrives as
 	if got := next; got.detour.to == toSettings || got.detour.from != "" {
 		t.Errorf("the settings are still up: setting %v, from %q", got.detour.to == toSettings, got.detour.from)

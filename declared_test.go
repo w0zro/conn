@@ -5,9 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // A compose declaration that is down has the services it would bring
@@ -57,8 +56,8 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 		{PID: -6, Kind: work.KindService, Command: "web", Typed: "web", Ports: []string{"8080"}, Status: work.StatusActive, Depth: 2, Container: "bbb"},
 		{PID: 300, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys003", Status: work.StatusIdle},
 	}}}
-	panes := map[string]tmux.Pane{"ttys002": {ID: "%2", TTY: "ttys002", Declared: mark}}
-	got = work.AttachDeclared(up, declared, panes)
+	panes := map[string]room.Pane{"ttys002": {ID: "%2", TTY: "ttys002", Declared: mark}}
+	got = work.AttachDeclared(up, declared, declaredPanes(panes))
 	want = []string{"RUN stack · docker compose up ACTIVE", " RUN docker compose up ACTIVE", "  SERVICE api ACTIVE", "  SERVICE web ACTIVE", " SERVICE db DOWN", "SHELL zsh IDLE"}
 	if !slices.Equal(rows(got[0]), want) {
 		t.Errorf("up:\n%s\nwant:\n%s", strings.Join(rows(got[0]), "\n"), strings.Join(want, "\n"))

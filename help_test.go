@@ -216,7 +216,7 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 // a trap rather than a help.
 func TestThePanelKeyLeavesTheManual(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toManual, from: "%4"},
-		panes: map[string]tmux.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
+		panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
 	next, cmd := m.key("alt+-")
 	if got := next; got.detour.to == toManual {
 		t.Error("the manual is still up")
@@ -245,8 +245,8 @@ func TestThePanelKeyLeavesTheManual(t *testing.T) {
 // where they were, and on the panel where the operator was working the
 // view. An answer to a question is not a reason to move somebody.
 func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
-	work := tmux.Pane{ID: "%4", TTY: "ttys011"}
-	panes := map[string]tmux.Pane{"ttys011": work}
+	work := room.Pane{ID: "%4", TTY: "ttys011"}
+	panes := map[string]room.Pane{"ttys011": work}
 
 	// Asked from the workspace: back into that pane.
 	m := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toManual, from: "%4"},
@@ -286,9 +286,9 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 // the panel — so the workspace is filled in the same breath instead of
 // holding a dead pane until the next reading comes round.
 func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
-	work := tmux.Pane{ID: "%2", TTY: "ttys009"}
+	work := room.Pane{ID: "%2", TTY: "ttys009"}
 	m := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toManual},
-		bay: bay{work: "ttys009"}, panes: map[string]tmux.Pane{"ttys009": work}}
+		bay: bay{work: "ttys009"}, panes: map[string]room.Pane{"ttys009": work}}
 	next, cmd := m.key("alt+esc")
 	got := next
 	if got.detour.to == toManual {
@@ -302,7 +302,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	// same way rather than by a second rule that could drift from this.
 	m.detour.to = toManual
 	found, cmd := m.Update(processesMsg{gen: m.processesGen, bayDead: true, bayDetour: toManual,
-		panes: map[string]tmux.Pane{"ttys009": work}})
+		panes: map[string]room.Pane{"ttys009": work}})
 	if got := found.(model); got.detour.to == toManual {
 		t.Error("a manual found dead left conn still helping")
 	}

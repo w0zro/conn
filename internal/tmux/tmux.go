@@ -57,61 +57,21 @@ func WithoutTmux(env []string) []string {
 	return out
 }
 
-// A Pane of the server: its id, which holds through swaps; the terminal
-// it holds; its size; whether it is conn's own furniture and whether
-// that furniture is a readout; and whether remain-on-exit is the only
-// thing keeping it up, its process already gone.
-//
-// A readout is furniture too — everything true of a hold is true of it,
-// so it carries the hold's own mark and everything that acts on holds
-// acts on it — but the panel has to tell the two apart to know whether
-// the page is up, and a mark of its own is how.
+// A Pane of the server: its id, which holds through swaps; the
+// terminal it holds; its size; whether its process has ended and it
+// stands only because the window keeps it; whether the keys are in it,
+// as far as its window goes; and the user options asked for, by name.
 type Pane struct {
 	ID, TTY       string
 	Width, Height int
-	Hold          bool
-	Readout       bool
 	Dead          bool
-	// The container this pane is watching, where it is one conn opened
-	// to read a service's output. A container has no terminal of its
-	// own, so this is how its row comes to have one: the pane conn
-	// opened for it stands in for the terminal it has not got, and from
-	// there the row is reached and left like any other.
-	//
-	// Exactly one pane stands for a service this way. A shell conn
-	// opened inside the container is marked shellIn instead, because it
-	// is not the service being read — it is work of the operator's own
-	// that happens to be running in there, and a second pane claiming
-	// to be the service's terminal would leave the row pointing at
-	// whichever of the two a map ranged over last.
-	Container string
-	ShellIn   string
-	// The declaration this pane was opened for, as declared.go marks
-	// it, and, once the command in it has ended, the status it ended
-	// with, which the pane's own line records. A pane that is a
-	// declaration's is the work itself and is listed like any other.
-	Declared string
-	Exit     string
-	// The manual, which ? puts in the workspace. It is conn's
-	// own furniture like the readout: it carries the hold's mark as
-	// well, so everything that steps over furniture steps over it, and
-	// this says which furniture it is.
-	Help bool
-	// The settings, which , puts in the workspace. Furniture again,
-	// and marked apart from the manual for the same reason the manual
-	// is marked apart from the readout: the panel says which of them
-	// is standing, and answers for the keys that are in it.
-	Settings bool
 	// Whether this is its window's active pane, which is tmux's word
-	// for where the keys are in that window. The panel is told by the
-	// terminal when the keys leave it and knows on its own when its
-	// reaching sent them away; this is the same fact read off the
-	// server, for a reading that lands between the two.
+	// for where the keys are in that window.
 	Active bool
-	// Where it stands in its window, which is how the bay is told from
-	// anything else beside the panel: home has two panes, the panel at
-	// 0 and the bay at 1, and a third is a mistake to be mended rather
-	// than a pane to be guessed between.
+	// The value of each user option the pane was read with, by name,
+	// blank where the pane has none.
+	Opts map[string]string
+	// Where it stands in its window.
 	index int
 }
 
@@ -133,10 +93,11 @@ const (
 	windowFormat = "#{window_name} #{pane_current_path}"
 )
 
-// paneFields is what conn asks tmux of a pane, a field at a time: what
+// paneFields is what is asked of every pane, a field at a time: what
 // tmux fills in, and where the answer goes. paneFormat is these in
-// order and parsePanes reads them back in the same order, so a field is
-// added in one place and the two cannot fall out of step.
+// order, then the user options asked for, and parsePanes reads them
+// back in the same order, so a field is added in one place and the two
+// cannot fall out of step.
 var paneFields = []struct {
 	format string
 	read   func(p *Pane, v string)
@@ -145,49 +106,53 @@ var paneFields = []struct {
 	{"#{pane_tty}", func(p *Pane, v string) { p.TTY = strings.TrimPrefix(v, "/dev/") }},
 	{"#{pane_width}", func(p *Pane, v string) { p.Width, _ = strconv.Atoi(v) }},
 	{"#{pane_height}", func(p *Pane, v string) { p.Height, _ = strconv.Atoi(v) }},
-	{"#{@conn_hold}", func(p *Pane, v string) { p.Hold = v == "1" }},
 	{"#{pane_dead}", func(p *Pane, v string) { p.Dead = v == "1" }},
-	{"#{@conn_readout}", func(p *Pane, v string) { p.Readout = v == "1" }},
-	{"#{@conn_container}", func(p *Pane, v string) { p.Container = v }},
-	{"#{@conn_shell_in}", func(p *Pane, v string) { p.ShellIn = v }},
-	{"#{@conn_help}", func(p *Pane, v string) { p.Help = v == "1" }},
-	{"#{@conn_declared}", func(p *Pane, v string) { p.Declared = v }},
-	{"#{@conn_exit}", func(p *Pane, v string) { p.Exit = v }},
 	{"#{pane_active}", func(p *Pane, v string) { p.Active = v == "1" }},
 	{"#{pane_index}", func(p *Pane, v string) { p.index, _ = strconv.Atoi(v) }},
-	{"#{@conn_settings}", func(p *Pane, v string) { p.Settings = v == "1" }},
 }
 
-// paneFormat is the fields, as list-panes is asked for them.
-var paneFormat = func() string {
-	formats := make([]string, len(paneFields))
-	for i, f := range paneFields {
-		formats[i] = f.format
+// paneFormat is the fields and the user options, as list-panes is
+// asked for them. An option is one token too: a flag or a mark its
+// setter wrote.
+func paneFormat(opts []string) string {
+	formats := make([]string, 0, len(paneFields)+len(opts))
+	for _, f := range paneFields {
+		formats = append(formats, f.format)
+	}
+	for _, o := range opts {
+		formats = append(formats, "#{"+o+"}")
 	}
 	return strings.Join(formats, " ")
-}()
+}
 
-// Panes is every pane in the server, by the terminal it holds.
-func (s *Server) Panes() (map[string]Pane, error) {
-	out, err := s.Run("list-panes", "-a", "-F", paneFormat)
+// Panes is every pane in the server, by the terminal it holds, read
+// with the user options named.
+func (s *Server) Panes(opts ...string) (map[string]Pane, error) {
+	out, err := s.Run("list-panes", "-a", "-F", paneFormat(opts))
 	if err != nil {
 		return nil, err
 	}
-	return parsePanes(out), nil
+	return parsePanes(out, opts), nil
 }
 
 // parsePanes reads list-panes in paneFormat, with each terminal's /dev/
 // dropped to match how a process names its own.
-func parsePanes(out string) map[string]Pane {
+func parsePanes(out string, opts []string) map[string]Pane {
 	panes := map[string]Pane{}
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Split(l, " ")
-		if len(f) != len(paneFields) || f[0] == "" {
+		if len(f) != len(paneFields)+len(opts) || f[0] == "" {
 			continue
 		}
 		var p Pane
 		for i, field := range paneFields {
 			field.read(&p, f[i])
+		}
+		if len(opts) > 0 {
+			p.Opts = make(map[string]string, len(opts))
+			for i, o := range opts {
+				p.Opts[o] = f[len(paneFields)+i]
+			}
 		}
 		panes[p.TTY] = p
 	}
@@ -195,14 +160,14 @@ func parsePanes(out string) map[string]Pane {
 }
 
 // WindowPanes is every pane of the window a target is in, in the order
-// they stand.
-func (s *Server) WindowPanes(target string) ([]Pane, error) {
-	out, err := s.Run("list-panes", "-t", target, "-F", paneFormat)
+// they stand, read with the user options named.
+func (s *Server) WindowPanes(target string, opts ...string) ([]Pane, error) {
+	out, err := s.Run("list-panes", "-t", target, "-F", paneFormat(opts))
 	if err != nil {
 		return nil, err
 	}
 	var panes []Pane
-	for _, p := range parsePanes(out) {
+	for _, p := range parsePanes(out, opts) {
 		panes = append(panes, p)
 	}
 	sort.Slice(panes, func(i, j int) bool { return panes[i].index < panes[j].index })
@@ -331,17 +296,6 @@ func (s *Server) Unmode(id string) {
 type Shell struct {
 	Pane Pane
 	PID  int
-}
-
-// PaneExit is what a declared process's pane has recorded of its end:
-// the code, or nothing while it is still going. An error is a pane
-// that is not there to ask.
-func (s *Server) PaneExit(id string) (string, error) {
-	out, err := s.Run("display-message", "-p", "-t", id, "#{@conn_exit}")
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(out), nil
 }
 
 // Interrupt is ctrl-c in a pane, as tmux types it: what a hand does to

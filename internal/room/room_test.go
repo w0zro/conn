@@ -47,14 +47,14 @@ func TestThePanelKeyIsTheOperatorsToSet(t *testing.T) {
 
 func TestOnlyWorkStillRunningIsReachable(t *testing.T) {
 	for name, c := range map[string]struct {
-		p    tmux.Pane
+		p    Pane
 		want bool
 	}{
-		"work":        {tmux.Pane{ID: "%4"}, true},
-		"no pane":     {tmux.Pane{}, false},
-		"a hold":      {tmux.Pane{ID: "%4", Hold: true}, false},
-		"the readout": {tmux.Pane{ID: "%4", Readout: true}, false},
-		"ended":       {tmux.Pane{ID: "%4", Dead: true}, false},
+		"work":        {Pane{ID: "%4"}, true},
+		"no pane":     {Pane{}, false},
+		"a hold":      {Pane{ID: "%4", Hold: true}, false},
+		"the readout": {Pane{ID: "%4", Readout: true}, false},
+		"ended":       {Pane{ID: "%4", Dead: true}, false},
 	} {
 		if got := Reachable(c.p); got != c.want {
 			t.Errorf("%s: Reachable = %v, want %v", name, got, c.want)
@@ -79,5 +79,46 @@ func TestNoFormatAsksTmuxForAControlCharacter(t *testing.T) {
 				t.Errorf("a format asks tmux for %q at %d: %q", r, i, f)
 			}
 		}
+	}
+}
+
+// A pane is read for what conn marked it as. A readout carries the
+// hold's own mark as well as its own: it is furniture like a hold, and
+// everything that acts on holds acts on it; only the panel has to tell
+// the two apart. The manual and the settings are furniture the same
+// way. A pane conn opened for a container says which, and a shell
+// inside one says which on the other mark: it is work of the
+// operator's own, not the service being read. A pane opened for a
+// declared process says which, and how the process ended once it has.
+func TestAPaneIsReadByItsMarks(t *testing.T) {
+	base := tmux.Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true}
+	with := func(opts map[string]string) tmux.Pane { p := base; p.Opts = opts; return p }
+	for name, c := range map[string]struct {
+		in   tmux.Pane
+		want Pane
+	}{
+		"work": {with(nil), Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true}},
+		"furniture": {with(map[string]string{holdMark: "1", readoutMark: "1", helpMark: "1", settingsMark: "1"}),
+			Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true, Hold: true, Readout: true, Help: true, Settings: true}},
+		"container": {with(map[string]string{containerMark: "9f1c2d3e4a5b"}),
+			Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true, Container: "9f1c2d3e4a5b"}},
+		"shell in": {with(map[string]string{shellInMark: "9f1c2d3e4a5b"}),
+			Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true, ShellIn: "9f1c2d3e4a5b"}},
+		"declared": {with(map[string]string{declaredMark: "web@%2FUsers%2Fw0zro%2Fapp", exitMark: "1"}),
+			Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true, Declared: "web@%2FUsers%2Fw0zro%2Fapp", Exit: "1"}},
+	} {
+		if got := paneOf(c.in); got != c.want {
+			t.Errorf("%s: %+v, want %+v", name, got, c.want)
+		}
+	}
+}
+
+// The line run in the pane is the command as written, then the exit
+// recorded and the hold, each on a line of its own.
+func TestTheLineRunInThePane(t *testing.T) {
+	got := declaredLine("npm run dev # dev", "web", "/opt/bin/tmux")
+	want := "npm run dev # dev\n'/opt/bin/tmux' set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\nprintf '\\n[web exited]\\n'\nexec cat"
+	if got != want {
+		t.Errorf("line:\n%s\nwant:\n%s", got, want)
 	}
 }

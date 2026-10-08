@@ -739,7 +739,7 @@ func (m model) toProjects() (model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// projectKey answers a key in projects, which is a line typed into;
+// key answers a key in projects, which is a line typed into;
 // see typed for the keys every such line has. What is the list's own:
 // enter opens a shell at the row under the cursor and goes back to the
 // processes view, which is where the shell will show, or goes into the
@@ -751,37 +751,49 @@ func (m model) toProjects() (model, tea.Cmd) {
 // terminal at all, alphabetic ctrl combinations being their letter's
 // own case already; esc goes back without opening anything, and ctrl+c
 // is what it is everywhere.
-func (m model) projectKey(k string) (model, tea.Cmd) {
-	rows := m.projectRows()
+func (l projectList) key(k string, rows []projectRow) (projectList, ask) {
 	switch {
-	case m.list.find.edit(k, len(rows)):
+	case l.find.edit(k, len(rows)):
 	case k == "ctrl+c":
-		return m.leave()
+		return l, askLeave{}
 	case k == "esc":
-		return m.backFrom()
+		return l, askBack{}
 	case k == "enter":
-		row, ok := m.list.at(rows)
-		if !m.inside || !ok {
-			return m, nil
+		if row, ok := l.at(rows); ok {
+			return l, askProject{row}
 		}
-		// A process row is somewhere to go, not something to start: enter
-		// puts its pane in the bay and the keys in it, the way enter does
-		// on the row in the processes view. That is the whole of what this
-		// mode is for on a machine with more processes than rows.
-		if row.pid != 0 {
-			if room.Reachable(m.panes[row.tty]) {
-				var cmd tea.Cmd
-				m, cmd = m.toProcesses()
-				return m, tea.Batch(cmd, m.reach(m.panes[row.tty], row.tty))
-			}
-			return m, nil
-		}
-		if row.path == "" {
-			return m, nil // work off every project: a heading, not a place
-		}
-		var cmd tea.Cmd
-		m, cmd = m.toProcesses()
-		return m, tea.Batch(cmd, m.openShell(row.path))
 	}
-	return m, nil
+	return l, nil
+}
+
+// projectKey is a key on the list.
+func (m model) projectKey(k string) (model, tea.Cmd) {
+	var a ask
+	m.list, a = m.list.key(k, m.projectRows())
+	return m.answer(a)
+}
+
+// goToRow goes where a row of the list is: a process row's pane put in
+// the bay with the keys in it, the way enter does on the row in the
+// processes view, which is the whole of what this mode is for on a
+// machine with more processes than rows; a project's, a shell opened
+// in it. The heading for work off every project is not a place.
+func (m model) goToRow(row projectRow) (model, tea.Cmd) {
+	if !m.inside {
+		return m, nil
+	}
+	if row.pid != 0 {
+		if room.Reachable(m.panes[row.tty]) {
+			var cmd tea.Cmd
+			m, cmd = m.toProcesses()
+			return m, tea.Batch(cmd, m.reach(m.panes[row.tty], row.tty))
+		}
+		return m, nil
+	}
+	if row.path == "" {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m, cmd = m.toProcesses()
+	return m, tea.Batch(cmd, m.openShell(row.path))
 }

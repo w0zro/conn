@@ -23,6 +23,7 @@ type (
 	askTakeRoot struct{ root string }           // a root chosen, to write and work from
 	askResume   struct{ dir, id string }        // a suspended session to continue
 	askPreview  struct{}                        // the match under the cursor, shown in the bay
+	askProject  struct{ row projectRow }        // where a row of the list is
 	askLand     struct {                        // a match's pane, gone into on the match
 		hit  outMatch
 		pane outPane
@@ -38,6 +39,7 @@ func (askTakeRoot) asked() {}
 func (askResume) asked()   {}
 func (askPreview) asked()  {}
 func (askLand) asked()     {}
+func (askProject) asked()  {}
 
 // answer carries out what a view's key asked of the panel; nothing for
 // a key the view answered on its own.
@@ -68,6 +70,8 @@ func (m model) answer(a ask) (model, tea.Cmd) {
 		return m.previewing()
 	case askLand:
 		return m.land(a.hit, a.pane)
+	case askProject:
+		return m.goToRow(a.row)
 	}
 	return m, nil
 }

@@ -139,8 +139,8 @@ const (
 	StatusClosed  = "CLOSED"  // it was listening, and the listener has gone while it lives
 )
 
-// exitWord is what a status that ended with a code begins with.
-const exitWord = "EXIT "
+// ExitWord is what a status that ended with a code begins with.
+const ExitWord = "EXIT "
 
 // Said is a status as a row says it. The vocabulary is the machine's and
 // stays in capitals wherever conn reasons about it — the manual's table
@@ -982,7 +982,7 @@ func Over(status string) bool {
 	case StatusDown, StatusEnded:
 		return true
 	}
-	return strings.HasPrefix(status, exitWord)
+	return strings.HasPrefix(status, ExitWord)
 }
 
 // Faulty says whether a word is a fault's: a thing to look at, which
@@ -992,10 +992,21 @@ func Faulty(word string) bool {
 	switch {
 	case word == StatusStopped, word == StatusEnded, word == StatusClosed:
 		return true
-	case strings.HasPrefix(word, exitWord):
+	case strings.HasPrefix(word, ExitWord):
 		return true
 	case SaidWords[word]:
 		return true
 	}
 	return false
+}
+
+// BlockOf is the index of a project's block, or below zero where the
+// project has none.
+func BlockOf(out []Project, path string) int {
+	for i, pl := range out {
+		if pl.Path == path {
+			return i
+		}
+	}
+	return -1
 }

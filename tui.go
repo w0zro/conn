@@ -11,7 +11,10 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/declared"
+	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -174,7 +177,7 @@ type (
 		err        string
 		// The projects' .conn files as this reading found them, kept on
 		// the model for the next reading to stat against; see declared.go.
-		declared map[string]work.Declared
+		declared map[string]declared.File
 		// The projects whole, where projects is the fold of them.
 		tree []work.Project
 		gen  int
@@ -313,19 +316,19 @@ type model struct {
 	// merges what is already here and never waits on the daemon; stalled
 	// is docker having gone quiet, which the view admits rather than
 	// showing yesterday's rows as though they were today's.
-	containers []work.Container
+	containers []docker.Container
 	// The projects' .conn files as last read; see declared.go.
-	declared map[string]work.Declared
+	declared map[string]declared.File
 	// The processes as read, whole, and whether the view shows them
 	// so: at rest it shows the fold of them; see fold.go.
 	tree          []work.Project
 	full          bool
 	up            time.Time // when this conn came up, for the band's clock
-	dockerFeed    *work.DockerFeed
+	dockerFeed    *docker.Feed
 	dockerStalled bool
 	// What brew last said of its services, merged into every reading
 	// while any project declares one; see brew.go.
-	brews []work.BrewService
+	brews []brew.Service
 }
 
 // newModel is conn on a ground: drawn in that ground's palette on the
@@ -388,7 +391,7 @@ func (m model) rooted(r rooting) model {
 
 func (m model) Init() tea.Cmd {
 	cmds := []tea.Cmd{readStation(m.survey.gen), startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
-	if work.BrewPath != "" {
+	if brew.Path != "" {
 		cmds = append(cmds, nextBrew())
 	}
 	if m.inside {
@@ -671,13 +674,13 @@ func (m model) subject() subject {
 
 // brewAt is the brew service of a formula, as the panel has it from
 // brew, where brew has reported it.
-func (m model) brewAt(formula string) *work.BrewService {
-	return work.BrewServiceNamed(m.brews, formula)
+func (m model) brewAt(formula string) *brew.Service {
+	return brew.Named(m.brews, formula)
 }
 
 // containerAt is the container a row stands for, where it is one, as the
 // panel has it from docker.
-func (m model) containerAt(pid int) *work.Container {
+func (m model) containerAt(pid int) *docker.Container {
 	for _, pl := range m.projects {
 		for _, e := range pl.Entries {
 			if e.PID == pid {
@@ -753,7 +756,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	case brewTickMsg:
 		// Brew is asked only while some project declares a service of
 		// its own; otherwise the beat passes.
-		if work.BrewDeclared(m.declared) {
+		if brew.Declared(m.declared) {
 			return m, readBrew
 		}
 		return m, nextBrew()
@@ -1295,7 +1298,7 @@ func (m model) raiseAt() (model, tea.Cmd) {
 	if !m.inside || !ok || path == "" {
 		return m, nil
 	}
-	up, held := work.UpAndHeld(m.projects, declaredPanes(m.panes), path)
+	up, held := declared.UpAndHeld(m.projects, declaredPanes(m.panes), path)
 	var cmds []tea.Cmd
 	if m.view != viewProcesses {
 		var cmd tea.Cmd

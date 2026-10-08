@@ -1,10 +1,13 @@
-package work
+package brew
 
 import (
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
 )
 
 // A declaration that starts a service with brew names the formula; any
@@ -18,7 +21,7 @@ func TestABrewDeclarationNamesItsFormula(t *testing.T) {
 		"brew install redis":                "",
 		"npm run dev":                       "",
 	} {
-		got, ok := BrewArgs(command)
+		got, ok := declared.BrewArgs(command)
 		if got != want || ok != (want != "") {
 			t.Errorf("%q names %q, want %q", command, got, want)
 		}
@@ -31,17 +34,17 @@ func TestABrewDeclarationNamesItsFormula(t *testing.T) {
 // under the first, while the panel was filed by state and a second row
 // of one service in one block would have been the same thing twice.
 func TestAServiceTwoProjectsDeclareStandsUnderEach(t *testing.T) {
-	services, _ := ParseBrewServices([]byte(brewInfo))
-	decl := map[string]Declared{
-		"/w/a": {List: []Declaration{{Name: "db", Command: "brew services start postgresql@14"}}},
-		"/w/q": {List: []Declaration{{Name: "pg", Command: "brew services start postgresql@14"}, {Name: "cache", Command: "brew services start redis"}}},
+	services, _ := Parse([]byte(brewInfo))
+	decl := map[string]declared.File{
+		"/w/a": {List: []declared.Declaration{{Name: "db", Command: "brew services start postgresql@14"}}},
+		"/w/q": {List: []declared.Declaration{{Name: "pg", Command: "brew services start postgresql@14"}, {Name: "cache", Command: "brew services start redis"}}},
 	}
-	projects := []Project{
-		{Path: "/w/a", Entries: []Entry{{PID: 1, Kind: KindShell, Command: "zsh", TTY: "ttys001", Status: StatusIdle}}},
-		{Path: "/w/q", Entries: []Entry{{PID: 2, Kind: KindShell, Command: "zsh", TTY: "ttys002", Status: StatusIdle}}},
+	projects := []work.Project{
+		{Path: "/w/a", Entries: []work.Entry{{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusIdle}}},
+		{Path: "/w/q", Entries: []work.Entry{{PID: 2, Kind: work.KindShell, Command: "zsh", TTY: "ttys002", Status: work.StatusIdle}}},
 	}
-	sockets := map[int][]Socket{24422: {{"TCP", "127.0.0.1:5432", "LISTEN"}}}
-	out := AttachBrew(projects, decl, services, sockets, nil)
+	sockets := map[int][]work.Socket{24422: {{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}}}
+	out := Attach(projects, decl, services, sockets, nil)
 	var rows []string
 	for _, pl := range out {
 		for _, e := range pl.Entries {
@@ -68,8 +71,8 @@ func TestBrewIsAskedQuietly(t *testing.T) {
 			t.Errorf("brew is asked without %s", want)
 		}
 	}
-	if BrewBeat < 10*time.Second {
-		t.Errorf("brew is asked every %s", BrewBeat)
+	if Beat < 10*time.Second {
+		t.Errorf("brew is asked every %s", Beat)
 	}
 }
 
@@ -77,24 +80,24 @@ func TestBrewIsAskedQuietly(t *testing.T) {
 // pid, or not, and with what exit where its last run ended badly. A
 // nought exit is no exit.
 func TestBrewServicesAreReadFromBrew(t *testing.T) {
-	services, err := ParseBrewServices([]byte(brewInfo))
+	services, err := Parse([]byte(brewInfo))
 	if err != nil || len(services) != 3 {
 		t.Fatalf("read %d services, %v", len(services), err)
 	}
-	pg := BrewServiceNamed(services, "postgresql@14")
+	pg := Named(services, "postgresql@14")
 	if pg == nil || !pg.Running || pg.PID != 24422 || pg.Exit != "" || pg.Log != "/opt/homebrew/var/log/postgresql@14.log" {
 		t.Errorf("postgres read as %+v", pg)
 	}
-	if word, fault := BrewStatus(*pg); word != StatusActive || fault {
+	if word, fault := Status(*pg); word != work.StatusActive || fault {
 		t.Errorf("a running service reads %s", word)
 	}
-	if word, fault := BrewStatus(*BrewServiceNamed(services, "herdr")); word != StatusDown || fault {
+	if word, fault := Status(*Named(services, "herdr")); word != work.StatusDown || fault {
 		t.Errorf("a service never started reads %s", word)
 	}
-	if word, fault := BrewStatus(*BrewServiceNamed(services, "redis")); word != "EXIT 78" || !fault {
+	if word, fault := Status(*Named(services, "redis")); word != "EXIT 78" || !fault {
 		t.Errorf("a service that ended badly reads %s, fault %v", word, fault)
 	}
-	if BrewServiceNamed(services, "nothing") != nil {
+	if Named(services, "nothing") != nil {
 		t.Error("a formula brew did not report was found")
 	}
 }

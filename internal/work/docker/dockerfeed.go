@@ -1,4 +1,4 @@
-package work
+package docker
 
 import (
 	"bufio"
@@ -29,17 +29,17 @@ import (
 // conn asking forever meant it never did — a laptop kept awake by the
 // instrument watching it.
 
-// A DockerList is what docker says of its containers, and whether it
+// A List is what docker says of its containers, and whether it
 // said it in time: stalled means the list is what it last said.
-type DockerList struct {
+type List struct {
 	Containers []Container
 	Stalled    bool
 }
 
-// DockerFeed is the subscription: a goroutine reading docker's events and
+// Feed is the subscription: a goroutine reading docker's events and
 // answering each with a list, a heartbeat, and a poke.
-type DockerFeed struct {
-	Lists chan DockerList
+type Feed struct {
+	Lists chan List
 	Poke  chan struct{}
 	Stop  chan struct{}
 	// done is closed when the feed's goroutine has let go of its stream,
@@ -66,13 +66,13 @@ const (
 	dockerSettle    = 300 * time.Millisecond
 )
 
-// StartDocker begins the feed, or nil where docker is not installed.
-func StartDocker() *DockerFeed {
-	if DockerPath == "" {
+// Start begins the feed, or nil where docker is not installed.
+func Start() *Feed {
+	if Path == "" {
 		return nil
 	}
-	f := &DockerFeed{
-		Lists:     make(chan DockerList, 1),
+	f := &Feed{
+		Lists:     make(chan List, 1),
 		Poke:      make(chan struct{}, 1),
 		Stop:      make(chan struct{}),
 		Done:      make(chan struct{}),
@@ -88,7 +88,7 @@ func StartDocker() *DockerFeed {
 
 // dockerEvents opens docker's stream of container events, one to a line.
 func dockerEvents(ctx context.Context) (io.ReadCloser, error) {
-	cmd := exec.CommandContext(ctx, DockerPath, "events", "--filter", "type=container", "--format", "{{.Status}}")
+	cmd := exec.CommandContext(ctx, Path, "events", "--filter", "type=container", "--format", "{{.Status}}")
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err
@@ -114,13 +114,13 @@ func (s *eventStream) Close() error {
 }
 
 // Next waits for the feed's next word.
-func (f *DockerFeed) Next() DockerList {
+func (f *Feed) Next() List {
 	return <-f.Lists
 }
 
 // Ask asks the feed to list again now, without waiting for an event to
 // say so. A poke already pending is the same ask.
-func (f *DockerFeed) Ask() {
+func (f *Feed) Ask() {
 	if f == nil {
 		return
 	}
@@ -139,7 +139,7 @@ func (f *DockerFeed) Ask() {
 //
 // The wait is bounded all the same. Taking a moment to be tidy is worth
 // it; hanging on the way out never is.
-func (f *DockerFeed) Close() {
+func (f *Feed) Close() {
 	if f == nil {
 		return
 	}
@@ -153,7 +153,7 @@ func (f *DockerFeed) Close() {
 // run is the feed: a list at the start, then one for every burst of
 // events, every heartbeat and every poke, and the stream opened again
 // after a wait when it ends.
-func (f *DockerFeed) run() {
+func (f *Feed) run() {
 	defer close(f.Done)
 	f.tell()
 	first := true
@@ -203,7 +203,7 @@ func (f *DockerFeed) run() {
 
 // follow answers the stream's events, the heartbeat and the pokes with a
 // list each, until the stream ends — true — or the feed is closed.
-func (f *DockerFeed) follow(lines, ended chan struct{}) bool {
+func (f *Feed) follow(lines, ended chan struct{}) bool {
 	beat := time.NewTicker(f.Heartbeat)
 	defer beat.Stop()
 	var settle <-chan time.Time
@@ -232,9 +232,9 @@ func (f *DockerFeed) follow(lines, ended chan struct{}) bool {
 // tell lists the containers and says so. A word not yet heard is replaced
 // by the newer: the panel wants what is true now, not the history of what
 // docker has said.
-func (f *DockerFeed) tell() {
+func (f *Feed) tell() {
 	cs, stalled := f.List()
-	list := DockerList{Containers: cs, Stalled: stalled}
+	list := List{Containers: cs, Stalled: stalled}
 	select {
 	case f.Lists <- list:
 	default:

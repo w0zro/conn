@@ -8,7 +8,10 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/declared"
+	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -79,10 +82,10 @@ func (m model) openShell(dir string) tea.Cmd {
 // in the bay with the keys in it, and to u, parked, the keys left on
 // the panel. replace is the pane holding the last run of it, where one
 // stands.
-func (m model) raise(path string, d work.Declaration, replace string, enter bool) tea.Cmd {
+func (m model) raise(path string, d declared.Declaration, replace string, enter bool) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.RaiseDeclared(d.At(path), d.Command, d.Name, work.MarkDeclared(path, d.Name), replace, enter)
+		sh, err := srv.RaiseDeclared(d.At(path), d.Command, d.Name, declared.Mark(path, d.Name), replace, enter)
 		if err != nil {
 			return nil
 		}
@@ -101,19 +104,19 @@ func (m model) raise(path string, d work.Declaration, replace string, enter bool
 func (m model) raiseAll(path string, up map[string]bool, held map[string]string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		list, err := work.ReadDeclared(path)
+		list, err := declared.Read(path)
 		if err != nil {
 			return nil
 		}
 		var shells []room.Shell
 		for _, d := range list {
-			mark := work.MarkDeclared(path, d.Name)
+			mark := declared.Mark(path, d.Name)
 			if up[mark] {
 				continue
 			}
 			// A brew service is started by brew, not in a pane.
-			if formula, ok := work.BrewArgs(d.Command); ok {
-				_, _ = work.BrewSays(work.BrewWait, "services", "start", formula)
+			if formula, ok := declared.BrewArgs(d.Command); ok {
+				_, _ = brew.Says(brew.Wait, "services", "start", formula)
 				continue
 			}
 			sh, err := srv.RaiseDeclared(d.At(path), d.Command, d.Name, mark, held[mark], false)
@@ -166,17 +169,17 @@ func (m model) closeHeld(id, name string) tea.Cmd {
 
 // declarationOf is the declaration a row stands for, from the file as
 // last read.
-func (m model) declarationOf(e work.Entry) (path string, d work.Declaration, ok bool) {
-	path, name, ok := work.UnmarkDeclared(e.Declared)
+func (m model) declarationOf(e work.Entry) (path string, d declared.Declaration, ok bool) {
+	path, name, ok := declared.Unmark(e.Declared)
 	if !ok {
-		return "", work.Declaration{}, false
+		return "", declared.Declaration{}, false
 	}
 	for _, d := range m.declared[path].List {
 		if d.Name == name {
 			return path, d, true
 		}
 	}
-	return "", work.Declaration{}, false
+	return "", declared.Declaration{}, false
 }
 
 // startContact opens a contact at a project, off the loop, the way
@@ -282,7 +285,7 @@ func (m model) serverCmd(act func() error) tea.Cmd {
 // the pane waits, and the last words stay up to be read.
 func (m model) watchContainer(e work.Entry) tea.Cmd {
 	srv, dir, id := m.srv, e.Cwd, e.Container
-	cmd := tmux.ShellQuote(work.DockerPath) + " logs --tail 2000 --follow " + tmux.ShellQuote(id) + " 2>&1; " + tmux.HoldOpen
+	cmd := tmux.ShellQuote(docker.Path) + " logs --tail 2000 --follow " + tmux.ShellQuote(id) + " 2>&1; " + tmux.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenWatching(dir, cmd, id)
 		if err != nil {
@@ -308,7 +311,7 @@ func (m model) watchContainer(e work.Entry) tea.Cmd {
 // typed and looked for all the world like a shell that had hung.
 func (m model) shellInContainer(e work.Entry) tea.Cmd {
 	srv, dir, id := m.srv, e.Cwd, e.Container
-	cmd := tmux.ShellQuote(work.DockerPath) + " exec -it " + tmux.ShellQuote(id) + " sh -c " +
+	cmd := tmux.ShellQuote(docker.Path) + " exec -it " + tmux.ShellQuote(id) + " sh -c " +
 		tmux.ShellQuote(pickShell) + " 2>&1 || " + tmux.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenShellIn(dir, cmd, id)
@@ -340,7 +343,7 @@ func (m model) openClient(e work.Entry, p *knownProgram, dir string) tea.Cmd {
 			if user == "" {
 				user = p.user
 			}
-			cmd := tmux.ShellQuote(work.DockerPath) + " exec -it " + tmux.ShellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + tmux.HoldOpen
+			cmd := tmux.ShellQuote(docker.Path) + " exec -it " + tmux.ShellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + tmux.HoldOpen
 			sh, err := srv.OpenShellIn(dir, cmd, id)
 			if err != nil {
 				return nil
@@ -355,7 +358,7 @@ func (m model) openClient(e work.Entry, p *knownProgram, dir string) tea.Cmd {
 	return func() tea.Msg {
 		client := station.LookPath(p.client)
 		if client == "" && formula != "" {
-			if out, err := work.BrewSays(work.BrewWait, "--prefix", formula); err == nil {
+			if out, err := brew.Says(brew.Wait, "--prefix", formula); err == nil {
 				if c := filepath.Join(strings.TrimSpace(string(out)), "bin", p.client); station.LookPath(c) != "" {
 					client = c
 				}
@@ -376,10 +379,10 @@ func (m model) openClient(e work.Entry, p *knownProgram, dir string) tea.Cmd {
 // containerEnv is one variable of a container's environment, as docker
 // inspect reports it, or nothing.
 func containerEnv(id, name string) string {
-	if name == "" || work.DockerPath == "" {
+	if name == "" || docker.Path == "" {
 		return ""
 	}
-	out, err := work.DockerSays(work.DockerWait, "inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", id)
+	out, err := docker.Says(docker.Wait, "inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", id)
 	if err != nil {
 		return ""
 	}
@@ -413,7 +416,7 @@ func (m model) watchBrew(e work.Entry) tea.Cmd {
 	srv, dir, formula, log := m.srv, e.Cwd, e.Brew, svc.Log
 	cmd := "tail -n 2000 -f " + tmux.ShellQuote(log) + " 2>&1; " + tmux.HoldOpen
 	return func() tea.Msg {
-		sh, err := srv.OpenWatching(dir, cmd, work.BrewMark(formula))
+		sh, err := srv.OpenWatching(dir, cmd, brew.Mark(formula))
 		if err != nil {
 			return nil
 		}
@@ -426,7 +429,7 @@ func (m model) watchBrew(e work.Entry) tea.Cmd {
 // rather than on the next beat.
 func (m model) startBrew(formula string) tea.Cmd {
 	return func() tea.Msg {
-		_, _ = work.BrewSays(work.BrewWait, "services", "start", formula)
+		_, _ = brew.Says(brew.Wait, "services", "start", formula)
 		return readBrew()
 	}
 }
@@ -435,7 +438,7 @@ func (m model) startBrew(formula string) tea.Cmd {
 // docker: there is no process here conn would signal itself.
 func (m model) stopBrew(formula, name string) tea.Cmd {
 	return func() tea.Msg {
-		_, _ = work.BrewSays(work.BrewWait, "services", "stop", formula)
+		_, _ = brew.Says(brew.Wait, "services", "stop", formula)
 		return killedMsg{command: name, pid: 0}
 	}
 }
@@ -443,7 +446,7 @@ func (m model) stopBrew(formula, name string) tea.Cmd {
 func (m model) stopContainer(id, service string) tea.Cmd {
 	feed := m.dockerFeed
 	return func() tea.Msg {
-		_, _ = work.DockerSays(work.DockerStopWait, "stop", id)
+		_, _ = docker.Says(docker.StopWait, "stop", id)
 		// The feed hears of it from docker's own events, but a stop
 		// asked for here is worth asking about at once rather than
 		// waiting to be told.

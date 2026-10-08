@@ -1,4 +1,8 @@
-package work
+// Package docker is docker as conn reads it: the containers a project's
+// compose holds up, as rows of their own under the project, from
+// docker ps and docker's own stream of events; what a container's
+// state is called; and the docker command that is asked.
+package docker
 
 import (
 	"context"
@@ -13,6 +17,7 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/station"
+	"github.com/w0zro/conn/internal/work"
 )
 
 // A project on docker runs its services in containers, and a container is
@@ -47,18 +52,18 @@ const (
 	labelProject    = "com.docker.compose.project"
 )
 
-// DockerWait bounds the reading's question to docker. The daemon answers
+// Wait bounds the reading's question to docker. The daemon answers
 // in tens of milliseconds when it is up, and not at all for a while when
 // it is starting or wedged; a reading that waited on it would hold the
 // process list up behind it, so the wait is short and what docker last
 // said stands meanwhile.
-const DockerWait = 3 * time.Second
+const Wait = 3 * time.Second
 
-// DockerStopWait is longer, because stopping is not asking: docker gives
+// StopWait is longer, because stopping is not asking: docker gives
 // the container ten seconds to go of its own accord before it insists,
 // and a wait that gave up first would leave conn saying nothing happened
 // while it was happening.
-const DockerStopWait = 20 * time.Second
+const StopWait = 20 * time.Second
 
 // A Container as docker described it.
 type Container struct {
@@ -80,9 +85,9 @@ type Container struct {
 // mark for.
 func (c Container) running() bool { return c.State == "running" }
 
-// DockerPath is where the docker client is, or nothing where there is
+// Path is where the docker client is, or nothing where there is
 // none: a machine without docker is asked nothing, ever.
-var DockerPath = station.LookPath("docker")
+var Path = station.LookPath("docker")
 
 // docker is what docker last said, which stands while it does not answer.
 var docker struct {
@@ -101,10 +106,10 @@ var docker struct {
 // different thing, and what it last said stands — the second answer
 // says which, so the view can admit the rows are as last seen.
 func readContainers() ([]Container, bool) {
-	if DockerPath == "" {
+	if Path == "" {
 		return nil, false
 	}
-	out, err := DockerSays(DockerWait, "ps", "-a", "--format", "{{json .}}")
+	out, err := Says(Wait, "ps", "-a", "--format", "{{json .}}")
 	docker.Lock()
 	defer docker.Unlock()
 	if err != nil {
@@ -121,24 +126,24 @@ func readContainers() ([]Container, bool) {
 		// view says so rather than quietly showing yesterday's rows.
 		return docker.last, true
 	}
-	docker.last = ParseContainers(out, time.Now())
+	docker.last = Parse(out, time.Now())
 	return docker.last, false
 }
 
-// DockerSays runs the docker client and answers what it printed. An exit
+// Says runs the docker client and answers what it printed. An exit
 // of its own and a silence are told apart by the caller, and are not the
 // same news: one says the daemon is down, the other says only that it did
 // not answer yet.
-func DockerSays(wait time.Duration, args ...string) ([]byte, error) {
-	return dockerSaysIn("", wait, args...)
+func Says(wait time.Duration, args ...string) ([]byte, error) {
+	return SaysIn("", wait, args...)
 }
 
-// dockerSaysIn is dockerSays run in a directory, for what compose reads
+// SaysIn is dockerSays run in a directory, for what compose reads
 // relative to where it is asked: its files, and the project they name.
-func dockerSaysIn(dir string, wait time.Duration, args ...string) ([]byte, error) {
+func SaysIn(dir string, wait time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, DockerPath, args...)
+	cmd := exec.CommandContext(ctx, Path, args...)
 	cmd.Dir = dir
 	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
@@ -164,8 +169,8 @@ type dockerRow struct {
 	Ports  string `json:"Ports"`
 }
 
-// ParseContainers reads what docker ps said, one container to a line.
-func ParseContainers(out []byte, now time.Time) []Container {
+// Parse reads what docker ps said, one container to a line.
+func Parse(out []byte, now time.Time) []Container {
 	var cs []Container
 	for line := range strings.SplitSeq(string(out), "\n") {
 		if strings.TrimSpace(line) == "" {
@@ -329,32 +334,32 @@ func containerPID(id string) int {
 	return -int(v) - 2
 }
 
-// ContainerStatus is what the status column says of a container, in the
+// Status is what the status column says of a container, in the
 // words the column already uses, and whether it is a thing to look at.
 //
 // A health check failing is a fault: the service is up and answering
 // wrongly, which is the case nobody notices without being told. An exit
 // of zero is ENDED and no fault — a worker that finished is not a
 // problem — and any other code is the fault it plainly is.
-func ContainerStatus(c Container) (string, bool) {
+func Status(c Container) (string, bool) {
 	switch {
 	case c.Health == "unhealthy":
 		return "UNHEALTHY", true
 	case c.State == "restarting":
 		return "RESTARTING", true
 	case c.State == "paused":
-		return StatusStopped, true
+		return work.StatusStopped, true
 	case c.running() && c.Health == "starting":
 		return "STARTING", false
 	case c.running():
-		return StatusActive, false
+		return work.StatusActive, false
 	case c.Exit != "" && c.Exit != "0":
-		return exitWord + c.Exit, true
+		return work.ExitWord + c.Exit, true
 	}
-	return StatusEnded, false
+	return work.StatusEnded, false
 }
 
-// AttachContainers files each container under the project its directory
+// Attach files each container under the project its directory
 // says it belongs to, and under the compose that runs it where one is
 // running in a shell there — the deepest such process, compose being a
 // docker running its plugin and the plugin being the one that holds the
@@ -369,7 +374,7 @@ func ContainerStatus(c Container) (string, bool) {
 // a container has none of its own, so the pane conn opened to watch it
 // stands in for one. With that the row is reached, left and walked to
 // like every other — the whole of what having a terminal means here.
-func AttachContainers(projects []Project, cs []Container, rootOf func(string) string, paneOf, shellIn map[string]string) []Project {
+func Attach(projects []work.Project, cs []Container, rootOf func(string) string, paneOf, shellIn map[string]string) []work.Project {
 	// A stopped container is listed while its project is: a sibling still
 	// running, or a compose working in its directory. A service that died
 	// beside the others is exactly what wants noticing. A project stopped
@@ -402,7 +407,7 @@ func AttachContainers(projects []Project, cs []Container, rootOf func(string) st
 	for path := range at {
 		sort.SliceStable(at[path], func(i, j int) bool { return at[path][i].Service < at[path][j].Service })
 	}
-	out := make([]Project, 0, len(projects)+len(paths))
+	out := make([]work.Project, 0, len(projects)+len(paths))
 	filled := map[string]bool{}
 	for _, pl := range projects {
 		if rows := at[pl.Path]; len(rows) > 0 {
@@ -421,7 +426,7 @@ func AttachContainers(projects []Project, cs []Container, rootOf func(string) st
 		if filled[path] {
 			continue
 		}
-		pl := Project{Path: path}
+		pl := work.Project{Path: path}
 		pl.Entries = placeContainers(pl, at[path], paneOf, shellIn)
 		out = append(out, pl)
 	}
@@ -431,7 +436,7 @@ func AttachContainers(projects []Project, cs []Container, rootOf func(string) st
 // composeRuns reports a compose working in the container's directory
 // somewhere in the projects: the reason a stopped container is still
 // worth a row when none of its siblings is running.
-func composeRuns(projects []Project, path, dir, service string) bool {
+func composeRuns(projects []work.Project, path, dir, service string) bool {
 	for _, pl := range projects {
 		if pl.Path == path && composeAt(pl, path, dir, service) >= 0 {
 			return true
@@ -443,21 +448,21 @@ func composeRuns(projects []Project, path, dir, service string) bool {
 // placeContainers puts a project's containers among its rows: each under
 // the compose that runs it where there is one, and at the foot of the
 // project where there is not.
-func placeContainers(pl Project, cs []Container, paneOf, shellIn map[string]string) []Entry {
+func placeContainers(pl work.Project, cs []Container, paneOf, shellIn map[string]string) []work.Entry {
 	entries := slices.Clone(pl.Entries)
 	for _, c := range cs {
-		e := Entry{
-			PID: containerPID(c.ID), Kind: KindService,
+		e := work.Entry{
+			PID: containerPID(c.ID), Kind: work.KindService,
 			Command: c.Service, Typed: c.Service, Ports: c.Ports,
 			Started: c.Since, Since: c.Since, Cwd: c.Dir,
 			Container: c.ID, TTY: paneOf[c.ID],
 		}
-		e.Status, e.Fault = ContainerStatus(c)
+		e.Status, e.Fault = Status(c)
 		// The shells conn opened inside this container come out of the
 		// project's own rows, to go back under the service below.
-		var shells []Entry
+		var shells []work.Entry
 		entries, shells = liftShells(entries, shellIn, c.ID)
-		if i := composeAt(Project{Path: pl.Path, Entries: entries}, pl.Path, c.Dir, c.Service); i >= 0 {
+		if i := composeAt(work.Project{Path: pl.Path, Entries: entries}, pl.Path, c.Dir, c.Service); i >= 0 {
 			e.Depth = entries[i].Depth + 1
 			// After the compose's own subtree, so the containers of one
 			// compose stand together under it rather than between its
@@ -466,7 +471,7 @@ func placeContainers(pl Project, cs []Container, paneOf, shellIn map[string]stri
 			for j < len(entries) && entries[j].Depth > entries[i].Depth {
 				j++
 			}
-			entries = slices.Insert(entries, j, append([]Entry{e}, nest(shells, c, e.Depth)...)...)
+			entries = slices.Insert(entries, j, append([]work.Entry{e}, nest(shells, c, e.Depth)...)...)
 			continue
 		}
 		entries = append(entries, e)
@@ -479,8 +484,8 @@ func placeContainers(pl Project, cs []Container, paneOf, shellIn map[string]stri
 // container out of the list, and answers what is left and what was
 // taken. A pane's whole tree shares its terminal, so asking by terminal
 // takes the shell and anything under it in one go.
-func liftShells(entries []Entry, shellIn map[string]string, id string) (kept, shells []Entry) {
-	kept = make([]Entry, 0, len(entries))
+func liftShells(entries []work.Entry, shellIn map[string]string, id string) (kept, shells []work.Entry) {
+	kept = make([]work.Entry, 0, len(entries))
 	for _, row := range entries {
 		if row.TTY != "" && shellIn[row.TTY] == id {
 			shells = append(shells, row)
@@ -500,7 +505,7 @@ func liftShells(entries []Entry, shellIn map[string]string, id string) (kept, sh
 // the operator's work, not another handle on the service, and a key
 // that stops a container should not be armed from a row that is only
 // standing in one.
-func nest(shells []Entry, c Container, depth int) []Entry {
+func nest(shells []work.Entry, c Container, depth int) []work.Entry {
 	if len(shells) == 0 {
 		return nil
 	}
@@ -508,11 +513,11 @@ func nest(shells []Entry, c Container, depth int) []Entry {
 	for _, row := range shells {
 		root = min(root, row.Depth)
 	}
-	out := make([]Entry, 0, len(shells))
+	out := make([]work.Entry, 0, len(shells))
 	for _, row := range shells {
 		row.Depth = row.Depth - root + depth + 1
 		if row.Depth == depth+1 {
-			row.Kind, row.Typed = KindShell, "sh in "+c.Service
+			row.Kind, row.Typed = work.KindShell, "sh in "+c.Service
 			row.Command = row.Typed
 		}
 		out = append(out, row)
@@ -524,7 +529,7 @@ func nest(shells []Entry, c Container, depth int) []Entry {
 // stands, or below zero where none does: the deepest compose working in
 // the container's own directory that either names the service or names
 // none, which is the one that runs them all.
-func composeAt(pl Project, path, dir, service string) int {
+func composeAt(pl work.Project, path, dir, service string) int {
 	if pl.Path != path {
 		return -1
 	}
@@ -552,7 +557,7 @@ func composeAt(pl Project, path, dir, service string) int {
 
 // runsCompose reports a row that is compose: docker running its compose
 // command, or the compose plugin itself.
-func runsCompose(e Entry) bool {
+func runsCompose(e work.Entry) bool {
 	fields := strings.Fields(e.AsTyped())
 	if len(fields) < 2 {
 		return false
@@ -564,7 +569,7 @@ func runsCompose(e Entry) bool {
 // composeNames is the services a compose up names after its up, the words
 // there that are not flags; none is every service. The words before up
 // belong to compose — a file, a project name — and are not services.
-func composeNames(e Entry) []string {
+func composeNames(e work.Entry) []string {
 	fields := strings.Fields(e.AsTyped())
 	i := slices.Index(fields, "up")
 	if i < 0 {

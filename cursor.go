@@ -7,7 +7,9 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/docker"
 )
 
 // Where the panel's cursor is, for the readout to follow. The two are
@@ -79,8 +81,8 @@ type reading struct {
 	records    map[int]record
 	panes      map[string]room.Pane
 	inside     bool
-	containers []work.Container
-	brews      []work.BrewService // what brew said of its services; see brew.go
+	containers []docker.Container
+	brews      []brew.Service // what brew said of its services; see brew.go
 	sessions   []claude.Session
 }
 
@@ -115,14 +117,14 @@ func recordOf(p work.Process) record {
 // said, where it is one.
 // brewOf is the brew service a row stands for among those brew
 // reported, where it is one.
-func (r reading) brewOf(e work.Entry) *work.BrewService {
+func (r reading) brewOf(e work.Entry) *brew.Service {
 	if e.Brew == "" {
 		return nil
 	}
-	return work.BrewServiceNamed(r.brews, e.Brew)
+	return brew.Named(r.brews, e.Brew)
 }
 
-func (r reading) containerOf(e work.Entry) *work.Container {
+func (r reading) containerOf(e work.Entry) *docker.Container {
 	if e.Container == "" {
 		return nil
 	}
@@ -186,8 +188,8 @@ type readingWire struct {
 	Records    []record
 	Panes      []room.Pane
 	Inside     bool
-	Containers []work.Container
-	Brews      []work.BrewService
+	Containers []docker.Container
+	Brews      []brew.Service
 	Sessions   []claude.Session
 }
 

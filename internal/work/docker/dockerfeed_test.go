@@ -1,4 +1,4 @@
-package work
+package docker
 
 import (
 	"context"
@@ -76,8 +76,8 @@ func TestClosingTheFeedLetsGoOfTheStream(t *testing.T) {
 	var opened atomic.Int32
 	closed := make(chan struct{})
 	r, _ := io.Pipe()
-	f := &DockerFeed{
-		Lists: make(chan DockerList, 1),
+	f := &Feed{
+		Lists: make(chan List, 1),
 		Poke:  make(chan struct{}, 1),
 		Stop:  make(chan struct{}),
 		Done:  make(chan struct{}),
@@ -137,7 +137,7 @@ func TestTheFeedSaysWhenDockerDidNotAnswer(t *testing.T) {
 // list is set here and not afterwards: the feed's goroutine reads it
 // from the moment it starts, so a test that swapped it in later would be
 // writing to a field already being read.
-func feedUnderTest(t *testing.T, opened *atomic.Int32, list func() ([]Container, bool)) (*DockerFeed, *io.PipeWriter) {
+func feedUnderTest(t *testing.T, opened *atomic.Int32, list func() ([]Container, bool)) (*Feed, *io.PipeWriter) {
 	t.Helper()
 	return pacedFeed(t, opened, list, 40*time.Millisecond)
 }
@@ -145,14 +145,14 @@ func feedUnderTest(t *testing.T, opened *atomic.Int32, list func() ([]Container,
 // pacedFeed is feedUnderTest with the heartbeat chosen: a test counting
 // the lists a burst costs wants the heartbeat out of the count, since
 // on a slow runner it beats twice in the time a fast one beats once.
-func pacedFeed(t *testing.T, opened *atomic.Int32, list func() ([]Container, bool), heartbeat time.Duration) (*DockerFeed, *io.PipeWriter) {
+func pacedFeed(t *testing.T, opened *atomic.Int32, list func() ([]Container, bool), heartbeat time.Duration) (*Feed, *io.PipeWriter) {
 	t.Helper()
 	if list == nil {
 		list = func() ([]Container, bool) { return []Container{{ID: "abc", Service: "web"}}, false }
 	}
 	r, w := io.Pipe()
-	f := &DockerFeed{
-		Lists: make(chan DockerList, 1),
+	f := &Feed{
+		Lists: make(chan List, 1),
 		Poke:  make(chan struct{}, 1),
 		Stop:  make(chan struct{}),
 		Done:  make(chan struct{}),
@@ -171,14 +171,14 @@ func pacedFeed(t *testing.T, opened *atomic.Int32, list func() ([]Container, boo
 }
 
 // waitFor takes the feed's next word, or fails.
-func waitFor(t *testing.T, f *DockerFeed, what string) DockerList {
+func waitFor(t *testing.T, f *Feed, what string) List {
 	t.Helper()
 	select {
 	case list := <-f.Lists:
 		return list
 	case <-time.After(2 * time.Second):
 		t.Fatalf("waited for %s", what)
-		return DockerList{}
+		return List{}
 	}
 }
 

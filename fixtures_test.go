@@ -14,6 +14,7 @@ import (
 	"github.com/w0zro/conn/internal/station"
 	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/docker"
 )
 
 // Fixtures the panel's tests share with internal/work's own, which
@@ -65,9 +66,9 @@ var (
 	testProjRoots = []string{"/Users/w0zro/projects"}
 )
 
-func containersFor(t *testing.T) []work.Container {
+func containersFor(t *testing.T) []docker.Container {
 	t.Helper()
-	cs := work.ParseContainers([]byte(dockerPS), dockerNow)
+	cs := docker.Parse([]byte(dockerPS), dockerNow)
 	if len(cs) != 4 {
 		t.Fatalf("parsed %d containers, want 4", len(cs))
 	}

@@ -3,9 +3,9 @@ package main
 import (
 	"time"
 
-	"github.com/w0zro/conn/internal/work"
-
 	tea "charm.land/bubbletea/v2"
+	"github.com/w0zro/conn/internal/work/brew"
+	"github.com/w0zro/conn/internal/work/docker"
 )
 
 // The sources that speak on their own time rather than on the reading's
@@ -15,16 +15,16 @@ import (
 
 // dockerReadyMsg carries the feed, once it is running; nil where docker
 // is not installed.
-type dockerReadyMsg struct{ feed *work.DockerFeed }
+type dockerReadyMsg struct{ feed *docker.Feed }
 
 // dockerMsg carries what docker says of its containers.
-type dockerMsg struct{ work.DockerList }
+type dockerMsg struct{ docker.List }
 
 // startDocker begins docker's feed.
-func startDocker() tea.Msg { return dockerReadyMsg{feed: work.StartDocker()} }
+func startDocker() tea.Msg { return dockerReadyMsg{feed: docker.Start()} }
 
 // nextDocker waits for the feed's next word.
-func nextDocker(f *work.DockerFeed) tea.Cmd {
+func nextDocker(f *docker.Feed) tea.Cmd {
 	if f == nil {
 		return nil
 	}
@@ -33,7 +33,7 @@ func nextDocker(f *work.DockerFeed) tea.Cmd {
 
 // brewMsg carries what brew said of its services.
 type brewMsg struct {
-	services []work.BrewService
+	services []brew.Service
 	err      error
 }
 
@@ -43,11 +43,11 @@ type brewTickMsg struct{}
 
 // nextBrew is the next beat.
 func nextBrew() tea.Cmd {
-	return tea.Tick(work.BrewBeat, func(time.Time) tea.Msg { return brewTickMsg{} })
+	return tea.Tick(brew.Beat, func(time.Time) tea.Msg { return brewTickMsg{} })
 }
 
 // readBrew asks brew, off the loop.
 func readBrew() tea.Msg {
-	services, err := work.ReadBrew()
+	services, err := brew.Read()
 	return brewMsg{services: services, err: err}
 }

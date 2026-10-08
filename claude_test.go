@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
 )
 
 // A contact's row goes by its session's title while it is not working,
@@ -26,8 +27,8 @@ func TestAContactsRowGoesByItsTitle(t *testing.T) {
 	if got := rowName(untitled); got != "" {
 		t.Errorf("untitled: %q", got)
 	}
-	declared := work.Entry{PID: 5, Kind: work.KindRun, Declared: work.MarkDeclared("/w/app", "web")}
-	if got := rowName(declared); got != "web" {
+	files := work.Entry{PID: 5, Kind: work.KindRun, Declared: declared.Mark("/w/app", "web")}
+	if got := rowName(files); got != "web" {
 		t.Errorf("declared: %q", got)
 	}
 }

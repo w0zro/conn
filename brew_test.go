@@ -8,6 +8,8 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/brew"
+	"github.com/w0zro/conn/internal/work/declared"
 
 	"github.com/w0zro/conn/internal/tmux"
 
@@ -22,15 +24,15 @@ import (
 // one for what it declares, and the ordinary declared rows do not take
 // it for a pane to raise.
 func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
-	services, _ := work.ParseBrewServices([]byte(brewInfo))
-	decl := map[string]work.Declared{
-		"/w/a": {List: []work.Declaration{{Name: "db", Command: "brew services start postgresql@14"}, {Name: "web", Command: "npm run dev"}}},
-		"/w/q": {List: []work.Declaration{{Name: "db", Command: "brew services start postgresql@14"}}},
+	services, _ := brew.Parse([]byte(brewInfo))
+	decl := map[string]declared.File{
+		"/w/a": {List: []declared.Declaration{{Name: "db", Command: "brew services start postgresql@14"}, {Name: "web", Command: "npm run dev"}}},
+		"/w/q": {List: []declared.Declaration{{Name: "db", Command: "brew services start postgresql@14"}}},
 	}
 	projects := []work.Project{{Path: "/w/a", Entries: []work.Entry{{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusIdle}}}}
 	sockets := map[int][]work.Socket{24422: {{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}, {Proto: "TCP", Addr: "[::1]:5432", State: "LISTEN"}, {Proto: "unix", Addr: "/tmp/.s.PGSQL.5432", State: ""}}}
 
-	out := work.AttachDeclared(projects, decl, nil)
+	out := declared.Attach(projects, decl, nil)
 	if n := len(out[0].Entries); n != 2 {
 		t.Fatalf("the declarations made %d rows; the brew one is not a pane's", n-1)
 	}
@@ -38,7 +40,7 @@ func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
 		t.Errorf("the ordinary declaration is %+v", e)
 	}
 
-	out = work.AttachBrew(out, decl, nil, nil, nil)
+	out = brew.Attach(out, decl, nil, nil, nil)
 	if n := len(out); n != 2 {
 		t.Fatalf("the project that only declares has no block: %d projects", n)
 	}
@@ -50,15 +52,15 @@ func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
 		t.Errorf("before brew has spoken the row is %+v", down)
 	}
 
-	out = work.AttachBrew(work.AttachDeclared(projects, decl, nil), decl, services, sockets, map[string]string{work.BrewMark("postgresql@14"): "ttys009"})
+	out = brew.Attach(declared.Attach(projects, decl, nil), decl, services, sockets, map[string]string{brew.Mark("postgresql@14"): "ttys009"})
 	up := out[0].Entries[2]
 	if up.Status != work.StatusActive || up.Fault || up.PID != 24422 || strings.Join(up.Ports, " ") != "5432" || len(up.Sockets) != 3 || up.TTY != "ttys009" || up.Cwd != "/w/a" {
 		t.Errorf("as brew reports it the row is %+v", up)
 	}
 	// Up by brew's word, for u to leave alone; the other declaration
 	// is down and would be raised.
-	upBy, _ := work.UpAndHeld(out, nil, "/w/a")
-	if !upBy[work.MarkDeclared("/w/a", "db")] || upBy[work.MarkDeclared("/w/a", "web")] {
+	upBy, _ := declared.UpAndHeld(out, nil, "/w/a")
+	if !upBy[declared.Mark("/w/a", "db")] || upBy[declared.Mark("/w/a", "web")] {
 		t.Errorf("u sees as up: %v", upBy)
 	}
 }
@@ -70,10 +72,10 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
-	m.brews, _ = work.ParseBrewServices([]byte(brewInfo))
+	m.brews, _ = brew.Parse([]byte(brewInfo))
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
-		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Declared: work.MarkDeclared("/w/a", "db"), Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5432"}},
-		{PID: -7, Kind: work.KindService, Command: "herdr", Brew: "herdr", Declared: work.MarkDeclared("/w/a", "herd"), Cwd: "/w/a", Status: work.StatusDown},
+		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Declared: declared.Mark("/w/a", "db"), Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5432"}},
+		{PID: -7, Kind: work.KindService, Command: "herdr", Brew: "herdr", Declared: declared.Mark("/w/a", "herd"), Cwd: "/w/a", Status: work.StatusDown},
 	}}}
 	said := m.telling()
 	m.said = &said
@@ -114,11 +116,11 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 // how many projects declare it, and what it has open; before brew has
 // reported it, the page says so.
 func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
-	services, _ := work.ParseBrewServices([]byte(brewInfo))
+	services, _ := brew.Parse([]byte(brewInfo))
 	e := work.Entry{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Cwd: "/Users/w0zro/projects/w0zro/conn",
 		Status: work.StatusActive, Ports: []string{"5432"}, Shared: 2,
 		Sockets: []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}, {Proto: "unix", Addr: "/tmp/.s.PGSQL.5432", State: ""}}}
-	text := texts(drawReadout(composeReadout(readoutSubject{entry: e, brew: work.BrewServiceNamed(services, "postgresql@14"), inside: true}, "/Users/w0zro", processesNow), 100, 40, draw.Plain))
+	text := texts(drawReadout(composeReadout(readoutSubject{entry: e, brew: brew.Named(services, "postgresql@14"), inside: true}, "/Users/w0zro", processesNow), 100, 40, draw.Plain))
 	for _, want := range []string{
 		"READOUT", "postgresql@14",
 		"Kind ...... Service · Homebrew",
@@ -142,7 +144,7 @@ func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
 		t.Errorf("the page says what is not so:\n%s", text)
 	}
 	e.Status, e.Fault, e.PID, e.Ports, e.Sockets = "EXIT 78", true, -7, nil, nil
-	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -7, Kind: work.KindService, Command: "redis", Brew: "redis", Cwd: "/w", Status: "EXIT 78", Fault: true}, brew: work.BrewServiceNamed(services, "redis"), inside: true}, "/Users/w0zro", processesNow), 100, 40, draw.Plain))
+	text = texts(drawReadout(composeReadout(readoutSubject{entry: work.Entry{PID: -7, Kind: work.KindService, Command: "redis", Brew: "redis", Cwd: "/w", Status: "EXIT 78", Fault: true}, brew: brew.Named(services, "redis"), inside: true}, "/Users/w0zro", processesNow), 100, 40, draw.Plain))
 	if !strings.Contains(text, "Wrong ..... Exit 78") || !strings.Contains(text, "Status .... Error") {
 		t.Errorf("a service that ended badly does not say so:\n%s", text)
 	}
@@ -155,7 +157,7 @@ func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
 // What a row has open, and what brew said, travel with the reading to
 // the page.
 func TestSocketsAndBrewTravelWithTheReading(t *testing.T) {
-	services, _ := work.ParseBrewServices([]byte(brewInfo))
+	services, _ := brew.Parse([]byte(brewInfo))
 	r := reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Shared: 2, Ports: []string{"5432"},
 			Sockets: []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}}},

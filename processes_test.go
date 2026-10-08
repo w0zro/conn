@@ -12,6 +12,7 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/declared"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -46,8 +47,8 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 	// relabelled; one ended, holding its pane and dimmed; one down; and
 	// a project whose file would not read, saying so under its rows.
 	app := "/Users/w0zro/projects/w0zro/app"
-	declared := map[string]work.Declared{
-		app: {List: []work.Declaration{
+	files := map[string]declared.File{
+		app: {List: []declared.Declaration{
 			{Name: "web", Command: "npm run dev"},
 			{Name: "api", Command: "go run ./cmd/api", Dir: "api"},
 			{Name: "worker", Command: "make run"},
@@ -61,15 +62,15 @@ func TestProcessesMatchesTheGolden(t *testing.T) {
 		work.Process{PID: 67040, PPID: 1, UID: 501, TTY: "ttys005", State: 'S', Command: "zsh", Args: []string{"-zsh"}, Started: processesNow.Add(-90 * time.Second), Cwd: "/Users/w0zro/projects/w0zro/conn"},
 	)
 	panes := map[string]room.Pane{
-		"ttys020": {ID: "%20", TTY: "ttys020", Declared: work.MarkDeclared(app, "web")},
-		"ttys021": {ID: "%21", TTY: "ttys021", Declared: work.MarkDeclared(app, "api"), Exit: "0"},
+		"ttys020": {ID: "%20", TTY: "ttys020", Declared: declared.Mark(app, "web")},
+		"ttys021": {ID: "%21", TTY: "ttys021", Declared: declared.Mark(app, "api"), Exit: "0"},
 		"ttys005": {ID: "%0", TTY: "ttys005"},
 	}
 	isProject := func(dir string) bool { return dir == app || testIsProject(dir) }
-	projects := work.AttachDeclared(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), declared, declaredPanes(panes))
+	projects := declared.Attach(work.ProjectsFrom(procs, 501, work.RootFinder(isProject), isProject, nil), files, declaredPanes(panes))
 	shown := composeProcesses(projects, panes, "ttys020", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	shown.inside = true
-	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, work.DeclaredPID(app, "worker"), 48, 30, draw.Plain)))
+	golden(t, "processes-declared-48x30.txt", texts(drawProcesses(shown, declared.PID(app, "worker"), 48, 30, draw.Plain)))
 	// The panel at rest: the same processes, folded and filed as the
 	// panel files them. The shell over claude keeps the contact and the
 	// shell says what else it runs; the stopped vim stays for being a

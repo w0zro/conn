@@ -1,4 +1,9 @@
-package work
+// Package declared is a project's .conn as conn reads it: the processes
+// the project is worked by, one a line, read again when the file
+// changes, a compose file's services among them; and how each stands
+// among the rows, up in a pane conn opened for it or down at the foot
+// of its project's block.
+package declared
 
 import (
 	"errors"
@@ -13,6 +18,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/docker"
 )
 
 // A project's .conn: the processes it is worked by, written down once
@@ -38,7 +46,7 @@ import (
 // the directory are how any other row says the same; a row at the
 // wrong directory, or with a word of difference, is a plain row.
 
-const DeclaredName = ".conn"
+const FileName = ".conn"
 
 // A Declaration is one line of the file.
 type Declaration struct {
@@ -96,13 +104,13 @@ func parseDeclared(text string) ([]Declaration, error) {
 	return out, nil
 }
 
-// ReadDeclared reads a project's file. No file is nothing declared and
+// Read reads a project's file. No file is nothing declared and
 // no error. A directory a line names that is not there is an error
 // like any other line's: tmux told to open a pane at a directory that
 // does not exist opens it somewhere else and says nothing, and conn
 // will not do that quietly on the operator's behalf.
-func ReadDeclared(project string) ([]Declaration, error) {
-	path := filepath.Join(project, DeclaredName)
+func Read(project string) ([]Declaration, error) {
+	path := filepath.Join(project, FileName)
 	b, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
@@ -112,14 +120,14 @@ func ReadDeclared(project string) ([]Declaration, error) {
 	}
 	list, err := parseDeclared(string(b))
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", DeclaredName, err)
+		return nil, fmt.Errorf("%s: %w", FileName, err)
 	}
 	for _, d := range list {
 		if d.Dir == "" {
 			continue
 		}
 		if info, err := os.Stat(filepath.Join(project, d.Dir)); err != nil || !info.IsDir() {
-			return nil, fmt.Errorf("%s: line %d: %s is not a directory", DeclaredName, d.Line, d.Dir)
+			return nil, fmt.Errorf("%s: line %d: %s is not a directory", FileName, d.Line, d.Dir)
 		}
 	}
 	return list, nil
@@ -136,10 +144,10 @@ func (d Declaration) label() string {
 	return d.Name + " · " + d.Command
 }
 
-// A Declared is a project's file as last read: its stamp, so that a
+// A File is a project's file as last read: its stamp, so that a
 // reading costs one stat and reads again only what changed, and what
 // it said — the declarations, or why it could not be read.
-type Declared struct {
+type File struct {
 	mod  time.Time
 	size int64
 	List []Declaration
@@ -222,11 +230,11 @@ func composeServices(dir string, pre, named []string) []string {
 	if len(named) > 0 {
 		return named
 	}
-	if DockerPath == "" {
+	if docker.Path == "" {
 		return nil
 	}
 	args := append([]string{"compose"}, pre...)
-	out, err := dockerSaysIn(dir, DockerWait, append(args, "config", "--services")...)
+	out, err := docker.SaysIn(dir, docker.Wait, append(args, "config", "--services")...)
 	if err != nil {
 		return nil
 	}
@@ -242,7 +250,7 @@ func composeServices(dir string, pre, named []string) []string {
 // composeServicesOf fills in what each compose declaration would bring
 // up, asking compose only where the files have changed since it was
 // last asked.
-func composeServicesOf(path string, list []Declaration, was Declared) (map[string][]string, map[string]string) {
+func composeServicesOf(path string, list []Declaration, was File) (map[string][]string, map[string]string) {
 	services, stamps := map[string][]string{}, map[string]string{}
 	for _, d := range list {
 		pre, named, ok := composeArgs(d.Command)
@@ -259,25 +267,25 @@ func composeServicesOf(path string, list []Declaration, was Declared) (map[strin
 	return services, stamps
 }
 
-// RefreshDeclared is the files as they stand now, from what they were:
+// Refresh is the files as they stand now, from what they were:
 // a stat per project, a read where the stamp moved, and nothing at all
 // for a project with no file, which is not in the answer. A file that
 // would not read is read again every time, since what was wrong may be
 // beside the file — a directory it named — rather than in it. It
 // builds a new map rather than writing into the one the model holds,
 // since it runs off the loop.
-func RefreshDeclared(was map[string]Declared, paths []string) map[string]Declared {
-	out := map[string]Declared{}
+func Refresh(was map[string]File, paths []string) map[string]File {
+	out := map[string]File{}
 	for _, path := range paths {
-		info, err := os.Stat(filepath.Join(path, DeclaredName))
+		info, err := os.Stat(filepath.Join(path, FileName))
 		if err != nil {
 			continue
 		}
 		d, kept := was[path]
 		stale := !kept || d.Err != "" || !d.mod.Equal(info.ModTime()) || d.size != info.Size()
 		if stale {
-			d = Declared{mod: info.ModTime(), size: info.Size()}
-			list, err := ReadDeclared(path)
+			d = File{mod: info.ModTime(), size: info.Size()}
+			list, err := Read(path)
 			if err != nil {
 				d.Err = err.Error()
 			} else {
@@ -293,14 +301,14 @@ func RefreshDeclared(was map[string]Declared, paths []string) map[string]Declare
 	return out
 }
 
-// DeclaredPaths is every project worth asking for a file: the projects
+// Paths is every project worth asking for a file: the projects
 // the reading has blocks for, kept to those that are projects, and
 // every project conn has already read a file for. A project keeps its
 // block once its file has been read, whether or not the table still
 // shows work in it: the file says what works the project, and that
 // none of it is up is the fact the block stands to say. was is the
 // declarations as of the last reading.
-func DeclaredPaths(projects []Project, was map[string]Declared, isProject func(string) bool) []string {
+func Paths(projects []work.Project, was map[string]File, isProject func(string) bool) []string {
 	seen := map[string]bool{}
 	var out []string
 	take := func(path string) {
@@ -319,16 +327,16 @@ func DeclaredPaths(projects []Project, was map[string]Declared, isProject func(s
 	return out
 }
 
-// MarkDeclared is how a pane says which declaration it was opened for:
+// Mark is how a pane says which declaration it was opened for:
 // the name, and the project escaped so that the mark carries no space,
 // since a pane's fields are told apart by spaces when they are read.
-func MarkDeclared(project, name string) string {
+func Mark(project, name string) string {
 	return name + "@" + url.PathEscape(project)
 }
 
-// UnmarkDeclared reads a mark back. A name cannot hold @, so the first
+// Unmark reads a mark back. A name cannot hold @, so the first
 // one is the seam.
-func UnmarkDeclared(mark string) (project, name string, ok bool) {
+func Unmark(mark string) (project, name string, ok bool) {
 	name, escaped, ok := strings.Cut(mark, "@")
 	if !ok {
 		return "", "", false
@@ -340,12 +348,12 @@ func UnmarkDeclared(mark string) (project, name string, ok bool) {
 	return project, name, true
 }
 
-// DeclaredPID is the pid a down row has, since the cursor is a pid and
+// PID is the pid a down row has, since the cursor is a pid and
 // a row has to have one: below zero, where no process is, below every
 // container's, and the same for the declaration on every reading so
 // the cursor holds its row. The project is in it, so two projects that
 // each declare a web are two rows.
-func DeclaredPID(project, name string) int {
+func PID(project, name string) int {
 	h := fnv.New32a()
 	h.Write([]byte(project))
 	h.Write([]byte{0})
@@ -358,16 +366,16 @@ func DeclaredPID(project, name string) int {
 // code otherwise, which is — the same words a container's end gets.
 func exitStatus(code string) (string, bool) {
 	if code == "0" {
-		return StatusEnded, false
+		return work.StatusEnded, false
 	}
-	return exitWord + code, true
+	return work.ExitWord + code, true
 }
 
-// A DeclaredPane is a terminal conn opened for a declaration, as the
+// A Pane is a terminal conn opened for a declaration, as the
 // rows are read against it: the pane, the terminal it holds, the
 // declaration it was opened for, by its mark, and how its command
 // ended, blank while it runs. They are handed over by the terminal.
-type DeclaredPane struct {
+type Pane struct {
 	ID, TTY, Declared, Exit string
 }
 
@@ -376,19 +384,19 @@ type DeclaredPane struct {
 // holding one that ended, by the mark, which a raise replaces. It reads
 // the rows rather than the panes, since a pane whose rows are not yet
 // read is not yet anything.
-func UpAndHeld(projects []Project, panes map[string]DeclaredPane, path string) (up map[string]bool, held map[string]string) {
+func UpAndHeld(projects []work.Project, panes map[string]Pane, path string) (up map[string]bool, held map[string]string) {
 	up, held = map[string]bool{}, map[string]string{}
 	for _, pl := range projects {
 		for _, e := range pl.Entries {
 			if e.Declared == "" {
 				continue
 			}
-			if project, _, ok := UnmarkDeclared(e.Declared); !ok || project != path {
+			if project, _, ok := Unmark(e.Declared); !ok || project != path {
 				continue
 			}
 			// A brew service is up by brew's word, not by a pane.
 			if e.Brew != "" {
-				if e.Status == StatusActive {
+				if e.Status == work.StatusActive {
 					up[e.Declared] = true
 				}
 				continue
@@ -396,7 +404,7 @@ func UpAndHeld(projects []Project, panes map[string]DeclaredPane, path string) (
 			// A row with no terminal is a down row, or a declaration
 			// started by hand somewhere conn cannot see a terminal for.
 			if e.TTY == "" {
-				if e.Status != StatusDown {
+				if e.Status != work.StatusDown {
 					up[e.Declared] = true
 				}
 				continue
@@ -411,18 +419,18 @@ func UpAndHeld(projects []Project, panes map[string]DeclaredPane, path string) (
 	return up, held
 }
 
-// AttachDeclared puts the declarations among the rows. A declaration
+// Attach puts the declarations among the rows. A declaration
 // with a pane marked as its own is that pane's head row, relabelled
 // with the name and, once the pane has recorded an end, worded by it;
 // one without is a down row at the foot of its project's block. A file
 // that would not read is the block's note. A project with no block —
 // nothing running in it — is given one, holding what it declares,
 // down.
-func AttachDeclared(projects []Project, declared map[string]Declared, panes map[string]DeclaredPane) []Project {
+func Attach(projects []work.Project, declared map[string]File, panes map[string]Pane) []work.Project {
 	if len(declared) == 0 {
 		return projects
 	}
-	byMark := map[string]DeclaredPane{}
+	byMark := map[string]Pane{}
 	for _, p := range panes {
 		if p.Declared == "" {
 			continue
@@ -434,7 +442,7 @@ func AttachDeclared(projects []Project, declared map[string]Declared, panes map[
 		}
 		byMark[p.Declared] = p
 	}
-	out := make([]Project, len(projects))
+	out := make([]work.Project, len(projects))
 	copy(out, projects)
 	paths := make([]string, 0, len(declared))
 	for path := range declared {
@@ -443,7 +451,7 @@ func AttachDeclared(projects []Project, declared map[string]Declared, panes map[
 	sort.Strings(paths)
 	for _, path := range paths {
 		d := declared[path]
-		i := blockOf(out, path)
+		i := work.BlockOf(out, path)
 		if i < 0 {
 			// Nothing of the project is running, and it declares what
 			// should be: the block stands empty and takes the down rows
@@ -457,7 +465,7 @@ func AttachDeclared(projects []Project, declared map[string]Declared, panes map[
 			if d.Err == "" && len(d.List) == 0 {
 				continue
 			}
-			out = append(out, Project{Path: path})
+			out = append(out, work.Project{Path: path})
 			i = len(out) - 1
 		}
 		if d.Err != "" {
@@ -470,7 +478,7 @@ func AttachDeclared(projects []Project, declared map[string]Declared, panes map[
 			if _, ok := BrewArgs(decl.Command); ok {
 				continue
 			}
-			mark := MarkDeclared(path, decl.Name)
+			mark := Mark(path, decl.Name)
 			if p, ok := byMark[mark]; ok {
 				// The pane is up. Its head is relabelled wherever the
 				// table filed it; a pane whose rows the table has not
@@ -491,10 +499,10 @@ func AttachDeclared(projects []Project, declared map[string]Declared, panes map[
 				servicesUnder(out, pid, path, decl, d.Services[decl.Name])
 				continue
 			}
-			out[i].Entries = append(out[i].Entries, Entry{
-				PID: DeclaredPID(path, decl.Name), Kind: KindRun,
+			out[i].Entries = append(out[i].Entries, work.Entry{
+				PID: PID(path, decl.Name), Kind: work.KindRun,
 				Command: decl.label(), Typed: decl.label(),
-				Status: StatusDown, Cwd: decl.At(path), Declared: mark,
+				Status: work.StatusDown, Cwd: decl.At(path), Declared: mark,
 			})
 			// What the declaration would bring up, each a row of its
 			// own under it, down: a stack is its services, and a row
@@ -514,10 +522,10 @@ func AttachDeclared(projects []Project, declared map[string]Declared, panes map[
 // with a pid of its own to hold the cursor with. It carries no mark
 // and no container, since there is nothing to signal, stop or enter;
 // bringing the declaration up is what brings it up.
-func downService(path string, decl Declaration, svc string, depth int) Entry {
-	return Entry{
-		PID: DeclaredPID(path, decl.Name+"/"+svc), Kind: KindService,
-		Command: svc, Typed: svc, Status: StatusDown, Cwd: decl.At(path), Depth: depth,
+func downService(path string, decl Declaration, svc string, depth int) work.Entry {
+	return work.Entry{
+		PID: PID(path, decl.Name+"/"+svc), Kind: work.KindService,
+		Command: svc, Typed: svc, Status: work.StatusDown, Cwd: decl.At(path), Depth: depth,
 	}
 }
 
@@ -526,12 +534,12 @@ func downService(path string, decl Declaration, svc string, depth int) Entry {
 // at the declared directory, and not already a declaration's. The
 // shallowest such row is the one, since a command that runs itself
 // again under itself is one process to the operator.
-func startedByHand(pl Project, path string, decl Declaration) (pid int, ok bool) {
+func startedByHand(pl work.Project, path string, decl Declaration) (pid int, ok bool) {
 	command := strings.Join(strings.Fields(decl.Command), " ")
 	at := filepath.Clean(decl.At(path))
 	depth := -1
 	for _, e := range pl.Entries {
-		if e.Declared != "" || e.PID <= 0 || e.Status == StatusDown {
+		if e.Declared != "" || e.PID <= 0 || e.Status == work.StatusDown {
 			continue
 		}
 		if strings.Join(strings.Fields(e.AsTyped()), " ") != command || filepath.Clean(e.Cwd) != at {
@@ -546,7 +554,7 @@ func startedByHand(pl Project, path string, decl Declaration) (pid int, ok bool)
 
 // headPID is the pid of the head row of a pane's tree: the first row
 // with its terminal, the rows standing in tree order.
-func headPID(out []Project, tty string) (int, bool) {
+func headPID(out []work.Project, tty string) (int, bool) {
 	for _, pl := range out {
 		for _, e := range pl.Entries {
 			if e.TTY == tty {
@@ -562,7 +570,7 @@ func headPID(out []Project, tty string) (int, bool) {
 // the rows there: a service that has not started, or that compose
 // has not got to yet. The rows are copied before they are written,
 // since the projects given may be the model's own.
-func servicesUnder(out []Project, pid int, path string, decl Declaration, services []string) {
+func servicesUnder(out []work.Project, pid int, path string, decl Declaration, services []string) {
 	if len(services) == 0 {
 		return
 	}
@@ -575,13 +583,13 @@ func servicesUnder(out []Project, pid int, path string, decl Declaration, servic
 			end := j + 1
 			present := map[string]bool{}
 			for end < len(pl.Entries) && pl.Entries[end].Depth > e.Depth {
-				if pl.Entries[end].Kind == KindService {
+				if pl.Entries[end].Kind == work.KindService {
 					name, _, _ := strings.Cut(pl.Entries[end].Command, " · ")
 					present[name] = true
 				}
 				end++
 			}
-			var missing []Entry
+			var missing []work.Entry
 			for _, svc := range services {
 				if !present[svc] {
 					missing = append(missing, downService(path, decl, svc, e.Depth+1))
@@ -590,7 +598,7 @@ func servicesUnder(out []Project, pid int, path string, decl Declaration, servic
 			if len(missing) == 0 {
 				return
 			}
-			rows := make([]Entry, 0, len(pl.Entries)+len(missing))
+			rows := make([]work.Entry, 0, len(pl.Entries)+len(missing))
 			rows = append(rows, pl.Entries[:end]...)
 			rows = append(rows, missing...)
 			rows = append(rows, pl.Entries[end:]...)
@@ -600,31 +608,20 @@ func servicesUnder(out []Project, pid int, path string, decl Declaration, servic
 	}
 }
 
-// blockOf is the index of a project's block, or below zero where the
-// project has none.
-func blockOf(out []Project, path string) int {
-	for i, pl := range out {
-		if pl.Path == path {
-			return i
-		}
-	}
-	return -1
-}
-
 // relabel makes a declaration's row say what it is: the declared name
 // and command in place of the sh tmux started or the line typed, its
 // kind a run, its mark the declaration's, and its word the exit the
 // pane recorded, where it has one. The rows are copied before they
 // are written, since the projects given may be the model's own.
-func relabel(out []Project, pid int, decl Declaration, mark, exit string) {
+func relabel(out []work.Project, pid int, decl Declaration, mark, exit string) {
 	for i, pl := range out {
 		for j, e := range pl.Entries {
 			if e.PID != pid {
 				continue
 			}
-			rows := make([]Entry, len(pl.Entries))
+			rows := make([]work.Entry, len(pl.Entries))
 			copy(rows, pl.Entries)
-			e.Kind, e.Command, e.Typed, e.Declared = KindRun, decl.label(), decl.label(), mark
+			e.Kind, e.Command, e.Typed, e.Declared = work.KindRun, decl.label(), decl.label(), mark
 			if exit != "" {
 				e.Status, e.Fault = exitStatus(exit)
 			}

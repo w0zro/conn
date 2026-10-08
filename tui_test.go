@@ -11,6 +11,8 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
+	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -714,7 +716,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 	m := plainModel()
 	m.view = viewProcesses
-	mark := work.MarkDeclared("/w", "web")
+	mark := declared.Mark("/w", "web")
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 40, Kind: work.KindRun, Command: "web · npm run dev", Typed: "web · npm run dev", TTY: "/dev/ttys009", Declared: mark},
 	}}}
@@ -1526,11 +1528,11 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 // project with no file answers nothing.
 func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	app := "/Users/w0zro/projects/w0zro/app"
-	down := work.Entry{PID: work.DeclaredPID(app, "web"), Kind: work.KindRun, Command: "web · npm run dev", Status: work.StatusDown, Declared: work.MarkDeclared(app, "web")}
+	down := work.Entry{PID: declared.PID(app, "web"), Kind: work.KindRun, Command: "web · npm run dev", Status: work.StatusDown, Declared: declared.Mark(app, "web")}
 	m := plainModel()
 	m.view = viewProcesses
 	m.projects = []work.Project{{Path: app, Entries: []work.Entry{down}}}
-	m.declared = map[string]work.Declared{app: {List: []work.Declaration{{Name: "web", Command: "npm run dev"}}}}
+	m.declared = map[string]declared.File{app: {List: []declared.Declaration{{Name: "web", Command: "npm run dev"}}}}
 	m.cursor = down.PID
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "enter"}))
@@ -1596,11 +1598,11 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 // under the sh is what is asked to end, so the sh records the end.
 func TestXOnADeclaredRow(t *testing.T) {
 	app := "/Users/w0zro/projects/w0zro/app"
-	mark := work.MarkDeclared(app, "web")
+	mark := declared.Mark(app, "web")
 	m := plainModel()
 	m.view, m.inside, m.srv = viewProcesses, true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	m.projects = []work.Project{{Path: app, Entries: []work.Entry{
-		{PID: work.DeclaredPID(app, "web"), Kind: work.KindRun, Status: work.StatusDown, Declared: mark},
+		{PID: declared.PID(app, "web"), Kind: work.KindRun, Status: work.StatusDown, Declared: mark},
 		{PID: 300, Kind: work.KindRun, Command: "web · npm run dev", TTY: "ttys003", Status: work.StatusEnded, Declared: mark},
 		{PID: 400, Kind: work.KindRun, Command: "web · npm run dev", TTY: "ttys004", Status: work.StatusActive, Declared: mark},
 		{PID: 401, Kind: work.KindRun, Command: "npm run dev", TTY: "ttys004", Status: work.StatusActive, Depth: 1},
@@ -1614,7 +1616,7 @@ func TestXOnADeclaredRow(t *testing.T) {
 		m = next.(model)
 		return cmd
 	}
-	m.cursor = work.DeclaredPID(app, "web")
+	m.cursor = declared.PID(app, "web")
 	// The status line is told of the keys either way; what matters is
 	// that no question is armed.
 	press("x")
@@ -1799,7 +1801,7 @@ func TestCtrlCClosesTheFeedFromEveryView(t *testing.T) {
 		done := make(chan struct{})
 		close(done)
 		m := plainModel()
-		m.view, m.dockerFeed = view, &work.DockerFeed{Stop: make(chan struct{}), Done: done}
+		m.view, m.dockerFeed = view, &docker.Feed{Stop: make(chan struct{}), Done: done}
 		_, cmd := m.key("ctrl+c")
 		if _, quit := answered(cmd).(tea.QuitMsg); !quit {
 			t.Errorf("view %d: ctrl+c did not close conn", view)

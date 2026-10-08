@@ -8,7 +8,9 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/config"
 )
@@ -59,9 +61,9 @@ type readoutSubject struct {
 	git      gitStatus
 	// What docker says of this row, where the row is a container, as
 	// the panel published it; see cursor.go.
-	container *work.Container
+	container *docker.Container
 	// And what brew says of it, where the row is a service of brew's.
-	brew *work.BrewService
+	brew *brew.Service
 }
 
 // readoutReport is the readout's words as things stand, about one row.
@@ -342,7 +344,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 // where it belongs, and what it has open. A service brew has not
 // reported — brew not asked yet, or the formula not installed — is
 // said as the declaration alone.
-func composeBrewPage(b readoutReport, e work.Entry, svc *work.BrewService, p room.Pane, inside bool, home string) readoutReport {
+func composeBrewPage(b readoutReport, e work.Entry, svc *brew.Service, p room.Pane, inside bool, home string) readoutReport {
 	b.name = e.Brew
 	what := readoutGroup{title: "WHAT"}
 	what.add("Kind", work.Said(work.KindService)+" · Homebrew")
@@ -351,7 +353,7 @@ func composeBrewPage(b readoutReport, e work.Entry, svc *work.BrewService, p roo
 		what.add("Status", "Not reported by brew")
 	} else {
 		what.add("Status", work.Said(svc.Status))
-		if word, fault := work.BrewStatus(*svc); fault {
+		if word, fault := brew.Status(*svc); fault {
 			what.add("Wrong", work.Said(word))
 		}
 		if svc.Running && svc.PID > 0 {
@@ -671,7 +673,7 @@ func tokens(n int) string {
 // has is an image, a service name its siblings are named beside, ports
 // it publishes on the host, and a health check that may disagree with
 // the fact that it is running.
-func composeService(b readoutReport, c work.Container, p room.Pane, inside bool, home string, now time.Time) readoutReport {
+func composeService(b readoutReport, c docker.Container, p room.Pane, inside bool, home string, now time.Time) readoutReport {
 	b.name = c.ID
 
 	what := readoutGroup{title: "WHAT"}
@@ -684,7 +686,7 @@ func composeService(b readoutReport, c work.Container, p room.Pane, inside bool,
 	what.addAsWritten("Status", work.Said(c.Status))
 	// And what the row made of it, which is the word the processes view
 	// used and the reason it wears a mark or does not.
-	word, fault := work.ContainerStatus(c)
+	word, fault := docker.Status(c)
 	if fault {
 		what.add("Wrong", work.Said(word))
 	}

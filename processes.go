@@ -12,6 +12,7 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/declared"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -423,7 +424,7 @@ func rowLabel(e work.Entry) string {
 // what the panel calls it, the command being in the file and on the
 // page. Anything else has none.
 func declaredNameOf(e work.Entry) string {
-	if _, name, ok := work.UnmarkDeclared(e.Declared); ok {
+	if _, name, ok := declared.Unmark(e.Declared); ok {
 		return name
 	}
 	return ""

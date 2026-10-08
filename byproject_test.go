@@ -10,6 +10,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
 
 	"github.com/w0zro/conn/internal/theme"
 )
@@ -107,7 +108,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	}}}
 	// The row's declaration, as the file was last read: what enter and u
 	// bring up.
-	m.declared = map[string]work.Declared{"/w": {List: []work.Declaration{{Name: "worker", Command: "npm run worker"}}}}
+	m.declared = map[string]declared.File{"/w": {List: []declared.Declaration{{Name: "worker", Command: "npm run worker"}}}}
 	// The words are written in the lower case, whatever the hint says.
 	has := func(bar, key, does string) bool {
 		return offered(bar, key, does)

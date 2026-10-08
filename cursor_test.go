@@ -11,6 +11,7 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/tmux"
 
@@ -299,7 +300,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 		records:    map[int]record{11: {pid: 11, state: 'S', foreground: false}, 22: {pid: 22, state: 'S', foreground: true, cpu: 90 * time.Second}},
 		panes:      map[string]room.Pane{"ttys002": {ID: "%3", TTY: "ttys002"}},
 		inside:     true,
-		containers: []work.Container{{ID: "abc123def456", Service: "web", Image: "nginx", State: "running", Dir: "/w"}},
+		containers: []docker.Container{{ID: "abc123def456", Service: "web", Image: "nginx", State: "running", Dir: "/w"}},
 	}
 	tellCursor(path, subject{pid: 22}, &r)
 	at, got := askCursor(path)

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/docker"
 )
 
 // A knownProgram is a program conn knows by name: a server with a client of its own,
@@ -46,7 +47,7 @@ var knownPrograms = []knownProgram{{
 // command is the server's own; anything else by the process name, its
 // own or the listener's it folded, since a postgres under a shell is
 // the shell's row on the panel and the port on it is the server's.
-func programOf(e work.Entry, c *work.Container) *knownProgram {
+func programOf(e work.Entry, c *docker.Container) *knownProgram {
 	for i := range knownPrograms {
 		p := &knownPrograms[i]
 		switch {

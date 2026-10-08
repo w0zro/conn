@@ -7,6 +7,7 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
 )
 
 // A compose declaration that is down has the services it would bring
@@ -15,16 +16,16 @@ import (
 // the ones that have.
 func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 	shop := "/r/shop"
-	stack := work.Declaration{Name: "stack", Command: "docker compose up"}
-	declared := map[string]work.Declared{shop: {
-		List:     []work.Declaration{stack},
+	stack := declared.Declaration{Name: "stack", Command: "docker compose up"}
+	files := map[string]declared.File{shop: {
+		List:     []declared.Declaration{stack},
 		Services: map[string][]string{"stack": {"api", "db", "web"}},
 	}}
 	// Down: nothing runs it, and a shell is open in the project.
 	projects := []work.Project{{Path: shop, Entries: []work.Entry{
 		{PID: 100, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: work.StatusIdle},
 	}}}
-	got := work.AttachDeclared(projects, declared, nil)
+	got := declared.Attach(projects, files, nil)
 	rows := func(pl work.Project) []string {
 		var out []string
 		for _, e := range pl.Entries {
@@ -48,7 +49,7 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 
 	// Up: the head runs, and docker has two of the three services under
 	// it; the third is down under the head, after the rows it has.
-	mark := work.MarkDeclared(shop, "stack")
+	mark := declared.Mark(shop, "stack")
 	up := []work.Project{{Path: shop, Entries: []work.Entry{
 		{PID: 200, Kind: work.KindShell, Command: "sh -c docker compose up", Typed: "sh -c docker compose up", TTY: "ttys002", Status: work.StatusActive},
 		{PID: 201, Kind: work.KindRun, Command: "docker compose up", Typed: "docker compose up", TTY: "ttys002", Status: work.StatusActive, Depth: 1},
@@ -57,7 +58,7 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 		{PID: 300, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys003", Status: work.StatusIdle},
 	}}}
 	panes := map[string]room.Pane{"ttys002": {ID: "%2", TTY: "ttys002", Declared: mark}}
-	got = work.AttachDeclared(up, declared, declaredPanes(panes))
+	got = declared.Attach(up, files, declaredPanes(panes))
 	want = []string{"RUN stack · docker compose up ACTIVE", " RUN docker compose up ACTIVE", "  SERVICE api ACTIVE", "  SERVICE web ACTIVE", " SERVICE db DOWN", "SHELL zsh IDLE"}
 	if !slices.Equal(rows(got[0]), want) {
 		t.Errorf("up:\n%s\nwant:\n%s", strings.Join(rows(got[0]), "\n"), strings.Join(want, "\n"))
@@ -75,7 +76,7 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 		{PID: -5, Kind: work.KindService, Command: "api", Typed: "api", Ports: []string{"3000"}, Status: work.StatusActive, Depth: 2, Container: "aaa"},
 		{PID: -6, Kind: work.KindService, Command: "web", Typed: "web", Ports: []string{"8080"}, Status: work.StatusActive, Depth: 2, Container: "bbb"},
 	}}}
-	got = work.AttachDeclared(hand, declared, nil)
+	got = declared.Attach(hand, files, nil)
 	want = []string{"SHELL zsh IDLE", " RUN stack · docker compose up ACTIVE", "  SERVICE api ACTIVE", "  SERVICE web ACTIVE", "  SERVICE db DOWN"}
 	if !slices.Equal(rows(got[0]), want) {
 		t.Errorf("by hand:\n%s\nwant:\n%s", strings.Join(rows(got[0]), "\n"), strings.Join(want, "\n"))

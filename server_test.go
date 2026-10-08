@@ -15,6 +15,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -1296,7 +1297,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	// sleeper answers ctrl-c slowly, the way a docker compose up does
 	// while it stops its services: six seconds, past the five a first
 	// cut of the close gave before leaving the pane standing.
-	if err := os.WriteFile(filepath.Join(repo, work.DeclaredName), []byte("sleeper: perl -e '$SIG{INT} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, declared.FileName), []byte("sleeper: perl -e '$SIG{INT} = sub { sleep 6; exit 0 }; sleep 120'\nquick: true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the console to finish", func() bool { return s.finished() })

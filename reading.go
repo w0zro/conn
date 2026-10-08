@@ -6,7 +6,10 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/declared"
+	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -21,7 +24,7 @@ func (m model) readProcesses() tea.Cmd {
 	gen, uid := m.processesGen, m.uid
 	home, configured := m.head.Login.Home, m.roots.configured
 	containers, brews := m.containers, m.brews
-	declared, full := m.declared, m.full
+	files, full := m.declared, m.full
 	was := m.trace
 	var srv *room.Server
 	if m.inside {
@@ -109,23 +112,23 @@ func (m model) readProcesses() tea.Cmd {
 		// docker last said is already here — the feed brings it as it
 		// happens — so this costs the reading nothing and waits on no
 		// daemon.
-		projects = work.AttachContainers(projects, containers, roots, paneOf, shellIn)
+		projects = docker.Attach(projects, containers, roots, paneOf, shellIn)
 		// And what the projects declare should be working them, which
 		// the table has no word for until it is: a stat per project,
 		// and a read where a file changed.
-		declared = work.RefreshDeclared(declared, work.DeclaredPaths(projects, declared, isProject))
-		projects = work.AttachDeclared(projects, declared, declaredPanes(panes))
+		files = declared.Refresh(files, declared.Paths(projects, files, isProject))
+		projects = declared.Attach(projects, files, declaredPanes(panes))
 		// And the services brew holds up for them, as brew last said,
 		// each with the sockets of the process running it, which the
 		// table has and files nowhere.
-		if work.BrewDeclared(declared) {
+		if brew.Declared(files) {
 			sockets := map[int][]work.Socket{}
 			for _, p := range procs {
 				if len(p.Sockets) > 0 {
 					sockets[p.PID] = p.Sockets
 				}
 			}
-			projects = work.AttachBrew(projects, declared, brews, sockets, paneOf)
+			projects = brew.Attach(projects, files, brews, sockets, paneOf)
 		}
 		// And out go the projects nothing is up in, whose every row is
 		// a declaration of what is not running; see worked.
@@ -137,7 +140,7 @@ func (m model) readProcesses() tea.Cmd {
 		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen,
 			trace: &trace{cpu: now, at: nowAt, stood: work.SinceSeen(projects, was.stood, was.at, nowAt),
 				acts: claude.Activities(projects, was.acts), serves: serves},
-			records: records, rooted: &rooting, declared: declared}
+			records: records, rooted: &rooting, declared: files}
 		if !full {
 			msg.projects = fold(projects)
 		}
@@ -339,11 +342,11 @@ func recordsOf(procs []work.Process, projects []work.Project) map[int]record {
 
 // declaredPanes is the panes conn opened for declarations, by the
 // terminal each holds, as the rows are read against them.
-func declaredPanes(panes map[string]room.Pane) map[string]work.DeclaredPane {
-	out := map[string]work.DeclaredPane{}
+func declaredPanes(panes map[string]room.Pane) map[string]declared.Pane {
+	out := map[string]declared.Pane{}
 	for tty, p := range panes {
 		if p.Declared != "" {
-			out[tty] = work.DeclaredPane{ID: p.ID, TTY: p.TTY, Declared: p.Declared, Exit: p.Exit}
+			out[tty] = declared.Pane{ID: p.ID, TTY: p.TTY, Declared: p.Declared, Exit: p.Exit}
 		}
 	}
 	return out

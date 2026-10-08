@@ -1,4 +1,7 @@
-package work
+// Package brew is Homebrew's services as conn reads them: what brew
+// services says of each, the rows a project's .conn makes of the ones
+// it declares, and the brew command that is asked.
+package brew
 
 import (
 	"context"
@@ -10,6 +13,8 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/station"
+	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
 )
 
 // A service Homebrew holds up is a thing to reach the way a container
@@ -34,18 +39,18 @@ import (
 // brew, or with brew and nothing declared, never asks.
 
 const (
-	BrewWait = 5 * time.Second // the longest brew is given to answer
+	Wait = 5 * time.Second // the longest brew is given to answer
 	// How often brew is asked, while anything is declared. An asking
 	// boots brew's ruby, half a second of a core, and a service does
 	// not change on its own between one and the next; a start or a
 	// stop from the panel asks again at once.
-	BrewBeat = 15 * time.Second
+	Beat = 15 * time.Second
 )
 
-var BrewPath = station.LookPath("brew")
+var Path = station.LookPath("brew")
 
-// A BrewService is one service as brew reports it.
-type BrewService struct {
+// A Service is one service as brew reports it.
+type Service struct {
 	Name    string // the formula
 	Running bool
 	PID     int
@@ -55,9 +60,9 @@ type BrewService struct {
 	Log     string // where it writes
 }
 
-// BrewMark is the mark on the pane conn opens to watch a service's log,
+// Mark is the mark on the pane conn opens to watch a service's log,
 // which is what makes that pane the row's terminal.
-func BrewMark(formula string) string { return "brew:" + formula }
+func Mark(formula string) string { return "brew:" + formula }
 
 // brewEnv is what conn adds to brew's environment when it asks. brew
 // records every command it is given with a curl to its analytics,
@@ -67,11 +72,11 @@ func BrewMark(formula string) string { return "brew:" + formula }
 // anywhere.
 var brewEnv = []string{"HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ENV_HINTS=1"}
 
-// BrewSays asks brew, given a wait.
-func BrewSays(wait time.Duration, args ...string) ([]byte, error) {
+// Says asks brew, given a wait.
+func Says(wait time.Duration, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), wait)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, BrewPath, args...)
+	cmd := exec.CommandContext(ctx, Path, args...)
 	cmd.Env = append(os.Environ(), brewEnv...)
 	cmd.WaitDelay = time.Second
 	out, err := cmd.Output()
@@ -84,17 +89,17 @@ func BrewSays(wait time.Duration, args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// ReadBrew is every service brew knows, as it stands. Without
+// Read is every service brew knows, as it stands. Without
 // brew there is nothing to ask.
-func ReadBrew() ([]BrewService, error) {
-	if BrewPath == "" {
+func Read() ([]Service, error) {
+	if Path == "" {
 		return nil, nil
 	}
-	out, err := BrewSays(BrewWait, "services", "info", "--all", "--json")
+	out, err := Says(Wait, "services", "info", "--all", "--json")
 	if err != nil {
 		return nil, err
 	}
-	return ParseBrewServices(out)
+	return Parse(out)
 }
 
 // brewRow is one entry of brew services info --all --json.
@@ -108,15 +113,15 @@ type brewRow struct {
 	LogPath  string `json:"log_path"`
 }
 
-// ParseBrewServices reads brew's answer.
-func ParseBrewServices(out []byte) ([]BrewService, error) {
+// Parse reads brew's answer.
+func Parse(out []byte) ([]Service, error) {
 	var rows []brewRow
 	if err := json.Unmarshal(out, &rows); err != nil {
 		return nil, err
 	}
-	services := make([]BrewService, 0, len(rows))
+	services := make([]Service, 0, len(rows))
 	for _, r := range rows {
-		s := BrewService{Name: r.Name, Running: r.Running, Status: r.Status, Command: r.Command, Log: r.LogPath}
+		s := Service{Name: r.Name, Running: r.Running, Status: r.Status, Command: r.Command, Log: r.LogPath}
 		if r.PID != nil {
 			s.PID = *r.PID
 		}
@@ -128,9 +133,9 @@ func ParseBrewServices(out []byte) ([]BrewService, error) {
 	return services, nil
 }
 
-// BrewServiceNamed is the service of a formula among those brew
+// Named is the service of a formula among those brew
 // reported, where it is one.
-func BrewServiceNamed(services []BrewService, formula string) *BrewService {
+func Named(services []Service, formula string) *Service {
 	for i := range services {
 		if services[i].Name == formula {
 			return &services[i]
@@ -139,27 +144,27 @@ func BrewServiceNamed(services []BrewService, formula string) *BrewService {
 	return nil
 }
 
-// BrewStatus is the word a service's row wears, and whether it is a
+// Status is the word a service's row wears, and whether it is a
 // fault: ACTIVE running, EXIT n where its last run ended badly, and
 // DOWN otherwise, which u brings up.
-func BrewStatus(s BrewService) (string, bool) {
+func Status(s Service) (string, bool) {
 	switch {
 	case s.Running:
-		return StatusActive, false
+		return work.StatusActive, false
 	case s.Exit != "":
-		return exitWord + s.Exit, true
+		return work.ExitWord + s.Exit, true
 	case s.Status == "error":
 		return "ERROR", true
 	}
-	return StatusDown, false
+	return work.StatusDown, false
 }
 
-// BrewDeclared says whether any project declares a brew service, which
+// Declared says whether any project declares a brew service, which
 // is when brew is worth asking.
-func BrewDeclared(declared map[string]Declared) bool {
-	for _, d := range declared {
+func Declared(files map[string]declared.File) bool {
+	for _, d := range files {
 		for _, decl := range d.List {
-			if _, ok := BrewArgs(decl.Command); ok {
+			if _, ok := declared.BrewArgs(decl.Command); ok {
 				return true
 			}
 		}
@@ -167,7 +172,7 @@ func BrewDeclared(declared map[string]Declared) bool {
 	return false
 }
 
-// AttachBrew puts each declared brew service among its project's rows,
+// Attach puts each declared brew service among its project's rows,
 // at the foot of the block the way a declaration down stands, as brew
 // reports it: with the pid and the sockets of the process running it,
 // or down. The declared name is the row's label, as for any
@@ -175,37 +180,37 @@ func BrewDeclared(declared map[string]Declared) bool {
 // nothing running in it — shows nothing of its file, as for the rest
 // of it. A service two projects declare is a row under each, each
 // counting how many; the panel files them as one, see byState.
-func AttachBrew(projects []Project, declared map[string]Declared, services []BrewService, sockets map[int][]Socket, paneOf map[string]string) []Project {
-	if len(declared) == 0 {
+func Attach(projects []work.Project, files map[string]declared.File, services []Service, sockets map[int][]work.Socket, paneOf map[string]string) []work.Project {
+	if len(files) == 0 {
 		return projects
 	}
-	out := make([]Project, len(projects))
+	out := make([]work.Project, len(projects))
 	copy(out, projects)
-	paths := make([]string, 0, len(declared))
-	for path := range declared {
+	paths := make([]string, 0, len(files))
+	for path := range files {
 		paths = append(paths, path)
 	}
 	sort.Strings(paths)
 	shared := map[string]int{}
 	var rows []struct {
 		block int
-		e     Entry
+		e     work.Entry
 	}
 	for _, path := range paths {
-		i := blockOf(out, path)
-		if i < 0 || declared[path].Err != "" {
+		i := work.BlockOf(out, path)
+		if i < 0 || files[path].Err != "" {
 			continue
 		}
-		for _, decl := range declared[path].List {
-			formula, ok := BrewArgs(decl.Command)
+		for _, decl := range files[path].List {
+			formula, ok := declared.BrewArgs(decl.Command)
 			if !ok {
 				continue
 			}
 			shared[formula]++
 			rows = append(rows, struct {
 				block int
-				e     Entry
-			}{i, brewEntry(path, decl, formula, BrewServiceNamed(services, formula), sockets, paneOf)})
+				e     work.Entry
+			}{i, brewEntry(path, decl, formula, Named(services, formula), sockets, paneOf)})
 		}
 	}
 	for _, r := range rows {
@@ -216,21 +221,21 @@ func AttachBrew(projects []Project, declared map[string]Declared, services []Bre
 }
 
 // brewEntry is a declared brew service as a row.
-func brewEntry(path string, decl Declaration, formula string, svc *BrewService, sockets map[int][]Socket, paneOf map[string]string) Entry {
-	e := Entry{
-		PID: DeclaredPID(path, decl.Name), Kind: KindService,
-		Command: formula, Typed: formula, Status: StatusDown,
-		Cwd: decl.At(path), Declared: MarkDeclared(path, decl.Name), Brew: formula,
-		TTY: paneOf[BrewMark(formula)],
+func brewEntry(path string, decl declared.Declaration, formula string, svc *Service, sockets map[int][]work.Socket, paneOf map[string]string) work.Entry {
+	e := work.Entry{
+		PID: declared.PID(path, decl.Name), Kind: work.KindService,
+		Command: formula, Typed: formula, Status: work.StatusDown,
+		Cwd: decl.At(path), Declared: declared.Mark(path, decl.Name), Brew: formula,
+		TTY: paneOf[Mark(formula)],
 	}
 	if svc == nil {
 		return e
 	}
-	e.Status, e.Fault = BrewStatus(*svc)
+	e.Status, e.Fault = Status(*svc)
 	if svc.Running && svc.PID > 0 {
 		e.PID = svc.PID
 		e.Sockets = sockets[svc.PID]
-		e.Ports = ListeningPorts(e.Sockets)
+		e.Ports = work.ListeningPorts(e.Sockets)
 	}
 	return e
 }

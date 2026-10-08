@@ -1,4 +1,4 @@
-package work
+package declared
 
 import (
 	"os"
@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // A declared command that runs compose is read for what it hands
@@ -62,18 +64,18 @@ func TestALineThatWillNotParseIsSaid(t *testing.T) {
 // A project that declares what works it stands even with nothing
 // running in it: a block of its own, holding what it declares, down.
 func TestAProjectWithNothingUpStandsForItsFile(t *testing.T) {
-	files := map[string]Declared{"/r/a": {List: []Declaration{{Name: "web", Command: "npm run dev"}}}}
-	out := AttachDeclared([]Project{{Path: "/r/b"}}, files, nil)
-	i := blockOf(out, "/r/a")
+	files := map[string]File{"/r/a": {List: []Declaration{{Name: "web", Command: "npm run dev"}}}}
+	out := Attach([]work.Project{{Path: "/r/b"}}, files, nil)
+	i := work.BlockOf(out, "/r/a")
 	if i < 0 {
 		t.Fatalf("no block for the project that declares: %v", out)
 	}
-	if len(out[i].Entries) != 1 || out[i].Entries[0].Status != StatusDown {
+	if len(out[i].Entries) != 1 || out[i].Entries[0].Status != work.StatusDown {
 		t.Errorf("the block holds %+v, want one down row", out[i].Entries)
 	}
 	// A file that declares nothing stands for nothing.
-	out = AttachDeclared([]Project{{Path: "/r/b"}}, map[string]Declared{"/r/c": {}}, nil)
-	if blockOf(out, "/r/c") >= 0 {
+	out = Attach([]work.Project{{Path: "/r/b"}}, map[string]File{"/r/c": {}}, nil)
+	if work.BlockOf(out, "/r/c") >= 0 {
 		t.Errorf("a file declaring nothing made a block: %v", out)
 	}
 }
@@ -86,24 +88,24 @@ func TestAProjectWithNothingUpStandsForItsFile(t *testing.T) {
 // down; a file that would not read is the block's note.
 func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	app, lib, zed := "/r/app", "/r/lib", "/r/zed"
-	projects := []Project{
-		{Path: app, Entries: []Entry{
-			{PID: 100, Kind: KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: StatusIdle},
-			{PID: 200, Kind: KindShell, Command: "sh -c npm run dev", Typed: "sh -c npm run dev", TTY: "ttys002", Status: StatusActive},
-			{PID: 201, Kind: KindRun, Command: "npm run dev", Typed: "npm run dev", TTY: "ttys002", Status: StatusActive, Depth: 1},
-			{PID: 300, Kind: KindShell, Command: "cat", Typed: "cat", TTY: "ttys003", Status: StatusActive},
+	projects := []work.Project{
+		{Path: app, Entries: []work.Entry{
+			{PID: 100, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: work.StatusIdle},
+			{PID: 200, Kind: work.KindShell, Command: "sh -c npm run dev", Typed: "sh -c npm run dev", TTY: "ttys002", Status: work.StatusActive},
+			{PID: 201, Kind: work.KindRun, Command: "npm run dev", Typed: "npm run dev", TTY: "ttys002", Status: work.StatusActive, Depth: 1},
+			{PID: 300, Kind: work.KindShell, Command: "cat", Typed: "cat", TTY: "ttys003", Status: work.StatusActive},
 			// By hand: the worker's command typed at the project, in a
 			// shell of the operator's own; the api's command, at the
 			// project rather than under api; the ghost's, with a word
 			// of difference; and a wrong one under nothing.
-			{PID: 500, Kind: KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys005", Status: StatusActive, Cwd: app},
-			{PID: 501, Kind: KindRun, Command: "make run", Typed: "make  run", TTY: "ttys005", Status: StatusWorking, Depth: 1, Cwd: app},
-			{PID: 502, Kind: KindRun, Command: "go run .", Typed: "go run .", TTY: "ttys005", Status: StatusActive, Depth: 1, Cwd: app},
-			{PID: 503, Kind: KindRun, Command: "sleep 10", Typed: "sleep 10", TTY: "ttys005", Status: StatusActive, Depth: 1, Cwd: app},
+			{PID: 500, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys005", Status: work.StatusActive, Cwd: app},
+			{PID: 501, Kind: work.KindRun, Command: "make run", Typed: "make  run", TTY: "ttys005", Status: work.StatusWorking, Depth: 1, Cwd: app},
+			{PID: 502, Kind: work.KindRun, Command: "go run .", Typed: "go run .", TTY: "ttys005", Status: work.StatusActive, Depth: 1, Cwd: app},
+			{PID: 503, Kind: work.KindRun, Command: "sleep 10", Typed: "sleep 10", TTY: "ttys005", Status: work.StatusActive, Depth: 1, Cwd: app},
 		}},
-		{Path: zed, Entries: []Entry{{PID: 400, Kind: KindShell, Command: "zsh", TTY: "ttys004", Status: StatusIdle}}},
+		{Path: zed, Entries: []work.Entry{{PID: 400, Kind: work.KindShell, Command: "zsh", TTY: "ttys004", Status: work.StatusIdle}}},
 	}
-	declared := map[string]Declared{
+	declared := map[string]File{
 		app: {List: []Declaration{
 			{Name: "web", Command: "npm run dev"},
 			{Name: "api", Command: "go run .", Dir: "api"},
@@ -113,12 +115,12 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 		lib: {List: []Declaration{{Name: "docs", Command: "mkdocs serve"}}},
 		zed: {Err: ".conn: line 1: want name [dir]: command"},
 	}
-	panes := map[string]DeclaredPane{
-		"ttys002": {ID: "%2", TTY: "ttys002", Declared: MarkDeclared(app, "web")},
-		"ttys003": {ID: "%3", TTY: "ttys003", Declared: MarkDeclared(app, "api"), Exit: "1"},
-		"ttys009": {ID: "%9", TTY: "ttys009", Declared: MarkDeclared(app, "ghost")},
+	panes := map[string]Pane{
+		"ttys002": {ID: "%2", TTY: "ttys002", Declared: Mark(app, "web")},
+		"ttys003": {ID: "%3", TTY: "ttys003", Declared: Mark(app, "api"), Exit: "1"},
+		"ttys009": {ID: "%9", TTY: "ttys009", Declared: Mark(app, "ghost")},
 	}
-	got := AttachDeclared(projects, declared, panes)
+	got := Attach(projects, declared, panes)
 	var rows []string
 	for _, pl := range got {
 		rows = append(rows, pl.Path+" · "+pl.Note)
@@ -129,17 +131,17 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	want := []string{
 		app + " · ",
 		" SHELL zsh IDLE ttys001 ",
-		" RUN web · npm run dev ACTIVE ttys002 " + MarkDeclared(app, "web"),
+		" RUN web · npm run dev ACTIVE ttys002 " + Mark(app, "web"),
 		"  RUN npm run dev ACTIVE ttys002 ",
-		" RUN api · go run . EXIT 1 ttys003 " + MarkDeclared(app, "api"),
+		" RUN api · go run . EXIT 1 ttys003 " + Mark(app, "api"),
 		" SHELL zsh ACTIVE ttys005 ",
-		"  RUN worker · make run WORKING ttys005 " + MarkDeclared(app, "worker"),
+		"  RUN worker · make run WORKING ttys005 " + Mark(app, "worker"),
 		"  RUN go run . ACTIVE ttys005 ",
 		"  RUN sleep 10 ACTIVE ttys005 ",
 		zed + " · .conn: line 1: want name [dir]: command",
 		" SHELL zsh IDLE ttys004 ",
 		lib + " · ",
-		" RUN docs · mkdocs serve DOWN  " + MarkDeclared(lib, "docs"),
+		" RUN docs · mkdocs serve DOWN  " + Mark(lib, "docs"),
 	}
 	if !reflect.DeepEqual(rows, want) {
 		t.Errorf("rows:\n%s\nwant:\n%s", strings.Join(rows, "\n"), strings.Join(want, "\n"))
@@ -152,22 +154,22 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	if e := got[0].Entries[3]; !e.Fault {
 		t.Error("an exit of 1 is not a fault")
 	}
-	panes["ttys003"] = DeclaredPane{ID: "%3", TTY: "ttys003", Declared: MarkDeclared(app, "api"), Exit: "0"}
-	if e := AttachDeclared(projects, declared, panes)[0].Entries[3]; e.Status != StatusEnded || e.Fault {
+	panes["ttys003"] = Pane{ID: "%3", TTY: "ttys003", Declared: Mark(app, "api"), Exit: "0"}
+	if e := Attach(projects, declared, panes)[0].Entries[3]; e.Status != work.StatusEnded || e.Fault {
 		t.Errorf("a clean end: %s, fault %v", e.Status, e.Fault)
 	}
 	// With nothing started by hand the worker is a down row, with a
 	// pid of its own to hold the cursor with.
-	got = AttachDeclared(projects[:1], declared, panes)
+	got = Attach(projects[:1], declared, panes)
 	got[0].Entries = got[0].Entries[:4]
-	if e := AttachDeclared([]Project{{Path: app, Entries: projects[0].Entries[:4]}}, declared, panes)[0].Entries[4]; e.PID != DeclaredPID(app, "worker") || e.Cwd != app || e.Status != StatusDown {
+	if e := Attach([]work.Project{{Path: app, Entries: projects[0].Entries[:4]}}, declared, panes)[0].Entries[4]; e.PID != PID(app, "worker") || e.Cwd != app || e.Status != work.StatusDown {
 		t.Errorf("the down row: %+v", e)
 	}
 	// The projects given are left as they were.
-	if len(projects[0].Entries) != 8 || projects[0].Entries[1].Kind != KindShell {
+	if len(projects[0].Entries) != 8 || projects[0].Entries[1].Kind != work.KindShell {
 		t.Error("the model's own rows were written to")
 	}
-	if AttachDeclared(projects, nil, panes)[0].Path != app || len(AttachDeclared(projects, nil, panes)) != 2 {
+	if Attach(projects, nil, panes)[0].Path != app || len(Attach(projects, nil, panes)) != 2 {
 		t.Error("with nothing declared the projects are not as they were")
 	}
 }
@@ -200,13 +202,13 @@ func TestTheFileIsOneProcessALine(t *testing.T) {
 func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 	project := t.TempDir()
 	other := t.TempDir()
-	if list, err := ReadDeclared(project); err != nil || list != nil {
+	if list, err := Read(project); err != nil || list != nil {
 		t.Errorf("no file: %v, %v", list, err)
 	}
 	if err := os.MkdirAll(filepath.Join(project, "frontend"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(project, DeclaredName)
+	path := filepath.Join(project, FileName)
 	write := func(text string) {
 		t.Helper()
 		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
@@ -214,7 +216,7 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 		}
 	}
 	write("web frontend: npm run dev\napi: go run .\n")
-	got := RefreshDeclared(nil, []string{project, other})
+	got := Refresh(nil, []string{project, other})
 	if _, ok := got[other]; ok {
 		t.Error("a project with no file is in the answer")
 	}
@@ -224,7 +226,7 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 	}
 	// Unchanged, the cached reading stands: a mark left on it survives.
 	got[project].List[0].Command = "kept"
-	again := RefreshDeclared(got, []string{project})
+	again := Refresh(got, []string{project})
 	if again[project].List[0].Command != "kept" {
 		t.Error("an unchanged file was read again")
 	}
@@ -235,7 +237,7 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 	if err := os.Chtimes(path, old, old); err != nil {
 		t.Fatal(err)
 	}
-	again = RefreshDeclared(again, []string{project})
+	again = Refresh(again, []string{project})
 	if l := again[project].List; len(l) != 1 || l[0].Command != "npm start" {
 		t.Errorf("a changed file was not read again: %+v", l)
 	}
@@ -246,14 +248,14 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 	if err := os.Chtimes(path, older, older); err != nil {
 		t.Fatal(err)
 	}
-	again = RefreshDeclared(again, []string{project})
+	again = Refresh(again, []string{project})
 	if want := ".conn: line 2: queue is not a directory"; again[project].Err != want {
 		t.Errorf("a missing dir: %q, want %q", again[project].Err, want)
 	}
 	if err := os.MkdirAll(filepath.Join(project, "queue"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	again = RefreshDeclared(again, []string{project})
+	again = Refresh(again, []string{project})
 	if again[project].Err != "" || len(again[project].List) != 2 {
 		t.Errorf("the dir made, the file still errs: %+v", again[project])
 	}
@@ -263,18 +265,18 @@ func TestTheFilesAreReadOnceAndAgainWhenChanged(t *testing.T) {
 // reads back; the pid is below every container's and the same every
 // time, and differs across projects for one name.
 func TestTheMarkAndThePid(t *testing.T) {
-	mark := MarkDeclared("/Users/w0 zro/app", "web")
+	mark := Mark("/Users/w0 zro/app", "web")
 	if strings.Contains(mark, " ") {
 		t.Errorf("the mark has a space: %q", mark)
 	}
-	if project, name, ok := UnmarkDeclared(mark); !ok || project != "/Users/w0 zro/app" || name != "web" {
+	if project, name, ok := Unmark(mark); !ok || project != "/Users/w0 zro/app" || name != "web" {
 		t.Errorf("the mark reads back as %q %q %v", project, name, ok)
 	}
-	if _, _, ok := UnmarkDeclared("nomark"); ok {
+	if _, _, ok := Unmark("nomark"); ok {
 		t.Error("a string with no seam is a mark")
 	}
-	a, b := DeclaredPID("/a", "web"), DeclaredPID("/b", "web")
-	if a >= -16777217 || b >= -16777217 || a == b || a != DeclaredPID("/a", "web") {
+	a, b := PID("/a", "web"), PID("/b", "web")
+	if a >= -16777217 || b >= -16777217 || a == b || a != PID("/a", "web") {
 		t.Errorf("pids: %d %d", a, b)
 	}
 }
@@ -283,14 +285,14 @@ func TestTheMarkAndThePid(t *testing.T) {
 // each, in order, and every project already read for stays asked
 // whether or not it still has a block.
 func TestTheProjectsAskedAreTheBlocks(t *testing.T) {
-	projects := []Project{{Path: "/r/b"}, {Path: "/home"}, {Path: "/r/a"}, {Path: "/r/b"}}
+	projects := []work.Project{{Path: "/r/b"}, {Path: "/home"}, {Path: "/r/a"}, {Path: "/r/b"}}
 	isProject := func(p string) bool { return strings.HasPrefix(p, "/r/") }
-	got := DeclaredPaths(projects, nil, isProject)
+	got := Paths(projects, nil, isProject)
 	if want := []string{"/r/a", "/r/b"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("paths: %v, want %v", got, want)
 	}
-	was := map[string]Declared{"/r/c": {}, "/r/a": {}, "/nope": {}}
-	got = DeclaredPaths(projects, was, isProject)
+	was := map[string]File{"/r/c": {}, "/r/a": {}, "/nope": {}}
+	got = Paths(projects, was, isProject)
 	if want := []string{"/r/a", "/r/b", "/r/c"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("paths with the last reading: %v, want %v", got, want)
 	}
@@ -301,24 +303,24 @@ func TestTheProjectsAskedAreTheBlocks(t *testing.T) {
 // project's are neither, and a down row is neither.
 func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
 	app, lib := "/r/app", "/r/lib"
-	projects := []Project{{Path: app, Entries: []Entry{
-		{PID: 1, TTY: "ttys001", Declared: MarkDeclared(app, "web")},
-		{PID: 2, TTY: "ttys002", Declared: MarkDeclared(app, "api")},
-		{PID: DeclaredPID(app, "worker"), Status: StatusDown, Declared: MarkDeclared(app, "worker")},
-		{PID: 4, TTY: "ttys004", Declared: MarkDeclared(lib, "docs")},
+	projects := []work.Project{{Path: app, Entries: []work.Entry{
+		{PID: 1, TTY: "ttys001", Declared: Mark(app, "web")},
+		{PID: 2, TTY: "ttys002", Declared: Mark(app, "api")},
+		{PID: PID(app, "worker"), Status: work.StatusDown, Declared: Mark(app, "worker")},
+		{PID: 4, TTY: "ttys004", Declared: Mark(lib, "docs")},
 		// Started by hand, somewhere with no terminal conn can see.
-		{PID: 5, Status: StatusActive, Declared: MarkDeclared(app, "cron")},
+		{PID: 5, Status: work.StatusActive, Declared: Mark(app, "cron")},
 	}}}
-	panes := map[string]DeclaredPane{
+	panes := map[string]Pane{
 		"ttys001": {ID: "%1", TTY: "ttys001"},
 		"ttys002": {ID: "%2", TTY: "ttys002", Exit: "1"},
 		"ttys004": {ID: "%4", TTY: "ttys004"},
 	}
 	up, held := UpAndHeld(projects, panes, app)
-	if !reflect.DeepEqual(up, map[string]bool{MarkDeclared(app, "web"): true, MarkDeclared(app, "cron"): true}) {
+	if !reflect.DeepEqual(up, map[string]bool{Mark(app, "web"): true, Mark(app, "cron"): true}) {
 		t.Errorf("up: %v", up)
 	}
-	if !reflect.DeepEqual(held, map[string]string{MarkDeclared(app, "api"): "%2"}) {
+	if !reflect.DeepEqual(held, map[string]string{Mark(app, "api"): "%2"}) {
 		t.Errorf("held: %v", held)
 	}
 }

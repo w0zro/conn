@@ -5,6 +5,7 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/declared"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -121,7 +122,7 @@ func (m model) endDeclared(e work.Entry) *pendingKill {
 	if e.TTY == "" {
 		return nil
 	}
-	_, name, _ := work.UnmarkDeclared(e.Declared)
+	_, name, _ := declared.Unmark(e.Declared)
 	id := m.panes[e.TTY].ID
 	if m.panes[e.TTY].Exit != "" {
 		return &pendingKill{prompt: closePrompt(id, name), end: m.closeHeld(id, name)}

@@ -8,6 +8,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/tmux"
 
@@ -26,7 +27,7 @@ func TestContainersStandUnderTheComposeThatRunsThem(t *testing.T) {
 				Cwd: "/Users/w0zro/projects/compose-demo"},
 		},
 	}}
-	out := work.AttachContainers(projects, containersFor(t), dockerRoots, nil, nil)
+	out := docker.Attach(projects, containersFor(t), dockerRoots, nil, nil)
 	if len(out) != 1 {
 		t.Fatalf("%d projects, want 1: the stray belongs to none and is not filed", len(out))
 	}
@@ -66,7 +67,7 @@ func TestDetachedContainersRootTheirOwnProject(t *testing.T) {
 		Entries: []work.Entry{{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001",
 			Cwd: "/Users/w0zro/projects/w0zro/conn"}},
 	}}
-	out := work.AttachContainers(projects, containersFor(t), dockerRoots, nil, nil)
+	out := docker.Attach(projects, containersFor(t), dockerRoots, nil, nil)
 	if len(out) != 2 {
 		t.Fatalf("%d projects, want 2: the compose demo is a project docker alone is working in", len(out))
 	}
@@ -136,7 +137,7 @@ func TestEnterAndSActOnTheContainer(t *testing.T) {
 // since the number conn files it under is conn's own bookkeeping.
 func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 	now := time.Date(2026, 9, 15, 22, 0, 0, 0, time.UTC)
-	c := work.Container{
+	c := docker.Container{
 		ID: "94e3da190ba7", Name: "compose-demo-web-1", Service: "web", Project: "compose-demo",
 		Image: "nginx:alpine", State: "running", Status: "Up 3 minutes (healthy)", Health: "healthy",
 		Dir: "/Users/w0zro/projects/compose-demo", Ports: []string{"8438"}, Since: now.Add(-3 * time.Minute),
@@ -188,7 +189,7 @@ func TestXStopsAContainer(t *testing.T) {
 		{PID: -99, Kind: work.KindService, Command: "web", Ports: []string{"8438"}, Container: "abc123", Cwd: "/p", Status: work.StatusActive},
 		{PID: -98, Kind: work.KindService, Command: "worker", Container: "def456", Cwd: "/p", Status: work.StatusEnded},
 	}}}
-	m.containers = []work.Container{{ID: "abc123", Service: "web"}, {ID: "def456", Service: "worker"}}
+	m.containers = []docker.Container{{ID: "abc123", Service: "web"}, {ID: "def456", Service: "worker"}}
 
 	m.cursor = -99
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))

@@ -1,9 +1,11 @@
-package work
+package docker
 
 import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // A container goes by a number below zero, where no process is, read off
@@ -27,11 +29,11 @@ func TestAContainerHoldsItsRowByItsID(t *testing.T) {
 func TestAContainerTakesThePaneConnOpenedForIt(t *testing.T) {
 	cs := containersFor(t)
 	paneOf := map[string]string{cs[0].ID: "ttys009"}
-	out := AttachContainers(nil, cs, dockerRoots, paneOf, nil)
+	out := Attach(nil, cs, dockerRoots, paneOf, nil)
 	if len(out) != 1 {
 		t.Fatalf("%d projects, want 1", len(out))
 	}
-	var web, worker Entry
+	var web, worker work.Entry
 	for _, e := range out[0].Entries {
 		switch {
 		case strings.HasPrefix(e.Command, "web"):
@@ -66,16 +68,16 @@ func TestAContainersStatusIsSaidInTheColumnsOwnWords(t *testing.T) {
 		status string
 		fault  bool
 	}{
-		{Container{State: "running"}, StatusActive, false},
-		{Container{State: "running", Health: "healthy"}, StatusActive, false},
+		{Container{State: "running"}, work.StatusActive, false},
+		{Container{State: "running", Health: "healthy"}, work.StatusActive, false},
 		{Container{State: "running", Health: "starting"}, "STARTING", false},
 		{Container{State: "running", Health: "unhealthy"}, "UNHEALTHY", true},
 		{Container{State: "restarting"}, "RESTARTING", true},
-		{Container{State: "paused"}, StatusStopped, true},
-		{Container{State: "exited", Exit: "0"}, StatusEnded, false},
+		{Container{State: "paused"}, work.StatusStopped, true},
+		{Container{State: "exited", Exit: "0"}, work.StatusEnded, false},
 		{Container{State: "exited", Exit: "3"}, "EXIT 3", true},
 	} {
-		status, fault := ContainerStatus(c.Container)
+		status, fault := Status(c.Container)
 		if status != c.status || fault != c.fault {
 			t.Errorf("%+v: %q fault=%v, want %q fault=%v", c.Container, status, fault, c.status, c.fault)
 		}
@@ -93,7 +95,7 @@ func TestAProjectStoppedWholeIsNotListed(t *testing.T) {
 			cs[i].State, cs[i].Exit = "exited", "0"
 		}
 	}
-	out := AttachContainers(nil, cs, dockerRoots, nil, nil)
+	out := Attach(nil, cs, dockerRoots, nil, nil)
 	if len(out) != 0 {
 		t.Errorf("a project with nothing running left %d projects: %+v", len(out), out)
 	}
@@ -109,16 +111,16 @@ func TestAProjectStoppedWholeIsNotListed(t *testing.T) {
 func TestAShellInAContainerStandsUnderItAndNotInItsSlot(t *testing.T) {
 	cs := containersFor(t)
 	id := cs[0].ID
-	pl := Project{Path: dockerRoots(cs[0].Dir), Entries: []Entry{
-		{PID: 900, Kind: KindRun, Command: "docker exec -it " + id + " sh", Typed: "docker exec",
+	pl := work.Project{Path: dockerRoots(cs[0].Dir), Entries: []work.Entry{
+		{PID: 900, Kind: work.KindRun, Command: "docker exec -it " + id + " sh", Typed: "docker exec",
 			TTY: "ttys012", Cwd: cs[0].Dir},
 	}}
-	out := AttachContainers([]Project{pl}, cs, dockerRoots,
+	out := Attach([]work.Project{pl}, cs, dockerRoots,
 		map[string]string{id: "ttys009"}, map[string]string{"ttys012": id})
 	if len(out) != 1 {
 		t.Fatalf("%d projects, want 1", len(out))
 	}
-	var service, shell Entry
+	var service, shell work.Entry
 	var at int
 	for i, e := range out[0].Entries {
 		switch {
@@ -134,7 +136,7 @@ func TestAShellInAContainerStandsUnderItAndNotInItsSlot(t *testing.T) {
 	if shell.PID == 0 {
 		t.Fatalf("the shell is not listed: %+v", out[0].Entries)
 	}
-	if shell.Kind != KindShell || shell.Typed != "sh in "+cs[0].Service {
+	if shell.Kind != work.KindShell || shell.Typed != "sh in "+cs[0].Service {
 		t.Errorf("the shell reads %s %q", shell.Kind, shell.Typed)
 	}
 	if shell.Depth != service.Depth+1 {
@@ -223,7 +225,7 @@ func TestDockerPsIsReadIntoContainers(t *testing.T) {
 
 func containersFor(t *testing.T) []Container {
 	t.Helper()
-	cs := ParseContainers([]byte(dockerPS), dockerNow)
+	cs := Parse([]byte(dockerPS), dockerNow)
 	if len(cs) != 4 {
 		t.Fatalf("parsed %d containers, want 4", len(cs))
 	}

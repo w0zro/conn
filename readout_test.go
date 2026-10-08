@@ -10,6 +10,7 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/declared"
 
 	"github.com/w0zro/conn/internal/tmux"
 
@@ -530,8 +531,8 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 // rather than showing that number as a pid.
 func TestAMadeUpPidIsNotShownAsOne(t *testing.T) {
 	for _, e := range []work.Entry{
-		{PID: work.DeclaredPID("/w", "stack"), Kind: work.KindRun, Command: "stack · docker compose up", Typed: "stack · docker compose up", Status: work.StatusDown, Cwd: "/w"},
-		{PID: work.DeclaredPID("/w", "stack/web"), Kind: work.KindService, Command: "web", Typed: "web", Status: work.StatusDown, Cwd: "/w", Depth: 1},
+		{PID: declared.PID("/w", "stack"), Kind: work.KindRun, Command: "stack · docker compose up", Typed: "stack · docker compose up", Status: work.StatusDown, Cwd: "/w"},
+		{PID: declared.PID("/w", "stack/web"), Kind: work.KindService, Command: "web", Typed: "web", Status: work.StatusDown, Cwd: "/w", Depth: 1},
 	} {
 		text := texts(drawReadout(composeReadout(readoutSubject{entry: e, project: work.Project{Path: "/w"}}, "/Users/w0zro", processesNow), 120, 20, draw.Plain))
 		if strings.Contains(text, "PID -") {

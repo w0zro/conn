@@ -1500,9 +1500,10 @@ The ground is dark.
 .TP
 .BI \-\-theme " name"
 The theme:
-.B conn
+.BR conn ,
+.BR datum ,
 or
-.BR datum .
+.BR skelly .
 .PP
 For a server coming up, these decide the ground and the theme.
 For a server already up, they change it: every pane of
@@ -1650,10 +1651,11 @@ At a project's top: its declared processes.
 .
 .SH THEMES
 .B conn
-has two themes,
-.B conn
-and
+has three themes,
+.BR conn ,
 .BR datum ,
+and
+.BR skelly ,
 each with a dark and a light ground.
 The theme is
 .B theme
@@ -1722,7 +1724,7 @@ Exit 2.
 .BI "conn: \-\-theme " a " and \-\-theme " b " are a contradiction"
 Exit 2.
 .TP
-.BI "conn: conn has no theme " name "; it has conn and datum"
+.BI "conn: conn has no theme " name "; it has conn, datum and skelly"
 Exit 2.
 .TP
 .BI "conn: the tmux server could not be brought up: " why

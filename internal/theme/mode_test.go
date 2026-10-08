@@ -83,8 +83,8 @@ func TestParseModeFlags(t *testing.T) {
 		args []string
 		says string
 	}{
-		{"with no name", []string{"--theme"}, "conn and datum"},
-		{"with a name conn does not have", []string{"--theme", "solarized"}, "conn has no theme solarized; it has conn and datum"},
+		{"with no name", []string{"--theme"}, "conn, datum and skelly"},
+		{"with a name conn does not have", []string{"--theme", "solarized"}, "conn has no theme solarized; it has conn, datum and skelly"},
 		{"twice, with two names", []string{"--theme", "conn", "--theme", "datum"}, "contradiction"},
 	} {
 		if _, _, err := ParseFlags(c.args); err == nil || !strings.Contains(err.Error(), c.says) {

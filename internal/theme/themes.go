@@ -53,7 +53,7 @@ type theme struct {
 }
 
 // All is every theme conn has, in the order they are offered.
-var All = []theme{Conn, Datum}
+var All = []theme{Conn, Datum, Skelly}
 
 // Default is the one conn wears unless told another.
 const Default = "conn"

@@ -949,8 +949,8 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	}
 
 	// And the ground under it, which is the other axis: the theme
-	// stands while the ground changes.
-	s.bayKeys("j", "j")
+	// stands while the ground changes, past the theme below it.
+	s.bayKeys("j", "j", "j")
 	s.bayKeys("Enter")
 	s.until("the server to be on the light ground", func() bool {
 		return strings.EqualFold(s.display("#{window-style}"), "bg="+theme.Datum.Light.Surface)

@@ -233,7 +233,7 @@ type logRow struct {
 	at      time.Time
 	project string // the project as the panel names its block
 	label   string
-	word    string
+	word    work.Status
 	note    string // what the line adds, on a row of its own under it
 	alive   bool   // its row is still on the panel
 	fresh   bool   // written since the view was last opened
@@ -309,9 +309,9 @@ func drawLog(b logReport, cursor, width, height int, p draw.Palette) []draw.Row 
 	// cells counted, and never under the panel's floor.
 	wordW := panelStatusW
 	for _, r := range b.rows {
-		w := ansi.StringWidth(r.word)
+		w := ansi.StringWidth(string(r.word))
 		if r.word == work.StatusWaiting || work.Faulty(r.word) {
-			w = draw.StampWidth(r.word, p)
+			w = draw.StampWidth(string(r.word), p)
 		}
 		wordW = max(wordW, w)
 	}
@@ -349,11 +349,11 @@ func drawLog(b logReport, cursor, width, height int, p draw.Palette) []draw.Row 
 		}
 		switch {
 		case r.word == work.StatusWaiting || work.Faulty(r.word):
-			l.To(measure - draw.StampWidth(r.word, p))
-			l.Stamp(r.word)
+			l.To(measure - draw.StampWidth(string(r.word), p))
+			l.Stamp(string(r.word))
 		default:
-			l.To(measure - ansi.StringWidth(r.word))
-			l.Add(p.Gray, r.word)
+			l.To(measure - ansi.StringWidth(string(r.word)))
+			l.Add(p.Gray, string(r.word))
 		}
 		d.Emit(l, 0, false)
 		// What the line adds, under it in the gray, from the label's

@@ -341,7 +341,7 @@ func containerPID(id string) int {
 // wrongly, which is the case nobody notices without being told. An exit
 // of zero is ENDED and no fault — a worker that finished is not a
 // problem — and any other code is the fault it plainly is.
-func Status(c Container) (string, bool) {
+func Status(c Container) (work.Status, bool) {
 	switch {
 	case c.Health == "unhealthy":
 		return "UNHEALTHY", true
@@ -354,7 +354,7 @@ func Status(c Container) (string, bool) {
 	case c.running():
 		return work.StatusActive, false
 	case c.Exit != "" && c.Exit != "0":
-		return work.ExitWord + c.Exit, true
+		return work.Exited(c.Exit), true
 	}
 	return work.StatusEnded, false
 }

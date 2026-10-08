@@ -124,23 +124,33 @@ func KindOf(p Process) string {
 	}
 }
 
+// A Status is the word a row stands under. It is a word and not a
+// number because it is said as it is - on the row, in the log, on the
+// page - and a source can have words of its own: docker's UNHEALTHY,
+// brew's ERROR, what a stack wrote as it fell over, an EXIT and its
+// code. The type keeps a status apart from every other string.
+type Status string
+
 // The words an entry stands under. Whether the kernel caught a process
 // on a processor or asleep says nothing by itself - macOS calls nearly
 // everything runnable - so alive alone is ACTIVE, and WORKING is kept
 // for a process that did something between one reading and the next.
 const (
-	StatusWorking = "WORKING" // doing something, right now
-	StatusWaiting = "WAITING" // a contact stopped on an ask it put to you
-	StatusActive  = "ACTIVE"  // alive, and not doing anything
-	StatusIdle    = "IDLE"    // a shell at its prompt, or a contact at rest
-	StatusStopped = "STOPPED" // suspended
-	StatusEnded   = "ENDED"   // finished, and not yet collected
-	StatusDown    = "DOWN"    // declared in the project's .conn, and not running
-	StatusClosed  = "CLOSED"  // it was listening, and the listener has gone while it lives
+	StatusWorking Status = "WORKING" // doing something, right now
+	StatusWaiting Status = "WAITING" // a contact stopped on an ask it put to you
+	StatusActive  Status = "ACTIVE"  // alive, and not doing anything
+	StatusIdle    Status = "IDLE"    // a shell at its prompt, or a contact at rest
+	StatusStopped Status = "STOPPED" // suspended
+	StatusEnded   Status = "ENDED"   // finished, and not yet collected
+	StatusDown    Status = "DOWN"    // declared in the project's .conn, and not running
+	StatusClosed  Status = "CLOSED"  // it was listening, and the listener has gone while it lives
 )
 
 // ExitWord is what a status that ended with a code begins with.
 const ExitWord = "EXIT "
+
+// Exited is the status of a row that ended with a code.
+func Exited(code string) Status { return Status(ExitWord + code) }
 
 // Said is a status as a row says it. The vocabulary is the machine's and
 // stays in capitals wherever conn reasons about it — the manual's table
@@ -154,12 +164,12 @@ func Said(status string) string {
 	return strings.ToUpper(status[:1]) + strings.ToLower(status[1:])
 }
 
-// Status is what conn learned about a process past what the table
+// A Standing is what conn learned about a process past what the table
 // says of it. Anything can be working, read off the processor time it
 // spent. Only a contact says more, being the only thing here that knows
 // its own mind: mid-turn, stopped on an ask it put to you, or stopped
 // with its turn over and nothing pending.
-type Status struct {
+type Standing struct {
 	Working bool
 	Waiting bool   // stopped on something it asked of you
 	Idle    bool   // stopped with its turn over, asking nothing
@@ -194,7 +204,7 @@ type Entry struct {
 	Typed   string // the same less what conn itself added, which is what was typed
 	TTY     string
 	Started time.Time
-	Status  string
+	Status  Status
 	Fault   bool      // a status to be looked at: STOPPED, ENDED
 	Depth   int       // how deep under its project's own root; the root at 0
 	Since   time.Time // when it came to stand as it does, where that is known
@@ -283,7 +293,7 @@ type Project struct {
 // either: the tmux server conn runs inside has no terminal and works in
 // the repository like anything else there, and is no more a row than
 // conn is.
-func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]Status) []Project {
+func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProject func(string) bool, how map[int]Standing) []Project {
 	byPid := map[int]Process{}
 	for _, p := range procs {
 		byPid[p.PID] = p
@@ -634,7 +644,7 @@ func CpuOf(procs []Process) map[int]time.Duration {
 // on a socket is waiting on the socket - so the word is only ever
 // about a person. It is no fault, nothing having gone wrong, so it is
 // a word of its own rather than a chip.
-func statusOf(p Process, kind string, hasChildren bool, how Status) (string, bool) {
+func statusOf(p Process, kind string, hasChildren bool, how Standing) (Status, bool) {
 	switch {
 	case p.State == 'T':
 		return StatusStopped, true
@@ -896,7 +906,7 @@ func Brief(d time.Duration) string {
 // it, and when its process began, so a pid come round again is not
 // taken for the process that had it.
 type Stood struct {
-	status  string
+	status  Status
 	at      time.Time
 	started time.Time
 }
@@ -990,22 +1000,22 @@ func IsRepo(dir string) bool {
 
 // Over says whether a row is not running: declared and never came up,
 // or ended, cleanly or with a code. Its command is struck through.
-func Over(status string) bool {
+func Over(status Status) bool {
 	switch status {
 	case StatusDown, StatusEnded:
 		return true
 	}
-	return strings.HasPrefix(status, ExitWord)
+	return strings.HasPrefix(string(status), ExitWord)
 }
 
 // Faulty says whether a word is a fault's: a thing to look at, which
 // the panel stamps. The panel knows a fault by its row; the log knows
 // it by the word alone, which is all a line carries.
-func Faulty(word string) bool {
+func Faulty(word Status) bool {
 	switch {
 	case word == StatusStopped, word == StatusEnded, word == StatusClosed:
 		return true
-	case strings.HasPrefix(word, ExitWord):
+	case strings.HasPrefix(string(word), ExitWord):
 		return true
 	case SaidWords[word]:
 		return true

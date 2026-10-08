@@ -20,7 +20,7 @@ func TestAStacksWordsAreKnown(t *testing.T) {
 		"[nodemon] app crashed: bind EADDRINUSE 0.0.0.0:3000":      "EADDRINUSE",
 		"OSError: [Errno 48] Address already in use":               "ERROR",
 	} {
-		if got, ok := SaidWord(line); !ok || got != want {
+		if got, ok := SaidWord(line); !ok || string(got) != want {
 			t.Errorf("%q says %q, want %q", line, got, want)
 		}
 	}

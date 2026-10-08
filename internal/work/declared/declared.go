@@ -364,11 +364,11 @@ func PID(project, name string) int {
 // exitStatus is the word for a declared process that ended, from what
 // its pane recorded: ENDED for a clean end, which is no fault, and the
 // code otherwise, which is — the same words a container's end gets.
-func exitStatus(code string) (string, bool) {
+func exitStatus(code string) (work.Status, bool) {
 	if code == "0" {
 		return work.StatusEnded, false
 	}
-	return work.ExitWord + code, true
+	return work.Exited(code), true
 }
 
 // A Pane is a terminal conn opened for a declaration, as the

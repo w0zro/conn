@@ -197,7 +197,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// since the moment conn holds for it is when a contact last changed
 	// what it says of itself, which has nothing to do with when
 	// something stopped it.
-	status := work.Said(e.Status)
+	status := work.Said(string(e.Status))
 	// The clause is dropped where the group above already carries it:
 	// on a dense page a thing said twice reads as two things.
 	if !e.Since.IsZero() && !e.Fault && e.Asking == "" {
@@ -332,7 +332,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		}
 		tree.facts = append(tree.facts, draw.Fact{
 			Label:    label,
-			Value:    work.Said(k.Kind) + " " + work.Program(k.AsTyped()) + " · " + strconv.Itoa(k.PID) + " · " + work.Said(k.Status),
+			Value:    work.Said(k.Kind) + " " + work.Program(k.AsTyped()) + " · " + strconv.Itoa(k.PID) + " · " + work.Said(string(k.Status)),
 			Verbatim: true,
 		})
 	}
@@ -355,7 +355,7 @@ func composeBrewPage(b readoutReport, e work.Entry, svc *brew.Service, p room.Pa
 	} else {
 		what.add("Status", work.Said(svc.Status))
 		if word, fault := brew.Status(*svc); fault {
-			what.add("Wrong", work.Said(word))
+			what.add("Wrong", work.Said(string(word)))
 		}
 		if svc.Running && svc.PID > 0 {
 			what.add("Process", strconv.Itoa(svc.PID))
@@ -493,7 +493,7 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 			}
 			running.facts = append(running.facts, draw.Fact{
 				Label:    label,
-				Value:    strings.Repeat("  ", e.Depth) + work.Said(e.Kind) + " " + activityOf(e) + " · " + strconv.Itoa(e.PID) + " · " + work.Said(e.Status),
+				Value:    strings.Repeat("  ", e.Depth) + work.Said(e.Kind) + " " + activityOf(e) + " · " + strconv.Itoa(e.PID) + " · " + work.Said(string(e.Status)),
 				Verbatim: true,
 			})
 		}
@@ -689,7 +689,7 @@ func composeService(b readoutReport, c docker.Container, p room.Pane, inside boo
 	// used and the reason it wears a mark or does not.
 	word, fault := docker.Status(c)
 	if fault {
-		what.add("Wrong", work.Said(word))
+		what.add("Wrong", work.Said(string(word)))
 	}
 	// A health check disagreeing with a container that is up is the
 	// whole reason to have one, and the sentence above buries it in

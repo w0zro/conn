@@ -49,7 +49,7 @@ func TestAServiceTwoProjectsDeclareStandsUnderEach(t *testing.T) {
 	for _, pl := range out {
 		for _, e := range pl.Entries {
 			if e.Brew != "" {
-				rows = append(rows, pl.Path+" "+e.Brew+" "+e.Status+" x"+string(rune('0'+e.Shared)))
+				rows = append(rows, pl.Path+" "+e.Brew+" "+string(e.Status)+" x"+string(rune('0'+e.Shared)))
 			}
 		}
 	}

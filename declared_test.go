@@ -29,7 +29,7 @@ func TestAComposeDeclarationsServicesAreRows(t *testing.T) {
 	rows := func(pl work.Project) []string {
 		var out []string
 		for _, e := range pl.Entries {
-			out = append(out, strings.Repeat(" ", e.Depth)+e.Kind+" "+e.Command+" "+e.Status)
+			out = append(out, strings.Repeat(" ", e.Depth)+e.Kind+" "+e.Command+" "+string(e.Status))
 		}
 		return out
 	}

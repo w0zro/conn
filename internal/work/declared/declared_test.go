@@ -125,7 +125,7 @@ func TestTheDeclarationsAmongTheRows(t *testing.T) {
 	for _, pl := range got {
 		rows = append(rows, pl.Path+" · "+pl.Note)
 		for _, e := range pl.Entries {
-			rows = append(rows, strings.Repeat(" ", e.Depth+1)+e.Kind+" "+e.Command+" "+e.Status+" "+e.TTY+" "+e.Declared)
+			rows = append(rows, strings.Repeat(" ", e.Depth+1)+e.Kind+" "+e.Command+" "+string(e.Status)+" "+e.TTY+" "+e.Declared)
 		}
 	}
 	want := []string{

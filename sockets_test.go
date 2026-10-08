@@ -69,7 +69,7 @@ func TestAClosedListenerKeepsItsRow(t *testing.T) {
 	}
 	// And the project's block says the fault at the end of its rule.
 	b := composeProcesses(folded, nil, "", nil, func(string) bool { return true }, "/h", time.Now(), "", false, true)
-	if word, stamped, _ := verdict(b.projects[0].rows); word != work.StatusClosed || !stamped {
+	if word, stamped, _ := verdict(b.projects[0].rows); word != string(work.StatusClosed) || !stamped {
 		t.Errorf("the block says %q, stamped %v", word, stamped)
 	}
 }

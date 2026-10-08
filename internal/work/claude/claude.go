@@ -529,12 +529,12 @@ func Sessions() map[int]SessionFile {
 // where the table still has it status as a contact; a contact with no
 // file to read - another maker's, or one too old to write one - says
 // nothing of itself, and reads as alive like anything else.
-func Statuses(procs []work.Process) map[int]work.Status {
+func Statuses(procs []work.Process) map[int]work.Standing {
 	byPid := map[int]work.Process{}
 	for _, p := range procs {
 		byPid[p.PID] = p
 	}
-	how := map[int]work.Status{}
+	how := map[int]work.Standing{}
 	for pid, s := range Sessions() {
 		p, ok := byPid[pid]
 		if !ok || work.KindOf(p) != work.KindContact || s.Status == "" || !s.WroteBy(p.Started) {
@@ -546,11 +546,11 @@ func Statuses(procs []work.Process) map[int]work.Status {
 		}
 		switch s.Status {
 		case busyStatus, shellStatus:
-			how[pid] = work.Status{Working: true, Since: since}
+			how[pid] = work.Standing{Working: true, Since: since}
 		case waitingStatus:
-			how[pid] = work.Status{Waiting: true, Since: since, Asking: s.WaitingFor}
+			how[pid] = work.Standing{Waiting: true, Since: since, Asking: s.WaitingFor}
 		case idleStatus:
-			how[pid] = work.Status{Idle: true, Since: since}
+			how[pid] = work.Standing{Idle: true, Since: since}
 		}
 		// A word outside the four is a Claude newer than this conn, and
 		// conn says nothing of a contact it cannot understand — the same

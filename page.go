@@ -90,7 +90,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 			}
 		}
 	} else {
-		c.standing = work.Said(e.Status)
+		c.standing = work.Said(string(e.Status))
 		if e.Doing != "" {
 			c.standing += " · " + e.Doing
 		}

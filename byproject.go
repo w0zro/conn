@@ -121,7 +121,7 @@ const (
 // contact at rest — rests. A stopped row is a fault and is alive: fg
 // brings it back. One that ended with a code is a fault before it is
 // over, since the code is the thing to look at.
-func stateOf(status string, fault bool) int {
+func stateOf(status work.Status, fault bool) int {
 	switch {
 	case status == work.StatusWaiting:
 		return standWaiting

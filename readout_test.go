@@ -129,9 +129,10 @@ func TestTheReadoutSaysWhatTheRowCannot(t *testing.T) {
 func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
 	later := processesNow.Add(time.Minute)
 	for _, c := range []struct {
-		what, status, rest string
-		since              time.Time
-		grows              bool
+		what, rest string
+		status     work.Status
+		since      time.Time
+		grows      bool
 	}{
 		{what: "a contact stopped on an ask", status: work.StatusWaiting, rest: "waiting", since: processesNow.Add(-7 * time.Minute)},
 		{what: "a contact whose turn is over", status: work.StatusIdle, rest: "idle", since: processesNow.Add(-7 * time.Minute)},

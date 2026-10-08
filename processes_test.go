@@ -27,7 +27,7 @@ import (
 // seven minutes; nothing else has a moment, the way a first reading
 // has none.
 func testProcesses() processesReport {
-	how := map[int]work.Status{70100: {Working: true, Since: processesNow.Add(-7 * time.Minute)}}
+	how := map[int]work.Standing{70100: {Working: true, Since: processesNow.Add(-7 * time.Minute)}}
 	return composeProcesses(work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, how), nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 }
 
@@ -653,12 +653,12 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 
 	b.lit = true
 	on := texts(drawProcesses(b, 0, 60, 12, draw.Plain))
-	if !strings.Contains(on, work.StatusWaiting) {
+	if !strings.Contains(on, string(work.StatusWaiting)) {
 		t.Errorf("the lit half has no word:\n%s", on)
 	}
 	b.lit = false
 	off := texts(drawProcesses(b, 0, 60, 12, draw.Plain))
-	if strings.Contains(off, work.StatusWaiting) {
+	if strings.Contains(off, string(work.StatusWaiting)) {
 		t.Errorf("the dark half still says it:\n%s", off)
 	}
 	// Only the word goes. Every row is the same shape on both halves, so
@@ -671,7 +671,7 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 		t.Fatalf("the halves are %d rows and %d", len(onRows), len(offRows))
 	}
 	for i := range onRows {
-		if lit, dark := onRows[i].Text, offRows[i].Text; lit != dark && !strings.Contains(lit, work.StatusWaiting) {
+		if lit, dark := onRows[i].Text, offRows[i].Text; lit != dark && !strings.Contains(lit, string(work.StatusWaiting)) {
 			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
 		}
 	}
@@ -681,7 +681,7 @@ func TestTheWaitingWordBlinks(t *testing.T) {
 		{PID: 21, Kind: work.KindEditor, Command: "vim", Status: work.StatusStopped, Fault: true},
 	}}}, nil, "", testProjRoots, testIsProject, "/Users/w0zro", processesNow, "", false, false)
 	steady.lit = false
-	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, draw.Plain)), work.StatusStopped) {
+	if !strings.Contains(texts(drawProcesses(steady, 0, 60, 12, draw.Plain)), string(work.StatusStopped)) {
 		t.Error("a fault went dark with the blink")
 	}
 }
@@ -697,7 +697,7 @@ func TestAHeavyContactIsStampedAndBlinks(t *testing.T) {
 		b.lit = lit
 		return texts(drawProcesses(b, 0, 60, 12, draw.Plain))
 	}
-	if on := tree(contact, true); !strings.Contains(on, "612K") || strings.Contains(on, work.StatusIdle) {
+	if on := tree(contact, true); !strings.Contains(on, "612K") || strings.Contains(on, string(work.StatusIdle)) {
 		t.Errorf("the lit half is not the figure in the status's place:\n%s", on)
 	}
 	if off := tree(contact, false); strings.Contains(off, "612K") {
@@ -705,12 +705,12 @@ func TestAHeavyContactIsStampedAndBlinks(t *testing.T) {
 	}
 	waiting := contact
 	waiting.Status, waiting.Since = work.StatusWaiting, processesNow.Add(-time.Minute)
-	if on := tree(waiting, true); !strings.Contains(on, work.StatusWaiting) || strings.Contains(on, "612K") {
+	if on := tree(waiting, true); !strings.Contains(on, string(work.StatusWaiting)) || strings.Contains(on, "612K") {
 		t.Errorf("a heavy contact waiting does not say WAITING alone:\n%s", on)
 	}
 	light := contact
 	light.Carried = claude.HeavyContext
-	if on := tree(light, true); !strings.Contains(on, work.StatusIdle) {
+	if on := tree(light, true); !strings.Contains(on, string(work.StatusIdle)) {
 		t.Errorf("a contact at the line, not past it, was stamped:\n%s", on)
 	}
 	// The panel's own drawing says the same, at the row's right.
@@ -915,8 +915,8 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 	b.lit = true
 	lit := texts(drawProcesses(b, 0, 80, 12, p))
 	for what, want := range map[string]string{
-		"the word that asks":  p.Chip + " " + work.StatusWaiting + " ",
-		"the fault beside it": p.Chip + " " + work.StatusStopped + " ",
+		"the word that asks":  p.Chip + " " + string(work.StatusWaiting) + " ",
+		"the fault beside it": p.Chip + " " + string(work.StatusStopped) + " ",
 	} {
 		if !strings.Contains(lit, want) {
 			t.Errorf("%s is not stamped:\n%s", what, stripEscapes(lit))
@@ -931,10 +931,10 @@ func TestTheWaitingWordIsStampedLikeAFault(t *testing.T) {
 	// is answered, the other is only looked at.
 	b.lit = false
 	dark := texts(drawProcesses(b, 0, 80, 12, p))
-	if strings.Contains(dark, work.StatusWaiting) {
+	if strings.Contains(dark, string(work.StatusWaiting)) {
 		t.Errorf("the dark half still says it:\n%s", stripEscapes(dark))
 	}
-	if !strings.Contains(dark, p.Chip+" "+work.StatusStopped+" ") {
+	if !strings.Contains(dark, p.Chip+" "+string(work.StatusStopped)+" ") {
 		t.Errorf("the fault blinked with it:\n%s", stripEscapes(dark))
 	}
 }

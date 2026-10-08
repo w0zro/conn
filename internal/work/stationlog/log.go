@@ -38,7 +38,7 @@ type Event struct {
 	Project string // the project's path, as the table has it
 	Label   string // what the panel called the row
 	PID     int
-	Word    string // the row's status as the panel says it, or GONE
+	Word    work.Status // the row's status as the panel says it, or GONE
 	// What the line has to add, read later: how long the state that
 	// ended had stood, or what a wait is on, in the contact's words.
 	// Blank where there is nothing to add.
@@ -48,7 +48,7 @@ type Event struct {
 // Gone is the word for a row that left the table: a shell closed, a
 // process ended and collected, a container taken down. The panel has
 // no word for it, there being no row to say one, so the log has one.
-const Gone = "GONE"
+const Gone work.Status = "GONE"
 
 // Changes is what moved between two readings, as the log records it:
 // a row whose word changed where the change is news, and a row that is
@@ -237,7 +237,7 @@ func (e Event) Line() string {
 			return r
 		}, s)
 	}
-	fields := []string{e.At.Format(logStamp), flat(e.Project), flat(e.Label), strconv.Itoa(e.PID), flat(e.Word)}
+	fields := []string{e.At.Format(logStamp), flat(e.Project), flat(e.Label), strconv.Itoa(e.PID), flat(string(e.Word))}
 	if e.Note != "" {
 		fields = append(fields, flat(e.Note))
 	}
@@ -260,7 +260,7 @@ func parseLogLine(line string) (Event, bool) {
 	if err != nil {
 		return Event{}, false
 	}
-	e := Event{At: at, Project: f[1], Label: f[2], PID: pid, Word: f[4]}
+	e := Event{At: at, Project: f[1], Label: f[2], PID: pid, Word: work.Status(f[4])}
 	if len(f) == 6 {
 		e.Note = f[5]
 	}

@@ -65,9 +65,9 @@ func (m model) readProcesses() tea.Cmd {
 		// which is why that reading is kept, and a contact answers for
 		// itself instead - working, or waiting on you.
 		now, nowAt := work.CpuOf(table), time.Now()
-		how := map[int]work.Status{}
+		how := map[int]work.Standing{}
 		for pid := range work.CpuWorking(was.cpu, was.at, table, nowAt) {
-			how[pid] = work.Status{Working: true}
+			how[pid] = work.Standing{Working: true}
 		}
 		maps.Copy(how, claude.Statuses(table))
 		// The panes come first, because a pane conn opened to watch a

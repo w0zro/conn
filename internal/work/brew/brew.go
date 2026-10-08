@@ -147,12 +147,12 @@ func Named(services []Service, formula string) *Service {
 // Status is the word a service's row wears, and whether it is a
 // fault: ACTIVE running, EXIT n where its last run ended badly, and
 // DOWN otherwise, which u brings up.
-func Status(s Service) (string, bool) {
+func Status(s Service) (work.Status, bool) {
 	switch {
 	case s.Running:
 		return work.StatusActive, false
 	case s.Exit != "":
-		return work.ExitWord + s.Exit, true
+		return work.Exited(s.Exit), true
 	case s.Status == "error":
 		return "ERROR", true
 	}

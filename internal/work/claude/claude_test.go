@@ -190,22 +190,22 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 
 	how := Statuses(procs)
 	for _, pid := range []int{10, 18} {
-		if (how[pid] != work.Status{Working: true}) {
+		if (how[pid] != work.Standing{Working: true}) {
 			t.Errorf("pid %d, mid-turn or running a command, stands %+v", pid, how[pid])
 		}
 	}
 	// Stopped on an ask is not the same as stopped with nothing
 	// pending, and only the first is waiting.
-	if (how[12] != work.Status{Waiting: true}) {
+	if (how[12] != work.Standing{Waiting: true}) {
 		t.Errorf("a contact stopped on an ask stands %+v", how[12])
 	}
-	if (how[11] != work.Status{Idle: true}) {
+	if (how[11] != work.Standing{Idle: true}) {
 		t.Errorf("a contact whose turn is over stands %+v", how[11])
 	}
 	// 17 says a word conn does not know, which leaves it exactly where
 	// a contact with no file at all is: nothing said of it.
 	for _, pid := range []int{13, 14, 15, 16, 17} {
-		if (how[pid] != work.Status{}) {
+		if (how[pid] != work.Standing{}) {
 			t.Errorf("pid %d stands %+v, and nothing should be said of it", pid, how[pid])
 		}
 	}
@@ -214,16 +214,16 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	got := map[int]string{}
 	for _, pl := range work.ProjectsFrom(procs, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.Entries {
-			got[e.PID] = e.Status
+			got[e.PID] = string(e.Status)
 		}
 	}
 	for pid, want := range map[int]string{
-		10: work.StatusWorking, // mid-turn
-		18: work.StatusWorking, // a command running under it
-		12: work.StatusWaiting, // stopped on an ask
-		11: work.StatusIdle,    // turn over
-		17: work.StatusActive,  // a word conn does not know, so nothing is claimed
-		16: work.StatusActive,  // a contact with nothing to say of itself
+		10: string(work.StatusWorking), // mid-turn
+		18: string(work.StatusWorking), // a command running under it
+		12: string(work.StatusWaiting), // stopped on an ask
+		11: string(work.StatusIdle),    // turn over
+		17: string(work.StatusActive),  // a word conn does not know, so nothing is claimed
+		16: string(work.StatusActive),  // a contact with nothing to say of itself
 	} {
 		if got[pid] != want {
 			t.Errorf("the processes view writes %s for pid %d, want %s", got[pid], pid, want)

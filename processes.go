@@ -66,20 +66,21 @@ type projectBlock struct {
 }
 
 type processRow struct {
-	pid                               int
-	kind, command, tty, since, status string
-	fault                             bool
-	reach                             string   // the pane that holds it, in conn's server
-	shown                             bool     // it is in the bay, on the right
-	depth                             int      // how deep under its project's own root
-	over                              bool     // a declared process whose pane holds only its last output
-	name                              string   // the declared name, where the row is a declaration's
-	age                               string   // how long a waiting row has waited, as the panel says it
-	stands                            string   // the kind the panel marks it as; a folded shell's is not its own
-	ports                             []string // the ports it listens on or publishes, said at the right of a panel row and after the command in the tree
-	num                               string   // the digit that goes to it, on the first ten contacts as drawn; see numbered
-	carried                           string   // what a contact carries, as the panel says it at the right
-	heavy                             string   // what a contact past HeavyContext carries, as the row stamps it
+	pid                       int
+	kind, command, tty, since string
+	status                    work.Status
+	fault                     bool
+	reach                     string   // the pane that holds it, in conn's server
+	shown                     bool     // it is in the bay, on the right
+	depth                     int      // how deep under its project's own root
+	over                      bool     // a declared process whose pane holds only its last output
+	name                      string   // the declared name, where the row is a declaration's
+	age                       string   // how long a waiting row has waited, as the panel says it
+	stands                    string   // the kind the panel marks it as; a folded shell's is not its own
+	ports                     []string // the ports it listens on or publishes, said at the right of a panel row and after the command in the tree
+	num                       string   // the digit that goes to it, on the first ten contacts as drawn; see numbered
+	carried                   string   // what a contact carries, as the panel says it at the right
+	heavy                     string   // what a contact past HeavyContext carries, as the row stamps it
 }
 
 // The processes view's own state, past the reading it shows: the row
@@ -495,7 +496,7 @@ func panelStatusWidth(b processesReport) int {
 	w := panelStatusW
 	for _, bp := range b.projects {
 		for _, r := range bp.rows {
-			n := ansi.StringWidth(r.status)
+			n := ansi.StringWidth(string(r.status))
 			if r.fault || r.status == work.StatusWaiting {
 				n += 2
 			}
@@ -670,8 +671,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p draw.Pale
 			}
 			switch {
 			case r.fault:
-				l.To(measure - ansi.StringWidth(r.status) - 2)
-				l.Add(p.Chip, " "+r.status+" ")
+				l.To(measure - ansi.StringWidth(string(r.status)) - 2)
+				l.Add(p.Chip, " "+string(r.status)+" ")
 			case r.status == work.StatusWaiting:
 				// The one word here that asks something of you, and the
 				// only one worth finding without looking. It is stamped
@@ -694,8 +695,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p draw.Pale
 				// dark: a word that jumped its neighbours about would be
 				// worse than one that never blinked.
 				if b.lit {
-					l.To(measure - ansi.StringWidth(r.status) - 2)
-					l.Add(p.Chip, " "+r.status+" ")
+					l.To(measure - ansi.StringWidth(string(r.status)) - 2)
+					l.Add(p.Chip, " "+string(r.status)+" ")
 				}
 			// A contact carrying more than is good for it is stamped with
 			// the figure where a fault's word goes, and blinks with the
@@ -710,8 +711,8 @@ func drawProcesses(b processesReport, cursor int, width, height int, p draw.Pale
 					l.Add(p.Chip, " "+r.heavy+" ")
 				}
 			default:
-				l.To(measure - ansi.StringWidth(r.status))
-				l.Add(word, r.status)
+				l.To(measure - ansi.StringWidth(string(r.status)))
+				l.Add(word, string(r.status))
 			}
 			d.Emit(l, 0, false)
 		}

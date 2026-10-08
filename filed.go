@@ -46,15 +46,15 @@ func rowWord(r processRow) (word string, stamped, blinks bool) {
 	case r.status == work.StatusWaiting:
 		word = strings.ToUpper(r.age)
 		if word == "" {
-			word = work.StatusWaiting
+			word = string(work.StatusWaiting)
 		}
 		return word, true, true
 	case r.fault:
-		return r.status, true, false
+		return string(r.status), true, false
 	case r.heavy != "":
 		return r.heavy, true, true
 	case work.Over(r.status):
-		return r.status, false, false
+		return string(r.status), false, false
 	}
 	return "", false, false
 }
@@ -80,13 +80,13 @@ func verdict(rows []processRow) (word string, stamped, blinks bool) {
 		case standFault:
 			faults++
 			if fault == "" {
-				fault = r.status
+				fault = string(r.status)
 			}
 		}
 	}
 	switch {
 	case waiting > 0:
-		return counted(waiting, work.StatusWaiting), true, true
+		return counted(waiting, string(work.StatusWaiting)), true, true
 	case faults == 1:
 		return fault, true, false
 	case faults > 1:

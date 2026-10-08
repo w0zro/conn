@@ -52,7 +52,7 @@ type projectRow struct {
 	waiting bool
 	command string
 	ports   []string
-	status  string
+	status  work.Status
 	nest    int // how many steps in from the margin the row is drawn
 }
 
@@ -62,7 +62,7 @@ type projectRow struct {
 // title as well as by claude, a server by its port.
 func (p projectRow) words() string {
 	if p.pid != 0 {
-		return strings.Join([]string{p.kind, p.doing, p.command, draw.PortsColumn(p.ports), p.status}, " ")
+		return strings.Join([]string{p.kind, p.doing, p.command, draw.PortsColumn(p.ports), string(p.status)}, " ")
 	}
 	return p.name
 }
@@ -601,7 +601,7 @@ func drawProjects(b projectsReport, cursor, width, height int, p draw.Palette) [
 				l.Add(p.Ink, draw.Fit(pr.doing, doingW, false))
 				if pr.waiting {
 					l.To(measure - len(work.StatusWaiting) - 2)
-					l.Add(p.Chip, " "+work.StatusWaiting+" ")
+					l.Add(p.Chip, " "+string(work.StatusWaiting)+" ")
 				}
 			case pr.repos > 0:
 				count := strconv.Itoa(pr.repos) + " REPO"

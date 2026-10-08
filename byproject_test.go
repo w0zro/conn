@@ -201,7 +201,7 @@ func TestAServingRowIsKnownByItsPort(t *testing.T) {
 	// row; a stopped row is a fault and is alive, and one that ended
 	// with a code is a fault and is over.
 	for _, c := range []struct {
-		status string
+		status work.Status
 		fault  bool
 		want   int
 	}{
@@ -256,7 +256,7 @@ func TestAServingRowIsKnownByItsPort(t *testing.T) {
 // whole of the triage in one line a project rather than one a process,
 // and it holds while the rows it is about are scrolled away.
 func TestTheEyebrowSaysWhatTheProjectWants(t *testing.T) {
-	row := func(status string, fault bool) processRow {
+	row := func(status work.Status, fault bool) processRow {
 		return processRow{status: status, fault: fault}
 	}
 	for _, c := range []struct {
@@ -468,7 +468,7 @@ func TestTheWaitingStampBlinksOnThePanel(t *testing.T) {
 	// Only what the wait is stamped on differs between the halves:
 	// the row, and the eyebrow saying the project is waiting.
 	for i := range on {
-		if lit, dark := on[i].Text, off[i].Text; lit != dark && !strings.Contains(lit, "9 MIN") && !strings.Contains(lit, work.StatusWaiting) {
+		if lit, dark := on[i].Text, off[i].Text; lit != dark && !strings.Contains(lit, "9 MIN") && !strings.Contains(lit, string(work.StatusWaiting)) {
 			t.Errorf("row %d moved between the halves:\n%q\n%q", i, lit, dark)
 		}
 	}

@@ -65,7 +65,7 @@ func TestAContainerTakesThePaneConnOpenedForIt(t *testing.T) {
 func TestAContainersStatusIsSaidInTheColumnsOwnWords(t *testing.T) {
 	for _, c := range []struct {
 		Container
-		status string
+		status work.Status
 		fault  bool
 	}{
 		{Container{State: "running"}, work.StatusActive, false},

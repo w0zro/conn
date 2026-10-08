@@ -42,7 +42,7 @@ func TestTheLogRecordsWhatThePanelWouldSay(t *testing.T) {
 		t.Fatalf("got %d events, want %d:\n%v", len(got), len(want), got)
 	}
 	for i, e := range got {
-		if s := e.Label + " " + e.Word; s != want[i] {
+		if s := e.Label + " " + string(e.Word); s != want[i] {
 			t.Errorf("event %d is %q, want %q", i, s, want[i])
 		}
 		if e.Project != "/Users/w0zro/projects/w0zro/conn" || !e.At.Equal(logNow) {
@@ -98,7 +98,7 @@ func TestALineSaysWhatItIsOnOrHowLongItStood(t *testing.T) {
 	)
 	got := map[int]string{}
 	for _, e := range Changes(was, now, logLabel, logNow) {
-		got[e.PID] = e.Word + " | " + e.Note
+		got[e.PID] = string(e.Word) + " | " + e.Note
 	}
 	want := map[int]string{
 		10: "IDLE | took 6 min",
@@ -199,7 +199,7 @@ func TestTheLogKeepsALogAndNotAnArchive(t *testing.T) {
 }
 
 func TestAFaultIsKnownByItsWord(t *testing.T) {
-	for word, want := range map[string]bool{work.StatusStopped: true, work.StatusEnded: true, work.StatusClosed: true, "EXIT 1": true, work.StatusWaiting: false, work.StatusDown: false, Gone: false, work.StatusIdle: false} {
+	for word, want := range map[work.Status]bool{work.StatusStopped: true, work.StatusEnded: true, work.StatusClosed: true, "EXIT 1": true, work.StatusWaiting: false, work.StatusDown: false, Gone: false, work.StatusIdle: false} {
 		if work.Faulty(word) != want {
 			t.Errorf("Faulty(%q) = %v", word, !want)
 		}

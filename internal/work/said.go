@@ -21,7 +21,7 @@ import (
 // A saying is a stack's word for something gone wrong, and how a line
 // says it.
 type saying struct {
-	word  string         // as the log writes it
+	word  Status         // as the log writes it
 	lines *regexp.Regexp // a line that says it
 }
 
@@ -47,8 +47,8 @@ var sayings = []saying{
 
 // SaidWords is every word a pane can be logged as saying, for the log
 // to stamp them as it stamps a fault.
-var SaidWords = func() map[string]bool {
-	m := map[string]bool{}
+var SaidWords = func() map[Status]bool {
+	m := map[Status]bool{}
 	for _, s := range sayings {
 		m[s.word] = true
 	}
@@ -56,7 +56,7 @@ var SaidWords = func() map[string]bool {
 }()
 
 // SaidWord is the word a line says, where it says one.
-func SaidWord(line string) (string, bool) {
+func SaidWord(line string) (Status, bool) {
 	for _, s := range sayings {
 		if s.lines.MatchString(line) {
 			return s.word, true

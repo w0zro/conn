@@ -267,7 +267,7 @@ func (s *scratch) rowSays(name, word string) bool {
 		}
 		t := strings.TrimRight(line, " ")
 		if word == "" {
-			if !strings.HasSuffix(t, " "+work.StatusDown) && !strings.HasSuffix(t, " "+work.StatusEnded) {
+			if !strings.HasSuffix(t, " "+string(work.StatusDown)) && !strings.HasSuffix(t, " "+string(work.StatusEnded)) {
 				return true
 			}
 			continue
@@ -1314,7 +1314,9 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 
 	// A declared row goes by its name on the panel, which is where these
 	// rows are read.
-	s.until("the two down rows", func() bool { return s.rowSays("sleeper", work.StatusDown) && s.rowSays("quick", work.StatusDown) })
+	s.until("the two down rows", func() bool {
+		return s.rowSays("sleeper", string(work.StatusDown)) && s.rowSays("quick", string(work.StatusDown))
+	})
 
 	// marked is the id of the pane carrying a declaration's mark, and
 	// what it recorded of its end.
@@ -1340,7 +1342,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 		return sleeper != "" && quick != "" && exit == "0"
 	})
 	s.until("sleeper ACTIVE and quick ENDED on the panel", func() bool {
-		return s.rowSays("sleeper", "") && s.rowSays("quick", work.StatusEnded)
+		return s.rowSays("sleeper", "") && s.rowSays("quick", string(work.StatusEnded))
 	})
 	// The panes were parked: the bay still holds the shell it held.
 	if !s.shellIn("home.1") {
@@ -1362,7 +1364,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.keys("y")
 	s.until("the pane gone and quick down again", func() bool {
 		id, _ := marked("quick")
-		return id == "" && s.rowSays("quick", work.StatusDown) && s.rowSays("sleeper", "")
+		return id == "" && s.rowSays("quick", string(work.StatusDown)) && s.rowSays("sleeper", "")
 	})
 
 	// sleeper is still running. x on its head row asks for ctrl-c in
@@ -1402,7 +1404,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	s.until("sleeper's pane gone and its row down", func() bool {
 		id, _ := marked("sleeper")
-		return id == "" && s.rowSays("sleeper", work.StatusDown) && s.rowSays("quick", work.StatusDown)
+		return id == "" && s.rowSays("sleeper", string(work.StatusDown)) && s.rowSays("quick", string(work.StatusDown))
 	})
 }
 

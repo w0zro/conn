@@ -35,7 +35,7 @@ func TestTheViewAtRestIsTheFold(t *testing.T) {
 	for _, pl := range got {
 		rows = append(rows, pl.Path+" "+pl.Note)
 		for _, e := range pl.Entries {
-			rows = append(rows, strings.Repeat(" ", e.Depth+1)+e.Kind+" "+activityOf(e)+" "+e.Status)
+			rows = append(rows, strings.Repeat(" ", e.Depth+1)+e.Kind+" "+activityOf(e)+" "+string(e.Status))
 		}
 	}
 	// What is kept stands in the panel's order, by kind: the contact,

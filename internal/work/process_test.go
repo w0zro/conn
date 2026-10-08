@@ -261,7 +261,7 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 	var got []string
 	for _, pl := range projects {
 		for _, e := range pl.Entries {
-			got = append(got, strings.Repeat(" ", e.Depth)+pl.Path+" "+e.Kind+" "+e.Command+" "+e.Status)
+			got = append(got, strings.Repeat(" ", e.Depth)+pl.Path+" "+e.Kind+" "+e.Command+" "+string(e.Status))
 		}
 	}
 	// Home, conn, then conjurer, by path, though conjurer's work is
@@ -333,7 +333,7 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 	got = got[:0]
 	for _, pl := range ProjectsFrom(without, 501, testRoots, testIsProject, nil) {
 		for _, e := range pl.Entries {
-			got = append(got, strings.Repeat(" ", e.Depth)+e.Kind+" "+e.Command+" "+e.Status)
+			got = append(got, strings.Repeat(" ", e.Depth)+e.Kind+" "+e.Command+" "+string(e.Status))
 		}
 	}
 	want = []string{
@@ -445,7 +445,7 @@ func TestRootFinderSortsByProject(t *testing.T) {
 // process, not the old one's status carried on.
 func TestSinceSeenDatesARowByItsOwnEye(t *testing.T) {
 	t0 := processesNow
-	row := func(pid int, status string, started, since time.Time) Entry {
+	row := func(pid int, status Status, started, since time.Time) Entry {
 		return Entry{PID: pid, Status: status, Started: started, Since: since}
 	}
 	first := []Project{{Path: "/w", Entries: []Entry{
@@ -538,7 +538,7 @@ func TestTheProcessesViewAdoptsWorkWithNoTerminal(t *testing.T) {
 	var got []string
 	for _, pl := range projects {
 		for _, e := range pl.Entries {
-			got = append(got, strings.Repeat(" ", e.Depth)+pl.Path+" "+e.Kind+" "+e.Command+" "+e.Status)
+			got = append(got, strings.Repeat(" ", e.Depth)+pl.Path+" "+e.Kind+" "+e.Command+" "+string(e.Status))
 		}
 	}
 	// Home stands first by path, though its shell began after all of
@@ -674,9 +674,9 @@ func TestTheRowSaysWhatWasTyped(t *testing.T) {
 // since nothing went wrong.
 func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	var (
-		nothing = Status{}
-		busy    = Status{Working: true}
-		waits   = Status{Waiting: true}
+		nothing = Standing{}
+		busy    = Standing{Working: true}
+		waits   = Standing{Waiting: true}
 	)
 	shell := Process{State: 'S'}
 	if s, _ := statusOf(shell, KindShell, false, busy); s != StatusWorking {
@@ -701,10 +701,10 @@ func TestTheWordsRankFaultThenWaitingThenWorking(t *testing.T) {
 	}
 	// A contact stopped with its turn over holds nothing up, and reads the
 	// way anything else at rest does rather than asking for you.
-	if s, _ := statusOf(contact, KindContact, false, Status{Idle: true}); s != StatusIdle {
+	if s, _ := statusOf(contact, KindContact, false, Standing{Idle: true}); s != StatusIdle {
 		t.Errorf("a contact with its turn over is %s, not idle", s)
 	}
-	if s, _ := statusOf(contact, KindContact, false, Status{Working: true, Waiting: true}); s != StatusWaiting {
+	if s, _ := statusOf(contact, KindContact, false, Standing{Working: true, Waiting: true}); s != StatusWaiting {
 		t.Errorf("a contact that says both is %s, not waiting", s)
 	}
 	if s, _ := statusOf(Process{State: 'T'}, KindContact, false, waits); s != StatusStopped {

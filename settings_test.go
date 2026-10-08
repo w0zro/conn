@@ -298,7 +298,7 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 	m := model{view: viewProjects, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toSettings, from: "%4"},
 		panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
-	next, cmd := m.key("alt+,") // what leaveSettingsKey arrives as
+	next, cmd := m.key(room.LeftSettings.Heard())
 	if got := next; got.detour.to == toSettings || got.detour.from != "" {
 		t.Errorf("the settings are still up: setting %v, from %q", got.detour.to == toSettings, got.detour.from)
 	}
@@ -450,7 +450,7 @@ func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.srv = viewProcesses, true, &room.Server{Server: &tmux.Server{Socket: socket}}
 	m.head.Login.Home = home
-	next, _ := m.key("alt+w") // what wearModeKey arrives as
+	next, _ := m.key(room.ModeChanged.Heard())
 	if got := next.g; got != theme.Datum.Light {
 		t.Errorf("the panel is on %+v", got)
 	}

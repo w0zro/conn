@@ -927,7 +927,7 @@ func (m model) key(k string) (model, tea.Cmd) {
 	// bringing them: from inside a process, from the manual, or from
 	// the panel itself. On the console it is any key, and the console
 	// answers it as it answers any key.
-	if k == "alt+-" && m.view != viewConsole {
+	if k == room.Arrived.Heard() && m.view != viewConsole {
 		return m.arrived(m.cameFrom())
 	}
 	// A shell, a contact, and the sessions suspended at the project the
@@ -979,9 +979,9 @@ func (m model) key(k string) (model, tea.Cmd) {
 	// too: they have put the server in a mode, and the panel draws in
 	// colors it read when it came up.
 	switch k {
-	case "alt+esc", "alt+,":
+	case room.LeftHelp.Heard(), room.LeftSettings.Heard():
 		return m.leftDetour(false)
-	case "alt+w":
+	case room.ModeChanged.Heard():
 		return m.worn()
 	}
 	switch m.view {

@@ -807,7 +807,7 @@ func Conf(key string, d Dress) string {
 # holds, and nothing is pressed for it.
 set -g prefix None
 set -g prefix2 None
-bind -n ` + key + ` set -gF @conn_from "#{pane_id}" \; select-pane -t ` + SessionName + ":" + HomeWindow + `.0 \; send-keys -t ` + SessionName + ":" + HomeWindow + `.0 M--
+bind -n ` + key + ` set -gF @conn_from "#{pane_id}" \; select-pane -t ` + SessionName + ":" + HomeWindow + `.0 \; send-keys -t ` + SessionName + ":" + HomeWindow + `.0 ` + Arrived.key + `
 set -g mouse on
 # The panel's width is conn's to hold; a drag of the border would only be
 # put back.
@@ -1018,10 +1018,10 @@ func (s *Server) SayBar(bar string) error {
 // pane of its own, and the only way it has to speak to the panel is
 // the way the panel key does: a key, sent to it.
 //
-// The keys it sends are alt keys the panel answers to and nothing else
-// does; see leaveKey and worn.
-func (s *Server) tellPanel(key string) error {
-	_, err := s.Do(tmux.SendKeys(panelTarget, key))
+// The keys it sends are the signals the panel answers to and nothing
+// else does.
+func (s *Server) tellPanel(sig Signal) error {
+	_, err := s.Do(tmux.SendKeys(panelTarget, sig.key))
 	return err
 }
 
@@ -1052,9 +1052,9 @@ const fromOption = "@conn_from"
 // only happens at all while the processes view has the keys — so a
 // page that just ended left a dead pane standing in the workspace,
 // which is the one thing the workspace should never be showing.
-func (s *Server) LeaveHelp() error { return s.tellPanel(leaveHelpKey) }
+func (s *Server) LeaveHelp() error { return s.tellPanel(LeftHelp) }
 
-func (s *Server) LeaveSettings() error { return s.tellPanel(leaveSettingsKey) }
+func (s *Server) LeaveSettings() error { return s.tellPanel(LeftSettings) }
 
 // WearMode tells the panel the mode has changed under it: the settings
 // have just written one and put it on the server, and the panel draws
@@ -1065,14 +1065,25 @@ func (s *Server) LeaveSettings() error { return s.tellPanel(leaveSettingsKey) }
 // on the console — the operator picked a theme and would be handed
 // back the boot screen — so the panel reads the mode file again where
 // it stands and wears what it now says.
-func (s *Server) WearMode() error { return s.tellPanel(wearModeKey) }
+func (s *Server) WearMode() error { return s.tellPanel(ModeChanged) }
 
-// The keys a page of conn's own sends the panel. They are alt keys
-// because the panel answers those wherever the keys are and whatever
-// view it is in, and these three are not otherwise pressed: nobody
-// reaches for alt-escape or alt-comma on a list of processes.
-const (
-	leaveHelpKey     = "M-Escape"
-	leaveSettingsKey = "M-,"
-	wearModeKey      = "M-w"
+// A Signal is a word said to the panel as a key: by the panel key, as
+// it brings the keys there, and by a page of conn's own. Each is an alt
+// key, because the panel answers those wherever the keys are and
+// whatever view it is in, and none is otherwise pressed: nobody reaches
+// for alt-escape or alt-comma on a list of processes. A signal is
+// spelled twice, as tmux sends the key and as the panel's loop hears
+// it, and both spellings are here so that the two cannot part.
+type Signal struct{ key, heard string }
+
+// The signals: the keys arrived on the panel; the manual and the
+// settings left; the mode changed under the panel.
+var (
+	Arrived      = Signal{"M--", "alt+-"}
+	LeftHelp     = Signal{"M-Escape", "alt+esc"}
+	LeftSettings = Signal{"M-,", "alt+,"}
+	ModeChanged  = Signal{"M-w", "alt+w"}
 )
+
+// Heard is the signal as the panel's loop hears it.
+func (s Signal) Heard() string { return s.heard }

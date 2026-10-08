@@ -217,7 +217,7 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 func TestThePanelKeyLeavesTheManual(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toManual, from: "%4"},
 		panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
-	next, cmd := m.key("alt+-")
+	next, cmd := m.key(room.Arrived.Heard())
 	if got := next; got.detour.to == toManual {
 		t.Error("the manual is still up")
 	}
@@ -235,7 +235,7 @@ func TestThePanelKeyLeavesTheManual(t *testing.T) {
 	// With no manual up, pressed on the panel, it is the other process,
 	// and with nothing behind this one there is nowhere to go.
 	m.detour.to = noDetour
-	if _, cmd := m.key("alt+-"); cmd != nil {
+	if _, cmd := m.key(room.Arrived.Heard()); cmd != nil {
 		t.Error("conn went somewhere with nothing to go back to")
 	}
 }
@@ -289,7 +289,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	work := room.Pane{ID: "%2", TTY: "ttys009"}
 	m := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toManual},
 		bay: bay{work: "ttys009"}, panes: map[string]room.Pane{"ttys009": work}}
-	next, cmd := m.key("alt+esc")
+	next, cmd := m.key(room.LeftHelp.Heard())
 	got := next
 	if got.detour.to == toManual {
 		t.Error("conn still thinks the manual is up")
@@ -316,7 +316,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 // leave the operator standing.
 func TestLeavingTheManualWithNothingToGoBackTo(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toManual}}
-	next, cmd := m.key("alt+esc")
+	next, cmd := m.key(room.LeftHelp.Heard())
 	if got := next; got.detour.to == toManual {
 		t.Error("conn still thinks the manual is up")
 	}
@@ -352,7 +352,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 	// And leaving gives it back, the same row and not the same place in
 	// the list: a process that ended while the manual was up would have
 	// left another row standing where it was.
-	next, _ = m.key("alt+esc")
+	next, _ = m.key(room.LeftHelp.Heard())
 	if got := next; got.cursor != 22 || got.detour.cursor != 0 {
 		t.Errorf("leaving came back to row %d (kept %d), want 22", got.cursor, got.detour.cursor)
 	}
@@ -361,7 +361,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 // Asked with no row under the cursor, the manual leaves with none.
 func TestNoRowGoesInAndNoneComesBack(t *testing.T) {
 	m := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toManual}}
-	next, _ := m.key("alt+esc")
+	next, _ := m.key(room.LeftHelp.Heard())
 	if got := next; got.cursor != 0 || got.detour.cursor != 0 {
 		t.Errorf("leaving invented row %d", got.cursor)
 	}

@@ -1,4 +1,8 @@
-package work
+// Package procs is the machine's process table as conn reads it: on
+// macOS sysctl, ps and lsof, on Linux /proc, each process with its
+// terminal, its directory, its times and the sockets it holds. What a
+// process is, and what is made of the table, is internal/work's.
+package procs
 
 import (
 	"encoding/binary"
@@ -8,6 +12,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // The parsers behind the process table, pure over what the platform
@@ -16,9 +22,9 @@ import (
 // parseLsof reads lsof -F pcn: for each process, a p line with its pid,
 // a c line with its command, and an n line with the path of the file
 // asked for, which here is its working directory.
-func parseLsof(out string) map[int]Process {
-	procs := map[int]Process{}
-	var cur Process
+func parseLsof(out string) map[int]work.Process {
+	procs := map[int]work.Process{}
+	var cur work.Process
 	flush := func() {
 		if cur.PID > 0 {
 			procs[cur.PID] = cur
@@ -32,7 +38,7 @@ func parseLsof(out string) map[int]Process {
 		case 'p':
 			flush()
 			pid, _ := strconv.Atoi(l[1:])
-			cur = Process{PID: pid}
+			cur = work.Process{PID: pid}
 		case 'c':
 			cur.Command = l[1:]
 		case 'n':
@@ -75,20 +81,20 @@ func parseProcargs(raw []byte) []string {
 // parentheses, which may hold spaces and parentheses of its own, then
 // the fields by position — state, ppid, pgrp, session, tty_nr, tpgid,
 // and at the twenty-second the start, in ticks since boot.
-func parseProcStat(line string, boot time.Time, hz int) (Process, bool) {
+func parseProcStat(line string, boot time.Time, hz int) (work.Process, bool) {
 	open, closeParen := strings.IndexByte(line, '('), strings.LastIndexByte(line, ')')
 	if open < 0 || closeParen < open {
-		return Process{}, false
+		return work.Process{}, false
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(line[:open]))
 	if err != nil {
-		return Process{}, false
+		return work.Process{}, false
 	}
 	f := strings.Fields(line[closeParen+1:])
 	if len(f) < 20 {
-		return Process{}, false
+		return work.Process{}, false
 	}
-	p := Process{PID: pid, Command: line[open+1 : closeParen], State: f[0][0]}
+	p := work.Process{PID: pid, Command: line[open+1 : closeParen], State: f[0][0]}
 	p.PPID, _ = strconv.Atoi(f[1])
 	p.PGID, _ = strconv.Atoi(f[2])
 	ttyNr, _ := strconv.Atoi(f[4])
@@ -183,13 +189,13 @@ func linuxTTY(nr int) string {
 // every numbered directory's stat, cmdline and cwd, and the owner of the
 // directory for the uid. A process that goes away between the listing
 // and the reading is left out.
-func readProcTree(root string, boot time.Time, hz int) []Process {
+func readProcTree(root string, boot time.Time, hz int) []work.Process {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil
 	}
 	tables := procSocketTables(root)
-	var procs []Process
+	var procs []work.Process
 	for _, e := range entries {
 		if _, err := strconv.Atoi(e.Name()); err != nil {
 			continue

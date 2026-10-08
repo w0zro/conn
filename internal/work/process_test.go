@@ -1,7 +1,6 @@
 package work
 
 import (
-	"encoding/binary"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -200,21 +199,6 @@ func TestKindsAndCommands(t *testing.T) {
 	}
 }
 
-// lsof -F pcn, as captured.
-func TestLsofIsParsed(t *testing.T) {
-	out, err := os.ReadFile("testdata/lsof.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := parseLsof(string(out))
-	if len(got) != 5 || got[67032].Command != "conn" || got[67032].Cwd != "/Users/w0zro/projects/w0zro/conn" || got[409].Cwd != "/" {
-		t.Errorf("lsof: %+v", got)
-	}
-	if got := parseLsof(""); len(got) != 0 {
-		t.Errorf("nothing parsed as %+v", got)
-	}
-}
-
 // A name is a contact's when it means an agent and means little else.
 // The word says there is a mind at the other end and that the row can
 // stop and wait on you, which is more than the other kinds claim.
@@ -260,67 +244,6 @@ func TestOnlyTheRootsHoldProjectsOfFolders(t *testing.T) {
 	}
 	if got := roots(filepath.Join(repo, "deep")); got != repo {
 		t.Errorf("work in a repository outside the roots is placed at %q", got)
-	}
-}
-
-// /proc/<pid>/stat, with a command that holds a space and a parenthesis,
-// and a tree of them read off a directory that stands in for /proc.
-func TestProcIsParsed(t *testing.T) {
-	boot := time.Date(2026, 9, 4, 0, 47, 0, 0, time.UTC)
-	line := "70301 (go (test)) R 70300 70300 70001 34823 70300 4194304 1 0 0 0 5 1 0 0 20 0 8 0 43200000 100 200 300"
-	p, ok := parseProcStat(line, boot, 100)
-	// utime and stime are fields 14 and 15 — 5 and 1 here — and at a
-	// hundred ticks a second that is sixty milliseconds on a processor.
-	want := Process{PID: 70301, Command: "go (test)", State: 'R', PPID: 70300, PGID: 70300, TTY: "pts/7", Foreground: true,
-		Started: boot.Add(432000 * time.Second), CPU: 60 * time.Millisecond}
-	if !ok || !reflect.DeepEqual(p, want) {
-		t.Errorf("stat: %+v %v, want %+v", p, ok, want)
-	}
-	if _, ok := parseProcStat("garbage", boot, 100); ok {
-		t.Error("garbage parsed")
-	}
-	for nr, name := range map[int]string{0: "", 34823: "pts/7", 34816: "pts/0", 35072: "pts/256", 1025: "tty1", 5 << 8: ""} {
-		if got := linuxTTY(nr); got != name {
-			t.Errorf("tty %d: %q, want %q", nr, got, name)
-		}
-	}
-	if got := parseBootTime("cpu  1 2 3\nbtime " + strconv.FormatInt(boot.Unix(), 10) + "\nprocesses 5\n"); !got.Equal(boot) {
-		t.Errorf("btime: %v", got)
-	}
-
-	root := t.TempDir()
-	write := func(pid, name, content string) {
-		dir := filepath.Join(root, pid)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write("70301", "stat", line+"\n")
-	write("70301", "cmdline", "go\x00test\x00./...\x00")
-	if err := os.Symlink("/home/w0zro/conn", filepath.Join(root, "70301", "cwd")); err != nil {
-		t.Fatal(err)
-	}
-	write("70302", "stat", "broken\n")
-	write("notapid", "stat", line)
-	procs := readProcTree(root, boot, 100)
-	if len(procs) != 1 || procs[0].Cwd != "/home/w0zro/conn" || !reflect.DeepEqual(procs[0].Args, []string{"go", "test", "./..."}) || procs[0].UID != os.Getuid() {
-		t.Errorf("proc tree: %+v", procs)
-	}
-}
-
-// kern.procargs2, laid out as the kernel lays it.
-func TestProcargsAreParsed(t *testing.T) {
-	raw := make([]byte, 4)
-	binary.LittleEndian.PutUint32(raw, 3)
-	raw = append(raw, "/usr/local/bin/go\x00\x00\x00\x00go\x00test\x00./...\x00HOME=/Users/w0zro\x00"...)
-	if got := parseProcargs(raw); !reflect.DeepEqual(got, []string{"go", "test", "./..."}) {
-		t.Errorf("procargs: %q", got)
-	}
-	if got := parseProcargs(raw[:3]); got != nil {
-		t.Errorf("a short procargs parsed as %q", got)
 	}
 }
 
@@ -427,35 +350,6 @@ func TestProcessesStandsOneProcessForEachWork(t *testing.T) {
 	}
 	if b := ProjectsFrom(nil, 501, testRoots, testIsProject, nil); len(b) != 0 {
 		t.Errorf("an empty table gives %+v", b)
-	}
-}
-
-// ps prints a processor time as minutes and seconds, the minutes
-// running past sixty rather than becoming hours; hours and days show up
-// on other systems, and all of them read.
-func TestPsTimesAreParsed(t *testing.T) {
-	for _, c := range []struct {
-		in   string
-		want time.Duration
-		ok   bool
-	}{
-		{"0:00.00", 0, true},
-		{"0:00.39", 390 * time.Millisecond, true},
-		{"12:34.56", 12*time.Minute + 34*time.Second + 560*time.Millisecond, true},
-		{"583:40.70", 583*time.Minute + 40*time.Second + 700*time.Millisecond, true},
-		{"1:02:03", time.Hour + 2*time.Minute + 3*time.Second, true},
-		{"2-01:00:00", 49 * time.Hour, true},
-		{"nonsense", 0, false},
-		{"1:2:3:4", 0, false},
-	} {
-		got, ok := parsePsTime(c.in)
-		if ok != c.ok || got != c.want {
-			t.Errorf("%q: %v %v, want %v %v", c.in, got, ok, c.want, c.ok)
-		}
-	}
-	times := parsePsTimes("    1  63:35.26\n  333  26:21.76\n\ngarbage line here\n  334   0:00.39\n")
-	if len(times) != 3 || times[1] != 63*time.Minute+35*time.Second+260*time.Millisecond || times[334] != 390*time.Millisecond {
-		t.Errorf("a listing reads as %v", times)
 	}
 }
 

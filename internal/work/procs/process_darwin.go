@@ -1,4 +1,4 @@
-package work
+package procs
 
 import (
 	"context"
@@ -11,14 +11,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/w0zro/conn/internal/work"
 	"golang.org/x/sys/unix"
 )
 
-// ReadProcesses reads the process table: sysctl for every process's
+// Read reads the process table: sysctl for every process's
 // parent, group, owner, terminal, state and start; lsof for the working
 // directory and name of each of the user's, which sysctl does not have;
 // and kern.procargs2 for what each of the user's was started as.
-func ReadProcesses(uid int) ([]Process, error) {
+func Read(uid int) ([]work.Process, error) {
 	kinfo, err := unix.SysctlKinfoProcSlice("kern.proc.all")
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func ReadProcesses(uid int) ([]Process, error) {
 	// breath with the working directories. A listing that fails here
 	// costs the reading the sockets and nothing else: a row is a row
 	// without them.
-	sockets := map[int][]Socket{}
+	sockets := map[int][]work.Socket{}
 	if out, err := listing("lsof", "-nP", "-u", strconv.Itoa(uid), "-a", "-i", "-F", "pcnPT"); err == nil {
 		sockets = parseSockets(out)
 	}
@@ -58,9 +59,9 @@ func ReadProcesses(uid int) ([]Process, error) {
 		}
 	}
 	ttys := ttyNames()
-	procs := make([]Process, 0, len(kinfo))
+	procs := make([]work.Process, 0, len(kinfo))
 	for _, k := range kinfo {
-		p := Process{
+		p := work.Process{
 			PID:     int(k.Proc.P_pid),
 			PPID:    int(k.Eproc.Ppid),
 			PGID:    int(k.Eproc.Pgid),

@@ -1,4 +1,4 @@
-package work
+package procs
 
 import (
 	"os"
@@ -26,7 +26,7 @@ func TestAListingThatDoesNotAnswerIsAnError(t *testing.T) {
 // for no directory, and so for no command, and its arguments cannot be
 // read, and it is still a row with a name and not a dot.
 func TestEveryProcessHasAName(t *testing.T) {
-	procs, err := ReadProcesses(os.Getuid())
+	procs, err := Read(os.Getuid())
 	if err != nil {
 		t.Skip("the table could not be read: " + err.Error())
 	}

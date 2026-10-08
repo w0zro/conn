@@ -10,6 +10,7 @@ import (
 	"github.com/w0zro/conn/internal/work/claude"
 	"github.com/w0zro/conn/internal/work/declared"
 	"github.com/w0zro/conn/internal/work/docker"
+	"github.com/w0zro/conn/internal/work/procs"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -31,7 +32,7 @@ func (m model) readProcesses() tea.Cmd {
 		srv = m.srv
 	}
 	return func() tea.Msg {
-		procs, err := work.ReadProcesses(uid)
+		table, err := procs.Read(uid)
 		if err != nil {
 			return processesMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
@@ -62,12 +63,12 @@ func (m model) readProcesses() tea.Cmd {
 		// working by the processor time it spent since the last reading,
 		// which is why that reading is kept, and a contact answers for
 		// itself instead - working, or waiting on you.
-		now, nowAt := work.CpuOf(procs), time.Now()
+		now, nowAt := work.CpuOf(table), time.Now()
 		how := map[int]work.Status{}
-		for pid := range work.CpuWorking(was.cpu, was.at, procs, nowAt) {
+		for pid := range work.CpuWorking(was.cpu, was.at, table, nowAt) {
 			how[pid] = work.Status{Working: true}
 		}
-		maps.Copy(how, claude.Statuses(procs))
+		maps.Copy(how, claude.Statuses(table))
 		// The panes come first, because a pane conn opened to watch a
 		// container is two things to the reading at once: the terminal
 		// that container's row will stand on, and a process that must
@@ -103,9 +104,9 @@ func (m model) readProcesses() tea.Cmd {
 				}
 			}
 		}
-		procs = work.WithoutConnsOwn(procs, watching, panelTTY)
-		projects := work.ProjectsFrom(procs, uid, roots, isProject, how)
-		records := recordsOf(procs, projects)
+		table = work.WithoutConnsOwn(table, watching, panelTTY)
+		projects := work.ProjectsFrom(table, uid, roots, isProject, how)
+		records := recordsOf(table, projects)
 		// And what docker is holding up, which the table cannot show: a
 		// container is not a process of this machine, and compose says
 		// where each belongs by the directory it was started for. What
@@ -123,7 +124,7 @@ func (m model) readProcesses() tea.Cmd {
 		// table has and files nowhere.
 		if brew.Declared(files) {
 			sockets := map[int][]work.Socket{}
-			for _, p := range procs {
+			for _, p := range table {
 				if len(p.Sockets) > 0 {
 					sockets[p.PID] = p.Sockets
 				}
@@ -324,9 +325,9 @@ func (m model) tended(msg processesMsg) (model, tea.Cmd) {
 // recordsOf is the table's record behind each row, for the page: what
 // the page reads of a process that the row does not carry, kept for
 // the rows alone rather than for the whole table.
-func recordsOf(procs []work.Process, projects []work.Project) map[int]record {
+func recordsOf(table []work.Process, projects []work.Project) map[int]record {
 	byPid := map[int]work.Process{}
-	for _, p := range procs {
+	for _, p := range table {
 		byPid[p.PID] = p
 	}
 	out := map[int]record{}

@@ -86,6 +86,13 @@ func isSessionID(id string) bool {
 	return true
 }
 
+// Env is what Claude Code is told in conn's server besides what every
+// program is. TERM there says tmux-256color, which is what tmux draws
+// with; a program that reads it and stops there paints conn's scheme in
+// the 256 palette, where the warm dark end of it does not exist. Claude
+// Code is one, and takes this for an answer.
+var Env = []string{"CLAUDE_CODE_TMUX_TRUECOLOR=1"}
+
 // Command is what conn runs to start a contact: the program, told what
 // conn has to tell it, which Claude Code takes as an addition to its own
 // system prompt.

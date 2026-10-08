@@ -9,6 +9,7 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/theme"
+	"github.com/w0zro/conn/internal/work/claude"
 )
 
 // The server's dress, as conn chooses it on a ground, and the words of
@@ -282,4 +283,4 @@ func TestTheKeyBarIsAKeyAndAWordEach(t *testing.T) {
 }
 
 // serverConfOn is the server's configuration with a given panel key.
-func serverConfOn(key string, g theme.Ground) string { return room.Conf(key, dressOf(g)) }
+func serverConfOn(key string, g theme.Ground) string { return room.Conf(key, dressOf(g), claude.Env) }

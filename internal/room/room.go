@@ -802,9 +802,14 @@ type Dress struct {
 // and dress to match, the cursor in the orange and a selection on the
 // border color, and between the panel and the bay a line in that color
 // too, the same whichever side has focus.
-func Conf(key string, d Dress) string {
-	var b strings.Builder
-	b.WriteString(`# conn's tmux server. Written by conn on each start; edits do not keep.
+func Conf(key string, d Dress, env []string) string {
+	return confKeys(key) + confTerminal() + confEnvironment(env) + confLook(d) + statusLine(d)
+}
+
+// confKeys is the server's keys: the one key it takes for conn, the
+// mouse, and copy mode's.
+func confKeys(key string) string {
+	return `# conn's tmux server. Written by conn on each start; edits do not keep.
 # One key, from anywhere in the station: to the panel, which says where
 # the keys came from. No prefix, so nothing of tmux's own is reachable,
 # and the panel or the process answers every other key. There is no key
@@ -817,9 +822,6 @@ set -g mouse on
 # The panel's width is conn's to hold; a drag of the border would only be
 # put back.
 unbind -n MouseDrag1Border
-set -g history-limit 10000
-set -g window-size latest
-set -g set-clipboard on
 set -g mode-keys vi
 # Copy mode selects and copies as vim does, which is what the bar says:
 # v a selection, V lines, ctrl-v a block, y copied. tmux's own vi table
@@ -829,20 +831,20 @@ set -g mode-keys vi
 bind -T copy-mode-vi v send-keys -X begin-selection
 bind -T copy-mode-vi C-v send-keys -X rectangle-toggle
 bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel
+`
+}
+
+// confTerminal is how the server meets the terminal it is drawn on.
+func confTerminal() string {
+	return `set -g history-limit 10000
+set -g window-size latest
+set -g set-clipboard on
 set -g set-titles on
 set -g set-titles-string "conn"
 set -g escape-time 10
 set -g focus-events on
 set -g default-terminal tmux-256color
 set -as terminal-features ",*:RGB"
-set-environment -g COLORTERM truecolor
-# TERM says tmux-256color, which is what tmux draws with; a program that
-# reads it and stops there paints conn's scheme in the 256 palette, where
-# the warm dark end of it does not exist. Claude Code is one, and takes
-# this for an answer.
-set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
-# A program in a pane can tell it is in conn, and dress accordingly.
-set-environment -g CONN 1
 # The terminal a client is attached from announces itself in
 # TERM_PROGRAM, which tmux then sets to its own name inside a pane. The
 # server is told to keep the client's own answer current as clients
@@ -858,7 +860,29 @@ set -g display-time 3000
 # work ended: a pane parked out of the bay whose process finished left
 # a dead window that nothing in conn ever showed and nothing but conn
 # down ever cleared.
+`
+}
+
+// confEnvironment is what a program in a pane is told: that the colors
+// are true, that it is in conn, and whatever env says besides - a
+// program's own word for something the server cannot say in general,
+// as NAME=VALUE.
+func confEnvironment(env []string) string {
+	var b strings.Builder
+	b.WriteString(`set-environment -g COLORTERM truecolor
+# A program in a pane can tell it is in conn, and dress accordingly.
+set-environment -g CONN 1
 `)
+	for _, kv := range env {
+		name, value, _ := strings.Cut(kv, "=")
+		fmt.Fprintf(&b, "set-environment -g %s %s\n", name, value)
+	}
+	return b.String()
+}
+
+// confLook is how every pane is drawn, in a dress.
+func confLook(d Dress) string {
+	var b strings.Builder
 	ground, ink := d.Ground, d.Ink
 	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)
 	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", d.Accent)
@@ -896,7 +920,6 @@ set -g display-time 3000
 	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", ground, ground)
 	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", ground, ground)
 	b.WriteString("set -g pane-border-indicators off\n")
-	b.WriteString(statusLine(d))
 	return b.String()
 }
 

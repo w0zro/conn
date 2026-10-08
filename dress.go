@@ -7,6 +7,7 @@ import (
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/work/claude"
 )
 
 // What the server wears, and how the station's line is worded in it.
@@ -30,7 +31,7 @@ func dressOf(g theme.Ground) room.Dress {
 // serverConf is the server's configuration on a ground, with the panel
 // key the operator set.
 func serverConf(g theme.Ground) string {
-	return room.Conf(room.PanelKey(), dressOf(g))
+	return room.Conf(room.PanelKey(), dressOf(g), claude.Env)
 }
 
 // attach puts this terminal on the server, bringing it up if it is

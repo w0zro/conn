@@ -70,7 +70,7 @@ func TestOnlyWorkStillRunningIsReachable(t *testing.T) {
 // tells the fields apart in every locale there is.
 func TestNoFormatAsksTmuxForAControlCharacter(t *testing.T) {
 	d := Dress{Ground: "#15130F", Ink: "#E6DFD0", Accent: "#E85D2F", Border: "#2A2620", Gray: "#8B8272", Surface: "#1D1A16", Scheme: []string{"#000000"}, CopyBand: "#[bg=#E85D2F fg=#15130F bold] COPY ", CopyBar: " #[bg=#1D1A16 fg=#E6DFD0 bold]q #[bg=#1D1A16 fg=#8B8272 nobold]leave"}
-	conf := Conf("C-Space", d)
+	conf := Conf("C-Space", d, nil)
 	for _, f := range []string{statusLine(d), conf} {
 		for i, r := range f {
 			if r == '\n' || r == '\t' && f == conf {

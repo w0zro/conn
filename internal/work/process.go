@@ -984,3 +984,18 @@ func Over(status string) bool {
 	}
 	return strings.HasPrefix(status, exitWord)
 }
+
+// Faulty says whether a word is a fault's: a thing to look at, which
+// the panel stamps. The panel knows a fault by its row; the log knows
+// it by the word alone, which is all a line carries.
+func Faulty(word string) bool {
+	switch {
+	case word == StatusStopped, word == StatusEnded, word == StatusClosed:
+		return true
+	case strings.HasPrefix(word, exitWord):
+		return true
+	case SaidWords[word]:
+		return true
+	}
+	return false
+}

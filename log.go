@@ -9,6 +9,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/stationlog"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -28,7 +29,7 @@ import (
 //
 // The lines are written as the readings land, whatever view is up and
 // wherever the keys are, and read back from the file when the view
-// opens; see work.Changes for what counts as a change. Enter goes to
+// opens; see stationlog.Changes for what counts as a change. Enter goes to
 // the row's process where it is still on the panel; esc, or l again,
 // goes back.
 
@@ -37,13 +38,13 @@ import (
 const logKeep = 500
 
 // logMsg is the file read, for the view that asked.
-type logMsg struct{ events []work.Event }
+type logMsg struct{ events []stationlog.Event }
 
 // The log as the panel holds it: the lines read, oldest first as the
 // file has them, the cursor among them counted from the newest, and
 // the count the band says.
 type logList struct {
-	read   []work.Event
+	read   []stationlog.Event
 	loaded bool
 	at     int // the cursor, counted from the newest line
 	fresh  int // lines written since the view was opened, or came since it was: drawn in the ink
@@ -62,7 +63,7 @@ func logPath(home string) string {
 // open, and onto the band's count where it is not, and to the file
 // either way. Nothing is written beside whatever directory conn was
 // started in, so a conn with no home keeps no log.
-func (m model) logged(events []work.Event) (model, tea.Cmd) {
+func (m model) logged(events []stationlog.Event) (model, tea.Cmd) {
 	if len(events) == 0 {
 		return m, nil
 	}
@@ -87,7 +88,7 @@ func (m model) logged(events []work.Event) (model, tea.Cmd) {
 		return m, nil
 	}
 	path := logPath(home)
-	return m, func() tea.Msg { _ = work.AppendLog(path, events); return nil }
+	return m, func() tea.Msg { _ = stationlog.Append(path, events); return nil }
 }
 
 // logging is a reading read against the last for what changed, and
@@ -108,7 +109,7 @@ func (m model) logging(msg processesMsg) (model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	if m.seenAny {
-		m, cmd = m.logged(work.Changes(m.seen, rows, logLabel, time.Now()))
+		m, cmd = m.logged(stationlog.Changes(m.seen, rows, logLabel, time.Now()))
 	}
 	m.seen, m.seenAny = rows, true
 	return m, cmd
@@ -130,7 +131,7 @@ func logLabel(e work.Entry) string {
 
 // logReport is the log view's words as things stand.
 func (m model) logReport() logReport {
-	alive := func(e work.Event) bool { _, ok := m.logEntry(e); return ok }
+	alive := func(e stationlog.Event) bool { _, ok := m.logEntry(e); return ok }
 	return composeLog(m.log.read, m.log.fresh, alive, m.roots.real, m.head.Login.Home, m.now)
 }
 
@@ -147,7 +148,7 @@ func (m model) openLog(came string) (model, tea.Cmd) {
 	if !m.log.loaded {
 		path := logPath(m.head.Login.Home)
 		cmds = append(cmds, func() tea.Msg {
-			events, _ := work.ReadLog(path, logKeep)
+			events, _ := stationlog.Read(path, logKeep)
 			return logMsg{events}
 		})
 	}
@@ -170,17 +171,17 @@ func (m model) landedLog(msg logMsg) model {
 }
 
 // logAt is the line under the cursor, newest first, where there is one.
-func (l logList) logAt() (work.Event, bool) {
+func (l logList) logAt() (stationlog.Event, bool) {
 	i := len(l.read) - 1 - l.at
 	if i < 0 || i >= len(l.read) {
-		return work.Event{}, false
+		return stationlog.Event{}, false
 	}
 	return l.read[i], true
 }
 
 // logEntry is the row a line is about, where the row is still on the
 // panel: the same pid, begun before the line was written.
-func (m model) logEntry(e work.Event) (work.Entry, bool) {
+func (m model) logEntry(e stationlog.Event) (work.Entry, bool) {
 	for _, pl := range m.projects {
 		for _, r := range pl.Entries {
 			if r.PID == e.PID && !r.Started.After(e.At) {
@@ -249,7 +250,7 @@ type logReport struct {
 // composeLog words the log view: the lines newest first, each naming
 // its project the way the panel names a block, and whether the row it
 // is about is still there to go to.
-func composeLog(events []work.Event, fresh int, alive func(work.Event) bool, roots []string, home string, now time.Time) logReport {
+func composeLog(events []stationlog.Event, fresh int, alive func(stationlog.Event) bool, roots []string, home string, now time.Time) logReport {
 	b := logReport{total: len(events), fresh: min(fresh, len(events)), now: now}
 	for i := len(events) - 1; i >= 0; i-- {
 		e := events[i]

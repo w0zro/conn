@@ -7,6 +7,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/stationlog"
 )
 
 // The log view's file of record: a day's lines under TODAY, the day
@@ -15,16 +16,16 @@ import (
 // fault stamped; and a line whose row is still on the panel in bold.
 var logNow = time.Date(2026, 10, 3, 14, 30, 0, 0, time.Local)
 
-func testLogEvents() []work.Event {
+func testLogEvents() []stationlog.Event {
 	conn, web := "/Users/w0zro/projects/w0zro/conn", "/Users/w0zro/projects/web"
 	day := func(d int, h, m int) time.Time {
 		return time.Date(2026, 10, 3-d, h, m, 0, 0, time.Local)
 	}
-	return []work.Event{
+	return []stationlog.Event{
 		{At: day(3, 9, 12), Project: web, Label: "worker", PID: 40, Word: work.StatusDown},
 		{At: day(1, 18, 2), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWaiting, Note: "Allow Bash: go test ./... in conn?"},
 		{At: day(1, 18, 9), Project: conn, Label: "the station log", PID: 10, Word: work.StatusIdle, Note: "waited 7 min"},
-		{At: day(1, 23, 58), Project: web, Label: "zsh", PID: 31, Word: work.LogGone},
+		{At: day(1, 23, 58), Project: web, Label: "zsh", PID: 31, Word: stationlog.Gone},
 		{At: day(0, 9, 4), Project: web, Label: "api", PID: 41, Word: work.StatusActive},
 		{At: day(0, 11, 41), Project: web, Label: "go test ./...", PID: 42, Word: "EXIT 1", Note: "ran 2 min"},
 		{At: day(0, 14, 2), Project: conn, Label: "the station log", PID: 10, Word: work.StatusWaiting, Note: "Allow Edit: log.go?"},
@@ -33,7 +34,7 @@ func testLogEvents() []work.Event {
 }
 
 func testLog(fresh int) logReport {
-	alive := func(e work.Event) bool { return e.PID == 10 }
+	alive := func(e stationlog.Event) bool { return e.PID == 10 }
 	return composeLog(testLogEvents(), fresh, alive, []string{"/Users/w0zro/projects"}, "/Users/w0zro", logNow)
 }
 

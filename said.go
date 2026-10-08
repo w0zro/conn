@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/stationlog"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -81,7 +82,7 @@ func (m model) listen() tea.Cmd {
 // tail, read for its stack's words, and logged; and the tails kept for
 // the next beat. A pane no longer held is forgotten with its tail.
 func (m model) heard(msg saidMsg) (model, tea.Cmd) {
-	var events []work.Event
+	var events []stationlog.Event
 	kept := map[string][]string{}
 	for _, l := range m.listeners() {
 		lines, ok := msg.tails[l.id]
@@ -94,7 +95,7 @@ func (m model) heard(msg saidMsg) (model, tea.Cmd) {
 		kept[l.id] = lines
 		for _, line := range work.NewLines(m.tails[l.id], lines) {
 			if word, ok := work.SaidWord(line); ok {
-				events = append(events, work.Event{At: msg.at, Project: l.project, Label: l.label, PID: l.pid, Word: word, Note: line})
+				events = append(events, stationlog.Event{At: msg.at, Project: l.project, Label: l.label, PID: l.pid, Word: word, Note: line})
 				break
 			}
 		}

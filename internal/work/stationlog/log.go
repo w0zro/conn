@@ -1,4 +1,4 @@
-package work
+package stationlog
 
 import (
 	"bufio"
@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // The log is the panel over time. The panel says what each process is
@@ -43,10 +45,10 @@ type Event struct {
 	Note string
 }
 
-// LogGone is the word for a row that left the table: a shell closed, a
+// Gone is the word for a row that left the table: a shell closed, a
 // process ended and collected, a container taken down. The panel has
 // no word for it, there being no row to say one, so the log has one.
-const LogGone = "GONE"
+const Gone = "GONE"
 
 // Changes is what moved between two readings, as the log records it:
 // a row whose word changed where the change is news, and a row that is
@@ -62,14 +64,14 @@ const LogGone = "GONE"
 // A row is the same row across the two readings by its pid and when it
 // started, so a pid come round again is a new row and not the old one
 // changing its mind.
-func Changes(was, now []Project, label func(Entry) string, at time.Time) []Event {
+func Changes(was, now []work.Project, label func(work.Entry) string, at time.Time) []Event {
 	type key struct {
 		pid     int
 		started time.Time
 	}
 	type stood struct {
 		project string
-		Entry
+		work.Entry
 	}
 	before := map[key]stood{}
 	for _, pl := range was {
@@ -99,7 +101,7 @@ func Changes(was, now []Project, label func(Entry) string, at time.Time) []Event
 	sort.Slice(gone, func(i, j int) bool { return gone[i].pid < gone[j].pid })
 	for _, k := range gone {
 		prev := before[k]
-		events = append(events, Event{At: at, Project: prev.project, Label: label(prev.Entry), PID: prev.PID, Word: LogGone, Note: ran(prev.Entry, at)})
+		events = append(events, Event{At: at, Project: prev.project, Label: label(prev.Entry), PID: prev.PID, Word: Gone, Note: ran(prev.Entry, at)})
 	}
 	return events
 }
@@ -111,17 +113,17 @@ func Changes(was, now []Project, label func(Entry) string, at time.Time) []Event
 // wait; a row that ended or went down says how long it ran; a row up
 // again says how long it was down. A row whose moment conn never saw
 // says nothing of the length.
-func note(prev, e Entry, at time.Time) string {
+func note(prev, e work.Entry, at time.Time) string {
 	switch {
-	case e.Status == StatusWaiting:
+	case e.Status == work.StatusWaiting:
 		return firstLine(e.Asking)
-	case e.Kind == KindContact && e.Status == StatusIdle && prev.Status == StatusWaiting:
+	case e.Kind == work.KindContact && e.Status == work.StatusIdle && prev.Status == work.StatusWaiting:
 		return stood("waited", prev.Since, at)
-	case e.Kind == KindContact && e.Status == StatusIdle:
+	case e.Kind == work.KindContact && e.Status == work.StatusIdle:
 		return stood("took", prev.Since, at)
-	case prev.Status == StatusDown:
+	case prev.Status == work.StatusDown:
 		return stood("down", prev.Since, at)
-	case e.Status == StatusDown, e.Fault, e.Status == StatusClosed:
+	case e.Status == work.StatusDown, e.Fault, e.Status == work.StatusClosed:
 		return ran(prev, at)
 	}
 	return ""
@@ -129,7 +131,7 @@ func note(prev, e Entry, at time.Time) string {
 
 // ran is how long a row had been running when it ended, counted from
 // its start, which the table always knows.
-func ran(e Entry, at time.Time) string {
+func ran(e work.Entry, at time.Time) string {
 	return stood("ran", e.Started, at)
 }
 
@@ -143,7 +145,7 @@ func stood(word string, since, at time.Time) string {
 	if d < time.Minute {
 		return word + " " + strconv.Itoa(int(d.Seconds())) + " s"
 	}
-	return word + " " + Minutes(d)
+	return word + " " + work.Minutes(d)
 }
 
 // firstLine is a text's first line, trimmed: a question is read as its
@@ -165,15 +167,15 @@ func firstLine(s string) string {
 // shell between commands, a server between requests and a build
 // between files change their word every reading, and a log of that is
 // a log nobody reads.
-func news(prev, e Entry) bool {
+func news(prev, e work.Entry) bool {
 	switch {
 	case prev.Status == e.Status:
 		return false
-	case e.Status == StatusWaiting, e.Status == StatusDown, e.Status == StatusClosed, e.Fault:
+	case e.Status == work.StatusWaiting, e.Status == work.StatusDown, e.Status == work.StatusClosed, e.Fault:
 		return true
-	case prev.Status == StatusDown:
+	case prev.Status == work.StatusDown:
 		return true
-	case e.Kind == KindContact && e.Status == StatusIdle:
+	case e.Kind == work.KindContact && e.Status == work.StatusIdle:
 		return true
 	}
 	return false
@@ -183,23 +185,8 @@ func news(prev, e Entry) bool {
 // an editor quit are the operator's own doing, ten times a day; a
 // contact gone, a run that was there and is not, a service taken down
 // are what the operator would ask about.
-func left(e Entry) bool {
-	return e.Kind != KindShell && e.Kind != KindEditor
-}
-
-// Faulty says whether a word is a fault's: a thing to look at, which
-// the panel stamps. The panel knows a fault by its row; the log knows
-// it by the word alone, which is all a line carries.
-func Faulty(word string) bool {
-	switch {
-	case word == StatusStopped, word == StatusEnded, word == StatusClosed:
-		return true
-	case strings.HasPrefix(word, exitWord):
-		return true
-	case SaidWords[word]:
-		return true
-	}
-	return false
+func left(e work.Entry) bool {
+	return e.Kind != work.KindShell && e.Kind != work.KindEditor
 }
 
 // logStamp is how a line writes its moment: local time, to the
@@ -211,10 +198,10 @@ const logStamp = "2006-01-02 15:04:05"
 // under a hundred bytes; a megabyte is a long while of changes.
 const logCap = 1 << 20
 
-// AppendLog writes events to the log, a line each, making the file and
+// Append writes events to the log, a line each, making the file and
 // its directory where there is none. A field is parted by a tab, so a
 // tab or a newline in a label is written as a space.
-func AppendLog(path string, events []Event) error {
+func Append(path string, events []Event) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -280,9 +267,9 @@ func parseLogLine(line string) (Event, bool) {
 	return e, true
 }
 
-// ReadLog is the log's last lines, oldest first, up to max of them;
+// Read is the log's last lines, oldest first, up to max of them;
 // every line where max is 0. No file is an empty log and no error.
-func ReadLog(path string, max int) ([]Event, error) {
+func Read(path string, max int) ([]Event, error) {
 	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return nil, nil

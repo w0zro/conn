@@ -303,35 +303,47 @@ func (l outList) outAt() (outMatch, outPane, bool) {
 	return hit, l.panes[hit.pane], true
 }
 
-// outputKey answers a key on the output view, which is a line typed
-// into; see typed. What is the view's own: enter goes into the match's
-// pane in copy mode with the cursor on it, esc goes back, and ctrl+c
-// is what it is everywhere.
-func (m model) outputKey(k string) (model, tea.Cmd) {
+// key answers a key on the output view, which is a line typed into;
+// see typed. What is the view's own: a change to the line is a new
+// match to preview, enter goes into the match's pane in copy mode with
+// the cursor on it, esc goes back, and ctrl+c is what it is everywhere.
+// The pane the bay was showing is let go of on the way out, which
+// toProcesses does for every way out of the view.
+func (l outList) key(k string) (outList, ask) {
 	switch {
-	case m.out.find.edit(k, len(m.out.matches())):
-		return m.previewing()
+	case l.find.edit(k, len(l.matches())):
+		return l, askPreview{}
 	case k == "ctrl+c":
-		return m.leave()
+		return l, askLeave{}
 	case k == "esc":
-		// The pane the bay was showing is let go of on the way out,
-		// which toProcesses does for every way out of the view.
-		return m.backFrom()
+		return l, askBack{}
 	case k == "enter":
-		if hit, pane, ok := m.out.outAt(); m.inside && ok {
-			target, ok := m.panes[pane.tty]
-			if !ok {
-				return m, nil
-			}
-			m.from = ""
-			m.out.shown, m.bay.preview = outShown{}, ""
-			m = m.onRow(pane.pid, m.cursorAt)
-			var cmd tea.Cmd
-			m, cmd = m.toProcesses()
-			return m, tea.Batch(cmd, m.landIn(target, pane.tty, hit.k, m.out.find.text))
+		if hit, pane, ok := l.outAt(); ok {
+			return l, askLand{hit, pane}
 		}
 	}
-	return m, nil
+	return l, nil
+}
+
+// outputKey is a key on the output view.
+func (m model) outputKey(k string) (model, tea.Cmd) {
+	var a ask
+	m.out, a = m.out.key(k)
+	return m.answer(a)
+}
+
+// land goes into a match's pane, in copy mode on the match.
+func (m model) land(hit outMatch, pane outPane) (model, tea.Cmd) {
+	target, ok := m.panes[pane.tty]
+	if !m.inside || !ok {
+		return m, nil
+	}
+	m.from = ""
+	m.out.shown, m.bay.preview = outShown{}, ""
+	m = m.onRow(pane.pid, m.cursorAt)
+	var cmd tea.Cmd
+	m, cmd = m.toProcesses()
+	return m, tea.Batch(cmd, m.landIn(target, pane.tty, hit.k, m.out.find.text))
 }
 
 // landIn puts a pane in the bay with the keys in it, as reach does, in

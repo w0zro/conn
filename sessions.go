@@ -272,24 +272,29 @@ func (m model) openRecent(came string) (model, tea.Cmd) {
 	}
 }
 
-// sessionsKey answers a key on the sessions view, which is a line typed
-// into the same way the list is; see typed. What is the view's own:
-// enter continues the session under the cursor and goes back to the
-// processes view, esc goes back without continuing anything, and ctrl+c
-// is what it is everywhere.
-func (m model) sessionsKey(k string) (model, tea.Cmd) {
+// key answers a key on the sessions view, which is a line typed into
+// the same way the list is; see typed. What is the view's own: enter
+// continues the session under the cursor and goes back to the
+// processes view, esc goes back without continuing anything, and
+// ctrl+c is what it is everywhere.
+func (l sessionList) key(k string) (sessionList, ask) {
 	switch {
-	case m.sessions.find.edit(k, len(m.sessions.rows())):
+	case l.find.edit(k, len(l.rows())):
 	case k == "ctrl+c":
-		return m.leave()
+		return l, askLeave{}
 	case k == "esc":
-		return m.backFrom()
+		return l, askBack{}
 	case k == "enter":
-		if c, ok := m.sessions.at(); m.inside && !m.sessions.loading && ok {
-			var cmd tea.Cmd
-			m, cmd = m.toProcesses()
-			return m, tea.Batch(cmd, m.openResumed(c.Dir, c.ID))
+		if c, ok := l.at(); !l.loading && ok {
+			return l, askResume{c.Dir, c.ID}
 		}
 	}
-	return m, nil
+	return l, nil
+}
+
+// sessionsKey is a key on the sessions view.
+func (m model) sessionsKey(k string) (model, tea.Cmd) {
+	var a ask
+	m.sessions, a = m.sessions.key(k)
+	return m.answer(a)
 }

@@ -260,34 +260,37 @@ func (m model) toRoots() (model, tea.Cmd) {
 	return m, nil
 }
 
-// rootsKey is the asking view's keys. The line is typed into like
-// every root line; see rootLine. What is the view's own: enter takes the
-// root — the config is written and conn is working from it before the
-// view is gone.
-func (m model) rootsKey(k string) (model, tea.Cmd) {
+// key is the asking view's keys. The line is typed into like every
+// root line; see rootLine. What is the view's own: enter takes the
+// root, which the panel writes to the config and works from before the
+// view is gone. esc is nothing: the first start has nowhere to go back
+// to, since conn cannot show the processes view until this is answered,
+// and a key that did nothing would be conn pretending there was a way
+// past it.
+func (r rootLine) key(k, home string) (rootLine, ask) {
 	switch {
-	case m.asking.edit(k, m.head.Login.Home):
+	case r.edit(k, home):
 	case k == "ctrl+c":
-		return m.leave()
-	case k == "esc":
-		// Nothing. The first start has nowhere to go back to: conn
-		// cannot show the processes view until this is answered, and a
-		// key that did nothing would be conn pretending there was a
-		// way past it.
+		return r, askLeave{}
 	case k == "enter":
-		return m.takeRoot()
+		if root := r.chosen(home); root != "" {
+			return r, askTakeRoot{root}
+		}
 	}
-	return m, nil
+	return r, nil
+}
+
+// rootsKey is a key on the asking view.
+func (m model) rootsKey(k string) (model, tea.Cmd) {
+	var a ask
+	m.asking, a = m.asking.key(k, m.head.Login.Home)
+	return m.answer(a)
 }
 
 // takeRoot writes the root the operator settled on and puts conn to
 // work on it.
-func (m model) takeRoot() (model, tea.Cmd) {
+func (m model) takeRoot(root string) (model, tea.Cmd) {
 	home := m.head.Login.Home
-	root := m.asking.chosen(home)
-	if root == "" {
-		return m, nil
-	}
 	full := config.ExpandHome(root, home)
 	// The roots the file names, with this one added. The file is read
 	// again rather than taken off the model, since it is the file this

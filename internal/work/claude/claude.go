@@ -86,41 +86,17 @@ func isSessionID(id string) bool {
 	return true
 }
 
-// InsideNote is what conn tells a contact it starts about where it is.
-// A contact that backgrounds a dev server leaves it with no terminal:
-// no pane to attach to, no scrollback to read, and its output wherever
-// the contact happened to send it. A window of its own costs the
-// contact nothing and makes the server a process like any other here —
-// conn shows it, you reach it, and its log is the pane you are looking
-// at.
-//
-// conn says this to the contacts it starts rather than writing it into
-// anybody's settings. It travels with conn, so a conn on another
-// machine tells its contacts the same thing, and a machine conn is gone
-// from is as conn found it.
-func InsideNote(socket string) string {
-	return "You are running inside conn, which holds this terminal as a tmux pane " +
-		"and watches the processes working this project. Start anything long-lived " +
-		"— a dev server, a file watcher, a build that stays up — in a window of its " +
-		"own rather than detached in the background:\n\n" +
-		"  tmux -S " + socket + " new-window -d -n NAME -c DIR 'COMMAND'\n\n" +
-		"It then holds a terminal of its own, so conn lists it as a process " +
-		"of its own, it can be attached to, and its output is the window's scrollback:\n\n" +
-		"  tmux -S " + socket + " capture-pane -p -t NAME\n\n" +
-		"Something you background instead holds no terminal and has no pane, and can " +
-		"only be read through whatever file its output was sent to."
-}
-
-// Command is what conn runs to start a contact: the program,
-// told where it is.
-func Command(socket string) string {
-	return Program + " --append-system-prompt " + shell.Quote(InsideNote(socket))
+// Command is what conn runs to start a contact: the program, told what
+// conn has to tell it, which Claude Code takes as an addition to its own
+// system prompt.
+func Command(note string) string {
+	return Program + " --append-system-prompt " + shell.Quote(note)
 }
 
 // ResumeCommand is the command that picks a suspended session back
 // up, told the same. The id travels onto a shell command line, so only
-// ids claudeSuspended vetted are ever handed here.
-func ResumeCommand(socket, id string) string { return Command(socket) + " --resume " + id }
+// ids Suspended vetted are ever handed here.
+func ResumeCommand(note, id string) string { return Command(note) + " --resume " + id }
 
 // What Claude Code calls itself, in the file it keeps per instance.
 // The vocabulary is closed at four, and these are all of them, read

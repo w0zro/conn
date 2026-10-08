@@ -463,41 +463,34 @@ func TestReadAskFindsWhatTheAgentIsWaitingOn(t *testing.T) {
 }
 
 func TestResumeCommandCarriesTheID(t *testing.T) {
-	if got := ResumeCommand("/s/conn.sock", "abc-123"); !strings.HasPrefix(got, "claude --append-system-prompt '") || !strings.HasSuffix(got, "' --resume abc-123") {
+	if got := ResumeCommand("a note", "abc-123"); !strings.HasPrefix(got, "claude --append-system-prompt '") || !strings.HasSuffix(got, "' --resume abc-123") {
 		t.Errorf("resumeCommand = %q", got)
 	}
 }
 
-// conn tells the contacts it starts where they are, and the note
-// travels as one word on a shell command line: a socket with an
-// apostrophe in it must stay inside that word rather than break out of
-// it and run as something else. What the note says has to name the
-// socket, since a contact told to open a window and not told which
-// server would be guessing.
-func TestTheAgentIsToldWhereItIs(t *testing.T) {
+// conn tells the contacts it starts what it has to tell them, and the
+// note travels as one word on a shell command line: a note with an
+// apostrophe in it - a socket under a directory named for someone, say
+// - must stay inside that word rather than break out of it and run as
+// something else.
+func TestTheNoteIsOneWord(t *testing.T) {
 	const prefix = Program + " --append-system-prompt "
-	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
-		got := Command(socket)
+	for _, note := range []string{"You are running inside conn.", "The socket is /tmp/it's here/conn.sock."} {
+		got := Command(note)
 		if !strings.HasPrefix(got, prefix) {
-			t.Fatalf("aiCommand(%q) = %q", socket, got)
+			t.Fatalf("Command(%q) = %q", note, got)
 		}
 		word := strings.TrimPrefix(got, prefix)
 		if !strings.HasPrefix(word, "'") || !strings.HasSuffix(word, "'") {
 			t.Errorf("the note is not one quoted word: %q", word)
 		}
-		note := strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(word, "'"), "'"), `'\''`, "'")
-		if note != InsideNote(socket) {
-			t.Errorf("the note does not survive quoting:\n%s\nwant:\n%s", note, InsideNote(socket))
-		}
-		for _, want := range []string{socket, "new-window", "capture-pane"} {
-			if !strings.Contains(note, want) {
-				t.Errorf("the note says nothing of %q:\n%s", want, note)
-			}
+		if back := strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(word, "'"), "'"), `'\''`, "'"); back != note {
+			t.Errorf("the note does not survive quoting:\n%s\nwant:\n%s", back, note)
 		}
 	}
 	// Resuming a session is the same launch, carrying the id.
-	if got := ResumeCommand("/s/conn.sock", "abc-123"); got != Command("/s/conn.sock")+" --resume abc-123" {
-		t.Errorf("resumeCommand = %q", got)
+	if got := ResumeCommand("a note", "abc-123"); got != Command("a note")+" --resume abc-123" {
+		t.Errorf("ResumeCommand = %q", got)
 	}
 }
 

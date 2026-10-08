@@ -79,7 +79,7 @@ func (m model) openShell(dir string) tea.Cmd {
 func (m model) startContact(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.OpenCmd(dir, claude.Command(srv.Socket))
+		sh, err := srv.OpenCmd(dir, claude.Command(room.ContactNote(srv.Socket)))
 		if err != nil {
 			return noticeMsg{"the contact could not be opened: " + err.Error()}
 		}
@@ -121,7 +121,7 @@ func (m model) scanSessions(dirs []string) tea.Cmd {
 func (m model) openResumed(dir, id string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.OpenCmd(dir, claude.ResumeCommand(srv.Socket, id))
+		sh, err := srv.OpenCmd(dir, claude.ResumeCommand(room.ContactNote(srv.Socket), id))
 		if err != nil {
 			return nil
 		}

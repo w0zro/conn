@@ -336,7 +336,7 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	// thousand characters of conn's own prose, with newlines through
 	// it. The processes view has always dropped it and so does this.
 	s.entry.Typed = s.entry.Command
-	s.entry.Command = "claude --append-system-prompt " + claude.InsideNote("/tmp/sock") + " --resume d81d7536-e545-4881-8daa-f1d291a03be1"
+	s.entry.Command = "claude --append-system-prompt " + room.ContactNote("/tmp/sock") + " --resume d81d7536-e545-4881-8daa-f1d291a03be1"
 	// A shell a contact runs carries the environment snapshot it was
 	// started with, which is a screen of somebody else's quoting.
 	s.children = append(s.children, work.Entry{PID: 49301, Kind: work.KindShell, TTY: "ttys003",

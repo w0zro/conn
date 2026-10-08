@@ -1,6 +1,7 @@
 package room
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -120,5 +121,19 @@ func TestTheLineRunInThePane(t *testing.T) {
 	want := "npm run dev # dev\n'/opt/bin/tmux' set-option -p -t \"$TMUX_PANE\" @conn_exit \"$?\"\nprintf '\\n[web exited]\\n'\nexec cat"
 	if got != want {
 		t.Errorf("line:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// What the note says has to name the socket, since a contact told to
+// open a window and not told which server would be guessing; and it
+// says how to put work in a window and read it back.
+func TestTheContactIsToldWhereItIs(t *testing.T) {
+	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
+		note := ContactNote(socket)
+		for _, want := range []string{socket, "new-window", "capture-pane"} {
+			if !strings.Contains(note, want) {
+				t.Errorf("the note says nothing of %q:\n%s", want, note)
+			}
+		}
 	}
 }

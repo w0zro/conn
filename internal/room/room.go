@@ -1092,3 +1092,29 @@ var (
 
 // Heard is the signal as the panel's loop hears it.
 func (s Signal) Heard() string { return s.heard }
+
+// ContactNote is what conn tells a contact it starts about where it is,
+// on the server at a socket: how to put work in a window of its own.
+// A contact that backgrounds a dev server leaves it with no terminal:
+// no pane to attach to, no scrollback to read, and its output wherever
+// the contact happened to send it. A window of its own costs the
+// contact nothing and makes the server a process like any other here —
+// conn shows it, you reach it, and its log is the pane you are looking
+// at.
+//
+// conn says this to the contacts it starts rather than writing it into
+// anybody's settings. It travels with conn, so a conn on another
+// machine tells its contacts the same thing, and a machine conn is gone
+// from is as conn found it.
+func ContactNote(socket string) string {
+	return "You are running inside conn, which holds this terminal as a tmux pane " +
+		"and watches the processes working this project. Start anything long-lived " +
+		"— a dev server, a file watcher, a build that stays up — in a window of its " +
+		"own rather than detached in the background:\n\n" +
+		"  tmux -S " + socket + " new-window -d -n NAME -c DIR 'COMMAND'\n\n" +
+		"It then holds a terminal of its own, so conn lists it as a process " +
+		"of its own, it can be attached to, and its output is the window's scrollback:\n\n" +
+		"  tmux -S " + socket + " capture-pane -p -t NAME\n\n" +
+		"Something you background instead holds no terminal and has no pane, and can " +
+		"only be read through whatever file its output was sent to."
+}

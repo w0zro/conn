@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/station"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // A service Homebrew holds up is a thing to reach the way a container
@@ -42,7 +40,7 @@ const (
 	// boots brew's ruby, half a second of a core, and a service does
 	// not change on its own between one and the next; a start or a
 	// stop from the panel asks again at once.
-	brewBeat = 15 * time.Second
+	BrewBeat = 15 * time.Second
 )
 
 var BrewPath = station.LookPath("brew")
@@ -102,9 +100,9 @@ func BrewSays(wait time.Duration, args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// readBrewServices is every service brew knows, as it stands. Without
+// ReadBrew is every service brew knows, as it stands. Without
 // brew there is nothing to ask.
-func readBrewServices() ([]BrewService, error) {
+func ReadBrew() ([]BrewService, error) {
 	if BrewPath == "" {
 		return nil, nil
 	}
@@ -251,25 +249,4 @@ func brewEntry(path string, decl Declaration, formula string, svc *BrewService, 
 		e.Ports = ListeningPorts(e.Sockets)
 	}
 	return e
-}
-
-// BrewMsg carries what brew said of its services.
-type BrewMsg struct {
-	Services []BrewService
-	Err      error
-}
-
-// BrewTickMsg is the beat on which brew is asked, while anything is
-// declared.
-type BrewTickMsg struct{}
-
-// NextBrew is the next beat.
-func NextBrew() tea.Cmd {
-	return tea.Tick(brewBeat, func(time.Time) tea.Msg { return BrewTickMsg{} })
-}
-
-// ReadBrew asks brew, off the loop.
-func ReadBrew() tea.Msg {
-	services, err := readBrewServices()
-	return BrewMsg{Services: services, Err: err}
 }

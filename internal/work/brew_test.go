@@ -68,8 +68,8 @@ func TestBrewIsAskedQuietly(t *testing.T) {
 			t.Errorf("brew is asked without %s", want)
 		}
 	}
-	if brewBeat < 10*time.Second {
-		t.Errorf("brew is asked every %s", brewBeat)
+	if BrewBeat < 10*time.Second {
+		t.Errorf("brew is asked every %s", BrewBeat)
 	}
 }
 

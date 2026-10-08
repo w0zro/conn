@@ -6,8 +6,6 @@ import (
 	"io"
 	"os/exec"
 	"time"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // Docker is a source of its own, the way the tmux server is: the
@@ -31,22 +29,19 @@ import (
 // conn asking forever meant it never did — a laptop kept awake by the
 // instrument watching it.
 
-// DockerMsg carries what docker says of its containers, and whether it
+// A DockerList is what docker says of its containers, and whether it
 // said it in time: stalled means the list is what it last said.
-type DockerMsg struct {
+type DockerList struct {
 	Containers []Container
 	Stalled    bool
 }
 
-// DockerReadyMsg carries the feed, once it is running.
-type DockerReadyMsg struct{ Feed *DockerFeed }
-
 // DockerFeed is the subscription: a goroutine reading docker's events and
 // answering each with a list, a heartbeat, and a poke.
 type DockerFeed struct {
-	Msgs chan tea.Msg
-	Poke chan struct{}
-	Stop chan struct{}
+	Lists chan DockerList
+	Poke  chan struct{}
+	Stop  chan struct{}
 	// done is closed when the feed's goroutine has let go of its stream,
 	// which is what close waits for.
 	Done chan struct{}
@@ -71,13 +66,13 @@ const (
 	dockerSettle    = 300 * time.Millisecond
 )
 
-// StartDocker begins the feed, or nothing where docker is not installed.
-func StartDocker() tea.Msg {
+// StartDocker begins the feed, or nil where docker is not installed.
+func StartDocker() *DockerFeed {
 	if DockerPath == "" {
-		return DockerReadyMsg{}
+		return nil
 	}
 	f := &DockerFeed{
-		Msgs:      make(chan tea.Msg, 1),
+		Lists:     make(chan DockerList, 1),
 		Poke:      make(chan struct{}, 1),
 		Stop:      make(chan struct{}),
 		Done:      make(chan struct{}),
@@ -88,7 +83,7 @@ func StartDocker() tea.Msg {
 		Settle:    dockerSettle,
 	}
 	go f.run()
-	return DockerReadyMsg{Feed: f}
+	return f
 }
 
 // dockerEvents opens docker's stream of container events, one to a line.
@@ -118,12 +113,9 @@ func (s *eventStream) Close() error {
 	return err
 }
 
-// NextDocker is the command that waits for the feed's next word.
-func NextDocker(f *DockerFeed) tea.Cmd {
-	if f == nil {
-		return nil
-	}
-	return func() tea.Msg { return <-f.Msgs }
+// Next waits for the feed's next word.
+func (f *DockerFeed) Next() DockerList {
+	return <-f.Lists
 }
 
 // Ask asks the feed to list again now, without waiting for an event to
@@ -242,14 +234,14 @@ func (f *DockerFeed) follow(lines, ended chan struct{}) bool {
 // docker has said.
 func (f *DockerFeed) tell() {
 	cs, stalled := f.List()
-	msg := DockerMsg{Containers: cs, Stalled: stalled}
+	list := DockerList{Containers: cs, Stalled: stalled}
 	select {
-	case f.Msgs <- msg:
+	case f.Lists <- list:
 	default:
 		select {
-		case <-f.Msgs:
+		case <-f.Lists:
 		default:
 		}
-		f.Msgs <- msg
+		f.Lists <- list
 	}
 }

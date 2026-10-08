@@ -386,9 +386,9 @@ func (m model) rooted(r rooting) model {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{readStation(m.survey.gen), work.StartDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
+	cmds := []tea.Cmd{readStation(m.survey.gen), startDocker, m.nextStage(), nextSecond(m.now), m.nextBlink()}
 	if work.BrewPath != "" {
-		cmds = append(cmds, work.NextBrew())
+		cmds = append(cmds, nextBrew())
 	}
 	if m.inside {
 		// The panel names the build it runs, which is how a conn of
@@ -736,34 +736,34 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		}
 		m.processesGen++
 		return m, m.readProcesses()
-	case work.DockerReadyMsg:
+	case dockerReadyMsg:
 		// The feed is running; from here conn waits on its word rather
 		// than asking docker anything on a beat.
-		m.dockerFeed = msg.Feed
-		return m, work.NextDocker(m.dockerFeed)
-	case work.DockerMsg:
+		m.dockerFeed = msg.feed
+		return m, nextDocker(m.dockerFeed)
+	case dockerMsg:
 		// Docker's word, held for the next reading to merge. The rows
 		// are drawn again at once rather than on the next beat, which is
 		// the whole point of a feed: a container is on its row as it
 		// starts, not up to two seconds later.
 		m.containers, m.dockerStalled = msg.Containers, msg.Stalled
 		m.processesGen++
-		return m, tea.Batch(m.readProcesses(), work.NextDocker(m.dockerFeed))
-	case work.BrewTickMsg:
+		return m, tea.Batch(m.readProcesses(), nextDocker(m.dockerFeed))
+	case brewTickMsg:
 		// Brew is asked only while some project declares a service of
 		// its own; otherwise the beat passes.
 		if work.BrewDeclared(m.declared) {
-			return m, work.ReadBrew
+			return m, readBrew
 		}
-		return m, work.NextBrew()
-	case work.BrewMsg:
+		return m, nextBrew()
+	case brewMsg:
 		// Brew's word, drawn again at once, as docker's is. An answer
 		// that failed leaves what it last said standing.
-		if msg.Err == nil {
-			m.brews = msg.Services
+		if msg.err == nil {
+			m.brews = msg.services
 		}
 		m.processesGen++
-		return m, tea.Batch(m.readProcesses(), work.NextBrew())
+		return m, tea.Batch(m.readProcesses(), nextBrew())
 	case detourMsg:
 		// The page is up, and no row is under the cursor while it is;
 		// see detour. Where the cursor was is kept, so j and k carry on

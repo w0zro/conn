@@ -6,8 +6,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 func (s watchedStream) Close() error {
@@ -79,10 +77,10 @@ func TestClosingTheFeedLetsGoOfTheStream(t *testing.T) {
 	closed := make(chan struct{})
 	r, _ := io.Pipe()
 	f := &DockerFeed{
-		Msgs: make(chan tea.Msg, 1),
-		Poke: make(chan struct{}, 1),
-		Stop: make(chan struct{}),
-		Done: make(chan struct{}),
+		Lists: make(chan DockerList, 1),
+		Poke:  make(chan struct{}, 1),
+		Stop:  make(chan struct{}),
+		Done:  make(chan struct{}),
 		Events: func(context.Context) (io.ReadCloser, error) {
 			opened.Add(1)
 			return watchedStream{ReadCloser: r, closed: closed}, nil
@@ -154,10 +152,10 @@ func pacedFeed(t *testing.T, opened *atomic.Int32, list func() ([]Container, boo
 	}
 	r, w := io.Pipe()
 	f := &DockerFeed{
-		Msgs: make(chan tea.Msg, 1),
-		Poke: make(chan struct{}, 1),
-		Stop: make(chan struct{}),
-		Done: make(chan struct{}),
+		Lists: make(chan DockerList, 1),
+		Poke:  make(chan struct{}, 1),
+		Stop:  make(chan struct{}),
+		Done:  make(chan struct{}),
 		Events: func(context.Context) (io.ReadCloser, error) {
 			opened.Add(1)
 			return r, nil
@@ -173,14 +171,14 @@ func pacedFeed(t *testing.T, opened *atomic.Int32, list func() ([]Container, boo
 }
 
 // waitFor takes the feed's next word, or fails.
-func waitFor(t *testing.T, f *DockerFeed, what string) DockerMsg {
+func waitFor(t *testing.T, f *DockerFeed, what string) DockerList {
 	t.Helper()
 	select {
-	case msg := <-f.Msgs:
-		return msg.(DockerMsg)
+	case list := <-f.Lists:
+		return list
 	case <-time.After(2 * time.Second):
 		t.Fatalf("waited for %s", what)
-		return DockerMsg{}
+		return DockerList{}
 	}
 }
 

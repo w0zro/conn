@@ -426,7 +426,7 @@ func (m model) watchBrew(e work.Entry) tea.Cmd {
 func (m model) startBrew(formula string) tea.Cmd {
 	return func() tea.Msg {
 		_, _ = work.BrewSays(work.BrewWait, "services", "start", formula)
-		return work.ReadBrew()
+		return readBrew()
 	}
 }
 

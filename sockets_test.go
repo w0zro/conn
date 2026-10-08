@@ -11,7 +11,8 @@ import (
 
 // The page says what a row has open: what it listens on first, then
 // what it is connected to, then its unix sockets, each kind labelled
-// once; a row with nothing open has no such group.
+// once; a row with nothing open has no such group. A client connected
+// to a port it listens on is counted on that port's line, not listed.
 func TestThePageSaysWhatARowListensOn(t *testing.T) {
 	// A run's page, which is the groups; a contact's is the sheet, and
 	// a contact has nothing open to the world worth its page.
@@ -24,7 +25,7 @@ func TestThePageSaysWhatARowListensOn(t *testing.T) {
 		{Proto: "unix", Addr: "/tmp/dev.sock", State: ""},
 	}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, draw.Plain))
-	for _, want := range []string{"SOCKETS", "Listens ... TCP *:5173", "Connected . TCP 127.0.0.1:5173->127.0.0.1:60322", "Unix ...... /tmp/dev.sock"} {
+	for _, want := range []string{"SOCKETS", "Listens ... TCP *:5173 · 1 client", "Unix ...... /tmp/dev.sock"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page lacks %q:\n%s", want, text)
 		}
@@ -38,6 +39,45 @@ func TestThePageSaysWhatARowListensOn(t *testing.T) {
 	s.entry.Sockets = nil
 	if quiet := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, draw.Plain)); strings.Contains(quiet, "SOCKETS") {
 		t.Errorf("a row with nothing open has a sockets group:\n%s", quiet)
+	}
+}
+
+// Connections are counted, not listed. Clients on a port the process
+// listens on are said on that port's line, however many addresses it is
+// bound on, once; connections the process made are said by where they
+// go, one line a place, the kernel's local port left off; one in a
+// state of its own stands apart from the established ones beside it.
+func TestThePageCountsConnections(t *testing.T) {
+	s := readoutSubj()
+	s.entry.Kind, s.entry.Command, s.entry.Typed = work.KindRun, "node server", ""
+	s.entry.Sockets = []work.Socket{
+		{Proto: "TCP", Addr: "*:3000", State: "LISTEN"},
+		{Proto: "TCP", Addr: "[::1]:3000", State: "LISTEN"},
+		{Proto: "TCP", Addr: "127.0.0.1:3000->127.0.0.1:61001", State: "ESTABLISHED"},
+		{Proto: "TCP", Addr: "127.0.0.1:3000->127.0.0.1:61002", State: "ESTABLISHED"},
+		{Proto: "TCP", Addr: "[::1]:3000->[::1]:61003", State: "ESTABLISHED"},
+		{Proto: "TCP", Addr: "127.0.0.1:52001->127.0.0.1:5432", State: "ESTABLISHED"},
+		{Proto: "TCP", Addr: "127.0.0.1:52002->127.0.0.1:5432", State: "ESTABLISHED"},
+		{Proto: "TCP", Addr: "127.0.0.1:52003->127.0.0.1:5432", State: "ESTABLISHED"},
+		{Proto: "TCP", Addr: "127.0.0.1:52004->127.0.0.1:5432", State: "CLOSE_WAIT"},
+		{Proto: "TCP", Addr: "10.0.0.5:52005->140.82.112.3:443", State: "ESTABLISHED"},
+	}
+	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, draw.Plain))
+	for _, want := range []string{
+		"Listens ... TCP *:3000 · 3 clients",
+		"            TCP [::1]:3000\n",
+		"Connected . TCP 127.0.0.1:5432 · 3 connections",
+		"            TCP 127.0.0.1:5432 · close_wait\n",
+		"            TCP 140.82.112.3:443\n",
+	} {
+		if !strings.Contains(text+"\n", want) {
+			t.Errorf("the page lacks %q:\n%s", want, text)
+		}
+	}
+	for _, gone := range []string{"61001", "52001", "->"} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the page lists a connection by its port %q:\n%s", gone, text)
+		}
 	}
 }
 

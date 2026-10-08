@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -387,12 +388,34 @@ func composeBrewPage(b readoutReport, e work.Entry, svc *brew.Service, p room.Pa
 	return b
 }
 
-// socketGroup is what a row has open to the world, each socket a
-// line: the ones that listen first, then the connections, then the
-// unix sockets, the label given once for each kind.
+// socketGroup is what a row has open to the world, a line to each
+// thing: what it listens on first, then where it is connected to, then
+// the unix sockets it holds, the label given once for each kind.
+//
+// Connections are counted, not listed. One a client made to a port the
+// process listens on is said on that port's line, as how many clients
+// it has: a dev server with a browser and its reloader on it has two,
+// and two lines of ephemeral ports said nothing more. One the process
+// made itself is said by where it goes, once however many it holds
+// there: a pool of twelve to a database is one line that says twelve,
+// and the local end, a port the kernel picked, is left off. A
+// connection in a state other than established says the state, apart
+// from the established ones to the same place.
 func socketGroup(sockets []work.Socket) readoutGroup {
 	g := readoutGroup{title: "SOCKETS"}
-	var listens, connected, unix []string
+	var listens, unix []string
+	clients := map[string]int{} // by the port listened on
+	listening := map[string]bool{}
+	for _, s := range sockets {
+		if s.Proto == "TCP" && s.Listening() {
+			if _, port, err := net.SplitHostPort(s.Addr); err == nil {
+				listening[port] = true
+			}
+		}
+	}
+	type away struct{ proto, remote, state string }
+	var order []away
+	held := map[away]int{}
 	for _, s := range sockets {
 		switch {
 		case s.Proto == "unix":
@@ -400,8 +423,37 @@ func socketGroup(sockets []work.Socket) readoutGroup {
 		case s.Listening():
 			listens = append(listens, s.String())
 		case s.Proto == "TCP":
-			connected = append(connected, s.String())
+			local, remote, ok := strings.Cut(s.Addr, "->")
+			if !ok {
+				continue
+			}
+			if _, port, err := net.SplitHostPort(local); err == nil && listening[port] && s.State == "ESTABLISHED" {
+				clients[port]++
+				continue
+			}
+			k := away{s.Proto, remote, s.State}
+			if held[k] == 0 {
+				order = append(order, k)
+			}
+			held[k]++
 		}
+	}
+	for i, l := range listens {
+		if _, port, err := net.SplitHostPort(strings.TrimPrefix(l, "TCP ")); err == nil && strings.HasPrefix(l, "TCP ") && clients[port] > 0 {
+			listens[i] = l + " · " + plural(clients[port], "client", "clients")
+			clients[port] = 0 // said once, on the first address it is bound on
+		}
+	}
+	var connected []string
+	for _, k := range order {
+		line := k.proto + " " + k.remote
+		if k.state != "" && k.state != "ESTABLISHED" {
+			line += " · " + strings.ToLower(k.state)
+		}
+		if n := held[k]; n > 1 {
+			line += " · " + plural(n, "connection", "connections")
+		}
+		connected = append(connected, line)
 	}
 	for _, kind := range []struct {
 		label string

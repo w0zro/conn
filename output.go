@@ -418,7 +418,7 @@ func around(text string, at, room int) (string, int) {
 	return draw.Fit("…"+kept, room, false), len("…") + len(string(r[lead-8:lead]))
 }
 
-// plural is a figure and its noun: 1 LINE, 2 LINES.
+// plural is a figure and its noun: 1 LINE, 2 LINES; 1 client, 3 clients.
 func plural(n int, one, many string) string {
 	if n == 1 {
 		return "1 " + one

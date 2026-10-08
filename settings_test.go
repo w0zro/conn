@@ -256,7 +256,7 @@ func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 // machine beside them, and holds no row under the cursor, the keys
 // being in the other pane.
 func TestTheCommaOpensTheSettings(t *testing.T) {
-	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: room.New(&tmux.Server{})}
+	m := model{processesView: processesView{cursor: 4321}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{})}
 	next, cmd := m.key(",")
 	m = next
 	if m.detour.to != toSettings || cmd == nil {
@@ -317,7 +317,7 @@ func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 // about while they stand, and follow would hand one back on the beat.
 func TestTheReadingLeavesTheCursorAloneWhileSetting(t *testing.T) {
 	projects := []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}}}}
-	m := model{reading: reading{projects: projects}, view: viewProcesses, inside: true, cursor: 0}
+	m := model{processesView: processesView{cursor: 0}, reading: reading{projects: projects}, view: viewProcesses, inside: true}
 	up := processesMsg{reading: reading{projects: projects}, gen: m.processesGen, bayDetour: toSettings}
 	next, _ := m.Update(up)
 	if got := next.(model); got.cursor != 0 || got.detour.to != toSettings {

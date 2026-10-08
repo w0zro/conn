@@ -82,6 +82,24 @@ type processRow struct {
 	heavy                             string   // what a contact past HeavyContext carries, as the row stamps it
 }
 
+// The processes view's own state, past the reading it shows: the row
+// the cursor is on, by its pid, and where in the rows it stood, for
+// when the pid goes; the subject last published for the page to
+// follow; whether the view shows the processes whole, as read, where
+// at rest it shows the fold of them; a process conn has just started,
+// which the cursor goes to once the reading has it; why the table
+// could not be read, where it could not; and which stay in the view
+// the ticks belong to.
+type processesView struct {
+	cursor       int
+	cursorAt     int
+	told         subject
+	full         bool
+	awaited      awaited
+	processesErr string
+	processesGen int
+}
+
 // headOf is the first row of a terminal in the projects as read: the
 // process its pane was opened on, which everything else in that pane
 // hangs under. It is what the bay's mark goes on and what the cursor

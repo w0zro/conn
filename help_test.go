@@ -70,7 +70,7 @@ func TestTheManualIsWrittenWhereManCanReadIt(t *testing.T) {
 // is under the cursor: the manual is not a process, so there is no row
 // these keys are about.
 func TestTheManualPutsThePanelInHelp(t *testing.T) {
-	m := model{view: viewProcesses, cursor: 4321, inside: true}
+	m := model{processesView: processesView{cursor: 4321}, view: viewProcesses, inside: true}
 	if got := m.keys(); !strings.Contains(got, wordmarkLine) {
 		t.Fatalf("a panel with no manual up says %q", got)
 	}
@@ -118,7 +118,7 @@ func TestHelpIsThePanelsWordOnlyInTheProcessesView(t *testing.T) {
 // cursor came back on the next beat, a couple of seconds later.
 func TestTheReadingLeavesTheCursorAloneWhileHelping(t *testing.T) {
 	projects := []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}}}}
-	m := model{reading: reading{projects: projects}, view: viewProcesses, inside: true, cursor: 0}
+	m := model{processesView: processesView{cursor: 0}, reading: reading{projects: projects}, view: viewProcesses, inside: true}
 	// A reading that finds the manual in the workspace: conn is helping,
 	// and the cursor it was told to let go of stays let go.
 	up := processesMsg{reading: reading{projects: projects}, gen: m.processesGen, bayDetour: toManual}
@@ -328,8 +328,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 	projects := []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}, {PID: 33, TTY: "ttys003"},
 	}}}
-	m := model{reading: reading{projects: projects}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}),
-		cursor: 22, cursorAt: 1}
+	m := model{processesView: processesView{cursor: 22, cursorAt: 1}, reading: reading{projects: projects}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{})}
 	next, _ := m.key("?")
 	m = next
 	if m.cursor != 0 {

@@ -220,9 +220,8 @@ type model struct {
 	// What the panel last read of the machine, which a reading replaces
 	// whole.
 	reading
-	cursor   int     // the pid the cursor is on
-	cursorAt int     // where in the rows it was, for when the pid goes
-	told     subject // the subject as last published for the readout to follow
+	// The processes view's own state.
+	processesView
 	// The manual or the settings, where one is the thing in the
 	// workspace; see detour.go.
 	detour detour
@@ -242,16 +241,13 @@ type model struct {
 	// panel, and the fresh conn inherits whatever the last one left — so
 	// nil means "not written yet", not "the server says nothing", and
 	// the first writing goes out whatever it holds.
-	said         *band
-	awaited      awaited // a process conn has just started, which the cursor goes to
-	processesErr string
+	said *band
 	// What the server would not do, in its own words, said under the
 	// rows until the next key. A shell that could not be opened left
 	// nothing on the screen at all: the operator pressed a key and
 	// nothing happened, which is the one thing conn should never leave
 	// them with.
-	notice       string
-	processesGen int // which stay in the processes view the ticks belong to
+	notice string
 	// The pane the keys were in when the panel key brought them here
 	// and a detour was begun with the next key, for a view there is
 	// something to cancel out of. Blank where the keys were already
@@ -307,10 +303,7 @@ type model struct {
 	// merges what is already here and never waits on the daemon; stalled
 	// is docker having gone quiet, which the view admits rather than
 	// showing yesterday's rows as though they were today's.
-	containers []docker.Container
-	// Whether the view shows the processes whole, as read: at rest it
-	// shows the fold of them; see fold.go.
-	full          bool
+	containers    []docker.Container
 	up            time.Time // when this conn came up, for the band's clock
 	dockerFeed    *docker.Feed
 	dockerStalled bool

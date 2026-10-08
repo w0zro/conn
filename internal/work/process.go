@@ -171,6 +171,19 @@ type Status struct {
 	Since time.Time
 }
 
+// A Source is where a row comes from: a process of this machine, a
+// container docker holds up, a service brew holds up, or a process a
+// project's .conn declares, up or down. It says what the keys do on
+// the row, since each is ended, brought up and gone into its own way.
+type Source int
+
+const (
+	FromProcess Source = iota
+	FromContainer
+	FromBrew
+	FromDeclared
+)
+
 // An Entry is a row of the processes view: one process, standing for
 // its own work, at its project in the tree the processes it is among
 // actually are.
@@ -1009,4 +1022,18 @@ func BlockOf(out []Project, path string) int {
 		}
 	}
 	return -1
+}
+
+// Source is where the row comes from. A brew service is a declaration
+// too, and is a service first: brew holds it, not a pane.
+func (e Entry) Source() Source {
+	switch {
+	case e.Brew != "":
+		return FromBrew
+	case e.Container != "":
+		return FromContainer
+	case e.Declared != "":
+		return FromDeclared
+	}
+	return FromProcess
 }

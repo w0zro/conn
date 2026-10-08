@@ -116,17 +116,17 @@ func (l *Line) Activity(color, portsColor, command string, ports []string, width
 	l.Add(color, Fit(command, width, false))
 }
 
-// Stamp is a word knocked out of the accent — WAITING, and how long it
-// has been. It is the one piece that is read before it is read: a block
-// of color in a row of text is seen first and understood after.
+// Stamp is a word knocked out of the accent's block — WAITING, and how
+// long it has been. It is the one piece that is read before it is read:
+// a block of color in a row of text is seen first and understood after.
 func (l *Line) Stamp(s string) {
 	if l.P.Plain {
 		l.Add(l.P.Chip, " "+s+" ")
 		return
 	}
-	l.Add(l.P.Orange, stampLeft)
+	l.Add(l.P.blockEnd, stampLeft)
 	l.Add(l.P.Chip, " "+s+" ")
-	l.Add(l.P.Orange, stampRight)
+	l.Add(l.P.blockEnd, stampRight)
 }
 
 // StampWidth is the cells a stamp takes, for a caller placing one

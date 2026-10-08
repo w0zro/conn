@@ -782,6 +782,7 @@ func (s *Server) FocusPanel() error {
 // conn's; this package only writes it down in tmux's words.
 type Dress struct {
 	Ground, Ink, Accent, Border, Gray, Surface string
+	Block, OnBlock                             string // the accent as a fill, and the letters on it
 	Scheme                                     []string
 	CopyBand, CopyBar                          string
 }
@@ -902,12 +903,12 @@ func confLook(d Dress) string {
 	fmt.Fprintf(&b, "set-hook -g pane-mode-changed \"run-shell -b -d 0 -C \\\"set -p -t '#{hook_pane}' cursor-colour '%s' ; set -pu -t '#{hook_pane}' cursor-colour\\\"\"\n", d.Accent)
 	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", d.Border, ink)
 	// A search's matches, in copy mode: every saying of the text in a
-	// quiet mark, and the one the cursor is on in the accent, the way
-	// the cursor is everywhere else. tmux's own are a cyan and a
-	// magenta, which would be the two colors on the station that are
+	// quiet mark, and the one the cursor is on in the accent's block,
+	// the way the cursor is everywhere else. tmux's own are a cyan and
+	// a magenta, which would be the two colors on the station that are
 	// nobody's.
 	fmt.Fprintf(&b, "set -g copy-mode-match-style \"bg=%s,fg=%s\"\n", d.Gray, ground)
-	fmt.Fprintf(&b, "set -g copy-mode-current-match-style \"bg=%s,fg=%s,bold\"\n", d.Accent, ground)
+	fmt.Fprintf(&b, "set -g copy-mode-current-match-style \"bg=%s,fg=%s,bold\"\n", d.Block, d.OnBlock)
 	for i, c := range d.Scheme {
 		fmt.Fprintf(&b, "set -g pane-colours[%d] \"%s\"\n", i, c)
 	}

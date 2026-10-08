@@ -21,6 +21,7 @@ import (
 func dressOf(g theme.Ground) room.Dress {
 	return room.Dress{
 		Ground: theme.Hex(g.Ground), Ink: theme.Hex(g.Ink), Accent: g.Accent,
+		Block: g.Block, OnBlock: g.OnBlock,
 		Border: g.Border, Gray: g.Gray, Surface: g.Surface,
 		Scheme:   g.Scheme[:],
 		CopyBand: statusBlock("COPY", g),
@@ -139,7 +140,7 @@ func statusBlock(word string, g theme.Ground) string {
 	if word == "" {
 		return ""
 	}
-	return tmux.Styled(tmux.Style{FG: theme.Hex(g.Ground), BG: g.Accent, Bold: true}, " "+word+" ")
+	return tmux.Styled(tmux.Style{FG: g.OnBlock, BG: g.Block, Bold: true}, " "+word+" ")
 }
 
 // statusSay is what conn says on the key bar in words, a question

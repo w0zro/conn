@@ -37,6 +37,13 @@ type Ground struct {
 	Faint     string // the quietest text: a leader, a hint, a line number
 	Parchment string // the second ink: a title, punctuation, what conn says on the status line
 
+	// The accent as a block - a stamp, a chip, the mode on the status
+	// line, the match copy mode is on - and the letters knocked into
+	// it. Most themes fill with the accent itself and knock the ground
+	// out of it; a theme whose fill is too pale for the ground's
+	// letters says so here, and writes its letters in ink instead.
+	Block, OnBlock string
+
 	// The grounds no slot has a name for: the band behind what you said
 	// to Claude Code, at rest and under the pointer; the bar behind a
 	// tool's output, which is also the step off the ground a colorscheme
@@ -181,6 +188,8 @@ var Conn = theme{
 		Gray:      "#8B8272",
 		Faint:     "#5C564A",
 		Parchment: "#BFB39A",
+		Block:     "#E85D2F",
+		OnBlock:   "#15130F",
 
 		MessageBg:       "#2A2620",
 		MessageHoverBg:  "#33302A",
@@ -221,6 +230,8 @@ var Conn = theme{
 		Gray:      "#6F6656",
 		Faint:     "#867C6A",
 		Parchment: "#4A4335",
+		Block:     "#BD3A1D",
+		OnBlock:   "#EFE9DB",
 
 		MessageBg:       "#D8D0BD",
 		MessageHoverBg:  "#CFC6B0",

@@ -70,6 +70,12 @@ func TestTheRolesReadOnEveryGround(t *testing.T) {
 						th.Name, on.name, r.name, r.hex, c, bg, r.least)
 				}
 			}
+			// A block is read for the word in it, so the letters take
+			// the ratio body text does against the fill they are on.
+			if c := contrast(g.OnBlock, g.Block); c < body {
+				t.Errorf("%s %s: the word in a block (%s on %s) is %.2f:1; %.1f:1 is what it takes",
+					th.Name, on.name, g.OnBlock, g.Block, c, body)
+			}
 			if contrast(g.Border, bg) >= contrast(Hex(g.Ink), bg) {
 				t.Errorf("%s %s: the border (%s) stands off the ground further than the ink does", th.Name, on.name, g.Border)
 			}

@@ -22,6 +22,7 @@ type Palette struct {
 	Surface                                                         string // one step off the ground: the panel's own
 	edge, Running, Struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
 	Selection                                                       string // the ground a chosen row sits on
+	blockEnd                                                        string // ink in the block's fill, for a stamp's rounded ends
 	well                                                            string // the ground under the surface, which a field is cut down to
 	Normal, End                                                     string // ink on the ground again; the row's end
 	Plain                                                           bool
@@ -54,7 +55,8 @@ func Colored(g theme.Ground) Palette {
 		Parchment: inkIn(g.Parchment),
 		Bold:      ansi.Style{}.Bold().String(),
 		Dim:       ansi.Style{}.Faint().String(),
-		Chip:      ansi.Style{}.BackgroundColor(theme.RGB(g.Accent)).ForegroundColor(g.Ground).Bold().String(),
+		Chip:      ansi.Style{}.BackgroundColor(theme.RGB(g.Block)).ForegroundColor(theme.RGB(g.OnBlock)).Bold().String(),
+		blockEnd:  inkIn(g.Block),
 		Selection: groundIn(g.Border),
 		Surface:   groundIn(g.Surface),
 		well:      groundIn(theme.Hex(g.Ground)),

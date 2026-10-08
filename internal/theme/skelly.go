@@ -40,6 +40,8 @@ var Skelly = theme{
 		Gray:      "#868C83", // --mute
 		Faint:     "#5D635A", // --faint
 		Parchment: "#AEB3AB", // --fg-2
+		Block:     "#B9F27C", // --acc
+		OnBlock:   "#101211", // --acc-on
 
 		MessageBg:       "#1F2320", // --surface-active
 		MessageHoverBg:  "#262A27", // --line
@@ -72,7 +74,7 @@ var Skelly = theme{
 			"#0A5753", // bright cyan
 			"#151814", // --fg
 		},
-		Accent:    "#3F6B12", // --acc-text: the phosphor as ink, since a block knocks the ground out of it
+		Accent:    "#3F6B12", // --acc-text: the phosphor as ink, which the ground would wash out
 		Shimmer:   "#26440A", // --sel-fg: on paper, more ink
 		Border:    "#D5D9D1", // --line
 		Surface:   "#E3E6DF", // --bg-sidebar
@@ -80,6 +82,8 @@ var Skelly = theme{
 		Gray:      "#646A60", // --mute
 		Faint:     "#7A8075", // --faint
 		Parchment: "#434840", // --fg-2
+		Block:     "#9BE05A", // --acc: the fill skelly's buttons and badges are
+		OnBlock:   "#151814", // --acc-on: ink, since the fill is too pale for the ground
 
 		MessageBg:       "#DDE1D8", // --surface-active
 		MessageHoverBg:  "#D5D9D1", // --line

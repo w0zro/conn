@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/work"
 )
 
@@ -114,7 +114,7 @@ func InsideNote(socket string) string {
 // Command is what conn runs to start a contact: the program,
 // told where it is.
 func Command(socket string) string {
-	return Program + " --append-system-prompt " + tmux.ShellQuote(InsideNote(socket))
+	return Program + " --append-system-prompt " + shell.Quote(InsideNote(socket))
 }
 
 // ResumeCommand is the command that picks a suspended session back

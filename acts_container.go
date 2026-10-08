@@ -3,7 +3,7 @@ package main
 import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/w0zro/conn/internal/room"
-	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/docker"
 )
@@ -26,7 +26,7 @@ import (
 // the pane waits, and the last words stay up to be read.
 func (m model) watchContainer(e work.Entry) tea.Cmd {
 	srv, dir, id := m.srv, e.Cwd, e.Container
-	cmd := tmux.ShellQuote(docker.Path) + " logs --tail 2000 --follow " + tmux.ShellQuote(id) + " 2>&1; " + tmux.HoldOpen
+	cmd := shell.Quote(docker.Path) + " logs --tail 2000 --follow " + shell.Quote(id) + " 2>&1; " + shell.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenWatching(dir, cmd, id)
 		if err != nil {
@@ -52,8 +52,8 @@ func (m model) watchContainer(e work.Entry) tea.Cmd {
 // typed and looked for all the world like a shell that had hung.
 func (m model) shellInContainer(e work.Entry) tea.Cmd {
 	srv, dir, id := m.srv, e.Cwd, e.Container
-	cmd := tmux.ShellQuote(docker.Path) + " exec -it " + tmux.ShellQuote(id) + " sh -c " +
-		tmux.ShellQuote(pickShell) + " 2>&1 || " + tmux.HoldOpen
+	cmd := shell.Quote(docker.Path) + " exec -it " + shell.Quote(id) + " sh -c " +
+		shell.Quote(pickShell) + " 2>&1 || " + shell.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenShellIn(dir, cmd, id)
 		if err != nil {

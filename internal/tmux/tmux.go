@@ -354,11 +354,6 @@ func (s *Server) Detach() error {
 	return err
 }
 
-// ShellQuote quotes a path for a tmux command line.
-func ShellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
 // A Window of the server, for the report of what conn down ends: its
 // name and the directory its pane is in.
 type Window struct {
@@ -401,14 +396,3 @@ func (s *Server) Down() error {
 	_, err := s.Run("kill-server")
 	return err
 }
-
-// HoldOpen keeps a pane standing after what it was opened for has
-// finished. cat with nothing to read waits on the terminal for as long
-// as the pane is there, which is exactly as long as wanted: the operator
-// leaves by going somewhere else, and the pane goes when its work is
-// replaced in the workspace.
-//
-// It is for a pane with something left to read in it — a log that ended,
-// an error docker printed. A pane whose work is over and has left
-// nothing behind should go, and a shell is that.
-const HoldOpen = "exec cat"

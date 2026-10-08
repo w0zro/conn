@@ -14,6 +14,7 @@ import (
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/declared"
@@ -87,7 +88,7 @@ func startScratch(t *testing.T) *scratch {
 	config := filepath.Join(dir, "config")
 	t.Setenv("XDG_CONFIG_HOME", config)
 	cmd := exec.Command(tmuxBin, "-S", s.srv.Socket, "-f", conf, "new-session", "-d", "-x", "160", "-y", "40",
-		"-s", room.SessionName, "-n", room.HomeWindow, "-c", home, "exec "+tmux.ShellQuote(bin))
+		"-s", room.SessionName, "-n", room.HomeWindow, "-c", home, "exec "+shell.Quote(bin))
 	cmd.Env = append(tmux.WithoutTmux(os.Environ()),
 		"CONN_SOCKET="+s.srv.Socket, "XDG_STATE_HOME="+filepath.Join(dir, "state"),
 		"XDG_CONFIG_HOME="+config, "CONN_ROOTS="+home,
@@ -1515,7 +1516,7 @@ func TestAnAttachStartsADeadPanelAgain(t *testing.T) {
 		return s.display("#{pane_width}") == panelW && strings.Contains(s.panes(), "home.1:conn:")
 	})
 	gone := filepath.Join(s.dir, "gone")
-	if _, err := s.tm.Run("respawn-pane", "-k", "-t", room.SessionName+":"+room.HomeWindow+".0", "exec "+tmux.ShellQuote(gone)); err != nil {
+	if _, err := s.tm.Run("respawn-pane", "-k", "-t", room.SessionName+":"+room.HomeWindow+".0", "exec "+shell.Quote(gone)); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the panel to have died", func() bool { return s.display("#{pane_dead}") == "1" })

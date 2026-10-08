@@ -3,7 +3,7 @@ package main
 import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/w0zro/conn/internal/room"
-	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/brew"
 )
@@ -21,7 +21,7 @@ func (m model) watchBrew(e work.Entry) tea.Cmd {
 		return nil
 	}
 	srv, dir, formula, log := m.srv, e.Cwd, e.Brew, svc.Log
-	cmd := "tail -n 2000 -f " + tmux.ShellQuote(log) + " 2>&1; " + tmux.HoldOpen
+	cmd := "tail -n 2000 -f " + shell.Quote(log) + " 2>&1; " + shell.HoldOpen
 	return func() tea.Msg {
 		sh, err := srv.OpenWatching(dir, cmd, brew.Mark(formula))
 		if err != nil {

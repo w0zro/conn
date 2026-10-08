@@ -5,14 +5,13 @@ import (
 	"strings"
 
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
 	"github.com/w0zro/conn/internal/work/docker"
 
 	"github.com/w0zro/conn/internal/station"
-
-	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -173,7 +172,7 @@ func (m model) openClient(e work.Entry, p *knownProgram, dir string) tea.Cmd {
 			if user == "" {
 				user = p.user
 			}
-			cmd := tmux.ShellQuote(docker.Path) + " exec -it " + tmux.ShellQuote(id) + " " + p.inContainer(user) + " 2>&1 || " + tmux.HoldOpen
+			cmd := shell.Quote(docker.Path) + " exec -it " + shell.Quote(id) + " " + p.inContainer(user) + " 2>&1 || " + shell.HoldOpen
 			sh, err := srv.OpenShellIn(dir, cmd, id)
 			if err != nil {
 				return nil
@@ -197,7 +196,7 @@ func (m model) openClient(e work.Entry, p *knownProgram, dir string) tea.Cmd {
 		if client == "" {
 			return noticeMsg{p.client + " was not found on the path"}
 		}
-		cmd := tmux.ShellQuote(client) + " " + p.args(port) + " 2>&1 || " + tmux.HoldOpen
+		cmd := shell.Quote(client) + " " + p.args(port) + " 2>&1 || " + shell.HoldOpen
 		sh, err := srv.OpenCmd(dir, cmd)
 		if err != nil {
 			return noticeMsg{"the session could not be opened: " + err.Error()}

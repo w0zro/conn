@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/theme"
-	"github.com/w0zro/conn/internal/tmux"
 )
 
 // The server's dress, as conn chooses it on a ground, and the words of
@@ -70,7 +70,7 @@ func TestTheConfigurationHolds(t *testing.T) {
 	if room.PanelKey() != "C-a" {
 		t.Errorf("key from the environment: %q", room.PanelKey())
 	}
-	if got := tmux.ShellQuote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
+	if got := shell.Quote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
 		t.Errorf("quoted: %s", got)
 	}
 }

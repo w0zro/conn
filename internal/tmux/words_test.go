@@ -8,19 +8,6 @@ import (
 // The pure parts of the package: what conn says to tmux and reads back
 // from it, held by tables, where the server tests hold the rest.
 
-func TestAPathIsQuotedForTheShell(t *testing.T) {
-	for in, want := range map[string]string{
-		"/Users/w0zro/projects":        "'/Users/w0zro/projects'",
-		"/Users/w0zro/SkellyLabs, Inc": "'/Users/w0zro/SkellyLabs, Inc'",
-		"/tmp/it's":                    `'/tmp/it'\''s'`,
-		"":                             "''",
-	} {
-		if got := ShellQuote(in); got != want {
-			t.Errorf("ShellQuote(%q) = %s, want %s", in, got, want)
-		}
-	}
-}
-
 func TestWindowsAreReadNameThenPath(t *testing.T) {
 	out := "home /Users/w0zro\nshell /Users/w0zro/projects/SkellyLabs, Inc\nbare\n\n"
 	want := []Window{{"home", "/Users/w0zro"}, {"shell", "/Users/w0zro/projects/SkellyLabs, Inc"}}

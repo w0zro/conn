@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/w0zro/conn/internal/config"
+	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -120,7 +121,7 @@ func (s *Server) Attach(self, home, conf, bg string) (int, error) {
 	if err := s.RestoreHome(home, self); err != nil {
 		return 0, err
 	}
-	return s.tmux.AttachClient(path, SessionName, HomeWindow, home, "exec "+tmux.ShellQuote(self))
+	return s.tmux.AttachClient(path, SessionName, HomeWindow, home, "exec "+shell.Quote(self))
 }
 
 // Rewear puts the server into a mode conn has just taken on. It is
@@ -202,7 +203,7 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 	if !panel {
 		return nil
 	}
-	_, err = s.tmux.Do(tmux.Respawn(panelTarget, "exec "+tmux.ShellQuote(self)))
+	_, err = s.tmux.Do(tmux.Respawn(panelTarget, "exec "+shell.Quote(self)))
 	return err
 }
 
@@ -213,7 +214,7 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 func (s *Server) respawnOwn(panes map[string]Pane, except, self string) error {
 	for _, p := range panes {
 		if p.Hold && p.ID != except {
-			if _, err := s.tmux.Do(tmux.Respawn(p.ID, "exec "+tmux.ShellQuote(self)+" "+ownCommand(p))); err != nil {
+			if _, err := s.tmux.Do(tmux.Respawn(p.ID, "exec "+shell.Quote(self)+" "+ownCommand(p))); err != nil {
 				return err
 			}
 		}
@@ -304,7 +305,7 @@ func (s *Server) Relieve(conf, self string) (bool, error) {
 	if !s.hasHome() {
 		return true, nil
 	}
-	_, err = s.tmux.Do(tmux.SetGlobal(resumeOption, "1"), tmux.Respawn(panelTarget, "exec "+tmux.ShellQuote(self)))
+	_, err = s.tmux.Do(tmux.SetGlobal(resumeOption, "1"), tmux.Respawn(panelTarget, "exec "+shell.Quote(self)))
 	return true, err
 }
 
@@ -342,12 +343,12 @@ func (s *Server) RestoreHome(home, self string) error {
 		return nil
 	}
 	if !s.hasHome() {
-		return s.tmux.NewNamedWindow(SessionName, HomeWindow, home, "exec "+tmux.ShellQuote(self))
+		return s.tmux.NewNamedWindow(SessionName, HomeWindow, home, "exec "+shell.Quote(self))
 	}
 	if !s.panelDead() {
 		return nil
 	}
-	_, err := s.tmux.Do(tmux.Respawn(panelTarget, "exec "+tmux.ShellQuote(self)))
+	_, err := s.tmux.Do(tmux.Respawn(panelTarget, "exec "+shell.Quote(self)))
 	return err
 }
 
@@ -434,7 +435,7 @@ func (s *Server) split(home, self string) error {
 	} else if ok {
 		return nil
 	}
-	id, err := s.tmux.SplitRight(s.Panel(), home, "exec "+tmux.ShellQuote(self)+" hold")
+	id, err := s.tmux.SplitRight(s.Panel(), home, "exec "+shell.Quote(self)+" hold")
 	if err != nil {
 		return err
 	}
@@ -485,7 +486,7 @@ func (s *Server) ReviveBay(home, self string) error {
 // about the window's layout moves, and the panel never has to give up
 // its width and take it back.
 func (s *Server) holdBay(home, self string, bay Pane) error {
-	sh, err := s.tmux.NewWindow(home, "exec "+tmux.ShellQuote(self)+" hold")
+	sh, err := s.tmux.NewWindow(home, "exec "+shell.Quote(self)+" hold")
 	if err != nil {
 		return err
 	}
@@ -546,7 +547,7 @@ func (s *Server) ShowSettings(home, self string) error {
 func (s *Server) showOwn(home, self, cmd, mark string, keys bool) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
-	sh, err := s.tmux.NewWindow(home, "exec "+tmux.ShellQuote(self)+" "+cmd)
+	sh, err := s.tmux.NewWindow(home, "exec "+shell.Quote(self)+" "+cmd)
 	if err != nil {
 		return err
 	}
@@ -730,9 +731,9 @@ func (s *Server) RaiseDeclared(dir, command, name, mark, replace string, show bo
 // server counts as current, which is not this one.
 func declaredLine(command, name, bin string) string {
 	return command + "\n" +
-		tmux.ShellQuote(bin) + " set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$?\"\n" +
+		shell.Quote(bin) + " set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$?\"\n" +
 		"printf '\\n[" + name + " exited]\\n'\n" +
-		tmux.HoldOpen
+		shell.HoldOpen
 }
 
 // openMarked opens a pane running a command and sets one option on it,

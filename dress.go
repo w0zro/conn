@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -16,8 +17,8 @@ import (
 // in the ink, the cursor in the accent, a selection on the border, the
 // line on the border in the gray, and in copy mode the band's block and
 // tmux's own keys on the bar.
-func dressOf(g theme.Ground) tmux.Dress {
-	return tmux.Dress{
+func dressOf(g theme.Ground) room.Dress {
+	return room.Dress{
 		Ground: theme.Hex(g.Ground), Ink: theme.Hex(g.Ink), Accent: g.Accent,
 		Border: g.Border, Gray: g.Gray, Surface: g.Surface,
 		Scheme:   g.Scheme[:],
@@ -29,7 +30,7 @@ func dressOf(g theme.Ground) tmux.Dress {
 // serverConf is the server's configuration on a ground, with the panel
 // key the operator set.
 func serverConf(g theme.Ground) string {
-	return tmux.Conf(tmux.PanelKey(), dressOf(g))
+	return room.Conf(room.PanelKey(), dressOf(g))
 }
 
 // attach puts this terminal on the server, bringing it up if it is
@@ -43,7 +44,7 @@ func serverConf(g theme.Ground) string {
 // the other theme, where it stands, rather than keeping what it rose
 // in until conn down. Claude Code and vim are dressed to match before
 // anything in the server draws.
-func attach(srv *tmux.Server, self, home string, o theme.Override) (int, error) {
+func attach(srv *room.Server, self, home string, o theme.Override) (int, error) {
 	have, ok := theme.ReadModeFile(srv.Socket)
 	want, asked := have, false
 	switch {

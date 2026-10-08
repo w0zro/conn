@@ -6,9 +6,8 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-
-	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/theme"
 
@@ -17,8 +16,9 @@ import (
 
 // Across the foot of the window is the status line, which is tmux's
 // status line and an annunciator panel: dark until something conn's
-// keys are doing lights it. It is written in tmux.go; conn lights its
-// half through saying, here.
+// keys are doing lights it. Its shape is the server's configuration,
+// in internal/room, and its words are written in dress.go; conn lights
+// its half through saying, here.
 
 // saying puts what conn knows about its own keys on the status line,
 // when it has changed since the last telling. Going through here is the
@@ -185,7 +185,7 @@ func (m model) bar() string {
 	// and after it any key of the panel's. The bar says the key, and
 	// the pairs that matter most from there.
 	if m.inside && !m.focused && m.view != viewConsole {
-		px := keyWord(tmux.PanelKey())
+		px := keyWord(room.PanelKey())
 		hints := []keyHint{{px, "Panel"}}
 		if len(work.WaitingRound(m.projects)) > 0 {
 			hints = append(hints, keyHint{px + " tab", "Next waiting"})

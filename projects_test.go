@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -391,12 +392,12 @@ func TestTheFilterFindsWhatThePanelSays(t *testing.T) {
 func TestTheLiveListMatchesTheGolden(t *testing.T) {
 	b := composeProjects(testLive(), "", []string{"/Users/w0zro/projects"}, "/Users/w0zro", false, "")
 	golden(t, "projects-live-48x30.txt", texts(drawProjects(b, 9, 48, 30, draw.Plain)))
-	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, draw.Colored(theme.Conn.Dark)) {
-		if w := utf8.RuneCountInString(stripEscapes(r.Text)); w != tmux.PanelWidth {
-			t.Fatalf("a colored row paints %d columns, not %d:\n%q", w, tmux.PanelWidth, r.Text)
+	for _, r := range drawProjects(b, 9, room.PanelWidth, 30, draw.Colored(theme.Conn.Dark)) {
+		if w := utf8.RuneCountInString(stripEscapes(r.Text)); w != room.PanelWidth {
+			t.Fatalf("a colored row paints %d columns, not %d:\n%q", w, room.PanelWidth, r.Text)
 		}
 	}
-	for _, r := range drawProjects(b, 9, tmux.PanelWidth, 30, draw.Plain) {
+	for _, r := range drawProjects(b, 9, room.PanelWidth, 30, draw.Plain) {
 		if strings.Contains(r.Text, "WAITING") && !strings.Contains(r.Text, "CONTACT") {
 			t.Errorf("the block landed on its own row: %q", r.Text)
 		}
@@ -414,9 +415,9 @@ func TestTheProjectsViewSaysWhenConnHasNoRoots(t *testing.T) {
 	}
 	// The panel is what this is read in, and it is narrow. A chip wider
 	// than the pane it is drawn in runs off the edge.
-	for _, row := range drawProjects(b, 0, tmux.PanelWidth, 12, draw.Plain) {
-		if n := utf8.RuneCountInString(row.Text); n > tmux.PanelWidth {
-			t.Errorf("a row is %d wide in a %d panel: %q", n, tmux.PanelWidth, row.Text)
+	for _, row := range drawProjects(b, 0, room.PanelWidth, 12, draw.Plain) {
+		if n := utf8.RuneCountInString(row.Text); n > room.PanelWidth {
+			t.Errorf("a row is %d wide in a %d panel: %q", n, room.PanelWidth, row.Text)
 		}
 	}
 	// A walk that failed has its own words, and keeps them.

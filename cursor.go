@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -43,7 +44,7 @@ import (
 // neither moves the other's cursor.
 
 // cursorPath is where a server's panel publishes its cursor.
-func cursorPath(home string) string { return tmux.SocketPath(home) + ".cursor" }
+func cursorPath(home string) string { return room.SocketPath(home) + ".cursor" }
 
 // A subject is what the page is about: a process, by its pid; a
 // project, by its path; or a suspended session, by its id. The

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -19,7 +20,7 @@ import (
 func TestOIsOfferedWhereARowServes(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
 		{PID: 300, Kind: work.KindRun, Command: "node vite", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5173", "24678"}},
 		{PID: 301, Kind: work.KindRun, Command: "node build.js", Cwd: "/w/a", Status: work.StatusActive},

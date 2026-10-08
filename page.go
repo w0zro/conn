@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-
-	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -228,7 +227,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	}
 	switch {
 	case !s.inside:
-	case tmux.Reachable(s.pane):
+	case room.Reachable(s.pane):
 		add("Pane", s.pane.ID)
 	case s.pane.Dead:
 		add("Pane", s.pane.ID+" · ended")

@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -431,7 +432,7 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 	panel := func() model {
 		m := plainModel()
 		m.inside, m.view, m.focused = true, viewProcesses, true
-		m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+		m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 		m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 			{PID: 11, TTY: "ttys001"}, {PID: 12, TTY: "ttys002"},
 		}}}

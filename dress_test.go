@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -62,12 +63,12 @@ func TestTheConfigurationHolds(t *testing.T) {
 		t.Errorf("the panel key is not bound in the root table:\n%s", serverConfOn("C-a", g))
 	}
 	t.Setenv("CONN_KEY", "")
-	if tmux.PanelKey() != "C-Space" {
-		t.Errorf("default key: %q", tmux.PanelKey())
+	if room.PanelKey() != "C-Space" {
+		t.Errorf("default key: %q", room.PanelKey())
 	}
 	t.Setenv("CONN_KEY", "C-a")
-	if tmux.PanelKey() != "C-a" {
-		t.Errorf("key from the environment: %q", tmux.PanelKey())
+	if room.PanelKey() != "C-a" {
+		t.Errorf("key from the environment: %q", room.PanelKey())
 	}
 	if got := tmux.ShellQuote("/Users/o'brien/conn"); got != `'/Users/o'\''brien/conn'` {
 		t.Errorf("quoted: %s", got)
@@ -101,7 +102,7 @@ func TestTheTerminalIsAskedForItsPadding(t *testing.T) {
 // in both the normal colors and the bright.
 func TestTheSixteenAreSixteen(t *testing.T) {
 	scheme := theme.Conn.Dark.Scheme
-	conf := serverConfOn(tmux.DefaultKey, theme.Conn.Dark)
+	conf := serverConfOn(room.DefaultKey, theme.Conn.Dark)
 	for i, c := range scheme {
 		if want := fmt.Sprintf("set -g pane-colours[%d] %q", i, c); !strings.Contains(conf, want) {
 			t.Errorf("configuration lacks %q", want)
@@ -281,4 +282,4 @@ func TestTheKeyBarIsAKeyAndAWordEach(t *testing.T) {
 }
 
 // serverConfOn is the server's configuration with a given panel key.
-func serverConfOn(key string, g theme.Ground) string { return tmux.Conf(key, dressOf(g)) }
+func serverConfOn(key string, g theme.Ground) string { return room.Conf(key, dressOf(g)) }

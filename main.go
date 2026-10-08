@@ -9,6 +9,7 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/station"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -36,7 +37,7 @@ func dressProgram(args []string, home string, ask func(string) bool) (string, bo
 	// machine is running in, or would come up in if none is up yet - not
 	// an argument of its own, so it never drifts from what conn itself
 	// is dressed in.
-	g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
+	g := theme.ServerMode(room.SocketPath(home), home).Wear()
 	switch args[0] {
 	case "claude":
 		return dressClaude(home, ask, g)
@@ -129,8 +130,8 @@ func main() {
 		return
 	}
 	home, _ := os.UserHomeDir()
-	srv := tmux.Find(home)
-	inside := srv != nil && tmux.InsideConn(os.Getenv("TMUX"), srv.Socket)
+	srv := room.Find(home)
+	inside := srv != nil && room.InsideConn(os.Getenv("TMUX"), srv.Socket)
 	if srv != nil && !inside {
 		self, err := os.Executable()
 		if err == nil {
@@ -147,7 +148,7 @@ func main() {
 	}
 	// conn typed in a pane of the server, rather than the panel's own:
 	// the server is put on this build, and the pane is left as it was.
-	if inside && !srv.IsPanel(tmux.OwnPane()) {
+	if inside && !srv.IsPanel(room.OwnPane()) {
 		os.Exit(say(relieve(srv, home)))
 	}
 	// A pane of conn's own server draws in the mode the server already
@@ -204,7 +205,7 @@ type command struct {
 var commands = []command{
 	{"down", "take the server down, with everything in it", func([]string) int {
 		home, _ := os.UserHomeDir()
-		return say(takeDown(tmux.Find(home), home))
+		return say(takeDown(room.Find(home), home))
 	}},
 	{"theme", "write conn's theme for a program that draws its own: claude, vim", func(args []string) int {
 		home, _ := os.UserHomeDir()
@@ -216,8 +217,8 @@ var commands = []command{
 		if len(args) > 0 {
 			pid, _ = strconv.Atoi(args[0])
 		}
-		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
-		if err := runReadout(tmux.Find(home), pid, home, draw.Colored(g)); err != nil {
+		g := theme.ServerMode(room.SocketPath(home), home).Wear()
+		if err := runReadout(room.Find(home), pid, home, draw.Colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn readout: %v\n", err)
 			return 1
 		}
@@ -225,8 +226,8 @@ var commands = []command{
 	}},
 	{"hold", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
-		if err := runHold(tmux.Find(home), draw.Colored(g)); err != nil {
+		g := theme.ServerMode(room.SocketPath(home), home).Wear()
+		if err := runHold(room.Find(home), draw.Colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn hold: %v\n", err)
 			return 1
 		}
@@ -237,7 +238,7 @@ var commands = []command{
 	// this in the pane it opens for them.
 	{"settings", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		if err := runSettings(tmux.Find(home), home, theme.ServerMode(tmux.SocketPath(home), home)); err != nil {
+		if err := runSettings(room.Find(home), home, theme.ServerMode(room.SocketPath(home), home)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn settings: %v\n", err)
 			return 1
 		}
@@ -248,13 +249,13 @@ var commands = []command{
 	// and conn runs this in the pane it opens for it.
 	{"manual", "", func([]string) int {
 		home, _ := os.UserHomeDir()
-		g := theme.ServerMode(tmux.SocketPath(home), home).Wear()
+		g := theme.ServerMode(room.SocketPath(home), home).Wear()
 		path, err := writeManPage(home)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}
-		if err := runManual(tmux.Find(home), path, draw.Colored(g)); err != nil {
+		if err := runManual(room.Find(home), path, draw.Colored(g)); err != nil {
 			fmt.Fprintf(os.Stderr, "conn manual: %v\n", err)
 			return 1
 		}
@@ -325,7 +326,7 @@ func stdinIsTerminal() bool { return term.IsTerminal(os.Stdin.Fd()) }
 // with it, a line for each window and one for the server, the way
 // docker compose down does. With no server up it says so, and that is
 // not a failure. It answers what to say and whether it went well.
-func takeDown(srv *tmux.Server, home string) (string, bool) {
+func takeDown(srv *room.Server, home string) (string, bool) {
 	if srv == nil {
 		return "conn: tmux is not on PATH; there is no server to take down\n", false
 	}
@@ -366,7 +367,7 @@ func downReport(ws []tmux.Window, socket, home string) string {
 // relieve is conn typed in a pane of its own server: the server is
 // put on this build, its pages and its panel started again, and the
 // work left running. It answers what to say and whether it went well.
-func relieve(srv *tmux.Server, home string) (string, bool) {
+func relieve(srv *room.Server, home string) (string, bool) {
 	self, err := os.Executable()
 	if err != nil {
 		return fmt.Sprintf("conn: %v\n", err), false

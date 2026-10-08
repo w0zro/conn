@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/w0zro/conn/internal/draw"
-	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/room"
 
 	"github.com/w0zro/conn/internal/theme"
 
@@ -38,7 +38,7 @@ import (
 // rows, what went wrong writing, and the root being typed where one
 // is.
 type settingsModel struct {
-	srv           *tmux.Server
+	srv           *room.Server
 	home          string
 	self          string       // the pane this conn runs in, for a reground
 	exe           string       // this conn's binary, which a reground starts the other panes from
@@ -61,10 +61,10 @@ type settingsModel struct {
 }
 
 // runSettings is the settings in a mode, the one the server is in.
-func runSettings(srv *tmux.Server, home string, in theme.Mode) error {
+func runSettings(srv *room.Server, home string, in theme.Mode) error {
 	g := in.Wear()
 	exe, _ := os.Executable()
-	m := settingsModel{srv: srv, home: home, self: tmux.OwnPane(), exe: exe, mode: in, g: g, p: draw.Colored(g)}
+	m := settingsModel{srv: srv, home: home, self: room.OwnPane(), exe: exe, mode: in, g: g, p: draw.Colored(g)}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
 }

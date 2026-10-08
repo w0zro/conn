@@ -1,6 +1,9 @@
 package main
 
-import "github.com/w0zro/conn/internal/tmux"
+import (
+	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/tmux"
+)
 
 // The bay as the panel knows it: the terminal in it, as last read or as
 // conn last put there; whether that is the readout; and the work it has
@@ -56,7 +59,7 @@ func (b *bay) slotted(tty string) {
 // conn already knows.
 func (b *bay) read(tty string, p tmux.Pane, readout bool) {
 	b.tty, b.readout = tty, readout
-	if tmux.Reachable(p) && tty != b.preview {
+	if room.Reachable(p) && tty != b.preview {
 		b.work = tty
 	}
 }

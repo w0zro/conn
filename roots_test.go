@@ -10,9 +10,8 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/station"
-
-	"github.com/w0zro/conn/internal/tmux"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -145,12 +144,12 @@ func TestSavingWillNotWriteOverAFileItCannotRead(t *testing.T) {
 func TestTheAskingViewSaysHowToAnswerIt(t *testing.T) {
 	home := tree(t, "projects")
 	b := composeRoots("~/pro", home)
-	rows := drawRoots(b, 0, tmux.PanelWidth, 12, draw.Plain)
+	rows := drawRoots(b, 0, room.PanelWidth, 12, draw.Plain)
 	var text []string
 	for _, r := range rows {
 		text = append(text, r.Text)
-		if n := utf8.RuneCountInString(r.Text); n > tmux.PanelWidth {
-			t.Errorf("a row is %d wide in a %d panel: %q", n, tmux.PanelWidth, r.Text)
+		if n := utf8.RuneCountInString(r.Text); n > room.PanelWidth {
+			t.Errorf("a row is %d wide in a %d panel: %q", n, room.PanelWidth, r.Text)
 		}
 	}
 	all := strings.Join(text, "\n")

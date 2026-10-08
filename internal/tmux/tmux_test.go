@@ -5,34 +5,6 @@ import (
 	"testing"
 )
 
-// The server's socket is under the state directory unless CONN_SOCKET
-// says otherwise; a pane knows it is conn's by the socket in TMUX.
-func TestTheServerIsFoundBySocket(t *testing.T) {
-	t.Setenv("XDG_STATE_HOME", "")
-	t.Setenv("CONN_SOCKET", "")
-	if got := SocketPath("/Users/w0zro"); got != "/Users/w0zro/.local/state/conn/tmux.sock" {
-		t.Errorf("socket: %q", got)
-	}
-	t.Setenv("XDG_STATE_HOME", "/tmp/state")
-	if got := SocketPath("/Users/w0zro"); got != "/tmp/state/conn/tmux.sock" {
-		t.Errorf("socket under XDG_STATE_HOME: %q", got)
-	}
-	t.Setenv("CONN_SOCKET", "/tmp/cs/sock")
-	if got := SocketPath("/Users/w0zro"); got != "/tmp/cs/sock" {
-		t.Errorf("socket by CONN_SOCKET: %q", got)
-	}
-	for env, in := range map[string]bool{
-		"/tmp/cs/sock,4242,0":     true,
-		"/tmp/cs//sock,4242,0":    true,
-		"/tmp/tmux-501/default,1": false,
-		"":                        false,
-	} {
-		if got := InsideConn(env, "/tmp/cs/sock"); got != in {
-			t.Errorf("InsideConn(%q) = %v", env, got)
-		}
-	}
-}
-
 // list-panes, as tmux prints it for the format asked.
 func TestPanesAreParsed(t *testing.T) {
 	// The last three fields are tmux's word for where the keys are in
@@ -90,13 +62,8 @@ func TestTheClientEnvironmentDropsTmux(t *testing.T) {
 // answer into an underscore, and conn read no panes at all. A space
 // tells the fields apart in every locale there is.
 func TestNoFormatAsksTmuxForAControlCharacter(t *testing.T) {
-	d := Dress{Ground: "#15130F", Ink: "#E6DFD0", Accent: "#E85D2F", Border: "#2A2620", Gray: "#8B8272", Surface: "#1D1A16", Scheme: []string{"#000000"}, CopyBand: "#[bg=#E85D2F fg=#15130F bold] COPY ", CopyBar: " #[bg=#1D1A16 fg=#E6DFD0 bold]q #[bg=#1D1A16 fg=#8B8272 nobold]leave"}
-	conf := Conf("C-Space", d)
-	for _, f := range []string{paneFormat, openFormat, windowFormat, statusLine(d), conf} {
+	for _, f := range []string{paneFormat, openFormat, windowFormat} {
 		for i, r := range f {
-			if r == '\n' || r == '\t' && f == conf {
-				continue // the configuration is a file of lines, not a format
-			}
 			if r < 0x20 || r == 0x7f {
 				t.Errorf("a format asks tmux for %q at %d: %q", r, i, f)
 			}

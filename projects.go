@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -318,7 +319,7 @@ func withProcesses(ps []projectRow, projects []work.Project, panes map[string]tm
 	under := map[string][]projectRow{}
 	for _, pl := range projects {
 		for _, e := range pl.Entries {
-			if !tmux.Reachable(panes[e.TTY]) {
+			if !room.Reachable(panes[e.TTY]) {
 				continue
 			}
 			under[pl.Path] = append(under[pl.Path], projectRow{
@@ -770,7 +771,7 @@ func (m model) projectKey(k string) (model, tea.Cmd) {
 		// on the row in the processes view. That is the whole of what this
 		// mode is for on a machine with more processes than rows.
 		if row.pid != 0 {
-			if tmux.Reachable(m.panes[row.tty]) {
+			if room.Reachable(m.panes[row.tty]) {
 				var cmd tea.Cmd
 				m, cmd = m.toProcesses()
 				return m, tea.Batch(cmd, m.reach(m.panes[row.tty], row.tty))

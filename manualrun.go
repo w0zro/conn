@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/w0zro/conn/internal/draw"
-	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/room"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -23,19 +23,19 @@ import (
 // A manualModel is the manual being read: the page, and the viewport
 // it is read through, which does the scrolling.
 type manualModel struct {
-	srv  *tmux.Server
+	srv  *room.Server
 	path string
 	page viewport.Model
 	p    draw.Palette
 }
 
-func newManual(srv *tmux.Server, path string, p draw.Palette) manualModel {
+func newManual(srv *room.Server, path string, p draw.Palette) manualModel {
 	page := viewport.New()
 	page.KeyMap = manualKeys()
 	return manualModel{srv: srv, path: path, page: page, p: p}
 }
 
-func runManual(srv *tmux.Server, path string, p draw.Palette) error {
+func runManual(srv *room.Server, path string, p draw.Palette) error {
 	_, err := tea.NewProgram(newManual(srv, path, p), programOptions()...).Run()
 	return err
 }

@@ -4,6 +4,7 @@ import (
 	"maps"
 	"time"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -23,7 +24,7 @@ func (m model) readProcesses() tea.Cmd {
 	containers, brews := m.containers, m.brews
 	declared, full := m.declared, m.full
 	was := m.trace
-	var srv *tmux.Server
+	var srv *room.Server
 	if m.inside {
 		srv = m.srv
 	}

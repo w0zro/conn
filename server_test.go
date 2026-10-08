@@ -13,6 +13,7 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -27,7 +28,7 @@ import (
 // panelW is the panel's width, as tmux reports a pane's: the tests ask
 // tmux rather than assume it, so a change to panelWidth does not also
 // mean hunting down what was typed against it.
-var panelW = strconv.Itoa(tmux.PanelWidth)
+var panelW = strconv.Itoa(room.PanelWidth)
 
 // The server, against tmux itself. The test builds conn, brings a tmux
 // server up on a scratch socket with conn in its home window, the way
@@ -40,7 +41,7 @@ var panelW = strconv.Itoa(tmux.PanelWidth)
 // A scratch server for one test.
 type scratch struct {
 	t   *testing.T
-	srv *tmux.Server
+	srv *room.Server
 	dir string
 }
 
@@ -64,7 +65,7 @@ func startScratch(t *testing.T) *scratch {
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("building conn: %v\n%s", err, out)
 	}
-	s := &scratch{t: t, srv: &tmux.Server{Tmux: tmuxBin, Socket: filepath.Join(dir, "sock")}, dir: dir}
+	s := &scratch{t: t, srv: &room.Server{Server: &tmux.Server{Tmux: tmuxBin, Socket: filepath.Join(dir, "sock")}}, dir: dir}
 	t.Cleanup(func() { _, _ = s.srv.Run("kill-server") })
 	conf := filepath.Join(dir, "tmux.conf")
 	if err := os.WriteFile(conf, []byte(serverConfOn("C-Space", theme.Conn.Dark)), 0o600); err != nil {
@@ -82,7 +83,7 @@ func startScratch(t *testing.T) *scratch {
 	config := filepath.Join(dir, "config")
 	t.Setenv("XDG_CONFIG_HOME", config)
 	cmd := exec.Command(tmuxBin, "-S", s.srv.Socket, "-f", conf, "new-session", "-d", "-x", "160", "-y", "40",
-		"-s", tmux.SessionName, "-n", tmux.HomeWindow, "-c", home, "exec "+tmux.ShellQuote(bin))
+		"-s", room.SessionName, "-n", room.HomeWindow, "-c", home, "exec "+tmux.ShellQuote(bin))
 	cmd.Env = append(tmux.WithoutTmux(os.Environ()),
 		"CONN_SOCKET="+s.srv.Socket, "XDG_STATE_HOME="+filepath.Join(dir, "state"),
 		"XDG_CONFIG_HOME="+config, "CONN_ROOTS="+home,
@@ -96,14 +97,14 @@ func startScratch(t *testing.T) *scratch {
 // keys sends keys to the panel.
 func (s *scratch) keys(keys ...string) {
 	s.t.Helper()
-	if _, err := s.srv.Run(append([]string{"send-keys", "-t", tmux.SessionName + ":" + tmux.HomeWindow + ".0"}, keys...)...); err != nil {
+	if _, err := s.srv.Run(append([]string{"send-keys", "-t", room.SessionName + ":" + room.HomeWindow + ".0"}, keys...)...); err != nil {
 		s.t.Fatal(err)
 	}
 }
 
 // panel is what the panel pane shows.
 func (s *scratch) panel() string {
-	out, _ := s.srv.Run("capture-pane", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".0")
+	out, _ := s.srv.Run("capture-pane", "-p", "-t", room.SessionName+":"+room.HomeWindow+".0")
 	return out
 }
 
@@ -162,7 +163,7 @@ func (s *scratch) sleepers(n int) {
 
 // bayPane is the id of whatever pane is in the bay.
 func (s *scratch) bayPane() string {
-	out, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{pane_id}")
+	out, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+room.HomeWindow+".1", "#{pane_id}")
 	return strings.TrimSpace(out)
 }
 
@@ -170,14 +171,14 @@ func (s *scratch) bayPane() string {
 // while a page of conn's own stands there.
 func (s *scratch) bayKeys(keys ...string) {
 	s.t.Helper()
-	if _, err := s.srv.Run(append([]string{"send-keys", "-t", tmux.SessionName + ":" + tmux.HomeWindow + ".1"}, keys...)...); err != nil {
+	if _, err := s.srv.Run(append([]string{"send-keys", "-t", room.SessionName + ":" + room.HomeWindow + ".1"}, keys...)...); err != nil {
 		s.t.Fatal(err)
 	}
 }
 
 // bay is what the pane on the right shows.
 func (s *scratch) bay() string {
-	out, _ := s.srv.Run("capture-pane", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1")
+	out, _ := s.srv.Run("capture-pane", "-p", "-t", room.SessionName+":"+room.HomeWindow+".1")
 	return out
 }
 
@@ -279,7 +280,7 @@ func (s *scratch) rowSays(name, word string) bool {
 // none of them. The cursor's row is the one on the raised ground from
 // edge to edge, which the capture keeps as the selection's color.
 func (s *scratch) cursorAmongShells() int {
-	out, _ := s.srv.Run("capture-pane", "-e", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".0")
+	out, _ := s.srv.Run("capture-pane", "-e", "-p", "-t", room.SessionName+":"+room.HomeWindow+".0")
 	raised := "48;2;" + rgbOf(theme.Conn.Dark.Border)
 	// Only the scratch project's shells are counted, as shellRows
 	// counts them: the machine may have a shell of its own standing
@@ -386,14 +387,14 @@ func (s *scratch) shellIn(at string) bool {
 // paneDead says whether the pane at a project is held dead on
 // remain-on-exit, its process already gone.
 func (s *scratch) paneDead(at string) bool {
-	out, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+at, "#{pane_dead}")
+	out, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+at, "#{pane_dead}")
 	return strings.TrimSpace(out) == "1"
 }
 
 // parked says whether a pane is in a window of its own, out of home.
 func (s *scratch) parked(id string) bool {
 	for _, p := range strings.Fields(s.panes()) {
-		if strings.HasSuffix(p, ":"+id) && !strings.HasPrefix(p, tmux.HomeWindow+".") {
+		if strings.HasSuffix(p, ":"+id) && !strings.HasPrefix(p, room.HomeWindow+".") {
 			return true
 		}
 	}
@@ -426,7 +427,7 @@ func (s *scratch) inProcesses() bool {
 // there for wherever its keys are.
 // It is the band, and the key bar's row after it.
 func (s *scratch) statusLine() string {
-	out, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".0",
+	out, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+room.HomeWindow+".0",
 		"#{T:status-left}#{T:status-right} #{T:@conn_bar}#{T:@conn_ident}")
 	return strings.TrimSpace(stripStyles(out))
 }
@@ -451,7 +452,7 @@ func stripStyles(s string) string {
 
 // display is a tmux format, of the panel.
 func (s *scratch) display(format string) string {
-	out, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".0", format)
+	out, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+room.HomeWindow+".0", format)
 	return strings.TrimSpace(out)
 }
 
@@ -459,7 +460,7 @@ func (s *scratch) display(format string) string {
 // the panel — which is what display asks, and cannot answer where focus
 // went.
 func (s *scratch) active(format string) string {
-	out, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow, format)
+	out, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+room.HomeWindow, format)
 	return strings.TrimSpace(out)
 }
 
@@ -507,7 +508,7 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 		t.Errorf("the hold should be gone once a shell is in the bay: %s", s.panes())
 	}
 	first := s.display("#{pane_id}")
-	bayFirst, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{pane_id}")
+	bayFirst, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+room.HomeWindow+".1", "#{pane_id}")
 	bayFirst = strings.TrimSpace(bayFirst)
 	if first == bayFirst {
 		t.Fatalf("the panel and the bay are one pane: %s", s.panes())
@@ -570,7 +571,7 @@ func TestAParkedWindowGoesWhenItsWorkEnds(t *testing.T) {
 
 	s.openShell()
 	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
-	first, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{pane_id}")
+	first, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+room.HomeWindow+".1", "#{pane_id}")
 	first = strings.TrimSpace(first)
 
 	// A second shell takes the bay and parks the first in a window of
@@ -659,7 +660,7 @@ func TestADeadBayIsRevivedInPlaceNotResplit(t *testing.T) {
 
 	// The shell has the keys once s opens it, the same as select-pane
 	// gave them there; exit goes to it directly, not through the panel.
-	if _, err := s.srv.Run("send-keys", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "exit", "Enter"); err != nil {
+	if _, err := s.srv.Run("send-keys", "-t", room.SessionName+":"+room.HomeWindow+".1", "exit", "Enter"); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the shell's pane to die, still in the bay", func() bool { return s.paneDead("home.1") })
@@ -727,7 +728,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 	s.openShell()
 	s.until("a shell in the bay", func() bool { return s.shellIn("home.1") })
 
-	if _, err := s.srv.Run("send-keys", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "sleep 100", "Enter"); err != nil {
+	if _, err := s.srv.Run("send-keys", "-t", room.SessionName+":"+room.HomeWindow+".1", "sleep 100", "Enter"); err != nil {
 		t.Fatal(err)
 	}
 	// One row at the scratch's own project still: the shell, saying
@@ -769,7 +770,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 
 	// attach would take the terminal, which a test has none of; what is
 	// under test is the ground, so the same steps run without a client.
-	srv := &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}
+	srv := &room.Server{Server: &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}}
 	conf := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	light := connOn(false).Wear()
 	if err := os.WriteFile(conf, []byte(serverConfOn("C-Space", light)), 0o600); err != nil {
@@ -819,7 +820,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 		t.Fatalf("the server did not rise in conn: slot 0 is %q", got)
 	}
 
-	srv := &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}
+	srv := &room.Server{Server: &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}}
 	conf := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	datum := theme.Mode{Theme: "datum", Dark: true}
 	if err := os.WriteFile(conf, []byte(serverConfOn("C-Space", datum.Wear())), 0o600); err != nil {
@@ -885,7 +886,7 @@ func TestTheKeysStandOnThePanelWhileTheManualIsUp(t *testing.T) {
 	// The manual has the keys, so esc goes to the manual's own pane —
 	// send-keys writes to a pane and not through tmux's key table — and
 	// both halves of the window come back.
-	if _, err := s.srv.Run("send-keys", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "Escape"); err != nil {
+	if _, err := s.srv.Run("send-keys", "-t", room.SessionName+":"+room.HomeWindow+".1", "Escape"); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the processes view again", func() bool {
@@ -908,7 +909,7 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	}
 	s.keys("Enter")
 	s.until("the processes view", func() bool { return s.inProcesses() })
-	was := s.paneAt(tmux.HomeWindow + ".0")
+	was := s.paneAt(room.HomeWindow + ".0")
 
 	// The settings go to the workspace and take the keys with them; the
 	// panel stays the panel, and the band says where the keys have
@@ -962,7 +963,7 @@ func TestAThemePickedInTheSettingsDressesTheServer(t *testing.T) {
 	// The panel was not restarted — a fresh conn there is the console —
 	// and neither was the pane the keys are in, which would have put
 	// the cursor back at the top of the page being worked.
-	if got := s.paneAt(tmux.HomeWindow + ".0"); got != was {
+	if got := s.paneAt(room.HomeWindow + ".0"); got != was {
 		t.Errorf("the panel was %s and is now %s", was, got)
 	}
 	if !strings.Contains(s.bay(), "SETTINGS") {
@@ -1001,7 +1002,7 @@ func TestDownEndsTheScratchServer(t *testing.T) {
 // A mode file beside the socket is what a real tmux server comes up on:
 // light, when one says light, in the pane-colours a program in it would
 // actually read back - the same wiring attach uses, proven against
-// tmux itself rather than against tmux.Conf's text. conn theme reads the
+// tmux itself rather than against room.Conf's text. conn theme reads the
 // same file, and conn down clears it.
 func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	if testing.Short() {
@@ -1019,7 +1020,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	srv := &tmux.Server{Tmux: tmuxBin, Socket: filepath.Join(dir, "sock")}
+	srv := &room.Server{Server: &tmux.Server{Tmux: tmuxBin, Socket: filepath.Join(dir, "sock")}}
 	t.Cleanup(func() { _, _ = srv.Run("kill-server") })
 
 	// Nothing has picked yet: a server not up comes up dark.
@@ -1042,11 +1043,11 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	}
 
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(serverConfOn(tmux.DefaultKey, m.Wear())), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(serverConfOn(room.DefaultKey, m.Wear())), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(tmuxBin, "-S", srv.Socket, "-f", conf, "new-session", "-d",
-		"-s", tmux.SessionName, "-n", tmux.HomeWindow, "sleep 30")
+		"-s", room.SessionName, "-n", room.HomeWindow, "sleep 30")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("starting the server: %v\n%s", out, err)
 	}
@@ -1428,7 +1429,7 @@ func TestARegroundStartsThePanesFromTheConnAsking(t *testing.T) {
 		return s.display("#{pane_dead}") == "0" && strings.Contains(s.display("#{pane_start_command}"), moved) && s.finished()
 	})
 	// tmux answers the command in quotes of its own.
-	out, _ := s.srv.Run("display-message", "-p", "-t", tmux.SessionName+":"+tmux.HomeWindow+".1", "#{@conn_readout}|#{pane_dead} #{pane_start_command}")
+	out, _ := s.srv.Run("display-message", "-p", "-t", room.SessionName+":"+room.HomeWindow+".1", "#{@conn_readout}|#{pane_dead} #{pane_start_command}")
 	readout, page, _ := strings.Cut(strings.TrimSpace(out), "|")
 	want := " hold"
 	if readout == "1" {
@@ -1470,7 +1471,7 @@ func TestAConnOfAnotherBuildRelievesTheServer(t *testing.T) {
 	if err != nil || !relieved {
 		t.Fatalf("Relieve = %v, %v; want the station relieved", relieved, err)
 	}
-	print, _ := tmux.Fingerprint(bin)
+	print, _ := room.Fingerprint(bin)
 	s.until("the panel up again on this build, on the processes view", func() bool {
 		return s.srv.Build() == print && strings.Contains(s.panel(), scratchProject)
 	})
@@ -1507,7 +1508,7 @@ func TestAnAttachStartsADeadPanelAgain(t *testing.T) {
 		return s.display("#{pane_width}") == panelW && strings.Contains(s.panes(), "home.1:conn:")
 	})
 	gone := filepath.Join(s.dir, "gone")
-	if _, err := s.srv.Run("respawn-pane", "-k", "-t", tmux.SessionName+":"+tmux.HomeWindow+".0", "exec "+tmux.ShellQuote(gone)); err != nil {
+	if _, err := s.srv.Run("respawn-pane", "-k", "-t", room.SessionName+":"+room.HomeWindow+".0", "exec "+tmux.ShellQuote(gone)); err != nil {
 		t.Fatal(err)
 	}
 	s.until("the panel to have died", func() bool { return s.display("#{pane_dead}") == "1" })

@@ -9,6 +9,7 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -302,7 +303,7 @@ type model struct {
 	// be the key it is.
 	firstG bool
 
-	srv    *tmux.Server         // conn's tmux server, when there is one
+	srv    *room.Server         // conn's tmux server, when there is one
 	inside bool                 // this conn is the panel of the server's home window
 	self   string               // this binary, for the hold
 	panes  map[string]tmux.Pane // the server's panes by terminal, as last read
@@ -396,7 +397,7 @@ func (m model) Init() tea.Cmd {
 		// another one knows to relieve it; see tmux.Relieve.
 		srv, self := m.srv, m.self
 		cmds = append(cmds, m.serverCmd(func() error {
-			print, err := tmux.Fingerprint(self)
+			print, err := room.Fingerprint(self)
 			if err != nil {
 				return err
 			}
@@ -695,7 +696,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		// The panel holds its width through a resize of the window, once it
 		// is a panel: with the bay beside it, in the processes view or the
 		// list.
-		if m.inside && m.view != viewConsole && m.bay.tty != "" && m.width != tmux.PanelWidth {
+		if m.inside && m.view != viewConsole && m.bay.tty != "" && m.width != room.PanelWidth {
 			return m, m.serverCmd(func() error { return m.srv.HoldPanel() })
 		}
 	case stationMsg:
@@ -1081,7 +1082,7 @@ func (m model) toOther() (model, tea.Cmd) {
 	// Asked as reachable and not merely as held, the way every other
 	// road into a pane asks it: a pane whose process has ended is an id
 	// conn still has and nowhere to be sent.
-	if !m.inside || m.bay.other == "" || !tmux.Reachable(m.panes[m.bay.other]) {
+	if !m.inside || m.bay.other == "" || !room.Reachable(m.panes[m.bay.other]) {
 		return m, nil
 	}
 	cmds := []tea.Cmd{m.reach(m.panes[m.bay.other], m.bay.other)}
@@ -1139,7 +1140,7 @@ func (m model) backFrom() (model, tea.Cmd) {
 		return m, cmd
 	}
 	p, tty, ok := m.paneByID(from)
-	if !ok || !tmux.Reachable(p) {
+	if !ok || !room.Reachable(p) {
 		return m, cmd
 	}
 	return m, tea.Batch(cmd, m.reach(p, tty))
@@ -1178,7 +1179,7 @@ func (m model) backIn() (model, tea.Cmd) {
 		return m, nil
 	}
 	p, ok := m.panes[m.bay.work]
-	if !ok || !tmux.Reachable(p) {
+	if !ok || !room.Reachable(p) {
 		return m, nil
 	}
 	return m, m.reach(p, m.bay.work)
@@ -1378,7 +1379,7 @@ func ring(at, rows int) int {
 // still the whole of what there is to draw in.
 func (m model) cols() int {
 	if m.inside && m.view != viewConsole {
-		return min(tmux.PanelWidth, m.width)
+		return min(room.PanelWidth, m.width)
 	}
 	return m.width
 }
@@ -1391,7 +1392,7 @@ func (m model) View() tea.View {
 	// holds the keys themselves: what a hand looking for one has to
 	// read, in the half of the window where they are pressed.
 	case m.detour.to == toManual:
-		rows = drawKeys(panelKeys(keyWord(tmux.PanelKey())), "processes", width, m.height, m.p)
+		rows = drawKeys(panelKeys(keyWord(room.PanelKey())), "processes", width, m.height, m.p)
 	case m.view == viewProcesses:
 		rows = drawProcesses(m.processesReport(), m.cursor, width, m.height, m.p)
 	case m.view == viewProjects:

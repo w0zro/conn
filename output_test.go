@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/tmux"
 	"github.com/w0zro/conn/internal/work"
 )
@@ -100,7 +101,7 @@ func TestTheOutputViewMatchesTheGolden(t *testing.T) {
 }
 
 func TestSlashOpensTheOutputOverTheRowsProject(t *testing.T) {
-	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}}
 	m.projects = []work.Project{{Path: "/Users/w0zro/projects/web", Entries: []work.Entry{{PID: 41, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusIdle}}}}
 	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}}
 	m.cursor = 41
@@ -170,7 +171,7 @@ func TestEachSayingIsCountedBackFromTheEnd(t *testing.T) {
 }
 
 func TestTheBayFollowsTheCursorAfterItRests(t *testing.T) {
-	m := model{p: draw.Plain, width: 48, height: 40, view: viewOutput, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewOutput, inside: true, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}}
 	m.out = outList{project: "/Users/w0zro/projects/web", panes: testOutPanes()}
 	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%4", TTY: "ttys001"}, "ttys002": {ID: "%5", TTY: "ttys002"}}
 	for _, k := range []string{"e", "r", "r", "o", "r"} {

@@ -40,31 +40,3 @@ func TestAnOpenedPaneIsReadBack(t *testing.T) {
 		t.Errorf("a short answer read %+v", got)
 	}
 }
-
-func TestThePanelKeyIsTheOperatorsToSet(t *testing.T) {
-	t.Setenv("CONN_KEY", "")
-	if got := PanelKey(); got != DefaultKey {
-		t.Errorf("the key is %q by default, want %q", got, DefaultKey)
-	}
-	t.Setenv("CONN_KEY", "M-a")
-	if got := PanelKey(); got != "M-a" {
-		t.Errorf("CONN_KEY names %q, want M-a", got)
-	}
-}
-
-func TestOnlyWorkStillRunningIsReachable(t *testing.T) {
-	for name, c := range map[string]struct {
-		p    Pane
-		want bool
-	}{
-		"work":        {Pane{ID: "%4"}, true},
-		"no pane":     {Pane{}, false},
-		"a hold":      {Pane{ID: "%4", Hold: true}, false},
-		"the readout": {Pane{ID: "%4", Readout: true}, false},
-		"ended":       {Pane{ID: "%4", Dead: true}, false},
-	} {
-		if got := Reachable(c.p); got != c.want {
-			t.Errorf("%s: Reachable = %v, want %v", name, got, c.want)
-		}
-	}
-}

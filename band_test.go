@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -17,7 +18,7 @@ import (
 func TestConnLightsTheStatusLine(t *testing.T) {
 	g := theme.Conn.Dark
 	m := plainModel()
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 11, Kind: work.KindContact, Command: "claude", TTY: "ttys004", Status: work.StatusWaiting},
 	}}}

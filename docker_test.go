@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -102,7 +103,7 @@ func TestDetachedContainersRootTheirOwnProject(t *testing.T) {
 func TestEnterAndSActOnTheContainer(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	said := m.telling()
 	m.said = &said
 	m.projects = []work.Project{{Path: "/p", Entries: []work.Entry{
@@ -182,7 +183,7 @@ func TestTheServicePageIsComposedFromDocker(t *testing.T) {
 func TestXStopsAContainer(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	m.projects = []work.Project{{Path: "/p", Entries: []work.Entry{
 		{PID: -99, Kind: work.KindService, Command: "web", Ports: []string{"8438"}, Container: "abc123", Cwd: "/p", Status: work.StatusActive},
 		{PID: -98, Kind: work.KindService, Command: "worker", Container: "def456", Cwd: "/p", Status: work.StatusEnded},

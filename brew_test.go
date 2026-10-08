@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -68,7 +69,7 @@ func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
 func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	m.brews, _ = work.ParseBrewServices([]byte(brewInfo))
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
 		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Declared: work.MarkDeclared("/w/a", "db"), Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5432"}},

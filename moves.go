@@ -3,6 +3,7 @@ package main
 import (
 	"syscall"
 
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -34,7 +35,7 @@ func (m model) enterOn(e work.Entry) (string, tea.Cmd) {
 	// the first enter opens its output and the next goes back into the
 	// pane holding it; a brew service up, its log, the same way.
 	switch {
-	case tmux.Reachable(m.panes[e.TTY]):
+	case room.Reachable(m.panes[e.TTY]):
 		return "Open", m.reach(m.panes[e.TTY], e.TTY)
 	case e.Brew != "" && e.Status == work.StatusActive:
 		if cmd := m.watchBrew(e); cmd != nil {

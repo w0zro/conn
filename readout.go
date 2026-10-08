@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -230,7 +231,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	case !s.inside:
 		// conn holds no panes outside its server, so saying this row is
 		// in none of them says nothing about the row.
-	case tmux.Reachable(s.pane):
+	case room.Reachable(s.pane):
 		where.add("Pane", s.pane.ID+" · can be reached")
 	case s.pane.Dead:
 		where.add("Pane", s.pane.ID+" · its pane has ended")
@@ -372,7 +373,7 @@ func composeBrewPage(b readoutReport, e work.Entry, svc *work.BrewService, p tmu
 	}
 	switch {
 	case !inside:
-	case tmux.Reachable(p):
+	case room.Reachable(p):
 		where.add("Pane", p.ID+" · can be reached")
 	case p.Dead:
 		where.add("Pane", p.ID+" · its pane has ended")
@@ -719,7 +720,7 @@ func composeService(b readoutReport, c work.Container, p tmux.Pane, inside bool,
 	// watch it, when it has, and that is what enter goes into.
 	switch {
 	case !inside:
-	case tmux.Reachable(p):
+	case room.Reachable(p):
 		where.add("Pane", p.ID+" · can be reached")
 	case p.Dead:
 		where.add("Pane", p.ID+" · its pane has ended")

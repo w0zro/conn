@@ -9,6 +9,7 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -1024,7 +1025,7 @@ func (m model) goTo(next work.Entry) (model, tea.Cmd) {
 			cmds = append(cmds, m.serverCmd(func() error { return m.srv.Narrow() }))
 		}
 	}
-	if m.inside && tmux.Reachable(m.panes[next.TTY]) {
+	if m.inside && room.Reachable(m.panes[next.TTY]) {
 		cmds = append(cmds, m.reach(m.panes[next.TTY], next.TTY))
 	}
 	return m, tea.Batch(cmds...)
@@ -1062,7 +1063,7 @@ func (m model) nextReachable() (work.Entry, bool) {
 	}
 	for k := range all {
 		e := all[(start+k)%len(all)]
-		if p := m.panes[e.TTY]; tmux.Reachable(p) {
+		if p := m.panes[e.TTY]; room.Reachable(p) {
 			return e, true
 		}
 	}

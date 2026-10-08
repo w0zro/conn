@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-
-	"github.com/w0zro/conn/internal/tmux"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -56,7 +55,7 @@ type logList struct {
 // socket of its own — a test's, a scratch one — keeps a log of its own
 // and never writes into the station's.
 func logPath(home string) string {
-	return filepath.Join(filepath.Dir(tmux.SocketPath(home)), "log")
+	return filepath.Join(filepath.Dir(room.SocketPath(home)), "log")
 }
 
 // logged takes the changes a reading found: onto the view where it is

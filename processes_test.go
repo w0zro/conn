@@ -9,6 +9,7 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -419,7 +420,7 @@ func TestTheProcessesViewInsideTheServer(t *testing.T) {
 // server, n opens a shell at its project, and q detaches; each says why
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
-	m := model{p: draw.Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}, inside: true}
+	m := model{p: draw.Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}, inside: true}
 	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]tmux.Pane{"ttys007": {ID: "%3", TTY: "ttys007"}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
@@ -585,8 +586,8 @@ func TestTheRowsReadByWhatConnCanDoWithThem(t *testing.T) {
 // nothing to reflow.
 func TestThePanelDrawsToItsOwnWidth(t *testing.T) {
 	m := model{p: draw.Plain, width: 140, height: 40, inside: true, view: viewProcesses}
-	if got := m.cols(); got != tmux.PanelWidth {
-		t.Errorf("the panel drew to %d columns, not the panel's %d", got, tmux.PanelWidth)
+	if got := m.cols(); got != room.PanelWidth {
+		t.Errorf("the panel drew to %d columns, not the panel's %d", got, room.PanelWidth)
 	}
 	// The console is the whole window, and takes the width it is given.
 	m.view = viewConsole
@@ -832,7 +833,7 @@ func TestTheBlinkRunsOnlyForWhatAnnunciates(t *testing.T) {
 func TestTheOtherProcessIsTheOneYouWereLastIn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.now = viewProcesses, true, processesNow
-	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	m.panes = map[string]tmux.Pane{
 		"ttys001": {ID: "%1", TTY: "ttys001"},
 		"ttys002": {ID: "%2", TTY: "ttys002"},

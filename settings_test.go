@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
@@ -109,7 +110,7 @@ func TestTheSettingsSayWhenTheEnvironmentStandsInFront(t *testing.T) {
 		t.Fatalf("the rows are not the file's: %+v", b.rows)
 	}
 	var text strings.Builder
-	for _, r := range drawSettings(b, 0, tmux.PanelWidth, 0, draw.Plain) {
+	for _, r := range drawSettings(b, 0, room.PanelWidth, 0, draw.Plain) {
 		text.WriteString(r.Text + "\n")
 	}
 	if !strings.Contains(text.String(), "CONN_ROOTS") {
@@ -182,7 +183,7 @@ func TestEscLeavesARootAsItWas(t *testing.T) {
 	if c := wrote(t, home); len(c.Roots) != 1 || c.Roots[0] != "~/projects" {
 		t.Errorf("esc wrote something: %q", c.Roots)
 	}
-	first := model{p: draw.Plain, width: tmux.PanelWidth, height: 40}
+	first := model{p: draw.Plain, width: room.PanelWidth, height: 40}
 	first.head.Login.Home = home
 	mm, _ := first.toRoots()
 	first = mm
@@ -255,7 +256,7 @@ func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 // machine beside them, and holds no row under the cursor, the keys
 // being in the other pane.
 func TestTheCommaOpensTheSettings(t *testing.T) {
-	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: &tmux.Server{}}
+	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: &room.Server{Server: &tmux.Server{}}}
 	next, cmd := m.key(",")
 	m = next
 	if m.detour.to != toSettings || cmd == nil {
@@ -295,7 +296,7 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 // The settings say as they go, the way the manual does, and the panel
 // answers the key wherever it is and whatever view it is in.
 func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
-	m := model{view: viewProjects, inside: true, srv: &tmux.Server{}, detour: detour{to: toSettings, from: "%4"},
+	m := model{view: viewProjects, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toSettings, from: "%4"},
 		panes: map[string]tmux.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
 	next, cmd := m.key("alt+,") // what leaveSettingsKey arrives as
 	if got := next; got.detour.to == toSettings || got.detour.from != "" {
@@ -355,7 +356,7 @@ func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
 	}
 
 	// The panel writes the band and leaves the bar to them.
-	p := model{view: viewProcesses, inside: true, srv: &tmux.Server{}, detour: detour{to: toSettings}}
+	p := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toSettings}}
 	p, _ = p.saying()
 	if p.said.bar != "" {
 		t.Errorf("the panel wrote the bar while the settings had the keys: %q", p.said.bar)
@@ -447,7 +448,7 @@ func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := plainModel()
-	m.view, m.inside, m.srv = viewProcesses, true, &tmux.Server{Socket: socket}
+	m.view, m.inside, m.srv = viewProcesses, true, &room.Server{Server: &tmux.Server{Socket: socket}}
 	m.head.Login.Home = home
 	next, _ := m.key("alt+w") // what wearModeKey arrives as
 	if got := next.g; got != theme.Datum.Light {
@@ -556,7 +557,7 @@ func TestTheSettingsSayWhatTheFileNamesAndConnHasNot(t *testing.T) {
 		t.Fatalf("the view read them as %q and %q", b.unknownTheme, b.unknownGround)
 	}
 	var text strings.Builder
-	for _, r := range drawSettings(b, 0, tmux.PanelWidth, 0, draw.Plain) {
+	for _, r := range drawSettings(b, 0, room.PanelWidth, 0, draw.Plain) {
 		text.WriteString(r.Text + "\n")
 	}
 	for _, want := range []string{"CONN HAS NO THEME NAMED SOLARIZED", "GREY IS NEITHER GROUND"} {

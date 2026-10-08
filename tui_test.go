@@ -9,6 +9,7 @@ import (
 
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
+	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/station"
@@ -251,7 +252,7 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 // A reading that finds home without its bay has the bay opened; a
 // reading with the bay only ticks.
 func TestAHomeWithoutItsBayGetsOne(t *testing.T) {
-	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}}
 	_, cmd := m.Update(processesMsg{noBay: true})
 	if cmd == nil {
 		t.Fatal("no command for a home without its bay")
@@ -266,7 +267,7 @@ func TestAHomeWithoutItsBayGetsOne(t *testing.T) {
 // nothing to reach, a hold takes the bay; with a process to reach, that
 // process does.
 func TestABayWhosePaneDiedIsRevived(t *testing.T) {
-	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &tmux.Server{Tmux: "/nonexistent/tmux"}}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}}
 	_, cmd := m.Update(processesMsg{bay: "ttys009", bayDead: true})
 	if cmd == nil {
 		t.Fatal("no command for a bay whose pane died")
@@ -495,7 +496,7 @@ func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 
 	// Each digit is on the row it goes to, and on no other; the rest of
 	// the rows keep the commands in one column.
-	rows := drawProcesses(m.processesReport(), m.cursor, tmux.PanelWidth, 0, draw.Plain)
+	rows := drawProcesses(m.processesReport(), m.cursor, room.PanelWidth, 0, draw.Plain)
 	for _, want := range []struct {
 		pid int
 		num string
@@ -523,7 +524,7 @@ func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 	} {
 		n := m
 		away(&n)
-		for _, r := range drawProcesses(n.processesReport(), n.cursor, tmux.PanelWidth, 0, draw.Plain) {
+		for _, r := range drawProcesses(n.processesReport(), n.cursor, room.PanelWidth, 0, draw.Plain) {
 			if r.PID == 22 && strings.Contains(r.Text, draw.MarkContact+" 0") {
 				t.Errorf("a digit drawn where it is not a key: %q", r.Text)
 			}
@@ -544,7 +545,7 @@ func TestADigitGoesToAContactByItsPlace(t *testing.T) {
 // from another view, the processes view is put up on the way.
 func TestTabReachesTheWaitingContact(t *testing.T) {
 	m := plainModel()
-	m.view, m.inside, m.srv = viewProcesses, true, &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.view, m.inside, m.srv = viewProcesses, true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 11, Status: work.StatusIdle, TTY: "ttys001"},
 		{PID: 22, Status: work.StatusWaiting, TTY: "ttys002", Since: time.Now().Add(-time.Minute)},
@@ -596,7 +597,7 @@ func TestAOpensAContactAtTheProject(t *testing.T) {
 		t.Error("outside the server, a opened something")
 	}
 
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "a"}))
 	m = next.(model)
 	if cmd == nil {
@@ -860,7 +861,7 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 	if m.view != viewProjects || cmd != nil {
 		t.Errorf("outside the server: view %d, cmd %v", m.view, cmd != nil)
 	}
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
 	if m.view != viewProcesses || cmd == nil {
@@ -879,7 +880,7 @@ func TestEnterOpensAShellAtTheProject(t *testing.T) {
 func TestAltAOpensAnAgentAtTheProject(t *testing.T) {
 	m := plainModel()
 	m.view, m.list.walked, m.list.find.at = viewProjects, testProjects, 3
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 
 	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "alt+a"}))
 	m = next.(model)
@@ -969,7 +970,7 @@ func TestEnterResumesTheSessionUnderTheCursor(t *testing.T) {
 	if m.view != viewSessions || cmd != nil {
 		t.Errorf("outside the server: view %d, cmd %v", m.view, cmd != nil)
 	}
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
 	m = next.(model)
 	if m.view != viewProcesses || cmd == nil {
@@ -1011,7 +1012,7 @@ func TestAStaleSessionsAnswerIsDropped(t *testing.T) {
 // other process.
 func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	base := plainModel()
-	base.inside, base.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	base.inside, base.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	base.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}, {PID: 23, TTY: "ttys002", Depth: 1},
 	}}}
@@ -1170,7 +1171,7 @@ func TestTheAltKeysOpenAtWhateverThePanelIsLookingAt(t *testing.T) {
 // there is nowhere to go back to.
 func TestCancellingADetourGivesTheKeysBack(t *testing.T) {
 	m := plainModel()
-	m.inside, m.view, m.srv = true, viewProjects, &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.inside, m.view, m.srv = true, viewProjects, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 
 	// Cancelling a visit a chord brought about asks for the pane back.
 	m.from = "%7"
@@ -1274,7 +1275,7 @@ func TestTheMotionsReachTheEnds(t *testing.T) {
 func TestEnterGoesIntoTheProcessUnderTheCursor(t *testing.T) {
 	m := plainModel()
 	m.view, m.list.walked, m.projects, m.panes = viewProjects, testProjects, testRunning, testPanes
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	rows := m.projectRows()
 
 	at := func(pid int) int {
@@ -1369,7 +1370,7 @@ func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
 func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	m := plainModel()
 	m.view, m.projects, m.panes = viewProcesses, testRunning, testPanes
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	// The status line has been said once already, and the spinner is
 	// turning already for the row at work, so what a key asks for here
 	// is the key's own asking and not the line's first telling or the
@@ -1466,7 +1467,7 @@ func withPane(panes map[string]tmux.Pane, p tmux.Pane) map[string]tmux.Pane {
 func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 	m := plainModel()
 	m.inside, m.view = true, viewProcesses
-	m.srv = &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}
+	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
 	m.panes = map[string]tmux.Pane{
 		"ttysa": {ID: "%1", TTY: "ttysa"},
 		"ttysb": {ID: "%2", TTY: "ttysb"},
@@ -1537,7 +1538,7 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	if cmd != nil {
 		t.Error("outside the server, enter on a down row opened something")
 	}
-	m.inside, m.srv = true, &tmux.Server{Tmux: "/nonexistent/tmux"}
+	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "enter"}))
 	m = next.(model)
 	if cmd == nil {
@@ -1597,7 +1598,7 @@ func TestXOnADeclaredRow(t *testing.T) {
 	app := "/Users/w0zro/projects/w0zro/app"
 	mark := work.MarkDeclared(app, "web")
 	m := plainModel()
-	m.view, m.inside, m.srv = viewProcesses, true, &tmux.Server{Tmux: "/nonexistent/tmux"}
+	m.view, m.inside, m.srv = viewProcesses, true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}
 	m.projects = []work.Project{{Path: app, Entries: []work.Entry{
 		{PID: work.DeclaredPID(app, "web"), Kind: work.KindRun, Status: work.StatusDown, Declared: mark},
 		{PID: 300, Kind: work.KindRun, Command: "web · npm run dev", TTY: "ttys003", Status: work.StatusEnded, Declared: mark},
@@ -1700,7 +1701,7 @@ func TestWhatTheServerWouldNotDoIsSaidUnderTheRows(t *testing.T) {
 func TestAClickOnARowGoesIn(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside, m.focused, m.bay.readout = viewProcesses, true, true, true
-	m.srv, m.width, m.height = &tmux.Server{}, tmux.PanelWidth, 30
+	m.srv, m.width, m.height = &room.Server{Server: &tmux.Server{}}, room.PanelWidth, 30
 	m.panes = map[string]tmux.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}, "ttys002": {ID: "%2", TTY: "ttys002"}}
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
 		{PID: 11, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: work.StatusIdle},
@@ -1743,7 +1744,7 @@ func TestAClickOnARowGoesIn(t *testing.T) {
 // projects moves nothing, and a click in another view is nothing.
 func TestAClickPutsTheCursorOnTheRow(t *testing.T) {
 	m := plainModel()
-	m.view, m.inside, m.width, m.height = viewProcesses, true, tmux.PanelWidth, 30
+	m.view, m.inside, m.width, m.height = viewProcesses, true, room.PanelWidth, 30
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
 		{PID: 11, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: work.StatusIdle},
 		{PID: 12, Kind: work.KindRun, Command: "node vite", Typed: "node vite", TTY: "ttys002", Status: work.StatusActive, Ports: []string{"5173"}},

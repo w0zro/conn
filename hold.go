@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/w0zro/conn/internal/draw"
-	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/room"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -22,12 +22,12 @@ import (
 const holdWord = "VACANT"
 
 type holdModel struct {
-	srv           *tmux.Server
+	srv           *room.Server
 	width, height int
 	p             draw.Palette
 }
 
-func runHold(srv *tmux.Server, p draw.Palette) error {
+func runHold(srv *room.Server, p draw.Palette) error {
 	_, err := tea.NewProgram(holdModel{srv: srv, p: p}, programOptions()...).Run()
 	return err
 }

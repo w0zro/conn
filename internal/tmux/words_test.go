@@ -2,10 +2,7 @@ package tmux
 
 import (
 	"reflect"
-	"strings"
 	"testing"
-
-	"github.com/w0zro/conn/internal/theme"
 )
 
 // The pure parts of the package: what conn says to tmux and reads back
@@ -44,6 +41,17 @@ func TestAnOpenedPaneIsReadBack(t *testing.T) {
 	}
 }
 
+func TestThePanelKeyIsTheOperatorsToSet(t *testing.T) {
+	t.Setenv("CONN_KEY", "")
+	if got := PanelKey(); got != DefaultKey {
+		t.Errorf("the key is %q by default, want %q", got, DefaultKey)
+	}
+	t.Setenv("CONN_KEY", "M-a")
+	if got := PanelKey(); got != "M-a" {
+		t.Errorf("CONN_KEY names %q, want M-a", got)
+	}
+}
+
 func TestOnlyWorkStillRunningIsReachable(t *testing.T) {
 	for name, c := range map[string]struct {
 		p    Pane
@@ -57,63 +65,6 @@ func TestOnlyWorkStillRunningIsReachable(t *testing.T) {
 	} {
 		if got := Reachable(c.p); got != c.want {
 			t.Errorf("%s: Reachable = %v, want %v", name, got, c.want)
-		}
-	}
-}
-
-func TestThePanelKeyIsTheOperatorsToSet(t *testing.T) {
-	t.Setenv("CONN_KEY", "")
-	if got := PanelKey(); got != DefaultKey {
-		t.Errorf("the key is %q by default, want %q", got, DefaultKey)
-	}
-	t.Setenv("CONN_KEY", "M-a")
-	if got := PanelKey(); got != "M-a" {
-		t.Errorf("CONN_KEY names %q, want M-a", got)
-	}
-}
-
-func TestTheStatusLineWordsAreTmuxFormats(t *testing.T) {
-	g := theme.Conn.Dark
-	ground := theme.Hex(g.Ground)
-	// A block is lit in the accent with the ground knocked out of it,
-	// and nothing where there is no word; a word stands on the band's
-	// own ground, in a colour and a weight; what conn says in words is
-	// on the surface in the parchment. A hash is tmux's own character
-	// on the line and is doubled wherever conn's text carries one.
-	for name, c := range map[string]struct{ got, want string }{
-		"block":     {StatusLineBlock("COPY", g), "#[bg=" + g.Accent + " fg=" + ground + " bold] COPY "},
-		"no block":  {StatusLineBlock("", g), ""},
-		"word":      {StatusLineWord(" CONN ", theme.Hex(g.Ink), true, g), "#[bg=" + g.Border + " fg=" + theme.Hex(g.Ink) + " bold] CONN "},
-		"figure":    {StatusLineWord("14:32 ", g.Gray, false, g), "#[bg=" + g.Border + " fg=" + g.Gray + " nobold]14:32 "},
-		"hash":      {StatusLineWord("#3", g.Gray, false, g), "#[bg=" + g.Border + " fg=" + g.Gray + " nobold]##3"},
-		"said":      {StatusLineSay("kill -TERM 123", g), "#[bg=" + g.Surface + " fg=" + g.Parchment + " nobold] kill -TERM 123"},
-		"said hash": {StatusLineSay("#1", g), "#[bg=" + g.Surface + " fg=" + g.Parchment + " nobold] ##1"},
-	} {
-		if c.got != c.want {
-			t.Errorf("%s:\n%s\nwant\n%s", name, c.got, c.want)
-		}
-	}
-}
-
-func TestTheKeyBarIsAKeyAndAWordEach(t *testing.T) {
-	g := theme.Conn.Dark
-	ink := theme.Hex(g.Ink)
-	got := KeyBar([]Hint{{"j k", "Move"}, {"enter", "Go In"}}, g)
-	want := " #[bg=" + g.Surface + " fg=" + ink + " bold]j k #[nobold fg=" + g.Gray + "]move" +
-		"   #[bg=" + g.Surface + " fg=" + ink + " bold]enter #[nobold fg=" + g.Gray + "]go in"
-	if got != want {
-		t.Errorf("the bar reads\n%s\nwant\n%s", got, want)
-	}
-	// The copy-mode bar is written inside a conditional of the format's
-	// own, where a comma is the conditional's: no hint carries one, and
-	// no style is written with one.
-	bar := KeyBar(CopyHints, g)
-	if strings.Contains(bar, ",") {
-		t.Errorf("the copy-mode bar carries a comma: %s", bar)
-	}
-	for _, h := range CopyHints {
-		if h.Key == "" || h.Does == "" {
-			t.Errorf("a copy hint is missing a half: %+v", h)
 		}
 	}
 }

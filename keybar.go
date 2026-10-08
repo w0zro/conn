@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/w0zro/conn/internal/draw"
@@ -41,20 +40,9 @@ var (
 	helpHints = []keyHint{moveHint, {"space b", "Page"}, {"g G", "Top, end"}, {"esc", "Back"}}
 )
 
-// keyBar is the hints as the bar writes them; the writing is the
-// status line's own, in tmux.KeyBar, where the bar for copy mode is
-// written too.
-func keyBar(hints []keyHint, g theme.Ground) string {
-	hs := make([]tmux.Hint, len(hints))
-	for i, h := range hints {
-		hs[i] = tmux.Hint{Key: h.key, Does: h.does}
-	}
-	return tmux.KeyBar(hs, g)
-}
-
 // designation is the station's mark at the right of the key bar: the
 // host in capitals, and the conn that is running.
 func designation(host, version string, g theme.Ground) string {
-	return fmt.Sprintf("#[bg=%s fg=%s nobold]%s ", g.Surface, g.Gray,
-		strings.ReplaceAll(draw.Join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version)), "#", "##"))
+	return tmux.Styled(tmux.Style{FG: g.Gray, BG: g.Surface},
+		draw.Join(" · ", strings.ToUpper(host), strings.TrimSpace("conn "+version))+" ")
 }

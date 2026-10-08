@@ -10,8 +10,6 @@ import (
 
 	"github.com/w0zro/conn/internal/tmux"
 
-	"github.com/w0zro/conn/internal/theme"
-
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -79,7 +77,7 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	said := m.telling()
 	m.said = &said
 	has := func(bar, key, does string) bool {
-		return strings.Contains(bar, key+" #[nobold fg="+theme.Conn.Dark.Gray+"]"+strings.ToLower(does))
+		return offered(bar, key, does)
 	}
 
 	m.cursor = 24422

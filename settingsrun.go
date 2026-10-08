@@ -307,9 +307,13 @@ func (m settingsModel) wearing(want theme.Mode) (settingsModel, tea.Cmd) {
 	if m.srv == nil || m.self == "" {
 		return m, nil
 	}
-	srv, conf, bg, self, exe := m.srv, tmux.Conf(tmux.PanelKey(), m.g), m.g.Surface, m.self, m.exe
+	srv, conf, bg, self, exe := m.srv, serverConf(m.g), m.g.Surface, m.self, m.exe
 	return m, func() tea.Msg {
-		_ = srv.Rewear(conf, bg, self, exe, want)
+		// The mode is written down first, since the panes that come up
+		// again read it.
+		if theme.WriteMode(srv.Socket, want) == nil {
+			_ = srv.Rewear(conf, bg, self, exe)
+		}
 		_ = srv.WearMode()
 		return nil
 	}

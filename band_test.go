@@ -27,7 +27,7 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// none, covering the window with a wordmark of its own.
 	for _, v := range []view{viewProcesses, viewProjects, viewSessions} {
 		m.view = v
-		if keys := m.keys(); keys != tmux.StatusLineWord(wordmarkLine, theme.Hex(g.Ink), true, g) {
+		if keys := m.keys(); keys != statusWord(wordmarkLine, theme.Hex(g.Ink), true, g) {
 			t.Errorf("view %d lights %q, not the wordmark", v, keys)
 		}
 	}
@@ -44,11 +44,11 @@ func TestConnLightsTheStatusLine(t *testing.T) {
 	// The question itself is on the key bar, where its answers are, and
 	// the word is the band's alone.
 	m.kill = &pendingKill{prompt: "END CLAUDE 11 · #1"}
-	if ask := m.keys(); ask != tmux.StatusLineBlock("CONFIRM", g) || !strings.Contains(ask, "bg="+g.Accent) {
+	if ask := m.keys(); ask != statusBlock("CONFIRM", g) || !strings.Contains(ask, "bg="+g.Accent) {
 		t.Errorf("a question armed lights %q", ask)
 	}
 	if bar := m.bar(); strings.Contains(bar, "CONFIRM") || !strings.Contains(bar, " END CLAUDE 11 · ##1") ||
-		!strings.Contains(bar, "bg="+g.Surface+" fg="+g.Parchment) || !strings.Contains(bar, "y #[nobold fg="+g.Gray+"]yes") {
+		!strings.Contains(bar, "bg="+g.Surface+" fg="+g.Parchment) || !offered(bar, "y", "Yes") {
 		t.Errorf("a question armed puts %q on the bar", bar)
 	}
 	m.kill = nil

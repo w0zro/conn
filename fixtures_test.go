@@ -12,6 +12,7 @@ import (
 	"github.com/w0zro/conn/internal/config"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/station"
+	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/work"
 )
 
@@ -208,3 +209,9 @@ var (
 		Tools: []station.Tool{{Name: "tmux", Path: "/opt/homebrew/bin/tmux"}, {Name: "lsof", Path: "/usr/sbin/lsof"}},
 	}
 )
+
+// offered says whether the key bar holds a hint, a key and its word, as
+// keyBar writes it on conn's dark ground.
+func offered(bar, key, does string) bool {
+	return strings.Contains(bar, strings.TrimPrefix(keyBar([]keyHint{{key, does}}, theme.Conn.Dark), " "))
+}

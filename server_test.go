@@ -67,7 +67,7 @@ func startScratch(t *testing.T) *scratch {
 	s := &scratch{t: t, srv: &tmux.Server{Tmux: tmuxBin, Socket: filepath.Join(dir, "sock")}, dir: dir}
 	t.Cleanup(func() { _, _ = s.srv.Run("kill-server") })
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmux.Conf("C-Space", theme.Conn.Dark)), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(serverConfOn("C-Space", theme.Conn.Dark)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	home := filepath.Join(dir, "home")
@@ -772,7 +772,7 @@ func TestTheGroundChangesUnderAServerAlreadyUp(t *testing.T) {
 	srv := &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}
 	conf := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	light := connOn(false).Wear()
-	if err := os.WriteFile(conf, []byte(tmux.Conf("C-Space", light)), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(serverConfOn("C-Space", light)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := theme.WriteMode(srv.Socket, connOn(false)); err != nil {
@@ -822,7 +822,7 @@ func TestTheThemeChangesUnderAServerAlreadyUp(t *testing.T) {
 	srv := &tmux.Server{Tmux: station.LookPath("tmux"), Socket: s.srv.Socket}
 	conf := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	datum := theme.Mode{Theme: "datum", Dark: true}
-	if err := os.WriteFile(conf, []byte(tmux.Conf("C-Space", datum.Wear())), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(serverConfOn("C-Space", datum.Wear())), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := theme.WriteMode(srv.Socket, datum); err != nil {
@@ -1042,7 +1042,7 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 	}
 
 	conf := filepath.Join(dir, "tmux.conf")
-	if err := os.WriteFile(conf, []byte(tmux.Conf(tmux.DefaultKey, m.Wear())), 0o600); err != nil {
+	if err := os.WriteFile(conf, []byte(serverConfOn(tmux.DefaultKey, m.Wear())), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(tmuxBin, "-S", srv.Socket, "-f", conf, "new-session", "-d",
@@ -1078,8 +1078,8 @@ func TestAServerComesUpOnItsModeFile(t *testing.T) {
 
 	// conn down clears the file it wrote, so the next server to rise
 	// asks the terminal fresh instead of remembering this one's ground.
-	if err := srv.Down(); err != nil {
-		t.Fatal(err)
+	if said, ok := takeDown(srv, home); !ok {
+		t.Fatal(said)
 	}
 	if _, ok := theme.ReadModeFile(srv.Socket); ok {
 		t.Error("conn down left the mode file behind")

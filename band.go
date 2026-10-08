@@ -84,18 +84,18 @@ func (m model) telling() band {
 func (m model) keys() string {
 	if m.kill != nil {
 		// The question itself is on the key bar, where the answer is.
-		return tmux.StatusLineBlock("CONFIRM", m.g)
+		return statusBlock("CONFIRM", m.g)
 	}
 	// Reading the manual, or keeping the settings, is a state the
 	// operator is in, like a question armed, and it outranks the
 	// wordmark: while either is up the panel is not being worked.
 	if m.detour.to != noDetour && m.view == viewProcesses {
-		return tmux.StatusLineBlock(m.detour.to.word(), m.g)
+		return statusBlock(m.detour.to.word(), m.g)
 	}
 	// The whole tree is a way of looking at the processes view rather
 	// than a view of its own, and the band says so while it is on.
 	if m.full && m.view == viewProcesses {
-		return tmux.StatusLineBlock(treeWord, m.g)
+		return statusBlock(treeWord, m.g)
 	}
 	// Otherwise the wordmark: the band is the station's, and the panel
 	// says which view it is in by its own eyebrows. The console says
@@ -117,14 +117,14 @@ func (m model) keys() string {
 // alarm when it is a number to glance at. Nothing while the log has
 // nothing new.
 func (m model) wordmark() string {
-	w := tmux.StatusLineWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
+	w := statusWord(wordmarkLine, theme.Hex(m.g.Ink), true, m.g)
 	if m.log.unseen > 0 {
-		w += tmux.StatusLineWord("· LOG "+strconv.Itoa(m.log.unseen)+" ", m.g.Gray, false, m.g)
+		w += statusWord("· LOG "+strconv.Itoa(m.log.unseen)+" ", m.g.Gray, false, m.g)
 	}
 	// The panel this one relieved, until the next key: the station came
 	// back on another build, and nothing in the view would say so.
 	if m.relieved {
-		w += tmux.StatusLineWord("· RESTARTED ", m.g.Gray, false, m.g)
+		w += statusWord("· RESTARTED ", m.g.Gray, false, m.g)
 	}
 	return w
 }
@@ -145,7 +145,7 @@ const treeWord = "TREE"
 // guessing.
 func (m model) station() string {
 	if m.detour.to != noDetour {
-		return tmux.StatusLineBlock(m.detour.to.word(), m.g)
+		return statusBlock(m.detour.to.word(), m.g)
 	}
 	return m.wordmark()
 }
@@ -164,7 +164,7 @@ func (m model) upWord() string {
 	if !m.up.IsZero() {
 		word += " · T+ " + strings.ToLower(console.Uptime(m.up, m.now))
 	}
-	return tmux.StatusLineWord(word+" ", m.g.Gray, false, m.g)
+	return statusWord(word+" ", m.g.Gray, false, m.g)
 }
 
 // bar is the key bar across the foot of the window: the keys that work
@@ -176,7 +176,7 @@ func (m model) bar() string {
 	case m.kill != nil:
 		// The band says CONFIRM over it; the bar is the question and
 		// its answers, and says neither twice.
-		return tmux.StatusLineSay(m.kill.prompt, m.g) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, m.g)
+		return statusSay(m.kill.prompt, m.g) + "  " + keyBar([]keyHint{{"y", "Yes"}, {"any other key", "No"}}, m.g)
 	case m.detour.to == toManual:
 		return keyBar(helpHints, m.g)
 	}

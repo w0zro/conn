@@ -11,8 +11,6 @@ import (
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
-
-	"github.com/w0zro/conn/internal/theme"
 )
 
 // o is offered where a row serves: it is alive and has a port. A
@@ -36,7 +34,7 @@ func TestOIsOfferedWhereARowServes(t *testing.T) {
 		want bool
 	}{{300, true}, {301, false}, {302, false}, {303, false}} {
 		m.cursor = c.pid
-		if got := strings.Contains(m.bar(), "o #[nobold fg="+theme.Conn.Dark.Gray+"]open :5173"); got != c.want {
+		if got := offered(m.bar(), "o", "Open :5173"); got != c.want {
 			t.Errorf("on %d the bar offers o: %v, want %v\n%s", c.pid, got, c.want, m.bar())
 		}
 		_, cmd := m.key("o")

@@ -111,7 +111,7 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	m.declared = map[string]work.Declared{"/w": {List: []work.Declaration{{Name: "worker", Command: "npm run worker"}}}}
 	// The words are written in the lower case, whatever the hint says.
 	has := func(bar, key, does string) bool {
-		return strings.Contains(bar, key+" #[nobold fg="+theme.Conn.Dark.Gray+"]"+strings.ToLower(does))
+		return offered(bar, key, does)
 	}
 	m.cursor = 1
 	bar := m.bar()

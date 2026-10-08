@@ -1,14 +1,11 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/w0zro/conn/internal/work"
 
 	"github.com/w0zro/conn/internal/tmux"
-
-	"github.com/w0zro/conn/internal/theme"
 )
 
 // A row is a program conn knows by what it runs: postgres by its process
@@ -80,7 +77,7 @@ func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 		{PID: 302, Kind: work.KindRun, Command: "node server.js", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"3000"}},
 		{PID: 303, Kind: work.KindShell, Command: "zsh", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5433"}, Listener: "postgres -D data"},
 	}}}
-	has := func(bar string) bool { return strings.Contains(bar, "S #[nobold fg="+theme.Conn.Dark.Gray+"]psql") }
+	has := func(bar string) bool { return offered(bar, "S", "psql") }
 	for _, c := range []struct {
 		pid  int
 		want bool

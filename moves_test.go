@@ -36,7 +36,7 @@ func TestTheBarOffersWhatTheKeysDo(t *testing.T) {
 		for _, e := range rows {
 			m.cursor = e.PID
 			bar := m.bar()
-			offers := func(key string) bool { return strings.Contains(bar, "]"+key+" #[nobold") }
+			offers := func(key string) bool { return strings.Contains(bar, "]"+key+" #[") }
 
 			_, cmd := m.key("enter")
 			if offers("enter") != (cmd != nil) {

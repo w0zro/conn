@@ -135,7 +135,7 @@ func main() {
 		self, err := os.Executable()
 		if err == nil {
 			var code int
-			code, err = srv.Attach(self, home, override)
+			code, err = attach(srv, self, home, override)
 			if err == nil {
 				os.Exit(code)
 			}
@@ -339,6 +339,9 @@ func takeDown(srv *tmux.Server, home string) (string, bool) {
 	if err := srv.Down(); err != nil {
 		return fmt.Sprintf("conn: %v\n", err), false
 	}
+	// The ground it came up on goes with it, so the next server to rise
+	// asks the terminal fresh.
+	_ = os.Remove(theme.ModePath(srv.Socket))
 	return downReport(ws, srv.Socket, home), true
 }
 
@@ -368,7 +371,7 @@ func relieve(srv *tmux.Server, home string) (string, bool) {
 	if err != nil {
 		return fmt.Sprintf("conn: %v\n", err), false
 	}
-	conf, err := srv.WriteConf(home)
+	conf, err := srv.WriteConf(serverConf(theme.ServerMode(srv.Socket, home).Wear()))
 	if err != nil {
 		return fmt.Sprintf("conn: %v\n", err), false
 	}

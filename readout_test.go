@@ -8,6 +8,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
 	"github.com/w0zro/conn/internal/work/declared"
@@ -32,8 +33,8 @@ func readoutSubj() readoutSubject {
 	}
 	return readoutSubject{
 		entry: e,
-		proc: record{pid: e.PID, state: 'S', foreground: true,
-			cpu: 2*time.Minute + 14*time.Second},
+		proc: wire.Record{PID: e.PID, State: 'S', Foreground: true,
+			CPU: 2*time.Minute + 14*time.Second},
 		project: work.Project{Path: "/Users/w0zro/projects/w0zro/conn"},
 		parent: work.Entry{PID: 49200, Kind: work.KindShell, Command: "zsh",
 			TTY: "ttys003", Status: work.StatusActive},
@@ -183,7 +184,7 @@ func TestTheReadoutLeavesOutWhatThereIsNoneOf(t *testing.T) {
 		entry: work.Entry{PID: 88, Kind: work.KindShell, Command: "zsh", TTY: "ttys009",
 			Started: processesNow.Add(-time.Hour), Status: work.StatusIdle,
 			Cwd: "/Users/w0zro/projects/w0zro/conn"},
-		proc:    record{pid: 88, state: 'S'},
+		proc:    wire.Record{PID: 88, State: 'S'},
 		project: work.Project{Path: "/Users/w0zro/projects/w0zro/conn"},
 		inside:  true,
 	}

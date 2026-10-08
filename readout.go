@@ -7,6 +7,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
@@ -50,7 +51,7 @@ import (
 // test.
 type readoutSubject struct {
 	entry    work.Entry
-	proc     record // the table's record, for what a row does not carry
+	proc     wire.Record // the table's record, for what a row does not carry
 	project  work.Project
 	parent   work.Entry   // what runs it, where anything conn can see does
 	children []work.Entry // what it runs, in the order the tree has them
@@ -203,15 +204,15 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 		status += " · for " + elapsed(e.Since, now)
 	}
 	what.add("Status", status)
-	what.add("State", stateWord(s.proc.state, s.proc.foreground))
+	what.add("State", stateWord(s.proc.State, s.proc.Foreground))
 	if !e.Started.IsZero() {
 		what.add("Up", draw.Join(" · ", elapsed(e.Started, now), "since "+stamp(e.Started)))
 	}
 	// What it has actually spent, which is the measure behind WORKING and
 	// is nowhere in the processes view. Under a second is none worth
 	// saying.
-	if s.proc.cpu >= time.Second {
-		what.add("CPU", span(s.proc.cpu)+" spent")
+	if s.proc.CPU >= time.Second {
+		what.add("CPU", span(s.proc.CPU)+" spent")
 	}
 	b.groups = append(b.groups, what)
 
@@ -481,7 +482,7 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 	// at its own depth, so a tree reads as one. A project with nothing
 	// running in it has no group, which is the page saying so.
 	running := readoutGroup{title: "RUNNING"}
-	for _, pl := range t.projects {
+	for _, pl := range t.Projects {
 		if pl.Path != path {
 			continue
 		}

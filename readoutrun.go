@@ -8,6 +8,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
 
@@ -82,7 +83,7 @@ type readoutReadMsg struct {
 }
 
 func runReadout(srv *room.Server, pid int, home string, p draw.Palette) error {
-	m := readoutModel{srv: srv, at: subject{pid: pid}, follow: pid == 0, cursor: cursorPath(home), p: p,
+	m := readoutModel{srv: srv, at: subject{pid: pid}, follow: pid == 0, cursor: wire.Path(home), p: p,
 		report: readoutReport{pid: pid}}
 	_, err := tea.NewProgram(m, programOptions()...).Run()
 	return err
@@ -120,7 +121,7 @@ func (m readoutModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// moved is asked after at once, and one that has not is asked
 		// after on the beat, so a page nobody is moving still keeps up
 		// with its row.
-		if note := readCursor(m.cursor); note != m.note {
+		if note := wire.Read(m.cursor); note != m.note {
 			m.note = note
 			at, r := parseCursor(note)
 			if r != nil {
@@ -195,7 +196,7 @@ func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 // one row and are kept rather than thrown away with the page they were
 // for.
 type readoutTable struct {
-	reading
+	wire.Reading
 	published bool // the panel has published a reading at all
 	sess      map[int]claude.SessionFile
 	git       map[string]gitStatus   // what git said of a project, by its path
@@ -204,8 +205,8 @@ type readoutTable struct {
 
 // on is the table with the panel's latest reading for its machine, and
 // the askings kept.
-func (t readoutTable) on(r reading) readoutTable {
-	t.reading, t.published = r, true
+func (t readoutTable) on(r wire.Reading) readoutTable {
+	t.Reading, t.published = r, true
 	return t
 }
 
@@ -245,7 +246,7 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 		return t
 	}
 	if at.session != "" {
-		if c := t.sessionOf(at.session); c != nil {
+		if c := t.SessionOf(at.session); c != nil {
 			t.askGit(c.Dir)
 		}
 		return t
@@ -253,7 +254,7 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 	pid := at.pid
 	t.sess = claude.Sessions()
 
-	s, ok := subjectOf(pid, t.projects, t.records)
+	s, ok := subjectOf(pid, t.Projects, t.Records)
 	if !ok {
 		return t
 	}
@@ -305,21 +306,21 @@ func readoutPage(at subject, t readoutTable) (readoutReport, bool) {
 		return composeProject(at.path, t, home, time.Now()), true
 	}
 	if at.session != "" {
-		c := t.sessionOf(at.session)
+		c := t.SessionOf(at.session)
 		if c == nil {
 			return readoutReport{}, false
 		}
 		return composeSession(*c, t, home, time.Now()), true
 	}
 	pid := at.pid
-	s, ok := subjectOf(pid, t.projects, t.records)
+	s, ok := subjectOf(pid, t.Projects, t.Records)
 	if !ok {
 		return readoutReport{}, false
 	}
-	s.container = t.containerOf(s.entry)
-	s.brew = t.brewOf(s.entry)
-	if t.inside {
-		s.pane, s.inside = t.panes[s.entry.TTY], true
+	s.container = t.ContainerOf(s.entry)
+	s.brew = t.BrewOf(s.entry)
+	if t.Inside {
+		s.pane, s.inside = t.Panes[s.entry.TTY], true
 	}
 	if s.entry.Kind == work.KindContact {
 		s.sess, s.carried = t.sess[pid], t.carried[pid]
@@ -331,7 +332,7 @@ func readoutPage(at subject, t readoutTable) (readoutReport, bool) {
 // subjectOf finds a pid among the projects and gathers what stands
 // around it: the table's own record, its project, what runs it and what
 // it runs.
-func subjectOf(pid int, projects []work.Project, records map[int]record) (readoutSubject, bool) {
+func subjectOf(pid int, projects []work.Project, records map[int]wire.Record) (readoutSubject, bool) {
 	for _, pl := range projects {
 		for i, e := range pl.Entries {
 			if e.PID != pid {

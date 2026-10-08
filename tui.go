@@ -10,6 +10,7 @@ import (
 	"github.com/w0zro/conn/internal/console"
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
@@ -184,7 +185,7 @@ type (
 		// What this reading leaves for the next to read against.
 		trace *trace
 		// The table's record behind each row, for the page; see cursor.go.
-		records map[int]record
+		records map[int]wire.Record
 		// The rooting the reading was made on: the roots it found the
 		// file naming, and which directories were projects as it read
 		// them. The model goes onto it with the rows it filed.
@@ -230,7 +231,7 @@ type model struct {
 	told     subject // the subject as last published for the readout to follow
 	// The table's record behind each row as last read, published with
 	// the rows for the page; see cursor.go.
-	records map[int]record
+	records map[int]wire.Record
 	// The manual or the settings, where one is the thing in the
 	// workspace; see detour.go.
 	detour detour
@@ -425,7 +426,7 @@ func (m model) resuming(home string) model {
 	if len(m.roots.real) == 0 {
 		return m
 	}
-	at, _ := askCursor(cursorPath(home))
+	at, _ := askCursor(wire.Path(home))
 	m.cursor = at.pid
 	m.processesGen++
 	m.resumed, m.relieved, m.entering = true, true, true
@@ -629,9 +630,9 @@ func (m model) published(again bool) model {
 		if len(projects) == 0 {
 			projects = m.projects
 		}
-		tellCursor(cursorPath(m.head.Login.Home), at, &reading{
-			projects: projects, records: m.records, panes: m.panes,
-			inside: m.inside, containers: m.containers, brews: m.brews, sessions: m.sessions.read,
+		tellCursor(wire.Path(m.head.Login.Home), at, &wire.Reading{
+			Projects: projects, Records: m.records, Panes: m.panes,
+			Inside: m.inside, Containers: m.containers, Brews: m.brews, Sessions: m.sessions.read,
 		})
 	}
 	return m
@@ -684,7 +685,7 @@ func (m model) containerAt(pid int) *docker.Container {
 	for _, pl := range m.projects {
 		for _, e := range pl.Entries {
 			if e.PID == pid {
-				return reading{containers: m.containers}.containerOf(e)
+				return wire.Reading{Containers: m.containers}.ContainerOf(e)
 			}
 		}
 	}

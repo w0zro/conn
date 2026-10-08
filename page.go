@@ -111,8 +111,8 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	// sleeping is answered, not signalled, and x reaches the contact
 	// alone, not the processes under it.
 	var caution []string
-	if s.proc.foreground {
-		state := strings.ToLower(strings.TrimSpace(strings.SplitN(stateWord(s.proc.state, false), " ·", 2)[0]))
+	if s.proc.Foreground {
+		state := strings.ToLower(strings.TrimSpace(strings.SplitN(stateWord(s.proc.State, false), " ·", 2)[0]))
 		if state != "" {
 			caution = append(caution, "It has the terminal and is "+state+".")
 		} else {
@@ -185,8 +185,8 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	if c.worked > 0 {
 		add("Worked", span(c.worked))
 	}
-	if s.proc.cpu >= time.Second {
-		add("Processor", span(s.proc.cpu))
+	if s.proc.CPU >= time.Second {
+		add("Processor", span(s.proc.CPU))
 	}
 	if c.waiting {
 		add("Waiting", c.waited)

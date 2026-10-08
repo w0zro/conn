@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/claude"
@@ -325,16 +326,16 @@ func (m model) tended(msg processesMsg) (model, tea.Cmd) {
 // recordsOf is the table's record behind each row, for the page: what
 // the page reads of a process that the row does not carry, kept for
 // the rows alone rather than for the whole table.
-func recordsOf(table []work.Process, projects []work.Project) map[int]record {
+func recordsOf(table []work.Process, projects []work.Project) map[int]wire.Record {
 	byPid := map[int]work.Process{}
 	for _, p := range table {
 		byPid[p.PID] = p
 	}
-	out := map[int]record{}
+	out := map[int]wire.Record{}
 	for _, pl := range projects {
 		for _, e := range pl.Entries {
 			if p, ok := byPid[e.PID]; ok {
-				out[e.PID] = recordOf(p)
+				out[e.PID] = wire.RecordOf(p)
 			}
 		}
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/declared"
@@ -158,23 +159,23 @@ func TestTheBrewServicePageIsComposedFromBrew(t *testing.T) {
 // the page.
 func TestSocketsAndBrewTravelWithTheReading(t *testing.T) {
 	services, _ := brew.Parse([]byte(brewInfo))
-	r := reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+	r := wire.Reading{Projects: []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Shared: 2, Ports: []string{"5432"},
 			Sockets: []work.Socket{{Proto: "TCP", Addr: "127.0.0.1:5432", State: "LISTEN"}}},
-	}}}, brews: services, records: map[int]record{}, panes: map[string]room.Pane{}}
+	}}}, Brews: services, Records: map[int]wire.Record{}, Panes: map[string]room.Pane{}}
 	b, err := json.Marshal(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var back reading
+	var back wire.Reading
 	if err := json.Unmarshal(b, &back); err != nil {
 		t.Fatal(err)
 	}
-	e := back.projects[0].Entries[0]
+	e := back.Projects[0].Entries[0]
 	if e.Brew != "postgresql@14" || e.Shared != 2 || strings.Join(e.Ports, "") != "5432" || len(e.Sockets) != 1 || e.Sockets[0].Addr != "127.0.0.1:5432" {
 		t.Errorf("the row came back as %+v", e)
 	}
-	if svc := back.brewOf(e); svc == nil || svc.PID != 24422 || svc.Log == "" {
+	if svc := back.BrewOf(e); svc == nil || svc.PID != 24422 || svc.Log == "" {
 		t.Errorf("brew's word came back as %+v", svc)
 	}
 }

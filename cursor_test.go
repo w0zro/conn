@@ -9,6 +9,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
+	"github.com/w0zro/conn/internal/wire"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
 	"github.com/w0zro/conn/internal/work/docker"
@@ -24,7 +25,7 @@ import (
 func TestTheCursorTravelsAsAPid(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
-	path := cursorPath("/nowhere")
+	path := wire.Path("/nowhere")
 
 	if got, _ := askCursor(path); got.pid != 0 {
 		t.Errorf("with nothing published the cursor reads %d", got.pid)
@@ -50,9 +51,9 @@ func TestTheCursorTravelsAsAPid(t *testing.T) {
 func TestEachServerHasItsOwnCursor(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "one.sock"))
-	one := cursorPath("/nowhere")
+	one := wire.Path("/nowhere")
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "two.sock"))
-	two := cursorPath("/nowhere")
+	two := wire.Path("/nowhere")
 	if one == two {
 		t.Fatalf("both servers publish to %s", one)
 	}
@@ -74,7 +75,7 @@ func TestEachServerHasItsOwnCursor(t *testing.T) {
 func TestThePanelPublishesItsCursor(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
-	path := cursorPath("/nowhere")
+	path := wire.Path("/nowhere")
 
 	m := plainModel()
 	m.view, m.inside, m.now = viewProcesses, true, processesNow
@@ -146,7 +147,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: nil})
 	m = next.(model)
 	got, r := askCursor(path)
-	if m.cursor != 0 || got.pid != 22 || r == nil || len(r.projects) != 0 {
+	if m.cursor != 0 || got.pid != 22 || r == nil || len(r.Projects) != 0 {
 		t.Errorf("with the last row gone the cursor is %d, and %d was published with a reading of %v", m.cursor, got.pid, r != nil)
 	}
 	held := readoutModel{at: subject{pid: 22}, follow: true, cursor: path, p: draw.Plain}
@@ -180,7 +181,7 @@ func TestTheReadoutDropsAReadingItHasMovedPast(t *testing.T) {
 func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
-	path := cursorPath("/nowhere")
+	path := wire.Path("/nowhere")
 	tellCursor(path, subject{pid: 77}, nil)
 
 	m := readoutModel{at: subject{pid: 11}, follow: true, cursor: path, p: draw.Plain, read: time.Now()}
@@ -224,10 +225,10 @@ func TestTheReadoutFollowsTheCursorUnlessPinned(t *testing.T) {
 func TestTheReadoutAnswersFromTheTableAlreadyRead(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
-	path := cursorPath("/nowhere")
+	path := wire.Path("/nowhere")
 
 	held := readoutTable{
-		reading: reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+		Reading: wire.Reading{Projects: []work.Project{{Path: "/w", Entries: []work.Entry{
 			{PID: 11, Kind: work.KindShell, Command: "zsh", TTY: "ttys001"},
 			{PID: 22, Kind: work.KindRun, Command: "go test ./...", TTY: "ttys002"},
 		}}}},
@@ -284,31 +285,31 @@ func TestTheReadoutKeepsWhatADroppedAskingWasTold(t *testing.T) {
 func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
-	path := cursorPath("/nowhere")
+	path := wire.Path("/nowhere")
 
 	// The panel's reading: a shell running a contact that is working,
 	// on a tool, for a while; the record behind each; the panes it
 	// holds; and a container docker said, on its own row.
 	shown := work.Entry{PID: 22, Kind: work.KindContact, Command: "claude", Typed: "claude", TTY: "ttys002",
 		Status: work.StatusWorking, Doing: "edit tui.go", Since: time.Now().Add(-40 * time.Second), Cwd: "/w", Depth: 1}
-	r := reading{
-		projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+	r := wire.Reading{
+		Projects: []work.Project{{Path: "/w", Entries: []work.Entry{
 			{PID: 11, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusActive},
 			shown,
 			{PID: -99, Kind: work.KindService, Command: "web", Ports: []string{"8438"}, TTY: "", Status: work.StatusActive, Cwd: "/w", Container: "abc123def456"},
 		}}},
-		records:    map[int]record{11: {pid: 11, state: 'S', foreground: false}, 22: {pid: 22, state: 'S', foreground: true, cpu: 90 * time.Second}},
-		panes:      map[string]room.Pane{"ttys002": {ID: "%3", TTY: "ttys002"}},
-		inside:     true,
-		containers: []docker.Container{{ID: "abc123def456", Service: "web", Image: "nginx", State: "running", Dir: "/w"}},
+		Records:    map[int]wire.Record{11: {PID: 11, State: 'S', Foreground: false}, 22: {PID: 22, State: 'S', Foreground: true, CPU: 90 * time.Second}},
+		Panes:      map[string]room.Pane{"ttys002": {ID: "%3", TTY: "ttys002"}},
+		Inside:     true,
+		Containers: []docker.Container{{ID: "abc123def456", Service: "web", Image: "nginx", State: "running", Dir: "/w"}},
 	}
 	tellCursor(path, subject{pid: 22}, &r)
 	at, got := askCursor(path)
-	if at.pid != 22 || got == nil || len(got.projects) != 1 || got.records[22].cpu != 90*time.Second ||
-		got.panes["ttys002"].ID != "%3" || !got.inside || len(got.containers) != 1 {
+	if at.pid != 22 || got == nil || len(got.Projects) != 1 || got.Records[22].CPU != 90*time.Second ||
+		got.Panes["ttys002"].ID != "%3" || !got.Inside || len(got.Containers) != 1 {
 		t.Fatalf("the reading did not travel whole: %+v, %+v", at, got)
 	}
-	if row := got.projects[0].Entries[1]; row.Status != work.StatusWorking || row.Doing != "edit tui.go" {
+	if row := got.Projects[0].Entries[1]; row.Status != work.StatusWorking || row.Doing != "edit tui.go" {
 		t.Fatalf("the row did not travel: %+v", row)
 	}
 
@@ -328,7 +329,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	// A row that stays put and changes its word is said again: the note
 	// changed, so the page reads it, and nothing is asked after for a
 	// cursor that did not move.
-	r.projects[0].Entries[1].Status, r.projects[0].Entries[1].Doing = work.StatusIdle, ""
+	r.Projects[0].Entries[1].Status, r.Projects[0].Entries[1].Doing = work.StatusIdle, ""
 	tellCursor(path, subject{pid: 22}, &r)
 	before := m.read
 	next, _ = m.Update(readoutTickMsg{})
@@ -353,7 +354,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 	// panel's cursor is always in the panel's own reading, so only a
 	// pinned pid can be missing from it.
 	pinned := readoutModel{at: subject{pid: 22}, follow: false, cursor: path, p: draw.Plain, report: readoutReport{pid: 22}, read: time.Now()}
-	r.projects[0].Entries = r.projects[0].Entries[:1]
+	r.Projects[0].Entries = r.Projects[0].Entries[:1]
 	tellCursor(path, subject{pid: 11}, &r)
 	next, _ = pinned.Update(readoutTickMsg{})
 	if got := next.(readoutModel).report; !got.gone || got.pid != 22 {
@@ -369,7 +370,7 @@ func TestThePageSaysTheRowAsThePanelSaysIt(t *testing.T) {
 func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
-	path := cursorPath("/nowhere")
+	path := wire.Path("/nowhere")
 
 	m := plainModel()
 	m.view, m.inside, m.now = viewProjects, true, processesNow
@@ -430,7 +431,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 func TestAProjectHasAPageOfItsOwn(t *testing.T) {
 	t.Setenv("CONN_SOCKET", filepath.Join(t.TempDir(), "tmux.sock"))
 	held := readoutTable{
-		reading: reading{projects: []work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
+		Reading: wire.Reading{Projects: []work.Project{{Path: "/Users/w0zro/projects/w0zro/conn", Entries: []work.Entry{
 			{PID: 11, Kind: work.KindShell, Command: "zsh", Typed: "zsh", Status: work.StatusActive},
 			{PID: 22, Kind: work.KindRun, Command: "go test ./...", Typed: "go test ./...", Status: work.StatusWorking, Depth: 1},
 		}}}},
@@ -463,7 +464,7 @@ func TestAProjectHasAPageOfItsOwn(t *testing.T) {
 func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(dir, "tmux.sock"))
-	path := cursorPath("/nowhere")
+	path := wire.Path("/nowhere")
 
 	m := plainModel()
 	m.view, m.inside, m.now = viewSessions, true, processesNow
@@ -490,12 +491,12 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	}
 	// The sessions travel with the reading, so the page can word one.
 	_, r := askCursor(path)
-	if r == nil || len(r.sessions) != 2 {
+	if r == nil || len(r.Sessions) != 2 {
 		t.Fatalf("the sessions did not travel: %+v", r)
 	}
 
 	// The page, from what the panel said.
-	held := readoutTable{reading: *r, git: map[string]gitStatus{"/Users/w0zro/projects/w0zro/conn": {repo: true, branch: "main", commit: "abc1234", subject: "A thing", when: processesNow.Add(-time.Hour)}}}
+	held := readoutTable{Reading: *r, git: map[string]gitStatus{"/Users/w0zro/projects/w0zro/conn": {repo: true, branch: "main", commit: "abc1234", subject: "A thing", when: processesNow.Add(-time.Hour)}}}
 	page, ok := readoutPage(subject{session: "d81d7536-e545-4881-8daa-f1d291a03be1"}, held)
 	if !ok {
 		t.Fatal("a session the panel published was not there to be worded")

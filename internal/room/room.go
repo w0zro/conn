@@ -783,6 +783,7 @@ func (s *Server) FocusPanel() error {
 type Dress struct {
 	Ground, Ink, Accent, Border, Gray, Surface string
 	Block, OnBlock                             string // the accent as a fill, and the letters on it
+	Chosen, ChosenInk, Cursor                  string // a selection, its ink, and the cursor
 	Scheme                                     []string
 	CopyBand, CopyBar                          string
 }
@@ -886,8 +887,8 @@ func confLook(d Dress) string {
 	var b strings.Builder
 	ground, ink := d.Ground, d.Ink
 	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)
-	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", d.Accent)
-	// The cursor keeps the accent in copy mode. tmux draws a pane in a
+	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", d.Cursor)
+	// The cursor keeps its color in copy mode. tmux draws a pane in a
 	// mode from a screen of the mode's own, which carries no cursor
 	// colour, and sends the terminal a reset the moment the mode comes
 	// on: the cursor went to whatever the terminal's own colour is for
@@ -898,10 +899,10 @@ func confLook(d Dress) string {
 	// of its own past the theme's. Deferred, since the hook fires before
 	// the mode's screen is in place; a beat of nothing is the next turn
 	// of tmux's loop, after the reset has gone. tmux then sends the
-	// accent itself, from its own account of the terminal. Established
+	// color itself, from its own account of the terminal. Established
 	// against tmux 3.5a with a client logged under a pty.
-	fmt.Fprintf(&b, "set-hook -g pane-mode-changed \"run-shell -b -d 0 -C \\\"set -p -t '#{hook_pane}' cursor-colour '%s' ; set -pu -t '#{hook_pane}' cursor-colour\\\"\"\n", d.Accent)
-	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", d.Border, ink)
+	fmt.Fprintf(&b, "set-hook -g pane-mode-changed \"run-shell -b -d 0 -C \\\"set -p -t '#{hook_pane}' cursor-colour '%s' ; set -pu -t '#{hook_pane}' cursor-colour\\\"\"\n", d.Cursor)
+	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", d.Chosen, d.ChosenInk)
 	// A search's matches, in copy mode: every saying of the text in a
 	// quiet mark, and the one the cursor is on in the accent's block,
 	// the way the cursor is everywhere else. tmux's own are a cyan and

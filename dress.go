@@ -15,13 +15,14 @@ import (
 // of the theme's colors, is conn's, and is decided here.
 
 // dressOf is the server's dress on a ground: the panes on the ground
-// in the ink, the cursor in the accent, a selection on the border, the
+// in the ink, the cursor in its own color, a selection on the chosen ground, the
 // line on the border in the gray, and in copy mode the band's block and
 // tmux's own keys on the bar.
 func dressOf(g theme.Ground) room.Dress {
 	return room.Dress{
 		Ground: theme.Hex(g.Ground), Ink: theme.Hex(g.Ink), Accent: g.Accent,
 		Block: g.Block, OnBlock: g.OnBlock,
+		Chosen: g.Chosen, ChosenInk: g.ChosenInk, Cursor: g.Cursor,
 		Border: g.Border, Gray: g.Gray, Surface: g.Surface,
 		Scheme:   g.Scheme[:],
 		CopyBand: statusBlock("COPY", g),

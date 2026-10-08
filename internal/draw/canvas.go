@@ -21,7 +21,8 @@ type Palette struct {
 	Dim                                                             string // the terminal's own dimming, laid over an ink: a step under the faint
 	Surface                                                         string // one step off the ground: the panel's own
 	edge, Running, Struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
-	Selection                                                       string // the ground a chosen row sits on
+	Selection                                                       string // the raised ground a key sits on
+	chosen, chosenInk                                               string // the ground a chosen row sits on, and its ink
 	blockEnd                                                        string // ink in the block's fill, for a stamp's rounded ends
 	well                                                            string // the ground under the surface, which a field is cut down to
 	Normal, End                                                     string // ink on the ground again; the row's end
@@ -58,6 +59,8 @@ func Colored(g theme.Ground) Palette {
 		Chip:      ansi.Style{}.BackgroundColor(theme.RGB(g.Block)).ForegroundColor(theme.RGB(g.OnBlock)).Bold().String(),
 		blockEnd:  inkIn(g.Block),
 		Selection: groundIn(g.Border),
+		chosen:    groundIn(g.Chosen),
+		chosenInk: inkIn(g.ChosenInk),
 		Surface:   groundIn(g.Surface),
 		well:      groundIn(theme.Hex(g.Ground)),
 		edge:      inkIn(g.Surface),
@@ -89,17 +92,17 @@ func (p Palette) OnSurface() Palette {
 	return p
 }
 
-// Chosen is the palette with the ground raised to the selection color:
-// a row drawn in it sits on that ground instead, from edge to edge, and
-// every piece on it returns to it rather than to the ground. It is how
-// a row is shown to be the one under the cursor. The plain palette has
-// no ground to raise, and marks the row instead.
+// Chosen is the palette on the theme's chosen ground, in its chosen
+// ink: a row drawn in it sits on that ground instead, from edge to
+// edge, and every piece on it returns to it rather than to the ground.
+// It is how a row is shown to be the one under the cursor. The plain
+// palette has no ground to raise, and marks the row instead.
 func (p Palette) Chosen() Palette {
 	if p.Plain {
 		return p
 	}
-	p.Ground = p.Selection
-	p.Normal = p.End + p.Selection + p.Ink
+	p.Ground, p.Ink = p.chosen, p.chosenInk
+	p.Normal = p.End + p.Ground + p.Ink
 	return p
 }
 

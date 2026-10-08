@@ -76,6 +76,15 @@ func TestTheRolesReadOnEveryGround(t *testing.T) {
 				t.Errorf("%s %s: the word in a block (%s on %s) is %.2f:1; %.1f:1 is what it takes",
 					th.Name, on.name, g.OnBlock, g.Block, c, body)
 			}
+			// A chosen row is read like any other, on its own ground;
+			// the cursor only has to be seen, as the faint does.
+			if c := contrast(g.ChosenInk, g.Chosen); c < body {
+				t.Errorf("%s %s: a chosen row (%s on %s) is %.2f:1; %.1f:1 is what it takes",
+					th.Name, on.name, g.ChosenInk, g.Chosen, c, body)
+			}
+			if c := contrast(g.Cursor, bg); c < 2 {
+				t.Errorf("%s %s: the cursor (%s) is %.2f:1 on %s, which is the ground again", th.Name, on.name, g.Cursor, c, bg)
+			}
 			if contrast(g.Border, bg) >= contrast(Hex(g.Ink), bg) {
 				t.Errorf("%s %s: the border (%s) stands off the ground further than the ink does", th.Name, on.name, g.Border)
 			}

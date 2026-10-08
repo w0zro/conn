@@ -42,6 +42,9 @@ var Skelly = theme{
 		Parchment: "#AEB3AB", // --fg-2
 		Block:     "#B9F27C", // --acc
 		OnBlock:   "#101211", // --acc-on
+		Chosen:    "#18240F", // --sel-bg: selected keeps its phosphor
+		ChosenInk: "#D9F8B8", // --sel-fg
+		Cursor:    "#B9F27C", // --sel-line: the ring around the box you type in
 
 		MessageBg:       "#1F2320", // --surface-active
 		MessageHoverBg:  "#262A27", // --line
@@ -84,6 +87,9 @@ var Skelly = theme{
 		Parchment: "#434840", // --fg-2
 		Block:     "#9BE05A", // --acc: the fill skelly's buttons and badges are
 		OnBlock:   "#151814", // --acc-on: ink, since the fill is too pale for the ground
+		Chosen:    "#E0F1CC", // --sel-bg
+		ChosenInk: "#26440A", // --sel-fg
+		Cursor:    "#5DB821", // --sel-line
 
 		MessageBg:       "#DDE1D8", // --surface-active
 		MessageHoverBg:  "#D5D9D1", // --line

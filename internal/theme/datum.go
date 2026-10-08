@@ -51,6 +51,9 @@ var Datum = theme{
 		Parchment: "#DBE0E8", // fg0: datum has two inks, and the bold carries a title
 		Block:     "#FA94CD", // purple, with bg0 knocked out of it
 		OnBlock:   "#0F1318",
+		Chosen:    "#2B2F35", // bg2: the selection
+		ChosenInk: "#DBE0E8",
+		Cursor:    "#FA94CD",
 
 		MessageBg:       "#181C21", // bg1: a turn of yours, at rest
 		MessageHoverBg:  "#2B2F35", // bg2: under the pointer
@@ -93,6 +96,9 @@ var Datum = theme{
 		Parchment: "#292E35",
 		Block:     "#973070",
 		OnBlock:   "#F1F6FD",
+		Chosen:    "#CED3D9",
+		ChosenInk: "#292E35",
+		Cursor:    "#973070",
 
 		MessageBg:       "#E7ECF2",
 		MessageHoverBg:  "#CED3D9",

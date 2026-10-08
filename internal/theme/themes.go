@@ -44,6 +44,13 @@ type Ground struct {
 	// letters says so here, and writes its letters in ink instead.
 	Block, OnBlock string
 
+	// The row under the cursor - in a list, and what copy mode has
+	// selected - and the ink it is written in; and the cursor itself.
+	// Most themes lay a chosen row on the border in the ordinary ink
+	// and draw the cursor in the accent; a theme whose selection is a
+	// color of its own says so here.
+	Chosen, ChosenInk, Cursor string
+
 	// The grounds no slot has a name for: the band behind what you said
 	// to Claude Code, at rest and under the pointer; the bar behind a
 	// tool's output, which is also the step off the ground a colorscheme
@@ -190,6 +197,9 @@ var Conn = theme{
 		Parchment: "#BFB39A",
 		Block:     "#E85D2F",
 		OnBlock:   "#15130F",
+		Chosen:    "#2A2620",
+		ChosenInk: "#E6DFD0",
+		Cursor:    "#E85D2F",
 
 		MessageBg:       "#2A2620",
 		MessageHoverBg:  "#33302A",
@@ -232,6 +242,9 @@ var Conn = theme{
 		Parchment: "#4A4335",
 		Block:     "#BD3A1D",
 		OnBlock:   "#EFE9DB",
+		Chosen:    "#D8D0BD",
+		ChosenInk: "#1A1611",
+		Cursor:    "#BD3A1D",
 
 		MessageBg:       "#D8D0BD",
 		MessageHoverBg:  "#CFC6B0",

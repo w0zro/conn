@@ -118,16 +118,16 @@ func TestHelpIsThePanelsWordOnlyInTheProcessesView(t *testing.T) {
 // cursor came back on the next beat, a couple of seconds later.
 func TestTheReadingLeavesTheCursorAloneWhileHelping(t *testing.T) {
 	projects := []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}}}}
-	m := model{view: viewProcesses, inside: true, cursor: 0, projects: projects}
+	m := model{reading: reading{projects: projects}, view: viewProcesses, inside: true, cursor: 0}
 	// A reading that finds the manual in the workspace: conn is helping,
 	// and the cursor it was told to let go of stays let go.
-	up := processesMsg{projects: projects, gen: m.processesGen, bayDetour: toManual}
+	up := processesMsg{reading: reading{projects: projects}, gen: m.processesGen, bayDetour: toManual}
 	next, _ := m.Update(up)
 	if got := next.(model); got.cursor != 0 || got.detour.to != toManual {
 		t.Errorf("the reading put the cursor back on %d (helping %v)", got.cursor, got.detour.to == toManual)
 	}
 	// And with the manual gone it follows as it always did.
-	next, _ = m.Update(processesMsg{projects: projects, gen: m.processesGen})
+	next, _ = m.Update(processesMsg{reading: reading{projects: projects}, gen: m.processesGen})
 	if got := next.(model); got.cursor == 0 || got.detour.to == toManual {
 		t.Errorf("with no manual up the reading left the cursor at %d (helping %v)", got.cursor, got.detour.to == toManual)
 	}
@@ -215,8 +215,7 @@ func TestTheManualScrollsAndStops(t *testing.T) {
 // else can reach it: a manual that opened and would not close would be
 // a trap rather than a help.
 func TestThePanelKeyLeavesTheManual(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual, from: "%4"},
-		panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
+	m := model{reading: reading{panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual, from: "%4"}}
 	next, cmd := m.key(room.Arrived.Heard())
 	if got := next; got.detour.to == toManual {
 		t.Error("the manual is still up")
@@ -249,8 +248,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 	panes := map[string]room.Pane{"ttys011": work}
 
 	// Asked from the workspace: back into that pane.
-	m := model{view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual, from: "%4"},
-		panes: panes, bay: bay{work: "ttys009"}}
+	m := model{reading: reading{panes: panes}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual, from: "%4"}, bay: bay{work: "ttys009"}}
 	next, cmd := m.leftDetour(false)
 	got := next
 	if got.detour.to == toManual || got.detour.from != "" {
@@ -262,8 +260,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 
 	// Asked from the panel: the keys stay on the panel, and the pane the
 	// manual was standing in front of is not gone back into.
-	m = model{view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual},
-		panes: panes, bay: bay{work: "ttys011"}}
+	m = model{reading: reading{panes: panes}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual}, bay: bay{work: "ttys011"}}
 	next, cmd = m.leftDetour(false)
 	if got := next; got.detour.to == toManual {
 		t.Error("leaving from the panel left conn helping")
@@ -274,8 +271,7 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 
 	// The pane the chord came from can go while the manual is up; then
 	// there is nothing to be put back into.
-	m = model{view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual, from: "%9"},
-		panes: panes}
+	m = model{reading: reading{panes: panes}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual, from: "%9"}}
 	if _, cmd := m.leftDetour(false); cmd == nil {
 		t.Error("a chord from a pane that has gone left the workspace as it was")
 	}
@@ -287,8 +283,8 @@ func TestLeavingTheManualPutsTheKeysBackWhereTheyWere(t *testing.T) {
 // holding a dead pane until the next reading comes round.
 func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	work := room.Pane{ID: "%2", TTY: "ttys009"}
-	m := model{view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual},
-		bay: bay{work: "ttys009"}, panes: map[string]room.Pane{"ttys009": work}}
+	m := model{reading: reading{panes: map[string]room.Pane{"ttys009": work}}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toManual},
+		bay: bay{work: "ttys009"}}
 	next, cmd := m.key(room.LeftHelp.Heard())
 	got := next
 	if got.detour.to == toManual {
@@ -301,8 +297,7 @@ func TestLeavingTheManualGoesBackToTheWork(t *testing.T) {
 	// ended without saying is found dead by the reading, and handled the
 	// same way rather than by a second rule that could drift from this.
 	m.detour.to = toManual
-	found, cmd := m.Update(processesMsg{gen: m.processesGen, bayDead: true, bayDetour: toManual,
-		panes: map[string]room.Pane{"ttys009": work}})
+	found, cmd := m.Update(processesMsg{reading: reading{panes: map[string]room.Pane{"ttys009": work}}, gen: m.processesGen, bayDead: true, bayDetour: toManual})
 	if got := found.(model); got.detour.to == toManual {
 		t.Error("a manual found dead left conn still helping")
 	}
@@ -333,7 +328,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 	projects := []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}, {PID: 33, TTY: "ttys003"},
 	}}}
-	m := model{view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), projects: projects,
+	m := model{reading: reading{projects: projects}, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}),
 		cursor: 22, cursorAt: 1}
 	next, _ := m.key("?")
 	m = next
@@ -344,7 +339,7 @@ func TestTheRowComesBackFromTheManual(t *testing.T) {
 		t.Errorf("the row was dropped rather than kept: %d", m.detour.cursor)
 	}
 	// A reading while the manual is up does not hand a row back either.
-	read, _ := m.Update(processesMsg{projects: projects, gen: m.processesGen, bayDetour: toManual})
+	read, _ := m.Update(processesMsg{reading: reading{projects: projects}, gen: m.processesGen, bayDetour: toManual})
 	m = read.(model)
 	if m.cursor != 0 {
 		t.Errorf("the reading put a row under the cursor: %d", m.cursor)

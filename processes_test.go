@@ -240,7 +240,7 @@ func TestAProcessesViewThatWillNotFitScrolls(t *testing.T) {
 // stops at an end.
 func TestJAndKGoRoundTheRows(t *testing.T) {
 	m := model{p: draw.Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
-	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
+	next, _ := m.Update(processesMsg{reading: reading{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)}})
 	m = next.(model)
 	press := func(k string) {
 		next, _ := m.Update(tea.KeyPressMsg{Code: rune(k[0]), Text: k})
@@ -265,7 +265,7 @@ func TestJAndKGoRoundTheRows(t *testing.T) {
 
 func TestTheCursorFollowsItsProcess(t *testing.T) {
 	m := model{p: draw.Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow}
-	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
+	next, _ := m.Update(processesMsg{reading: reading{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)}})
 	m = next.(model)
 	// The rows read by project and then oldest first: home's shell and
 	// the vim it holds stopped, then conn's shell, then the conjurer's
@@ -294,7 +294,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 	}
 	// A reading that still has the pid keeps the cursor on it, wherever
 	// in the rows it has moved to.
-	next, _ = m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)})
+	next, _ = m.Update(processesMsg{reading: reading{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)}})
 	m = next.(model)
 	if m.cursor != 80002 || m.cursorAt != 1 {
 		t.Errorf("the cursor left the pid it was on: %d at %d", m.cursor, m.cursorAt)
@@ -314,7 +314,7 @@ func TestTheCursorFollowsItsProcess(t *testing.T) {
 			without = append(without, p)
 		}
 	}
-	next, _ = m.Update(processesMsg{projects: work.ProjectsFrom(without, 501, testRoots, testIsProject, nil)})
+	next, _ = m.Update(processesMsg{reading: reading{projects: work.ProjectsFrom(without, 501, testRoots, testIsProject, nil)}})
 	m = next.(model)
 	if m.cursorAt != 4 || m.cursor != 70212 {
 		t.Errorf("with its process gone the cursor is on %d at %d", m.cursor, m.cursorAt)
@@ -349,7 +349,7 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 	if !strings.Contains(m.View().Content, "START-UP CHECKS") {
 		t.Errorf("the console should still be up while the reading is on its way:\n%s", m.View().Content)
 	}
-	next, cmd = m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), gen: m.processesGen})
+	next, cmd = m.Update(processesMsg{reading: reading{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil)}, gen: m.processesGen})
 	m = next.(model)
 	if m.view != viewProcesses || m.entering {
 		t.Fatalf("the reading the console was waiting on did not put the processes view up")
@@ -423,7 +423,7 @@ func TestTheProcessesViewInsideTheServer(t *testing.T) {
 // when it cannot. Outside the server q closes conn.
 func TestKeysInsideTheServer(t *testing.T) {
 	m := model{p: draw.Plain, width: 120, height: 40, view: viewProcesses, uid: 501, roots: rooting{rootOf: testRoots}, now: processesNow, srv: room.New(&tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}), inside: true}
-	next, _ := m.Update(processesMsg{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]room.Pane{"ttys007": {ID: "%3", TTY: "ttys007"}}})
+	next, _ := m.Update(processesMsg{reading: reading{projects: work.ProjectsFrom(testProcs, 501, testRoots, testIsProject, nil), panes: map[string]room.Pane{"ttys007": {ID: "%3", TTY: "ttys007"}}}})
 	m = next.(model)
 	press := func(k string, code rune) tea.Cmd {
 		next, cmd := m.Update(tea.KeyPressMsg{Code: code, Text: k})

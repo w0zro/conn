@@ -137,8 +137,7 @@ func TestTheCardSaysWhatIsBelowIt(t *testing.T) {
 // the manual's own pane — so the half of the window beside it says what
 // the keys are rather than showing a list going nowhere.
 func TestThePanelHoldsTheKeysWhileTheManualIsUp(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, p: draw.Plain, width: room.PanelWidth, height: 40,
-		projects: []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001", Command: "vim"}}}}}
+	m := model{reading: reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001", Command: "vim"}}}}}, view: viewProcesses, inside: true, p: draw.Plain, width: room.PanelWidth, height: 40}
 	if strings.Contains(m.View().Content, "THE ROW") {
 		t.Fatal("the processes view is showing the keys with no manual up")
 	}

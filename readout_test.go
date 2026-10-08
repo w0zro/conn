@@ -446,12 +446,12 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 
 	// A reading with the keys here and a row to be about asks for it.
 	m := panel()
-	next, cmd := m.Update(processesMsg{gen: m.processesGen, projects: m.projects})
+	next, cmd := m.Update(processesMsg{reading: reading{projects: m.projects}, gen: m.processesGen})
 	if m = next.(model); !m.bay.readout || cmd == nil {
 		t.Errorf("the page did not take the workspace: looking %v, cmd %v", m.bay.readout, cmd != nil)
 	}
 	// And not twice: the reading after it finds the page already there.
-	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); !next.(model).bay.readout {
+	if next, _ = m.Update(processesMsg{reading: reading{projects: m.projects}, gen: m.processesGen}); !next.(model).bay.readout {
 		t.Error("a second reading lost the page")
 	}
 
@@ -465,7 +465,7 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 		t.Error("reaching a process left the keys on the panel")
 	}
 	m.bay.readout = false
-	if next, _ = m.Update(processesMsg{gen: m.processesGen, projects: m.projects}); next.(model).bay.readout {
+	if next, _ = m.Update(processesMsg{reading: reading{projects: m.projects}, gen: m.processesGen}); next.(model).bay.readout {
 		t.Error("the page took the workspace back from a process the operator is in")
 	}
 

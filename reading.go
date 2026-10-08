@@ -139,10 +139,10 @@ func (m model) readProcesses() tea.Cmd {
 		// fault and so is worded before the rows are dated: a row that
 		// has come to say CLOSED came to say it now.
 		serves := work.MarkClosed(projects, was.serves)
-		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen,
+		msg := processesMsg{reading: reading{projects: projects, tree: projects, panes: panes, records: records, declared: files}, gen: gen,
 			trace: &trace{cpu: now, at: nowAt, stood: work.SinceSeen(projects, was.stood, was.at, nowAt),
 				acts: claude.Activities(projects, was.acts), serves: serves},
-			records: records, rooted: &rooting, declared: files}
+			rooted: &rooting}
 		if !full {
 			msg.projects = fold(projects)
 		}
@@ -255,8 +255,7 @@ func (m model) took(msg processesMsg) model {
 	if msg.rooted != nil {
 		m = m.rooted(*msg.rooted)
 	}
-	m.projects, m.panes, m.processesErr = msg.projects, msg.panes, msg.err
-	m.records, m.declared, m.tree = msg.records, msg.declared, msg.tree
+	m.reading, m.processesErr = msg.reading, msg.err
 	m.bay.read(msg.bay, msg.panes[msg.bay], msg.bayReadout)
 	m.detour.to = msg.bayDetour
 	// Where the keys are, by the server's own word. conn is told by the
@@ -352,4 +351,17 @@ func declaredPanes(panes map[string]room.Pane) map[string]declared.Pane {
 		}
 	}
 	return out
+}
+
+// A reading is what the panel reads of the machine on its beat, and
+// holds until the next: the rows as the view shows them, folded or
+// whole, the projects whole, the table's record behind each row for the
+// page, the server's panes by the terminal each holds, and the
+// projects' .conn files as found, for the next reading to stat against.
+type reading struct {
+	projects []work.Project
+	tree     []work.Project
+	records  map[int]wire.Record
+	panes    map[string]room.Pane
+	declared map[string]declared.File
 }

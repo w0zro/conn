@@ -296,8 +296,7 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 // The settings say as they go, the way the manual does, and the panel
 // answers the key wherever it is and whatever view it is in.
 func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
-	m := model{view: viewProjects, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toSettings, from: "%4"},
-		panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
+	m := model{reading: reading{panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}, view: viewProjects, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toSettings, from: "%4"}}
 	next, cmd := m.key(room.LeftSettings.Heard())
 	if got := next; got.detour.to == toSettings || got.detour.from != "" {
 		t.Errorf("the settings are still up: setting %v, from %q", got.detour.to == toSettings, got.detour.from)
@@ -318,13 +317,13 @@ func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
 // about while they stand, and follow would hand one back on the beat.
 func TestTheReadingLeavesTheCursorAloneWhileSetting(t *testing.T) {
 	projects := []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, TTY: "ttys001"}, {PID: 22, TTY: "ttys002"}}}}
-	m := model{view: viewProcesses, inside: true, cursor: 0, projects: projects}
-	up := processesMsg{projects: projects, gen: m.processesGen, bayDetour: toSettings}
+	m := model{reading: reading{projects: projects}, view: viewProcesses, inside: true, cursor: 0}
+	up := processesMsg{reading: reading{projects: projects}, gen: m.processesGen, bayDetour: toSettings}
 	next, _ := m.Update(up)
 	if got := next.(model); got.cursor != 0 || got.detour.to != toSettings {
 		t.Errorf("the reading put the cursor back on %d (setting %v)", got.cursor, got.detour.to == toSettings)
 	}
-	next, _ = m.Update(processesMsg{projects: projects, gen: m.processesGen})
+	next, _ = m.Update(processesMsg{reading: reading{projects: projects}, gen: m.processesGen})
 	if got := next.(model); got.cursor == 0 || got.detour.to == toSettings {
 		t.Errorf("with no settings up the reading left the cursor at %d (setting %v)", got.cursor, got.detour.to == toSettings)
 	}

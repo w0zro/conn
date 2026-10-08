@@ -100,7 +100,7 @@ func TestMinutes(t *testing.T) {
 // keys that act at a project only inside the server. While a process
 // has the keys, it says the chords instead.
 func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark, panes: map[string]room.Pane{"ttys001": {ID: "%1"}}}
+	m := model{reading: reading{panes: map[string]room.Pane{"ttys001": {ID: "%1"}}}, view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark}
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 1, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusActive},
 		{PID: 2, Kind: work.KindContact, Command: "claude", TTY: "ttys002", Status: work.StatusWaiting},

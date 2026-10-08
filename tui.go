@@ -167,25 +167,17 @@ type (
 	}
 	stationTickMsg struct{ gen int } // the station is due to be read again
 	processesMsg   struct {          // the process table is read
-		projects   []work.Project
-		panes      map[string]room.Pane // the server's panes by terminal
-		bay        string               // the terminal in the bay
-		noBay      bool                 // home has no bay beside the panel
-		bayDead    bool                 // the bay's pane held on remain-on-exit, its process gone
-		bayReadout bool                 // the bay holds the readout, so the page is up
-		bayDetour  detourTo             // the page of conn's own the bay holds, if any
-		bayActive  bool                 // the keys are in the bay, by tmux's own word
+		reading
+		bay        string   // the terminal in the bay
+		noBay      bool     // home has no bay beside the panel
+		bayDead    bool     // the bay's pane held on remain-on-exit, its process gone
+		bayReadout bool     // the bay holds the readout, so the page is up
+		bayDetour  detourTo // the page of conn's own the bay holds, if any
+		bayActive  bool     // the keys are in the bay, by tmux's own word
 		err        string
-		// The projects' .conn files as this reading found them, kept on
-		// the model for the next reading to stat against; see declared.go.
-		declared map[string]declared.File
-		// The projects whole, where projects is the fold of them.
-		tree []work.Project
-		gen  int
+		gen        int
 		// What this reading leaves for the next to read against.
 		trace *trace
-		// The table's record behind each row, for the page; see cursor.go.
-		records map[int]wire.Record
 		// The rooting the reading was made on: the roots it found the
 		// file naming, and which directories were projects as it read
 		// them. The model goes onto it with the rows it filed.
@@ -220,18 +212,17 @@ type model struct {
 	p             draw.Palette
 	g             theme.Ground // the ground conn is on, which the palette is built off and the status line is written from
 
-	view     view
-	lit      bool // the annunciators are showing this half of the blink
-	blink    beat // the blink's tick, in flight while something annunciates
-	spin     beat // the spinner's, in flight while a row is working
-	survey   beat // the station's reading, in flight while the console is up
-	projects []work.Project
+	view   view
+	lit    bool // the annunciators are showing this half of the blink
+	blink  beat // the blink's tick, in flight while something annunciates
+	spin   beat // the spinner's, in flight while a row is working
+	survey beat // the station's reading, in flight while the console is up
+	// What the panel last read of the machine, which a reading replaces
+	// whole.
+	reading
 	cursor   int     // the pid the cursor is on
 	cursorAt int     // where in the rows it was, for when the pid goes
 	told     subject // the subject as last published for the readout to follow
-	// The table's record behind each row as last read, published with
-	// the rows for the page; see cursor.go.
-	records map[int]wire.Record
 	// The manual or the settings, where one is the thing in the
 	// workspace; see detour.go.
 	detour detour
@@ -306,11 +297,10 @@ type model struct {
 	// be the key it is.
 	firstG bool
 
-	srv    *room.Server         // conn's tmux server, when there is one
-	inside bool                 // this conn is the panel of the server's home window
-	self   string               // this binary, for the hold
-	panes  map[string]room.Pane // the server's panes by terminal, as last read
-	bay    bay                  // what is in the bay and what it has held; see bay.go
+	srv    *room.Server // conn's tmux server, when there is one
+	inside bool         // this conn is the panel of the server's home window
+	self   string       // this binary, for the hold
+	bay    bay          // what is in the bay and what it has held; see bay.go
 
 	// What docker last said, and the feed that says it. The containers
 	// are read beside the process table rather than in it, so a reading
@@ -318,11 +308,8 @@ type model struct {
 	// is docker having gone quiet, which the view admits rather than
 	// showing yesterday's rows as though they were today's.
 	containers []docker.Container
-	// The projects' .conn files as last read; see declared.go.
-	declared map[string]declared.File
-	// The processes as read, whole, and whether the view shows them
-	// so: at rest it shows the fold of them; see fold.go.
-	tree          []work.Project
+	// Whether the view shows the processes whole, as read: at rest it
+	// shows the fold of them; see fold.go.
 	full          bool
 	up            time.Time // when this conn came up, for the band's clock
 	dockerFeed    *docker.Feed

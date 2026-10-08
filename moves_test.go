@@ -30,7 +30,7 @@ func TestTheBarOffersWhatTheKeysDo(t *testing.T) {
 		{PID: -7, Kind: work.KindService, Command: "pg", Status: work.StatusDown, Declared: pg, Brew: "postgresql@14"},
 	}
 	for _, inside := range []bool{true, false} {
-		m := model{view: viewProcesses, inside: inside, focused: true, panes: map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}}}
+		m := model{reading: reading{panes: map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}}}, view: viewProcesses, inside: inside, focused: true}
 		m.projects = []work.Project{{Path: "/w", Entries: rows}}
 		m.declared = map[string]declared.File{"/w": {List: []declared.Declaration{{Name: "web", Command: "npm run dev"}, {Name: "pg", Command: "brew services run postgresql@14"}}}}
 		for _, e := range rows {
@@ -58,7 +58,7 @@ func TestTheBarOffersWhatTheKeysDo(t *testing.T) {
 // A declaration started by hand is up: enter has no pane of conn's to
 // go into, and does not bring a second one up beside it.
 func TestEnterOnADeclarationStartedByHandBringsNothingUp(t *testing.T) {
-	m := model{view: viewProcesses, inside: true, panes: map[string]room.Pane{}}
+	m := model{reading: reading{panes: map[string]room.Pane{}}, view: viewProcesses, inside: true}
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 5, Kind: work.KindRun, Command: "web", Status: work.StatusActive, Declared: declared.Mark("/w", "web")},
 	}}}

@@ -123,18 +123,18 @@ func TestAReadingWritesTheLogAndTheBandCounts(t *testing.T) {
 	}}}
 	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses}
 	// The first reading is read against nothing.
-	m, _ = m.logging(processesMsg{projects: first, tree: first})
+	m, _ = m.logging(processesMsg{reading: reading{projects: first, tree: first}})
 	if m.log.unseen != 0 || !m.seenAny {
 		t.Fatalf("the first reading counted %d", m.log.unseen)
 	}
-	m, _ = m.logging(processesMsg{projects: second, tree: second})
+	m, _ = m.logging(processesMsg{reading: reading{projects: second, tree: second}})
 	if m.log.unseen != 1 {
 		t.Fatalf("the wait counted %d", m.log.unseen)
 	}
 	// A reading that failed is read against nothing, and the next good
 	// one is read against the last good one.
 	m, _ = m.logging(processesMsg{err: "THE PROCESS TABLE COULD NOT BE READ"})
-	m, _ = m.logging(processesMsg{projects: second, tree: second})
+	m, _ = m.logging(processesMsg{reading: reading{projects: second, tree: second}})
 	if m.log.unseen != 1 {
 		t.Errorf("a failed reading changed the count to %d", m.log.unseen)
 	}

@@ -320,7 +320,7 @@ func TestTheBayTakesTheNextProcessWhenItsOwnEnds(t *testing.T) {
 func TestTheCursorGoesToTheShellOnceItIsRead(t *testing.T) {
 	here := []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11}, {PID: 22}}}}
 	read := func(m model, projects []work.Project) model {
-		next, _ := m.Update(processesMsg{projects: projects, gen: m.processesGen})
+		next, _ := m.Update(processesMsg{reading: reading{projects: projects}, gen: m.processesGen})
 		return next.(model)
 	}
 	m := plainModel()
@@ -1346,7 +1346,7 @@ func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
 
 	// The contact above it ends, and every row below moves up one.
 	thinner := append([]work.Project{{Path: testRunning[0].Path, Entries: testRunning[0].Entries[1:]}}, testRunning[1:]...)
-	next, _ := m.Update(processesMsg{gen: m.processesGen, projects: thinner, panes: testPanes})
+	next, _ := m.Update(processesMsg{reading: reading{projects: thinner, panes: testPanes}, gen: m.processesGen})
 	m = next.(model)
 	if m.list.find.at != was-1 {
 		t.Fatalf("the cursor is on row %d, want %d", m.list.find.at, was-1)
@@ -1356,7 +1356,7 @@ func TestTheListsCursorHoldsItsRowAcrossAReading(t *testing.T) {
 	}
 
 	// And the process it was on ending leaves it where that row was.
-	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: nil, panes: nil})
+	next, _ = m.Update(processesMsg{reading: reading{projects: nil, panes: nil}, gen: m.processesGen})
 	m = next.(model)
 	if row, ok := m.atCursor(); !ok || row.name != "conn" {
 		t.Errorf("with the process gone the cursor stands on %+v", row)
@@ -1402,22 +1402,18 @@ func TestEscGoesBackIntoTheLastProcess(t *testing.T) {
 	// out of the bay but it is still where the operator was.
 	m.focused = true
 	next, _ = m.Update(processesMsg{
-		gen:      m.processesGen,
-		projects: testRunning,
-		panes:    withPane(testPanes, room.Pane{ID: "%9", TTY: "ttys009", Hold: true, Readout: true}),
-		bay:      "ttys009",
-	})
+		reading: reading{projects: testRunning, panes: withPane(testPanes, room.Pane{ID: "%9", TTY: "ttys009", Hold: true, Readout: true})},
+		gen:     m.processesGen,
+		bay:     "ttys009"})
 	if m = next.(model); m.bay.work != "ttys001" {
 		t.Errorf("the page took the bay and lastIn with it: %q", m.bay.work)
 	}
 
 	// And a hold standing in an empty bay is conn's own furniture too.
 	next, _ = m.Update(processesMsg{
-		gen:      m.processesGen,
-		projects: testRunning,
-		panes:    withPane(testPanes, room.Pane{ID: "%8", TTY: "ttys008", Hold: true}),
-		bay:      "ttys008",
-	})
+		reading: reading{projects: testRunning, panes: withPane(testPanes, room.Pane{ID: "%8", TTY: "ttys008", Hold: true})},
+		gen:     m.processesGen,
+		bay:     "ttys008"})
 	if m = next.(model); m.bay.work != "ttys001" {
 		t.Errorf("a hold took lastIn: %q", m.bay.work)
 	}
@@ -1478,7 +1474,7 @@ func TestTheOtherProcessIsTheWorkBeforeThisWork(t *testing.T) {
 	page := func(m model) model {
 		// The keys come back to the panel and the page takes the
 		// workspace, which is what happens between any two things.
-		next, _ := m.Update(processesMsg{gen: m.processesGen, panes: m.panes, bay: "ttysp", bayReadout: true})
+		next, _ := m.Update(processesMsg{reading: reading{panes: m.panes}, gen: m.processesGen, bay: "ttysp", bayReadout: true})
 		return next.(model)
 	}
 	into := func(m model, tty string) model {
@@ -1649,7 +1645,7 @@ func TestZShowsTheWholeTree(t *testing.T) {
 	}}}
 	m := plainModel()
 	m.view = viewProcesses
-	next, _ := m.Update(processesMsg{projects: fold(tree), tree: tree})
+	next, _ := m.Update(processesMsg{reading: reading{projects: fold(tree), tree: tree}})
 	m = next.(model)
 	if rowsIn(m.projects) != 1 || len(m.tree[0].Entries) != 2 || m.full {
 		t.Fatalf("at rest: %d rows shown of %d, full %v", rowsIn(m.projects), len(m.tree[0].Entries), m.full)

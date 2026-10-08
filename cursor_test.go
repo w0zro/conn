@@ -110,9 +110,9 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	// missing comes back on the next beat rather than staying gone
 	// until somebody presses a key.
 	tellCursor(path, subject{pid: 0}, nil)
-	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: []work.Project{{Path: "/w", Entries: []work.Entry{
+	next, _ = m.Update(processesMsg{reading: reading{projects: []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 22, TTY: "ttys002", Status: work.StatusIdle},
-	}}}})
+	}}}}, gen: m.processesGen})
 	m = next.(model)
 	if published() != 22 {
 		t.Errorf("a reading published %d, not where the cursor stands", published())
@@ -144,7 +144,7 @@ func TestThePanelPublishesItsCursor(t *testing.T) {
 	// and the page not finding the row in it says so.
 	m.view = viewProjects
 	m.view, m.cursor, m.told = viewProcesses, 22, subject{pid: 22}
-	next, _ = m.Update(processesMsg{gen: m.processesGen, projects: nil})
+	next, _ = m.Update(processesMsg{reading: reading{projects: nil}, gen: m.processesGen})
 	m = next.(model)
 	got, r := askCursor(path)
 	if m.cursor != 0 || got.pid != 22 || r == nil || len(r.Projects) != 0 {

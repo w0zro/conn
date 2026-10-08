@@ -1123,7 +1123,10 @@ func (s Signal) Heard() string { return s.heard }
 // the contact happened to send it. A window of its own costs the
 // contact nothing and makes the server a process like any other here —
 // conn shows it, you reach it, and its log is the pane you are looking
-// at.
+// at. The contact is told to keep the pane's id rather than the
+// window's name, because conn swaps panes into the workspace and a
+// window's name stays where it was: a respawn-window aimed at the name
+// once killed the session sitting in the workspace before the swap.
 //
 // conn says this to the contacts it starts rather than writing it into
 // anybody's settings. It travels with conn, so a conn on another
@@ -1134,10 +1137,15 @@ func ContactNote(socket string) string {
 		"and watches the processes working this project. Start anything long-lived " +
 		"— a dev server, a file watcher, a build that stays up — in a window of its " +
 		"own rather than detached in the background:\n\n" +
-		"  tmux -S " + socket + " new-window -d -n NAME -c DIR 'COMMAND'\n\n" +
+		"  tmux -S " + socket + " new-window -d -P -F '#{pane_id}' -n NAME -c DIR 'COMMAND'\n\n" +
 		"It then holds a terminal of its own, so conn lists it as a process " +
-		"of its own, it can be attached to, and its output is the window's scrollback:\n\n" +
-		"  tmux -S " + socket + " capture-pane -p -t NAME\n\n" +
+		"of its own, it can be attached to, and its output is the pane's scrollback. " +
+		"The command prints the pane's id, %N; read, restart and stop it by that id:\n\n" +
+		"  tmux -S " + socket + " capture-pane -p -t %N\n" +
+		"  tmux -S " + socket + " respawn-pane -k -t %N\n" +
+		"  tmux -S " + socket + " kill-pane -t %N\n\n" +
+		"Never by the window's name: conn moves panes between windows to show them, " +
+		"so the name can come to hold another process, and a command sent to it lands there.\n\n" +
 		"Something you background instead holds no terminal and has no pane, and can " +
 		"only be read through whatever file its output was sent to."
 }

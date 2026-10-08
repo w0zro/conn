@@ -126,11 +126,12 @@ func TestTheLineRunInThePane(t *testing.T) {
 
 // What the note says has to name the socket, since a contact told to
 // open a window and not told which server would be guessing; and it
-// says how to put work in a window and read it back.
+// says how to put work in a window and reach it again by the pane's id,
+// which follows the pane when conn swaps it into the workspace.
 func TestTheContactIsToldWhereItIs(t *testing.T) {
 	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
 		note := ContactNote(socket)
-		for _, want := range []string{socket, "new-window", "capture-pane"} {
+		for _, want := range []string{socket, "new-window", "#{pane_id}", "capture-pane -p -t %N", "kill-pane -t %N"} {
 			if !strings.Contains(note, want) {
 				t.Errorf("the note says nothing of %q:\n%s", want, note)
 			}

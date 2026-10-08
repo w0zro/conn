@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/w0zro/conn/internal/station"
@@ -54,21 +53,6 @@ type BrewService struct {
 	Status  string // brew's own word: started, stopped, none, error, scheduled
 	Command string // what launchd runs for it
 	Log     string // where it writes
-}
-
-// BrewArgs reads a declared command that starts a service with brew:
-// brew services start FORMULA, or run. Anything else is not one.
-func BrewArgs(command string) (formula string, ok bool) {
-	f := strings.Fields(command)
-	if len(f) < 4 || f[0] != "brew" || f[1] != "services" || f[2] != "start" && f[2] != "run" {
-		return "", false
-	}
-	for _, a := range f[3:] {
-		if !strings.HasPrefix(a, "-") {
-			return a, true
-		}
-	}
-	return "", false
 }
 
 // BrewMark is the mark on the pane conn opens to watch a service's log,

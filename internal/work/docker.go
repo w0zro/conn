@@ -60,11 +60,6 @@ const DockerWait = 3 * time.Second
 // while it was happening.
 const DockerStopWait = 20 * time.Second
 
-// KindService is what a container's row is called. It is not a RUN: a run
-// is a program on this machine with a terminal above it somewhere, and a
-// service is a thing docker is holding up on your behalf.
-const KindService = "SERVICE"
-
 // A Container as docker described it.
 type Container struct {
 	ID      string // the short id, twelve hex digits

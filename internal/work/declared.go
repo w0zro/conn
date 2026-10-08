@@ -363,9 +363,6 @@ func exitStatus(code string) (string, bool) {
 	return exitWord + code, true
 }
 
-// exitWord is what a status that ended with a code begins with.
-const exitWord = "EXIT "
-
 // A DeclaredPane is a terminal conn opened for a declaration, as the
 // rows are read against it: the pane, the terminal it holds, the
 // declaration it was opened for, by its mark, and how its command
@@ -636,4 +633,19 @@ func relabel(out []Project, pid int, decl Declaration, mark, exit string) {
 			return
 		}
 	}
+}
+
+// BrewArgs reads a declared command that starts a service with brew:
+// brew services start FORMULA, or run. Anything else is not one.
+func BrewArgs(command string) (formula string, ok bool) {
+	f := strings.Fields(command)
+	if len(f) < 4 || f[0] != "brew" || f[1] != "services" || f[2] != "start" && f[2] != "run" {
+		return "", false
+	}
+	for _, a := range f[3:] {
+		if !strings.HasPrefix(a, "-") {
+			return a, true
+		}
+	}
+	return "", false
 }

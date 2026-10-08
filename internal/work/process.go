@@ -51,6 +51,12 @@ const (
 	kindHold    = "HOLD" // conn standing in an empty bay; not in the processes view
 )
 
+// KindService is what a service's row is called: a container, or a
+// service brew holds. It is not a RUN: a run is a program on this
+// machine with a terminal above it somewhere, and a service is a thing
+// docker or brew is holding up on your behalf.
+const KindService = "SERVICE"
+
 // A name is a contact's when the name means an agent and means little
 // else. The word carries more here than the other kinds do — it says
 // there is a mind at the other end, that the row can stop and wait on
@@ -132,6 +138,9 @@ const (
 	StatusDown    = "DOWN"    // declared in the project's .conn, and not running
 	StatusClosed  = "CLOSED"  // it was listening, and the listener has gone while it lives
 )
+
+// exitWord is what a status that ended with a code begins with.
+const exitWord = "EXIT "
 
 // Said is a status as a row says it. The vocabulary is the machine's and
 // stays in capitals wherever conn reasons about it — the manual's table

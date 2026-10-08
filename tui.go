@@ -1104,15 +1104,7 @@ func (m model) cameFrom() string {
 	if !m.inside || m.srv == nil {
 		return ""
 	}
-	out, err := m.srv.Run("show-options", "-gqv", "@conn_from")
-	if err != nil {
-		return ""
-	}
-	_, _ = m.srv.Run("set-option", "-gu", "@conn_from")
-	if from := strings.TrimSpace(out); from != m.srv.Panel() {
-		return from
-	}
-	return ""
+	return m.srv.CameFrom()
 }
 
 // backFrom is the cancel. The panel comes back to the processes view,

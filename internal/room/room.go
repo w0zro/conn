@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -117,20 +116,7 @@ func (s *Server) Attach(self, home, conf, bg string) (int, error) {
 	if err := s.RestoreHome(home, self); err != nil {
 		return 0, err
 	}
-	cmd := exec.Command(s.Tmux, "-S", s.Socket, "-f", path,
-		"new-session", "-A", "-s", SessionName, "-n", HomeWindow, "-c", home, "exec "+tmux.ShellQuote(self))
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	// A tmux inside another tmux refuses to attach while TMUX is set; the
-	// terminal is this conn's to give.
-	cmd.Env = tmux.WithoutTmux(os.Environ())
-	err = cmd.Run()
-	if ee, ok := err.(*exec.ExitError); ok {
-		return ee.ExitCode(), nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	return 0, nil
+	return s.AttachClient(path, SessionName, HomeWindow, home, "exec "+tmux.ShellQuote(self))
 }
 
 // Rewear puts the server into a mode conn has just taken on. It is
@@ -192,7 +178,7 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 	if !s.Up() {
 		return nil
 	}
-	if _, err := s.Run("source-file", conf); err != nil {
+	if _, err := s.Do(tmux.SourceFile(conf)); err != nil {
 		return err
 	}
 	panes, err := s.Panes()
@@ -212,7 +198,7 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 	if !panel {
 		return nil
 	}
-	_, err = s.Run("respawn-pane", "-k", "-t", panelTarget, "exec "+tmux.ShellQuote(self))
+	_, err = s.Do(tmux.Respawn(panelTarget, "exec "+tmux.ShellQuote(self)))
 	return err
 }
 
@@ -223,7 +209,7 @@ func (s *Server) Reground(conf, bg, except, self string, panel bool) error {
 func (s *Server) respawnOwn(panes map[string]tmux.Pane, except, self string) error {
 	for _, p := range panes {
 		if p.Hold && p.ID != except {
-			if _, err := s.Run("respawn-pane", "-k", "-t", p.ID, "exec "+tmux.ShellQuote(self)+" "+ownCommand(p)); err != nil {
+			if _, err := s.Do(tmux.Respawn(p.ID, "exec "+tmux.ShellQuote(self)+" "+ownCommand(p))); err != nil {
 				return err
 			}
 		}
@@ -275,13 +261,13 @@ func Fingerprint(path string) (string, error) {
 // Build is the fingerprint the panel named on the server, blank where
 // no panel has: a server brought up before conn named its builds.
 func (s *Server) Build() string {
-	out, _ := s.Run("show-options", "-gqv", buildOption)
-	return strings.TrimSpace(out)
+	out, _ := s.Global(buildOption)
+	return out
 }
 
 // SayBuild is the panel naming the build it runs.
 func (s *Server) SayBuild(print string) error {
-	_, err := s.Run("set-option", "-g", buildOption, print)
+	_, err := s.Do(tmux.SetGlobal(buildOption, print))
 	return err
 }
 
@@ -299,7 +285,7 @@ func (s *Server) Relieve(conf, self string) (bool, error) {
 	if !s.Up() || s.Build() == print {
 		return false, nil
 	}
-	if _, err := s.Run("source-file", conf); err != nil {
+	if _, err := s.Do(tmux.SourceFile(conf)); err != nil {
 		return false, err
 	}
 	panes, err := s.Panes()
@@ -314,8 +300,7 @@ func (s *Server) Relieve(conf, self string) (bool, error) {
 	if !s.hasHome() {
 		return true, nil
 	}
-	_, err = s.Run("set-option", "-g", resumeOption, "1",
-		";", "respawn-pane", "-k", "-t", panelTarget, "exec "+tmux.ShellQuote(self))
+	_, err = s.Do(tmux.SetGlobal(resumeOption, "1"), tmux.Respawn(panelTarget, "exec "+tmux.ShellQuote(self)))
 	return true, err
 }
 
@@ -323,18 +308,18 @@ func (s *Server) Relieve(conf, self string) (bool, error) {
 // clears it, so the panel started after it by anything else comes up
 // on the console as it always has.
 func (s *Server) Resuming() bool {
-	out, err := s.Run("show-options", "-gqv", resumeOption)
-	if err != nil || strings.TrimSpace(out) != "1" {
+	out, err := s.Global(resumeOption)
+	if err != nil || out != "1" {
 		return false
 	}
-	_, _ = s.Run("set-option", "-gu", resumeOption)
+	_, _ = s.Do(tmux.UnsetGlobal(resumeOption))
 	return true
 }
 
 // IsPanel says whether a pane, by id, is the panel's.
 func (s *Server) IsPanel(pane string) bool {
-	out, err := s.Run("display-message", "-p", "-t", panelTarget, "#{pane_id}")
-	return err == nil && strings.TrimSpace(out) == pane
+	out, err := s.Display(panelTarget, "#{pane_id}")
+	return err == nil && out == pane
 }
 
 // panelTarget is the panel's pane as tmux is asked for it from outside
@@ -349,33 +334,32 @@ var panelTarget = SessionName + ":" + HomeWindow + ".0"
 // the one binary known to be there, and not from what the pane first
 // rose on; see Reground for why that may be gone.
 func (s *Server) RestoreHome(home, self string) error {
-	if _, err := s.Run("has-session", "-t", "="+SessionName); err != nil {
+	if !s.HasSession(SessionName) {
 		return nil
 	}
 	if !s.hasHome() {
-		_, err := s.Run("new-window", "-d", "-t", SessionName+":", "-n", HomeWindow, "-c", home, "exec "+tmux.ShellQuote(self))
-		return err
+		return s.NewNamedWindow(SessionName, HomeWindow, home, "exec "+tmux.ShellQuote(self))
 	}
 	if !s.panelDead() {
 		return nil
 	}
-	_, err := s.Run("respawn-pane", "-k", "-t", panelTarget, "exec "+tmux.ShellQuote(self))
+	_, err := s.Do(tmux.Respawn(panelTarget, "exec "+tmux.ShellQuote(self)))
 	return err
 }
 
 // panelDead says whether the panel's pane stands with its process gone.
 func (s *Server) panelDead() bool {
-	out, err := s.Run("display-message", "-p", "-t", panelTarget, "#{pane_dead}")
-	return err == nil && strings.TrimSpace(out) == "1"
+	out, err := s.Display(panelTarget, "#{pane_dead}")
+	return err == nil && out == "1"
 }
 
 // hasHome says whether the session has its home window.
 func (s *Server) hasHome() bool {
-	out, err := s.Run("list-windows", "-t", SessionName, "-F", "#{window_name}")
+	names, err := s.WindowNames(SessionName)
 	if err != nil {
 		return false
 	}
-	for _, name := range strings.Split(out, "\n") {
+	for _, name := range names {
 		if name == HomeWindow {
 			return true
 		}
@@ -451,11 +435,11 @@ func (s *Server) split(home, self string) error {
 	} else if ok {
 		return nil
 	}
-	id, err := s.Run("split-window", "-h", "-d", "-P", "-F", "#{pane_id}", "-t", s.Panel(), "-c", home, "exec "+tmux.ShellQuote(self)+" hold")
+	id, err := s.SplitRight(s.Panel(), home, "exec "+tmux.ShellQuote(self)+" hold")
 	if err != nil {
 		return err
 	}
-	if _, err := s.Run("set-option", "-p", "-t", strings.TrimSpace(id), "@conn_hold", "1"); err != nil {
+	if _, err := s.Do(tmux.SetPane(id, "@conn_hold", "1")); err != nil {
 		return err
 	}
 	// A pane in this window whose process ends stays instead of
@@ -465,7 +449,7 @@ func (s *Server) split(home, self string) error {
 	// and not the server's, since the bay is the only place conn has a
 	// layout to protect. Everywhere else a window whose work has ended
 	// is a window that is done.
-	if _, err := s.Run("set-option", "-w", "-t", strings.TrimSpace(id), "remain-on-exit", "on"); err != nil {
+	if _, err := s.Do(tmux.SetWindow(id, "remain-on-exit", "on")); err != nil {
 		return err
 	}
 	return s.HoldPanel()
@@ -475,7 +459,7 @@ func (s *Server) split(home, self string) error {
 // proportion when the window is resized, so the panel is put back each
 // time it is not its width.
 func (s *Server) HoldPanel() error {
-	_, err := s.Run("resize-pane", "-t", s.Panel(), "-x", strconv.Itoa(PanelWidth))
+	_, err := s.Do(tmux.ResizeWidth(s.Panel(), PanelWidth))
 	return err
 }
 
@@ -502,15 +486,15 @@ func (s *Server) ReviveBay(home, self string) error {
 // about the window's layout moves, and the panel never has to give up
 // its width and take it back.
 func (s *Server) holdBay(home, self string, bay tmux.Pane) error {
-	id, err := s.Run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home, "exec "+tmux.ShellQuote(self)+" hold")
+	sh, err := s.NewWindow(home, "exec "+tmux.ShellQuote(self)+" hold")
 	if err != nil {
 		return err
 	}
-	hold := strings.TrimSpace(id)
-	if _, err := s.Run("set-option", "-p", "-t", hold, "@conn_hold", "1"); err != nil {
+	hold := sh.Pane.ID
+	if _, err := s.Do(tmux.SetPane(hold, "@conn_hold", "1")); err != nil {
 		return err
 	}
-	_, err = s.Run("swap-pane", "-d", "-s", hold, "-t", bay.ID, ";", "kill-pane", "-t", bay.ID)
+	_, err = s.Do(tmux.Swap(hold, bay.ID), tmux.Kill(bay.ID))
 	return err
 }
 
@@ -563,14 +547,13 @@ func (s *Server) ShowSettings(home, self string) error {
 func (s *Server) showOwn(home, self, cmd, mark string, keys bool) error {
 	s.swaps.Lock()
 	defer s.swaps.Unlock()
-	id, err := s.Run("new-window", "-d", "-P", "-F", "#{pane_id}", "-c", home,
-		"exec "+tmux.ShellQuote(self)+" "+cmd)
+	sh, err := s.NewWindow(home, "exec "+tmux.ShellQuote(self)+" "+cmd)
 	if err != nil {
 		return err
 	}
-	page := strings.TrimSpace(id)
+	page := sh.Pane.ID
 	for _, opt := range []string{"@conn_hold", mark} {
-		if _, err := s.Run("set-option", "-p", "-t", page, opt, "1"); err != nil {
+		if _, err := s.Do(tmux.SetPane(page, opt, "1")); err != nil {
 			return err
 		}
 	}
@@ -591,14 +574,14 @@ func (s *Server) showOwn(home, self, cmd, mark string, keys bool) error {
 			return fmt.Errorf("home has no bay")
 		}
 	}
-	args := []string{"swap-pane", "-d", "-s", page, "-t", bay.ID}
+	cmds := []tmux.Cmd{tmux.Swap(page, bay.ID)}
 	if bay.Width > 0 && bay.Height > 0 {
-		args = append(args, ";", "resize-window", "-t", bay.ID, "-x", strconv.Itoa(bay.Width), "-y", strconv.Itoa(bay.Height))
+		cmds = append(cmds, tmux.ResizeWindow(bay.ID, bay.Width, bay.Height))
 	}
 	if bay.Hold {
-		args = append(args, ";", "kill-pane", "-t", bay.ID)
+		cmds = append(cmds, tmux.Kill(bay.ID))
 	}
-	if _, err := s.Run(args...); err != nil {
+	if _, err := s.Do(cmds...); err != nil {
 		return err
 	}
 	if keys {
@@ -650,25 +633,23 @@ func (s *Server) show(target tmux.Pane, focus bool) error {
 			inHome = inHome || p.ID == target.ID
 		}
 	}
-	var args []string
+	var cmds []tmux.Cmd
 	if target.ID != bay.ID {
-		args = []string{"swap-pane", "-d", "-s", target.ID, "-t", bay.ID}
+		cmds = append(cmds, tmux.Swap(target.ID, bay.ID))
 		if bay.Width > 0 && bay.Height > 0 && !inHome {
-			args = append(args, ";", "resize-window", "-t", bay.ID, "-x", strconv.Itoa(bay.Width), "-y", strconv.Itoa(bay.Height))
+			cmds = append(cmds, tmux.ResizeWindow(bay.ID, bay.Width, bay.Height))
 		}
 		if bay.Hold || bay.Dead {
-			args = append(args, ";", "kill-pane", "-t", bay.ID)
+			cmds = append(cmds, tmux.Kill(bay.ID))
 		}
-		args = append(args, ";")
 	}
 	if focus {
-		args = append(args, "select-pane", "-t", target.ID)
-	} else if len(args) == 0 {
-		return nil
-	} else {
-		args = args[:len(args)-1]
+		cmds = append(cmds, tmux.SelectPane(target.ID))
 	}
-	_, err = s.Run(args...)
+	if len(cmds) == 0 {
+		return nil
+	}
+	_, err = s.Do(cmds...)
 	return err
 }
 
@@ -724,7 +705,7 @@ func (s *Server) OpenShellIn(dir, cmd, id string) (tmux.Shell, error) {
 // whole without the bay ending on whichever pane opened last.
 func (s *Server) RaiseDeclared(dir, cmd, mark, replace string, show bool) (tmux.Shell, error) {
 	if replace != "" {
-		_, _ = s.Run("kill-pane", "-t", replace)
+		_, _ = s.Do(tmux.Kill(replace))
 	}
 	sh, err := s.openMarked(dir, cmd, "@conn_declared", mark)
 	if err != nil {
@@ -744,7 +725,7 @@ func (s *Server) openMarked(dir, cmd, option, value string) (tmux.Shell, error) 
 	if err != nil {
 		return tmux.Shell{}, err
 	}
-	if _, err := s.Run("set-option", "-p", "-t", sh.Pane.ID, option, value); err != nil {
+	if _, err := s.Do(tmux.SetPane(sh.Pane.ID, option, value)); err != nil {
 		return tmux.Shell{}, err
 	}
 	return sh, nil
@@ -760,14 +741,14 @@ func (s *Server) Wide() error { return s.zoom(true) }
 func (s *Server) Narrow() error { return s.zoom(false) }
 
 func (s *Server) zoom(on bool) error {
-	out, err := s.Run("display-message", "-p", "-t", s.Panel(), "#{window_zoomed_flag}")
+	out, err := s.Display(s.Panel(), "#{window_zoomed_flag}")
 	if err != nil {
 		return err
 	}
-	if (strings.TrimSpace(out) == "1") == on {
+	if (out == "1") == on {
 		return nil
 	}
-	_, err = s.Run("resize-pane", "-Z", "-t", s.Panel())
+	_, err = s.Do(tmux.ToggleZoom(s.Panel()))
 	return err
 }
 
@@ -995,23 +976,18 @@ set -g pane-border-status off
 // Say puts what conn knows about its own keys on the server, and asks
 // the clients to draw, so the status line never lags what changed it.
 func (s *Server) Say(keys, station, up, bar, ident string) error {
-	_, err := s.Run("set-option", "-g", "@conn_keys", keys,
-		";", "set-option", "-g", "@conn_station", station,
-		";", "set-option", "-g", "@conn_up", up,
-		";", "set-option", "-g", "@conn_bar", bar,
-		";", "set-option", "-g", "@conn_ident", ident,
-		";", "refresh-client", "-S")
+	_, err := s.Do(tmux.SetGlobal("@conn_keys", keys), tmux.SetGlobal("@conn_station", station),
+		tmux.SetGlobal("@conn_up", up), tmux.SetGlobal("@conn_bar", bar), tmux.SetGlobal("@conn_ident", ident),
+		tmux.RefreshStatus())
 	return err
 }
 
 // SayBand is say without the key bar, for the panel while a page of
 // conn's own has the keys and is writing that position itself.
 func (s *Server) SayBand(keys, station, up, ident string) error {
-	_, err := s.Run("set-option", "-g", "@conn_keys", keys,
-		";", "set-option", "-g", "@conn_station", station,
-		";", "set-option", "-g", "@conn_up", up,
-		";", "set-option", "-g", "@conn_ident", ident,
-		";", "refresh-client", "-S")
+	_, err := s.Do(tmux.SetGlobal("@conn_keys", keys), tmux.SetGlobal("@conn_station", station),
+		tmux.SetGlobal("@conn_up", up), tmux.SetGlobal("@conn_ident", ident),
+		tmux.RefreshStatus())
 	return err
 }
 
@@ -1021,7 +997,7 @@ func (s *Server) SayBand(keys, station, up, ident string) error {
 // pane. The panel leaves the position alone while such a page stands;
 // see saying in tui.go.
 func (s *Server) SayBar(bar string) error {
-	_, err := s.Run("set-option", "-g", "@conn_bar", bar, ";", "refresh-client", "-S")
+	_, err := s.Do(tmux.SetGlobal("@conn_bar", bar), tmux.RefreshStatus())
 	return err
 }
 
@@ -1032,9 +1008,28 @@ func (s *Server) SayBar(bar string) error {
 // The keys it sends are alt keys the panel answers to and nothing else
 // does; see leaveKey and worn.
 func (s *Server) tellPanel(key string) error {
-	_, err := s.Run("send-keys", "-t", SessionName+":"+HomeWindow+".0", key)
+	_, err := s.Do(tmux.SendKeys(panelTarget, key))
 	return err
 }
+
+// CameFrom is the pane the keys were in when the panel key brought
+// them to the panel, read once and cleared; nothing where they were on
+// the panel already. The key writes it as it fires, in its binding in
+// Conf.
+func (s *Server) CameFrom() string {
+	from, err := s.Global(fromOption)
+	if err != nil {
+		return ""
+	}
+	_, _ = s.Do(tmux.UnsetGlobal(fromOption))
+	if from != s.Panel() {
+		return from
+	}
+	return ""
+}
+
+// fromOption is where the panel key writes the pane it was pressed in.
+const fromOption = "@conn_from"
 
 // LeaveHelp tells the panel the manual is done with, and leaveSettings
 // the same of the settings.

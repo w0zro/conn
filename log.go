@@ -192,40 +192,46 @@ func (m model) logEntry(e stationlog.Event) (work.Entry, bool) {
 	return work.Entry{}, false
 }
 
-// logKey answers a key on the log view: j and k move among the lines,
+// key answers a key on the log view: j and k move among the lines,
 // gg and G to the newest and the oldest, enter goes to the line's
 // process where it is still there, / searches the output of the line's
 // project, and esc or l again goes back.
-func (m model) logKey(k string) (model, tea.Cmd) {
+func (l logList) key(k string) (logList, ask) {
 	switch k {
 	case "ctrl+c", "q":
-		return m.leave()
+		return l, askLeave{}
 	case "esc", "l":
-		return m.backFrom()
+		return l, askBack{}
 	case "j", "down":
-		m.log.at = ring(m.log.at+1, len(m.log.read))
+		l.at = ring(l.at+1, len(l.read))
 	case "k", "up":
-		m.log.at = ring(m.log.at-1, len(m.log.read))
+		l.at = ring(l.at-1, len(l.read))
 	case "g":
-		// The half of gg; see key.
-		m.firstG = true
+		return l, askChord{}
+	case "gg":
+		l.at = 0
 	case "G":
-		m.log.at = max(len(m.log.read)-1, 0)
+		l.at = max(len(l.read)-1, 0)
 	case "/":
 		// The output of the line's project, searched: a line says a run
 		// ended with a code, and the search is what the pane said.
-		if e, ok := m.log.logAt(); ok {
-			return m.openOutput(e.Project, m.from)
+		if e, ok := l.logAt(); ok {
+			return l, askOutput{e.Project}
 		}
 	case "enter":
-		if e, ok := m.log.logAt(); ok {
-			if r, ok := m.logEntry(e); ok {
-				m.from = ""
-				return m.goTo(r)
-			}
+		if e, ok := l.logAt(); ok {
+			return l, askLine{e}
 		}
 	}
-	return m, nil
+	return l, nil
+}
+
+// logKey is a key on the log view, answered by the log and carried out
+// by the panel.
+func (m model) logKey(k string) (model, tea.Cmd) {
+	var a ask
+	m.log, a = m.log.key(k)
+	return m.answer(a)
 }
 
 // A logRow is a line as the view draws it.

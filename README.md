@@ -6,7 +6,7 @@ project wants of you, and puts the one you choose in front of you.
 
 ```
    conn ────────────────────────  WAITING
-▸  ✻  claude                        9 MIN
+▸  ☿  claude                        9 MIN
    ❯  zsh
  ⣾ ○  go test ./...
 

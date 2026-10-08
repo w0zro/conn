@@ -36,13 +36,13 @@ import (
 // is the kind, and the color on it is how the kind stands.
 //
 // A kind with a mark of its own takes it: the shell is the prompt it
-// shows you, the editor a page, the contact a star for the mind at the
+// shows you, the editor a page, the contact Mercury for the mind at the
 // other end, the service a lamp of the kind a console watches rather
 // than types at. What is left over is the run, which is most rows, and
 // it takes the lightest mark there is, so that a panel of ordinary work
 // is quiet and the kinds worth finding stand out of it.
 const (
-	MarkContact = "✻" // a star: the one kind with a mind at the other end
+	MarkContact = "☿" // Mercury, the messenger and the first crewed capsule: a mind at the other end
 	MarkShell   = "❯" // the prompt it shows you
 	MarkEditor  = "▯" // a page, open: it has the terminal and asks nothing
 	MarkService = "◉" // a lamp on a console: a thing held up, and watched

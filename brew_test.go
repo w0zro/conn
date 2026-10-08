@@ -72,7 +72,7 @@ func TestABrewServiceIsARowAsBrewReportsIt(t *testing.T) {
 func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
+	m.srv = room.New(&tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"})
 	m.brews, _ = brew.Parse([]byte(brewInfo))
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
 		{PID: 24422, Kind: work.KindService, Command: "postgresql@14", Brew: "postgresql@14", Declared: declared.Mark("/w/a", "db"), Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5432"}},

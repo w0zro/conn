@@ -86,7 +86,7 @@ func paneOf(p tmux.Pane) Pane {
 // Panes is every pane in the server, by the terminal it holds, with
 // conn's marks read.
 func (s *Server) Panes() (map[string]Pane, error) {
-	ps, err := s.Server.Panes(marks...)
+	ps, err := s.tmux.Panes(marks...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s *Server) Panes() (map[string]Pane, error) {
 
 // home is every pane of the home window, in the order they stand.
 func (s *Server) home() ([]Pane, error) {
-	ps, err := s.WindowPanes(s.Panel(), marks...)
+	ps, err := s.tmux.WindowPanes(s.Panel(), marks...)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ type Shell struct {
 // open opens a window out of sight, at a directory, running a command
 // or the directory's own shell, and answers the shell as conn holds it.
 func (s *Server) open(dir, cmd string) (Shell, error) {
-	sh, err := s.NewWindow(dir, cmd)
+	sh, err := s.tmux.NewWindow(dir, cmd)
 	return Shell{Pane: paneOf(sh.Pane), PID: sh.PID}, err
 }
 
@@ -128,5 +128,5 @@ func (s *Server) open(dir, cmd string) (Shell, error) {
 // the code, or nothing while it is still going. An error is a pane
 // that is not there to ask.
 func (s *Server) PaneExit(id string) (string, error) {
-	return s.Display(id, "#{"+exitMark+"}")
+	return s.tmux.Display(id, "#{"+exitMark+"}")
 }

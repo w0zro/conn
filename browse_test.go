@@ -21,7 +21,7 @@ import (
 func TestOIsOfferedWhereARowServes(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
+	m.srv = room.New(&tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"})
 	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
 		{PID: 300, Kind: work.KindRun, Command: "node vite", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5173", "24678"}},
 		{PID: 301, Kind: work.KindRun, Command: "node build.js", Cwd: "/w/a", Status: work.StatusActive},

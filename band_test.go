@@ -18,7 +18,7 @@ import (
 func TestConnLightsTheStatusLine(t *testing.T) {
 	g := theme.Conn.Dark
 	m := plainModel()
-	m.inside, m.srv = true, &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"}}
+	m.inside, m.srv = true, room.New(&tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"})
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{
 		{PID: 11, Kind: work.KindContact, Command: "claude", TTY: "ttys004", Status: work.StatusWaiting},
 	}}}

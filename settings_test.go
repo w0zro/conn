@@ -256,7 +256,7 @@ func TestAFileThatWillNotParseIsNotWrittenOver(t *testing.T) {
 // machine beside them, and holds no row under the cursor, the keys
 // being in the other pane.
 func TestTheCommaOpensTheSettings(t *testing.T) {
-	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: &room.Server{Server: &tmux.Server{}}}
+	m := model{view: viewProcesses, cursor: 4321, inside: true, srv: room.New(&tmux.Server{})}
 	next, cmd := m.key(",")
 	m = next
 	if m.detour.to != toSettings || cmd == nil {
@@ -296,7 +296,7 @@ func TestTheCommaOpensTheSettings(t *testing.T) {
 // The settings say as they go, the way the manual does, and the panel
 // answers the key wherever it is and whatever view it is in.
 func TestTheSettingsSayWhenTheyAreDone(t *testing.T) {
-	m := model{view: viewProjects, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toSettings, from: "%4"},
+	m := model{view: viewProjects, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toSettings, from: "%4"},
 		panes: map[string]room.Pane{"ttys011": {ID: "%4", TTY: "ttys011"}}}
 	next, cmd := m.key(room.LeftSettings.Heard())
 	if got := next; got.detour.to == toSettings || got.detour.from != "" {
@@ -356,7 +356,7 @@ func TestTheSettingsSayWhatTheirKeysDo(t *testing.T) {
 	}
 
 	// The panel writes the band and leaves the bar to them.
-	p := model{view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{}}, detour: detour{to: toSettings}}
+	p := model{view: viewProcesses, inside: true, srv: room.New(&tmux.Server{}), detour: detour{to: toSettings}}
 	p, _ = p.saying()
 	if p.said.bar != "" {
 		t.Errorf("the panel wrote the bar while the settings had the keys: %q", p.said.bar)
@@ -448,7 +448,7 @@ func TestThePanelWearsTheModeTheSettingsWrote(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := plainModel()
-	m.view, m.inside, m.srv = viewProcesses, true, &room.Server{Server: &tmux.Server{Socket: socket}}
+	m.view, m.inside, m.srv = viewProcesses, true, room.New(&tmux.Server{Socket: socket})
 	m.head.Login.Home = home
 	next, _ := m.key(room.ModeChanged.Heard())
 	if got := next.g; got != theme.Datum.Light {

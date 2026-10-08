@@ -418,7 +418,7 @@ func TestTheListPublishesTheRowItsCursorIsOn(t *testing.T) {
 	// view: the keys on the panel and a row under the cursor is enough,
 	// and the walk landing is one of the moments it is asked for.
 	m.bay.readout, m.focused = false, true
-	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: filepath.Join(dir, "tmux.sock")}}
+	m.srv = room.New(&tmux.Server{Tmux: "/nonexistent/tmux", Socket: filepath.Join(dir, "tmux.sock")})
 	next, cmd := m.Update(projectsMsg{projects: m.list.walked})
 	if got := next.(model); !got.bay.readout || cmd == nil {
 		t.Error("the walk landing in the list did not put the page in the workspace")
@@ -515,7 +515,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 
 	// The sessions landing puts the page up.
 	m.bay.readout, m.focused = false, true
-	m.srv = &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux", Socket: filepath.Join(dir, "tmux.sock")}}
+	m.srv = room.New(&tmux.Server{Tmux: "/nonexistent/tmux", Socket: filepath.Join(dir, "tmux.sock")})
 	next, cmd := m.Update(sessionsMsg{dirs: m.sessions.dirs, sessions: m.sessions.read})
 	if got := next.(model); !got.bay.readout || cmd == nil {
 		t.Error("the sessions landing did not put the page in the workspace")

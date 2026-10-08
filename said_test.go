@@ -11,7 +11,7 @@ import (
 )
 
 func TestAPaneSayingItsStacksWordIsALine(t *testing.T) {
-	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: &room.Server{Server: &tmux.Server{Tmux: "/nonexistent/tmux"}}}
+	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses, inside: true, srv: room.New(&tmux.Server{Tmux: "/nonexistent/tmux"})}
 	m.projects = []work.Project{{Path: "/Users/w0zro/projects/web", Entries: []work.Entry{
 		{PID: 41, Kind: work.KindShell, Command: "zsh", TTY: "ttys001", Status: work.StatusIdle},
 		{PID: 43, Kind: work.KindRun, Command: "go", Typed: "go run .", TTY: "ttys001", Status: work.StatusActive},

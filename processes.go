@@ -11,6 +11,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -136,9 +137,9 @@ func worked(projects []work.Project) []work.Project {
 }
 
 // heavy is the figure a contact's row is stamped with when what it
-// carries is past work.HeavyContext, and nothing otherwise.
+// carries is past claude.HeavyContext, and nothing otherwise.
 func heavy(e work.Entry) string {
-	if e.Kind != work.KindContact || e.Carried <= work.HeavyContext {
+	if e.Kind != work.KindContact || e.Carried <= claude.HeavyContext {
 		return ""
 	}
 	return tokens(e.Carried)

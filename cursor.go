@@ -7,6 +7,7 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 )
 
 // Where the panel's cursor is, for the readout to follow. The two are
@@ -80,12 +81,12 @@ type reading struct {
 	inside     bool
 	containers []work.Container
 	brews      []work.BrewService // what brew said of its services; see brew.go
-	sessions   []work.Session
+	sessions   []claude.Session
 }
 
 // sessionOf is the suspended session of an id among those the panel
 // has in hand, where it is one.
-func (r reading) sessionOf(id string) *work.Session {
+func (r reading) sessionOf(id string) *claude.Session {
 	for i := range r.sessions {
 		if r.sessions[i].ID == id {
 			return &r.sessions[i]
@@ -187,7 +188,7 @@ type readingWire struct {
 	Inside     bool
 	Containers []work.Container
 	Brews      []work.BrewService
-	Sessions   []work.Session
+	Sessions   []claude.Session
 }
 
 func (r reading) MarshalJSON() ([]byte, error) {

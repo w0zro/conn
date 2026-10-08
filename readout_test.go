@@ -9,6 +9,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/tmux"
 
@@ -39,11 +40,11 @@ func readoutSubj() readoutSubject {
 			TTY: "ttys003", Status: work.StatusActive, Depth: 2}},
 		pane:   room.Pane{ID: "%2"},
 		inside: true,
-		sess: work.SessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
+		sess: claude.SessionFile{SessionID: "d81d7536-e545-4881-8daa-f1d291a03be1",
 			Name: "conn-2d", Version: "2.1.267", Kind: "interactive"},
-		carried: work.Session{Branch: "main", Prompt: "i want the info to use the pane on the right",
+		carried: claude.Session{Branch: "main", Prompt: "i want the info to use the pane on the right",
 			Model: "claude-opus-5", Carried: 571_592,
-			Ask: work.Ask{Tool: "AskUserQuestion", Detail: "Does the status line still say PROCS while this question waits?"}},
+			Ask: claude.Ask{Tool: "AskUserQuestion", Detail: "Does the status line still say PROCS while this question waits?"}},
 		git: gitStatus{repo: true, branch: "main", dirty: 3,
 			commit: "263cf91", subject: "The readout: what conn knows of a row",
 			when: processesNow.Add(-3 * time.Hour), upstream: "origin/main", ahead: 142},
@@ -59,7 +60,7 @@ func TestTheReadoutIsWhatItWas(t *testing.T) {
 	s := readoutSubj()
 	s.entry.Kind, s.entry.Command, s.entry.Typed, s.entry.Status, s.entry.Asking = work.KindShell, "zsh", "", work.StatusActive, ""
 	s.entry.Sockets = []work.Socket{{Proto: "TCP", Addr: "*:5173", State: "LISTEN"}}
-	s.sess, s.carried = work.SessionFile{}, work.Session{}
+	s.sess, s.carried = claude.SessionFile{}, claude.Session{}
 	golden(t, "readout-shell-100x40.txt", texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 40, draw.Plain)))
 }
 
@@ -160,7 +161,7 @@ func TestThePageCountsWorkAndNotTheClock(t *testing.T) {
 	// contact has been up and claims no span of work.
 	s := readoutSubj()
 	s.entry.Status, s.entry.Since = work.StatusActive, time.Time{}
-	s.sess, s.carried = work.SessionFile{}, work.Session{}
+	s.sess, s.carried = claude.SessionFile{}, claude.Session{}
 	text := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, draw.Plain))
 	if !strings.Contains(text, "It came up at 18:28 and has been up 1h 32m.") {
 		t.Errorf("a contact conn cannot read was not said to be merely up:\n%s", text)
@@ -332,7 +333,7 @@ func TestTheReadoutSaysNothingTwiceAndNothingOfConnsOwn(t *testing.T) {
 	// thousand characters of conn's own prose, with newlines through
 	// it. The processes view has always dropped it and so does this.
 	s.entry.Typed = s.entry.Command
-	s.entry.Command = "claude --append-system-prompt " + work.InsideNote("/tmp/sock") + " --resume d81d7536-e545-4881-8daa-f1d291a03be1"
+	s.entry.Command = "claude --append-system-prompt " + claude.InsideNote("/tmp/sock") + " --resume d81d7536-e545-4881-8daa-f1d291a03be1"
 	// A shell a contact runs carries the environment snapshot it was
 	// started with, which is a screen of somebody else's quoting.
 	s.children = append(s.children, work.Entry{PID: 49301, Kind: work.KindShell, TTY: "ttys003",
@@ -512,7 +513,7 @@ func TestThePageSaysWhatItCouldNotRead(t *testing.T) {
 	// A contact that gives no account of itself says that, rather than
 	// leaving a group with one row in it and no reason.
 	s = readoutSubj()
-	s.sess, s.carried = work.SessionFile{}, work.Session{}
+	s.sess, s.carried = claude.SessionFile{}, claude.Session{}
 	got := texts(drawReadout(composeReadout(s, "/Users/w0zro", processesNow), 100, 60, draw.Plain))
 	if !strings.Contains(got, "Says ......... Nothing conn can read") {
 		t.Errorf("a contact conn cannot ask went unsaid:\n%s", got)

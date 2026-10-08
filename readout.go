@@ -8,6 +8,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/config"
 )
@@ -53,8 +54,8 @@ type readoutSubject struct {
 	children []work.Entry // what it runs, in the order the tree has them
 	pane     room.Pane
 	inside   bool
-	sess     work.SessionFile // what a contact says of itself, when conn can ask
-	carried  work.Session
+	sess     claude.SessionFile // what a contact says of itself, when conn can ask
+	carried  claude.Session
 	git      gitStatus
 	// What docker says of this row, where the row is a container, as
 	// the panel published it; see cursor.go.
@@ -112,7 +113,7 @@ func (g *readoutGroup) addAsWritten(label, value string) {
 	// it, a prompt somebody wrote over three lines — would otherwise
 	// start those lines at column nothing, under the leaders rather
 	// than beside them.
-	if value = work.Flatten(value); value != "" {
+	if value = claude.Flatten(value); value != "" {
 		g.facts = append(g.facts, draw.Fact{Label: label, Value: value, Verbatim: true})
 	}
 }
@@ -280,7 +281,7 @@ func composeReadout(s readoutSubject, home string, now time.Time) readoutReport 
 	// so a row saying so on every one of them is a row nobody reads;
 	// one running behind another session is worth the line, and is the
 	// answer to a claude in the list nobody remembers starting.
-	if s.sess.Kind != work.InteractiveSession {
+	if s.sess.Kind != claude.InteractiveSession {
 		contact.add("Running", s.sess.Kind)
 	}
 	// The branch the session recorded, where that is not the branch the
@@ -504,11 +505,11 @@ func composeProject(path string, t readoutTable, home string, now time.Time) rea
 // — what answered it and what it was carrying, where it was had and
 // what git says of that, and the command that picks it back up, which
 // is what enter runs and is worth knowing by name.
-func composeSession(c work.Session, t readoutTable, home string, now time.Time) readoutReport {
+func composeSession(c claude.Session, t readoutTable, home string, now time.Time) readoutReport {
 	b := readoutReport{name: c.ID}
 	what := readoutGroup{title: "WHAT"}
 	what.add("Kind", work.Said("SESSION"))
-	if a, ok := work.Contacts[work.ContactProgram]; ok {
+	if a, ok := work.Contacts[claude.Program]; ok {
 		what.add("With", draw.Join(" · ", a.Name, a.Maker))
 	}
 	if !c.When.IsZero() {
@@ -520,7 +521,7 @@ func composeSession(c work.Session, t readoutTable, home string, now time.Time) 
 	if c.Carried > 0 {
 		what.add("Context", strings.ToLower(tokens(c.Carried))+" carried")
 	}
-	what.addAsWritten("Resume", work.ContactProgram+" --resume "+c.ID)
+	what.addAsWritten("Resume", claude.Program+" --resume "+c.ID)
 	b.groups = append(b.groups, what)
 
 	where := readoutGroup{title: "WHERE"}

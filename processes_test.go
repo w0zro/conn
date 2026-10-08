@@ -11,6 +11,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -707,7 +708,7 @@ func TestAHeavyContactIsStampedAndBlinks(t *testing.T) {
 		t.Errorf("a heavy contact waiting does not say WAITING alone:\n%s", on)
 	}
 	light := contact
-	light.Carried = work.HeavyContext
+	light.Carried = claude.HeavyContext
 	if on := tree(light, true); !strings.Contains(on, work.StatusIdle) {
 		t.Errorf("a contact at the line, not past it, was stamped:\n%s", on)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -203,7 +204,7 @@ type (
 	sessionsMsg    struct {          // a project's suspended sessions were read, or every project's
 		dirs     []string
 		recent   bool
-		sessions []work.Session
+		sessions []claude.Session
 	}
 )
 

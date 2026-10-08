@@ -163,7 +163,7 @@ type Status struct {
 	Working bool
 	Waiting bool   // stopped on something it asked of you
 	Idle    bool   // stopped with its turn over, asking nothing
-	asking  string // what a waiting contact is stopped on, in its own words
+	Asking  string // what a waiting contact is stopped on, in its own words
 	// When it came to stand this way, where it says so; zero where it
 	// does not. Only a contact knows the moment it stopped, and only
 	// waiting is worth the moment: how long a thing has been held up on
@@ -476,7 +476,7 @@ func ProjectsFrom(procs []Process, uid int, rootOf func(string) string, isProjec
 		p := byPid[pid]
 		kind := KindOf(p)
 		e := Entry{PID: p.PID, Kind: kind, Command: commandLine(p), Typed: typedLine(p), TTY: p.TTY, Started: p.Started, Depth: depth,
-			Since: how[p.PID].Since, Cwd: p.Cwd, Asking: how[p.PID].asking, Sockets: p.Sockets, Ports: ListeningPorts(p.Sockets)}
+			Since: how[p.PID].Since, Cwd: p.Cwd, Asking: how[p.PID].Asking, Sockets: p.Sockets, Ports: ListeningPorts(p.Sockets)}
 		e.Status, e.Fault = statusOf(p, kind, len(children[pid]) > 0, how[p.PID])
 		if projects[path] == nil {
 			projects[path] = &Project{Path: path}

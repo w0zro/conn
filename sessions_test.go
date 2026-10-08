@@ -8,6 +8,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/theme"
 
@@ -16,7 +17,7 @@ import (
 
 // testSessions2 is a project's suspended sessions as claudeSuspended
 // would give them: newest first, one with nothing read of it yet.
-var testSessions2 = []work.Session{
+var testSessions2 = []claude.Session{
 	{ID: "aaaaaaaa-0000-0000-0000-000000000001", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour), Branch: "main", Prompt: "fix the flaky build test"},
 	{ID: "bbbbbbbb-0000-0000-0000-000000000002", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-3 * 24 * time.Hour), Branch: "topic/resume"},
 }
@@ -103,7 +104,7 @@ func TestTheRecentViewIsEveryProjectsSessions(t *testing.T) {
 	if m.sessions.landed(sessionsMsg{dirs: []string{"/w/conn"}, sessions: testSessions2}) {
 		t.Error("the recent view took a project's sessions")
 	}
-	recent := []work.Session{
+	recent := []claude.Session{
 		{ID: "cccccccc-0000-0000-0000-000000000003", Dir: "/Users/w0zro/projects/w0zro/conn/internal", When: processesNow.Add(-time.Hour), Branch: "main", Title: "Package split", Prompt: "split the packages"},
 		{ID: "dddddddd-0000-0000-0000-000000000004", Dir: "/Users/w0zro/projects/rides", When: processesNow.Add(-26 * time.Hour), Prompt: "fix the map"},
 	}

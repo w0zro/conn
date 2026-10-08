@@ -1,4 +1,9 @@
-package work
+// Package claude is Claude Code as conn reads it: the files it keeps of
+// its sessions and the transcripts of their turns, which say whether a
+// contact is working, waiting on the operator or at rest, what it is
+// doing and what it asks; and the command conn starts one with. It is
+// the one contact conn knows; a second would be a package beside it.
+package claude
 
 import (
 	"bytes"
@@ -13,6 +18,7 @@ import (
 	"time"
 
 	"github.com/w0zro/conn/internal/tmux"
+	"github.com/w0zro/conn/internal/work"
 )
 
 // Claude Code leaves a suspended session's transcript behind when its
@@ -105,16 +111,16 @@ func InsideNote(socket string) string {
 		"only be read through whatever file its output was sent to."
 }
 
-// ContactCommand is what conn runs to start a contact: the program,
+// Command is what conn runs to start a contact: the program,
 // told where it is.
-func ContactCommand(socket string) string {
-	return ContactProgram + " --append-system-prompt " + tmux.ShellQuote(InsideNote(socket))
+func Command(socket string) string {
+	return Program + " --append-system-prompt " + tmux.ShellQuote(InsideNote(socket))
 }
 
 // ResumeCommand is the command that picks a suspended session back
 // up, told the same. The id travels onto a shell command line, so only
 // ids claudeSuspended vetted are ever handed here.
-func ResumeCommand(socket, id string) string { return ContactCommand(socket) + " --resume " + id }
+func ResumeCommand(socket, id string) string { return Command(socket) + " --resume " + id }
 
 // What Claude Code calls itself, in the file it keeps per instance.
 // The vocabulary is closed at four, and these are all of them, read
@@ -326,17 +332,17 @@ type ActivitySeen struct {
 // what it is doing: an idle contact is doing nothing, and a waiting
 // one is stopped on a question, which is not an activity and is not
 // the row's to say.
-func Activities(projects []Project, was map[string]ActivitySeen) map[string]ActivitySeen {
+func Activities(projects []work.Project, was map[string]ActivitySeen) map[string]ActivitySeen {
 	next := map[string]ActivitySeen{}
 	var sessions map[int]SessionFile
 	for i := range projects {
 		for j := range projects[i].Entries {
 			e := &projects[i].Entries[j]
-			if e.Kind != KindContact {
+			if e.Kind != work.KindContact {
 				continue
 			}
 			if sessions == nil {
-				sessions = ClaudeSessions()
+				sessions = Sessions()
 			}
 			f, ok := sessions[e.PID]
 			if !ok || f.SessionID == "" || !f.WroteBy(e.Started) {
@@ -357,7 +363,7 @@ func Activities(projects []Project, was map[string]ActivitySeen) map[string]Acti
 			} else if lines, err := tailLines(path, sessionTail); err == nil {
 				seen.Word, seen.Title, seen.Carried = askOf(lines).Doing, titleOf(lines), carriedOf(lines)
 			}
-			if e.Status == StatusWorking {
+			if e.Status == work.StatusWorking {
 				e.Doing = seen.Word
 			}
 			e.Title, e.Carried = seen.Title, seen.Carried
@@ -476,11 +482,11 @@ func askOf(lines [][]byte) Ask {
 	return a
 }
 
-// ClaudeSessions is what every claude instance says of itself, by the
+// Sessions is what every claude instance says of itself, by the
 // pid it says it is. A file here can outlive the process that wrote
 // it, so callers pair a pid with the process table before believing
 // anything of it.
-func ClaudeSessions() map[int]SessionFile {
+func Sessions() map[int]SessionFile {
 	entries, err := os.ReadDir(filepath.Join(claudeConfigDir(), "sessions"))
 	if err != nil {
 		return nil
@@ -507,7 +513,7 @@ func ClaudeSessions() map[int]SessionFile {
 	return out
 }
 
-// ContactStatuses is what every contact says of itself: working, or
+// Statuses is what every contact says of itself: working, or
 // stopped and waiting on you. A contact is asked rather than measured —
 // it knows whether it is mid-turn, where the processor time it happens
 // to be using says little, a model answering being barely any and
@@ -523,15 +529,15 @@ func ClaudeSessions() map[int]SessionFile {
 // where the table still has it status as a contact; a contact with no
 // file to read - another maker's, or one too old to write one - says
 // nothing of itself, and reads as alive like anything else.
-func ContactStatuses(procs []Process) map[int]Status {
-	byPid := map[int]Process{}
+func Statuses(procs []work.Process) map[int]work.Status {
+	byPid := map[int]work.Process{}
 	for _, p := range procs {
 		byPid[p.PID] = p
 	}
-	how := map[int]Status{}
-	for pid, s := range ClaudeSessions() {
+	how := map[int]work.Status{}
+	for pid, s := range Sessions() {
 		p, ok := byPid[pid]
-		if !ok || KindOf(p) != KindContact || s.Status == "" || !s.WroteBy(p.Started) {
+		if !ok || work.KindOf(p) != work.KindContact || s.Status == "" || !s.WroteBy(p.Started) {
 			continue
 		}
 		var since time.Time
@@ -540,11 +546,11 @@ func ContactStatuses(procs []Process) map[int]Status {
 		}
 		switch s.Status {
 		case busyStatus, shellStatus:
-			how[pid] = Status{Working: true, Since: since}
+			how[pid] = work.Status{Working: true, Since: since}
 		case waitingStatus:
-			how[pid] = Status{Waiting: true, Since: since, asking: s.WaitingFor}
+			how[pid] = work.Status{Waiting: true, Since: since, Asking: s.WaitingFor}
 		case idleStatus:
-			how[pid] = Status{Idle: true, Since: since}
+			how[pid] = work.Status{Idle: true, Since: since}
 		}
 		// A word outside the four is a Claude newer than this conn, and
 		// conn says nothing of a contact it cannot understand — the same
@@ -560,17 +566,17 @@ func ContactStatuses(procs []Process) map[int]Status {
 // instance is carrying. A session file can outlive the process that
 // wrote it, so a pid is only believed when the process table still has
 // it, status as a contact.
-func liveSessions(projects []Project) map[string]bool {
+func liveSessions(projects []work.Project) map[string]bool {
 	began := map[int]time.Time{}
 	for _, pl := range projects {
 		for _, e := range pl.Entries {
-			if e.Kind == KindContact {
+			if e.Kind == work.KindContact {
 				began[e.PID] = e.Started
 			}
 		}
 	}
 	live := map[string]bool{}
-	for pid, f := range ClaudeSessions() {
+	for pid, f := range Sessions() {
 		if at, ok := began[pid]; ok && f.SessionID != "" && f.WroteBy(at) {
 			live[f.SessionID] = true
 		}
@@ -584,10 +590,10 @@ func liveSessions(projects []Project) map[string]bool {
 // keystroke.
 const sessionTail = 256 * 1024
 
-// ClaudeSuspended lists the sessions at rest under the given
+// Suspended lists the sessions at rest under the given
 // directories, newest first, excluding the ones a live instance is
 // carrying.
-func ClaudeSuspended(dirs []string, projects []Project) []Session {
+func Suspended(dirs []string, projects []work.Project) []Session {
 	live := liveSessions(projects)
 	root := filepath.Join(claudeConfigDir(), "projects")
 
@@ -630,14 +636,14 @@ func ClaudeSuspended(dirs []string, projects []Project) []Session {
 // read into, so a year of them costs the keystroke nothing.
 const recentLimit = 100
 
-// ClaudeRecent lists the sessions at rest in every project, newest
+// Recent lists the sessions at rest in every project, newest
 // first, excluding the ones a live instance is carrying. Where
 // ClaudeSuspended is asked for directories, this has none to ask for,
 // and the directory a transcript is filed under cannot be read back
 // into a path — Claude encodes it lossily — so each session's Dir is
 // the directory its transcript says it was had in. A session that says
 // none is left out, there being nowhere to resume it.
-func ClaudeRecent(projects []Project) []Session {
+func Recent(projects []work.Project) []Session {
 	live := liveSessions(projects)
 	root := filepath.Join(claudeConfigDir(), "projects")
 	dirs, err := os.ReadDir(root)
@@ -858,9 +864,9 @@ func tailLines(path string, max int64) ([][]byte, error) {
 	return lines, nil
 }
 
-// ContactProgram is the contact conn starts. Claude is the only kind
+// Program is the contact conn starts. Claude is the only kind
 // conn starts for now, so a is its key everywhere a shell's is s.
-const ContactProgram = "claude"
+const Program = "claude"
 
 // SessionPath is where claude files a session had in a directory.
 func SessionPath(dir, id string) string {

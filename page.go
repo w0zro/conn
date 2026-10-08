@@ -8,6 +8,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -256,7 +257,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	if !strings.Contains(e.AsTyped(), s.sess.SessionID) {
 		add("Session", s.sess.SessionID)
 	}
-	if s.sess.Kind != "" && s.sess.Kind != work.InteractiveSession {
+	if s.sess.Kind != "" && s.sess.Kind != claude.InteractiveSession {
 		add("Running", s.sess.Kind)
 	}
 	// The branch the session recorded, where the project has since

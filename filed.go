@@ -36,7 +36,7 @@ import (
 // word: that both rows are waiting is said by the two stamps, and which
 // of them to answer first is said by nothing else.
 //
-// A contact carrying past work.HeavyContext is stamped with the figure
+// A contact carrying past claude.HeavyContext is stamped with the figure
 // and blinks: it asks something of you too, a session to end or
 // compact, and a figure that held still all afternoon would stop being
 // seen. A wait or a fault outranks it, and the figure is back when

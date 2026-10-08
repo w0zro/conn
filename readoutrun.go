@@ -9,6 +9,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -196,9 +197,9 @@ func (m readoutModel) reading() (readoutModel, tea.Cmd) {
 type readoutTable struct {
 	reading
 	published bool // the panel has published a reading at all
-	sess      map[int]work.SessionFile
-	git       map[string]gitStatus // what git said of a project, by its path
-	carried   map[int]work.Session // which session a row was carrying
+	sess      map[int]claude.SessionFile
+	git       map[string]gitStatus   // what git said of a project, by its path
+	carried   map[int]claude.Session // which session a row was carrying
 }
 
 // on is the table with the panel's latest reading for its machine, and
@@ -234,7 +235,7 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 		t.git = map[string]gitStatus{}
 	}
 	if t.carried == nil {
-		t.carried = map[int]work.Session{}
+		t.carried = map[int]claude.Session{}
 	}
 	// A project is asked after by git alone: the rows in it are the
 	// panel's, already in hand. A session the same, for the project it
@@ -250,7 +251,7 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 		return t
 	}
 	pid := at.pid
-	t.sess = work.ClaudeSessions()
+	t.sess = claude.Sessions()
 
 	s, ok := subjectOf(pid, t.projects, t.records)
 	if !ok {
@@ -264,16 +265,16 @@ func readoutGather(at subject, held readoutTable) readoutTable {
 			if f.Cwd != "" {
 				dir = f.Cwd
 			}
-			c := work.Session{ID: f.SessionID, Dir: dir}
-			work.ReadSessionMeta(work.SessionPath(dir, f.SessionID), &c)
+			c := claude.Session{ID: f.SessionID, Dir: dir}
+			claude.ReadSessionMeta(claude.SessionPath(dir, f.SessionID), &c)
 			// What it is waiting on is read for a waiting row, and read
 			// again only when its status changed: the transcript is
 			// the same file until it does.
 			if s.entry.Status == work.StatusWaiting {
-				if was, ok := held.carried[pid]; ok && was.Ask != (work.Ask{}) && was.AskAt.Equal(s.entry.Since) {
+				if was, ok := held.carried[pid]; ok && was.Ask != (claude.Ask{}) && was.AskAt.Equal(s.entry.Since) {
 					c.Ask, c.AskAt = was.Ask, was.AskAt
 				} else {
-					c.Ask, c.AskAt = work.ReadAsk(work.SessionPath(dir, f.SessionID)), s.entry.Since
+					c.Ask, c.AskAt = claude.ReadAsk(claude.SessionPath(dir, f.SessionID)), s.entry.Since
 				}
 			}
 			t.carried[pid] = c

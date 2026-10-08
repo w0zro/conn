@@ -6,6 +6,7 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -63,7 +64,7 @@ func (m model) readProcesses() tea.Cmd {
 		for pid := range work.CpuWorking(was.cpu, was.at, procs, nowAt) {
 			how[pid] = work.Status{Working: true}
 		}
-		maps.Copy(how, work.ContactStatuses(procs))
+		maps.Copy(how, claude.Statuses(procs))
 		// The panes come first, because a pane conn opened to watch a
 		// container is two things to the reading at once: the terminal
 		// that container's row will stand on, and a process that must
@@ -135,7 +136,7 @@ func (m model) readProcesses() tea.Cmd {
 		serves := work.MarkClosed(projects, was.serves)
 		msg := processesMsg{projects: projects, tree: projects, panes: panes, gen: gen,
 			trace: &trace{cpu: now, at: nowAt, stood: work.SinceSeen(projects, was.stood, was.at, nowAt),
-				acts: work.Activities(projects, was.acts), serves: serves},
+				acts: claude.Activities(projects, was.acts), serves: serves},
 			records: records, rooted: &rooting, declared: declared}
 		if !full {
 			msg.projects = fold(projects)
@@ -179,7 +180,7 @@ type trace struct {
 	// a row's status against.
 	stood map[int]work.Stood
 	// Each contact's transcript as it was read for its activity.
-	acts map[string]work.ActivitySeen
+	acts map[string]claude.ActivitySeen
 	// Each row seen listening, and how many readings it has had nothing
 	// open since: what says a listener has gone.
 	serves map[int]work.ServingSeen

@@ -11,6 +11,7 @@ import (
 
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/config"
 
@@ -42,7 +43,7 @@ type sessionsReport struct {
 	home    string
 	now     time.Time
 	loading bool
-	rows    []work.Session
+	rows    []claude.Session
 	total   int
 	filter  string
 	caret   int // where in the filter the caret is, in runes
@@ -50,7 +51,7 @@ type sessionsReport struct {
 
 // composeSessions words the sessions view: the filter's rows out of the
 // whole number found.
-func composeSessions(sessions []work.Session, project, filter, home string, roots []string, now time.Time, loading bool) sessionsReport {
+func composeSessions(sessions []claude.Session, project, filter, home string, roots []string, now time.Time, loading bool) sessionsReport {
 	b := composeSessionsAt(sessions, project, filter, home, roots, now, loading)
 	b.caret = utf8.RuneCountInString(filter)
 	return b
@@ -60,7 +61,7 @@ func composeSessions(sessions []work.Session, project, filter, home string, root
 // start, for the view to put where it is. The project is named the way
 // the panel names its block, from the root the checkouts are kept
 // under; see projectName.
-func composeSessionsAt(sessions []work.Session, project, filter, home string, roots []string, now time.Time, loading bool) sessionsReport {
+func composeSessionsAt(sessions []claude.Session, project, filter, home string, roots []string, now time.Time, loading bool) sessionsReport {
 	return sessionsReport{
 		project: projectName(project, roots, home), home: home, now: now, loading: loading,
 		rows: matchingSessions(sessions, filter), total: len(sessions), filter: filter,
@@ -70,12 +71,12 @@ func composeSessionsAt(sessions []work.Session, project, filter, home string, ro
 // matchingSessions is the sessions a filter leaves: one answers by
 // its branch, the last thing it was asked, or the directory it was had
 // in, the same three a reader would recognize it by.
-func matchingSessions(cs []work.Session, filter string) []work.Session {
+func matchingSessions(cs []claude.Session, filter string) []claude.Session {
 	f := strings.ToLower(strings.TrimSpace(filter))
 	if f == "" {
 		return cs
 	}
-	var out []work.Session
+	var out []claude.Session
 	for _, c := range cs {
 		if strings.Contains(strings.ToLower(c.Prompt), f) ||
 			strings.Contains(strings.ToLower(c.Title), f) ||
@@ -196,7 +197,7 @@ type sessionList struct {
 	project string   // what the view is for
 	dirs    []string // the directories asked for; a stale answer's guard
 	recent  bool     // every project's, and no directories asked for
-	read    []work.Session
+	read    []claude.Session
 	loading bool
 	find    typed
 }
@@ -215,14 +216,14 @@ func (l *sessionList) landed(msg sessionsMsg) bool {
 
 // rows is the sessions the line leaves, which the cursor is an index
 // into, and at the one the cursor is on, where there is one.
-func (l sessionList) rows() []work.Session {
+func (l sessionList) rows() []claude.Session {
 	return matchingSessions(l.read, l.find.text)
 }
 
-func (l sessionList) at() (work.Session, bool) {
+func (l sessionList) at() (claude.Session, bool) {
 	rows := l.rows()
 	if l.find.at >= len(rows) {
-		return work.Session{}, false
+		return claude.Session{}, false
 	}
 	return rows[l.find.at], true
 }
@@ -267,7 +268,7 @@ func (m model) openRecent(came string) (model, tea.Cmd) {
 	m.sessions = sessionList{recent: true, loading: true}
 	projects := m.projects
 	return m, func() tea.Msg {
-		return sessionsMsg{recent: true, sessions: work.ClaudeRecent(projects)}
+		return sessionsMsg{recent: true, sessions: claude.Recent(projects)}
 	}
 }
 

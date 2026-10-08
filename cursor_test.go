@@ -10,6 +10,7 @@ import (
 	"github.com/w0zro/conn/internal/draw"
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/tmux"
 
@@ -467,7 +468,7 @@ func TestTheSessionsListPublishesTheSessionItsCursorIsOn(t *testing.T) {
 	m.view, m.inside, m.now = viewSessions, true, processesNow
 	m.head.Login.Home = dir
 	m.sessions.project, m.sessions.dirs = "/Users/w0zro/projects/w0zro/conn", []string{"/Users/w0zro/projects/w0zro/conn"}
-	m.sessions.read = []work.Session{
+	m.sessions.read = []claude.Session{
 		{ID: "d81d7536-e545-4881-8daa-f1d291a03be1", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-2 * time.Hour),
 			Branch: "main", Prompt: "make the page follow the list", Model: "claude-opus-5", Carried: 571_592},
 		{ID: "0c1d2e3f-0000-4000-8000-000000000000", Dir: "/Users/w0zro/projects/w0zro/conn", When: processesNow.Add(-26 * time.Hour), Branch: "topic"},

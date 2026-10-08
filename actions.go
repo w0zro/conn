@@ -8,6 +8,7 @@ import (
 
 	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
+	"github.com/w0zro/conn/internal/work/claude"
 
 	"github.com/w0zro/conn/internal/station"
 
@@ -183,7 +184,7 @@ func (m model) declarationOf(e work.Entry) (path string, d work.Declaration, ok 
 func (m model) startContact(dir string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.OpenCmd(dir, work.ContactCommand(srv.Socket))
+		sh, err := srv.OpenCmd(dir, claude.Command(srv.Socket))
 		if err != nil {
 			return noticeMsg{"the contact could not be opened: " + err.Error()}
 		}
@@ -216,7 +217,7 @@ func (m model) scanProjects() tea.Cmd {
 func (m model) scanSessions(dirs []string) tea.Cmd {
 	projects := m.projects
 	return func() tea.Msg {
-		return sessionsMsg{dirs: dirs, sessions: work.ClaudeSuspended(dirs, projects)}
+		return sessionsMsg{dirs: dirs, sessions: claude.Suspended(dirs, projects)}
 	}
 }
 
@@ -225,7 +226,7 @@ func (m model) scanSessions(dirs []string) tea.Cmd {
 func (m model) openResumed(dir, id string) tea.Cmd {
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.OpenCmd(dir, work.ResumeCommand(srv.Socket, id))
+		sh, err := srv.OpenCmd(dir, claude.ResumeCommand(srv.Socket, id))
 		if err != nil {
 			return nil
 		}

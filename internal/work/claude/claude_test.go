@@ -1,4 +1,4 @@
-package work
+package claude
 
 import (
 	"encoding/json"
@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/w0zro/conn/internal/work"
 )
 
 // A session file is named by pid and outlives its process, and a pid
@@ -67,9 +69,9 @@ func TestActivitiesReadWhatAWorkingContactIsDoing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	projects := []Project{{Path: dir, Entries: []Entry{
-		{PID: 10, Kind: KindContact, Status: StatusWorking, Cwd: dir},
-		{PID: 11, Kind: KindContact, Status: StatusIdle, Cwd: dir},
+	projects := []work.Project{{Path: dir, Entries: []work.Entry{
+		{PID: 10, Kind: work.KindContact, Status: work.StatusWorking, Cwd: dir},
+		{PID: 11, Kind: work.KindContact, Status: work.StatusIdle, Cwd: dir},
 	}}}
 	was := Activities(projects, nil)
 	if got := projects[0].Entries[0].Doing; got != "go test ./..." {
@@ -129,12 +131,12 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 	}
 	write(20, `{"pid":20,"sessionId":"a-1","status":"waiting","statusUpdatedAt":1789152626774}`)
 	write(21, `{"pid":21,"sessionId":"a-2","status":"waiting"}`) // says nothing of when
-	contact := func(pid int) Process {
-		return Process{PID: pid, UID: 501, TTY: "ttys001", State: 'S', Command: "claude", Args: []string{"claude"},
+	contact := func(pid int) work.Process {
+		return work.Process{PID: pid, UID: 501, TTY: "ttys001", State: 'S', Command: "claude", Args: []string{"claude"},
 			Started: processesNow.Add(-time.Hour), Cwd: "/w"}
 	}
 
-	how := ContactStatuses([]Process{contact(20), contact(21)})
+	how := Statuses([]work.Process{contact(20), contact(21)})
 	if !how[20].Waiting || !how[20].Since.Equal(since) {
 		t.Errorf("a contact that says when it stopped stands %+v, want waiting since %v", how[20], since)
 	}
@@ -143,7 +145,7 @@ func TestAnAgentSaysWhenItCameToStandThatWay(t *testing.T) {
 	}
 
 	// And the entry carries it, which is what orders the round.
-	for _, pl := range ProjectsFrom([]Process{contact(20), contact(21)}, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
+	for _, pl := range work.ProjectsFrom([]work.Process{contact(20), contact(21)}, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.Entries {
 			if e.PID == 20 && !e.Since.Equal(since) {
 				t.Errorf("the entry for pid 20 stands since %v, want %v", e.Since, since)
@@ -169,8 +171,8 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	contact := func(pid int) Process {
-		return Process{PID: pid, UID: 501, TTY: "ttys001", State: 'S', Command: "claude", Args: []string{"claude"},
+	contact := func(pid int) work.Process {
+		return work.Process{PID: pid, UID: 501, TTY: "ttys001", State: 'S', Command: "claude", Args: []string{"claude"},
 			Started: processesNow.Add(-time.Hour), Cwd: "/w"}
 	}
 	say(10, "busy")    // mid-turn
@@ -181,47 +183,47 @@ func TestAnAgentSaysWorkingOrWaitingOfItself(t *testing.T) {
 	say(15, "")        // a file saying nothing of the sort
 	say(17, "sulking") // a word conn has never heard
 	say(18, "shell")   // a command running under it, which is work
-	procs := []Process{contact(10), contact(11), contact(12), contact(15), contact(16), contact(17), contact(18),
+	procs := []work.Process{contact(10), contact(11), contact(12), contact(15), contact(16), contact(17), contact(18),
 		{PID: 14, UID: 501, TTY: "ttys001", State: 'S', Command: "node", Args: []string{"node"},
 			Started: processesNow.Add(-time.Hour), Cwd: "/w"},
 	}
 
-	how := ContactStatuses(procs)
+	how := Statuses(procs)
 	for _, pid := range []int{10, 18} {
-		if (how[pid] != Status{Working: true}) {
+		if (how[pid] != work.Status{Working: true}) {
 			t.Errorf("pid %d, mid-turn or running a command, stands %+v", pid, how[pid])
 		}
 	}
 	// Stopped on an ask is not the same as stopped with nothing
 	// pending, and only the first is waiting.
-	if (how[12] != Status{Waiting: true}) {
+	if (how[12] != work.Status{Waiting: true}) {
 		t.Errorf("a contact stopped on an ask stands %+v", how[12])
 	}
-	if (how[11] != Status{Idle: true}) {
+	if (how[11] != work.Status{Idle: true}) {
 		t.Errorf("a contact whose turn is over stands %+v", how[11])
 	}
 	// 17 says a word conn does not know, which leaves it exactly where
 	// a contact with no file at all is: nothing said of it.
 	for _, pid := range []int{13, 14, 15, 16, 17} {
-		if (how[pid] != Status{}) {
+		if (how[pid] != work.Status{}) {
 			t.Errorf("pid %d stands %+v, and nothing should be said of it", pid, how[pid])
 		}
 	}
 
 	// And the word the processes view writes for each, end to end.
 	got := map[int]string{}
-	for _, pl := range ProjectsFrom(procs, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
+	for _, pl := range work.ProjectsFrom(procs, 501, func(string) string { return "/w" }, func(string) bool { return true }, how) {
 		for _, e := range pl.Entries {
 			got[e.PID] = e.Status
 		}
 	}
 	for pid, want := range map[int]string{
-		10: StatusWorking, // mid-turn
-		18: StatusWorking, // a command running under it
-		12: StatusWaiting, // stopped on an ask
-		11: StatusIdle,    // turn over
-		17: StatusActive,  // a word conn does not know, so nothing is claimed
-		16: StatusActive,  // a contact with nothing to say of itself
+		10: work.StatusWorking, // mid-turn
+		18: work.StatusWorking, // a command running under it
+		12: work.StatusWaiting, // stopped on an ask
+		11: work.StatusIdle,    // turn over
+		17: work.StatusActive,  // a word conn does not know, so nothing is claimed
+		16: work.StatusActive,  // a contact with nothing to say of itself
 	} {
 		if got[pid] != want {
 			t.Errorf("the processes view writes %s for pid %d, want %s", got[pid], pid, want)
@@ -260,12 +262,12 @@ func TestClaudeSuspendedExcludesWhatIsLive(t *testing.T) {
 	write(111, "11111111-1111-1111-1111-111111111111")
 	write(999, "22222222-2222-2222-2222-222222222222")
 
-	projects := []Project{{Path: dir, Entries: []Entry{
-		{PID: 111, Kind: KindContact},
-		{PID: 999, Kind: KindShell}, // 999 is running, but not as a contact
+	projects := []work.Project{{Path: dir, Entries: []work.Entry{
+		{PID: 111, Kind: work.KindContact},
+		{PID: 999, Kind: work.KindShell}, // 999 is running, but not as a contact
 	}}}
 
-	cs := ClaudeSuspended([]string{dir}, projects)
+	cs := Suspended([]string{dir}, projects)
 	if len(cs) != 1 || cs[0].ID != "22222222-2222-2222-2222-222222222222" {
 		t.Fatalf("claudeSuspended = %+v, want only the one not vouched for as live", cs)
 	}
@@ -288,7 +290,7 @@ func TestClaudeSuspendedReadsBranchAndPrompt(t *testing.T) {
 		`{"type":"user","isMeta":false,"gitBranch":"topic","message":{"content":"draft the README"}}`,
 	}, now)
 
-	cs := ClaudeSuspended([]string{dir}, nil)
+	cs := Suspended([]string{dir}, nil)
 	if len(cs) != 2 {
 		t.Fatalf("claudeSuspended found %d, want 2", len(cs))
 	}
@@ -355,7 +357,7 @@ func TestClaudeRecentIsEveryProjectNewestFirst(t *testing.T) {
 		`{"type":"user","message":{"content":"no cwd said"}}`,
 	}, now.Add(time.Minute))
 
-	cs := ClaudeRecent(nil)
+	cs := Recent(nil)
 	if len(cs) != 2 {
 		t.Fatalf("ClaudeRecent found %d, want 2: %+v", len(cs), cs)
 	}
@@ -473,9 +475,9 @@ func TestResumeCommandCarriesTheID(t *testing.T) {
 // socket, since a contact told to open a window and not told which
 // server would be guessing.
 func TestTheAgentIsToldWhereItIs(t *testing.T) {
-	const prefix = ContactProgram + " --append-system-prompt "
+	const prefix = Program + " --append-system-prompt "
 	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
-		got := ContactCommand(socket)
+		got := Command(socket)
 		if !strings.HasPrefix(got, prefix) {
 			t.Fatalf("aiCommand(%q) = %q", socket, got)
 		}
@@ -494,7 +496,7 @@ func TestTheAgentIsToldWhereItIs(t *testing.T) {
 		}
 	}
 	// Resuming a session is the same launch, carrying the id.
-	if got := ResumeCommand("/s/conn.sock", "abc-123"); got != ContactCommand("/s/conn.sock")+" --resume abc-123" {
+	if got := ResumeCommand("/s/conn.sock", "abc-123"); got != Command("/s/conn.sock")+" --resume abc-123" {
 		t.Errorf("resumeCommand = %q", got)
 	}
 }
@@ -527,3 +529,7 @@ func writeTranscript(t *testing.T, claude, dir, id string, lines []string, when 
 		t.Fatal(err)
 	}
 }
+
+// processesNow is the moment the readings on file were taken, as
+// internal/work's own tests have it.
+var processesNow = time.Date(2026, 9, 9, 3, 0, 0, 0, time.UTC)

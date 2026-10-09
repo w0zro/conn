@@ -955,11 +955,12 @@ func (m model) processesReport() processesReport {
 // click is the mouse pressed on the panel. tmux has the mouse, and
 // hands a press in conn's pane on to conn since conn asks for it. A
 // press on a row of the processes view puts the cursor on the row and
-// goes in, the way enter does; a row with nothing to go into puts its
-// readout in the workspace instead. The rows are drawn again to find
-// which row was under the press, since the view is drawn from the
-// model and the model keeps no picture of it. Anywhere else, and any
-// other button, is nothing yet.
+// goes in, the way enter does, and the keys go with it at once rather
+// than when the pane is reached, so the page the press's own focus
+// asked for finds them gone; a row with nothing to go into only takes
+// the cursor. The rows are drawn again to find which row was under the
+// press, since the view is drawn from the model and the model keeps no
+// picture of it. Anywhere else, and any other button, is nothing yet.
 func (m model) click(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	if m.view != viewProcesses || msg.Button != tea.MouseLeft {
 		return m, nil
@@ -972,11 +973,17 @@ func (m model) click(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	m = m.onRow(pid, m.cursorAt)
 	if e, _, ok := m.under(); ok {
 		if _, cmd := m.enterOn(e); cmd != nil {
+			m.focused = false
 			return m, cmd
 		}
 	}
-	return m.keepingPage()
+	return m, nil
 }
+
+// clickBeat is how long the page waits on the keys arriving, for the
+// click that may be sending them on. tmux writes the focus and the
+// click together; the beat is for the loop, not for a hand.
+const clickBeat = 100 * time.Millisecond
 
 // toWaiting goes to the process that has waited longest: the cursor to
 // its row, its pane in the bay, and the keys in it, so one press has

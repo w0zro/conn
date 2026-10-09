@@ -188,6 +188,7 @@ type (
 	noticeMsg        struct{ text string }         // something asked of the server was not done, and this is why
 	raisedMsg        struct{ shells []room.Shell } // declared processes were brought up, parked: a project's, or one
 	reachedMsg       struct{ tty string }          // a process was put in the bay
+	focusedMsg       struct{}                      // the keys came to the panel a beat ago, and no click took them on
 	readoutMsg       struct{ on bool }             // the readout was put in the bay, or taken out of it
 	detourMsg        struct{ to detourTo }         // the manual or the settings were put in the bay
 	blinkMsg         struct{ gen int }             // the chip's half is up
@@ -770,7 +771,15 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		m.processesGen++
 		return m, m.readProcesses()
 	case tea.FocusMsg:
+		// The page waits a beat for a click. tmux takes a click on the
+		// panel as select-pane and then the click, so the keys arrive
+		// a moment ahead of the click that sends them on into a
+		// process; the page opened now would race the process for the
+		// workspace and as often win. A click that goes in takes the
+		// keys back before the beat is up, and the page finds them gone.
 		m.focused = true
+		return m, tea.Tick(clickBeat, func(time.Time) tea.Msg { return focusedMsg{} })
+	case focusedMsg:
 		return m.keepingPage()
 	case tea.BlurMsg:
 		// The keys have gone to the workspace, which means into a

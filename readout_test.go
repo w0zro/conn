@@ -470,10 +470,15 @@ func TestThePageFollowsTheKeys(t *testing.T) {
 		t.Error("the page took the workspace back from a process the operator is in")
 	}
 
-	// The keys coming back bring it back.
+	// The keys coming back bring it back, a beat later: the beat is for
+	// a click, which comes on the heels of its own focus.
 	next, cmd = m.Update(tea.FocusMsg{})
-	if m = next.(model); !m.focused || !m.bay.readout || cmd == nil {
-		t.Errorf("the keys coming back did not bring the page: focused %v, looking %v", m.focused, m.bay.readout)
+	if m = next.(model); !m.focused || m.bay.readout || cmd == nil {
+		t.Errorf("the keys coming back did not wait for a click: focused %v, looking %v", m.focused, m.bay.readout)
+	}
+	next, cmd = m.Update(focusedMsg{})
+	if m = next.(model); !m.bay.readout || cmd == nil {
+		t.Errorf("the beat passed and the page did not come: looking %v", m.bay.readout)
 	}
 
 	// There is no key for the page and none is needed: i is a letter

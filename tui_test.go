@@ -1737,6 +1737,51 @@ func TestAClickOnARowGoesIn(t *testing.T) {
 	}
 }
 
+// A click from inside a process comes to the panel as the keys
+// arriving and then the click. The click goes in, and the page the
+// keys arriving would have put up never comes: it would race the
+// process for the workspace. A row with nothing to go into takes the
+// cursor and puts up nothing of the click's own.
+func TestAClickFromAProcessIsNotThePage(t *testing.T) {
+	m := plainModel()
+	m.view, m.inside, m.focused = viewProcesses, true, false
+	m.srv, m.width, m.height = room.New(&tmux.Server{}), room.PanelWidth, 30
+	m.panes = map[string]room.Pane{"ttys001": {ID: "%1", TTY: "ttys001"}}
+	m.projects = []work.Project{{Path: "/w/a", Entries: []work.Entry{
+		{PID: 11, Kind: work.KindShell, Command: "zsh", Typed: "zsh", TTY: "ttys001", Status: work.StatusIdle},
+		{PID: 12, Kind: work.KindRun, Command: "node vite", Typed: "node vite", TTY: "ttys009", Status: work.StatusActive},
+	}}}
+	m.cursor, m.cursorAt = follow(m.projects, 12, 0)
+	rows := drawProcesses(m.processesReport(), m.cursor, m.cols(), m.height, m.p)
+	at := func(want string) int {
+		for y, r := range rows {
+			if strings.Contains(r.Text, want) {
+				return y
+			}
+		}
+		t.Fatalf("no row says %q:\n%s", want, texts(rows))
+		return -1
+	}
+
+	next, _ := m.Update(tea.FocusMsg{})
+	next, cmd := next.(model).Update(tea.MouseClickMsg{X: 3, Y: at("zsh"), Button: tea.MouseLeft})
+	if cmd == nil {
+		t.Fatal("the click did not go in")
+	}
+	next, _ = next.(model).Update(focusedMsg{})
+	if m = next.(model); m.bay.readout || m.focused {
+		t.Errorf("the click went in and the page came anyway: looking %v, focused %v", m.bay.readout, m.focused)
+	}
+
+	// A row conn holds no pane for has nothing to go into; the click
+	// moves the cursor and asks for nothing.
+	m.focused = true
+	next, _ = m.Update(tea.MouseClickMsg{X: 3, Y: at("node vite"), Button: tea.MouseLeft})
+	if m = next.(model); m.cursor != 12 || m.bay.readout {
+		t.Errorf("a click on a row with nothing to go into: cursor %d, looking %v", m.cursor, m.bay.readout)
+	}
+}
+
 // A click on a row of the processes view puts the cursor on it, the
 // way j and k do; a click on an eyebrow, a rule or the air between
 // projects moves nothing, and a click in another view is nothing.

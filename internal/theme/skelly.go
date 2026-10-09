@@ -5,12 +5,12 @@ package theme
 // that is only information, and one phosphor green kept for what needs
 // you, which is what conn's accent already means: the WAITING stamp,
 // the caution, the cursor. Black light, skelly's third hue, is the
-// spinner beside a contact at work, and the magentas. Skelly draws a thing running in plain ink rather than a
-// hue, and conn does the same here. Where skelly has a token the role
-// takes it, and says which; skelly is a web page and has no sixteen, so
-// the rest of the hues a program asks for by name are conn's own, drawn
-// to sit in its temperature, with the phosphor as bright green and rose
-// as red.
+// spinner beside a contact at work, and the magentas. Skelly draws a
+// thing running in plain ink rather than a hue, and conn does the same
+// here. Where skelly has a token the role takes it, and says which;
+// skelly is a web page and has no sixteen, so the rest of the hues a
+// program asks for by name are conn's own, drawn to sit in its
+// temperature, with the phosphor as bright green and rose as red.
 var Skelly = theme{
 	Name: "skelly",
 	Dark: Ground{

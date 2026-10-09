@@ -46,6 +46,7 @@ var Datum = theme{
 		Border:    "#2B2F35", // bg2: the selection
 		Surface:   "#181C21", // bg1: the panel's ground
 		Running:   "#54DCAA", // green: datum has the one
+		Turning:   "#54DCAA",
 		Gray:      "#8F98A3", // fg1
 		Faint:     "#757D87", // fg1 a fifth of the way to bg0: datum's promptBorder
 		Parchment: "#DBE0E8", // fg0: datum has two inks, and the bold carries a title
@@ -91,6 +92,7 @@ var Datum = theme{
 		Border:    "#CED3D9",
 		Surface:   "#E7ECF2",
 		Running:   "#007553",
+		Turning:   "#007553",
 		Gray:      "#616A76",
 		Faint:     "#7E8691",
 		Parchment: "#292E35",

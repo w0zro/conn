@@ -5,7 +5,7 @@ package theme
 // that is only information, and one phosphor green kept for what needs
 // you, which is what conn's accent already means: the WAITING stamp,
 // the caution, the cursor. Black light, skelly's third hue, is the
-// magentas. Skelly draws a thing running in plain ink rather than a
+// spinner beside a contact at work, and the magentas. Skelly draws a thing running in plain ink rather than a
 // hue, and conn does the same here. Where skelly has a token the role
 // takes it, and says which; skelly is a web page and has no sixteen, so
 // the rest of the hues a program asks for by name are conn's own, drawn
@@ -39,6 +39,7 @@ var Skelly = theme{
 		Border:    "#262A27", // --line
 		Surface:   "#171A18", // --surface
 		Running:   "#E6E9E3", // --run: running is ink, not a hue
+		Turning:   "#C7ABFF", // --uv-text: black light
 		Gray:      "#868C83", // --mute
 		Faint:     "#5D635A", // --faint
 		Parchment: "#AEB3AB", // --fg-2
@@ -84,6 +85,7 @@ var Skelly = theme{
 		Border:    "#D5D9D1", // --line
 		Surface:   "#E3E6DF", // --bg-sidebar
 		Running:   "#434840", // --run
+		Turning:   "#5B35C7", // --uv-text
 		Gray:      "#646A60", // --mute
 		Faint:     "#7A8075", // --faint
 		Parchment: "#434840", // --fg-2

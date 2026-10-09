@@ -63,7 +63,7 @@ func TestTheRolesReadOnEveryGround(t *testing.T) {
 			}{
 				{"ink", Hex(g.Ink), body}, {"parchment", g.Parchment, body},
 				{"accent", g.Accent, body}, {"shimmer", g.Shimmer, body},
-				{"gray", g.Gray, large}, {"faint", g.Faint, 2},
+				{"gray", g.Gray, large}, {"faint", g.Faint, 2}, {"turning", g.Turning, large},
 			} {
 				if c := contrast(r.hex, bg); c < r.least {
 					t.Errorf("%s %s: the %s (%s) is %.2f:1 on %s; %.1f:1 is what it takes",

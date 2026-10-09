@@ -21,6 +21,7 @@ type Palette struct {
 	Dim                                                             string // the terminal's own dimming, laid over an ink: a step under the faint
 	Surface                                                         string // one step off the ground: the panel's own
 	edge, Running, Struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
+	turning                                                         string // ink for the spinner in a row's margin
 	Selection                                                       string // the raised ground a key sits on
 	chosen, chosenInk                                               string // the ground a chosen row sits on, and its ink
 	blockEnd                                                        string // ink in the block's fill, for a stamp's rounded ends
@@ -65,6 +66,7 @@ func Colored(g theme.Ground) Palette {
 		well:      groundIn(theme.Hex(g.Ground)),
 		edge:      inkIn(g.Surface),
 		Running:   inkIn(g.Running),
+		turning:   inkIn(g.Turning),
 		Struck:    ansi.Style{}.Strikethrough(true).String(),
 		End:       ansi.Style{}.Reset().String(),
 	}
@@ -218,7 +220,7 @@ func (c *Canvas) Emit(l *Line, stage int, centered bool) {
 			mark = p.Orange + p.Bold + l.Mark + p.Normal
 		}
 		if l.Turn != "" {
-			turn = p.Running + l.Turn + p.Normal
+			turn = p.turning + l.Turn + p.Normal
 		}
 		lead = mark + turn + strings.Repeat(" ", Margin-2)
 	}

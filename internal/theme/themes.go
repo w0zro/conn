@@ -33,6 +33,7 @@ type Ground struct {
 	Border    string // a pane's edge, a selection, the band behind the status line
 	Surface   string // one step off the ground, short of the border: the panel's own ground
 	Running   string // a process doing something, said by the dot at the head of its row
+	Turning   string // the spinner beside a contact at work: the running ink, unless a theme has a hue for it
 	Gray      string // the second rank: a label, a comment
 	Faint     string // the quietest text: a leader, a hint, a line number
 	Parchment string // the second ink: a title, punctuation, what conn says on the status line
@@ -192,6 +193,7 @@ var Conn = theme{
 		Border:    "#2A2620",
 		Surface:   "#1D1A15",
 		Running:   "#93C98B",
+		Turning:   "#93C98B",
 		Gray:      "#8B8272",
 		Faint:     "#5C564A",
 		Parchment: "#BFB39A",
@@ -237,6 +239,7 @@ var Conn = theme{
 		Border:    "#D8D0BD",
 		Surface:   "#E6DFCF",
 		Running:   "#23703F",
+		Turning:   "#23703F",
 		Gray:      "#6F6656",
 		Faint:     "#867C6A",
 		Parchment: "#4A4335",

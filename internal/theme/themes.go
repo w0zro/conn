@@ -141,7 +141,7 @@ func RGB(h string) color.RGBA {
 // sixteen.
 //
 // The faint is the quietest tier conn draws text in - a hint, a leader,
-// Claude Code's subtle and promptBorder. Dark matches scheme[8], the
+// Claude Code's promptBorder. Dark matches scheme[8], the
 // ANSI-8 slot faint has always drawn from; light needed a color of its
 // own, since ANSI-8 there (#9A9080) reads fine as a background tint but
 // nearly vanishes as foreground text on the light ground. scheme[8]

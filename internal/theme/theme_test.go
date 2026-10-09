@@ -74,7 +74,8 @@ func TestTheThemeIsDrawnFromConnsOwn(t *testing.T) {
 
 // A verdict is slot-shaped, so it is written as the slot and follows
 // the pane's own sixteen. The orange is "you, here": the mark, the
-// dialog that stops and waits, and the meter — never a mode.
+// dialog that stops and waits, the meter, and the > before what you
+// said — never a mode.
 func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 	at := map[string]string{}
 	for _, grp := range ClaudeTheme(Conn.Dark) {
@@ -88,7 +89,7 @@ func TestTheThemeSpendsItsColorsWhereItSays(t *testing.T) {
 		}
 	}
 	accent := Conn.Dark.Accent
-	for _, k := range []string{"claude", "permission", "rate_limit_fill"} {
+	for _, k := range []string{"claude", "permission", "rate_limit_fill", "subtle"} {
 		if at[k] != accent {
 			t.Errorf("%s is %s, not the accent", k, at[k])
 		}

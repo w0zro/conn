@@ -4,14 +4,13 @@ package theme
 // calls Glow. A green-tinted black and a bone ink, grays for everything
 // that is only information, and one phosphor green kept for what needs
 // you, which is what conn's accent already means: the WAITING stamp,
-// the caution, the cursor. Black light is skelly's third hue, the
-// thread's own, and your lines in it, you being the lamp: here it is the
-// band behind what you said to Claude Code, and the magentas. Skelly
-// draws a thing running in plain ink rather than a hue, and conn does
-// the same here. Where skelly has a token the role takes it, and says
-// which; skelly is a web page and has no sixteen, so the rest of the
-// hues a program asks for by name are conn's own, drawn to sit in its
-// temperature, with the phosphor as bright green and rose as red.
+// the caution, the cursor. Black light, skelly's third hue, is the
+// magentas. Skelly draws a thing running in plain ink rather than a
+// hue, and conn does the same here. Where skelly has a token the role
+// takes it, and says which; skelly is a web page and has no sixteen, so
+// the rest of the hues a program asks for by name are conn's own, drawn
+// to sit in its temperature, with the phosphor as bright green and rose
+// as red.
 var Skelly = theme{
 	Name: "skelly",
 	Dark: Ground{
@@ -49,8 +48,8 @@ var Skelly = theme{
 		ChosenInk: "#D9F8B8", // --sel-fg
 		Cursor:    "#B9F27C", // --sel-line: the ring around the box you type in
 
-		MessageBg:       "#151022", // --uv-bg-box: your lines, in black light
-		MessageHoverBg:  "#18132A", // --uv-bg
+		MessageBg:       "#1F2320", // --surface-active
+		MessageHoverBg:  "#262A27", // --line
 		ToolBg:          "#171A18", // --surface
 		DiffAddedBg:     "#1B2A14",
 		DiffRemovedBg:   "#301A1D",
@@ -94,8 +93,8 @@ var Skelly = theme{
 		ChosenInk: "#26440A", // --sel-fg
 		Cursor:    "#5DB821", // --sel-line
 
-		MessageBg:       "#F3EFFC", // --uv-bg-box: your lines, in black light
-		MessageHoverBg:  "#EDE6FB", // --uv-bg
+		MessageBg:       "#DDE1D8", // --surface-active
+		MessageHoverBg:  "#D5D9D1", // --line
 		ToolBg:          "#E3E6DF", // --bg-sidebar
 		DiffAddedBg:     "#DCEBC8",
 		DiffRemovedBg:   "#F2DCDF",

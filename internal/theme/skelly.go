@@ -10,7 +10,7 @@ package theme
 // here. Where skelly has a token the role takes it, and says which;
 // skelly is a web page and has no sixteen, so the rest of the hues a
 // program asks for by name are conn's own, drawn to sit in its
-// temperature, with the phosphor as bright green and rose as red.
+// temperature, with the phosphor as bright green and the neon as red.
 var Skelly = theme{
 	Name: "skelly",
 	Dark: Ground{
@@ -18,7 +18,7 @@ var Skelly = theme{
 		Ink:    RGB("#E6E9E3"), // --fg
 		Scheme: [16]string{
 			"#262A27", // --line
-			"#F2737E", // --bad
+			"#FF7E5B", // --bad: neon, the red-orange a tube glows
 			"#9FD3A8", // green
 			"#E8C468", // yellow
 			"#86AEC9", // blue
@@ -26,7 +26,7 @@ var Skelly = theme{
 			"#7FCFC4", // cyan
 			"#AEB3AB", // --fg-2
 			"#5D635A", // --faint
-			"#F59AA2", // --bad-text
+			"#FF9A7A", // --bad-text
 			"#B9F27C", // --acc: the phosphor
 			"#F2D58A", // bright yellow
 			"#A6C6DD", // bright blue
@@ -53,18 +53,18 @@ var Skelly = theme{
 		MessageHoverBg:  "#262A27", // --line
 		ToolBg:          "#171A18", // --surface
 		DiffAddedBg:     "#1B2A14",
-		DiffRemovedBg:   "#301A1D",
+		DiffRemovedBg:   "#301C14",
 		DiffAddedDim:    "#151D11",
-		DiffRemovedDim:  "#211517",
+		DiffRemovedDim:  "#22150F",
 		DiffAddedWord:   "#2E4720",
-		DiffRemovedWord: "#4F262C",
+		DiffRemovedWord: "#50291B",
 	},
 	Light: Ground{
 		Ground: RGB("#EDEFEA"), // --bg
 		Ink:    RGB("#151814"), // --fg
 		Scheme: [16]string{
 			"#262A24", // --fg-approved: black is text, on paper
-			"#B4233A", // --bad
+			"#B5380A", // --bad
 			"#2E6B2A", // green
 			"#7E5800", // yellow
 			"#2F5F82", // blue
@@ -72,7 +72,7 @@ var Skelly = theme{
 			"#0E6B66", // cyan
 			"#434840", // --fg-2
 			"#7A8075", // --faint
-			"#9E1F33", // --bad-text
+			"#A83308", // --bad-text
 			"#3F6B12", // --acc-text: the phosphor, as ink
 			"#684800", // bright yellow
 			"#244D6B", // bright blue
@@ -99,10 +99,10 @@ var Skelly = theme{
 		MessageHoverBg:  "#D5D9D1", // --line
 		ToolBg:          "#E3E6DF", // --bg-sidebar
 		DiffAddedBg:     "#DCEBC8",
-		DiffRemovedBg:   "#F2DCDF",
+		DiffRemovedBg:   "#F5DED3",
 		DiffAddedDim:    "#E5EDDB",
-		DiffRemovedDim:  "#F0E5E6",
+		DiffRemovedDim:  "#F3E7E0",
 		DiffAddedWord:   "#B3D58C",
-		DiffRemovedWord: "#E2AEB5",
+		DiffRemovedWord: "#E4AC95",
 	},
 }

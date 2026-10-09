@@ -4,11 +4,14 @@ package theme
 // calls Glow. A green-tinted black and a bone ink, grays for everything
 // that is only information, and one phosphor green kept for what needs
 // you, which is what conn's accent already means: the WAITING stamp,
-// the caution, the cursor. Skelly draws a thing running in plain ink
-// rather than a hue, and conn does the same here. Where skelly has a
-// token the role takes it, and says which; skelly is a web page and has
-// no sixteen, so the hues a program asks for by name are conn's own,
-// drawn to sit in its temperature, with the phosphor as bright green.
+// the caution, the cursor. Black light is skelly's third hue, the
+// thread's own, and your lines in it, you being the lamp: here it is the
+// band behind what you said to Claude Code, and the magentas. Skelly
+// draws a thing running in plain ink rather than a hue, and conn does
+// the same here. Where skelly has a token the role takes it, and says
+// which; skelly is a web page and has no sixteen, so the rest of the
+// hues a program asks for by name are conn's own, drawn to sit in its
+// temperature, with the phosphor as bright green and rose as red.
 var Skelly = theme{
 	Name: "skelly",
 	Dark: Ground{
@@ -20,7 +23,7 @@ var Skelly = theme{
 			"#9FD3A8", // green
 			"#E8C468", // yellow
 			"#86AEC9", // blue
-			"#C59BD6", // magenta
+			"#C7ABFF", // --uv-text: black light
 			"#7FCFC4", // cyan
 			"#AEB3AB", // --fg-2
 			"#5D635A", // --faint
@@ -28,7 +31,7 @@ var Skelly = theme{
 			"#B9F27C", // --acc: the phosphor
 			"#F2D58A", // bright yellow
 			"#A6C6DD", // bright blue
-			"#D7B6E3", // bright magenta
+			"#DCCBFF", // --uv-text-soft
 			"#9FDFD6", // bright cyan
 			"#E6E9E3", // --fg
 		},
@@ -46,8 +49,8 @@ var Skelly = theme{
 		ChosenInk: "#D9F8B8", // --sel-fg
 		Cursor:    "#B9F27C", // --sel-line: the ring around the box you type in
 
-		MessageBg:       "#1F2320", // --surface-active
-		MessageHoverBg:  "#262A27", // --line
+		MessageBg:       "#151022", // --uv-bg-box: your lines, in black light
+		MessageHoverBg:  "#18132A", // --uv-bg
 		ToolBg:          "#171A18", // --surface
 		DiffAddedBg:     "#1B2A14",
 		DiffRemovedBg:   "#301A1D",
@@ -65,7 +68,7 @@ var Skelly = theme{
 			"#2E6B2A", // green
 			"#7E5800", // yellow
 			"#2F5F82", // blue
-			"#7A3F86", // magenta
+			"#5B35C7", // --uv-text: black light
 			"#0E6B66", // cyan
 			"#434840", // --fg-2
 			"#7A8075", // --faint
@@ -73,7 +76,7 @@ var Skelly = theme{
 			"#3F6B12", // --acc-text: the phosphor, as ink
 			"#684800", // bright yellow
 			"#244D6B", // bright blue
-			"#643271", // bright magenta
+			"#4B2BA8", // --uv-text-soft
 			"#0A5753", // bright cyan
 			"#151814", // --fg
 		},
@@ -91,8 +94,8 @@ var Skelly = theme{
 		ChosenInk: "#26440A", // --sel-fg
 		Cursor:    "#5DB821", // --sel-line
 
-		MessageBg:       "#DDE1D8", // --surface-active
-		MessageHoverBg:  "#D5D9D1", // --line
+		MessageBg:       "#F3EFFC", // --uv-bg-box: your lines, in black light
+		MessageHoverBg:  "#EDE6FB", // --uv-bg
 		ToolBg:          "#E3E6DF", // --bg-sidebar
 		DiffAddedBg:     "#DCEBC8",
 		DiffRemovedBg:   "#F2DCDF",

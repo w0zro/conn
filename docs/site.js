@@ -19,6 +19,7 @@
   const $ = id => document.getElementById(id);
   const station = $('station'), panelEl = $('panel'), workEl = $('work');
   const b0 = $('b0'), b1 = $('b1'), sceneEl = $('scene'), captionEl = $('caption'), scrollEl = $('scroll');
+  const guideEl = $('guide'), progressEl = $('progress');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const touch = matchMedia('(hover: none)').matches;
   const arrived = new Date();
@@ -26,6 +27,7 @@
   // ---- the grid -------------------------------------------------------
 
   const MARGIN = 3, MIN_COLS = 80, PANEL_W = 44, FACT_COL = 12, CHECK_COL = 12, STATUS_W = 9;
+  const GUIDE_W = 56, GUIDE_ROOM = GUIDE_W + 4; // the guide's card, and the cells it takes at the right
   let cellW = 8.4, cellH = 20, cols = 80, rows = 24, one = false, panelW = PANEL_W, workW = 40;
 
   function measureGrid() {
@@ -301,7 +303,8 @@
     }
     const small = cols < MIN_COLS || need() > rows;
     const lastStage = 2 + ks.length;
-    return { lines: small ? smallConsole(cols, rows, need()) : consoleBody(v, ks, cols, stage), lastStage, small };
+    const w = !one && cols - GUIDE_ROOM >= MIN_COLS ? cols - GUIDE_ROOM : cols;
+    return { lines: small ? smallConsole(cols, rows, need()) : consoleBody(v, ks, w, stage), lastStage, small, compact: !small && w === cols };
   }
 
   // ---- the session ----------------------------------------------------
@@ -448,7 +451,8 @@
   // specifications to its right where the pane is wide enough.
   function drawPage(m, w) {
     const r = row(m, m.cursor), p = projectOf(m, m.cursor);
-    const wide = w >= 104, leftW = wide ? w - 2 * MARGIN - 34 : w - 2 * MARGIN, specCol = MARGIN + leftW + 6;
+    const wide = w >= 104, clear = one ? w - 2 * MARGIN : Math.max(60, w - GUIDE_ROOM - MARGIN);
+    const leftW = Math.min(wide ? w - 2 * MARGIN - 34 : w - 2 * MARGIN, clear), specCol = MARGIN + leftW + 6;
     const out = [], L = () => line(MARGIN);
     const para = (text, cls = 'ink') => wrap(text, leftW).forEach(t => out.push(L().add(cls, t)));
     const procedure = steps => {
@@ -523,7 +527,7 @@
       const specW = w - MARGIN - specCol;
       const spec = [['Designation', `CONN-${r.digit}`], ['Given', 'Today, 12:36'], ['Worked', '1h 25m'], ['Waiting', r.status === 'waiting' ? '9 min' : '\u2014'], ['', ''],
         ['Branch', 'main \u00b7 3 changed'], ['Commit', '12b688f'], ['Tracking', 'origin/main'], ['', ''], ['Folder', '~/projects/w0zro/conn'], ['Pane', '%2'], ['Process', '49212'],
-        ['Terminal', 'ttys003'], ['Under', 'Shell zsh \u00b7 49200'], ['', ''], ['Command', 'claude --resume'], ['Model', 'claude-fable-5-1']];
+        ['Command', 'claude --resume'], ['Model', 'claude-fable-5-1']];
       const right = [line().eyebrow(0, 'SPECIFICATIONS', specW, null), blank()];
       spec.forEach(([k, v]) => right.push(k ? line().leader(k, 13, 'faint').add('ink', fit(v, specW - 15)) : blank()));
       const merged = [];
@@ -648,6 +652,7 @@
   function showConsole(stage) {
     const c = drawConsole(stage);
     consoleLast = c.lastStage;
+    if (c.compact !== guideCompact) { guideCompact = c.compact; drawGuide(0); }
     station.classList.add('console');
     station.classList.remove('on-panel', 'on-work');
     paint(workEl, c.lines, rows, 0);
@@ -675,19 +680,63 @@
   const CLAIM = 'A console for the processes working your projects.';
 
   function frameFor(n) {
-    const s = SCENES[n];
-    if (one) {
-      sceneEl.innerHTML = `<span class="on">${esc(shortLabel(n))}</span><span class="of">${pad2(n)} / ${pad2(SCENES.length - 1)}</span>`;
-    } else {
-      sceneEl.innerHTML = SCENES.map((_, i) => `<a href="#s${i}" data-scene="${i}" class="${i === n ? 'on' : i < n ? 'done' : ''}">${esc(shortLabel(i))}</a>`).join('<span class="sep">·</span>');
-      for (const a of sceneEl.querySelectorAll('a')) a.onclick = e => { e.preventDefault(); scrollTo(Number(a.dataset.scene)); };
-    }
-    const next = n < SCENES.length - 1 ? `<span class="hint">${n === 0 && !touch ? 'any key, or scroll' : 'scroll'} \u2193 ${esc(shortLabel(n + 1))}</span>` : `<span class="hint">g \u2191 the console</span>`;
-    const install = `<span class="prompt">$</span> <code>${esc(INSTALL)}</code> <button class="copy" type="button" data-copy="${esc(INSTALL)}">[copy]</button>`;
-    if (n === 0) captionEl.innerHTML = (one ? esc(CLAIM) : `<b>${esc(CLAIM)}</b>&nbsp;&nbsp;&nbsp;${install}`) + next;
-    else if (s.id === 'install') captionEl.innerHTML = install + next;
-    else captionEl.innerHTML = esc(s.caption) + next;
+    sceneEl.innerHTML = `<b>CONN</b><span class="claim">${esc(CLAIM)}</span>`;
+    captionEl.innerHTML = one ? '<span class="needs">macOS and Linux, on tmux. Needs a terminal: the install line is on the last scene.</span>'
+      : `<span class="prompt">$</span> <code>${esc(INSTALL)}</code> <button class="copy" type="button" data-copy="${esc(INSTALL)}">[copy]</button><span class="needs">macOS and Linux \u00b7 needs tmux, and lsof on macOS</span>`;
     wireCopy();
+    drawGuide(n);
+  }
+
+  // The guide: the demonstration's steps, over the station on the
+  // raised ground, in the page's box. The step on screen is under the
+  // cursor, the ones passed are dimmed, a bar of blocks says how far,
+  // and under the steps the scene's line and what comes next.
+  let guideCompact = false; // the console has no room beside it for the card
+  function drawGuide(n) {
+    const last = SCENES.length - 1, s = SCENES[n];
+    guideEl.classList.toggle('compact', n === 0 && guideCompact && !one);
+    const nextWord = n < last ? `${n === 0 && !touch ? 'any key, or scroll' : touch ? 'scroll' : 'j, or scroll'} \u2193 ${shortLabel(n + 1)}` : 'g \u2191 the console';
+    const out = [];
+    if (one || (n === 0 && guideCompact)) {
+      const w = one ? cols - 2 : GUIDE_W - 2, barW = 12, done = Math.round(barW * n / last);
+      const l = line(1).add('par b', 'DEMONSTRATION').add('', '  ').add('acc', rep('\u2588', done)).add('bord', rep('\u2588', barW - done));
+      l.to(w - 7).add('gray', `${pad2(n)} / ${pad2(last)}`);
+      out.push(l);
+      out.push(line(1).add('acc', '\u25b8 ').add('ink b', fit(shortLabel(n), w - 2)));
+      const text = n === 0 ? 'The console comes up against this browser. Then a session, scene by scene.' : s.caption;
+      wrap(text, w - 2).slice(0, 3).forEach(t => out.push(line(1).add('par', t)));
+      out.push(line(1).add('faint', fit(nextWord, w - 2)));
+      paint(guideEl, out, 99, 0);
+      guideEl.style.width = one ? '' : (GUIDE_W * cellW) + 'px';
+      const pad = one ? guideEl.offsetHeight + 'px' : '';
+      panelEl.style.paddingTop = pad; workEl.style.paddingTop = pad;
+    } else {
+      panelEl.style.paddingTop = ''; workEl.style.paddingTop = '';
+      const w = GUIDE_W, inner = w - 4, barW = 20, done = Math.round(barW * n / last);
+      const L = () => line().add('bord', '\u258c').add('', '  ');
+      out.push(line().add('bord', rep('\u2584', w)));
+      out.push(L().add('par b', 'DEMONSTRATION').to(w - 2 - 7).add('gray', `${pad2(n)} / ${pad2(last)}`));
+      out.push(L().add('acc', rep('\u2588', done)).add('bord', rep('\u2588', barW - done)).add('', '  ').add('gray', n === last ? 'the whole session' : n === 0 ? 'the console, then a session' : `scene ${n} of ${last}`));
+      out.push(L());
+      SCENES.forEach((sc, i) => {
+        const l = line();
+        if (i === n) { l.add('bord', '\u258c').add('acc', '\u25b8 '); } else l.add('bord', '\u258c').add('', '  ');
+        l.add(i === n ? 'ink b' : i < n ? 'faint' : 'par', fit(i === 0 ? 'CONSOLE' : shortLabel(i), inner));
+        out.push([l, i === n ? 'chosen' : '']);
+        l.scene = i;
+      });
+      out.push(L());
+      const text = n === 0 ? 'The console comes up against this browser: its screen, its font, its clock, this site. Then a session, scene by scene.' : s.caption;
+      wrap(text, inner).forEach(t => out.push(L().add('par', t)));
+      out.push(L());
+      out.push(L().add('faint', fit(nextWord, inner)));
+      out.push(line().add('bord', rep('\u2580', w)));
+      paint(guideEl, out, 99, 0);
+      guideEl.style.width = (w * cellW) + 'px';
+      // A step is a link.
+      guideEl.querySelectorAll('.row').forEach((el, i) => { const sc = out[i] && (Array.isArray(out[i]) ? out[i][0] : out[i]).scene; if (sc !== undefined) { el.classList.add('step'); el.onclick = () => scrollTo(sc); } });
+    }
+    progressEl.style.width = (100 * n / last) + '%';
   }
 
   function goTo(n, animate = true) {

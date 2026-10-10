@@ -115,13 +115,10 @@ pre { margin: 0; font: inherit; white-space: pre; }
 }
 .frame .line { display: flex; align-items: baseline; gap: 24px; white-space: nowrap; overflow: hidden; }
 .frame .line.a { justify-content: space-between; }
-.frame .scene { display: flex; gap: 10px; align-items: baseline; font-weight: 700; letter-spacing: 0.12em; overflow: hidden; white-space: nowrap; color: var(--faint); }
-.frame .scene .sep { color: var(--border); }
-.frame .scene a { color: var(--gray); }
-.frame .scene a.done { color: var(--parchment); }
-.frame .scene a:hover { color: var(--ink); }
-.frame .scene .on, .frame .scene a.on { color: var(--accent); }
-.frame .scene .of { color: var(--gray); font-weight: 400; }
+.frame .scene { display: flex; gap: 20px; align-items: baseline; overflow: hidden; white-space: nowrap; }
+.frame .scene b { color: var(--accent); font-weight: 700; letter-spacing: 0.2em; }
+.frame .scene .claim { color: var(--ink); font-weight: 700; }
+.frame .needs { color: var(--gray); margin-left: 24px; }
 .frame .links { display: flex; gap: 20px; flex: none; color: var(--gray); font-weight: 700; letter-spacing: 0.12em; }
 .frame .links a:hover { color: var(--ink); }
 .frame .links .accent { color: var(--accent); }
@@ -139,7 +136,41 @@ pre { margin: 0; font: inherit; white-space: pre; }
   .frame .links a:not(.accent) { display: none; }
   .frame .hint { display: none; }
   .frame .line.b { white-space: normal; line-height: 17px; max-height: 51px; text-overflow: clip; }
+  .frame .scene .claim { display: none; }
+  .frame .needs { margin-left: 0; }
 }
+
+/* The guide over the station, and the line along the top that fills
+   with it. */
+.guide {
+  position: absolute;
+  right: calc(var(--cell-w) * 2);
+  bottom: calc(var(--cell-h) * 3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 50px -10px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+.guide.compact { padding: calc(var(--cell-h) / 3) 0; }
+.guide .row.step { cursor: pointer; }
+.guide .row.step:hover { background: var(--chosen); }
+.station.one .guide {
+  left: 0; right: 0; top: 0; bottom: auto;
+  width: auto !important;
+  border-width: 0 0 1px 0;
+  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.8);
+  padding: calc(var(--cell-h) / 3) 0;
+}
+.progress {
+  position: fixed;
+  left: 0; top: 0;
+  height: 2px;
+  width: 0;
+  background: var(--accent);
+  z-index: 3;
+  transition: width 500ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) { .progress { transition: none; } }
 
 /* The scroll: a section a scene, each a screen tall, snapped. */
 .scroll section { height: 100vh; height: 100dvh; scroll-snap-align: start; }

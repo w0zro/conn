@@ -135,7 +135,7 @@ func drawFiled(b processesReport, cursor int, width, height int, p draw.Palette)
 		if wantStamped {
 			wantW = draw.StampWidth(wants, p)
 		}
-		l.Divider(draw.Fit(bp.path, max(measure-wantW-1, 1), true), measure, wantW)
+		l.EyebrowTail(p.Parchment+p.Bold, 0, draw.Fit(bp.path, max(measure-wantW-1, 1), true), measure, wantW)
 		switch {
 		case wantBlinks && !b.lit:
 		case wantStamped:

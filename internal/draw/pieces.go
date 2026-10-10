@@ -178,17 +178,6 @@ func (l *Line) EyebrowIn(color string, col int, label string, right int, count s
 // stamp is not a word in a color. The line is left at the column the
 // figure begins at.
 func (l *Line) EyebrowTail(color string, col int, label string, right, tailW int) {
-	l.eyebrow(color, l.P.Border, col, label, right, tailW)
-}
-
-// Divider is the line a project starts on: an eyebrow at the margin
-// in the theme's hue for it, the name and the rule both, with a figure
-// at the end as EyebrowTail has.
-func (l *Line) Divider(label string, right, tailW int) {
-	l.eyebrow(l.P.divide+l.P.Bold, l.P.divideLine, 0, label, right, tailW)
-}
-
-func (l *Line) eyebrow(color, rule string, col int, label string, right, tailW int) {
 	l.To(col)
 	l.Add(color, label)
 	l.Add("", " ")
@@ -197,7 +186,7 @@ func (l *Line) eyebrow(color, rule string, col int, label string, right, tailW i
 		tail = tailW + 1
 	}
 	if n := right - l.Cells - tail; n > 0 {
-		l.Add(rule, strings.Repeat("─", n))
+		l.Add(l.P.Border, strings.Repeat("─", n))
 	}
 	if tailW > 0 {
 		l.Add("", " ")

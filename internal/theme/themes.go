@@ -207,8 +207,8 @@ var Conn = theme{
 		Chosen:     "#2A2620",
 		ChosenInk:  "#E6DFD0",
 		Cursor:     "#E85D2F",
-		Divide:     "#7FA7C9",
-		DivideLine: "#353F47",
+		Divide:     "#C98BA8",
+		DivideLine: "#4B373D",
 
 		MessageBg:       "#2A2620",
 		MessageHoverBg:  "#33302A",
@@ -255,8 +255,8 @@ var Conn = theme{
 		Chosen:     "#D8D0BD",
 		ChosenInk:  "#1A1611",
 		Cursor:     "#BD3A1D",
-		Divide:     "#3E5F7A",
-		DivideLine: "#B4C6D6",
+		Divide:     "#7A4258",
+		DivideLine: "#D9BDC6",
 
 		MessageBg:       "#D8D0BD",
 		MessageHoverBg:  "#CFC6B0",

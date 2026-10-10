@@ -1,108 +1,114 @@
 package theme
 
-// Skelly is skelly's, the app at SkellyLabs: the palette its stylesheet
-// calls Glow. A green-tinted black and a bone ink, grays for everything
-// that is only information, and one phosphor green kept for what needs
+// Skelly is skelly's, from its brand at brand.skelly.ai: the palette it
+// calls Glow, five colors and rules for the rest. A green-tinted black
+// and a bone ink, and three glows in the dark. Phosphor is what needs
 // you, which is what conn's accent already means: the WAITING stamp,
-// the caution, the cursor. Black light, skelly's third hue, is the
-// spinner beside a contact at work, and the magentas. Skelly draws a
-// thing running in plain ink rather than a hue, and conn does the same
-// here. Where skelly has a token the role takes it, and says which;
-// skelly is a web page and has no sixteen, so the rest of the hues a
-// program asks for by name are conn's own, drawn to sit in its
-// temperature, with the phosphor as bright green and the neon as red.
+// the caution, the cursor, the selection. Neon is broke, the reds.
+// Black light is the lamp: the spinner beside a contact at work, and
+// the magentas. A thing running has no hue, so it is drawn in ink.
+//
+// Every other skelly token is a rule on the five - a surface is the
+// ground a step lighter, a line or a gray is the ink mixed into the
+// ground, a glow's text, line and tint are the glow at a set lightness
+// and chroma with its hue kept - and the values here are those rules
+// as the brand page prints them, named by token. Where conn needs a
+// step the brand has no token for, the same kind of rule makes it and
+// the comment says so. skelly is a web page and has no sixteen, so the
+// green, yellow, blue and cyan a program asks for by name are conn's
+// own, drawn to sit in its temperature.
 var Skelly = theme{
 	Name: "skelly",
 	Dark: Ground{
-		Ground: RGB("#101211"), // --bg
-		Ink:    RGB("#E6E9E3"), // --fg
+		Ground: RGB("#101211"), // --bg: lights-out
+		Ink:    RGB("#E6E9E3"), // --fg: bone
 		Scheme: [16]string{
-			"#262A27", // --line
-			"#FF7E5B", // --bad: neon, the red-orange a tube glows
+			"#272927", // --line
+			"#FF7E5B", // --bad: neon
 			"#9FD3A8", // green
 			"#E8C468", // yellow
 			"#86AEC9", // blue
-			"#C7ABFF", // --uv-text: black light
+			"#C8ABFF", // --uv-text: black light
 			"#7FCFC4", // cyan
-			"#AEB3AB", // --fg-2
-			"#5D635A", // --faint
-			"#FF9A7A", // --bad-text
-			"#B9F27C", // --acc: the phosphor
+			"#AEB1AD", // --fg-2
+			"#626562", // --faint
+			"#FF9B7D", // --bad-text
+			"#B9F27C", // --acc: phosphor
 			"#F2D58A", // bright yellow
 			"#A6C6DD", // bright blue
-			"#DCCBFF", // --uv-text-soft
+			"#DDCFFF", // black light at l 0.88, c 0.08: a step past --uv-text
 			"#9FDFD6", // bright cyan
 			"#E6E9E3", // --fg
 		},
 		Accent:    "#B9F27C", // --acc: what needs you
-		Shimmer:   "#D9F8B8", // --acc-text-soft
-		Border:    "#262A27", // --line
-		Surface:   "#171A18", // --surface
-		Running:   "#E6E9E3", // --run: running is ink, not a hue
-		Turning:   "#C7ABFF", // --uv-text: black light
-		Gray:      "#868C83", // --mute
-		Faint:     "#5D635A", // --faint
-		Parchment: "#AEB3AB", // --fg-2
+		Shimmer:   "#C7F699", // --acc-text
+		Border:    "#272927", // --line
+		Surface:   "#181A19", // --surface
+		Running:   "#E6E9E3", // --fg: running has no hue
+		Turning:   "#C8ABFF", // --uv-text
+		Gray:      "#878A86", // --mute
+		Faint:     "#626562", // --faint
+		Parchment: "#AEB1AD", // --fg-2
 		Block:     "#B9F27C", // --acc
 		OnBlock:   "#101211", // --acc-on
-		Chosen:    "#18240F", // --sel-bg: selected keeps its phosphor
-		ChosenInk: "#D9F8B8", // --sel-fg
-		Cursor:    "#B9F27C", // --sel-line: the ring around the box you type in
+		Chosen:    "#11190A", // --acc-bg: the selection
+		ChosenInk: "#C7F699", // --acc-text
+		Cursor:    "#B9F27C", // --acc
 
-		MessageBg:       "#1F2320", // --surface-active
-		MessageHoverBg:  "#262A27", // --line
-		ToolBg:          "#171A18", // --surface
-		DiffAddedBg:     "#1B2A14",
-		DiffRemovedBg:   "#301C14",
-		DiffAddedDim:    "#151D11",
-		DiffRemovedDim:  "#22150F",
-		DiffAddedWord:   "#2E4720",
-		DiffRemovedWord: "#50291B",
+		MessageBg:       "#202221", // --surface-active
+		MessageHoverBg:  "#272927", // --line
+		ToolBg:          "#181A19", // --surface
+		DiffAddedBg:     "#11190A", // --acc-bg
+		DiffRemovedBg:   "#1C110E", // --bad-bg
+		DiffAddedDim:    "#11160E", // --acc-bg half into --bg
+		DiffRemovedDim:  "#161210", // --bad-bg half into --bg
+		DiffAddedWord:   "#344B19", // --acc-line
+		DiffRemovedWord: "#53271B", // --bad-line
 	},
 	Light: Ground{
-		Ground: RGB("#EDEFEA"), // --bg
-		Ink:    RGB("#151814"), // --fg
+		Ground: RGB("#EDEFEA"), // --bg: light
+		Ink:    RGB("#151814"), // --fg: ink
 		Scheme: [16]string{
-			"#262A24", // --fg-approved: black is text, on paper
-			"#B5380A", // --bad
+			"#151814", // --fg: black is text, on paper
+			"#B5380A", // --bad: neon
 			"#2E6B2A", // green
 			"#7E5800", // yellow
 			"#2F5F82", // blue
-			"#5B35C7", // --uv-text: black light
+			"#6934C5", // --uv-text: black light
 			"#0E6B66", // cyan
-			"#434840", // --fg-2
-			"#7A8075", // --faint
-			"#A83308", // --bad-text
-			"#3F6B12", // --acc-text: the phosphor, as ink
+			"#434642", // --fg-2
+			"#7C7F7A", // --faint
+			"#9D2800", // --bad-text
+			"#416B10", // --acc-text: phosphor, as ink
 			"#684800", // bright yellow
 			"#244D6B", // bright blue
-			"#4B2BA8", // --uv-text-soft
+			"#521FA1", // black light at l 0.40, c 0.19: on paper, more ink
 			"#0A5753", // bright cyan
 			"#151814", // --fg
 		},
-		Accent:    "#3F6B12", // --acc-text: the phosphor as ink, which the ground would wash out
-		Shimmer:   "#26440A", // --sel-fg: on paper, more ink
-		Border:    "#D5D9D1", // --line
-		Surface:   "#E3E6DF", // --bg-sidebar
-		Running:   "#434840", // --run
-		Turning:   "#5B35C7", // --uv-text
-		Gray:      "#646A60", // --mute
-		Faint:     "#7A8075", // --faint
-		Parchment: "#434840", // --fg-2
-		Block:     "#9BE05A", // --acc: the fill skelly's buttons and badges are
+		Accent:    "#416B10", // --acc-text: phosphor as ink, which the ground would wash out
+		Shimmer:   "#305302", // phosphor at l 0.40, c 0.11: on paper, more ink
+		Border:    "#D2D4CF", // --line
+		Surface:   "#E3E5E0", // --bg-sidebar
+		Running:   "#151814", // --fg: running has no hue
+		Turning:   "#6934C5", // --uv-text
+		Gray:      "#626560", // --mute
+		Faint:     "#7C7F7A", // --faint
+		Parchment: "#434642", // --fg-2
+		Block:     "#9BE05A", // --acc: the fill of a button or a badge
 		OnBlock:   "#151814", // --acc-on: ink, since the fill is too pale for the ground
-		Chosen:    "#E0F1CC", // --sel-bg
-		ChosenInk: "#26440A", // --sel-fg
-		Cursor:    "#5DB821", // --sel-line
+		Chosen:    "#E5F5D9", // --acc-bg: the selection
+		ChosenInk: "#416B10", // --acc-text
+		Cursor:    "#416B10", // --acc-text: --acc is too pale for a cursor on the ground
 
-		MessageBg:       "#DDE1D8", // --surface-active
-		MessageHoverBg:  "#D5D9D1", // --line
-		ToolBg:          "#E3E6DF", // --bg-sidebar
-		DiffAddedBg:     "#DCEBC8",
-		DiffRemovedBg:   "#F5DED3",
-		DiffAddedDim:    "#E5EDDB",
-		DiffRemovedDim:  "#F3E7E0",
-		DiffAddedWord:   "#B3D58C",
-		DiffRemovedWord: "#E4AC95",
+		MessageBg:       "#DEE0DB", // --surface-active
+		MessageHoverBg:  "#D2D4CF", // --line
+		ToolBg:          "#E3E5E0", // --bg-sidebar
+		DiffAddedBg:     "#E5F5D9", // --acc-bg
+		DiffRemovedBg:   "#FBEAE5", // --bad-bg
+		DiffAddedDim:    "#E9F2E2", // --acc-bg half into --bg
+		DiffRemovedDim:  "#F4EDE8", // --bad-bg half into --bg
+		DiffAddedWord:   "#B5DC98", // --acc-line
+		DiffRemovedWord: "#F7BEAE", // --bad-line
 	},
 }

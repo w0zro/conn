@@ -1,12 +1,13 @@
-// conn.w0zro.com: the gathering. A field of small terminal windows -
-// agents, servers, shells, editors, tests, more than anyone can watch,
-// some of them asking a question nobody sees - files itself into conn's
-// panel as the page is scrolled: a row a process, under the project it
-// works, with a word a project where something waits; one row opens as
-// a pane; then the install. Every piece is laid out for the scroll's
-// position, between keyframes, so scrolling back is the same picture.
-// The windows are the machine's processes as conn would file them, and
-// the panel they make is drawn with conn's own marks, inks and words.
+// conn.w0zro.com: a figure from the memorandum, in motion. A field of
+// panes - agents, servers, shells, editors, tests, more than anyone can
+// watch, two of them asking a question that nothing says - files itself
+// into conn's panel as the page is scrolled: a row a process, under the
+// project it works, with a word a project where something waits; one
+// row opens in the workspace; then the installation procedure. Every
+// piece is laid out for the scroll's position, between keyframes, so
+// scrolling back is the same picture. The panes are the machine's
+// processes as conn would file them, and the panel they make is drawn
+// with conn's own marks, inks and words.
 (() => {
   'use strict';
 
@@ -73,9 +74,8 @@
       p.rows.forEach((r, ri) => {
         const w = document.createElement('div');
         w.className = `win ${r.status}`;
-        const ask = r.status === 'waiting' ? '<span class="ask">?</span>' : '';
         const wordCls = r.status === 'waiting' ? 'word stamp blink' : (r.status === 'fault' || r.status === 'stopped') ? 'word stamp' : 'word';
-        w.innerHTML = `<div class="drift"><div class="head"><span class="cur"></span><span class="spin">${r.status === 'working' ? '⣾' : ''}</span><span class="mark">${MARK[r.kind]}</span>${r.kind === 'contact' ? `<span class="digit">${r.digit}</span>` : '<span class="digit"></span>'}<span class="name">${esc(r.name)}</span>${r.word ? `<span class="${wordCls}">${r.word}</span>` : ''}</div><pre class="body">${r.body.join('\n')}</pre>${ask}</div>`;
+        w.innerHTML = `<div class="drift"><div class="head"><span class="cur"></span><span class="spin">${r.status === 'working' ? '⣾' : ''}</span><span class="mark">${MARK[r.kind]}</span>${r.kind === 'contact' ? `<span class="digit">${r.digit}</span>` : '<span class="digit"></span>'}<span class="name">${esc(r.name)}</span>${r.word ? `<span class="${wordCls}">${r.word}</span>` : ''}</div><pre class="body">${r.body.join('\n')}</pre></div>`;
         field.appendChild(w);
         const lines = r.body.length;
         wins.push({ el: w, r, p, pi, ri, lines, seed: rnd(), seed2: rnd(), seed3: rnd(), stagger: rnd() });
@@ -133,7 +133,7 @@
   function panelAt(beat) {
     const rowsTotal = PROJECTS.reduce((n, p) => n + p.rows.length + 2, 0);
     const ph = rowsTotal * ROW;
-    let x, y = Math.max(60, (H - ph) / 2 - 20), scale = 1;
+    let x, y = Math.max(56, (H - ph) / 2 - 80), scale = 1; // above the caption's ground
     if (beat >= 3 && beat < 4) x = 0; // at the left, the pane beside it
     else if (beat >= 5) { x = (W - PANEL_W) / 2; scale = phone ? 0.8 : 0.9; }
     else x = phone ? (W - PANEL_W) / 2 : Math.max(24, (W - PANEL_W) / 2 - (phone ? 0 : 60));
@@ -168,7 +168,7 @@
     const pA = panelAt(Math.max(1, Math.min(pr, 5))), pB = panelAt(Math.max(1, Math.min(Math.ceil(pr), 5)));
     const pf = beat >= 1 ? ease(clamp01((frac - 0.6) / 0.4)) : 0; // a beat holds, then moves into the next in its last part
     const px = lerp(pA.x, pB.x, pf), py = lerp(pA.y, pB.y, pf), ps = lerp(pA.scale, pB.scale, pf);
-    const dim = pr >= 4.6 ? 1 - 0.8 * ease(clamp01((pr - 4.6) / 0.6)) : 1;
+    const dim = pr >= 4.4 ? 1 - 0.85 * ease(clamp01((pr - 4.4) / 0.6)) : 1; // behind the procedure, nearly dark
     panelbg.style.width = PANEL_W + 'px'; panelbg.style.height = pA.h + 'px';
     panelbg.style.transform = `translate(${px}px, ${py}px) scale(${ps})`;
     panelbg.style.transformOrigin = '0 0';
@@ -197,7 +197,6 @@
       w.el.classList.toggle('row', t > 0.85);
       w.el.style.opacity = String(dim);
       const body = w.el.querySelector('.body'); body.style.opacity = String(1 - ease(clamp01(t * 1.6)));
-      const ask = w.el.querySelector('.ask'); if (ask) { ask.style.opacity = String(1 - ease(clamp01(t * 1.6))); ask.style.visibility = t > 0.6 ? 'hidden' : 'visible'; }
       // The word at the right comes with the words beat; the chosen row
       // is raised while its pane is open.
       const word = w.el.querySelector('.word'); if (word) word.style.opacity = String(ease(clamp01((pr - 1.6) / 0.4)));
@@ -227,6 +226,7 @@
     // The line of type.
     const at = pr >= 5 ? -1 : Math.min(4, Math.max(0, Math.round(pr - 0.35)));
     document.querySelectorAll('.caption').forEach(c => c.classList.toggle('on', Number(c.dataset.at) === at));
+    const fig = document.getElementById('figure'); if (fig) fig.textContent = at < 0 ? 'SEC. 2' : `FIG. 1-${at + 1}`;
     drifting = pr < 1.2;
   }
 

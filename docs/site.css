@@ -1,10 +1,11 @@
-/* conn.w0zro.com: the gathering. A field of small terminal windows,
-   more than anyone can watch, files itself into conn's panel as the
-   page is scrolled, under the projects they work, with a word a
-   project where something waits; one opens as a pane; then the
-   install. Five lines of type over it, in conn's own face and inks:
-   the conn theme's dark ground, by role, from
-   internal/theme/themes.go. */
+/* conn.w0zro.com: a figure from the memorandum, in motion. A field of
+   panes, more than anyone can watch, files itself into conn's panel as
+   the page is scrolled, under the projects they work, with a word a
+   project where something waits; one opens in the workspace; then the
+   installation procedure. The captions are the memorandum's findings,
+   numbered; the frame is its: the document number, the figure, the
+   change. Set in conn's own face and inks, the conn theme's dark
+   ground by role, from internal/theme/themes.go. */
 
 :root {
   --ground: #15130F;
@@ -43,7 +44,9 @@ pre { margin: 0; font: inherit; white-space: pre; }
   font-size: 12px; font-weight: 700; letter-spacing: 0.2em;
   color: var(--parchment);
 }
+.nav .head { display: flex; gap: 28px; align-items: baseline; }
 .nav .mark { color: var(--ink); }
+.nav .docline { color: var(--gray); font-weight: 400; letter-spacing: 0.16em; }
 .nav .links { display: flex; gap: 24px; }
 .nav .links a:hover { color: var(--ink); }
 .nav .links .accent { color: var(--accent); }
@@ -52,17 +55,16 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .stage { position: fixed; inset: 0; overflow: hidden; z-index: 1; }
 .field { position: absolute; inset: 0; }
 
-/* A window: a small terminal, a process in it. It becomes a row of the
-   panel: the body folds away, the head is the row. */
+/* A pane: a terminal, a process in it, nothing around it but its
+   edge. It becomes a row of the panel: the body folds away, the head
+   is the row. */
 .win {
   position: absolute; left: 0; top: 0;
   box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
   overflow: hidden;
   will-change: transform, width, height;
-  box-shadow: 0 14px 40px -14px rgba(0, 0, 0, 0.9);
 }
 .win .drift { position: absolute; inset: 0; }
 .win .head {
@@ -97,16 +99,8 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .win .body .f { color: var(--faint); }
 .win .body .k { color: var(--ink); }
 .win .body .cursor { display: inline-block; width: 7px; height: 13px; background: var(--accent); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
-.win .ask {
-  position: absolute; right: 8px; top: 2px;
-  width: 16px; height: 16px; line-height: 16px; text-align: center;
-  border-radius: 8px; background: var(--accent); color: var(--ground);
-  font-weight: 700; font-size: 11px;
-  animation: pulse 1.6s ease-in-out infinite;
-}
-@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
 @keyframes blink { 50% { opacity: 0; } }
-.win.row { border-color: transparent; border-radius: 0; box-shadow: none; background: transparent; }
+.win.row { border-color: transparent; background: transparent; }
 .win.row.chosen { background: var(--chosen); }
 
 /* The panel they gather into: its ground, and an eyebrow a project. */
@@ -140,26 +134,42 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .pane .band { position: absolute; left: 0; right: 0; bottom: 0; height: var(--row); background: var(--border); color: var(--gray); padding: 0 8px; }
 .pane .band b { color: var(--ink); }
 
-/* The line of type. */
-.captions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; pointer-events: none; padding: 0 28px 48px; }
+/* The findings: a figure's caption a beat, the kicker and the numbered
+   paragraph as the manual sets them, on a ground of their own so the
+   figure behind never runs into the words. */
+.captions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; pointer-events: none; }
 .caption {
-  position: absolute; left: 28px; right: 28px; bottom: 48px; margin: 0;
-  max-width: 14em;
-  font-size: clamp(26px, 4vw, 54px); line-height: 1.12; font-weight: 700; letter-spacing: -0.02em;
-  color: var(--ink);
-  text-shadow: 0 2px 30px rgba(21, 19, 15, 0.9), 0 0 60px rgba(21, 19, 15, 0.9);
-  opacity: 0; transform: translateY(12px);
+  position: absolute; left: 28px; bottom: 44px; margin: 0;
+  max-width: 640px;
+  padding: 18px 22px 18px 0;
+  opacity: 0; transform: translateY(10px);
   transition: opacity 320ms ease, transform 320ms ease;
 }
+.caption::before {
+  content: ""; position: absolute; inset: 0; left: -28px; right: -60px; z-index: -1;
+  background: linear-gradient(90deg, rgba(21, 19, 15, 0.96) 0%, rgba(21, 19, 15, 0.96) 80%, rgba(21, 19, 15, 0) 100%);
+}
 .caption.on { opacity: 1; transform: none; }
-.caption b { color: var(--accent); }
+.kicker { margin: 0 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.3em; color: var(--accent); }
+.para { margin: 0; font-size: clamp(15px, 1.35vw, 19px); line-height: 1.6; color: var(--parchment); }
+.para .n { font-weight: 700; color: var(--ink); margin-right: 0.6em; }
+.para b { font-weight: 700; color: var(--ink); }
+
+/* The folio: the document, the figure, the change. */
+.folio {
+  position: fixed; right: 28px; bottom: 44px; z-index: 3;
+  display: flex; gap: 22px; align-items: baseline;
+  font-size: 11px; letter-spacing: 0.18em; color: var(--gray);
+}
+.folio b { color: var(--parchment); font-weight: 700; }
 
 /* The scroll, and the end of it. */
 .scroll { position: relative; z-index: 2; pointer-events: none; }
 .scroll section { height: 100vh; height: 100dvh; }
 .scroll .end { pointer-events: auto; display: flex; align-items: center; justify-content: center; padding: 0 28px; box-sizing: border-box; }
-.install { max-width: 760px; width: 100%; }
-.install .claim { margin: 0 0 28px; font-size: clamp(22px, 2.6vw, 34px); line-height: 1.2; font-weight: 700; letter-spacing: -0.015em; color: var(--ink); }
+.install { max-width: 720px; width: 100%; }
+.install .kicker { margin-bottom: 14px; }
+.install .para { margin-bottom: 24px; }
 .cmd {
   display: flex; align-items: baseline; gap: 14px;
   background: var(--surface); border: 1px solid var(--border);
@@ -170,13 +180,18 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
 .copy:hover { color: var(--ink); }
 .copy.done { color: var(--accent); }
-.install .needs { margin: 12px 0 36px; color: var(--gray); }
-.docs { margin: 0; display: grid; gap: 8px; }
+.spec { margin: 0 0 40px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 14px 0 0; border-top: 1px solid var(--border); }
+.spec div { display: flex; flex-direction: column; gap: 2px; }
+.spec dt { font-size: 10.5px; letter-spacing: 0.24em; color: var(--faint); font-weight: 700; }
+.spec dd { margin: 0; color: var(--ink); }
+.docs { margin: 0 0 40px; display: grid; gap: 8px; }
 .docs div { display: flex; gap: 16px; }
-.docs dt { flex: none; width: 170px; color: var(--faint); }
+.docs dt { flex: none; width: 180px; font-size: 11px; letter-spacing: 0.2em; color: var(--faint); font-weight: 700; line-height: 1.9; }
 .docs dd { margin: 0; color: var(--parchment); }
+.docs dd b { color: var(--ink); }
 .docs a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
 .docs a:hover { color: var(--accent); }
+.distribution { margin: 0; font-size: 11px; letter-spacing: 0.1em; color: var(--faint); border-top: 1px solid var(--border); padding-top: 14px; }
 
 .noscript { max-width: 720px; margin: 48px auto; padding: 0 24px; color: var(--parchment); position: relative; z-index: 6; }
 
@@ -184,13 +199,18 @@ pre { margin: 0; font: inherit; white-space: pre; }
   :root { --row: 18px; }
   .nav { padding: 16px 18px; }
   .nav .links a:not(.accent) { display: none; }
-  .caption { left: 18px; right: 18px; bottom: 36px; max-width: none; }
+  .caption { left: 18px; right: 18px; bottom: 36px; max-width: none; padding-right: 0; }
+  .caption::before { left: -18px; right: -18px; }
+  .nav .docline { display: none; }
+  .folio { display: none; }
+  .spec { grid-template-columns: 1fr 1fr; }
+  .docs div { flex-direction: column; gap: 0; }
   .scroll .end { padding: 0 18px; }
   .cmd { flex-wrap: wrap; }
   .cmd code { white-space: normal; word-break: break-all; }
   .docs dt { width: 110px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .win .ask, .win .head .word.blink, .eyebrow .tail.blink, .win .body .cursor { animation: none; }
+  .win .head .word.blink, .eyebrow .tail.blink, .win .body .cursor { animation: none; }
   .caption { transition: none; }
 }

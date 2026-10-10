@@ -29,8 +29,8 @@
 <body>
 
 <nav class="nav" aria-label="site">
-  <a class="mark" href="/">CONN</a>
-  <span class="links"><a href="/manual/">MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN CONN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
+  <span class="head"><a class="mark" href="/">CONN</a><span class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01</span></span>
+  <span class="links"><a href="/manual/">OPERATING MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN CONN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
 </nav>
 
 <!-- The stage: the windows, the panel they gather into, the pane one
@@ -42,27 +42,41 @@
   <div id="pane" class="pane"></div>
 </div>
 
+<!-- The findings: a figure a beat, captioned in the memorandum's
+     voice, numbered as its paragraphs are. -->
 <div class="captions" aria-live="polite">
-  <p class="caption" data-at="0">You are running more than you can watch.</p>
-  <p class="caption" data-at="1">conn files every process under the project it works.</p>
-  <p class="caption" data-at="2">And says what each project wants of you.</p>
-  <p class="caption" data-at="3"><b>tab</b>, and you are there.</p>
-  <p class="caption" data-at="4"><b>q</b>. Everything keeps running.</p>
+  <div class="caption" data-at="0"><p class="kicker">FIGURE 1-1 &nbsp;&middot;&nbsp; THE PROCESSES OF ONE MACHINE, UNFILED</p><p class="para"><span class="n">1-1.</span> More processes run on a machine than one operator can watch. Each has a terminal of its own. Two have stopped to ask, and nothing says so.</p></div>
+  <div class="caption" data-at="1"><p class="kicker">FIGURE 1-2 &nbsp;&middot;&nbsp; FILED</p><p class="para"><span class="n">1-2.</span> conn files every process under the project it works: a block a project, a row a process, each row marked for what it is. The rows stand by kind, contacts first.</p></div>
+  <div class="caption" data-at="2"><p class="kicker">FIGURE 1-3 &nbsp;&middot;&nbsp; WHAT EACH PROJECT WANTS</p><p class="para"><span class="n">1-3.</span> At the end of a project&rsquo;s rule is what it wants of the operator: WAITING where a contact has stopped to ask, a fault&rsquo;s word where something is a fault. A project that wants nothing says nothing.</p></div>
+  <div class="caption" data-at="3"><p class="kicker">FIGURE 1-4 &nbsp;&middot;&nbsp; THE WORKSPACE</p><p class="para"><span class="n">1-4.</span> <b>tab</b> goes to the contact that has waited longest; <b>enter</b> puts its pane in the workspace. The question is answered where it was asked. <b>ctrl-space</b> brings the keys back to the panel.</p></div>
+  <div class="caption" data-at="4"><p class="kicker">FIGURE 1-5 &nbsp;&middot;&nbsp; DETACHED</p><p class="para"><span class="n">1-5.</span> <b>q</b> detaches. The server holds every pane; nothing ends with the operator&rsquo;s leaving, and the panel is as it was on return.</p></div>
 </div>
+
+<!-- The folio: where in the document, and which change. The release
+     stamps the change as it stamps the manual's. -->
+<div class="folio" aria-hidden="true"><span>TM-CONN-01</span><b id="figure">FIG. 1-1</b><span><!-- change -->CHANGE v0.23.0<!-- /change --></span></div>
 
 <!-- The scroll: a screen a beat. -->
 <div class="scroll" id="scroll">
   <section></section><section></section><section></section><section></section><section></section>
   <section class="end" id="end">
     <div class="install">
-      <p class="claim">A console for the processes working your projects.</p>
+      <p class="kicker">SECTION 2 &nbsp;&middot;&nbsp; INSTALLATION PROCEDURE</p>
+      <p class="para"><span class="n">2-1.</span> conn is a station for one operator directing many processes on one machine: a panel that lists the processes working each project, and a workspace holding the one the operator is in, on a tmux server conn starts and holds.</p>
       <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
-      <p class="needs">macOS and Linux. Needs tmux, and lsof on macOS. One Go binary, MIT.</p>
-      <dl class="docs">
-        <div><dt>Operating manual</dt><dd><a href="/manual/">conn.w0zro.com/manual</a></dd></div>
-        <div><dt>Reference</dt><dd><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">man conn</a>, built in: ? inside conn</dd></div>
-        <div><dt>Source</dt><dd><a href="https://github.com/w0zro/conn">github.com/w0zro/conn</a></dd></div>
+      <dl class="spec">
+        <div><dt>PLATFORM</dt><dd>macOS &middot; Linux</dd></div>
+        <div><dt>RUNS ON</dt><dd>tmux &middot; lsof on macOS</dd></div>
+        <div><dt>BUILT IN</dt><dd>Go &middot; one binary</dd></div>
+        <div><dt>LICENSE</dt><dd>MIT</dd></div>
       </dl>
+      <p class="kicker">DOCUMENTS</p>
+      <dl class="docs">
+        <div><dt>OPERATING MANUAL</dt><dd><a href="/manual/">conn.w0zro.com/manual</a> &middot; how conn is worked, on its pages</dd></div>
+        <div><dt>REFERENCE</dt><dd><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">man conn</a> &middot; every command, flag, key and word; built in, <b>?</b> inside conn</dd></div>
+        <div><dt>SOURCE</dt><dd><a href="https://github.com/w0zro/conn">github.com/w0zro/conn</a></dd></div>
+      </dl>
+      <p class="distribution">DISTRIBUTION STATEMENT A &mdash; APPROVED FOR PUBLIC RELEASE; DISTRIBUTION IS UNLIMITED (MIT LICENSE).</p>
     </div>
   </section>
 </div>

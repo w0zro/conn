@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#15130F">
+<title>conn — a console for the processes working your projects</title>
+<meta name="description" content="conn puts every process on one machine under the project it works, says what each project wants of you, and puts the one you choose in front of you. macOS and Linux, on tmux.">
+<meta property="og:title" content="conn">
+<meta property="og:description" content="A console for the processes working your projects. conn puts every process on one machine under the project it works, says what each project wants of you, and puts the one you choose in front of you. macOS and Linux, on tmux.">
+<meta property="og:url" content="https://conn.w0zro.com">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="conn">
+<meta property="og:image" content="https://conn.w0zro.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="conn: the processes working each project, and which one is waiting.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="wrap">
+
+<nav class="nav" aria-label="site">
+  <a class="mark" href="/">CONN</a>
+  <span class="links"><a href="/manual/">MANUAL</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
+</nav>
+
+<header class="hero">
+  <h1>A console for the processes working your projects.</h1>
+  <p>conn puts every process on one machine under the project it works, says what each project wants of you, and puts the one you choose in front of you.</p>
+  <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
+  <p class="needs">macOS and Linux. Needs tmux, and lsof on macOS.</p>
+</header>
+
+<!-- The station: the panel on the left, the workspace on the right, the
+     status line across the foot. The panel's lines are the manual's
+     figure, inked as the panel inks them. -->
+<div class="station-room">
+<figure class="station st" aria-label="conn's window: the panel, the workspace and the status line">
+  <div class="screen">
+    <pre class="panel"><span class="p">   conn</span> <span class="r">───────────────────────</span>  <span class="w">WAITING</span>
+<span class="c">▸</span>  <span class="m">☿</span>  claude                       <span class="w">9 MIN</span>
+   <span class="m">❯</span>  zsh
+ <span class="s">⣾</span> <span class="m">○</span>  go test ./...
+
+<span class="p">   web</span> <span class="r">────────────────────────</span>  <span class="g">STOPPED</span>
+   <span class="m">❯</span>  zsh
+   <span class="m">▯</span>  vim                        <span class="g">STOPPED</span>
+   <span class="m">◉</span>  postgres                     <span class="g">:5432</span>
+   <span class="m">○</span>  node vite                    <span class="g">:5173</span>
+   <span class="m">○</span>  worker                        <span class="f">DOWN</span></pre>
+    <pre class="work"><span class="k">&gt;</span> the manual says workspace where the code says bay.
+  bring the code to the manual
+
+<span class="s">●</span> Read bay.go, band.go, keys.go
+
+<span class="q">●</span> The type is bay in four files, and the held screens
+  under testdata name it. Renaming it is one commit,
+  with the screens held again.
+
+  Rename bay to workspace in the code?
+  <span class="c">❯</span> 1. Yes
+    2. No, leave the code as it is</pre>
+  </div>
+  <div class="band"><span><b> CONN </b> · LOG 2</span><span>W0ZRO · conn 0.23.0</span></div>
+</figure>
+</div>
+<p class="station-caption">The panel: each project at the margin, what it wants of you at the end of its rule, and its processes under it, each marked for what it is. The workspace: the one process you are in. The status line: the station's band.</p>
+
+<section class="findings" aria-label="what conn does">
+  <div class="finding">
+    <div class="label">THE PANEL<small>01</small></div>
+    <div>
+      <p>Every shell, editor, coding agent, dev server, container and Homebrew service working a project under your roots is a row, under the project it works. A row is marked for what it is and says what it is doing; a project's rule ends in what the project wants of you, and a project that wants nothing says nothing.</p>
+      <p><b>enter</b> puts a row's process in the workspace and the keys in it. <b>ctrl-space</b> brings the keys back to the panel from inside any process. <b>q</b> detaches, and everything keeps running.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="label">CONTACTS<small>02</small></div>
+    <div>
+      <p>A Claude Code session is a contact. conn reads its state: WORKING while it works, WAITING once it has stopped to ask, and how long it has waited. <b>tab</b> goes to the contact that has waited longest. The question a waiting one asked is on its page, before you go in.</p>
+      <p>The sessions left suspended at a project are listed by <b>A</b>, and across every project by <b>r</b>; one is resumed in a pane of its own.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="label">WHAT A PROJECT DECLARES<small>03</small></div>
+    <div>
+      <p>A project may keep a file named <b>.conn</b> at its top, naming the processes that work it, one a line. What is declared and not running is a row at the foot of the block, worded DOWN. <b>enter</b> brings it up and goes in; <b>u</b> brings it up; <b>U</b> brings up everything the project declares. <b>x</b> ends it, and the row is DOWN again.</p>
+      <div class="figure">
+        <pre><span class="c"># what works this project</span>
+web frontend:          npm run dev
+api:                   go run ./cmd/api
+worker services/queue: make run
+db:                    docker compose up postgres
+cache:                 brew services start redis</pre>
+      </div>
+      <p>A command that runs <b>docker compose up</b> has the services compose would bring up as rows under it. A command that runs <b>brew services start</b> is the Homebrew service it names, as brew reports it.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="label">THE LOG<small>04</small></div>
+    <div>
+      <p><b>l</b> opens the log: what changed while you were in a pane. A contact that stopped to ask, a fault, a turn over, a pane that said panic or FAIL, newest first, with a note on each line. The band counts the lines since you last looked.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="label">SERVING<small>05</small></div>
+    <div>
+      <p>A process listening on a port carries the port on its row, and <b>o</b> opens it in the browser. A listener that has gone says CLOSED, rather than going missing. Services from Homebrew and compose are rows as the rest are: ACTIVE with their ports, DOWN until started.</p>
+    </div>
+  </div>
+  <div class="finding">
+    <div class="label">SEARCH<small>06</small></div>
+    <div>
+      <p><b>/</b> searches what a project's processes have written, every held pane at once. <b>enter</b> on a match goes into the pane that wrote it, in copy mode, on the line.</p>
+    </div>
+  </div>
+</section>
+
+<section class="keys" aria-label="the keys">
+  <h2>THE KEYS</h2>
+  <div class="groups">
+    <div class="group">
+      <h3>MOVING</h3>
+      <dl>
+        <div><dt>j k</dt><dd>a row</dd></div>
+        <div><dt>gg G</dt><dd>first row, last row</dd></div>
+        <div><dt>tab</dt><dd>next waiting</dd></div>
+        <div><dt>0-9</dt><dd>contact 0 to 9</dd></div>
+        <div><dt>z</dt><dd>the whole tree</dd></div>
+      </dl>
+    </div>
+    <div class="group">
+      <h3>THE ROW</h3>
+      <dl>
+        <div><dt>enter</dt><dd>go in</dd></div>
+        <div><dt>esc</dt><dd>back where you were</dd></div>
+        <div><dt>x</dt><dd>end it</dd></div>
+        <div><dt>s</dt><dd>a shell there</dd></div>
+        <div><dt>o</dt><dd>open its port</dd></div>
+        <div><dt>a</dt><dd>a new contact</dd></div>
+        <div><dt>A</dt><dd>its sessions</dd></div>
+        <div><dt>/</dt><dd>find in its project's output</dd></div>
+        <div><dt>u U</dt><dd>bring up, bring up all</dd></div>
+      </dl>
+    </div>
+    <div class="group">
+      <h3>THE STATION</h3>
+      <dl>
+        <div><dt>p</dt><dd>the projects</dd></div>
+        <div><dt>r</dt><dd>recent sessions</dd></div>
+        <div><dt>l</dt><dd>the log</dd></div>
+        <div><dt>c</dt><dd>the console</dd></div>
+        <div><dt>,</dt><dd>the settings</dd></div>
+        <div><dt>?</dt><dd>these keys</dd></div>
+        <div><dt>q</dt><dd>detach</dd></div>
+      </dl>
+    </div>
+  </div>
+  <p class="station-caption" style="text-align:left;margin:24px 0 0;max-width:none">Inside a process, <b>ctrl-space</b> is the panel, and <b>ctrl-space</b> then a key is that key: <b>ctrl-space tab</b> the next waiting, <b>ctrl-space l</b> the log, <b>ctrl-space ctrl-space</b> the last process.</p>
+</section>
+
+<section class="documents" aria-label="the documents">
+  <h2>THE DOCUMENTS</h2>
+  <a class="doc" href="/manual/">
+    <span class="name">OPERATING MANUAL<small>TM-CONN-01</small></span>
+    <span class="what">How conn is worked: the first session, the panel, what a project declares. Four sections on six sheets, with the record of revisions.</span>
+    <span class="where">READ &#8599;</span>
+  </a>
+  <a class="doc" href="https://github.com/w0zro/conn/blob/main/man/conn.1">
+    <span class="name">MAN CONN<small>REFERENCE</small></span>
+    <span class="what">Every command and flag, every key, every word the panel and the console can show, and the files conn reads and writes. Built into the binary: <b>man conn</b>, or <b>?</b> inside conn.</span>
+    <span class="where">SOURCE &#8599;</span>
+  </a>
+  <a class="doc" href="https://github.com/w0zro/conn">
+    <span class="name">README<small>THE TREE</small></span>
+    <span class="what">The front door, and the notes for working on the tree: how it is built, tested and released.</span>
+    <span class="where">GITHUB &#8599;</span>
+  </a>
+</section>
+
+<footer class="foot">
+  <span>macOS · Linux</span><span>tmux</span><span>Go, one binary</span><span>MIT</span>
+  <span style="margin-left:auto"><a href="https://github.com/w0zro/conn">w0zro/conn</a></span>
+</footer>
+
+</div>
+<script src="site.js"></script>
+</body>
+</html>

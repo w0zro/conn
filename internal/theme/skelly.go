@@ -5,7 +5,7 @@ package theme
 // that is only information, and one phosphor green kept for what needs
 // you, which is what conn's accent already means: the WAITING stamp,
 // the caution, the cursor. Black light, skelly's third hue, is the
-// spinner beside a contact at work, the line a project starts on, as
+// spinner beside a contact at work, the rule a project starts on, as
 // it is the day rules in skelly's thread, and the magentas. Skelly draws a
 // thing running in plain ink rather than a hue, and conn does the same
 // here. Where skelly has a token the role takes it, and says which;
@@ -49,8 +49,7 @@ var Skelly = theme{
 		Chosen:     "#18240F", // --sel-bg: selected keeps its phosphor
 		ChosenInk:  "#D9F8B8", // --sel-fg
 		Cursor:     "#B9F27C", // --sel-line: the ring around the box you type in
-		Divide:     "#C7ABFF", // --uv-text: a day rule's label
-		DivideLine: "#3F2E66", // --uv-line: its rule
+		DivideLine: "#3F2E66", // --uv-line: the rule of a day in skelly's thread
 
 		MessageBg:       "#1F2320", // --surface-active
 		MessageHoverBg:  "#262A27", // --line
@@ -97,7 +96,6 @@ var Skelly = theme{
 		Chosen:     "#E0F1CC", // --sel-bg
 		ChosenInk:  "#26440A", // --sel-fg
 		Cursor:     "#5DB821", // --sel-line
-		Divide:     "#5B35C7", // --uv-text
 		DivideLine: "#CBBCF2", // --uv-line
 
 		MessageBg:       "#DDE1D8", // --surface-active

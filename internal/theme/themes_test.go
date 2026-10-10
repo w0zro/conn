@@ -85,13 +85,10 @@ func TestTheRolesReadOnEveryGround(t *testing.T) {
 			if c := contrast(g.Cursor, bg); c < 2 {
 				t.Errorf("%s %s: the cursor (%s) is %.2f:1 on %s, which is the ground again", th.Name, on.name, g.Cursor, c, bg)
 			}
-			// A project's name is read; its rule is an edge, and quieter
-			// than the name it follows.
-			if c := contrast(g.Divide, bg); c < large {
-				t.Errorf("%s %s: a project's name (%s) is %.2f:1 on %s", th.Name, on.name, g.Divide, c, bg)
-			}
-			if contrast(g.DivideLine, bg) >= contrast(g.Divide, bg) {
-				t.Errorf("%s %s: a project's rule (%s) stands off the ground further than its name", th.Name, on.name, g.DivideLine)
+			// A project's rule is an edge, quieter than the name it
+			// follows, but a hue still and not the ground.
+			if c := contrast(g.DivideLine, bg); c >= contrast(g.Parchment, bg) || c < 1.2 {
+				t.Errorf("%s %s: a project's rule (%s) is %.2f:1 on %s", th.Name, on.name, g.DivideLine, c, bg)
 			}
 			if contrast(g.Border, bg) >= contrast(Hex(g.Ink), bg) {
 				t.Errorf("%s %s: the border (%s) stands off the ground further than the ink does", th.Name, on.name, g.Border)

@@ -55,8 +55,7 @@ var Datum = theme{
 		Chosen:     "#2B2F35", // bg2: the selection
 		ChosenInk:  "#DBE0E8",
 		Cursor:     "#FA94CD",
-		Divide:     "#69B9F7", // blue
-		DivideLine: "#2A455B", // blue, a third of the way off bg0
+		DivideLine: "#2A455B", // datum's blue, a third of the way off bg0
 
 		MessageBg:       "#181C21", // bg1: a turn of yours, at rest
 		MessageHoverBg:  "#2B2F35", // bg2: under the pointer
@@ -103,7 +102,6 @@ var Datum = theme{
 		Chosen:     "#CED3D9",
 		ChosenInk:  "#292E35",
 		Cursor:     "#973070",
-		Divide:     "#0176B8",
 		DivideLine: "#B5D6EC",
 
 		MessageBg:       "#E7ECF2",

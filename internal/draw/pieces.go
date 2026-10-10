@@ -181,11 +181,11 @@ func (l *Line) EyebrowTail(color string, col int, label string, right, tailW int
 	l.eyebrow(color, l.P.Border, col, label, right, tailW)
 }
 
-// Divider is the line a project starts on: an eyebrow at the margin
-// in the theme's hue for it, the name and the rule both, with a figure
-// at the end as EyebrowTail has.
+// Divider is the line a project starts on: an eyebrow at the margin,
+// its name in the second ink and its rule in the theme's hue for it,
+// with a figure at the end as EyebrowTail has.
 func (l *Line) Divider(label string, right, tailW int) {
-	l.eyebrow(l.P.divide+l.P.Bold, l.P.divideLine, 0, label, right, tailW)
+	l.eyebrow(l.P.Parchment+l.P.Bold, l.P.divideLine, 0, label, right, tailW)
 }
 
 func (l *Line) eyebrow(color, rule string, col int, label string, right, tailW int) {

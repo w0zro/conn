@@ -44,7 +44,7 @@ since you last looked. `/` searches what a
 project's processes have written, the workspace following the match.
 
 `man conn`, or `?` inside conn, is the reference. The operating
-manual is at [conn.w0zro.com](https://conn.w0zro.com).
+manual is at [conn.w0zro.com/manual](https://conn.w0zro.com/manual/).
 
 ---
 
@@ -67,15 +67,15 @@ is and why it is done the way it is; read the head before the code. The
 machine is read by a file per platform, `process_darwin.go` and
 `process_linux.go`, and a function only one platform calls is unused on
 the other. `tools/revisions` writes the manual's record of revisions
-from the tags. `docs/` is what conn.w0zro.com serves: the manual, its
-stylesheet, and `install.sh`.
+from the tags. `docs/` is what conn.w0zro.com serves: the front page, the
+manual under `docs/manual/`, and `install.sh`.
 
 **1-3.** There are two texts. `man/conn.1` is the reference, written by
 hand in roff, built into the binary, and shown by `?`; it is held to the
 binary by a test: its synopsis names every command and flag conn
 answers to and nothing else, and its keys section names the panel key
 as it is bound. A key or a command added without its row fails the
-build. `docs/index.html` is the operating manual: how conn is worked,
+build. `docs/manual/index.html` is the operating manual: how conn is worked,
 on the site's pages, pointing at the man page for every key and word.
 It is held to nothing by a test, and is read again when a section it
 describes changes.

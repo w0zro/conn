@@ -72,7 +72,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html man/conn.1
+          git add docs/manual/index.html man/conn.1
           git diff --cached --quiet && exit 0
           git commit -m "The manual records ${GITHUB_REF_NAME}"
           git push origin main

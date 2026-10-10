@@ -16,7 +16,7 @@
 // rows written by hand before this tool stand. A tag with nothing to say
 // and no row yet is recorded as a release.
 //
-//	go run ./tools/revisions [docs/index.html]
+//	go run ./tools/revisions [docs/manual/index.html]
 package main
 
 import (
@@ -30,7 +30,7 @@ import (
 )
 
 func main() {
-	path := "docs/index.html"
+	path := "docs/manual/index.html"
 	if len(os.Args) > 1 {
 		path = os.Args[1]
 	}

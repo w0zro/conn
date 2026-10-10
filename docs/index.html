@@ -29,7 +29,7 @@
 <body>
 
 <nav class="nav" aria-label="site">
-  <span class="head"><a class="mark" href="/">CONN</a><span class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01</span></span>
+  <span class="head"><a class="mark" href="/">CONN</a><span class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01 &nbsp;&middot;&nbsp; KEEPING THE WATCH OVER CONTACTS WORKING ONE MACHINE</span></span>
   <span class="links"><a href="/manual/">OPERATING MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN CONN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
 </nav>
 
@@ -45,11 +45,11 @@
 <!-- The findings: a figure a beat, captioned in the memorandum's
      voice, numbered as its paragraphs are. -->
 <div class="captions" aria-live="polite">
-  <div class="caption" data-at="0"><p class="kicker">FIGURE 1-1 &nbsp;&middot;&nbsp; THE PROCESSES OF ONE MACHINE, UNFILED</p><p class="para"><span class="n">1-1.</span> More processes run on a machine than one operator can watch. Each has a terminal of its own. Two have stopped to ask, and nothing says so.</p></div>
-  <div class="caption" data-at="1"><p class="kicker">FIGURE 1-2 &nbsp;&middot;&nbsp; FILED</p><p class="para"><span class="n">1-2.</span> conn files every process under the project it works: a block a project, a row a process, each row marked for what it is. The rows stand by kind, contacts first.</p></div>
-  <div class="caption" data-at="2"><p class="kicker">FIGURE 1-3 &nbsp;&middot;&nbsp; WHAT EACH PROJECT WANTS</p><p class="para"><span class="n">1-3.</span> At the end of a project&rsquo;s rule is what it wants of the operator: WAITING where a contact has stopped to ask, a fault&rsquo;s word where something is a fault. A project that wants nothing says nothing.</p></div>
-  <div class="caption" data-at="3"><p class="kicker">FIGURE 1-4 &nbsp;&middot;&nbsp; THE WORKSPACE</p><p class="para"><span class="n">1-4.</span> <b>tab</b> goes to the contact that has waited longest; <b>enter</b> puts its pane in the workspace. The question is answered where it was asked. <b>ctrl-space</b> brings the keys back to the panel.</p></div>
-  <div class="caption" data-at="4"><p class="kicker">FIGURE 1-5 &nbsp;&middot;&nbsp; DETACHED</p><p class="para"><span class="n">1-5.</span> <b>q</b> detaches. The server holds every pane; nothing ends with the operator&rsquo;s leaving, and the panel is as it was on return.</p></div>
+  <div class="caption" data-at="0"><p class="kicker">FIGURE 1-1 &nbsp;&middot;&nbsp; SITUATION</p><p class="para"><span class="n">1-1.</span> Several contacts work one machine at a time: minds that take an instruction, carry what they have read, and work for an hour with no hand on them. Each has a terminal of its own, among the shells, the editors and the servers. A contact that has stopped to ask looks, from outside, like one that has not. The operator finds it by going into each, or does not.</p></div>
+  <div class="caption" data-at="1"><p class="kicker">FIGURE 1-2 &nbsp;&middot;&nbsp; THE STATION</p><p class="para"><span class="n">1-2.</span> conn takes the conn of the machine. Every process is a row under the project it works, marked for what it is: <b>&#9791;</b> a contact, Mercury, the messenger; <b>&#10095;</b> a shell, the way in; <b>&#9647;</b> an editor, a page held open; <b>&#9673;</b> a service, a lamp kept lit; <b>&#9675;</b> a run, the work itself. Contacts stand first in every block.</p></div>
+  <div class="caption" data-at="2"><p class="kicker">FIGURE 1-3 &nbsp;&middot;&nbsp; THE WATCH</p><p class="para"><span class="n">1-3.</span> At the end of each project&rsquo;s rule the station says what the project wants of the operator, and nothing else. WAITING, blinking, where a contact has stopped to ask, and how long it has waited. A fault&rsquo;s word, held still, where something ended badly. A project that wants nothing says nothing. The watch is kept by reading one line a project.</p></div>
+  <div class="caption" data-at="3"><p class="kicker">FIGURE 1-4 &nbsp;&middot;&nbsp; CONTACT</p><p class="para"><span class="n">1-4.</span> <b>tab</b> puts the operator at the contact that has waited longest. <b>enter</b> puts its terminal in the workspace, the question where it was asked. The answer is given and the contact resumes its work. <b>ctrl-space</b> returns the keys to the panel: the operator has the conn, the contact has the work.</p></div>
+  <div class="caption" data-at="4"><p class="kicker">FIGURE 1-5 &nbsp;&middot;&nbsp; STANDING DOWN</p><p class="para"><span class="n">1-5.</span> <b>q</b> detaches the operator. The server holds every pane; every contact carries what it has and goes on; nothing ends with the operator&rsquo;s leaving. The watch resumes where it was.</p></div>
 </div>
 
 <!-- The folio: where in the document, and which change. The release
@@ -62,7 +62,7 @@
   <section class="end" id="end">
     <div class="install">
       <p class="kicker">SECTION 2 &nbsp;&middot;&nbsp; INSTALLATION PROCEDURE</p>
-      <p class="para"><span class="n">2-1.</span> conn is a station for one operator directing many processes on one machine: a panel that lists the processes working each project, and a workspace holding the one the operator is in, on a tmux server conn starts and holds.</p>
+      <p class="para"><span class="n">2-1.</span> conn is a station for one operator directing many processes on one machine: a panel that keeps the watch over the processes working each project, and a workspace holding the one the operator is in, on a tmux server conn starts and holds. The contacts are Claude Code sessions; the station reads their state and shows what a waiting one asked.</p>
       <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
       <dl class="spec">
         <div><dt>PLATFORM</dt><dd>macOS &middot; Linux</dd></div>

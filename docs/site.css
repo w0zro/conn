@@ -196,7 +196,6 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .noscript { max-width: 720px; margin: 48px auto; padding: 0 24px; color: var(--parchment); position: relative; z-index: 6; }
 
 @media (max-width: 720px) {
-  :root { --row: 18px; }
   .nav { padding: 16px 18px; }
   .nav .links a:not(.accent) { display: none; }
   .caption { left: 18px; right: 18px; bottom: 36px; max-width: none; padding-right: 0; }

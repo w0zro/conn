@@ -111,7 +111,8 @@
   function measure() {
     W = innerWidth; H = innerHeight;
     phone = W < 720;
-    ROW = phone ? 18 : 20;
+    ROW = phone || H < 1000 ? 18 : 20;
+    document.documentElement.style.setProperty('--row', ROW + 'px');
     PANEL_W = phone ? Math.min(W - 24, 360) : 370;
   }
 
@@ -123,17 +124,18 @@
     const n = phone ? Math.min(wins.length, 10) : wins.length; // a phone's field holds ten
     const cols = phone ? 2 : 5, rowsN = Math.ceil(n / cols);
     const i = wins.indexOf(w), cx = i % cols, cy = Math.floor(i / cols);
-    const cellW = (W - 40) / cols, cellH = (H * (phone ? 0.62 : 0.72)) / rowsN;
+    const fieldH = H - (phone ? 330 : 340) - 60; // above the caption's ground
+    const cellW = (W - 40) / cols, cellH = fieldH / rowsN;
     const x = 20 + cx * cellW + (w.seed - 0.5) * cellW * 0.5 + (cellW - ww) / 2;
-    const y = 70 + cy * cellH + (w.seed3 - 0.5) * cellH * 0.5;
-    return { x: Math.max(8, Math.min(W - ww - 8, x)), y: Math.max(60, Math.min(H - hh - 20, y)), w: ww, h: hh, body: 1 };
+    const y = 60 + cy * cellH + (w.seed3 - 0.5) * cellH * 0.4;
+    return { x: Math.max(8, Math.min(W - ww - 8, x)), y: Math.max(56, Math.min(60 + fieldH - hh, y)), w: ww, h: hh, body: 1 };
   }
 
   // The panel: its place at a beat, and each row's slot in it.
   function panelAt(beat) {
     const rowsTotal = PROJECTS.reduce((n, p) => n + p.rows.length + 2, 0);
     const ph = rowsTotal * ROW;
-    let x, y = Math.max(56, (H - ph) / 2 - 80), scale = 1; // above the caption's ground
+    let x, y = Math.max(56, Math.min((H - ph) / 2 - 60, H - 330 - ph)), scale = 1; // above the caption's ground
     if (beat >= 3 && beat < 4) x = 0; // at the left, the pane beside it
     else if (beat >= 5) { x = (W - PANEL_W) / 2; scale = phone ? 0.8 : 0.9; }
     else x = phone ? (W - PANEL_W) / 2 : Math.max(24, (W - PANEL_W) / 2 - (phone ? 0 : 60));

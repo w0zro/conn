@@ -52,10 +52,10 @@ type Ground struct {
 	// color of its own says so here.
 	Chosen, ChosenInk, Cursor string
 
-	// The rule after a project's name in the processes view: the one
-	// splash of a hue that says nothing but where a project begins, and
-	// so never the accent.
-	DivideLine string
+	// The line a project starts on in the processes view: its name, and
+	// the rule after it. The one splash of a hue that says nothing but
+	// where a project begins, and so never the accent.
+	Divide, DivideLine string
 
 	// The grounds no slot has a name for: the band behind what you said
 	// to Claude Code, at rest and under the pointer; the bar behind a
@@ -207,6 +207,7 @@ var Conn = theme{
 		Chosen:     "#2A2620",
 		ChosenInk:  "#E6DFD0",
 		Cursor:     "#E85D2F",
+		Divide:     "#7FA7C9",
 		DivideLine: "#353F47",
 
 		MessageBg:       "#2A2620",
@@ -254,6 +255,7 @@ var Conn = theme{
 		Chosen:     "#D8D0BD",
 		ChosenInk:  "#1A1611",
 		Cursor:     "#BD3A1D",
+		Divide:     "#3E5F7A",
 		DivideLine: "#B4C6D6",
 
 		MessageBg:       "#D8D0BD",

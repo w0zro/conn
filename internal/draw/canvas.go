@@ -22,7 +22,7 @@ type Palette struct {
 	Surface                                                         string // one step off the ground: the panel's own
 	edge, Running, Struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
 	turning                                                         string // ink for the spinner in a row's margin
-	divideLine                                                      string // ink for the rule a project starts on
+	divide, divideLine                                              string // inks for the line a project starts on: its name, its rule
 	Selection                                                       string // the raised ground a key sits on
 	chosen, chosenInk                                               string // the ground a chosen row sits on, and its ink
 	blockEnd                                                        string // ink in the block's fill, for a stamp's rounded ends
@@ -68,6 +68,7 @@ func Colored(g theme.Ground) Palette {
 		edge:       inkIn(g.Surface),
 		Running:    inkIn(g.Running),
 		turning:    inkIn(g.Turning),
+		divide:     inkIn(g.Divide),
 		divideLine: inkIn(g.DivideLine),
 		Struck:     ansi.Style{}.Strikethrough(true).String(),
 		End:        ansi.Style{}.Reset().String(),

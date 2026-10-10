@@ -1,29 +1,37 @@
-/* The front page stands on conn's own ground: the dark the panel is
-   drawn on, the ink it writes in, and the orange it marks the cursor
-   with. Everything is set in JetBrains Mono, the face ghostty loads for
-   the terminal conn holds, with the ligatures off the way ghostty has
-   them off, so the glyph vocabulary - the marks, the braille spinner,
-   the rules - renders as itself. The colors are the conn theme's dark
-   ground, by role, from internal/theme/themes.go; nothing is a color of
-   the page's own. The manual, on paper, is at /manual. */
+/* conn.w0zro.com is conn: the window fills the screen and the console
+   comes up in it, then the panel, and a session plays as the page is
+   scrolled. Everything in the window is drawn by site.js on the
+   terminal's grid, in JetBrains Mono with the ligatures off the way
+   ghostty has them off, so the marks, the spinner and the rules render
+   as themselves. The colors are the conn theme's dark ground, by role,
+   from internal/theme/themes.go; nothing is a color of the page's own.
+   Under the window is the frame, the one place the site speaks for
+   itself, in the same face. */
 
 :root {
   --ground: #15130F;      /* the pane's ground */
-  --surface: #1D1A15;     /* one step off it: the panel's own ground */
-  --border: #2A2620;      /* a pane's edge, the band behind the status line */
+  --surface: #1D1A15;     /* one step off it: the panel's ground, the key bar's */
+  --border: #2A2620;      /* a pane's edge, a rule, the band behind the status line */
+  --chosen: #2A2620;      /* the row under the cursor */
   --ink: #E6DFD0;         /* ordinary text */
-  --parchment: #BFB39A;   /* the second ink */
-  --gray: #8B8272;        /* the second rank: a label, a comment */
-  --faint: #5C564A;       /* the quietest text: a leader, a hint */
-  --accent: #E85D2F;      /* you, here */
+  --parchment: #BFB39A;   /* the second ink: a title, what conn says */
+  --gray: #8B8272;        /* the second rank: a label, a word at the right */
+  --faint: #5C564A;       /* the quietest: a leader, a mark at rest, what is over */
+  --accent: #E85D2F;      /* you, here: the cursor, a stamp, the wordmark */
   --running: #93C98B;     /* a process doing something */
-  --yellow: #E3A94F;
-  --blue: #7FA7C9;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --cell-w: 8.4px;        /* measured by site.js once the font is in */
+  --cell-h: 20px;
+  --fs: 14px;
+  --frame-h: 68px;
+}
+@media (max-width: 720px) {
+  :root { --fs: 12px; --cell-h: 17px; --frame-h: 88px; }
 }
 
 html {
   background: var(--ground);
+  scroll-snap-type: y mandatory;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -31,291 +39,107 @@ body {
   margin: 0;
   background: var(--ground);
   color: var(--ink);
-  font: 400 15px/1.7 var(--mono);
+  font: 400 var(--fs)/var(--cell-h) var(--mono);
   font-variant-ligatures: none;
   font-feature-settings: 'liga' 0, 'calt' 0;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
 }
 a { color: inherit; text-decoration: none; }
-a:hover { color: var(--accent); }
-b, strong { font-weight: 700; color: var(--ink); }
+pre { margin: 0; font: inherit; white-space: pre; }
 ::selection { background: var(--border); color: var(--ink); }
 
-.wrap {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-/* The head: the wordmark as the band wears it, and the links. */
-.nav {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 28px 0 0;
-  font: 700 13px var(--mono);
-  letter-spacing: 0.2em;
-}
-.nav .mark { color: var(--ink); font-weight: 800; }
-.nav .links { display: flex; gap: 28px; color: var(--parchment); }
-.nav .links .accent { color: var(--accent); }
-.nav .links .accent:hover { color: var(--ink); }
-
-/* The claim, the sentence under it, and the installation. */
-.hero { padding: 96px 0 56px; }
-.hero h1 {
-  font: 800 44px/1.15 var(--mono);
-  letter-spacing: -0.015em;
-  color: var(--ink);
-  margin: 0 0 22px;
-  max-width: 760px;
-}
-.hero p {
-  font: 400 16px/1.75 var(--mono);
-  color: var(--parchment);
-  margin: 0 0 36px;
-  max-width: 680px;
-}
-.cmd {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 14px 20px;
-  font: 400 14px var(--mono);
-  color: var(--ink);
-  max-width: 640px;
-  box-sizing: border-box;
-  overflow-x: auto;
-}
-.cmd .prompt { color: var(--accent); font-weight: 700; }
-.cmd code { flex: 1; font: inherit; white-space: nowrap; }
-.copy {
-  font: inherit;
-  color: var(--gray);
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.copy:hover { color: var(--ink); }
-.copy.done { color: var(--accent); }
-.hero .needs {
-  font: 400 13px var(--mono);
-  color: var(--gray);
-  margin: 12px 0 0;
-}
-
-/* The station: a window holding the panel, the workspace and the
-   status line, drawn at a fixed width in the terminal's own grid and
-   scaled rather than rewrapped where the screen is narrower. */
+/* The window: fixed over the scroll, the frame under it. */
 .station {
-  margin: 0;
-  --cols: 106;
-  --ch: 7.8px;
-  width: calc(var(--cols) * var(--ch) + 2px);
-  position: absolute;
-  top: 0;
-  left: 0;
-  border: 1px solid var(--border);
-  background: var(--ground);
-  font: 400 13px/1.55 var(--mono);
-  transform-origin: top left;
-  transform: scale(var(--scale, 1));
-}
-.station-room {
-  position: relative;
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  height: calc(100vh - var(--frame-h));
+  height: calc(100dvh - var(--frame-h));
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
-.station .screen {
-  display: flex;
-}
-.station pre {
-  margin: 0;
-  font: inherit;
-  white-space: pre;
-}
-.station .panel {
+.screen { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+.panel {
   flex: none;
-  width: calc(42 * var(--ch));
   background: var(--surface);
-  padding: 8px 0 8px 0;
+  overflow: hidden;
+}
+.work { flex: 1; overflow: hidden; }
+.station.one .panel { flex: 1; }
+.station.one.on-work .panel, .station.one.on-panel .work { display: none; }
+.station.console .panel { display: none; }
+.band { flex: none; }
+.band .b0 { background: var(--border); color: var(--gray); }
+.band .b1 { background: var(--surface); color: var(--gray); }
+
+/* A row of cells. The row under the cursor is on the raised ground
+   from edge to edge. */
+.row { display: block; height: var(--cell-h); }
+.row.chosen { background: var(--chosen); color: var(--ink); }
+.row.center { text-align: center; }
+
+/* The inks, by role, as the canvas names them. */
+.ink { color: var(--ink); }
+.b { font-weight: 700; }
+.par { color: var(--parchment); }
+.gray { color: var(--gray); }
+.faint { color: var(--faint); }
+.bord { color: var(--border); }
+.acc { color: var(--accent); }
+.run { color: var(--running); }
+.struck { text-decoration: line-through; color: var(--faint); }
+.chip { background: var(--accent); color: var(--ground); font-weight: 700; }
+.blink { animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { background: transparent; color: transparent; } }
+.chosen .bord { color: var(--faint); }
+
+/* A row draws in on its turn: the terminal writes it, it does not fade. */
+.row.in { animation: in 1ms steps(1) both; }
+@keyframes in { from { visibility: hidden; } to { visibility: visible; } }
+
+/* The frame under the window. */
+.frame {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: var(--frame-h);
   box-sizing: border-box;
-}
-.station .work {
-  flex: 1;
-  padding: 8px 0 8px calc(2 * var(--ch));
-  border-left: 1px solid var(--border);
-  color: var(--ink);
-}
-.station .band {
-  display: flex;
-  justify-content: space-between;
-  background: var(--border);
-  color: var(--gray);
-  padding: 0 calc(1 * var(--ch));
-}
-.station .band b { color: var(--ink); font-weight: 700; }
-.station .band i { font-style: normal; color: var(--parchment); }
-.st .p { color: var(--parchment); font-weight: 700; } /* a project's name */
-.st .r { color: var(--border); }                      /* its rule, on the border's ink as the panel draws it */
-.st .w { color: var(--accent); font-weight: 700; }    /* what wants you */
-.st .c { color: var(--accent); }                      /* the cursor */
-.st .m { color: var(--gray); }                        /* a row's mark */
-.st .g { color: var(--gray); }                        /* a word at the right */
-.st .f { color: var(--faint); }                       /* DOWN */
-.st .s { color: var(--running); }                     /* the spinner, a dot */
-.st .q { color: var(--accent); }                      /* the contact's bullet */
-.st .k { color: var(--parchment); }                   /* a hint */
-.station-caption {
-  text-align: center;
-  font: 400 13px/1.6 var(--mono);
-  color: var(--gray);
-  margin: 18px auto 0;
-  max-width: 640px;
-}
-
-/* The findings: a number and a name at the margin, the paragraph
-   beside them. */
-.findings { padding: 72px 0 24px; }
-.finding {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 28px;
-  padding: 30px 0;
+  padding: 10px calc(var(--cell-w) * 3) 0;
   border-top: 1px solid var(--border);
-}
-.finding:last-child { border-bottom: 1px solid var(--border); }
-.finding > *, .doc > * { min-width: 0; }
-.finding .label {
-  font: 700 12px/1.6 var(--mono);
-  letter-spacing: 0.24em;
-  color: var(--accent);
-  padding-top: 5px;
-}
-.finding .label small {
-  display: block;
-  color: var(--faint);
-  letter-spacing: 0.24em;
-  font-weight: 700;
-}
-.finding p {
-  margin: 0 0 14px;
+  background: var(--ground);
   color: var(--parchment);
-  max-width: 600px;
+  font-size: calc(var(--fs) - 1px);
+  overflow: hidden;
 }
-.finding p:last-child { margin-bottom: 0; }
-.finding b { color: var(--ink); }
-
-/* A figure of text: a file, as it is read. */
-.figure {
-  margin: 18px 0 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 14px 20px;
-  max-width: 520px;
-  overflow-x: auto;
-}
-.figure pre {
-  margin: 0;
-  font: 400 13px/1.6 var(--mono);
-  color: var(--ink);
-}
-.figure .c { color: var(--gray); }
-
-/* The keys, as ? shows them: a group a column, a key and what it does
-   a row. */
-.keys { padding: 72px 0 0; }
-.keys h2, .documents h2 {
-  font: 700 12px var(--mono);
-  letter-spacing: 0.3em;
-  color: var(--accent);
-  margin: 0 0 24px;
-}
-.keys .groups {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 28px 36px;
-}
-.keys .group h3 {
-  font: 700 12px var(--mono);
-  letter-spacing: 0.24em;
-  color: var(--gray);
-  margin: 0 0 10px;
-}
-.keys dl { margin: 0; font: 400 13.5px/1.8 var(--mono); }
-.keys dl div { display: flex; gap: 12px; }
-.keys dt { flex: none; width: 96px; color: var(--ink); font-weight: 700; }
-.keys dd { margin: 0; color: var(--parchment); }
-
-/* The documents: what else there is to read, and where. */
-.documents { padding: 72px 0 0; }
-.doc {
-  display: grid;
-  grid-template-columns: 220px 1fr auto;
-  gap: 28px;
-  align-items: baseline;
-  padding: 18px 0;
-  border-top: 1px solid var(--border);
-}
-.doc:last-child { border-bottom: 1px solid var(--border); }
-.doc .name { font-weight: 700; color: var(--ink); }
-.doc .name small { display: block; font-weight: 400; color: var(--faint); font-size: 12px; letter-spacing: 0.1em; }
-.doc .what { color: var(--parchment); }
-.doc .where { font: 700 13px var(--mono); letter-spacing: 0.15em; color: var(--accent); white-space: nowrap; }
-.doc .where:hover { color: var(--ink); }
-
-/* The foot. */
-.foot {
-  margin-top: 96px;
-  padding: 24px 0 48px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-  font: 400 12.5px var(--mono);
-  letter-spacing: 0.1em;
-  color: var(--gray);
-}
-.foot span + span::before { content: "\00a0\00b7\00a0\00a0"; color: var(--faint); }
-
-@media (max-width: 760px) {
-  .hero { padding: 64px 0 40px; }
-  .hero h1 { font-size: 32px; }
-  .finding, .doc { grid-template-columns: 1fr; gap: 10px; }
-  .doc .where { justify-self: start; }
-  .keys .groups { grid-template-columns: 1fr; }
-  .nav .links { gap: 18px; }
-  .cmd { flex-wrap: wrap; }
-  .cmd code { white-space: normal; word-break: break-all; }
+.frame .line { display: flex; align-items: baseline; gap: 24px; white-space: nowrap; overflow: hidden; }
+.frame .line.a { justify-content: space-between; }
+.frame .scene { color: var(--accent); font-weight: 700; letter-spacing: 0.12em; overflow: hidden; text-overflow: ellipsis; }
+.frame .links { display: flex; gap: 20px; flex: none; color: var(--gray); font-weight: 700; letter-spacing: 0.12em; }
+.frame .links a:hover { color: var(--ink); }
+.frame .links .accent { color: var(--accent); }
+.frame .line.b { color: var(--parchment); overflow: hidden; text-overflow: ellipsis; }
+.frame .line.b b { color: var(--ink); font-weight: 700; }
+.frame .line.b code { font: inherit; color: var(--ink); }
+.frame .prompt { color: var(--accent); font-weight: 700; }
+.frame .hint { color: var(--faint); margin-left: auto; flex: none; }
+.copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; }
+.copy:hover { color: var(--ink); }
+.copy.done { color: var(--accent); }
+@media (max-width: 720px) {
+  .frame { padding-top: 8px; }
+  .frame .links { gap: 12px; }
+  .frame .links a:not(.accent) { display: none; }
+  .frame .hint { display: none; }
+  .frame .line.b { white-space: normal; line-height: 17px; max-height: 51px; text-overflow: clip; }
 }
 
-/* A finding's facts: a line each, no bullet, the keys and marks in the
-   ink and the rest in the second ink. */
-.facts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  color: var(--parchment);
-  max-width: 600px;
-}
-.facts li { margin: 0 0 8px; }
-.facts li:last-child { margin-bottom: 0; }
-.facts b { color: var(--ink); }
-.figure + .facts { margin-top: 18px; }
-.keys .chords { margin-top: 28px; }
-.keys .chords dt { width: 210px; }
+/* The scroll: a section a scene, each a screen tall, snapped. */
+.scroll section { height: 100vh; height: 100dvh; scroll-snap-align: start; }
 
-/* A finding's key rows: the key in the ink, what it does in the second
-   ink, as the key card has them. */
-.rows { margin: 12px 0 0; font: 400 15px/1.7 var(--mono); max-width: 600px; }
-.rows div { display: flex; gap: 12px; }
-.rows dt { flex: none; width: 120px; color: var(--ink); font-weight: 700; }
-.rows dd { margin: 0; color: var(--parchment); }
-.rows.marks dt { width: 32px; color: var(--gray); font-weight: 400; }
-.rows.wide dt { width: 220px; }
-.facts + .rows, .rows + .rows, .figure + .rows { margin-top: 12px; }
-.rows + .facts { margin-top: 12px; }
+.noscript { max-width: 720px; margin: 48px auto; padding: 0 24px; color: var(--parchment); }
+.noscript h1 { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .blink { animation: none; }
+  .row.in { animation: none; }
+}

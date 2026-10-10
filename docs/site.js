@@ -195,6 +195,32 @@
     ' ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═══╝',
   ];
 
+  // The wordmark, drawn: a rect a cell for a block, and the double
+  // lines of the box glyphs as two thin rects each, the way a terminal
+  // tiles them. A font's glyphs sit in their em box, short of the line
+  // box, and leave seams between rows; the drawing has none.
+  function wordmarkSVG(col, rowAt) {
+    const w = cellW, h = cellH, a = 0.38, b = 0.46, c = 0.54, d = 0.62;
+    const rects = [];
+    const R = (x, y, rw, rh) => rects.push(`<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${rw.toFixed(2)}" height="${rh.toFixed(2)}"/>`);
+    WORDMARK.forEach((row, ry) => [...row].forEach((ch, rx) => {
+      const x = rx * w, y = ry * h;
+      const H = (y0, y1, x0, x1) => R(x + x0 * w, y + y0 * h, (x1 - x0) * w, (y1 - y0) * h);
+      switch (ch) {
+        case '█': R(x, y, w + 0.3, h + 0.3); break;
+        case '═': H(a, b, 0, 1); H(c, d, 0, 1); break;
+        case '║': H(0, 1, a, b); H(0, 1, c, d); break;
+        case '╗': H(a, b, 0, d); H(a, 1, c, d); H(c, d, 0, b); H(c, 1, a, b); break;
+        case '╝': H(c, d, 0, d); H(0, d, c, d); H(a, b, 0, b); H(0, b, a, b); break;
+        case '╔': H(a, b, a, 1); H(a, 1, a, b); H(c, d, c, 1); H(c, 1, c, d); break;
+        case '╚': H(c, d, a, 1); H(0, d, a, b); H(a, b, c, 1); H(0, b, c, d); break;
+        default: break;
+      }
+    }));
+    const W = width(WORDMARK[0]) * w, Hh = WORDMARK.length * h;
+    return `<svg class="wm" style="left:${(col * w).toFixed(2)}px;top:${(rowAt * h).toFixed(2)}px" width="${W.toFixed(2)}" height="${Hh.toFixed(2)}" viewBox="0 0 ${W.toFixed(2)} ${Hh.toFixed(2)}" aria-hidden="true"><g fill="currentColor" shape-rendering="crispEdges">${rects.join('')}</g></svg>`;
+  }
+
   // The console's body at a width, to a stage: the header at once, the
   // readout, each check in turn, the verdict last. Rows past the stage
   // are blank, so nothing moves when they come.
@@ -207,7 +233,7 @@
     const stationBlock = [['ink b', 'CONN ' + V.version], ['gray', 'STATION  ' + HOST.toUpperCase()], ['gray', zulu(arrived)], ['gray', `${V.commit} · ${V.built}`]];
     const markW = width(WORDMARK[0]);
     WORDMARK.forEach((m, i) => {
-      const l = L().add('acc b', m);
+      const l = L().add('wmtext', m);
       if (i < stationBlock.length) l.to(MARGIN + markW + 5).add(stationBlock[i][0], stationBlock[i][1]);
       emit(l, 0);
     });
@@ -253,7 +279,7 @@
   function smallConsole(w, h, need) {
     const measure = w - 2 * MARGIN, out = [], L = () => line(MARGIN);
     out.push(blank());
-    if (measure >= width(WORDMARK[0]) && h >= WORDMARK.length + 5) WORDMARK.forEach(m => out.push(L().add('acc b', m)));
+    if (measure >= width(WORDMARK[0]) && h >= WORDMARK.length + 5) WORDMARK.forEach(m => out.push(L().add('wmtext', m)));
     else out.push(L().add('acc b', 'CONN'));
     out.push(blank());
     const value = `${w}×${h + 2} · WEB · TRUECOLOR`;
@@ -625,6 +651,7 @@
     station.classList.add('console');
     station.classList.remove('on-panel', 'on-work');
     paint(workEl, c.lines, rows, 0);
+    if (c.lines.some(l => (Array.isArray(l) ? l[0] : l).segs.some(([cls]) => cls === 'wmtext'))) workEl.insertAdjacentHTML('beforeend', wordmarkSVG(MARGIN, 1));
     drawBand(model, 0);
   }
 
@@ -644,17 +671,22 @@
     drawBand(model, n);
   }
 
+  const shortLabel = i => i === 0 ? 'CONSOLE' : SCENES[i].label.replace(' · ', ' ');
+  const CLAIM = 'A console for the processes working your projects.';
+
   function frameFor(n) {
     const s = SCENES[n];
-    sceneEl.textContent = n === 0 && one ? 'CONN' : s.label;
-    if (n === 0 && one) {
-      captionEl.textContent = 'A console for the processes working your projects. macOS and Linux, on tmux.';
-    } else if (n === 0 || s.id === 'install') {
-      captionEl.innerHTML = `<span class="prompt">$</span> <code>${esc(INSTALL)}</code> <button class="copy" type="button" data-copy="${esc(INSTALL)}">[copy]</button>` +
-        (n === 0 && !touch ? `<span class="hint">${s.id === 'install' ? '' : 'scroll, or any key'}</span>` : '');
+    if (one) {
+      sceneEl.innerHTML = `<span class="on">${esc(shortLabel(n))}</span><span class="of">${pad2(n)} / ${pad2(SCENES.length - 1)}</span>`;
     } else {
-      captionEl.innerHTML = esc(s.caption) + `<span class="hint">${n < SCENES.length - 1 ? 'j k · scroll' : ''}</span>`;
+      sceneEl.innerHTML = SCENES.map((_, i) => `<a href="#s${i}" data-scene="${i}" class="${i === n ? 'on' : i < n ? 'done' : ''}">${esc(shortLabel(i))}</a>`).join('<span class="sep">·</span>');
+      for (const a of sceneEl.querySelectorAll('a')) a.onclick = e => { e.preventDefault(); scrollTo(Number(a.dataset.scene)); };
     }
+    const next = n < SCENES.length - 1 ? `<span class="hint">${n === 0 && !touch ? 'any key, or scroll' : 'scroll'} \u2193 ${esc(shortLabel(n + 1))}</span>` : `<span class="hint">g \u2191 the console</span>`;
+    const install = `<span class="prompt">$</span> <code>${esc(INSTALL)}</code> <button class="copy" type="button" data-copy="${esc(INSTALL)}">[copy]</button>`;
+    if (n === 0) captionEl.innerHTML = (one ? esc(CLAIM) : `<b>${esc(CLAIM)}</b>&nbsp;&nbsp;&nbsp;${install}`) + next;
+    else if (s.id === 'install') captionEl.innerHTML = install + next;
+    else captionEl.innerHTML = esc(s.caption) + next;
     wireCopy();
   }
 

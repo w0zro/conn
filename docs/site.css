@@ -65,7 +65,9 @@ pre { margin: 0; font: inherit; white-space: pre; }
   background: var(--surface);
   overflow: hidden;
 }
-.work { flex: 1; overflow: hidden; }
+.work { flex: 1; overflow: hidden; position: relative; }
+.wmtext { color: transparent; }
+.wm { position: absolute; color: var(--accent); pointer-events: none; }
 .station.one .panel { flex: 1; }
 .station.one.on-work .panel, .station.one.on-panel .work { display: none; }
 .station.console .panel { display: none; }
@@ -113,7 +115,13 @@ pre { margin: 0; font: inherit; white-space: pre; }
 }
 .frame .line { display: flex; align-items: baseline; gap: 24px; white-space: nowrap; overflow: hidden; }
 .frame .line.a { justify-content: space-between; }
-.frame .scene { color: var(--accent); font-weight: 700; letter-spacing: 0.12em; overflow: hidden; text-overflow: ellipsis; }
+.frame .scene { display: flex; gap: 10px; align-items: baseline; font-weight: 700; letter-spacing: 0.12em; overflow: hidden; white-space: nowrap; color: var(--faint); }
+.frame .scene .sep { color: var(--border); }
+.frame .scene a { color: var(--gray); }
+.frame .scene a.done { color: var(--parchment); }
+.frame .scene a:hover { color: var(--ink); }
+.frame .scene .on, .frame .scene a.on { color: var(--accent); }
+.frame .scene .of { color: var(--gray); font-weight: 400; }
 .frame .links { display: flex; gap: 20px; flex: none; color: var(--gray); font-weight: 700; letter-spacing: 0.12em; }
 .frame .links a:hover { color: var(--ink); }
 .frame .links .accent { color: var(--accent); }
@@ -121,7 +129,7 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .frame .line.b b { color: var(--ink); font-weight: 700; }
 .frame .line.b code { font: inherit; color: var(--ink); }
 .frame .prompt { color: var(--accent); font-weight: 700; }
-.frame .hint { color: var(--faint); margin-left: auto; flex: none; }
+.frame .hint { color: var(--faint); margin-left: auto; padding-left: 24px; flex: none; }
 .copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; }
 .copy:hover { color: var(--ink); }
 .copy.done { color: var(--accent); }

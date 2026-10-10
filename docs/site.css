@@ -1,12 +1,11 @@
 /* conn.w0zro.com is conn: the window fills the screen and the console
-   comes up in it, then the panel, and a session plays as the page is
-   scrolled. Everything in the window is drawn by site.js on the
-   terminal's grid, in JetBrains Mono with the ligatures off the way
-   ghostty has them off, so the marks, the spinner and the rules render
-   as themselves. The colors are the conn theme's dark ground, by role,
-   from internal/theme/themes.go; nothing is a color of the page's own.
-   Under the window is the frame, the one place the site speaks for
-   itself, in the same face. */
+   comes up in it, then the panel, over a machine that runs in the page
+   and is worked with conn's own keys. Everything in the window is
+   drawn by site.js on the terminal's grid, in JetBrains Mono with the
+   ligatures off the way ghostty has them off, so the marks, the spinner
+   and the rules render as themselves. The colors are the conn theme's
+   dark ground, by role, from internal/theme/themes.go; nothing is a
+   color of the page's own. */
 
 :root {
   --ground: #15130F;      /* the pane's ground */
@@ -23,9 +22,6 @@
   --cell-w: 8.4px;        /* measured by site.js once the font is in */
   --cell-h: 20px;
   --fs: 14px;
-  --glass: rgba(29, 26, 21, 0.72);          /* the surface's ground, the station showing through */
-  --glass-edge: rgba(230, 223, 208, 0.10);  /* its edge, lit */
-  --accent-wash: rgba(232, 93, 47, 0.16);   /* the pill under the step on screen */
 }
 @media (max-width: 720px) {
   :root { --fs: 12px; --cell-h: 17px; }
@@ -33,9 +29,9 @@
 
 html {
   background: var(--ground);
-  scroll-snap-type: y mandatory;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  overflow: hidden;
 }
 body {
   margin: 0;
@@ -45,18 +41,16 @@ body {
   font-variant-ligatures: none;
   font-feature-settings: 'liga' 0, 'calt' 0;
   -webkit-font-smoothing: antialiased;
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
 }
 a { color: inherit; text-decoration: none; }
 pre { margin: 0; font: inherit; white-space: pre; }
 ::selection { background: var(--border); color: var(--ink); }
 
-/* The window: fixed over the scroll, the frame under it. */
+/* The window. */
 .station {
   position: fixed;
-  left: 0; right: 0; top: 0;
-  height: 100vh;
-  height: 100dvh;
+  inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -66,22 +60,24 @@ pre { margin: 0; font: inherit; white-space: pre; }
   flex: none;
   background: var(--surface);
   overflow: hidden;
+  cursor: default;
 }
 .work { flex: 1; overflow: hidden; position: relative; }
-.wmtext { color: transparent; }
-.wm { position: absolute; color: var(--accent); pointer-events: none; }
 .station.one .panel { flex: 1; }
 .station.one.on-work .panel, .station.one.on-panel .work { display: none; }
-.station.console .panel { display: none; }
+.station.console .panel, .station.detached .panel { display: none; }
 .band { flex: none; }
 .band .b0 { background: var(--border); color: var(--gray); }
 .band .b1 { background: var(--surface); color: var(--gray); }
+.band .key { cursor: pointer; }
+.band .key:hover { color: var(--accent); }
 
 /* A row of cells. The row under the cursor is on the raised ground
    from edge to edge. */
 .row { display: block; height: var(--cell-h); }
 .row.chosen { background: var(--chosen); color: var(--ink); }
 .row.center { text-align: center; }
+.panel .row:hover { background: rgba(230, 223, 208, 0.03); }
 
 /* The inks, by role, as the canvas names them. */
 .ink { color: var(--ink); }
@@ -97,159 +93,21 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .blink { animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { background: transparent; color: transparent; } }
 .chosen .bord { color: var(--faint); }
+.link { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.link:hover { color: var(--accent); }
+
+/* The wordmark, drawn over its own transparent text. */
+.wmtext { color: transparent; }
+.wm { position: absolute; color: var(--accent); pointer-events: none; }
 
 /* A row draws in on its turn: the terminal writes it, it does not fade. */
 .row.in { animation: in 1ms steps(1) both; }
 @keyframes in { from { visibility: hidden; } to { visibility: visible; } }
 
-/* The guide: a surface over the station, frosted so the station shows
-   through, with an edge of its own and a shadow that lifts it. It says
-   where the demonstration is, and carries the links and, on the first
-   and last scenes, the install line. */
-.guide {
-  position: fixed;
-  right: 72px; /* clear of the rail */
-  bottom: calc(var(--cell-h) * 2 + 18px); /* clear of the band */
-  width: 420px;
-  box-sizing: border-box;
-  padding: 18px 20px 16px;
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(22px) saturate(1.3);
-  backdrop-filter: blur(22px) saturate(1.3);
-  border: 1px solid var(--glass-edge);
-  border-radius: 16px;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 24px 60px -16px rgba(0, 0, 0, 0.85),
-    0 6px 16px -6px rgba(0, 0, 0, 0.6);
-  color: var(--parchment);
-  font-size: 13px;
-  line-height: 1.5;
-  z-index: 4;
-}
-.guide .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
-.guide .head .title { font-size: 10.5px; font-weight: 700; letter-spacing: 0.24em; color: var(--accent); }
-.guide .head .count { font-size: 11px; letter-spacing: 0.1em; color: var(--gray); font-variant-numeric: tabular-nums; }
-.guide h2 { margin: 0 0 8px; font-size: 18px; line-height: 1.25; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
-.guide h2 small { color: var(--faint); font-size: 13px; font-weight: 400; margin-left: 8px; letter-spacing: 0; }
-.guide .line { margin: 0 0 12px; color: var(--parchment); }
-.guide .next { color: var(--gray); font-size: 12px; }
-.guide .next b { color: var(--ink); font-weight: 700; }
-.guide .next .arrow { color: var(--accent); }
-.guide .cta {
-  display: flex; align-items: center; gap: 12px;
-  margin: 16px 0 0; padding: 6px 6px 6px 14px;
-  background: rgba(21, 19, 15, 0.65);
-  border: 1px solid var(--glass-edge);
-  border-radius: 12px;
-  color: var(--ink);
-  font-size: 12px;
-  line-height: 1.45;
-}
-.guide .cta .prompt { color: var(--accent); font-weight: 700; }
-.guide .cta code { font: inherit; flex: 1; white-space: normal; word-break: break-all; }
-.guide .cta .copy {
-  flex: none;
-  padding: 7px 12px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--ground);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  transition: background 150ms, color 150ms;
-}
-.guide .cta .copy:hover { background: #FF7847; color: var(--ground); }
-.guide .cta .copy.done { background: var(--running); color: var(--ground); }
-.guide .foot { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(230, 223, 208, 0.08); }
-.guide .foot .needs { color: var(--faint); font-size: 11px; }
-.guide .links { display: flex; gap: 14px; flex: none; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: var(--gray); }
-.guide .links a:hover { color: var(--ink); }
-.guide .links .accent { color: var(--accent); }
+/* A [copy] beside a command. */
 .copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; }
-
-/* The content comes up on each scene. */
-.guide .body { animation: rise 260ms cubic-bezier(.2,.7,.2,1) both; }
-@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-
-/* The compact card: on a console with no room beside it. */
-.guide.compact .cta { display: none; }
-
-/* On a phone the surface docks across the top. */
-.station.one ~ .guide, .guide.docked {
-  left: 10px; right: 10px; top: 10px; bottom: auto;
-  width: auto;
-  padding: 12px 14px 12px;
-  border-radius: 14px;
-}
-.guide.docked h2 { font-size: 15px; margin-bottom: 4px; }
-.guide.docked .line { margin-bottom: 6px; }
-.guide.docked .foot { margin-top: 8px; padding-top: 8px; }
-
-/* The rail: the scenes by number down the right edge, centered, on a
-   bar of the accent; a marker of the ground slides to the one on
-   screen. A number is a link. */
-.rail {
-  --step: 26px;
-  position: fixed;
-  right: 22px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30px;
-  padding: 5px 0;
-  box-sizing: border-box;
-  background: var(--accent);
-  border-radius: 15px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4);
-  z-index: 5;
-}
-.rail a {
-  position: relative;
-  z-index: 1;
-  width: 24px;
-  height: var(--step);
-  line-height: var(--step);
-  text-align: center;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  font-variant-numeric: tabular-nums;
-  color: rgba(21, 19, 15, 0.5);
-  transition: color 200ms;
-}
-.rail a:hover { color: var(--ground); }
-.rail a.done { color: rgba(21, 19, 15, 0.8); }
-.rail a.on { color: var(--accent); }
-.rail .marker {
-  position: absolute;
-  left: 3px;
-  top: 5px;
-  width: 24px;
-  height: 24px;
-  margin-top: 1px;
-  border-radius: 12px;
-  background: var(--ground);
-  transition: top 320ms cubic-bezier(.2,.7,.2,1);
-}
-.station.one ~ .rail { display: none; }
-@media (prefers-reduced-motion: reduce) { .rail .marker { transition: none; } }
-
-.progress {
-  position: fixed;
-  left: 0; top: 0;
-  height: 2px;
-  width: 0;
-  background: var(--accent);
-  z-index: 3;
-  transition: width 500ms ease-out;
-}
-@media (prefers-reduced-motion: reduce) { .progress { transition: none; } .guide .body { animation: none; } }
-
-/* The scroll: a section a scene, each a screen tall, snapped. */
-.scroll section { height: 100vh; height: 100dvh; scroll-snap-align: start; }
+.copy:hover { color: var(--ink); }
+.copy.done { color: var(--accent); }
 
 .noscript { max-width: 720px; margin: 48px auto; padding: 0 24px; color: var(--parchment); }
 .noscript h1 { color: var(--ink); }

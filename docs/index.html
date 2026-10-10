@@ -30,29 +30,18 @@
 
 <!-- The station fills the window: the panel and the workspace, and the
      band across the foot. site.js draws it the way conn draws it, rows
-     of cells on the terminal's grid; the console first, then a session
-     in scenes as the page is scrolled. -->
+     of cells on the terminal's grid: the console first, then the panel
+     over a machine that runs in this page, worked with conn's keys. -->
 <div id="station" class="station" aria-label="conn">
   <div class="screen">
     <pre class="panel" id="panel"></pre>
     <pre class="work" id="work"></pre>
   </div>
-  <div class="band">
+  <div class="band" id="band">
     <pre class="b0" id="b0"></pre>
     <pre class="b1" id="b1"></pre>
   </div>
 </div>
-
-<!-- The guide: a surface over the station that says where the
-     demonstration is, and carries the links and the install line. -->
-<aside id="guide" class="guide" aria-label="the demonstration"></aside>
-<!-- The rail: the scenes by number, down the right edge, the one on
-     screen marked. -->
-<nav id="rail" class="rail" aria-label="the scenes"><span class="marker"></span></nav>
-<div id="progress" class="progress" aria-hidden="true"></div>
-
-<!-- The scroll: a screen's height a scene, snapped to. -->
-<div id="scroll" class="scroll" aria-hidden="true"></div>
 
 <noscript>
 <div class="noscript">

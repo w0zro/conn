@@ -1,12 +1,14 @@
-// conn.w0zro.com draws conn. The window is the station: the console
-// comes up first, staged the way conn stages it, against the visitor's
-// own browser; then the panel, and a session plays in scenes as the
-// page is scrolled, each scene a screen. Everything is drawn on the
-// terminal's grid in rows of cells, with the arithmetic of conn's own
-// drawing: internal/console/screen.go for the console, filed.go for
-// the panel, readout.go for the page, band.go and keybar.go for the
-// band. The words are conn's words. The guide, a surface over the
-// station, is the site's own voice, and the only one.
+// conn.w0zro.com is conn, playable. The window is the station: the
+// console comes up first, staged the way conn stages it, against the
+// visitor's own browser; then the panel, over a machine that runs in
+// this page - two projects, their processes, each with a state and a
+// clock - and the visitor works it with conn's own keys. Everything is
+// drawn on the terminal's grid in rows of cells, with the arithmetic of
+// conn's own drawing: internal/console/screen.go for the console,
+// filed.go for the panel, readout.go for the page, band.go and
+// keybar.go for the band. The words are conn's words. The one thing
+// the site says for itself is the station's own page, in the
+// workspace before the cursor moves. Nothing is kept or sent.
 (() => {
   'use strict';
 
@@ -18,8 +20,7 @@
 
   const $ = id => document.getElementById(id);
   const station = $('station'), panelEl = $('panel'), workEl = $('work');
-  const b0 = $('b0'), b1 = $('b1'), scrollEl = $('scroll');
-  const guideEl = $('guide'), progressEl = $('progress'), railEl = $('rail');
+  const b0 = $('b0'), b1 = $('b1'), bandEl = $('band');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const touch = matchMedia('(hover: none)').matches;
   const arrived = new Date();
@@ -27,8 +28,6 @@
   // ---- the grid -------------------------------------------------------
 
   const MARGIN = 3, MIN_COLS = 80, PANEL_W = 44, FACT_COL = 12, CHECK_COL = 12, STATUS_W = 9;
-  const GUIDE_PX = 420 + 72 + 22; // the guide's surface, the rail beside it, and their margins
-  const guideRoom = () => Math.ceil(GUIDE_PX / cellW) + 2; // the cells it takes at the right
   let cellW = 8.4, cellH = 20, cols = 80, rows = 24, one = false, panelW = PANEL_W, workW = 40;
 
   function measureGrid() {
@@ -63,7 +62,8 @@
     const l = {
       get cells() { return cells; },
       get segs() { return segs; },
-      add(cls, text) { if (!text) return l; segs.push([cls, text]); cells += width(text); return l; },
+      add(cls, text, href) { if (!text) return l; segs.push([cls, text, href]); cells += width(text); return l; },
+      button(cls, text, copy) { segs.push([cls, text, null, copy]); cells += width(text); return l; },
       to(c) { if (c > cells) l.add('', rep(' ', c - cells)); return l; },
       // A label, a space, leaders to the end column, a space.
       leader(label, end, cls) { l.add(cls, label); l.add('', ' '); l.add(cls, rep('.', end - cells)); l.add('', ' '); return l; },
@@ -78,7 +78,8 @@
         return l;
       },
       html(cls = '', style = '') {
-        const body = segs.map(([c, t]) => c ? `<span class="${c}">${esc(t)}</span>` : esc(t)).join('');
+        const body = segs.map(([c, t, href, copy]) => copy ? `<button class="${c}" type="button" data-copy="${esc(copy)}">${esc(t)}</button>`
+          : href ? `<a class="${c}" href="${href}">${esc(t)}</a>` : c ? `<span class="${c}">${esc(t)}</span>` : esc(t)).join('');
         return `<div class="row${cls ? ' ' + cls : ''}"${style ? ` style="${style}"` : ''}>${body}</div>`;
       },
     };
@@ -158,6 +159,7 @@
       ['ARRIVED', `${from} · ${local}`],
       ['CONN', `${V.version} · ${V.built}`],
       ['NEEDS', 'TMUX · LSOF ON MACOS'],
+      ['INSTALL', INSTALL],
       ['MANUAL', `${HOST}/manual`],
     ];
     return { plat, phone, machine, session };
@@ -304,21 +306,24 @@
     }
     const small = cols < MIN_COLS || need() > rows;
     const lastStage = 2 + ks.length;
-    const w = !one && cols - guideRoom() >= MIN_COLS ? cols - guideRoom() : cols;
-    return { lines: small ? smallConsole(cols, rows, need()) : consoleBody(v, ks, w, stage), lastStage, small, compact: !small && w === cols };
+    return { lines: small ? smallConsole(cols, rows, need()) : consoleBody(v, ks, cols, stage), lastStage, small };
   }
 
-  // ---- the session ----------------------------------------------------
+  // ---- the machine ----------------------------------------------------
 
   const MARK = { contact: '☿', shell: '❯', editor: '▯', service: '◉', run: '○' };
+  const QUESTION = 'Rename bay to workspace in the code too?';
 
-  // The model: the projects, their rows, where the cursor is, whether
-  // the keys are in a pane, and what the log has. A scene is a change
-  // to it; the state of any scene is the base with every scene before
-  // it applied, so scrolling back is the same picture as before.
-  function base() {
+  // The model: two projects and their processes, each with a state;
+  // where the cursor is; whether the keys are in a pane and which; the
+  // view the panel is in; what the log holds and how much of it has not
+  // been looked at; a question armed; and the station's own clock. It
+  // is one machine, running, and every key is a change to it.
+  function fresh() {
     return {
-      view: 'processes', cursor: 'zsh1', shown: null, inside: false, log: 0, logRows: [],
+      view: 'processes', cursor: 'zsh1', inside: false, shown: null, landing: true,
+      log: 0, logRows: [], logCursor: 0, confirm: null, left: null,
+      claude: 'working', answered: false, moved: false, done: {}, since: Date.now(), events: [],
       projects: [
         { name: 'conn', rows: [
           { id: 'claude', kind: 'contact', digit: '0', name: 'claude', status: 'working' },
@@ -330,69 +335,52 @@
           { id: 'vim', kind: 'editor', name: 'vim', status: 'stopped', word: 'STOPPED' },
           { id: 'pg', kind: 'service', name: 'postgres', status: 'serving', port: ':5432' },
           { id: 'vite', kind: 'run', name: 'node vite', status: 'serving', port: ':5173' },
-          { id: 'worker', kind: 'run', name: 'worker', status: 'down', word: 'DOWN' },
+          { id: 'worker', kind: 'run', name: 'worker', status: 'down', word: 'DOWN', declared: true },
         ] },
       ],
-      claude: 'working', answered: false, typed: 0, worker: 'down',
     };
   }
-  const row = (m, id) => m.projects.flatMap(p => p.rows).find(r => r.id === id);
-  const projectOf = (m, id) => m.projects.find(p => p.rows.some(r => r.id === id));
+  let m = fresh();
+  const rowsOf = () => m.projects.flatMap(p => p.rows);
+  const row = id => rowsOf().find(r => r.id === id);
+  const projectOf = id => m.projects.find(p => p.rows.some(r => r.id === id));
+  const clock = () => { const d = new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+  const waiting = () => rowsOf().filter(r => r.status === 'waiting').sort((a, b) => a.waitedAt - b.waitedAt);
+  const logLine = (r, w, note) => { m.logRows.unshift({ t: clock(), p: projectOf(r.id).name, n: r.name, w, note }); m.log++; };
 
-  // The scenes. enter is the state at the scene's head; beat, where a
-  // scene has one, is what happens a moment after, and stands once the
-  // scene is past.
-  const SCENES = [
-    { id: 'console', label: 'CONSOLE', title: 'The console', caption: null },
-    { id: 'panel', label: '01 · THE PANEL', title: 'The panel',
-      caption: 'Every process on the machine, under the project it works. A mark for what it is, and a word only where there is one to say.',
-      enter(m) {} },
-    { id: 'waiting', label: '02 · WAITING', title: 'A contact stops to ask',
-      caption: 'The project’s rule says WAITING, the row says how long, and the band counts it.',
-      enter(m) { const r = row(m, 'claude'); r.status = 'waiting'; r.age = '9 MIN'; m.log = 1;
-        m.logRows.unshift({ t: '14:02', p: 'conn', n: 'claude', w: 'WAITING', note: 'Rename bay to workspace in the code?' }); } },
-    { id: 'tab', label: '03 · TAB', pane: 'work', title: 'The one waiting longest', key: 'tab',
-      caption: 'The cursor goes to it, and its question is on its page before you go in.',
-      enter(m) { m.cursor = 'claude'; } },
-    { id: 'enter', label: '04 · ENTER', pane: 'work', title: 'Go in and answer', key: 'enter',
-      caption: 'The keys are in the pane. ctrl-space brings them back to the panel, whatever is in front of you.',
-      enter(m) { m.inside = true; m.shown = 'claude'; },
-      beat(m) { const r = row(m, 'claude'); r.status = 'working'; r.age = ''; m.answered = true; m.log = 2;
-        m.logRows.unshift({ t: '14:11', p: 'conn', n: 'claude', w: 'IDLE', note: 'waited 9 min' }); } },
-    { id: 'log', label: '05 · THE LOG', title: 'The log', key: 'l',
-      caption: 'What changed while you were in a pane: a wait, a fault, a turn over, a pane that said FAIL. Newest first.',
-      enter(m) { m.inside = false; m.shown = null; m.view = 'log'; m.log = 0; } },
-    { id: 'declared', label: '06 · WHAT A PROJECT DECLARES', title: 'What a project declares', key: '.conn',
-      caption: 'The file names what works a project. What is down is a row, worded so; u brings it up, x ends it.',
-      enter(m) { m.view = 'processes'; m.cursor = 'worker'; },
-      beat(m) { const r = row(m, 'worker'); r.status = 'working'; r.word = ''; m.worker = 'up'; } },
-    { id: 'install', label: '07 · INSTALL', pane: 'work', title: 'Install', key: '$',
-      caption: 'One line, on macOS or Linux. man conn is the reference; the manual is how it is worked.',
-      enter(m) { m.cursor = 'zsh1'; m.inside = true; m.shown = 'zsh1'; m.typed = 0; },
-      beat(m) { m.typed = INSTALL.length + 1; } },
+  // What happens on its own, by the station's clock: the test run
+  // ends badly, the contact stops to ask; and after an answer, the
+  // contact works and finishes its turn. Each fires once.
+  const TIMELINE = [
+    [5000, 'testEnds', () => { const r = row('test'); if (r && r.status === 'working') { r.status = 'fault'; r.word = 'EXIT 1'; logLine(r, 'EXIT 1', 'ran 2 min · FAIL: TestBand'); } }],
+    [8000, 'asks', () => { const r = row('claude'); if (r && r.status === 'working') { r.status = 'waiting'; r.waitedAt = Date.now(); logLine(r, 'WAITING', QUESTION); } }],
   ];
-  function stateAt(n, beaten) {
-    const m = base();
-    for (let i = 1; i <= n && i < SCENES.length; i++) {
-      const s = SCENES[i];
-      if (s.enter) s.enter(m);
-      if (s.beat && (i < n || beaten)) s.beat(m);
-    }
-    return m;
+  function tick() {
+    const t = Date.now() - m.since;
+    let changed = false;
+    for (const [at, id, fn] of TIMELINE) if (t >= at && !m.done[id]) { m.done[id] = true; fn(); changed = true; }
+    // A wait's age is said to the minute, so the row changes on the minute.
+    for (const r of rowsOf()) if (r.status === 'waiting') { const age = ageOf(r); if (age !== r.age) { r.age = age; changed = true; } }
+    if (changed) render();
   }
+  // What happens a moment later, on its own timer, and is drawn.
+  const later = (ms, fn) => setTimeout(() => { if (m.view === 'console') return; fn(); render(); }, ms);
+  const ageOf = r => { const min = Math.floor((Date.now() - r.waitedAt) / 60000); return min >= 1 ? `${min} MIN` : ''; };
 
   // ---- the panel ------------------------------------------------------
 
-  // A block's verdict: what wants you, at the end of the rule.
+  // A block's verdict: what wants you, at the end of the rule. A wait,
+  // else a fault; several faults counted.
   function verdict(p) {
-    const waiting = p.rows.filter(r => r.status === 'waiting').length;
-    if (waiting > 0) return stamp(waiting > 1 ? `${waiting} WAITING` : 'WAITING', true);
-    const fault = p.rows.find(r => r.status === 'stopped');
-    if (fault) return stamp(fault.word, false);
+    const w = p.rows.filter(r => r.status === 'waiting').length;
+    if (w > 0) return stamp(w > 1 ? `${w} WAITING` : 'WAITING', true);
+    const faults = p.rows.filter(r => r.status === 'fault' || r.status === 'stopped');
+    if (faults.length === 1) return stamp(faults[0].word, false);
+    if (faults.length > 1) return stamp(`${faults.length} FAULTS`, false);
     return null;
   }
 
-  function drawPanel(m, w) {
+  function drawPanel(w) {
     const measure = w - MARGIN, out = [];
     for (const p of m.projects) {
       out.push(blank());
@@ -400,46 +388,47 @@
       for (const r of p.rows) {
         const l = line();
         const cursored = r.id === m.cursor && !m.inside;
-        const shown = r.id === m.shown;
+        const shown = m.inside && r.id === m.shown;
         if (cursored || shown) l.add('acc', '▌');
         if (r.status === 'working') l.to(1).add('run spin', '⣾');
         let tone = 'faint';
         if (r.status === 'waiting') tone = 'acc b';
-        else if (r.status === 'stopped') tone = 'acc';
-        else if (r.status === 'working' || (r.port && r.kind !== 'contact')) tone = 'run';
+        else if (r.status === 'stopped' || r.status === 'fault') tone = 'acc';
+        else if (r.status === 'working' || (r.port && r.kind !== 'contact' && r.status === 'serving')) tone = 'run';
         l.to(3).add(tone, MARK[r.kind]);
         l.add('', r.kind === 'contact' ? ` ${r.digit} ` : '   ');
         const over = r.status === 'down' || r.status === 'ended';
         l.add(over ? 'struck' : (r.status === 'waiting' ? 'ink b' : 'ink'), fit(r.name, measure - l.cells - 10));
         if (r.status === 'waiting') { const s = stamp(r.age || 'WAITING', true); l.to(measure - s.w); s.draw(l); }
-        else if (r.status === 'stopped') { const s = stamp(r.word, false); l.to(measure - s.w); s.draw(l); }
-        else if (r.word) l.to(measure - width(r.word)).add('gray', r.word);
-        else if (r.port) l.to(measure - width(r.port)).add('gray', r.port);
+        else if (r.status === 'stopped' || r.status === 'fault') { const s = stamp(r.word, false); l.to(measure - s.w); s.draw(l); }
+        else if (over) l.to(measure - width(r.word || 'DOWN')).add('gray', r.word || 'DOWN');
+        else if (r.port && r.status === 'serving') l.to(measure - width(r.port)).add('gray', r.port);
         out.push([l, cursored ? 'chosen' : '']);
       }
     }
     return out;
   }
 
-  // The log, as the panel shows it over time.
-  function drawLog(m, w) {
+  // The log, as the panel shows it over time: newest first, a note a line.
+  const OLDER = [
+    { t: '11:41', p: 'web', n: 'go test ./...', w: 'EXIT 1', note: 'ran 2 min' },
+    { t: '09:04', p: 'web', n: 'node vite', w: 'ACTIVE', note: ':5173' },
+  ];
+  const logEntries = () => [...m.logRows, ...OLDER];
+  function drawLog(w) {
     const measure = w - MARGIN, out = [], L = () => line(MARGIN);
     out.push(blank());
     out.push(L().add('par b', 'LOG').to(MARGIN + measure - 5).add('gray', `${m.logRows.length} NEW`));
     out.push(L().rule(measure));
     out.push(blank());
     out.push(line().eyebrow(MARGIN, 'TODAY', measure, null));
-    const older = [
-      { t: '11:41', p: 'web', n: 'go test ./...', w: 'EXIT 1', note: 'ran 2 min' },
-      { t: '09:04', p: 'web', n: 'node vite', w: 'ACTIVE', note: ':5173' },
-    ];
-    [...m.logRows, ...older].forEach((e, i) => {
+    logEntries().forEach((e, i) => {
       const l = line();
-      if (i === 0) l.add('acc', '▌');
+      if (i === m.logCursor) l.add('acc', '▌');
       l.to(MARGIN).add('ink', e.t).add('', ' ').add('par', e.p.padEnd(5)).add('', ' ').add('ink', fit(e.n, measure - l.cells - width(e.w) - 2));
       if (e.w === 'WAITING') { const s = stamp(e.w, false); l.to(measure - s.w); s.draw(l); }
       else l.to(measure - width(e.w)).add('gray', e.w);
-      out.push([l, i === 0 ? 'chosen' : '']);
+      out.push([l, i === m.logCursor ? 'chosen' : '']);
       out.push(line(MARGIN + 12).add('gray', fit(e.note, measure - MARGIN - 12)));
     });
     return out;
@@ -447,19 +436,42 @@
 
   // ---- the workspace --------------------------------------------------
 
+  // The station's own page: what the workspace holds before the cursor
+  // moves. The one place the site speaks, in the page's own form.
+  function drawLanding(w) {
+    const leftW = Math.min(w - 2 * MARGIN, 76), out = [], L = () => line(MARGIN);
+    const para = (text, cls) => wrap(text, leftW).forEach(t => out.push(L().add(cls, t)));
+    const eyebrow = name => { out.push(blank()); out.push(line().eyebrow(MARGIN, name, MARGIN + leftW, null)); out.push(blank()); };
+    out.push(blank());
+    out.push(line().eyebrow(MARGIN, 'CONN', MARGIN + leftW, null));
+    out.push(blank());
+    para('A console for the processes working your projects.', 'ink b');
+    out.push(blank());
+    para('Every process on one machine, under the project it works. What each project wants of you. The one you choose, in front of you.', 'par');
+    eyebrow('INSTALL');
+    out.push(L().add('acc b', '$').add('', ' ').add('ink', INSTALL).add('', '   ').button('copy', '[copy]', INSTALL));
+    out.push(L().add('gray', 'macOS and Linux · needs tmux, and lsof on macOS'));
+    eyebrow('PROCEDURE');
+    [['j k', 'Down the panel; the page follows the cursor'], ['tab', 'The contact that has waited longest'], ['enter', 'Go in; ctrl-space brings the keys back'], ['l  ?  c', 'The log, the keys, the console']]
+      .forEach(([k, does], i) => out.push(L().add('gray', String(i + 1)).to(MARGIN + 5).add('ink b', k).to(MARGIN + 15).add('ink', fit(does, leftW - 15))));
+    eyebrow('DOCUMENTS');
+    [['Operating manual', `${HOST}/manual`, '/manual/'], ['Man conn', 'the reference, built in: ? inside conn', 'https://github.com/w0zro/conn/blob/main/man/conn.1'], ['Source', 'github.com/w0zro/conn', 'https://github.com/w0zro/conn']]
+      .forEach(([k, v, href]) => out.push(L().leader(k, MARGIN + 19, 'faint').add('ink link', v, href)));
+    eyebrow('NOTE');
+    para('This station is a simulation: two projects on a machine that runs in this page, worked with conn’s own keys. The clock is yours. Nothing is kept or sent.', 'par');
+    return out;
+  }
+
   // The page: what conn knows about the row under the cursor, read
-  // without entering it. A left column at the measure; the
-  // specifications to its right where the pane is wide enough.
-  function drawPage(m, w) {
-    const r = row(m, m.cursor), p = projectOf(m, m.cursor);
-    const wide = w >= 104, clear = one ? w - 2 * MARGIN : Math.max(60, w - guideRoom() - MARGIN);
-    const leftW = Math.min(wide ? w - 2 * MARGIN - 34 : w - 2 * MARGIN, clear), specCol = MARGIN + leftW + 6;
+  // without entering it; the specifications to its right where the
+  // pane is wide enough.
+  function drawPage(w) {
+    const r = row(m.cursor), p = projectOf(m.cursor);
+    const wide = w >= 104, leftW = wide ? w - 2 * MARGIN - 34 : w - 2 * MARGIN, specCol = MARGIN + leftW + 6;
     const out = [], L = () => line(MARGIN);
     const para = (text, cls = 'ink') => wrap(text, leftW).forEach(t => out.push(L().add(cls, t)));
-    const procedure = steps => {
-      out.push(blank()); out.push(line().eyebrow(MARGIN, 'PROCEDURE', MARGIN + leftW, null)); out.push(blank());
-      steps.forEach(([k, does], i) => out.push(L().add('gray', String(i + 1)).to(MARGIN + 5).add('ink b', k).to(MARGIN + 14).add('ink', fit(does, leftW - 14))));
-    };
+    const section = name => { out.push(blank()); out.push(line().eyebrow(MARGIN, name, MARGIN + leftW, null)); out.push(blank()); };
+    const procedure = steps => { section('PROCEDURE'); steps.forEach(([k, does], i) => out.push(L().add('gray', String(i + 1)).to(MARGIN + 5).add('ink b', k).to(MARGIN + 14).add('ink', fit(does, leftW - 14)))); };
     const box = lines => {
       out.push(L().add('bord', rep('▄', leftW)));
       for (const [cls, t, right] of lines) {
@@ -470,67 +482,10 @@
       }
       out.push(L().add('bord', rep('▀', leftW)));
     };
-    out.push(blank());
-    if (r.kind === 'contact') {
-      out.push(line().eyebrow(MARGIN, 'CONTACT', MARGIN + leftW, null));
-      out.push(blank());
-      out.push(L().add('ink b', ` ${r.digit}`).to(MARGIN + 5).add('ink', `conn-${r.digit}`).to(MARGIN + 14).add('gray', '~/projects/w0zro/conn · main'));
-      out.push(L().to(MARGIN + 5).add('gray', 'Claude Code 2.1.267 · 212k of context carried'));
-      out.push(blank());
-      if (r.status === 'waiting') {
-        box([['ink b', 'WAITING FOR YOU', '9 min'], ['', ''], ['ink', '“Rename bay to workspace in the code too?”'], ['', ''], ['gray', 'Asked with AskUserQuestion at 14:02']]);
-        procedure([['enter', 'Go in and answer it'], ['tab', 'Leave it, take the next thing waiting'], ['x', 'End it — conn asks first']]);
-        out.push(blank()); out.push(line().eyebrow(MARGIN, 'CAUTION', MARGIN + leftW, null)); out.push(blank());
-        para('It has the terminal and is sleeping. x signals the contact, not what it runs — the process under it keeps going.');
-      } else {
-        box([['run b', 'WORKING', m.answered ? '1 min' : '12 min'], ['', ''], ['ink', m.answered ? 'Renaming bay to workspace in the code' : 'Reading band.go, keys.go, bay.go'], ['', ''], ['gray', m.answered ? 'You last answered “1. Yes” at 14:11' : 'You last said “bring the code to the manual” at 13:58']]);
-        procedure([['enter', 'Go in'], ['tab', 'The next thing waiting'], ['x', 'End it — conn asks first']]);
-      out.push(blank()); out.push(line().eyebrow(MARGIN, 'HOW THE WORK HAS GONE', MARGIN + leftW, null)); out.push(blank());
-      const barW = Math.min(40, leftW - 28);
-      const worked = Math.round(barW * 85 / 94);
-      out.push(L().add('run', rep('█', worked)).add('acc', rep('█', barW - worked)).add('gray', `  worked 1h 25m · ${r.status === 'waiting' ? 'waiting 9m' : 'asked once'}`));
-      out.push(blank());
-      para(r.status === 'waiting' ? 'It came up at 12:36 and worked for 1h 25m, then stopped to ask. You last said “bring the code to the manual”.'
-        : 'It came up at 12:36, worked for 1h 25m, asked once and was answered. It is at work again.', 'ink');
-      }
-    } else if (r.status === 'down') {
-      out.push(line().eyebrow(MARGIN, 'DECLARED', MARGIN + leftW, null));
-      out.push(blank());
-      out.push(L().add('ink b', r.name).to(MARGIN + 10).add('gray', 'services/queue').to(MARGIN + 27).add('ink', 'make run'));
-      out.push(L().add('gray', '.conn line 3 · not running'));
-      procedure([['enter', 'Bring it up and go in'], ['u', 'Bring it up'], ['U', 'Bring up everything declared and down']]);
-      out.push(blank()); out.push(line().eyebrow(MARGIN, 'THE FILE', MARGIN + leftW, null)); out.push(blank());
-      out.push(L().add('gray', '# what works this project'));
-      out.push(L().add('ink', 'web frontend:          npm run dev'));
-      out.push(L().add('ink', 'api:                   go run ./cmd/api'));
-      out.push(L().add('ink b', 'worker services/queue: make run'));
-      out.push(L().add('ink', 'db:                    docker compose up postgres'));
-      out.push(L().add('ink', 'cache:                 brew services start redis'));
-      out.push(blank());
-      para('A line is name [dir]: command. The name is the row. A docker compose up has its services as rows under it; a brew services start is the Homebrew service, as brew reports it.', 'ink');
-    } else if (r.kind === 'shell') {
-      out.push(line().eyebrow(MARGIN, 'SHELL', MARGIN + leftW, null));
-      out.push(blank());
-      out.push(L().add('ink b', r.name).to(MARGIN + 10).add('gray', `~/projects/w0zro/${p.name} · main`));
-      out.push(L().add('gray', 'at its prompt · up 2h 14m · ttys004'));
-      procedure([['enter', 'Go in'], ['s', 'A shell beside it'], ['x', 'End it — conn asks first']]);
-      out.push(blank()); out.push(line().eyebrow(MARGIN, 'THE PROJECT', MARGIN + leftW, null)); out.push(blank());
-      [['Branch', 'main · clean'], ['Commit', '12b688f · The front page says it in rows, not paragraphs'], ['Tracking', 'origin/main · 3 ahead'], ['Folder', `~/projects/w0zro/${p.name}`]]
-        .forEach(([k, v]) => out.push(L().leader(k, MARGIN + 13, 'faint').add('ink', fit(v, leftW - 15))));
-    } else {
-      out.push(line().eyebrow(MARGIN, r.kind.toUpperCase(), MARGIN + leftW, null));
-      out.push(blank());
-      out.push(L().add('ink b', r.name).to(MARGIN + 16).add('gray', `~/projects/w0zro/${p.name}`));
-      procedure([['enter', 'Go in'], ['x', 'End it — conn asks first']]);
-    }
-    if (wide && r.kind === 'contact') {
-      // The specifications, a column to the right of the page's rows.
-      const specW = w - MARGIN - specCol;
-      const spec = [['Designation', `CONN-${r.digit}`], ['Given', 'Today, 12:36'], ['Worked', '1h 25m'], ['Waiting', r.status === 'waiting' ? '9 min' : '\u2014'], ['', ''],
-        ['Branch', 'main \u00b7 3 changed'], ['Commit', '12b688f'], ['Tracking', 'origin/main'], ['', ''], ['Folder', '~/projects/w0zro/conn'], ['Pane', '%2'], ['Process', '49212'],
-        ['Command', 'claude --resume'], ['Model', 'claude-fable-5-1']];
-      const right = [line().eyebrow(0, 'SPECIFICATIONS', specW, null), blank()];
-      spec.forEach(([k, v]) => right.push(k ? line().leader(k, 13, 'faint').add('ink', fit(v, specW - 15)) : blank()));
+    const spec = pairs => {
+      if (!wide) return out;
+      const specW = w - MARGIN - specCol, right = [line().eyebrow(0, 'SPECIFICATIONS', specW, null), blank()];
+      pairs.forEach(([k, v]) => right.push(k ? line().leader(k, 13, 'faint').add('ink', fit(v, specW - 15)) : blank()));
       const merged = [];
       for (let i = 0; i < Math.max(out.length, right.length + 1); i++) {
         const left = i < out.length ? out[i] : blank();
@@ -539,65 +494,248 @@
         merged.push([rt ? mergeLines(l, rt, specCol) : l, cls]);
       }
       return merged;
+    };
+    const folder = `~/projects/w0zro/${p.name}`;
+    out.push(blank());
+    if (r.kind === 'contact') {
+      out.push(line().eyebrow(MARGIN, 'CONTACT', MARGIN + leftW, null));
+      out.push(blank());
+      out.push(L().add('ink b', ` ${r.digit}`).to(MARGIN + 5).add('ink', `conn-${r.digit}`).to(MARGIN + 14).add('gray', `${folder} · main`));
+      out.push(L().to(MARGIN + 5).add('gray', 'Claude Code 2.1.267 · 212k of context carried'));
+      out.push(blank());
+      if (r.status === 'waiting') {
+        box([['ink b', 'WAITING FOR YOU', r.age ? r.age.toLowerCase() : 'just now'], ['', ''], ['ink', `“${QUESTION}”`], ['', ''], ['gray', `Asked with AskUserQuestion at ${m.logRows.find(e => e.w === 'WAITING')?.t || clock()}`]]);
+        procedure([['enter', 'Go in and answer it'], ['tab', 'Leave it, take the next thing waiting'], ['x', 'End it — conn asks first']]);
+        section('CAUTION');
+        para('It has the terminal and is sleeping. x signals the contact, not what it runs — the process under it keeps going.');
+      } else if (r.status === 'working') {
+        box([['run b', 'WORKING', ''], ['', ''], ['ink', m.answered ? 'Renaming bay to workspace in the code' : 'Reading band.go, keys.go, bay.go'], ['', ''], ['gray', m.answered ? 'You last answered “1. Yes”' : 'You last said “bring the code to the manual”']]);
+        procedure([['enter', 'Go in'], ['tab', 'The next thing waiting'], ['x', 'End it — conn asks first']]);
+      } else {
+        box([['ink b', 'TURN OVER', ''], ['', ''], ['ink', 'Renamed bay to workspace in four files; the screens held again.'], ['', ''], ['gray', 'Idle at its prompt. It will carry what it has until you say more.']]);
+        procedure([['enter', 'Go in and say more'], ['x', 'End it — conn asks first']]);
+      }
+      section('HOW THE WORK HAS GONE');
+      const barW = Math.min(40, leftW - 28), worked = Math.round(barW * 85 / 94);
+      out.push(L().add('run', rep('█', worked)).add('acc', rep('█', barW - worked)).add('gray', `  worked 1h 25m · ${r.status === 'waiting' ? 'waiting' : 'asked once'}`));
+      out.push(blank());
+      para(r.status === 'waiting' ? 'It came up at 12:36 and worked for 1h 25m, then stopped to ask. You last said “bring the code to the manual”.'
+        : r.status === 'working' ? 'It came up at 12:36, worked for 1h 25m, asked once and was answered. It is at work again.'
+        : 'It came up at 12:36, worked for 1h 25m, asked once, was answered, and finished its turn.');
+      return spec([['Designation', `CONN-${r.digit}`], ['Given', 'Today, 12:36'], ['Worked', '1h 25m'], ['Waiting', r.status === 'waiting' ? (r.age || 'now').toLowerCase() : '—'], ['', ''],
+        ['Branch', 'main · 3 changed'], ['Commit', V.commit], ['Tracking', 'origin/main'], ['', ''], ['Folder', folder], ['Pane', '%2'], ['Process', '49212'], ['Command', 'claude --resume'], ['Model', 'claude-fable-5-1']]);
     }
+    if (r.status === 'down') {
+      out.push(line().eyebrow(MARGIN, 'DECLARED', MARGIN + leftW, null));
+      out.push(blank());
+      out.push(L().add('ink b', r.name).to(MARGIN + 10).add('gray', 'services/queue').to(MARGIN + 27).add('ink', 'make run'));
+      out.push(L().add('gray', '.conn line 3 · not running'));
+      procedure([['enter', 'Bring it up and go in'], ['u', 'Bring it up'], ['U', 'Bring up everything declared and down']]);
+      section('THE FILE');
+      out.push(L().add('gray', '# what works this project'));
+      out.push(L().add('ink', 'web frontend:          npm run dev'));
+      out.push(L().add('ink', 'api:                   go run ./cmd/api'));
+      out.push(L().add('ink b', 'worker services/queue: make run'));
+      out.push(L().add('ink', 'db:                    docker compose up postgres'));
+      out.push(L().add('ink', 'cache:                 brew services start redis'));
+      out.push(blank());
+      para('A line is name [dir]: command. The name is the row. A docker compose up has its services as rows under it; a brew services start is the Homebrew service, as brew reports it.');
+      return out;
+    }
+    if (r.kind === 'shell') {
+      out.push(line().eyebrow(MARGIN, 'SHELL', MARGIN + leftW, null));
+      out.push(blank());
+      out.push(L().add('ink b', r.name).to(MARGIN + 10).add('gray', `${folder} · main`));
+      out.push(L().add('gray', 'at its prompt · up 2h 14m · ttys004'));
+      procedure([['enter', 'Go in'], ['s', 'A shell beside it'], ['x', 'End it — conn asks first']]);
+      section('THE PROJECT');
+      [['Branch', 'main · clean'], ['Commit', `${V.commit} · The site is conn, playable`], ['Tracking', 'origin/main · 3 ahead'], ['Folder', folder]]
+        .forEach(([k, v]) => out.push(L().leader(k, MARGIN + 13, 'faint').add('ink', fit(v, leftW - 15))));
+      return out;
+    }
+    if (r.kind === 'editor') {
+      out.push(line().eyebrow(MARGIN, 'EDITOR', MARGIN + leftW, null));
+      out.push(blank());
+      out.push(L().add('ink b', 'vim notes.md').to(MARGIN + 16).add('gray', folder));
+      out.push(L().add('gray', 'stopped with ctrl-z · its shell has the terminal'));
+      procedure([['enter', 'Go in: the shell brings it to the foreground'], ['x', 'End it — conn asks first']]);
+      section('CAUTION');
+      para('A stopped editor holds a buffer. Ending it is ending vim, and what is unsaved in notes.md goes with it.');
+      return out;
+    }
+    if (r.kind === 'service') {
+      out.push(line().eyebrow(MARGIN, 'SERVICE', MARGIN + leftW, null));
+      out.push(blank());
+      out.push(L().add('ink b', 'postgres').to(MARGIN + 16).add('gray', 'brew services · postgresql@17'));
+      out.push(L().add('gray', 'ACTIVE · :5432 · 2 connections · up since 09:04'));
+      procedure([['enter', 'Follow its log'], ['o', 'Open its port'], ['x', 'Ask brew to stop it']]);
+      return out;
+    }
+    if (r.status === 'fault') {
+      out.push(line().eyebrow(MARGIN, 'RUN', MARGIN + leftW, null));
+      out.push(blank());
+      out.push(L().add('ink b', r.name).to(MARGIN + 16).add('gray', folder));
+      out.push(L().add('gray', 'ended with exit 1 · ran 2 min · its pane holds the output'));
+      procedure([['enter', 'Go in and read it'], ['u', 'Run it again'], ['x', 'Close the pane']]);
+      section('CAUTION');
+      para('The fault word holds still; a wait blinks. A fault is a thing to look at, a wait a thing to answer.');
+      return out;
+    }
+    out.push(line().eyebrow(MARGIN, 'RUN', MARGIN + leftW, null));
+    out.push(blank());
+    out.push(L().add('ink b', r.name).to(MARGIN + 16).add('gray', folder));
+    out.push(L().add('gray', r.port ? `serving ${r.port} · up 3h 02m` : 'running · up 1 min'));
+    procedure(r.port ? [['enter', 'Go in'], ['o', 'Open its port'], ['x', 'End it — conn asks first']] : [['enter', 'Go in'], ['x', 'End it — conn asks first']]);
     return out;
   }
 
   // Two lines on one row: the left cut at the column the right starts.
   function mergeLines(left, right, col) {
     const l = line();
-    for (const [c, t] of left.segs) {
+    for (const seg of left.segs) {
       const room = col - 1 - l.cells;
       if (room <= 0) break;
-      l.add(c, width(t) > room ? [...t].slice(0, room).join('') : t);
+      const t = seg[1];
+      l.add(seg[0], width(t) > room ? [...t].slice(0, room).join('') : t, seg[2]);
     }
     l.to(col);
-    for (const [c, t] of right.segs) l.add(c, t);
+    for (const seg of right.segs) l.add(seg[0], seg[1], seg[2]);
     return l;
   }
 
-  // The contact's pane: Claude Code, the question, and after the beat
-  // the answer and the work going on.
-  function drawClaude(m, w) {
+  // The panes: what the workspace holds with the keys inside. The
+  // contact's is Claude Code; the rest are what each process writes.
+  function drawPane(w) {
+    const r = row(m.shown);
+    if (!r) return [];
     const out = [], L = () => line(2), tw = w - 4;
     const para = (lead, cls, text) => wrap(text, tw - 2).forEach((t, i) => out.push(i === 0 ? L().add(cls, lead).add('', ' ').add('ink', t) : L().to(4).add('ink', t)));
+    const prompt = () => out.push(L().add('acc b', '$').add('', ' ').add('chip', ' '));
     out.push(blank());
-    para('>', 'par', 'the manual says workspace where the code says bay. bring the code to the manual');
-    out.push(blank());
-    para('●', 'run', 'Read bay.go, band.go, keys.go, dress.go');
-    out.push(blank());
-    para('●', 'acc', 'The type is bay in four files, and the held screens under testdata name it. Renaming it is one commit, with the screens held again.');
-    out.push(blank());
-    out.push(L().to(4).add('ink', 'Rename bay to workspace in the code?'));
-    if (!m.answered) {
-      out.push(L().to(4).add('acc', '❯').add('ink', ' 1. Yes'));
-      out.push(L().to(6).add('ink', '2. No, leave the code as it is'));
-    } else {
-      out.push(L().to(4).add('gray', '  1. Yes'));
-      out.push(blank());
-      para('>', 'par', '1');
-      out.push(blank());
-      para('●', 'run', 'Renaming bay to workspace: bay.go → workspace.go, the type and its methods, and the screens under testdata held again.');
-      out.push(blank());
-      out.push(L().add('run spin', '⣾').add('gray', ' Renaming… (esc to interrupt)'));
+    switch (r.kind) {
+      case 'contact':
+        if (r.fresh) {
+          out.push(L().add('acc b', '✻').add('ink', ' Welcome to Claude Code'));
+          out.push(blank());
+          out.push(L().add('gray', `  ${projectOf(r.id) ? '~/projects/w0zro/' + projectOf(r.id).name : ''}`));
+          out.push(blank());
+          out.push(L().add('par', '❯ ').add('chip', ' '));
+          out.push(L().add('faint', '  ? for shortcuts'));
+          break;
+        }
+        para('>', 'par', 'the manual says workspace where the code says bay. bring the code to the manual');
+        out.push(blank());
+        para('●', 'run', 'Read bay.go, band.go, keys.go, dress.go');
+        out.push(blank());
+        para('●', 'acc', 'The type is bay in four files, and the held screens under testdata name it. Renaming it is one commit, with the screens held again.');
+        out.push(blank());
+        out.push(L().to(4).add('ink', QUESTION));
+        if (r.status === 'waiting') {
+          out.push(L().to(4).add(m.option === 2 ? 'gray' : 'acc', m.option === 2 ? '  ' : '❯ ').add('ink', '1. Yes'));
+          out.push(L().to(4).add(m.option === 2 ? 'acc' : 'gray', m.option === 2 ? '❯ ' : '  ').add('ink', '2. No, leave the code as it is'));
+          out.push(blank());
+          out.push(L().add('faint', '  enter to answer · j k to choose · ctrl-space the panel'));
+        } else if (m.answered === 'no') {
+          out.push(L().to(4).add('gray', '  2. No, leave the code as it is'));
+          out.push(blank());
+          para('>', 'par', '2');
+          out.push(blank());
+          para('●', 'run', 'Leaving it. The code says bay and the manual says workspace; I have noted the seam in the README’s tree notes.');
+          out.push(blank());
+          out.push(L().add('par', '❯ ').add('chip', ' '));
+        } else {
+          out.push(L().to(4).add('gray', '  1. Yes'));
+          out.push(blank());
+          para('>', 'par', '1');
+          out.push(blank());
+          if (r.status === 'working') {
+            para('●', 'run', 'Renaming bay to workspace: bay.go → workspace.go, the type and its methods, and the screens under testdata held again.');
+            out.push(blank());
+            out.push(L().add('run spin', '⣾').add('gray', ' Renaming… (esc to interrupt)'));
+          } else {
+            para('●', 'run', 'Renamed bay to workspace in bay.go → workspace.go, band.go, keys.go and dress.go; the screens under testdata held again. go test ./... passes.');
+            out.push(blank());
+            out.push(L().add('par', '❯ ').add('chip', ' '));
+          }
+        }
+        break;
+      case 'shell':
+        out.push(L().add('acc b', '$').add('', ' ').add('ink', 'git status -sb'));
+        out.push(L().add('gray', '## main...origin/main [ahead 3]'));
+        out.push(L().add('acc b', '$').add('', ' ').add('ink', 'go build ./...'));
+        prompt();
+        break;
+      case 'editor':
+        out.push(L().add('ink', 'notes.md'));
+        out.push(blank());
+        ['# conn', '', '- the panel is by project; the rule says what it wants', '- bay → workspace in the code, as the manual says', '- the log counts what you have not seen'].forEach(t => out.push(L().add('ink', t)));
+        for (let i = 0; i < 6; i++) out.push(L().add('faint', '~'));
+        out.push(L().add('gray', '"notes.md" 5L, 162B').to(w - 12).add('gray', '5,1  All'));
+        break;
+      case 'service':
+        ['LOG:  database system is ready to accept connections', 'LOG:  checkpoint starting: time', 'LOG:  checkpoint complete: wrote 12 buffers (0.1%)', 'LOG:  connection received: host=[local]', 'LOG:  connection authorized: user=web database=web_dev'].forEach(t => out.push(L().add('gray', clock() + ' ').add('ink', t)));
+        break;
+      default:
+        if (r.id === 'test') {
+          out.push(L().add('acc b', '$').add('', ' ').add('ink', 'go test ./...'));
+          out.push(L().add('ink', 'ok  \tgithub.com/w0zro/conn/internal/draw\t0.214s'));
+          out.push(L().add('ink', '--- FAIL: TestBand (0.00s)'));
+          out.push(L().add('ink', '    band_test.go:41: the band reads "CONN · LOG 2", want "CONN · LOG 1"'));
+          out.push(L().add('acc', 'FAIL'));
+          out.push(L().add('acc', 'FAIL\tgithub.com/w0zro/conn\t2.118s'));
+          out.push(L().add('gray', '[exit 1]'));
+        } else if (r.id === 'vite') {
+          out.push(L().add('run b', '  VITE v6.0.3').add('gray', '  ready in 212 ms'));
+          out.push(blank());
+          out.push(L().add('ink', '  ➜  Local:   ').add('run', 'http://localhost:5173/'));
+          out.push(L().add('ink', '  ➜  Network: use --host to expose'));
+          out.push(L().add('gray', '  ➜  press h + enter to show help'));
+        } else {
+          out.push(L().add('acc b', '$').add('', ' ').add('ink', 'make run'));
+          out.push(L().add('gray', 'go run ./cmd/worker'));
+          out.push(L().add('ink', `${clock()} worker: listening on queue "jobs"`));
+          out.push(L().add('ink', `${clock()} worker: 0 jobs in flight`));
+        }
     }
     return out;
   }
 
-  // The shell's pane: the install line typed, and what install.sh says.
-  function drawShell(m, w) {
-    const out = [], L = () => line(1), typed = INSTALL.slice(0, Math.min(m.typed, INSTALL.length));
+  // The keys card, as ? shows it: a group a column.
+  const KEYS = [
+    ['MOVING', [['j k', 'a row'], ['gg G', 'first row, last row'], ['tab', 'next waiting'], ['0-9', 'contact 0 to 9'], ['z', 'the whole tree']]],
+    ['THE ROW', [['enter', 'go in'], ['esc', 'back where you were'], ['x', 'end it'], ['s', 'a shell there'], ['S', 'its own client'], ['o', 'open its port'], ['a', 'a new contact'], ['A', 'its sessions'], ['/', 'find in its project’s output'], ['u U', 'bring up, bring up all']]],
+    ['THE STATION', [['p', 'the projects'], ['r', 'recent sessions'], ['l', 'the log'], ['c', 'the console'], [',', 'the settings'], ['?', 'these keys'], ['q', 'detach']]],
+    ['IN A PROCESS', [['ctrl-space', 'the panel'], ['ctrl-space ctrl-space', 'the last process'], ['ctrl-space tab', 'next waiting'], ['ctrl-space 0-9', 'contact 0 to 9'], ['ctrl-space r', 'recent sessions'], ['ctrl-space l', 'the log'], ['ctrl-space /', 'find in the output'], ['ctrl-space ?', 'these keys']]],
+  ];
+  function drawKeys(w) {
+    const out = [], L = () => line(MARGIN), measure = w - 2 * MARGIN;
     out.push(blank());
-    const l = L().add('acc b', '$').add('', ' ').add('ink', typed);
-    if (m.typed <= INSTALL.length) l.add('chip', ' ');
-    out.push(l);
-    if (m.typed > INSTALL.length) {
-      out.push(L().add('gray', `downloading conn v${V.version} for darwin_arm64`));
-      out.push(L().add('gray', `installed conn v${V.version} to ~/.local/bin/conn`));
-      out.push(L().add('gray', 'installed conn.1 to ~/.local/share/man/man1'));
-      out.push(blank());
-      out.push(L().add('acc b', '$').add('', ' ').add('ink', 'conn').add('chip', ' '));
+    out.push(line().eyebrow(MARGIN, 'THE KEYS', MARGIN + measure, null));
+    out.push(blank());
+    const cols2 = measure >= 100 ? 2 : 1, colW = Math.floor(measure / cols2);
+    const groups = KEYS.map(([name, hints]) => { const g = [line().add('par b', name)]; hints.forEach(([k, d]) => g.push(line().add('ink b', k).to(24).add('gray', d))); g.push(blank()); return g; });
+    const stacks = [];
+    for (let i = 0; i < cols2; i++) stacks.push(groups.filter((_, gi) => gi % cols2 === i).flat());
+    const h = Math.max(...stacks.map(s => s.length));
+    for (let i = 0; i < h; i++) {
+      let l = line();
+      stacks.forEach((st, ci) => { const seg = st[i] || blank(); l = mergeLines(l, seg, MARGIN + ci * colW); });
+      out.push(l);
     }
+    out.push(L().add('gray', 'Every key, every word the panel and the console can show: man conn, or ? inside conn.'));
+    out.push(L().add('gray', 'The manual, how conn is worked: ').add('ink link', `${HOST}/manual`, '/manual/'));
+    return out;
+  }
+
+  // The outer shell, with conn detached: everything keeps running.
+  function drawDetached(w) {
+    const out = [], L = () => line(1);
+    out.push(blank());
+    out.push(L().add('acc b', '$').add('', ' ').add('ink', 'conn'));
+    out.push(L().add('gray', '[detached (from session conn)]'));
+    const l = L().add('acc b', '$').add('', ' ').add('ink', m.typedBack || '');
+    l.add('chip', ' ');
+    out.push(l);
     void w;
     return out;
   }
@@ -608,217 +746,311 @@
     const mins = Math.round((Date.now() - arrived) / 60000), h = Math.floor(mins / 60), mi = mins % 60;
     return `${pad2(h)}h ${pad2(mi)}m`;
   }
-  function drawBand(m, scene) {
-    const now = new Date();
+
+  // What to try next: the one move the station suggests, lit on the
+  // bar and said on the band. Each is a step a visitor can take once.
+  function objective() {
+    if (m.view === 'console') return null;
+    if (m.view === 'keys') return { key: 'esc' };
+    if (m.view === 'log') return { key: 'esc' };
+    if (m.confirm) return null;
+    if (m.inside) {
+      const r = row(m.shown);
+      if (r && r.kind === 'contact' && r.status === 'waiting') return { key: 'enter', inside: true };
+      return { key: 'ctrl-space' };
+    }
+    const w = waiting();
+    if (w.length && m.cursor !== w[0].id) return { key: 'tab' };
+    if (w.length && m.cursor === w[0].id) return { key: 'enter' };
+    if (!m.moved) return { key: 'j' };
+    if (m.log > 0) return { key: 'l' };
+    const worker = row('worker');
+    if (worker && worker.status === 'down') return m.cursor === 'worker' ? { key: 'u' } : { key: 'G' };
+    if (!m.done.keys) return { key: '?' };
+    if (!m.done.detached) return { key: 'q' };
+    return null;
+  }
+
+  function drawBand() {
+    const now = new Date(), obj = objective();
     const right = `${pad2(now.getHours())}:${pad2(now.getMinutes())} · T+ ${uptime()} `;
     const l0 = line();
-    if (scene > 0) {
-      if (m.view === 'log' && !m.inside) l0.add('chip', ' LOG ');
-      else { l0.add('ink b', ' CONN '); if (m.log > 0) l0.add('gray', `· LOG ${m.log} `); }
+    if (m.view !== 'console') {
+      if (m.confirm) l0.add('chip', ' CONFIRM ');
+      else if (m.view === 'keys') l0.add('chip', ' MANUAL ');
+      else if (m.view === 'log') l0.add('chip', ' LOG ');
+      else {
+        l0.add('ink b', ' CONN ');
+        if (m.log > 0) l0.add('gray', `· LOG ${m.log} `);
+        if (obj && !obj.inside) l0.add('par', `· TRY ${obj.key} `);
+      }
     }
     l0.to(cols - width(right)).add('gray', right);
     b0.innerHTML = l0.html();
     const ident = `${HOST.toUpperCase()} · conn ${V.version} `;
-    let hints;
-    if (scene === 0) hints = [[touch ? 'tap' : 'any key', 'Continue']];
-    else if (m.inside) hints = [['ctrl-space', 'Panel'], ['ctrl-space tab', 'Next waiting'], ['ctrl-space ctrl-space', 'Last process'], ['ctrl-space ?', 'Help']];
+    let hints, say = '';
+    if (m.view === 'console') hints = [[touch ? 'tap' : 'any key', 'Continue']];
+    else if (m.confirm) { say = m.confirm.prompt; hints = [['y', 'Yes'], ['any other key', 'No']]; }
+    else if (m.view === 'keys') hints = [['j k', 'Move'], ['esc', 'Back']];
     else if (m.view === 'log') hints = [['j k', 'Move'], ['enter', 'Go to it'], ['esc', 'Back']];
+    else if (m.inside) {
+      hints = [['ctrl-space', 'Panel']];
+      if (waiting().length) hints.push(['ctrl-space tab', 'Next waiting']);
+      hints.push(['ctrl-space ctrl-space', 'Last process'], ['ctrl-space ?', 'Help']);
+    } else if (m.landing && one) hints = [['panel', 'The panel'], ['?', 'Help']];
     else {
-      const r = row(m, m.cursor);
-      hints = [['j k', 'Move'], ['enter', r.status === 'down' ? 'Bring it up' : 'Go in']];
-      if (m.projects.some(p => p.rows.some(x => x.status === 'waiting'))) hints.push(['tab', 'Next waiting']);
-      if (r.status === 'down') hints.push(['u', 'Bring it up'], ['U', 'All of them']);
-      else hints.push(['x', 'End it']);
-      if (r.kind === 'contact') hints.push(['A', 'Sessions']);
-      hints.push(['l', 'Log'], ['?', 'Help']);
+      const r = row(m.cursor);
+      hints = [['j k', 'Move']];
+      if (r.status === 'down') hints.push(['enter', 'Bring it up'], ['u', 'Bring it up'], ['U', 'All of them']);
+      else hints.push(['enter', r.status === 'fault' ? 'Read it' : 'Go in']);
+      if (waiting().length) hints.push(['tab', 'Next waiting']);
+      if (r.status !== 'down') hints.push(['x', r.status === 'fault' ? 'Close it' : 'End it']);
+      if (r.kind === 'shell') hints.push(['s', 'A shell']);
+      hints.push(['l', 'Log'], ['?', 'Help'], ['q', 'Detach']);
     }
-    // The keys that fit, from the left; the designation at the right
-    // where there is room for it after them.
-    const barOf = hs => { const l = line().add('', ' '); hs.forEach(([k, does], i) => { if (i) l.add('', '   '); l.add('ink b', k + ' ').add('gray', does.toLowerCase()); }); return l; };
+    const barOf = hs => {
+      const l = line();
+      if (say) l.add('', ' ').add('par', say).add('', ' ');
+      l.add('', ' ');
+      hs.forEach(([k, does], i) => {
+        if (i) l.add('', '   ');
+        const lit = obj && !obj.inside && k === obj.key;
+        l.add((lit ? 'acc b' : 'ink b') + ' key', k + ' ');
+        l.add(lit ? 'par' : 'gray', does.toLowerCase());
+      });
+      return l;
+    };
     while (hints.length > 1 && barOf(hints).cells > cols) hints.pop();
     const l1 = barOf(hints);
     if (!one && l1.cells + width(ident) <= cols) l1.to(cols - width(ident)).add('gray', ident);
     b1.innerHTML = l1.html();
+    // A key on the bar can be pressed with the pointer.
+    b1.querySelectorAll('.key').forEach((el, i) => { el.onclick = () => press(hints[i][0]); });
   }
 
-  // ---- the scenes on the screen ---------------------------------------
+  // ---- drawing the station --------------------------------------------
 
-  let scene = -1, model = base(), beatTimer = 0, typeTimer = 0, bootTimers = [], booted = false, bootStage = 0, consoleLast = 0;
-
-  function clearTimers() {
-    clearTimeout(beatTimer); clearTimeout(typeTimer);
-    bootTimers.forEach(clearTimeout); bootTimers = [];
+  let firstPanel = true;
+  function render() {
+    if (m.view === 'console') return;
+    bandEl.style.display = m.view === 'detached' ? 'none' : '';
+    station.classList.remove('console');
+    station.classList.toggle('detached', m.view === 'detached');
+    if (m.view === 'detached') {
+      station.classList.remove('on-panel', 'on-work');
+      paint(workEl, drawDetached(cols), rows, 0);
+      return;
+    }
+    const showWork = m.inside || m.view === 'keys' || (m.landing && !m.moved);
+    station.classList.toggle('on-panel', one && !showWork);
+    station.classList.toggle('on-work', one && showWork);
+    paint(panelEl, m.view === 'log' ? drawLog(panelW) : drawPanel(panelW), rows, firstPanel ? 28 : 0);
+    firstPanel = false;
+    let work;
+    if (m.view === 'keys') work = drawKeys(workW);
+    else if (m.inside) work = drawPane(workW);
+    else if (m.landing) work = drawLanding(workW);
+    else work = drawPage(workW);
+    paint(workEl, work, rows, 0);
+    wireCopy();
+    drawBand();
   }
+
+  // ---- the keys -------------------------------------------------------
+
+  const flat = () => rowsOf().map(r => r.id);
+  function moveCursor(d) {
+    const ids = flat(), i = ids.indexOf(m.cursor);
+    m.cursor = ids[Math.max(0, Math.min(ids.length - 1, i + d))];
+    m.moved = true; m.landing = false;
+  }
+  function goIn(id) {
+    const r = row(id);
+    if (!r) return;
+    m.cursor = id; m.landing = false; m.moved = true;
+    if (r.status === 'down') bringUp(r);
+    m.inside = true; m.shown = id; m.last = id;
+  }
+  function bringUp(r) {
+    r.status = 'working'; r.word = '';
+    if (r.id === 'worker') later(1200, () => { r.status = 'serving'; r.port = ':8080'; });
+  }
+  function back() { m.inside = false; m.shown = null; }
+  function endRow(r) {
+    const p = projectOf(r.id);
+    if (r.declared) { r.status = 'down'; r.word = 'DOWN'; r.port = ''; logLine(r, 'DOWN', 'ended by hand'); return; }
+    if (r.kind === 'service') { r.status = 'down'; r.word = 'DOWN'; r.port = ''; logLine(r, 'DOWN', 'brew services stop'); return; }
+    if (r.status === 'fault') { p.rows.splice(p.rows.indexOf(r), 1); }
+    else { logLine(r, 'GONE', 'ended by hand'); p.rows.splice(p.rows.indexOf(r), 1); }
+    if (m.cursor === r.id) m.cursor = flat()[0];
+  }
+  function answer(n) {
+    const r = row('claude');
+    if (!r || r.status !== 'waiting') return;
+    m.answered = n === 2 ? 'no' : true;
+    r.status = n === 2 ? 'idle' : 'working'; r.age = ''; r.waitedAt = 0;
+    logLine(r, 'IDLE', 'answered · waited ' + (ageOf({ waitedAt: r.waitedAt || Date.now() }) || 'under a minute'));
+    if (n !== 2) later(7000, () => { if (r.status === 'working') { r.status = 'idle'; logLine(r, 'IDLE', 'turn over · took 7s'); } });
+  }
+  function detach() {
+    m.view = 'detached'; m.inside = false; m.shown = null; m.typedBack = ''; m.done.detached = true;
+    later(2200, function type() { m.typedBack = 'conn'.slice(0, (m.typedBack || '').length + 1); if (m.typedBack.length < 4) later(140, type); else later(500, () => { m.view = 'processes'; station.classList.remove('detached'); }); });
+  }
+  function newContact() {
+    const p = projectOf(m.cursor), digit = String(rowsOf().filter(r => r.kind === 'contact').length);
+    const r = { id: 'c' + digit, kind: 'contact', digit, name: 'claude', status: 'working', fresh: true };
+    p.rows.unshift(r);
+    goIn(r.id);
+  }
+  function newShell() {
+    const p = projectOf(m.cursor), r = { id: 'sh' + Date.now(), kind: 'shell', name: 'zsh', status: 'idle' };
+    const at = p.rows.findIndex(x => x.kind !== 'contact' && x.kind !== 'shell');
+    p.rows.splice(at < 0 ? p.rows.length : at, 0, r);
+    goIn(r.id);
+  }
+
+  // A key, by name, as the bar writes it; the keyboard and the pointer
+  // both come through here.
+  function press(key) {
+    if (m.view === 'console') { if (!booted) finishBoot(); else leaveConsole(); return; }
+    if (m.view === 'detached') return;
+    if (m.confirm) {
+      if (key === 'y') endRow(row(m.confirm.id));
+      m.confirm = null; render(); return;
+    }
+    if (key === 'panel') { m.landing = false; m.moved = true; render(); return; }
+    if (m.view === 'keys') { if (key === 'esc' || key === '?') m.view = m.inside ? 'processes' : 'processes'; render(); return; }
+    if (m.view === 'log') {
+      const n = logEntries().length;
+      if (key === 'j') m.logCursor = Math.min(n - 1, m.logCursor + 1);
+      else if (key === 'k') m.logCursor = Math.max(0, m.logCursor - 1);
+      else if (key === 'esc' || key === 'l') m.view = 'processes';
+      else if (key === 'enter') { const e = logEntries()[m.logCursor]; const r = rowsOf().find(x => x.name === e.n); m.view = 'processes'; if (r) goIn(r.id); }
+      render(); return;
+    }
+    if (m.inside) {
+      const r = row(m.shown);
+      // The panel key brings the keys back at once; what is pressed
+      // after it is the panel's: tab the next waiting, ctrl-space again
+      // the last process, l the log, ? the keys.
+      if (key === 'ctrl-space' || key === 'esc') { m.left = m.shown; back(); render(); return; }
+      if (r && r.kind === 'contact' && r.status === 'waiting') {
+        if (key === 'j') m.option = 2; else if (key === 'k') m.option = 1;
+        else if (key === '1') answer(1); else if (key === '2') answer(2);
+        else if (key === 'enter') answer(m.option === 2 ? 2 : 1);
+      }
+      render(); return;
+    }
+    const r = row(m.cursor);
+    switch (key) {
+      case 'j': moveCursor(1); break;
+      case 'k': moveCursor(-1); break;
+      case 'g': m.cursor = flat()[0]; m.moved = true; m.landing = false; break;
+      case 'G': m.cursor = flat()[flat().length - 1]; m.moved = true; m.landing = false; break;
+      case 'tab': { const w = waiting(); if (w.length) { m.cursor = w[0].id; m.moved = true; m.landing = false; } break; }
+      case 'enter': goIn(m.cursor); break;
+      case 'esc': case 'ctrl-space': if (m.left && row(m.left)) goIn(m.left); break;
+      case 'x': if (r.status !== 'down') m.confirm = { id: r.id, prompt: `${r.status === 'fault' ? 'Close' : 'End'} ${r.name}?` }; break;
+      case 'u': if (r.status === 'down') bringUp(r); else if (r.status === 'fault') { r.status = 'working'; r.word = ''; later(2500, () => { r.status = 'fault'; r.word = 'EXIT 1'; logLine(r, 'EXIT 1', 'ran again · FAIL: TestBand'); }); } break;
+      case 'U': rowsOf().filter(x => x.status === 'down').forEach(bringUp); break;
+      case 's': newShell(); break;
+      case 'a': newContact(); break;
+      case 'l': m.view = 'log'; m.logCursor = 0; m.log = 0; break;
+      case '?': m.view = 'keys'; m.done.keys = true; break;
+      case 'c': showConsole(99); m.view = 'console'; return;
+      case 'q': detach(); break;
+      case 'o': if (r.port) window.open(`http://localhost${r.port}/`, '_blank'); break;
+      default: if (/^[0-9]$/.test(key)) { const c = rowsOf().find(x => x.kind === 'contact' && x.digit === key); if (c) { m.cursor = c.id; m.moved = true; m.landing = false; } }
+    }
+    render();
+  }
+
+  // The keyboard, as conn reads it.
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.altKey) return;
+    let key = null;
+    if (e.ctrlKey && (e.key === ' ' || e.code === 'Space')) key = 'ctrl-space';
+    else if (e.ctrlKey) return;
+    else if (e.key === 'Enter') key = 'enter';
+    else if (e.key === 'Escape') key = 'esc';
+    else if (e.key === 'Tab') key = 'tab';
+    else if (e.key === 'ArrowDown') key = 'j';
+    else if (e.key === 'ArrowUp') key = 'k';
+    else if (e.key.length === 1) key = e.key;
+    if (key === null) return;
+    if (m.view === 'console') { press(key); e.preventDefault(); return; }
+    if (key === ' ' && !m.inside) return;
+    e.preventDefault();
+    press(key);
+  });
+
+  // The pointer, as conn's: a click on a row is the cursor to that row
+  // and goes in; a click on the panel's air brings the keys back.
+  panelEl.addEventListener('click', e => {
+    const el = e.target.closest('.row');
+    if (m.view !== 'processes') { if (m.view === 'log') { const i = [...panelEl.querySelectorAll('.row')].indexOf(el); const entry = Math.floor((i - 5) / 2); if (entry >= 0 && entry < logEntries().length) { m.logCursor = entry; press('enter'); } } return; }
+    const idx = el ? [...panelEl.querySelectorAll('.row')].indexOf(el) : -1;
+    const ids = [];
+    for (const p of m.projects) { ids.push(null, null); for (const r of p.rows) ids.push(r.id); }
+    const id = idx >= 0 ? ids[idx] : null;
+    if (id) goIn(id); else if (m.inside) back();
+    render();
+  });
+  station.addEventListener('click', e => {
+    if (m.view === 'console') { if (!booted) finishBoot(); else leaveConsole(); return; }
+    if (e.target.closest('.band') && m.inside && one) { back(); render(); }
+  });
+
+  function wireCopy() {
+    for (const b of document.querySelectorAll('.copy')) {
+      b.onclick = async ev => {
+        ev.stopPropagation();
+        const was = b.textContent;
+        try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = '[copied]'; b.classList.add('done'); setTimeout(() => { b.textContent = was; b.classList.remove('done'); }, 1400); }
+        catch (err) { b.textContent = '[select it]'; }
+      };
+    }
+  }
+
+  // ---- the console, and leaving it ------------------------------------
+
+  let booted = false, bootTimers = [], consoleLast = 0;
 
   function showConsole(stage) {
     const c = drawConsole(stage);
     consoleLast = c.lastStage;
-    if (c.compact !== guideCompact) { guideCompact = c.compact; drawGuide(0); }
     station.classList.add('console');
-    station.classList.remove('on-panel', 'on-work');
+    station.classList.remove('on-panel', 'on-work', 'detached');
+    bandEl.style.display = '';
     paint(workEl, c.lines, rows, 0);
     if (c.lines.some(l => (Array.isArray(l) ? l[0] : l).segs.some(([cls]) => cls === 'wmtext'))) workEl.insertAdjacentHTML('beforeend', wordmarkSVG(MARGIN, 1));
-    drawBand(model, 0);
-  }
-
-  function showScene(n, beaten, animate) {
-    model = stateAt(n, beaten);
-    station.classList.remove('console');
-    const panelScene = SCENES[n].pane !== 'work';
-    station.classList.toggle('on-panel', one && panelScene);
-    station.classList.toggle('on-work', one && !panelScene);
-    const step = animate ? 28 : 0;
-    paint(panelEl, model.view === 'log' ? drawLog(model, panelW) : drawPanel(model, panelW), rows, step);
-    let work;
-    if (model.inside && model.shown === 'claude') work = drawClaude(model, workW);
-    else if (model.inside && model.shown === 'zsh1') work = drawShell(model, workW);
-    else work = drawPage(model, workW);
-    paint(workEl, work, rows, animate ? 14 : 0);
-    drawBand(model, n);
-  }
-
-  const shortLabel = i => i === 0 ? 'CONSOLE' : SCENES[i].label.replace(' · ', ' ');
-  const CLAIM = 'A console for the processes working your projects.';
-
-  function frameFor(n) { drawGuide(n); }
-
-  // The guide: a surface over the station. The demonstration's steps,
-  // the one on screen lit, how far along, the scene's line and what
-  // comes next; the links; and on the first and last scenes the
-  // install line. On a phone it docks across the top and says the
-  // step alone.
-  let guideCompact = false; // the console has no room beside it for the steps
-  function drawGuide(n) {
-    const last = SCENES.length - 1, s = SCENES[n];
-    guideEl.classList.toggle('compact', n === 0 && guideCompact && !one);
-    guideEl.classList.toggle('docked', one);
-    const nextWord = n < last
-      ? `<b>${n === 0 && !touch ? 'any key' : touch ? 'scroll' : 'j'}</b>${n === 0 && !touch ? ', or scroll' : touch ? '' : ', or scroll'} <span class="arrow">\u2193</span> ${esc(shortLabel(n + 1))}`
-      : `<b>g</b> <span class="arrow">\u2191</span> the console`;
-    const text = n === 0 ? 'The console comes up against this browser: its screen, its font, its clock, this site. Then a session, scene by scene.' : s.caption;
-    const titled = s.title, key = s.key;
-    const cta = (n === 0 || n === last) && !one
-      ? `<div class="cta"><span class="prompt">$</span><code>${esc(INSTALL)}</code><button class="copy" type="button" data-copy="${esc(INSTALL)}">COPY</button></div>` : '';
-    guideEl.innerHTML = `
-      <div class="body">
-      <div class="head"><span class="title">DEMONSTRATION</span><span class="count">${pad2(n)} / ${pad2(last)}</span></div>
-      <h2>${esc(titled)}${key ? `<small>${esc(key)}</small>` : ''}</h2>
-      <p class="line">${esc(text)}</p>
-      <div class="next">${nextWord}</div>
-      ${cta}
-      <div class="foot"><span class="needs">macOS \u00b7 Linux \u00b7 tmux</span><nav class="links"><a href="/manual/">MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB \u2197</a></nav></div>
-      </div>`;
-    wireCopy();
-    const pad = one ? (guideEl.offsetHeight + 14) + 'px' : '';
-    panelEl.style.paddingTop = pad; workEl.style.paddingTop = pad;
-    progressEl.style.width = (100 * n / last) + '%';
-    drawRail(n);
-  }
-
-  // The rail: a number a scene, the one on screen under the marker.
-  function drawRail(n) {
-    if (!railEl.querySelector('a')) {
-      railEl.insertAdjacentHTML('beforeend', SCENES.map((_, i) => `<a href="#s${i}" data-scene="${i}">${pad2(i)}</a>`).join(''));
-      for (const a of railEl.querySelectorAll('a')) a.onclick = e => { e.preventDefault(); scrollTo(Number(a.dataset.scene)); };
-    }
-    railEl.querySelectorAll('a').forEach((a, i) => { a.classList.toggle('on', i === n); a.classList.toggle('done', i < n); });
-    const step = parseFloat(getComputedStyle(railEl).getPropertyValue('--step')) || 26;
-    railEl.querySelector('.marker').style.top = (5 + n * step) + 'px';
-  }
-
-  function goTo(n, animate = true) {
-    n = Math.max(0, Math.min(SCENES.length - 1, n));
-    if (n === scene) return;
-    clearTimers();
-    scene = n;
-    frameFor(n);
-    if (n === 0) {
-      if (booted) showConsole(consoleLast + 1);
-      else boot();
-      return;
-    }
-    booted = true;
-    showScene(n, false, animate);
-    const s = SCENES[n];
-    if (s.beat) {
-      if (s.id === 'install') {
-        // The install line is typed, a character at a time.
-        const type = () => {
-          model.typed++;
-          paint(workEl, drawShell(model, workW), rows, 0);
-          if (model.typed <= INSTALL.length) typeTimer = setTimeout(type, model.typed === INSTALL.length + 1 ? 400 : 28 + Math.random() * 40);
-        };
-        typeTimer = setTimeout(type, reduced ? 0 : 700);
-        if (reduced) { model.typed = INSTALL.length + 1; paint(workEl, drawShell(model, workW), rows, 0); }
-      } else {
-        beatTimer = setTimeout(() => showScene(n, true, false), reduced ? 0 : (s.id === 'declared' ? 3200 : 2600));
-      }
-    }
+    m.view = 'console';
+    drawBand();
   }
 
   // The boot: the header at once, then the readout, then each check on
   // its turn, then the verdict. Any key, a tap or a scroll ends it.
   function boot() {
-    bootStage = 0;
     showConsole(0);
     if (reduced) { booted = true; showConsole(99); return; }
     const c = drawConsole(0);
     if (c.small) { booted = true; return; }
     let t = 500;
-    const stages = [];
-    stages.push([t, 1]); t += 420;
+    const stages = [[t, 1]]; t += 420;
     for (let i = 0; i < c.lastStage - 2; i++) { stages.push([t, 2 + i]); t += 170; }
     stages.push([t + 250, c.lastStage]);
-    for (const [at, st] of stages) bootTimers.push(setTimeout(() => { bootStage = st; showConsole(st); if (st === c.lastStage) booted = true; }, at));
+    for (const [at, st] of stages) bootTimers.push(setTimeout(() => { showConsole(st); if (st === c.lastStage) booted = true; }, at));
   }
-
   function finishBoot() {
     if (booted) return;
-    clearTimers();
+    bootTimers.forEach(clearTimeout); bootTimers = [];
     booted = true;
     showConsole(99);
   }
-
-  // ---- the keys, the scroll, the clock --------------------------------
-
-  const vh = () => innerHeight;
-  const sceneOfScroll = () => Math.round(scrollY / vh());
-  const scrollTo = n => window.scrollTo({ top: n * vh(), behavior: reduced ? 'auto' : 'smooth' });
-
-  addEventListener('scroll', () => {
-    const n = sceneOfScroll();
-    if (n !== scene) { if (n > 0) finishBoot(); goTo(n); }
-  }, { passive: true });
-
-  addEventListener('keydown', e => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const k = e.key;
-    if (scene === 0) {
-      if (!booted) { finishBoot(); e.preventDefault(); return; }
-      if (k === 'k' || k === 'ArrowUp' || k === 'PageUp') return;
-      scrollTo(1); e.preventDefault(); return;
-    }
-    const next = ['j', 'ArrowDown', ' ', 'Tab', 'Enter', 'PageDown', 'l', 'u'];
-    const prev = ['k', 'ArrowUp', 'PageUp', 'Escape'];
-    if (next.includes(k)) { scrollTo(scene + 1); e.preventDefault(); }
-    else if (prev.includes(k)) { scrollTo(scene - 1); e.preventDefault(); }
-    else if (k === 'g') { scrollTo(0); e.preventDefault(); }
-    else if (k === 'G') { scrollTo(SCENES.length - 1); e.preventDefault(); }
-    else if (k === '?') { location.href = '/manual/'; }
-  });
-
-  station.addEventListener('click', () => {
-    if (scene === 0) { if (!booted) finishBoot(); else scrollTo(1); }
-  });
-
-  function wireCopy() {
-    for (const b of document.querySelectorAll('.copy')) {
-      b.onclick = async () => {
-        const was = b.textContent;
-        try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'COPIED'; b.classList.add('done'); setTimeout(() => { b.textContent = was; b.classList.remove('done'); }, 1400); }
-        catch (e) { b.textContent = 'SELECT IT'; }
-      };
-    }
+  function leaveConsole() {
+    if (!m.since || m.view === 'console' && !m.started) { m.since = Date.now(); m.started = true; }
+    m.view = 'processes';
+    render();
   }
 
   // The spinner turns on its own cadence, in every row at work.
@@ -827,28 +1059,30 @@
     let f = 0;
     setInterval(() => { f = (f + 1) % FRAMES.length; for (const s of document.querySelectorAll('.spin')) s.textContent = FRAMES[f]; }, 110);
   }
-  // The band's clock, to the minute, and the mission clock with it.
-  setInterval(() => drawBand(model, scene), 15000);
+  // The machine's clock, and the band's.
+  setInterval(() => { if (m.started && m.view !== 'console') tick(); }, 250);
+  setInterval(() => { if (m.view !== 'detached') drawBand(); }, 15000);
 
-  // A scene can be linked: #s3 opens on the third, the console done.
-  const still = new URLSearchParams(location.search).has('still'); // a linked scene held for a screenshot
-  const linked = () => { const m = location.hash.match(/^#s(\d)$/); return m ? Math.min(Number(m[1]), SCENES.length - 1) : -1; };
-
+  // For a look at a later moment: #t=9 opens on the panel with the
+  // clock nine seconds in, and #t=9&k=tab,enter with those keys pressed.
   function layout() {
     measureGrid();
-    scrollEl.innerHTML = SCENES.map(() => '<section></section>').join('');
-    let n = scene < 0 ? sceneOfScroll() : scene;
-    if (scene < 0 && linked() >= 0) { n = linked(); booted = true; if (!still) window.scrollTo({ top: n * vh(), behavior: 'auto' }); }
-    scene = -1;
-    if (n === 0) { if (booted) { scene = 0; frameFor(0); showConsole(99); } else goTo(0); }
-    else { booted = true; goTo(n, false); }
+    const at = location.hash.match(/^#t=(\d+)(?:&k=([^&]*))?$/);
+    if (at) {
+      booted = true;
+      m.since = Date.now() - Number(at[1]) * 1000; m.started = true; m.view = 'processes';
+      for (const [when, id, fn] of TIMELINE) if (Number(at[1]) * 1000 >= when && !m.done[id]) { m.done[id] = true; fn(); }
+      render();
+      if (at[2] && !m.replayed) { m.replayed = true; for (const k of at[2].split(',')) press(k); }
+      return;
+    }
+    if (m.view === 'console') { if (booted) showConsole(99); else boot(); }
+    else render();
   }
-
   let resizeTimer = 0;
   addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(layout, 120); });
-
-  // The font first, so the grid is measured in it; the page draws in
-  // the fallback before it arrives, and again when it does.
+  // The station from the console of the browser: conn.press('tab').
+  window.conn = { press, get model() { return m; } };
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
   layout();
 })();

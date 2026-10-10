@@ -1,118 +1,196 @@
-/* conn.w0zro.com is conn: the window fills the screen and the console
-   comes up in it, then the panel, over a machine that runs in the page
-   and is worked with conn's own keys. Everything in the window is
-   drawn by site.js on the terminal's grid, in JetBrains Mono with the
-   ligatures off the way ghostty has them off, so the marks, the spinner
-   and the rules render as themselves. The colors are the conn theme's
-   dark ground, by role, from internal/theme/themes.go; nothing is a
-   color of the page's own. */
+/* conn.w0zro.com: the gathering. A field of small terminal windows,
+   more than anyone can watch, files itself into conn's panel as the
+   page is scrolled, under the projects they work, with a word a
+   project where something waits; one opens as a pane; then the
+   install. Five lines of type over it, in conn's own face and inks:
+   the conn theme's dark ground, by role, from
+   internal/theme/themes.go. */
 
 :root {
-  --ground: #15130F;      /* the pane's ground */
-  --surface: #1D1A15;     /* one step off it: the panel's ground, the key bar's */
-  --border: #2A2620;      /* a pane's edge, a rule, the band behind the status line */
-  --chosen: #2A2620;      /* the row under the cursor */
-  --ink: #E6DFD0;         /* ordinary text */
-  --parchment: #BFB39A;   /* the second ink: a title, what conn says */
-  --gray: #8B8272;        /* the second rank: a label, a word at the right */
-  --faint: #5C564A;       /* the quietest: a leader, a mark at rest, what is over */
-  --accent: #E85D2F;      /* you, here: the cursor, a stamp, the wordmark */
-  --running: #93C98B;     /* a process doing something */
+  --ground: #15130F;
+  --surface: #1D1A15;
+  --border: #2A2620;
+  --chosen: #2A2620;
+  --ink: #E6DFD0;
+  --parchment: #BFB39A;
+  --gray: #8B8272;
+  --faint: #5C564A;
+  --accent: #E85D2F;
+  --running: #93C98B;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --cell-w: 8.4px;        /* measured by site.js once the font is in */
-  --cell-h: 20px;
-  --fs: 14px;
-}
-@media (max-width: 720px) {
-  :root { --fs: 12px; --cell-h: 17px; }
+  --row: 20px;
 }
 
-html {
-  background: var(--ground);
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-  overflow: hidden;
-}
+html { background: var(--ground); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0;
   background: var(--ground);
   color: var(--ink);
-  font: 400 var(--fs)/var(--cell-h) var(--mono);
+  font: 400 13px/1.5 var(--mono);
   font-variant-ligatures: none;
   font-feature-settings: 'liga' 0, 'calt' 0;
   -webkit-font-smoothing: antialiased;
-  overscroll-behavior: none;
 }
 a { color: inherit; text-decoration: none; }
 pre { margin: 0; font: inherit; white-space: pre; }
 ::selection { background: var(--border); color: var(--ink); }
 
-/* The window. */
-.station {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+/* The head. */
+.nav {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 5;
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 22px 28px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.2em;
+  color: var(--parchment);
 }
-.screen { flex: 1; display: flex; min-height: 0; overflow: hidden; }
-.panel {
-  flex: none;
+.nav .mark { color: var(--ink); }
+.nav .links { display: flex; gap: 24px; }
+.nav .links a:hover { color: var(--ink); }
+.nav .links .accent { color: var(--accent); }
+
+/* The stage, fixed under the scroll. */
+.stage { position: fixed; inset: 0; overflow: hidden; z-index: 1; }
+.field { position: absolute; inset: 0; }
+
+/* A window: a small terminal, a process in it. It becomes a row of the
+   panel: the body folds away, the head is the row. */
+.win {
+  position: absolute; left: 0; top: 0;
+  box-sizing: border-box;
   background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   overflow: hidden;
-  cursor: default;
+  will-change: transform, width, height;
+  box-shadow: 0 14px 40px -14px rgba(0, 0, 0, 0.9);
 }
-.work { flex: 1; overflow: hidden; position: relative; }
-.station.one .panel { flex: 1; }
-.station.one.on-work .panel, .station.one.on-panel .work { display: none; }
-.station.console .panel, .station.detached .panel { display: none; }
-.band { flex: none; }
-.band .b0 { background: var(--border); color: var(--gray); }
-.band .b1 { background: var(--surface); color: var(--gray); }
-.band .key { cursor: pointer; }
-.band .key:hover { color: var(--accent); }
+.win .drift { position: absolute; inset: 0; }
+.win .head {
+  position: absolute; left: 0; right: 0; top: 0;
+  height: var(--row); line-height: var(--row);
+  display: flex; align-items: center;
+  padding: 0 10px 0 0;
+  white-space: nowrap;
+}
+.win .head .cur { width: 10px; flex: none; color: var(--accent); }
+.win .head .spin { width: 10px; flex: none; color: var(--running); }
+.win .head .mark { width: 24px; flex: none; color: var(--faint); padding-left: 2px; }
+.win .head .digit { width: 16px; flex: none; color: var(--ink); }
+.win .head .name { flex: 1; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.win .head .word { flex: none; color: var(--gray); margin-left: 12px; opacity: 0; transition: opacity 300ms; }
+.win .head .word.stamp { background: var(--accent); color: var(--ground); font-weight: 700; padding: 0 6px; }
+.win .head .word.blink { animation: blink 1s steps(1) infinite; }
+.win.waiting .head .mark { color: var(--accent); font-weight: 700; }
+.win.waiting .head .name { font-weight: 700; }
+.win.working .head .mark, .win.serving .head .mark { color: var(--running); }
+.win.fault .head .mark, .win.stopped .head .mark { color: var(--accent); }
+.win.down .head .name { color: var(--faint); text-decoration: line-through; }
+.win .body {
+  position: absolute; left: 10px; right: 10px; top: var(--row);
+  font-size: 11px; line-height: 16px;
+  color: var(--parchment);
+  overflow: hidden;
+}
+.win .body .g { color: var(--gray); }
+.win .body .a { color: var(--accent); }
+.win .body .r { color: var(--running); }
+.win .body .f { color: var(--faint); }
+.win .body .k { color: var(--ink); }
+.win .body .cursor { display: inline-block; width: 7px; height: 13px; background: var(--accent); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+.win .ask {
+  position: absolute; right: 8px; top: 2px;
+  width: 16px; height: 16px; line-height: 16px; text-align: center;
+  border-radius: 8px; background: var(--accent); color: var(--ground);
+  font-weight: 700; font-size: 11px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+@keyframes blink { 50% { opacity: 0; } }
+.win.row { border-color: transparent; border-radius: 0; box-shadow: none; background: transparent; }
+.win.row.chosen { background: var(--chosen); }
 
-/* A row of cells. The row under the cursor is on the raised ground
-   from edge to edge. */
-.row { display: block; height: var(--cell-h); }
-.row.chosen { background: var(--chosen); color: var(--ink); }
-.row.center { text-align: center; }
-.panel .row:hover { background: rgba(230, 223, 208, 0.03); }
+/* The panel they gather into: its ground, and an eyebrow a project. */
+.panelbg {
+  position: absolute; left: 0; top: 0;
+  background: var(--surface);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.eyebrow {
+  position: absolute; left: 0; top: 0;
+  height: var(--row); line-height: var(--row);
+  display: flex; align-items: center; white-space: nowrap;
+  opacity: 0;
+}
+.eyebrow .pname { color: var(--parchment); font-weight: 700; padding-left: 24px; margin-right: 8px; }
+.eyebrow .rule { flex: 1; border-top: 1px solid var(--faint); opacity: 0.6; }
+.eyebrow .tail { margin-left: 8px; color: var(--gray); opacity: 0; transition: opacity 300ms; }
+.eyebrow .tail.stamp { background: var(--accent); color: var(--ground); font-weight: 700; padding: 0 6px; }
+.eyebrow .tail.blink { animation: blink 1s steps(1) infinite; }
 
-/* The inks, by role, as the canvas names them. */
-.ink { color: var(--ink); }
-.b { font-weight: 700; }
-.par { color: var(--parchment); }
-.gray { color: var(--gray); }
-.faint { color: var(--faint); }
-.bord { color: var(--border); }
-.acc { color: var(--accent); }
-.run { color: var(--running); }
-.struck { text-decoration: line-through; color: var(--faint); }
-.chip { background: var(--accent); color: var(--ground); font-weight: 700; }
-.blink { animation: blink 1s steps(1) infinite; }
-@keyframes blink { 50% { background: transparent; color: transparent; } }
-.chosen .bord { color: var(--faint); }
-.link { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
-.link:hover { color: var(--accent); }
+/* The pane one row opens as. */
+.pane {
+  position: absolute; left: 0; top: 0;
+  opacity: 0;
+  font-size: 13px; line-height: var(--row);
+  color: var(--ink);
+  will-change: transform, opacity;
+}
+.pane .g { color: var(--gray); } .pane .a { color: var(--accent); } .pane .r { color: var(--running); } .pane .p { color: var(--parchment); }
+.pane .band { position: absolute; left: 0; right: 0; bottom: 0; height: var(--row); background: var(--border); color: var(--gray); padding: 0 8px; }
+.pane .band b { color: var(--ink); }
 
-/* The wordmark, drawn over its own transparent text. */
-.wmtext { color: transparent; }
-.wm { position: absolute; color: var(--accent); pointer-events: none; }
+/* The line of type. */
+.captions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; pointer-events: none; padding: 0 28px 48px; }
+.caption {
+  position: absolute; left: 28px; right: 28px; bottom: 48px; margin: 0;
+  max-width: 14em;
+  font-size: clamp(26px, 4vw, 54px); line-height: 1.12; font-weight: 700; letter-spacing: -0.02em;
+  color: var(--ink);
+  text-shadow: 0 2px 30px rgba(21, 19, 15, 0.9), 0 0 60px rgba(21, 19, 15, 0.9);
+  opacity: 0; transform: translateY(12px);
+  transition: opacity 320ms ease, transform 320ms ease;
+}
+.caption.on { opacity: 1; transform: none; }
+.caption b { color: var(--accent); }
 
-/* A row draws in on its turn: the terminal writes it, it does not fade. */
-.row.in { animation: in 1ms steps(1) both; }
-@keyframes in { from { visibility: hidden; } to { visibility: visible; } }
-
-/* A [copy] beside a command. */
-.copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; }
+/* The scroll, and the end of it. */
+.scroll { position: relative; z-index: 2; pointer-events: none; }
+.scroll section { height: 100vh; height: 100dvh; }
+.scroll .end { pointer-events: auto; display: flex; align-items: center; justify-content: center; padding: 0 28px; box-sizing: border-box; }
+.install { max-width: 760px; width: 100%; }
+.install .claim { margin: 0 0 28px; font-size: clamp(22px, 2.6vw, 34px); line-height: 1.2; font-weight: 700; letter-spacing: -0.015em; color: var(--ink); }
+.cmd {
+  display: flex; align-items: baseline; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 16px 20px; font-size: 15px; color: var(--ink); overflow-x: auto;
+}
+.cmd .prompt { color: var(--accent); font-weight: 700; }
+.cmd code { flex: 1; font: inherit; white-space: nowrap; }
+.copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
 .copy:hover { color: var(--ink); }
 .copy.done { color: var(--accent); }
+.install .needs { margin: 12px 0 36px; color: var(--gray); }
+.docs { margin: 0; display: grid; gap: 8px; }
+.docs div { display: flex; gap: 16px; }
+.docs dt { flex: none; width: 170px; color: var(--faint); }
+.docs dd { margin: 0; color: var(--parchment); }
+.docs a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.docs a:hover { color: var(--accent); }
 
-.noscript { max-width: 720px; margin: 48px auto; padding: 0 24px; color: var(--parchment); }
-.noscript h1 { color: var(--ink); }
+.noscript { max-width: 720px; margin: 48px auto; padding: 0 24px; color: var(--parchment); position: relative; z-index: 6; }
 
+@media (max-width: 720px) {
+  :root { --row: 18px; }
+  .nav { padding: 16px 18px; }
+  .nav .links a:not(.accent) { display: none; }
+  .caption { left: 18px; right: 18px; bottom: 36px; max-width: none; }
+  .scroll .end { padding: 0 18px; }
+  .cmd { flex-wrap: wrap; }
+  .cmd code { white-space: normal; word-break: break-all; }
+  .docs dt { width: 110px; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .blink { animation: none; }
-  .row.in { animation: none; }
+  .win .ask, .win .head .word.blink, .eyebrow .tail.blink, .win .body .cursor { animation: none; }
+  .caption { transition: none; }
 }

@@ -28,38 +28,49 @@
 </head>
 <body>
 
-<!-- The station fills the window: the panel and the workspace, and the
-     band across the foot. site.js draws it the way conn draws it, rows
-     of cells on the terminal's grid: the console first, then the panel
-     over a machine that runs in this page, worked with conn's keys. -->
-<div id="station" class="station" aria-label="conn">
-  <div class="screen">
-    <pre class="panel" id="panel"></pre>
-    <pre class="work" id="work"></pre>
-  </div>
-  <div class="band" id="band">
-    <pre class="b0" id="b0"></pre>
-    <pre class="b1" id="b1"></pre>
-  </div>
+<nav class="nav" aria-label="site">
+  <a class="mark" href="/">CONN</a>
+  <span class="links"><a href="/manual/">MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN CONN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
+</nav>
+
+<!-- The stage: the windows, the panel they gather into, the pane one
+     of them opens as, and the line of type over it all. site.js lays
+     every piece out for the scroll's position. -->
+<div id="stage" class="stage" aria-hidden="true">
+  <div id="panelbg" class="panelbg"></div>
+  <div id="field" class="field"></div>
+  <div id="pane" class="pane"></div>
+</div>
+
+<div class="captions" aria-live="polite">
+  <p class="caption" data-at="0">You are running more than you can watch.</p>
+  <p class="caption" data-at="1">conn files every process under the project it works.</p>
+  <p class="caption" data-at="2">And says what each project wants of you.</p>
+  <p class="caption" data-at="3"><b>tab</b>, and you are there.</p>
+  <p class="caption" data-at="4"><b>q</b>. Everything keeps running.</p>
+</div>
+
+<!-- The scroll: a screen a beat. -->
+<div class="scroll" id="scroll">
+  <section></section><section></section><section></section><section></section><section></section>
+  <section class="end" id="end">
+    <div class="install">
+      <p class="claim">A console for the processes working your projects.</p>
+      <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
+      <p class="needs">macOS and Linux. Needs tmux, and lsof on macOS. One Go binary, MIT.</p>
+      <dl class="docs">
+        <div><dt>Operating manual</dt><dd><a href="/manual/">conn.w0zro.com/manual</a></dd></div>
+        <div><dt>Reference</dt><dd><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">man conn</a>, built in: ? inside conn</dd></div>
+        <div><dt>Source</dt><dd><a href="https://github.com/w0zro/conn">github.com/w0zro/conn</a></dd></div>
+      </dl>
+    </div>
+  </section>
 </div>
 
 <noscript>
 <div class="noscript">
 <h1>conn</h1>
 <p>A console for the processes working your projects. Every process on one machine under the project it works; what each project wants of you; the one you choose, in front of you. macOS and Linux, on tmux.</p>
-<pre>
-   conn ────────────────────────  WAITING
-▸  ☿ 0 claude                       9 MIN
-   ❯   zsh
- ⣾ ○   go test ./...
-
-   web ─────────────────────────  STOPPED
-   ❯   zsh
-   ▯   vim                       STOPPED
-   ◉   postgres                    :5432
-   ○   node vite                   :5173
-   ○   worker                       DOWN
-</pre>
 <p><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code></p>
 <p><a href="/manual/">The operating manual</a> · <a href="https://github.com/w0zro/conn">GitHub</a></p>
 </div>

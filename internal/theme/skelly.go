@@ -5,7 +5,8 @@ package theme
 // and a bone ink, and three glows in the dark. Phosphor is what needs
 // you, which is what conn's accent already means: the WAITING stamp,
 // the caution, the cursor, the selection. Neon is broke, the reds.
-// Black light is the lamp: the spinner beside a contact at work, and
+// Black light is the second glow, for a mark at work: the spinner
+// beside a contact at work, Claude Code's mark while Claude works, and
 // the magentas. A thing running has no hue, so it is drawn in ink.
 //
 // Every other skelly token is a rule on the five - a surface is the
@@ -43,20 +44,22 @@ var Skelly = theme{
 			"#00EDF7", // brightCyan
 			"#E6E9E3", // brightWhite
 		},
-		Accent:    "#B9F27C", // --acc: what needs you
-		Shimmer:   "#C7F699", // --acc-text
-		Border:    "#272927", // --line
-		Surface:   "#181A19", // --surface
-		Running:   "#E6E9E3", // --fg: running has no hue
-		Turning:   "#C8ABFF", // --uv-text
-		Gray:      "#878A86", // --mute
-		Faint:     "#626562", // --faint
-		Parchment: "#AEB1AD", // --fg-2
-		Block:     "#B9F27C", // --acc
-		OnBlock:   "#101211", // --acc-on
-		Chosen:    "#11190A", // --acc-bg: the selection
-		ChosenInk: "#C7F699", // --acc-text
-		Cursor:    "#B9F27C", // --acc
+		Accent:        "#B9F27C", // --acc: what needs you
+		Shimmer:       "#C7F699", // --acc-text
+		AtWork:        "#C8ABFF", // --uv-text: black light, a mark at work
+		AtWorkShimmer: "#D7C6FF", // brightMagenta: black light a step further from the page
+		Border:        "#272927", // --line
+		Surface:       "#181A19", // --surface
+		Running:       "#E6E9E3", // --fg: running has no hue
+		Turning:       "#C8ABFF", // --uv-text
+		Gray:          "#878A86", // --mute
+		Faint:         "#626562", // --faint
+		Parchment:     "#AEB1AD", // --fg-2
+		Block:         "#B9F27C", // --acc
+		OnBlock:       "#101211", // --acc-on
+		Chosen:        "#11190A", // --acc-bg: the selection
+		ChosenInk:     "#C7F699", // --acc-text
+		Cursor:        "#B9F27C", // --acc
 
 		MessageBg:       "#202221", // --surface-active
 		MessageHoverBg:  "#272927", // --line
@@ -89,20 +92,22 @@ var Skelly = theme{
 			"#005256", // brightCyan
 			"#7C7F7A", // brightWhite
 		},
-		Accent:    "#416B10", // --acc-text: phosphor as ink, which the ground would wash out
-		Shimmer:   "#2F5300", // brightGreen: phosphor a step further from the page
-		Border:    "#D2D4CF", // --line
-		Surface:   "#E3E5E0", // --bg-sidebar
-		Running:   "#151814", // --fg: running has no hue
-		Turning:   "#6934C5", // --uv-text
-		Gray:      "#626560", // --mute
-		Faint:     "#7C7F7A", // --faint
-		Parchment: "#434642", // --fg-2
-		Block:     "#9BE05A", // --acc: the fill of a button or a badge
-		OnBlock:   "#151814", // --acc-on: ink, since the fill is too pale for the ground
-		Chosen:    "#E5F5D9", // --acc-bg: the selection
-		ChosenInk: "#416B10", // --acc-text
-		Cursor:    "#416B10", // --acc-text: --acc is too pale for a cursor on the ground
+		Accent:        "#416B10", // --acc-text: phosphor as ink, which the ground would wash out
+		Shimmer:       "#2F5300", // brightGreen: phosphor a step further from the page
+		AtWork:        "#6934C5", // --uv-text
+		AtWorkShimmer: "#4F2C93", // brightMagenta
+		Border:        "#D2D4CF", // --line
+		Surface:       "#E3E5E0", // --bg-sidebar
+		Running:       "#151814", // --fg: running has no hue
+		Turning:       "#6934C5", // --uv-text
+		Gray:          "#626560", // --mute
+		Faint:         "#7C7F7A", // --faint
+		Parchment:     "#434642", // --fg-2
+		Block:         "#9BE05A", // --acc: the fill of a button or a badge
+		OnBlock:       "#151814", // --acc-on: ink, since the fill is too pale for the ground
+		Chosen:        "#E5F5D9", // --acc-bg: the selection
+		ChosenInk:     "#416B10", // --acc-text
+		Cursor:        "#416B10", // --acc-text: --acc is too pale for a cursor on the ground
 
 		MessageBg:       "#DEE0DB", // --surface-active
 		MessageHoverBg:  "#D2D4CF", // --line

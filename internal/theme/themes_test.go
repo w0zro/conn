@@ -63,6 +63,7 @@ func TestTheRolesReadOnEveryGround(t *testing.T) {
 			}{
 				{"ink", Hex(g.Ink), body}, {"parchment", g.Parchment, body},
 				{"accent", g.Accent, body}, {"shimmer", g.Shimmer, body},
+				{"at work", g.AtWork, body}, {"at work's shimmer", g.AtWorkShimmer, body},
 				{"gray", g.Gray, large}, {"faint", g.Faint, 2}, {"turning", g.Turning, large},
 			} {
 				if c := contrast(r.hex, bg); c < r.least {

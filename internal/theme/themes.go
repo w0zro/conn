@@ -28,15 +28,20 @@ type Ground struct {
 
 	// The roles: what conn draws by meaning. Each is a hex of its own,
 	// whether or not a slot happens to hold the same one.
-	Accent    string // "you, here": the cursor, a chip, a title, the caret, a block on the status line
-	Shimmer   string // the accent's brighter cousin, for Claude Code to shimmer with
-	Border    string // a pane's edge, a selection, the band behind the status line
-	Surface   string // one step off the ground, short of the border: the panel's own ground
-	Running   string // a process doing something, said by the dot at the head of its row
-	Turning   string // the spinner beside a contact at work: the running ink, unless a theme has a hue for it
-	Gray      string // the second rank: a label, a comment
-	Faint     string // the quietest text: a leader, a hint, a line number
-	Parchment string // the second ink: a title, punctuation, what conn says on the status line
+	Accent  string // "you, here": the cursor, a chip, a title, the caret, a block on the status line
+	Shimmer string // the accent's brighter cousin, for Claude Code to shimmer with
+
+	// Claude Code's mark, which turns while Claude works, and what it
+	// shimmers to: the accent and its shimmer, unless a theme gives a
+	// mark at work a hue of its own.
+	AtWork, AtWorkShimmer string
+	Border                string // a pane's edge, a selection, the band behind the status line
+	Surface               string // one step off the ground, short of the border: the panel's own ground
+	Running               string // a process doing something, said by the dot at the head of its row
+	Turning               string // the spinner beside a contact at work: the running ink, unless a theme has a hue for it
+	Gray                  string // the second rank: a label, a comment
+	Faint                 string // the quietest text: a leader, a hint, a line number
+	Parchment             string // the second ink: a title, punctuation, what conn says on the status line
 
 	// The accent as a block - a stamp, a chip, the mode on the status
 	// line, the match copy mode is on - and the letters knocked into
@@ -188,20 +193,22 @@ var Conn = theme{
 			"#9AD9D0", // bright cyan
 			"#E6DFD0", // bright white
 		},
-		Accent:    "#E85D2F",
-		Shimmer:   "#FF7847",
-		Border:    "#2A2620",
-		Surface:   "#1D1A15",
-		Running:   "#93C98B",
-		Turning:   "#93C98B",
-		Gray:      "#8B8272",
-		Faint:     "#5C564A",
-		Parchment: "#BFB39A",
-		Block:     "#E85D2F",
-		OnBlock:   "#15130F",
-		Chosen:    "#2A2620",
-		ChosenInk: "#E6DFD0",
-		Cursor:    "#E85D2F",
+		Accent:        "#E85D2F",
+		Shimmer:       "#FF7847",
+		AtWork:        "#E85D2F",
+		AtWorkShimmer: "#FF7847",
+		Border:        "#2A2620",
+		Surface:       "#1D1A15",
+		Running:       "#93C98B",
+		Turning:       "#93C98B",
+		Gray:          "#8B8272",
+		Faint:         "#5C564A",
+		Parchment:     "#BFB39A",
+		Block:         "#E85D2F",
+		OnBlock:       "#15130F",
+		Chosen:        "#2A2620",
+		ChosenInk:     "#E6DFD0",
+		Cursor:        "#E85D2F",
 
 		MessageBg:       "#2A2620",
 		MessageHoverBg:  "#33302A",
@@ -234,20 +241,22 @@ var Conn = theme{
 			"#0A585D", // bright cyan
 			"#1A1611", // bright white
 		},
-		Accent:    "#BD3A1D",
-		Shimmer:   "#A63214",
-		Border:    "#D8D0BD",
-		Surface:   "#E6DFCF",
-		Running:   "#23703F",
-		Turning:   "#23703F",
-		Gray:      "#6F6656",
-		Faint:     "#867C6A",
-		Parchment: "#4A4335",
-		Block:     "#BD3A1D",
-		OnBlock:   "#EFE9DB",
-		Chosen:    "#D8D0BD",
-		ChosenInk: "#1A1611",
-		Cursor:    "#BD3A1D",
+		Accent:        "#BD3A1D",
+		Shimmer:       "#A63214",
+		AtWork:        "#BD3A1D",
+		AtWorkShimmer: "#A63214",
+		Border:        "#D8D0BD",
+		Surface:       "#E6DFCF",
+		Running:       "#23703F",
+		Turning:       "#23703F",
+		Gray:          "#6F6656",
+		Faint:         "#867C6A",
+		Parchment:     "#4A4335",
+		Block:         "#BD3A1D",
+		OnBlock:       "#EFE9DB",
+		Chosen:        "#D8D0BD",
+		ChosenInk:     "#1A1611",
+		Cursor:        "#BD3A1D",
 
 		MessageBg:       "#D8D0BD",
 		MessageHoverBg:  "#CFC6B0",

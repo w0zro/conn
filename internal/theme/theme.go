@@ -48,8 +48,8 @@ func ClaudeTheme(g Ground) [][]token {
 		ink           = Hex(g.Ink)
 	)
 	return [][]token{{
-		{"claude", accent},
-		{"claudeShimmer", g.Shimmer},
+		{"claude", g.AtWork},
+		{"claudeShimmer", g.AtWorkShimmer},
 	}, {
 		{"text", ink},
 		{"inverseText", Hex(g.Ground)},
@@ -68,9 +68,8 @@ func ClaudeTheme(g Ground) [][]token {
 		{"warning", "ansi:yellow"},
 		{"merged", "ansi:magenta"},
 	}, {
-		// The accent is "you, here": the mark, and the one dialog that
-		// stops and waits for you. A mode is quiet unless it changes what
-		// Claude may do.
+		// The accent is "you, here": the one dialog that stops and waits
+		// for you. A mode is quiet unless it changes what Claude may do.
 		{"promptBorder", faint},
 		{"permission", accent},
 		{"permissionShimmer", g.Shimmer},

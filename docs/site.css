@@ -23,10 +23,12 @@
   --cell-w: 8.4px;        /* measured by site.js once the font is in */
   --cell-h: 20px;
   --fs: 14px;
-  --frame-h: 68px;
+  --glass: rgba(29, 26, 21, 0.72);          /* the surface's ground, the station showing through */
+  --glass-edge: rgba(230, 223, 208, 0.10);  /* its edge, lit */
+  --accent-wash: rgba(232, 93, 47, 0.16);   /* the pill under the step on screen */
 }
 @media (max-width: 720px) {
-  :root { --fs: 12px; --cell-h: 17px; --frame-h: 88px; }
+  :root { --fs: 12px; --cell-h: 17px; }
 }
 
 html {
@@ -53,8 +55,8 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .station {
   position: fixed;
   left: 0; right: 0; top: 0;
-  height: calc(100vh - var(--frame-h));
-  height: calc(100dvh - var(--frame-h));
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -100,67 +102,83 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .row.in { animation: in 1ms steps(1) both; }
 @keyframes in { from { visibility: hidden; } to { visibility: visible; } }
 
-/* The frame under the window. */
-.frame {
+/* The guide: a surface over the station, frosted so the station shows
+   through, with an edge of its own and a shadow that lifts it. It says
+   where the demonstration is, and carries the links and, on the first
+   and last scenes, the install line. */
+.guide {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
-  height: var(--frame-h);
+  right: 22px;
+  bottom: calc(var(--cell-h) * 2 + 18px); /* clear of the band */
+  width: 420px;
   box-sizing: border-box;
-  padding: 10px calc(var(--cell-w) * 3) 0;
-  border-top: 1px solid var(--border);
-  background: var(--ground);
+  padding: 18px 20px 16px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  backdrop-filter: blur(22px) saturate(1.3);
+  border: 1px solid var(--glass-edge);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -16px rgba(0, 0, 0, 0.85),
+    0 6px 16px -6px rgba(0, 0, 0, 0.6);
   color: var(--parchment);
-  font-size: calc(var(--fs) - 1px);
-  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.5;
+  z-index: 4;
 }
-.frame .line { display: flex; align-items: baseline; gap: 24px; white-space: nowrap; overflow: hidden; }
-.frame .line.a { justify-content: space-between; }
-.frame .scene { display: flex; gap: 20px; align-items: baseline; overflow: hidden; white-space: nowrap; }
-.frame .scene b { color: var(--accent); font-weight: 700; letter-spacing: 0.2em; }
-.frame .scene .claim { color: var(--ink); font-weight: 700; }
-.frame .needs { color: var(--gray); margin-left: 24px; }
-.frame .links { display: flex; gap: 20px; flex: none; color: var(--gray); font-weight: 700; letter-spacing: 0.12em; }
-.frame .links a:hover { color: var(--ink); }
-.frame .links .accent { color: var(--accent); }
-.frame .line.b { color: var(--parchment); overflow: hidden; text-overflow: ellipsis; }
-.frame .line.b b { color: var(--ink); font-weight: 700; }
-.frame .line.b code { font: inherit; color: var(--ink); }
-.frame .prompt { color: var(--accent); font-weight: 700; }
-.frame .hint { color: var(--faint); margin-left: auto; padding-left: 24px; flex: none; }
+.guide .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.guide .head .title { font-size: 11px; font-weight: 700; letter-spacing: 0.22em; color: var(--ink); }
+.guide .head .count { font-size: 11px; letter-spacing: 0.1em; color: var(--gray); font-variant-numeric: tabular-nums; }
+.guide .track { height: 3px; border-radius: 2px; background: rgba(230, 223, 208, 0.10); overflow: hidden; margin-bottom: 14px; }
+.guide .track .fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 420ms cubic-bezier(.2,.7,.2,1); }
+.guide .steps { list-style: none; margin: 0 -8px 12px; padding: 0; }
+.guide .steps li { display: flex; gap: 12px; align-items: baseline; padding: 4px 10px; border-radius: 8px; cursor: pointer; transition: background 200ms, color 200ms; }
+.guide .steps li:hover { background: rgba(230, 223, 208, 0.06); color: var(--ink); }
+.guide .steps .n { flex: none; width: 2ch; color: var(--faint); font-variant-numeric: tabular-nums; }
+.guide .steps .done { color: var(--faint); }
+.guide .steps .done .n { color: var(--faint); }
+.guide .steps .on { background: var(--accent-wash); color: var(--ink); font-weight: 700; }
+.guide .steps .on .n { color: var(--accent); }
+.guide .steps .on:hover { background: var(--accent-wash); }
+.guide .line { margin: 0 0 10px; color: var(--parchment); }
+.guide .next { color: var(--gray); font-size: 12px; }
+.guide .next b { color: var(--ink); font-weight: 700; }
+.guide .cta {
+  display: flex; align-items: baseline; gap: 10px;
+  margin: 14px 0 0; padding: 10px 12px;
+  background: rgba(21, 19, 15, 0.6);
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.guide .cta .prompt { color: var(--accent); font-weight: 700; }
+.guide .cta code { font: inherit; flex: 1; white-space: normal; word-break: break-all; }
+.guide .foot { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(230, 223, 208, 0.08); }
+.guide .foot .needs { color: var(--faint); font-size: 11px; }
+.guide .links { display: flex; gap: 14px; flex: none; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: var(--gray); }
+.guide .links a:hover { color: var(--ink); }
+.guide .links .accent { color: var(--accent); }
 .copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; }
 .copy:hover { color: var(--ink); }
 .copy.done { color: var(--accent); }
-@media (max-width: 720px) {
-  .frame { padding-top: 8px; }
-  .frame .links { gap: 12px; }
-  .frame .links a:not(.accent) { display: none; }
-  .frame .hint { display: none; }
-  .frame .line.b { white-space: normal; line-height: 17px; max-height: 51px; text-overflow: clip; }
-  .frame .scene .claim { display: none; }
-  .frame .needs { margin-left: 0; }
-}
 
-/* The guide over the station, and the line along the top that fills
-   with it. */
-.guide {
-  position: absolute;
-  right: calc(var(--cell-w) * 2);
-  bottom: calc(var(--cell-h) * 3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: 0 18px 50px -10px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
-  z-index: 2;
+/* The compact card: on a console with no room beside it. */
+.guide.compact .steps, .guide.compact .cta { display: none; }
+
+/* On a phone the surface docks across the top. */
+.station.one ~ .guide, .guide.docked {
+  left: 10px; right: 10px; top: 10px; bottom: auto;
+  width: auto;
+  padding: 12px 14px 12px;
+  border-radius: 14px;
 }
-.guide.compact { padding: calc(var(--cell-h) / 3) 0; }
-.guide .row.step { cursor: pointer; }
-.guide .row.step:hover { background: var(--chosen); }
-.station.one .guide {
-  left: 0; right: 0; top: 0; bottom: auto;
-  width: auto !important;
-  border-width: 0 0 1px 0;
-  box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.8);
-  padding: calc(var(--cell-h) / 3) 0;
-}
+.guide.docked .steps { display: none; }
+.guide.docked .cta { margin-top: 10px; }
+.guide.docked .line { margin-bottom: 6px; }
+
 .progress {
   position: fixed;
   left: 0; top: 0;
@@ -170,7 +188,7 @@ pre { margin: 0; font: inherit; white-space: pre; }
   z-index: 3;
   transition: width 500ms ease-out;
 }
-@media (prefers-reduced-motion: reduce) { .progress { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .progress, .guide .track .fill, .guide .steps li { transition: none; } }
 
 /* The scroll: a section a scene, each a screen tall, snapped. */
 .scroll section { height: 100vh; height: 100dvh; scroll-snap-align: start; }

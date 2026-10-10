@@ -127,46 +127,53 @@ pre { margin: 0; font: inherit; white-space: pre; }
   line-height: 1.5;
   z-index: 4;
 }
-.guide .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
-.guide .head .title { font-size: 11px; font-weight: 700; letter-spacing: 0.22em; color: var(--ink); }
+.guide .head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.guide .head .title { font-size: 10.5px; font-weight: 700; letter-spacing: 0.24em; color: var(--accent); }
 .guide .head .count { font-size: 11px; letter-spacing: 0.1em; color: var(--gray); font-variant-numeric: tabular-nums; }
-.guide .track { height: 3px; border-radius: 2px; background: rgba(230, 223, 208, 0.10); overflow: hidden; margin-bottom: 14px; }
-.guide .track .fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 420ms cubic-bezier(.2,.7,.2,1); }
-.guide .steps { list-style: none; margin: 0 -8px 12px; padding: 0; }
-.guide .steps li { display: flex; gap: 12px; align-items: baseline; padding: 4px 10px; border-radius: 8px; cursor: pointer; transition: background 200ms, color 200ms; }
-.guide .steps li:hover { background: rgba(230, 223, 208, 0.06); color: var(--ink); }
-.guide .steps .n { flex: none; width: 2ch; color: var(--faint); font-variant-numeric: tabular-nums; }
-.guide .steps .done { color: var(--faint); }
-.guide .steps .done .n { color: var(--faint); }
-.guide .steps .on { background: var(--accent-wash); color: var(--ink); font-weight: 700; }
-.guide .steps .on .n { color: var(--accent); }
-.guide .steps .on:hover { background: var(--accent-wash); }
-.guide .line { margin: 0 0 10px; color: var(--parchment); }
+.guide h2 { margin: 0 0 8px; font-size: 18px; line-height: 1.25; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
+.guide h2 small { color: var(--faint); font-size: 13px; font-weight: 400; margin-left: 8px; letter-spacing: 0; }
+.guide .line { margin: 0 0 12px; color: var(--parchment); }
 .guide .next { color: var(--gray); font-size: 12px; }
 .guide .next b { color: var(--ink); font-weight: 700; }
+.guide .next .arrow { color: var(--accent); }
 .guide .cta {
-  display: flex; align-items: baseline; gap: 10px;
-  margin: 14px 0 0; padding: 10px 12px;
-  background: rgba(21, 19, 15, 0.6);
+  display: flex; align-items: center; gap: 12px;
+  margin: 16px 0 0; padding: 6px 6px 6px 14px;
+  background: rgba(21, 19, 15, 0.65);
   border: 1px solid var(--glass-edge);
-  border-radius: 10px;
+  border-radius: 12px;
   color: var(--ink);
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 .guide .cta .prompt { color: var(--accent); font-weight: 700; }
 .guide .cta code { font: inherit; flex: 1; white-space: normal; word-break: break-all; }
+.guide .cta .copy {
+  flex: none;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--ground);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  transition: background 150ms, color 150ms;
+}
+.guide .cta .copy:hover { background: #FF7847; color: var(--ground); }
+.guide .cta .copy.done { background: var(--running); color: var(--ground); }
 .guide .foot { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(230, 223, 208, 0.08); }
 .guide .foot .needs { color: var(--faint); font-size: 11px; }
 .guide .links { display: flex; gap: 14px; flex: none; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: var(--gray); }
 .guide .links a:hover { color: var(--ink); }
 .guide .links .accent { color: var(--accent); }
 .copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; }
-.copy:hover { color: var(--ink); }
-.copy.done { color: var(--accent); }
+
+/* The content comes up on each scene. */
+.guide .body { animation: rise 260ms cubic-bezier(.2,.7,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* The compact card: on a console with no room beside it. */
-.guide.compact .steps, .guide.compact .cta { display: none; }
+.guide.compact .cta { display: none; }
 
 /* On a phone the surface docks across the top. */
 .station.one ~ .guide, .guide.docked {
@@ -175,9 +182,9 @@ pre { margin: 0; font: inherit; white-space: pre; }
   padding: 12px 14px 12px;
   border-radius: 14px;
 }
-.guide.docked .steps { display: none; }
-.guide.docked .cta { margin-top: 10px; }
+.guide.docked h2 { font-size: 15px; margin-bottom: 4px; }
 .guide.docked .line { margin-bottom: 6px; }
+.guide.docked .foot { margin-top: 8px; padding-top: 8px; }
 
 /* The rail: the scenes by number down the right edge, centered, on a
    bar of the accent; a marker of the ground slides to the one on
@@ -239,7 +246,7 @@ pre { margin: 0; font: inherit; white-space: pre; }
   z-index: 3;
   transition: width 500ms ease-out;
 }
-@media (prefers-reduced-motion: reduce) { .progress, .guide .track .fill, .guide .steps li { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .progress { transition: none; } .guide .body { animation: none; } }
 
 /* The scroll: a section a scene, each a screen tall, snapped. */
 .scroll section { height: 100vh; height: 100dvh; scroll-snap-align: start; }

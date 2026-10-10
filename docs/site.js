@@ -343,31 +343,31 @@
   // scene has one, is what happens a moment after, and stands once the
   // scene is past.
   const SCENES = [
-    { id: 'console', label: 'CONN · A CONSOLE FOR THE PROCESSES WORKING YOUR PROJECTS', caption: null },
-    { id: 'panel', label: '01 · THE PANEL',
+    { id: 'console', label: 'CONSOLE', title: 'The console', caption: null },
+    { id: 'panel', label: '01 · THE PANEL', title: 'The panel',
       caption: 'Every process on the machine, under the project it works. A mark for what it is, and a word only where there is one to say.',
       enter(m) {} },
-    { id: 'waiting', label: '02 · WAITING',
-      caption: 'A contact stopped to ask. The project’s rule says so, the row says how long, and the band counts it.',
+    { id: 'waiting', label: '02 · WAITING', title: 'A contact stops to ask',
+      caption: 'The project’s rule says WAITING, the row says how long, and the band counts it.',
       enter(m) { const r = row(m, 'claude'); r.status = 'waiting'; r.age = '9 MIN'; m.log = 1;
         m.logRows.unshift({ t: '14:02', p: 'conn', n: 'claude', w: 'WAITING', note: 'Rename bay to workspace in the code?' }); } },
-    { id: 'tab', label: '03 · TAB', pane: 'work',
-      caption: 'tab · the one that has waited longest. Its question, before you go in.',
+    { id: 'tab', label: '03 · TAB', pane: 'work', title: 'The one waiting longest', key: 'tab',
+      caption: 'The cursor goes to it, and its question is on its page before you go in.',
       enter(m) { m.cursor = 'claude'; } },
-    { id: 'enter', label: '04 · ENTER', pane: 'work',
-      caption: 'enter · go in and answer. ctrl-space · the keys are back on the panel, whatever is in front of you.',
+    { id: 'enter', label: '04 · ENTER', pane: 'work', title: 'Go in and answer', key: 'enter',
+      caption: 'The keys are in the pane. ctrl-space brings them back to the panel, whatever is in front of you.',
       enter(m) { m.inside = true; m.shown = 'claude'; },
       beat(m) { const r = row(m, 'claude'); r.status = 'working'; r.age = ''; m.answered = true; m.log = 2;
         m.logRows.unshift({ t: '14:11', p: 'conn', n: 'claude', w: 'IDLE', note: 'waited 9 min' }); } },
-    { id: 'log', label: '05 · THE LOG',
-      caption: 'l · what changed while you were in a pane: a wait, a fault, a turn over, a pane that said FAIL. Newest first.',
+    { id: 'log', label: '05 · THE LOG', title: 'The log', key: 'l',
+      caption: 'What changed while you were in a pane: a wait, a fault, a turn over, a pane that said FAIL. Newest first.',
       enter(m) { m.inside = false; m.shown = null; m.view = 'log'; m.log = 0; } },
-    { id: 'declared', label: '06 · WHAT A PROJECT DECLARES',
-      caption: '.conn names what works a project. What is down is a row, worded so; u brings it up, x ends it.',
+    { id: 'declared', label: '06 · WHAT A PROJECT DECLARES', title: 'What a project declares', key: '.conn',
+      caption: 'The file names what works a project. What is down is a row, worded so; u brings it up, x ends it.',
       enter(m) { m.view = 'processes'; m.cursor = 'worker'; },
       beat(m) { const r = row(m, 'worker'); r.status = 'working'; r.word = ''; m.worker = 'up'; } },
-    { id: 'install', label: '07 · INSTALL', pane: 'work',
-      caption: 'macOS and Linux. Needs tmux, and lsof on macOS. man conn is the reference; the manual is how it is worked.',
+    { id: 'install', label: '07 · INSTALL', pane: 'work', title: 'Install', key: '$',
+      caption: 'One line, on macOS or Linux. man conn is the reference; the manual is how it is worked.',
       enter(m) { m.cursor = 'zsh1'; m.inside = true; m.shown = 'zsh1'; m.typed = 0; },
       beat(m) { m.typed = INSTALL.length + 1; } },
   ];
@@ -693,21 +693,21 @@
     guideEl.classList.toggle('compact', n === 0 && guideCompact && !one);
     guideEl.classList.toggle('docked', one);
     const nextWord = n < last
-      ? `<b>${n === 0 && !touch ? 'any key' : touch ? 'scroll' : 'j'}</b>${n === 0 && !touch ? ', or scroll' : touch ? '' : ', or scroll'} \u2193 ${esc(shortLabel(n + 1))}`
-      : `<b>g</b> \u2191 the console`;
+      ? `<b>${n === 0 && !touch ? 'any key' : touch ? 'scroll' : 'j'}</b>${n === 0 && !touch ? ', or scroll' : touch ? '' : ', or scroll'} <span class="arrow">\u2193</span> ${esc(shortLabel(n + 1))}`
+      : `<b>g</b> <span class="arrow">\u2191</span> the console`;
     const text = n === 0 ? 'The console comes up against this browser: its screen, its font, its clock, this site. Then a session, scene by scene.' : s.caption;
-    const steps = SCENES.map((sc, i) => `<li class="${i === n ? 'on' : i < n ? 'done' : ''}" data-scene="${i}"><span class="n">${i === 0 ? '\u00b7' : pad2(i)}</span><span>${esc(i === 0 ? 'CONSOLE' : SCENES[i].label.replace(/^\d\d \u00b7 /, ''))}</span></li>`).join('');
+    const titled = s.title, key = s.key;
     const cta = (n === 0 || n === last) && !one
-      ? `<div class="cta"><span class="prompt">$</span><code>${esc(INSTALL)}</code><button class="copy" type="button" data-copy="${esc(INSTALL)}">[copy]</button></div>` : '';
+      ? `<div class="cta"><span class="prompt">$</span><code>${esc(INSTALL)}</code><button class="copy" type="button" data-copy="${esc(INSTALL)}">COPY</button></div>` : '';
     guideEl.innerHTML = `
+      <div class="body">
       <div class="head"><span class="title">DEMONSTRATION</span><span class="count">${pad2(n)} / ${pad2(last)}</span></div>
-      <div class="track"><div class="fill" style="width:${(100 * n / last).toFixed(1)}%"></div></div>
-      <ol class="steps">${steps}</ol>
-      ${one ? `<p class="line"><b>${esc(shortLabel(n))}</b> \u00b7 ${esc(text)}</p>` : `<p class="line">${esc(text)}</p>`}
+      <h2>${esc(titled)}${key ? `<small>${esc(key)}</small>` : ''}</h2>
+      <p class="line">${esc(text)}</p>
       <div class="next">${nextWord}</div>
       ${cta}
-      <div class="foot"><span class="needs">macOS \u00b7 Linux \u00b7 tmux</span><nav class="links"><a href="/manual/">MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB \u2197</a></nav></div>`;
-    for (const li of guideEl.querySelectorAll('li')) li.onclick = () => scrollTo(Number(li.dataset.scene));
+      <div class="foot"><span class="needs">macOS \u00b7 Linux \u00b7 tmux</span><nav class="links"><a href="/manual/">MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB \u2197</a></nav></div>
+      </div>`;
     wireCopy();
     const pad = one ? (guideEl.offsetHeight + 14) + 'px' : '';
     panelEl.style.paddingTop = pad; workEl.style.paddingTop = pad;
@@ -814,8 +814,9 @@
   function wireCopy() {
     for (const b of document.querySelectorAll('.copy')) {
       b.onclick = async () => {
-        try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = '[copied]'; b.classList.add('done'); setTimeout(() => { b.textContent = '[copy]'; b.classList.remove('done'); }, 1400); }
-        catch (e) { b.textContent = '[select it]'; }
+        const was = b.textContent;
+        try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'COPIED'; b.classList.add('done'); setTimeout(() => { b.textContent = was; b.classList.remove('done'); }, 1400); }
+        catch (e) { b.textContent = 'SELECT IT'; }
       };
     }
   }

@@ -292,3 +292,30 @@ b, strong { font-weight: 700; color: var(--ink); }
   .cmd { flex-wrap: wrap; }
   .cmd code { white-space: normal; word-break: break-all; }
 }
+
+/* A finding's facts: a line each, no bullet, the keys and marks in the
+   ink and the rest in the second ink. */
+.facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--parchment);
+  max-width: 600px;
+}
+.facts li { margin: 0 0 8px; }
+.facts li:last-child { margin-bottom: 0; }
+.facts b { color: var(--ink); }
+.figure + .facts { margin-top: 18px; }
+.keys .chords { margin-top: 28px; }
+.keys .chords dt { width: 210px; }
+
+/* A finding's key rows: the key in the ink, what it does in the second
+   ink, as the key card has them. */
+.rows { margin: 12px 0 0; font: 400 15px/1.7 var(--mono); max-width: 600px; }
+.rows div { display: flex; gap: 12px; }
+.rows dt { flex: none; width: 120px; color: var(--ink); font-weight: 700; }
+.rows dd { margin: 0; color: var(--parchment); }
+.rows.marks dt { width: 32px; color: var(--gray); font-weight: 400; }
+.rows.wide dt { width: 220px; }
+.facts + .rows, .rows + .rows, .figure + .rows { margin-top: 12px; }
+.rows + .facts { margin-top: 12px; }

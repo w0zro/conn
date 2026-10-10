@@ -14,31 +14,34 @@ package theme
 // and chroma with its hue kept - and the values here are those rules
 // as the brand page prints them, named by token. Where conn needs a
 // step the brand has no token for, the same kind of rule makes it and
-// the comment says so. skelly is a web page and has no sixteen, so the
-// green, yellow, blue and cyan a program asks for by name are conn's
-// own, drawn to sit in its temperature.
+// the comment says so. The sixteen are the brand's own, as its
+// palette.mjs --terminal writes them: the grays, the glows' text steps
+// for red, green and magenta, and yellow, blue and cyan set by hue at
+// the same lightness, the one place the brand has a color past the
+// five. The test holds them to the copy under testdata/skelly;
+// refreshing skelly is writing that file again.
 var Skelly = theme{
 	Name: "skelly",
 	Dark: Ground{
 		Ground: RGB("#101211"), // --bg: lights-out
 		Ink:    RGB("#E6E9E3"), // --fg: bone
 		Scheme: [16]string{
-			"#272927", // --line
-			"#FF7E5B", // --bad: neon
-			"#9FD3A8", // green
-			"#E8C468", // yellow
-			"#86AEC9", // blue
-			"#C8ABFF", // --uv-text: black light
-			"#7FCFC4", // cyan
-			"#AEB1AD", // --fg-2
-			"#626562", // --faint
-			"#FF9B7D", // --bad-text
-			"#B9F27C", // --acc: phosphor
-			"#F2D58A", // bright yellow
-			"#A6C6DD", // bright blue
-			"#DDCFFF", // black light at l 0.88, c 0.08: a step past --uv-text
-			"#9FDFD6", // bright cyan
-			"#E6E9E3", // --fg
+			"#202221", // black
+			"#FF9B7D", // red
+			"#C7F699", // green
+			"#D8BD51", // yellow
+			"#98BFFF", // blue
+			"#C8ABFF", // magenta
+			"#28D6DF", // cyan
+			"#AEB1AD", // white
+			"#878A86", // brightBlack
+			"#FFC0AE", // brightRed
+			"#ADE670", // brightGreen
+			"#F2CF3B", // brightYellow
+			"#B7D2FF", // brightBlue
+			"#D7C6FF", // brightMagenta
+			"#00EDF7", // brightCyan
+			"#E6E9E3", // brightWhite
 		},
 		Accent:    "#B9F27C", // --acc: what needs you
 		Shimmer:   "#C7F699", // --acc-text
@@ -69,25 +72,25 @@ var Skelly = theme{
 		Ground: RGB("#EDEFEA"), // --bg: light
 		Ink:    RGB("#151814"), // --fg: ink
 		Scheme: [16]string{
-			"#151814", // --fg: black is text, on paper
-			"#B5380A", // --bad: neon
-			"#2E6B2A", // green
-			"#7E5800", // yellow
-			"#2F5F82", // blue
-			"#6934C5", // --uv-text: black light
-			"#0E6B66", // cyan
-			"#434642", // --fg-2
-			"#7C7F7A", // --faint
-			"#9D2800", // --bad-text
-			"#416B10", // --acc-text: phosphor, as ink
-			"#684800", // bright yellow
-			"#244D6B", // bright blue
-			"#521FA1", // black light at l 0.40, c 0.19: on paper, more ink
-			"#0A5753", // bright cyan
-			"#151814", // --fg
+			"#151814", // black
+			"#9D2800", // red
+			"#416B10", // green
+			"#6F5C00", // yellow
+			"#2A5AAB", // blue
+			"#6934C5", // magenta
+			"#006B70", // cyan
+			"#626560", // white
+			"#434642", // brightBlack
+			"#802200", // brightRed
+			"#2F5300", // brightGreen
+			"#564700", // brightYellow
+			"#03409C", // brightBlue
+			"#4F2C93", // brightMagenta
+			"#005256", // brightCyan
+			"#7C7F7A", // brightWhite
 		},
 		Accent:    "#416B10", // --acc-text: phosphor as ink, which the ground would wash out
-		Shimmer:   "#305302", // phosphor at l 0.40, c 0.11: on paper, more ink
+		Shimmer:   "#2F5300", // brightGreen: phosphor a step further from the page
 		Border:    "#D2D4CF", // --line
 		Surface:   "#E3E5E0", // --bg-sidebar
 		Running:   "#151814", // --fg: running has no hue

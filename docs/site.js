@@ -19,7 +19,7 @@
   const $ = id => document.getElementById(id);
   const station = $('station'), panelEl = $('panel'), workEl = $('work');
   const b0 = $('b0'), b1 = $('b1'), scrollEl = $('scroll');
-  const guideEl = $('guide'), progressEl = $('progress');
+  const guideEl = $('guide'), progressEl = $('progress'), railEl = $('rail');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const touch = matchMedia('(hover: none)').matches;
   const arrived = new Date();
@@ -27,7 +27,7 @@
   // ---- the grid -------------------------------------------------------
 
   const MARGIN = 3, MIN_COLS = 80, PANEL_W = 44, FACT_COL = 12, CHECK_COL = 12, STATUS_W = 9;
-  const GUIDE_PX = 400 + 22 * 2; // the guide's surface and its margins
+  const GUIDE_PX = 420 + 72 + 22; // the guide's surface, the rail beside it, and their margins
   const guideRoom = () => Math.ceil(GUIDE_PX / cellW) + 2; // the cells it takes at the right
   let cellW = 8.4, cellH = 20, cols = 80, rows = 24, one = false, panelW = PANEL_W, workW = 40;
 
@@ -712,6 +712,18 @@
     const pad = one ? (guideEl.offsetHeight + 14) + 'px' : '';
     panelEl.style.paddingTop = pad; workEl.style.paddingTop = pad;
     progressEl.style.width = (100 * n / last) + '%';
+    drawRail(n);
+  }
+
+  // The rail: a number a scene, the one on screen under the marker.
+  function drawRail(n) {
+    if (!railEl.querySelector('a')) {
+      railEl.insertAdjacentHTML('beforeend', SCENES.map((_, i) => `<a href="#s${i}" data-scene="${i}">${pad2(i)}</a>`).join(''));
+      for (const a of railEl.querySelectorAll('a')) a.onclick = e => { e.preventDefault(); scrollTo(Number(a.dataset.scene)); };
+    }
+    railEl.querySelectorAll('a').forEach((a, i) => { a.classList.toggle('on', i === n); a.classList.toggle('done', i < n); });
+    const step = parseFloat(getComputedStyle(railEl).getPropertyValue('--step')) || 26;
+    railEl.querySelector('.marker').style.top = (5 + n * step) + 'px';
   }
 
   function goTo(n, animate = true) {

@@ -41,20 +41,22 @@ var Datum = theme{
 			"#A5F5F9", // param, the quiet cyan
 			"#EEF2F7", // a white past fg0
 		},
-		Accent:    "#FA94CD", // purple: the cursor
-		Shimmer:   "#F5B9D9", // call: purple's quiet sibling
-		Border:    "#2B2F35", // bg2: the selection
-		Surface:   "#181C21", // bg1: the panel's ground
-		Running:   "#54DCAA", // green: datum has the one
-		Turning:   "#54DCAA",
-		Gray:      "#8F98A3", // fg1
-		Faint:     "#757D87", // fg1 a fifth of the way to bg0: datum's promptBorder
-		Parchment: "#DBE0E8", // fg0: datum has two inks, and the bold carries a title
-		Block:     "#FA94CD", // purple, with bg0 knocked out of it
-		OnBlock:   "#0F1318",
-		Chosen:    "#2B2F35", // bg2: the selection
-		ChosenInk: "#DBE0E8",
-		Cursor:    "#FA94CD",
+		Accent:     "#FA94CD", // purple: the cursor
+		Shimmer:    "#F5B9D9", // call: purple's quiet sibling
+		Border:     "#2B2F35", // bg2: the selection
+		Surface:    "#181C21", // bg1: the panel's ground
+		Running:    "#54DCAA", // green: datum has the one
+		Turning:    "#54DCAA",
+		Gray:       "#8F98A3", // fg1
+		Faint:      "#757D87", // fg1 a fifth of the way to bg0: datum's promptBorder
+		Parchment:  "#DBE0E8", // fg0: datum has two inks, and the bold carries a title
+		Block:      "#FA94CD", // purple, with bg0 knocked out of it
+		OnBlock:    "#0F1318",
+		Chosen:     "#2B2F35", // bg2: the selection
+		ChosenInk:  "#DBE0E8",
+		Cursor:     "#FA94CD",
+		Divide:     "#69B9F7", // blue
+		DivideLine: "#2A455B", // blue, a third of the way off bg0
 
 		MessageBg:       "#181C21", // bg1: a turn of yours, at rest
 		MessageHoverBg:  "#2B2F35", // bg2: under the pointer
@@ -87,20 +89,22 @@ var Datum = theme{
 			"#154B4E", // param
 			"#E7ECF2", // bg1
 		},
-		Accent:    "#973070",
-		Shimmer:   "#633750",
-		Border:    "#CED3D9",
-		Surface:   "#E7ECF2",
-		Running:   "#007553",
-		Turning:   "#007553",
-		Gray:      "#616A76",
-		Faint:     "#7E8691",
-		Parchment: "#292E35",
-		Block:     "#973070",
-		OnBlock:   "#F1F6FD",
-		Chosen:    "#CED3D9",
-		ChosenInk: "#292E35",
-		Cursor:    "#973070",
+		Accent:     "#973070",
+		Shimmer:    "#633750",
+		Border:     "#CED3D9",
+		Surface:    "#E7ECF2",
+		Running:    "#007553",
+		Turning:    "#007553",
+		Gray:       "#616A76",
+		Faint:      "#7E8691",
+		Parchment:  "#292E35",
+		Block:      "#973070",
+		OnBlock:    "#F1F6FD",
+		Chosen:     "#CED3D9",
+		ChosenInk:  "#292E35",
+		Cursor:     "#973070",
+		Divide:     "#0176B8",
+		DivideLine: "#B5D6EC",
 
 		MessageBg:       "#E7ECF2",
 		MessageHoverBg:  "#CED3D9",

@@ -52,6 +52,11 @@ type Ground struct {
 	// color of its own says so here.
 	Chosen, ChosenInk, Cursor string
 
+	// The line a project starts on in the processes view: its name, and
+	// the rule after it. The one splash of a hue that says nothing but
+	// where a project begins, and so never the accent.
+	Divide, DivideLine string
+
 	// The grounds no slot has a name for: the band behind what you said
 	// to Claude Code, at rest and under the pointer; the bar behind a
 	// tool's output, which is also the step off the ground a colorscheme
@@ -188,20 +193,22 @@ var Conn = theme{
 			"#9AD9D0", // bright cyan
 			"#E6DFD0", // bright white
 		},
-		Accent:    "#E85D2F",
-		Shimmer:   "#FF7847",
-		Border:    "#2A2620",
-		Surface:   "#1D1A15",
-		Running:   "#93C98B",
-		Turning:   "#93C98B",
-		Gray:      "#8B8272",
-		Faint:     "#5C564A",
-		Parchment: "#BFB39A",
-		Block:     "#E85D2F",
-		OnBlock:   "#15130F",
-		Chosen:    "#2A2620",
-		ChosenInk: "#E6DFD0",
-		Cursor:    "#E85D2F",
+		Accent:     "#E85D2F",
+		Shimmer:    "#FF7847",
+		Border:     "#2A2620",
+		Surface:    "#1D1A15",
+		Running:    "#93C98B",
+		Turning:    "#93C98B",
+		Gray:       "#8B8272",
+		Faint:      "#5C564A",
+		Parchment:  "#BFB39A",
+		Block:      "#E85D2F",
+		OnBlock:    "#15130F",
+		Chosen:     "#2A2620",
+		ChosenInk:  "#E6DFD0",
+		Cursor:     "#E85D2F",
+		Divide:     "#7FA7C9",
+		DivideLine: "#353F47",
 
 		MessageBg:       "#2A2620",
 		MessageHoverBg:  "#33302A",
@@ -234,20 +241,22 @@ var Conn = theme{
 			"#0A585D", // bright cyan
 			"#1A1611", // bright white
 		},
-		Accent:    "#BD3A1D",
-		Shimmer:   "#A63214",
-		Border:    "#D8D0BD",
-		Surface:   "#E6DFCF",
-		Running:   "#23703F",
-		Turning:   "#23703F",
-		Gray:      "#6F6656",
-		Faint:     "#867C6A",
-		Parchment: "#4A4335",
-		Block:     "#BD3A1D",
-		OnBlock:   "#EFE9DB",
-		Chosen:    "#D8D0BD",
-		ChosenInk: "#1A1611",
-		Cursor:    "#BD3A1D",
+		Accent:     "#BD3A1D",
+		Shimmer:    "#A63214",
+		Border:     "#D8D0BD",
+		Surface:    "#E6DFCF",
+		Running:    "#23703F",
+		Turning:    "#23703F",
+		Gray:       "#6F6656",
+		Faint:      "#867C6A",
+		Parchment:  "#4A4335",
+		Block:      "#BD3A1D",
+		OnBlock:    "#EFE9DB",
+		Chosen:     "#D8D0BD",
+		ChosenInk:  "#1A1611",
+		Cursor:     "#BD3A1D",
+		Divide:     "#3E5F7A",
+		DivideLine: "#B4C6D6",
 
 		MessageBg:       "#D8D0BD",
 		MessageHoverBg:  "#CFC6B0",

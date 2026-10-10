@@ -22,6 +22,7 @@ type Palette struct {
 	Surface                                                         string // one step off the ground: the panel's own
 	edge, Running, Struck                                           string // ink in the surface, for a card's edges; the dot of a row at work; what is not running
 	turning                                                         string // ink for the spinner in a row's margin
+	divide, divideLine                                              string // inks for the line a project starts on: its name, its rule
 	Selection                                                       string // the raised ground a key sits on
 	chosen, chosenInk                                               string // the ground a chosen row sits on, and its ink
 	blockEnd                                                        string // ink in the block's fill, for a stamp's rounded ends
@@ -48,27 +49,29 @@ func groundIn(h string) string {
 // way it reaches everything else conn draws.
 func Colored(g theme.Ground) Palette {
 	p := Palette{
-		Ground:    groundIn(theme.Hex(g.Ground)),
-		Border:    inkIn(g.Border),
-		Ink:       inkIn(theme.Hex(g.Ink)),
-		Gray:      inkIn(g.Gray),
-		Faint:     inkIn(g.Faint),
-		Orange:    inkIn(g.Accent),
-		Parchment: inkIn(g.Parchment),
-		Bold:      ansi.Style{}.Bold().String(),
-		Dim:       ansi.Style{}.Faint().String(),
-		Chip:      ansi.Style{}.BackgroundColor(theme.RGB(g.Block)).ForegroundColor(theme.RGB(g.OnBlock)).Bold().String(),
-		blockEnd:  inkIn(g.Block),
-		Selection: groundIn(g.Border),
-		chosen:    groundIn(g.Chosen),
-		chosenInk: inkIn(g.ChosenInk),
-		Surface:   groundIn(g.Surface),
-		well:      groundIn(theme.Hex(g.Ground)),
-		edge:      inkIn(g.Surface),
-		Running:   inkIn(g.Running),
-		turning:   inkIn(g.Turning),
-		Struck:    ansi.Style{}.Strikethrough(true).String(),
-		End:       ansi.Style{}.Reset().String(),
+		Ground:     groundIn(theme.Hex(g.Ground)),
+		Border:     inkIn(g.Border),
+		Ink:        inkIn(theme.Hex(g.Ink)),
+		Gray:       inkIn(g.Gray),
+		Faint:      inkIn(g.Faint),
+		Orange:     inkIn(g.Accent),
+		Parchment:  inkIn(g.Parchment),
+		Bold:       ansi.Style{}.Bold().String(),
+		Dim:        ansi.Style{}.Faint().String(),
+		Chip:       ansi.Style{}.BackgroundColor(theme.RGB(g.Block)).ForegroundColor(theme.RGB(g.OnBlock)).Bold().String(),
+		blockEnd:   inkIn(g.Block),
+		Selection:  groundIn(g.Border),
+		chosen:     groundIn(g.Chosen),
+		chosenInk:  inkIn(g.ChosenInk),
+		Surface:    groundIn(g.Surface),
+		well:       groundIn(theme.Hex(g.Ground)),
+		edge:       inkIn(g.Surface),
+		Running:    inkIn(g.Running),
+		turning:    inkIn(g.Turning),
+		divide:     inkIn(g.Divide),
+		divideLine: inkIn(g.DivideLine),
+		Struck:     ansi.Style{}.Strikethrough(true).String(),
+		End:        ansi.Style{}.Reset().String(),
 	}
 	p.Normal = p.End + p.Ground + p.Ink
 	return p

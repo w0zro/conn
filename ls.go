@@ -61,6 +61,11 @@ func runLs(w io.Writer, home, dir string) int {
 			mine = append(mine, pl)
 		}
 	}
+	// A project nothing runs in is still the answer: its path, and no
+	// rows under it.
+	if len(mine) == 0 {
+		mine = []work.Project{{Path: root}}
+	}
 	writeLs(w, mine, home)
 	return 0
 }

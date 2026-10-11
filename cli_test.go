@@ -116,3 +116,22 @@ func TestActingReachesOnlyTheCallersWork(t *testing.T) {
 		}
 	}
 }
+
+// In a worktree, a name reaches the rows working in that worktree
+// before the repository's others: an agent in one worktree means its
+// own web, not another worktree's.
+func TestANameReachesTheCallersWorktreeFirst(t *testing.T) {
+	h := here{root: "/p/shop", tree: "/p/shop/.claude/worktrees/fix", read: read{reading: reading{projects: []work.Project{
+		{Path: "/p/shop", Entries: []work.Entry{
+			{PID: 10, Kind: work.KindRun, Command: "vite", Cwd: "/p/shop"},
+			{PID: 20, Kind: work.KindRun, Command: "vite", Cwd: "/p/shop/.claude/worktrees/fix/web"},
+		}},
+	}}}}
+	if f, err := h.find("vite"); err != nil || f.PID != 20 {
+		t.Errorf("vite from the worktree found %d (%v), want 20", f.PID, err)
+	}
+	h.tree = ""
+	if _, err := h.find("vite"); err == nil {
+		t.Error("vite from the repository's own checkout names one of two")
+	}
+}

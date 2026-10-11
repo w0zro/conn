@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -29,8 +30,9 @@ type here struct {
 	// root is the project the directory is in: the repository, or the
 	// folder of them where the directory is beside them rather than in
 	// one. group is the folder of repositories above root, where root
-	// is one of them, and "" otherwise.
-	root, group string
+	// is one of them, and "" otherwise. tree is the checkout the
+	// directory is in, where that is a worktree of root.
+	root, group, tree string
 	srv         *room.Server
 }
 
@@ -64,6 +66,10 @@ func readHere(cmd, home, dir string) (here, error) {
 	}
 	h.read = r
 	h.root = r.rooting.rootOf(realDir(dir))
+	h.tree = checkoutOf(realDir(dir))
+	if h.tree == h.root {
+		h.tree = ""
+	}
 	if !r.rooting.isProject(h.root) {
 		return here{}, fmt.Errorf("%s is in no project under the roots in config.json", config.Tilde(dir, home))
 	}
@@ -71,6 +77,18 @@ func readHere(cmd, home, dir string) (here, error) {
 		h.group = above
 	}
 	return h, nil
+}
+
+// checkoutOf is the top of the checkout a directory is in, or "".
+func checkoutOf(dir string) string {
+	for d := dir; ; d = filepath.Dir(d) {
+		if work.IsRepo(d) {
+			return d
+		}
+		if filepath.Dir(d) == d {
+			return ""
+		}
+	}
 }
 
 // parentOf is the directory above, or the directory itself at the top.
@@ -88,6 +106,16 @@ func (h here) projects(under string) []work.Project {
 		if work.Within(pl.Path, under) {
 			out = append(out, pl)
 		}
+	}
+	return out
+}
+
+// inTree is the project's rows that work in the caller's worktree.
+func (h here) inTree() []work.Project {
+	var out []work.Project
+	for _, pl := range h.projects(h.root) {
+		pl.Entries = slices.DeleteFunc(slices.Clone(pl.Entries), func(e work.Entry) bool { return !work.Within(e.Cwd, h.tree) })
+		out = append(out, pl)
 	}
 	return out
 }
@@ -117,7 +145,10 @@ func (h here) find(addr string) (found, error) {
 		places = [][]work.Project{h.read.projects}
 	default:
 		match = func(e work.Entry) bool { return nameOf(e) == addr }
-		places = [][]work.Project{h.projects(h.root)}
+		if h.tree != "" {
+			places = append(places, h.inTree())
+		}
+		places = append(places, h.projects(h.root))
 		if h.group != "" {
 			places = append(places, h.projects(h.group))
 		}

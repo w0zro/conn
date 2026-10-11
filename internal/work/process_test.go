@@ -816,3 +816,35 @@ var (
 	// Where the checkouts are kept, which the processes view names its
 	// projects against.
 )
+
+// A worktree's work is its repository's: its .git names the repository,
+// and the finder files a directory in it under the repository. A
+// submodule's .git names .git/modules and stays a project of its own;
+// a clone's .git is a directory and is itself.
+func TestAWorktreeIsItsRepositorys(t *testing.T) {
+	top := t.TempDir()
+	repo, tree, sub := filepath.Join(top, "shop"), filepath.Join(top, "shop-fix"), filepath.Join(top, "shop", "vendor", "lib")
+	for _, d := range []string{filepath.Join(repo, ".git", "worktrees", "shop-fix"), filepath.Join(repo, ".git", "modules", "lib"), filepath.Join(tree, "src"), sub} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write := func(dir, gitdir string) {
+		if err := os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: "+gitdir+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(tree, filepath.Join(repo, ".git", "worktrees", "shop-fix"))
+	write(sub, "../../.git/modules/lib")
+	for dir, want := range map[string]string{tree: repo, sub: "", repo: ""} {
+		if got := WorktreeOf(dir); got != want {
+			t.Errorf("%s is a worktree of %q, want %q", dir, got, want)
+		}
+	}
+	rootOf := RootFinder(ProjectDirs([]string{top}))
+	for dir, want := range map[string]string{filepath.Join(tree, "src"): repo, sub: sub, repo: repo} {
+		if got := rootOf(dir); got != want {
+			t.Errorf("%s is filed under %q, want %q", dir, got, want)
+		}
+	}
+}

@@ -1005,6 +1005,9 @@ A project is a git repository under a root, or a directory under a root
 that directly holds one.
 A process belongs to the nearest project at or above its working
 directory.
+A worktree is a checkout of its repository and not a project of its own:
+what works in it belongs to the repository, wherever the worktree is.
+A submodule is a project of its own.
 A process with no terminal is listed under a project only while
 terminal work is happening in that project.
 .PP
@@ -1505,8 +1508,9 @@ An address is a name, as
 gives it,
 .BI : port
 for the process listening on a port, or a pid.
-A name is looked for in the project the working directory is in, then
-in the folder of repositories that holds it, and no further:
+A name is looked for in the worktree the working directory is in, where
+it is one, then in the project, then in the folder of repositories that
+holds it, and no further:
 an agent's word reaches its own work first.
 A port or a pid names one process on the machine, and is looked for in
 every project.

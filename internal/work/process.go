@@ -847,6 +847,11 @@ func RootFinder(isProject func(string) bool) func(string) string {
 				break
 			}
 		}
+		// A worktree is a checkout of a repository, not a project of
+		// its own: its work is the repository's.
+		if main := WorktreeOf(root); main != "" && isProject(main) {
+			root = main
+		}
 		known[dir] = root
 		return root
 	}
@@ -989,6 +994,29 @@ func WithoutConnsOwn(procs []Process, watching map[string]bool, panelTTY string)
 		kept = append(kept, p)
 	}
 	return kept
+}
+
+// WorktreeOf is the repository a worktree is a checkout of, or "" for
+// a directory that is not a worktree. git writes a worktree's .git as
+// a file naming the repository's own: gitdir: REPO/.git/worktrees/NAME.
+// A submodule's names .git/modules instead, and is a project of its own.
+func WorktreeOf(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, ".git"))
+	if err != nil {
+		return ""
+	}
+	gitdir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir: ")
+	if !ok {
+		return ""
+	}
+	if !filepath.IsAbs(gitdir) {
+		gitdir = filepath.Join(dir, gitdir)
+	}
+	worktrees := filepath.Dir(filepath.Clean(gitdir))
+	if filepath.Base(worktrees) != "worktrees" || filepath.Base(filepath.Dir(worktrees)) != ".git" {
+		return ""
+	}
+	return filepath.Dir(filepath.Dir(worktrees))
 }
 
 // IsRepo says whether a directory is the top of a git repository. .git

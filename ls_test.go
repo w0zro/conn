@@ -40,7 +40,7 @@ func TestLsWritesARowALine(t *testing.T) {
 		{PID: 41, Status: work.StatusIdle, Kind: work.KindShell, Command: "zsh", Depth: 1},
 	}}}
 	var b strings.Builder
-	writeLs(&b, projects, "/home/me")
+	_ = writeLs(&b, projects, "/home/me")
 	got := strings.Split(strings.TrimRight(b.String(), "\n"), "\n")
 	if len(got) != 4 || got[0] != "~/projects/shop" {
 		t.Fatalf("ls wrote:\n%s", b.String())

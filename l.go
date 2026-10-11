@@ -42,7 +42,9 @@ func runL(w io.Writer, home, dir string, args []string) int {
 		return fail("l", err)
 	}
 	for _, l := range lines {
-		fmt.Fprintln(w, l)
+		if _, err := fmt.Fprintln(w, l); err != nil {
+			return fail("l", err)
+		}
 	}
 	return 0
 }

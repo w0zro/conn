@@ -30,7 +30,9 @@ func runLs(w io.Writer, home, dir string) int {
 	if len(mine) == 0 {
 		mine = []work.Project{{Path: h.root}}
 	}
-	writeLs(w, mine, home)
+	if err := writeLs(w, mine, home); err != nil {
+		return fail("ls", err)
+	}
 	return 0
 }
 
@@ -45,23 +47,24 @@ func realDir(dir string) string {
 
 // writeLs writes the projects, each under its path, a row a line:
 // the pid, the status, the kind, the name it is addressed by, its
-// ports, and its command, indented under what runs it.
-func writeLs(w io.Writer, projects []work.Project, home string) {
+// ports, and its command, indented under what runs it. The table is
+// written whole at the end, so its one error is the flush's.
+func writeLs(w io.Writer, projects []work.Project, home string) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for i, pl := range projects {
 		if i > 0 {
-			fmt.Fprintln(tw)
+			_, _ = fmt.Fprintln(tw)
 		}
-		fmt.Fprintln(tw, config.Tilde(pl.Path, home))
+		_, _ = fmt.Fprintln(tw, config.Tilde(pl.Path, home))
 		if pl.Note != "" {
-			fmt.Fprintf(tw, "  %s\n", pl.Note)
+			_, _ = fmt.Fprintf(tw, "  %s\n", pl.Note)
 		}
 		for _, e := range pl.Entries {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s%s\n", pidWord(e), e.Status, strings.ToLower(e.Kind),
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s%s\n", pidWord(e), e.Status, strings.ToLower(e.Kind),
 				nameOf(e), dash(strings.Join(portsOf(e), ",")), strings.Repeat("  ", e.Depth), e.AsTyped())
 		}
 	}
-	tw.Flush()
+	return tw.Flush()
 }
 
 // nameOf is the name a row is addressed by: the one it is declared

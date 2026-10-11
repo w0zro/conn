@@ -83,7 +83,7 @@ func runU(w io.Writer, home, dir string, args []string) int {
 		return fail("u", err)
 	}
 	if !*wait {
-		fmt.Fprintf(w, "%s is up in pane %s; conn l %s reads it\n", name, sh.Pane.ID, name)
+		_, _ = fmt.Fprintf(w, "%s is up in pane %s; conn l %s reads it\n", name, sh.Pane.ID, name)
 		return 0
 	}
 	exit, err := waitExit(h.srv, sh.Pane.ID)
@@ -93,7 +93,7 @@ func runU(w io.Writer, home, dir string, args []string) int {
 	lines, _, err := h.srv.Scrollback(sh.Pane.ID)
 	if err == nil {
 		for _, l := range trimBlank(lines) {
-			fmt.Fprintln(w, l)
+			_, _ = fmt.Fprintln(w, l)
 		}
 	}
 	code, _ := strconv.Atoi(exit)
@@ -156,7 +156,7 @@ func runX(w io.Writer, home, dir string, args []string) int {
 	if err != nil {
 		return fail("x", err)
 	}
-	fmt.Fprintf(w, "%s ended: %s\n", nameOf(f.Entry), how)
+	_, _ = fmt.Fprintf(w, "%s ended: %s\n", nameOf(f.Entry), how)
 	return 0
 }
 
@@ -175,13 +175,13 @@ func runR(w io.Writer, home, dir string, args []string) int {
 		if _, err := docker.Says(docker.StopWait, "restart", f.Container); err != nil {
 			return fail("r", fmt.Errorf("docker would not restart %s: %v", name, err))
 		}
-		fmt.Fprintf(w, "%s restarted: docker restart %s\n", name, f.Container)
+		_, _ = fmt.Fprintf(w, "%s restarted: docker restart %s\n", name, f.Container)
 		return 0
 	case f.Brew != "":
 		if _, err := brew.Says(brew.Wait, "services", "restart", f.Brew); err != nil {
 			return fail("r", fmt.Errorf("brew would not restart %s: %v", name, err))
 		}
-		fmt.Fprintf(w, "%s restarted: brew services restart %s\n", name, f.Brew)
+		_, _ = fmt.Fprintf(w, "%s restarted: brew services restart %s\n", name, f.Brew)
 		return 0
 	}
 	p, ok := h.paneOf(f.Entry)
@@ -215,7 +215,7 @@ func runR(w io.Writer, home, dir string, args []string) int {
 	if p.Exit != "" {
 		_ = h.srv.ClosePane(p.ID)
 	}
-	fmt.Fprintf(w, "%s restarted in pane %s\n", name, sh.Pane.ID)
+	_, _ = fmt.Fprintf(w, "%s restarted in pane %s\n", name, sh.Pane.ID)
 	return 0
 }
 

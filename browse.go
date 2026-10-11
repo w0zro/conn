@@ -1,9 +1,7 @@
 package main
 
 import (
-	"crypto/tls"
 	"errors"
-	"net"
 	"os/exec"
 	"runtime"
 	"time"
@@ -26,46 +24,9 @@ import (
 // of it to answer.
 
 // serveWait is the longest a port is given to answer, dialling and
-// again handshaking. It is spent off the loop, in the command o
-// answers with, so the panel is not held for it.
+// again handshaking or answering a request. It is spent off the loop,
+// in the command cc answers with, so the panel is not held for it.
 const serveWait = time.Second
-
-// localURL is where a port of this machine is, as a browser is given
-// it, under the scheme that port answers to.
-func localURL(port string) string {
-	return localScheme(port) + "://localhost:" + port
-}
-
-// localScheme asks a port of this machine whether it speaks TLS, by
-// offering a handshake and seeing whether one comes back. Anything
-// else is http: an http server reads the hello as a request line and
-// answers 400, a port that has gone between the reading and the key is
-// not dialled at all, and a server too slow to answer within serveWait
-// is a server conn will not hold the operator up over. http is what a
-// port is when nothing says otherwise, and the far more common of the
-// two.
-//
-// The certificate is not checked. conn sends nothing to the port and
-// is not asking who it is; it is telling one scheme from the other,
-// and a dev server's certificate is signed by nobody in particular.
-// The browser makes up its own mind about the certificate a moment
-// later, which is where that question belongs and where the operator
-// can answer it.
-func localScheme(port string) string {
-	c, err := net.DialTimeout("tcp", net.JoinHostPort("localhost", port), serveWait)
-	if err != nil {
-		return "http"
-	}
-	defer func() { _ = c.Close() }()
-	if err := c.SetDeadline(time.Now().Add(serveWait)); err != nil {
-		return "http"
-	}
-	t := tls.Client(c, &tls.Config{InsecureSkipVerify: true, ServerName: "localhost"})
-	if err := t.Handshake(); err != nil {
-		return "http"
-	}
-	return "https"
-}
 
 // browse opens a URL where the operator can see it, by the program the
 // system opens things with: open on macOS, xdg-open on Linux, which is

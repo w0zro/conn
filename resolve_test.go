@@ -2,9 +2,6 @@ package main
 
 import (
 	"net"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -27,22 +24,10 @@ func TestTheAnswerIsItsCommand(t *testing.T) {
 	}
 }
 
-// A port that answers a request with an HTTP status line is the web's,
-// and goes to the browser; one that answers something else, or
-// nothing, is asked about.
-func TestAPortThatSpeaksTheWebIsOpened(t *testing.T) {
-	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
-	defer web.Close()
-	_, port, _ := net.SplitHostPort(strings.TrimPrefix(web.URL, "http://"))
-	if scheme, ok := speaksWeb(port); !ok || scheme != "http" {
-		t.Errorf("an http server's port: %q %v", scheme, ok)
-	}
-	tlsWeb := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
-	defer tlsWeb.Close()
-	_, port, _ = net.SplitHostPort(strings.TrimPrefix(tlsWeb.URL, "https://"))
-	if scheme, ok := speaksWeb(port); !ok || scheme != "https" {
-		t.Errorf("an https server's port: %q %v", scheme, ok)
-	}
+// A port that answers a request with something other than an HTTP
+// status line is not the web's, and is asked about; see
+// TestThePortIsWhereTheBrowserGoes for the ones that are.
+func TestAPortThatSpeaksAnotherProtocolIsNotTheWebs(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +43,7 @@ func TestAPortThatSpeaksTheWebIsOpened(t *testing.T) {
 			_ = c.Close()
 		}
 	}()
-	_, port, _ = net.SplitHostPort(l.Addr().String())
+	_, port, _ := net.SplitHostPort(l.Addr().String())
 	if _, ok := speaksWeb(port); ok {
 		t.Error("a redis-like port was taken for the web")
 	}

@@ -55,21 +55,24 @@ func TestCcOpensThePortWhereARowServes(t *testing.T) {
 
 // The port a row says is the port the browser is sent to, on this
 // machine, under the scheme that port answers to — proven against a
-// server of each kind rather than against conn's idea of them.
+// server of each kind rather than against conn's idea of them. A port
+// nothing is on is no page.
 func TestThePortIsWhereTheBrowserGoes(t *testing.T) {
 	nothing := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 	plainly := httptest.NewServer(nothing)
 	defer plainly.Close()
 	secured := httptest.NewTLSServer(nothing)
 	defer secured.Close()
-	for _, c := range []struct{ what, at, want string }{
-		{"an http server", plainly.URL, "http"},
-		{"an https server", secured.URL, "https"},
-		{"a port nothing is on", "http://localhost:" + freePort(t), "http"},
+	for _, c := range []struct {
+		what, at, want string
+		web            bool
+	}{
+		{"an http server", plainly.URL, "http", true},
+		{"an https server", secured.URL, "https", true},
+		{"a port nothing is on", "http://localhost:" + freePort(t), "", false},
 	} {
-		port := portOf(t, c.at)
-		if got, want := localURL(port), c.want+"://localhost:"+port; got != want {
-			t.Errorf("with %s on the port the browser is sent to %q, want %q", c.what, got, want)
+		if got, web := speaksWeb(portOf(t, c.at)); got != c.want || web != c.web {
+			t.Errorf("with %s on the port: %q %v, want %q %v", c.what, got, web, c.want, c.web)
 		}
 	}
 }

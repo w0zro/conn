@@ -164,11 +164,18 @@ func answerLine(out string) (string, error) {
 
 // speaksWeb says whether a port of this machine answers as the web
 // does, and by which scheme: a TLS handshake, or an HTTP status line to
-// a request. A port that does neither within serveWait is not a page.
+// a request. A port that does neither within serveWait is not a page,
+// and is asked about instead.
+//
+// The certificate is not checked. conn is not asking who the port is;
+// it is telling one scheme from another, and a dev server's
+// certificate is signed by nobody in particular. The browser makes up
+// its own mind about the certificate a moment later, which is where
+// that question belongs and where the operator can answer it.
 func speaksWeb(port string) (string, bool) {
 	addr := net.JoinHostPort("localhost", port)
 	d := &net.Dialer{Timeout: serveWait}
-	if c, err := tls.DialWithDialer(d, "tcp", addr, &tls.Config{InsecureSkipVerify: true}); err == nil { //nolint:gosec // telling a scheme, not trusting a peer; see localScheme
+	if c, err := tls.DialWithDialer(d, "tcp", addr, &tls.Config{InsecureSkipVerify: true}); err == nil { //nolint:gosec // telling a scheme, not trusting a peer
 		_ = c.Close()
 		return "https", true
 	}

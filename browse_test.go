@@ -15,10 +15,11 @@ import (
 	"github.com/w0zro/conn/internal/tmux"
 )
 
-// o is offered where a row serves: it is alive and has a port. A
+// cc offers the port where a row serves: it is alive and has a port. A
 // contact is never a thing to go to, whatever it has open, and a row
-// that is not running serves nothing.
-func TestOIsOfferedWhereARowServes(t *testing.T) {
+// that is not running serves nothing. A running row with no port is
+// still asked about; a port that does not speak the web is too.
+func TestCcOpensThePortWhereARowServes(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
 	m.srv = room.New(&tmux.Server{Tmux: "/nonexistent/tmux", Socket: "/tmp/none"})
@@ -34,9 +35,9 @@ func TestOIsOfferedWhereARowServes(t *testing.T) {
 	for _, c := range []struct {
 		pid  int
 		want bool
-	}{{300, true}, {301, false}, {302, false}, {303, false}} {
+	}{{300, true}, {301, true}, {302, false}, {303, false}} {
 		m.cursor = c.pid
-		if got := offered(m.bar(), "cc", "Open :5173"); got != c.want {
+		if got := offered(m.bar(), "cc", "Open :5173"); got != (c.pid == 300) {
 			t.Errorf("on %d the bar offers cc: %v, want %v\n%s", c.pid, got, c.want, m.bar())
 		}
 		_, cmd := press(m, "c", "c")
@@ -45,7 +46,7 @@ func TestOIsOfferedWhereARowServes(t *testing.T) {
 		}
 		if c.want {
 			notice, ok := answered(cmd).(noticeMsg)
-			if !ok || !strings.Contains(notice.text, "was not found on the path") {
+			if !ok || !strings.Contains(notice.text, "not on the path") {
 				t.Errorf("on %d o answered %#v", c.pid, answered(cmd))
 			}
 		}

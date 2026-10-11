@@ -496,15 +496,31 @@ on a server
 knows is a session with it by its own client:
 .B psql
 on a postgres, the bar naming the client.
-On a row with a port and no known client, the port in the browser, at
-.IR localhost: port ,
-at the lowest where it says several; the scheme is the port's own:
-.B conn
-offers it a TLS handshake, and sends the browser to
+On a row with no known client whose lowest port speaks the web, the
+port in the browser, at
+.IR localhost: port :
 .I https
-where one comes back and
+where a TLS handshake comes back,
 .I http
-where none does.
+where a request is answered with an HTTP status line.
+On any other running process,
+.B conn
+asks Claude Code, as
+.BR "claude \-p" ,
+with no tools, what opens a client session with it, telling it the
+process and the files at the top of its project; the answer is
+offered on the key bar as a question, the command and the process,
+which
+.B y
+opens in a pane at the project and goes into, and any other key lets
+go.
+Nothing is kept: every
+.B cc
+asks again.
+The bar offers
+.B cc
+on runs and services that are running; a shell, a contact and an editor
+are talked to in their own panes.
 The browser is the system's own:
 .BR open (1)
 on macOS,
@@ -514,7 +530,8 @@ on Linux.
 .B l
 What it said.
 .B ll
-puts the row's pane in the workspace and leaves the keys on the panel;
+puts the row's pane in the workspace until the next key, the keys
+staying on the panel, and the page coming back after;
 on a container, its log, and on a Homebrew service, its log, each in a
 pane opened to follow it.
 .B lp
@@ -710,6 +727,13 @@ Its pane is taken down once the end is recorded.
 .TP
 a declared process, ended
 .BI "kill\-pane " "pane \(pc name" ?
+.TP
+an answer
+.IB command " \(pc " process ?
+From
+.BR cc :
+what Claude Code answered; see
+.BR c .
 .TP
 a project
 .BI "end " "n " "of its processes \(pc " project ?

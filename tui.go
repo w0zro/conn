@@ -873,6 +873,8 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		// The sessions have landed, and the page comes up for the one
 		// the cursor is on without anybody asking.
 		return m.keepingPage()
+	case resolvedMsg:
+		return m.offer(msg), nil
 	case killedMsg:
 		// A beat for the signal to be acted on, so the row is not read a
 		// moment too soon, still there; the processesTick this reuses is a

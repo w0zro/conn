@@ -274,13 +274,16 @@ func (m model) bar() string {
 	// The verbs, doubled: what each does to this row. A verb with
 	// nothing to do here is not offered.
 	if ok && m.inside {
-		if p := m.programUnder(e); p != nil {
+		switch p := m.programUnder(e); {
+		case p != nil:
 			hints = append(hints, keyHint{"cc", p.client})
-		} else if serving(e) {
+		case serving(e) && talkable(e):
 			// The port itself is the word: the bar has enter saying
 			// Open beside it, and what tells the two apart is that this
 			// one names a port.
 			hints = append(hints, keyHint{"cc", "Open " + draw.PortsColumn(e.Ports[:1])})
+		case talkable(e):
+			hints = append(hints, keyHint{"cc", "Ask what talks to it"})
 		}
 		if m.raiseOn(e) != nil {
 			hints = append(hints, keyHint{"uu", "Bring it up"})

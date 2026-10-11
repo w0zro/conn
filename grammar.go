@@ -91,11 +91,11 @@ func (m model) onEntry(verb string, e work.Entry, pl work.Project) (model, tea.C
 		if p := m.programUnder(e); p != nil {
 			return m, m.openClient(e, p, pl.Path)
 		}
-		if serving(e) {
-			return m, m.openServing(e)
+		if !talkable(e) {
+			return m, nil
 		}
-		m.notice = "conn knows no client for " + work.Program(e.AsTyped())
-		return m, nil
+		m.notice = "asking claude what talks to " + work.Program(e.AsTyped())
+		return m, m.talkTo(e, pl)
 	case "l":
 		if p, ok := m.panes[e.TTY]; ok && room.Reachable(p) && m.inside {
 			m.peek, m.bay.readout = true, false
@@ -159,6 +159,17 @@ func (m model) onProject(verb string, pl work.Project, came string) (model, tea.
 		}
 	}
 	return m, nil
+}
+
+// talkable says whether a row is something cc could find a client
+// for: a run or a service that is running. A shell, a contact and an
+// editor are already talked to, in their own panes.
+func talkable(e work.Entry) bool {
+	switch e.Kind {
+	case work.KindContact, work.KindShell, work.KindEditor:
+		return false
+	}
+	return !work.Over(e.Status) && e.Status != work.StatusDown
 }
 
 // projectWork is the rows of a project that are its work and not the

@@ -81,12 +81,12 @@ func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 		{PID: 303, Kind: work.KindShell, Command: "zsh", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5433"}, Listener: "postgres -D data"},
 	}}}
 	has := func(bar string) bool { return offered(bar, "cc", "psql") }
-	// cc is the client where conn knows one, and the port in the browser
-	// where it knows none and the row serves: 302 asks for the port.
+	// cc is the client where conn knows one, and otherwise the port in
+	// the browser or Claude Code asked: 301 and 302 ask too.
 	for _, c := range []struct {
 		pid        int
 		want, asks bool
-	}{{300, true, true}, {301, false, false}, {-7, false, false}, {-8, true, true}, {302, false, true}, {303, true, true}} {
+	}{{300, true, true}, {301, false, true}, {-7, false, false}, {-8, true, true}, {302, false, true}, {303, true, true}} {
 		m.cursor = c.pid
 		if got := has(m.bar()); got != c.want {
 			t.Errorf("on %d the bar offers cc psql: %v, want %v\n%s", c.pid, got, c.want, m.bar())

@@ -29,57 +29,26 @@
 <body>
 
 <nav class="nav" aria-label="site">
-  <span class="head"><a class="mark" href="/">CONN</a><span class="docline">TECHNICAL MEMORANDUM &nbsp;&middot;&nbsp; TM-CONN-01</span></span>
-  <span class="links"><a href="/manual/">OPERATING MANUAL</a><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">MAN CONN</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
+  <a class="mark" href="/">CONN</a>
+  <span class="links"><a href="/manual/">MANUAL</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
 </nav>
 
-<!-- The stage: the windows, the panel they gather into, the pane one
-     of them opens as, and the line of type over it all. site.js lays
-     every piece out for the scroll's position. -->
+<!-- The stage: the panes, the panel they gather into, and beside it
+     the one line and the install. site.js lays every piece out for the
+     scroll's position. -->
 <div id="stage" class="stage" aria-hidden="true">
   <div id="panelbg" class="panelbg"></div>
   <div id="field" class="field"></div>
-  <div id="pane" class="pane"></div>
 </div>
 
-<!-- The findings: a figure a beat, captioned in the memorandum's
-     voice, numbered as its paragraphs are. -->
-<div class="captions" aria-live="polite">
-  <div class="caption" data-at="0"><p class="kicker">FIGURE 1-1 &nbsp;&middot;&nbsp; SITUATION</p><p class="para"><span class="n">1-1.</span> Several minds work one machine at a time. Two have stopped to ask, and nothing says so.</p></div>
-  <div class="caption" data-at="1"><p class="kicker">FIGURE 1-2 &nbsp;&middot;&nbsp; THE STATION</p><p class="para"><span class="n">1-2.</span> conn takes the conn. Every process under the project it works; <b>&#9791;</b> a contact, first in its block.</p></div>
-  <div class="caption" data-at="2"><p class="kicker">FIGURE 1-3 &nbsp;&middot;&nbsp; THE WATCH</p><p class="para"><span class="n">1-3.</span> One line a project says what it wants of the operator. WAITING blinks. Nothing else is said.</p></div>
-  <div class="caption" data-at="3"><p class="kicker">FIGURE 1-4 &nbsp;&middot;&nbsp; CONTACT</p><p class="para"><span class="n">1-4.</span> <b>tab</b>, the contact that has waited longest. <b>enter</b>, its terminal. The operator has the conn; the contact has the work.</p></div>
-  <div class="caption" data-at="4"><p class="kicker">FIGURE 1-5 &nbsp;&middot;&nbsp; STANDING DOWN</p><p class="para"><span class="n">1-5.</span> <b>q</b>. Every contact carries what it has and goes on.</p></div>
+<div id="claim" class="claim">
+  <p class="line"><span id="typed"></span><span class="cursor"></span></p>
+  <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
+  <p class="needs">A console for the processes working your projects. macOS and Linux, on tmux.</p>
 </div>
 
-<!-- The folio: where in the document, and which change. The release
-     stamps the change as it stamps the manual's. -->
-<div class="folio" aria-hidden="true"><span>TM-CONN-01</span><b id="figure">FIG. 1-1</b><span><!-- change -->CHANGE v0.23.0<!-- /change --></span></div>
-
-<!-- The scroll: a screen a beat. -->
-<div class="scroll" id="scroll">
-  <section></section><section></section><section></section><section></section><section></section>
-  <section class="end" id="end">
-    <div class="install">
-      <p class="kicker">SECTION 2 &nbsp;&middot;&nbsp; INSTALLATION PROCEDURE</p>
-      <p class="para"><span class="n">2-1.</span> A station for one operator directing many processes on one machine, on a tmux server conn starts and holds. The contacts are Claude Code sessions.</p>
-      <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
-      <dl class="spec">
-        <div><dt>PLATFORM</dt><dd>macOS &middot; Linux</dd></div>
-        <div><dt>RUNS ON</dt><dd>tmux &middot; lsof on macOS</dd></div>
-        <div><dt>BUILT IN</dt><dd>Go &middot; one binary</dd></div>
-        <div><dt>LICENSE</dt><dd>MIT</dd></div>
-      </dl>
-      <p class="kicker">DOCUMENTS</p>
-      <dl class="docs">
-        <div><dt>OPERATING MANUAL</dt><dd><a href="/manual/">conn.w0zro.com/manual</a> &middot; how conn is worked, on its pages</dd></div>
-        <div><dt>REFERENCE</dt><dd><a href="https://github.com/w0zro/conn/blob/main/man/conn.1">man conn</a> &middot; every command, flag, key and word; built in, <b>?</b> inside conn</dd></div>
-        <div><dt>SOURCE</dt><dd><a href="https://github.com/w0zro/conn">github.com/w0zro/conn</a></dd></div>
-      </dl>
-      <p class="distribution">DISTRIBUTION STATEMENT A &mdash; APPROVED FOR PUBLIC RELEASE; DISTRIBUTION IS UNLIMITED (MIT LICENSE).</p>
-    </div>
-  </section>
-</div>
+<!-- The scroll: one screen, from the field to the panel. -->
+<div class="scroll" id="scroll"><section></section><section></section></div>
 
 <noscript>
 <div class="noscript">

@@ -134,82 +134,49 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .pane .band { position: absolute; left: 0; right: 0; bottom: 0; height: var(--row); background: var(--border); color: var(--gray); padding: 0 8px; }
 .pane .band b { color: var(--ink); }
 
-/* The findings: a figure's caption a beat, the kicker and the numbered
-   paragraph as the manual sets them, on a ground of their own so the
-   figure behind never runs into the words. */
-.captions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; pointer-events: none; }
-.caption {
-  position: absolute; left: 28px; bottom: 52px; margin: 0;
-  max-width: 600px;
-  padding: 18px 22px 18px 0;
-  opacity: 0; transform: translateY(10px);
-  transition: opacity 320ms ease, transform 320ms ease;
+/* The line, and the install under it, beside the panel. */
+.claim {
+  position: fixed; z-index: 3;
+  left: 0; top: 0;
+  width: 520px;
+  opacity: 0;
+  pointer-events: none;
 }
-.caption::before {
-  content: ""; position: absolute; inset: 0; left: -28px; right: -60px; z-index: -1;
-  background: linear-gradient(90deg, rgba(21, 19, 15, 0.96) 0%, rgba(21, 19, 15, 0.96) 80%, rgba(21, 19, 15, 0) 100%);
+.claim.on { pointer-events: auto; }
+.claim .line {
+  margin: 0 0 28px;
+  font-size: clamp(34px, 4.6vw, 64px); line-height: 1.05; font-weight: 700; letter-spacing: -0.03em;
+  color: var(--ink);
+  min-height: 1.05em;
 }
-.caption.on { opacity: 1; transform: none; }
-.kicker { margin: 0 0 14px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.3em; color: var(--accent); }
-.para { margin: 0; font-size: clamp(17px, 1.6vw, 23px); line-height: 1.5; color: var(--parchment); }
-.para .n { font-weight: 700; color: var(--ink); margin-right: 0.6em; }
-.para b { font-weight: 700; color: var(--ink); }
-
-/* The folio: the document, the figure, the change. */
-.folio {
-  position: fixed; right: 28px; bottom: 44px; z-index: 3;
-  display: flex; gap: 22px; align-items: baseline;
-  font-size: 11px; letter-spacing: 0.18em; color: var(--gray);
-}
-.folio b { color: var(--parchment); font-weight: 700; }
-
-/* The scroll, and the end of it. */
-.scroll { position: relative; z-index: 2; pointer-events: none; }
-.scroll section { height: 100vh; height: 100dvh; }
-.scroll .end { pointer-events: auto; display: flex; align-items: center; justify-content: center; padding: 0 28px; box-sizing: border-box; }
-.install { max-width: 720px; width: 100%; }
-.install .kicker { margin-bottom: 14px; }
-.install .para { margin-bottom: 24px; }
+.claim .cursor { display: inline-block; width: 0.55em; height: 0.95em; background: var(--accent); vertical-align: -0.08em; margin-left: 0.08em; animation: blink 1s steps(1) infinite; }
+.claim .cursor.off { visibility: hidden; }
 .cmd {
   display: flex; align-items: baseline; gap: 14px;
   background: var(--surface); border: 1px solid var(--border);
-  padding: 16px 20px; font-size: 15px; color: var(--ink); overflow-x: auto;
+  padding: 14px 18px; font-size: 14px; color: var(--ink); overflow-x: auto;
 }
 .cmd .prompt { color: var(--accent); font-weight: 700; }
 .cmd code { flex: 1; font: inherit; white-space: nowrap; }
 .copy { font: inherit; color: var(--gray); background: none; border: 0; padding: 0; cursor: pointer; white-space: nowrap; }
 .copy:hover { color: var(--ink); }
 .copy.done { color: var(--accent); }
-.spec { margin: 0 0 40px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 14px 0 0; border-top: 1px solid var(--border); }
-.spec div { display: flex; flex-direction: column; gap: 2px; }
-.spec dt { font-size: 10.5px; letter-spacing: 0.24em; color: var(--faint); font-weight: 700; }
-.spec dd { margin: 0; color: var(--ink); }
-.docs { margin: 0 0 40px; display: grid; gap: 8px; }
-.docs div { display: flex; gap: 16px; }
-.docs dt { flex: none; width: 180px; font-size: 11px; letter-spacing: 0.2em; color: var(--faint); font-weight: 700; line-height: 1.9; }
-.docs dd { margin: 0; color: var(--parchment); }
-.docs dd b { color: var(--ink); }
-.docs a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
-.docs a:hover { color: var(--accent); }
-.distribution { margin: 0; font-size: 11px; letter-spacing: 0.1em; color: var(--faint); border-top: 1px solid var(--border); padding-top: 14px; }
+.claim .needs { margin: 14px 0 0; color: var(--gray); font-size: 13px; }
+
+/* The scroll: one screen. */
+html { scroll-snap-type: y mandatory; }
+.scroll { position: relative; z-index: 2; pointer-events: none; }
+.scroll section { height: 100vh; height: 100dvh; scroll-snap-align: start; }
 
 .noscript { max-width: 720px; margin: 48px auto; padding: 0 24px; color: var(--parchment); position: relative; z-index: 6; }
 
 @media (max-width: 720px) {
   .nav { padding: 16px 18px; }
-  .nav .links a:not(.accent) { display: none; }
-  .caption { left: 18px; right: 18px; bottom: 36px; max-width: none; padding-right: 0; }
-  .caption::before { left: -18px; right: -18px; }
-  .nav .docline { display: none; }
-  .folio { display: none; }
-  .spec { grid-template-columns: 1fr 1fr; }
-  .docs div { flex-direction: column; gap: 0; }
-  .scroll .end { padding: 0 18px; }
-  .cmd { flex-wrap: wrap; }
+  .claim { width: auto; }
+  .claim .line { font-size: 30px; margin-bottom: 16px; }
+  .cmd { flex-wrap: wrap; padding: 10px 12px; font-size: 12px; }
   .cmd code { white-space: normal; word-break: break-all; }
-  .docs dt { width: 110px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .win .head .word.blink, .eyebrow .tail.blink, .win .body .cursor { animation: none; }
-  .caption { transition: none; }
+  .win .head .word.blink, .eyebrow .tail.blink, .win .body .cursor, .claim .cursor { animation: none; }
 }

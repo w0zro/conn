@@ -7,7 +7,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 - Vim reduces an engineer's dealings with text to a grammar: verbs over objects. n verbs and m objects give n×m actions from n+m keys.
 - conn does the same for dealings with the processes working a project.
 - conn ships the grammar, not per-tool features. What a verb means for a given process is resolved, not written into conn.
-- The grammar has two users: agents, by a CLI, and the engineer, by keys. Both reach the same verbs and the same saved answers.
+- The grammar has two users: agents, by a CLI, and the engineer, by keys. Both reach the same verbs.
+- Nothing is persisted for now: no saved answers, no restored state. The grammar and what it can do come first; speed comes after, from there.
 
 ## The evidence
 
@@ -68,7 +69,7 @@ Checks — tests, a build, lint, a typecheck — are declared processes that run
 | `a` | ask: hand it to an agent | a contact given its output and state | — |
 
 - `c` merges "open its client" and "open its port": the client of an HTTP server is the browser.
-- A session and a request rest on one piece of knowledge: how to reach the process — host, port, user, database. That is what a resolution of `c` saves, not a command line.
+- A session and a request rest on one piece of knowledge: how to reach the process — host, port, user, database. That is what a resolution of `c` finds, not a command line.
 - `i` is how conn teaches the machine: every row says what it is and where it came from.
 - `a` is the way out of the grammar: anything the verbs do not cover goes to a contact, with the process as context.
 
@@ -92,33 +93,26 @@ Checks — tests, a build, lint, a typecheck — are declared processes that run
 
 ## Resolution
 
-A verb on a process is resolved to an action:
+A verb on a process is resolved to an action on every press. Nothing is kept between presses.
 
-1. **Saved**: an answer kept with the project. No LLM call.
-2. **Asked**: `claude -p` with the verb, the process, and the project's context: its processes, their commands, ports, directories. The answer is shown once for confirmation and saved if it works.
-
-A saved answer is kept while it works. When it fails at once — it exits non-zero within two seconds of starting — conn asks again, giving `claude -p` the failed command and its output with the project's context. The new answer is confirmed and replaces the saved one.
+- **From the keys**: `claude -p` with the verb, the process, and the project's context: its processes, their commands, ports, directories.
+- **From the CLI**: the caller is an agent, which resolves for itself. conn gives it the process and the project's context; it does not ask a second model.
 
 An action is one of: a command in a pane conn holds, an existing pane brought to the front, a signal to a process, a request whose answer is printed, a URL opened. A starting point, not a hard constraint.
 
-## Where answers are kept
-
-- Written by conn, readable and editable by the engineer, worth committing. One teammate's answers spare the next the LLM call.
-- `.conn` already declares a project's processes, one a line, `name [dir]: command`. Saved answers either take a syntax of their own in that file or a file of their own. Open.
-
 ## What it opens up
 
-1. **Agents address processes.** One addressed, saved way to read, reach, start and end a project's processes, in place of `capture-pane`, `lsof` and `pkill -f` rebuilt every session.
+1. **Agents address processes.** One addressed way to read, reach, start and end a project's processes, in place of `capture-pane`, `lsof` and `pkill -f` rebuilt every session.
 2. **The checks are visible.** The commonest thing agents run lands on the panel, with its failures, instead of only in a transcript.
-3. **Muscle memory across projects.** The same keys reach the database in a Rails app, a Go service or a compose stack; the saved answers differ by project.
-4. **Runbooks as config.** The saved answers replace a README's "how to connect to the db" and "how to get a shell in the container", and stay correct because a broken answer is asked again.
-5. **Sources and verbs at n+m.** A new source (Kubernetes, systemd, an SSH host) gets every verb at once: `c` on a pod resolves to `kubectl exec`. A new verb works on every source at once.
-6. **Macros, in vim's spirit.** A sequence recorded once — restart the database, run the migrations, restart web — replayed on one key.
-7. **The seam to vim.** A check's failures go to a quickfix list. The conjurer and quickfix-pro are the vim half; conn does not read files.
-8. **Failure as intent.** A process failed, so hand it to an agent with its output. The re-ask on a fast failure is one case; `a` on a crashed row is the pattern on demand.
+3. **Muscle memory across projects.** The same keys reach the database in a Rails app, a Go service or a compose stack; what they resolve to differs by project.
+4. **Sources and verbs at n+m.** A new source (Kubernetes, systemd, an SSH host) gets every verb at once: `c` on a pod resolves to `kubectl exec`. A new verb works on every source at once.
+5. **Macros, in vim's spirit.** A sequence recorded once — restart the database, run the migrations, restart web — replayed on one key.
+6. **The seam to vim.** A check's failures go to a quickfix list. The conjurer and quickfix-pro are the vim half; conn does not read files.
+7. **Failure as intent.** A process failed, so hand it to an agent with its output. `a` on a crashed row is the pattern on demand.
 
 ## Later
 
+- **Persistence, for speed**: answers saved with the project, readable and worth committing, so a press costs no LLM call and a teammate's answers spare the next. A saved answer kept while it works and asked again when it fails at once — non-zero within two seconds. Runbooks as config: the answers replace a README's "how to connect to the db". Where they are kept beside `.conn`'s declarations. Restoring what was up after a reboot.
 - **Types**: a table of programs conn knows by name (postgres → `psql`), answering before the LLM is asked.
 - **Roles** as objects, as vim's text objects: `d` the database, `w` the web server, `t` the tests. Open: how a role names several processes, and which roles get letters.
 - **More sources**: `Procfile`, and what else a project declares its processes in.
@@ -127,6 +121,16 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 
 ## Open
 
+From a day played out, 2026-10-11:
+
+- A project's declared processes are not shown while nothing in it runs, so the panel cannot start the day.
+- Starting a contact in a project and handing a process to one (`a`) are two intents; the grammar has a verb for the second only.
+- An agent's address needs a scope: its own project by default; ending another project's process refused, or logged.
+- The station keys — `l` log, `c` console, `p` projects, `r` recent — are verbs or objects in the grammar and need another home.
+- Whether the keys show an action before running it.
+
+From before:
+
+
 - How the keys take a name or a port.
-- Where saved answers are kept, beside `.conn`'s declarations.
 - How a CLI `u` on a long-running process returns: at once, or when it is listening.

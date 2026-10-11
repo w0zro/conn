@@ -62,6 +62,7 @@ A letter can be a verb and an object, as in vim: what it means is set by where i
 `rd` restarts the database. `ut` runs the tests. `cw` opens the app in the browser. `xp` ends the project. `ad` hands the database to an agent.
 
 - `.` repeats the last verb and object.
+- No counts. Vim's `3dd` has no clear meaning over processes; a count comes in when one does.
 - Inside a process, the panel key followed by the same grammar. The object defaults to the process you are in.
 - The motions and the key card stay: motions pick the row, the card shows the verbs against the objects as a table.
 
@@ -101,4 +102,3 @@ s web         = docker compose exec web bash
 ## Open
 
 - Roles the table lacks: a cache, a queue, a proxy, a second database.
-- Counts. Vim's `3dd` has no clear meaning over processes yet.

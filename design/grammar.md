@@ -132,17 +132,15 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 
 ## Built
 
-As of 2026-10-11, beside the panel, which is unchanged:
+As of 2026-10-11:
 
-- `conn ls`: the project's processes, with the name each is addressed by.
-- `conn l ADDRESS`: what a process said — its pane, or a container's log.
-- `conn u [-w] NAME -- COMMAND`: a command started under a name in a pane conn holds; `-w` waits and exits with its status.
-- `conn x ADDRESS`, `conn r ADDRESS`: end, and start again; only within the caller's project.
-- Addresses: a name (worktree, then project, then the folder of repositories), `:port`, a pid.
-- A worktree's work is its repository's.
-- A listener with no row of its own is a row of every project whose runs connect to it.
+- **The CLI**: `conn ls`, `conn l ADDRESS`, `conn u [-w] NAME -- COMMAND`, `conn x ADDRESS`, `conn r ADDRESS`. Addresses: a name (worktree, then project, then the folder of repositories), `:port`, a pid. `x` and `r` reach only the caller's project.
+- **The panel's keys are the grammar**: verbs `u x r c l i s a` wait for an object — the verb again for the row, `p` the project, `j k G` a row by a motion — and `.` repeats. `enter` and `/` act at once. The station's views are behind `g`: `gp gr gl gc`.
+- **Resolution, with nothing kept**: `cc` on a process with no known client opens a port that speaks the web, and otherwise asks `claude -p` and offers the answer as a question; `up` on a project with no `.conn` asks for its stack and offers it on one question.
+- **Contacts are told the CLI**, naming the build by its whole path where the PATH's `conn` is another.
+- **Projects**: a worktree's work is its repository's; a listener with no row of its own is a row of every project whose runs connect to it.
 
-Not yet: the key grammar on the panel, resolution by `claude -p`, linking two projects while they talk, starting the server from the CLI.
+Not yet: linking two projects while they talk, the CLI starting the server, removing `.conn` and the known-programs table once the resolution has held up in use.
 
 ## Later
 

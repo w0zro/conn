@@ -8,71 +8,64 @@ Draft, 2026-10-10. Written fresh, not from today's keys.
 - conn does the same for an engineer's dealings with the processes working a project.
 - conn ships the grammar. It does not ship per-tool features. What a verb means for a given process is resolved, not written into conn.
 
-## Nouns
+## First step: processes in general
 
-A project's processes are the objects. There are two kinds:
-
-- **Running**: tmux panes, containers, Homebrew services, listeners on a port, contacts (agents).
-- **Declared**: what the project says it can run, read from the files that already say it: `Procfile`, `compose.yaml`, `package.json` scripts, `Makefile` targets, `.conn`.
-
-Tests, a build, a migration are declared processes that are not running. Running them is the same verb as starting a server.
-
-Each process can have a **role**: database, web, worker, tests, build, agent. Roles name objects without moving to them, as vim's text objects do.
+The first step treats every process alike: no types, no roles, no distinction by where a process comes from. A process is a row, and a verb on it is resolved for that process. Specialization comes later, under **Later**.
 
 ## Verbs
 
-| Key | Verb | On a database | On a web server | On the tests |
-|---|---|---|---|---|
-| `enter` | go: its pane in front | its pane | its pane | its pane |
-| `u` | up: start it | start postgres | start the server | run them |
-| `x` | end it | stop postgres | stop the server | stop the run |
-| `r` | restart | restart postgres | restart the server | run them again |
-| `c` | client: talk to it | `psql …` | the browser at its port | the failures, rerun |
-| `s` | shell: its environment | a shell in its container | a shell at its dir, its env loaded | same |
-| `l` | log: what it said | its output | its output | the last run |
-| `/` | find in what it said | | | |
-| `y` | yank: copy its handle | the connection URL | the URL | the command |
-| `i` | inspect: what it is | command, env, origin, port | same | same |
-| `e` | edit: its configuration | `postgresql.conf` | the server's config | the test config |
-| `a` | ask: hand it to an agent | with its output and state | same | the failures |
+| Key | Verb | For example |
+|---|---|---|
+| `u` | up: start it | bring up a server that ended |
+| `x` | end it | stop it |
+| `r` | restart | end it and start it again |
+| `c` | client: talk to it | `psql …` on postgres, the browser on a web server |
+| `s` | shell: its environment | a shell in its container, or at its directory |
+| `l` | log: what it said | its output |
+| `y` | yank: copy its handle | its URL, its command |
+| `i` | inspect: what it is | its command, environment, origin, port |
+| `e` | edit: its configuration | `postgresql.conf` |
+| `a` | ask: hand it to an agent | a contact given its output and state |
 
 - `c` merges "open its client" and "open its port": the client of an HTTP server is the browser.
 - `i` is how conn teaches the machine: every row can say what it is and where it came from.
-- `a` is the way out of the grammar: anything the verbs do not cover goes to a contact, with the object as context.
+- `a` is the way out of the grammar: anything the verbs do not cover goes to a contact, with the process as context.
+
+## Commands
+
+`enter` and `/` act on the process under the cursor at once, as vim's `x` and `/` do.
+
+| Key | Command |
+|---|---|
+| `enter` | go: its pane in front |
+| `/` | find in what it said |
 
 ## Objects
 
-A verb waits for an object, as vim's operators do. Doubling a verb acts on the process under the cursor, as vim's `dd` acts on the line.
-
-A letter can be a verb and an object, as in vim: what it means is set by where it is pressed. The one clash is a verb's own letter, which as its object means the row under the cursor; a role sharing that letter cannot follow that verb.
-
-`enter` and `/` are commands, not verbs: they act on the process under the cursor at once, as vim's `x` and `/` do.
+A verb waits for an object, as vim's operators do.
 
 | Key | Object |
 |---|---|
 | the verb again | the process under the cursor (`rr`, as vim's `dd`) |
 | `j` `k` `gg` `G` | a motion from the cursor |
-| `d` | the project's database |
-| `w` | the project's web server |
-| `q` | the project's worker |
-| `t` | the project's tests |
-| `b` | the project's build |
 | `p` | every process of the project |
 
-`rd` restarts the database. `ut` runs the tests. `cw` opens the app in the browser. `xp` ends the project. `ad` hands the database to an agent.
+`rr` restarts the process under the cursor. `xj` ends the one below it. `rp` restarts the project.
 
+- A letter can be a verb and an object, as in vim: what it means is set by where it is pressed. A verb's own letter, as its object, means the process under the cursor.
 - `.` repeats the last verb and object.
 - No counts. Vim's `3dd` has no clear meaning over processes; a count comes in when one does.
 - Inside a process, the panel key followed by the same grammar. The object defaults to the process you are in.
-- The motions and the key card stay: motions pick the row, the card shows the verbs against the objects as a table.
+- The key card shows the verbs against the objects as a table.
 
 ## Resolution
 
 A press is resolved to an action:
 
-1. **Known**: conn's own table of programs by name: postgres → `psql`, a container → `docker exec`. No LLM call.
-2. **Saved**: an answer kept in the project's `.conn`. No LLM call.
-3. **Asked**: `claude -p` with the verb, the object, and the project's context: its processes, commands, ports, declared files. The answer is shown once for confirmation and saved to `.conn` if it works.
+1. **Saved**: an answer kept in the project's `.conn`. No LLM call.
+2. **Asked**: `claude -p` with the verb, the process, and the project's context: its processes, their commands, ports, directories. The answer is shown once for confirmation and saved to `.conn` if it works.
+
+A saved answer is kept while it works. When it fails at once — it exits non-zero within two seconds of starting — conn re-asks, giving `claude -p` the failed command and its output along with the project's context. The new answer is confirmed, and it replaces the saved one.
 
 An action is one of:
 
@@ -84,21 +77,19 @@ An action is one of:
 
 That list is a starting point, not a hard constraint.
 
-Roles are resolved the same way: known by program name, saved, or asked.
-
-A saved answer is kept while it works. When it fails at once — it exits non-zero within two seconds of starting — conn re-asks, giving `claude -p` the failed command and its output along with the project's context. The new answer is confirmed, and it replaces the saved one.
-
 ## `.conn`
 
-Written by conn, readable and editable by the engineer, worth committing. One teammate's resolved answers spare the next teammate the LLM call.
+Written by conn, readable and editable by the engineer, worth committing. One teammate's resolved answers spare the next teammate the LLM call. An answer is kept by verb and by the process as its row names it.
 
 ```
-role database = postgres
-role web      = web
-c database    = psql -h localhost -p 5433 myapp_dev
-s web         = docker compose exec web bash
+c postgres = psql -h localhost -p 5433 myapp_dev
+s web      = docker compose exec web bash
 ```
 
-## Open
+## Later
 
-- Roles the table lacks: a cache, a queue, a proxy, a second database.
+Specialization, once the general grammar works:
+
+- **Types**: a table of programs conn knows by name (postgres → `psql`), answering before the LLM is asked.
+- **Roles** as objects, as vim's text objects: `d` the database, `w` the web server, `t` the tests. `rd` restarts the database without moving to it. Open: how a role letter names several processes of the role, and which roles get letters.
+- **Sources**: declared processes read from the files that already say them — `Procfile`, `compose.yaml`, `package.json` scripts, `Makefile` targets — so tests, a build or a migration are processes `u` starts, running or not.

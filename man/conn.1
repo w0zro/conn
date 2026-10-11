@@ -459,6 +459,28 @@ brings up the row's declared process or Homebrew service; the keys stay
 on the panel.
 .B up
 brings up everything the project declares and does not have running.
+A project with no
+.I .conn
+is asked about: Claude Code, as for
+.BR cc ,
+is told its top-level files and the opening of its manifests
+\(em
+.IR Procfile ,
+.IR package.json ,
+a compose file,
+.IR Makefile ,
+.IR justfile ,
+.I README.md
+\(em and answers the processes that keep running, one a line as
+.IR name : " command" ;
+they are offered on one question, and
+.B y
+starts each in a pane of its own at the project, under its name, as
+.B conn u
+does.
+Nothing is kept: the next
+.B up
+asks again.
 .TP
 .B x
 End.
@@ -727,6 +749,13 @@ Its pane is taken down once the end is recorded.
 .TP
 a declared process, ended
 .BI "kill\-pane " "pane \(pc name" ?
+.TP
+a stack
+.BI "start " "name" ": " "command" "; ... \(pc " project ?
+From
+.BR up ;
+see
+.BR u .
 .TP
 an answer
 .IB command " \(pc " process ?

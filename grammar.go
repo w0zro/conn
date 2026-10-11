@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,6 +11,7 @@ import (
 	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/work"
 	"github.com/w0zro/conn/internal/work/claude"
+	"github.com/w0zro/conn/internal/work/declared"
 )
 
 // The processes view's keys are a grammar, in vim's spirit: a verb
@@ -129,6 +132,11 @@ func (m model) onEntry(verb string, e work.Entry, pl work.Project) (model, tea.C
 func (m model) onProject(verb string, pl work.Project, came string) (model, tea.Cmd) {
 	switch verb {
 	case "u":
+		// A project that declares nothing is asked what runs it.
+		if _, err := os.Stat(filepath.Join(pl.Path, declared.FileName)); m.inside && pl.Path != "" && err != nil {
+			m.notice = "asking claude what runs " + filepath.Base(pl.Path)
+			return m, m.askStack(pl.Path)
+		}
 		return m.raiseAt()
 	case "x":
 		m.kill = m.endProject(pl)

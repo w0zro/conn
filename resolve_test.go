@@ -61,3 +61,27 @@ func TestAnAnswerIsOfferedBeforeItRuns(t *testing.T) {
 		t.Errorf("n let it run: kill %+v, cmd %v", m.kill, cmd != nil)
 	}
 }
+
+// A stack is every NAME: COMMAND line of the answer, each name once,
+// past fences and talk; NONE anywhere is a stack of nothing.
+func TestTheStackIsItsNamedLines(t *testing.T) {
+	list, err := parseStack("```\nweb: bin/rails server -p 3000\nworker: bundle exec sidekiq\nweb: again\n```\nThese keep running.\n")
+	if err != nil || len(list) != 2 || list[0] != (stacked{"web", "bin/rails server -p 3000"}) || list[1] != (stacked{"worker", "bundle exec sidekiq"}) {
+		t.Errorf("parsed %+v (%v)", list, err)
+	}
+	for _, out := range []string{"NONE\n\nIt is a library.", "nothing here\n"} {
+		if list, err := parseStack(out); err == nil {
+			t.Errorf("%q parsed as %+v", out, list)
+		}
+	}
+}
+
+// A stack is offered on one question, naming each process, and started
+// on y.
+func TestAStackIsOfferedOnOneQuestion(t *testing.T) {
+	m := plainModel()
+	m = m.offerStack(stackMsg{project: "/p/shop", list: []stacked{{"web", "npm run dev"}, {"worker", "npm run worker"}}})
+	if m.kill == nil || m.kill.prompt != "start web: npm run dev; worker: npm run worker · shop?" || m.kill.end == nil {
+		t.Fatalf("offered: %+v", m.kill)
+	}
+}

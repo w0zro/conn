@@ -1,17 +1,13 @@
-/* conn.w0zro.com: a figure from the memorandum, in motion. A field of
-   panes, more than anyone can watch, files itself into conn's panel as
-   the page is scrolled, under the projects they work, with a word a
-   project where something waits; one opens in the workspace; then the
-   installation procedure. The captions are the memorandum's findings,
-   numbered; the frame is its: the document number, the figure, the
-   change. Set in conn's own face and inks, the conn theme's dark
-   ground by role, from internal/theme/themes.go. */
+/* conn.w0zro.com: the gathering. A field of panes, more than anyone can
+   watch, gathers on one scroll into conn's panel, a row a process under
+   the project it works; beside the panel one line is typed, and the
+   install under it. Set in conn's own face and inks: the conn theme's
+   dark ground by role, from internal/theme/themes.go. */
 
 :root {
   --ground: #15130F;
   --surface: #1D1A15;
   --border: #2A2620;
-  --chosen: #2A2620;
   --ink: #E6DFD0;
   --parchment: #BFB39A;
   --gray: #8B8272;
@@ -19,10 +15,15 @@
   --accent: #E85D2F;
   --running: #93C98B;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --row: 20px;
+  --row: 20px;            /* a row of the panel; site.js sets it for the screen */
 }
 
-html { background: var(--ground); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html {
+  background: var(--ground);
+  scroll-snap-type: y proximity;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
   background: var(--ground);
@@ -35,6 +36,7 @@ body {
 a { color: inherit; text-decoration: none; }
 pre { margin: 0; font: inherit; white-space: pre; }
 ::selection { background: var(--border); color: var(--ink); }
+@keyframes blink { 50% { opacity: 0; } }
 
 /* The head. */
 .nav {
@@ -44,9 +46,7 @@ pre { margin: 0; font: inherit; white-space: pre; }
   font-size: 12px; font-weight: 700; letter-spacing: 0.2em;
   color: var(--parchment);
 }
-.nav .head { display: flex; gap: 28px; align-items: baseline; }
 .nav .mark { color: var(--ink); }
-.nav .docline { color: var(--gray); font-weight: 400; letter-spacing: 0.16em; }
 .nav .links { display: flex; gap: 24px; }
 .nav .links a:hover { color: var(--ink); }
 .nav .links .accent { color: var(--accent); }
@@ -55,9 +55,9 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .stage { position: fixed; inset: 0; overflow: hidden; z-index: 1; }
 .field { position: absolute; inset: 0; }
 
-/* A pane: a terminal, a process in it, nothing around it but its
-   edge. It becomes a row of the panel: the body folds away, the head
-   is the row. */
+/* A pane: a terminal, a process in it, nothing around it but its edge.
+   It becomes a row of the panel: the body folds away, the head is the
+   row. */
 .win {
   position: absolute; left: 0; top: 0;
   box-sizing: border-box;
@@ -66,12 +66,11 @@ pre { margin: 0; font: inherit; white-space: pre; }
   overflow: hidden;
   will-change: transform, width, height;
 }
-.win .drift { position: absolute; inset: 0; }
 .win .head {
   position: absolute; left: 0; right: 0; top: 0;
   height: var(--row); line-height: var(--row);
   display: flex; align-items: center;
-  padding: 0 10px 0 0;
+  padding-right: 10px;
   white-space: nowrap;
 }
 .win .head .cur { width: 10px; flex: none; color: var(--accent); }
@@ -79,7 +78,7 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .win .head .mark { width: 24px; flex: none; color: var(--faint); padding-left: 2px; }
 .win .head .digit { width: 16px; flex: none; color: var(--ink); }
 .win .head .name { flex: 1; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
-.win .head .word { flex: none; color: var(--gray); margin-left: 12px; opacity: 0; transition: opacity 300ms; }
+.win .head .word { flex: none; color: var(--gray); margin-left: 12px; opacity: 0; }
 .win .head .word.stamp { background: var(--accent); color: var(--ground); font-weight: 700; padding: 0 6px; }
 .win .head .word.blink { animation: blink 1s steps(1) infinite; }
 .win.waiting .head .mark { color: var(--accent); font-weight: 700; }
@@ -99,17 +98,10 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .win .body .f { color: var(--faint); }
 .win .body .k { color: var(--ink); }
 .win .body .cursor { display: inline-block; width: 7px; height: 13px; background: var(--accent); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
-@keyframes blink { 50% { opacity: 0; } }
 .win.row { border-color: transparent; background: transparent; }
-.win.row.chosen { background: var(--chosen); }
 
 /* The panel they gather into: its ground, and an eyebrow a project. */
-.panelbg {
-  position: absolute; left: 0; top: 0;
-  background: var(--surface);
-  opacity: 0;
-  will-change: transform, opacity;
-}
+.panelbg { position: absolute; left: 0; top: 0; background: var(--surface); opacity: 0; will-change: transform, opacity; }
 .eyebrow {
   position: absolute; left: 0; top: 0;
   height: var(--row); line-height: var(--row);
@@ -118,30 +110,12 @@ pre { margin: 0; font: inherit; white-space: pre; }
 }
 .eyebrow .pname { color: var(--parchment); font-weight: 700; padding-left: 24px; margin-right: 8px; }
 .eyebrow .rule { flex: 1; border-top: 1px solid var(--faint); opacity: 0.6; }
-.eyebrow .tail { margin-left: 8px; color: var(--gray); opacity: 0; transition: opacity 300ms; }
+.eyebrow .tail { margin-left: 8px; color: var(--gray); opacity: 0; }
 .eyebrow .tail.stamp { background: var(--accent); color: var(--ground); font-weight: 700; padding: 0 6px; }
 .eyebrow .tail.blink { animation: blink 1s steps(1) infinite; }
 
-/* The pane one row opens as. */
-.pane {
-  position: absolute; left: 0; top: 0;
-  opacity: 0;
-  font-size: 13px; line-height: var(--row);
-  color: var(--ink);
-  will-change: transform, opacity;
-}
-.pane .g { color: var(--gray); } .pane .a { color: var(--accent); } .pane .r { color: var(--running); } .pane .p { color: var(--parchment); }
-.pane .band { position: absolute; left: 0; right: 0; bottom: 0; height: var(--row); background: var(--border); color: var(--gray); padding: 0 8px; }
-.pane .band b { color: var(--ink); }
-
 /* The line, and the install under it, beside the panel. */
-.claim {
-  position: fixed; z-index: 3;
-  left: 0; top: 0;
-  width: 520px;
-  opacity: 0;
-  pointer-events: none;
-}
+.claim { position: fixed; z-index: 3; left: 0; top: 0; width: 520px; opacity: 0; pointer-events: none; }
 .claim.on { pointer-events: auto; }
 .claim .line {
   margin: 0 0 28px;
@@ -163,8 +137,7 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .copy.done { color: var(--accent); }
 .claim .needs { margin: 14px 0 0; color: var(--gray); font-size: 13px; }
 
-/* The scroll: one screen. */
-html { scroll-snap-type: y mandatory; }
+/* The scroll: one screen, from the field to the panel. */
 .scroll { position: relative; z-index: 2; pointer-events: none; }
 .scroll section { height: 100vh; height: 100dvh; scroll-snap-align: start; }
 

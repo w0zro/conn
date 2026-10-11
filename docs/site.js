@@ -112,16 +112,21 @@
 
   // The field: a pane's size and place, scattered with some overlap.
   function scattered(w) {
-    const ww = phone ? 170 + w.seed2 * 50 : 220 + w.seed2 * 90;
+    const longest = Math.max(...w.r.body.map(l => l.replace(/<[^>]+>/g, '').length), w.r.name.length + 6);
+    const ww = Math.min(phone ? 230 : 330, Math.max(phone ? 160 : 190, longest * 6.6 + 24));
     const hh = ROW + 10 + Math.min(w.lines, 5) * 16;
+    // Rows as even as they can be: twenty-one panes in rows of six and five.
     const n = phone ? Math.min(wins.length, 10) : wins.length;
-    const cols = phone ? 2 : 5, rowsN = Math.ceil(n / cols);
-    const i = wins.indexOf(w), cx = i % cols, cy = Math.floor(i / cols);
-    const fieldH = H - 120;
-    const cellW = (W - 40) / cols, cellH = fieldH / rowsN;
-    const x = 20 + cx * cellW + (w.seed - 0.5) * cellW * 0.5 + (cellW - ww) / 2;
-    const y = 60 + cy * cellH + (w.seed3 - 0.5) * cellH * 0.4;
-    return { x: Math.max(8, Math.min(W - ww - 8, x)), y: Math.max(56, Math.min(60 + fieldH - hh, y)), w: ww, h: hh };
+    const rowsN = Math.ceil(n / (phone ? 2 : 6)), base = Math.floor(n / rowsN), extra = n % rowsN;
+    const i = wins.indexOf(w);
+    let cy = 0, at = i;
+    while (at >= base + (cy < extra ? 1 : 0)) { at -= base + (cy < extra ? 1 : 0); cy++; }
+    const cols = base + (cy < extra ? 1 : 0), cx = at;
+    const top = 64, fieldH = H - top - 48;
+    const cellW = (W - 32) / cols, cellH = fieldH / rowsN;
+    const x = 16 + cx * cellW + (cellW - ww) / 2 + (w.seed - 0.5) * Math.max(0, cellW - ww) * 0.6;
+    const y = top + cy * cellH + (cellH - hh) / 2 + (w.seed3 - 0.5) * Math.max(0, cellH - hh) * 0.6;
+    return { x: Math.max(8, Math.min(W - ww - 8, x)), y: Math.max(top, Math.min(top + fieldH - hh, y)), w: ww, h: hh };
   }
 
   // The panel: left of the middle, the line beside it; on a phone, at
@@ -210,7 +215,7 @@
     layout(current());
     if (drifting && !reduced) raf = requestAnimationFrame(frame); else raf = 0;
   }
-  addEventListener('scroll', () => { touched = true; if (!raf) raf = requestAnimationFrame(frame); }, { passive: true });
+  addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(frame); }, { passive: true });
   addEventListener('wheel', () => { touched = true; }, { passive: true });
   addEventListener('touchstart', () => { touched = true; }, { passive: true });
   addEventListener('resize', () => { measure(); if (!raf) raf = requestAnimationFrame(frame); });
@@ -219,8 +224,22 @@
     if (['j', 'ArrowDown', ' ', 'Enter', 'Tab', 'PageDown'].includes(e.key)) { e.preventDefault(); touched = true; window.scrollTo({ top: innerHeight, behavior: reduced ? 'auto' : 'smooth' }); }
     else if (['k', 'ArrowUp', 'PageUp', 'g'].includes(e.key)) { e.preventDefault(); touched = true; window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }
   });
-  // Left alone, the page gathers on its own.
-  if (!still) setTimeout(() => { if (!touched && scrollY < 10) window.scrollTo({ top: innerHeight, behavior: reduced ? 'auto' : 'smooth' }); }, 2600);
+  // Left alone, the page gathers on its own, at a pace of its own:
+  // the scroll is driven over two seconds, the snap held off meanwhile.
+  function gatherAlone() {
+    if (touched || scrollY > 10) return;
+    if (reduced) { window.scrollTo({ top: innerHeight }); return; }
+    const html = document.documentElement, from = performance.now(), dur = 2200;
+    html.style.scrollSnapType = 'none';
+    const step = now => {
+      if (touched) { html.style.scrollSnapType = ''; return; }
+      const t = ease(clamp01((now - from) / dur));
+      window.scrollTo(0, t * innerHeight);
+      if (t < 1) requestAnimationFrame(step); else html.style.scrollSnapType = '';
+    };
+    requestAnimationFrame(step);
+  }
+  if (!still) setTimeout(gatherAlone, 2400);
 
   // The spinner turns in every row at work.
   if (!reduced) {

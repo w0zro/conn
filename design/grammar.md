@@ -38,11 +38,24 @@ Counted 2026-10-10 from zsh history and Claude Code transcripts, by command shap
 ## Nouns
 
 - **Processes**: what runs in a project — tmux panes, containers, Homebrew services, listeners on a port, contacts — and what ran: a process conn held that ended stays a row, with its output.
-- **The project**: the directory the processes work in. It comes from the working directory, for keys and CLI alike, or from the projects view.
+- **The project**: what the processes work on; see **Projects**. The one in question comes from the working directory, for keys and CLI alike, or from the projects view.
 
 What a project can run is not a list conn keeps. It is resolved when a verb asks for it, from the project's own files — compose, `Makefile`, `package.json`, a Procfile, a README — the way any verb is resolved.
 
 Checks — tests, a build, lint, a typecheck — are processes that run to completion. Started through conn, they are processes conn holds: on the panel, `.` reruns them, and the engineer's run and the agent's run are the same process.
+
+## Projects
+
+A project is read from what the machine records, nothing written for conn.
+
+- **A repository, not a checkout.** A project is a git repository, known by git's common directory. Its worktrees are checkouts of it, wherever they are on disk: `web` running in three worktrees is one project with three lines of work. Agents work in a worktree a task.
+- **The folder they share.** A folder holding two or more repositories is the project they make together: `~/projects/shop/{frontend,api,infra}` is `shop`. How checkouts are laid out is the declaration, as it is today. It holds in the morning, before anything runs; a worktree joins through its repository.
+- **Connections, while they run.** A process belongs to the project its working directory is in. One outside any repository — a Homebrew service, a container, a listener — belongs to the projects whose processes connect to it, so a postgres shared by two repositories is in both. Two projects whose processes talk — `frontend`'s dev server proxying to `api` on :4000 — are linked while the connection stands.
+- **Submodules** make a parent repository the project of its children. A monorepo is one repository and needs nothing.
+
+Repositories that belong together but are kept apart are linked only while they run. To link them for good, the checkouts go in one folder: the layout is how it is said, not a file. Someone who keeps them apart on purpose cannot group them for good; declarations under **Later** would.
+
+An agent's addresses reach its own worktree first, then its repository's project. An agent in one worktree does not end another worktree's `web` by name.
 
 ## The morning
 
@@ -122,6 +135,7 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 - **Persistence, for speed**: answers saved with the project, readable and worth committing, so a press costs no LLM call and a teammate's answers spare the next. A saved answer kept while it works and asked again when it fails at once — non-zero within two seconds. Runbooks as config: the answers replace a README's "how to connect to the db". Where they are kept beside `.conn`'s declarations. Restoring what was up after a reboot.
 - **Types**: a table of programs conn knows by name (postgres → `psql`), answering before the LLM is asked.
 - **Roles** as objects, as vim's text objects: `d` the database, `w` the web server, `t` the tests. Open: how a role names several processes, and which roles get letters.
+- **Tasks as projects**: "fix the checkout bug" across repositories, worktrees, a database and agents. Read from records that exist: the branch as identity, the contact's session as its title, what the contact started (the process tree, and its CLI calls), what those connect to, the worktrees with the branch out; ended when the branch merges, its PR closes, or the session ends with nothing running. Not recorded: work with no branch and no agent, the engineer's own processes in a shared checkout, and links across repositories beyond a shared branch name. Built on the repository and the connections above.
 - **Declarations**: `.conn`, compose, `Procfile`, `Makefile`, `package.json` read by conn itself — what should run shown as down rows, and names known without asking.
 - **`s` shell**: its environment — a shell in its container, or at its directory with its environment loaded.
 - **`y` yank** and **`e` edit**: no evidence yet, which the count could not have seen either way.
@@ -131,7 +145,7 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 From a day played out, 2026-10-11:
 
 - Starting a contact in a project and handing a process to one (`a`) are two intents; the grammar has a verb for the second only.
-- An agent's address needs a scope: its own project by default; ending another project's process refused, or logged.
+- Whether an agent may reach another project's processes at all, beyond its own worktree and project: refused, or logged.
 - The station keys — `l` log, `c` console, `p` projects, `r` recent — are verbs or objects in the grammar and need another home.
 - Whether the keys show an action before running it.
 

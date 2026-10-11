@@ -18,150 +18,187 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// readProcesses reads the process table, and in the server its panes
-// and the bay, and composes the processes view off them. It reads and
-// does nothing else; what the reading calls for is decided when it
-// comes back.
+// readProcesses reads the machine for the processes view, off the
+// loop, and adds what only the panel asks: the rows folded or whole,
+// and the bay as tmux has it.
 func (m model) readProcesses() tea.Cmd {
-	gen, uid := m.processesGen, m.uid
-	home, configured := m.head.Login.Home, m.roots.configured
-	containers, brews := m.containers, m.brews
-	files, full := m.declared, m.full
-	was := m.trace
+	gen, full := m.processesGen, m.full
+	in := sources{uid: m.uid, home: m.head.Login.Home, configured: m.roots.configured,
+		containers: m.containers, brews: m.brews, declared: m.declared, was: m.trace}
 	var srv *room.Server
 	if m.inside {
 		srv = m.srv
 	}
+	in.srv = srv
 	return func() tea.Msg {
-		table, err := procs.Read(uid)
+		r, err := readMachine(in)
 		if err != nil {
 			return processesMsg{err: "THE PROCESS TABLE COULD NOT BE READ: " + err.Error(), gen: gen}
 		}
-		// The roots as the file names them now. The operator edits the
-		// file from inside conn, and the list walks it fresh; the
-		// reading names projects by the same file, and takes it as it
-		// now stands rather than as it stood when conn came up. A file
-		// that will not parse changes nothing: the list says so, and
-		// conn is not going to name projects by a guess at what it was
-		// about to say.
-		//
-		// And which directories are projects, asked again. The answers
-		// are remembered for this reading and no longer: a directory
-		// becomes a project when git init runs in it, and a process
-		// already there when a remembered answer said otherwise was
-		// filed under the folder above for as long as conn ran. The
-		// reading's rooting goes back with it, so the view names its
-		// rows with the answers they were filed by, and no two readings
-		// share a memory across the loop.
-		if home != "" {
-			if now, err := config.Roots(home); err == nil {
-				configured = now
-			}
-		}
-		rooting := rootOn(configured)
-		roots, isProject := rooting.rootOf, rooting.isProject
-		// How each process stands past what the table says: anything is
-		// working by the processor time it spent since the last reading,
-		// which is why that reading is kept, and a contact answers for
-		// itself instead - working, or waiting on you.
-		now, nowAt := work.CpuOf(table), time.Now()
-		how := map[int]work.Standing{}
-		for pid := range work.CpuWorking(was.cpu, was.at, table, nowAt) {
-			how[pid] = work.Standing{Working: true}
-		}
-		maps.Copy(how, claude.Statuses(table))
-		// The panes come first, because a pane conn opened to watch a
-		// container is two things to the reading at once: the terminal
-		// that container's row will stand on, and a process that must
-		// not stand for itself. A docker logs beside the service it is
-		// showing would be the same thing listed twice.
-		var panes map[string]room.Pane
-		if srv != nil {
-			panes, _ = srv.Panes()
-		}
-		// A pane reading a service stands in for that service's
-		// terminal and is kept off the view, since a docker logs listed
-		// beside the service it is showing is the same thing twice. A
-		// pane holding a shell inside a container is neither: it is the
-		// operator's own work, it is listed, and it is filed under the
-		// service it is inside rather than taking the slot the service's
-		// terminal is in.
-		paneOf, shellIn, watching := map[string]string{}, map[string]string{}, map[string]bool{}
-		for tty, p := range panes {
-			if p.Container != "" {
-				paneOf[p.Container], watching[tty] = tty, true
-			}
-			if p.ShellIn != "" {
-				shellIn[tty] = p.ShellIn
-			}
-		}
-		// And the panel's own terminal, where nothing of the operator's
-		// runs: conn does, and what conn asks.
-		panelTTY := ""
-		if srv != nil {
-			for tty, p := range panes {
-				if p.ID == srv.Panel() {
-					panelTTY = tty
-				}
-			}
-		}
-		table = work.WithoutConnsOwn(table, watching, panelTTY)
-		projects := work.ProjectsFrom(table, uid, roots, isProject, how)
-		records := recordsOf(table, projects)
-		// And what docker is holding up, which the table cannot show: a
-		// container is not a process of this machine, and compose says
-		// where each belongs by the directory it was started for. What
-		// docker last said is already here — the feed brings it as it
-		// happens — so this costs the reading nothing and waits on no
-		// daemon.
-		projects = docker.Attach(projects, containers, roots, paneOf, shellIn)
-		// And what the projects declare should be working them, which
-		// the table has no word for until it is: a stat per project,
-		// and a read where a file changed.
-		files = declared.Refresh(files, declared.Paths(projects, files, isProject))
-		projects = declared.Attach(projects, files, declaredPanes(panes))
-		// And the services brew holds up for them, as brew last said,
-		// each with the sockets of the process running it, which the
-		// table has and files nowhere.
-		if brew.Declared(files) {
-			sockets := map[int][]work.Socket{}
-			for _, p := range table {
-				if len(p.Sockets) > 0 {
-					sockets[p.PID] = p.Sockets
-				}
-			}
-			projects = brew.Attach(projects, files, brews, sockets, paneOf)
-		}
-		// And out go the projects nothing is up in, whose every row is
-		// a declaration of what is not running; see worked.
-		projects = worked(projects)
-		// And which of them have lost the listener they had, which is a
-		// fault and so is worded before the rows are dated: a row that
-		// has come to say CLOSED came to say it now.
-		serves := work.MarkClosed(projects, was.serves)
-		msg := processesMsg{reading: reading{projects: projects, tree: projects, panes: panes, records: records, declared: files}, gen: gen,
-			trace: &trace{cpu: now, at: nowAt, stood: work.SinceSeen(projects, was.stood, was.at, nowAt),
-				acts: claude.Activities(projects, was.acts), serves: serves},
-			rooted: &rooting}
+		msg := processesMsg{reading: r.reading, gen: gen, trace: &r.trace, rooted: &r.rooting}
 		if !full {
-			msg.projects = fold(projects)
+			msg.projects = fold(r.projects)
 		}
 		if srv != nil {
-			if in, ok, err := srv.Bay(); err == nil && !ok {
+			if bay, ok, err := srv.Bay(); err == nil && !ok {
 				msg.noBay = true
 			} else if ok {
-				msg.bay, msg.bayDead, msg.bayReadout = in.TTY, in.Dead, in.Readout
+				msg.bay, msg.bayDead, msg.bayReadout = bay.TTY, bay.Dead, bay.Readout
 				switch {
-				case in.Help:
+				case bay.Help:
 					msg.bayDetour = toManual
-				case in.Settings:
+				case bay.Settings:
 					msg.bayDetour = toSettings
 				}
-				msg.bayActive = in.Active
+				msg.bayActive = bay.Active
 			}
 		}
 		return msg
 	}
+}
+
+// sources is what a read of the machine reads beside the machine
+// itself: whose processes, the roots as configured, what docker and
+// brew last said, the .conn files as last found, what the last read
+// left, and the server, where its panes are to be read.
+type sources struct {
+	uid        int
+	home       string
+	configured []string
+	containers []docker.Container
+	brews      []brew.Service
+	declared   map[string]declared.File
+	was        trace
+	srv        *room.Server
+}
+
+// A read is the machine as read once: the projects whole, what it
+// leaves for the next read, and the rooting it was made on.
+type read struct {
+	reading
+	trace   trace
+	rooting rooting
+}
+
+// readMachine reads the process table, and the server's panes where
+// there is a server, and composes the projects off them. The panel
+// reads it on its beat and the CLI once; it reads and does nothing
+// else.
+func readMachine(in sources) (read, error) {
+	table, err := procs.Read(in.uid)
+	if err != nil {
+		return read{}, err
+	}
+	// The roots as the file names them now. The operator edits the
+	// file from inside conn, and the list walks it fresh; the
+	// reading names projects by the same file, and takes it as it
+	// now stands rather than as it stood when conn came up. A file
+	// that will not parse changes nothing: the list says so, and
+	// conn is not going to name projects by a guess at what it was
+	// about to say.
+	//
+	// And which directories are projects, asked again. The answers
+	// are remembered for this reading and no longer: a directory
+	// becomes a project when git init runs in it, and a process
+	// already there when a remembered answer said otherwise was
+	// filed under the folder above for as long as conn ran. The
+	// reading's rooting goes back with it, so the view names its
+	// rows with the answers they were filed by, and no two readings
+	// share a memory across the loop.
+	configured := in.configured
+	if in.home != "" {
+		if now, err := config.Roots(in.home); err == nil {
+			configured = now
+		}
+	}
+	rooting := rootOn(configured)
+	roots, isProject := rooting.rootOf, rooting.isProject
+	// How each process stands past what the table says: anything is
+	// working by the processor time it spent since the last reading,
+	// which is why that reading is kept, and a contact answers for
+	// itself instead - working, or waiting on you.
+	was := in.was
+	now, nowAt := work.CpuOf(table), time.Now()
+	how := map[int]work.Standing{}
+	for pid := range work.CpuWorking(was.cpu, was.at, table, nowAt) {
+		how[pid] = work.Standing{Working: true}
+	}
+	maps.Copy(how, claude.Statuses(table))
+	// The panes come first, because a pane conn opened to watch a
+	// container is two things to the reading at once: the terminal
+	// that container's row will stand on, and a process that must
+	// not stand for itself. A docker logs beside the service it is
+	// showing would be the same thing listed twice.
+	var panes map[string]room.Pane
+	if in.srv != nil {
+		panes, _ = in.srv.Panes()
+	}
+	// A pane reading a service stands in for that service's
+	// terminal and is kept off the view, since a docker logs listed
+	// beside the service it is showing is the same thing twice. A
+	// pane holding a shell inside a container is neither: it is the
+	// operator's own work, it is listed, and it is filed under the
+	// service it is inside rather than taking the slot the service's
+	// terminal is in.
+	paneOf, shellIn, watching := map[string]string{}, map[string]string{}, map[string]bool{}
+	for tty, p := range panes {
+		if p.Container != "" {
+			paneOf[p.Container], watching[tty] = tty, true
+		}
+		if p.ShellIn != "" {
+			shellIn[tty] = p.ShellIn
+		}
+	}
+	// And the panel's own terminal, where nothing of the operator's
+	// runs: conn does, and what conn asks.
+	panelTTY := ""
+	if in.srv != nil {
+		for tty, p := range panes {
+			if p.ID == in.srv.Panel() {
+				panelTTY = tty
+			}
+		}
+	}
+	table = work.WithoutConnsOwn(table, watching, panelTTY)
+	projects := work.ProjectsFrom(table, in.uid, roots, isProject, how)
+	records := recordsOf(table, projects)
+	// And what docker is holding up, which the table cannot show: a
+	// container is not a process of this machine, and compose says
+	// where each belongs by the directory it was started for. What
+	// docker last said is already here — the feed brings it as it
+	// happens — so this costs the reading nothing and waits on no
+	// daemon.
+	projects = docker.Attach(projects, in.containers, roots, paneOf, shellIn)
+	// And what the projects declare should be working them, which
+	// the table has no word for until it is: a stat per project,
+	// and a read where a file changed.
+	files := declared.Refresh(in.declared, declared.Paths(projects, in.declared, isProject))
+	projects = declared.Attach(projects, files, declaredPanes(panes))
+	// And the services brew holds up for them, as brew last said,
+	// each with the sockets of the process running it, which the
+	// table has and files nowhere.
+	if brew.Declared(files) {
+		sockets := map[int][]work.Socket{}
+		for _, p := range table {
+			if len(p.Sockets) > 0 {
+				sockets[p.PID] = p.Sockets
+			}
+		}
+		projects = brew.Attach(projects, files, in.brews, sockets, paneOf)
+	}
+	// And out go the projects nothing is up in, whose every row is
+	// a declaration of what is not running; see worked.
+	projects = worked(projects)
+	// And which of them have lost the listener they had, which is a
+	// fault and so is worded before the rows are dated: a row that
+	// has come to say CLOSED came to say it now.
+	serves := work.MarkClosed(projects, was.serves)
+	return read{
+		reading: reading{projects: projects, tree: projects, panes: panes, records: records, declared: files},
+		trace: trace{cpu: now, at: nowAt, stood: work.SinceSeen(projects, was.stood, was.at, nowAt),
+			acts: claude.Activities(projects, was.acts), serves: serves},
+		rooting: rooting,
+	}, nil
 }
 
 // processesTick is when the processes view reads again: soon while it

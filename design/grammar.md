@@ -86,6 +86,19 @@ c postgres = psql -h localhost -p 5433 myapp_dev
 s web      = docker compose exec web bash
 ```
 
+## What it opens up
+
+1. **Muscle memory across projects.** `cc` reaches the database in a Rails app, a Go service, or a compose stack. The keys are the same; the saved answers differ by project.
+2. **Runbooks as config.** The saved answers replace a README's "how to connect to the db" and "how to get a shell in the container". A teammate who clones the repo has them, and they stay correct because a broken answer is asked again.
+3. **Sources and verbs at n+m.** A new source (Kubernetes, systemd, an SSH host) gets every verb at once: `c` on a pod resolves to `kubectl exec`. A new verb works on every source at once. Today each pairing of tool and act is written by hand.
+4. **Agents use the grammar.** Exposed as a CLI (`conn r web`) or an MCP tool, contacts act on processes with the same verbs and the same saved answers as the engineer. No agent guesses its own `docker compose exec` line, and the grammar is scriptable.
+5. **Macros, in vim's spirit.** A sequence recorded once — restart the database, run the migrations, restart web — and replayed on one key. Saved like an answer, it is the project's procedure as one press.
+6. **The seam to vim.** `e` opens a process's configuration in vim; errors in a process's output go to a quickfix list. The conjurer and quickfix-pro are the vim half; conn does not read files.
+7. **Teaching.** `i` and the saved commands say what each key runs. The key card is a table of verbs against objects. conn teaches the tools rather than hiding them.
+8. **Failure as intent.** The re-ask on a fast failure is one case of a general pattern: a process failed, so hand it to an agent with its output. `a` on a crashed row is that pattern on demand.
+
+1–3 follow from the core mechanic. 4 and 5 come next: they make conn the interface to processes for agents as well as for the engineer.
+
 ## Later
 
 Specialization, once the general grammar works:

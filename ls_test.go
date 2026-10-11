@@ -7,18 +7,20 @@ import (
 	"github.com/w0zro/conn/internal/work"
 )
 
-// What runs the CLI is not a row: the CLI, and the shells an agent ran
-// it in, which have no terminal and are gone with the command. The
+// What runs the CLI is not a row: the CLI, the shells an agent ran it
+// in, which have no terminal and are gone with the command, and the
+// rest of the pipeline those shells run beside it. The
 // contact above them is, and so is a person's shell, which has one.
 func TestTheCLIIsNotItsOwnRow(t *testing.T) {
 	table := []work.Process{
 		{PID: 10, PPID: 1, TTY: "ttys009", Command: "claude", Args: []string{"claude"}},
 		{PID: 11, PPID: 10, Command: "zsh", Args: []string{"/bin/zsh", "-c", "conn ls"}},
 		{PID: 12, PPID: 11, Command: "conn", Args: []string{"conn", "ls"}},
+		{PID: 13, PPID: 11, Command: "grep", Args: []string{"grep", "web"}},
 		{PID: 20, PPID: 1, TTY: "ttys004", Command: "zsh", Args: []string{"-zsh"}},
 		{PID: 21, PPID: 20, TTY: "ttys004", Command: "conn", Args: []string{"conn", "ls"}},
 	}
-	for self, want := range map[int][]int{12: {11, 12}, 21: {21}} {
+	for self, want := range map[int][]int{12: {11, 12, 13}, 21: {21}} {
 		out := calling(table, self)
 		if len(out) != len(want) {
 			t.Errorf("run as %d, %v left out; want %v", self, out, want)

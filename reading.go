@@ -222,8 +222,10 @@ func readMachine(in sources) (read, error) {
 
 // calling is the CLI's own process and what is there only to run it:
 // the shells above it with no terminal, up to the first with one or a
-// contact. An agent runs a command in a shell of its own, which is gone
-// with the command; a person's shell has a terminal and stays a row.
+// contact, and what else those shells run beside it — the rest of the
+// pipeline, conn ls | grep web. An agent runs a command in a shell of
+// its own, which is gone with the command; a person's shell has a
+// terminal and stays a row.
 // The CLI itself goes for a second reason: a conn on a terminal is
 // taken for one holding it, and what stands above it would go off the
 // view as conn's scaffolding.
@@ -240,6 +242,11 @@ func calling(table []work.Process, self int) map[int]bool {
 			break
 		}
 		out[p.PID] = true
+	}
+	for _, q := range table {
+		if out[q.PPID] && byPid[q.PPID].PID != self && work.KindOf(byPid[q.PPID]) == work.KindShell {
+			out[q.PID] = true
+		}
 	}
 	return out
 }

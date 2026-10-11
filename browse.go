@@ -8,11 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/w0zro/conn/internal/work"
-
 	"github.com/w0zro/conn/internal/station"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // A row that serves says a port, and the port is a place to go: o on it
@@ -96,20 +92,4 @@ func browse(url string) error {
 	}
 	go func() { _ = cmd.Wait() }()
 	return nil
-}
-
-// openServing is o on a row that serves: the row's port in the
-// browser, off the loop, since starting a program is not something to
-// hold the panel's turn on. A row that says several ports is opened at
-// the lowest, which is the first one it says; what conn cannot do it
-// says in a notice under the rows, the way a shell it could not open
-// is said.
-func (m model) openServing(e work.Entry) tea.Cmd {
-	port := e.Ports[0]
-	return func() tea.Msg {
-		if err := browse(localURL(port)); err != nil {
-			return noticeMsg{err.Error()}
-		}
-		return nil
-	}
 }

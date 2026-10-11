@@ -42,7 +42,9 @@ Each process can have a **role**: database, web, worker, tests, build, agent. Ro
 
 ## Objects
 
-A verb waits for an object, as vim's operators do. Doubling a verb acts on the process under the cursor, as vim's `dd` acts on the line: every verb takes two presses for the common case, and the grammar has no exceptions.
+A verb waits for an object, as vim's operators do. Doubling a verb acts on the process under the cursor, as vim's `dd` acts on the line.
+
+`enter` and `/` are commands, not verbs: they act on the process under the cursor at once, as vim's `x` and `/` do.
 
 | Key | Object |
 |---|---|

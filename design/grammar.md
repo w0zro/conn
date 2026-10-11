@@ -130,6 +130,20 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 6. **The seam to vim.** A check's failures go to a quickfix list. The conjurer and quickfix-pro are the vim half; conn does not read files.
 7. **Failure as intent.** A process failed, so hand it to an agent with its output. `a` on a crashed row is the pattern on demand.
 
+## Built
+
+As of 2026-10-11, beside the panel, which is unchanged:
+
+- `conn ls`: the project's processes, with the name each is addressed by.
+- `conn l ADDRESS`: what a process said — its pane, or a container's log.
+- `conn u [-w] NAME -- COMMAND`: a command started under a name in a pane conn holds; `-w` waits and exits with its status.
+- `conn x ADDRESS`, `conn r ADDRESS`: end, and start again; only within the caller's project.
+- Addresses: a name (worktree, then project, then the folder of repositories), `:port`, a pid.
+- A worktree's work is its repository's.
+- A listener with no row of its own is a row of every project whose runs connect to it.
+
+Not yet: the key grammar on the panel, resolution by `claude -p`, linking two projects while they talk, starting the server from the CLI.
+
 ## Later
 
 - **Persistence, for speed**: answers saved with the project, readable and worth committing, so a press costs no LLM call and a teammate's answers spare the next. A saved answer kept while it works and asked again when it fails at once — non-zero within two seconds. Runbooks as config: the answers replace a README's "how to connect to the db". Where they are kept beside `.conn`'s declarations. Restoring what was up after a reboot.

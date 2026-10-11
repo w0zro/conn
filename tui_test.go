@@ -154,10 +154,9 @@ func TestTheConsoleReadsTheStationWhileItStands(t *testing.T) {
 	}
 
 	// c brings the console back and reads the station at once.
-	next, cmd = m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	m = next.(model)
+	m, cmd = typedKeys(m, "g", "c")
 	if m.view != viewConsole || !m.survey.on || cmd == nil {
-		t.Fatalf("c: view %v, beat %v", m.view, m.survey.on)
+		t.Fatalf("gc: view %v, beat %v", m.view, m.survey.on)
 	}
 }
 
@@ -241,9 +240,9 @@ func TestTheBlinkHasTwoHalves(t *testing.T) {
 	if m = next.(model); !m.lit || ok != nil {
 		t.Error("the blink went on with nothing to annunciate")
 	}
-	next, ok = m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	if m = next.(model); m.view != viewConsole || ok == nil || !m.blink.on {
-		t.Error("c did not start the blink again")
+	m, ok = typedKeys(m, "g", "c")
+	if m.view != viewConsole || ok == nil || !m.blink.on {
+		t.Error("gc did not start the blink again")
 	}
 	next, ok = m.Update(blinkMsg{gen: m.blink.gen - 1})
 	if m = next.(model); !m.lit || ok != nil {
@@ -665,8 +664,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 11, Kind: work.KindContact, Command: "claude"}}}}
 	m.cursor = 11
 
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, cmd := typedKeys(m, "x", "x")
 	if cmd != nil || m.kill == nil || m.kill.end == nil {
 		t.Fatalf("arming: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
@@ -679,8 +677,7 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	// instead, since it is proven to ignore the gentler signals.
 	m.projects = []work.Project{{Path: "/w", Entries: []work.Entry{{PID: 22, Kind: work.KindShell, Command: "zsh"}}}}
 	m.cursor, m.kill = 22, nil
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, _ = typedKeys(m, "x", "x")
 	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill -KILL 22 · zsh?") {
 		t.Errorf("arming a shell: kill %+v", m.kill)
 	}
@@ -695,15 +692,13 @@ func TestXArmsAKillOnTheEntryUnderTheCursor(t *testing.T) {
 	}}}
 	m.projects = fold(m.tree)
 	m.cursor, m.kill = 30, nil
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, _ = typedKeys(m, "x", "x")
 	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill -TERM 32 · go?") {
 		t.Errorf("arming a folded shell: kill %+v", m.kill)
 	}
 
 	m.projects, m.tree, m.kill = nil, nil, nil
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, cmd = typedKeys(m, "x", "x")
 	if cmd != nil || m.kill != nil {
 		t.Errorf("off any entry: cmd %v, kill %v", cmd != nil, m.kill)
 	}
@@ -723,8 +718,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 	m.panes = map[string]room.Pane{"/dev/ttys009": {ID: "%7", TTY: "/dev/ttys009", Declared: mark}}
 	m.cursor = 40
 
-	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, _ = typedKeys(m, "x", "x")
 	if m.kill == nil || m.kill.end == nil {
 		t.Fatalf("arming an up declaration: kill %+v", m.kill)
 	}
@@ -734,8 +728,7 @@ func TestXOnADeclaredProcessCarriesItsPane(t *testing.T) {
 
 	m.panes["/dev/ttys009"] = room.Pane{ID: "%7", TTY: "/dev/ttys009", Declared: mark, Exit: "0"}
 	m.kill = nil
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, _ = typedKeys(m, "x", "x")
 	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill-pane %7 · web?") {
 		t.Errorf("arming an ended declaration: kill %+v", m.kill)
 	}
@@ -803,9 +796,10 @@ func TestTheListIsALineTypedInto(t *testing.T) {
 		next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: k, Code: rune(k[0])}))
 		return next.(model), cmd
 	}
+	m, _ = key(m, "g")
 	m, cmd := key(m, "p")
 	if m.view != viewProjects || !m.list.scanning || cmd == nil {
-		t.Fatalf("after p: view %d, scanning %v, cmd %v", m.view, m.list.scanning, cmd != nil)
+		t.Fatalf("after gp: view %d, scanning %v, cmd %v", m.view, m.list.scanning, cmd != nil)
 	}
 	next, _ := m.Update(projectsMsg{projects: testProjects})
 	m = next.(model)
@@ -1049,8 +1043,8 @@ func TestThePanelKeyBringsTheKeysHome(t *testing.T) {
 	if m.cursor != 22 || m.came != "%2" {
 		t.Fatalf("out of %%2: cursor %d, came %q", m.cursor, m.came)
 	}
-	if got := press(m, "p"); got.view != viewProjects || got.from != "%2" || got.came != "" {
-		t.Errorf("p after the arrival: view %d, from %q, came %q", got.view, got.from, got.came)
+	if got := press(press(m, "g"), "p"); got.view != viewProjects || got.from != "%2" || got.came != "" {
+		t.Errorf("gp after the arrival: view %d, from %q, came %q", got.view, got.from, got.came)
 	}
 	if got := press(m, "?"); got.detour.to != toManual || got.detour.from != "%2" || got.came != "" {
 		t.Errorf("? after the arrival: helping %v, from %q, came %q", got.detour.to == toManual, got.detour.from, got.came)
@@ -1210,14 +1204,12 @@ func TestCancellingADetourGivesTheKeysBack(t *testing.T) {
 	// to go back to; the key after the panel key takes the pane it came
 	// out of.
 	m.view, m.from, m.came = viewProcesses, "%7", ""
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "p"}))
-	if m = next.(model); m.view != viewProjects || m.from != "" {
-		t.Errorf("p on the panel: view %d, from %q", m.view, m.from)
+	if m, _ = typedKeys(m, "g", "p"); m.view != viewProjects || m.from != "" {
+		t.Errorf("gp on the panel: view %d, from %q", m.view, m.from)
 	}
 	m.view, m.came = viewProcesses, "%7"
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "p"}))
-	if m = next.(model); m.view != viewProjects || m.from != "%7" || m.came != "" {
-		t.Errorf("p after the panel key: view %d, from %q, came %q", m.view, m.from, m.came)
+	if m, _ = typedKeys(m, "g", "p"); m.view != viewProjects || m.from != "%7" || m.came != "" {
+		t.Errorf("gp after the panel key: view %d, from %q, came %q", m.view, m.from, m.came)
 	}
 }
 
@@ -1546,9 +1538,8 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 		t.Error("a pane opened with no tmux to open it in")
 	}
 
-	for _, key := range []string{"u", "U"} {
-		next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: key}))
-		m = next.(model)
+	for _, key := range []string{"uu", "up"} {
+		m, cmd = press(m, key[:1], key[1:])
 		if cmd == nil || m.view != viewProcesses {
 			t.Fatalf("%s: cmd %v, view %d", key, cmd != nil, m.view)
 		}
@@ -1579,13 +1570,12 @@ func TestADeclaredProcessIsBroughtUpFromItsRow(t *testing.T) {
 	// still asked. A row's raise is its declaration, and without one
 	// there is nothing to raise.
 	m.declared = nil
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "U"}))
-	m = next.(model)
+	m, cmd = typedKeys(m, "u", "p")
 	if cmd == nil {
-		t.Error("U with the file unread asked nothing")
+		t.Error("up with the file unread asked nothing")
 	}
-	if _, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: "u"})); cmd != nil {
-		t.Error("u with no declaration to raise asked something")
+	if _, cmd = press(m, "u", "u"); cmd != nil {
+		t.Error("uu with no declaration to raise asked something")
 	}
 }
 
@@ -1616,10 +1606,12 @@ func TestXOnADeclaredRow(t *testing.T) {
 	// The status line is told of the keys either way; what matters is
 	// that no question is armed.
 	press("x")
+	press("x")
 	if m.kill != nil {
 		t.Errorf("x on a down row: kill %+v", m.kill)
 	}
 	m.cursor = 300
+	press("x")
 	press("x")
 	if m.kill == nil || !strings.Contains(m.kill.prompt, "kill-pane %3 · web?") {
 		t.Fatalf("x on a held row: kill %+v", m.kill)
@@ -1628,6 +1620,7 @@ func TestXOnADeclaredRow(t *testing.T) {
 		t.Errorf("confirming the close: cmd %v, kill %+v", cmd != nil, m.kill)
 	}
 	m.cursor = 400
+	press("x")
 	press("x")
 	if m.kill == nil || !strings.Contains(m.kill.prompt, "tmux send-keys -t %4 C-c · web?") {
 		t.Errorf("x on an up row: kill %+v", m.kill)

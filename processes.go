@@ -832,24 +832,31 @@ func notes(b processesReport, width, measure int, p draw.Palette) []draw.Row {
 // came is the pane the panel key just brought the keys out of, for the
 // keys that begin a detour.
 func (m model) processesKey(k, came string) (model, tea.Cmd) {
+	// A verb pressed is waiting for this key, its object; see grammar.go.
+	if m.verb != "" {
+		verb, verbCame := m.verb, m.verbCame
+		m.verb, m.verbCame = "", ""
+		return m.verbKey(verb, k, verbCame)
+	}
+	if _, ok := verbs[k]; ok {
+		m.verb, m.verbCame = k, came
+		return m, nil
+	}
 	switch k {
 	case "ctrl+c", "q":
 		return m.leave()
-	case "c":
-		// The blink is not started here: what annunciates is decided in
-		// one place, and the tick follows the view on its own.
-		m.view = viewConsole
-		if m.inside {
-			return m, m.serverCmd(func() error { return m.srv.Wide() })
+	case ".":
+		if m.last.verb != "" {
+			return m.doAct(m.last, came)
 		}
 	case "j", "down":
 		m = m.onRow(0, ring(m.cursorAt+1, rowsIn(m.projects)))
 	case "k", "up":
 		m = m.onRow(0, ring(m.cursorAt-1, rowsIn(m.projects)))
 	case "g":
-		// Nothing yet: g is the half of a motion, and what it means is
-		// decided by the key after it.
-		m.firstG = true
+		// Nothing yet: g is the half of a motion or of a station view,
+		// and what it means is decided by the key after it.
+		m.firstG, m.gCame = true, came
 	case "G":
 		m = m.onRow(0, rowsIn(m.projects)-1)
 	case "z":
@@ -872,42 +879,6 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 		}
 	case "esc":
 		return m.backIn()
-	case "x":
-		if e, _, ok := m.under(); ok {
-			m.kill = m.endOn(e)
-		}
-	case "s":
-		// A shell here. On a container, here is inside it: the row stands
-		// for a machine of its own, and the directory it was started for
-		// is not where its work is going on.
-		if e, pl, ok := m.under(); m.inside && ok {
-			if e.Container != "" {
-				return m, m.shellInContainer(e)
-			}
-			if pl.Path != "" {
-				return m, m.openShell(pl.Path)
-			}
-		}
-	case "S":
-		// A session with the server the row is, by its own client: psql
-		// on postgres. s beside it is a shell near the server; this is
-		// the server itself, talked to.
-		if e, pl, ok := m.under(); m.inside && ok {
-			if p := m.programUnder(e); p != nil {
-				return m, m.openClient(e, p, pl.Path)
-			}
-		}
-	case "o":
-		// The row's port in the browser. It asks nothing of the server,
-		// so it works whether or not conn holds one: the port is on the
-		// row either way, and so is the machine the browser is on.
-		if e, _, ok := m.under(); ok && serving(e) {
-			return m, m.openServing(e)
-		}
-	case "a":
-		if _, pl, ok := m.under(); m.inside && ok && pl.Path != "" {
-			return m, m.startContact(pl.Path)
-		}
 	case "A":
 		// The sessions at the project: the capital of the contact's
 		// key, a session being a contact's to pick back up.
@@ -923,11 +894,6 @@ func (m model) processesKey(k, came string) (model, tea.Cmd) {
 		return m.toWaiting()
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9", "0":
 		return m.toContact(k)
-	case "p":
-		// A detour: it ends where the keys were before it, which is the
-		// pane the panel key just brought them out of, or nowhere.
-		m.from = came
-		return m.toProjects()
 	case ",":
 		// conn's own configuration, in the workspace. The comma is what
 		// a program of this shape is settled in everywhere, and it is

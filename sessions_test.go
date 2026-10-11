@@ -94,10 +94,9 @@ func TestSessionsLayOut(t *testing.T) {
 func TestTheRecentViewIsEveryProjectsSessions(t *testing.T) {
 	m := plainModel()
 	m.view, m.inside = viewProcesses, true
-	next, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
-	m = next.(model)
+	m, cmd := typedKeys(m, "g", "r")
 	if m.view != viewSessions || !m.sessions.recent || cmd == nil {
-		t.Fatalf("r: view %v, recent %v, cmd %v", m.view, m.sessions.recent, cmd != nil)
+		t.Fatalf("gr: view %v, recent %v, cmd %v", m.view, m.sessions.recent, cmd != nil)
 	}
 
 	// An answer for the one project's view is not this view's.
@@ -132,7 +131,7 @@ func TestTheRecentViewIsEveryProjectsSessions(t *testing.T) {
 	m.view, m.inside = viewProcesses, true
 	m.projects = []work.Project{{Path: "/w/conn", Entries: []work.Entry{{PID: 11, Kind: work.KindShell}}}}
 	m.cursor = 11
-	next, _ = m.Update(tea.KeyPressMsg{Code: 'A', Text: "A"})
+	next, _ := m.Update(tea.KeyPressMsg{Code: 'A', Text: "A"})
 	m = next.(model)
 	if m.view != viewSessions || m.sessions.recent || m.sessions.project != "/w/conn" {
 		t.Errorf("A: view %v, recent %v, project %q", m.view, m.sessions.recent, m.sessions.project)

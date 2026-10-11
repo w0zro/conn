@@ -17,11 +17,11 @@
 
    1    enter    Go in and answer it
    2    tab      Leave it, take the next thing waiting
-   3    x        End it — conn asks first
+   3    xx       End it — conn asks first
 
    CAUTION ──────────────────────────────────────────────
 
-   It has the terminal and is sleeping. x signals the
+   It has the terminal and is sleeping. xx signals the
    contact, not what it runs — the process under it
    keeps going.
 

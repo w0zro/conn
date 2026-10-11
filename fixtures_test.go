@@ -1,6 +1,7 @@
 package main
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"flag"
 	"os"
 	"path/filepath"
@@ -215,4 +216,26 @@ var (
 // keyBar writes it on conn's dark ground.
 func offered(bar, key, does string) bool {
 	return strings.Contains(bar, strings.TrimPrefix(keyBar([]keyHint{{key, does}}, theme.Conn.Dark), " "))
+}
+
+// press is keys pressed in turn on the panel, answering the model and
+// the last key's command: a verb and its object, a g and its view.
+func press(m model, keys ...string) (model, tea.Cmd) {
+	var cmd tea.Cmd
+	for _, k := range keys {
+		m, cmd = m.key(k)
+	}
+	return m, cmd
+}
+
+// typedKeys is keys typed in turn through the program's Update, as the
+// terminal sends them.
+func typedKeys(m model, keys ...string) (model, tea.Cmd) {
+	var cmd tea.Cmd
+	for _, k := range keys {
+		var next tea.Model
+		next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Text: k, Code: []rune(k)[0]}))
+		m = next.(model)
+	}
+	return m, cmd
 }

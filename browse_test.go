@@ -36,10 +36,10 @@ func TestOIsOfferedWhereARowServes(t *testing.T) {
 		want bool
 	}{{300, true}, {301, false}, {302, false}, {303, false}} {
 		m.cursor = c.pid
-		if got := offered(m.bar(), "o", "Open :5173"); got != c.want {
-			t.Errorf("on %d the bar offers o: %v, want %v\n%s", c.pid, got, c.want, m.bar())
+		if got := offered(m.bar(), "cc", "Open :5173"); got != c.want {
+			t.Errorf("on %d the bar offers cc: %v, want %v\n%s", c.pid, got, c.want, m.bar())
 		}
-		_, cmd := m.key("o")
+		_, cmd := press(m, "c", "c")
 		if (cmd != nil) != c.want {
 			t.Errorf("on %d o asked for something: %v, want %v", c.pid, cmd != nil, c.want)
 		}

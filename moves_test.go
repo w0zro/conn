@@ -42,14 +42,14 @@ func TestTheBarOffersWhatTheKeysDo(t *testing.T) {
 			if offers("enter") != (cmd != nil) {
 				t.Errorf("inside %v, %s %s: the bar offers enter %v, enter does something %v", inside, e.Command, e.Status, offers("enter"), cmd != nil)
 			}
-			next, _ := m.key("x")
+			next, _ := press(m, "x", "x")
 			armed := next.kill != nil
-			if offers("x") != armed {
-				t.Errorf("inside %v, %s %s: the bar offers x %v, x arms %v", inside, e.Command, e.Status, offers("x"), armed)
+			if offers("xx") != armed {
+				t.Errorf("inside %v, %s %s: the bar offers x %v, x arms %v", inside, e.Command, e.Status, offers("xx"), armed)
 			}
-			_, cmd = m.key("u")
-			if offers("u") != (cmd != nil) {
-				t.Errorf("inside %v, %s %s: the bar offers u %v, u does something %v", inside, e.Command, e.Status, offers("u"), cmd != nil)
+			_, cmd = press(m, "u", "u")
+			if offers("uu") != (cmd != nil) {
+				t.Errorf("inside %v, %s %s: the bar offers u %v, u does something %v", inside, e.Command, e.Status, offers("uu"), cmd != nil)
 			}
 		}
 	}

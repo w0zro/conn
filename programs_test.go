@@ -80,32 +80,34 @@ func TestSIsOfferedWhereAClientCanConnect(t *testing.T) {
 		{PID: 302, Kind: work.KindRun, Command: "node server.js", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"3000"}},
 		{PID: 303, Kind: work.KindShell, Command: "zsh", Cwd: "/w/a", Status: work.StatusActive, Ports: []string{"5433"}, Listener: "postgres -D data"},
 	}}}
-	has := func(bar string) bool { return offered(bar, "S", "psql") }
+	has := func(bar string) bool { return offered(bar, "cc", "psql") }
+	// cc is the client where conn knows one, and the port in the browser
+	// where it knows none and the row serves: 302 asks for the port.
 	for _, c := range []struct {
-		pid  int
-		want bool
-	}{{300, true}, {301, false}, {-7, false}, {-8, true}, {302, false}, {303, true}} {
+		pid        int
+		want, asks bool
+	}{{300, true, true}, {301, false, false}, {-7, false, false}, {-8, true, true}, {302, false, true}, {303, true, true}} {
 		m.cursor = c.pid
 		if got := has(m.bar()); got != c.want {
-			t.Errorf("on %d the bar offers S: %v, want %v\n%s", c.pid, got, c.want, m.bar())
+			t.Errorf("on %d the bar offers cc psql: %v, want %v\n%s", c.pid, got, c.want, m.bar())
 		}
 		// The key itself, under the wrapper that tells the status line
 		// of the bar changing from row to row.
-		_, cmd := m.key("S")
-		if (cmd != nil) != c.want {
-			t.Errorf("on %d S asked for something: %v, want %v", c.pid, cmd != nil, c.want)
+		_, cmd := press(m, "c", "c")
+		if (cmd != nil) != c.asks {
+			t.Errorf("on %d cc asked for something: %v, want %v", c.pid, cmd != nil, c.asks)
 		}
 		// With no tmux to open the session in, or no psql on the
 		// path, the answer is a notice rather than a pane.
 		if c.pid == 300 {
 			if _, ok := answered(cmd).(noticeMsg); !ok {
-				t.Errorf("on %d S answered %T, not a notice", c.pid, answered(cmd))
+				t.Errorf("on %d cc answered %T, not a notice", c.pid, answered(cmd))
 			}
 		}
 	}
 	// Outside the server there is nowhere to open a session.
 	m.inside, m.cursor = false, 300
-	if _, cmd := m.key("S"); cmd != nil || has(m.bar()) {
-		t.Error("outside the server S is offered, or does something")
+	if _, cmd := press(m, "c", "c"); cmd != nil || has(m.bar()) {
+		t.Error("outside the server cc is offered, or does something")
 	}
 }

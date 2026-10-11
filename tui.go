@@ -293,6 +293,19 @@ type model struct {
 	// half typed is not a question — so any other key simply goes on to
 	// be the key it is.
 	firstG bool
+	// gCame is the pane the panel key brought the keys out of, kept
+	// over a g for the station view the key after it opens, which ends
+	// back there as the view would have opened by one key.
+	gCame string
+	// verb is a verb pressed and waiting for its object, as an
+	// operator waits in vim, and verbCame the arrival kept over it the
+	// way gCame is; last is the verb and object . does again. See
+	// grammar.go.
+	verb, verbCame string
+	last           act
+	// peek is a pane ll put in the workspace, which holds it until the
+	// next key rather than the page taking it back on the next reading.
+	peek bool
 
 	srv    *room.Server // conn's tmux server, when there is one
 	inside bool         // this conn is the panel of the server's home window
@@ -885,6 +898,7 @@ func (m model) key(k string) (model, tea.Cmd) {
 	// or it was not going to be.
 	m.notice = ""
 	m.relieved = false
+	m.peek = false
 	// So does the arrival: the pane the keys came out of is for the key
 	// after the panel key and no other, whatever that key is.
 	came := m.came
@@ -912,6 +926,30 @@ func (m model) key(k string) (model, tea.Cmd) {
 		m = m.onRow(0, 0)
 		return m, nil
 	}
+	// The station's views, behind g in the processes view, as vim
+	// keeps its own: the letters alone are verbs there. In the log, gl
+	// is the way back out, as l alone is.
+	if half && m.view == viewProcesses {
+		gCame := m.gCame
+		switch k {
+		case "p":
+			m.from = gCame
+			return m.toProjects()
+		case "r":
+			return m.openRecent(gCame)
+		case "l":
+			return m.openLog(gCame)
+		case "c":
+			m.view = viewConsole
+			if m.inside {
+				return m, m.serverCmd(func() error { return m.srv.Wide() })
+			}
+			return m, nil
+		}
+	}
+	if half && m.view == viewLog && k == "l" {
+		return m.logKey("l")
+	}
 	// The keys arriving on the panel, which the panel key sends after
 	// bringing them: from inside a process, from the manual, or from
 	// the panel itself. On the console it is any key, and the console
@@ -936,27 +974,24 @@ func (m model) key(k string) (model, tea.Cmd) {
 	if k == "alt+s" || k == "alt+a" || k == "alt+shift+a" {
 		return m.openAt(k, came)
 	}
-	// Every project's suspended sessions, newest first: r in the
+	// Every project's suspended sessions, newest first: gr in the
 	// processes view, and alt+r on a line typed into. A is the one
 	// project's; see openRecent.
-	if k == "alt+r" || k == "r" && m.view == viewProcesses {
+	if k == "alt+r" {
 		return m.openRecent(came)
 	}
-	// The log: l in the processes view, and alt+l on a line typed into.
-	if k == "alt+l" || k == "l" && m.view == viewProcesses {
+	// The log: gl in the processes view, and alt+l on a line typed into.
+	if k == "alt+l" {
 		return m.openLog(came)
 	}
-	// What is under the cursor, brought up: u in the processes view,
-	// and alt+u from the list, where u is a letter being typed. On a
-	// process's row it is that one process, and the keys stay on the
-	// panel, so u pressed down the rows brings them up one at a time;
-	// on a project's row, in the list, it is the project. U, and alt+U,
-	// bring up everything the row's project declares and does not have
-	// running, wherever in it the cursor is.
-	if k == "alt+u" || k == "u" && m.view == viewProcesses {
+	// What is under the cursor, brought up, from a line typed into,
+	// where u is a letter: on a project's row in the list, the project.
+	// alt+U brings up everything the row's project declares and does
+	// not have running. In the processes view these are uu and up.
+	if k == "alt+u" {
 		return m.raiseUnder()
 	}
-	if k == "alt+shift+u" || k == "U" && m.view == viewProcesses {
+	if k == "alt+shift+u" {
 		return m.raiseAt()
 	}
 	// A page of conn's own speaking to the panel. The manual and the
@@ -1202,7 +1237,7 @@ func (m model) keepingPage() (model, tea.Cmd) {
 	// under the cursor while one of them is up, which would stop this
 	// on its own; saying it plainly as well means the page cannot come
 	// back the moment the cursor does.
-	if !m.inside || m.bay.readout || m.detour.to != noDetour || !m.focused {
+	if !m.inside || m.bay.readout || m.detour.to != noDetour || !m.focused || m.peek {
 		return m, nil
 	}
 	if !m.view.paged() {

@@ -102,9 +102,9 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 	// What to do about it: go in; leave it for the next thing waiting;
 	// end it, which conn asks about first.
 	if c.waiting {
-		c.procedure = []keyHint{{"enter", "Go in and answer it"}, {"tab", "Leave it, take the next thing waiting"}, {"x", "End it — conn asks first"}}
+		c.procedure = []keyHint{{"enter", "Go in and answer it"}, {"tab", "Leave it, take the next thing waiting"}, {"xx", "End it — conn asks first"}}
 	} else {
-		c.procedure = []keyHint{{"enter", "Go in"}, {"x", "End it — conn asks first"}}
+		c.procedure = []keyHint{{"enter", "Go in"}, {"xx", "End it — conn asks first"}}
 	}
 
 	// What to be careful of: a contact that has the terminal and is
@@ -124,7 +124,7 @@ func composeContact(s readoutSubject, home string, now time.Time) contactPage {
 		if n == 1 {
 			what = "the process under it keeps going."
 		}
-		caution = append(caution, "x signals the contact, not what it runs — "+what)
+		caution = append(caution, "xx signals the contact, not what it runs — "+what)
 	}
 	c.caution = strings.Join(caution, " ")
 

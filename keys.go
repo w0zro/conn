@@ -36,31 +36,30 @@ func panelKeys(px string) []keyGroup {
 		"MOVING", []keyHint{
 			{"j k", "a row"},
 			{"gg G", "first row, last row"},
-			{"tab", "next waiting"},
-			{"0-9", "contact 0 to 9"},
+			{"tab 0-9", "next waiting, a contact"},
 			{"z", "the whole tree"},
 		},
 	}, {
 		"THE ROW", []keyHint{
 			{"enter", "go in"},
 			{"esc", "back where you were"},
-			{"x", "end it"},
-			{"s", "a shell there"},
-			{"S", "its own client"},
-			{"o", "open its port"},
-			{"a", "a new contact"},
+			{"/ .", "find in output, again"},
 			{"A", "its sessions"},
-			{"/", "find in its project's output"},
-			{"u U", "bring up, bring up all"},
+		},
+	}, {
+		"VERBS", []keyHint{
+			{"u x", "bring up, end"},
+			{"r c", "restart, talk to it"},
+			{"l i", "what it said, its page"},
+			{"s a", "a shell, a contact"},
+			{"rr rp", "the row, its project"},
+			{"rj rk rG", "below, above, last"},
 		},
 	}, {
 		"THE STATION", []keyHint{
-			{"p", "the projects"},
-			{"r", "recent sessions"},
-			{"l", "the log"},
-			{"c", "the console"},
-			{",", "the settings"},
-			{"?", "these keys"},
+			{"gp gr", "projects, recent"},
+			{"gl gc", "the log, the console"},
+			{", ?", "settings, these keys"},
 			{"q", "detach"},
 		},
 	}, {
@@ -69,10 +68,8 @@ func panelKeys(px string) []keyGroup {
 			{px + " " + px, "the last process"},
 			{px + " tab", "next waiting"},
 			{px + " 0-9", "contact 0 to 9"},
-			{px + " r", "recent sessions"},
-			{px + " l", "the log"},
-			{px + " /", "find in the output"},
-			{px + " ?", "these keys"},
+			{px + " gr gl", "recent, the log"},
+			{px + " / ?", "find, these keys"},
 		},
 	}}
 }

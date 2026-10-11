@@ -73,7 +73,7 @@ func TestTheLogIsNewestFirstUnderItsDays(t *testing.T) {
 func TestLOpensTheLogAndLAgainCloses(t *testing.T) {
 	m := model{p: draw.Plain, width: 48, height: 40, view: viewProcesses}
 	m.log.unseen = 3
-	m, _ = m.key("l")
+	m, _ = press(m, "g", "l")
 	if m.view != viewLog {
 		t.Fatal("l did not open the log")
 	}

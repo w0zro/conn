@@ -363,10 +363,9 @@ func TestTheKeyContinuesToProcesses(t *testing.T) {
 	if _, cmd := m.Update(processesTickMsg{gen: m.processesGen}); cmd == nil {
 		t.Error("the tick should read the processes view again")
 	}
-	next, _ = m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
-	m = next.(model)
+	m, _ = typedKeys(m, "g", "c")
 	if m.view != viewConsole || !strings.Contains(m.View().Content, "START-UP CHECKS") {
-		t.Errorf("c should bring the console back:\n%s", m.View().Content)
+		t.Errorf("gc should bring the console back:\n%s", m.View().Content)
 	}
 	if _, cmd := m.Update(processesTickMsg{gen: m.processesGen}); cmd != nil {
 		t.Error("a tick off the processes view should be dropped")
@@ -445,8 +444,9 @@ func TestKeysInsideTheServer(t *testing.T) {
 	} else if _, ok := cmd().(reachedMsg); ok {
 		t.Error("a pane was reached with no tmux to reach it with")
 	}
-	if cmd := press("s", 's'); cmd == nil {
-		t.Error("s should open a shell at the project")
+	press("s", 's')
+	if cmd := press("p", 'p'); cmd == nil {
+		t.Error("sp should open a shell at the project")
 	}
 	if cmd := press("q", 'q'); cmd == nil {
 		t.Error("q should detach")

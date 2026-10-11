@@ -33,11 +33,17 @@ keys back to the panel from inside any process. `tab` goes to the
 agent that has waited longest for you. `esc` goes back into the
 process you were in. `q` detaches, and everything keeps running.
 
+The other letters are verbs, and a verb waits for its object, as in
+vim: the verb again is the row, `p` its project. `uu` brings up, `xx`
+ends, `rr` restarts, `cc` talks to it, `ll` shows what it said. Agents
+reach the same verbs from a shell: `conn ls`, `conn l web`,
+`conn u test -w -- go test ./...`, `conn r :3000`.
+
 A project's `.conn` file declares what works it, one process a line,
 so conn can say what is not running and bring it up. Claude Code
 sessions are contacts: conn reads their state, shows the question a
 waiting one asked, and lists the sessions left suspended, at a project
-with `A` or across every project with `r`. `l` opens the log: what
+with `A` or across every project with `gr`. `gl` opens the log: what
 changed while you were in a pane, a wait, a fault, a turn over, a pane
 that said panic or FAIL, newest first, and the band counts the lines
 since you last looked. `/` searches what a

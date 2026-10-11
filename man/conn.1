@@ -124,7 +124,7 @@ The build and the station at the top, then what the machine and this
 session are, then the start-up checks one by one, then the verdict.
 Any key skips to the verdict; a key at the verdict continues to the
 processes view.
-.B c
+.B gc
 brings the console back over the whole window.
 See
 .B THE CONSOLE
@@ -152,7 +152,7 @@ See
 .B THE PAGE
 below.
 .SS The projects list
-.B p
+.B gp
 opens the list of every project under the roots, with the processes
 .B conn
 holds a pane for under each, and a line to type into that narrows the
@@ -161,14 +161,14 @@ rows.
 .B A
 opens the suspended Claude Code sessions at the cursor's project, with a
 line to type into that narrows them.
-.B r
+.B gr
 opens the same view over every project, headed
 .BR RECENT :
 what was being done anywhere, where
 .B A
 is what was being done here.
 .SS The log
-.B l
+.B gl
 opens the log: the panel over time.
 A line for each change worth one between one reading and the next,
 newest first, under the day it happened on: the time, the project,
@@ -359,14 +359,14 @@ To a contact by number; see
 .B 0\-9
 below.
 .TP
-.B ctrl\-space r
+.B ctrl\-space gr
 The recent view; see
-.B r
+.B gr
 below.
 .TP
-.B ctrl\-space l
+.B ctrl\-space gl
 The log; see
-.B l
+.B gl
 below.
 .TP
 .B ctrl\-space /
@@ -417,30 +417,88 @@ The first ten contacts down the panel carry a digit beside their mark,
 the first; the digit is the key.
 A digit no row carries does nothing.
 .TP
+.B /
+The output view: what the row's project has written, searched.
+.TP
+.B .
+Do the last verb and its object again, where the cursor is now.
+.TP
+.B A
+The sessions view for the row's project.
+.TP
+.B z
+The whole tree, or the panel's blocks again.
+.PP
+The other letters are verbs, and a verb waits for its object, as an
+operator waits in
+.BR vim (1).
+The bar says what the verb waits for.
+Any key that is not an object lets the verb go.
+.TP
+.B rr
+The verb twice: the row under the cursor, as
+.B dd
+is the line.
+Every verb is pressed so.
+.TP
+.BR rj ", " rk
+The row below, the row above; the cursor goes to it.
+.TP
+.B rG
+The last row.
+.TP
+.B rp
+The row's project: what the verb does to the project as a whole.
+.PP
+The verbs, on a row and on its project:
+.TP
+.B u
+Bring up.
+.B uu
+brings up the row's declared process or Homebrew service; the keys stay
+on the panel.
+.B up
+brings up everything the project declares and does not have running.
+.TP
 .B x
-End the row's process.
-.B conn
-asks first; see
+End.
+.B xx
+ends the row's process;
+.B xp
+ends the project's work: its runs, services and containers, each once,
+a row under one already taken going with it.
+Contacts, shells and editors are left.
+Either asks first; see
 .BR "With a question armed" .
 .TP
-.B s
-A shell at the row's project.
-On a container: a shell inside it.
-.TP
-.B S
-The server's own client, where the row is a server
+.B r
+Restart, with no question asked.
+A container by
+.BR "docker restart" ,
+a Homebrew service by
+.BR "brew services restart" ,
+and a pane
 .B conn
-knows:
-.B psql
-on a postgres.
-The bar names the client.
+opened for a declaration or for
+.B conn u
+anew, as it was started.
+A process
+.B conn
+did not start, it cannot start again, and says so under the rows.
+.B rp
+restarts each row of the project that can be.
 .TP
-.B o
-The row's port in the browser, at
-.IR localhost: port .
-Offered where a row is running and has a port, whether it listens on
-it or publishes it; a row that says several is opened at the lowest.
-The scheme is the port's own:
+.B c
+Talk to it.
+.B cc
+on a server
+.B conn
+knows is a session with it by its own client:
+.B psql
+on a postgres, the bar naming the client.
+On a row with a port and no known client, the port in the browser, at
+.IR localhost: port ,
+at the lowest where it says several; the scheme is the port's own:
 .B conn
 offers it a TLS handshake, and sends the browser to
 .I https
@@ -453,39 +511,57 @@ on macOS,
 .BR xdg\-open (1)
 on Linux.
 .TP
+.B l
+What it said.
+.B ll
+puts the row's pane in the workspace and leaves the keys on the panel;
+on a container, its log, and on a Homebrew service, its log, each in a
+pane opened to follow it.
+.B lp
+is the output view over the project, as
+.B /
+is.
+.TP
+.B i
+Its page: the readout, in the workspace, following the cursor.
+.TP
+.B s
+A shell there.
+.B ss
+is a shell at the row's directory, or inside it on a container;
+.B sp
+a shell at the project.
+.TP
 .B a
-A new contact at the row's project: Claude Code, told it runs inside
+A contact.
+.B aa
+opens Claude Code at the project handed the row: what it is, how it
+stands, and the last 60 lines it said, as its first prompt.
+.B ap
+is a new contact at the project, told it runs inside
 .BR conn .
+.PP
+The station's views are behind
+.BR g ,
+as
+.B vim
+keeps its own:
 .TP
-.B A
-The sessions view for the row's project.
+.B gp
+The projects list.
 .TP
-.B r
+.B gr
 The recent view: every project's suspended sessions, newest first.
 .TP
-.B l
+.B gl
 The log: every change the panel saw, newest first.
-Pressed again there, back.
+.B l
+or
+.B gl
+there, back.
 .TP
-.B /
-The output view: what the row's project has written, searched.
-.TP
-.B u
-Bring up the row's declared process or Homebrew service.
-The keys stay on the panel.
-.TP
-.B U
-Bring up everything the row's project declares and does not have
-running.
-.TP
-.B z
-The whole tree, or the panel's blocks again.
-.TP
-.B c
+.B gc
 The console.
-.TP
-.B p
-The projects list.
 .TP
 .B ,
 The settings.
@@ -592,8 +668,10 @@ was pressed in.
 Detach.
 Outside the server: quit.
 .SS With a question armed
-.B x
-does not end anything.
+.B xx
+and
+.B xp
+do not end anything.
 It arms a question on the key bar, the command about to be run: the
 band reads
 .BR CONFIRM .
@@ -632,11 +710,16 @@ Its pane is taken down once the end is recorded.
 .TP
 a declared process, ended
 .BI "kill\-pane " "pane \(pc name" ?
+.TP
+a project
+.BI "end " "n " "of its processes \(pc " project ?
+What each of its rows would be asked, all of it on
+.BR y .
 .PP
 A row that reads
 .B DOWN
 takes no
-.BR x .
+.BR xx .
 .SS In the settings
 .TP 20
 .BR j ", " k ", " gg ", " G
@@ -932,7 +1015,7 @@ shows every row.
 .SS Ports
 TCP listeners only, lowest first.
 UDP and unix sockets are on the page.
-.B o
+.B cc
 opens the lowest in the browser.
 A row whose ports all go while its process lives says
 .BR CLOSED .
@@ -1096,9 +1179,9 @@ A project with nothing running in it shows nothing of its file, and is
 not a block at all.
 .PP
 .BR enter ,
-.B u
+.B uu
 or
-.B U
+.B up
 brings a declaration up in a pane of the server, marked as the
 declaration; the row carries the declared name.
 When it ends, the pane holds its output, and the row reads
@@ -1141,8 +1224,10 @@ but reads the state of one only:
 Claude Code.
 Every other contact reads as any process does.
 .PP
-.B a
-starts Claude Code at the cursor's project.
+.B ap
+starts Claude Code at the cursor's project, and
+.B aa
+starts it handed the row under the cursor.
 .B conn
 appends a note to its system prompt saying that it runs inside
 .B conn
@@ -1177,7 +1262,7 @@ While the contact is working, the row says what it is doing instead.
 .PP
 .B tab
 goes to the contact that has waited longest.
-.B x
+.B xx
 on a contact signals the contact and not what it runs.
 .PP
 A suspended session is a Claude Code transcript at a project that no
@@ -1194,7 +1279,7 @@ in a new pane, at the session's own directory.
 With none:
 .BR "NOTHING SUSPENDED HERE" .
 .PP
-.B r
+.B gr
 lists them across every project, newest first: the hundred most recent
 transcripts on the machine that no running contact is carrying,
 wherever they were had.
@@ -1230,16 +1315,18 @@ says so.
 opens the container's output; the next
 .B enter
 goes back to the pane holding it.
-.B s
+.B ss
 opens a shell inside the container.
-.B S
+.B cc
 opens the server's client inside it, where the image is one
 .B conn
 knows.
-.B x
+.B xx
 asks to
 .B docker stop
-it.
+it, and
+.B rr
+restarts it.
 .SS Homebrew
 A project claims a Homebrew service by declaring it; see
 .BR "DECLARING PROCESSES" .
@@ -1255,12 +1342,14 @@ for its project.
 .PP
 .B enter
 on a service that is up tails its log; down, starts it.
-.B u
+.B uu
 starts it.
-.B x
+.B xx
 asks to
 .B brew services stop
-it.
+it, and
+.B rr
+restarts it.
 .
 .SH THE PAGE
 The page is what
@@ -1314,7 +1403,7 @@ with.
 with the keys that answer it.
 .B CAUTION
 with what
-.B x
+.B xx
 does and does not end.
 .B HOW THE WORK HAS GONE
 as a bar of time worked against time at rest, waiting or idle, and the
@@ -1559,7 +1648,7 @@ brings it up.
 .TP
 .BI "conn x " address
 End a process, as
-.B x
+.B xx
 on the panel does, with no question asked:
 a container by
 .BR "docker stop" ,
@@ -1954,12 +2043,12 @@ Exit 1.
 .SH CAVEATS
 .TP 4
 \(bu
-.B x
+.B xx
 on a bare shell sends
 .BR KILL .
 .TP
 \(bu
-.B x
+.B xx
 on a contact signals the contact, not the processes under it.
 .TP
 \(bu

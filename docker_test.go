@@ -192,8 +192,7 @@ func TestXStopsAContainer(t *testing.T) {
 	m.containers = []docker.Container{{ID: "abc123", Service: "web"}, {ID: "def456", Service: "worker"}}
 
 	m.cursor = -99
-	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, _ = typedKeys(m, "x", "x")
 	if m.kill == nil || m.kill.end == nil {
 		t.Fatalf("x armed %+v", m.kill)
 	}
@@ -214,8 +213,7 @@ func TestXStopsAContainer(t *testing.T) {
 
 	// A service already gone is not asked about.
 	m.kill, m.cursor = nil, -98
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	if got := next.(model); got.kill != nil {
+	if got, _ := typedKeys(m, "x", "x"); got.kill != nil {
 		t.Errorf("x armed a question on a service already stopped: %+v", got.kill)
 	}
 }

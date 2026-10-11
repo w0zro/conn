@@ -115,20 +115,20 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 	}
 	m.cursor = 1
 	bar := m.bar()
-	for _, want := range [][2]string{{"j k", "Move"}, {"enter", "Open"}, {"tab", "Next waiting"}, {"x", "End it"}, {"s", "Shell"}, {"U", "Bring up all"}, {"?", "Help"}} {
+	for _, want := range [][2]string{{"j k", "Move"}, {"enter", "Open"}, {"tab", "Next waiting"}, {"xx", "End it"}, {"ss", "Shell"}, {"up", "Bring up all"}, {"?", "Help"}} {
 		if !has(bar, want[0], want[1]) {
 			t.Errorf("on the shell the bar lacks %s %s:\n%s", want[0], want[1], bar)
 		}
 	}
 	m.cursor = 2 // a contact in no pane conn holds: nowhere to go into
-	if bar := m.bar(); has(bar, "enter", "Open") || !has(bar, "x", "End it") {
+	if bar := m.bar(); has(bar, "enter", "Open") || !has(bar, "xx", "End it") {
 		t.Errorf("on an unreachable contact the bar offers %s", bar)
 	}
-	if bar := m.bar(); has(bar, "u", "Bring it up") {
-		t.Errorf("on a shell the bar offers u:\n%s", bar)
+	if bar := m.bar(); has(bar, "uu", "Bring it up") {
+		t.Errorf("on a shell the bar offers uu:\n%s", bar)
 	}
 	m.cursor = -9 // declared and down: brought up, not ended
-	if bar := m.bar(); !has(bar, "enter", "Bring it up, go in") || !has(bar, "u", "Bring it up") || has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "enter", "Bring it up, go in") || !has(bar, "uu", "Bring it up") || has(bar, "xx", "End it") {
 		t.Errorf("on a down declaration the bar offers %s", bar)
 	}
 	for i := range m.projects[0].Entries {
@@ -140,18 +140,18 @@ func TestTheBarSaysWhatTheRowCanTake(t *testing.T) {
 		t.Errorf("with nothing waiting the bar offers tab:\n%s", bar)
 	}
 	m.inside = false
-	if bar := m.bar(); has(bar, "s", "Shell") || has(bar, "U", "Bring up all") {
+	if bar := m.bar(); has(bar, "ss", "Shell") || has(bar, "up", "Bring up all") {
 		t.Errorf("outside the server the bar offers keys that need it:\n%s", bar)
 	}
 	// With nothing running there is no row and so no project to act at:
 	// the station's own keys are what is left.
 	empty := model{view: viewProcesses, inside: true, focused: true, g: theme.Conn.Dark}
-	if bar := empty.bar(); has(bar, "s", "Shell") || has(bar, "a", "New contact") ||
-		!has(bar, "p", "Projects") || !has(bar, ",", "Settings") || !has(bar, "?", "Help") {
+	if bar := empty.bar(); has(bar, "ss", "Shell") || has(bar, "aa", "Hand to a contact") ||
+		!has(bar, "gp", "Projects") || !has(bar, ",", "Settings") || !has(bar, "?", "Help") {
 		t.Errorf("with no rows the bar offers %s", bar)
 	}
 	m.inside, m.focused = true, false
-	if bar := m.bar(); !has(bar, "^space", "Panel") || !has(bar, "^space ?", "Help") || has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "^space", "Panel") || !has(bar, "^space ?", "Help") || has(bar, "xx", "End it") {
 		t.Errorf("with the keys in a process the bar offers %s", bar)
 	}
 	m.focused = true

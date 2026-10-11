@@ -253,6 +253,12 @@ func (m model) bar() string {
 		}
 		return keyBar(append(hints, keyHint{"esc", "Back"}), m.g)
 	}
+	// A verb waiting: its objects, and the key that lets it go.
+	if m.verb != "" {
+		v := m.verb
+		return keyBar([]keyHint{{v + v, verbs[v] + " this row"}, {v + "j " + v + "k", "The row below, above"},
+			{v + "p", verbs[v] + " the project"}, {"esc", "Let it go"}}, m.g)
+	}
 	if rowsIn(m.projects) > 1 {
 		hints = append(hints, moveHint)
 	}
@@ -265,36 +271,38 @@ func (m model) bar() string {
 	if len(work.WaitingRound(m.projects)) > 0 {
 		hints = append(hints, keyHint{"tab", "Next waiting"})
 	}
-	// The port itself is the word: the bar has enter saying Open beside
-	// it, and what tells the two apart is that this one names a port.
-	if ok && serving(e) {
-		hints = append(hints, keyHint{"o", "Open " + draw.PortsColumn(e.Ports[:1])})
+	// The verbs, doubled: what each does to this row. A verb with
+	// nothing to do here is not offered.
+	if ok && m.inside {
+		if p := m.programUnder(e); p != nil {
+			hints = append(hints, keyHint{"cc", p.client})
+		} else if serving(e) {
+			// The port itself is the word: the bar has enter saying
+			// Open beside it, and what tells the two apart is that this
+			// one names a port.
+			hints = append(hints, keyHint{"cc", "Open " + draw.PortsColumn(e.Ports[:1])})
+		}
+		if m.raiseOn(e) != nil {
+			hints = append(hints, keyHint{"uu", "Bring it up"})
+		}
+		if m.restartable(e) {
+			hints = append(hints, keyHint{"rr", "Restart"})
+		}
 	}
 	if ok && m.endOn(e) != nil {
-		hints = append(hints, keyHint{"x", "End it"})
+		hints = append(hints, keyHint{"xx", "End it"})
 	}
-	// A shell, a contact and a bring-up are at the row's project, so
-	// with no row under the cursor there is nowhere for them: what is
-	// left is the station's own keys, which work wherever the cursor
-	// is and are at the end of the bar for it.
-	if m.inside && ok {
-		hints = append(hints, keyHint{"s", "Shell"})
-		if p := m.programUnder(e); p != nil {
-			hints = append(hints, keyHint{"S", p.client})
-		}
-		hints = append(hints, keyHint{"a", "New contact"}, keyHint{"/", "Find in output"})
-		if m.raiseOn(e) != nil {
-			hints = append(hints, keyHint{"u", "Bring it up"})
-		}
+	if ok && m.inside {
+		hints = append(hints, keyHint{"ll", "Output"}, keyHint{"ss", "Shell"}, keyHint{"aa", "Hand to a contact"}, keyHint{"/", "Find in output"})
 		if projectHasDown(m.projects, pl.Path) {
-			hints = append(hints, keyHint{"U", "Bring up all"})
+			hints = append(hints, keyHint{"up", "Bring up all"})
 		}
 	}
-	hints = append(hints, keyHint{"p", "Projects"})
+	hints = append(hints, keyHint{"gp", "Projects"})
 	if m.inside {
-		hints = append(hints, keyHint{"r", "Recent"})
+		hints = append(hints, keyHint{"gr", "Recent"})
 	}
-	hints = append(hints, keyHint{"l", "Log"})
+	hints = append(hints, keyHint{"gl", "Log"})
 	return keyBar(append(hints, keyHint{",", "Settings"}, keyHint{"?", "Help"}), m.g)
 }
 

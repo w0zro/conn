@@ -85,14 +85,13 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	}
 
 	m.cursor = 24422
-	if bar := m.bar(); !has(bar, "enter", "Its log") || !has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "enter", "Its log") || !has(bar, "xx", "End it") {
 		t.Errorf("on a service up the bar says %q", bar)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); cmd == nil {
 		t.Error("enter on a service up opened nothing")
 	}
-	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	m = next.(model)
+	m, _ = typedKeys(m, "x", "x")
 	if m.kill == nil || m.kill.end == nil || m.kill.prompt != "brew services stop postgresql@14 · db?" {
 		t.Fatalf("x armed %+v", m.kill)
 	}
@@ -101,14 +100,13 @@ func TestTheKeysAskBrewAboutItsService(t *testing.T) {
 	}
 
 	m.kill, m.cursor = nil, -7
-	if bar := m.bar(); !has(bar, "enter", "Bring it up") || has(bar, "x", "End it") {
+	if bar := m.bar(); !has(bar, "enter", "Bring it up") || has(bar, "xx", "End it") {
 		t.Errorf("on a service down the bar says %q", bar)
 	}
 	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); cmd == nil {
 		t.Error("enter on a service down asked brew for nothing")
 	}
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "x"}))
-	if got := next.(model); got.kill != nil {
+	if got, _ := typedKeys(m, "x", "x"); got.kill != nil {
 		t.Errorf("x armed a question on a service down: %+v", got.kill)
 	}
 }

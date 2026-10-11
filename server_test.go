@@ -359,7 +359,7 @@ func isShell(cmd string) bool {
 // that goes on to act on it acts on that one.
 func (s *scratch) openShell() {
 	s.t.Helper()
-	s.keys("p")
+	s.keys("g", "p")
 	s.until("the list to find the scratch repository", func() bool {
 		return strings.Contains(s.panel(), "PROJECTS") && strings.Contains(s.panel(), "repo")
 	})
@@ -543,7 +543,7 @@ func TestTheServerHoldsThePanelAndTheBay(t *testing.T) {
 		return strings.HasSuffix(s.paneAt("home.1"), ":"+bayFirst)
 	})
 
-	s.keys("c")
+	s.keys("g", "c")
 	s.until("the console zoomed over the window", func() bool {
 		return s.display("#{window_zoomed_flag}") == "1" && strings.Contains(s.panel(), "START-UP CHECKS")
 	})
@@ -618,7 +618,7 @@ func TestTheShellKeyOpensIntoTheBay(t *testing.T) {
 	// does not reach the shell until the reading that has it does.
 	s.until("the shell's row on the panel", func() bool { return s.projectRows() >= 1 })
 
-	s.keys("s")
+	s.keys("s", "p")
 	s.until("a second shell in the bay, with the first parked", func() bool {
 		return s.shellIn("home.1") && s.bayPane() != first && s.parked(first)
 	})
@@ -706,7 +706,7 @@ func TestXKillsTheEntryUnderTheCursor(t *testing.T) {
 		return s.shellIn("home.1") && s.projectRows() == 1
 	})
 
-	s.keys("x")
+	s.keys("x", "x")
 	// The question conn asks is on the status line, beside CONFIRM, where
 	// the window's width holds the whole of it.
 	s.until("the kill armed", func() bool { return strings.Contains(s.statusLine(), "kill -KILL") })
@@ -746,7 +746,7 @@ func TestXEndsWhatAShellRunsAndKeepsTheShell(t *testing.T) {
 
 	// The cursor stayed on the shell's own pid, and x on the shell's
 	// row is x on what it runs: the question names sleep.
-	s.keys("x")
+	s.keys("x", "x")
 	s.until("the kill armed, naming sleep", func() bool {
 		return strings.Contains(s.statusLine(), "kill -TERM") && strings.Contains(s.statusLine(), " sleep?")
 	})
@@ -1172,10 +1172,10 @@ func TestThePageFollowsTheCursorDownTheList(t *testing.T) {
 		t.Errorf("reading down the list left %s windows and %s panes in home, not %s and 2", w, n, windows)
 	}
 
-	// No key takes the page away, because none puts it there: i is a
-	// letter like any other now, and the page is simply what the
-	// workspace holds in this view.
-	s.keys("i")
+	// No key takes the page away, because none puts it there: y is a
+	// letter like any other, and the page is simply what the workspace
+	// holds in this view.
+	s.keys("y")
 	s.until("the sleepers' rows to be walked again", func() bool { return s.readoutPidOf() != "" })
 	if !s.pageUp() {
 		t.Errorf("a key took the page away:\n%s", s.bay())
@@ -1260,7 +1260,7 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.keys("M--")
-	s.keys("p")
+	s.keys("g", "p")
 	s.until("the list", func() bool { return strings.Contains(s.panel(), "PROJECTS") })
 
 	// esc brings the view back and the shell with it: out of its own
@@ -1280,7 +1280,7 @@ func TestCancellingTheListGoesBackIntoTheProcess(t *testing.T) {
 	// p on the panel, with no arrival before it, leaves nothing to go
 	// back to: the cancel is the view alone, and nothing is put anywhere.
 	bay := s.bayPane()
-	s.keys("p")
+	s.keys("g", "p")
 	s.until("the list from the panel", func() bool { return strings.Contains(s.panel(), "PROJECTS") })
 	s.keys("Escape")
 	s.until("the processes view", func() bool { return s.inProcesses() })
@@ -1336,7 +1336,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	// under /tmp, which sorts after everything under /Users, so its
 	// rows are the last: G is a row of it.
 	s.keys("G")
-	s.keys("U")
+	s.keys("u", "p")
 	s.until("both panes opened and marked, quick's end recorded", func() bool {
 		sleeper, _ := marked("sleeper")
 		quick, exit := marked("quick")
@@ -1358,7 +1358,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	s.keys("Enter")
 	s.until("quick's pane in the bay", func() bool { return s.bayPane() == quick })
 
-	s.keys("x")
+	s.keys("x", "x")
 	s.until("the close armed, naming quick", func() bool {
 		return strings.Contains(s.statusLine(), "kill-pane") && strings.Contains(s.statusLine(), " quick?")
 	})
@@ -1380,7 +1380,7 @@ func TestUBringsUpWhatTheProjectDeclares(t *testing.T) {
 	armed := func() bool { return strings.Contains(s.statusLine(), "any other key") }
 	for i := 0; i < 24; i++ {
 		s.keys("k")
-		s.keys("x")
+		s.keys("x", "x")
 		asked := false
 		for deadline := time.Now().Add(time.Second); time.Now().Before(deadline) && !asked; {
 			asked = armed()

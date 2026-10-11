@@ -160,46 +160,55 @@ func runX(w io.Writer, home, dir string, args []string) int {
 	return 0
 }
 
-// runR ends the process an address names and starts it again: a
-// container or a brew service by its own restart, and a process conn
-// started by name in a pane of its own anew, as it was started. A
-// process conn did not start, conn cannot start again, and says so.
+// runR ends the process an address names and starts it again.
 func runR(w io.Writer, home, dir string, args []string) int {
 	f, h, code := actOn("r", "conn r name|:port|pid", home, dir, args)
 	if code >= 0 {
 		return code
 	}
+	how, err := h.restart(f)
+	if err != nil {
+		return fail("r", err)
+	}
+	_, _ = fmt.Fprintf(w, "%s restarted: %s\n", nameOf(f.Entry), how)
+	return 0
+}
+
+// restart ends a row and starts it again, and says how: a container or
+// a brew service by its own restart, and a process conn started by
+// name in a pane of its own anew, as it was started. A process conn
+// did not start, conn cannot start again, and says so. The panel's r
+// and the CLI's are this.
+func (h here) restart(f found) (string, error) {
 	name := nameOf(f.Entry)
 	switch {
 	case f.Container != "":
 		if _, err := docker.Says(docker.StopWait, "restart", f.Container); err != nil {
-			return fail("r", fmt.Errorf("docker would not restart %s: %v", name, err))
+			return "", fmt.Errorf("docker would not restart %s: %v", name, err)
 		}
-		_, _ = fmt.Fprintf(w, "%s restarted: docker restart %s\n", name, f.Container)
-		return 0
+		return "docker restart " + f.Container, nil
 	case f.Brew != "":
 		if _, err := brew.Says(brew.Wait, "services", "restart", f.Brew); err != nil {
-			return fail("r", fmt.Errorf("brew would not restart %s: %v", name, err))
+			return "", fmt.Errorf("brew would not restart %s: %v", name, err)
 		}
-		_, _ = fmt.Fprintf(w, "%s restarted: brew services restart %s\n", name, f.Brew)
-		return 0
+		return "brew services restart " + f.Brew, nil
 	}
 	p, ok := h.paneOf(f.Entry)
 	if !ok || f.Declared == "" || p.Declared != f.Declared {
-		return fail("r", fmt.Errorf("conn did not start %s, so it cannot start it again; conn x ends it, and conn u %s -- command starts it in conn", name, name))
+		return "", fmt.Errorf("conn did not start %s, so it cannot start it again; conn x ends it, and conn u %s -- command starts it in conn", name, name)
 	}
 	path, _, _ := declared.Unmark(f.Declared)
 	command, at := p.Run, f.Cwd
 	if command == "" {
 		d, ok := declaredIn(h, path, name)
 		if !ok {
-			return fail("r", fmt.Errorf("%s is no longer in the project's .conn", name))
+			return "", fmt.Errorf("%s is no longer in the project's .conn", name)
 		}
 		command, at = d.Command, d.At(path)
 	}
 	if p.Exit == "" {
 		if _, err := h.end(f); err != nil {
-			return fail("r", err)
+			return "", err
 		}
 	}
 	var sh room.Shell
@@ -210,13 +219,12 @@ func runR(w io.Writer, home, dir string, args []string) int {
 		sh, err = h.srv.RaiseDeclared(at, command, name, f.Declared, "", false)
 	}
 	if err != nil {
-		return fail("r", err)
+		return "", err
 	}
 	if p.Exit != "" {
 		_ = h.srv.ClosePane(p.ID)
 	}
-	_, _ = fmt.Fprintf(w, "%s restarted in pane %s\n", name, sh.Pane.ID)
-	return 0
+	return "in pane " + sh.Pane.ID, nil
 }
 
 // declaredIn is a project's .conn line of a name.

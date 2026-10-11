@@ -44,6 +44,8 @@ Each process can have a **role**: database, web, worker, tests, build, agent. Ro
 
 A verb waits for an object, as vim's operators do. Doubling a verb acts on the process under the cursor, as vim's `dd` acts on the line.
 
+A letter can be a verb and an object, as in vim: what it means is set by where it is pressed. The one clash is a verb's own letter, which as its object means the row under the cursor; a role sharing that letter cannot follow that verb.
+
 `enter` and `/` are commands, not verbs: they act on the process under the cursor at once, as vim's `x` and `/` do.
 
 | Key | Object |
@@ -98,6 +100,5 @@ s web         = docker compose exec web bash
 
 ## Open
 
-- The letters. `d` as an object rules out `d` as a verb; vim reuses letters across the two positions, and so can conn.
 - Roles the table lacks: a cache, a queue, a proxy, a second database.
 - Counts. Vim's `3dd` has no clear meaning over processes yet.

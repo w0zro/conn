@@ -212,6 +212,14 @@ var commands = []command{
 		}
 		return runLs(os.Stdout, home, dir)
 	}},
+	{"l", "what a process said: by name, :port or pid", func(args []string) int {
+		home, _ := os.UserHomeDir()
+		dir, err := os.Getwd()
+		if err != nil {
+			return fail("l", err)
+		}
+		return runL(os.Stdout, home, dir, args)
+	}},
 	{"down", "take the server down, with everything in it", func([]string) int {
 		home, _ := os.UserHomeDir()
 		return say(takeDown(room.Find(home), home))

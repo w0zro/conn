@@ -14,6 +14,11 @@ conn \- a console for the processes working your projects
 .br
 .B conn ls
 .br
+.B conn l
+.RB [ \-n
+.IR lines ]
+.I address
+.br
 .B conn down
 .br
 .B conn theme
@@ -1472,6 +1477,29 @@ Starts nothing, and answers with no server up.
 The shells that run it with no terminal, as an agent's command runs,
 are not rows.
 .TP
+.BI "conn l " address
+What a process said: the lines its pane holds, where it runs in
+.BR conn 's
+server, or what docker kept of a container.
+The last 100 lines;
+.B \-n
+says how many, and
+.B "\-n 0"
+all the pane holds.
+The flag stands before the address or after it.
+.IP
+An address is a name, as
+.B conn ls
+gives it,
+.BI : port
+for the process listening on a port, or a pid.
+A name is looked for in the project the working directory is in, then
+in the folder of repositories that holds it, and no further:
+an agent's word reaches its own work first.
+A port or a pid names one process on the machine, and is looked for in
+every project.
+A name that answers for two processes is an error that lists their pids.
+.TP
 .B conn down
 Take the server down with every process in it.
 Prints one line per window ended, and one for the server.
@@ -1774,6 +1802,22 @@ Exit 1.
 .TP
 .BI "conn ls: the process table could not be read: " why
 Exit 1.
+.TP
+.BI "conn l: no process here answers to " address "; conn ls lists them"
+Exit 1.
+.TP
+.BI "conn l: " address " names " n " processes: " pids "; say which by pid"
+Exit 1.
+.TP
+.BI "conn l: " name " has no terminal; what it writes goes where whatever started it sent it"
+A process adopted into a project, with no terminal of its own.
+Exit 1.
+.TP
+.BI "conn l: " name " runs in a terminal conn does not hold, and what it said is that terminal's"
+Exit 1.
+.TP
+.B "conn l: usage: conn l [\-n lines] name|:port|pid"
+Exit 2.
 .TP
 .BI "conn theme: say which program: conn theme claude, conn theme vim"
 Exit 1.

@@ -3,17 +3,13 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/w0zro/conn/internal/config"
-	"github.com/w0zro/conn/internal/room"
 	"github.com/w0zro/conn/internal/work"
-	"github.com/w0zro/conn/internal/work/brew"
 	"github.com/w0zro/conn/internal/work/declared"
-	"github.com/w0zro/conn/internal/work/docker"
 )
 
 // conn ls is the processes of the project the working directory is in,
@@ -24,47 +20,15 @@ import (
 
 // runLs reads the machine and writes the project of dir.
 func runLs(w io.Writer, home, dir string) int {
-	configured, err := config.Roots(home)
+	h, err := readHere("ls", home, dir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "conn ls: %v\n", err)
-		return 1
+		return fail("ls", err)
 	}
-	in := sources{uid: os.Getuid(), home: home, configured: configured, containers: docker.Read(), self: os.Getpid()}
-	if srv := room.Find(home); srv != nil {
-		if _, err := srv.Panes(); err == nil {
-			in.srv = srv
-		}
-	}
-	r, err := readMachine(in)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "conn ls: the process table could not be read: %v\n", err)
-		return 1
-	}
-	// brew is asked only where a project declares a service of it, as
-	// the panel asks it: a question to brew is a second or so.
-	if brew.Declared(r.declared) {
-		if services, err := brew.Read(); err == nil {
-			in.brews, in.declared = services, r.declared
-			if again, err := readMachine(in); err == nil {
-				r = again
-			}
-		}
-	}
-	root := r.rooting.rootOf(realDir(dir))
-	if !r.rooting.isProject(root) {
-		fmt.Fprintf(os.Stderr, "conn ls: %s is in no project under the roots in config.json\n", config.Tilde(dir, home))
-		return 1
-	}
-	var mine []work.Project
-	for _, pl := range r.projects {
-		if work.Within(pl.Path, root) {
-			mine = append(mine, pl)
-		}
-	}
+	mine := h.projects(h.root)
 	// A project nothing runs in is still the answer: its path, and no
 	// rows under it.
 	if len(mine) == 0 {
-		mine = []work.Project{{Path: root}}
+		mine = []work.Project{{Path: h.root}}
 	}
 	writeLs(w, mine, home)
 	return 0

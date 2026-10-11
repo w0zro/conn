@@ -1255,8 +1255,27 @@ starts it handed the row under the cursor.
 .B conn
 appends a note to its system prompt saying that it runs inside
 .B conn
-and how to start long-lived processes in a window of the server rather
-than in the background.
+and how to work the project's processes through it:
+.BR "conn ls" ,
+.BR "conn u" ,
+with
+.B \-w
+for a check,
+.BR "conn l" ,
+.B "conn r"
+and
+.BR "conn x" ,
+rather than starting them in the background or finding them with
+.BR ps ,
+.B lsof
+and
+.BR tmux .
+Where the
+.B conn
+the path finds is not the build that started the contact \(em an older
+install, or none, as with
+.B go run
+\(em the note names the build by its whole path.
 The note is not shown on the row.
 .PP
 Claude Code records each running instance in a file under its

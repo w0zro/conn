@@ -278,14 +278,14 @@ func (m model) outputOf(e work.Entry) tea.Cmd {
 // about the process and not about finding it. The prompt is Claude
 // Code's first, given on its command line.
 func (m model) contactOn(e work.Entry, dir string) tea.Cmd {
-	srv := m.srv
+	srv, note := m.srv, m.contactNote()
 	pane, held := m.panes[e.TTY]
 	return func() tea.Msg {
 		var said []string
 		if held {
 			said, _ = srv.Tail(pane.ID, contactLines)
 		}
-		cmd := claude.Command(room.ContactNote(srv.Socket)) + " " + shell.Quote(handedPrompt(e, trimBlank(said)))
+		cmd := claude.Command(note) + " " + shell.Quote(handedPrompt(e, trimBlank(said)))
 		sh, err := srv.OpenCmd(dir, cmd)
 		if err != nil {
 			return noticeMsg{"the contact could not be opened: " + err.Error()}

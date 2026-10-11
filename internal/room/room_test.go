@@ -1,6 +1,8 @@
 package room
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -126,17 +128,54 @@ func TestTheLineRunInThePane(t *testing.T) {
 	}
 }
 
-// What the note says has to name the socket, since a contact told to
-// open a window and not told which server would be guessing; and it
-// says how to put work in a window and reach it again by the pane's id,
-// which follows the pane when conn swaps it into the workspace.
-func TestTheContactIsToldWhereItIs(t *testing.T) {
-	for _, socket := range []string{"/Users/w0zro/.local/state/conn/tmux.sock", "/tmp/it's here/conn.sock"} {
-		note := ContactNote(socket)
-		for _, want := range []string{socket, "new-window", "#{pane_id}", "capture-pane -p -t %N", "kill-pane -t %N"} {
-			if !strings.Contains(note, want) {
-				t.Errorf("the note says nothing of %q:\n%s", want, note)
-			}
+// The note says how to work the project's processes through conn: start
+// one by name, wait on a check, read, restart and end one by its
+// address, and list them.
+func TestTheContactIsToldHowToWorkTheProcesses(t *testing.T) {
+	note := ContactNote("conn")
+	for _, want := range []string{"conn ls", "conn u NAME -- COMMAND", "conn u NAME -w -- COMMAND", "conn l NAME|:PORT|PID", "conn r ", "conn x "} {
+		if !strings.Contains(note, want) {
+			t.Errorf("the note says nothing of %q:\n%s", want, note)
 		}
+	}
+}
+
+// A contact is told to run conn where the path finds this build as
+// conn, through a link or not, and the build's whole path where it
+// finds another conn first, or none.
+func TestTheContactIsToldWhichConn(t *testing.T) {
+	top := t.TempDir()
+	build, older, bin := filepath.Join(top, "my build"), filepath.Join(top, "older"), filepath.Join(top, "bin")
+	for _, d := range []string{build, older, bin} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	self := filepath.Join(build, "conn")
+	for _, f := range []string{self, filepath.Join(older, "conn")} {
+		if err := os.WriteFile(f, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(self, filepath.Join(bin, "conn")); err != nil {
+		t.Fatal(err)
+	}
+	sep := string(filepath.ListSeparator)
+	quoted := "'" + self + "'"
+	for path, want := range map[string]string{
+		older + sep + bin: quoted,
+		"/nowhere":        quoted,
+		bin + sep + older: "conn",
+		build:             "conn",
+	} {
+		if got := ConnCommand(self, path); got != want {
+			t.Errorf("on %q a contact runs %q, want %q", path, got, want)
+		}
+	}
+	if note := ContactNote(quoted); !strings.Contains(note, "conn here is "+quoted) {
+		t.Errorf("the note does not name the build:\n%s", note)
+	}
+	if note := ContactNote("conn"); strings.Contains(note, "conn here is") {
+		t.Errorf("the note names a build the path finds:\n%s", note)
 	}
 }

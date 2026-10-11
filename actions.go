@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -74,12 +75,18 @@ func (m model) openShell(dir string) tea.Cmd {
 	}
 }
 
+// contactNote is what a contact conn starts is told, naming this build
+// where the path would not find it as conn.
+func (m model) contactNote() string {
+	return room.ContactNote(room.ConnCommand(m.self, os.Getenv("PATH")))
+}
+
 // startContact opens a contact at a project, off the loop, the way
 // openShell opens a shell there.
 func (m model) startContact(dir string) tea.Cmd {
-	srv := m.srv
+	srv, note := m.srv, m.contactNote()
 	return func() tea.Msg {
-		sh, err := srv.OpenCmd(dir, claude.Command(room.ContactNote(srv.Socket)))
+		sh, err := srv.OpenCmd(dir, claude.Command(note))
 		if err != nil {
 			return noticeMsg{"the contact could not be opened: " + err.Error()}
 		}
@@ -119,9 +126,10 @@ func (m model) scanSessions(dirs []string) tea.Cmd {
 // openResumed opens a shell that picks a suspended session back
 // up, off the loop, the way startContact opens a fresh one.
 func (m model) openResumed(dir, id string) tea.Cmd {
+	note := m.contactNote()
 	srv := m.srv
 	return func() tea.Msg {
-		sh, err := srv.OpenCmd(dir, claude.ResumeCommand(room.ContactNote(srv.Socket), id))
+		sh, err := srv.OpenCmd(dir, claude.ResumeCommand(note, id))
 		if err != nil {
 			return nil
 		}

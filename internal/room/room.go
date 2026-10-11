@@ -900,6 +900,39 @@ set-environment -g CONN 1
 	return b.String()
 }
 
+// ConnCommand is how a contact is told to run this build: conn, where
+// the path finds this build as conn, and its whole path otherwise — an
+// older install found first, or none, as with go run. The path is the
+// one the shells read, and a shell's own startup files rebuild it, so
+// the server cannot put this build first on it for them.
+func ConnCommand(self, path string) string {
+	if self == "" {
+		return "conn"
+	}
+	for _, dir := range filepath.SplitList(path) {
+		if c := filepath.Join(dir, "conn"); isExecutable(c) {
+			if sameFile(c, self) {
+				return "conn"
+			}
+			break
+		}
+	}
+	return shell.Quote(self)
+}
+
+// isExecutable says whether a path is a file that can be run.
+func isExecutable(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && !fi.IsDir() && fi.Mode()&0o111 != 0
+}
+
+// sameFile says whether two paths are one file, links and all.
+func sameFile(a, b string) bool {
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(fa, fb)
+}
+
 // confLook is how every pane is drawn, in a dress.
 func confLook(d Dress) string {
 	var b strings.Builder
@@ -1136,36 +1169,38 @@ var (
 // Heard is the signal as the panel's loop hears it.
 func (s Signal) Heard() string { return s.heard }
 
-// ContactNote is what conn tells a contact it starts about where it is,
-// on the server at a socket: how to put work in a window of its own.
+// ContactNote is what conn tells a contact it starts, as an addition to
+// its system prompt: how to work the project's processes through conn.
 // A contact that backgrounds a dev server leaves it with no terminal:
 // no pane to attach to, no scrollback to read, and its output wherever
-// the contact happened to send it. A window of its own costs the
-// contact nothing and makes the server a process like any other here —
-// conn shows it, you reach it, and its log is the pane you are looking
-// at. The contact is told to keep the pane's id rather than the
-// window's name, because conn swaps panes into the workspace and a
-// window's name stays where it was: a respawn-window aimed at the name
-// once killed the session sitting in the workspace before the swap.
+// the contact happened to send it. Started by name through conn it is
+// a process like any other here — conn shows it, you reach it, and the
+// contact reads it, restarts it and ends it by the name, rather than
+// rebuilding an address out of ps, lsof and tmux every session. Run
+// with -w, a check is on the panel while it runs and its status is the
+// contact's answer.
 //
 // conn says this to the contacts it starts rather than writing it into
 // anybody's settings. It travels with conn, so a conn on another
 // machine tells its contacts the same thing, and a machine conn is gone
-// from is as conn found it.
-func ContactNote(socket string) string {
+// from is as conn found it. conn names the build to run where the path
+// would find another; see ConnCommand.
+func ContactNote(conn string) string {
+	called := ""
+	if conn != "conn" {
+		called = "conn here is " + conn + "; run it by that path.\n\n"
+	}
 	return "You are running inside conn, which holds this terminal as a tmux pane " +
-		"and watches the processes working this project. Start anything long-lived " +
-		"— a dev server, a file watcher, a build that stays up — in a window of its " +
-		"own rather than detached in the background:\n\n" +
-		"  tmux -S " + socket + " new-window -d -P -F '#{pane_id}' -n NAME -c DIR 'COMMAND'\n\n" +
-		"It then holds a terminal of its own, so conn lists it as a process " +
-		"of its own, it can be attached to, and its output is the pane's scrollback. " +
-		"The command prints the pane's id, %N; read, restart and stop it by that id:\n\n" +
-		"  tmux -S " + socket + " capture-pane -p -t %N\n" +
-		"  tmux -S " + socket + " respawn-pane -k -t %N\n" +
-		"  tmux -S " + socket + " kill-pane -t %N\n\n" +
-		"Never by the window's name: conn moves panes between windows to show them, " +
-		"so the name can come to hold another process, and a command sent to it lands there.\n\n" +
-		"Something you background instead holds no terminal and has no pane, and can " +
-		"only be read through whatever file its output was sent to."
+		"and watches the processes working this project. Work the project's processes " +
+		"through conn rather than starting them in the background or finding them with " +
+		"ps, lsof and tmux:\n\n" +
+		"  conn ls                          this project's processes, and the names they answer to\n" +
+		"  conn u NAME -- COMMAND           start a dev server, a watcher, anything long-lived, in a pane of its own\n" +
+		"  conn u NAME -w -- COMMAND        run a check and wait: its output, and its exit status as conn's\n" +
+		"  conn l NAME|:PORT|PID [-n N]     what a process said\n" +
+		"  conn r NAME|:PORT|PID            restart one conn started, a container, or a Homebrew service\n" +
+		"  conn x NAME|:PORT|PID            end one\n\n" + called +
+		"A process started this way holds a terminal of its own: conn lists it, the operator " +
+		"can go into it, and its output is the pane's. Something you background instead holds " +
+		"no terminal and has no pane, and can only be read through whatever file its output was sent to."
 }

@@ -42,7 +42,7 @@ Each process can have a **role**: database, web, worker, tests, build, agent. Ro
 
 ## Objects
 
-A verb waits for an object, as vim's operators do.
+A verb waits for an object, as vim's operators do. Doubling a verb acts on the process under the cursor, as vim's `dd` acts on the line: every verb takes two presses for the common case, and the grammar has no exceptions.
 
 | Key | Object |
 |---|---|
@@ -96,7 +96,6 @@ s web         = docker compose exec web bash
 
 ## Open
 
-- Doubling for the current row (`rr`) costs a press for the most common case. The alternative: a verb acts on the row at once, and objects take a prefix. Vim chose doubling.
 - The letters. `d` as an object rules out `d` as a verb; vim reuses letters across the two positions, and so can conn.
 - Roles the table lacks: a cache, a queue, a proxy, a second database.
 - Counts. Vim's `3dd` has no clear meaning over processes yet.

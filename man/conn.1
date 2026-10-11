@@ -12,6 +12,8 @@ conn \- a console for the processes working your projects
 .RI [ \-\-theme
 .IR name ]
 .br
+.B conn ls
+.br
 .B conn down
 .br
 .B conn theme
@@ -1450,6 +1452,25 @@ the panel comes back on the processes view, and the status line says
 until the next key on the panel.
 Typed in a pane of the server, it does the same and stays in that pane.
 .TP
+.B conn ls
+The processes of the project the working directory is in, read once,
+as the panel reads them.
+A block per project, under its path; a folder of repositories lists
+each of them.
+A row a line: the pid, or
+.B \-
+for a row with none; the status; the kind; the name the row is
+addressed by, which is the name it is declared under or its program's;
+the ports it listens on, or
+.BR \- ;
+and the command, indented under what runs it.
+A row's status is read once, so a process is not
+.B WORKING
+by its processor time, only by its own word, as a contact's is.
+Starts nothing, and answers with no server up.
+The shells that run it with no terminal, as an agent's command runs,
+are not rows.
+.TP
 .B conn down
 Take the server down with every process in it.
 Prints one line per window ended, and one for the server.
@@ -1746,6 +1767,12 @@ Exit 0.
 From
 .BR "conn down" .
 Exit 0.
+.TP
+.BI "conn ls: " dir " is in no project under the roots in config.json"
+Exit 1.
+.TP
+.BI "conn ls: the process table could not be read: " why
+Exit 1.
 .TP
 .BI "conn theme: say which program: conn theme claude, conn theme vim"
 Exit 1.

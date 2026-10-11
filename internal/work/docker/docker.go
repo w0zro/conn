@@ -130,6 +130,13 @@ func readContainers() ([]Container, bool) {
 	return docker.last, false
 }
 
+// Read is what docker is holding up, asked once, for a caller that
+// reads the machine once rather than on the feed: the CLI.
+func Read() []Container {
+	cs, _ := readContainers()
+	return cs
+}
+
 // Says runs the docker client and answers what it printed. An exit
 // of its own and a silence are told apart by the caller, and are not the
 // same news: one says the daemon is down, the other says only that it did

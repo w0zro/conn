@@ -2,6 +2,7 @@ package main
 
 import (
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/w0zro/conn/internal/room"
@@ -28,6 +29,7 @@ func (m model) readProcesses() tea.Cmd {
 	var srv *room.Server
 	if m.inside {
 		srv = m.srv
+		in.panel = srv.Panel()
 	}
 	in.srv = srv
 	return func() tea.Msg {
@@ -70,6 +72,13 @@ type sources struct {
 	declared   map[string]declared.File
 	was        trace
 	srv        *room.Server
+	// The panel's pane, where the reader is the panel: nothing of the
+	// operator's runs on its terminal. The CLI is not the panel, and
+	// the pane it runs in is the work of whoever ran it.
+	panel string
+	// The pid of a conn that reads once and is gone, the CLI's own,
+	// left out of the table with what runs it; see calling.
+	self int
 }
 
 // A read is the machine as read once: the projects whole, what it
@@ -88,6 +97,10 @@ func readMachine(in sources) (read, error) {
 	table, err := procs.Read(in.uid)
 	if err != nil {
 		return read{}, err
+	}
+	if in.self != 0 {
+		out := calling(table, in.self)
+		table = slices.DeleteFunc(table, func(p work.Process) bool { return out[p.PID] })
 	}
 	// The roots as the file names them now. The operator edits the
 	// file from inside conn, and the list walks it fresh; the
@@ -152,9 +165,9 @@ func readMachine(in sources) (read, error) {
 	// And the panel's own terminal, where nothing of the operator's
 	// runs: conn does, and what conn asks.
 	panelTTY := ""
-	if in.srv != nil {
+	if in.panel != "" {
 		for tty, p := range panes {
-			if p.ID == in.srv.Panel() {
+			if p.ID == in.panel {
 				panelTTY = tty
 			}
 		}
@@ -199,6 +212,30 @@ func readMachine(in sources) (read, error) {
 			acts: claude.Activities(projects, was.acts), serves: serves},
 		rooting: rooting,
 	}, nil
+}
+
+// calling is the CLI's own process and what is there only to run it:
+// the shells above it with no terminal, up to the first with one or a
+// contact. An agent runs a command in a shell of its own, which is gone
+// with the command; a person's shell has a terminal and stays a row.
+// The CLI itself goes for a second reason: a conn on a terminal is
+// taken for one holding it, and what stands above it would go off the
+// view as conn's scaffolding.
+func calling(table []work.Process, self int) map[int]bool {
+	byPid := map[int]work.Process{}
+	for _, p := range table {
+		byPid[p.PID] = p
+	}
+	out := map[int]bool{self: true}
+	p, ok := byPid[self]
+	for seen := map[int]bool{}; ok && !seen[p.PPID]; {
+		seen[p.PPID] = true
+		if p, ok = byPid[p.PPID]; !ok || p.TTY != "" || work.KindOf(p) != work.KindShell {
+			break
+		}
+		out[p.PID] = true
+	}
+	return out
 }
 
 // processesTick is when the processes view reads again: soon while it

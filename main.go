@@ -203,6 +203,15 @@ type command struct {
 // The commands. hold and readout are conn's own, run in a pane of its
 // server, and are not offered.
 var commands = []command{
+	{"ls", "the processes of the project you are in", func([]string) int {
+		home, _ := os.UserHomeDir()
+		dir, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "conn ls: %v\n", err)
+			return 1
+		}
+		return runLs(os.Stdout, home, dir)
+	}},
 	{"down", "take the server down, with everything in it", func([]string) int {
 		home, _ := os.UserHomeDir()
 		return say(takeDown(room.Find(home), home))

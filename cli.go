@@ -33,7 +33,7 @@ type here struct {
 	// is one of them, and "" otherwise. tree is the checkout the
 	// directory is in, where that is a worktree of root.
 	root, group, tree string
-	srv         *room.Server
+	srv               *room.Server
 }
 
 // readHere reads the machine from a directory. A directory in no

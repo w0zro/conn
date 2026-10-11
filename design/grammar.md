@@ -81,6 +81,8 @@ That list is a starting point, not a hard constraint.
 
 Roles are resolved the same way: known by program name, saved, or asked.
 
+A saved answer is kept while it works. When it fails at once — it exits non-zero within two seconds of starting — conn re-asks, giving `claude -p` the failed command and its output along with the project's context. The new answer is confirmed, and it replaces the saved one.
+
 ## `.conn`
 
 Written by conn, readable and editable by the engineer, worth committing. One teammate's resolved answers spare the next teammate the LLM call.
@@ -96,6 +98,5 @@ s web         = docker compose exec web bash
 
 - Doubling for the current row (`rr`) costs a press for the most common case. The alternative: a verb acts on the row at once, and objects take a prefix. Vim chose doubling.
 - The letters. `d` as an object rules out `d` as a verb; vim reuses letters across the two positions, and so can conn.
-- When a saved answer stops working. One answer: a command that fails at once offers a re-ask, given the command and its output.
 - Roles the table lacks: a cache, a queue, a proxy, a second database.
 - Counts. Vim's `3dd` has no clear meaning over processes yet.

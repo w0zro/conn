@@ -200,6 +200,11 @@ func readMachine(in sources) (read, error) {
 		}
 		projects = brew.Attach(projects, files, in.brews, sockets, paneOf)
 	}
+	// And what the projects' work connects to on this machine, which
+	// runs from no directory of theirs; see served.go. Last, so that a
+	// service brew holds up for a project, a container, and anything
+	// with a row already keep it.
+	projects = work.AttachServed(projects, table, in.uid, how)
 	// And out go the projects nothing is up in, whose every row is
 	// a declaration of what is not running; see worked.
 	projects = worked(projects)

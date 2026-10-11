@@ -8,6 +8,7 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 - conn does the same for dealings with the processes working a project.
 - conn ships the grammar, not per-tool features. What a verb means for a given process is resolved, not written into conn.
 - The grammar has two users: agents, by a CLI, and the engineer, by keys. Both reach the same verbs.
+- conn reads no declarations for now: no `.conn`, no compose, `Makefile` or `package.json` read by conn itself. What a project can run is resolved like any verb.
 - Nothing is persisted for now: no saved answers, no restored state. The grammar and what it can do come first; speed comes after, from there.
 
 ## The evidence
@@ -36,12 +37,18 @@ Counted 2026-10-10 from zsh history and Claude Code transcripts, by command shap
 
 ## Nouns
 
-A project's processes are the objects:
+- **Processes**: what runs in a project — tmux panes, containers, Homebrew services, listeners on a port, contacts — and what ran: a process conn held that ended stays a row, with its output.
+- **The project**: the directory the processes work in. It comes from the working directory, for keys and CLI alike, or from the projects view.
 
-- **Running**: tmux panes, containers, Homebrew services, listeners on a port, contacts.
-- **Declared**: what the project says it can run — `.conn`, compose services, `Makefile` targets, `package.json` scripts. A declared process is a row whether or not it runs.
+What a project can run is not a list conn keeps. It is resolved when a verb asks for it, from the project's own files — compose, `Makefile`, `package.json`, a Procfile, a README — the way any verb is resolved.
 
-Checks — tests, a build, lint, a typecheck — are declared processes that run to completion. They are processes conn holds: on the panel, `.` reruns them, and the engineer's run and the agent's run are the same process.
+Checks — tests, a build, lint, a typecheck — are processes that run to completion. Started through conn, they are processes conn holds: on the panel, `.` reruns them, and the engineer's run and the agent's run are the same process.
+
+## The morning
+
+- `conn` inside a project, or `enter` on it in the projects view, puts the project on the panel, with nothing running in it.
+- `up` starts the project: resolved from its files to what makes up its stack, each started as a process conn holds.
+- The project stays on the panel while the station is up.
 
 ## Addresses
 
@@ -49,7 +56,7 @@ Checks — tests, a build, lint, a typecheck — are declared processes that run
 |---|---|---|
 | The row under the cursor | the verb doubled (`rr`, as vim's `dd`) | — |
 | A motion from the cursor | `j` `k` `gg` `G` | — |
-| A name: declared, or the process's own | open | `conn l web` |
+| A name: the process's own, or the one it was started under | open | `conn l web` |
 | A port | open | `conn x :3000` |
 | Every process of the project | `p` | `conn x -p` |
 
@@ -60,7 +67,7 @@ Checks — tests, a build, lint, a typecheck — are declared processes that run
 
 | Key | Verb | Keys do | CLI does |
 |---|---|---|---|
-| `u` | up: start it | starts it in a pane | starts it; for a check, waits and returns its output and exit status |
+| `u` | up: start it | starts it in a pane; on the project, its stack | starts what the agent names, as the command it gives: `conn u test -- npm test`; a check waits and returns its output and exit status |
 | `x` | end it | ends it | ends it |
 | `r` | restart | ends it and starts it | the same, in one verb, where agents use two |
 | `c` | client: talk to it | a session: `psql` in a pane, the browser on a web server | one request and its answer: `conn c db "select 1"`, `conn c web /health` |
@@ -115,7 +122,7 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 - **Persistence, for speed**: answers saved with the project, readable and worth committing, so a press costs no LLM call and a teammate's answers spare the next. A saved answer kept while it works and asked again when it fails at once — non-zero within two seconds. Runbooks as config: the answers replace a README's "how to connect to the db". Where they are kept beside `.conn`'s declarations. Restoring what was up after a reboot.
 - **Types**: a table of programs conn knows by name (postgres → `psql`), answering before the LLM is asked.
 - **Roles** as objects, as vim's text objects: `d` the database, `w` the web server, `t` the tests. Open: how a role names several processes, and which roles get letters.
-- **More sources**: `Procfile`, and what else a project declares its processes in.
+- **Declarations**: `.conn`, compose, `Procfile`, `Makefile`, `package.json` read by conn itself — what should run shown as down rows, and names known without asking.
 - **`s` shell**: its environment — a shell in its container, or at its directory with its environment loaded.
 - **`y` yank** and **`e` edit**: no evidence yet, which the count could not have seen either way.
 
@@ -123,7 +130,6 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 
 From a day played out, 2026-10-11:
 
-- A project's declared processes are not shown while nothing in it runs, so the panel cannot start the day.
 - Starting a contact in a project and handing a process to one (`a`) are two intents; the grammar has a verb for the second only.
 - An agent's address needs a scope: its own project by default; ending another project's process refused, or logged.
 - The station keys — `l` log, `c` console, `p` projects, `r` recent — are verbs or objects in the grammar and need another home.
@@ -134,3 +140,4 @@ From before:
 
 - How the keys take a name or a port.
 - How a CLI `u` on a long-running process returns: at once, or when it is listening.
+- Whether `up` from the keys shows the stack it resolved before starting it.

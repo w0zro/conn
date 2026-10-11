@@ -1,6 +1,10 @@
 package room
 
-import "github.com/w0zro/conn/internal/tmux"
+import (
+	"net/url"
+
+	"github.com/w0zro/conn/internal/tmux"
+)
 
 // A Pane of conn's server: what tmux says of it, and the marks conn
 // set on it when it opened it, which say what the pane is to conn.
@@ -39,6 +43,10 @@ type Pane struct {
 	// declaration's is the work itself and is listed like any other.
 	Declared string
 	Exit     string
+	// The command a pane was opened to run by name, from the CLI rather
+	// than a .conn: no file says it, so the pane does. Its Declared
+	// mark is the name, as a declaration's is.
+	Run string
 	// The manual, which ? puts in the workspace. It is conn's
 	// own furniture like the readout: it carries the hold's mark as
 	// well, so everything that steps over furniture steps over it, and
@@ -67,10 +75,11 @@ const (
 	shellInMark   = "@conn_shell_in"
 	declaredMark  = "@conn_declared"
 	exitMark      = "@conn_exit"
+	runMark       = "@conn_run"
 )
 
 // marks is every mark, as a pane is read with them.
-var marks = []string{holdMark, readoutMark, helpMark, settingsMark, containerMark, shellInMark, declaredMark, exitMark}
+var marks = []string{holdMark, readoutMark, helpMark, settingsMark, containerMark, shellInMark, declaredMark, exitMark, runMark}
 
 // paneOf is a pane of tmux's as conn reads it, by its marks.
 func paneOf(p tmux.Pane) Pane {
@@ -79,8 +88,19 @@ func paneOf(p tmux.Pane) Pane {
 		Hold: p.Opts[holdMark] == "1", Readout: p.Opts[readoutMark] == "1",
 		Help: p.Opts[helpMark] == "1", Settings: p.Opts[settingsMark] == "1",
 		Container: p.Opts[containerMark], ShellIn: p.Opts[shellInMark],
-		Declared: p.Opts[declaredMark], Exit: p.Opts[exitMark],
+		Declared: p.Opts[declaredMark], Exit: p.Opts[exitMark], Run: unescape(p.Opts[runMark]),
 	}
+}
+
+// unescape is a mark as it was written before it was escaped for
+// tmux's list, which is a field a word; a mark that will not read back
+// is none.
+func unescape(mark string) string {
+	s, err := url.PathUnescape(mark)
+	if err != nil {
+		return ""
+	}
+	return s
 }
 
 // Panes is every pane in the server, by the terminal it holds, with
@@ -124,9 +144,22 @@ func (s *Server) open(dir, cmd string) (Shell, error) {
 	return Shell{Pane: paneOf(sh.Pane), PID: sh.PID}, err
 }
 
-// PaneExit is what a declared process's pane has recorded of its end:
-// the code, or nothing while it is still going. An error is a pane
-// that is not there to ask.
-func (s *Server) PaneExit(id string) (string, error) {
-	return s.tmux.Display(id, "#{"+exitMark+"}")
+// PaneEnded says whether what a pane runs has ended, and the code it
+// recorded where it did. A pane can end without recording one: ctrl-c
+// reaches the shell running the line as well as the command, and the
+// shell goes before it gets to the record, leaving the pane dead, or
+// gone. Both are ended, with no code.
+func (s *Server) PaneEnded(id string) (exit string, ended bool) {
+	// Read off the list rather than asked of the pane: tmux answers a
+	// display for a pane that is not there with nothing, as if it were.
+	panes, err := s.Panes()
+	if err != nil {
+		return "", true
+	}
+	for _, p := range panes {
+		if p.ID == id {
+			return p.Exit, p.Dead || p.Exit != ""
+		}
+	}
+	return "", true
 }

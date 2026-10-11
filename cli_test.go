@@ -84,3 +84,35 @@ func TestWhatConnCannotReadIsSaid(t *testing.T) {
 		}
 	}
 }
+
+// What follows -- is one line as written, or words quoted only where
+// sh would read them otherwise.
+func TestTheCommandIsALineOrWords(t *testing.T) {
+	for _, c := range []struct {
+		words []string
+		want  string
+	}{
+		{[]string{"npm run dev | tee log"}, "npm run dev | tee log"},
+		{[]string{"go", "test", "./..."}, "go test ./..."},
+		{[]string{"sh", "-c", "echo a; exit 3"}, "sh -c 'echo a; exit 3'"},
+	} {
+		if got := shellLine(c.words); got != c.want {
+			t.Errorf("%q is %q, want %q", c.words, got, c.want)
+		}
+	}
+}
+
+// A verb that changes a process reaches the caller's own work, the
+// folder of repositories it is in included, and not another project.
+func TestActingReachesOnlyTheCallersWork(t *testing.T) {
+	h := shopHere("/p/shop/api")
+	for addr, want := range map[string]bool{"vite": true, ":4000": true, ":5000": false, "30": false} {
+		f, err := h.find(addr)
+		if err != nil {
+			t.Fatalf("%s: %v", addr, err)
+		}
+		if got := h.reaches(f); got != want {
+			t.Errorf("%s reached: %v, want %v", addr, got, want)
+		}
+	}
+}

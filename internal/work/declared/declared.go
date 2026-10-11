@@ -377,6 +377,7 @@ func exitStatus(code string) (work.Status, bool) {
 // ended, blank while it runs. They are handed over by the terminal.
 type Pane struct {
 	ID, TTY, Declared, Exit string
+	Run                     string // the command, where the pane was opened by name rather than by the file
 }
 
 // UpAndHeld is what a project already has panes for, by mark: the
@@ -550,6 +551,48 @@ func startedByHand(pl work.Project, path string, decl Declaration) (pid int, ok 
 		}
 	}
 	return pid, depth >= 0
+}
+
+// AttachRun names the rows of panes opened to run a command by name,
+// as conn u opens them: no file declares them, so each pane carries its
+// command, and the row reads as a declaration's does — the name, the
+// command, and how it ended once it has. A pane a file declares has
+// been named by Attach already and is passed over.
+func AttachRun(projects []work.Project, panes map[string]Pane) []work.Project {
+	out := projects
+	copied := false
+	for _, p := range panes {
+		if p.Run == "" || p.Declared == "" {
+			continue
+		}
+		_, name, ok := Unmark(p.Declared)
+		if !ok {
+			continue
+		}
+		pid, ok := headPID(out, p.TTY)
+		if !ok || named(out, pid) {
+			continue
+		}
+		if !copied {
+			out = make([]work.Project, len(projects))
+			copy(out, projects)
+			copied = true
+		}
+		relabel(out, pid, Declaration{Name: name, Command: p.Run}, p.Declared, p.Exit)
+	}
+	return out
+}
+
+// named says whether a row already carries a declaration's name.
+func named(out []work.Project, pid int) bool {
+	for _, pl := range out {
+		for _, e := range pl.Entries {
+			if e.PID == pid {
+				return e.Declared != ""
+			}
+		}
+	}
+	return false
 }
 
 // headPID is the pid of the head row of a pane's tree: the first row

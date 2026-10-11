@@ -74,9 +74,7 @@ func (h here) said(f found, n int) ([]string, error) {
 	}
 	// The screen below the last line written is blank rows, not
 	// something said.
-	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
-		lines = lines[:len(lines)-1]
-	}
+	lines = trimBlank(lines)
 	if n > 0 && len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}

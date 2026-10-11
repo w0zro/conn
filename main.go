@@ -220,6 +220,30 @@ var commands = []command{
 		}
 		return runL(os.Stdout, home, dir, args)
 	}},
+	{"u", "start a command under a name in conn's server; -w waits for it", func(args []string) int {
+		home, _ := os.UserHomeDir()
+		dir, err := os.Getwd()
+		if err != nil {
+			return fail("u", err)
+		}
+		return runU(os.Stdout, home, dir, args)
+	}},
+	{"x", "end a process: by name, :port or pid", func(args []string) int {
+		home, _ := os.UserHomeDir()
+		dir, err := os.Getwd()
+		if err != nil {
+			return fail("x", err)
+		}
+		return runX(os.Stdout, home, dir, args)
+	}},
+	{"r", "end a process and start it again", func(args []string) int {
+		home, _ := os.UserHomeDir()
+		dir, err := os.Getwd()
+		if err != nil {
+			return fail("r", err)
+		}
+		return runR(os.Stdout, home, dir, args)
+	}},
 	{"down", "take the server down, with everything in it", func([]string) int {
 		home, _ := os.UserHomeDir()
 		return say(takeDown(room.Find(home), home))

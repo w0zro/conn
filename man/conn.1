@@ -19,6 +19,18 @@ conn \- a console for the processes working your projects
 .IR lines ]
 .I address
 .br
+.B conn u
+.RB [ \-w ]
+.I name
+.RB [ \-\-
+.IR command ...]
+.br
+.B conn x
+.I address
+.br
+.B conn r
+.I address
+.br
 .B conn down
 .br
 .B conn theme
@@ -1500,6 +1512,79 @@ A port or a pid names one process on the machine, and is looked for in
 every project.
 A name that answers for two processes is an error that lists their pids.
 .TP
+.BI "conn u " "name " "\-\- " command
+Start a command in a pane of
+.BR conn 's
+server, at the working directory, under a name: a row on the panel,
+named as a declaration is, which
+.B conn l
+reads and
+.B conn x
+ends by the name.
+One word after
+.B \-\-
+is a line for
+.BR sh (1)
+as written, pipes and all; several are a command and its arguments,
+each quoted where
+.B sh
+would read it otherwise.
+Without a command, the name is a line of the project's
+.IR .conn ,
+brought up as the panel brings it up.
+A name that is up already is an error; one whose pane holds its last
+run is started again in place of it.
+.IP
+.B \-w
+waits for the command to end, writes what it said, and exits with its
+status: a check run this way is on the panel while it runs, and its
+end is the caller's answer.
+Ended from outside before it recorded a status, it is an error.
+.IP
+Needs the server up;
+.B conn
+brings it up.
+.TP
+.BI "conn x " address
+End a process, as
+.B x
+on the panel does, with no question asked:
+a container by
+.BR "docker stop" ,
+a Homebrew service by
+.BR "brew services stop" ,
+a pane
+.B conn u
+or a
+.I .conn
+opened by ctrl-c, the pane closed once it has ended, or at once where it
+ended already, and any other process by
+.BR SIGTERM .
+A shell is not ended: what it runs is.
+Prints what was done.
+.IP
+.B conn x
+and
+.B conn r
+reach only the project the working directory is in, and the folder of
+repositories that holds it: a port or a pid of another project is an
+error.
+.TP
+.BI "conn r " address
+End a process and start it again:
+a container by
+.BR "docker restart" ,
+a Homebrew service by
+.BR "brew services restart" ,
+and a pane
+.B conn u
+or a
+.I .conn
+opened anew, as it was started.
+A process
+.B conn
+did not start, it cannot start again, and says so.
+.TP
 .B conn down
 Take the server down with every process in it.
 Prints one line per window ended, and one for the server.
@@ -1818,6 +1903,31 @@ Exit 1.
 .TP
 .B "conn l: usage: conn l [\-n lines] name|:port|pid"
 Exit 2.
+.TP
+.BI "conn u: " name " is up, pid " pid "; conn r " name " starts it again"
+Exit 1.
+.TP
+.B "conn u: no server up; conn brings one up"
+Exit 1.
+.TP
+.B "conn u: it was ended before it said how it ended"
+From
+.BR \-w .
+Exit 1.
+.TP
+.BI "conn x: " address " is " project "'s, not this project's; conn x reaches only the work it is run in"
+And the same of
+.BR "conn r" .
+Exit 1.
+.TP
+.BI "conn x: " name " did not end within 30s of ctrl\-c; its pane " pane " is left standing"
+Exit 1.
+.TP
+.BI "conn x: " name " is a shell; conn x ends what a shell runs, not the shell"
+Exit 1.
+.TP
+.BI "conn r: conn did not start " name ", so it cannot start it again; conn x ends it, and conn u " name " \-\- command starts it in conn"
+Exit 1.
 .TP
 .BI "conn theme: say which program: conn theme claude, conn theme vim"
 Exit 1.

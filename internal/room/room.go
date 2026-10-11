@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -718,6 +719,23 @@ func (s *Server) RaiseDeclared(dir, command, name, mark, replace string, show bo
 	if show {
 		return sh, s.Show(sh.Pane)
 	}
+	return sh, nil
+}
+
+// RunNamed opens a pane running a command under a name, as conn u
+// does: a declaration's pane with no declaration, so the command is
+// marked on the pane, which is the one place it is written. replace is
+// the pane holding its last run, where one stands.
+func (s *Server) RunNamed(dir, command, name, mark, replace string) (Shell, error) {
+	sh, err := s.RaiseDeclared(dir, command, name, mark, replace, false)
+	if err != nil {
+		return Shell{}, err
+	}
+	// Escaped, since tmux lists the panes a field a word.
+	if _, err := s.tmux.Do(tmux.SetPane(sh.Pane.ID, runMark, url.PathEscape(command))); err != nil {
+		return Shell{}, err
+	}
+	sh.Pane.Run = command
 	return sh, nil
 }
 

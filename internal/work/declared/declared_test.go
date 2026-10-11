@@ -324,3 +324,29 @@ func TestWhatIsUpAndWhatIsHeld(t *testing.T) {
 		t.Errorf("held: %v", held)
 	}
 }
+
+// A pane conn u opened carries its command, and its head reads as a
+// declaration's row: the name and the command, worded by its end. A
+// pane a file declares is the file's, and is passed over.
+func TestARunByNameReadsAsADeclaration(t *testing.T) {
+	app := "/r/app"
+	projects := []work.Project{{Path: app, Entries: []work.Entry{
+		{PID: 10, Kind: work.KindShell, Command: "zsh -c go test ./...", TTY: "ttys002", Status: work.StatusActive},
+		{PID: 11, Kind: work.KindRun, Command: "go test ./...", TTY: "ttys002", Status: work.StatusWorking, Depth: 1},
+		{PID: 20, Kind: work.KindShell, Command: "zsh -c npm run dev", TTY: "ttys003", Status: work.StatusActive, Declared: Mark(app, "web")},
+	}}}
+	panes := map[string]Pane{
+		"ttys002": {ID: "%2", TTY: "ttys002", Declared: Mark(app, "test"), Run: "go test ./...", Exit: "1"},
+		"ttys003": {ID: "%3", TTY: "ttys003", Declared: Mark(app, "web"), Run: "something else"},
+	}
+	got := AttachRun(projects, panes)
+	if e := got[0].Entries[0]; e.Command != "test · go test ./..." || e.Declared != Mark(app, "test") || e.Status != "EXIT 1" {
+		t.Errorf("the run's head reads %q %q %q", e.Command, e.Declared, e.Status)
+	}
+	if e := got[0].Entries[2]; e.Command != "zsh -c npm run dev" {
+		t.Errorf("a row the file named was named again: %q", e.Command)
+	}
+	if projects[0].Entries[0].Command != "zsh -c go test ./..." {
+		t.Error("the rows given were written to")
+	}
+}

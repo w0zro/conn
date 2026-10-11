@@ -187,6 +187,7 @@ func readMachine(in sources) (read, error) {
 	// and a read where a file changed.
 	files := declared.Refresh(in.declared, declared.Paths(projects, in.declared, isProject))
 	projects = declared.Attach(projects, files, declaredPanes(panes))
+	projects = declared.AttachRun(projects, declaredPanes(panes))
 	// And the services brew holds up for them, as brew last said,
 	// each with the sockets of the process running it, which the
 	// table has and files nowhere.
@@ -421,7 +422,7 @@ func declaredPanes(panes map[string]room.Pane) map[string]declared.Pane {
 	out := map[string]declared.Pane{}
 	for tty, p := range panes {
 		if p.Declared != "" {
-			out[tty] = declared.Pane{ID: p.ID, TTY: p.TTY, Declared: p.Declared, Exit: p.Exit}
+			out[tty] = declared.Pane{ID: p.ID, TTY: p.TTY, Declared: p.Declared, Exit: p.Exit, Run: p.Run}
 		}
 	}
 	return out

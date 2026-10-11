@@ -107,6 +107,8 @@ func TestAPaneIsReadByItsMarks(t *testing.T) {
 			Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true, ShellIn: "9f1c2d3e4a5b"}},
 		"declared": {with(map[string]string{declaredMark: "web@%2FUsers%2Fw0zro%2Fapp", exitMark: "1"}),
 			Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true, Declared: "web@%2FUsers%2Fw0zro%2Fapp", Exit: "1"}},
+		"run": {with(map[string]string{declaredMark: "web@%2Fapp", runMark: "npm%20run%20dev%20&&%20echo%20%22done%22"}),
+			Pane{ID: "%7", TTY: "ttys009", Width: 138, Height: 40, Active: true, Declared: "web@%2Fapp", Run: `npm run dev && echo "done"`}},
 	} {
 		if got := paneOf(c.in); got != c.want {
 			t.Errorf("%s: %+v, want %+v", name, got, c.want)

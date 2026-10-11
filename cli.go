@@ -143,7 +143,15 @@ func (h here) find(addr string) (found, error) {
 		}
 		return found{}, fmt.Errorf("%s names %d processes: %s; say which by pid", addr, len(hits), strings.Join(pids, ", "))
 	}
-	return found{}, fmt.Errorf("no process here answers to %s; conn ls lists them", addr)
+	return found{}, noSuch(addr)
+}
+
+// A noSuch is an address no row answers to, as against one that
+// answers for more than one.
+type noSuch string
+
+func (a noSuch) Error() string {
+	return "no process here answers to " + string(a) + "; conn ls lists them"
 }
 
 // isPid says whether an address is a pid: digits and nothing else.

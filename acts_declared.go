@@ -75,11 +75,7 @@ func (m model) interruptDeclared(pane, command string) tea.Cmd {
 		if err := srv.Interrupt(pane); err == nil {
 			deadline := time.Now().Add(closeWait)
 			for time.Now().Before(deadline) {
-				exit, err := srv.PaneExit(pane)
-				if err != nil {
-					break // the pane is gone, and so is the process
-				}
-				if exit != "" {
+				if _, ended := srv.PaneEnded(pane); ended {
 					_ = srv.ClosePane(pane)
 					break
 				}

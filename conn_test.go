@@ -1272,41 +1272,77 @@ func TestKeyBar(t *testing.T) {
 	}
 }
 
-// esc in a project puts the keys back in the pane ctrl-space came
-// from, while it stands, and goes up to the projects otherwise; the
-// binding that writes the pane down is one tmux takes.
-func TestEscGoesBack(t *testing.T) {
+// ctrl-space from a pane is heard on the panel with the pane written
+// down: the keys were in it, the cursor goes to its row, and esc puts
+// them back in it. ctrl-space on the panel goes to the other process,
+// the one worked in before, and twice over is where it started. p goes
+// up to the projects. The binding is one tmux takes.
+func TestBackAndForth(t *testing.T) {
 	srv, win, panel := scratchServer(t)
 	if _, err := srv.Do(bindBack(win, panel)); err != nil {
 		t.Fatal(err)
 	}
 	ws := newWorkspace(srv, win, panel, "/x")
 	ws.hold = "sleep 1000"
-	id, err := openWindow(srv, "w", t.TempDir(), "sleep 1000", "")
+	dir := t.TempDir()
+	a, err := openWindow(srv, "a", dir, "sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := openWindow(srv, "b", dir, "sleep 1000", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	m := model{srv: srv, own: panel, ws: ws, screen: onProject, cur: project{Name: "d", Root: "/p"}}
+	m.rows = []row{{pane: &pane{ID: a, Name: "a"}}, {pane: &pane{ID: b, Name: "b"}}}
+	back := tea.KeyPressMsg(tea.Key{Code: tea.KeySpace, Mod: tea.ModCtrl})
 	esc := tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape})
-	if _, err := srv.Do(tmux.SetGlobal(fromMark, id)); err != nil {
+	press := func(k tea.KeyPressMsg) (model, tea.Cmd) {
+		next, cmd := m.Update(k)
+		m = next.(model)
+		return m, cmd
+	}
+	// In a, then ctrl-space: arrived from a.
+	_, _ = srv.Do(tmux.SetGlobal(fromMark, a))
+	if press(back); m.in != a || m.cursor != 0 || m.follow != "" {
+		t.Fatalf("arrival from a: in %q, cursor %d, follow %q", m.in, m.cursor, m.follow)
+	}
+	if from, _ := srv.Global(fromMark); from != "" {
+		t.Error("the pane written down was not cleared")
+	}
+	// Nothing worked in before a: ctrl-space on the panel goes nowhere.
+	if press(back); m.follow != "" || m.note == "" {
+		t.Error("ctrl-space with no other process went somewhere")
+	}
+	// Into b by enter, then ctrl-space from b, then ctrl-space on the
+	// panel: a is the other.
+	m.cursor = 1
+	if _, cmd := press(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})); m.in != b || m.other != a || cmd == nil {
+		t.Fatalf("enter on b: in %q, other %q", m.in, m.other)
+	}
+	_, _ = srv.Do(tmux.SetGlobal(fromMark, b))
+	press(back)
+	if _, cmd := press(back); m.in != a || m.other != b || m.follow != a || cmd == nil {
+		t.Fatalf("the other: in %q, other %q", m.in, m.other)
+	}
+	// esc is back into the pane the keys are in.
+	if _, cmd := press(esc); m.follow != a || cmd == nil || m.screen != onProject {
+		t.Error("esc did not go back into a")
+	}
+	if err := ws.show(a, true); err != nil {
 		t.Fatal(err)
 	}
-	next, cmd := m.projectKey(esc)
-	if n := next.(model); n.screen != onProject || n.follow != id || cmd == nil {
-		t.Fatalf("esc did not go back: screen %v, follow %q", n.screen, n.follow)
+	if got := inWorkspace(t, ws); got.ID != a {
+		t.Errorf("the workspace holds %s, not %s", got.ID, a)
 	}
-	if err := ws.show(id, true); err != nil {
-		t.Fatal(err)
+	// p goes up to the projects; a pane that is gone is nothing to go
+	// back into.
+	if press(tea.KeyPressMsg(tea.Key{Text: "p", Code: 'p'})); m.screen != onProjects {
+		t.Error("p did not go up to the projects")
 	}
-	if got := inWorkspace(t, ws); got.ID != id {
-		t.Errorf("the workspace holds %s, not %s", got.ID, id)
-	}
-	// Nothing to go back to: the panel's own pane, or one that is gone.
-	for _, from := range []string{panel, "%999"} {
-		_, _ = srv.Do(tmux.SetGlobal(fromMark, from))
-		if next, _ := m.projectKey(esc); next.(model).screen != onProjects {
-			t.Errorf("esc with %s to go back to did not go up to the projects", from)
-		}
+	m.screen, m.in, m.follow = onProject, "%999", ""
+	if press(esc); m.follow != "" || m.note == "" {
+		t.Error("esc with a pane that is gone went somewhere")
 	}
 }
 

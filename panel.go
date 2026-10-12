@@ -85,6 +85,9 @@ type model struct {
 	cur  project
 	rows []row
 	rest []row
+	// The pane the keys were last in, and the one before it: ctrl-space
+	// on the panel goes to the other, and esc back into the last.
+	in, other string
 	// A verb pressed and waiting for its object, blank for none.
 	verb string
 	// rc's list of the conversations at rest: whether it stands, what
@@ -591,6 +594,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.note = string(msg)
 	case tea.KeyPressMsg:
 		m.note = ""
+		if s := msg.String(); s == "ctrl+space" || s == "ctrl+@" {
+			return m.arrived()
+		}
 		if m.asking {
 			return m.lineKey(msg)
 		}
@@ -653,10 +659,7 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.note = m.leave()
 	case "esc", "ctrl+u":
 		if k.String() == "esc" && m.typed == "" {
-			if id := m.cameFrom(); id != "" {
-				m.follow, m.asked, m.followAt = id, id, time.Now()
-				return m, m.showing(id, true)
-			}
+			return m.goBack()
 		}
 		m.typed, m.cursor = "", 0
 	case "backspace":
@@ -683,15 +686,9 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "tab":
 		return m.nextWaiting()
 	case "esc":
-		// Back into the pane ctrl-space came from, while it stands; up
-		// to the projects otherwise.
-		if id := m.cameFrom(); id != "" {
-			m.follow, m.asked, m.followAt = id, id, time.Now()
-			return m, tea.Batch(m.showing(id, true), m.read())
-		}
-		m.screen, m.rows, m.cursor = onProjects, nil, 0
-		return m, m.read()
-	case "backspace":
+		// The cancel: back into the pane the keys were in.
+		return m.goBack()
+	case "p", "backspace":
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
 		return m, m.read()
 	case "up", "k", "ctrl+p":
@@ -826,24 +823,79 @@ func (m model) useClient(c stacked, record bool) (tea.Model, tea.Cmd) {
 	return m.start(or(c.root, m.cur.Root), c.command, "")
 }
 
-// cameFrom is the pane the keys were in when ctrl-space brought them
-// back, where it still stands: a pane of a process, not the panel's
-// own and not a hold, and not ended.
-func (m model) cameFrom() string {
+// arrived is ctrl-space heard on the panel. From a pane, the pane is
+// written down by the key as it fires and read here once: the keys
+// were in it, and the cursor goes to its row, so the next key is about
+// the process the operator was just in. Pressed on the panel, where
+// the keys already were, it is the other process: the one worked in
+// before this one. So from inside a process, twice over is the other
+// process, which is the shape the key has everywhere.
+func (m model) arrived() (tea.Model, tea.Cmd) {
 	if m.srv == nil {
-		return ""
+		return m, nil
 	}
-	id, _ := m.srv.Global(fromMark)
-	if id == "" || id == m.own {
-		return ""
+	from, _ := m.srv.Global(fromMark)
+	if from == "" {
+		return m.toOther()
+	}
+	_, _ = m.srv.Do(tmux.UnsetGlobal(fromMark))
+	m = m.into(from)
+	for i, r := range m.rows {
+		if r.pane != nil && r.pane.ID == from {
+			m.cursor = i
+		}
+	}
+	return m, nil
+}
+
+// into notes that the keys have gone into a pane: it is the one they
+// are in, and the one they were in is the other.
+func (m model) into(id string) model {
+	if id != "" && id != m.in {
+		m.other, m.in = m.in, id
+	}
+	return m
+}
+
+// stands says whether a pane is one the keys can go into: a pane of a
+// process, not the panel's own and not a hold, and not ended.
+func (m model) stands(id string) bool {
+	if id == "" || id == m.own || m.srv == nil {
+		return false
 	}
 	ps, _ := panes(m.srv)
 	for _, p := range ps {
 		if p.ID == id && !p.Hold && !p.Dead && !p.Panel {
-			return id
+			return true
 		}
 	}
-	return ""
+	return false
+}
+
+// goBack is the cancel: the keys back into the pane they were in,
+// while it stands.
+func (m model) goBack() (tea.Model, tea.Cmd) {
+	if !m.stands(m.in) {
+		m.note = "Nothing to go back into."
+		return m, nil
+	}
+	id := m.in
+	m.follow, m.asked, m.followAt = id, id, time.Now()
+	return m, tea.Batch(m.showing(id, true), m.read())
+}
+
+// toOther puts the keys in the process that was worked in before the
+// one they were last in, and takes that one as the other, so pressed
+// twice it is where it started.
+func (m model) toOther() (tea.Model, tea.Cmd) {
+	if !m.stands(m.other) {
+		m.note = "No other process to go to yet."
+		return m, nil
+	}
+	id := m.other
+	m = m.into(id)
+	m.follow, m.asked, m.followAt = id, id, time.Now()
+	return m, tea.Batch(m.showing(id, true), m.read())
 }
 
 // nextWaiting shows a conversation waiting on you in the workspace, the
@@ -863,6 +915,7 @@ func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 		}
 	}
 	m.lastWaiting = next.ID
+	m = m.into(next.ID)
 	if root := m.known.rootOf(next.Dir); root != "" && (m.screen != onProject || root != m.cur.Root) {
 		cur := project{Name: filepath.Base(root), Root: root}
 		for _, p := range m.projects {
@@ -889,6 +942,7 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.hitAt < len(m.found) {
 			h := m.found[m.hitAt]
+			m = m.into(m.said[h.said].pane.ID)
 			return m, land(m.ws, m.srv, m.said[h.said].pane, h.k, m.query)
 		}
 		return m, nil
@@ -1120,6 +1174,7 @@ func (m model) start(dir, cmd, session string) (tea.Model, tea.Cmd) {
 		m.note = err.Error()
 		return m, nil
 	}
+	m = m.into(id)
 	m.follow, m.asked, m.followAt = id, id, time.Now()
 	return m, tea.Batch(m.showing(id, true), m.read())
 }
@@ -1142,6 +1197,7 @@ func (m model) open(p project) (tea.Model, tea.Cmd) {
 func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 	switch {
 	case r.pane != nil:
+		m = m.into(r.pane.ID)
 		m.asked = r.pane.ID
 		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:
@@ -1362,7 +1418,7 @@ type keyHint struct{ key, does string }
 
 // The keys each screen says at its foot.
 var (
-	projectHints  = []keyHint{{"enter", "goes to it"}, {"tab", "what waits"}, {"/", "search output"}, {"c", "talk to it"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"!", "run a command"}, {"n", "new conversation"}, {"s", "shell"}, {"esc", "projects"}, {"q", "leave"}}
+	projectHints  = []keyHint{{"enter", "goes to it"}, {"tab", "what waits"}, {"/", "search output"}, {"c", "talk to it"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"!", "run a command"}, {"n", "new conversation"}, {"s", "shell"}, {"esc", "back into it"}, {"p", "projects"}, {"q", "leave"}}
 	projectsHints = []keyHint{{"type", "to find or a path"}, {"enter", "opens"}, {"x", "stops everything in it"}, {"tab", "what waits"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}

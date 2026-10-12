@@ -32,7 +32,8 @@ import (
 
 // A proc is one process the command line knows.
 type proc struct {
-	pane    *pane // nil for a listener conn does not hold
+	pane    *pane  // nil for a listener conn does not hold
+	Session string // the conversation it is, where it is one
 	Name    string
 	PID     int
 	State   string
@@ -100,7 +101,8 @@ func machine(ps []pane, live map[string]claudeRun, listeners map[int][]string, p
 			continue
 		}
 		byPID[p.PID] = len(out)
-		out = append(out, proc{pane: p, Name: paneName(*p), PID: p.PID, State: paneState(*p, live), Command: p.Command, Dir: p.Dir})
+		state, session := paneState(*p, live)
+		out = append(out, proc{pane: p, Session: session, Name: paneName(*p), PID: p.PID, State: state, Command: p.Command, Dir: p.Dir})
 	}
 	pids := make([]int, 0, len(listeners))
 	for pid := range listeners {
@@ -148,21 +150,23 @@ func paneName(p pane) string {
 	return p.Command
 }
 
-// paneState is what a pane is doing: how what conn u started ended,
-// what a conversation says of itself, or running.
-func paneState(p pane, live map[string]claudeRun) string {
+// paneState is what a pane is doing — how what conn u started ended,
+// what a conversation says of itself, or running — and the
+// conversation it is, where it is one: by conn's mark, or by the
+// terminal Claude Code says it runs on.
+func paneState(p pane, live map[string]claudeRun) (state, session string) {
 	if p.Name != "" && p.Exit != "" {
-		return "exited " + p.Exit
+		return "exited " + p.Exit, ""
 	}
 	if r, ok := live[p.Session]; ok && r.state() != "" {
-		return r.state()
+		return r.state(), p.Session
 	}
-	for _, r := range live {
-		if r.TTY != "" && r.TTY == p.TTY && r.state() != "" {
-			return r.state()
+	for id, r := range live {
+		if r.TTY != "" && r.TTY == p.TTY {
+			return or(r.state(), "running"), id
 		}
 	}
-	return "running"
+	return "running", p.Session
 }
 
 func uniq(ss []string) []string {
@@ -622,10 +626,11 @@ func runX(w io.Writer, home, dir string, args []string) int {
 // closeWait is how long ctrl-c is given to end what a pane runs.
 const closeWait = 5 * time.Second
 
-// end ends a process and says how. What conn u started is sent ctrl-c,
-// as a hand would, and its pane closed once it has ended. What runs in
-// a shell conn holds is sent ctrl-c and the shell left. A conversation
-// is not conn's to end. A listener outside conn is sent SIGTERM.
+// endProc ends a process and says how. What conn u started and is
+// running is sent ctrl-c, as a hand would, and its pane closed once it
+// has ended; any other pane is closed, a conversation's included, which
+// keeps its transcript to be picked back up. A listener outside conn is
+// sent SIGTERM.
 func endProc(srv *tmux.Server, p proc) (string, error) {
 	switch {
 	case p.pane == nil:
@@ -633,12 +638,8 @@ func endProc(srv *tmux.Server, p proc) (string, error) {
 			return "", fmt.Errorf("%s: %v", p.Name, err)
 		}
 		return "kill -TERM " + strconv.Itoa(p.PID), nil
-	case p.pane.Session != "" || p.State == "working" || p.State == "waiting" || p.State == "idle":
-		return "", fmt.Errorf("%s is a conversation; it is ended from inside it", p.Name)
-	case p.pane.Name != "" && p.pane.Exit != "":
+	case p.pane.Name == "" || p.pane.Exit != "":
 		return "kill-pane " + p.pane.ID, srv.ClosePane(p.pane.ID)
-	case p.pane.Name == "":
-		return "send-keys C-c", srv.Interrupt(p.pane.ID)
 	}
 	if err := srv.Interrupt(p.pane.ID); err != nil {
 		return "", err
@@ -654,14 +655,17 @@ func endProc(srv *tmux.Server, p proc) (string, error) {
 	return "kill-pane " + p.pane.ID + ", " + closeWait.String() + " after ctrl-c did not end it", srv.ClosePane(p.pane.ID)
 }
 
-// runR ends what conn u started and starts it again, as it was
-// started.
+// runR starts a process again.
 func runR(w io.Writer, home, dir string, args []string) int {
 	p, h, code := actOn("r", home, dir, args)
 	if code >= 0 {
 		return code
 	}
-	id, err := restartProc(h.srv, p)
+	self, err := os.Executable()
+	if err != nil {
+		return cliFail("r", err)
+	}
+	id, err := restartProc(h.srv, connCommand(self), p)
 	if err != nil {
 		return cliFail("r", err)
 	}
@@ -669,20 +673,29 @@ func runR(w io.Writer, home, dir string, args []string) int {
 	return 0
 }
 
-// restartProc ends what conn u started and starts it again, as it was
-// started, and answers its new pane. What conn did not start, it cannot
-// start again.
-func restartProc(srv *tmux.Server, p proc) (string, error) {
-	if p.pane == nil || p.pane.Name == "" {
-		return "", fmt.Errorf("conn did not start %s, so it cannot start it again; x ends it, and u starts a command in conn", p.Name)
+// restartProc starts a process again, as it was started, and answers
+// its pane. What conn u started is ended and started anew; a
+// conversation is picked back up in its pane; any other pane runs again
+// what it was opened with. A process outside conn was started nobody
+// knows how. conn is how agents run this build.
+func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
+	switch {
+	case p.pane == nil:
+		return "", fmt.Errorf("%s was started outside conn, and conn does not know how; x ends it, and u starts a command in conn", p.Name)
+	case p.pane.Name != "":
+		command, _ := srv.Display(p.pane.ID, "#{"+runMark+"}")
+		at, _ := srv.Display(p.pane.ID, "#{"+dirMark+"}")
+		if command == "" {
+			return "", fmt.Errorf("%s does not say what it was started with", p.Name)
+		}
+		if _, err := endProc(srv, p); err != nil {
+			return "", err
+		}
+		return startNamed(srv, p.pane.Name, command, or(at, p.Dir))
+	case p.Session != "":
+		_, err := srv.Do(tmux.Respawn(p.pane.ID, resumeCommand(conn, p.Session)), tmux.SetPane(p.pane.ID, sessionMark, p.Session))
+		return p.pane.ID, err
 	}
-	command, _ := srv.Display(p.pane.ID, "#{"+runMark+"}")
-	at, _ := srv.Display(p.pane.ID, "#{"+dirMark+"}")
-	if command == "" {
-		return "", fmt.Errorf("%s does not say what it was started with", p.Name)
-	}
-	if _, err := endProc(srv, p); err != nil {
-		return "", err
-	}
-	return startNamed(srv, p.pane.Name, command, or(at, p.Dir))
+	_, err := srv.Do(tmux.Cmd{"respawn-pane", "-k", "-t", p.pane.ID})
+	return p.pane.ID, err
 }

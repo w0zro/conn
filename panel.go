@@ -411,7 +411,14 @@ func (r row) proc() (proc, bool) {
 	if r.pane == nil {
 		return proc{}, false
 	}
-	return proc{pane: r.pane, Name: paneName(*r.pane), PID: r.pane.PID, State: or(r.state, "running"), Dir: r.pane.Dir}, true
+	session, name := r.pane.Session, paneName(*r.pane)
+	if r.pane.Session != "" {
+		name = "the new conversation"
+	}
+	if r.conv != nil {
+		session, name = r.conv.ID, or(r.conv.Title, r.conv.ID)
+	}
+	return proc{pane: r.pane, Session: session, Name: name, PID: r.pane.PID, State: or(r.state, "running"), Dir: r.pane.Dir}, true
 }
 
 // end ends a row's process off the loop: ctrl-c can take seconds.
@@ -426,11 +433,11 @@ func (m model) end(p proc) tea.Cmd {
 	}
 }
 
-// restart starts again what conn u started, off the loop.
+// restart starts a row's process again, off the loop.
 func (m model) restart(p proc) tea.Cmd {
-	srv := m.srv
+	srv, conn := m.srv, m.conn
 	return func() tea.Msg {
-		if _, err := restartProc(srv, p); err != nil {
+		if _, err := restartProc(srv, conn, p); err != nil {
 			return acted(err.Error())
 		}
 		return acted(p.Name + " restarted")

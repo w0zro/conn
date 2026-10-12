@@ -427,6 +427,23 @@ func TestStartWaitEnd(t *testing.T) {
 	if how, err := endProc(srv, proc{pane: p, Name: "server"}); err != nil || how != "send-keys C-c" {
 		t.Errorf("end of a running server = %q, %v", how, err)
 	}
+	// Any other pane runs again what it was opened with, in place, and
+	// x closes it.
+	first, _ := srv.Display(sessionName+":0", "#{pane_id} #{pane_pid}")
+	id, pid, _ := strings.Cut(first, " ")
+	other := &pane{ID: id}
+	if got, err := restartProc(srv, "conn", proc{pane: other, Name: "sleep"}); err != nil || got != id {
+		t.Fatalf("restart = %q, %v", got, err)
+	}
+	if again, _ := srv.Display(id, "#{pane_pid}"); again == pid || again == "" {
+		t.Errorf("the pane was not started again: pid %s, then %s", pid, again)
+	}
+	if how, err := endProc(srv, proc{pane: other, Name: "sleep"}); err != nil || how != "kill-pane "+id {
+		t.Errorf("end of a pane = %q, %v", how, err)
+	}
+	if _, err := restartProc(srv, "conn", proc{Name: "python", PID: 1}); err == nil {
+		t.Error("a process outside conn was restarted")
+	}
 }
 
 func TestNameFor(t *testing.T) {

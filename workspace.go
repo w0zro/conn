@@ -154,6 +154,11 @@ func (w workspace) size() (int, int) {
 // runHold is a hold: blank, and a key in it puts the keys back on the
 // panel. conn runs it as `conn hold` in the workspace.
 func runHold() error {
+	if home, err := os.UserHomeDir(); err == nil {
+		if srv, err := findServer(home); err == nil {
+			wear(ground(srv.Socket))
+		}
+	}
 	_, err := tea.NewProgram(holdModel{}).Run()
 	return err
 }

@@ -194,13 +194,17 @@ func runPanel() error {
 	if err != nil {
 		return err
 	}
-	wear(ground(srv.Socket))
+	g := ground(srv.Socket)
+	wear(g)
 	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown()}
 	// The panel's window is conn's: the panel, and the workspace beside
 	// it. ctrl-space comes back here, wherever here is now.
 	if own := os.Getenv("TMUX_PANE"); own != "" {
 		if win, err := srv.Display(own, "#{window_id}"); err == nil && win != "" {
 			m.own, m.ws = own, newWorkspace(srv, win, own, self)
+			// The panel stands on the surface, a step off the ground the
+			// workspace is on, so the two halves of the window read as two.
+			_ = srv.Paint(own, g.Surface)
 			_, _ = srv.Do(bindBack(win, own))
 			swaps.Lock()
 			_, _ = m.ws.ensure()
@@ -1163,31 +1167,131 @@ func (m model) typedPath() (project, bool) {
 	return project{Name: filepath.Base(root), Root: root, Group: m.known.isFolder(root, m.home)}, true
 }
 
-// Drawing.
+// Drawing. The panel is drawn in the theme's roles on the surface its
+// pane is painted on: a margin of three columns on the left, where the
+// cursor's bar stands, the rows between it and a column short of the
+// right edge, and the row under the cursor on the chosen ground from
+// edge to edge. A title is in the parchment, a path or a figure in the
+// gray, what runs in the ink, what rests in the gray, what waits on
+// you in the accent; a key is the ink in bold and what it does the
+// gray after it.
 
-var (
-	bold    = lipgloss.NewStyle().Bold(true)
-	faint   = lipgloss.NewStyle().Faint(true)
-	chosen  = lipgloss.NewStyle().Reverse(true)
-	running = lipgloss.NewStyle().Bold(true)
-	// The one color conn uses: something is waiting on you, in the
-	// accent of the ground the server is on, set once the panel knows
-	// it.
-	waiting = lipgloss.NewStyle().Bold(true)
+const (
+	margin    = 3
+	cursorBar = "▌"
+	caret     = "▏"
 )
 
-// wear dresses the panel's styles in a ground. The pane's ground and
-// ink are the server's, by its window-style; the panel sets only what
-// it draws in a color of its own.
+// The styles, in the ground the server is on once the panel knows it;
+// plain until then, and in the tests.
+var (
+	ink, title, gray, faint, accent, keyInk, chosen, chosenBar lipgloss.Style
+)
+
+// wear dresses the panel's styles in a ground. The pane's ground is
+// the surface, painted by the panel on its pane; the styles say only
+// the ink each piece is written in, and the chosen ground.
 func wear(g theme.Ground) {
-	waiting = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(g.Accent))
+	fg := func(h string) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(h)) }
+	ink = fg(theme.Hex(g.Ink))
+	title = fg(g.Parchment).Bold(true)
+	gray = fg(g.Gray)
+	faint = fg(g.Faint)
+	accent = fg(g.Accent).Bold(true)
+	keyInk = fg(theme.Hex(g.Ink)).Bold(true)
+	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
+	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Accent)).Bold(true)
+}
+
+// A piece is text in a style.
+type piece struct {
+	s  string
+	st lipgloss.Style
+}
+
+// measure is the columns a row has between the margin and the right
+// edge, less one for the border beside the panel.
+func (m model) measure() int { return max(m.width-margin-2, 10) }
+
+// at is text at the margin.
+func at(s string) string { return strings.Repeat(" ", margin) + s }
+
+// row lays a row out: the margin, the left pieces, the gap, and the
+// right piece against the measure. The left gives way to the right,
+// its last piece cut short with an ellipsis. The row under the cursor
+// is on the chosen ground from edge to edge in the chosen ink, its bar
+// in the margin, and nothing else colored on it.
+func (m model) row(left []piece, right piece, cursor bool) string {
+	measure := m.measure()
+	rw := ansi.StringWidth(right.s)
+	if rw > measure {
+		right.s, rw = ansi.Truncate(right.s, measure, "…"), measure
+	}
+	room := measure
+	if rw > 0 {
+		room = max(measure-rw-2, 0)
+	}
+	var fitted []piece
+	used := 0
+	for _, p := range left {
+		w := ansi.StringWidth(p.s)
+		if used+w > room {
+			if cut := ansi.Truncate(p.s, max(room-used, 0), "…"); cut != "" {
+				fitted = append(fitted, piece{cut, p.st})
+				used += ansi.StringWidth(cut)
+			}
+			break
+		}
+		fitted = append(fitted, p)
+		used += w
+	}
+	gap := strings.Repeat(" ", max(measure-used-rw, 1))
+	if cursor {
+		var b strings.Builder
+		b.WriteString(strings.Repeat(" ", margin-1))
+		for _, p := range fitted {
+			b.WriteString(p.s)
+		}
+		b.WriteString(gap)
+		b.WriteString(right.s)
+		text := b.String()
+		text += strings.Repeat(" ", max(m.width-1-ansi.StringWidth(text), 0))
+		return chosenBar.Render(cursorBar) + chosen.Render(text)
+	}
+	var b strings.Builder
+	b.WriteString(strings.Repeat(" ", margin))
+	for _, p := range fitted {
+		b.WriteString(p.st.Render(p.s))
+	}
+	b.WriteString(gap)
+	b.WriteString(right.st.Render(right.s))
+	return b.String()
+}
+
+// A keyHint is a key and what it does here.
+type keyHint struct{ key, does string }
+
+// The keys each screen says at its foot.
+var (
+	projectHints  = []keyHint{{"enter", "goes to it"}, {"tab", "what waits"}, {"/", "search output"}, {"c", "talk to it"}, {"x", "stop"}, {"r", "restart"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"!", "run a command"}, {"n", "new conversation"}, {"s", "shell"}, {"esc", "projects"}, {"q", "leave"}}
+	projectsHints = []keyHint{{"type", "to find, or a path"}, {"enter", "opens"}, {"x", "stops everything in it"}, {"tab", "what waits"}, {"ctrl-c", "leaves conn running"}}
+	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
+	backHints     = []keyHint{{"esc", "back"}}
+	cancelHints   = []keyHint{{"esc", "cancel"}}
+)
+
+// A foot is what stands under a screen: the keys, or a line of conn's
+// own saying — what the last key did, or the line being typed.
+type foot struct {
+	hints []keyHint
+	say   string
 }
 
 func (m model) View() tea.View {
 	// The foot is wrapped to the panel's width, and the screen drawn
 	// again in the rows the foot leaves it.
-	_, foot := m.draw()
-	feet := m.feet(foot)
+	_, f := m.draw()
+	feet := m.feet(f)
 	inner := m
 	inner.height = max(m.height-len(feet)+1, 3)
 	lines, _ := inner.draw()
@@ -1202,70 +1306,75 @@ func (m model) View() tea.View {
 	return v
 }
 
-// draw is the screen's lines and its foot: what the last key did, the
-// line being typed, or the keys.
-func (m model) draw() ([]string, string) {
+// draw is the screen's lines and its foot.
+func (m model) draw() ([]string, foot) {
 	var lines []string
-	var foot string
+	var f foot
 	if m.screen == onProjects {
-		lines, foot = m.drawProjects()
+		lines, f = m.drawProjects()
 	} else {
-		lines, foot = m.drawProject()
+		lines, f = m.drawProject()
 	}
 	if m.note != "" {
-		foot = m.note
+		f = foot{say: m.note}
 	}
 	if m.asking {
-		foot = "run in " + m.cur.Name + ": " + m.line + "▏"
+		f = foot{say: "run in " + m.cur.Name + ": " + m.line + caret}
 	}
-	return lines, foot
+	return lines, f
 }
 
-// feet is the foot as lines the panel's width: the keys, a · between
-// each, broken between keys; anything else broken between words. The
-// keys are in gray; what a key did, and a line being typed, are not.
-func (m model) feet(foot string) []string {
-	if foot == "" {
-		return []string{""}
-	}
-	width := max(m.width-1, 10)
-	sep, parts := " · ", strings.Split(foot, " · ")
-	if len(parts) == 1 {
-		sep, parts = " ", strings.Fields(foot)
-		if m.asking {
-			sep, parts = "", []string{foot}
+// feet is the foot as lines the panel's width, a row of air above it:
+// the keys, three cells between one and the next, broken between keys,
+// each key in the ink and bold and what it does in the gray after it;
+// or a saying of conn's own, in the ink, broken between words.
+func (m model) feet(f foot) []string {
+	width := m.measure()
+	var parts []string
+	var widths []int
+	switch {
+	case f.say != "":
+		for _, w := range strings.Fields(f.say) {
+			parts, widths = append(parts, ink.Render(w)), append(widths, ansi.StringWidth(w))
+		}
+	default:
+		for _, h := range f.hints {
+			parts = append(parts, keyInk.Render(h.key)+" "+gray.Render(h.does))
+			widths = append(widths, ansi.StringWidth(h.key)+1+ansi.StringWidth(h.does))
 		}
 	}
-	var out []string
-	line := ""
-	for _, p := range parts {
+	sep, sepW := "   ", 3
+	if f.say != "" {
+		sep, sepW = " ", 1
+	}
+	out := []string{""}
+	line, used := "", 0
+	for i, p := range parts {
 		switch {
 		case line == "":
-			line = p
-		case ansi.StringWidth(line+sep+p) <= width:
-			line += sep + p
+			line, used = p, widths[i]
+		case used+sepW+widths[i] <= width:
+			line, used = line+sep+p, used+sepW+widths[i]
 		default:
-			out = append(out, line)
-			line = p
+			out = append(out, at(line))
+			line, used = p, widths[i]
 		}
 	}
-	out = append(out, line)
-	for i, l := range out {
-		l = fit(" "+l, m.width)
-		if !m.asking && m.question == "" && m.note == "" {
-			l = faint.Render(l)
-		}
-		out[i] = l
+	if line != "" {
+		out = append(out, at(line))
 	}
 	return out
 }
 
-func (m model) drawProjects() ([]string, string) {
-	lines := []string{
-		bold.Render(" conn") + faint.Render(" · projects"),
-		" > " + m.typed + "▏",
-		"",
-	}
+// head is a screen's first rows: the title in the parchment, what goes
+// with it in the gray, and a row of air.
+func head(name, with string) []string {
+	return []string{"", at(title.Render(name) + "  " + gray.Render(with)), ""}
+}
+
+func (m model) drawProjects() ([]string, foot) {
+	lines := head("conn", "projects")
+	lines = append(lines, at(gray.Render("find")+"  "+ink.Render(m.typed)+accent.Render(caret)), "")
 	shown := m.shownProjects()
 	room := max(m.height-len(lines)-1, 1)
 	first := max(m.cursor-room+1, 0)
@@ -1276,38 +1385,45 @@ func (m model) drawProjects() ([]string, string) {
 	nameW = min(nameW, 24)
 	for i := first; i < len(shown) && i < first+room; i++ {
 		p := shown[i]
-		left := " " + pad(listName(p), nameW) + "  " + tilde(p.Root, m.home)
-		line := spread(left, p.standing()+" ", m.width)
+		name := gray
 		switch {
-		case i == m.cursor:
-			line = chosen.Render(line)
 		case p.Waiting > 0:
-			line = waiting.Render(line)
+			name = accent
 		case p.Running > 0:
-			line = running.Render(line)
+			name = ink
 		}
-		lines = append(lines, line)
+		left := []piece{{pad(listName(p), nameW), name}, {"  " + tilde(p.Root, m.home), gray}}
+		lines = append(lines, m.row(left, piece{p.standing(), gray}, i == m.cursor))
 	}
 	switch {
 	case !m.loaded:
-		lines = append(lines, faint.Render(" reading where work has happened…"))
+		lines = append(lines, at(faint.Render("reading where work has happened…")))
 	case len(shown) == 0 && m.typed != "":
 		if p, ok := m.typedPath(); ok {
-			lines = append(lines, " enter opens "+tilde(p.Root, m.home))
+			lines = append(lines, at(ink.Render("enter opens "+tilde(p.Root, m.home))))
 		} else {
-			lines = append(lines, faint.Render(" nothing matches; a path to a directory opens it"))
+			lines = append(lines, at(faint.Render("nothing matches; a path to a directory opens it")))
 		}
 	case len(shown) == 0:
-		lines = append(lines, faint.Render(" no projects yet; type a path to one"))
+		lines = append(lines, at(faint.Render("no projects yet; type a path to one")))
 	}
-	return lines, "type to find, or a path · enter opens · x stops everything in it · tab goes to what waits · ctrl-c leaves conn running"
+	return lines, foot{hints: projectsHints}
 }
 
-func (m model) drawProject() ([]string, string) {
-	lines := []string{
-		bold.Render(" "+listName(project{Name: m.cur.Name, Group: m.cur.Group})) + faint.Render("  "+tilde(m.cur.Root, m.home)),
-		"",
+// group is which of the panel's three groups a row is in: what runs in
+// conn, what runs in another terminal, and what rests.
+func groupOf(r row) int {
+	switch {
+	case r.pane != nil || r.outside != nil:
+		return 0
+	case r.elsewhere:
+		return 1
 	}
+	return 2
+}
+
+func (m model) drawProject() ([]string, foot) {
+	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
 	if m.question != "" {
 		return m.drawOffer(lines)
 	}
@@ -1315,86 +1431,75 @@ func (m model) drawProject() ([]string, string) {
 		return m.drawSearch(lines)
 	}
 	if m.rows == nil {
-		lines = append(lines, faint.Render(" reading…"))
+		lines = append(lines, at(faint.Render("reading…")))
 	} else if len(m.rows) == 0 {
-		lines = append(lines, faint.Render(" nothing running, and no conversations here yet; n starts one"))
+		lines = append(lines, at(faint.Render("nothing running, and no conversations here yet; n starts one")))
+	}
+	// The rows, a row of air between one group and the next, and the
+	// window of them that keeps the cursor's row in view.
+	var body []string
+	cursorAt := 0
+	for i, r := range m.rows {
+		if i > 0 && groupOf(r) != groupOf(m.rows[i-1]) {
+			body = append(body, "")
+		}
+		if i == m.cursor {
+			cursorAt = len(body)
+		}
+		body = append(body, m.drawRow(r, i == m.cursor))
 	}
 	room := max(m.height-len(lines)-1, 1)
-	first := max(m.cursor-room+1, 0)
-	for i := first; i < len(m.rows) && i < first+room; i++ {
-		r := m.rows[i]
-		var left, right string
+	first := max(cursorAt-room+1, 0)
+	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: projectHints}
+}
+
+// drawRow is one row of a project: what it is on the left, in the ink
+// where it runs and the gray where it rests, and at the right its
+// state, or its ports, or how long ago it was.
+func (m model) drawRow(r row, cursor bool) string {
+	var left []piece
+	var right piece
+	if r.repo != "" {
+		left = append(left, piece{r.repo + " · ", gray})
+	}
+	switch {
+	case r.conv != nil:
+		name := r.conv.Title
+		if name == "" {
+			name = r.conv.ID
+		}
 		switch {
-		case r.conv != nil:
-			left = r.conv.Title
-			if left == "" {
-				left = r.conv.ID
-			}
-			switch {
-			case r.pane != nil:
-				right = or(r.state, "running")
-			case r.elsewhere:
-				right = or(r.state, "running") + " in another terminal"
-			default:
-				right = ago(r.conv.When)
-			}
-		case r.pane != nil:
-			left = paneName(*r.pane)
-			if r.pane.Session != "" {
-				// Started by n, with nothing said yet: no transcript.
-				left = "new conversation"
-			}
-			if r.pane.Dir != m.cur.Root {
-				left += "  " + tilde(r.pane.Dir, m.home)
-			}
-			right = or(r.state, "running")
-		case r.outside != nil:
-			left = r.outside.Name
-			if r.outside.Dir != m.cur.Root {
-				left += "  " + tilde(r.outside.Dir, m.home)
-			}
-			right = r.state
-		}
-		if len(r.ports) > 0 {
-			right = ":" + strings.Join(r.ports, " :") + "  " + right
-		}
-		if r.repo != "" {
-			left = r.repo + " · " + left
-		}
-		line := spread(" "+left, right+" ", m.width)
-		switch {
-		case i == m.cursor:
-			line = chosen.Render(line)
 		case r.state == "waiting":
-			line = waiting.Render(line)
-		case r.pane != nil || r.outside != nil:
-			line = running.Render(line)
+			left, right = append(left, piece{name, accent}), piece{"waiting", accent}
+		case r.pane != nil:
+			left, right = append(left, piece{name, ink}), piece{or(r.state, "running"), gray}
+		case r.elsewhere:
+			left, right = append(left, piece{name, ink}), piece{or(r.state, "running") + " in another terminal", gray}
+		default:
+			left, right = append(left, piece{name, gray}), piece{ago(r.conv.When), faint}
 		}
-		lines = append(lines, line)
+	case r.pane != nil:
+		name := paneName(*r.pane)
+		if r.pane.Session != "" {
+			// Started by n, with nothing said yet: no transcript.
+			name = "new conversation"
+		}
+		left = append(left, piece{name, ink})
+		if r.pane.Dir != m.cur.Root {
+			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
+		}
+		right = piece{or(r.state, "running"), gray}
+		if r.state == "waiting" {
+			left[len(left)-1].st, right.st = accent, accent
+		}
+	case r.outside != nil:
+		left = append(left, piece{r.outside.Name, ink})
+		right = piece{r.state, gray}
 	}
-	return lines, "enter goes to it · tab goes to what waits · / searches output · c talks to it · x stops · r restarts · u starts the project · t runs the checks · a hands it to an agent · ! runs a command · n new conversation · s shell · esc projects · q leaves"
-}
-
-// spread puts left and right on one line of width, left cut short where
-// they do not both fit.
-func spread(left, right string, width int) string {
-	if width <= 0 {
-		return left + "  " + right
+	if len(r.ports) > 0 {
+		right.s = ":" + strings.Join(r.ports, " :") + "  " + right.s
 	}
-	rw := ansi.StringWidth(right)
-	left = ansi.Truncate(left, max(width-rw-2, 0), "…")
-	gap := width - ansi.StringWidth(left) - rw
-	if gap < 1 {
-		return fit(left, width)
-	}
-	return left + strings.Repeat(" ", gap) + right
-}
-
-func fit(s string, width int) string {
-	if width <= 0 {
-		return s
-	}
-	return ansi.Truncate(s, width, "…")
+	return m.row(left, right, cursor)
 }
 
 func pad(s string, w int) string {
@@ -1494,41 +1599,40 @@ func keep[T any](cursor int, on string, items []T, key func(T) string) int {
 	return min(cursor, max(len(items)-1, 0))
 }
 
-// drawOffer is the project's screen while u's or t's question stands:
-// the question, then Claude Code's answer and the two keys that take
-// it.
-func (m model) drawOffer(lines []string) ([]string, string) {
-	what, verb, ask := "runs", "start them", " Start these in "+m.cur.Name+"?"
+// drawOffer is the project's screen while u's, t's or c's question
+// stands: the question, then Claude Code's answer and the two keys
+// that take it.
+func (m model) drawOffer(lines []string) ([]string, foot) {
+	what, verb, ask := "runs", "start them", "Start these in "+m.cur.Name+"?"
 	switch m.question {
 	case roleCheck:
-		what, verb, ask = "checks", "run them", " Run these checks in "+m.cur.Name+"?"
+		what, verb, ask = "checks", "run them", "Run these checks in "+m.cur.Name+"?"
 	case roleClient:
-		what, verb, ask = "talks to it in", "open it", " Talk to it with this?"
+		what, verb, ask = "talks to it in", "open it", "Talk to it with this?"
 	}
 	switch {
 	case m.offerErr != "":
-		lines = append(lines, " Claude would not say what "+what+" "+m.cur.Name+":", " "+m.offerErr)
-		return lines, "esc back"
+		lines = append(lines, at(ink.Render("Claude would not say what "+what+" "+m.cur.Name+":")), at(gray.Render(m.offerErr)))
+		return lines, foot{hints: backHints}
 	case m.offer == nil:
-		lines = append(lines, " Nobody has done it here yet; asking Claude what "+what+" "+m.cur.Name+"…")
-		return lines, "esc cancel"
+		lines = append(lines, at(gray.Render("Nobody has done it here yet; asking Claude what "+what+" "+m.cur.Name+"…")))
+		return lines, foot{hints: cancelHints}
 	}
-	lines = append(lines, bold.Render(ask), "")
+	lines = append(lines, at(title.Render(ask)), "")
 	w := 0
 	for _, s := range m.offer {
 		w = max(w, len(s.name))
 	}
 	for _, s := range m.offer {
-		lines = append(lines, fit("   "+pad(s.name, w)+"  "+s.command, m.width))
+		lines = append(lines, m.row([]piece{{pad(s.name, w), keyInk}, {"  " + s.command, gray}}, piece{}, false))
 	}
-	lines = append(lines, "", " "+bold.Render("enter")+"  "+verb+"    "+bold.Render("esc")+"  cancel")
-	return lines, ""
+	return lines, foot{hints: []keyHint{{"enter", verb}, {"esc", "cancel"}}}
 }
 
 // drawSearch is the project's screen while /'s search stands: the line
 // typed, how many lines say it, and the lines, each under the name of
 // the row its pane is, the match in bold.
-func (m model) drawSearch(lines []string) ([]string, string) {
+func (m model) drawSearch(lines []string) ([]string, foot) {
 	count := ""
 	switch {
 	case m.said == nil:
@@ -1538,7 +1642,7 @@ func (m model) drawSearch(lines []string) ([]string, string) {
 	case m.query != "":
 		count = fmt.Sprintf("%d lines", len(m.found))
 	}
-	lines = append(lines, spread(" / "+m.query+"▏", faint.Render(count)+" ", m.width), "")
+	lines = append(lines, m.row([]piece{{"/ ", gray}, {m.query, ink}, {caret, accent}}, piece{count, gray}, false), "")
 	nameW := 0
 	for _, h := range m.found {
 		nameW = max(nameW, ansi.StringWidth(m.said[h.said].name))
@@ -1548,17 +1652,14 @@ func (m model) drawSearch(lines []string) ([]string, string) {
 	first := max(m.hitAt-room+1, 0)
 	for i := first; i < len(m.found) && i < first+room; i++ {
 		h := m.found[i]
-		lead := " " + pad(m.said[h.said].name, nameW) + "  "
-		text, at := around(h.line, h.at, max(m.width-ansi.StringWidth(lead)-1, 8))
-		at = min(at, len(text))
-		end := min(at+len(m.query), len(text))
-		line := lead + text[:at] + bold.Render(text[at:end]) + text[end:]
-		if i == m.hitAt {
-			line = chosen.Render(lead + text)
-		}
-		lines = append(lines, line)
+		name := pad(m.said[h.said].name, nameW) + "  "
+		text, a := around(h.line, h.at, max(m.measure()-ansi.StringWidth(name), 8))
+		a = min(a, len(text))
+		end := min(a+len(m.query), len(text))
+		left := []piece{{name, gray}, {text[:a], ink}, {text[a:end], keyInk}, {text[end:], ink}}
+		lines = append(lines, m.row(left, piece{}, i == m.hitAt))
 	}
-	return lines, "type to search · ↑↓ · enter goes to it · esc back"
+	return lines, foot{hints: searchHints}
 }
 
 // paneNumber is a row's pane's place in the order tmux made its panes,

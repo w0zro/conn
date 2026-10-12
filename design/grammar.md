@@ -27,6 +27,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 11. **The panel beside the work.** conn's window is the panel and the workspace; the workspace shows the row under the cursor, enter puts the keys in it, ctrl-space brings them back. Built.
 
+12. **A folder of repositories.** A folder holding two or more git checkouts, below a folder directly in home, is listed with its repositories beneath it and opens as a project of all of theirs; each repository is still its own. One level. Built.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
 Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `/` `o` `x` `r` `u` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.

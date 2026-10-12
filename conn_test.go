@@ -1271,3 +1271,41 @@ func TestKeyBar(t *testing.T) {
 		}
 	}
 }
+
+// esc in a project puts the keys back in the pane ctrl-space came
+// from, while it stands, and goes up to the projects otherwise; the
+// binding that writes the pane down is one tmux takes.
+func TestEscGoesBack(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	if _, err := srv.Do(bindBack(win, panel)); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	id, err := openWindow(srv, "w", t.TempDir(), "sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := model{srv: srv, own: panel, ws: ws, screen: onProject, cur: project{Name: "d", Root: "/p"}}
+	esc := tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape})
+	if _, err := srv.Do(tmux.SetGlobal(fromMark, id)); err != nil {
+		t.Fatal(err)
+	}
+	next, cmd := m.projectKey(esc)
+	if n := next.(model); n.screen != onProject || n.follow != id || cmd == nil {
+		t.Fatalf("esc did not go back: screen %v, follow %q", n.screen, n.follow)
+	}
+	if err := ws.show(id, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := inWorkspace(t, ws); got.ID != id {
+		t.Errorf("the workspace holds %s, not %s", got.ID, id)
+	}
+	// Nothing to go back to: the panel's own pane, or one that is gone.
+	for _, from := range []string{panel, "%999"} {
+		_, _ = srv.Do(tmux.SetGlobal(fromMark, from))
+		if next, _ := m.projectKey(esc); next.(model).screen != onProjects {
+			t.Errorf("esc with %s to go back to did not go up to the projects", from)
+		}
+	}
+}

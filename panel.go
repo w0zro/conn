@@ -622,6 +622,12 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		m.note = m.leave()
 	case "esc", "ctrl+u":
+		if k.String() == "esc" && m.typed == "" {
+			if id := m.cameFrom(); id != "" {
+				m.follow, m.asked, m.followAt = id, id, time.Now()
+				return m, m.showing(id, true)
+			}
+		}
 		m.typed, m.cursor = "", 0
 	case "backspace":
 		if r := []rune(m.typed); len(r) > 0 {
@@ -639,7 +645,16 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "tab":
 		return m.nextWaiting()
-	case "esc", "backspace":
+	case "esc":
+		// Back into the pane ctrl-space came from, while it stands; up
+		// to the projects otherwise.
+		if id := m.cameFrom(); id != "" {
+			m.follow, m.asked, m.followAt = id, id, time.Now()
+			return m, tea.Batch(m.showing(id, true), m.read())
+		}
+		m.screen, m.rows, m.cursor = onProjects, nil, 0
+		return m, m.read()
+	case "backspace":
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
 		return m, m.read()
 	case "up", "k", "ctrl+p":
@@ -778,6 +793,26 @@ func (m model) useClient(c stacked, record bool) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m.start(or(c.root, m.cur.Root), c.command, "")
+}
+
+// cameFrom is the pane the keys were in when ctrl-space brought them
+// back, where it still stands: a pane of a process, not the panel's
+// own and not a hold, and not ended.
+func (m model) cameFrom() string {
+	if m.srv == nil {
+		return ""
+	}
+	id, _ := m.srv.Global(fromMark)
+	if id == "" || id == m.own {
+		return ""
+	}
+	ps, _ := panes(m.srv)
+	for _, p := range ps {
+		if p.ID == id && !p.Hold && !p.Dead && !p.Panel {
+			return id
+		}
+	}
+	return ""
 }
 
 // nextWaiting shows a conversation waiting on you in the workspace, the

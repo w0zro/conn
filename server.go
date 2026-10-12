@@ -276,8 +276,16 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 // bindBack binds the one key conn takes from every window: the keys
 // back to the panel, in conn's window.
 func bindBack(window, panel string) tmux.Cmd {
-	return tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", window, `\;`, "select-pane", "-t", panel}
+	// The pane the keys leave is written down first, as tmux fills it
+	// in, and left as it was when the keys are on the panel already.
+	from := "#{?#{==:#{pane_id}," + panel + "},#{" + fromMark + "},#{pane_id}}"
+	return tmux.Cmd{"bind", "-n", backKey, "set-option", "-gF", fromMark, from, `\;`, "select-window", "-t", window, `\;`, "select-pane", "-t", panel}
 }
+
+// fromMark is the pane the keys were in when ctrl-space brought them
+// back to the panel, for esc to put them back in: out and back are a
+// pair.
+const fromMark = "@conn_from"
 
 // ensurePanel answers conn's window: conn's pane started again where
 // it has ended or runs another build, and made where there is none.

@@ -9,7 +9,9 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 1. **Open the terminal, you are in conn.** `conn` from `~` opens on the projects work has happened in, read from Claude Code's transcripts and where conn's panes are, newest first. Typing finds one, or names a directory by path. Built.
 2. **Get back to a conversation.** Enter on a project lists what runs in conn, then conversations running in another terminal, then the ones at rest. Enter goes to what runs, or resumes a conversation at rest in a window of its own. ctrl-space comes back to conn. Built.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; `j` `k` in a project; `ctrl-space` from anywhere; leaving is tmux's own `ctrl-b d`.
+3. **Start something new, and leave.** In a project, `n` starts a Claude conversation and `s` a shell, at the project's root. `q` in a project and `ctrl-c` anywhere leave conn with everything in it running. Built.
+
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; in a project `j` `k` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

@@ -1304,14 +1304,14 @@ func TestBackAndForth(t *testing.T) {
 	}
 	// In a, then ctrl-space: arrived from a.
 	_, _ = srv.Do(tmux.SetGlobal(fromMark, a))
-	if press(back); m.in != a || m.cursor != 0 || m.follow != "" {
+	if press(back); m.in != a || m.cursor != 0 || m.follow != a {
 		t.Fatalf("arrival from a: in %q, cursor %d, follow %q", m.in, m.cursor, m.follow)
 	}
 	if from, _ := srv.Global(fromMark); from != "" {
 		t.Error("the pane written down was not cleared")
 	}
 	// Nothing worked in before a: ctrl-space on the panel goes nowhere.
-	if press(back); m.follow != "" || m.note == "" {
+	if press(back); m.in != a || m.note == "" {
 		t.Error("ctrl-space with no other process went somewhere")
 	}
 	// Into b by enter, then ctrl-space from b, then ctrl-space on the

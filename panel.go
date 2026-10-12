@@ -840,12 +840,46 @@ func (m model) arrived() (tea.Model, tea.Cmd) {
 	}
 	_, _ = m.srv.Do(tmux.UnsetGlobal(fromMark))
 	m = m.into(from)
+	// The pane's project goes on the panel, whatever screen the panel
+	// was on, and the pane's row takes the cursor once it is read.
+	if ps, _ := panes(m.srv); ps != nil {
+		for _, p := range ps {
+			if p.ID == from {
+				m = m.showProject(p.Dir)
+			}
+		}
+	}
+	m.follow, m.asked, m.followAt = from, from, time.Now()
 	for i, r := range m.rows {
 		if r.pane != nil && r.pane.ID == from {
 			m.cursor = i
 		}
 	}
-	return m, nil
+	return m, m.read()
+}
+
+// showProject puts the project a directory is in on the panel, where
+// the panel is not on it already, and puts away whatever stood over
+// the rows.
+func (m model) showProject(dir string) model {
+	root := ""
+	if m.known != nil {
+		root = m.known.rootOf(dir)
+	} else {
+		root = rootOf(dir)
+	}
+	if root == "" || (m.screen == onProject && m.cur.belongs(root)) {
+		return m
+	}
+	cur := project{Name: filepath.Base(root), Root: root}
+	for _, p := range m.projects {
+		if p.Root == root {
+			cur = p
+		}
+	}
+	m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
+	m.searching, m.question, m.listing, m.verb = false, "", false, ""
+	return m
 }
 
 // into notes that the keys have gone into a pane: it is the one they

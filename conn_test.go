@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -475,12 +477,12 @@ func TestRowProc(t *testing.T) {
 func TestCursorKeepsItsRow(t *testing.T) {
 	a, b := &pane{ID: "%1"}, &pane{ID: "%2"}
 	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 1}
-	next, _ := m.Update(projectRead{root: "/p", rows: []row{{pane: b, state: "waiting"}, {pane: a}}})
+	next, _ := m.Update(read{root: "/p", rows: []row{{pane: b, state: "waiting"}, {pane: a}}})
 	if got := next.(model); got.rows[got.cursor].pane.ID != "%2" {
 		t.Errorf("cursor on %s, want %%2", got.rows[got.cursor].pane.ID)
 	}
 	m = model{projects: []project{{Root: "/a"}, {Root: "/b"}}, cursor: 1, loaded: true}
-	next, _ = m.Update(projectsRead{{Root: "/b", Waiting: 1}, {Root: "/a"}})
+	next, _ = m.Update(read{projects: []project{{Root: "/b", Waiting: 1}, {Root: "/a"}}})
 	if got := next.(model); got.shownProjects()[got.cursor].Root != "/b" {
 		t.Errorf("cursor on %s, want /b", got.shownProjects()[got.cursor].Root)
 	}
@@ -491,8 +493,132 @@ func TestCursorKeepsItsRow(t *testing.T) {
 func TestProjectsReadLeavesTheProjectsCursor(t *testing.T) {
 	a, b := &pane{ID: "%1"}, &pane{ID: "%2"}
 	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 1}
-	next, _ := m.Update(projectsRead{{Root: "/x"}, {Root: "/y"}, {Root: "/z"}})
+	next, _ := m.Update(read{projects: []project{{Root: "/x"}, {Root: "/y"}, {Root: "/z"}}})
 	if got := next.(model).cursor; got != 1 {
 		t.Errorf("cursor = %d, want 1", got)
 	}
+}
+
+func TestTells(t *testing.T) {
+	for line, want := range map[string]bool{
+		"%window-add @3":   true,
+		"%window-close @3": true,
+		"%subscription-changed conn $0 @1 1 %1 : zsh /p 0  ": true,
+		"%begin 1700000000 12 1":                             false,
+		"%end 1700000000 12 1":                               false,
+		"%output %1 hello":                                   false,
+		"%exit":                                              false,
+		"plain reply":                                        false,
+	} {
+		if got := tells(line); got != want {
+			t.Errorf("tells(%q) = %v", line, got)
+		}
+	}
+}
+
+// tmux tells a control-mode client of a window opened and of a change
+// in what a pane runs, and watch says changed for each.
+func TestWatchTmux(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	dir, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
+	defer func() { _ = srv.Down() }()
+	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	// Claude Code's own files are elsewhere, and still: what is heard is
+	// tmux.
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	got := make(chan tea.Msg, 16)
+	go watch(ctx, func(m tea.Msg) { got <- m }, srv)
+	wait := func(what string) {
+		t.Helper()
+		select {
+		case <-got:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("no word of %s", what)
+		}
+	}
+	wait("the subscription's first values")
+	if _, err := srv.Run("new-window", "-d", "-t", sessionName+":", "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	wait("a window opened")
+	id, _ := srv.Run("new-window", "-d", "-P", "-F", "#{pane_id}", "-t", sessionName+":", "sleep 1000")
+	wait("another window opened")
+	// What a new window brings with it — a rename, the subscription's
+	// first value for its pane — is let pass, so that what follows is
+	// the mark's own word: tmux says a subscription's changes at most
+	// once a second.
+	for quiet := time.After(1500 * time.Millisecond); ; {
+		select {
+		case <-got:
+			continue
+		case <-quiet:
+		}
+		break
+	}
+	if _, err := srv.Do(tmux.SetPane(strings.TrimSpace(id), exitMark, "0")); err != nil {
+		t.Fatal(err)
+	}
+	wait("a mark set")
+}
+
+func TestParseTerminals(t *testing.T) {
+	out := "100 0 /dev/ttys001\n300 1 client-77\n200 0 /dev/ttys004\n"
+	if got := parseTerminals(out); !reflect.DeepEqual(got, []string{"/dev/ttys004", "/dev/ttys001"}) {
+		t.Errorf("parseTerminals = %v", got)
+	}
+}
+
+// Claude Code's instance files and transcripts are watched, a
+// transcript folder made after the watch began among them.
+func TestWatchFiles(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", cfg)
+	for _, d := range []string{"sessions", "projects"} {
+		if err := os.Mkdir(filepath.Join(cfg, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	got := make(chan struct{}, 16)
+	go watchFiles(ctx, func() { got <- struct{}{} })
+	time.Sleep(200 * time.Millisecond)
+	wait := func(what string) {
+		t.Helper()
+		select {
+		case <-got:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("no word of %s", what)
+		}
+		// What else the same change brought.
+		for drained := time.After(300 * time.Millisecond); ; {
+			select {
+			case <-got:
+				continue
+			case <-drained:
+			}
+			break
+		}
+	}
+	write(t, filepath.Join(cfg, "sessions", "12.json"), `{"status":"busy"}`)
+	wait("an instance file")
+	dir := filepath.Join(cfg, "projects", "-p")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	wait("a transcript folder")
+	write(t, filepath.Join(dir, "a.jsonl"), "{}\n")
+	wait("a transcript in the new folder")
 }

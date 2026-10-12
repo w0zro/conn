@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -122,6 +123,11 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 			args = append(args, "-x", strconv.Itoa(w), "-y", strconv.Itoa(h-1))
 		}
 		if _, err := srv.Run(append(args, panel)...); err != nil {
+			return 0, err
+		}
+		// The pane just made runs this build; said now, it is not
+		// started again over a build it already runs.
+		if _, err := srv.Do(tmux.SetGlobal(buildMark, fingerprint(self))); err != nil {
 			return 0, err
 		}
 	}
@@ -353,8 +359,65 @@ func newID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
-// leave lets this terminal go and keeps everything in conn running.
-func leave(srv *tmux.Server) error { return srv.Detach() }
+// leave lets the terminal go that conn was last used from, and keeps
+// everything in conn running. It is named: tmux's current client can
+// be conn's own control-mode client, which watches the server.
+func leave(srv *tmux.Server) error {
+	cs := terminals(srv)
+	if len(cs) == 0 {
+		return srv.Detach()
+	}
+	_, err := srv.Do(tmux.Cmd{"detach-client", "-t", cs[0]})
+	return err
+}
+
+// terminals is the clients on a terminal, not in control mode, the
+// last used first.
+func terminals(srv *tmux.Server) []string {
+	out, err := srv.Run("list-clients", "-F", "#{client_activity} #{client_control_mode} #{client_name}")
+	if err != nil {
+		return nil
+	}
+	return parseTerminals(out)
+}
+
+// leftWatching detaches the control-mode clients on conn's session.
+// Only conn's own pane makes one, to watch the server, and tmux keeps a
+// control-mode client on after the process that made it has gone: a
+// pane started again, on a new build, leaves its old one behind.
+func leftWatching(srv *tmux.Server) {
+	out, err := srv.Run("list-clients", "-t", sessionName, "-F", "#{client_control_mode} #{client_name}")
+	if err != nil {
+		return
+	}
+	for _, l := range strings.Split(out, "\n") {
+		if name, ok := strings.CutPrefix(l, "1 "); ok {
+			_, _ = srv.Do(tmux.Cmd{"detach-client", "-t", name})
+		}
+	}
+}
+
+func parseTerminals(out string) []string {
+	type client struct {
+		at   int
+		name string
+	}
+	var cs []client
+	for _, l := range strings.Split(out, "\n") {
+		f := strings.SplitN(l, " ", 3)
+		if len(f) < 3 || f[1] == "1" {
+			continue
+		}
+		at, _ := strconv.Atoi(f[0])
+		cs = append(cs, client{at, f[2]})
+	}
+	sort.SliceStable(cs, func(i, j int) bool { return cs[i].at > cs[j].at })
+	names := make([]string, len(cs))
+	for i, c := range cs {
+		names[i] = c.name
+	}
+	return names
+}
 
 // windowName is a short name for a window, from a project's name.
 func windowName(name string) string {

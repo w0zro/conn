@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -139,41 +140,65 @@ func runPanel() error {
 		return err
 	}
 	m := model{srv: srv, home: home, own: own, conn: connCommand(self), known: newKnown()}
-	_, err = tea.NewProgram(m).Run()
+	p := tea.NewProgram(m)
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go watch(ctx, p.Send, srv)
+	_, err = p.Run()
 	return err
 }
 
 // Messages.
-type projectsRead []project
-type projectRead struct {
-	root string
-	rows []row
+
+// A read is the machine as read once: the projects, and the rows of the
+// project on the screen, where one is.
+type read struct {
+	projects []project
+	root     string
+	rows     []row
 }
-type tick struct{}
 
 // acted is what a key that runs off the loop did, or could not do.
 type acted string
 
-func (m model) Init() tea.Cmd { return tea.Batch(m.readProjects(), beat()) }
+// sized is the terminal's size asked once, a moment after the start: a
+// resize can land before the program listens for one, and is then never
+// told.
+type sized struct{}
 
-func beat() tea.Cmd { return tea.Tick(2*time.Second, func(time.Time) tea.Msg { return tick{} }) }
+func (m model) Init() tea.Cmd {
+	return tea.Batch(m.read(), tea.Tick(time.Second, func(time.Time) tea.Msg { return sized{} }))
+}
 
-// readProjects reads where work has happened: the directories Claude
-// Code has worked in, and where the panes conn holds are, now. Each
-// project is told what runs in it and how many conversations in it are
-// waiting on you, wherever they run, and the status line is told the
-// number waiting in all.
-func (m model) readProjects() tea.Cmd {
+// conversationsShown is how many conversations at rest a project lists,
+// newest first.
+const conversationsShown = 50
+
+// read reads the machine once, off the loop: where work has happened,
+// what runs in each project and how many of its conversations wait on
+// you, wherever they run; and, in a project, its rows. The status line
+// is told the number waiting in all.
+func (m model) read() tea.Cmd {
 	srv, home, own, k := m.srv, m.home, m.own, m.known
+	var cur *project
+	if m.screen == onProject {
+		c := m.cur
+		cur = &c
+	}
 	return func() tea.Msg {
-		seen := claudeSightings(transcripts(), k.cwdOf)
+		all := transcripts()
 		ps, _ := panes(srv)
-		live := liveClaude()
-		running, waiting := map[string]int{}, map[string]int{}
+		var held []pane
 		for _, p := range ps {
-			if p.ID == own || p.Dead {
-				continue
+			if p.ID != own && !p.Dead {
+				held = append(held, p)
 			}
+		}
+		live := liveClaude()
+
+		seen := claudeSightings(all, k.cwdOf)
+		running, waiting := map[string]int{}, map[string]int{}
+		for _, p := range held {
 			seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
 			running[k.rootOf(p.Dir)]++
 		}
@@ -191,36 +216,21 @@ func (m model) readProjects() tea.Cmd {
 		}
 		// What waits on you comes first; the rest stay newest first.
 		sort.SliceStable(found, func(i, j int) bool { return found[i].Waiting > 0 && found[j].Waiting == 0 })
-		return projectsRead(found)
-	}
-}
+		r := read{projects: found}
 
-// conversationsShown is how many conversations at rest a project lists,
-// newest first.
-const conversationsShown = 50
-
-// readProject reads a project's rows: its conversations, whether each is
-// running and where, and the other panes conn holds in it.
-func (m model) readProject(p project) tea.Cmd {
-	srv, own, k := m.srv, m.own, m.known
-	return func() tea.Msg {
-		var convs []conversation
-		for _, c := range transcripts() {
-			dir := k.cwdOf(c)
-			if dir == "" || k.rootOf(dir) != p.Root {
-				continue
+		if cur != nil {
+			var convs []conversation
+			for _, c := range all {
+				dir := k.cwdOf(c)
+				if dir == "" || k.rootOf(dir) != cur.Root {
+					continue
+				}
+				c.Dir = dir
+				convs = append(convs, c)
 			}
-			c.Dir = dir
-			convs = append(convs, c)
+			r.root, r.rows = cur.Root, arrange(convs, held, live, cur.Root, k.titleOf)
 		}
-		ps, _ := panes(srv)
-		var inProject []pane
-		for _, q := range ps {
-			if q.ID != own && !q.Dead {
-				inProject = append(inProject, q)
-			}
-		}
-		return projectRead{root: p.Root, rows: arrange(convs, inProject, liveClaude(), p.Root, k.titleOf)}
+		return r
 	}
 }
 
@@ -274,22 +284,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-	case projectsRead:
-		// The list is read on the beat in a project too, for the status
-		// line; the cursor is the project's then, and left alone. On the
-		// list, it stays on its project as the list is sorted again under
-		// it, not on the place it was at.
-		if m.screen != onProjects {
-			m.projects, m.loaded = msg, true
-			return m, nil
-		}
-		on := ""
-		if shown := m.shownProjects(); m.cursor < len(shown) {
-			on = shown[m.cursor].Root
-		}
-		m.projects, m.loaded = msg, true
-		m.cursor = keep(m.cursor, on, m.shownProjects(), func(p project) string { return p.Root })
-	case projectRead:
+	case read:
+		m.takeProjects(msg.projects)
 		if m.screen == onProject && msg.root == m.cur.Root {
 			on := ""
 			if m.cursor < len(m.rows) {
@@ -298,21 +294,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rows = msg.rows
 			m.cursor = keep(m.cursor, on, m.rows, row.key)
 		}
-	case tick:
-		// A resize can land before the program listens for one, and is
-		// then never told; the terminal is asked on the beat as well.
+	case changed:
+		return m, m.read()
+	case sized:
 		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && (w != m.width || h != m.height) {
 			m.width, m.height = w, h
 		}
-		if m.screen == onProject {
-			return m, tea.Batch(m.readProject(m.cur), m.readProjects(), beat())
-		}
-		return m, tea.Batch(m.readProjects(), beat())
 	case acted:
 		m.note = string(msg)
-		if m.screen == onProject {
-			return m, m.readProject(m.cur)
-		}
 	case tea.KeyPressMsg:
 		m.note = ""
 		if m.asking {
@@ -324,6 +313,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.projectKey(msg)
 	}
 	return m, nil
+}
+
+// takeProjects takes the projects as read. On the projects screen the
+// cursor stays on its project as the list is sorted again under it, not
+// on the place it was at; in a project, the cursor is the project's,
+// and the list leaves it alone.
+func (m *model) takeProjects(ps []project) {
+	if m.screen != onProjects {
+		m.projects, m.loaded = ps, true
+		return
+	}
+	on := ""
+	if shown := m.shownProjects(); m.cursor < len(shown) {
+		on = shown[m.cursor].Root
+	}
+	m.projects, m.loaded = ps, true
+	m.cursor = keep(m.cursor, on, m.shownProjects(), func(p project) string { return p.Root })
 }
 
 func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -361,7 +367,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "esc", "backspace":
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
-		return m, m.readProjects()
+		return m, m.read()
 	case "up", "k", "ctrl+p":
 		m.cursor = max(m.cursor-1, 0)
 	case "down", "j", "ctrl+n":
@@ -369,15 +375,15 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.cursor < len(m.rows) {
 			m.note = m.goTo(m.rows[m.cursor])
-			return m, m.readProject(m.cur)
+			return m, m.read()
 		}
 	case "n":
 		id := newID()
 		m.note = m.start(newCommand(m.conn, id), id)
-		return m, m.readProject(m.cur)
+		return m, m.read()
 	case "s":
 		m.note = m.start("", "")
-		return m, m.readProject(m.cur)
+		return m, m.read()
 	case "q", "ctrl+c":
 		m.note = m.leave()
 	case "x", "r":
@@ -527,7 +533,7 @@ func (m model) leave() string {
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
 	m.screen, m.cur, m.rows, m.cursor = onProject, p, nil, 0
-	return m, m.readProject(p)
+	return m, m.read()
 }
 
 // goTo puts the client on a row's pane, picking its conversation back
@@ -816,7 +822,11 @@ func sayWaiting(srv *tmux.Server, n int) {
 	if want != "" {
 		set = tmux.SetGlobal(waitingMark, want)
 	}
-	_, _ = srv.Do(set, tmux.RefreshStatus())
+	cmds := []tmux.Cmd{set}
+	for _, c := range terminals(srv) {
+		cmds = append(cmds, tmux.Cmd{"refresh-client", "-S", "-t", c})
+	}
+	_, _ = srv.Do(cmds...)
 }
 
 // key is what a row is, through a sort: its conversation, or its pane.

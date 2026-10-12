@@ -700,7 +700,8 @@ func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
 		}
 		return startNamed(srv, p.pane.Name, command, or(at, p.Dir))
 	case p.Session != "":
-		_, err := srv.Do(tmux.Respawn(p.pane.ID, resumeCommand(conn, p.Session)), tmux.SetPane(p.pane.ID, sessionMark, p.Session))
+		note := told(conn, srv.Socket, project{Root: repoRoot(p.Dir)}.belongs)
+		_, err := srv.Do(tmux.Respawn(p.pane.ID, resumeCommand(note, p.Session)), tmux.SetPane(p.pane.ID, sessionMark, p.Session))
 		return p.pane.ID, err
 	}
 	_, err := srv.Do(tmux.Cmd{"respawn-pane", "-k", "-t", p.pane.ID})

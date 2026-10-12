@@ -1018,3 +1018,42 @@ func TestArrangeFailedFirst(t *testing.T) {
 		t.Errorf("rows = %v", got)
 	}
 }
+
+// A failed check is handed with what it runs, how it ended, its last
+// lines less conn's own closing line, and what runs it again.
+func TestHandPrompt(t *testing.T) {
+	lines := []string{"--- FAIL: TestX", "FAIL", "", "[test exited 1]", ""}
+	got := handPrompt("test", "go test ./...", "~/p", "failed 1", lines)
+	for _, want := range []string{"In this project, test runs go test ./... at ~/p, and it failed 1.", "--- FAIL: TestX\nFAIL\n", "Work out what is wrong and fix it.", "conn l test reads", "conn u test -w -- go test ./... runs it again."} {
+		if !strings.Contains(got, want) {
+			t.Errorf("prompt lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "[test exited") {
+		t.Errorf("prompt keeps conn's closing line:\n%s", got)
+	}
+	running := handPrompt("web", "npm run dev", "~/p", "running", nil)
+	if !strings.Contains(running, "and it is running.") || !strings.Contains(running, "Look into it.") || strings.Contains(running, "runs it again") {
+		t.Errorf("prompt for a running process:\n%s", running)
+	}
+	many := make([]string, 200)
+	for i := range many {
+		many[i] = strings.Repeat("x", 300)
+	}
+	if got := lastLines(many, 80, 16<<10); len(got) != 54 {
+		t.Errorf("lastLines kept %d lines", len(got))
+	}
+}
+
+// A conversation is told the project's checks and stack as last run.
+func TestAgentNote(t *testing.T) {
+	note := agentNote("conn", []stacked{{name: "web", command: "npm run dev"}}, []stacked{{name: "test", command: "go test ./..."}})
+	for _, want := range []string{"In this project, as last run through conn:\n  conn u test -w -- go test ./...\n  conn u web -- npm run dev"} {
+		if !strings.Contains(note, want) {
+			t.Errorf("note lacks %q:\n%s", want, note)
+		}
+	}
+	if bare := agentNote("/x/conn", nil, nil); strings.Contains(bare, "as last run") || !strings.Contains(bare, "conn here is /x/conn") {
+		t.Errorf("bare note:\n%s", bare)
+	}
+}

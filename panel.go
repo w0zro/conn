@@ -614,7 +614,11 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n":
 		id := newID()
-		return m.start(m.cur.Root, newCommand(m.conn, id), id)
+		return m.start(m.cur.Root, newCommand(m.told(), id, ""), id)
+	case "a":
+		if m.cursor < len(m.rows) {
+			return m.hand(m.rows[m.cursor])
+		}
 	case "s":
 		return m.start(m.cur.Root, "", "")
 	case "q", "ctrl+c":
@@ -956,9 +960,45 @@ func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			dir = m.cur.Root
 		}
-		return m.start(dir, resumeCommand(m.conn, r.conv.ID), r.conv.ID)
+		return m.start(dir, resumeCommand(m.told(), r.conv.ID), r.conv.ID)
 	}
 	return m, nil
+}
+
+// told is what a conversation started in the project is told.
+func (m model) told() string {
+	socket := ""
+	if m.srv != nil {
+		socket = m.srv.Socket
+	}
+	return told(m.conn, socket, m.cur.belongs)
+}
+
+// hand starts a conversation in the project given a row's process:
+// what it is, how it is doing, and what it last wrote.
+func (m model) hand(r row) (tea.Model, tea.Cmd) {
+	var name, command, dir, state string
+	var lines []string
+	switch {
+	case r.conv != nil || (r.pane != nil && r.pane.Session != ""):
+		m.note = "That is a conversation already; enter goes to it."
+		return m, nil
+	case r.pane != nil:
+		name, dir, state = paneName(*r.pane), r.pane.Dir, or(r.state, "running")
+		if r.pane.Name != "" {
+			command, _ = m.srv.Display(r.pane.ID, "#{"+runMark+"}")
+		}
+		lines, _ = said(m.srv, r.pane.ID)
+	case r.outside != nil:
+		name, command, dir, state = r.outside.Name, r.outside.Command, r.outside.Dir, "running outside conn, pid "+strconv.Itoa(r.outside.PID)
+		if len(r.ports) > 0 {
+			state += ", on :" + strings.Join(r.ports, " :")
+		}
+	default:
+		return m, nil
+	}
+	id := newID()
+	return m.start(m.cur.Root, newCommand(m.told(), id, handPrompt(name, command, tilde(dir, m.home), state, lines)), id)
 }
 
 // shownProjects is the projects the typed words find: each word in the
@@ -1229,7 +1269,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · tab goes to what waits · / searches output · o opens its port · x stops · r restarts · u starts the project · t runs the checks · ! runs a command · n new conversation · s shell · esc projects · q leaves"
+	return lines, "enter goes to it · tab goes to what waits · / searches output · o opens its port · x stops · r restarts · u starts the project · t runs the checks · a hands it to an agent · ! runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where

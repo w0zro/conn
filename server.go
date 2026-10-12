@@ -313,23 +313,49 @@ func openWindow(srv *tmux.Server, name, dir, cmd, session string) (string, error
 
 // resumeCommand picks a conversation back up in Claude Code, told what
 // conn tells the agents it starts.
-func resumeCommand(conn, id string) string {
-	return "exec claude --append-system-prompt " + shell.Quote(agentNote(conn)) + " --resume " + shell.Quote(id)
+func resumeCommand(note, id string) string {
+	return "exec claude --append-system-prompt " + shell.Quote(note) + " --resume " + shell.Quote(id)
 }
 
 // newCommand starts a conversation in Claude Code under an id conn
-// chose, so its pane is marked with it before its transcript exists.
-func newCommand(conn, id string) string {
-	return "exec claude --append-system-prompt " + shell.Quote(agentNote(conn)) + " --session-id " + shell.Quote(id)
+// chose, so its pane is marked with it before its transcript exists,
+// and with a first prompt where there is one.
+func newCommand(note, id, prompt string) string {
+	cmd := "exec claude --append-system-prompt " + shell.Quote(note) + " --session-id " + shell.Quote(id)
+	if prompt != "" {
+		cmd += " " + shell.Quote(prompt)
+	}
+	return cmd
+}
+
+// told is what a conversation started in a project is told: the CLI,
+// and what the project's stack and checks are here, as last run
+// through conn by whoever ran them. in says which roots are the
+// project's.
+func told(conn, socket string, in func(string) bool) string {
+	starts := readStarted(startedPath(socket))
+	return agentNote(conn, established(starts, in, roleStack), established(starts, in, roleCheck))
 }
 
 // agentNote is what conn tells the agents it starts: to work the
-// project's processes through conn. It travels with conn rather than
-// being written into anybody's settings. conn is how to run this build.
-func agentNote(conn string) string {
+// project's processes through conn, and what the project runs here. It
+// travels with conn rather than being written into anybody's settings.
+// conn is how to run this build.
+func agentNote(conn string, stack, checks []stacked) string {
 	called := ""
 	if conn != "conn" {
 		called = "conn here is " + conn + "; run it by that path.\n\n"
+	}
+	here := ""
+	if len(stack) > 0 || len(checks) > 0 {
+		here = "\n\nIn this project, as last run through conn:\n"
+		for _, s := range checks {
+			here += "  conn u " + s.name + " -w -- " + s.command + "\n"
+		}
+		for _, s := range stack {
+			here += "  conn u " + s.name + " -- " + s.command + "\n"
+		}
+		here = strings.TrimRight(here, "\n")
 	}
 	return "You are running inside conn, which holds this terminal as a tmux pane " +
 		"and watches the processes working this project. Work the project's processes " +
@@ -345,7 +371,7 @@ func agentNote(conn string) string {
 		"can go into it, and its output is the pane's. Something you background instead holds " +
 		"no terminal and has no pane, and can only be read through whatever file its output was sent to. " +
 		"conn also keeps what you started as what this project runs: what waited (-w) as its checks, " +
-		"the rest as its stack, each under its name, and the operator's keys run them again as you ran them."
+		"the rest as its stack, each under its name, and the operator's keys run them again as you ran them." + here
 }
 
 // connCommand is how an agent runs this build: conn, where the PATH

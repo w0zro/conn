@@ -39,9 +39,11 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 17. **Stop everything.** On the projects screen, `x` on a project ends every process conn holds in it, conversations included, and every server in it outside conn. Built, 2026-10-12.
 
+18. **Get me into the database.** `c` on a row talks to its process: a conversation or a shell is gone into; a port that answers HTTP opens in the browser; anything else is asked of Claude once, the one line offered, and kept under the row's name as what `c` means for it here, a URL for the browser or a command run in a window of its own with the keys in it. `o` folds into `c`. Built, 2026-10-12.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `o` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `c` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

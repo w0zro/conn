@@ -54,6 +54,13 @@ type model struct {
 	// last went to, so the next tab goes on to another.
 	waiting     []pane
 	lastWaiting string
+	// /'s search: whether it stands, what is typed, the panes' lines as
+	// last read, and the lines that say what is typed.
+	searching bool
+	query     string
+	said      []written
+	found     []hit
+	hitAt     int
 
 	// The projects screen.
 	typed    string
@@ -338,7 +345,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = keep(m.cursor, on, m.rows, row.key)
 		}
 	case changed:
+		if m.searching {
+			return m, tea.Batch(m.read(), readSaid(m.srv, m.cur.Root, m.rows))
+		}
 		return m, m.read()
+	case saidRead:
+		if m.searching && msg.root == m.cur.Root {
+			m.said = msg.panes
+			m.found = hits(m.query, m.said)
+			m.hitAt = min(m.hitAt, max(len(m.found)-1, 0))
+		}
 	case stackAnswer:
 		if m.stacking && m.screen == onProject && msg.root == m.cur.Root {
 			m.offer, m.stackErr = msg.list, msg.err
@@ -356,6 +372,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.stacking {
 			return m.stackKey(msg)
+		}
+		if m.searching {
+			return m.searchKey(msg)
 		}
 		if m.screen == onProjects {
 			return m.projectsKey(msg)
@@ -455,6 +474,9 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.restart(p)
 	case "!":
 		m.asking, m.line = true, ""
+	case "/":
+		m.searching, m.query, m.said, m.found, m.hitAt = true, "", nil, nil, 0
+		return m, readSaid(m.srv, m.cur.Root, m.rows)
 	case "u":
 		m.stacking, m.offer, m.stackErr = true, nil, ""
 		return m, askStack(m.cur)
@@ -527,6 +549,44 @@ func (m model) nextWaiting() model {
 		m.note = err.Error()
 	}
 	return m
+}
+
+// searchKey is a key while /'s search stands: what is typed searches,
+// the arrows move between the lines found, enter goes to one, and esc
+// puts the search away. The search stands while a line is gone to, for
+// the next.
+func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k.String() {
+	case "esc", "ctrl+c":
+		m.searching, m.said, m.found = false, nil, nil
+		return m, nil
+	case "enter":
+		if m.hitAt < len(m.found) {
+			h := m.found[m.hitAt]
+			return m, land(m.srv, m.said[h.said].pane, h.k, m.query)
+		}
+		return m, nil
+	case "up", "ctrl+p", "ctrl+k":
+		m.hitAt = max(m.hitAt-1, 0)
+		return m, nil
+	case "down", "ctrl+n", "ctrl+j":
+		m.hitAt = min(m.hitAt+1, max(len(m.found)-1, 0))
+		return m, nil
+	case "backspace":
+		if r := []rune(m.query); len(r) > 0 {
+			m.query = string(r[:len(r)-1])
+		}
+	case "ctrl+u":
+		m.query = ""
+	default:
+		t := k.Key().Text
+		if t == "" {
+			return m, nil
+		}
+		m.query += t
+	}
+	m.found, m.hitAt = hits(m.query, m.said), 0
+	return m, nil
 }
 
 // stackKey is a key while u's question stands: enter starts what
@@ -841,6 +901,9 @@ func (m model) drawProject() ([]string, string) {
 	if m.stacking {
 		return m.drawStack(lines)
 	}
+	if m.searching {
+		return m.drawSearch(lines)
+	}
 	if m.rows == nil {
 		lines = append(lines, faint.Render(" reading…"))
 	} else if len(m.rows) == 0 {
@@ -896,7 +959,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · tab goes to what waits · o opens its port · x stops · r restarts · u starts the project · ! runs a command · n new conversation · s shell · esc projects · q leaves"
+	return lines, "enter goes to it · tab goes to what waits · / searches output · o opens its port · x stops · r restarts · u starts the project · ! runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where
@@ -1039,4 +1102,40 @@ func (m model) drawStack(lines []string) ([]string, string) {
 	}
 	lines = append(lines, "", " "+bold.Render("enter")+"  start them    "+bold.Render("esc")+"  cancel")
 	return lines, ""
+}
+
+// drawSearch is the project's screen while /'s search stands: the line
+// typed, how many lines say it, and the lines, each under the name of
+// the row its pane is, the match in bold.
+func (m model) drawSearch(lines []string) ([]string, string) {
+	count := ""
+	switch {
+	case m.said == nil:
+		count = "reading…"
+	case m.query != "" && len(m.found) == 1:
+		count = "1 line"
+	case m.query != "":
+		count = fmt.Sprintf("%d lines", len(m.found))
+	}
+	lines = append(lines, spread(" / "+m.query+"▏", faint.Render(count)+" ", m.width), "")
+	nameW := 0
+	for _, h := range m.found {
+		nameW = max(nameW, ansi.StringWidth(m.said[h.said].name))
+	}
+	nameW = min(nameW, 20)
+	room := max(m.height-len(lines)-1, 1)
+	first := max(m.hitAt-room+1, 0)
+	for i := first; i < len(m.found) && i < first+room; i++ {
+		h := m.found[i]
+		lead := " " + pad(m.said[h.said].name, nameW) + "  "
+		text, at := around(h.line, h.at, max(m.width-ansi.StringWidth(lead)-1, 8))
+		at = min(at, len(text))
+		end := min(at+len(m.query), len(text))
+		line := lead + text[:at] + bold.Render(text[at:end]) + text[end:]
+		if i == m.hitAt {
+			line = chosen.Render(lead + text)
+		}
+		lines = append(lines, line)
+	}
+	return lines, "type to search · ↑↓ · enter goes to it · esc back"
 }

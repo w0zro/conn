@@ -720,3 +720,38 @@ func TestNextWaiting(t *testing.T) {
 		}
 	}
 }
+
+// Lines that say the text, newest first in each pane, with the saying
+// each is counted back from the pane's end, as tmux's search counts.
+func TestHits(t *testing.T) {
+	panes := []written{
+		{name: "web", lines: []string{"GET / 200", "error: boom", "GET /x 500 error error", ""}},
+		{name: "test", lines: []string{"ERROR in test"}},
+	}
+	got := hits("error", panes)
+	want := []hit{
+		{said: 0, line: "GET /x 500 error error", at: 11, k: 1},
+		{said: 0, line: "error: boom", at: 0, k: 2},
+		{said: 1, line: "ERROR in test", at: 0, k: 0},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("hits = %+v\nwant %+v", got, want)
+	}
+	if got := hits("ERROR", panes); len(got) != 1 || got[0].said != 1 {
+		t.Errorf("a capital minds case: %+v", got)
+	}
+	if hits("", panes) != nil {
+		t.Error("nothing typed found something")
+	}
+}
+
+func TestAround(t *testing.T) {
+	if got, at := around("short line", 6, 40); got != "short line" || at != 6 {
+		t.Errorf("around a short line = %q, %d", got, at)
+	}
+	line := strings.Repeat("x", 100) + "needle" + strings.Repeat("y", 50)
+	got, at := around(line, 100, 40)
+	if !strings.HasPrefix(got, "…") || !strings.HasPrefix(got[at:], "needle") {
+		t.Errorf("around a long line = %q, %d", got, at)
+	}
+}

@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -141,6 +143,11 @@ func ensurePanel(srv *tmux.Server, home, self, panel string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// A rebuild keeps its path, so the build is told by its contents.
+	build := fingerprint(self)
+	if was, _ := srv.Global(buildMark); was != build {
+		own.ours = false
+	}
 	if own.pane == "" {
 		out, err := srv.Run("new-window", "-d", "-t", sessionName+":", "-n", connWindow, "-c", home, "-P", "-F", "#{window_id} #{pane_id}", panel)
 		if err != nil {
@@ -152,8 +159,21 @@ func ensurePanel(srv *tmux.Server, home, self, panel string) (string, error) {
 			return "", err
 		}
 	}
-	_, err = srv.Do(tmux.SetPane(own.pane, panelMark, "1"))
+	_, err = srv.Do(tmux.SetPane(own.pane, panelMark, "1"), tmux.SetGlobal(buildMark, build))
 	return own.window, err
+}
+
+// buildMark is the build conn's pane runs, by fingerprint.
+const buildMark = "@conn_build"
+
+// fingerprint names a binary by its contents.
+func fingerprint(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:8])
 }
 
 // panelMark is on conn's own pane. A window's name will not do to find

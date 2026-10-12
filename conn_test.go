@@ -1309,3 +1309,35 @@ func TestEscGoesBack(t *testing.T) {
 		}
 	}
 }
+
+// r waits for its object: r again restarts the row, c lists the
+// conversations at rest with a find line, and any other key puts the
+// verb away and says what it waited for.
+func TestVerbWaits(t *testing.T) {
+	press := func(m model, k string) model {
+		key := tea.Key{Text: k, Code: []rune(k)[0]}
+		if k == "esc" {
+			key = tea.Key{Code: tea.KeyEscape}
+		}
+		next, _ := m.Update(tea.KeyPressMsg(key))
+		return next.(model)
+	}
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{{pane: &pane{ID: "%1", Name: "web"}}}}
+	m.rest = []row{{conv: &conversation{ID: "a", Title: "Grammar work"}}, {conv: &conversation{ID: "b", Title: "Look rebuild"}}}
+	if m = press(m, "r"); m.verb != "r" {
+		t.Fatalf("r did not wait: verb %q", m.verb)
+	}
+	if m = press(m, "x"); m.verb != "" || m.note == "" || m.listing {
+		t.Errorf("x after r: verb %q, note %q, listing %v", m.verb, m.note, m.listing)
+	}
+	m = press(press(m, "r"), "c")
+	if !m.listing || m.verb != "" {
+		t.Fatalf("rc did not list: listing %v, verb %q", m.listing, m.verb)
+	}
+	if m = press(m, "l"); len(m.shownRest()) != 1 || m.shownRest()[0].conv.ID != "b" {
+		t.Errorf("typing l finds %d", len(m.shownRest()))
+	}
+	if m = press(m, "esc"); m.listing || m.screen != onProject {
+		t.Error("esc did not put the list away")
+	}
+}

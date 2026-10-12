@@ -80,9 +80,18 @@ type model struct {
 	projects []project
 	loaded   bool
 
-	// A project.
+	// A project: what runs in it, and its conversations at rest, which
+	// rc lists.
 	cur  project
 	rows []row
+	rest []row
+	// A verb pressed and waiting for its object, blank for none.
+	verb string
+	// rc's list of the conversations at rest: whether it stands, what
+	// is typed to find one, and the cursor in it.
+	listing bool
+	pick    string
+	pickAt  int
 }
 
 // A row on a project's screen: a conversation, a pane, or both — a
@@ -230,6 +239,7 @@ type read struct {
 	projects []project
 	root     string
 	rows     []row
+	rest     []row  // the project's conversations at rest
 	waiting  []pane // the panes conn holds a conversation waiting on you in
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
@@ -343,7 +353,16 @@ func (m model) read() tea.Cmd {
 				convs = append(convs, c)
 			}
 			in := func(dir string) bool { return cur.belongs(k.rootOf(dir)) }
-			r.root, r.rows = cur.Root, arrange(convs, held, live, ports, outside, in, k.titleOf)
+			// The panel is what runs; a conversation at rest is a row of
+			// rc's list instead.
+			r.root = cur.Root
+			for _, row := range arrange(convs, held, live, ports, outside, in, k.titleOf) {
+				if row.conv != nil && row.pane == nil && !row.elsewhere {
+					r.rest = append(r.rest, row)
+				} else {
+					r.rows = append(r.rows, row)
+				}
+			}
 			// In a folder of repositories, a row says whose it is.
 			if cur.Group {
 				for i := range r.rows {
@@ -483,6 +502,8 @@ func (m model) wanted() string {
 		return m.follow
 	case m.screen != onProject:
 		return ""
+	case m.listing:
+		return ""
 	case m.searching:
 		if m.hitAt < len(m.found) {
 			return m.said[m.found[m.hitAt].said].pane.ID
@@ -523,6 +544,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.rows = msg.rows
 			m.cursor = keep(m.cursor, on, m.rows, row.key)
+			picked := ""
+			if shown := m.shownRest(); m.pickAt < len(shown) {
+				picked = shown[m.pickAt].key()
+			}
+			m.rest = msg.rest
+			m.pickAt = keep(m.pickAt, picked, m.shownRest(), row.key)
 			// A pane just opened takes the cursor once its row is read,
 			// and is let go of where a read asked for after it was opened
 			// has no row for it: it ended before it was read.
@@ -569,6 +596,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.question != "" {
 			return m.offerKey(msg)
+		}
+		if m.listing {
+			return m.listKey(msg)
 		}
 		if m.searching {
 			return m.searchKey(msg)
@@ -642,7 +672,14 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.verb != "" {
+		return m.objectKey(k)
+	}
 	switch k.String() {
+	case "r":
+		// A verb waits for its object: the verb again is the row.
+		m.verb = "r"
+		return m, nil
 	case "tab":
 		return m.nextWaiting()
 	case "esc":
@@ -676,19 +713,13 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.start(m.cur.Root, "", "")
 	case "q", "ctrl+c":
 		m.note = m.leave()
-	case "x", "r":
+	case "x":
 		if m.cursor >= len(m.rows) {
 			return m, nil
 		}
-		p, ok := m.rows[m.cursor].proc()
-		if !ok {
-			m.note = "That conversation is not running."
-			return m, nil
-		}
-		if k.String() == "x" {
+		if p, ok := m.rows[m.cursor].proc(); ok {
 			return m, m.end(p)
 		}
-		return m, m.restart(p)
 	case "!":
 		m.asking, m.line = true, ""
 	case "/":
@@ -1331,10 +1362,12 @@ type keyHint struct{ key, does string }
 
 // The keys each screen says at its foot.
 var (
-	projectHints  = []keyHint{{"enter", "goes to it"}, {"tab", "what waits"}, {"/", "search output"}, {"c", "talk to it"}, {"x", "stop"}, {"r", "restart"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"!", "run a command"}, {"n", "new conversation"}, {"s", "shell"}, {"esc", "projects"}, {"q", "leave"}}
+	projectHints  = []keyHint{{"enter", "goes to it"}, {"tab", "what waits"}, {"/", "search output"}, {"c", "talk to it"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"!", "run a command"}, {"n", "new conversation"}, {"s", "shell"}, {"esc", "projects"}, {"q", "leave"}}
 	projectsHints = []keyHint{{"type", "to find or a path"}, {"enter", "opens"}, {"x", "stops everything in it"}, {"tab", "what waits"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
+	objectHints   = []keyHint{{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}}
+	listHints     = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
 	cancelHints   = []keyHint{{"esc", "cancel"}}
 )
 
@@ -1479,10 +1512,16 @@ func (m model) drawProject() ([]string, foot) {
 	if m.searching {
 		return m.drawSearch(lines)
 	}
-	if m.rows == nil {
+	if m.listing {
+		return m.drawList(lines)
+	}
+	switch {
+	case m.rows == nil:
 		lines = append(lines, at(faint.Render("reading…")))
-	} else if len(m.rows) == 0 {
+	case len(m.rows) == 0 && len(m.rest) == 0:
 		lines = append(lines, at(faint.Render("nothing running, and no conversations here yet; n starts one")))
+	case len(m.rows) == 0:
+		lines = append(lines, at(faint.Render(fmt.Sprintf("nothing running; %s at rest, rc picks one up", counted(len(m.rest), "conversation")))))
 	}
 	// The rows, a row of air between one group and the next, and the
 	// window of them that keeps the cursor's row in view.
@@ -1499,7 +1538,11 @@ func (m model) drawProject() ([]string, foot) {
 	}
 	room := max(m.height-len(lines)-1, 1)
 	first := max(cursorAt-room+1, 0)
-	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: projectHints}
+	hints := projectHints
+	if m.verb != "" {
+		hints = objectHints
+	}
+	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: hints}
 }
 
 // drawRow is one row of a project: what it is on the left, in the ink
@@ -1735,4 +1778,112 @@ func listName(p project) string {
 		return strings.Repeat("  ", p.Depth) + p.Name
 	}
 	return p.Name
+}
+
+// objectKey is the key after a verb: the object the verb takes. r
+// again restarts the row; c lists the conversations at rest to pick
+// one back up; anything else puts the verb away.
+func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	verb := m.verb
+	m.verb = ""
+	switch verb + k.String() {
+	case "rr":
+		if m.cursor >= len(m.rows) {
+			return m, nil
+		}
+		if p, ok := m.rows[m.cursor].proc(); ok {
+			return m, m.restart(p)
+		}
+	case "rc":
+		m.listing, m.pick, m.pickAt = true, "", 0
+	case "resc", "rctrl+c":
+	default:
+		m.note = verb + " waits for " + verb + ", the row, or c, a conversation at rest"
+	}
+	return m, nil
+}
+
+// counted is a word for n of a thing: the word alone for one, the
+// figure before it and an s after it for more.
+func counted(n int, word string) string {
+	if n == 1 {
+		return "one " + word
+	}
+	return strconv.Itoa(n) + " " + word + "s"
+}
+
+// shownRest is the conversations at rest the typed words find: each
+// word in the title.
+func (m model) shownRest() []row {
+	words := strings.Fields(strings.ToLower(m.pick))
+	if len(words) == 0 {
+		return m.rest
+	}
+	var out []row
+	for _, r := range m.rest {
+		hay := strings.ToLower(or(r.conv.Title, r.conv.ID))
+		found := true
+		for _, w := range words {
+			found = found && strings.Contains(hay, w)
+		}
+		if found {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// listKey is a key while rc's list stands: what is typed finds, the
+// arrows move, enter picks a conversation back up in a window of its
+// own, and esc puts the list away.
+func (m model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	shown := m.shownRest()
+	switch k.String() {
+	case "esc", "ctrl+c":
+		m.listing = false
+	case "enter":
+		if m.pickAt < len(shown) {
+			m.listing = false
+			return m.goTo(shown[m.pickAt])
+		}
+	case "up", "ctrl+p", "ctrl+k":
+		m.pickAt = max(m.pickAt-1, 0)
+	case "down", "ctrl+n", "ctrl+j":
+		m.pickAt = min(m.pickAt+1, max(len(shown)-1, 0))
+	case "backspace":
+		if r := []rune(m.pick); len(r) > 0 {
+			m.pick, m.pickAt = string(r[:len(r)-1]), 0
+		}
+	case "ctrl+u":
+		m.pick, m.pickAt = "", 0
+	default:
+		if t := k.Key().Text; t != "" {
+			m.pick, m.pickAt = m.pick+t, 0
+		}
+	}
+	return m, nil
+}
+
+// drawList is the project's screen while rc's list stands: the find
+// line, then the conversations at rest the typed words find, newest
+// first, each with how long ago it was.
+func (m model) drawList(lines []string) ([]string, foot) {
+	shown := m.shownRest()
+	count := counted(len(shown), "conversation") + " at rest"
+	lines = append(lines, m.row([]piece{{"find", gray}, {"  " + m.pick, ink}, {caret, accent}}, piece{count, gray}, false), "")
+	room := max(m.height-len(lines)-1, 1)
+	first := max(m.pickAt-room+1, 0)
+	for i := first; i < len(shown) && i < first+room; i++ {
+		r := shown[i]
+		var left []piece
+		if r.repo != "" {
+			left = append(left, piece{r.repo + " · ", gray})
+		}
+		left = append(left, piece{or(r.conv.Title, r.conv.ID), ink})
+		lines = append(lines, m.row(left, piece{ago(r.conv.When), gray}, i == m.pickAt))
+	}
+	if len(shown) == 0 {
+		lines = append(lines, at(faint.Render("nothing here")))
+	}
+	return lines, foot{hints: listHints}
 }

@@ -611,7 +611,7 @@ func runX(w io.Writer, home, dir string, args []string) int {
 	if code >= 0 {
 		return code
 	}
-	how, err := h.end(p)
+	how, err := endProc(h.srv, p)
 	if err != nil {
 		return cliFail("x", err)
 	}
@@ -626,7 +626,7 @@ const closeWait = 5 * time.Second
 // as a hand would, and its pane closed once it has ended. What runs in
 // a shell conn holds is sent ctrl-c and the shell left. A conversation
 // is not conn's to end. A listener outside conn is sent SIGTERM.
-func (h here) end(p proc) (string, error) {
+func endProc(srv *tmux.Server, p proc) (string, error) {
 	switch {
 	case p.pane == nil:
 		if err := syscall.Kill(p.PID, syscall.SIGTERM); err != nil {
@@ -636,22 +636,22 @@ func (h here) end(p proc) (string, error) {
 	case p.pane.Session != "" || p.State == "working" || p.State == "waiting" || p.State == "idle":
 		return "", fmt.Errorf("%s is a conversation; it is ended from inside it", p.Name)
 	case p.pane.Name != "" && p.pane.Exit != "":
-		return "kill-pane " + p.pane.ID, h.srv.ClosePane(p.pane.ID)
+		return "kill-pane " + p.pane.ID, srv.ClosePane(p.pane.ID)
 	case p.pane.Name == "":
-		return "send-keys C-c", h.srv.Interrupt(p.pane.ID)
+		return "send-keys C-c", srv.Interrupt(p.pane.ID)
 	}
-	if err := h.srv.Interrupt(p.pane.ID); err != nil {
+	if err := srv.Interrupt(p.pane.ID); err != nil {
 		return "", err
 	}
 	for deadline := time.Now().Add(closeWait); time.Now().Before(deadline); time.Sleep(runPoll) {
-		switch exit, gone := paneExit(h.srv, p.pane.ID); {
+		switch exit, gone := paneExit(srv, p.pane.ID); {
 		case gone:
 			return "send-keys C-c", nil
 		case exit != "":
-			return "send-keys C-c", h.srv.ClosePane(p.pane.ID)
+			return "send-keys C-c", srv.ClosePane(p.pane.ID)
 		}
 	}
-	return "kill-pane " + p.pane.ID + ", " + closeWait.String() + " after ctrl-c did not end it", h.srv.ClosePane(p.pane.ID)
+	return "kill-pane " + p.pane.ID + ", " + closeWait.String() + " after ctrl-c did not end it", srv.ClosePane(p.pane.ID)
 }
 
 // runR ends what conn u started and starts it again, as it was
@@ -661,21 +661,28 @@ func runR(w io.Writer, home, dir string, args []string) int {
 	if code >= 0 {
 		return code
 	}
-	if p.pane == nil || p.pane.Name == "" {
-		return cliFail("r", fmt.Errorf("conn did not start %s, so it cannot start it again; conn x ends it, and conn u NAME -- COMMAND starts it in conn", p.Name))
-	}
-	command, _ := h.srv.Display(p.pane.ID, "#{"+runMark+"}")
-	at, _ := h.srv.Display(p.pane.ID, "#{"+dirMark+"}")
-	if command == "" {
-		return cliFail("r", fmt.Errorf("%s does not say what it was started with", p.Name))
-	}
-	if _, err := h.end(p); err != nil {
-		return cliFail("r", err)
-	}
-	id, err := startNamed(h.srv, p.pane.Name, command, or(at, p.Dir))
+	id, err := restartProc(h.srv, p)
 	if err != nil {
 		return cliFail("r", err)
 	}
 	_, _ = fmt.Fprintf(w, "%s restarted in pane %s\n", p.Name, id)
 	return 0
+}
+
+// restartProc ends what conn u started and starts it again, as it was
+// started, and answers its new pane. What conn did not start, it cannot
+// start again.
+func restartProc(srv *tmux.Server, p proc) (string, error) {
+	if p.pane == nil || p.pane.Name == "" {
+		return "", fmt.Errorf("conn did not start %s, so it cannot start it again; x ends it, and u starts a command in conn", p.Name)
+	}
+	command, _ := srv.Display(p.pane.ID, "#{"+runMark+"}")
+	at, _ := srv.Display(p.pane.ID, "#{"+dirMark+"}")
+	if command == "" {
+		return "", fmt.Errorf("%s does not say what it was started with", p.Name)
+	}
+	if _, err := endProc(srv, p); err != nil {
+		return "", err
+	}
+	return startNamed(srv, p.pane.Name, command, or(at, p.Dir))
 }

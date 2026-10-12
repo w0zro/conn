@@ -38,7 +38,10 @@ type model struct {
 	width, height int
 	screen        screen
 	cursor        int
-	note          string // what the last enter could not do
+	note          string // what the last key could not do, or did
+	// u's line: the command being typed, while it is.
+	asking bool
+	line   string
 
 	// The projects screen.
 	typed    string
@@ -147,6 +150,9 @@ type projectRead struct {
 	rows []row
 }
 type tick struct{}
+
+// acted is what a key that runs off the loop did, or could not do.
+type acted string
 
 func (m model) Init() tea.Cmd { return tea.Batch(m.readProjects(), beat()) }
 
@@ -286,8 +292,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.readProject(m.cur), m.readProjects(), beat())
 		}
 		return m, tea.Batch(m.readProjects(), beat())
+	case acted:
+		m.note = string(msg)
+		if m.screen == onProject {
+			return m, m.readProject(m.cur)
+		}
 	case tea.KeyPressMsg:
 		m.note = ""
+		if m.asking {
+			return m.lineKey(msg)
+		}
 		if m.screen == onProjects {
 			return m.projectsKey(msg)
 		}
@@ -350,8 +364,124 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.readProject(m.cur)
 	case "q", "ctrl+c":
 		m.note = m.leave()
+	case "x", "r":
+		if m.cursor >= len(m.rows) {
+			return m, nil
+		}
+		p, ok := m.rows[m.cursor].proc()
+		if !ok {
+			m.note = "That conversation is not running."
+			return m, nil
+		}
+		if k.String() == "x" {
+			return m, m.end(p)
+		}
+		return m, m.restart(p)
+	case "u":
+		m.asking, m.line = true, ""
 	}
 	return m, nil
+}
+
+// lineKey is a key while u's line is being typed.
+func (m model) lineKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k.String() {
+	case "esc", "ctrl+c":
+		m.asking, m.line = false, ""
+	case "enter":
+		m.asking = false
+		if strings.TrimSpace(m.line) == "" {
+			return m, nil
+		}
+		return m, m.up(strings.TrimSpace(m.line))
+	case "backspace":
+		if r := []rune(m.line); len(r) > 0 {
+			m.line = string(r[:len(r)-1])
+		}
+	case "ctrl+u":
+		m.line = ""
+	default:
+		m.line += k.Key().Text
+	}
+	return m, nil
+}
+
+// proc is a row as the verbs take it: a pane, and what it is doing.
+func (r row) proc() (proc, bool) {
+	if r.pane == nil {
+		return proc{}, false
+	}
+	return proc{pane: r.pane, Name: paneName(*r.pane), PID: r.pane.PID, State: or(r.state, "running"), Dir: r.pane.Dir}, true
+}
+
+// end ends a row's process off the loop: ctrl-c can take seconds.
+func (m model) end(p proc) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		how, err := endProc(srv, p)
+		if err != nil {
+			return acted(err.Error())
+		}
+		return acted(p.Name + " ended: " + how)
+	}
+}
+
+// restart starts again what conn u started, off the loop.
+func (m model) restart(p proc) tea.Cmd {
+	srv := m.srv
+	return func() tea.Msg {
+		if _, err := restartProc(srv, p); err != nil {
+			return acted(err.Error())
+		}
+		return acted(p.Name + " restarted")
+	}
+}
+
+// up starts a command at the project's root, out of sight, under the
+// name of its program, as conn u does. One by that name that has
+// ended is replaced; one still running is said.
+func (m model) up(command string) tea.Cmd {
+	srv, root, rows := m.srv, m.cur.Root, m.rows
+	name := nameFor(command)
+	return func() tea.Msg {
+		replace := ""
+		for _, r := range rows {
+			if r.pane == nil || r.pane.Name != name {
+				continue
+			}
+			if r.pane.Exit == "" {
+				return acted(name + " is running; r restarts it")
+			}
+			replace = r.pane.ID
+		}
+		if _, err := startNamed(srv, name, command, root); err != nil {
+			return acted(err.Error())
+		}
+		if replace != "" {
+			_, _ = srv.Do(tmux.Kill(replace))
+		}
+		return acted(name + " is up; enter goes to it")
+	}
+}
+
+// nameFor is the name a command typed at u runs under: its program's,
+// past any VAR=value before it.
+func nameFor(command string) string {
+	for _, w := range strings.Fields(command) {
+		if strings.Contains(w, "=") {
+			continue
+		}
+		name := strings.Map(func(r rune) rune {
+			if r == '.' || r == '_' || r == '-' || ('0' <= r && r <= '9') || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z') {
+				return r
+			}
+			return '-'
+		}, filepath.Base(w))
+		if name != "" && !isPID(name) {
+			return name
+		}
+	}
+	return "run"
 }
 
 // start runs a command in the project, or a shell where there is none,
@@ -465,11 +595,18 @@ func (m model) View() tea.View {
 	if m.note != "" {
 		foot = m.note
 	}
+	if m.asking {
+		foot = "run in " + m.cur.Name + ": " + m.line + "▏"
+	}
 	h := max(m.height, len(lines)+2)
 	for len(lines) < h-1 {
 		lines = append(lines, "")
 	}
-	lines = append(lines[:h-1], faint.Render(fit(" "+foot, m.width)))
+	foot = fit(" "+foot, m.width)
+	if !m.asking {
+		foot = faint.Render(foot)
+	}
+	lines = append(lines[:h-1], foot)
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
 	return v
@@ -569,7 +706,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · n new conversation · s shell · esc projects · q leaves conn running"
+	return lines, "enter goes to it · x stops · r restarts · u runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where

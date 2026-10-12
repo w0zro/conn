@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
 	"os/exec"
@@ -109,12 +110,12 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 		}
 	}
 	if !srv.HasSession(sessionName) {
-		// Made at this terminal's size: made at tmux's own 80 by 24, the
-		// panel can start before the client's size reaches it and miss
-		// the change.
+		// Made at the size it will have, this terminal less the status
+		// line: made at any other, the panel can start before the
+		// client's size reaches it and miss the change.
 		args := []string{"-f", path, "new-session", "-d", "-s", sessionName, "-n", connWindow, "-c", home}
-		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil {
-			args = append(args, "-x", strconv.Itoa(w), "-y", strconv.Itoa(h))
+		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && h > 1 {
+			args = append(args, "-x", strconv.Itoa(w), "-y", strconv.Itoa(h-1))
 		}
 		if _, err := srv.Run(append(args, panel)...); err != nil {
 			return 0, err
@@ -232,10 +233,15 @@ func parsePanes(out string) []pane {
 	return ps
 }
 
-// openWindow starts a command in a window of its own at a directory,
+// openWindow starts a command, or a shell where there is none, in a
+// window of its own at a directory,
 // marks it with what it holds, and puts the client on it.
 func openWindow(srv *tmux.Server, name, dir, cmd, session string) error {
-	id, err := srv.Run("new-window", "-t", sessionName+":", "-n", name, "-c", dir, "-P", "-F", "#{pane_id}", cmd)
+	args := []string{"new-window", "-t", sessionName + ":", "-n", name, "-c", dir, "-P", "-F", "#{pane_id}"}
+	if cmd != "" {
+		args = append(args, cmd) // with none, tmux runs the shell
+	}
+	id, err := srv.Run(args...)
 	if err != nil {
 		return err
 	}
@@ -258,6 +264,24 @@ func goTo(srv *tmux.Server, p pane) error {
 func resumeCommand(id string) string {
 	return "exec claude --resume " + shell.Quote(id)
 }
+
+// newCommand starts a conversation in Claude Code under an id conn
+// chose, so its pane is marked with it before its transcript exists.
+func newCommand(id string) string {
+	return "exec claude --session-id " + shell.Quote(id)
+}
+
+// newID is a random UUID, the shape Claude Code takes for a session id.
+func newID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// leave lets this terminal go and keeps everything in conn running.
+func leave(srv *tmux.Server) error { return srv.Detach() }
 
 // windowName is a short name for a window, from a project's name.
 func windowName(name string) string {

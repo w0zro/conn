@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	term "github.com/charmbracelet/x/term"
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -237,6 +238,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = min(m.cursor, max(len(m.rows)-1, 0))
 		}
 	case tick:
+		// A resize can land before the program listens for one, and is
+		// then never told; the terminal is asked on the beat as well.
+		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && (w != m.width || h != m.height) {
+			m.width, m.height = w, h
+		}
 		if m.screen == onProject {
 			return m, tea.Batch(m.readProject(m.cur), beat())
 		}
@@ -266,6 +272,8 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cursor = max(m.cursor-1, 0)
 	case "down", "ctrl+n", "ctrl+j":
 		m.cursor = min(m.cursor+1, max(len(shown)-1, 0))
+	case "ctrl+c":
+		m.note = m.leave()
 	case "esc", "ctrl+u":
 		m.typed, m.cursor = "", 0
 	case "backspace":
@@ -294,8 +302,35 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.note = m.goTo(m.rows[m.cursor])
 			return m, m.readProject(m.cur)
 		}
+	case "n":
+		id := newID()
+		m.note = m.start(newCommand(id), id)
+		return m, m.readProject(m.cur)
+	case "s":
+		m.note = m.start("", "")
+		return m, m.readProject(m.cur)
+	case "q", "ctrl+c":
+		m.note = m.leave()
 	}
 	return m, nil
+}
+
+// start runs a command in the project, or a shell where there is none,
+// in a window of its own, marked with the conversation it is where it
+// is one. It answers what it could not do.
+func (m model) start(cmd, session string) string {
+	if err := openWindow(m.srv, windowName(m.cur.Name), m.cur.Root, cmd, session); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+// leave lets the terminal go; what runs in conn keeps on.
+func (m model) leave() string {
+	if err := leave(m.srv); err != nil {
+		return err.Error()
+	}
+	return ""
 }
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
@@ -431,7 +466,7 @@ func (m model) drawProjects() ([]string, string) {
 	case len(shown) == 0:
 		lines = append(lines, faint.Render(" no projects yet; type a path to one"))
 	}
-	return lines, "type to find, or a path · enter opens · ctrl-b d leaves conn running"
+	return lines, "type to find, or a path · enter opens · ctrl-c leaves conn running"
 }
 
 func (m model) drawProject() ([]string, string) {
@@ -442,7 +477,7 @@ func (m model) drawProject() ([]string, string) {
 	if m.rows == nil {
 		lines = append(lines, faint.Render(" reading…"))
 	} else if len(m.rows) == 0 {
-		lines = append(lines, faint.Render(" nothing running, and no conversations here yet"))
+		lines = append(lines, faint.Render(" nothing running, and no conversations here yet; n starts one"))
 	}
 	room := max(m.height-len(lines)-1, 1)
 	first := max(m.cursor-room+1, 0)
@@ -465,6 +500,10 @@ func (m model) drawProject() ([]string, string) {
 			}
 		case r.pane != nil:
 			left = r.pane.Command
+			if r.pane.Session != "" {
+				// Started by n, with nothing said yet: no transcript.
+				left = "new conversation"
+			}
 			if r.pane.Dir != m.cur.Root {
 				left += "  " + tilde(r.pane.Dir, m.home)
 			}
@@ -479,7 +518,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · esc projects · ctrl-space comes back here"
+	return lines, "enter goes to it · n new conversation · s shell · esc projects · q leaves conn running"
 }
 
 // spread puts left and right on one line of width, left cut short where

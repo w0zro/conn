@@ -279,3 +279,13 @@ func TestEnsurePanel(t *testing.T) {
 		t.Errorf("findPanel = %+v, %v", found, err)
 	}
 }
+
+func TestNewID(t *testing.T) {
+	id := newID()
+	if len(id) != 36 || id[14] != '4' || !strings.ContainsRune("89ab", rune(id[19])) || !isSessionID(id) {
+		t.Errorf("newID = %q", id)
+	}
+	if newID() == id {
+		t.Error("two ids alike")
+	}
+}

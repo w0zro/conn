@@ -26,6 +26,8 @@ const (
 	backKey     = "C-Space"
 	// The mark on a pane conn started a conversation in: its id.
 	sessionMark = "@conn_session"
+	// The number of conversations waiting on you, for the status line.
+	waitingMark = "@conn_waiting"
 )
 
 // socketPath is where conn's server listens: CONN_SOCKET, or tmux.sock
@@ -82,8 +84,8 @@ set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 set-environment -g CONN 1
 set -g status-left "#[bold] conn #[nobold] "
 set -g status-left-length 20
-set -g status-right " ctrl-space: back to conn "
-set -g status-right-length 40
+set -g status-right "#{?#{` + waitingMark + `},#[fg=colour` + waitingColor + `#,bold]#{` + waitingMark + `} waiting#[default] · , }ctrl-space: back to conn "
+set -g status-right-length 60
 `
 }
 

@@ -18,6 +18,9 @@ type project struct {
 	Name string
 	Root string
 	Last time.Time // when work last happened in it
+	// What runs in it in conn, and its conversations waiting on you,
+	// wherever they run.
+	Running, Waiting int
 }
 
 // rootOf is the project a directory belongs to: the repository it is in,

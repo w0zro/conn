@@ -201,12 +201,46 @@ func tailLines(path string, n int64) [][]byte {
 
 func flatten(s string) string { return strings.Join(strings.Fields(s), " ") }
 
+// A claudeRun is a Claude Code instance running now: the terminal it
+// runs on, where it was started, and what it says it is doing.
+type claudeRun struct {
+	TTY    string
+	Cwd    string
+	Status string
+}
+
+// What a running instance says it is doing, in the four words Claude
+// Code writes. Busy is mid-turn; shell is a command of its own running,
+// which is work too; waiting is stopped on something put to its user;
+// idle is a turn that is over, asking nothing. A word outside the four
+// is a newer Claude Code, and conn says nothing of it.
+const (
+	statusBusy    = "busy"
+	statusShell   = "shell"
+	statusWaiting = "waiting"
+	statusIdle    = "idle"
+)
+
+// state is a run's status in the words conn shows: working, waiting,
+// idle, or blank where it says nothing conn knows.
+func (r claudeRun) state() string {
+	switch r.Status {
+	case statusBusy, statusShell:
+		return "working"
+	case statusWaiting:
+		return "waiting"
+	case statusIdle:
+		return "idle"
+	}
+	return ""
+}
+
 // liveClaude is the conversations Claude Code instances are carrying
-// right now, by id, and the terminal each runs on. Each instance writes
-// <config>/sessions/<pid>.json; the file outlives its process, and a
-// pid comes round again, so a file counts only while its pid is alive
-// and began when the file says it did.
-func liveClaude() map[string]string {
+// right now, by id. Each instance writes <config>/sessions/<pid>.json;
+// the file outlives its process, and a pid comes round again, so a file
+// counts only while its pid is alive and began when the file says it
+// did.
+func liveClaude() map[string]claudeRun {
 	dir := filepath.Join(claudeDir(), "sessions")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -215,6 +249,8 @@ func liveClaude() map[string]string {
 	type instance struct {
 		SessionID string `json:"sessionId"`
 		ProcStart string `json:"procStart"`
+		Status    string `json:"status"`
+		Cwd       string `json:"cwd"`
 	}
 	claimed := map[int]instance{}
 	for _, e := range entries {
@@ -242,13 +278,13 @@ func liveClaude() map[string]string {
 		pids = append(pids, strconv.Itoa(pid))
 	}
 	out, _ := exec.Command("ps", "-o", "pid=,tty=,lstart=", "-p", strings.Join(pids, ",")).Output()
-	live := map[string]string{}
+	live := map[string]claudeRun{}
 	for pid, ps := range parsePS(string(out)) {
 		in, ok := claimed[pid]
 		if !ok || !beganAt(in.ProcStart, ps.started) {
 			continue
 		}
-		live[in.SessionID] = ps.tty
+		live[in.SessionID] = claudeRun{TTY: ps.tty, Cwd: in.Cwd, Status: in.Status}
 	}
 	return live
 }

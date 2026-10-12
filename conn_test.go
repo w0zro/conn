@@ -159,7 +159,10 @@ func TestArrange(t *testing.T) {
 		{ID: "%3", Command: "npm", Dir: "/p/web"},
 		{ID: "%4", Command: "zsh", Dir: "/other"},
 	}
-	live := map[string]string{"away": "ttys1", "byhand": "ttys9"}
+	live := map[string]claudeRun{
+		"away":   {TTY: "ttys1", Status: "busy"},
+		"byhand": {TTY: "ttys9", Status: "waiting"},
+	}
 	rows := arrange(convs, ps, live, "/p", func(c conversation) string { return "t-" + c.ID })
 	var got []string
 	for _, r := range rows {
@@ -175,12 +178,13 @@ func TestArrange(t *testing.T) {
 		}
 		got = append(got, s)
 	}
-	want := []string{"marked@%1", "byhand@%2", "@%3", "away!", "rest"}
+	// byhand is waiting, so it leads what runs in conn.
+	want := []string{"byhand@%2", "marked@%1", "@%3", "away!", "rest"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("arrange = %v, want %v", got, want)
 	}
-	if rows[0].conv.Title != "t-marked" {
-		t.Errorf("title = %q", rows[0].conv.Title)
+	if rows[0].conv.Title != "t-byhand" || rows[0].state != "waiting" || rows[3].state != "working" {
+		t.Errorf("rows = %+v", rows)
 	}
 }
 
@@ -287,5 +291,22 @@ func TestNewID(t *testing.T) {
 	}
 	if newID() == id {
 		t.Error("two ids alike")
+	}
+}
+
+func TestState(t *testing.T) {
+	for status, want := range map[string]string{"busy": "working", "shell": "working", "waiting": "waiting", "idle": "idle", "pondering": ""} {
+		if got := (claudeRun{Status: status}).state(); got != want {
+			t.Errorf("state of %q = %q, want %q", status, got, want)
+		}
+	}
+}
+
+func TestStanding(t *testing.T) {
+	if got := (project{Running: 2, Waiting: 1}).standing(); got != "1 waiting · 2 running" {
+		t.Errorf("standing = %q", got)
+	}
+	if got := (project{Last: time.Now().Add(-3 * time.Hour)}).standing(); got != "3h" {
+		t.Errorf("standing at rest = %q", got)
 	}
 }

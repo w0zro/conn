@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,7 +54,8 @@ type model struct {
 type row struct {
 	conv      *conversation
 	pane      *pane
-	elsewhere bool // running in a terminal conn does not hold
+	elsewhere bool   // running in a terminal conn does not hold
+	state     string // working, waiting or idle, where Claude Code says
 }
 
 // known is what has been read off files that do not change under it:
@@ -145,17 +148,39 @@ func (m model) Init() tea.Cmd { return tea.Batch(m.readProjects(), beat()) }
 func beat() tea.Cmd { return tea.Tick(2*time.Second, func(time.Time) tea.Msg { return tick{} }) }
 
 // readProjects reads where work has happened: the directories Claude
-// Code has worked in, and where the panes conn holds are, now.
+// Code has worked in, and where the panes conn holds are, now. Each
+// project is told what runs in it and how many conversations in it are
+// waiting on you, wherever they run, and the status line is told the
+// number waiting in all.
 func (m model) readProjects() tea.Cmd {
-	srv, home, k := m.srv, m.home, m.known
+	srv, home, own, k := m.srv, m.home, m.own, m.known
 	return func() tea.Msg {
 		seen := claudeSightings(transcripts(), k.cwdOf)
-		if ps, err := panes(srv); err == nil {
-			for _, p := range ps {
-				seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
+		ps, _ := panes(srv)
+		live := liveClaude()
+		running, waiting := map[string]int{}, map[string]int{}
+		for _, p := range ps {
+			if p.ID == own || p.Dead {
+				continue
+			}
+			seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
+			running[k.rootOf(p.Dir)]++
+		}
+		total := 0
+		for _, r := range live {
+			if r.state() == "waiting" {
+				total++
+				waiting[k.rootOf(r.Cwd)]++
 			}
 		}
-		return projectsRead(findProjects(seen, home, k.rootOf))
+		sayWaiting(srv, total)
+		found := findProjects(seen, home, k.rootOf)
+		for i := range found {
+			found[i].Running, found[i].Waiting = running[found[i].Root], waiting[found[i].Root]
+		}
+		// What waits on you comes first; the rest stay newest first.
+		sort.SliceStable(found, func(i, j int) bool { return found[i].Waiting > 0 && found[j].Waiting == 0 })
+		return projectsRead(found)
 	}
 }
 
@@ -189,17 +214,17 @@ func (m model) readProject(p project) tea.Cmd {
 }
 
 // arrange lays out a project's rows: what is running in conn first,
-// then what is running elsewhere, then the conversations at rest, newest
-// first, up to conversationsShown.
-func arrange(convs []conversation, ps []pane, live map[string]string, root string, title func(conversation) string) []row {
+// waiting before the rest, then what is running elsewhere, then the
+// conversations at rest, newest first, up to conversationsShown.
+func arrange(convs []conversation, ps []pane, live map[string]claudeRun, root string, title func(conversation) string) []row {
 	var running, elsewhere, rest []row
 	used := map[string]bool{}
 	for i := range convs {
 		c := convs[i]
 		var at *pane
-		tty, isLive := live[c.ID]
+		run, isLive := live[c.ID]
 		for j := range ps {
-			if ps[j].Session == c.ID || (isLive && tty != "" && ps[j].TTY == tty) {
+			if ps[j].Session == c.ID || (isLive && run.TTY != "" && ps[j].TTY == run.TTY) {
 				at = &ps[j]
 				break
 			}
@@ -208,10 +233,10 @@ func arrange(convs []conversation, ps []pane, live map[string]string, root strin
 		case at != nil:
 			used[at.ID] = true
 			c.Title = title(c)
-			running = append(running, row{conv: &c, pane: at})
+			running = append(running, row{conv: &c, pane: at, state: run.state()})
 		case isLive:
 			c.Title = title(c)
-			elsewhere = append(elsewhere, row{conv: &c, elsewhere: true})
+			elsewhere = append(elsewhere, row{conv: &c, elsewhere: true, state: run.state()})
 		case len(rest) < conversationsShown:
 			c.Title = title(c)
 			rest = append(rest, row{conv: &c})
@@ -219,9 +244,14 @@ func arrange(convs []conversation, ps []pane, live map[string]string, root strin
 	}
 	for j := range ps {
 		if !used[ps[j].ID] && within(ps[j].Dir, root) {
-			running = append(running, row{pane: &ps[j]})
+			running = append(running, row{pane: &ps[j], state: live[ps[j].Session].state()})
 		}
 	}
+	waitingFirst := func(rs []row) {
+		sort.SliceStable(rs, func(i, j int) bool { return rs[i].state == "waiting" && rs[j].state != "waiting" })
+	}
+	waitingFirst(running)
+	waitingFirst(elsewhere)
 	return append(append(running, elsewhere...), rest...)
 }
 
@@ -244,9 +274,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width, m.height = w, h
 		}
 		if m.screen == onProject {
-			return m, tea.Batch(m.readProject(m.cur), beat())
+			return m, tea.Batch(m.readProject(m.cur), m.readProjects(), beat())
 		}
-		return m, beat()
+		return m, tea.Batch(m.readProjects(), beat())
 	case tea.KeyPressMsg:
 		m.note = ""
 		if m.screen == onProjects {
@@ -407,7 +437,13 @@ var (
 	faint   = lipgloss.NewStyle().Faint(true)
 	chosen  = lipgloss.NewStyle().Reverse(true)
 	running = lipgloss.NewStyle().Bold(true)
+	// The one color conn uses: something is waiting on you.
+	waiting = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(waitingColor))
 )
+
+// waitingColor is waiting's color, in the 256 palette, here and on the
+// status line.
+const waitingColor = "208"
 
 func (m model) View() tea.View {
 	var lines []string
@@ -446,11 +482,15 @@ func (m model) drawProjects() ([]string, string) {
 	nameW = min(nameW, 24)
 	for i := first; i < len(shown) && i < first+room; i++ {
 		p := shown[i]
-		age := ago(p.Last)
 		left := " " + pad(p.Name, nameW) + "  " + tilde(p.Root, m.home)
-		line := spread(left, age+" ", m.width)
-		if i == m.cursor {
+		line := spread(left, p.standing()+" ", m.width)
+		switch {
+		case i == m.cursor:
 			line = chosen.Render(line)
+		case p.Waiting > 0:
+			line = waiting.Render(line)
+		case p.Running > 0:
+			line = running.Render(line)
 		}
 		lines = append(lines, line)
 	}
@@ -492,9 +532,9 @@ func (m model) drawProject() ([]string, string) {
 			}
 			switch {
 			case r.pane != nil:
-				right = "running"
+				right = or(r.state, "running")
 			case r.elsewhere:
-				right = "in another terminal"
+				right = or(r.state, "running") + " in another terminal"
 			default:
 				right = ago(r.conv.When)
 			}
@@ -507,12 +547,14 @@ func (m model) drawProject() ([]string, string) {
 			if r.pane.Dir != m.cur.Root {
 				left += "  " + tilde(r.pane.Dir, m.home)
 			}
-			right = "running"
+			right = or(r.state, "running")
 		}
 		line := spread(" "+left, right+" ", m.width)
 		switch {
 		case i == m.cursor:
 			line = chosen.Render(line)
+		case r.state == "waiting":
+			line = waiting.Render(line)
 		case r.pane != nil:
 			line = running.Render(line)
 		}
@@ -564,4 +606,46 @@ func ago(t time.Time) string {
 		return fmt.Sprintf("%dd", int(d/(24*time.Hour)))
 	}
 	return t.Format("Jan 2006")
+}
+
+// or is s, or else where s is blank.
+func or(s, otherwise string) string {
+	if s == "" {
+		return otherwise
+	}
+	return s
+}
+
+// standing is what a project's row says at its right: what waits and
+// what runs in it, or when work last happened in it.
+func (p project) standing() string {
+	var said []string
+	if p.Waiting > 0 {
+		said = append(said, fmt.Sprintf("%d waiting", p.Waiting))
+	}
+	if p.Running > 0 {
+		said = append(said, fmt.Sprintf("%d running", p.Running))
+	}
+	if len(said) == 0 {
+		return ago(p.Last)
+	}
+	return strings.Join(said, " · ")
+}
+
+// sayWaiting puts the number of conversations waiting on you on the
+// status line, which shows it from every window, and takes it off at
+// none.
+func sayWaiting(srv *tmux.Server, n int) {
+	want := ""
+	if n > 0 {
+		want = strconv.Itoa(n)
+	}
+	if was, _ := srv.Global(waitingMark); was == want {
+		return
+	}
+	set := tmux.UnsetGlobal(waitingMark)
+	if want != "" {
+		set = tmux.SetGlobal(waitingMark, want)
+	}
+	_, _ = srv.Do(set, tmux.RefreshStatus())
 }

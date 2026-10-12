@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -59,8 +61,10 @@ type model struct {
 type row struct {
 	conv      *conversation
 	pane      *pane
-	elsewhere bool   // running in a terminal conn does not hold
-	state     string // working, waiting or idle, where Claude Code says
+	outside   *proc    // a server in the project that conn does not hold
+	elsewhere bool     // running in a terminal conn does not hold
+	state     string   // working, waiting or idle, where Claude Code says
+	ports     []string // what it listens on
 }
 
 // known is what has been read off files that do not change under it:
@@ -219,6 +223,19 @@ func (m model) read() tea.Cmd {
 		r := read{projects: found}
 
 		if cur != nil {
+			// What listens, and where: a port under one of conn's panes is
+			// that pane's, and a server outside conn whose directory is in
+			// the project is a row of its own.
+			ports := map[string][]string{}
+			var outside []proc
+			for _, p := range machine(ps, live, listening(), parents()) {
+				switch {
+				case p.pane != nil:
+					ports[p.pane.ID] = p.Ports
+				case p.Dir != "" && k.rootOf(p.Dir) == cur.Root:
+					outside = append(outside, p)
+				}
+			}
 			var convs []conversation
 			for _, c := range all {
 				dir := k.cwdOf(c)
@@ -228,7 +245,7 @@ func (m model) read() tea.Cmd {
 				c.Dir = dir
 				convs = append(convs, c)
 			}
-			r.root, r.rows = cur.Root, arrange(convs, held, live, cur.Root, k.titleOf)
+			r.root, r.rows = cur.Root, arrange(convs, held, live, ports, outside, cur.Root, k.titleOf)
 		}
 		return r
 	}
@@ -237,7 +254,7 @@ func (m model) read() tea.Cmd {
 // arrange lays out a project's rows: what is running in conn first,
 // waiting before the rest, then what is running elsewhere, then the
 // conversations at rest, newest first, up to conversationsShown.
-func arrange(convs []conversation, ps []pane, live map[string]claudeRun, root string, title func(conversation) string) []row {
+func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports map[string][]string, outside []proc, root string, title func(conversation) string) []row {
 	var running, elsewhere, rest []row
 	used := map[string]bool{}
 	for i := range convs {
@@ -274,6 +291,14 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, root st
 	}
 	waitingFirst := func(rs []row) {
 		sort.SliceStable(rs, func(i, j int) bool { return rs[i].state == "waiting" && rs[j].state != "waiting" })
+	}
+	for i := range running {
+		if running[i].pane != nil {
+			running[i].ports = ports[running[i].pane.ID]
+		}
+	}
+	for i := range outside {
+		running = append(running, row{outside: &outside[i], state: "outside conn", ports: outside[i].Ports})
 	}
 	waitingFirst(running)
 	waitingFirst(elsewhere)
@@ -401,6 +426,10 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.restart(p)
 	case "u":
 		m.asking, m.line = true, ""
+	case "o":
+		if m.cursor < len(m.rows) {
+			return m, openPort(m.rows[m.cursor])
+		}
 	}
 	return m, nil
 }
@@ -428,8 +457,30 @@ func (m model) lineKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// openPort opens the port a row listens on in the browser, the lowest
+// where it listens on several.
+func openPort(r row) tea.Cmd {
+	return func() tea.Msg {
+		if len(r.ports) == 0 {
+			return acted("It listens on no port.")
+		}
+		url := "http://localhost:" + r.ports[0]
+		opener := "open"
+		if runtime.GOOS != "darwin" {
+			opener = "xdg-open"
+		}
+		if err := exec.Command(opener, url).Run(); err != nil {
+			return acted(err.Error())
+		}
+		return acted("opened " + url)
+	}
+}
+
 // proc is a row as the verbs take it: a pane, and what it is doing.
 func (r row) proc() (proc, bool) {
+	if r.outside != nil {
+		return *r.outside, true
+	}
 	if r.pane == nil {
 		return proc{}, false
 	}
@@ -723,6 +774,15 @@ func (m model) drawProject() ([]string, string) {
 				left += "  " + tilde(r.pane.Dir, m.home)
 			}
 			right = or(r.state, "running")
+		case r.outside != nil:
+			left = r.outside.Name
+			if r.outside.Dir != m.cur.Root {
+				left += "  " + tilde(r.outside.Dir, m.home)
+			}
+			right = r.state
+		}
+		if len(r.ports) > 0 {
+			right = ":" + strings.Join(r.ports, " :") + "  " + right
 		}
 		line := spread(" "+left, right+" ", m.width)
 		switch {
@@ -730,12 +790,12 @@ func (m model) drawProject() ([]string, string) {
 			line = chosen.Render(line)
 		case r.state == "waiting":
 			line = waiting.Render(line)
-		case r.pane != nil:
+		case r.pane != nil || r.outside != nil:
 			line = running.Render(line)
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · x stops · r restarts · u runs a command · n new conversation · s shell · esc projects · q leaves"
+	return lines, "enter goes to it · o opens its port · x stops · r restarts · u runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where
@@ -836,6 +896,9 @@ func (r row) key() string {
 	}
 	if r.pane != nil {
 		return r.pane.ID
+	}
+	if r.outside != nil {
+		return "pid " + strconv.Itoa(r.outside.PID)
 	}
 	return ""
 }

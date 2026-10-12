@@ -97,6 +97,10 @@ func watchFiles(ctx context.Context, nudge func()) {
 	}
 }
 
+// listenAfter is when the machine is read again after tmux tells of a
+// change, for the ports a server opens once it has started.
+var listenAfter = []time.Duration{time.Second, 3 * time.Second, 10 * time.Second}
+
 // paneWatch is the format tmux is asked to say the changes of, for
 // every pane: what runs in it, where, whether it has ended, and the
 // marks conn's verbs set.
@@ -131,6 +135,12 @@ func watchTmux(ctx context.Context, nudge func(), srv *tmux.Server) {
 	for sc.Scan() {
 		if tells(sc.Text()) {
 			nudge()
+			// A server listens a while after it starts, and nothing
+			// says when: what a pane runs having changed, the machine is
+			// read again after it has had time to.
+			for _, d := range listenAfter {
+				time.AfterFunc(d, nudge)
+			}
 		}
 	}
 }

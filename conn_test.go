@@ -168,7 +168,7 @@ func TestArrange(t *testing.T) {
 		"away":   {TTY: "ttys1", Status: "busy"},
 		"byhand": {TTY: "ttys9", Status: "waiting"},
 	}
-	rows := arrange(convs, ps, live, "/p", func(c conversation) string { return "t-" + c.ID })
+	rows := arrange(convs, ps, live, nil, nil, "/p", func(c conversation) string { return "t-" + c.ID })
 	var got []string
 	for _, r := range rows {
 		s := ""
@@ -621,4 +621,18 @@ func TestWatchFiles(t *testing.T) {
 	wait("a transcript folder")
 	write(t, filepath.Join(dir, "a.jsonl"), "{}\n")
 	wait("a transcript in the new folder")
+}
+
+// A pane's ports are on its row; a server outside conn in the project
+// is a row of its own, which x can end and o can open.
+func TestArrangePorts(t *testing.T) {
+	ps := []pane{{ID: "%1", Name: "web", Dir: "/p"}}
+	outside := []proc{{Name: "python3", PID: 77, Ports: []string{"8000"}, Dir: "/p"}}
+	rows := arrange(nil, ps, nil, map[string][]string{"%1": {"3000"}}, outside, "/p", func(conversation) string { return "" })
+	if len(rows) != 2 || !reflect.DeepEqual(rows[0].ports, []string{"3000"}) || rows[1].outside == nil || rows[1].key() != "pid 77" {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if p, ok := rows[1].proc(); !ok || p.pane != nil || p.PID != 77 {
+		t.Errorf("proc of an outside row = %+v, %v", p, ok)
+	}
 }

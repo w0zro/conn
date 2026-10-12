@@ -1057,3 +1057,36 @@ func TestAgentNote(t *testing.T) {
 		t.Errorf("bare note:\n%s", bare)
 	}
 }
+
+// x on a project ends everything conn holds in it and nothing in
+// another project.
+func TestEndAll(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	dir := filepath.Dir(srv.Socket)
+	other := t.TempDir()
+	for _, p := range [][2]string{{"web", dir}, {"worker", dir}, {"theirs", other}} {
+		if _, err := startNamed(srv, p[0], "sleep 1000", p[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	// A directory under /tmp is scratch and no project; the test says
+	// which project each is.
+	k := newKnown()
+	k.root[realDir(dir)], k.root[realDir(other)] = realDir(dir), realDir(other)
+	m := model{srv: srv, known: k}
+	got := m.endAll(project{Name: "d", Root: realDir(dir)})().(acted)
+	if string(got) != "d: ended 2" {
+		t.Errorf("endAll said %q", got)
+	}
+	ps, _ := panes(srv)
+	var left []string
+	for _, p := range ps {
+		if p.Name != "" {
+			left = append(left, p.Name)
+		}
+	}
+	if !reflect.DeepEqual(left, []string{"theirs"}) {
+		t.Errorf("left: %v", left)
+	}
+}

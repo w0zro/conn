@@ -577,6 +577,10 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.open(p)
 		}
 		return m, nil
+	case "x":
+		if m.cursor < len(shown) && m.typed == "" {
+			return m, m.endAll(shown[m.cursor])
+		}
 	case "up", "ctrl+p", "ctrl+k":
 		m.cursor = max(m.cursor-1, 0)
 	case "down", "ctrl+n", "ctrl+j":
@@ -827,6 +831,41 @@ func (m model) end(p proc) tea.Cmd {
 			return acted(err.Error())
 		}
 		return acted(p.Name + " ended: " + how)
+	}
+}
+
+// endAll ends everything in a project, off the loop: every process conn
+// holds in it, conversations included, which keep their transcripts,
+// and every server in it outside conn. The project's own project is
+// read for each, not the panel's record of it, which can be older.
+func (m model) endAll(p project) tea.Cmd {
+	srv := m.srv
+	root := rootOf
+	if m.known != nil {
+		root = m.known.rootOf
+	}
+	return func() tea.Msg {
+		ps, err := panes(srv)
+		if err != nil {
+			return acted(err.Error())
+		}
+		n := 0
+		var failed []string
+		for _, pr := range machine(ps, liveClaude(), listening(), parents()) {
+			if pr.Dir == "" || !p.belongs(root(pr.Dir)) {
+				continue
+			}
+			if _, err := endProc(srv, pr); err != nil {
+				failed = append(failed, err.Error())
+				continue
+			}
+			n++
+		}
+		said := fmt.Sprintf("%s: ended %d", p.Name, n)
+		if len(failed) > 0 {
+			said += "; " + strings.Join(failed, "; ")
+		}
+		return acted(said)
 	}
 }
 
@@ -1197,7 +1236,7 @@ func (m model) drawProjects() ([]string, string) {
 	case len(shown) == 0:
 		lines = append(lines, faint.Render(" no projects yet; type a path to one"))
 	}
-	return lines, "type to find, or a path · enter opens · tab goes to what waits · ctrl-c leaves conn running"
+	return lines, "type to find, or a path · enter opens · x stops everything in it · tab goes to what waits · ctrl-c leaves conn running"
 }
 
 func (m model) drawProject() ([]string, string) {

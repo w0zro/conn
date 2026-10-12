@@ -1248,3 +1248,26 @@ func TestConfWearsTheGround(t *testing.T) {
 		}
 	}
 }
+
+// The key bar is written inside a conditional of tmux's own, where a
+// comma is the conditional's: no key or word has one. And the two rows
+// of the status line are in the configuration, with the bar's mark.
+func TestKeyBar(t *testing.T) {
+	for _, hints := range [][]keyHint{projectHints, projectsHints, searchHints, backHints, cancelHints, copyHints, awayHints} {
+		for _, h := range hints {
+			if strings.ContainsAny(h.key+h.does, ",#") {
+				t.Errorf("hint %q %q holds a comma or a hash", h.key, h.does)
+			}
+		}
+	}
+	bar := keyBar([]keyHint{{"x", "stop"}}, theme.Dark)
+	if !strings.Contains(bar, "x ") || !strings.Contains(bar, "stop") || !strings.Contains(bar, theme.Dark.Surface) {
+		t.Errorf("keyBar = %q", bar)
+	}
+	c := conf(theme.Dark)
+	for _, want := range []string{"set -g status 2\n", "status-format[1]", "#{" + barMark + "}", "#{" + panelIDMark + "}"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("conf lacks %s", want)
+		}
+	}
+}

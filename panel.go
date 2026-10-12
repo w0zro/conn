@@ -47,6 +47,8 @@ type model struct {
 	followAt time.Time
 	conn     string // how an agent runs this build
 	known    *known
+	g        theme.Ground // the ground the server is on
+	bar      string       // the keys as last written on the bar
 
 	width, height int
 	screen        screen
@@ -196,7 +198,7 @@ func runPanel() error {
 	}
 	g := ground(srv.Socket)
 	wear(g)
-	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown()}
+	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown(), g: g}
 	// The panel's window is conn's: the panel, and the workspace beside
 	// it. ctrl-space comes back here, wherever here is now.
 	if own := os.Getenv("TMUX_PANE"); own != "" {
@@ -205,7 +207,7 @@ func runPanel() error {
 			// The panel stands on the surface, a step off the ground the
 			// workspace is on, so the two halves of the window read as two.
 			_ = srv.Paint(own, g.Surface)
-			_, _ = srv.Do(bindBack(win, own))
+			_, _ = srv.Do(bindBack(win, own), tmux.SetGlobal(panelIDMark, own))
 			swaps.Lock()
 			_, _ = m.ws.ensure()
 			swaps.Unlock()
@@ -433,7 +435,28 @@ const previewWait = 80 * time.Millisecond
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
-	return next.(model).reconcile(cmd)
+	next, cmd = next.(model).reconcile(cmd)
+	return next.(model).telling(cmd)
+}
+
+// telling writes the keys that work here on the key bar, when they
+// have changed since the last telling: the bar is tmux's line and
+// conn reaches it by setting an option, which is a process.
+func (m model) telling(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if m.srv == nil || m.own == "" {
+		return m, cmd
+	}
+	_, f := m.draw()
+	bar := keyBar(f.hints, m.g)
+	if bar == m.bar {
+		return m, cmd
+	}
+	m.bar = bar
+	srv := m.srv
+	return m, tea.Batch(cmd, func() tea.Msg {
+		_, _ = srv.Do(tmux.SetGlobal(barMark, bar), tmux.RefreshStatus())
+		return nil
+	})
 }
 
 // reconcile asks the workspace for what the panel now wants shown,
@@ -1274,7 +1297,7 @@ type keyHint struct{ key, does string }
 // The keys each screen says at its foot.
 var (
 	projectHints  = []keyHint{{"enter", "goes to it"}, {"tab", "what waits"}, {"/", "search output"}, {"c", "talk to it"}, {"x", "stop"}, {"r", "restart"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"!", "run a command"}, {"n", "new conversation"}, {"s", "shell"}, {"esc", "projects"}, {"q", "leave"}}
-	projectsHints = []keyHint{{"type", "to find, or a path"}, {"enter", "opens"}, {"x", "stops everything in it"}, {"tab", "what waits"}, {"ctrl-c", "leaves conn running"}}
+	projectsHints = []keyHint{{"type", "to find or a path"}, {"enter", "opens"}, {"x", "stops everything in it"}, {"tab", "what waits"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
 	cancelHints   = []keyHint{{"esc", "cancel"}}
@@ -1316,37 +1339,28 @@ func (m model) draw() ([]string, foot) {
 		lines, f = m.drawProject()
 	}
 	if m.note != "" {
-		f = foot{say: m.note}
+		f.say = m.note
 	}
 	if m.asking {
-		f = foot{say: "run in " + m.cur.Name + ": " + m.line + caret}
+		f.say = "run in " + m.cur.Name + ": " + m.line + caret
 	}
 	return lines, f
 }
 
-// feet is the foot as lines the panel's width, a row of air above it:
-// the keys, three cells between one and the next, broken between keys,
-// each key in the ink and bold and what it does in the gray after it;
-// or a saying of conn's own, in the ink, broken between words.
+// feet is the foot as lines the panel's width: a saying of conn's own,
+// in the ink, broken between words, under a row of air; and nothing
+// otherwise, the keys being on the key bar across the window's foot.
 func (m model) feet(f foot) []string {
+	if f.say == "" {
+		return []string{""}
+	}
 	width := m.measure()
 	var parts []string
 	var widths []int
-	switch {
-	case f.say != "":
-		for _, w := range strings.Fields(f.say) {
-			parts, widths = append(parts, ink.Render(w)), append(widths, ansi.StringWidth(w))
-		}
-	default:
-		for _, h := range f.hints {
-			parts = append(parts, keyInk.Render(h.key)+" "+gray.Render(h.does))
-			widths = append(widths, ansi.StringWidth(h.key)+1+ansi.StringWidth(h.does))
-		}
+	for _, w := range strings.Fields(f.say) {
+		parts, widths = append(parts, ink.Render(w)), append(widths, ansi.StringWidth(w))
 	}
-	sep, sepW := "   ", 3
-	if f.say != "" {
-		sep, sepW = " ", 1
-	}
+	sep, sepW := " ", 1
 	out := []string{""}
 	line, used := "", 0
 	for i, p := range parts {

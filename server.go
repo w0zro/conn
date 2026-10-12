@@ -85,17 +85,70 @@ set -as terminal-features ",*:RGB"
 set-environment -g COLORTERM truecolor
 set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 set-environment -g CONN 1
-set -g status-style "bg=` + g.Border + `,fg=` + g.Gray + `"
-set -g status-left "#[fg=` + theme.Hex(g.Ink) + ` bold] conn #[default] "
+` + statusLine(g)
+}
+
+// statusLine is the two rows across the foot of the window. The upper
+// is the band, on the border: the wordmark, and at the right how many
+// conversations wait on you, in the accent. The lower is the key bar,
+// on the surface, the panel's own ground: the keys that work where
+// the cursor is while the keys are on the panel, the way back while
+// they are in a pane, and tmux's own keys while a pane is in copy
+// mode, which tmux knows first. The panel writes its keys into an
+// option when they change, on a keypress, never on a beat.
+func statusLine(g theme.Ground) string {
+	var b strings.Builder
+	b.WriteString(`set -g status 2
+set -g status-interval 0
+set -g status-justify left
+set -g status-left-length 200
+set -g status-right-length 100
 # The panel lists what runs; tmux's own list of windows would say it
 # again, by window.
 set -g window-status-format ""
 set -g window-status-current-format ""
 set -g window-status-separator ""
-set -g status-left-length 20
-set -g status-right "#{?#{` + waitingMark + `},#[fg=` + g.Accent + ` bold]#{` + waitingMark + `} waiting#[default] · ctrl-space then tab goes to it · , }ctrl-space: back to conn "
-set -g status-right-length 80
-`
+`)
+	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", g.Border, g.Gray)
+	fmt.Fprintf(&b, "set -g status-left \"#[fg=%s bold] conn #[default]\"\n", theme.Hex(g.Ink))
+	fmt.Fprintf(&b, "set -g status-right \"#{?#{%s},#[fg=%s bold]#{%s} waiting #[default],}\"\n", waitingMark, g.Accent, waitingMark)
+	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
+	onPanel := "#{==:#{pane_id},#{" + panelIDMark + "}}"
+	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{?pane_in_mode,%s,#{?%s,#{%s},%s}}\"\n", g.Surface, g.Surface, keyBar(copyHints, g), onPanel, barMark, keyBar(awayHints, g))
+	return b.String()
+}
+
+// The marks the key bar is written by: the panel's pane, so the bar
+// knows when the keys are on it, and the keys it says there.
+const (
+	panelIDMark = "@conn_panel_id"
+	barMark     = "@conn_bar"
+)
+
+// What the bar says while a pane is in copy mode: tmux's own keys in
+// vi mode, which is the mode conn sets; and while the keys are in a
+// pane. The words have no comma in them, since the bar is written
+// inside a conditional of the format's own and a comma there is the
+// conditional's.
+var (
+	copyHints = []keyHint{{"n N", "next and previous"}, {"/ ?", "search down and up"}, {"v y", "select and copy"}, {"q", "leave"}}
+	awayHints = []keyHint{{"ctrl-space", "back to conn"}}
+)
+
+// keyBar is the keys as the bar writes them on a ground: each key in
+// the ink and bold, what it does in the gray after it, three cells
+// between one and the next, a cell in from the edge, on the surface.
+func keyBar(hints []keyHint, g theme.Ground) string {
+	var b strings.Builder
+	b.WriteString(" ")
+	for i, h := range hints {
+		if i > 0 {
+			b.WriteString("   ")
+		}
+		b.WriteString(tmux.Styled(tmux.Style{FG: theme.Hex(g.Ink), BG: g.Surface, Bold: true}, h.key+" "))
+		b.WriteString(tmux.Styled(tmux.Style{FG: g.Gray, BG: g.Surface}, h.does))
+	}
+	return b.String()
 }
 
 // look is what the server wears on a ground: the panes on the ground in

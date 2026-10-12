@@ -1900,8 +1900,8 @@ func (m model) drawList(lines []string) ([]string, foot) {
 	return lines, foot{hints: listHints}
 }
 
-// The panel is one list: every project the projects screen lists, one
-// line each, with the open project expanded in place — its line the
+// The panel is one list: every project with something running in it,
+// one line each, with the open project expanded in place — its line the
 // eyebrow of a block, its rows under it. The cursor runs over project
 // lines and rows alike, so another project is j or k away and enter
 // opens it there, closing the one that was open. The verbs that take a
@@ -1915,12 +1915,17 @@ type item struct {
 	row     int // the row's index, or -1 for the project's line
 }
 
-// items is the panel's lines in order. A project opened by its path
-// that the list does not have yet comes first.
+// items is the panel's lines in order: the projects with something
+// running or waiting in them, and the open one whether or not. The
+// rest are the finder's. A project opened that the list does not have
+// comes first.
 func (m model) items() []item {
 	var out []item
 	found := false
 	for _, p := range m.projects {
+		if p.Running == 0 && p.Waiting == 0 && !m.isOpen(p) {
+			continue
+		}
 		out = append(out, item{project: p, row: -1})
 		if m.isOpen(p) {
 			found = true

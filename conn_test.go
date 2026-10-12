@@ -1304,3 +1304,27 @@ func TestVerbWaits(t *testing.T) {
 		t.Error("esc did not put the list away")
 	}
 }
+
+// The panel lists the projects with something running or waiting, and
+// the open one whether or not; the open one's rows stand under its
+// line, and the cursor on a row or a line says which.
+func TestItems(t *testing.T) {
+	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}}}
+	m.cur = m.projects[3]
+	m.rows = []row{{pane: &pane{ID: "%1"}}}
+	var got []string
+	for _, it := range m.items() {
+		got = append(got, m.itemKey(it))
+	}
+	if want := []string{"project /a", "project /c", "project /d", "%1"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("items = %v", got)
+	}
+	m.cursor = 3
+	if r, ok := m.under(); !ok || r.pane.ID != "%1" {
+		t.Error("the cursor is not on the row")
+	}
+	m.cursor = 1
+	if p, ok := m.lineUnder(); !ok || p.Root != "/c" {
+		t.Error("the cursor is not on /c's line")
+	}
+}

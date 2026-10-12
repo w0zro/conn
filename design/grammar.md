@@ -13,6 +13,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 4. **Know who needs you.** A conversation reads working, waiting or idle, from what Claude Code writes for each instance. Waiting comes first, in orange, in a project and on the projects screen, where a row says `1 waiting · 2 running`; the status line says how many wait from every window. Built.
 
+5. **Agents work the processes through conn.** `conn ls`, `conn l NAME|:PORT|PID`, `conn u NAME [-w] -- COMMAND`, `conn x` and `conn r`, over conn's panes and the servers listening in the project. The agents conn starts are told them. Built.
+
 Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; in a project `j` `k` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea

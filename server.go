@@ -84,6 +84,11 @@ set-environment -g COLORTERM truecolor
 set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 set-environment -g CONN 1
 set -g status-left "#[bold] conn #[nobold] "
+# The panel lists what runs; tmux's own list of windows would say it
+# again, by window.
+set -g window-status-format ""
+set -g window-status-current-format ""
+set -g window-status-separator ""
 set -g status-left-length 20
 set -g status-right "#{?#{` + waitingMark + `},#[fg=colour` + waitingColor + `#,bold]#{` + waitingMark + `} waiting#[default] · ctrl-space then tab goes to it · , }ctrl-space: back to conn "
 set -g status-right-length 80
@@ -135,16 +140,20 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if _, err := srv.Do(bindBack(win), tmux.Cmd{"select-window", "-t", win}); err != nil {
+	own, err := findPanel(srv, "")
+	if err != nil {
+		return 0, err
+	}
+	if _, err := srv.Do(bindBack(win, own.pane), tmux.Cmd{"select-window", "-t", win}, tmux.SelectPane(own.pane)); err != nil {
 		return 0, err
 	}
 	return srv.AttachClient(path, sessionName, connWindow, home, panel)
 }
 
-// bindBack binds the one key conn takes from every window: back to
-// conn's window.
-func bindBack(window string) tmux.Cmd {
-	return tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", window}
+// bindBack binds the one key conn takes from every window: the keys
+// back to the panel, in conn's window.
+func bindBack(window, panel string) tmux.Cmd {
+	return tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", window, `\;`, "select-pane", "-t", panel}
 }
 
 // ensurePanel answers conn's window: conn's pane started again where
@@ -231,6 +240,7 @@ type pane struct {
 	PID     int    // what the pane runs, as started
 	TTY     string // without /dev/
 	Panel   bool   // conn's own
+	Hold    bool   // conn's blank, standing in the workspace
 	Session string // the conversation conn started in it
 	Name    string // the name conn u started it under
 	Exit    string // how what conn u started ended, once it has
@@ -252,7 +262,7 @@ const (
 // underscore when it prints to a pipe in the C locale. Every field but
 // the last is one token — a name conn u takes has no space in it — and
 // the directory, which can hold a space, is last and taken whole.
-const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + exitMark + "} #{pane_current_command} #{pane_current_path}"
+const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + exitMark + "} #{pane_current_command} #{pane_current_path}"
 
 // panes is every pane in the server.
 func panes(srv *tmux.Server) ([]pane, error) {
@@ -266,45 +276,39 @@ func panes(srv *tmux.Server) ([]pane, error) {
 func parsePanes(out string) []pane {
 	var ps []pane
 	for _, l := range strings.Split(out, "\n") {
-		f := strings.SplitN(l, " ", 11)
-		if len(f) < 11 {
+		f := strings.SplitN(l, " ", 12)
+		if len(f) < 12 {
 			continue
 		}
 		pid, _ := strconv.Atoi(f[3])
 		ps = append(ps, pane{
 			ID: f[0], Window: f[1], Dead: f[2] == "1", PID: pid,
-			TTY: strings.TrimPrefix(f[4], "/dev/"), Panel: f[5] == "1", Session: f[6],
-			Name: f[7], Exit: f[8], Command: f[9], Dir: f[10],
+			TTY: strings.TrimPrefix(f[4], "/dev/"), Panel: f[5] == "1", Hold: f[6] == "1", Session: f[7],
+			Name: f[8], Exit: f[9], Command: f[10], Dir: f[11],
 		})
 	}
 	return ps
 }
 
 // openWindow starts a command, or a shell where there is none, in a
-// window of its own at a directory,
-// marks it with what it holds, and puts the client on it.
-func openWindow(srv *tmux.Server, name, dir, cmd, session string) error {
-	args := []string{"new-window", "-t", sessionName + ":", "-n", name, "-c", dir, "-P", "-F", "#{pane_id}"}
+// window of its own at a directory, out of sight, marks it with the
+// conversation it holds where it holds one, and answers its pane.
+func openWindow(srv *tmux.Server, name, dir, cmd, session string) (string, error) {
+	args := []string{"new-window", "-d", "-t", sessionName + ":", "-n", name, "-c", dir, "-P", "-F", "#{pane_id}"}
 	if cmd != "" {
 		args = append(args, cmd) // with none, tmux runs the shell
 	}
 	id, err := srv.Run(args...)
 	if err != nil {
-		return err
+		return "", err
 	}
 	id = strings.TrimSpace(id)
 	if session != "" {
 		if _, err := srv.Do(tmux.SetPane(id, sessionMark, session)); err != nil {
-			return err
+			return "", err
 		}
 	}
-	return nil // new-window without -d has put the client on it
-}
-
-// goTo puts the client on a pane's window, and the keys in the pane.
-func goTo(srv *tmux.Server, p pane) error {
-	_, err := srv.Do(tmux.Cmd{"select-window", "-t", p.Window}, tmux.SelectPane(p.ID))
-	return err
+	return id, nil
 }
 
 // resumeCommand picks a conversation back up in Claude Code, told what

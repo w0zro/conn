@@ -32,11 +32,22 @@ const (
 )
 
 type model struct {
-	srv   *tmux.Server
-	home  string
-	own   string // the panel's own pane
-	conn  string // how an agent runs this build
-	known *known
+	srv  *tmux.Server
+	home string
+	own  string // the panel's own pane
+	ws   workspace
+	// The pane the workspace is to show: what the workspace was last
+	// asked for, a count of the asks so that only the last is carried
+	// out, and a pane just opened, which the cursor goes to once its row
+	// is read.
+	asked  string
+	asks   int
+	follow string
+	// When follow was set: a read that listed the panes after it and
+	// has no row for the pane means the pane is gone.
+	followAt time.Time
+	conn     string // how an agent runs this build
+	known    *known
 
 	width, height int
 	screen        screen
@@ -150,18 +161,22 @@ func runPanel() error {
 	if err != nil {
 		return err
 	}
-	own := os.Getenv("TMUX_PANE")
-	// ctrl-space comes back here, wherever here is now.
-	if own != "" {
-		if win, err := srv.Display(own, "#{window_id}"); err == nil && win != "" {
-			_, _ = srv.Do(bindBack(win))
-		}
-	}
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	m := model{srv: srv, home: home, own: own, conn: connCommand(self), known: newKnown()}
+	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown()}
+	// The panel's window is conn's: the panel, and the workspace beside
+	// it. ctrl-space comes back here, wherever here is now.
+	if own := os.Getenv("TMUX_PANE"); own != "" {
+		if win, err := srv.Display(own, "#{window_id}"); err == nil && win != "" {
+			m.own, m.ws = own, newWorkspace(srv, win, own, self)
+			_, _ = srv.Do(bindBack(win, own))
+			swaps.Lock()
+			_, _ = m.ws.ensure()
+			swaps.Unlock()
+		}
+	}
 	p := tea.NewProgram(m)
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
@@ -175,10 +190,16 @@ func runPanel() error {
 // A read is the machine as read once: the projects, and the rows of the
 // project on the screen, where one is.
 type read struct {
+	at       time.Time // when the panes were listed
 	projects []project
 	root     string
 	rows     []row
 	waiting  []pane // the panes conn holds a conversation waiting on you in
+	// What the workspace shows, blank for a hold, and whether it stands:
+	// a pane closed there leaves the panel alone in the window, and one
+	// ended there stands dead.
+	shown   string
+	shownOK bool
 }
 
 // acted is what a key that runs off the loop did, or could not do.
@@ -202,7 +223,7 @@ const conversationsShown = 50
 // you, wherever they run; and, in a project, its rows. The status line
 // is told the number waiting in all.
 func (m model) read() tea.Cmd {
-	srv, home, own, k := m.srv, m.home, m.own, m.known
+	srv, home, own, k, window := m.srv, m.home, m.own, m.known, m.ws.window
 	var cur *project
 	if m.screen == onProject {
 		c := m.cur
@@ -210,9 +231,20 @@ func (m model) read() tea.Cmd {
 	}
 	return func() tea.Msg {
 		all := transcripts()
+		at := time.Now()
 		ps, _ := panes(srv)
 		var held []pane
+		r := read{at: at}
 		for _, p := range ps {
+			if p.Window == window && p.ID != own {
+				r.shownOK = !p.Dead
+				if !p.Hold {
+					r.shown = p.ID
+				}
+			}
+			if p.Hold {
+				continue
+			}
 			if p.ID != own && !p.Dead {
 				held = append(held, p)
 			}
@@ -239,7 +271,7 @@ func (m model) read() tea.Cmd {
 		}
 		// What waits on you comes first; the rest stay newest first.
 		sort.SliceStable(found, func(i, j int) bool { return found[i].Waiting > 0 && found[j].Waiting == 0 })
-		r := read{projects: found}
+		r.projects = found
 		for _, p := range held {
 			if state, _ := paneState(p, live); state == "waiting" {
 				r.waiting = append(r.waiting, p)
@@ -313,6 +345,10 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 			running = append(running, row{pane: &ps[j], state: state})
 		}
 	}
+	// What runs stays in the order it was started, a pane's id being
+	// tmux's count of the panes it has made: the order tmux lists panes
+	// in is the windows', and showing a pane moves it into conn's.
+	sort.SliceStable(running, func(i, j int) bool { return paneNumber(running[i]) < paneNumber(running[j]) })
 	waitingFirst := func(rs []row) {
 		sort.SliceStable(rs, func(i, j int) bool { return rs[i].state == "waiting" && rs[j].state != "waiting" })
 	}
@@ -329,8 +365,70 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 	return append(append(running, elsewhere...), rest...)
 }
 
+// preview is the time to show what the cursor is on, once it has
+// rested there: passing over rows does not swap each into the
+// workspace.
+type preview struct{ ask int }
+
+const previewWait = 80 * time.Millisecond
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	return next.(model).reconcile(cmd)
+}
+
+// reconcile asks the workspace for what the panel now wants shown,
+// once the wish has rested.
+func (m model) reconcile(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if m.ws.srv == nil {
+		return m, cmd
+	}
+	if want := m.wanted(); want != m.asked {
+		m.asked = want
+		m.asks++
+		ask := m.asks
+		cmd = tea.Batch(cmd, tea.Tick(previewWait, func(time.Time) tea.Msg { return preview{ask} }))
+	}
+	return m, cmd
+}
+
+// wanted is the pane the workspace is to show: one just opened; in a
+// project, the pane of the row under the cursor, or of the line found
+// under it while a search stands; and nothing on the projects screen.
+func (m model) wanted() string {
+	switch {
+	case m.follow != "":
+		return m.follow
+	case m.screen != onProject:
+		return ""
+	case m.searching:
+		if m.hitAt < len(m.found) {
+			return m.said[m.found[m.hitAt].said].pane.ID
+		}
+		return ""
+	case m.cursor < len(m.rows) && m.rows[m.cursor].pane != nil:
+		return m.rows[m.cursor].pane.ID
+	}
+	return ""
+}
+
+// showing shows a pane in the workspace, off the loop.
+func (m model) showing(id string, focus bool) tea.Cmd {
+	ws := m.ws
+	return func() tea.Msg {
+		if err := ws.show(id, focus); err != nil {
+			return acted(err.Error())
+		}
+		return nil
+	}
+}
+
+func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case preview:
+		if msg.ask == m.asks {
+			return m, m.showing(m.asked, false)
+		}
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case read:
@@ -343,6 +441,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.rows = msg.rows
 			m.cursor = keep(m.cursor, on, m.rows, row.key)
+			// A pane just opened takes the cursor once its row is read,
+			// and is let go of where a read asked for after it was opened
+			// has no row for it: it ended before it was read.
+			found := false
+			for i, r := range m.rows {
+				if m.follow != "" && r.pane != nil && r.pane.ID == m.follow {
+					m.cursor, m.follow, found = i, "", true
+				}
+			}
+			if m.follow != "" && !found && msg.at.After(m.followAt) {
+				m.follow = ""
+			}
+		}
+		// The workspace is put right where it is not what the panel
+		// asked: gone, ended, or showing another pane.
+		if m.ws.srv != nil && (!msg.shownOK || msg.shown != m.wanted()) {
+			return m, m.showing(m.wanted(), false)
 		}
 	case changed:
 		if m.searching {
@@ -405,7 +520,7 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	shown := m.shownProjects()
 	switch k.String() {
 	case "tab":
-		return m.nextWaiting(), nil
+		return m.nextWaiting()
 	case "enter":
 		if m.cursor < len(shown) {
 			return m.open(shown[m.cursor])
@@ -437,26 +552,23 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "tab":
-		return m.nextWaiting(), nil
+		return m.nextWaiting()
 	case "esc", "backspace":
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
 		return m, m.read()
 	case "up", "k", "ctrl+p":
-		m.cursor = max(m.cursor-1, 0)
+		m.cursor, m.follow = max(m.cursor-1, 0), ""
 	case "down", "j", "ctrl+n":
-		m.cursor = min(m.cursor+1, max(len(m.rows)-1, 0))
+		m.cursor, m.follow = min(m.cursor+1, max(len(m.rows)-1, 0)), ""
 	case "enter":
 		if m.cursor < len(m.rows) {
-			m.note = m.goTo(m.rows[m.cursor])
-			return m, m.read()
+			return m.goTo(m.rows[m.cursor])
 		}
 	case "n":
 		id := newID()
-		m.note = m.start(newCommand(m.conn, id), id)
-		return m, m.read()
+		return m.start(m.cur.Root, newCommand(m.conn, id), id)
 	case "s":
-		m.note = m.start("", "")
-		return m, m.read()
+		return m.start(m.cur.Root, "", "")
 	case "q", "ctrl+c":
 		m.note = m.leave()
 	case "x", "r":
@@ -530,13 +642,15 @@ func openPort(r row) tea.Cmd {
 	}
 }
 
-// nextWaiting goes to a conversation waiting on you, the one after the
-// last tab went to, round to the first. A conversation waiting in a
-// terminal conn does not hold is not one conn can go to.
-func (m model) nextWaiting() model {
+// nextWaiting shows a conversation waiting on you in the workspace, the
+// keys in it, the one after the last tab went to, round to the first,
+// with its project on the panel and the cursor on its row. A
+// conversation waiting in a terminal conn does not hold is not one conn
+// can show.
+func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 	if len(m.waiting) == 0 {
 		m.note = "Nothing is waiting on you."
-		return m
+		return m, nil
 	}
 	next := m.waiting[0]
 	for i, p := range m.waiting {
@@ -545,10 +659,18 @@ func (m model) nextWaiting() model {
 		}
 	}
 	m.lastWaiting = next.ID
-	if err := goTo(m.srv, next); err != nil {
-		m.note = err.Error()
+	if root := m.known.rootOf(next.Dir); root != "" && (m.screen != onProject || root != m.cur.Root) {
+		cur := project{Name: filepath.Base(root), Root: root}
+		for _, p := range m.projects {
+			if p.Root == root {
+				cur = p
+			}
+		}
+		m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
+		m.searching, m.stacking = false, false
 	}
-	return m
+	m.follow, m.asked, m.followAt = next.ID, next.ID, time.Now()
+	return m, tea.Batch(m.showing(next.ID, true), m.read())
 }
 
 // searchKey is a key while /'s search stands: what is typed searches,
@@ -563,7 +685,7 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.hitAt < len(m.found) {
 			h := m.found[m.hitAt]
-			return m, land(m.srv, m.said[h.said].pane, h.k, m.query)
+			return m, land(m.ws, m.srv, m.said[h.said].pane, h.k, m.query)
 		}
 		return m, nil
 	case "up", "ctrl+p", "ctrl+k":
@@ -724,12 +846,15 @@ func nameFor(command string) string {
 
 // start runs a command in the project, or a shell where there is none,
 // in a window of its own, marked with the conversation it is where it
-// is one. It answers what it could not do.
-func (m model) start(cmd, session string) string {
-	if err := openWindow(m.srv, windowName(m.cur.Name), m.cur.Root, cmd, session); err != nil {
-		return err.Error()
+// is one, and shows it in the workspace with the keys in it.
+func (m model) start(dir, cmd, session string) (tea.Model, tea.Cmd) {
+	id, err := openWindow(m.srv, windowName(m.cur.Name), dir, cmd, session)
+	if err != nil {
+		m.note = err.Error()
+		return m, nil
 	}
-	return ""
+	m.follow, m.asked, m.followAt = id, id, time.Now()
+	return m, tea.Batch(m.showing(id, true), m.read())
 }
 
 // leave lets the terminal go; what runs in conn keeps on.
@@ -745,27 +870,23 @@ func (m model) open(p project) (tea.Model, tea.Cmd) {
 	return m, m.read()
 }
 
-// goTo puts the client on a row's pane, picking its conversation back
-// up in a window of its own where it is at rest. It answers what it
-// could not do.
-func (m model) goTo(r row) string {
+// goTo puts a row's pane in the workspace with the keys in it, picking
+// its conversation back up in a window of its own where it is at rest.
+func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 	switch {
 	case r.pane != nil:
-		if err := goTo(m.srv, *r.pane); err != nil {
-			return err.Error()
-		}
+		m.asked = r.pane.ID
+		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:
-		return "That conversation is running in a terminal conn does not hold."
+		m.note = "That conversation is running in a terminal conn does not hold."
 	case r.conv != nil:
 		dir := r.conv.Dir
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			dir = m.cur.Root
 		}
-		if err := openWindow(m.srv, windowName(m.cur.Name), dir, resumeCommand(m.conn, r.conv.ID), r.conv.ID); err != nil {
-			return err.Error()
-		}
+		return m.start(dir, resumeCommand(m.conn, r.conv.ID), r.conv.ID)
 	}
-	return ""
+	return m, nil
 }
 
 // shownProjects is the projects the typed words find: each word in the
@@ -823,6 +944,27 @@ var (
 const waitingColor = "208"
 
 func (m model) View() tea.View {
+	// The foot is wrapped to the panel's width, and the screen drawn
+	// again in the rows the foot leaves it.
+	_, foot := m.draw()
+	feet := m.feet(foot)
+	inner := m
+	inner.height = max(m.height-len(feet)+1, 3)
+	lines, _ := inner.draw()
+	h := max(m.height, len(lines)+len(feet))
+	rows := h - len(feet)
+	for len(lines) < rows {
+		lines = append(lines, "")
+	}
+	lines = append(lines[:rows], feet...)
+	v := tea.NewView(strings.Join(lines, "\n"))
+	v.AltScreen = true
+	return v
+}
+
+// draw is the screen's lines and its foot: what the last key did, the
+// line being typed, or the keys.
+func (m model) draw() ([]string, string) {
 	var lines []string
 	var foot string
 	if m.screen == onProjects {
@@ -836,18 +978,46 @@ func (m model) View() tea.View {
 	if m.asking {
 		foot = "run in " + m.cur.Name + ": " + m.line + "▏"
 	}
-	h := max(m.height, len(lines)+2)
-	for len(lines) < h-1 {
-		lines = append(lines, "")
+	return lines, foot
+}
+
+// feet is the foot as lines the panel's width: the keys, a · between
+// each, broken between keys; anything else broken between words. The
+// keys are in gray; what a key did, and a line being typed, are not.
+func (m model) feet(foot string) []string {
+	if foot == "" {
+		return []string{""}
 	}
-	foot = fit(" "+foot, m.width)
-	if !m.asking && !m.stacking && m.note == "" {
-		foot = faint.Render(foot)
+	width := max(m.width-1, 10)
+	sep, parts := " · ", strings.Split(foot, " · ")
+	if len(parts) == 1 {
+		sep, parts = " ", strings.Fields(foot)
+		if m.asking {
+			sep, parts = "", []string{foot}
+		}
 	}
-	lines = append(lines[:h-1], foot)
-	v := tea.NewView(strings.Join(lines, "\n"))
-	v.AltScreen = true
-	return v
+	var out []string
+	line := ""
+	for _, p := range parts {
+		switch {
+		case line == "":
+			line = p
+		case ansi.StringWidth(line+sep+p) <= width:
+			line += sep + p
+		default:
+			out = append(out, line)
+			line = p
+		}
+	}
+	out = append(out, line)
+	for i, l := range out {
+		l = fit(" "+l, m.width)
+		if !m.asking && !m.stacking && m.note == "" {
+			l = faint.Render(l)
+		}
+		out[i] = l
+	}
+	return out
 }
 
 func (m model) drawProjects() ([]string, string) {
@@ -1138,4 +1308,17 @@ func (m model) drawSearch(lines []string) ([]string, string) {
 		lines = append(lines, line)
 	}
 	return lines, "type to search · ↑↓ · enter goes to it · esc back"
+}
+
+// paneNumber is a row's pane's place in the order tmux made its panes,
+// and a row with no pane comes after every one that has one.
+func paneNumber(r row) int {
+	if r.pane == nil {
+		return int(^uint(0) >> 1)
+	}
+	n, err := strconv.Atoi(strings.TrimPrefix(r.pane.ID, "%"))
+	if err != nil {
+		return int(^uint(0) >> 1)
+	}
+	return n
 }

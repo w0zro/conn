@@ -121,10 +121,11 @@ func readSaid(srv *tmux.Server, root string, rows []row) tea.Cmd {
 	}
 }
 
-// land goes to a hit's pane and puts it in copy mode on the hit.
-func land(srv *tmux.Server, p pane, k int, text string) tea.Cmd {
+// land shows a hit's pane in the workspace, the keys in it, and puts it
+// in copy mode on the hit.
+func land(ws workspace, srv *tmux.Server, p pane, k int, text string) tea.Cmd {
 	return func() tea.Msg {
-		if err := goTo(srv, p); err != nil {
+		if err := ws.show(p.ID, true); err != nil {
 			return acted(err.Error())
 		}
 		if err := srv.Land(p.ID, k, text); err != nil {

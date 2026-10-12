@@ -38,6 +38,8 @@ func run(args []string) error {
 		switch args[0] {
 		case "panel":
 			return runPanel()
+		case "hold":
+			return runHold()
 		}
 		if cmd, ok := commands[args[0]]; ok {
 			home, err := os.UserHomeDir()
@@ -66,7 +68,7 @@ func run(args []string) error {
 		if err != nil || own.pane == "" {
 			return fmt.Errorf("conn's own window is gone; leave with ctrl-b d and run conn again")
 		}
-		_, err = srv.Do(tmux.Cmd{"select-window", "-t", own.window})
+		_, err = srv.Do(tmux.Cmd{"select-window", "-t", own.window}, tmux.SelectPane(own.pane))
 		return err
 	}
 	self, err := os.Executable()

@@ -97,7 +97,7 @@ func machine(ps []pane, live map[string]claudeRun, listeners map[int][]string, p
 	var out []proc
 	for i := range ps {
 		p := &ps[i]
-		if p.Panel || p.Dead {
+		if p.Panel || p.Hold || p.Dead {
 			continue
 		}
 		byPID[p.PID] = len(out)

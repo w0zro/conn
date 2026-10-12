@@ -133,14 +133,16 @@ func TestFindProjects(t *testing.T) {
 }
 
 func TestParsePanes(t *testing.T) {
-	out := "%1 @1 0 412 /dev/ttys004  abc-1   claude /Users/me/my project\n" +
-		"%2 @2 1 0 /dev/ttys005 1    zsh /Users/me\n" +
-		"%3 @3 0 77 /dev/ttys006   web 0 cat /p\n"
+	out := "%1 @1 0 412 /dev/ttys004   abc-1   claude /Users/me/my project\n" +
+		"%2 @2 1 0 /dev/ttys005 1     zsh /Users/me\n" +
+		"%3 @3 0 77 /dev/ttys006    web 0 cat /p\n" +
+		"%4 @1 0 78 /dev/ttys007  1    conn /Users/me\n"
 	got := parsePanes(out)
 	want := []pane{
 		{ID: "%1", Window: "@1", PID: 412, TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project"},
 		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Panel: true, Command: "zsh", Dir: "/Users/me"},
 		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Exit: "0", Command: "cat", Dir: "/p"},
+		{ID: "%4", Window: "@1", PID: 78, TTY: "ttys007", Hold: true, Command: "conn", Dir: "/Users/me"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parsePanes = %+v\nwant %+v", got, want)
@@ -685,9 +687,10 @@ func TestStackKeys(t *testing.T) {
 	}
 }
 
-// tab goes to the conversations waiting on you in turn, round to the
-// first, and says so when none waits.
-func TestNextWaiting(t *testing.T) {
+// scratchServer is a tmux server of its own for a test, with conn's
+// session and a first window standing for conn's: a pane for the panel.
+func scratchServer(t *testing.T) (*tmux.Server, string, string) {
+	t.Helper()
 	bin, err := exec.LookPath("tmux")
 	if err != nil {
 		t.Skip("no tmux")
@@ -696,27 +699,101 @@ func TestNextWaiting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = os.RemoveAll(dir) }()
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
-	defer func() { _ = srv.Down() }()
-	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+	t.Cleanup(func() { _ = srv.Down() })
+	out, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "-x", "160", "-y", "40", "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
+	if err != nil {
 		t.Fatal(err)
 	}
-	var ws []pane
-	for range 2 {
-		out, _ := srv.Run("new-window", "-d", "-P", "-F", "#{window_id} #{pane_id}", "-t", sessionName+":", "sleep 1000")
-		w, p, _ := strings.Cut(strings.TrimSpace(out), " ")
-		ws = append(ws, pane{ID: p, Window: w})
+	win, panel, _ := strings.Cut(strings.TrimSpace(out), " ")
+	return srv, win, panel
+}
+
+// inWorkspace is the pane beside the panel in conn's window.
+func inWorkspace(t *testing.T, ws workspace) pane {
+	t.Helper()
+	p, ok, err := ws.shown()
+	if err != nil || !ok {
+		t.Fatalf("no workspace: %v", err)
 	}
-	m := model{srv: srv}
-	if m = m.nextWaiting(); m.note == "" {
+	return p
+}
+
+// The workspace is made beside the panel with a hold in it; showing a
+// pane swaps it in and the hold goes; showing nothing puts a hold back
+// and the pane back in a window of its own, still running; a pane that
+// ends there is replaced by a hold and the panel keeps its place.
+func TestWorkspace(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	if p := inWorkspace(t, func() workspace { _, _ = ws.ensure(); return ws }()); !p.Hold {
+		t.Fatalf("the workspace was made without a hold: %+v", p)
+	}
+	id, err := openWindow(srv, "web", "/tmp", "sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.show(id, false); err != nil {
+		t.Fatal(err)
+	}
+	if p := inWorkspace(t, ws); p.ID != id {
+		t.Errorf("the workspace shows %s, want %s", p.ID, id)
+	}
+	if err := ws.show("", false); err != nil {
+		t.Fatal(err)
+	}
+	if p := inWorkspace(t, ws); !p.Hold {
+		t.Errorf("showing nothing left %+v", p)
+	}
+	ps, _ := panes(srv)
+	for _, p := range ps {
+		if p.ID == id && (p.Window == win || p.Dead) {
+			t.Errorf("the pane did not go back to a window of its own, running: %+v", p)
+		}
+	}
+	// A pane that ends in the workspace.
+	short, _ := openWindow(srv, "short", "/tmp", "sleep 0.3", "")
+	_ = ws.show(short, false)
+	time.Sleep(700 * time.Millisecond)
+	if p := inWorkspace(t, ws); !p.Dead {
+		t.Fatalf("the ended pane did not stand: %+v", p)
+	}
+	_ = ws.show("", false)
+	if p := inWorkspace(t, ws); !p.Hold || p.Dead {
+		t.Errorf("an ended pane was not replaced by a hold: %+v", p)
+	}
+}
+
+// tab shows the conversations waiting on you in turn, round to the
+// first, and says so when none waits.
+func TestNextWaiting(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	var ids []string
+	for range 2 {
+		id, _ := openWindow(srv, "c", "/tmp", "sleep 1000", "")
+		ids = append(ids, id)
+	}
+	m := model{srv: srv, ws: ws, known: newKnown()}
+	next, _ := m.nextWaiting()
+	if m = next.(model); m.note == "" {
 		t.Error("nothing said when nothing waits")
 	}
-	m.waiting = ws
-	for _, want := range []string{ws[0].Window, ws[1].Window, ws[0].Window} {
-		m = m.nextWaiting()
-		if on, _ := srv.Display(sessionName+":", "#{window_id}"); on != want {
-			t.Errorf("tab went to %s, want %s", on, want)
+	m.waiting = []pane{{ID: ids[0], Dir: "/tmp"}, {ID: ids[1], Dir: "/tmp"}}
+	for _, want := range []string{ids[0], ids[1], ids[0]} {
+		next, cmd := m.nextWaiting()
+		m = next.(model)
+		if c := cmd; c != nil {
+			// The batch holds the show and a read; only the show is run.
+			if b, ok := c().(tea.BatchMsg); ok && len(b) > 0 {
+				b[0]()
+			}
+		}
+		if p := inWorkspace(t, ws); p.ID != want {
+			t.Errorf("tab showed %s, want %s", p.ID, want)
 		}
 	}
 }
@@ -753,5 +830,15 @@ func TestAround(t *testing.T) {
 	got, at := around(line, 100, 40)
 	if !strings.HasPrefix(got, "…") || !strings.HasPrefix(got[at:], "needle") {
 		t.Errorf("around a long line = %q, %d", got, at)
+	}
+}
+
+// Rows that run stay in the order their panes were made, whichever
+// window tmux lists each in.
+func TestArrangeKeepsStartOrder(t *testing.T) {
+	ps := []pane{{ID: "%7", Name: "tests", Dir: "/p"}, {ID: "%3", Name: "web", Dir: "/p"}}
+	rows := arrange(nil, ps, nil, nil, nil, "/p", func(conversation) string { return "" })
+	if rows[0].pane.ID != "%3" || rows[1].pane.ID != "%7" {
+		t.Errorf("rows = %s, %s", rows[0].pane.ID, rows[1].pane.ID)
 	}
 }

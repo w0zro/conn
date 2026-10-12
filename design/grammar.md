@@ -19,9 +19,11 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 7. **Open what you started.** A project's rows say their ports; a server in the project that conn does not hold is a row; `o` opens a row's port in the browser. Built.
 
+8. **Start the whole project.** `u` asks Claude Code what keeps running in the project, shows the answer, and enter starts each process; nothing is kept, so each `u` asks again (about ten seconds). A typed command is `!`. Built.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; in a project `j` `k` `o` `x` `r` `u` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; in a project `j` `k` `o` `x` `r` `u` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

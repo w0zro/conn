@@ -844,21 +844,25 @@ func TestArrangeKeepsStartOrder(t *testing.T) {
 }
 
 // A folder of repositories is one with two or more checkouts directly
-// in it; home never is.
+// in it, other than home and a folder directly in home.
 func TestIsFolder(t *testing.T) {
-	base, _ := filepath.EvalSymlinks(t.TempDir())
-	for _, d := range []string{"a/.git", "b/.git", "c", "one/x/.git"} {
-		if err := os.MkdirAll(filepath.Join(base, d), 0o700); err != nil {
+	home, _ := filepath.EvalSymlinks(t.TempDir())
+	for _, d := range []string{"projects/w/a/.git", "projects/w/b/.git", "projects/w/c", "projects/one/x/.git", "projects/z/.git"} {
+		if err := os.MkdirAll(filepath.Join(home, d), 0o700); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if !isFolder(base, "/home") {
+	projects := filepath.Join(home, "projects")
+	if !isFolder(filepath.Join(projects, "w"), home) {
 		t.Error("two checkouts made no folder")
 	}
-	if isFolder(filepath.Join(base, "one"), "/home") {
+	if isFolder(filepath.Join(projects, "one"), home) {
 		t.Error("one checkout made a folder")
 	}
-	if isFolder(base, base) {
+	if isFolder(projects, home) {
+		t.Error("a folder directly in home was taken for a folder of repositories")
+	}
+	if isFolder(home, home) {
 		t.Error("home was taken for a folder")
 	}
 }

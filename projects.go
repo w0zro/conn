@@ -29,9 +29,16 @@ type project struct {
 }
 
 // isFolder says whether a directory is a folder of repositories: two or
-// more of the directories directly in it are git checkouts. Home and /
-// are where everything is, and never one.
+// more of the directories directly in it are git checkouts. A folder
+// directly in home (~/projects, ~/src) is where projects are kept, not
+// a project, and home and / are where everything is.
 func isFolder(dir, home string) bool {
+	return filepath.Dir(dir) != home && holdsRepos(dir, home)
+}
+
+// holdsRepos says whether two or more of the directories directly in a
+// directory are git checkouts.
+func holdsRepos(dir, home string) bool {
 	if dir == home || dir == "/" || dir == "" {
 		return false
 	}

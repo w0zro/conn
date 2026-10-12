@@ -15,7 +15,9 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 5. **Agents work the processes through conn.** `conn ls`, `conn l NAME|:PORT|PID`, `conn u NAME [-w] -- COMMAND`, `conn x` and `conn r`, over conn's panes and the servers listening in the project. The agents conn starts are told them. Built.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; in a project `j` `k` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+6. **Work the processes from the panel.** In a project, on the row under the cursor, `x` stops it and `r` restarts what conn started; `u` asks for a command and runs it at the project's root. One key a verb (2026-10-11): with no other object yet, doubling says nothing more. Built.
+
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; in a project `j` `k` `x` `r` `u` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

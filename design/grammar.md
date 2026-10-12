@@ -23,9 +23,11 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 9. **Go to who needs you.** `tab` in conn goes to a conversation waiting on you, the next one each press; ctrl-space then tab from anywhere. Built.
 
+10. **Find what was said.** `/` in a project searches what its panes keep; enter lands in tmux copy mode on the line. Built.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `o` `x` `r` `u` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `/` `o` `x` `r` `u` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

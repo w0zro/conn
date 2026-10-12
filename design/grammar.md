@@ -31,9 +31,15 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 13. **What agents run is what the keys run.** Every process started under a name through conn is written down beside the socket with its role: what `conn u -w` waited on is a check, the rest is the stack. In a project, `u` brings up the stack and `t` runs the checks as each name was last run here, by whoever ran it, with no question; only where nobody has yet is Claude Code asked, the answer offered, and enter's start written down the same way. Agents write the project's dialect by using the CLI; the keys speak it. Built, 2026-10-12.
 
+14. **What broke.** A run that ended reads done, or failed with its status, and what failed comes right after the conversations waiting on you. Built, 2026-10-12.
+
+15. **Hand it to an agent.** `a` on a row starts a conversation in the project whose first prompt is the process: name, command, where, how it is doing, its last lines, and what to do; a check that failed goes to an agent with its failure in one key. A conversation is not handed; a server outside conn is handed by name, pid and port. Built, 2026-10-12.
+
+16. **Agents are told the dialect.** Every conversation conn starts or picks back up is told what the project's checks and stack are as last run through conn, as `conn u` lines. What one agent established, the next is told. Built, 2026-10-12.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `/` `o` `x` `r` `u` `t` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `/` `o` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

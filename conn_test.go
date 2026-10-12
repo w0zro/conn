@@ -14,6 +14,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -1209,5 +1210,41 @@ func TestTalksTo(t *testing.T) {
 	// Only what conn holds is asked what it connects to.
 	if talksTo([]proc{{Name: "python", Peers: []string{"5432"}}}, db) {
 		t.Error("a process outside conn made the database the project's")
+	}
+}
+
+// The server's configuration carries the ground it is written on: the
+// panes on it in its ink, the sixteen by name, the cursor in the
+// accent; and tmux takes it as written.
+func TestConfWearsTheGround(t *testing.T) {
+	for _, g := range []theme.Ground{theme.Dark, theme.Light} {
+		c := conf(g)
+		for _, want := range []string{
+			"window-style \"bg=" + theme.Hex(g.Ground) + ",fg=" + theme.Hex(g.Ink) + "\"",
+			"cursor-colour \"" + g.Cursor + "\"",
+			"pane-colours[9] \"" + g.Scheme[9] + "\"",
+			"status-style \"bg=" + g.Border + ",fg=" + g.Gray + "\"",
+		} {
+			if !strings.Contains(c, want) {
+				t.Errorf("conf lacks %s", want)
+			}
+		}
+	}
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	dir := t.TempDir()
+	path := write(t, filepath.Join(dir, "tmux.conf"), conf(theme.Light))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	for opt, want := range map[string]string{"pane-colours[1]": theme.Light.Scheme[1], "cursor-colour": theme.Light.Cursor, "mode-style": "bg=" + theme.Light.Chosen + ",fg=" + theme.Light.ChosenInk} {
+		out, err := srv.Run("show-options", "-gv", opt)
+		if err != nil || !strings.EqualFold(strings.TrimSpace(out), want) {
+			t.Errorf("%s = %q, %v; want %q", opt, strings.TrimSpace(out), err, want)
+		}
 	}
 }

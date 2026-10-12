@@ -14,6 +14,7 @@ import (
 
 	term "github.com/charmbracelet/x/term"
 	"github.com/w0zro/conn/internal/shell"
+	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -64,13 +65,14 @@ func insideConn(socket string) bool {
 // arranged by an earlier conn is not this one's to rearrange.
 const generation = "2"
 
-// conf is the server's configuration, written beside the socket on
-// each start and sourced into a server already up. The key back to
-// conn is bound once conn's window is known, by its id: a window's name
-// is whatever runs in it, unless it was given one.
-func conf() string {
+// conf is the server's configuration on a ground, written beside the
+// socket on each start and sourced into a server already up. The key
+// back to conn is bound once conn's window is known, by its id: a
+// window's name is whatever runs in it, unless it was given one.
+func conf(g theme.Ground) string {
 	return `# conn's tmux server. Written by conn on each start; edits do not keep.
 set -g @conn_generation ` + generation + `
+` + look(g) + `
 set -g prefix C-b
 set -g mouse on
 set -g mode-keys vi
@@ -83,17 +85,75 @@ set -as terminal-features ",*:RGB"
 set-environment -g COLORTERM truecolor
 set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 set-environment -g CONN 1
-set -g status-left "#[bold] conn #[nobold] "
+set -g status-style "bg=` + g.Border + `,fg=` + g.Gray + `"
+set -g status-left "#[fg=` + theme.Hex(g.Ink) + ` bold] conn #[default] "
 # The panel lists what runs; tmux's own list of windows would say it
 # again, by window.
 set -g window-status-format ""
 set -g window-status-current-format ""
 set -g window-status-separator ""
 set -g status-left-length 20
-set -g status-right "#{?#{` + waitingMark + `},#[fg=colour` + waitingColor + `#,bold]#{` + waitingMark + `} waiting#[default] · ctrl-space then tab goes to it · , }ctrl-space: back to conn "
+set -g status-right "#{?#{` + waitingMark + `},#[fg=` + g.Accent + ` bold]#{` + waitingMark + `} waiting#[default] · ctrl-space then tab goes to it · , }ctrl-space: back to conn "
 set -g status-right-length 80
 `
 }
+
+// look is what the server wears on a ground: the panes on the ground in
+// the ink, the sixteen a program asks for by name, the cursor in the
+// accent, a selection on the chosen ground, a search's matches in a
+// quiet mark with the one the cursor is on in the accent's block, and
+// the border between the panel and the workspace painted in the
+// ground, so the seam is a column of air and not a line.
+func look(g theme.Ground) string {
+	var b strings.Builder
+	ground, ink := theme.Hex(g.Ground), theme.Hex(g.Ink)
+	fmt.Fprintf(&b, "set -g window-style \"bg=%s,fg=%s\"\n", ground, ink)
+	fmt.Fprintf(&b, "set -g cursor-colour \"%s\"\n", g.Cursor)
+	// The cursor keeps its color in copy mode. tmux draws a pane in a
+	// mode from a screen of the mode's own, which carries no cursor
+	// colour, and sends the terminal a reset the moment the mode comes
+	// on. The option is applied to whichever screen a pane is showing
+	// at the time, so it is applied again, a beat after the mode has
+	// changed, when the mode's screen is the one showing, and unset
+	// again so no pane carries a colour of its own past the theme's.
+	fmt.Fprintf(&b, "set-hook -g pane-mode-changed \"run-shell -b -d 0 -C \\\"set -p -t '#{hook_pane}' cursor-colour '%s' ; set -pu -t '#{hook_pane}' cursor-colour\\\"\"\n", g.Cursor)
+	fmt.Fprintf(&b, "set -g mode-style \"bg=%s,fg=%s\"\n", g.Chosen, g.ChosenInk)
+	fmt.Fprintf(&b, "set -g copy-mode-match-style \"bg=%s,fg=%s\"\n", g.Gray, ground)
+	fmt.Fprintf(&b, "set -g copy-mode-current-match-style \"bg=%s,fg=%s,bold\"\n", g.Block, g.OnBlock)
+	for i, c := range g.Scheme {
+		fmt.Fprintf(&b, "set -g pane-colours[%d] \"%s\"\n", i, c)
+	}
+	b.WriteString("set -g pane-border-lines single\n")
+	fmt.Fprintf(&b, "set -g pane-border-style \"fg=%s,bg=%s\"\n", ground, ground)
+	fmt.Fprintf(&b, "set -g pane-active-border-style \"fg=%s,bg=%s\"\n", ground, ground)
+	b.WriteString("set -g pane-border-indicators off\n")
+	return b.String()
+}
+
+// ground is the ground the server is on: what it chose when it came
+// up, and dark where it has not chosen.
+func ground(socket string) theme.Ground {
+	dark, ok := theme.ReadMode(socket)
+	return theme.On(dark || !ok)
+}
+
+// oscColors asks the terminal to take the ink of a ground and the
+// padding for its own, and oscOwnColors gives it its own back. tmux
+// keeps what a pane asks for to the pane, so the padding around the
+// client is the terminal's own unless the conn that attaches asks,
+// which is also the conn there to take it back. The padding is black
+// on either ground: the terminal's own edge, with the frame standing on
+// it. The cursor is the other way about: tmux puts the server's on the
+// terminal and leaves it there when the client goes, so conn asks for
+// nothing and takes it back all the same.
+func oscColors(g theme.Ground) string {
+	return fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\", theme.Hex(g.Ink), paddingHex)
+}
+
+const (
+	paddingHex   = "#000000"
+	oscOwnColors = "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\"
+)
 
 // errEarlier is a server up under an earlier conn's arrangement.
 var errEarlier = fmt.Errorf("an earlier conn's server is up")
@@ -106,10 +166,20 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(srv.Socket), 0o700); err != nil {
 		return 0, err
 	}
+	// The ground is the server's: what it came up on, asked of the
+	// terminal the first time, and held until it goes down.
+	dark, ok := theme.ReadMode(srv.Socket)
+	if !ok || !srv.HasSession(sessionName) {
+		dark = theme.DetectDark()
+		_ = theme.WriteMode(srv.Socket, dark)
+	}
+	g := theme.On(dark)
 	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
-	if err := os.WriteFile(path, []byte(conf()), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
 		return 0, err
 	}
+	fmt.Print(oscColors(g))
+	defer fmt.Print(oscOwnColors)
 	panel := "exec " + shell.Quote(self) + " panel"
 	if srv.Up() {
 		if g, _ := srv.Global("@conn_generation"); g != generation {
@@ -230,7 +300,10 @@ func findPanel(srv *tmux.Server, self string) (panelPane, error) {
 }
 
 // endServer ends the server and everything running in it.
-func endServer(srv *tmux.Server) error { return srv.Down() }
+func endServer(srv *tmux.Server) error {
+	theme.ForgetMode(srv.Socket)
+	return srv.Down()
+}
 
 // A pane in conn's server, as the panel reads it.
 type pane struct {

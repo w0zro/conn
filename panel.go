@@ -15,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	term "github.com/charmbracelet/x/term"
+	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -193,6 +194,7 @@ func runPanel() error {
 	if err != nil {
 		return err
 	}
+	wear(ground(srv.Socket))
 	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown()}
 	// The panel's window is conn's: the panel, and the workspace beside
 	// it. ctrl-space comes back here, wherever here is now.
@@ -1168,13 +1170,18 @@ var (
 	faint   = lipgloss.NewStyle().Faint(true)
 	chosen  = lipgloss.NewStyle().Reverse(true)
 	running = lipgloss.NewStyle().Bold(true)
-	// The one color conn uses: something is waiting on you.
-	waiting = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(waitingColor))
+	// The one color conn uses: something is waiting on you, in the
+	// accent of the ground the server is on, set once the panel knows
+	// it.
+	waiting = lipgloss.NewStyle().Bold(true)
 )
 
-// waitingColor is waiting's color, in the 256 palette, here and on the
-// status line.
-const waitingColor = "208"
+// wear dresses the panel's styles in a ground. The pane's ground and
+// ink are the server's, by its window-style; the panel sets only what
+// it draws in a color of its own.
+func wear(g theme.Ground) {
+	waiting = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(g.Accent))
+}
 
 func (m model) View() tea.View {
 	// The foot is wrapped to the panel's width, and the screen drawn

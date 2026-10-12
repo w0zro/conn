@@ -25,22 +25,7 @@ import (
 // the opening of each manifest that says how it runs, and the role.
 func rolePrompt(root string, as role) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "A software project is at %s", root)
-	if names := topFiles(root); len(names) > 0 {
-		fmt.Fprintf(&b, ", holding %s", strings.Join(names, ", "))
-	}
-	b.WriteString(".")
-	for _, name := range stackFiles {
-		data, err := os.ReadFile(filepath.Join(root, name))
-		if err != nil {
-			continue
-		}
-		lines := strings.Split(string(data), "\n")
-		if len(lines) > stackLines {
-			lines = lines[:stackLines]
-		}
-		fmt.Fprintf(&b, "\n\n%s begins:\n%s", name, strings.Join(lines, "\n"))
-	}
+	b.WriteString(projectDescribed(root))
 	if as == roleCheck {
 		b.WriteString("\n\nList the checks a developer runs on this project on this machine before calling work done — the tests, the build, the linter, a typecheck — one a line, as NAME: COMMAND, NAME one lowercase word, COMMAND as typed into a shell at the project's directory, through the project's own scripts (npm test, make check) where it has them, since a tool installed in the project is not on the shell's PATH. Only what runs to completion and passes or fails; not a dev server, an install or a deploy. Nothing else, no code fence. If there are none, reply NONE.")
 	} else {
@@ -167,4 +152,28 @@ func askRole(p project, as role) tea.Cmd {
 		}
 		return roleAnswer{root: p.Root, as: as, err: err.Error()}
 	}
+}
+
+// projectDescribed is a project as a question puts it: where it is,
+// the names at its top, and the opening of each manifest that says how
+// it runs.
+func projectDescribed(root string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "A software project is at %s", root)
+	if names := topFiles(root); len(names) > 0 {
+		fmt.Fprintf(&b, ", holding %s", strings.Join(names, ", "))
+	}
+	b.WriteString(".")
+	for _, name := range stackFiles {
+		data, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(data), "\n")
+		if len(lines) > stackLines {
+			lines = lines[:stackLines]
+		}
+		fmt.Fprintf(&b, "\n\n%s begins:\n%s", name, strings.Join(lines, "\n"))
+	}
+	return b.String()
 }

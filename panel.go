@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,9 +54,9 @@ type model struct {
 	// !'s line: the command being typed, while it is.
 	asking bool
 	line   string
-	// u's or t's question: the role asked about, blank for none, and
-	// what Claude Code answered, or why it did not. While it stands it
-	// is the project's screen.
+	// u's, t's or c's question: the role asked about, blank for none,
+	// and what Claude Code answered, or why it did not. While it stands
+	// it is the project's screen.
 	question role
 	offer    []stacked
 	offerErr string
@@ -649,9 +647,9 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.resolve(roleStack)
 	case "t":
 		return m.resolve(roleCheck)
-	case "o":
+	case "c":
 		if m.cursor < len(m.rows) {
-			return m, openPort(m.rows[m.cursor])
+			return m.talk(m.rows[m.cursor])
 		}
 	}
 	return m, nil
@@ -680,23 +678,70 @@ func (m model) lineKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// openPort opens the port a row listens on in the browser, the lowest
-// where it listens on several.
-func openPort(r row) tea.Cmd {
-	return func() tea.Msg {
-		if len(r.ports) == 0 {
-			return acted("It listens on no port.")
-		}
-		url := "http://localhost:" + r.ports[0]
-		opener := "open"
-		if runtime.GOOS != "darwin" {
-			opener = "xdg-open"
-		}
-		if err := exec.Command(opener, url).Run(); err != nil {
-			return acted(err.Error())
-		}
-		return acted("opened " + url)
+// rowName is the name a row's process answers to, which a client is
+// kept under.
+func rowName(r row) string {
+	switch {
+	case r.pane != nil:
+		return paneName(*r.pane)
+	case r.outside != nil:
+		return r.outside.Name
 	}
+	return ""
+}
+
+// talk opens a session with a row's process: a conversation or a shell
+// is gone into; otherwise the client kept under its name, or the
+// browser where a port of its answers HTTP, and failing both, Claude
+// Code is asked what talks to it.
+func (m model) talk(r row) (tea.Model, tea.Cmd) {
+	switch {
+	case r.conv != nil || (r.pane != nil && (r.pane.Session != "" || r.pane.Name == "")):
+		return m.goTo(r)
+	case r.pane == nil && r.outside == nil:
+		return m, nil
+	}
+	name := rowName(r)
+	var starts []started
+	if m.srv != nil {
+		starts = readStarted(startedPath(m.srv.Socket))
+	}
+	if client, ok := clientFor(starts, m.cur.belongs, name); ok {
+		return m.useClient(client, false)
+	}
+	for _, port := range r.ports {
+		if speaksHTTP(port) {
+			return m.useClient(stacked{name: name, command: "http://localhost:" + port, root: m.cur.Root}, true)
+		}
+	}
+	command, dir := "", r.dir()
+	switch {
+	case r.pane != nil && r.pane.Name != "":
+		command, _ = m.srv.Display(r.pane.ID, "#{"+runMark+"}")
+	case r.outside != nil:
+		command = r.outside.Command
+	}
+	m.question, m.offer, m.offerErr = roleClient, nil, ""
+	return m, askClient(m.cur, name, command, dir, r.ports)
+}
+
+// useClient opens a client: a URL in the browser, a command in a
+// window of its own at its root with the keys in it; and keeps it
+// under its name where asked to.
+func (m model) useClient(c stacked, record bool) (tea.Model, tea.Cmd) {
+	if record && m.srv != nil {
+		_ = recordStart(startedPath(m.srv.Socket), started{Root: or(c.root, m.cur.Root), Name: c.name, Command: c.command, Role: roleClient})
+	}
+	if isURL(c.command) {
+		url := c.command
+		return m, func() tea.Msg {
+			if err := openURL(url); err != nil {
+				return acted(err.Error())
+			}
+			return acted("opened " + url)
+		}
+	}
+	return m.start(or(c.root, m.cur.Root), c.command, "")
 }
 
 // nextWaiting shows a conversation waiting on you in the workspace, the
@@ -779,6 +824,9 @@ func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		list, as := m.offer, m.question
 		m.question, m.offer = "", nil
+		if as == roleClient {
+			return m.useClient(list[0], true)
+		}
 		m.note = "starting…"
 		return m, m.startRoles(list, as, true)
 	case "esc", "q", "ctrl+c":
@@ -1308,7 +1356,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · tab goes to what waits · / searches output · o opens its port · x stops · r restarts · u starts the project · t runs the checks · a hands it to an agent · ! runs a command · n new conversation · s shell · esc projects · q leaves"
+	return lines, "enter goes to it · tab goes to what waits · / searches output · c talks to it · x stops · r restarts · u starts the project · t runs the checks · a hands it to an agent · ! runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where
@@ -1434,21 +1482,20 @@ func keep[T any](cursor int, on string, items []T, key func(T) string) int {
 // the question, then Claude Code's answer and the two keys that take
 // it.
 func (m model) drawOffer(lines []string) ([]string, string) {
-	what, verb := "runs", "start them"
-	if m.question == roleCheck {
-		what, verb = "checks", "run them"
+	what, verb, ask := "runs", "start them", " Start these in "+m.cur.Name+"?"
+	switch m.question {
+	case roleCheck:
+		what, verb, ask = "checks", "run them", " Run these checks in "+m.cur.Name+"?"
+	case roleClient:
+		what, verb, ask = "talks to it in", "open it", " Talk to it with this?"
 	}
 	switch {
 	case m.offerErr != "":
 		lines = append(lines, " Claude would not say what "+what+" "+m.cur.Name+":", " "+m.offerErr)
 		return lines, "esc back"
 	case m.offer == nil:
-		lines = append(lines, " Nobody has run it here yet; asking Claude what "+what+" "+m.cur.Name+"…")
+		lines = append(lines, " Nobody has done it here yet; asking Claude what "+what+" "+m.cur.Name+"…")
 		return lines, "esc cancel"
-	}
-	ask := " Start these in " + m.cur.Name + "?"
-	if m.question == roleCheck {
-		ask = " Run these checks in " + m.cur.Name + "?"
 	}
 	lines = append(lines, bold.Render(ask), "")
 	w := 0

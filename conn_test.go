@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1088,5 +1091,103 @@ func TestEndAll(t *testing.T) {
 	}
 	if !reflect.DeepEqual(left, []string{"theirs"}) {
 		t.Errorf("left: %v", left)
+	}
+}
+
+// A client is kept under a process's name without taking the name from
+// the process: web is still the stack, and c on it is the browser.
+func TestClientFor(t *testing.T) {
+	starts := []started{
+		{Root: "/p", Name: "web", Command: "npm run dev", Role: roleStack},
+		{Root: "/p", Name: "web", Command: "http://localhost:5173", Role: roleClient},
+		{Root: "/p", Name: "db", Command: "psql app", Role: roleClient},
+		{Root: "/p", Name: "db", Command: "psql -d app", Role: roleClient},
+	}
+	in := func(root string) bool { return root == "/p" }
+	if stack := established(starts, in, roleStack); len(stack) != 1 || stack[0].name != "web" {
+		t.Errorf("stack = %+v", stack)
+	}
+	if c, ok := clientFor(starts, in, "db"); !ok || c.command != "psql -d app" {
+		t.Errorf("db's client = %+v, %v", c, ok)
+	}
+	if c, ok := clientFor(starts, in, "web"); !ok || !isURL(c.command) {
+		t.Errorf("web's client = %+v, %v", c, ok)
+	}
+	if _, ok := clientFor(starts, in, "worker"); ok {
+		t.Error("worker has a client")
+	}
+}
+
+func TestParseClient(t *testing.T) {
+	if got, err := parseClient("```\npsql postgres://localhost/app\n```\n"); err != nil || got != "psql postgres://localhost/app" {
+		t.Errorf("parseClient = %q, %v", got, err)
+	}
+	if _, err := parseClient("NONE\n"); err == nil {
+		t.Error("NONE was taken for a client")
+	}
+	if _, err := parseClient("\n\n"); err == nil {
+		t.Error("nothing was taken for a client")
+	}
+}
+
+// A port that answers HTTP speaks it; one that answers something else,
+// or nothing, does not.
+func TestSpeaksHTTP(t *testing.T) {
+	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("hi")) }))
+	defer web.Close()
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(web.URL, "http://"))
+	if !speaksHTTP(port) {
+		t.Error("a web server does not speak HTTP")
+	}
+	raw, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = raw.Close() }()
+	go func() {
+		for {
+			c, err := raw.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = c.Write([]byte("E\x00\x00\x00"))
+			_ = c.Close()
+		}
+	}()
+	_, port, _ = net.SplitHostPort(raw.Addr().String())
+	if speaksHTTP(port) {
+		t.Error("a raw listener speaks HTTP")
+	}
+	if speaksHTTP("1") {
+		t.Error("a closed port speaks HTTP")
+	}
+}
+
+// c on a conversation goes into it; on a named run whose client is
+// kept, it opens the client with no question.
+func TestTalk(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	dir := filepath.Dir(srv.Socket)
+	m := model{srv: srv, screen: onProject, cur: project{Name: "d", Root: realDir(dir)}}
+	conv := row{conv: &conversation{ID: "c1"}, pane: &pane{ID: "%9", Session: "c1"}}
+	next, _ := m.talk(conv)
+	if next.(model).asked != "%9" {
+		t.Error("c on a conversation did not go to it")
+	}
+	if err := recordStart(startedPath(srv.Socket), started{Root: realDir(dir), Name: "db", Command: "sleep 1000", Role: roleClient}); err != nil {
+		t.Fatal(err)
+	}
+	next, cmd := m.talk(row{pane: &pane{ID: "%3", Name: "db", Dir: realDir(dir)}})
+	m = next.(model)
+	if m.question != "" || m.follow == "" || cmd == nil {
+		t.Fatalf("c on db asked, or opened nothing: question %q, follow %q", m.question, m.follow)
+	}
+	ps, _ := panes(srv)
+	found := false
+	for _, p := range ps {
+		found = found || (p.ID == m.follow && p.Command == "sleep")
+	}
+	if !found {
+		t.Errorf("no pane %s running the client", m.follow)
 	}
 }

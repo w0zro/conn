@@ -26,6 +26,9 @@ type role string
 const (
 	roleStack role = "stack"
 	roleCheck role = "check"
+	// A client is not a process but what talks to one: it is kept under
+	// the process's name without taking the name from it.
+	roleClient role = "client"
 )
 
 // A started is one start written down: the project, the name it was
@@ -93,6 +96,9 @@ func established(starts []started, in func(root string) bool, as role) []stacked
 			continue
 		}
 		key := r.Root + "\x00" + r.Name
+		if r.Role == roleClient {
+			key += "\x00client"
+		}
 		if _, seen := last[key]; !seen {
 			order = append(order, key)
 		}
@@ -105,4 +111,15 @@ func established(starts []started, in func(root string) bool, as role) []stacked
 		}
 	}
 	return out
+}
+
+// clientFor is what talks to a process, by the name it is kept under,
+// where one has been kept.
+func clientFor(starts []started, in func(root string) bool, name string) (stacked, bool) {
+	for _, s := range established(starts, in, roleClient) {
+		if s.name == name {
+			return s, true
+		}
+	}
+	return stacked{}, false
 }

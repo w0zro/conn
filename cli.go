@@ -490,6 +490,13 @@ func runU(w io.Writer, home, dir string, args []string) int {
 	if replace != "" {
 		_, _ = h.srv.Do(tmux.Kill(replace))
 	}
+	// What waited is a check; what does not is the stack. The start
+	// stands whether or not it could be written down.
+	as := roleStack
+	if wait {
+		as = roleCheck
+	}
+	_ = recordStart(startedPath(h.srv.Socket), started{Root: h.root, Name: name, Command: shellLine(command), Role: as})
 	if !wait {
 		_, _ = fmt.Fprintf(w, "%s is up in pane %s; conn l %s reads it\n", name, id, name)
 		return 0

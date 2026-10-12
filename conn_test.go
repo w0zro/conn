@@ -641,11 +641,11 @@ func TestArrangePorts(t *testing.T) {
 
 func TestParseStack(t *testing.T) {
 	got, err := parseStack("```\nweb: npm run dev\n\nworker: node worker.js\nweb: again\nnot a line\n```\n")
-	if err != nil || !reflect.DeepEqual(got, []stacked{{"web", "npm run dev"}, {"worker", "node worker.js"}}) {
+	if err != nil || !reflect.DeepEqual(got, []stacked{{name: "web", command: "npm run dev"}, {name: "worker", command: "node worker.js"}}) {
 		t.Errorf("parseStack = %v, %v", got, err)
 	}
 	got, err = parseStack("dev: npm run dev\ncheck:watch: npm run check:watch\nweb:npm start\n")
-	want := []stacked{{"dev", "npm run dev"}, {"check-watch", "npm run check:watch"}, {"web", "npm start"}}
+	want := []stacked{{name: "dev", command: "npm run dev"}, {name: "check-watch", command: "npm run check:watch"}, {name: "web", command: "npm start"}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("parseStack of colons = %v, %v", got, err)
 	}
@@ -669,19 +669,19 @@ func TestStackKeys(t *testing.T) {
 		return next.(model)
 	}
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{{pane: &pane{ID: "%1"}}, {pane: &pane{ID: "%2"}}}}
-	m.stacking = true
-	next, _ := m.Update(stackAnswer{root: "/p", list: []stacked{{"web", "npm run dev"}}})
+	m.question = roleStack
+	next, _ := m.Update(roleAnswer{root: "/p", as: roleStack, list: []stacked{{name: "web", command: "npm run dev"}}})
 	m = next.(model)
 	if m.offer == nil {
 		t.Fatal("the answer was not offered")
 	}
-	if m = press(m, "j"); m.cursor != 0 || !m.stacking {
-		t.Errorf("j moved the cursor or put the question away: cursor %d, stacking %v", m.cursor, m.stacking)
+	if m = press(m, "j"); m.cursor != 0 || m.question == "" {
+		t.Errorf("j moved the cursor or put the question away: cursor %d, question %q", m.cursor, m.question)
 	}
-	if m = press(m, "esc"); m.stacking || m.offer != nil {
+	if m = press(m, "esc"); m.question != "" || m.offer != nil {
 		t.Error("esc did not put the question away")
 	}
-	next, _ = m.Update(stackAnswer{root: "/p", list: []stacked{{"web", "npm run dev"}}})
+	next, _ = m.Update(roleAnswer{root: "/p", as: roleStack, list: []stacked{{name: "web", command: "npm run dev"}}})
 	if next.(model).offer != nil {
 		t.Error("an answer after esc was offered")
 	}
@@ -916,5 +916,91 @@ func TestShownProjectsKeepFolders(t *testing.T) {
 	m.typed = "/p/w "
 	if got := names(); !reflect.DeepEqual(got, []string{"w", "conn", "essays"}) {
 		t.Errorf("/p/w: %v", got)
+	}
+}
+
+// A start written down is read back; what a role means in a project is
+// each name's last command there, in the order the names first ran,
+// and a name run since as the other role has left the first.
+func TestStarted(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "started.jsonl")
+	if got := readStarted(path); got != nil {
+		t.Errorf("readStarted of no file = %v", got)
+	}
+	for _, s := range []started{
+		{Root: "/p", Name: "web", Command: "npm run dev", Role: roleStack},
+		{Root: "/p", Name: "test", Command: "npm test", Role: roleCheck},
+		{Root: "/q", Name: "web", Command: "other", Role: roleStack},
+		{Root: "/p", Name: "web", Command: "npm run dev -- --host", Role: roleStack},
+		{Root: "/p", Name: "lint", Command: "npm run lint", Role: roleCheck},
+		{Root: "/p", Name: "watch", Command: "npm run watch", Role: roleCheck},
+		{Root: "/p", Name: "watch", Command: "npm run watch", Role: roleStack},
+	} {
+		if err := recordStart(path, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, path, strings.Join(append(func() []string {
+		b, _ := os.ReadFile(path)
+		return strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	}(), "not json", `{"root":"/p","name":"","command":"x"}`), "\n")+"\n")
+	in := func(root string) bool { return root == "/p" }
+	stack := established(readStarted(path), in, roleStack)
+	if want := []stacked{{name: "web", command: "npm run dev -- --host", root: "/p"}, {name: "watch", command: "npm run watch", root: "/p"}}; !reflect.DeepEqual(stack, want) {
+		t.Errorf("stack = %+v", stack)
+	}
+	checks := established(readStarted(path), in, roleCheck)
+	if want := []stacked{{name: "test", command: "npm test", root: "/p"}, {name: "lint", command: "npm run lint", root: "/p"}}; !reflect.DeepEqual(checks, want) {
+		t.Errorf("checks = %+v", checks)
+	}
+}
+
+// conn u writes down what it started as the stack, and what it waited
+// on as a check.
+func TestRunUWritesItDown(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	t.Setenv("CONN_SOCKET", srv.Socket)
+	dir := filepath.Dir(srv.Socket)
+	var out strings.Builder
+	if code := runU(&out, t.TempDir(), dir, []string{"web", "--", "sleep 1000"}); code != 0 {
+		t.Fatalf("conn u web = %d: %s", code, out.String())
+	}
+	if code := runU(&out, t.TempDir(), dir, []string{"test", "-w", "--", "echo ok"}); code != 0 {
+		t.Fatalf("conn u test -w = %d: %s", code, out.String())
+	}
+	got := readStarted(startedPath(srv.Socket))
+	if len(got) != 2 || got[0].Name != "web" || got[0].Role != roleStack || got[0].Command != "sleep 1000" || got[0].Root != realDir(dir) || got[1].Name != "test" || got[1].Role != roleCheck || got[1].Command != "echo ok" {
+		t.Errorf("started = %+v", got)
+	}
+}
+
+// t runs the checks as they were last run here, with no question; u,
+// with no stack run here yet, asks.
+func TestResolveRunsWhatWasRun(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	dir := filepath.Dir(srv.Socket)
+	if err := recordStart(startedPath(srv.Socket), started{Root: dir, Name: "test", Command: "echo ok", Role: roleCheck}); err != nil {
+		t.Fatal(err)
+	}
+	m := model{srv: srv, screen: onProject, cur: project{Name: "d", Root: dir}, rows: []row{}}
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "t", Code: 't'}))
+	m = next.(model)
+	if m.question != "" || cmd == nil {
+		t.Fatalf("t asked a question, or did nothing: question %q", m.question)
+	}
+	if said, ok := cmd().(acted); !ok || string(said) != "test is up" {
+		t.Errorf("t said %q", said)
+	}
+	ps, _ := panes(srv)
+	found := false
+	for _, p := range ps {
+		found = found || p.Name == "test"
+	}
+	if !found {
+		t.Error("no pane named test")
+	}
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "u", Code: 'u'}))
+	if next.(model).question != roleStack {
+		t.Error("u did not ask what the stack is")
 	}
 }

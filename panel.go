@@ -56,11 +56,12 @@ type model struct {
 	// !'s line: the command being typed, while it is.
 	asking bool
 	line   string
-	// u's question: whether it stands, and what Claude Code answered,
-	// or why it did not. While it stands it is the project's screen.
-	stacking bool
+	// u's or t's question: the role asked about, blank for none, and
+	// what Claude Code answered, or why it did not. While it stands it
+	// is the project's screen.
+	question role
 	offer    []stacked
-	stackErr string
+	offerErr string
 	// The panes holding a conversation waiting on you, and the one tab
 	// last went to, so the next tab goes on to another.
 	waiting     []pane
@@ -506,9 +507,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.found = hits(m.query, m.said)
 			m.hitAt = min(m.hitAt, max(len(m.found)-1, 0))
 		}
-	case stackAnswer:
-		if m.stacking && m.screen == onProject && msg.root == m.cur.Root {
-			m.offer, m.stackErr = msg.list, msg.err
+	case roleAnswer:
+		if m.question == msg.as && m.screen == onProject && msg.root == m.cur.Root {
+			m.offer, m.offerErr = msg.list, msg.err
 		}
 	case sized:
 		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && (w != m.width || h != m.height) {
@@ -521,8 +522,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.asking {
 			return m.lineKey(msg)
 		}
-		if m.stacking {
-			return m.stackKey(msg)
+		if m.question != "" {
+			return m.offerKey(msg)
 		}
 		if m.searching {
 			return m.searchKey(msg)
@@ -626,8 +627,9 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.searching, m.query, m.said, m.found, m.hitAt = true, "", nil, nil, 0
 		return m, readSaid(m.srv, m.cur.Root, m.rows)
 	case "u":
-		m.stacking, m.offer, m.stackErr = true, nil, ""
-		return m, askStack(m.cur)
+		return m.resolve(roleStack)
+	case "t":
+		return m.resolve(roleCheck)
 	case "o":
 		if m.cursor < len(m.rows) {
 			return m, openPort(m.rows[m.cursor])
@@ -703,7 +705,7 @@ func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 			}
 		}
 		m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
-		m.searching, m.stacking = false, false
+		m.searching, m.question = false, ""
 	}
 	m.follow, m.asked, m.followAt = next.ID, next.ID, time.Now()
 	return m, tea.Batch(m.showing(next.ID, true), m.read())
@@ -747,23 +749,40 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// stackKey is a key while u's question stands: enter starts what
-// Claude Code named, esc puts the question away, and nothing else does
-// anything.
-func (m model) stackKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+// offerKey is a key while u's or t's question stands: enter starts
+// what Claude Code named, and writes it down as what the role means
+// here; esc puts the question away; nothing else does anything.
+func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "enter":
 		if m.offer == nil {
 			return m, nil
 		}
-		list := m.offer
-		m.stacking, m.offer = false, nil
-		m.note = "starting " + m.cur.Name + "…"
-		return m, m.startStack(list)
+		list, as := m.offer, m.question
+		m.question, m.offer = "", nil
+		m.note = "starting…"
+		return m, m.startRoles(list, as, true)
 	case "esc", "q", "ctrl+c":
-		m.stacking, m.offer, m.stackErr = false, nil, ""
+		m.question, m.offer, m.offerErr = "", nil, ""
 	}
 	return m, nil
+}
+
+// resolve runs what a role means in the project — the stack brought
+// up, the checks run — as it was last run here by whoever ran it, and
+// asks Claude Code where nobody has yet.
+func (m model) resolve(as role) (tea.Model, tea.Cmd) {
+	var starts []started
+	if m.srv != nil {
+		starts = readStarted(startedPath(m.srv.Socket))
+	}
+	cur := m.cur
+	if list := established(starts, cur.belongs, as); len(list) > 0 {
+		m.note = "starting…"
+		return m, m.startRoles(list, as, false)
+	}
+	m.question, m.offer, m.offerErr = as, nil, ""
+	return m, askRole(m.cur, as)
 }
 
 // proc is a row as the verbs take it: a pane, and what it is doing.
@@ -821,15 +840,21 @@ func (m model) up(command string) tea.Cmd {
 	}
 }
 
-// startStack starts each process Claude Code named, off the loop.
-func (m model) startStack(list []stacked) tea.Cmd {
+// startRoles starts each process of a role, off the loop, each at its
+// own root, or the project's where it has none, and writes each down
+// as what the role means there where asked to.
+func (m model) startRoles(list []stacked, as role, record bool) tea.Cmd {
 	srv, root, rows := m.srv, m.cur.Root, m.rows
 	return func() tea.Msg {
 		var said []string
 		for _, s := range list {
-			r, err := startIn(srv, rows, s.name, s.command, root)
+			at := or(s.root, root)
+			r, err := startIn(srv, rows, s.name, s.command, at)
 			if err != nil {
 				return acted(s.name + ": " + err.Error())
+			}
+			if record {
+				_ = recordStart(startedPath(srv.Socket), started{Root: at, Name: s.name, Command: s.command, Role: as})
 			}
 			said = append(said, r)
 		}
@@ -1073,7 +1098,7 @@ func (m model) feet(foot string) []string {
 	out = append(out, line)
 	for i, l := range out {
 		l = fit(" "+l, m.width)
-		if !m.asking && !m.stacking && m.note == "" {
+		if !m.asking && m.question == "" && m.note == "" {
 			l = faint.Render(l)
 		}
 		out[i] = l
@@ -1129,8 +1154,8 @@ func (m model) drawProject() ([]string, string) {
 		bold.Render(" "+listName(project{Name: m.cur.Name, Group: m.cur.Group})) + faint.Render("  "+tilde(m.cur.Root, m.home)),
 		"",
 	}
-	if m.stacking {
-		return m.drawStack(lines)
+	if m.question != "" {
+		return m.drawOffer(lines)
 	}
 	if m.searching {
 		return m.drawSearch(lines)
@@ -1193,7 +1218,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · tab goes to what waits · / searches output · o opens its port · x stops · r restarts · u starts the project · ! runs a command · n new conversation · s shell · esc projects · q leaves"
+	return lines, "enter goes to it · tab goes to what waits · / searches output · o opens its port · x stops · r restarts · u starts the project · t runs the checks · ! runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where
@@ -1315,18 +1340,27 @@ func keep[T any](cursor int, on string, items []T, key func(T) string) int {
 	return min(cursor, max(len(items)-1, 0))
 }
 
-// drawStack is the project's screen while u's question stands: the
-// question, then Claude Code's answer and the two keys that take it.
-func (m model) drawStack(lines []string) ([]string, string) {
+// drawOffer is the project's screen while u's or t's question stands:
+// the question, then Claude Code's answer and the two keys that take
+// it.
+func (m model) drawOffer(lines []string) ([]string, string) {
+	what, verb := "runs", "start them"
+	if m.question == roleCheck {
+		what, verb = "checks", "run them"
+	}
 	switch {
-	case m.stackErr != "":
-		lines = append(lines, " Claude would not say what runs "+m.cur.Name+":", " "+m.stackErr)
+	case m.offerErr != "":
+		lines = append(lines, " Claude would not say what "+what+" "+m.cur.Name+":", " "+m.offerErr)
 		return lines, "esc back"
 	case m.offer == nil:
-		lines = append(lines, " Asking Claude what runs "+m.cur.Name+"…")
+		lines = append(lines, " Nobody has run it here yet; asking Claude what "+what+" "+m.cur.Name+"…")
 		return lines, "esc cancel"
 	}
-	lines = append(lines, bold.Render(" Start these in "+m.cur.Name+"?"), "")
+	ask := " Start these in " + m.cur.Name + "?"
+	if m.question == roleCheck {
+		ask = " Run these checks in " + m.cur.Name + "?"
+	}
+	lines = append(lines, bold.Render(ask), "")
 	w := 0
 	for _, s := range m.offer {
 		w = max(w, len(s.name))
@@ -1334,7 +1368,7 @@ func (m model) drawStack(lines []string) ([]string, string) {
 	for _, s := range m.offer {
 		lines = append(lines, fit("   "+pad(s.name, w)+"  "+s.command, m.width))
 	}
-	lines = append(lines, "", " "+bold.Render("enter")+"  start them    "+bold.Render("esc")+"  cancel")
+	lines = append(lines, "", " "+bold.Render("enter")+"  "+verb+"    "+bold.Render("esc")+"  cancel")
 	return lines, ""
 }
 

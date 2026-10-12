@@ -343,7 +343,9 @@ func agentNote(conn string) string {
 		"  conn x NAME|:PORT|PID            end one\n\n" + called +
 		"A process started this way holds a terminal of its own: conn lists it, the operator " +
 		"can go into it, and its output is the pane's. Something you background instead holds " +
-		"no terminal and has no pane, and can only be read through whatever file its output was sent to."
+		"no terminal and has no pane, and can only be read through whatever file its output was sent to. " +
+		"conn also keeps what you started as what this project runs: what waited (-w) as its checks, " +
+		"the rest as its stack, each under its name, and the operator's keys run them again as you ran them."
 }
 
 // connCommand is how an agent runs this build: conn, where the PATH

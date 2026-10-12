@@ -14,16 +14,16 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// u starts a project: Claude Code is asked what keeps running while a
-// developer works on it — a dev server, a worker, a watcher — from its
+// Where nobody has yet run a project's stack or its checks through
+// conn, Claude Code is asked what they are, from the project's
 // top-level files and the opening of the manifests that say how it
 // runs. The answer is shown, and enter starts each process in a window
-// of its own under its name, as conn u starts one. Nothing is kept: the
-// next u asks again.
+// of its own under its name, as conn u starts one, and writes it down
+// as what the role means here (see roles.go).
 
-// stackPrompt is what Claude Code is asked: the project by its files,
-// and the opening of each manifest that says how it runs.
-func stackPrompt(root string) string {
+// rolePrompt is what Claude Code is asked: the project by its files,
+// the opening of each manifest that says how it runs, and the role.
+func rolePrompt(root string, as role) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "A software project is at %s", root)
 	if names := topFiles(root); len(names) > 0 {
@@ -41,7 +41,11 @@ func stackPrompt(root string) string {
 		}
 		fmt.Fprintf(&b, "\n\n%s begins:\n%s", name, strings.Join(lines, "\n"))
 	}
-	b.WriteString("\n\nList the long-running processes a developer starts to work on this project on this machine — a dev server, a worker, a watcher, a database it runs itself — one a line, as NAME: COMMAND, NAME one lowercase word, COMMAND as typed into a shell at the project's directory, through the project's own scripts (npm run dev, make dev) where it has them, since a tool installed in the project is not on the shell's PATH. Only what keeps running; not a build, a test or an install. Nothing else, no code fence. If there are none, reply NONE.")
+	if as == roleCheck {
+		b.WriteString("\n\nList the checks a developer runs on this project on this machine before calling work done — the tests, the build, the linter, a typecheck — one a line, as NAME: COMMAND, NAME one lowercase word, COMMAND as typed into a shell at the project's directory, through the project's own scripts (npm test, make check) where it has them, since a tool installed in the project is not on the shell's PATH. Only what runs to completion and passes or fails; not a dev server, an install or a deploy. Nothing else, no code fence. If there are none, reply NONE.")
+	} else {
+		b.WriteString("\n\nList the long-running processes a developer starts to work on this project on this machine — a dev server, a worker, a watcher, a database it runs itself — one a line, as NAME: COMMAND, NAME one lowercase word, COMMAND as typed into a shell at the project's directory, through the project's own scripts (npm run dev, make dev) where it has them, since a tool installed in the project is not on the shell's PATH. Only what keeps running; not a build, a test or an install. Nothing else, no code fence. If there are none, reply NONE.")
+	}
 	return b.String()
 }
 
@@ -67,9 +71,11 @@ func topFiles(dir string) []string {
 	return out
 }
 
-// A stacked is one process of a project as Claude Code named it.
+// A stacked is one process to start under a name: as Claude Code named
+// it, or as it was last run here, and in which project's root.
 type stacked struct {
 	name, command string
+	root          string // blank for the project on the screen
 }
 
 // stackName is the name of a line of the answer. A name can have a
@@ -98,7 +104,7 @@ func parseStack(out string) ([]stacked, error) {
 	for _, l := range strings.Split(out, "\n") {
 		l = strings.Trim(strings.TrimSpace(l), "`")
 		if strings.EqualFold(l, "none") {
-			return nil, errors.New("it runs nothing that keeps running")
+			return nil, errors.New("it named nothing")
 		}
 		name, command, ok := stackLine(l)
 		// A name conn u takes has no colon in it.
@@ -107,7 +113,7 @@ func parseStack(out string) ([]stacked, error) {
 			continue
 		}
 		seen[name] = true
-		list = append(list, stacked{name, command})
+		list = append(list, stacked{name: name, command: command})
 	}
 	if len(list) == 0 {
 		return nil, errors.New("the answer named nothing")
@@ -140,24 +146,25 @@ func askClaude(prompt string) (string, error) {
 	return string(out), nil
 }
 
-// stackAnswer is what runs a project, as Claude Code answered, or why
-// it did not.
-type stackAnswer struct {
+// roleAnswer is what a role means in a project, as Claude Code
+// answered, or why it did not.
+type roleAnswer struct {
 	root string
+	as   role
 	list []stacked
 	err  string
 }
 
-// askStack asks what runs a project, off the loop.
-func askStack(p project) tea.Cmd {
+// askRole asks what a role means in a project, off the loop.
+func askRole(p project, as role) tea.Cmd {
 	return func() tea.Msg {
-		out, err := askClaude(stackPrompt(p.Root))
+		out, err := askClaude(rolePrompt(p.Root, as))
 		if err == nil {
 			var list []stacked
 			if list, err = parseStack(out); err == nil {
-				return stackAnswer{root: p.Root, list: list}
+				return roleAnswer{root: p.Root, as: as, list: list}
 			}
 		}
-		return stackAnswer{root: p.Root, err: err.Error()}
+		return roleAnswer{root: p.Root, as: as, err: err.Error()}
 	}
 }

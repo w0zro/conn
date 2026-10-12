@@ -156,7 +156,7 @@ func paneName(p pane) string {
 // terminal Claude Code says it runs on.
 func paneState(p pane, live map[string]claudeRun) (state, session string) {
 	if p.Name != "" && p.Exit != "" {
-		return "exited " + p.Exit, ""
+		return ended(p.Exit), ""
 	}
 	if r, ok := live[p.Session]; ok && r.state() != "" {
 		return r.state(), p.Session
@@ -299,7 +299,7 @@ func (h here) find(addr string) (proc, error) {
 		if len(hits) > 1 {
 			var going []proc
 			for _, p := range hits {
-				if !strings.HasPrefix(p.State, "exited") {
+				if !over(p.State) {
 					going = append(going, p)
 				}
 			}
@@ -478,7 +478,7 @@ func runU(w io.Writer, home, dir string, args []string) int {
 	}
 	replace := ""
 	if p, err := h.find(name); err == nil && p.pane != nil {
-		if !strings.HasPrefix(p.State, "exited") {
+		if !over(p.State) {
 			return cliFail("u", fmt.Errorf("%s is up, pid %d; conn r %s starts it again", name, p.PID, name))
 		}
 		replace = p.pane.ID
@@ -705,4 +705,18 @@ func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
 	}
 	_, err := srv.Do(tmux.Cmd{"respawn-pane", "-k", "-t", p.pane.ID})
 	return p.pane.ID, err
+}
+
+// ended is how a run that ended reads: done, or failed with its
+// status, which is what the operator wants to know of a check.
+func ended(exit string) string {
+	if exit == "0" {
+		return "done"
+	}
+	return "failed " + exit
+}
+
+// over says whether a state is a run that has ended.
+func over(state string) bool {
+	return state == "done" || strings.HasPrefix(state, "failed ")
 }

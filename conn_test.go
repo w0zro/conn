@@ -342,7 +342,7 @@ func TestMachine(t *testing.T) {
 	if got[0].Name != "web" || !reflect.DeepEqual(got[0].Ports, []string{"3000"}) || got[0].State != "running" {
 		t.Errorf("web = %+v", got[0])
 	}
-	if got[1].State != "exited 1" {
+	if got[1].State != "failed 1" {
 		t.Errorf("test = %+v", got[1])
 	}
 }
@@ -358,7 +358,7 @@ func TestShellLine(t *testing.T) {
 
 func TestFind(t *testing.T) {
 	h := here{root: "/p", tree: "/p/wt", procs: []proc{
-		{Name: "web", PID: 1, State: "exited 0", Dir: "/p"},
+		{Name: "web", PID: 1, State: "done", Dir: "/p"},
 		{Name: "web", PID: 2, State: "running", Ports: []string{"3000"}, Dir: "/p"},
 		{Name: "api", PID: 3, State: "running", Dir: "/p"},
 		{Name: "api", PID: 4, State: "running", Dir: "/p/wt"},
@@ -1002,5 +1002,19 @@ func TestResolveRunsWhatWasRun(t *testing.T) {
 	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "u", Code: 'u'}))
 	if next.(model).question != roleStack {
 		t.Error("u did not ask what the stack is")
+	}
+}
+
+// A run that failed comes after what waits and before the rest, and
+// reads failed with its status; one that ended well reads done.
+func TestArrangeFailedFirst(t *testing.T) {
+	ps := []pane{{ID: "%2", Name: "web", Dir: "/p"}, {ID: "%5", Name: "lint", Exit: "0", Dir: "/p"}, {ID: "%7", Name: "test", Exit: "1", Dir: "/p"}}
+	rows := arrange(nil, ps, nil, nil, nil, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" })
+	var got []string
+	for _, r := range rows {
+		got = append(got, r.pane.Name+" "+or(r.state, "running"))
+	}
+	if want := []string{"test failed 1", "web running", "lint done"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("rows = %v", got)
 	}
 }

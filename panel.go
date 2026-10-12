@@ -377,7 +377,7 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 		if !used[ps[j].ID] && in(ps[j].Dir) {
 			state := live[ps[j].Session].state()
 			if ps[j].Name != "" && ps[j].Exit != "" {
-				state = "exited " + ps[j].Exit
+				state = ended(ps[j].Exit)
 			}
 			running = append(running, row{pane: &ps[j], state: state})
 		}
@@ -386,8 +386,19 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 	// tmux's count of the panes it has made: the order tmux lists panes
 	// in is the windows', and showing a pane moves it into conn's.
 	sort.SliceStable(running, func(i, j int) bool { return paneNumber(running[i]) < paneNumber(running[j]) })
+	// What wants you comes first: a conversation waiting, then a run
+	// that failed.
+	wantsYou := func(r row) int {
+		switch {
+		case r.state == "waiting":
+			return 0
+		case strings.HasPrefix(r.state, "failed "):
+			return 1
+		}
+		return 2
+	}
 	waitingFirst := func(rs []row) {
-		sort.SliceStable(rs, func(i, j int) bool { return rs[i].state == "waiting" && rs[j].state != "waiting" })
+		sort.SliceStable(rs, func(i, j int) bool { return wantsYou(rs[i]) < wantsYou(rs[j]) })
 	}
 	for i := range running {
 		if running[i].pane != nil {

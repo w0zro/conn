@@ -29,9 +29,11 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 12. **A folder of repositories.** A folder holding two or more git checkouts, below a folder directly in home, is listed with its repositories beneath it and opens as a project of all of theirs; each repository is still its own. One level. Built.
 
+13. **What agents run is what the keys run.** Every process started under a name through conn is written down beside the socket with its role: what `conn u -w` waited on is a check, the rest is the stack. In a project, `u` brings up the stack and `t` runs the checks as each name was last run here, by whoever ran it, with no question; only where nobody has yet is Claude Code asked, the answer offered, and enter's start written down the same way. Agents write the project's dialect by using the CLI; the keys speak it. Built, 2026-10-12.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `/` `o` `x` `r` `u` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `/` `o` `x` `r` `u` `t` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 
@@ -40,7 +42,7 @@ Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in 
 - conn ships the grammar, not per-tool features. What a verb means for a given process is resolved, not written into conn.
 - The grammar has two users: agents, by a CLI, and the engineer, by keys. Both reach the same verbs.
 - conn reads no declarations for now: no `.conn`, no compose, `Makefile` or `package.json` read by conn itself. What a project can run is resolved like any verb.
-- Nothing is persisted for now: no saved answers, no restored state. The grammar and what it can do come first; speed comes after, from there.
+- Nothing is persisted for now: no saved answers, no restored state. The grammar and what it can do come first; speed comes after, from there. Since 2026-10-12 one thing is: what was started under a name, and as what, so the keys run what agents ran (step 13).
 
 ## The evidence
 

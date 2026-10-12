@@ -470,3 +470,29 @@ func TestRowProc(t *testing.T) {
 		t.Errorf("proc = %+v, %v", p, ok)
 	}
 }
+
+// The cursor stays on its row when the rows are sorted again under it.
+func TestCursorKeepsItsRow(t *testing.T) {
+	a, b := &pane{ID: "%1"}, &pane{ID: "%2"}
+	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 1}
+	next, _ := m.Update(projectRead{root: "/p", rows: []row{{pane: b, state: "waiting"}, {pane: a}}})
+	if got := next.(model); got.rows[got.cursor].pane.ID != "%2" {
+		t.Errorf("cursor on %s, want %%2", got.rows[got.cursor].pane.ID)
+	}
+	m = model{projects: []project{{Root: "/a"}, {Root: "/b"}}, cursor: 1, loaded: true}
+	next, _ = m.Update(projectsRead{{Root: "/b", Waiting: 1}, {Root: "/a"}})
+	if got := next.(model); got.shownProjects()[got.cursor].Root != "/b" {
+		t.Errorf("cursor on %s, want /b", got.shownProjects()[got.cursor].Root)
+	}
+}
+
+// The projects list is read on the beat inside a project too; it does
+// not move the project's cursor.
+func TestProjectsReadLeavesTheProjectsCursor(t *testing.T) {
+	a, b := &pane{ID: "%1"}, &pane{ID: "%2"}
+	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 1}
+	next, _ := m.Update(projectsRead{{Root: "/x"}, {Root: "/y"}, {Root: "/z"}})
+	if got := next.(model).cursor; got != 1 {
+		t.Errorf("cursor = %d, want 1", got)
+	}
+}

@@ -275,12 +275,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case projectsRead:
+		// The list is read on the beat in a project too, for the status
+		// line; the cursor is the project's then, and left alone. On the
+		// list, it stays on its project as the list is sorted again under
+		// it, not on the place it was at.
+		if m.screen != onProjects {
+			m.projects, m.loaded = msg, true
+			return m, nil
+		}
+		on := ""
+		if shown := m.shownProjects(); m.cursor < len(shown) {
+			on = shown[m.cursor].Root
+		}
 		m.projects, m.loaded = msg, true
-		m.cursor = min(m.cursor, max(len(m.shownProjects())-1, 0))
+		m.cursor = keep(m.cursor, on, m.shownProjects(), func(p project) string { return p.Root })
 	case projectRead:
 		if m.screen == onProject && msg.root == m.cur.Root {
+			on := ""
+			if m.cursor < len(m.rows) {
+				on = m.rows[m.cursor].key()
+			}
 			m.rows = msg.rows
-			m.cursor = min(m.cursor, max(len(m.rows)-1, 0))
+			m.cursor = keep(m.cursor, on, m.rows, row.key)
 		}
 	case tick:
 		// A resize can land before the program listens for one, and is
@@ -610,7 +626,7 @@ func (m model) View() tea.View {
 		lines = append(lines, "")
 	}
 	foot = fit(" "+foot, m.width)
-	if !m.asking {
+	if !m.asking && m.note == "" {
 		foot = faint.Render(foot)
 	}
 	lines = append(lines[:h-1], foot)
@@ -801,4 +817,29 @@ func sayWaiting(srv *tmux.Server, n int) {
 		set = tmux.SetGlobal(waitingMark, want)
 	}
 	_, _ = srv.Do(set, tmux.RefreshStatus())
+}
+
+// key is what a row is, through a sort: its conversation, or its pane.
+func (r row) key() string {
+	if r.conv != nil {
+		return r.conv.ID
+	}
+	if r.pane != nil {
+		return r.pane.ID
+	}
+	return ""
+}
+
+// keep is where the cursor goes when a list is read again: onto the
+// item it was on, by key, wherever that has moved to, and otherwise
+// where it was, within the list.
+func keep[T any](cursor int, on string, items []T, key func(T) string) int {
+	if on != "" {
+		for i, it := range items {
+			if key(it) == on {
+				return i
+			}
+		}
+	}
+	return min(cursor, max(len(items)-1, 0))
 }

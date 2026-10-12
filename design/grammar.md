@@ -37,9 +37,11 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 16. **Agents are told the dialect.** Every conversation conn starts or picks back up is told what the project's checks and stack are as last run through conn, as `conn u` lines. What one agent established, the next is told. Built, 2026-10-12.
 
+17. **Stop everything.** On the projects screen, `x` on a project ends every process conn holds in it, conversations included, and every server in it outside conn. Built, 2026-10-12.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`; in a project `j` `k` `/` `o` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `o` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

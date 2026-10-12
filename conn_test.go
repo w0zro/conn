@@ -636,3 +636,21 @@ func TestArrangePorts(t *testing.T) {
 		t.Errorf("proc of an outside row = %+v, %v", p, ok)
 	}
 }
+
+func TestParseStack(t *testing.T) {
+	got, err := parseStack("```\nweb: npm run dev\n\nworker: node worker.js\nweb: again\nnot a line\n```\n")
+	if err != nil || !reflect.DeepEqual(got, []stacked{{"web", "npm run dev"}, {"worker", "node worker.js"}}) {
+		t.Errorf("parseStack = %v, %v", got, err)
+	}
+	got, err = parseStack("dev: npm run dev\ncheck:watch: npm run check:watch\nweb:npm start\n")
+	want := []stacked{{"dev", "npm run dev"}, {"check-watch", "npm run check:watch"}, {"web", "npm start"}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("parseStack of colons = %v, %v", got, err)
+	}
+	if _, err := parseStack("NONE\n"); err == nil {
+		t.Error("NONE was taken for a stack")
+	}
+	if _, err := parseStack("I could not tell.\n"); err == nil {
+		t.Error("an answer naming nothing was taken for a stack")
+	}
+}

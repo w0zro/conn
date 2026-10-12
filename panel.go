@@ -42,9 +42,11 @@ type model struct {
 	screen        screen
 	cursor        int
 	note          string // what the last key could not do, or did
-	// u's line: the command being typed, while it is.
+	// !'s line: the command being typed, while it is.
 	asking bool
 	line   string
+	// What Claude Code said runs the project, while it is offered.
+	offer []stacked
 
 	// The projects screen.
 	typed    string
@@ -321,6 +323,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case changed:
 		return m, m.read()
+	case stackAnswer:
+		if m.screen == onProject && msg.root == m.cur.Root {
+			m.offer, m.note = msg.list, ""
+		}
 	case sized:
 		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && (w != m.width || h != m.height) {
 			m.width, m.height = w, h
@@ -331,6 +337,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.note = ""
 		if m.asking {
 			return m.lineKey(msg)
+		}
+		if m.offer != nil {
+			list := m.offer
+			m.offer = nil
+			if msg.String() == "enter" {
+				m.note = "starting " + m.cur.Name + "…"
+				return m, m.startStack(list)
+			}
+			return m, nil
 		}
 		if m.screen == onProjects {
 			return m.projectsKey(msg)
@@ -424,8 +439,11 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.end(p)
 		}
 		return m, m.restart(p)
-	case "u":
+	case "!":
 		m.asking, m.line = true, ""
+	case "u":
+		m.note = "asking Claude what runs " + m.cur.Name + "…"
+		return m, askStack(m.cur)
 	case "o":
 		if m.cursor < len(m.rows) {
 			return m, openPort(m.rows[m.cursor])
@@ -517,34 +535,60 @@ func (m model) restart(p proc) tea.Cmd {
 	}
 }
 
-// up starts a command at the project's root, out of sight, under the
-// name of its program, as conn u does. One by that name that has
-// ended is replaced; one still running is said.
+// up starts a command typed at ! at the project's root, out of sight,
+// under the name of its program, as conn u does.
 func (m model) up(command string) tea.Cmd {
 	srv, root, rows := m.srv, m.cur.Root, m.rows
-	name := nameFor(command)
 	return func() tea.Msg {
-		replace := ""
-		for _, r := range rows {
-			if r.pane == nil || r.pane.Name != name {
-				continue
-			}
-			if r.pane.Exit == "" {
-				return acted(name + " is running; r restarts it")
-			}
-			replace = r.pane.ID
-		}
-		if _, err := startNamed(srv, name, command, root); err != nil {
+		name := nameFor(command)
+		said, err := startIn(srv, rows, name, command, root)
+		if err != nil {
 			return acted(err.Error())
 		}
-		if replace != "" {
-			_, _ = srv.Do(tmux.Kill(replace))
-		}
-		return acted(name + " is up; enter goes to it")
+		return acted(said)
 	}
 }
 
-// nameFor is the name a command typed at u runs under: its program's,
+// startStack starts each process Claude Code named, off the loop.
+func (m model) startStack(list []stacked) tea.Cmd {
+	srv, root, rows := m.srv, m.cur.Root, m.rows
+	return func() tea.Msg {
+		var said []string
+		for _, s := range list {
+			r, err := startIn(srv, rows, s.name, s.command, root)
+			if err != nil {
+				return acted(s.name + ": " + err.Error())
+			}
+			said = append(said, r)
+		}
+		return acted(strings.Join(said, "; "))
+	}
+}
+
+// startIn starts a command under a name at a project's root. One by
+// that name that has ended is replaced; one still running is left, and
+// said.
+func startIn(srv *tmux.Server, rows []row, name, command, root string) (string, error) {
+	replace := ""
+	for _, r := range rows {
+		if r.pane == nil || r.pane.Name != name {
+			continue
+		}
+		if r.pane.Exit == "" {
+			return name + " is running already", nil
+		}
+		replace = r.pane.ID
+	}
+	if _, err := startNamed(srv, name, command, root); err != nil {
+		return "", err
+	}
+	if replace != "" {
+		_, _ = srv.Do(tmux.Kill(replace))
+	}
+	return name + " is up", nil
+}
+
+// nameFor is the name a command typed at ! runs under: its program's,
 // past any VAR=value before it.
 func nameFor(command string) string {
 	for _, w := range strings.Fields(command) {
@@ -678,6 +722,21 @@ func (m model) View() tea.View {
 	if m.asking {
 		foot = "run in " + m.cur.Name + ": " + m.line + "▏"
 	}
+	if m.offer != nil {
+		// What Claude Code said runs the project stands above the foot,
+		// over the last of the rows.
+		offer := []string{"", bold.Render(" Claude says " + m.cur.Name + " runs:")}
+		w := 0
+		for _, s := range m.offer {
+			w = max(w, len(s.name))
+		}
+		for _, s := range m.offer {
+			offer = append(offer, fit("   "+pad(s.name, w)+"  "+s.command, m.width))
+		}
+		at := max(min(len(lines), m.height-1-len(offer)), 0)
+		lines = append(lines[:at], offer...)
+		foot = "enter starts them · any other key does not"
+	}
 	h := max(m.height, len(lines)+2)
 	for len(lines) < h-1 {
 		lines = append(lines, "")
@@ -795,7 +854,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · o opens its port · x stops · r restarts · u runs a command · n new conversation · s shell · esc projects · q leaves"
+	return lines, "enter goes to it · o opens its port · x stops · r restarts · u starts the project · ! runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where

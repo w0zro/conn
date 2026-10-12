@@ -21,6 +21,110 @@ type project struct {
 	// What runs in it in conn, and its conversations waiting on you,
 	// wherever they run.
 	Running, Waiting int
+	// Group is a folder holding two or more repositories: listed with
+	// them beneath it, and a project of its own that takes in all of
+	// theirs. Depth is a project's place under its folder in the list.
+	Group bool
+	Depth int
+}
+
+// isFolder says whether a directory is a folder of repositories: two or
+// more of the directories directly in it are git checkouts. Home and /
+// are where everything is, and never one.
+func isFolder(dir, home string) bool {
+	if dir == home || dir == "/" || dir == "" {
+		return false
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	n := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, e.Name(), ".git")); err == nil {
+			n++
+			if n == 2 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// group lays the projects out as the list shows them: each folder of
+// repositories with its repositories beneath it, and the rest on their
+// own. A folder is listed with what it holds summed — what waits, what
+// runs, the newest work — and comes where that puts it: what waits
+// first, then the newest. folder says whether a directory is a folder
+// of repositories.
+func group(ps []project, folder func(string) bool) []project {
+	folders := map[string]*project{}
+	under := map[string][]project{}
+	var top []project
+	ensure := func(root string) *project {
+		f := folders[root]
+		if f == nil {
+			f = &project{Name: filepath.Base(root), Root: root, Group: true}
+			folders[root] = f
+		}
+		return f
+	}
+	add := func(f *project, p project) {
+		f.Running += p.Running
+		f.Waiting += p.Waiting
+		if p.Last.After(f.Last) {
+			f.Last = p.Last
+		}
+	}
+	for _, p := range ps {
+		switch parent := filepath.Dir(p.Root); {
+		case folder(p.Root):
+			// Work done in the folder itself is the folder's.
+			add(ensure(p.Root), p)
+		case folder(parent):
+			add(ensure(parent), p)
+			p.Depth = 1
+			under[parent] = append(under[parent], p)
+		default:
+			top = append(top, p)
+		}
+	}
+	for _, f := range folders {
+		top = append(top, *f)
+	}
+	order := func(list []project) {
+		sort.SliceStable(list, func(i, j int) bool {
+			a, b := list[i], list[j]
+			if (a.Waiting > 0) != (b.Waiting > 0) {
+				return a.Waiting > 0
+			}
+			if !a.Last.Equal(b.Last) {
+				return a.Last.After(b.Last)
+			}
+			return a.Root < b.Root
+		})
+	}
+	order(top)
+	var out []project
+	for _, p := range top {
+		out = append(out, p)
+		if p.Group {
+			kids := under[p.Root]
+			order(kids)
+			out = append(out, kids...)
+		}
+	}
+	return out
+}
+
+// belongs says whether work in a directory is a project's: the
+// directory's project is it, or, for a folder of repositories, is in
+// it. root is the directory's project.
+func (p project) belongs(root string) bool {
+	return root != "" && (root == p.Root || (p.Group && within(root, p.Root)))
 }
 
 // rootOf is the project a directory belongs to: the repository it is in,

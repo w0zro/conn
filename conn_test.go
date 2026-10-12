@@ -170,7 +170,7 @@ func TestArrange(t *testing.T) {
 		"away":   {TTY: "ttys1", Status: "busy"},
 		"byhand": {TTY: "ttys9", Status: "waiting"},
 	}
-	rows := arrange(convs, ps, live, nil, nil, "/p", func(c conversation) string { return "t-" + c.ID })
+	rows := arrange(convs, ps, live, nil, nil, func(d string) bool { return within(d, "/p") }, func(c conversation) string { return "t-" + c.ID })
 	var got []string
 	for _, r := range rows {
 		s := ""
@@ -630,7 +630,7 @@ func TestWatchFiles(t *testing.T) {
 func TestArrangePorts(t *testing.T) {
 	ps := []pane{{ID: "%1", Name: "web", Dir: "/p"}}
 	outside := []proc{{Name: "python3", PID: 77, Ports: []string{"8000"}, Dir: "/p"}}
-	rows := arrange(nil, ps, nil, map[string][]string{"%1": {"3000"}}, outside, "/p", func(conversation) string { return "" })
+	rows := arrange(nil, ps, nil, map[string][]string{"%1": {"3000"}}, outside, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" })
 	if len(rows) != 2 || !reflect.DeepEqual(rows[0].ports, []string{"3000"}) || rows[1].outside == nil || rows[1].key() != "pid 77" {
 		t.Fatalf("rows = %+v", rows)
 	}
@@ -837,8 +837,80 @@ func TestAround(t *testing.T) {
 // window tmux lists each in.
 func TestArrangeKeepsStartOrder(t *testing.T) {
 	ps := []pane{{ID: "%7", Name: "tests", Dir: "/p"}, {ID: "%3", Name: "web", Dir: "/p"}}
-	rows := arrange(nil, ps, nil, nil, nil, "/p", func(conversation) string { return "" })
+	rows := arrange(nil, ps, nil, nil, nil, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" })
 	if rows[0].pane.ID != "%3" || rows[1].pane.ID != "%7" {
 		t.Errorf("rows = %s, %s", rows[0].pane.ID, rows[1].pane.ID)
+	}
+}
+
+// A folder of repositories is one with two or more checkouts directly
+// in it; home never is.
+func TestIsFolder(t *testing.T) {
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	for _, d := range []string{"a/.git", "b/.git", "c", "one/x/.git"} {
+		if err := os.MkdirAll(filepath.Join(base, d), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !isFolder(base, "/home") {
+		t.Error("two checkouts made no folder")
+	}
+	if isFolder(filepath.Join(base, "one"), "/home") {
+		t.Error("one checkout made a folder")
+	}
+	if isFolder(base, base) {
+		t.Error("home was taken for a folder")
+	}
+}
+
+// Repositories in a folder are listed beneath it, the folder with what
+// they hold summed, and work in the folder itself is the folder's.
+func TestGroup(t *testing.T) {
+	now := time.Now()
+	ps := []project{
+		{Name: "hsg", Root: "/p/hsg", Last: now.Add(-3 * time.Hour)},
+		{Name: "conn", Root: "/p/w/conn", Last: now.Add(-time.Hour), Running: 2},
+		{Name: "essays", Root: "/p/w/essays", Last: now.Add(-5 * time.Hour), Waiting: 1},
+		{Name: "w", Root: "/p/w", Last: now.Add(-9 * time.Hour)},
+	}
+	got := group(ps, func(d string) bool { return d == "/p/w" })
+	var names []string
+	for _, p := range got {
+		names = append(names, listName(p))
+	}
+	if want := []string{"w/", "  essays", "  conn", "hsg"}; !reflect.DeepEqual(names, want) {
+		t.Fatalf("group = %v, want %v", names, want)
+	}
+	if f := got[0]; !f.Group || f.Running != 2 || f.Waiting != 1 || !f.Last.Equal(now.Add(-time.Hour)) {
+		t.Errorf("folder = %+v", f)
+	}
+	if !got[0].belongs("/p/w/conn") || got[0].belongs("/p/hsg") || got[2].belongs("/p/w/essays") {
+		t.Error("belongs took in the wrong work")
+	}
+}
+
+// A repository found brings its folder above it; a folder found brings
+// what it holds.
+func TestShownProjectsKeepFolders(t *testing.T) {
+	m := model{home: "/h", projects: []project{
+		{Name: "w", Root: "/p/w", Group: true},
+		{Name: "conn", Root: "/p/w/conn", Depth: 1},
+		{Name: "essays", Root: "/p/w/essays", Depth: 1},
+		{Name: "hsg", Root: "/p/hsg"},
+	}}
+	names := func() []string {
+		var out []string
+		for _, p := range m.shownProjects() {
+			out = append(out, p.Name)
+		}
+		return out
+	}
+	m.typed = "essays"
+	if got := names(); !reflect.DeepEqual(got, []string{"w", "essays"}) {
+		t.Errorf("essays: %v", got)
+	}
+	m.typed = "/p/w "
+	if got := names(); !reflect.DeepEqual(got, []string{"w", "conn", "essays"}) {
+		t.Errorf("/p/w: %v", got)
 	}
 }

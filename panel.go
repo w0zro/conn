@@ -92,6 +92,20 @@ type row struct {
 	elsewhere bool     // running in a terminal conn does not hold
 	state     string   // working, waiting or idle, where Claude Code says
 	ports     []string // what it listens on
+	repo      string   // in a folder of repositories, the one it is in
+}
+
+// dir is where a row's work is.
+func (r row) dir() string {
+	switch {
+	case r.conv != nil:
+		return r.conv.Dir
+	case r.pane != nil:
+		return r.pane.Dir
+	case r.outside != nil:
+		return r.outside.Dir
+	}
+	return ""
 }
 
 // known is what has been read off files that do not change under it:
@@ -102,6 +116,7 @@ type known struct {
 	cwd    map[string]string
 	root   map[string]string
 	titles map[string]titled
+	folder map[string]bool
 }
 
 type titled struct {
@@ -110,7 +125,7 @@ type titled struct {
 }
 
 func newKnown() *known {
-	return &known{cwd: map[string]string{}, root: map[string]string{}, titles: map[string]titled{}}
+	return &known{cwd: map[string]string{}, root: map[string]string{}, titles: map[string]titled{}, folder: map[string]bool{}}
 }
 
 func (k *known) cwdOf(c conversation) string {
@@ -124,6 +139,20 @@ func (k *known) cwdOf(c conversation) string {
 		k.mu.Unlock()
 	}
 	return d
+}
+
+// isFolder is isFolder, asked once a directory.
+func (k *known) isFolder(dir, home string) bool {
+	k.mu.Lock()
+	f, ok := k.folder[dir]
+	k.mu.Unlock()
+	if !ok {
+		f = isFolder(dir, home)
+		k.mu.Lock()
+		k.folder[dir] = f
+		k.mu.Unlock()
+	}
+	return f
 }
 
 func (k *known) rootOf(dir string) string {
@@ -269,9 +298,7 @@ func (m model) read() tea.Cmd {
 		for i := range found {
 			found[i].Running, found[i].Waiting = running[found[i].Root], waiting[found[i].Root]
 		}
-		// What waits on you comes first; the rest stay newest first.
-		sort.SliceStable(found, func(i, j int) bool { return found[i].Waiting > 0 && found[j].Waiting == 0 })
-		r.projects = found
+		r.projects = group(found, func(dir string) bool { return k.isFolder(dir, home) })
 		for _, p := range held {
 			if state, _ := paneState(p, live); state == "waiting" {
 				r.waiting = append(r.waiting, p)
@@ -288,20 +315,29 @@ func (m model) read() tea.Cmd {
 				switch {
 				case p.pane != nil:
 					ports[p.pane.ID] = p.Ports
-				case p.Dir != "" && k.rootOf(p.Dir) == cur.Root:
+				case p.Dir != "" && cur.belongs(k.rootOf(p.Dir)):
 					outside = append(outside, p)
 				}
 			}
 			var convs []conversation
 			for _, c := range all {
 				dir := k.cwdOf(c)
-				if dir == "" || k.rootOf(dir) != cur.Root {
+				if dir == "" || !cur.belongs(k.rootOf(dir)) {
 					continue
 				}
 				c.Dir = dir
 				convs = append(convs, c)
 			}
-			r.root, r.rows = cur.Root, arrange(convs, held, live, ports, outside, cur.Root, k.titleOf)
+			in := func(dir string) bool { return cur.belongs(k.rootOf(dir)) }
+			r.root, r.rows = cur.Root, arrange(convs, held, live, ports, outside, in, k.titleOf)
+			// In a folder of repositories, a row says whose it is.
+			if cur.Group {
+				for i := range r.rows {
+					if root := k.rootOf(r.rows[i].dir()); root != cur.Root {
+						r.rows[i].repo = filepath.Base(root)
+					}
+				}
+			}
 		}
 		return r
 	}
@@ -310,7 +346,7 @@ func (m model) read() tea.Cmd {
 // arrange lays out a project's rows: what is running in conn first,
 // waiting before the rest, then what is running elsewhere, then the
 // conversations at rest, newest first, up to conversationsShown.
-func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports map[string][]string, outside []proc, root string, title func(conversation) string) []row {
+func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports map[string][]string, outside []proc, in func(dir string) bool, title func(conversation) string) []row {
 	var running, elsewhere, rest []row
 	used := map[string]bool{}
 	for i := range convs {
@@ -337,7 +373,7 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 		}
 	}
 	for j := range ps {
-		if !used[ps[j].ID] && within(ps[j].Dir, root) {
+		if !used[ps[j].ID] && in(ps[j].Dir) {
 			state := live[ps[j].Session].state()
 			if ps[j].Name != "" && ps[j].Exit != "" {
 				state = "exited " + ps[j].Exit
@@ -896,15 +932,40 @@ func (m model) shownProjects() []project {
 	if len(words) == 0 {
 		return m.projects
 	}
-	var out []project
-	for _, p := range m.projects {
+	matches := func(p project) bool {
 		hay := strings.ToLower(p.Name + " " + tilde(p.Root, m.home))
-		all := true
 		for _, w := range words {
-			all = all && strings.Contains(hay, w)
+			if !strings.Contains(hay, w) {
+				return false
+			}
 		}
-		if all {
-			out = append(out, p)
+		return true
+	}
+	// A folder found brings what it holds; a repository found brings
+	// the folder it is in, so it is never shown out of its place.
+	var out []project
+	var folder *project
+	folderIn, folderFound := false, false
+	for _, p := range m.projects {
+		switch {
+		case p.Group:
+			f := p
+			folder, folderIn, folderFound = &f, false, matches(p)
+			if folderFound {
+				out, folderIn = append(out, p), true
+			}
+		case p.Depth > 0 && folder != nil:
+			if folderFound || matches(p) {
+				if !folderIn {
+					out, folderIn = append(out, *folder), true
+				}
+				out = append(out, p)
+			}
+		default:
+			folder = nil
+			if matches(p) {
+				out = append(out, p)
+			}
 		}
 	}
 	return out
@@ -925,7 +986,7 @@ func (m model) typedPath() (project, bool) {
 	if root == "" {
 		root = dir
 	}
-	return project{Name: filepath.Base(root), Root: root}, true
+	return project{Name: filepath.Base(root), Root: root, Group: m.known.isFolder(root, m.home)}, true
 }
 
 // Drawing.
@@ -1031,12 +1092,12 @@ func (m model) drawProjects() ([]string, string) {
 	first := max(m.cursor-room+1, 0)
 	nameW := 0
 	for _, p := range shown {
-		nameW = max(nameW, ansi.StringWidth(p.Name))
+		nameW = max(nameW, ansi.StringWidth(listName(p)))
 	}
 	nameW = min(nameW, 24)
 	for i := first; i < len(shown) && i < first+room; i++ {
 		p := shown[i]
-		left := " " + pad(p.Name, nameW) + "  " + tilde(p.Root, m.home)
+		left := " " + pad(listName(p), nameW) + "  " + tilde(p.Root, m.home)
 		line := spread(left, p.standing()+" ", m.width)
 		switch {
 		case i == m.cursor:
@@ -1065,7 +1126,7 @@ func (m model) drawProjects() ([]string, string) {
 
 func (m model) drawProject() ([]string, string) {
 	lines := []string{
-		bold.Render(" "+m.cur.Name) + faint.Render("  "+tilde(m.cur.Root, m.home)),
+		bold.Render(" "+listName(project{Name: m.cur.Name, Group: m.cur.Group})) + faint.Render("  "+tilde(m.cur.Root, m.home)),
 		"",
 	}
 	if m.stacking {
@@ -1117,6 +1178,9 @@ func (m model) drawProject() ([]string, string) {
 		}
 		if len(r.ports) > 0 {
 			right = ":" + strings.Join(r.ports, " :") + "  " + right
+		}
+		if r.repo != "" {
+			left = r.repo + " · " + left
 		}
 		line := spread(" "+left, right+" ", m.width)
 		switch {
@@ -1321,4 +1385,17 @@ func paneNumber(r row) int {
 		return int(^uint(0) >> 1)
 	}
 	return n
+}
+
+// listName is a project's name as the list writes it: a folder of
+// repositories with a slash after it, and a repository in one indented
+// beneath it.
+func listName(p project) string {
+	switch {
+	case p.Group:
+		return p.Name + "/"
+	case p.Depth > 0:
+		return strings.Repeat("  ", p.Depth) + p.Name
+	}
+	return p.Name
 }

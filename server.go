@@ -85,8 +85,8 @@ set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 set-environment -g CONN 1
 set -g status-left "#[bold] conn #[nobold] "
 set -g status-left-length 20
-set -g status-right "#{?#{` + waitingMark + `},#[fg=colour` + waitingColor + `#,bold]#{` + waitingMark + `} waiting#[default] · , }ctrl-space: back to conn "
-set -g status-right-length 60
+set -g status-right "#{?#{` + waitingMark + `},#[fg=colour` + waitingColor + `#,bold]#{` + waitingMark + `} waiting#[default] · ctrl-space then tab goes to it · , }ctrl-space: back to conn "
+set -g status-right-length 80
 `
 }
 
@@ -135,13 +135,16 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if _, err := srv.Do(
-		tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", win},
-		tmux.Cmd{"select-window", "-t", win},
-	); err != nil {
+	if _, err := srv.Do(bindBack(win), tmux.Cmd{"select-window", "-t", win}); err != nil {
 		return 0, err
 	}
 	return srv.AttachClient(path, sessionName, connWindow, home, panel)
+}
+
+// bindBack binds the one key conn takes from every window: back to
+// conn's window.
+func bindBack(window string) tmux.Cmd {
+	return tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", window}
 }
 
 // ensurePanel answers conn's window: conn's pane started again where

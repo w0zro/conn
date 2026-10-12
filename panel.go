@@ -50,6 +50,10 @@ type model struct {
 	stacking bool
 	offer    []stacked
 	stackErr string
+	// The panes holding a conversation waiting on you, and the one tab
+	// last went to, so the next tab goes on to another.
+	waiting     []pane
+	lastWaiting string
 
 	// The projects screen.
 	typed    string
@@ -142,7 +146,9 @@ func runPanel() error {
 	own := os.Getenv("TMUX_PANE")
 	// ctrl-space comes back here, wherever here is now.
 	if own != "" {
-		_, _ = srv.Do(tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", own})
+		if win, err := srv.Display(own, "#{window_id}"); err == nil && win != "" {
+			_, _ = srv.Do(bindBack(win))
+		}
 	}
 	self, err := os.Executable()
 	if err != nil {
@@ -165,6 +171,7 @@ type read struct {
 	projects []project
 	root     string
 	rows     []row
+	waiting  []pane // the panes conn holds a conversation waiting on you in
 }
 
 // acted is what a key that runs off the loop did, or could not do.
@@ -226,6 +233,11 @@ func (m model) read() tea.Cmd {
 		// What waits on you comes first; the rest stay newest first.
 		sort.SliceStable(found, func(i, j int) bool { return found[i].Waiting > 0 && found[j].Waiting == 0 })
 		r := read{projects: found}
+		for _, p := range held {
+			if state, _ := paneState(p, live); state == "waiting" {
+				r.waiting = append(r.waiting, p)
+			}
+		}
 
 		if cur != nil {
 			// What listens, and where: a port under one of conn's panes is
@@ -315,6 +327,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case read:
+		m.waiting = msg.waiting
 		m.takeProjects(msg.projects)
 		if m.screen == onProject && msg.root == m.cur.Root {
 			on := ""
@@ -372,6 +385,8 @@ func (m *model) takeProjects(ps []project) {
 func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	shown := m.shownProjects()
 	switch k.String() {
+	case "tab":
+		return m.nextWaiting(), nil
 	case "enter":
 		if m.cursor < len(shown) {
 			return m.open(shown[m.cursor])
@@ -402,6 +417,8 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
+	case "tab":
+		return m.nextWaiting(), nil
 	case "esc", "backspace":
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
 		return m, m.read()
@@ -489,6 +506,27 @@ func openPort(r row) tea.Cmd {
 		}
 		return acted("opened " + url)
 	}
+}
+
+// nextWaiting goes to a conversation waiting on you, the one after the
+// last tab went to, round to the first. A conversation waiting in a
+// terminal conn does not hold is not one conn can go to.
+func (m model) nextWaiting() model {
+	if len(m.waiting) == 0 {
+		m.note = "Nothing is waiting on you."
+		return m
+	}
+	next := m.waiting[0]
+	for i, p := range m.waiting {
+		if p.ID == m.lastWaiting {
+			next = m.waiting[(i+1)%len(m.waiting)]
+		}
+	}
+	m.lastWaiting = next.ID
+	if err := goTo(m.srv, next); err != nil {
+		m.note = err.Error()
+	}
+	return m
 }
 
 // stackKey is a key while u's question stands: enter starts what
@@ -792,7 +830,7 @@ func (m model) drawProjects() ([]string, string) {
 	case len(shown) == 0:
 		lines = append(lines, faint.Render(" no projects yet; type a path to one"))
 	}
-	return lines, "type to find, or a path · enter opens · ctrl-c leaves conn running"
+	return lines, "type to find, or a path · enter opens · tab goes to what waits · ctrl-c leaves conn running"
 }
 
 func (m model) drawProject() ([]string, string) {
@@ -858,7 +896,7 @@ func (m model) drawProject() ([]string, string) {
 		}
 		lines = append(lines, line)
 	}
-	return lines, "enter goes to it · o opens its port · x stops · r restarts · u starts the project · ! runs a command · n new conversation · s shell · esc projects · q leaves"
+	return lines, "enter goes to it · tab goes to what waits · o opens its port · x stops · r restarts · u starts the project · ! runs a command · n new conversation · s shell · esc projects · q leaves"
 }
 
 // spread puts left and right on one line of width, left cut short where

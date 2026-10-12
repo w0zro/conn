@@ -684,3 +684,39 @@ func TestStackKeys(t *testing.T) {
 		t.Error("an answer after esc was offered")
 	}
 }
+
+// tab goes to the conversations waiting on you in turn, round to the
+// first, and says so when none waits.
+func TestNextWaiting(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	dir, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
+	defer func() { _ = srv.Down() }()
+	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	var ws []pane
+	for range 2 {
+		out, _ := srv.Run("new-window", "-d", "-P", "-F", "#{window_id} #{pane_id}", "-t", sessionName+":", "sleep 1000")
+		w, p, _ := strings.Cut(strings.TrimSpace(out), " ")
+		ws = append(ws, pane{ID: p, Window: w})
+	}
+	m := model{srv: srv}
+	if m = m.nextWaiting(); m.note == "" {
+		t.Error("nothing said when nothing waits")
+	}
+	m.waiting = ws
+	for _, want := range []string{ws[0].Window, ws[1].Window, ws[0].Window} {
+		m = m.nextWaiting()
+		if on, _ := srv.Display(sessionName+":", "#{window_id}"); on != want {
+			t.Errorf("tab went to %s, want %s", on, want)
+		}
+	}
+}

@@ -131,11 +131,14 @@ func TestFindProjects(t *testing.T) {
 }
 
 func TestParsePanes(t *testing.T) {
-	out := "%1 @1 0 /dev/ttys004 abc-1 claude /Users/me/my project\n%2 @2 1 /dev/ttys005  zsh /Users/me\n"
+	out := "%1 @1 0 412 /dev/ttys004  abc-1   claude /Users/me/my project\n" +
+		"%2 @2 1 0 /dev/ttys005 1    zsh /Users/me\n" +
+		"%3 @3 0 77 /dev/ttys006   web 0 cat /p\n"
 	got := parsePanes(out)
 	want := []pane{
-		{ID: "%1", Window: "@1", TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project"},
-		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Command: "zsh", Dir: "/Users/me"},
+		{ID: "%1", Window: "@1", PID: 412, TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project"},
+		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Panel: true, Command: "zsh", Dir: "/Users/me"},
+		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Exit: "0", Command: "cat", Dir: "/p"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parsePanes = %+v\nwant %+v", got, want)
@@ -308,5 +311,121 @@ func TestStanding(t *testing.T) {
 	}
 	if got := (project{Last: time.Now().Add(-3 * time.Hour)}).standing(); got != "3h" {
 		t.Errorf("standing at rest = %q", got)
+	}
+}
+
+func TestParseListening(t *testing.T) {
+	out := "p412\nf5\nn*:3000\nf6\nn[::1]:3000\np77\nf9\nn127.0.0.1:5432\n"
+	got := parseListening(out)
+	if !reflect.DeepEqual(got, map[int][]string{412: {"3000", "3000"}, 77: {"5432"}}) {
+		t.Errorf("parseListening = %v", got)
+	}
+}
+
+// A listener's port is its pane's, however far down the pane's tree it
+// runs; conn's own pane is no process of the project's.
+func TestMachine(t *testing.T) {
+	ps := []pane{
+		{ID: "%0", PID: 10, Panel: true, Command: "conn", Dir: "/h"},
+		{ID: "%1", PID: 20, Name: "web", Command: "zsh", Dir: "/p"},
+		{ID: "%2", PID: 30, Name: "test", Exit: "1", Command: "cat", Dir: "/p"},
+	}
+	parent := map[int]int{21: 20, 22: 21}
+	got := machine(ps, nil, map[int][]string{22: {"3000", "3000"}}, parent)
+	if len(got) != 2 {
+		t.Fatalf("machine = %+v", got)
+	}
+	if got[0].Name != "web" || !reflect.DeepEqual(got[0].Ports, []string{"3000"}) || got[0].State != "running" {
+		t.Errorf("web = %+v", got[0])
+	}
+	if got[1].State != "exited 1" {
+		t.Errorf("test = %+v", got[1])
+	}
+}
+
+func TestShellLine(t *testing.T) {
+	if got := shellLine([]string{"npm test | tail -5"}); got != "npm test | tail -5" {
+		t.Errorf("one word: %q", got)
+	}
+	if got := shellLine([]string{"go", "test", "-run", "Test A"}); got != "go test -run 'Test A'" {
+		t.Errorf("words: %q", got)
+	}
+}
+
+func TestFind(t *testing.T) {
+	h := here{root: "/p", tree: "/p/wt", procs: []proc{
+		{Name: "web", PID: 1, State: "exited 0", Dir: "/p"},
+		{Name: "web", PID: 2, State: "running", Ports: []string{"3000"}, Dir: "/p"},
+		{Name: "api", PID: 3, State: "running", Dir: "/p"},
+		{Name: "api", PID: 4, State: "running", Dir: "/p/wt"},
+		{Name: "db", PID: 5, State: "running", Dir: "/elsewhere"},
+	}}
+	for addr, want := range map[string]int{"web": 2, ":3000": 2, "api": 4, "5": 5} {
+		if p, err := h.find(addr); err != nil || p.PID != want {
+			t.Errorf("find(%s) = %d, %v; want %d", addr, p.PID, err, want)
+		}
+	}
+	if _, err := h.find("db"); err == nil {
+		t.Error("a name reached another project")
+	}
+	if p, _ := h.find("5"); h.inProject(p) {
+		t.Error("another project's process was the caller's to change")
+	}
+}
+
+// conn u starts a command under a name, the pane says how it ended,
+// conn l reads it, and conn x closes it.
+func TestStartWaitEnd(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	dir, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
+	defer func() { _ = srv.Down() }()
+	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	id, err := startNamed(srv, "check", "echo one; echo two; exit 3", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exit, err := waitExit(srv, id)
+	if err != nil || exit != "3" {
+		t.Fatalf("waitExit = %q, %v", exit, err)
+	}
+	lines, err := said(srv, id)
+	if err != nil || len(lines) < 3 || lines[0] != "one" || lines[1] != "two" || lines[len(lines)-1] != "[check exited 3]" {
+		t.Errorf("said = %q, %v", lines, err)
+	}
+	ps, _ := panes(srv)
+	var p *pane
+	for i := range ps {
+		if ps[i].ID == id {
+			p = &ps[i]
+		}
+	}
+	if p == nil || p.Name != "check" || p.Exit != "3" {
+		t.Fatalf("pane = %+v", p)
+	}
+	h := here{srv: srv}
+	if how, err := h.end(proc{pane: p, Name: "check"}); err != nil || how != "kill-pane "+id {
+		t.Errorf("end = %q, %v", how, err)
+	}
+	// A server conn u started and that is still running is sent ctrl-c.
+	id, _ = startNamed(srv, "server", "sleep 1000", dir)
+	time.Sleep(300 * time.Millisecond)
+	ps, _ = panes(srv)
+	for i := range ps {
+		if ps[i].ID == id {
+			p = &ps[i]
+		}
+	}
+	if how, err := h.end(proc{pane: p, Name: "server"}); err != nil || how != "send-keys C-c" {
+		t.Errorf("end of a running server = %q, %v", how, err)
 	}
 }

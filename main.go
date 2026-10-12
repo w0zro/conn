@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -23,14 +24,33 @@ func main() {
 	}
 }
 
+// commands are the verbs for whoever has no panel, by name.
+var commands = map[string]func(w io.Writer, home, dir string, args []string) int{
+	"ls": runLs,
+	"l":  runL,
+	"u":  runU,
+	"x":  runX,
+	"r":  runR,
+}
+
 func run(args []string) error {
 	if len(args) > 0 {
 		switch args[0] {
 		case "panel":
 			return runPanel()
-		default:
-			return fmt.Errorf("conn takes no arguments; it opens on your projects")
 		}
+		if cmd, ok := commands[args[0]]; ok {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			dir, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			os.Exit(cmd(os.Stdout, home, dir, args[1:]))
+		}
+		return fmt.Errorf("conn knows ls, l, u, x and r; with nothing after it, it opens on your projects")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

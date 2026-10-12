@@ -32,6 +32,7 @@ type model struct {
 	srv   *tmux.Server
 	home  string
 	own   string // the panel's own pane
+	conn  string // how an agent runs this build
 	known *known
 
 	width, height int
@@ -130,7 +131,11 @@ func runPanel() error {
 	if own != "" {
 		_, _ = srv.Do(tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", own})
 	}
-	m := model{srv: srv, home: home, own: own, known: newKnown()}
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	m := model{srv: srv, home: home, own: own, conn: connCommand(self), known: newKnown()}
 	_, err = tea.NewProgram(m).Run()
 	return err
 }
@@ -244,7 +249,11 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, root st
 	}
 	for j := range ps {
 		if !used[ps[j].ID] && within(ps[j].Dir, root) {
-			running = append(running, row{pane: &ps[j], state: live[ps[j].Session].state()})
+			state := live[ps[j].Session].state()
+			if ps[j].Name != "" && ps[j].Exit != "" {
+				state = "exited " + ps[j].Exit
+			}
+			running = append(running, row{pane: &ps[j], state: state})
 		}
 	}
 	waitingFirst := func(rs []row) {
@@ -334,7 +343,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n":
 		id := newID()
-		m.note = m.start(newCommand(id), id)
+		m.note = m.start(newCommand(m.conn, id), id)
 		return m, m.readProject(m.cur)
 	case "s":
 		m.note = m.start("", "")
@@ -384,7 +393,7 @@ func (m model) goTo(r row) string {
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			dir = m.cur.Root
 		}
-		if err := openWindow(m.srv, windowName(m.cur.Name), dir, resumeCommand(r.conv.ID), r.conv.ID); err != nil {
+		if err := openWindow(m.srv, windowName(m.cur.Name), dir, resumeCommand(m.conn, r.conv.ID), r.conv.ID); err != nil {
 			return err.Error()
 		}
 	}
@@ -539,7 +548,7 @@ func (m model) drawProject() ([]string, string) {
 				right = ago(r.conv.When)
 			}
 		case r.pane != nil:
-			left = r.pane.Command
+			left = paneName(*r.pane)
 			if r.pane.Session != "" {
 				// Started by n, with nothing said yet: no transcript.
 				left = "new conversation"

@@ -219,17 +219,31 @@ type pane struct {
 	ID      string
 	Window  string // the window's id
 	Dead    bool
+	PID     int    // what the pane runs, as started
 	TTY     string // without /dev/
+	Panel   bool   // conn's own
 	Session string // the conversation conn started in it
+	Name    string // the name conn u started it under
+	Exit    string // how what conn u started ended, once it has
 	Command string // what tmux says runs in it now
 	Dir     string
 }
 
+// The marks conn sets on the panes conn u starts: the name, the
+// command and the directory it was started with, and how it ended,
+// which the pane sets itself.
+const (
+	nameMark = "@conn_name"
+	runMark  = "@conn_run"
+	dirMark  = "@conn_dir"
+	exitMark = "@conn_exit"
+)
+
 // The fields are separated by a space: tmux turns a tab into an
 // underscore when it prints to a pipe in the C locale. Every field but
-// the last is one token; the directory, which can hold a space, is last
-// and taken whole.
-const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_tty} #{" + sessionMark + "} #{pane_current_command} #{pane_current_path}"
+// the last is one token — a name conn u takes has no space in it — and
+// the directory, which can hold a space, is last and taken whole.
+const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + exitMark + "} #{pane_current_command} #{pane_current_path}"
 
 // panes is every pane in the server.
 func panes(srv *tmux.Server) ([]pane, error) {
@@ -243,13 +257,15 @@ func panes(srv *tmux.Server) ([]pane, error) {
 func parsePanes(out string) []pane {
 	var ps []pane
 	for _, l := range strings.Split(out, "\n") {
-		f := strings.SplitN(l, " ", 7)
-		if len(f) < 7 {
+		f := strings.SplitN(l, " ", 11)
+		if len(f) < 11 {
 			continue
 		}
+		pid, _ := strconv.Atoi(f[3])
 		ps = append(ps, pane{
-			ID: f[0], Window: f[1], Dead: f[2] == "1",
-			TTY: strings.TrimPrefix(f[3], "/dev/"), Session: f[4], Command: f[5], Dir: f[6],
+			ID: f[0], Window: f[1], Dead: f[2] == "1", PID: pid,
+			TTY: strings.TrimPrefix(f[4], "/dev/"), Panel: f[5] == "1", Session: f[6],
+			Name: f[7], Exit: f[8], Command: f[9], Dir: f[10],
 		})
 	}
 	return ps
@@ -282,15 +298,50 @@ func goTo(srv *tmux.Server, p pane) error {
 	return err
 }
 
-// resumeCommand picks a conversation back up in Claude Code.
-func resumeCommand(id string) string {
-	return "exec claude --resume " + shell.Quote(id)
+// resumeCommand picks a conversation back up in Claude Code, told what
+// conn tells the agents it starts.
+func resumeCommand(conn, id string) string {
+	return "exec claude --append-system-prompt " + shell.Quote(agentNote(conn)) + " --resume " + shell.Quote(id)
 }
 
 // newCommand starts a conversation in Claude Code under an id conn
 // chose, so its pane is marked with it before its transcript exists.
-func newCommand(id string) string {
-	return "exec claude --session-id " + shell.Quote(id)
+func newCommand(conn, id string) string {
+	return "exec claude --append-system-prompt " + shell.Quote(agentNote(conn)) + " --session-id " + shell.Quote(id)
+}
+
+// agentNote is what conn tells the agents it starts: to work the
+// project's processes through conn. It travels with conn rather than
+// being written into anybody's settings. conn is how to run this build.
+func agentNote(conn string) string {
+	called := ""
+	if conn != "conn" {
+		called = "conn here is " + conn + "; run it by that path.\n\n"
+	}
+	return "You are running inside conn, which holds this terminal as a tmux pane " +
+		"and watches the processes working this project. Work the project's processes " +
+		"through conn rather than starting them in the background or finding them with " +
+		"ps, lsof and tmux:\n\n" +
+		"  conn ls                          this project's processes, and the names they answer to\n" +
+		"  conn u NAME -- COMMAND           start a dev server, a watcher, anything long-lived, in a pane of its own\n" +
+		"  conn u NAME -w -- COMMAND        run a check and wait: its output, and its exit status as conn's\n" +
+		"  conn l NAME|:PORT|PID [-n N]     what a process said\n" +
+		"  conn r NAME|:PORT|PID            restart one conn started\n" +
+		"  conn x NAME|:PORT|PID            end one\n\n" + called +
+		"A process started this way holds a terminal of its own: conn lists it, the operator " +
+		"can go into it, and its output is the pane's. Something you background instead holds " +
+		"no terminal and has no pane, and can only be read through whatever file its output was sent to."
+}
+
+// connCommand is how an agent runs this build: conn, where the PATH
+// finds this build by that name, and its whole path otherwise. Setting
+// the PATH in tmux's environment would not reach a shell, whose startup
+// files build the PATH again.
+func connCommand(self string) string {
+	if found, err := exec.LookPath("conn"); err == nil && realDir(found) == realDir(self) {
+		return "conn"
+	}
+	return self
 }
 
 // newID is a random UUID, the shape Claude Code takes for a session id.

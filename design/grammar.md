@@ -11,6 +11,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 3. **Start something new, and leave.** In a project, `n` starts a Claude conversation and `s` a shell, at the project's root. `q` in a project and `ctrl-c` anywhere leave conn with everything in it running. Built.
 
+4. **Know who needs you.** A conversation reads working, waiting or idle, from what Claude Code writes for each instance. Waiting comes first, in orange, in a project and on the projects screen, where a row says `1 waiting · 2 running`; the status line says how many wait from every window. Built.
+
 Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; in a project `j` `k` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea

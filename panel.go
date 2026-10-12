@@ -45,8 +45,11 @@ type model struct {
 	// !'s line: the command being typed, while it is.
 	asking bool
 	line   string
-	// What Claude Code said runs the project, while it is offered.
-	offer []stacked
+	// u's question: whether it stands, and what Claude Code answered,
+	// or why it did not. While it stands it is the project's screen.
+	stacking bool
+	offer    []stacked
+	stackErr string
 
 	// The projects screen.
 	typed    string
@@ -324,8 +327,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case changed:
 		return m, m.read()
 	case stackAnswer:
-		if m.screen == onProject && msg.root == m.cur.Root {
-			m.offer, m.note = msg.list, ""
+		if m.stacking && m.screen == onProject && msg.root == m.cur.Root {
+			m.offer, m.stackErr = msg.list, msg.err
 		}
 	case sized:
 		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && (w != m.width || h != m.height) {
@@ -338,14 +341,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.asking {
 			return m.lineKey(msg)
 		}
-		if m.offer != nil {
-			list := m.offer
-			m.offer = nil
-			if msg.String() == "enter" {
-				m.note = "starting " + m.cur.Name + "…"
-				return m, m.startStack(list)
-			}
-			return m, nil
+		if m.stacking {
+			return m.stackKey(msg)
 		}
 		if m.screen == onProjects {
 			return m.projectsKey(msg)
@@ -442,7 +439,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "!":
 		m.asking, m.line = true, ""
 	case "u":
-		m.note = "asking Claude what runs " + m.cur.Name + "…"
+		m.stacking, m.offer, m.stackErr = true, nil, ""
 		return m, askStack(m.cur)
 	case "o":
 		if m.cursor < len(m.rows) {
@@ -492,6 +489,25 @@ func openPort(r row) tea.Cmd {
 		}
 		return acted("opened " + url)
 	}
+}
+
+// stackKey is a key while u's question stands: enter starts what
+// Claude Code named, esc puts the question away, and nothing else does
+// anything.
+func (m model) stackKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch k.String() {
+	case "enter":
+		if m.offer == nil {
+			return m, nil
+		}
+		list := m.offer
+		m.stacking, m.offer = false, nil
+		m.note = "starting " + m.cur.Name + "…"
+		return m, m.startStack(list)
+	case "esc", "q", "ctrl+c":
+		m.stacking, m.offer, m.stackErr = false, nil, ""
+	}
+	return m, nil
 }
 
 // proc is a row as the verbs take it: a pane, and what it is doing.
@@ -722,27 +738,12 @@ func (m model) View() tea.View {
 	if m.asking {
 		foot = "run in " + m.cur.Name + ": " + m.line + "▏"
 	}
-	if m.offer != nil {
-		// What Claude Code said runs the project stands above the foot,
-		// over the last of the rows.
-		offer := []string{"", bold.Render(" Claude says " + m.cur.Name + " runs:")}
-		w := 0
-		for _, s := range m.offer {
-			w = max(w, len(s.name))
-		}
-		for _, s := range m.offer {
-			offer = append(offer, fit("   "+pad(s.name, w)+"  "+s.command, m.width))
-		}
-		at := max(min(len(lines), m.height-1-len(offer)), 0)
-		lines = append(lines[:at], offer...)
-		foot = "enter starts them · any other key does not"
-	}
 	h := max(m.height, len(lines)+2)
 	for len(lines) < h-1 {
 		lines = append(lines, "")
 	}
 	foot = fit(" "+foot, m.width)
-	if !m.asking && m.note == "" {
+	if !m.asking && !m.stacking && m.note == "" {
 		foot = faint.Render(foot)
 	}
 	lines = append(lines[:h-1], foot)
@@ -798,6 +799,9 @@ func (m model) drawProject() ([]string, string) {
 	lines := []string{
 		bold.Render(" "+m.cur.Name) + faint.Render("  "+tilde(m.cur.Root, m.home)),
 		"",
+	}
+	if m.stacking {
+		return m.drawStack(lines)
 	}
 	if m.rows == nil {
 		lines = append(lines, faint.Render(" reading…"))
@@ -974,4 +978,27 @@ func keep[T any](cursor int, on string, items []T, key func(T) string) int {
 		}
 	}
 	return min(cursor, max(len(items)-1, 0))
+}
+
+// drawStack is the project's screen while u's question stands: the
+// question, then Claude Code's answer and the two keys that take it.
+func (m model) drawStack(lines []string) ([]string, string) {
+	switch {
+	case m.stackErr != "":
+		lines = append(lines, " Claude would not say what runs "+m.cur.Name+":", " "+m.stackErr)
+		return lines, "esc back"
+	case m.offer == nil:
+		lines = append(lines, " Asking Claude what runs "+m.cur.Name+"…")
+		return lines, "esc cancel"
+	}
+	lines = append(lines, bold.Render(" Start these in "+m.cur.Name+"?"), "")
+	w := 0
+	for _, s := range m.offer {
+		w = max(w, len(s.name))
+	}
+	for _, s := range m.offer {
+		lines = append(lines, fit("   "+pad(s.name, w)+"  "+s.command, m.width))
+	}
+	lines = append(lines, "", " "+bold.Render("enter")+"  start them    "+bold.Render("esc")+"  cancel")
+	return lines, ""
 }

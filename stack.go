@@ -140,10 +140,12 @@ func askClaude(prompt string) (string, error) {
 	return string(out), nil
 }
 
-// stackAnswer is what runs a project, as Claude Code answered.
+// stackAnswer is what runs a project, as Claude Code answered, or why
+// it did not.
 type stackAnswer struct {
 	root string
 	list []stacked
+	err  string
 }
 
 // askStack asks what runs a project, off the loop.
@@ -156,6 +158,6 @@ func askStack(p project) tea.Cmd {
 				return stackAnswer{root: p.Root, list: list}
 			}
 		}
-		return acted("Claude would not say what runs " + p.Name + ": " + err.Error())
+		return stackAnswer{root: p.Root, err: err.Error()}
 	}
 }

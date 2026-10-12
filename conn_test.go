@@ -654,3 +654,33 @@ func TestParseStack(t *testing.T) {
 		t.Error("an answer naming nothing was taken for a stack")
 	}
 }
+
+// While u's question stands, only enter and esc do anything, and an
+// answer that comes after esc is not shown.
+func TestStackKeys(t *testing.T) {
+	press := func(m model, k string) model {
+		key := tea.Key{Text: k, Code: []rune(k)[0]}
+		if k == "esc" {
+			key = tea.Key{Code: tea.KeyEscape}
+		}
+		next, _ := m.Update(tea.KeyPressMsg(key))
+		return next.(model)
+	}
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{{pane: &pane{ID: "%1"}}, {pane: &pane{ID: "%2"}}}}
+	m.stacking = true
+	next, _ := m.Update(stackAnswer{root: "/p", list: []stacked{{"web", "npm run dev"}}})
+	m = next.(model)
+	if m.offer == nil {
+		t.Fatal("the answer was not offered")
+	}
+	if m = press(m, "j"); m.cursor != 0 || !m.stacking {
+		t.Errorf("j moved the cursor or put the question away: cursor %d, stacking %v", m.cursor, m.stacking)
+	}
+	if m = press(m, "esc"); m.stacking || m.offer != nil {
+		t.Error("esc did not put the question away")
+	}
+	next, _ = m.Update(stackAnswer{root: "/p", list: []stacked{{"web", "npm run dev"}}})
+	if next.(model).offer != nil {
+		t.Error("an answer after esc was offered")
+	}
+}

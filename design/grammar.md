@@ -2,6 +2,15 @@
 
 Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worked out, not a spec.
 
+## From first use
+
+2026-10-11: the tree was cut back to the tmux layer (cb1d265) and the grammar is rebuilt one step of use at a time, each step only what it needs. What is below this section was written before the cut; what it describes as built is in the history up to f5c773a.
+
+1. **Open the terminal, you are in conn.** `conn` from `~` opens on the projects work has happened in, read from Claude Code's transcripts and where conn's panes are, newest first. Typing finds one, or names a directory by path. Built.
+2. **Get back to a conversation.** Enter on a project lists what runs in conn, then conversations running in another terminal, then the ones at rest. Enter goes to what runs, or resumes a conversation at rest in a window of its own. ctrl-space comes back to conn. Built.
+
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`; `j` `k` in a project; `ctrl-space` from anywhere; leaving is tmux's own `ctrl-b d`.
+
 ## The idea
 
 - Vim reduces an engineer's dealings with text to a grammar: verbs over objects. n verbs and m objects give n×m actions from n+m keys.

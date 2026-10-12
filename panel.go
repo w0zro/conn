@@ -306,15 +306,22 @@ func (m model) read() tea.Cmd {
 
 		if cur != nil {
 			// What listens, and where: a port under one of conn's panes is
-			// that pane's, and a server outside conn whose directory is in
-			// the project is a row of its own.
+			// that pane's; a server outside conn whose directory is in the
+			// project, or that the project's panes connect to, is a row of
+			// its own.
 			ports := map[string][]string{}
-			var outside []proc
-			for _, p := range machine(ps, live, listening(), parents()) {
-				switch {
-				case p.pane != nil:
+			var mine, outside []proc
+			procs := machine(ps, live, listening(), parents(), connections())
+			for _, p := range procs {
+				if p.pane != nil {
 					ports[p.pane.ID] = p.Ports
-				case p.Dir != "" && cur.belongs(k.rootOf(p.Dir)):
+					if cur.belongs(k.rootOf(p.Dir)) {
+						mine = append(mine, p)
+					}
+				}
+			}
+			for _, p := range procs {
+				if p.pane == nil && ((p.Dir != "" && cur.belongs(k.rootOf(p.Dir))) || talksTo(mine, p)) {
 					outside = append(outside, p)
 				}
 			}
@@ -899,7 +906,9 @@ func (m model) endAll(p project) tea.Cmd {
 		}
 		n := 0
 		var failed []string
-		for _, pr := range machine(ps, liveClaude(), listening(), parents()) {
+		// What the project talks to, and does not hold, is not ended
+		// with it: a database other projects use too.
+		for _, pr := range machine(ps, liveClaude(), listening(), parents(), nil) {
 			if pr.Dir == "" || !p.belongs(root(pr.Dir)) {
 				continue
 			}

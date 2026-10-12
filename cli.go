@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +39,7 @@ type proc struct {
 	PID     int
 	State   string
 	Ports   []string
+	Peers   []string // the ports of this machine its process tree holds connections to
 	Command string
 	Dir     string
 }
@@ -67,7 +69,7 @@ func readHere(home, dir string) (here, error) {
 			return h, err
 		}
 	}
-	h.procs = machine(ps, liveClaude(), listening(), parents())
+	h.procs = machine(ps, liveClaude(), listening(), parents(), connections())
 	return h, nil
 }
 
@@ -91,8 +93,9 @@ func checkout(dir string) string {
 }
 
 // machine is the processes: conn's panes, but conn's own, with the
-// ports listened on under each, and the listeners no pane holds.
-func machine(ps []pane, live map[string]claudeRun, listeners map[int][]string, parent map[int]int) []proc {
+// ports listened on under each and the ports each connects to, and the
+// listeners no pane holds.
+func machine(ps []pane, live map[string]claudeRun, listeners map[int][]string, parent map[int]int, peers map[int][]string) []proc {
 	byPID := map[int]int{} // a pane's process → its index in out
 	var out []proc
 	for i := range ps {
@@ -123,8 +126,14 @@ func machine(ps []pane, live map[string]claudeRun, listeners map[int][]string, p
 			out = append(out, proc{Name: filepath.Base(comms[pid]), PID: pid, State: "outside conn", Ports: listeners[pid], Command: comms[pid], Dir: cwds[pid]})
 		}
 	}
+	for pid, ports := range peers {
+		if i, ok := under(pid, byPID, parent); ok {
+			out[i].Peers = append(out[i].Peers, ports...)
+		}
+	}
 	for i := range out {
 		out[i].Ports = uniq(out[i].Ports)
+		out[i].Peers = uniq(out[i].Peers)
 	}
 	return out
 }
@@ -246,11 +255,17 @@ func describe(pids []int) (cwd, comm map[int]string) {
 	return cwd, comm
 }
 
-// mine is the processes in the project.
+// mine is the processes in the project, and the listeners outside conn
+// they talk to.
 func (h here) mine() []proc {
 	var out []proc
 	for _, p := range h.procs {
-		if p.Dir != "" && (within(p.Dir, h.root) || repoRoot(p.Dir) == h.root) {
+		if h.inProject(p) {
+			out = append(out, p)
+		}
+	}
+	for _, p := range h.procs {
+		if p.pane == nil && !h.inProject(p) && talksTo(out, p) {
 			out = append(out, p)
 		}
 	}
@@ -720,4 +735,59 @@ func ended(exit string) string {
 // over says whether a state is a run that has ended.
 func over(state string) bool {
 	return state == "done" || strings.HasPrefix(state, "failed ")
+}
+
+// connections is the ports of this machine each process holds a
+// connection to, from lsof.
+func connections() map[int][]string {
+	out, _ := exec.Command("lsof", "-nP", "-iTCP", "-sTCP:ESTABLISHED", "-Fpn").Output()
+	return parseConnections(string(out))
+}
+
+// parseConnections reads lsof -Fpn of established connections: a p
+// line names a process, and each n line after it a connection,
+// local->peer; the peer's port counts where the peer is this machine.
+func parseConnections(out string) map[int][]string {
+	m := map[int][]string{}
+	pid := 0
+	for _, l := range strings.Split(out, "\n") {
+		switch {
+		case strings.HasPrefix(l, "p"):
+			pid, _ = strconv.Atoi(l[1:])
+		case strings.HasPrefix(l, "n") && pid > 0:
+			_, peer, ok := strings.Cut(l[1:], "->")
+			if !ok {
+				continue
+			}
+			host, port, err := net.SplitHostPort(peer)
+			if err != nil {
+				continue
+			}
+			if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+				m[pid] = append(m[pid], port)
+			}
+		}
+	}
+	return m
+}
+
+// talksTo says whether a listener outside conn is one the project's
+// processes connect to: a database brew keeps under launchd runs from
+// no directory of the project's, and the connection is the machine's
+// own record that it is the project's. Only what conn holds is asked
+// what it connects to.
+func talksTo(mine []proc, listener proc) bool {
+	for _, p := range mine {
+		if p.pane == nil {
+			continue
+		}
+		for _, peer := range p.Peers {
+			for _, port := range listener.Ports {
+				if peer == port {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

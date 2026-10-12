@@ -338,11 +338,11 @@ func TestMachine(t *testing.T) {
 		{ID: "%2", PID: 30, Name: "test", Exit: "1", Command: "cat", Dir: "/p"},
 	}
 	parent := map[int]int{21: 20, 22: 21}
-	got := machine(ps, nil, map[int][]string{22: {"3000", "3000"}}, parent)
+	got := machine(ps, nil, map[int][]string{22: {"3000", "3000"}}, parent, map[int][]string{22: {"5432"}})
 	if len(got) != 2 {
 		t.Fatalf("machine = %+v", got)
 	}
-	if got[0].Name != "web" || !reflect.DeepEqual(got[0].Ports, []string{"3000"}) || got[0].State != "running" {
+	if got[0].Name != "web" || !reflect.DeepEqual(got[0].Ports, []string{"3000"}) || got[0].State != "running" || !reflect.DeepEqual(got[0].Peers, []string{"5432"}) {
 		t.Errorf("web = %+v", got[0])
 	}
 	if got[1].State != "failed 1" {
@@ -1189,5 +1189,25 @@ func TestTalk(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("no pane %s running the client", m.follow)
+	}
+}
+
+// A listener outside conn is the project's where a pane of the
+// project's connects to it, and the connection is read as the peer's
+// port on this machine.
+func TestTalksTo(t *testing.T) {
+	got := parseConnections("p40\nn127.0.0.1:52011->127.0.0.1:5432\nn10.0.0.2:52012->93.184.216.34:443\np41\nn[::1]:52013->[::1]:6379\nnstray\n")
+	if !reflect.DeepEqual(got, map[int][]string{40: {"5432"}, 41: {"6379"}}) {
+		t.Errorf("parseConnections = %v", got)
+	}
+	web := proc{pane: &pane{ID: "%1"}, Name: "web", Peers: []string{"5432"}}
+	db := proc{Name: "postgres", Ports: []string{"5432"}, Dir: "/"}
+	cache := proc{Name: "redis", Ports: []string{"6379"}, Dir: "/"}
+	if !talksTo([]proc{web}, db) || talksTo([]proc{web}, cache) {
+		t.Error("web talks to the database and not the cache")
+	}
+	// Only what conn holds is asked what it connects to.
+	if talksTo([]proc{{Name: "python", Peers: []string{"5432"}}}, db) {
+		t.Error("a process outside conn made the database the project's")
 	}
 }

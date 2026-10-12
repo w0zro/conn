@@ -509,8 +509,9 @@ func (m model) wanted() string {
 			return m.said[m.found[m.hitAt].said].pane.ID
 		}
 		return ""
-	case m.cursor < len(m.rows) && m.rows[m.cursor].pane != nil:
-		return m.rows[m.cursor].pane.ID
+	}
+	if r, ok := m.under(); ok && r.pane != nil {
+		return r.pane.ID
 	}
 	return ""
 }
@@ -536,14 +537,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 	case read:
 		m.waiting = msg.waiting
+		// The cursor stays on its item, by key, as the projects and the
+		// rows are read again under it.
+		on := ""
+		if items := m.items(); m.screen == onProject && m.cursor < len(items) {
+			on = m.itemKey(items[m.cursor])
+		}
 		m.takeProjects(msg.projects)
 		if m.screen == onProject && msg.root == m.cur.Root {
-			on := ""
-			if m.cursor < len(m.rows) {
-				on = m.rows[m.cursor].key()
-			}
 			m.rows = msg.rows
-			m.cursor = keep(m.cursor, on, m.rows, row.key)
+		}
+		if m.screen == onProject {
+			m.cursor = keep(m.cursor, on, m.items(), m.itemKey)
+		}
+		if m.screen == onProject && msg.root == m.cur.Root {
 			picked := ""
 			if shown := m.shownRest(); m.pickAt < len(shown) {
 				picked = shown[m.pickAt].key()
@@ -556,7 +563,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			found := false
 			for i, r := range m.rows {
 				if m.follow != "" && r.pane != nil && r.pane.ID == m.follow {
-					m.cursor, m.follow, found = i, "", true
+					m.cursor, m.follow, found = m.itemAt(i), "", true
 				}
 			}
 			if m.follow != "" && !found && msg.at.After(m.followAt) {
@@ -682,28 +689,34 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "up", "k", "ctrl+p":
 		m.cursor, m.follow = max(m.cursor-1, 0), ""
 	case "down", "j", "ctrl+n":
-		m.cursor, m.follow = min(m.cursor+1, max(len(m.rows)-1, 0)), ""
+		m.cursor, m.follow = min(m.cursor+1, max(len(m.items())-1, 0)), ""
 	case "enter":
-		if m.cursor < len(m.rows) {
-			return m.goTo(m.rows[m.cursor])
+		if r, ok := m.under(); ok {
+			return m.goTo(r)
+		}
+		if p, ok := m.lineUnder(); ok && !m.isOpen(p) {
+			return m.open(p)
 		}
 	case "n":
 		id := newID()
 		return m.start(m.cur.Root, newCommand(m.told(), id, ""), id)
 	case "a":
-		if m.cursor < len(m.rows) {
-			return m.hand(m.rows[m.cursor])
+		if r, ok := m.under(); ok {
+			return m.hand(r)
 		}
 	case "s":
 		return m.start(m.cur.Root, "", "")
 	case "q", "ctrl+c":
 		m.note = m.leave()
 	case "x":
-		if m.cursor >= len(m.rows) {
+		if r, ok := m.under(); ok {
+			if p, ok := r.proc(); ok {
+				return m, m.end(p)
+			}
 			return m, nil
 		}
-		if p, ok := m.rows[m.cursor].proc(); ok {
-			return m, m.end(p)
+		if p, ok := m.lineUnder(); ok {
+			return m, m.endAll(p)
 		}
 	case "!":
 		m.asking, m.line = true, ""
@@ -715,8 +728,8 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "t":
 		return m.resolve(roleCheck)
 	case "c":
-		if m.cursor < len(m.rows) {
-			return m.talk(m.rows[m.cursor])
+		if r, ok := m.under(); ok {
+			return m.talk(r)
 		}
 	}
 	return m, nil
@@ -1098,7 +1111,13 @@ func (m model) leave() string {
 }
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
-	m.screen, m.cur, m.rows, m.cursor = onProject, p, nil, 0
+	m.screen, m.cur, m.rows = onProject, p, nil
+	m.cursor = 0
+	for i, it := range m.items() {
+		if it.row < 0 && it.project.Root == p.Root && it.project.Group == p.Group {
+			m.cursor = i
+		}
+	}
 	return m, m.read()
 }
 
@@ -1239,7 +1258,7 @@ const (
 // The styles, in the ground the server is on once the panel knows it;
 // plain until then, and in the tests.
 var (
-	ink, title, gray, faint, accent, keyInk, chosen, chosenBar lipgloss.Style
+	ink, title, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle lipgloss.Style
 )
 
 // wear dresses the panel's styles in a ground. The pane's ground is
@@ -1255,6 +1274,7 @@ func wear(g theme.Ground) {
 	keyInk = fg(theme.Hex(g.Ink)).Bold(true)
 	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
 	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Accent)).Bold(true)
+	ruleStyle = fg(g.Border)
 }
 
 // A piece is text in a style.
@@ -1470,7 +1490,7 @@ func groupOf(r row) int {
 }
 
 func (m model) drawProject() ([]string, foot) {
-	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
+	lines := head("conn", tilde(m.cur.Root, m.home))
 	if m.question != "" {
 		return m.drawOffer(lines)
 	}
@@ -1480,26 +1500,49 @@ func (m model) drawProject() ([]string, foot) {
 	if m.listing {
 		return m.drawList(lines)
 	}
-	switch {
-	case m.rows == nil:
-		lines = append(lines, at(faint.Render("reading…")))
-	case len(m.rows) == 0 && len(m.rest) == 0:
-		lines = append(lines, at(faint.Render("nothing running, and no conversations here yet; n starts one")))
-	case len(m.rows) == 0:
-		lines = append(lines, at(faint.Render(fmt.Sprintf("nothing running; %s at rest, rc picks one up", counted(len(m.rest), "conversation")))))
-	}
-	// The rows, a row of air between one group and the next, and the
-	// window of them that keeps the cursor's row in view.
+	// The projects, one line each, the open one expanded in place: its
+	// eyebrow, its rows with a row of air between one group and the
+	// next, and a row of air before and after the block; then the
+	// window of it all that keeps the cursor's line in view.
 	var body []string
 	cursorAt := 0
-	for i, r := range m.rows {
-		if i > 0 && groupOf(r) != groupOf(m.rows[i-1]) {
-			body = append(body, "")
-		}
+	items := m.items()
+	for i, it := range items {
 		if i == m.cursor {
 			cursorAt = len(body)
 		}
-		body = append(body, m.drawRow(r, i == m.cursor))
+		switch {
+		case it.row < 0 && m.isOpen(it.project):
+			if len(body) > 0 {
+				body = append(body, "")
+			}
+			if i == m.cursor {
+				cursorAt = len(body)
+			}
+			body = append(body, m.eyebrow(it.project, i == m.cursor))
+			switch {
+			case m.rows == nil:
+				body = append(body, at(faint.Render("reading…")))
+			case len(m.rows) == 0 && len(m.rest) == 0:
+				body = append(body, at(faint.Render("nothing running, and no conversations here yet; n starts one")))
+			case len(m.rows) == 0:
+				body = append(body, at(faint.Render(fmt.Sprintf("nothing running; %s at rest, rc picks one up", counted(len(m.rest), "conversation")))))
+			}
+			if len(m.rows) == 0 && i+1 < len(items) {
+				body = append(body, "")
+			}
+		case it.row < 0:
+			body = append(body, m.projectLine(it.project, i == m.cursor))
+		default:
+			if it.row > 0 && groupOf(m.rows[it.row]) != groupOf(m.rows[it.row-1]) {
+				body = append(body, "")
+				cursorAt = len(body)
+			}
+			body = append(body, m.drawRow(m.rows[it.row], it.project.Depth, i == m.cursor))
+			if it.row == len(m.rows)-1 && i+1 < len(items) {
+				body = append(body, "")
+			}
+		}
 	}
 	room := max(m.height-len(lines)-1, 1)
 	first := max(cursorAt-room+1, 0)
@@ -1513,9 +1556,14 @@ func (m model) drawProject() ([]string, foot) {
 // drawRow is one row of a project: what it is on the left, in the ink
 // where it runs and the gray where it rests, and at the right its
 // state, or its ports, or how long ago it was.
-func (m model) drawRow(r row, cursor bool) string {
+func (m model) drawRow(r row, depth int, cursor bool) string {
 	var left []piece
 	var right piece
+	// A row stands under its project's line, a repository's under the
+	// repository's own, which stands in from its folder's.
+	if depth > 0 {
+		left = append(left, piece{strings.Repeat("  ", depth), ink})
+	}
 	if r.repo != "" {
 		left = append(left, piece{r.repo + " · ", gray})
 	}
@@ -1753,11 +1801,10 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.verb = ""
 	switch verb + k.String() {
 	case "rr":
-		if m.cursor >= len(m.rows) {
-			return m, nil
-		}
-		if p, ok := m.rows[m.cursor].proc(); ok {
-			return m, m.restart(p)
+		if r, ok := m.under(); ok {
+			if p, ok := r.proc(); ok {
+				return m, m.restart(p)
+			}
 		}
 	case "rc":
 		m.listing, m.pick, m.pickAt = true, "", 0
@@ -1851,4 +1898,113 @@ func (m model) drawList(lines []string) ([]string, foot) {
 		lines = append(lines, at(faint.Render("nothing here")))
 	}
 	return lines, foot{hints: listHints}
+}
+
+// The panel is one list: every project the projects screen lists, one
+// line each, with the open project expanded in place — its line the
+// eyebrow of a block, its rows under it. The cursor runs over project
+// lines and rows alike, so another project is j or k away and enter
+// opens it there, closing the one that was open. The verbs that take a
+// project take the open one; x on a project's line stops everything in
+// it.
+
+// An item on the panel: a project's line, or a row of the open project
+// under its line.
+type item struct {
+	project project
+	row     int // the row's index, or -1 for the project's line
+}
+
+// items is the panel's lines in order. A project opened by its path
+// that the list does not have yet comes first.
+func (m model) items() []item {
+	var out []item
+	found := false
+	for _, p := range m.projects {
+		out = append(out, item{project: p, row: -1})
+		if m.isOpen(p) {
+			found = true
+			for j := range m.rows {
+				out = append(out, item{project: p, row: j})
+			}
+		}
+	}
+	if !found && m.cur.Root != "" {
+		head := []item{{project: m.cur, row: -1}}
+		for j := range m.rows {
+			head = append(head, item{project: m.cur, row: j})
+		}
+		out = append(head, out...)
+	}
+	return out
+}
+
+// isOpen says whether a project is the open one.
+func (m model) isOpen(p project) bool {
+	return p.Root == m.cur.Root && p.Group == m.cur.Group
+}
+
+// itemKey is what an item is, through a read: the project's root, or
+// its row's key.
+func (m model) itemKey(it item) string {
+	if it.row < 0 {
+		return "project " + it.project.Root
+	}
+	if it.row < len(m.rows) {
+		return m.rows[it.row].key()
+	}
+	return ""
+}
+
+// itemAt is the item a row of the open project is.
+func (m model) itemAt(row int) int {
+	for i, it := range m.items() {
+		if it.row == row {
+			return i
+		}
+	}
+	return 0
+}
+
+// under is the row under the cursor, where the cursor is on one.
+func (m model) under() (row, bool) {
+	items := m.items()
+	if m.cursor < len(items) && items[m.cursor].row >= 0 && items[m.cursor].row < len(m.rows) {
+		return m.rows[items[m.cursor].row], true
+	}
+	return row{}, false
+}
+
+// lineUnder is the project whose line is under the cursor, where it is
+// on one.
+func (m model) lineUnder() (project, bool) {
+	items := m.items()
+	if m.cursor < len(items) && items[m.cursor].row < 0 {
+		return items[m.cursor].project, true
+	}
+	return project{}, false
+}
+
+// eyebrow is the open project's line: its name in the parchment, a
+// rule running off it to the right edge, and what it says of itself at
+// the end, what waits and what runs.
+func (m model) eyebrow(p project, cursor bool) string {
+	name, standing := listName(p), p.standing()
+	rule := strings.Repeat("─", max(m.measure()-ansi.StringWidth(name)-ansi.StringWidth(standing)-3, 0))
+	return m.row([]piece{{name, title}, {" " + rule, ruleStyle}}, piece{standing, gray}, cursor)
+}
+
+// projectLine is a project's line while it is not the open one: its
+// name, its path in the gray, and what it says of itself at the right;
+// in the accent where something waits, the ink where something runs,
+// the gray otherwise.
+func (m model) projectLine(p project, cursor bool) string {
+	name := gray
+	switch {
+	case p.Waiting > 0:
+		name = accent
+	case p.Running > 0:
+		name = ink
+	}
+	return m.row([]piece{{listName(p), name}, {"  " + tilde(p.Root, m.home), gray}}, piece{p.standing(), gray}, cursor)
 }

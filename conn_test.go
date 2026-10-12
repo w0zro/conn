@@ -482,10 +482,11 @@ func TestRowProc(t *testing.T) {
 // The cursor stays on its row when the rows are sorted again under it.
 func TestCursorKeepsItsRow(t *testing.T) {
 	a, b := &pane{ID: "%1"}, &pane{ID: "%2"}
-	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 1}
+	// The open project's line is the first item; its rows follow.
+	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 2}
 	next, _ := m.Update(read{root: "/p", rows: []row{{pane: b, state: "waiting"}, {pane: a}}})
-	if got := next.(model); got.rows[got.cursor].pane.ID != "%2" {
-		t.Errorf("cursor on %s, want %%2", got.rows[got.cursor].pane.ID)
+	if r, ok := next.(model).under(); !ok || r.pane.ID != "%2" {
+		t.Errorf("cursor on %+v, want %%2", r)
 	}
 	m = model{projects: []project{{Root: "/a"}, {Root: "/b"}}, cursor: 1, loaded: true}
 	next, _ = m.Update(read{projects: []project{{Root: "/b", Waiting: 1}, {Root: "/a"}}})

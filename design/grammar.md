@@ -184,8 +184,7 @@ As of 2026-10-11:
 - **Resolution, with nothing kept**: `cc` on a process with no known client opens a port that speaks the web, and otherwise asks `claude -p` and offers the answer as a question; `up` on a project with no `.conn` asks for its stack and offers it on one question.
 - **Contacts are told the CLI**, naming the build by its whole path where the PATH's `conn` is another.
 - **Projects**: a worktree's work is its repository's; a listener with no row of its own is a row of every project whose runs connect to it.
-- **Places** (2026-10-12): a project's rows stand by role, in order: conversations, the stack, what talks to it (shells, clients), the checks, what the project talks to outside conn, conversations in terminals conn does not hold; air between places, no labels. In a place, what is written down stands as first written, so a check run again keeps its row and the cursor; the rest in start order. Wanting you is the accent where the row stands, waiting and failed alike; nothing moves for its state. A worktree repeats the places under its head.
-- **Worktrees** (2026-10-12): a worktree's rows stand together under a head of their own, the branch it has out alone, in the parchment the project's head is in without its weight, after the project's own rows; in a folder the head names the repository and the branch. A label with a rule is a section of the panel, which a worktree is not. A verb starts where the cursor stands: `n`, `s` and `!` in the checkout of the row under it, and `u` and `t` run a repository's stack in that checkout where it is the repository's, at the repository otherwise. The stack is written down under the repository, never the worktree. The CLI already ran in the caller's checkout.
+- **Places** (2026-10-12): a project's rows stand by role, in order: conversations, the stack, what talks to it (shells, clients), the checks, what the project talks to outside conn, conversations in terminals conn does not hold; air between places, no labels. In a place, what is written down stands as first written, so a check run again keeps its row and the cursor; the rest in start order. Wanting you is the accent where the row stands, waiting and failed alike; nothing moves for its state.
 
 Not yet: linking two projects while they talk, the CLI starting the server, removing `.conn` and the known-programs table once the resolution has held up in use.
 
@@ -207,7 +206,6 @@ From a day played out, 2026-10-11:
 - Whether an agent may reach another project's processes at all, beyond its own worktree and project: refused, or logged.
 - The station keys — `l` log, `c` console, `p` projects, `r` recent — are verbs or objects in the grammar and need another home.
 - Whether the keys show an action before running it.
-- Worktrees, from the first version of 2026-10-12: a process in a worktree removed under it stats to no directory and so to no project, and runs on unseen; two worktrees' servers want one port, which the app refuses and conn only shows; a bare repository names its project after the bare directory.
 
 From before:
 

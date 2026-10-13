@@ -16,7 +16,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -82,8 +81,6 @@ func git(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// A worktree, wherever it is on disk, is its repository's project; a
-// directory in no repository is its own.
 // The context a conversation's last turn ran in is the last assistant
 // turn's usage: fresh, written to the cache and read from it; none
 // where no turn has been had. It is said in thousands.
@@ -132,6 +129,8 @@ func TestNewCommand(t *testing.T) {
 	}
 }
 
+// A worktree, wherever it is on disk, is its repository's project; a
+// directory in no repository is its own.
 func TestRepoRoot(t *testing.T) {
 	base, _ := filepath.EvalSymlinks(t.TempDir())
 	repo := filepath.Join(base, "shop")
@@ -158,134 +157,26 @@ func TestRepoRoot(t *testing.T) {
 	}
 }
 
-// A row in a worktree says the branch it has out; a row in the
-// repository's own checkout says nothing; in a folder of repositories,
-// the repository comes first. A conversation at rest says the same.
+// In a folder of repositories, a row says the repository it runs in;
+// in the project's own repository it says nothing. A conversation at
+// rest says the same.
 func TestPlaced(t *testing.T) {
-	base, _ := filepath.EvalSymlinks(t.TempDir())
-	folder := filepath.Join(base, "shop")
-	repo := filepath.Join(folder, "api")
-	if err := os.MkdirAll(filepath.Join(repo, "src"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	git(t, repo, "init", "-q", "-b", "main")
-	git(t, repo, "commit", "-q", "--allow-empty", "-m", "start")
-	tree := filepath.Join(base, "elsewhere", "api-fix")
-	git(t, repo, "worktree", "add", "-q", tree)
-	// A directory under the system's scratch is no project; the test
-	// says which repository each is in, and git says the checkout.
 	k := newKnown()
-	k.root[filepath.Join(repo, "src")], k.root[tree], k.root[repo] = repo, repo, repo
+	k.root["/shop/api/src"], k.root["/shop/web"] = "/shop/api", "/shop/web"
 	rows := []row{
-		{pane: &pane{ID: "%1", Dir: filepath.Join(repo, "src")}},
-		{pane: &pane{ID: "%2", Dir: tree}},
-		{conv: &conversation{ID: "c", Dir: tree}},
+		{pane: &pane{ID: "%1", Dir: "/shop/api/src"}},
+		{conv: &conversation{ID: "c", Dir: "/shop/web"}},
 	}
-	placed(rows, project{Name: "api", Root: repo}, k)
-	for i, want := range []string{"", "api-fix", "api-fix"} {
-		if rows[i].branch != want || rows[i].repo != "" {
-			t.Errorf("row %d placed as %q in %q, want branch %q in no repository", i, rows[i].branch, rows[i].repo, want)
-		}
+	placed(rows, project{Name: "api", Root: "/shop/api"}, k)
+	if rows[0].repo != "" || rows[1].repo != "" {
+		t.Errorf("in the repository, rows placed as %q and %q, want nothing", rows[0].repo, rows[1].repo)
 	}
-	if rows[0].tree != repo || rows[1].tree != tree {
-		t.Errorf("checkouts %q and %q, want %q and %q", rows[0].tree, rows[1].tree, repo, tree)
+	placed(rows, project{Name: "shop", Root: "/shop", Group: true}, k)
+	if rows[0].repo != "api" || rows[1].repo != "web" {
+		t.Errorf("in a folder, rows placed as %q and %q, want api and web", rows[0].repo, rows[1].repo)
 	}
-	git(t, tree, "checkout", "-q", "-b", "fix-login")
-	placed(rows, project{Name: "shop", Root: folder, Group: true}, k)
-	if r := rows[1]; r.repo != "api" || r.branch != "fix-login" {
-		t.Errorf("in a folder, the worktree's row is placed as %q · %q, want api · fix-login", r.repo, r.branch)
-	}
-	if got := rows[1].place(); len(got) != 2 || got[0].s != "api · " || got[1].s != "fix-login · " {
+	if got := rows[1].place(); len(got) != 1 || got[0].s != "web · " {
 		t.Errorf("place = %+v", got)
-	}
-}
-
-// A project's rows gather by worktree: the project's own checkouts'
-// rows first as arranged, then each worktree's together, by name; a
-// row in a folder stands under its repository's branch.
-func TestByPlace(t *testing.T) {
-	rows := []row{
-		{pane: &pane{ID: "%1"}, branch: "fix-login"},
-		{pane: &pane{ID: "%2"}},
-		{pane: &pane{ID: "%3"}, branch: "api-docs", repo: "api"},
-		{pane: &pane{ID: "%4"}},
-		{pane: &pane{ID: "%5"}, branch: "fix-login"},
-	}
-	byPlace(rows)
-	var got []string
-	for _, r := range rows {
-		got = append(got, r.pane.ID+" "+r.worktree())
-	}
-	want := []string{"%2 ", "%4 ", "%3 api · api-docs", "%1 fix-login", "%5 fix-login"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("byPlace = %q, want %q", got, want)
-	}
-}
-
-// Drawn, a worktree's rows stand in under a head that names the branch
-// alone, and say only their names.
-func TestWorktreeLine(t *testing.T) {
-	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, home: "/home", width: 60, height: 30, rows: []row{
-		{pane: &pane{ID: "%2", Name: "web", Dir: "/p"}, tree: "/p"},
-		{pane: &pane{ID: "%1", Name: "web", Dir: "/w"}, branch: "fix-login", tree: "/w"},
-	}}
-	lines, _ := m.drawProject()
-	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
-	var got []string
-	for _, l := range lines {
-		if l = strings.TrimSpace(plain.ReplaceAllString(l, "")); l != "" {
-			got = append(got, l)
-		}
-	}
-	at := -1
-	for i, l := range got {
-		if l == "fix-login" {
-			at = i
-		}
-	}
-	if at < 0 || at+1 >= len(got) || !strings.HasSuffix(got[at+1], "web") || strings.Contains(got[at+1], "fix-login") {
-		t.Errorf("drawn as %q, want web under a fix-login line", got)
-	}
-	// The worktree's row stands two columns in from the project's own.
-	var cols []int
-	for _, l := range lines {
-		if l = plain.ReplaceAllString(l, ""); strings.Contains(l, "web") {
-			cols = append(cols, utf8.RuneCountInString(l[:strings.Index(l, "web")]))
-		}
-	}
-	if len(cols) != 2 || cols[1] != cols[0]+2 {
-		t.Errorf("web stands at columns %v, want the worktree's two in from the project's", cols)
-	}
-	// The worktree stands a row off what is above it.
-	for i, l := range lines {
-		if strings.TrimSpace(plain.ReplaceAllString(l, "")) == "fix-login" && (i == 0 || strings.TrimSpace(lines[i-1]) != "") {
-			t.Errorf("no blank line before the worktree's head: %q", lines[max(i-1, 0):i+1])
-		}
-	}
-}
-
-// A verb starts in the checkout the cursor stands in: a repository's
-// stack runs there where the checkout is the repository's, and at the
-// repository otherwise; with the cursor on no row, at the project.
-func TestPlaceFor(t *testing.T) {
-	k := newKnown()
-	k.tree["/w/src"], k.root["/w"], k.root["/w/src"] = "/w", "/r", "/r"
-	m := model{screen: onProject, cur: project{Name: "r", Root: "/r"}, known: k, rows: []row{{pane: &pane{ID: "%1", Dir: "/w/src"}}}}
-	if got := m.at(); got != "/w" {
-		t.Errorf("at = %q, want /w", got)
-	}
-	if got := m.placeFor("/r"); got != "/w" {
-		t.Errorf("the repository's stack runs at %q, want its worktree /w", got)
-	}
-	if got := m.placeFor("/other"); got != "/other" {
-		t.Errorf("another repository's stack runs at %q, want /other", got)
-	}
-	if got := m.here(); got != "/w" {
-		t.Errorf("here = %q, want /w", got)
-	}
-	m.rows = nil
-	if got := m.here(); got != "/r" || m.at() != "" {
-		t.Errorf("on no row, here = %q, at = %q; want /r and nothing", got, m.at())
 	}
 }
 
@@ -894,12 +785,12 @@ func TestPlaces(t *testing.T) {
 		t.Errorf("rows = %+v", rows)
 	}
 	// Run again in a new pane, a check is the same row.
-	again := row{pane: &pane{ID: "%12", Name: "test"}, tree: "/p"}
-	if again.key() != (row{pane: &pane{ID: "%9", Name: "test"}, tree: "/p"}).key() {
+	again := row{pane: &pane{ID: "%12", Name: "test"}}
+	if again.key() != (row{pane: &pane{ID: "%9", Name: "test"}}).key() {
 		t.Error("a check run again is not the row it was")
 	}
-	if again.key() == (row{pane: &pane{ID: "%12", Name: "test"}, tree: "/w"}).key() {
-		t.Error("a check in another worktree is the same row")
+	if again.key() == (row{pane: &pane{ID: "%12", Name: "test"}, repo: "web"}).key() {
+		t.Error("a check in another repository of the folder is the same row")
 	}
 }
 
@@ -1697,7 +1588,7 @@ func TestAVerdictWearsTheGround(t *testing.T) {
 // them.
 func undress() {
 	var plain lipgloss.Style
-	ink, title, subhead, gray, faint, accent, keyInk = plain, plain, plain, plain, plain, plain, plain
+	ink, title, gray, faint, accent, keyInk = plain, plain, plain, plain, plain, plain
 	chosen, chosenBar, ruleStyle, turning, chosenTurning = plain, plain, plain, plain, plain
 }
 

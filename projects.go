@@ -162,26 +162,6 @@ func repoRoot(dir string) string {
 	return common
 }
 
-// headPath is where a checkout keeps its HEAD: a worktree's is in the
-// repository's git directory, under worktrees.
-func headPath(tree string) string {
-	out, err := exec.Command("git", "-C", tree, "rev-parse", "--path-format=absolute", "--git-path", "HEAD").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
-// branchAt is the branch a HEAD file names, or the checkout's own name
-// where it names none: detached, or no HEAD to read.
-func branchAt(head, tree string) string {
-	b, err := os.ReadFile(head)
-	if ref, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "ref: refs/heads/"); err == nil && ok {
-		return ref
-	}
-	return filepath.Base(tree)
-}
-
 // temporary says whether a directory is scratch the system clears.
 func temporary(dir string) bool {
 	for _, t := range []string{os.TempDir(), "/tmp", "/private/tmp", "/private/var/folders", "/var/folders"} {

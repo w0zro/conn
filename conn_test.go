@@ -96,14 +96,14 @@ func TestTailContext(t *testing.T) {
 	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	title, context := tailRead(path)
+	title, context, _ := tailRead(path)
 	if title != "show the context size" || context != 261911 {
 		t.Errorf("tailRead = %q, %d", title, context)
 	}
 	if err := os.WriteFile(path, []byte(lines[0]+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, context := tailRead(path); context != 0 {
+	if _, context, _ := tailRead(path); context != 0 {
 		t.Errorf("context with no turn = %d", context)
 	}
 	for n, want := range map[int]string{261911: "262k", 999: "999", 1000: "1k", 52451: "52k"} {
@@ -118,10 +118,42 @@ func TestTailContext(t *testing.T) {
 	}
 }
 
-// A conversation started in a repository's own checkout gets a
-// worktree of Claude Code's own and is told so; one started in a
-// worktree joins it; outside a repository there is none to make. A
-// worktree Claude Code made is named by its name, not its branch.
+// A conversation is where its transcript last says it was: started in
+// the checkout, it moves under the worktree it enters; where the tail
+// says nothing, it is where it was started.
+func TestConversationMoves(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.jsonl")
+	lines := []string{
+		`{"type":"user","cwd":"/p","message":{"role":"user","content":"fix the checkout timeout"}}`,
+		`{"type":"assistant","cwd":"/p","message":{"usage":{"input_tokens":10}}}`,
+		`{"type":"user","cwd":"/p/.claude/worktrees/fix-checkout-timeout","message":{"role":"user","content":[{"type":"tool_result","content":"entered"}]}}`,
+		`{"type":"last-prompt","lastPrompt":"fix the checkout timeout"}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	k := newKnown()
+	c := conversation{ID: "c", path: path}
+	if got := k.dirOf(c); got != "/p/.claude/worktrees/fix-checkout-timeout" {
+		t.Errorf("dirOf = %q, want the worktree entered", got)
+	}
+	if got := k.cwdOf(c); got != "/p" {
+		t.Errorf("cwdOf = %q, want where it was started", got)
+	}
+	if err := os.WriteFile(path, []byte(`{"type":"user","cwd":"/p","message":{"role":"user","content":"hi"}}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	k = newKnown()
+	if got := k.dirOf(conversation{ID: "c", path: path}); got != "/p" {
+		t.Errorf("dirOf before any move = %q, want /p", got)
+	}
+}
+
+// A conversation started in a repository's own checkout is told to
+// enter a worktree of its own, named for its task, once it has one;
+// none is made at launch. One started in a worktree joins it; outside a
+// repository there is none to make. A worktree Claude Code made is
+// named by its name, not its branch.
 func TestAgentsFavorWorktrees(t *testing.T) {
 	for _, c := range []struct {
 		inRepo     bool
@@ -133,8 +165,8 @@ func TestAgentsFavorWorktrees(t *testing.T) {
 		}
 	}
 	with := newCommand("note", "id", "", true)
-	if !strings.Contains(with, "claude --worktree ") || !strings.Contains(with, "a task per worktree") || !strings.Contains(with, "--session-id 'id'") {
-		t.Errorf("with a worktree = %q", with)
+	if strings.Contains(with, "--worktree") || !strings.Contains(with, "A task per worktree") || !strings.Contains(with, "EnterWorktree") || !strings.Contains(with, "--session-id 'id'") {
+		t.Errorf("in a checkout = %q, want told to enter a worktree named for the task, none made at launch", with)
 	}
 	if without := newCommand("note", "id", "fix it", false); strings.Contains(without, "worktree") || !strings.HasSuffix(without, " 'fix it'") {
 		t.Errorf("without = %q", without)

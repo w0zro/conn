@@ -251,6 +251,7 @@ type titled struct {
 	when    time.Time
 	title   string
 	context int
+	dir     string
 }
 
 func newKnown() *known {
@@ -337,6 +338,13 @@ func (k *known) contextOf(c conversation) int {
 	return k.tailOf(c).context
 }
 
+// dirOf is where a conversation is: where its transcript last says it
+// was, since one that enters a worktree moves there; where it was
+// started, while the tail says nothing.
+func (k *known) dirOf(c conversation) string {
+	return or(k.tailOf(c).dir, k.cwdOf(c))
+}
+
 // tailOf is what the transcript's tail says, read once while the
 // transcript has not moved.
 func (k *known) tailOf(c conversation) titled {
@@ -344,8 +352,8 @@ func (k *known) tailOf(c conversation) titled {
 	t, ok := k.titles[c.path]
 	k.mu.Unlock()
 	if !ok || !t.when.Equal(c.When) {
-		title, context := tailRead(c.path)
-		t = titled{when: c.When, title: title, context: context}
+		title, context, dir := tailRead(c.path)
+		t = titled{when: c.When, title: title, context: context, dir: dir}
 		k.mu.Lock()
 		k.titles[c.path] = t
 		k.mu.Unlock()
@@ -567,13 +575,15 @@ func (m model) read() tea.Cmd {
 					outside = append(outside, p)
 				}
 			}
+			// Where a conversation was started says whose it is; where it
+			// is now is where its rows stand and where c picks it up.
 			var convs []conversation
 			for _, c := range all {
 				dir := k.cwdOf(c)
 				if dir == "" || !cur.belongs(k.rootOf(dir)) {
 					continue
 				}
-				c.Dir = dir
+				c.Dir = k.dirOf(c)
 				convs = append(convs, c)
 			}
 			in := func(dir string) bool { return cur.belongs(k.rootOf(dir)) }

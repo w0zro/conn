@@ -505,13 +505,15 @@ func resumeCommand(note, id string) string {
 
 // newCommand starts a conversation in Claude Code under an id conn
 // chose, so its pane is marked with it before its transcript exists,
-// and with a first prompt where there is one. Asked for a worktree, it
-// starts in one of Claude Code's own: under .claude/worktrees in the
-// repository, on a branch of its own, and told so.
+// and with a first prompt where there is one. Started in a
+// repository's own checkout, it is told to take a worktree once it has
+// its task, named for the task: Claude Code makes one under
+// .claude/worktrees on a branch of its own and moves the conversation
+// into it. Nothing is made at launch, since the task may not have been
+// said yet.
 func newCommand(note, id, prompt string, worktree bool) string {
 	cmd := "exec claude"
 	if worktree {
-		cmd += " --worktree"
 		note += "\n\n" + worktreeNote
 	}
 	cmd += " --append-system-prompt " + shell.Quote(note) + " --session-id " + shell.Quote(id)
@@ -521,10 +523,12 @@ func newCommand(note, id, prompt string, worktree bool) string {
 	return cmd
 }
 
-// worktreeNote is what a conversation started in a worktree is told.
-const worktreeNote = "conn started you in a git worktree of your own, under .claude/worktrees in the " +
-	"repository, on a branch of its own: a task per worktree. Keep the work in it, and leave " +
-	"the repository's own checkout to the operator and the other agents."
+// worktreeNote is what a conversation started in a repository's own
+// checkout is told.
+const worktreeNote = "conn started you in the repository's own checkout, which is the operator's and " +
+	"the other agents'. A task per worktree: as soon as you know your task, before you touch a " +
+	"file, enter a git worktree of your own with the EnterWorktree tool, named for the task in a " +
+	"few dashed words, as fix-checkout-timeout. Keep the work in it."
 
 // told is what a conversation started in a project is told: the CLI,
 // and what the project's stack and checks are here, as last run

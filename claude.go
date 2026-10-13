@@ -162,21 +162,25 @@ const titleTail = 256 * 1024
 // last rename or title Claude Code wrote, and otherwise the last thing
 // asked of it.
 func tailTitle(path string) string {
-	title, _ := tailRead(path)
+	title, _, _ := tailRead(path)
 	return title
 }
 
 // tailRead reads a transcript's tail once for what the panel says of
-// a conversation: its title, and the context its last turn ran in,
-// which the last assistant turn's usage says. Zero where no turn has
-// been had.
-func tailRead(path string) (title string, context int) {
+// a conversation: its title; the context its last turn ran in, which
+// the last assistant turn's usage says, zero where no turn has been
+// had; and where it is, which the last record says, since a
+// conversation that enters a worktree moves.
+func tailRead(path string) (title string, context int, dir string) {
 	lines := tailLines(path, titleTail)
 	prompt := ""
 	for i := len(lines) - 1; i >= 0; i-- {
 		var r record
 		if json.Unmarshal(lines[i], &r) != nil {
 			continue
+		}
+		if dir == "" {
+			dir = r.Cwd
 		}
 		if context == 0 && r.Type == "assistant" {
 			context = r.Message.Usage.context()
@@ -197,11 +201,11 @@ func tailRead(path string) (title string, context int) {
 		case r.Type == "last-prompt" && prompt == "":
 			prompt = flatten(r.LastPrompt)
 		}
-		if title != "" && context != 0 {
+		if title != "" && context != 0 && dir != "" {
 			break
 		}
 	}
-	return or(title, prompt), context
+	return or(title, prompt), context, dir
 }
 
 // tokens says a count of tokens the short way: the thousands, as 262k,

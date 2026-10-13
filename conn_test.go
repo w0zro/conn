@@ -1939,8 +1939,9 @@ func TestItems(t *testing.T) {
 	}
 }
 
-// Opening a project again puts the keys back in the pane they were
-// last in there, while it stands; a project never gone into opens on
+// Opening a project again puts the cursor on the row of the pane the
+// keys were last in there, while it stands, with the keys left on the
+// panel; a project never gone into, or whose pane is gone, opens on
 // its rows.
 func TestOpenIntoLastPane(t *testing.T) {
 	srv, win, panel := scratchServer(t)
@@ -1963,20 +1964,29 @@ func TestOpenIntoLastPane(t *testing.T) {
 	}
 	next, cmd := m.openInto(a)
 	if m = next.(model); m.cur.Root != "/a" || m.follow != id || cmd == nil {
-		t.Errorf("a opened into %q", m.follow)
+		t.Errorf("a opened on %q", m.follow)
+	}
+	// The batch holds the show and a read; only the show is run, and
+	// the keys stay on the panel.
+	if b, ok := cmd().(tea.BatchMsg); ok && len(b) > 0 {
+		b[0]()
+	}
+	if p := inWorkspace(t, ws); p.ID != id {
+		t.Errorf("the workspace shows %s, want %s", p.ID, id)
+	}
+	if active, _ := srv.Display(panel, "#{pane_active}"); active != "1" {
+		t.Error("opening a project moved the keys off the panel")
 	}
 	m.lastIn["/b"] = "%999"
 	next, _ = m.openInto(b)
-	if m = next.(model); m.follow != "" || !m.attachFirst {
-		t.Error("b opened into a pane that is gone")
+	if m = next.(model); m.follow != "" {
+		t.Error("b opened on a pane that is gone")
 	}
-	// With no pane to go back into, the first conversation takes the
-	// keys once the rows are read, before any other process.
-	next, cmd = m.Update(read{root: "/b", rows: []row{{pane: &pane{ID: "%7", Name: "web"}}, {conv: &conversation{ID: "c"}, pane: &pane{ID: id}}}})
-	if m = next.(model); m.asked != id || m.lastIn["/b"] != id || cmd == nil || m.attachFirst {
-		t.Errorf("b opened into %q, not the conversation", m.asked)
-	}
-	if r, ok := m.under(); !ok || r.pane.ID != id {
-		t.Error("the cursor is not on the conversation")
+	// With no pane to go back to, the rows are read and nothing is
+	// gone into: the cursor stays on the first row, and the workspace
+	// shows it as it shows whatever the cursor is on.
+	next, _ = m.Update(read{root: "/b", rows: []row{{pane: &pane{ID: "%7", Name: "web"}}, {conv: &conversation{ID: "c"}, pane: &pane{ID: id}}}})
+	if m = next.(model); m.lastIn["/b"] != "%999" || m.cursor != 0 || m.follow != "" {
+		t.Errorf("b opened into %q, cursor %d", m.follow, m.cursor)
 	}
 }

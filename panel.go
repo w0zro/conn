@@ -95,11 +95,6 @@ type model struct {
 	// The pane the keys were last in, by project: opening a project
 	// again puts them back in it.
 	lastIn map[string]string
-	// Whether the keys go into the first conversation of the open
-	// project once its rows are read, or the first process where it
-	// has no conversation: a project opened with no pane to go back
-	// into.
-	attachFirst bool
 	// rc's list of the conversations at rest: whether it stands, what
 	// is typed to find one, and the cursor in it.
 	listing bool
@@ -880,15 +875,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.follow != "" && !found && msg.at.After(m.followAt) {
 				m.follow = ""
 			}
-			if m.attachFirst {
-				m.attachFirst = false
-				if i, ok := firstAttachable(m.rows); ok {
-					id := m.rows[i].pane.ID
-					m = m.attached(m.cur.Root, id)
-					m.cursor, m.asked = m.itemAt(i), id
-					return m, m.showing(id, true)
-				}
-			}
 		}
 		// The workspace is put right where it is not what the panel
 		// asked: gone, ended, or showing another pane.
@@ -1479,35 +1465,19 @@ func (m model) attached(root, id string) model {
 	return m
 }
 
-// openInto opens a project and puts the keys back in the pane they
-// were last in there, while it stands.
+// openInto opens a project with the cursor on the row of the pane the
+// keys were last in there, while it stands, and the workspace showing
+// it; the keys stay on the panel. Switching projects attaches nothing:
+// enter does.
 func (m model) openInto(p project) (tea.Model, tea.Cmd) {
 	next, cmd := m.open(p)
 	m = next.(model)
 	id := m.lastIn[p.Root]
 	if id == "" || !m.stands(id) {
-		m.attachFirst = true
 		return m, cmd
 	}
 	m.follow, m.asked, m.followAt = id, id, time.Now()
-	return m, tea.Batch(m.showing(id, true), cmd)
-}
-
-// firstAttachable is the row the keys go into where none was gone
-// into before: the first conversation running in a pane conn holds,
-// or, with none, the first process in one.
-func firstAttachable(rows []row) (int, bool) {
-	for i, r := range rows {
-		if r.conv != nil && r.pane != nil {
-			return i, true
-		}
-	}
-	for i, r := range rows {
-		if r.pane != nil {
-			return i, true
-		}
-	}
-	return 0, false
+	return m, tea.Batch(m.showing(id, false), cmd)
 }
 
 // stands says whether a pane is one the keys can go into: a pane of a
@@ -1544,7 +1514,7 @@ func (m model) leave() string {
 }
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
-	m.screen, m.cur, m.rows, m.cursor, m.follow, m.attachFirst = onProject, p, nil, 0, "", false
+	m.screen, m.cur, m.rows, m.cursor, m.follow = onProject, p, nil, 0, ""
 	return m, m.read()
 }
 

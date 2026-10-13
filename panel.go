@@ -425,9 +425,36 @@ func (m model) read() tea.Cmd {
 			}
 			placed(r.rows, *cur, k)
 			placed(r.rest, *cur, k)
+			byPlace(r.rows)
 		}
 		return r
 	}
+}
+
+// byPlace gathers a project's rows by worktree: the project's own
+// checkouts' rows first, as arranged, then each worktree's rows
+// together, worktrees by name, each as arranged.
+func byPlace(rows []row) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		a, b := rows[i].worktree(), rows[j].worktree()
+		if (a == "") != (b == "") {
+			return a == ""
+		}
+		return a < b
+	})
+}
+
+// worktree is the line a row stands under: the branch its worktree has
+// out, after its repository in a folder; blank in the project's own
+// checkout.
+func (r row) worktree() string {
+	if r.branch == "" {
+		return ""
+	}
+	if r.repo != "" {
+		return r.repo + " · " + r.branch
+	}
+	return r.branch
 }
 
 // placed says on each row where it runs, where that is not the
@@ -1712,13 +1739,19 @@ func (m model) drawProject() ([]string, foot) {
 			}
 			body = append(body, m.projectLine(it.project, i == m.cursor))
 		default:
-			if it.row > 0 && groupOf(m.rows[it.row]) != groupOf(m.rows[it.row-1]) {
+			// A worktree's rows stand under a line of their own, with a
+			// rule running off it, as the other projects do.
+			r := m.rows[it.row]
+			switch {
+			case r.worktree() != "" && (it.row == 0 || m.rows[it.row-1].worktree() != r.worktree()):
+				body = append(body, "", m.label(r.worktree()))
+			case it.row > 0 && groupOf(r) != groupOf(m.rows[it.row-1]):
 				body = append(body, "")
 			}
 			if i == m.cursor {
 				cursorAt = len(body)
 			}
-			body = append(body, m.drawRow(m.rows[it.row], 0, i == m.cursor))
+			body = append(body, m.drawRow(r, 0, i == m.cursor))
 		}
 	}
 	room := max(m.height-len(lines)-1, 1)
@@ -1741,7 +1774,10 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	if depth > 0 {
 		left = append(left, piece{strings.Repeat("  ", depth), ink})
 	}
-	left = append(left, r.place()...)
+	// Under its worktree's line, a row says only its name.
+	if r.branch == "" {
+		left = append(left, r.place()...)
+	}
 	switch {
 	case r.conv != nil:
 		name := r.conv.Title

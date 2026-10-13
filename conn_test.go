@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -144,6 +145,54 @@ func TestPlaced(t *testing.T) {
 	}
 	if got := rows[1].place(); len(got) != 2 || got[0].s != "api · " || got[1].s != "fix-login · " {
 		t.Errorf("place = %+v", got)
+	}
+}
+
+// A project's rows gather by worktree: the project's own checkouts'
+// rows first as arranged, then each worktree's together, by name; a
+// row in a folder stands under its repository's branch.
+func TestByPlace(t *testing.T) {
+	rows := []row{
+		{pane: &pane{ID: "%1"}, branch: "fix-login"},
+		{pane: &pane{ID: "%2"}},
+		{pane: &pane{ID: "%3"}, branch: "api-docs", repo: "api"},
+		{pane: &pane{ID: "%4"}},
+		{pane: &pane{ID: "%5"}, branch: "fix-login"},
+	}
+	byPlace(rows)
+	var got []string
+	for _, r := range rows {
+		got = append(got, r.pane.ID+" "+r.worktree())
+	}
+	want := []string{"%2 ", "%4 ", "%3 api · api-docs", "%1 fix-login", "%5 fix-login"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("byPlace = %q, want %q", got, want)
+	}
+}
+
+// Drawn, a worktree's rows stand under a line that names the branch,
+// and say only their names.
+func TestWorktreeLine(t *testing.T) {
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, width: 60, height: 30, rows: []row{
+		{pane: &pane{ID: "%2", Name: "web", Dir: "/p"}, tree: "/p"},
+		{pane: &pane{ID: "%1", Name: "web", Dir: "/w"}, branch: "fix-login", tree: "/w"},
+	}}
+	lines, _ := m.drawProject()
+	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	var got []string
+	for _, l := range lines {
+		if l = strings.TrimSpace(plain.ReplaceAllString(l, "")); l != "" {
+			got = append(got, l)
+		}
+	}
+	at := -1
+	for i, l := range got {
+		if strings.HasPrefix(l, "fix-login ─") {
+			at = i
+		}
+	}
+	if at < 0 || at+1 >= len(got) || !strings.HasPrefix(got[at+1], "web") || strings.Contains(got[at+1], "fix-login") {
+		t.Errorf("drawn as %q, want web under a fix-login line", got)
 	}
 }
 

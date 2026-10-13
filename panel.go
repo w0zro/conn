@@ -648,7 +648,7 @@ func placed(rows []row, cur project, k *known) {
 		}
 		rows[i].tree = k.treeOf(dir)
 		if root != "" && rows[i].tree != root {
-			rows[i].branch = worktreeName(rows[i].tree, k.branchOf(rows[i].tree))
+			rows[i].branch = k.branchOf(rows[i].tree)
 		}
 	}
 }
@@ -1496,13 +1496,10 @@ func (m model) stands(id string) bool {
 }
 
 // converse starts a conversation where the cursor stands, with a first
-// prompt where there is one. Agents favor worktrees: started in a
-// repository's own checkout, a conversation gets a worktree of its
-// own; started in a worktree, it joins that line of work.
+// prompt where there is one.
 func (m model) converse(prompt string) (tea.Model, tea.Cmd) {
-	id, dir := newID(), m.here()
-	worktree := m.known != nil && startsWorktree(inRepo(dir), m.known.treeOf(dir), m.known.rootOf(dir))
-	return m.start(dir, newCommand(m.told(), id, prompt, worktree), id)
+	id := newID()
+	return m.start(m.here(), newCommand(m.told(), id, prompt), id)
 }
 
 // leave lets the terminal go; what runs in conn keeps on.

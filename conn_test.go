@@ -394,7 +394,7 @@ func TestEnsurePanel(t *testing.T) {
 		t.Fatal(err)
 	}
 	panel := "exec sleep 999"
-	win, err := ensurePanel(srv, dir, "/nowhere/conn", panel)
+	win, err := ensurePanel(srv, dir, "/nowhere/conn", panel, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func TestEnsurePanel(t *testing.T) {
 	if first, _ := srv.Display(sessionName+":0", "#{window_id}"); first == win {
 		t.Fatalf("took the window named conn, %s", win)
 	}
-	again, err := ensurePanel(srv, dir, "/nowhere/conn", panel)
+	again, err := ensurePanel(srv, dir, "/nowhere/conn", panel, false)
 	if err != nil || again != win {
 		t.Errorf("second ensurePanel = %s, %v; want %s", again, err, win)
 	}
@@ -1434,6 +1434,36 @@ func TestTalksTo(t *testing.T) {
 	// Only what conn holds is asked what it connects to.
 	if talksTo([]proc{{Name: "python", Peers: []string{"5432"}}}, db) {
 		t.Error("a process outside conn made the database the project's")
+	}
+}
+
+// A server's ground is the terminal's the first time, unless a flag
+// said; held while it is up; and put on the other ground where it
+// stands when a flag says so, which is when conn's own pane is started
+// again.
+func TestChooseGround(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "s")
+	light, dark := false, true
+	asked := 0
+	detect := func() bool { asked++; return false }
+	if g, again := chooseGround(socket, false, nil, detect); g.Dark() || again || asked != 1 {
+		t.Errorf("a server rising on a light terminal: dark %v, again %v, asked %d", g.Dark(), again, asked)
+	}
+	if g, again := chooseGround(socket, true, nil, detect); g.Dark() || again || asked != 1 {
+		t.Errorf("a server up keeps its ground: dark %v, again %v, asked %d", g.Dark(), again, asked)
+	}
+	if g, again := chooseGround(socket, true, &light, detect); g.Dark() || again {
+		t.Errorf("--light on a light server: dark %v, again %v", g.Dark(), again)
+	}
+	if g, again := chooseGround(socket, true, &dark, detect); !g.Dark() || !again {
+		t.Errorf("--dark on a light server: dark %v, again %v", g.Dark(), again)
+	}
+	if d, ok := theme.ReadMode(socket); !ok || !d {
+		t.Error("the flag's ground was not written down")
+	}
+	theme.ForgetMode(socket)
+	if g, again := chooseGround(socket, false, &light, detect); g.Dark() || again || asked != 1 {
+		t.Errorf("--light on a server rising: dark %v, again %v, asked %d", g.Dark(), again, asked)
 	}
 }
 

@@ -57,3 +57,23 @@ func TestMode(t *testing.T) {
 		t.Error("a mode was read after it was forgotten")
 	}
 }
+
+// --light and --dark are read off the front of the arguments and no
+// further, and both at once is a contradiction.
+func TestParseFlags(t *testing.T) {
+	rest, want, err := ParseFlags([]string{"ls", "--light"})
+	if err != nil || want != nil || len(rest) != 2 {
+		t.Errorf("a flag after the command is the command's: %v %v %v", rest, want, err)
+	}
+	rest, want, err = ParseFlags([]string{"--light", "--light", "u", "--dark"})
+	if err != nil || want == nil || *want || len(rest) != 2 || rest[0] != "u" {
+		t.Errorf("--light twice, then a command: %v %v %v", rest, want, err)
+	}
+	rest, want, err = ParseFlags([]string{"--dark"})
+	if err != nil || want == nil || !*want || rest != nil {
+		t.Errorf("--dark alone: %v %v %v", rest, want, err)
+	}
+	if _, _, err := ParseFlags([]string{"--dark", "--light"}); err == nil {
+		t.Error("--dark --light was not a contradiction")
+	}
+}

@@ -216,18 +216,12 @@ var errEarlier = fmt.Errorf("an earlier conn's server is up")
 // server already up gets the configuration again, and conn's window
 // again where it is gone or runs another build; the keys stay where
 // they were left in it, on the panel or in the process beside it.
-func attach(srv *tmux.Server, self, home string) (int, error) {
+// want is the ground a flag asked for, or nil.
+func attach(srv *tmux.Server, self, home string, want *bool) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(srv.Socket), 0o700); err != nil {
 		return 0, err
 	}
-	// The ground is the server's: what it came up on, asked of the
-	// terminal the first time, and held until it goes down.
-	dark, ok := theme.ReadMode(srv.Socket)
-	if !ok || !srv.HasSession(sessionName) {
-		dark = theme.DetectDark()
-		_ = theme.WriteMode(srv.Socket, dark)
-	}
-	g := theme.On(dark)
+	g, again := chooseGround(srv.Socket, srv.HasSession(sessionName), want, theme.DetectDark)
 	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
 		return 0, err
@@ -260,7 +254,7 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 			return 0, err
 		}
 	}
-	win, err := ensurePanel(srv, home, self, panel)
+	win, err := ensurePanel(srv, home, self, panel, again)
 	if err != nil {
 		return 0, err
 	}
@@ -280,9 +274,52 @@ func bindBack(window, panel string) tmux.Cmd {
 	return tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", window, `\;`, "select-pane", "-t", panel}
 }
 
+// reground puts the server on the ground a flag names, from a pane of
+// its own: the configuration is written and sourced again, and conn's
+// pane started again to read it. A pane of the server has no terminal
+// of its own to ask, only tmux, which would answer with the ground
+// conn set.
+func reground(srv *tmux.Server, self string, want *bool) error {
+	g, again := chooseGround(srv.Socket, true, want, func() bool { return true })
+	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
+	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
+		return err
+	}
+	if _, err := srv.Do(tmux.SourceFile(path)); err != nil {
+		return err
+	}
+	_, err := ensurePanel(srv, "", self, "exec "+shell.Quote(self)+" panel", again)
+	return err
+}
+
+// chooseGround is the ground the server is on, and whether a server
+// already up was just put on the other one. A server's ground is what
+// it came up on, held until it goes down: asked of the terminal the
+// first time, unless a flag said. A flag says it whenever it is given,
+// so a server already up is put on the other ground where it stands.
+func chooseGround(socket string, up bool, want *bool, detect func() bool) (g theme.Ground, again bool) {
+	dark, ok := theme.ReadMode(socket)
+	switch {
+	case !ok || !up:
+		if want != nil {
+			dark = *want
+		} else {
+			dark = detect()
+		}
+		_ = theme.WriteMode(socket, dark)
+	case want != nil && *want != dark:
+		dark, again = *want, true
+		_ = theme.WriteMode(socket, dark)
+	}
+	return theme.On(dark), again
+}
+
 // ensurePanel answers conn's window: conn's pane started again where
-// it has ended or runs another build, and made where there is none.
-func ensurePanel(srv *tmux.Server, home, self, panel string) (string, error) {
+// it has ended, runs another build, or is asked to read the ground
+// again; and made where there is none. The configuration sourced
+// again dresses every other pane where it stands, but conn's own pane
+// read the ground once, when it started.
+func ensurePanel(srv *tmux.Server, home, self, panel string, again bool) (string, error) {
 	own, err := findPanel(srv, self)
 	if err != nil {
 		return "", err
@@ -298,7 +335,7 @@ func ensurePanel(srv *tmux.Server, home, self, panel string) (string, error) {
 			return "", err
 		}
 		own.window, own.pane, _ = strings.Cut(strings.TrimSpace(out), " ")
-	} else if own.dead || !own.ours {
+	} else if own.dead || !own.ours || again {
 		if _, err := srv.Do(tmux.Respawn(own.pane, panel)); err != nil {
 			return "", err
 		}

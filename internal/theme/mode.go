@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,4 +78,25 @@ func DetectDark() bool {
 		return true
 	}
 	return IsDark(bg)
+}
+
+// ParseFlags reads --light and --dark off the front of conn's own
+// arguments, before any command name: which ground to come up on, or
+// to put a server already up on, instead of asking the terminal or
+// reading what the server chose. It stops at the first argument that
+// is neither and answers what is left from there, whole; want is nil
+// where neither was given. Both at once is a contradiction, and leaves
+// the choice where it was.
+func ParseFlags(args []string) (rest []string, want *bool, err error) {
+	for i, a := range args {
+		dark := a == "--dark"
+		if !dark && a != "--light" {
+			return args[i:], want, nil
+		}
+		if want != nil && *want != dark {
+			return nil, nil, fmt.Errorf("--dark and --light are a contradiction")
+		}
+		want = &dark
+	}
+	return nil, want, nil
 }

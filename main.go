@@ -14,6 +14,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
 
@@ -34,6 +35,10 @@ var commands = map[string]func(w io.Writer, home, dir string, args []string) int
 }
 
 func run(args []string) error {
+	args, want, err := theme.ParseFlags(args)
+	if err != nil {
+		return err
+	}
 	if len(args) > 0 {
 		switch args[0] {
 		case "panel":
@@ -62,8 +67,17 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	// From inside conn, conn is ctrl-space away; this is the same.
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	// From inside conn, conn is ctrl-space away; this is the same. A
+	// flag given there puts the server on the ground it names where it
+	// stands.
 	if insideConn(srv.Socket) {
+		if want != nil {
+			return reground(srv, self, want)
+		}
 		own, err := findPanel(srv, "")
 		if err != nil || own.pane == "" {
 			return fmt.Errorf("conn's own window is gone; leave with ctrl-b d and run conn again")
@@ -71,11 +85,7 @@ func run(args []string) error {
 		_, err = srv.Do(tmux.Cmd{"select-window", "-t", own.window}, tmux.SelectPane(own.pane))
 		return err
 	}
-	self, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	code, err := attach(srv, self, home)
+	code, err := attach(srv, self, home, want)
 	if errors.Is(err, errEarlier) {
 		if !ask("An earlier conn's server is up. End it, and everything running in it?") {
 			return fmt.Errorf("left the earlier conn running")
@@ -83,7 +93,7 @@ func run(args []string) error {
 		if err := endServer(srv); err != nil {
 			return err
 		}
-		code, err = attach(srv, self, home)
+		code, err = attach(srv, self, home, want)
 	}
 	if err != nil {
 		return err

@@ -182,6 +182,30 @@ func branchAt(head, tree string) string {
 	return filepath.Base(tree)
 }
 
+// worktreeName is what a worktree's head says: its branch, or the
+// name alone where Claude Code made the worktree, since its branch is
+// the name with worktree- before it.
+func worktreeName(tree, branch string) string {
+	if branch == "worktree-"+filepath.Base(tree) {
+		return filepath.Base(tree)
+	}
+	return branch
+}
+
+// inRepo says whether a directory is in a git checkout, as git says.
+func inRepo(dir string) bool {
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree").Output()
+	return err == nil && strings.TrimSpace(string(out)) == "true"
+}
+
+// startsWorktree says whether a conversation started at a directory
+// gets a worktree of its own: in a repository's own checkout it does,
+// a task per worktree; in a worktree already it joins that line of
+// work; outside a repository there is none to make.
+func startsWorktree(inRepo bool, tree, root string) bool {
+	return inRepo && tree == root
+}
+
 // temporary says whether a directory is scratch the system clears.
 func temporary(dir string) bool {
 	for _, t := range []string{os.TempDir(), "/tmp", "/private/tmp", "/private/var/folders", "/var/folders"} {

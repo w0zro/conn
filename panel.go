@@ -610,7 +610,7 @@ func placed(rows []row, cur project, k *known) {
 		}
 		rows[i].tree = k.treeOf(dir)
 		if root != "" && rows[i].tree != root {
-			rows[i].branch = k.branchOf(rows[i].tree)
+			rows[i].branch = worktreeName(rows[i].tree, k.branchOf(rows[i].tree))
 		}
 	}
 }
@@ -982,8 +982,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.openInto(p)
 		}
 	case "n":
-		id := newID()
-		return m.start(m.here(), newCommand(m.told(), id, ""), id)
+		return m.converse("")
 	case "a":
 		if r, ok := m.under(); ok {
 			return m.hand(r)
@@ -1483,6 +1482,16 @@ func (m model) stands(id string) bool {
 	return false
 }
 
+// converse starts a conversation where the cursor stands, with a first
+// prompt where there is one. Agents favor worktrees: started in a
+// repository's own checkout, a conversation gets a worktree of its
+// own; started in a worktree, it joins that line of work.
+func (m model) converse(prompt string) (tea.Model, tea.Cmd) {
+	id, dir := newID(), m.here()
+	worktree := m.known != nil && startsWorktree(inRepo(dir), m.known.treeOf(dir), m.known.rootOf(dir))
+	return m.start(dir, newCommand(m.told(), id, prompt, worktree), id)
+}
+
 // leave lets the terminal go; what runs in conn keeps on.
 func (m model) leave() string {
 	if err := leave(m.srv); err != nil {
@@ -1548,8 +1557,7 @@ func (m model) hand(r row) (tea.Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
-	id := newID()
-	return m.start(m.cur.Root, newCommand(m.told(), id, handPrompt(name, command, tilde(dir, m.home), state, lines)), id)
+	return m.converse(handPrompt(name, command, tilde(dir, m.home), state, lines))
 }
 
 // shownProjects is the projects the typed words find: each word in the

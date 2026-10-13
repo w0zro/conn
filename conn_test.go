@@ -118,6 +118,38 @@ func TestTailContext(t *testing.T) {
 	}
 }
 
+// A conversation started in a repository's own checkout gets a
+// worktree of Claude Code's own and is told so; one started in a
+// worktree joins it; outside a repository there is none to make. A
+// worktree Claude Code made is named by its name, not its branch.
+func TestAgentsFavorWorktrees(t *testing.T) {
+	for _, c := range []struct {
+		inRepo     bool
+		tree, root string
+		want       bool
+	}{{true, "/r", "/r", true}, {true, "/r/.claude/worktrees/x", "/r", false}, {false, "/d", "/d", false}} {
+		if got := startsWorktree(c.inRepo, c.tree, c.root); got != c.want {
+			t.Errorf("startsWorktree(%v, %s, %s) = %v", c.inRepo, c.tree, c.root, got)
+		}
+	}
+	with := newCommand("note", "id", "", true)
+	if !strings.Contains(with, "claude --worktree ") || !strings.Contains(with, "a task per worktree") || !strings.Contains(with, "--session-id 'id'") {
+		t.Errorf("with a worktree = %q", with)
+	}
+	if without := newCommand("note", "id", "fix it", false); strings.Contains(without, "worktree") || !strings.HasSuffix(without, " 'fix it'") {
+		t.Errorf("without = %q", without)
+	}
+	if got := worktreeName("/r/.claude/worktrees/prancy", "worktree-prancy"); got != "prancy" {
+		t.Errorf("worktreeName = %s, want prancy", got)
+	}
+	if got := worktreeName("/elsewhere/api-fix", "fix-login"); got != "fix-login" {
+		t.Errorf("worktreeName = %s, want fix-login", got)
+	}
+	if inRepo(t.TempDir()) {
+		t.Error("a bare directory is in a repository")
+	}
+}
+
 func TestRepoRoot(t *testing.T) {
 	base, _ := filepath.EvalSymlinks(t.TempDir())
 	repo := filepath.Join(base, "shop")

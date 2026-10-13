@@ -505,14 +505,26 @@ func resumeCommand(note, id string) string {
 
 // newCommand starts a conversation in Claude Code under an id conn
 // chose, so its pane is marked with it before its transcript exists,
-// and with a first prompt where there is one.
-func newCommand(note, id, prompt string) string {
-	cmd := "exec claude --append-system-prompt " + shell.Quote(note) + " --session-id " + shell.Quote(id)
+// and with a first prompt where there is one. Asked for a worktree, it
+// starts in one of Claude Code's own: under .claude/worktrees in the
+// repository, on a branch of its own, and told so.
+func newCommand(note, id, prompt string, worktree bool) string {
+	cmd := "exec claude"
+	if worktree {
+		cmd += " --worktree"
+		note += "\n\n" + worktreeNote
+	}
+	cmd += " --append-system-prompt " + shell.Quote(note) + " --session-id " + shell.Quote(id)
 	if prompt != "" {
 		cmd += " " + shell.Quote(prompt)
 	}
 	return cmd
 }
+
+// worktreeNote is what a conversation started in a worktree is told.
+const worktreeNote = "conn started you in a git worktree of your own, under .claude/worktrees in the " +
+	"repository, on a branch of its own: a task per worktree. Keep the work in it, and leave " +
+	"the repository's own checkout to the operator and the other agents."
 
 // told is what a conversation started in a project is told: the CLI,
 // and what the project's stack and checks are here, as last run

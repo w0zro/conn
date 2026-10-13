@@ -214,7 +214,8 @@ var errEarlier = fmt.Errorf("an earlier conn's server is up")
 // attach brings the server up if it is down, with conn in its first
 // window, and puts this terminal on it until the client leaves. A
 // server already up gets the configuration again, and conn's window
-// again where it is gone or runs another build.
+// again where it is gone or runs another build; the keys stay where
+// they were left in it, on the panel or in the process beside it.
 func attach(srv *tmux.Server, self, home string) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(srv.Socket), 0o700); err != nil {
 		return 0, err
@@ -267,7 +268,7 @@ func attach(srv *tmux.Server, self, home string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if _, err := srv.Do(bindBack(win, own.pane), tmux.Cmd{"select-window", "-t", win}, tmux.SelectPane(own.pane)); err != nil {
+	if _, err := srv.Do(bindBack(win, own.pane), tmux.Cmd{"select-window", "-t", win}); err != nil {
 		return 0, err
 	}
 	return srv.AttachClient(path, sessionName, connWindow, home, panel)

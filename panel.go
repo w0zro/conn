@@ -21,7 +21,9 @@ import (
 
 // The panel is conn's window: the projects work has happened in, and in
 // one of them, what runs and the conversations that can be picked back
-// up. Enter goes to a thing; ctrl-space comes back.
+// up. Enter goes to a thing; ctrl-space comes back. Started again over
+// a process standing in the workspace, as a new build starts it, the
+// panel opens on that process, the keys in it, where it was left.
 
 type screen int
 
@@ -243,9 +245,11 @@ type read struct {
 	waiting  []pane // the panes conn holds a conversation waiting on you in
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
-	// ended there stands dead.
-	shown   string
-	shownOK bool
+	// ended there stands dead. The directory is where it runs, which
+	// says the project it is in.
+	shown    string
+	shownDir string
+	shownOK  bool
 }
 
 // acted is what a key that runs off the loop did, or could not do.
@@ -285,7 +289,7 @@ func (m model) read() tea.Cmd {
 			if p.Window == window && p.ID != own {
 				r.shownOK = !p.Dead
 				if !p.Hold {
-					r.shown = p.ID
+					r.shown, r.shownDir = p.ID, p.Dir
 				}
 			}
 			if p.Hold {
@@ -537,6 +541,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 	case read:
 		m.waiting = msg.waiting
+		// The first read, with a process standing in the workspace: the
+		// panel has been started again over it, and opens on it.
+		if !m.loaded && msg.shown != "" && msg.shownOK && m.known.rootOf(msg.shownDir) != "" {
+			m.takeProjects(msg.projects)
+			return m.openOn(pane{ID: msg.shown, Dir: msg.shownDir})
+		}
 		// The cursor stays on its item, by key, as the projects and the
 		// rows are read again under it.
 		on := ""
@@ -841,18 +851,24 @@ func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 		}
 	}
 	m.lastWaiting = next.ID
-	if root := m.known.rootOf(next.Dir); root != "" && (m.screen != onProject || root != m.cur.Root) {
+	return m.openOn(next)
+}
+
+// openOn shows a pane in the workspace, the keys in it, with its
+// project on the panel and the cursor on its row.
+func (m model) openOn(p pane) (tea.Model, tea.Cmd) {
+	if root := m.known.rootOf(p.Dir); root != "" && (m.screen != onProject || root != m.cur.Root) {
 		cur := project{Name: filepath.Base(root), Root: root}
-		for _, p := range m.projects {
-			if p.Root == root {
-				cur = p
+		for _, q := range m.projects {
+			if q.Root == root {
+				cur = q
 			}
 		}
 		m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
 		m.searching, m.question = false, ""
 	}
-	m.follow, m.asked, m.followAt = next.ID, next.ID, time.Now()
-	return m, tea.Batch(m.showing(next.ID, true), m.read())
+	m.follow, m.asked, m.followAt = p.ID, p.ID, time.Now()
+	return m, tea.Batch(m.showing(p.ID, true), m.read())
 }
 
 // searchKey is a key while /'s search stands: what is typed searches,

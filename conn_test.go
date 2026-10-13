@@ -802,6 +802,43 @@ func TestNextWaiting(t *testing.T) {
 	}
 }
 
+// A panel started again over a process standing in the workspace, as a
+// new build starts it, opens on that process: its project on the
+// panel, the cursor to its row, the keys in it. Over a hold, it opens
+// on the projects.
+func TestOpensOnWhatStands(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	dir := t.TempDir()
+	id, _ := openWindow(srv, "web", dir, "sleep 1000", "")
+	if err := ws.show(id, false); err != nil {
+		t.Fatal(err)
+	}
+	k := newKnown()
+	k.root[dir] = dir
+	m := model{srv: srv, ws: ws, known: k}
+	next, cmd := m.Update(read{projects: []project{{Name: "d", Root: dir}}, shown: id, shownDir: dir, shownOK: true})
+	m = next.(model)
+	if m.screen != onProject || m.cur.Root != dir || m.follow != id {
+		t.Errorf("opened on screen %d, project %q, following %q; want the project %q and %s", m.screen, m.cur.Root, m.follow, dir, id)
+	}
+	if b, ok := cmd().(tea.BatchMsg); ok && len(b) > 0 {
+		b[0]()
+	}
+	if active, _ := srv.Display(id, "#{pane_active}"); active != "1" {
+		t.Errorf("the keys are not in %s", id)
+	}
+	if err := ws.show("", false); err != nil {
+		t.Fatal(err)
+	}
+	m = model{srv: srv, ws: ws, known: k}
+	next, _ = m.Update(read{projects: []project{{Name: "d", Root: dir}}, shownOK: true})
+	if m = next.(model); m.screen != onProjects || m.follow != "" {
+		t.Errorf("over a hold, opened on screen %d following %q", m.screen, m.follow)
+	}
+}
+
 // Lines that say the text, newest first in each pane, with the saying
 // each is counted back from the pane's end, as tmux's search counts.
 func TestHits(t *testing.T) {

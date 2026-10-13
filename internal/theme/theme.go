@@ -34,6 +34,13 @@ type Ground struct {
 	// The row under the cursor, and what copy mode has selected, and
 	// the ink it is written in; and the cursor itself.
 	Chosen, ChosenInk, Cursor string
+
+	// The grounds no slot has a name for, which Claude Code draws: the
+	// band behind what you said, at rest and under the pointer; the bar
+	// behind a tool's output; and the washes a diff is laid on, one
+	// step up for the words inside it, and dimmed.
+	MessageBg, MessageHoverBg, ToolBg                                                        string
+	DiffAddedBg, DiffRemovedBg, DiffAddedDim, DiffRemovedDim, DiffAddedWord, DiffRemovedWord string
 }
 
 // Dark says whether this is the dark ground, read off the ground
@@ -91,6 +98,14 @@ func Hex(c color.RGBA) string {
 // that the slots a shell theme leans on — structure, type, what can be
 // run — stay apart instead of collapsing into the orange and the teal.
 //
+// The washes and bars are in the ground's own temperature, none of
+// them a fill. A wash this pale on light needs more room from the
+// ground than the same wash does on dark to read as a color at all
+// rather than a shade of the ground itself: lightness compresses
+// toward white long before it compresses toward black. Each light one
+// holds at least the contrast its dark counterpart has against its own
+// ground.
+//
 // The border is scheme[0] on dark, the darkest thing there is and so
 // the quietest edge. On light it cannot be: light's scheme[0] is black,
 // which a program writing ANSI-0 means as text, so the border there is
@@ -132,6 +147,16 @@ var (
 		Chosen:    "#2A2620",
 		ChosenInk: "#E6DFD0",
 		Cursor:    "#E85D2F",
+
+		MessageBg:       "#2A2620",
+		MessageHoverBg:  "#33302A",
+		ToolBg:          "#1D1A15",
+		DiffAddedBg:     "#1E2A1C",
+		DiffRemovedBg:   "#331F17",
+		DiffAddedDim:    "#191F17",
+		DiffRemovedDim:  "#231A14",
+		DiffAddedWord:   "#2C4028",
+		DiffRemovedWord: "#4A2A1D",
 	}
 	Light = Ground{
 		Ground: color.RGBA{R: 0xEF, G: 0xE9, B: 0xDB, A: 255},
@@ -167,6 +192,16 @@ var (
 		Chosen:    "#D8D0BD",
 		ChosenInk: "#1A1611",
 		Cursor:    "#BD3A1D",
+
+		MessageBg:       "#D8D0BD",
+		MessageHoverBg:  "#CFC6B0",
+		ToolBg:          "#E6DFCF",
+		DiffAddedBg:     "#CAD7BB",
+		DiffRemovedBg:   "#E8D3C4",
+		DiffAddedDim:    "#DFE1CD",
+		DiffRemovedDim:  "#EBDED0",
+		DiffAddedWord:   "#A4C187",
+		DiffRemovedWord: "#E0BDA4",
 	}
 )
 
@@ -177,5 +212,8 @@ func (g Ground) Roles() map[string]string {
 		"accent": g.Accent, "shimmer": g.Shimmer, "border": g.Border, "surface": g.Surface,
 		"running": g.Running, "gray": g.Gray, "faint": g.Faint, "parchment": g.Parchment,
 		"block": g.Block, "onBlock": g.OnBlock, "chosen": g.Chosen, "chosenInk": g.ChosenInk, "cursor": g.Cursor,
+		"messageBg": g.MessageBg, "messageHoverBg": g.MessageHoverBg, "toolBg": g.ToolBg,
+		"diffAddedBg": g.DiffAddedBg, "diffRemovedBg": g.DiffRemovedBg, "diffAddedDim": g.DiffAddedDim,
+		"diffRemovedDim": g.DiffRemovedDim, "diffAddedWord": g.DiffAddedWord, "diffRemovedWord": g.DiffRemovedWord,
 	}
 }

@@ -1437,6 +1437,39 @@ func TestTalksTo(t *testing.T) {
 	}
 }
 
+// conn theme claude writes the theme on the ground it is given, and
+// offers to put Claude Code on it where its settings name one of its
+// own themes; a custom theme of the user's is left, and said.
+func TestDressClaude(t *testing.T) {
+	home := t.TempDir()
+	settings := filepath.Join(home, ".claude", "settings.json")
+	write(t, settings, `{"theme": "dark"}`)
+	var out strings.Builder
+	no := func(string) bool { return false }
+	if err := dressClaude(&out, home, no, theme.Light); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(home, ".claude", "themes", "conn.json"))
+	if !strings.Contains(string(b), `"base": "light-ansi"`) || !strings.Contains(out.String(), "/theme") {
+		t.Errorf("declined: file %q, said %q", b, out.String())
+	}
+	out.Reset()
+	if err := dressClaude(&out, home, func(string) bool { return true }, theme.Dark); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ := theme.ThemeInUse(home); in != theme.ClaudeThemeRef || !strings.Contains(out.String(), theme.ClaudeThemeRef) {
+		t.Errorf("accepted: on %q, said %q", in, out.String())
+	}
+	write(t, settings, `{"theme": "custom:mine"}`)
+	out.Reset()
+	if err := dressClaude(&out, home, func(string) bool { t.Error("asked over a custom theme"); return true }, theme.Dark); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ := theme.ThemeInUse(home); in != "custom:mine" || !strings.Contains(out.String(), "custom:mine") {
+		t.Errorf("custom: on %q, said %q", in, out.String())
+	}
+}
+
 // A server's ground is the terminal's the first time, unless a flag
 // said; held while it is up; and put on the other ground where it
 // stands when a flag says so, which is when conn's own pane is started

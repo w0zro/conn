@@ -45,6 +45,12 @@ func run(args []string) error {
 			return runPanel()
 		case "hold":
 			return runHold()
+		case "theme":
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			return runTheme(os.Stdout, home, want, args[1:])
 		}
 		if cmd, ok := commands[args[0]]; ok {
 			home, err := os.UserHomeDir()
@@ -57,7 +63,7 @@ func run(args []string) error {
 			}
 			os.Exit(cmd(os.Stdout, home, dir, args[1:]))
 		}
-		return fmt.Errorf("conn knows ls, l, u, x and r; with nothing after it, it opens on your projects")
+		return fmt.Errorf("conn knows ls, l, u, x, r and theme; with nothing after it, it opens on your projects")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -76,7 +82,7 @@ func run(args []string) error {
 	// stands.
 	if insideConn(srv.Socket) {
 		if want != nil {
-			return reground(srv, self, want)
+			return reground(srv, self, home, want)
 		}
 		own, err := findPanel(srv, "")
 		if err != nil || own.pane == "" {
@@ -111,4 +117,49 @@ func ask(q string) bool {
 	a, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	a = strings.ToLower(strings.TrimSpace(a))
 	return a == "y" || a == "yes"
+}
+
+// runTheme writes conn's theme for a program that draws its own hex
+// rather than asking for a color by name, which is the one thing in a
+// pane conn's server cannot dress: Claude Code. The ground is what a
+// flag says, what the server is on, or the terminal's own.
+func runTheme(w io.Writer, home string, want *bool, args []string) error {
+	if len(args) != 1 || args[0] != "claude" {
+		return fmt.Errorf("conn theme claude writes conn's theme for Claude Code")
+	}
+	srv, err := findServer(home)
+	if err != nil {
+		return err
+	}
+	return dressClaude(w, home, ask, askGround(srv, want))
+}
+
+// dressClaude writes the theme, and offers to put Claude Code on it
+// when nothing of the user's own is in the way: a settings file on one
+// of the themes Claude Code comes with, or on none. A custom theme is
+// somebody's own doing, and conn says what it is and leaves it.
+func dressClaude(w io.Writer, home string, ask func(string) bool, g theme.Ground) error {
+	path, err := theme.WriteClaudeTheme(home, g)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "Wrote conn's theme for Claude Code to %s\n", tilde(path, home))
+	in, ok := theme.ThemeInUse(home)
+	switch {
+	case !ok:
+		fmt.Fprintf(w, "Claude Code has no settings file yet; it will read the theme once %q is its theme.\n", theme.ClaudeThemeRef)
+	case in == theme.ClaudeThemeRef:
+		// Already on it, and the themes directory is watched: a session
+		// that is up has the new colors already.
+	case !theme.BuiltinThemes[in]:
+		fmt.Fprintf(w, "Claude Code is on %s, which is not conn's to change. Pick Conn with /theme when you want it.\n", in)
+	case ask("Put Claude Code on it now?"):
+		if err := theme.UseClaudeTheme(home); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "Claude Code is on %s. A session that is up picks it up as the directory is watched.\n", theme.ClaudeThemeRef)
+	default:
+		fmt.Fprintf(w, "Pick Conn with /theme, or set %q as the theme in ~/.claude/settings.json.\n", theme.ClaudeThemeRef)
+	}
+	return nil
 }

@@ -222,6 +222,7 @@ func attach(srv *tmux.Server, self, home string, want *bool) (int, error) {
 		return 0, err
 	}
 	g, again := chooseGround(srv.Socket, srv.HasSession(sessionName), want, theme.DetectDark)
+	theme.RefreshClaudeTheme(home, g)
 	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
 		return 0, err
@@ -279,8 +280,9 @@ func bindBack(window, panel string) tmux.Cmd {
 // pane started again to read it. A pane of the server has no terminal
 // of its own to ask, only tmux, which would answer with the ground
 // conn set.
-func reground(srv *tmux.Server, self string, want *bool) error {
+func reground(srv *tmux.Server, self, home string, want *bool) error {
 	g, again := chooseGround(srv.Socket, true, want, func() bool { return true })
+	theme.RefreshClaudeTheme(home, g)
 	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
 		return err
@@ -290,6 +292,19 @@ func reground(srv *tmux.Server, self string, want *bool) error {
 	}
 	_, err := ensurePanel(srv, "", self, "exec "+shell.Quote(self)+" panel", again)
 	return err
+}
+
+// askGround is the ground for a conn that attaches to nothing: what a
+// flag says, what the server is on while it is up, or the terminal's
+// own.
+func askGround(srv *tmux.Server, want *bool) theme.Ground {
+	if want != nil {
+		return theme.On(*want)
+	}
+	if dark, ok := theme.ReadMode(srv.Socket); ok && srv.HasSession(sessionName) {
+		return theme.On(dark)
+	}
+	return theme.On(theme.DetectDark())
 }
 
 // chooseGround is the ground the server is on, and whether a server

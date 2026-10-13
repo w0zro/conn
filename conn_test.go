@@ -1708,8 +1708,9 @@ func TestAVerdictWearsTheGround(t *testing.T) {
 			t.Errorf("cursor %v: %q\nlacks %q", c.cursor, line, c.want)
 		}
 	}
-	if line := plainText(m.drawRow(fail, 0, true)); !strings.HasSuffix(strings.TrimRight(line, " "), "~/p/sub") || ansi.StringWidth(line) != m.width-1 {
-		t.Errorf("under the cursor the row is %d wide, want %d, and reads %q", ansi.StringWidth(line), m.width-1, line)
+	// The row under the cursor is still painted edge to edge.
+	if line := plainText(m.drawRow(fail, 0, true)); !strings.HasSuffix(strings.TrimRight(line, " "), "/p/sub") || ansi.StringWidth(line) != m.width {
+		t.Errorf("under the cursor the row is %d wide, want %d, and reads %q", ansi.StringWidth(line), m.width, line)
 	}
 }
 

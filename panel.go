@@ -1954,9 +1954,9 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		case r.state == "waiting":
 			left, right = append(left, piece{name, accent}), piece{"waiting", accent}
 		case r.pane != nil:
-			left, right = append(left, piece{name, ink}), piece{or(r.state, "running"), gray}
+			left, right = append(left, piece{name, ink}), piece{stated(r.state), gray}
 		case r.elsewhere:
-			left, right = append(left, piece{name, ink}), piece{or(r.state, "running") + " in another terminal", gray}
+			left, right = append(left, piece{name, ink}), piece{strings.TrimSpace(stated(r.state) + " in another terminal"), gray}
 		default:
 			left, right = append(left, piece{name, gray}), piece{ago(r.conv.When), faint}
 		}
@@ -1971,7 +1971,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		if r.pane.Dir != or(r.tree, m.cur.Root) {
 			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
 		}
-		right = piece{or(r.state, "running"), gray}
+		right = piece{stated(r.state), gray}
 		// Wanting you is the accent, where the row stands: a
 		// conversation waiting, a run that failed.
 		if r.state == "waiting" || strings.HasPrefix(r.state, "failed ") {
@@ -1982,7 +1982,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		right = piece{r.state, gray}
 	}
 	if len(r.ports) > 0 {
-		right.s = ":" + strings.Join(r.ports, " :") + "  " + right.s
+		right.s = strings.TrimSpace(":" + strings.Join(r.ports, " :") + "  " + right.s)
 	}
 	turn := ""
 	switch {
@@ -1992,6 +1992,18 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		turn = steady
 	}
 	return m.rowTurning(turn, left, right, cursor)
+}
+
+// stated is what a row's state says at the right. The ordinary states
+// say nothing: the margin says running and working, and idle and done
+// are the absence of anything to say. What is left is what wants you,
+// or is unusual: waiting, failed, outside conn.
+func stated(state string) string {
+	switch state {
+	case "", "idle", "done", "running":
+		return ""
+	}
+	return state
 }
 
 func pad(s string, w int) string {

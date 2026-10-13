@@ -51,6 +51,9 @@ type model struct {
 	known    *known
 	g        theme.Ground // the ground the server is on
 	bar      string       // the keys as last written on the bar
+	// The spinner: whether its tick is running, and the frame it is on.
+	spinning bool
+	frame    int
 
 	width, height int
 	screen        screen
@@ -368,6 +371,50 @@ type read struct {
 // acted is what a key that runs off the loop did, or could not do.
 type acted string
 
+// spun is the spinner's tick.
+type spun struct{}
+
+// The spinner's frames: the cell full but for one dot, the gap going
+// round, a full turn in eight, and a turn a second. A single dot going
+// round was a trace too faint to be seen turning beside a row of text;
+// the full cell has the weight of the dot beside it, and the gap is
+// what moves. It turns in the margin, where the rows at work make a
+// column of their own and the text they are about keeps its line. Its
+// frame is the clock's, so every row turns in step.
+var spinner = []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
+
+const spinEvery = 125 * time.Millisecond
+
+func spinTick() tea.Cmd {
+	return tea.Tick(spinEvery, func(time.Time) tea.Msg { return spun{} })
+}
+
+// turns says whether a row is at work on something that will come to
+// rest: a conversation working, a check running. A server running is
+// not at work in that sense, and sits still.
+func turns(r row) bool {
+	switch {
+	case r.state == "working":
+		return true
+	case r.stand == placeChecks && r.pane != nil && r.conv == nil:
+		return r.pane.Exit == ""
+	}
+	return false
+}
+
+// turning says whether any row on the screen turns.
+func (m model) turning() bool {
+	if m.screen != onProject {
+		return false
+	}
+	for _, r := range m.rows {
+		if turns(r) {
+			return true
+		}
+	}
+	return false
+}
+
 // sized is the terminal's size asked once, a moment after the start: a
 // resize can land before the program listens for one, and is then never
 // told.
@@ -631,6 +678,12 @@ const previewWait = 80 * time.Millisecond
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	next, cmd = next.(model).reconcile(cmd)
+	// The spinner ticks while a row turns, started once and kept going
+	// by its own tick, and left to stop when nothing turns.
+	if n := next.(model); n.turning() && !n.spinning {
+		n.spinning = true
+		next, cmd = n, tea.Batch(cmd, spinTick())
+	}
 	return next.(model).telling(cmd)
 }
 
@@ -787,6 +840,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case acted:
 		m.note = string(msg)
+	case spun:
+		if !m.turning() {
+			m.spinning = false
+			return m, nil
+		}
+		m.frame = int(time.Now().UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
+		return m, spinTick()
 	case tea.KeyPressMsg:
 		m.note = ""
 		if m.asking {
@@ -1541,7 +1601,7 @@ const (
 // The styles, in the ground the server is on once the panel knows it;
 // plain until then, and in the tests.
 var (
-	ink, title, subhead, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle lipgloss.Style
+	ink, title, subhead, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle, turning, chosenTurning lipgloss.Style
 )
 
 // wear dresses the panel's styles in a ground. The pane's ground is
@@ -1558,6 +1618,8 @@ func wear(g theme.Ground) {
 	keyInk = fg(theme.Hex(g.Ink)).Bold(true)
 	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
 	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Accent)).Bold(true)
+	turning = fg(g.Running)
+	chosenTurning = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Running))
 	ruleStyle = fg(g.Border)
 }
 
@@ -1580,6 +1642,13 @@ func at(s string) string { return strings.Repeat(" ", margin) + s }
 // is on the chosen ground from edge to edge in the chosen ink, its bar
 // in the margin, and nothing else colored on it.
 func (m model) row(left []piece, right piece, cursor bool) string {
+	return m.rowTurning("", left, right, cursor)
+}
+
+// rowTurning lays a row out with the spinner's frame in the margin,
+// the column after the cursor's bar, where a row turns; and is row
+// where turn is blank.
+func (m model) rowTurning(turn string, left []piece, right piece, cursor bool) string {
 	measure := m.measure()
 	rw := ansi.StringWidth(right.s)
 	if rw > measure {
@@ -1606,18 +1675,26 @@ func (m model) row(left []piece, right piece, cursor bool) string {
 	gap := strings.Repeat(" ", max(measure-used-rw, 1))
 	if cursor {
 		var b strings.Builder
-		b.WriteString(strings.Repeat(" ", margin-1))
+		b.WriteString(strings.Repeat(" ", margin-2))
 		for _, p := range fitted {
 			b.WriteString(p.s)
 		}
 		b.WriteString(gap)
 		b.WriteString(right.s)
 		text := b.String()
-		text += strings.Repeat(" ", max(m.width-1-ansi.StringWidth(text), 0))
-		return chosenBar.Render(cursorBar) + chosen.Render(text)
+		text += strings.Repeat(" ", max(m.width-2-ansi.StringWidth(text), 0))
+		lead := chosen.Render(" ")
+		if turn != "" {
+			lead = chosenTurning.Render(turn)
+		}
+		return chosenBar.Render(cursorBar) + lead + chosen.Render(text)
 	}
 	var b strings.Builder
-	b.WriteString(strings.Repeat(" ", margin))
+	if turn != "" {
+		b.WriteString(" " + turning.Render(turn) + strings.Repeat(" ", margin-2))
+	} else {
+		b.WriteString(strings.Repeat(" ", margin))
+	}
 	for _, p := range fitted {
 		b.WriteString(p.st.Render(p.s))
 	}
@@ -1889,7 +1966,11 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	if len(r.ports) > 0 {
 		right.s = ":" + strings.Join(r.ports, " :") + "  " + right.s
 	}
-	return m.row(left, right, cursor)
+	turn := ""
+	if turns(r) {
+		turn = spinner[m.frame%len(spinner)]
+	}
+	return m.rowTurning(turn, left, right, cursor)
 }
 
 func pad(s string, w int) string {

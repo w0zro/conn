@@ -835,6 +835,57 @@ func TestPlaces(t *testing.T) {
 	}
 }
 
+// The spinner turns in the margin beside a conversation working and a
+// check running, in step with the clock, and not beside what rests or
+// serves. Its tick starts once when a row turns, and stops itself
+// when none does.
+func TestSpinner(t *testing.T) {
+	working := row{conv: &conversation{ID: "c", Title: "Fixing"}, pane: &pane{ID: "%1"}, state: "working"}
+	idle := row{conv: &conversation{ID: "d", Title: "Resting"}, pane: &pane{ID: "%2"}, state: "idle"}
+	check := row{pane: &pane{ID: "%3", Name: "test"}, stand: placeChecks}
+	ended := row{pane: &pane{ID: "%4", Name: "lint", Exit: "0"}, stand: placeChecks, state: "done"}
+	server := row{pane: &pane{ID: "%5", Name: "web"}, stand: placeStack}
+	for _, c := range []struct {
+		r    row
+		want bool
+	}{{working, true}, {idle, false}, {check, true}, {ended, false}, {server, false}} {
+		if got := turns(c.r); got != c.want {
+			t.Errorf("turns(%s) = %v, want %v", c.r.key(), got, c.want)
+		}
+	}
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, width: 60, height: 30, frame: 2}
+	next, cmd := m.Update(read{root: "/p", rows: []row{idle, server}})
+	if m = next.(model); m.spinning || cmd != nil {
+		t.Error("the spinner started with nothing at work")
+	}
+	next, cmd = m.Update(read{root: "/p", rows: []row{working, check, idle}})
+	if m = next.(model); !m.spinning || cmd == nil {
+		t.Fatal("the spinner did not start when a row turned")
+	}
+	next, cmd = m.Update(read{root: "/p", rows: []row{working}})
+	if m = next.(model); cmd != nil {
+		t.Error("the spinner was started twice over")
+	}
+	if line := m.drawRow(working, 0, false); !strings.Contains(line, spinner[2]) {
+		t.Errorf("a working row has no spinner turning: %q", line)
+	}
+	if line := m.drawRow(working, 0, true); !strings.Contains(line, cursorBar+spinner[2]) {
+		t.Errorf("under the cursor, the spinner is not in the column after the bar: %q", line)
+	}
+	if line := m.drawRow(idle, 0, false); strings.ContainsAny(line, strings.Join(spinner, "")) {
+		t.Errorf("an idle row has a spinner turning: %q", line)
+	}
+	next, cmd = m.Update(spun{})
+	if m = next.(model); !m.spinning || cmd == nil {
+		t.Error("the tick did not go on while a row turns")
+	}
+	m.rows = []row{idle}
+	next, _ = m.Update(spun{})
+	if m = next.(model); m.spinning {
+		t.Error("the tick went on with nothing at work")
+	}
+}
+
 func TestParseStack(t *testing.T) {
 	got, err := parseStack("```\nweb: npm run dev\n\nworker: node worker.js\nweb: again\nnot a line\n```\n")
 	if err != nil || !reflect.DeepEqual(got, []stacked{{name: "web", command: "npm run dev"}, {name: "worker", command: "node worker.js"}}) {

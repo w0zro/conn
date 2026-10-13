@@ -1680,26 +1680,32 @@ func plainText(s string) string {
 }
 
 // A run that has ended says how long ago in the figure column, which
-// says it is done; one that failed says so first; one from before conn
-// wrote the time down says only how it did.
+// says it ended well; one that did not says so first: a check says
+// fail, a process of the stack says failed and its status. One from
+// before conn wrote the time down says only how it did.
 func TestARestingRunSaysWhen(t *testing.T) {
 	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
 	for _, c := range []struct {
+		stand int
 		exit  string
 		ago   time.Duration
 		state string
 		want  string
 	}{
-		{"0", 4 * time.Minute, "done", "4m"},
-		{"2", 9 * time.Minute, "failed 2", "failed 2 9m"},
-		{"0", 0, "done", "done"},
+		{placeChecks, "0", 4 * time.Minute, "done", "4m"},
+		{placeChecks, "2", 9 * time.Minute, "failed 2", "fail 9m"},
+		{placeChecks, "0", 0, "done", "pass"},
+		{placeChecks, "1", 0, "failed 1", "fail"},
+		{placeStack, "0", 4 * time.Minute, "done", "4m"},
+		{placeStack, "2", 9 * time.Minute, "failed 2", "failed 2 9m"},
+		{placeStack, "0", 0, "done", "done"},
 	} {
 		p := pane{ID: "%1", Name: "test", Exit: c.exit}
 		if c.ago > 0 {
 			p.Ended = time.Now().Add(-c.ago)
 		}
-		line := strings.TrimSpace(m.drawRow(row{pane: &p, stand: placeChecks, state: c.state}, 0, false))
-		if !strings.HasSuffix(line, c.want) || (c.exit == "0" && c.ago > 0 && strings.Contains(line, "done")) {
+		line := strings.TrimSpace(m.drawRow(row{pane: &p, stand: c.stand, state: c.state}, 0, false))
+		if !strings.HasSuffix(line, c.want) || (c.exit == "0" && c.ago > 0 && strings.ContainsAny(line, "dp")) {
 			t.Errorf("a run that ended %s %s ago draws %q, want it to end in %q", c.exit, c.ago, line, c.want)
 		}
 	}

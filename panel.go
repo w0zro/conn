@@ -2034,12 +2034,21 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
 		}
 		right = piece{stated(r.state), gray}
-		// A run that has ended says how long ago, which says it is
-		// done; one that failed says so first. One from before conn
-		// wrote the time down says only how it did.
+		// A run that has ended says how long ago, which says it ended
+		// well; one that did not says so first. A check passes or
+		// fails, and its status is for whoever reads the output; a
+		// process of the stack that ended says its status, since a
+		// server ending at all is the news. One from before conn wrote
+		// the time down says only how it did.
 		if r.pane.Name != "" && r.pane.Exit != "" {
 			how, when := ended(r.pane.Exit), ago(r.pane.Ended)
-			if how == "done" && when != "" {
+			if r.stand == placeChecks {
+				how = "pass"
+				if r.pane.Exit != "0" {
+					how = "fail"
+				}
+			}
+			if (how == "done" || how == "pass") && when != "" {
 				how = ""
 			}
 			right.s = strings.TrimSpace(how + " " + when)

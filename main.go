@@ -143,23 +143,23 @@ func dressClaude(w io.Writer, home string, ask func(string) bool, g theme.Ground
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "Wrote conn's theme for Claude Code to %s\n", tilde(path, home))
+	_, _ = fmt.Fprintf(w, "Wrote conn's theme for Claude Code to %s\n", tilde(path, home))
 	in, ok := theme.ThemeInUse(home)
 	switch {
 	case !ok:
-		fmt.Fprintf(w, "Claude Code has no settings file yet; it will read the theme once %q is its theme.\n", theme.ClaudeThemeRef)
+		_, _ = fmt.Fprintf(w, "Claude Code has no settings file yet; it will read the theme once %q is its theme.\n", theme.ClaudeThemeRef)
 	case in == theme.ClaudeThemeRef:
 		// Already on it, and the themes directory is watched: a session
 		// that is up has the new colors already.
 	case !theme.BuiltinThemes[in]:
-		fmt.Fprintf(w, "Claude Code is on %s, which is not conn's to change. Pick Conn with /theme when you want it.\n", in)
+		_, _ = fmt.Fprintf(w, "Claude Code is on %s, which is not conn's to change. Pick Conn with /theme when you want it.\n", in)
 	case ask("Put Claude Code on it now?"):
 		if err := theme.UseClaudeTheme(home); err != nil {
 			return err
 		}
-		fmt.Fprintf(w, "Claude Code is on %s. A session that is up picks it up as the directory is watched.\n", theme.ClaudeThemeRef)
+		_, _ = fmt.Fprintf(w, "Claude Code is on %s. A session that is up picks it up as the directory is watched.\n", theme.ClaudeThemeRef)
 	default:
-		fmt.Fprintf(w, "Pick Conn with /theme, or set %q as the theme in ~/.claude/settings.json.\n", theme.ClaudeThemeRef)
+		_, _ = fmt.Fprintf(w, "Pick Conn with /theme, or set %q as the theme in ~/.claude/settings.json.\n", theme.ClaudeThemeRef)
 	}
 	return nil
 }

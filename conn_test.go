@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/w0zro/conn/internal/theme"
@@ -207,7 +208,7 @@ func TestByPlace(t *testing.T) {
 	}
 }
 
-// Drawn, a worktree's rows stand under a head that names the branch
+// Drawn, a worktree's rows stand in under a head that names the branch
 // alone, and say only their names.
 func TestWorktreeLine(t *testing.T) {
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, home: "/home", width: 60, height: 30, rows: []row{
@@ -230,6 +231,16 @@ func TestWorktreeLine(t *testing.T) {
 	}
 	if at < 0 || at+1 >= len(got) || !strings.HasPrefix(got[at+1], "web") || strings.Contains(got[at+1], "fix-login") {
 		t.Errorf("drawn as %q, want web under a fix-login line", got)
+	}
+	// The worktree's row stands two columns in from the project's own.
+	var cols []int
+	for _, l := range lines {
+		if l = plain.ReplaceAllString(l, ""); strings.Contains(l, "web") {
+			cols = append(cols, utf8.RuneCountInString(l[:strings.Index(l, "web")]))
+		}
+	}
+	if len(cols) != 2 || cols[1] != cols[0]+2 {
+		t.Errorf("web stands at columns %v, want the worktree's two in from the project's", cols)
 	}
 }
 

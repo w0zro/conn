@@ -1872,10 +1872,6 @@ func (m model) drawProjects() ([]string, foot) {
 	return lines, foot{hints: projectsHints}
 }
 
-// group is which of the panel's three groups a row is in: what runs in
-// conn, what runs in another terminal, and what rests.
-func groupOf(r row) int { return r.stand }
-
 func (m model) drawProject() ([]string, foot) {
 	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
 	if m.question != "" {
@@ -1887,9 +1883,10 @@ func (m model) drawProject() ([]string, foot) {
 	if m.listing {
 		return m.drawList(lines)
 	}
-	// The open project's rows, a row of air between one group and the
-	// next and after the last; then the other projects' lines; and the
-	// window of it all that keeps the cursor's line in view.
+	// The open project's rows, one under the next with no air between
+	// the places, since the figure says what a row is; then the other
+	// projects' lines; and the window of it all that keeps the cursor's
+	// line in view.
 	switch {
 	case m.rows == nil:
 		lines = append(lines, at(faint.Render("reading…")))
@@ -1918,22 +1915,23 @@ func (m model) drawProject() ([]string, foot) {
 			}
 			body = append(body, m.projectLine(it.project, i == m.cursor))
 		default:
-			// A worktree's rows stand under a head of their own: the
+			// A worktree's rows stand in under a head of their own: the
 			// branch alone, in the parchment the project's head is in
 			// and without its weight, a lesser head of the same kind.
 			// A label with a rule is a section of the panel, which a
 			// worktree is not.
 			r := m.rows[it.row]
-			switch {
-			case r.worktree() != "" && (it.row == 0 || m.rows[it.row-1].worktree() != r.worktree()):
-				body = append(body, "", at(subhead.Render(r.worktree())))
-			case it.row > 0 && groupOf(r) != groupOf(m.rows[it.row-1]):
-				body = append(body, "")
+			depth := 0
+			if r.worktree() != "" {
+				depth = 1
+				if it.row == 0 || m.rows[it.row-1].worktree() != r.worktree() {
+					body = append(body, at(subhead.Render(r.worktree())))
+				}
 			}
 			if i == m.cursor {
 				cursorAt = len(body)
 			}
-			body = append(body, m.drawRow(r, 0, i == m.cursor))
+			body = append(body, m.drawRow(r, depth, i == m.cursor))
 		}
 	}
 	room := max(m.height-len(lines)-1, 1)
@@ -1953,8 +1951,7 @@ func (m model) drawProject() ([]string, foot) {
 func (m model) drawRow(r row, depth int, cursor bool) string {
 	var left []piece
 	var right piece
-	// A row stands under its project's line, a repository's under the
-	// repository's own, which stands in from its folder's.
+	// A row under a worktree's head stands in from it.
 	if depth > 0 {
 		left = append(left, piece{strings.Repeat("  ", depth), ink})
 	}

@@ -171,7 +171,7 @@ func TestByPlace(t *testing.T) {
 }
 
 // Drawn, a worktree's rows stand under a head that names the branch
-// and places the checkout, and say only their names.
+// alone, and say only their names.
 func TestWorktreeLine(t *testing.T) {
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, home: "/home", width: 60, height: 30, rows: []row{
 		{pane: &pane{ID: "%2", Name: "web", Dir: "/p"}, tree: "/p"},
@@ -187,7 +187,7 @@ func TestWorktreeLine(t *testing.T) {
 	}
 	at := -1
 	for i, l := range got {
-		if l == "fix-login  /w" {
+		if l == "fix-login" {
 			at = i
 		}
 	}

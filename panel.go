@@ -1466,7 +1466,7 @@ const (
 // The styles, in the ground the server is on once the panel knows it;
 // plain until then, and in the tests.
 var (
-	ink, title, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle lipgloss.Style
+	ink, title, subhead, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle lipgloss.Style
 )
 
 // wear dresses the panel's styles in a ground. The pane's ground is
@@ -1476,6 +1476,7 @@ func wear(g theme.Ground) {
 	fg := func(h string) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(h)) }
 	ink = fg(theme.Hex(g.Ink))
 	title = fg(g.Parchment).Bold(true)
+	subhead = fg(g.Parchment)
 	gray = fg(g.Gray)
 	faint = fg(g.Faint)
 	accent = fg(g.Accent).Bold(true)
@@ -1739,13 +1740,15 @@ func (m model) drawProject() ([]string, foot) {
 			}
 			body = append(body, m.projectLine(it.project, i == m.cursor))
 		default:
-			// A worktree's rows stand under a head of their own, named
-			// and placed as the project's is: a checkout within it, not
-			// a section of the panel, which a label with a rule is.
+			// A worktree's rows stand under a head of their own: the
+			// branch alone, in the parchment the project's head is in
+			// and without its weight, a lesser head of the same kind.
+			// A label with a rule is a section of the panel, which a
+			// worktree is not.
 			r := m.rows[it.row]
 			switch {
 			case r.worktree() != "" && (it.row == 0 || m.rows[it.row-1].worktree() != r.worktree()):
-				body = append(body, "", m.row(m.worktreeHead(r), piece{}, false))
+				body = append(body, "", at(subhead.Render(r.worktree())))
 			case it.row > 0 && groupOf(r) != groupOf(m.rows[it.row-1]):
 				body = append(body, "")
 			}
@@ -1762,18 +1765,6 @@ func (m model) drawProject() ([]string, foot) {
 		hints = objectHints
 	}
 	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: hints}
-}
-
-// worktreeHead is a worktree's head: its branch, and its checkout in
-// the room left, kept from the end, where the checkouts differ.
-func (m model) worktreeHead(r row) []piece {
-	name := r.worktree()
-	path := tilde(r.tree, m.home)
-	room := max(m.measure()-ansi.StringWidth(name)-2, 0)
-	if w := ansi.StringWidth(path); w > room {
-		path = ansi.TruncateLeft(path, w-room+1, "…")
-	}
-	return []piece{{name, title}, {"  " + path, gray}}
 }
 
 // drawRow is one row of a project: what it is on the left, in the ink

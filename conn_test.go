@@ -171,7 +171,8 @@ func TestByPlace(t *testing.T) {
 }
 
 // Drawn, a worktree's rows stand under a head that names the branch
-// alone, and say only their names.
+// with a rule running off it, and say only their names; the project's
+// head has its rule under it.
 func TestWorktreeLine(t *testing.T) {
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, home: "/home", width: 60, height: 30, rows: []row{
 		{pane: &pane{ID: "%2", Name: "web", Dir: "/p"}, tree: "/p"},
@@ -187,12 +188,15 @@ func TestWorktreeLine(t *testing.T) {
 	}
 	at := -1
 	for i, l := range got {
-		if l == "fix-login" {
+		if strings.HasPrefix(l, "fix-login ─") {
 			at = i
 		}
 	}
 	if at < 0 || at+1 >= len(got) || !strings.HasPrefix(got[at+1], "web") || strings.Contains(got[at+1], "fix-login") {
 		t.Errorf("drawn as %q, want web under a fix-login line", got)
+	}
+	if len(got) < 2 || !strings.HasPrefix(got[0], "d  /p") || strings.Trim(got[1], "─") != "" {
+		t.Errorf("drawn as %q, want a rule under the head", got[:min(2, len(got))])
 	}
 }
 

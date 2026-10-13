@@ -282,6 +282,39 @@ func TestWorktreeLine(t *testing.T) {
 	}
 }
 
+// With no rows of its own, a project's first worktree stands one row
+// off the project's head, as a second worktree stands one off the
+// first.
+func TestWorktreeAirUnderHead(t *testing.T) {
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, home: "/home", width: 60, height: 30, rows: []row{
+		{pane: &pane{ID: "%1", Name: "web", Dir: "/w"}, branch: "fix-login", tree: "/w"},
+		{pane: &pane{ID: "%2", Name: "web", Dir: "/x"}, branch: "fix-logout", tree: "/x"},
+	}}
+	lines, _ := m.drawProject()
+	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	var got []string
+	for _, l := range lines {
+		got = append(got, strings.TrimSpace(plain.ReplaceAllString(l, "")))
+	}
+	head, first, second := -1, -1, -1
+	for i, l := range got {
+		switch {
+		case strings.HasPrefix(l, "d  "):
+			head = i
+		case l == "fix-login":
+			first = i
+		case l == "fix-logout":
+			second = i
+		}
+	}
+	if head < 0 || first != head+2 || got[head+1] != "" {
+		t.Errorf("drawn as %q, want one blank line between the head and fix-login", got)
+	}
+	if first < 0 || second != first+3 || got[first+1] == "" || got[first+2] != "" {
+		t.Errorf("drawn as %q, want fix-login's row then one blank line before fix-logout", got)
+	}
+}
+
 // A verb starts in the checkout the cursor stands in: a repository's
 // stack runs there where the checkout is the repository's, and at the
 // repository otherwise; with the cursor on no row, at the project.

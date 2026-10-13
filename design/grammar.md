@@ -206,6 +206,7 @@ From a day played out, 2026-10-11:
 - Whether an agent may reach another project's processes at all, beyond its own worktree and project: refused, or logged.
 - The station keys — `l` log, `c` console, `p` projects, `r` recent — are verbs or objects in the grammar and need another home.
 - Whether the keys show an action before running it.
+- Worktrees, from the first version of 2026-10-12: a process in a worktree removed under it stats to no directory and so to no project, and runs on unseen; two worktrees' servers want one port, which the app refuses and conn only shows; a bare repository names its project after the bare directory.
 
 From before:
 

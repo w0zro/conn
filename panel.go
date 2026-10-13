@@ -134,8 +134,8 @@ const (
 
 // The mark a row carries for its role, after the margin and before its
 // name: what a row is, said once, in a cell, so the name is only the
-// name. A conversation is a speech bubble: someone at the other end.
-// A client is the prompt it shows
+// name. A conversation is an opening quote: someone speaking at the
+// other end. A client is the prompt it shows
 // you. The stack is a ring, the commonest row and the lightest mark;
 // a check is the same ring, lighter still, a run that comes and goes;
 // a listener outside conn is the ring unfilled, held by nobody.
@@ -144,7 +144,7 @@ const (
 // not ended, a check in the running green where it passed, a cross in
 // the accent where it failed.
 const (
-	markConversation = "🗨"
+	markConversation = "❝"
 	markStack        = "○"
 	markClient       = "❯"
 	markCheck        = "◦"

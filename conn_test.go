@@ -170,10 +170,10 @@ func TestByPlace(t *testing.T) {
 	}
 }
 
-// Drawn, a worktree's rows stand under a line that names the branch,
-// and say only their names.
+// Drawn, a worktree's rows stand under a head that names the branch
+// and places the checkout, and say only their names.
 func TestWorktreeLine(t *testing.T) {
-	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, width: 60, height: 30, rows: []row{
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, home: "/home", width: 60, height: 30, rows: []row{
 		{pane: &pane{ID: "%2", Name: "web", Dir: "/p"}, tree: "/p"},
 		{pane: &pane{ID: "%1", Name: "web", Dir: "/w"}, branch: "fix-login", tree: "/w"},
 	}}
@@ -187,7 +187,7 @@ func TestWorktreeLine(t *testing.T) {
 	}
 	at := -1
 	for i, l := range got {
-		if strings.HasPrefix(l, "fix-login ─") {
+		if l == "fix-login  /w" {
 			at = i
 		}
 	}

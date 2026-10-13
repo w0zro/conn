@@ -1739,12 +1739,13 @@ func (m model) drawProject() ([]string, foot) {
 			}
 			body = append(body, m.projectLine(it.project, i == m.cursor))
 		default:
-			// A worktree's rows stand under a line of their own, with a
-			// rule running off it, as the other projects do.
+			// A worktree's rows stand under a head of their own, named
+			// and placed as the project's is: a checkout within it, not
+			// a section of the panel, which a label with a rule is.
 			r := m.rows[it.row]
 			switch {
 			case r.worktree() != "" && (it.row == 0 || m.rows[it.row-1].worktree() != r.worktree()):
-				body = append(body, "", m.label(r.worktree()))
+				body = append(body, "", at(title.Render(r.worktree())+"  "+gray.Render(tilde(r.tree, m.home))))
 			case it.row > 0 && groupOf(r) != groupOf(m.rows[it.row-1]):
 				body = append(body, "")
 			}

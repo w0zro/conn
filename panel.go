@@ -1976,15 +1976,12 @@ func (m model) label(s string) string {
 	return at(gray.Render(s) + " " + ruleStyle.Render(rule))
 }
 
-// projectLine is another project's line: its name, with its folder's
-// before it where it is in one, and what it says of itself at the
-// right; in the parchment, as the head names a project, and in the
-// accent where something waits.
+// projectLine is another project's line: its name, and what it says of
+// itself at the right; in the parchment, as the head names a project,
+// and in the accent where something waits. The folder it is in is not
+// the project and is not said.
 func (m model) projectLine(p project, cursor bool) string {
 	name, style := p.Name, title
-	if p.Depth > 0 {
-		name = filepath.Base(filepath.Dir(p.Root)) + "/" + name
-	}
 	if p.Waiting > 0 {
 		style = accent
 	}

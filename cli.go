@@ -563,17 +563,35 @@ func startNamed(srv *tmux.Server, name, command, dir string) (string, error) {
 	// and not the line that records how it ended; and ctrl-c is caught,
 	// not ignored, by that line, so it reaches the command, which takes
 	// it as it would anywhere, and leaves the line to record it.
-	line := "trap : INT\n(\n" + command + "\n)\n" +
-		"conn_status=$?\n" +
-		shell.Quote(srv.Tmux) + " -S " + shell.Quote(srv.Socket) + " set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$conn_status\"\n" +
-		"printf '\\n[%s exited %s]\\n' " + shell.Quote(name) + " \"$conn_status\"\n" +
-		shell.HoldOpen
-	out, err := srv.Run("new-window", "-d", "-t", sessionName+":", "-n", name, "-c", dir, "-P", "-F", "#{pane_id}", line)
+	out, err := srv.Run("new-window", "-d", "-t", sessionName+":", "-n", name, "-c", dir, "-P", "-F", "#{pane_id}", runLine(srv, name, command))
 	if err != nil {
 		return "", err
 	}
 	id := strings.TrimSpace(out)
-	_, err = srv.Do(tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir))
+	_, err = srv.Do(named(id, name, command, dir)...)
+	return id, err
+}
+
+// runLine is the line a named process runs under.
+func runLine(srv *tmux.Server, name, command string) string {
+	return "trap : INT\n(\n" + command + "\n)\n" +
+		"conn_status=$?\n" +
+		shell.Quote(srv.Tmux) + " -S " + shell.Quote(srv.Socket) + " set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$conn_status\"\n" +
+		"printf '\\n[%s exited %s]\\n' " + shell.Quote(name) + " \"$conn_status\"\n" +
+		shell.HoldOpen
+}
+
+// named is the commands that mark a pane as a named process: the name,
+// the command and the directory it was started with, and no end yet.
+func named(id, name, command, dir string) []tmux.Cmd {
+	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir), {"set-option", "-pu", "-t", id, exitMark}}
+}
+
+// restartNamed starts a named process again in its pane, as it was
+// started: the pane keeps its place, in the workspace or out of sight.
+func restartNamed(srv *tmux.Server, id, name, command, dir string) (string, error) {
+	cmds := append([]tmux.Cmd{{"respawn-pane", "-k", "-c", dir, "-t", id, runLine(srv, name, command)}}, named(id, name, command, dir)...)
+	_, err := srv.Do(cmds...)
 	return id, err
 }
 
@@ -637,7 +655,11 @@ func runX(w io.Writer, home, dir string, args []string) int {
 	if code >= 0 {
 		return code
 	}
-	how, err := endProc(h.srv, p)
+	self, err := os.Executable()
+	if err != nil {
+		return cliFail("x", err)
+	}
+	how, err := endProc(h.srv, holdCommand(self), p)
 	if err != nil {
 		return cliFail("x", err)
 	}
@@ -652,8 +674,9 @@ const closeWait = 5 * time.Second
 // running is sent ctrl-c, as a hand would, and its pane closed once it
 // has ended; any other pane is closed, a conversation's included, which
 // keeps its transcript to be picked back up. A listener outside conn is
-// sent SIGTERM.
-func endProc(srv *tmux.Server, p proc) (string, error) {
+// sent SIGTERM. hold is how a hold runs, for a pane closed in the
+// workspace.
+func endProc(srv *tmux.Server, hold string, p proc) (string, error) {
 	switch {
 	case p.pane == nil:
 		if err := syscall.Kill(p.PID, syscall.SIGTERM); err != nil {
@@ -661,20 +684,38 @@ func endProc(srv *tmux.Server, p proc) (string, error) {
 		}
 		return "kill -TERM " + strconv.Itoa(p.PID), nil
 	case p.pane.Name == "" || p.pane.Exit != "":
-		return "kill-pane " + p.pane.ID, srv.ClosePane(p.pane.ID)
+		return closePane(srv, hold, p.pane.ID)
 	}
-	if err := srv.Interrupt(p.pane.ID); err != nil {
+	ended, gone, err := interrupt(srv, p.pane.ID)
+	switch {
+	case err != nil:
 		return "", err
+	case gone:
+		return "send-keys C-c", nil
+	}
+	closed, err := closePane(srv, hold, p.pane.ID)
+	if ended {
+		return "send-keys C-c", err
+	}
+	return closed + ", " + closeWait.String() + " after ctrl-c did not end it", err
+}
+
+// interrupt sends ctrl-c to what a pane runs, as a hand would, and
+// waits for it to end: whether it did, and whether the pane went with
+// it.
+func interrupt(srv *tmux.Server, id string) (ended, gone bool, err error) {
+	if err := srv.Interrupt(id); err != nil {
+		return false, false, err
 	}
 	for deadline := time.Now().Add(closeWait); time.Now().Before(deadline); time.Sleep(runPoll) {
-		switch exit, gone := paneExit(srv, p.pane.ID); {
+		switch exit, gone := paneExit(srv, id); {
 		case gone:
-			return "send-keys C-c", nil
+			return true, true, nil
 		case exit != "":
-			return "send-keys C-c", srv.ClosePane(p.pane.ID)
+			return true, false, nil
 		}
 	}
-	return "kill-pane " + p.pane.ID + ", " + closeWait.String() + " after ctrl-c did not end it", srv.ClosePane(p.pane.ID)
+	return false, false, nil
 }
 
 // runR starts a process again.
@@ -696,10 +737,11 @@ func runR(w io.Writer, home, dir string, args []string) int {
 }
 
 // restartProc starts a process again, as it was started, and answers
-// its pane. What conn u started is ended and started anew; a
-// conversation is picked back up in its pane; any other pane runs again
-// what it was opened with. A process outside conn was started nobody
-// knows how. conn is how agents run this build.
+// its pane. What conn u started is sent ctrl-c where it runs, and
+// started anew in its pane; a conversation is picked back up in its
+// pane; any other pane runs again what it was opened with. A process
+// outside conn was started nobody knows how. conn is how agents run
+// this build.
 func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
 	switch {
 	case p.pane == nil:
@@ -710,10 +752,17 @@ func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
 		if command == "" {
 			return "", fmt.Errorf("%s does not say what it was started with", p.Name)
 		}
-		if _, err := endProc(srv, p); err != nil {
-			return "", err
+		if p.pane.Exit == "" {
+			// Not ended in time, it is killed by the start.
+			_, gone, err := interrupt(srv, p.pane.ID)
+			if err != nil {
+				return "", err
+			}
+			if gone {
+				return startNamed(srv, p.pane.Name, command, or(at, p.Dir))
+			}
 		}
-		return startNamed(srv, p.pane.Name, command, or(at, p.Dir))
+		return restartNamed(srv, p.pane.ID, p.pane.Name, command, or(at, p.Dir))
 	case p.Session != "":
 		note := told(conn, srv.Socket, project{Root: repoRoot(p.Dir)}.belongs)
 		_, err := srv.Do(tmux.Respawn(p.pane.ID, resumeCommand(note, p.Session)), tmux.SetPane(p.pane.ID, sessionMark, p.Session))

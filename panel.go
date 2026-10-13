@@ -973,9 +973,9 @@ func (r row) proc() (proc, bool) {
 
 // end ends a row's process off the loop: ctrl-c can take seconds.
 func (m model) end(p proc) tea.Cmd {
-	srv := m.srv
+	srv, hold := m.srv, m.ws.hold
 	return func() tea.Msg {
-		how, err := endProc(srv, p)
+		how, err := endProc(srv, hold, p)
 		if err != nil {
 			return acted(err.Error())
 		}
@@ -988,7 +988,7 @@ func (m model) end(p proc) tea.Cmd {
 // and every server in it outside conn. The project's own project is
 // read for each, not the panel's record of it, which can be older.
 func (m model) endAll(p project) tea.Cmd {
-	srv := m.srv
+	srv, hold := m.srv, m.ws.hold
 	root := rootOf
 	if m.known != nil {
 		root = m.known.rootOf
@@ -1006,7 +1006,7 @@ func (m model) endAll(p project) tea.Cmd {
 			if pr.Dir == "" || !p.belongs(root(pr.Dir)) {
 				continue
 			}
-			if _, err := endProc(srv, pr); err != nil {
+			if _, err := endProc(srv, hold, pr); err != nil {
 				failed = append(failed, err.Error())
 				continue
 			}

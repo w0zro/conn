@@ -40,7 +40,56 @@ type workspace struct {
 }
 
 func newWorkspace(srv *tmux.Server, window, panel, self string) workspace {
-	return workspace{srv: srv, window: window, panel: panel, hold: "exec " + shell.Quote(self) + " hold"}
+	return workspace{srv: srv, window: window, panel: panel, hold: holdCommand(self)}
+}
+
+// holdCommand is how a build runs a hold.
+func holdCommand(self string) string {
+	return "exec " + shell.Quote(self) + " hold"
+}
+
+// holdIn is the commands that start a pane again as a hold, in its
+// place: what it was marked as goes with it.
+func holdIn(id, hold string) []tmux.Cmd {
+	cmds := []tmux.Cmd{tmux.Respawn(id, hold), tmux.SetPane(id, holdMark, "1")}
+	for _, mark := range []string{sessionMark, nameMark, runMark, dirMark, exitMark} {
+		cmds = append(cmds, tmux.Cmd{"set-option", "-pu", "-t", id, mark})
+	}
+	return cmds
+}
+
+// closePane takes a pane down and says how. A pane standing in the
+// workspace is started again as a hold in its place, so conn's window
+// keeps its shape; any other is killed.
+func closePane(srv *tmux.Server, hold, id string) (string, error) {
+	swaps.Lock()
+	defer swaps.Unlock()
+	if standing(srv, id) {
+		_, err := srv.Do(holdIn(id, hold)...)
+		return "respawn-pane " + id, err
+	}
+	return "kill-pane " + id, srv.ClosePane(id)
+}
+
+// standing says whether a pane is the one in the workspace: in the
+// panel's window, and not the panel.
+func standing(srv *tmux.Server, id string) bool {
+	ps, err := panes(srv)
+	if err != nil {
+		return false
+	}
+	window := ""
+	for _, p := range ps {
+		if p.Panel {
+			window = p.Window
+		}
+	}
+	for _, p := range ps {
+		if p.ID == id {
+			return !p.Panel && window != "" && p.Window == window
+		}
+	}
+	return false
 }
 
 // shown is what stands in the workspace: the pane beside the panel, and
@@ -81,11 +130,7 @@ func (w workspace) ensure() (pane, error) {
 		return pane{ID: id, Hold: true, Window: w.window}, nil
 	}
 	if p.Dead {
-		cmds := []tmux.Cmd{tmux.Respawn(p.ID, w.hold), tmux.SetPane(p.ID, holdMark, "1")}
-		for _, mark := range []string{sessionMark, nameMark, runMark, dirMark, exitMark} {
-			cmds = append(cmds, tmux.Cmd{"set-option", "-pu", "-t", p.ID, mark})
-		}
-		if _, err := w.srv.Do(cmds...); err != nil {
+		if _, err := w.srv.Do(holdIn(p.ID, w.hold)...); err != nil {
 			return pane{}, err
 		}
 		p.Dead, p.Hold = false, true

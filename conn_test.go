@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -420,7 +421,7 @@ func TestStartWaitEnd(t *testing.T) {
 	if p == nil || p.Name != "check" || p.Exit != "3" {
 		t.Fatalf("pane = %+v", p)
 	}
-	if how, err := endProc(srv, proc{pane: p, Name: "check"}); err != nil || how != "kill-pane "+id {
+	if how, err := endProc(srv, "sleep 1000", proc{pane: p, Name: "check"}); err != nil || how != "kill-pane "+id {
 		t.Errorf("end = %q, %v", how, err)
 	}
 	// A server conn u started and that is still running is sent ctrl-c.
@@ -432,13 +433,28 @@ func TestStartWaitEnd(t *testing.T) {
 			p = &ps[i]
 		}
 	}
-	if how, err := endProc(srv, proc{pane: p, Name: "server"}); err != nil || how != "send-keys C-c" {
+	// Started again, it keeps its pane, under its name, with no end.
+	pid, _ := srv.Display(id, "#{pane_pid}")
+	if got, err := restartProc(srv, "conn", proc{pane: p, Name: "server"}); err != nil || got != id {
+		t.Fatalf("restart = %q, %v", got, err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	ps, _ = panes(srv)
+	for i := range ps {
+		if ps[i].ID == id {
+			p = &ps[i]
+		}
+	}
+	if again, _ := srv.Display(id, "#{pane_pid}"); again == pid || again == "" || p.Name != "server" || p.Exit != "" {
+		t.Errorf("the server was not started again in its pane: pid %s, then %s; pane %+v", pid, again, p)
+	}
+	if how, err := endProc(srv, "sleep 1000", proc{pane: p, Name: "server"}); err != nil || how != "send-keys C-c" {
 		t.Errorf("end of a running server = %q, %v", how, err)
 	}
 	// Any other pane runs again what it was opened with, in place, and
 	// x closes it.
 	first, _ := srv.Display(sessionName+":0", "#{pane_id} #{pane_pid}")
-	id, pid, _ := strings.Cut(first, " ")
+	id, pid, _ = strings.Cut(first, " ")
 	other := &pane{ID: id}
 	if got, err := restartProc(srv, "conn", proc{pane: other, Name: "sleep"}); err != nil || got != id {
 		t.Fatalf("restart = %q, %v", got, err)
@@ -446,7 +462,7 @@ func TestStartWaitEnd(t *testing.T) {
 	if again, _ := srv.Display(id, "#{pane_pid}"); again == pid || again == "" {
 		t.Errorf("the pane was not started again: pid %s, then %s", pid, again)
 	}
-	if how, err := endProc(srv, proc{pane: other, Name: "sleep"}); err != nil || how != "kill-pane "+id {
+	if how, err := endProc(srv, "sleep 1000", proc{pane: other, Name: "sleep"}); err != nil || how != "kill-pane "+id {
 		t.Errorf("end of a pane = %q, %v", how, err)
 	}
 	if _, err := restartProc(srv, "conn", proc{Name: "python", PID: 1}); err == nil {
@@ -767,6 +783,58 @@ func TestWorkspace(t *testing.T) {
 	_ = ws.show("", false)
 	if p := inWorkspace(t, ws); !p.Hold || p.Dead {
 		t.Errorf("an ended pane was not replaced by a hold: %+v", p)
+	}
+}
+
+// A process ended where it stands in the workspace leaves a hold in its
+// place, and the window keeps its shape; one ended out of sight is
+// closed.
+func TestEndInPlace(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	// The workspace is told by the panel's mark, as attach sets it.
+	if _, err := srv.Do(tmux.SetPane(panel, panelMark, "1")); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	id, err := startNamed(srv, "web", "sleep 1000", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.show(id, false); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	ps, _ := panes(srv)
+	var p *pane
+	for i := range ps {
+		if ps[i].ID == id {
+			p = &ps[i]
+		}
+	}
+	if how, err := endProc(srv, ws.hold, proc{pane: p, Name: "web"}); err != nil || how != "send-keys C-c" {
+		t.Errorf("end = %q, %v", how, err)
+	}
+	if h := inWorkspace(t, ws); h.ID != id || !h.Hold || h.Dead || h.Name != "" {
+		t.Errorf("the ended process left %+v standing, want a hold in %s", h, id)
+	}
+	if w, _ := srv.Display(panel, "#{pane_width}"); w != strconv.Itoa(panelWidth) {
+		t.Errorf("the panel is %s wide, want %d", w, panelWidth)
+	}
+	aside, _ := startNamed(srv, "worker", "sleep 1000", dir)
+	time.Sleep(300 * time.Millisecond)
+	ps, _ = panes(srv)
+	for i := range ps {
+		if ps[i].ID == aside {
+			p = &ps[i]
+		}
+	}
+	if how, err := endProc(srv, ws.hold, proc{pane: p, Name: "worker"}); err != nil || how != "send-keys C-c" {
+		t.Errorf("end out of sight = %q, %v", how, err)
+	}
+	if _, gone := paneExit(srv, aside); !gone {
+		t.Errorf("%s was not closed", aside)
 	}
 }
 

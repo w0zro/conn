@@ -1972,9 +1972,13 @@ func (m model) drawProject() ([]string, foot) {
 			depth := 0
 			if r.worktree() != "" {
 				depth = 1
-				// A worktree stands a row off what is above it.
+				// A worktree stands a row off what is above it; under
+				// the project's head, the head's own air is that row.
 				if it.row == 0 || m.rows[it.row-1].worktree() != r.worktree() {
-					body = append(body, "", at(subhead.Render(r.worktree())))
+					if it.row > 0 {
+						body = append(body, "")
+					}
+					body = append(body, at(subhead.Render(r.worktree())))
 				}
 			}
 			if i == m.cursor {

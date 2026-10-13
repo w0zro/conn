@@ -1,7 +1,9 @@
 package main
 
 import (
+	"charm.land/lipgloss/v2"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -1674,6 +1677,48 @@ func TestRowsCarryTheMarkOfTheirRole(t *testing.T) {
 			t.Errorf("%s row draws %q, want %q after the margin", c.mark, string(line), c.mark)
 		}
 	}
+}
+
+// A verdict is drawn in the theme's own roles: a pass in the running
+// green, a fail in the accent with its name, and both keep their ink
+// under the cursor, on the chosen ground. The accent goes to the name
+// where the row says where it was started as well.
+func TestAVerdictWearsTheGround(t *testing.T) {
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	sgr := func(hex string) string {
+		c := theme.RGB(hex)
+		return fmt.Sprintf("38;2;%d;%d;%d", c.R, c.G, c.B)
+	}
+	m := model{screen: onProject, cur: project{Root: "/p"}, home: "/home", width: 60}
+	pass := row{pane: &pane{ID: "%4", Name: "test", Dir: "/p", Exit: "0"}, stand: placeChecks, state: "done"}
+	fail := row{pane: &pane{ID: "%5", Name: "build", Dir: "/p/sub", Exit: "1"}, stand: placeChecks, state: "failed 1"}
+	for _, c := range []struct {
+		row    row
+		cursor bool
+		want   string
+	}{
+		{pass, false, sgr(theme.Dark.Running) + "m" + markPass},
+		{fail, false, sgr(theme.Dark.Accent) + "m" + markFail},
+		{fail, false, sgr(theme.Dark.Accent) + "mbuild"},
+		{pass, true, sgr(theme.Dark.Running) + ";48;2"},
+		{fail, true, sgr(theme.Dark.Accent) + ";48;2"},
+	} {
+		if line := m.drawRow(c.row, 0, c.cursor); !strings.Contains(line, c.want) {
+			t.Errorf("cursor %v: %q\nlacks %q", c.cursor, line, c.want)
+		}
+	}
+	if line := plainText(m.drawRow(fail, 0, true)); !strings.HasSuffix(strings.TrimRight(line, " "), "~/p/sub") || ansi.StringWidth(line) != m.width-1 {
+		t.Errorf("under the cursor the row is %d wide, want %d, and reads %q", ansi.StringWidth(line), m.width-1, line)
+	}
+}
+
+// undress puts the panel's styles back to plain, as the tests have
+// them.
+func undress() {
+	var plain lipgloss.Style
+	ink, title, subhead, gray, faint, accent, keyInk = plain, plain, plain, plain, plain, plain, plain
+	chosen, chosenBar, ruleStyle, turning, chosenTurning = plain, plain, plain, plain, plain
 }
 
 // plainText is a drawn line with its styles taken off.

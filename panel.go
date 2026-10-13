@@ -1713,6 +1713,12 @@ type piece struct {
 	st lipgloss.Style
 }
 
+// keeps says whether a piece keeps its own ink under the cursor rather
+// than taking the chosen ink: a verdict does, as the spinner does.
+func (p piece) keeps() bool {
+	return p.s == markPass+" " || p.s == markFail+" "
+}
+
 // measure is the columns a row has between the margin and the right
 // edge, less one for the border beside the panel.
 func (m model) measure() int { return max(m.width-margin-2, 10) }
@@ -1759,20 +1765,30 @@ func (m model) rowTurning(turn string, left []piece, right piece, cursor bool) s
 	}
 	gap := strings.Repeat(" ", max(measure-used-rw, 1))
 	if cursor {
+		// The row is written in the chosen ink on the chosen ground,
+		// edge to edge; a piece that keeps its ink is written in it on
+		// the same ground.
 		var b strings.Builder
-		b.WriteString(strings.Repeat(" ", margin-2))
+		plain := strings.Repeat(" ", margin-2)
+		width := ansi.StringWidth(plain)
 		for _, p := range fitted {
-			b.WriteString(p.s)
+			if p.keeps() {
+				b.WriteString(chosen.Render(plain))
+				b.WriteString(p.st.Background(chosen.GetBackground()).Render(p.s))
+				plain = ""
+			} else {
+				plain += p.s
+			}
+			width += ansi.StringWidth(p.s)
 		}
-		b.WriteString(gap)
-		b.WriteString(right.s)
-		text := b.String()
-		text += strings.Repeat(" ", max(m.width-2-ansi.StringWidth(text), 0))
+		plain += gap + right.s
+		width += ansi.StringWidth(gap + right.s)
+		plain += strings.Repeat(" ", max(m.width-2-width, 0))
 		lead := chosen.Render(" ")
 		if turn != "" {
 			lead = chosenTurning.Render(turn)
 		}
-		return chosenBar.Render(cursorBar) + lead + chosen.Render(text)
+		return chosenBar.Render(cursorBar) + lead + b.String() + chosen.Render(plain)
 	}
 	var b strings.Builder
 	if turn != "" {
@@ -2041,6 +2057,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			// Started by n, with nothing said yet: no transcript.
 			name = "new conversation"
 		}
+		at := len(left)
 		left = append(left, piece{name, ink})
 		// Started below the checkout the row says, it says where.
 		if r.pane.Dir != or(r.tree, m.cur.Root) {
@@ -2068,7 +2085,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		// Wanting you is the accent, where the row stands: a
 		// conversation waiting, a run that failed.
 		if r.state == "waiting" || strings.HasPrefix(r.state, "failed ") {
-			left[len(left)-1].st, right.st = accent, accent
+			left[at].st, right.st = accent, accent
 		}
 	case r.outside != nil:
 		left = append(left, piece{r.outside.Name, ink})
@@ -2077,12 +2094,21 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	if len(r.ports) > 0 {
 		right.s = strings.TrimSpace(":" + strings.Join(r.ports, " :") + "  " + right.s)
 	}
+	// The mark takes the name's ink; a verdict takes its own, the
+	// running green for a pass, and keeps it under the cursor.
 	for i := range left {
-		if left[i].s == markOf(r)+" " {
-			left[i].st = left[len(left)-1].st
-			if left[i].s == markPass+" " {
-				left[i].st = turning
+		if left[i].s != markOf(r)+" " {
+			continue
+		}
+		left[i].st = left[len(left)-1].st
+		for j := range left {
+			if j > i && left[j].s != "" && left[j].s[0] != ' ' {
+				left[i].st = left[j].st
+				break
 			}
+		}
+		if left[i].s == markPass+" " {
+			left[i].st = turning
 		}
 	}
 	turn := ""

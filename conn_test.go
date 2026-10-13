@@ -80,6 +80,43 @@ func git(t *testing.T, dir string, args ...string) {
 
 // A worktree, wherever it is on disk, is its repository's project; a
 // directory in no repository is its own.
+// The context a conversation's last turn ran in is the last assistant
+// turn's usage: fresh, written to the cache and read from it; none
+// where no turn has been had. It is said in thousands.
+func TestTailContext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.jsonl")
+	lines := []string{
+		`{"type":"user","message":{"role":"user","content":"hi"}}`,
+		`{"type":"assistant","message":{"usage":{"input_tokens":10,"cache_creation_input_tokens":500,"cache_read_input_tokens":1000,"output_tokens":9}}}`,
+		`{"type":"assistant","message":{"usage":{"input_tokens":32,"cache_creation_input_tokens":847,"cache_read_input_tokens":261032,"output_tokens":308}}}`,
+		`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"x"}]}}`,
+		`{"type":"last-prompt","lastPrompt":"show the context size"}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	title, context := tailRead(path)
+	if title != "show the context size" || context != 261911 {
+		t.Errorf("tailRead = %q, %d", title, context)
+	}
+	if err := os.WriteFile(path, []byte(lines[0]+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, context := tailRead(path); context != 0 {
+		t.Errorf("context with no turn = %d", context)
+	}
+	for n, want := range map[int]string{261911: "262k", 999: "999", 1000: "1k", 52451: "52k"} {
+		if got := tokens(n); got != want {
+			t.Errorf("tokens(%d) = %s, want %s", n, got, want)
+		}
+	}
+	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
+	line := m.drawRow(row{conv: &conversation{ID: "c", Title: "Fixing", Context: 261911}, pane: &pane{ID: "%1"}}, 0, false)
+	if !strings.HasSuffix(strings.TrimSpace(line), "262k") {
+		t.Errorf("row = %q, want the context at the right", line)
+	}
+}
+
 func TestRepoRoot(t *testing.T) {
 	base, _ := filepath.EvalSymlinks(t.TempDir())
 	repo := filepath.Join(base, "shop")

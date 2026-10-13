@@ -218,8 +218,9 @@ type known struct {
 }
 
 type titled struct {
-	when  time.Time
-	title string
+	when    time.Time
+	title   string
+	context int
 }
 
 func newKnown() *known {
@@ -298,16 +299,28 @@ func (k *known) branchOf(tree string) string {
 }
 
 func (k *known) titleOf(c conversation) string {
+	return k.tailOf(c).title
+}
+
+// contextOf is the context a conversation's last turn ran in.
+func (k *known) contextOf(c conversation) int {
+	return k.tailOf(c).context
+}
+
+// tailOf is what the transcript's tail says, read once while the
+// transcript has not moved.
+func (k *known) tailOf(c conversation) titled {
 	k.mu.Lock()
 	t, ok := k.titles[c.path]
 	k.mu.Unlock()
 	if !ok || !t.when.Equal(c.When) {
-		t = titled{when: c.When, title: tailTitle(c.path)}
+		title, context := tailRead(c.path)
+		t = titled{when: c.When, title: title, context: context}
 		k.mu.Lock()
 		k.titles[c.path] = t
 		k.mu.Unlock()
 	}
-	return t.title
+	return t
 }
 
 func runPanel() error {
@@ -539,6 +552,9 @@ func (m model) read() tea.Cmd {
 			// rc's list instead.
 			r.root = cur.Root
 			for _, row := range arrange(convs, held, live, ports, outside, in, k.titleOf, ros) {
+				if row.conv != nil {
+					row.conv.Context = k.contextOf(*row.conv)
+				}
 				if row.conv != nil && row.pane == nil && !row.elsewhere {
 					r.rest = append(r.rest, row)
 				} else {
@@ -1959,6 +1975,11 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			left, right = append(left, piece{name, ink}), piece{strings.TrimSpace(stated(r.state) + " in another terminal"), gray}
 		default:
 			left, right = append(left, piece{name, gray}), piece{ago(r.conv.When), faint}
+		}
+		// A conversation running says the context its last turn ran
+		// in, before its state.
+		if r.conv.Context > 0 && (r.pane != nil || r.elsewhere) {
+			right.s = strings.TrimSpace(tokens(r.conv.Context) + "  " + right.s)
 		}
 	case r.pane != nil:
 		name := paneName(*r.pane)

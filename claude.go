@@ -32,11 +32,12 @@ func claudeDir() string {
 // A conversation is one transcript: where it was had, when it last
 // moved, and what it is called.
 type conversation struct {
-	ID    string
-	Dir   string
-	When  time.Time
-	Title string
-	path  string
+	ID      string
+	Dir     string
+	When    time.Time
+	Title   string
+	Context int // the tokens its last turn ran in
+	path    string
 }
 
 // transcripts is every transcript on the machine, newest first, with
@@ -101,7 +102,21 @@ type record struct {
 	CustomTitle string `json:"customTitle"`
 	LastPrompt  string `json:"lastPrompt"`
 	IsSidechain bool   `json:"isSidechain"`
+	Message     struct {
+		Usage usage `json:"usage"`
+	} `json:"message"`
 }
+
+// usage is what an assistant turn says it read: the tokens fresh,
+// written to the cache, and read from it. Together they are the
+// context the turn ran in.
+type usage struct {
+	Input         int `json:"input_tokens"`
+	CacheCreation int `json:"cache_creation_input_tokens"`
+	CacheRead     int `json:"cache_read_input_tokens"`
+}
+
+func (u usage) context() int { return u.Input + u.CacheCreation + u.CacheRead }
 
 // headCwd is the directory a transcript says it was had in: the first
 // "cwd" in it. The directory's encoded name cannot be read back into a
@@ -147,6 +162,15 @@ const titleTail = 256 * 1024
 // last rename or title Claude Code wrote, and otherwise the last thing
 // asked of it.
 func tailTitle(path string) string {
+	title, _ := tailRead(path)
+	return title
+}
+
+// tailRead reads a transcript's tail once for what the panel says of
+// a conversation: its title, and the context its last turn ran in,
+// which the last assistant turn's usage says. Zero where no turn has
+// been had.
+func tailRead(path string) (title string, context int) {
 	lines := tailLines(path, titleTail)
 	prompt := ""
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -154,23 +178,39 @@ func tailTitle(path string) string {
 		if json.Unmarshal(lines[i], &r) != nil {
 			continue
 		}
+		if context == 0 && r.Type == "assistant" {
+			context = r.Message.Usage.context()
+		}
 		switch {
+		case title != "":
 		case r.Type == "custom-title" && r.CustomTitle != "":
-			return flatten(r.CustomTitle)
+			title = flatten(r.CustomTitle)
 		case r.Type == "ai-title" && r.AITitle != "":
 			// A rename is written again just before each title after it.
+			title = flatten(r.AITitle)
 			if i > 0 {
 				var p record
 				if json.Unmarshal(lines[i-1], &p) == nil && p.Type == "custom-title" && p.CustomTitle != "" {
-					return flatten(p.CustomTitle)
+					title = flatten(p.CustomTitle)
 				}
 			}
-			return flatten(r.AITitle)
 		case r.Type == "last-prompt" && prompt == "":
 			prompt = flatten(r.LastPrompt)
 		}
+		if title != "" && context != 0 {
+			break
+		}
 	}
-	return prompt
+	return or(title, prompt), context
+}
+
+// tokens says a count of tokens the short way: the thousands, as 262k,
+// or the count itself under one.
+func tokens(n int) string {
+	if n >= 1000 {
+		return strconv.Itoa((n+500)/1000) + "k"
+	}
+	return strconv.Itoa(n)
 }
 
 // tailLines is the whole lines in the last n bytes of a file.

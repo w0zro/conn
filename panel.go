@@ -402,6 +402,23 @@ func turns(r row) bool {
 	return false
 }
 
+// steady is the mark beside a process running persistently, the
+// stack's and what the project talks to outside conn: the spinner's
+// cell full, with no gap going round. Running, and at rest.
+const steady = "⣿"
+
+// stands says whether a row runs persistently: a process of the stack
+// still running, or a listener outside conn.
+func stands(r row) bool {
+	switch {
+	case r.outside != nil:
+		return true
+	case r.stand == placeStack && r.pane != nil && r.conv == nil && r.pane.Name != "":
+		return r.pane.Exit == ""
+	}
+	return false
+}
+
 // turning says whether any row on the screen turns.
 func (m model) turning() bool {
 	if m.screen != onProject {
@@ -1645,9 +1662,10 @@ func (m model) row(left []piece, right piece, cursor bool) string {
 	return m.rowTurning("", left, right, cursor)
 }
 
-// rowTurning lays a row out with the spinner's frame in the margin,
-// the column after the cursor's bar, where a row turns; and is row
-// where turn is blank.
+// rowTurning lays a row out with a mark in the running ink in the
+// margin, the column after the cursor's bar: the spinner's frame where
+// a row turns, the steady cell where it stands; and is row where turn
+// is blank.
 func (m model) rowTurning(turn string, left []piece, right piece, cursor bool) string {
 	measure := m.measure()
 	rw := ansi.StringWidth(right.s)
@@ -1967,8 +1985,11 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		right.s = ":" + strings.Join(r.ports, " :") + "  " + right.s
 	}
 	turn := ""
-	if turns(r) {
+	switch {
+	case turns(r):
 		turn = spinner[m.frame%len(spinner)]
+	case stands(r):
+		turn = steady
 	}
 	return m.rowTurning(turn, left, right, cursor)
 }

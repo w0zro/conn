@@ -872,8 +872,24 @@ func TestSpinner(t *testing.T) {
 	if line := m.drawRow(working, 0, true); !strings.Contains(line, cursorBar+spinner[2]) {
 		t.Errorf("under the cursor, the spinner is not in the column after the bar: %q", line)
 	}
-	if line := m.drawRow(idle, 0, false); strings.ContainsAny(line, strings.Join(spinner, "")) {
-		t.Errorf("an idle row has a spinner turning: %q", line)
+	if line := m.drawRow(idle, 0, false); strings.ContainsAny(line, strings.Join(spinner, "")+steady) {
+		t.Errorf("an idle row has a mark: %q", line)
+	}
+	// A process running persistently carries the steady cell, in the
+	// same column; one that has ended, nothing.
+	outside := row{outside: &proc{Name: "postgres", PID: 7}, stand: placeOutside, state: "outside conn"}
+	for _, r := range []row{server, outside} {
+		if !stands(r) {
+			t.Errorf("%s does not stand", r.key())
+		}
+		if line := m.drawRow(r, 0, false); !strings.Contains(line, " "+steady+" ") {
+			t.Errorf("a standing row has no steady mark: %q", line)
+		}
+	}
+	for _, r := range []row{ended, check, working, idle, {pane: &pane{ID: "%6", Name: "web", Exit: "1"}, stand: placeStack, state: "failed 1"}} {
+		if stands(r) {
+			t.Errorf("%s stands", r.key())
+		}
 	}
 	next, cmd = m.Update(spun{})
 	if m = next.(model); !m.spinning || cmd == nil {

@@ -291,7 +291,7 @@ func TestArrange(t *testing.T) {
 		"away":   {TTY: "ttys1", Status: "busy"},
 		"byhand": {TTY: "ttys9", Status: "waiting"},
 	}
-	rows := arrange(convs, ps, live, nil, nil, func(d string) bool { return within(d, "/p") }, func(c conversation) string { return "t-" + c.ID })
+	rows := arrange(convs, ps, live, nil, nil, func(d string) bool { return within(d, "/p") }, func(c conversation) string { return "t-" + c.ID }, roster{})
 	var got []string
 	for _, r := range rows {
 		s := ""
@@ -306,13 +306,17 @@ func TestArrange(t *testing.T) {
 		}
 		got = append(got, s)
 	}
-	// byhand is waiting, so it leads what runs in conn.
-	want := []string{"byhand@%2", "marked@%1", "@%3", "away!", "rest"}
+	// Conversations in start order, waiting where it stands; then the
+	// pane opened by hand; then what runs elsewhere; then rest.
+	want := []string{"marked@%1", "byhand@%2", "@%3", "away!", "rest"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("arrange = %v, want %v", got, want)
 	}
-	if rows[0].conv.Title != "t-byhand" || rows[0].state != "waiting" || rows[3].state != "working" {
+	if rows[1].conv.Title != "t-byhand" || rows[1].state != "waiting" || rows[3].state != "working" {
 		t.Errorf("rows = %+v", rows)
+	}
+	if rows[0].stand != placeConversations || rows[2].stand != placeClients || rows[3].stand != placeElsewhere || rows[4].stand != placeRest {
+		t.Errorf("places = %d %d %d %d", rows[0].stand, rows[2].stand, rows[3].stand, rows[4].stand)
 	}
 }
 
@@ -766,12 +770,68 @@ func TestWatchFiles(t *testing.T) {
 func TestArrangePorts(t *testing.T) {
 	ps := []pane{{ID: "%1", Name: "web", Dir: "/p"}}
 	outside := []proc{{Name: "python3", PID: 77, Ports: []string{"8000"}, Dir: "/p"}}
-	rows := arrange(nil, ps, nil, map[string][]string{"%1": {"3000"}}, outside, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" })
+	rows := arrange(nil, ps, nil, map[string][]string{"%1": {"3000"}}, outside, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" }, roster{})
 	if len(rows) != 2 || !reflect.DeepEqual(rows[0].ports, []string{"3000"}) || rows[1].outside == nil || rows[1].key() != "pid 77" {
 		t.Fatalf("rows = %+v", rows)
 	}
 	if p, ok := rows[1].proc(); !ok || p.pane != nil || p.PID != 77 {
 		t.Errorf("proc of an outside row = %+v, %v", p, ok)
+	}
+}
+
+// Rows stand in their places by role: conversations, the stack, what
+// talks to it, the checks, what is outside conn. In a place, what was
+// written down stands as first written, whatever pane it runs in now,
+// so a check run again keeps its row; a run that failed stays put.
+func TestPlaces(t *testing.T) {
+	in := func(d string) bool { return within(d, "/p") }
+	starts := []started{
+		{Root: "/p", Name: "web", Role: roleStack},
+		{Root: "/p", Name: "test", Role: roleCheck},
+		{Root: "/p", Name: "lint", Role: roleCheck},
+		{Root: "/p", Name: "db", Role: roleClient},
+		{Root: "/p", Name: "test", Command: "go test ./...", Role: roleCheck},
+		{Root: "/q", Name: "first", Role: roleStack},
+	}
+	ros := rosterOf(starts, in)
+	if ros.at["web"] != 0 || ros.at["test"] != 1 || ros.at["lint"] != 2 || ros.role["test"] != roleCheck || len(ros.at) != 3 {
+		t.Errorf("roster = %+v", ros)
+	}
+	ps := []pane{
+		{ID: "%9", Name: "test", Exit: "2", Dir: "/p"},
+		{ID: "%2", Name: "lint", Exit: "0", Dir: "/p"},
+		{ID: "%5", Name: "web", Dir: "/p"},
+		{ID: "%6", Name: "watch", Dir: "/p"},
+		{ID: "%7", Dir: "/p"},
+		{ID: "%3", Session: "s1", Dir: "/p"},
+	}
+	outside := []proc{{Name: "postgres", PID: 77, Ports: []string{"5432"}, Dir: "/p"}}
+	rows := arrange(nil, ps, nil, nil, outside, in, func(conversation) string { return "" }, ros)
+	var got []string
+	for _, r := range rows {
+		switch {
+		case r.outside != nil:
+			got = append(got, r.outside.Name)
+		case r.pane.Name != "":
+			got = append(got, r.pane.Name)
+		default:
+			got = append(got, r.pane.ID)
+		}
+	}
+	want := []string{"%3", "web", "watch", "%7", "test", "lint", "postgres"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("arrange = %v, want %v", got, want)
+	}
+	if rows[4].state != "failed 2" || rows[4].stand != placeChecks || rows[1].stand != placeStack || rows[3].stand != placeClients {
+		t.Errorf("rows = %+v", rows)
+	}
+	// Run again in a new pane, a check is the same row.
+	again := row{pane: &pane{ID: "%12", Name: "test"}, tree: "/p"}
+	if again.key() != (row{pane: &pane{ID: "%9", Name: "test"}, tree: "/p"}).key() {
+		t.Error("a check run again is not the row it was")
+	}
+	if again.key() == (row{pane: &pane{ID: "%12", Name: "test"}, tree: "/w"}).key() {
+		t.Error("a check in another worktree is the same row")
 	}
 }
 
@@ -1062,7 +1122,7 @@ func TestAround(t *testing.T) {
 // window tmux lists each in.
 func TestArrangeKeepsStartOrder(t *testing.T) {
 	ps := []pane{{ID: "%7", Name: "tests", Dir: "/p"}, {ID: "%3", Name: "web", Dir: "/p"}}
-	rows := arrange(nil, ps, nil, nil, nil, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" })
+	rows := arrange(nil, ps, nil, nil, nil, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" }, roster{})
 	if rows[0].pane.ID != "%3" || rows[1].pane.ID != "%7" {
 		t.Errorf("rows = %s, %s", rows[0].pane.ID, rows[1].pane.ID)
 	}
@@ -1230,16 +1290,17 @@ func TestResolveRunsWhatWasRun(t *testing.T) {
 	}
 }
 
-// A run that failed comes after what waits and before the rest, and
-// reads failed with its status; one that ended well reads done.
-func TestArrangeFailedFirst(t *testing.T) {
+// A run that failed reads failed with its status and stays where it
+// stands; one that ended well reads done. With nothing written down,
+// named panes stand in start order.
+func TestArrangeFailedStays(t *testing.T) {
 	ps := []pane{{ID: "%2", Name: "web", Dir: "/p"}, {ID: "%5", Name: "lint", Exit: "0", Dir: "/p"}, {ID: "%7", Name: "test", Exit: "1", Dir: "/p"}}
-	rows := arrange(nil, ps, nil, nil, nil, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" })
+	rows := arrange(nil, ps, nil, nil, nil, func(d string) bool { return within(d, "/p") }, func(conversation) string { return "" }, roster{})
 	var got []string
 	for _, r := range rows {
 		got = append(got, r.pane.Name+" "+or(r.state, "running"))
 	}
-	if want := []string{"test failed 1", "web running", "lint done"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"web running", "lint done", "test failed 1"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("rows = %v", got)
 	}
 }

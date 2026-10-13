@@ -116,6 +116,63 @@ type row struct {
 	repo      string   // in a folder of repositories, the one it is in
 	branch    string   // in a worktree, the branch it has out
 	tree      string   // the checkout it runs in
+	stand     int      // where it stands on the screen, by its role
+}
+
+// The places on a project's screen, by role, in order: conversations,
+// the stack, what talks to it, the checks, what the project talks to
+// outside conn, and conversations in terminals conn does not hold.
+// A row stands in its place whatever its state; wanting you is a
+// color, not a move.
+const (
+	placeConversations = iota
+	placeStack
+	placeClients
+	placeChecks
+	placeOutside
+	placeElsewhere
+	placeRest
+)
+
+// A roster is what a project has written down it runs, by name: each
+// name's role, and its place in the order the names were first written
+// down. A client is written under the name of what it talks to, and
+// says nothing of that name's role.
+type roster struct {
+	role map[string]role
+	at   map[string]int
+}
+
+func rosterOf(starts []started, in func(string) bool) roster {
+	ros := roster{role: map[string]role{}, at: map[string]int{}}
+	for _, s := range starts {
+		if !in(s.Root) || s.Role == roleClient {
+			continue
+		}
+		if _, seen := ros.at[s.Name]; !seen {
+			ros.at[s.Name] = len(ros.at)
+		}
+		ros.role[s.Name] = s.Role
+	}
+	return ros
+}
+
+// placeOf is where a row stands, by what it is.
+func placeOf(r row, ros roster) int {
+	switch {
+	case r.outside != nil:
+		return placeOutside
+	case r.elsewhere:
+		return placeElsewhere
+	case r.conv != nil || r.pane == nil || r.pane.Session != "":
+		return placeConversations
+	case r.pane.Name == "":
+		// A shell, or a client opened by c: it talks to the stack.
+		return placeClients
+	case ros.role[r.pane.Name] == roleCheck:
+		return placeChecks
+	}
+	return placeStack
 }
 
 // place is what a row says of where it runs, before its name: the
@@ -413,10 +470,11 @@ func (m model) read() tea.Cmd {
 				convs = append(convs, c)
 			}
 			in := func(dir string) bool { return cur.belongs(k.rootOf(dir)) }
+			ros := rosterOf(readStarted(startedPath(srv.Socket)), cur.belongs)
 			// The panel is what runs; a conversation at rest is a row of
 			// rc's list instead.
 			r.root = cur.Root
-			for _, row := range arrange(convs, held, live, ports, outside, in, k.titleOf) {
+			for _, row := range arrange(convs, held, live, ports, outside, in, k.titleOf, ros) {
 				if row.conv != nil && row.pane == nil && !row.elsewhere {
 					r.rest = append(r.rest, row)
 				} else {
@@ -477,10 +535,13 @@ func placed(rows []row, cur project, k *known) {
 	}
 }
 
-// arrange lays out a project's rows: what is running in conn first,
-// waiting before the rest, then what is running elsewhere, then the
-// conversations at rest, newest first, up to conversationsShown.
-func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports map[string][]string, outside []proc, in func(dir string) bool, title func(conversation) string) []row {
+// arrange lays out a project's rows in their places: conversations,
+// the stack, clients, checks, what is outside conn, what runs
+// elsewhere, then the conversations at rest, newest first, up to
+// conversationsShown. In a place, what the project has written down
+// stands in the order it was first written, and the rest in the order
+// it was started.
+func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports map[string][]string, outside []proc, in func(dir string) bool, title func(conversation) string, ros roster) []row {
 	var running, elsewhere, rest []row
 	used := map[string]bool{}
 	for i := range convs {
@@ -515,24 +576,6 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 			running = append(running, row{pane: &ps[j], state: state})
 		}
 	}
-	// What runs stays in the order it was started, a pane's id being
-	// tmux's count of the panes it has made: the order tmux lists panes
-	// in is the windows', and showing a pane moves it into conn's.
-	sort.SliceStable(running, func(i, j int) bool { return paneNumber(running[i]) < paneNumber(running[j]) })
-	// What wants you comes first: a conversation waiting, then a run
-	// that failed.
-	wantsYou := func(r row) int {
-		switch {
-		case r.state == "waiting":
-			return 0
-		case strings.HasPrefix(r.state, "failed "):
-			return 1
-		}
-		return 2
-	}
-	waitingFirst := func(rs []row) {
-		sort.SliceStable(rs, func(i, j int) bool { return wantsYou(rs[i]) < wantsYou(rs[j]) })
-	}
 	for i := range running {
 		if running[i].pane != nil {
 			running[i].ports = ports[running[i].pane.ID]
@@ -541,8 +584,40 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 	for i := range outside {
 		running = append(running, row{outside: &outside[i], state: "outside conn", ports: outside[i].Ports})
 	}
-	waitingFirst(running)
-	waitingFirst(elsewhere)
+	for i := range running {
+		running[i].stand = placeOf(running[i], ros)
+	}
+	// In a place, what was written down stands as it was first written,
+	// before what was not; the rest in the order it was started, a
+	// pane's id being tmux's count of the panes it has made.
+	written := func(r row) (int, bool) {
+		if r.pane == nil || r.pane.Name == "" {
+			return 0, false
+		}
+		at, ok := ros.at[r.pane.Name]
+		return at, ok
+	}
+	sort.SliceStable(running, func(i, j int) bool {
+		a, b := running[i], running[j]
+		if a.stand != b.stand {
+			return a.stand < b.stand
+		}
+		ai, aok := written(a)
+		bi, bok := written(b)
+		switch {
+		case aok != bok:
+			return aok
+		case aok && ai != bi:
+			return ai < bi
+		}
+		return paneNumber(a) < paneNumber(b)
+	})
+	for i := range elsewhere {
+		elsewhere[i].stand = placeElsewhere
+	}
+	for i := range rest {
+		rest[i].stand = placeRest
+	}
 	return append(append(running, elsewhere...), rest...)
 }
 
@@ -1688,15 +1763,7 @@ func (m model) drawProjects() ([]string, foot) {
 
 // group is which of the panel's three groups a row is in: what runs in
 // conn, what runs in another terminal, and what rests.
-func groupOf(r row) int {
-	switch {
-	case r.pane != nil || r.outside != nil:
-		return 0
-	case r.elsewhere:
-		return 1
-	}
-	return 2
-}
+func groupOf(r row) int { return r.stand }
 
 func (m model) drawProject() ([]string, foot) {
 	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
@@ -1810,7 +1877,9 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
 		}
 		right = piece{or(r.state, "running"), gray}
-		if r.state == "waiting" {
+		// Wanting you is the accent, where the row stands: a
+		// conversation waiting, a run that failed.
+		if r.state == "waiting" || strings.HasPrefix(r.state, "failed ") {
 			left[len(left)-1].st, right.st = accent, accent
 		}
 	case r.outside != nil:
@@ -1896,6 +1965,11 @@ func sayWaiting(srv *tmux.Server, n int) {
 func (r row) key() string {
 	if r.conv != nil {
 		return r.conv.ID
+	}
+	// A named process is itself across its runs: run again, it is the
+	// same row in a new pane, in its checkout.
+	if r.pane != nil && r.pane.Name != "" {
+		return "named " + r.tree + "\x00" + r.pane.Name
 	}
 	if r.pane != nil {
 		return r.pane.ID

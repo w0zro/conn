@@ -1,7 +1,9 @@
 package main
 
 import (
+	"charm.land/lipgloss/v2"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +19,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -1728,7 +1731,9 @@ func TestRowsCarryTheMarkOfTheirRole(t *testing.T) {
 		{row{conv: &conversation{ID: "c", Title: "Fixing"}, pane: &pane{ID: "%1"}, stand: placeConversations}, markConversation},
 		{row{pane: &pane{ID: "%2", Name: "web"}, stand: placeStack}, markStack},
 		{row{pane: &pane{ID: "%3", Command: "zsh"}, stand: placeClients}, markClient},
-		{row{pane: &pane{ID: "%4", Name: "test", Exit: "0"}, stand: placeChecks, state: "done"}, markCheck},
+		{row{pane: &pane{ID: "%4", Name: "test"}, stand: placeChecks, state: "running"}, markCheck},
+		{row{pane: &pane{ID: "%4", Name: "test", Exit: "0"}, stand: placeChecks, state: "done"}, markPass},
+		{row{pane: &pane{ID: "%4", Name: "test", Exit: "1"}, stand: placeChecks, state: "failed 1"}, markFail},
 		{row{outside: &proc{Name: "postgres"}, stand: placeOutside, state: "outside conn"}, markOutside},
 		{row{conv: &conversation{ID: "e", Title: "Away"}, elsewhere: true, stand: placeElsewhere}, markConversation},
 	} {
@@ -1739,32 +1744,83 @@ func TestRowsCarryTheMarkOfTheirRole(t *testing.T) {
 	}
 }
 
+// A verdict is drawn in the theme's own roles: a pass in the running
+// green, a fail in the accent with its name, and both keep their ink
+// under the cursor, on the chosen ground. The accent goes to the name
+// where the row says where it was started as well.
+func TestAVerdictWearsTheGround(t *testing.T) {
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	sgr := func(hex string) string {
+		c := theme.RGB(hex)
+		return fmt.Sprintf("38;2;%d;%d;%d", c.R, c.G, c.B)
+	}
+	m := model{screen: onProject, cur: project{Root: "/p"}, home: "/home", width: 60}
+	pass := row{pane: &pane{ID: "%4", Name: "test", Dir: "/p", Exit: "0"}, stand: placeChecks, state: "done"}
+	fail := row{pane: &pane{ID: "%5", Name: "build", Dir: "/p/sub", Exit: "1"}, stand: placeChecks, state: "failed 1"}
+	for _, c := range []struct {
+		row    row
+		cursor bool
+		want   string
+	}{
+		{pass, false, sgr(theme.Dark.Running) + "m" + markPass},
+		{fail, false, sgr(theme.Dark.Accent) + "m" + markFail},
+		{fail, false, sgr(theme.Dark.Accent) + "mbuild"},
+		{pass, true, sgr(theme.Dark.Running) + ";48;2"},
+		{fail, true, sgr(theme.Dark.Accent) + ";48;2"},
+	} {
+		if line := m.drawRow(c.row, 0, c.cursor); !strings.Contains(line, c.want) {
+			t.Errorf("cursor %v: %q\nlacks %q", c.cursor, line, c.want)
+		}
+	}
+	// The row under the cursor is still painted edge to edge.
+	if line := plainText(m.drawRow(fail, 0, true)); !strings.HasSuffix(strings.TrimRight(line, " "), "/p/sub") || ansi.StringWidth(line) != m.width {
+		t.Errorf("under the cursor the row is %d wide, want %d, and reads %q", ansi.StringWidth(line), m.width, line)
+	}
+}
+
+// undress puts the panel's styles back to plain, as the tests have
+// them.
+func undress() {
+	var plain lipgloss.Style
+	ink, title, subhead, gray, faint, accent, keyInk = plain, plain, plain, plain, plain, plain, plain
+	chosen, chosenBar, ruleStyle, turning, chosenTurning = plain, plain, plain, plain, plain
+}
+
 // plainText is a drawn line with its styles taken off.
 func plainText(s string) string {
 	return regexp.MustCompile("\x1b\\[[0-9;]*m").ReplaceAllString(s, "")
 }
 
 // A run that has ended says how long ago in the figure column, which
-// says it is done; one that failed says so first; one from before conn
-// wrote the time down says only how it did.
+// says it ended well; a process of the stack that did not says its
+// status first, the accent saying it failed, and a check's mark says
+// its verdict. One from before conn wrote the time down says only how
+// it did.
 func TestARestingRunSaysWhen(t *testing.T) {
 	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
 	for _, c := range []struct {
+		stand int
 		exit  string
 		ago   time.Duration
 		state string
 		want  string
 	}{
-		{"0", 4 * time.Minute, "done", "4m"},
-		{"2", 9 * time.Minute, "failed 2", "failed 2 9m"},
-		{"0", 0, "done", "done"},
+		{placeChecks, "0", 4 * time.Minute, "done", "4m"},
+		{placeChecks, "2", 9 * time.Minute, "failed 2", "9m"},
+		{placeChecks, "0", 0, "done", markPass + " test"},
+		{placeChecks, "1", 0, "failed 1", markFail + " test"},
+		{placeStack, "0", 4 * time.Minute, "done", "4m"},
+		{placeStack, "2", 9 * time.Minute, "failed 2", "2 9m"},
+		{placeStack, "0", 0, "done", "done"},
+		{placeStack, "2", 0, "failed 2", "2"},
 	} {
 		p := pane{ID: "%1", Name: "test", Exit: c.exit}
 		if c.ago > 0 {
 			p.Ended = time.Now().Add(-c.ago)
 		}
-		line := strings.TrimSpace(m.drawRow(row{pane: &p, stand: placeChecks, state: c.state}, 0, false))
-		if !strings.HasSuffix(line, c.want) || (c.exit == "0" && c.ago > 0 && strings.Contains(line, "done")) {
+		line := strings.TrimSpace(m.drawRow(row{pane: &p, stand: c.stand, state: c.state}, 0, false))
+		if !strings.HasSuffix(line, c.want) || (c.exit == "0" && c.ago > 0 && strings.ContainsAny(line, "dp")) {
 			t.Errorf("a run that ended %s %s ago draws %q, want it to end in %q", c.exit, c.ago, line, c.want)
 		}
 	}
@@ -1948,8 +2004,9 @@ func TestItems(t *testing.T) {
 	}
 }
 
-// Opening a project again puts the keys back in the pane they were
-// last in there, while it stands; a project never gone into opens on
+// Opening a project again puts the cursor on the row of the pane the
+// keys were last in there, while it stands, with the keys left on the
+// panel; a project never gone into, or whose pane is gone, opens on
 // its rows.
 func TestOpenIntoLastPane(t *testing.T) {
 	srv, win, panel := scratchServer(t)
@@ -1972,20 +2029,29 @@ func TestOpenIntoLastPane(t *testing.T) {
 	}
 	next, cmd := m.openInto(a)
 	if m = next.(model); m.cur.Root != "/a" || m.follow != id || cmd == nil {
-		t.Errorf("a opened into %q", m.follow)
+		t.Errorf("a opened on %q", m.follow)
+	}
+	// The batch holds the show and a read; only the show is run, and
+	// the keys stay on the panel.
+	if b, ok := cmd().(tea.BatchMsg); ok && len(b) > 0 {
+		b[0]()
+	}
+	if p := inWorkspace(t, ws); p.ID != id {
+		t.Errorf("the workspace shows %s, want %s", p.ID, id)
+	}
+	if active, _ := srv.Display(panel, "#{pane_active}"); active != "1" {
+		t.Error("opening a project moved the keys off the panel")
 	}
 	m.lastIn["/b"] = "%999"
 	next, _ = m.openInto(b)
-	if m = next.(model); m.follow != "" || !m.attachFirst {
-		t.Error("b opened into a pane that is gone")
+	if m = next.(model); m.follow != "" {
+		t.Error("b opened on a pane that is gone")
 	}
-	// With no pane to go back into, the first conversation takes the
-	// keys once the rows are read, before any other process.
-	next, cmd = m.Update(read{root: "/b", rows: []row{{pane: &pane{ID: "%7", Name: "web"}}, {conv: &conversation{ID: "c"}, pane: &pane{ID: id}}}})
-	if m = next.(model); m.asked != id || m.lastIn["/b"] != id || cmd == nil || m.attachFirst {
-		t.Errorf("b opened into %q, not the conversation", m.asked)
-	}
-	if r, ok := m.under(); !ok || r.pane.ID != id {
-		t.Error("the cursor is not on the conversation")
+	// With no pane to go back to, the rows are read and nothing is
+	// gone into: the cursor stays on the first row, and the workspace
+	// shows it as it shows whatever the cursor is on.
+	next, _ = m.Update(read{root: "/b", rows: []row{{pane: &pane{ID: "%7", Name: "web"}}, {conv: &conversation{ID: "c"}, pane: &pane{ID: id}}}})
+	if m = next.(model); m.lastIn["/b"] != "%999" || m.cursor != 0 || m.follow != "" {
+		t.Errorf("b opened into %q, cursor %d", m.follow, m.cursor)
 	}
 }

@@ -95,11 +95,6 @@ type model struct {
 	// The pane the keys were last in, by project: opening a project
 	// again puts them back in it.
 	lastIn map[string]string
-	// Whether the keys go into the first conversation of the open
-	// project once its rows are read, or the first process where it
-	// has no conversation: a project opened with no pane to go back
-	// into.
-	attachFirst bool
 	// rc's list of the conversations at rest: whether it stands, what
 	// is typed to find one, and the cursor in it.
 	listing bool
@@ -139,20 +134,27 @@ const (
 
 // The mark a row carries for its role, after the margin and before its
 // name: what a row is, said once, in a cell, so the name is only the
-// name. A conversation is Mercury, the messenger and the first crewed
-// capsule: a mind at the other end. A client is the prompt it shows
+// name. A conversation is an opening quote: someone speaking at the
+// other end. A client is the prompt it shows
 // you. The stack is a ring, the commonest row and the lightest mark;
 // a check is the same ring, lighter still, a run that comes and goes;
 // a listener outside conn is the ring unfilled, held by nobody.
+//
+// A check's mark is its verdict once it has one: the dot while it has
+// not ended, a check in the running green where it passed, a cross in
+// the accent where it failed.
 const (
-	markConversation = "☿"
+	markConversation = "❝"
 	markStack        = "○"
 	markClient       = "❯"
 	markCheck        = "◦"
+	markPass         = "✓"
+	markFail         = "✗"
 	markOutside      = "◌"
 )
 
-// markOf is the mark for where a row stands.
+// markOf is the mark for where a row stands, and what it says of
+// itself: a check's verdict, where it has one.
 func markOf(r row) string {
 	switch r.stand {
 	case placeStack:
@@ -160,7 +162,13 @@ func markOf(r row) string {
 	case placeClients:
 		return markClient
 	case placeChecks:
-		return markCheck
+		switch {
+		case r.pane == nil || r.pane.Exit == "":
+			return markCheck
+		case r.pane.Exit == "0":
+			return markPass
+		}
+		return markFail
 	case placeOutside:
 		return markOutside
 	}
@@ -877,15 +885,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.follow != "" && !found && msg.at.After(m.followAt) {
 				m.follow = ""
 			}
-			if m.attachFirst {
-				m.attachFirst = false
-				if i, ok := firstAttachable(m.rows); ok {
-					id := m.rows[i].pane.ID
-					m = m.attached(m.cur.Root, id)
-					m.cursor, m.asked = m.itemAt(i), id
-					return m, m.showing(id, true)
-				}
-			}
 		}
 		// The workspace is put right where it is not what the panel
 		// asked: gone, ended, or showing another pane.
@@ -1476,35 +1475,19 @@ func (m model) attached(root, id string) model {
 	return m
 }
 
-// openInto opens a project and puts the keys back in the pane they
-// were last in there, while it stands.
+// openInto opens a project with the cursor on the row of the pane the
+// keys were last in there, while it stands, and the workspace showing
+// it; the keys stay on the panel. Switching projects attaches nothing:
+// enter does.
 func (m model) openInto(p project) (tea.Model, tea.Cmd) {
 	next, cmd := m.open(p)
 	m = next.(model)
 	id := m.lastIn[p.Root]
 	if id == "" || !m.stands(id) {
-		m.attachFirst = true
 		return m, cmd
 	}
 	m.follow, m.asked, m.followAt = id, id, time.Now()
-	return m, tea.Batch(m.showing(id, true), cmd)
-}
-
-// firstAttachable is the row the keys go into where none was gone
-// into before: the first conversation running in a pane conn holds,
-// or, with none, the first process in one.
-func firstAttachable(rows []row) (int, bool) {
-	for i, r := range rows {
-		if r.conv != nil && r.pane != nil {
-			return i, true
-		}
-	}
-	for i, r := range rows {
-		if r.pane != nil {
-			return i, true
-		}
-	}
-	return 0, false
+	return m, tea.Batch(m.showing(id, false), cmd)
 }
 
 // stands says whether a pane is one the keys can go into: a pane of a
@@ -1541,7 +1524,7 @@ func (m model) leave() string {
 }
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
-	m.screen, m.cur, m.rows, m.cursor, m.follow, m.attachFirst = onProject, p, nil, 0, "", false
+	m.screen, m.cur, m.rows, m.cursor, m.follow = onProject, p, nil, 0, ""
 	return m, m.read()
 }
 
@@ -1710,6 +1693,12 @@ type piece struct {
 	st lipgloss.Style
 }
 
+// keeps says whether a piece keeps its own ink under the cursor rather
+// than taking the chosen ink: a verdict does, as the spinner does.
+func (p piece) keeps() bool {
+	return p.s == markPass+" " || p.s == markFail+" "
+}
+
 // measure is the columns a row has between the margin and the right
 // edge, less one for the border beside the panel.
 func (m model) measure() int { return max(m.width-margin-2, 10) }
@@ -1756,20 +1745,30 @@ func (m model) rowTurning(turn string, left []piece, right piece, cursor bool) s
 	}
 	gap := strings.Repeat(" ", max(measure-used-rw, 1))
 	if cursor {
+		// The row is written in the chosen ink on the chosen ground,
+		// edge to edge; a piece that keeps its ink is written in it on
+		// the same ground.
 		var b strings.Builder
-		b.WriteString(strings.Repeat(" ", margin-2))
+		plain := strings.Repeat(" ", margin-2)
+		width := ansi.StringWidth(plain)
 		for _, p := range fitted {
-			b.WriteString(p.s)
+			if p.keeps() {
+				b.WriteString(chosen.Render(plain))
+				b.WriteString(p.st.Background(chosen.GetBackground()).Render(p.s))
+				plain = ""
+			} else {
+				plain += p.s
+			}
+			width += ansi.StringWidth(p.s)
 		}
-		b.WriteString(gap)
-		b.WriteString(right.s)
-		text := b.String()
-		text += strings.Repeat(" ", max(m.width-2-ansi.StringWidth(text), 0))
+		plain += gap + right.s
+		width += ansi.StringWidth(gap + right.s)
+		plain += strings.Repeat(" ", max(m.width-2-width, 0))
 		lead := chosen.Render(" ")
 		if turn != "" {
 			lead = chosenTurning.Render(turn)
 		}
-		return chosenBar.Render(cursorBar) + lead + chosen.Render(text)
+		return chosenBar.Render(cursorBar) + lead + b.String() + chosen.Render(plain)
 	}
 	var b strings.Builder
 	if turn != "" {
@@ -2042,18 +2041,23 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			// Started by n, with nothing said yet: no transcript.
 			name = "new conversation"
 		}
+		at := len(left)
 		left = append(left, piece{name, ink})
 		// Started below the checkout the row says, it says where.
 		if r.pane.Dir != or(r.tree, m.cur.Root) {
 			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
 		}
 		right = piece{stated(r.state), gray}
-		// A run that has ended says how long ago, which says it is
-		// done; one that failed says so first. One from before conn
-		// wrote the time down says only how it did.
+		// A run that has ended says how long ago, which says it ended
+		// well; one that did not says its status first, in the accent.
+		// One from before conn wrote the time down says only how it
+		// did.
 		if r.pane.Name != "" && r.pane.Exit != "" {
-			how, when := ended(r.pane.Exit), ago(r.pane.Ended)
-			if how == "done" && when != "" {
+			// The accent says a run failed; the figure keeps the
+			// status, which says how, and the age. A check's mark says
+			// its verdict, so its figure is the age alone.
+			how, when := strings.TrimPrefix(ended(r.pane.Exit), "failed "), ago(r.pane.Ended)
+			if r.stand == placeChecks || (how == "done" && when != "") {
 				how = ""
 			}
 			right.s = strings.TrimSpace(how + " " + when)
@@ -2061,18 +2065,30 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		// Wanting you is the accent, where the row stands: a
 		// conversation waiting, a run that failed.
 		if r.state == "waiting" || strings.HasPrefix(r.state, "failed ") {
-			left[len(left)-1].st, right.st = accent, accent
+			left[at].st, right.st = accent, accent
 		}
 	case r.outside != nil:
+		// The mark says it is outside conn; the figure is its ports.
 		left = append(left, piece{r.outside.Name, ink})
-		right = piece{r.state, gray}
 	}
 	if len(r.ports) > 0 {
 		right.s = strings.TrimSpace(":" + strings.Join(r.ports, " :") + "  " + right.s)
 	}
+	// The mark takes the name's ink; a verdict takes its own, the
+	// running green for a pass, and keeps it under the cursor.
 	for i := range left {
-		if left[i].s == markOf(r)+" " {
-			left[i].st = left[len(left)-1].st
+		if left[i].s != markOf(r)+" " {
+			continue
+		}
+		left[i].st = left[len(left)-1].st
+		for j := range left {
+			if j > i && left[j].s != "" && left[j].s[0] != ' ' {
+				left[i].st = left[j].st
+				break
+			}
+		}
+		if left[i].s == markPass+" " {
+			left[i].st = turning
 		}
 	}
 	turn := ""

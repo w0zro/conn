@@ -1500,10 +1500,10 @@ func (m model) drawProject() ([]string, foot) {
 	if m.listing {
 		return m.drawList(lines)
 	}
-	// The projects, one line each, the open one expanded in place: its
-	// eyebrow, its rows with a row of air between one group and the
-	// next, and a row of air before and after the block; then the
-	// window of it all that keeps the cursor's line in view.
+	// The open project's block — its eyebrow, its rows with a row of
+	// air between one group and the next, a row of air after — then the
+	// other projects' lines; and the window of it all that keeps the
+	// cursor's line in view.
 	var body []string
 	cursorAt := 0
 	items := m.items()
@@ -1513,12 +1513,6 @@ func (m model) drawProject() ([]string, foot) {
 		}
 		switch {
 		case it.row < 0 && m.isOpen(it.project):
-			if len(body) > 0 {
-				body = append(body, "")
-			}
-			if i == m.cursor {
-				cursorAt = len(body)
-			}
 			body = append(body, m.eyebrow(it.project, i == m.cursor))
 			switch {
 			case m.rows == nil:
@@ -1538,7 +1532,7 @@ func (m model) drawProject() ([]string, foot) {
 				body = append(body, "")
 				cursorAt = len(body)
 			}
-			body = append(body, m.drawRow(m.rows[it.row], it.project.Depth, i == m.cursor))
+			body = append(body, m.drawRow(m.rows[it.row], 0, i == m.cursor))
 			if it.row == len(m.rows)-1 && i+1 < len(items) {
 				body = append(body, "")
 			}
@@ -1900,11 +1894,11 @@ func (m model) drawList(lines []string) ([]string, foot) {
 	return lines, foot{hints: listHints}
 }
 
-// The panel is one list: every project with something running in it,
-// one line each, with the open project expanded in place — its line the
-// eyebrow of a block, its rows under it. The cursor runs over project
-// lines and rows alike, so another project is j or k away and enter
-// opens it there, closing the one that was open. The verbs that take a
+// The panel is the open project on top — its line the eyebrow of a
+// block, its rows under it — and under that a line for each other
+// project with something running in it. The cursor runs over rows and
+// project lines alike, so another project is j or k away and enter
+// opens it, which puts it on top. The verbs that take a
 // project take the open one; x on a project's line stops everything in
 // it.
 
@@ -1915,31 +1909,28 @@ type item struct {
 	row     int // the row's index, or -1 for the project's line
 }
 
-// items is the panel's lines in order: the projects with something
-// running or waiting in them, and the open one whether or not. The
-// rest are the finder's. A project opened that the list does not have
-// comes first.
+// items is the panel's lines in order: the open project on top, its
+// line and its rows, and under it a line for each other project with
+// something running or waiting in it, in the finder's order. The rest
+// are the finder's.
 func (m model) items() []item {
-	var out []item
-	found := false
+	open := m.cur
 	for _, p := range m.projects {
-		if p.Running == 0 && p.Waiting == 0 && !m.isOpen(p) {
-			continue
-		}
-		out = append(out, item{project: p, row: -1})
 		if m.isOpen(p) {
-			found = true
-			for j := range m.rows {
-				out = append(out, item{project: p, row: j})
-			}
+			open = p
 		}
 	}
-	if !found && m.cur.Root != "" {
-		head := []item{{project: m.cur, row: -1}}
+	var out []item
+	if open.Root != "" {
+		out = append(out, item{project: open, row: -1})
 		for j := range m.rows {
-			head = append(head, item{project: m.cur, row: j})
+			out = append(out, item{project: open, row: j})
 		}
-		out = append(head, out...)
+	}
+	for _, p := range m.projects {
+		if (p.Running > 0 || p.Waiting > 0) && !m.isOpen(p) {
+			out = append(out, item{project: p, row: -1})
+		}
 	}
 	return out
 }
@@ -1994,7 +1985,8 @@ func (m model) lineUnder() (project, bool) {
 // rule running off it to the right edge, and what it says of itself at
 // the end, what waits and what runs.
 func (m model) eyebrow(p project, cursor bool) string {
-	name, standing := listName(p), p.standing()
+	// On top, at the margin, whatever folder it is in.
+	name, standing := listName(project{Name: p.Name, Group: p.Group}), p.standing()
 	rule := strings.Repeat("─", max(m.measure()-ansi.StringWidth(name)-ansi.StringWidth(standing)-3, 0))
 	return m.row([]piece{{name, title}, {" " + rule, ruleStyle}}, piece{standing, gray}, cursor)
 }

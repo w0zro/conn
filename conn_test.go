@@ -482,8 +482,7 @@ func TestRowProc(t *testing.T) {
 // The cursor stays on its row when the rows are sorted again under it.
 func TestCursorKeepsItsRow(t *testing.T) {
 	a, b := &pane{ID: "%1"}, &pane{ID: "%2"}
-	// The open project's line is the first item; its rows follow.
-	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 2}
+	m := model{screen: onProject, cur: project{Root: "/p"}, rows: []row{{pane: a}, {pane: b}}, cursor: 1}
 	next, _ := m.Update(read{root: "/p", rows: []row{{pane: b, state: "waiting"}, {pane: a}}})
 	if r, ok := next.(model).under(); !ok || r.pane.ID != "%2" {
 		t.Errorf("cursor on %+v, want %%2", r)
@@ -1305,25 +1304,25 @@ func TestVerbWaits(t *testing.T) {
 	}
 }
 
-// The panel is the open project and its rows on top, then a line for
-// each other project with something running or waiting; the cursor on
-// a row or a line says which.
+// The panel is the open project's rows, then a line for each other
+// project with something running or waiting, a folder having none; the
+// cursor on a row or a line says which.
 func TestItems(t *testing.T) {
-	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}}}
+	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}, {Root: "/f", Group: true, Running: 1}}}
 	m.cur = m.projects[3]
 	m.rows = []row{{pane: &pane{ID: "%1"}}}
 	var got []string
 	for _, it := range m.items() {
 		got = append(got, m.itemKey(it))
 	}
-	if want := []string{"project /d", "%1", "project /a", "project /c"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"%1", "project /a", "project /c"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("items = %v", got)
 	}
-	m.cursor = 1
+	m.cursor = 0
 	if r, ok := m.under(); !ok || r.pane.ID != "%1" {
 		t.Error("the cursor is not on the row")
 	}
-	m.cursor = 3
+	m.cursor = 2
 	if p, ok := m.lineUnder(); !ok || p.Root != "/c" {
 		t.Error("the cursor is not on /c's line")
 	}

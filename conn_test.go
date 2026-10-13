@@ -1871,6 +1871,26 @@ func TestKeyBar(t *testing.T) {
 			}
 		}
 	}
+	// The bar fits a window of ordinary width: tmux cuts what runs off
+	// the right, and the keys in full are behind ? instead.
+	styled := regexp.MustCompile(`#\[[^\]]*\]`)
+	for _, hints := range [][]keyHint{projectHints, projectsHints} {
+		if w := ansi.StringWidth(styled.ReplaceAllString(keyBar(hints, theme.Dark), "")); w > 120 {
+			t.Errorf("the bar is %d columns wide: %v", w, hints)
+		}
+	}
+	// Every key the bar leaves out is said in full behind ?.
+	for _, c := range []struct{ bar, full []keyHint }{{projectHints, projectKeys}, {projectsHints, projectsKeys}} {
+		for _, h := range c.bar {
+			found := h.key == "?"
+			for _, k := range c.full {
+				found = found || k.key == h.key || strings.HasPrefix(k.key, h.key)
+			}
+			if !found {
+				t.Errorf("%s is on the bar and not behind ?", h.key)
+			}
+		}
+	}
 	bar := keyBar([]keyHint{{"x", "stop"}}, theme.Dark)
 	if !strings.Contains(bar, "x ") || !strings.Contains(bar, "stop") || !strings.Contains(bar, theme.Dark.Surface) {
 		t.Errorf("keyBar = %q", bar)
@@ -1880,6 +1900,46 @@ func TestKeyBar(t *testing.T) {
 		if !strings.Contains(c, want) {
 			t.Errorf("conf lacks %s", want)
 		}
+	}
+}
+
+// ? shows the screen's keys in full over it, on either screen, and
+// any key puts them away.
+func TestKeys(t *testing.T) {
+	press := func(m model, k string) model {
+		key := tea.Key{Text: k, Code: []rune(k)[0]}
+		if k == "esc" {
+			key = tea.Key{Code: tea.KeyEscape}
+		}
+		next, _ := m.Update(tea.KeyPressMsg(key))
+		return next.(model)
+	}
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}, width: 80, height: 30}
+	if m = press(m, "?"); !m.helping {
+		t.Fatal("? did not show the keys")
+	}
+	lines, f := m.draw()
+	if s := strings.Join(lines, "\n"); !strings.Contains(s, "run the checks") || !strings.Contains(s, "conversations at rest") || !strings.Contains(s, "d  keys") {
+		t.Errorf("the keys are not drawn in full: %q", s)
+	}
+	if !reflect.DeepEqual(f.hints, backHints) {
+		t.Errorf("the bar under the keys = %v", f.hints)
+	}
+	if m = press(m, "esc"); m.helping {
+		t.Error("esc did not put the keys away")
+	}
+	if m = press(m, "?"); !m.helping {
+		t.Fatal("? did not show the keys again")
+	}
+	if m = press(m, "x"); m.helping || len(m.rows) != 0 {
+		t.Error("a key did not put the keys away, or did more")
+	}
+	m.screen = onProjects
+	if m = press(m, "?"); !m.helping {
+		t.Fatal("? did not show the keys on the projects screen")
+	}
+	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "stops everything in it") {
+		t.Errorf("the projects screen's keys are not drawn: %q", lines)
 	}
 }
 

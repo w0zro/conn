@@ -61,7 +61,9 @@ type model struct {
 	note          string // what the last key could not do, or did
 	// !'s line: the command being typed, while it is.
 	asking bool
-	line   string
+	// ?: the screen's keys, over it, until a key puts them away.
+	helping bool
+	line    string
 	// u's, t's or c's question: the role asked about, blank for none,
 	// and what Claude Code answered, or why it did not. While it stands
 	// it is the project's screen.
@@ -940,6 +942,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, spinTick()
 	case tea.KeyPressMsg:
 		m.note = ""
+		if m.helping {
+			m.helping = false
+			return m, nil
+		}
 		if m.asking {
 			return m.lineKey(msg)
 		}
@@ -1000,6 +1006,8 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.cursor = min(m.cursor+1, max(len(shown)-1, 0))
 	case "ctrl+c":
 		m.note = m.leave()
+	case "?":
+		m.helping = true
 	case "esc", "ctrl+u":
 		m.typed, m.cursor = "", 0
 	case "backspace":
@@ -1072,6 +1080,8 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if r, ok := m.under(); ok {
 			return m.talk(r)
 		}
+	case "?":
+		m.helping = true
 	}
 	return m, nil
 }
@@ -1803,10 +1813,14 @@ func (m model) rowTurning(turn string, left []piece, right piece, cursor bool) s
 // A keyHint is a key and what it does here.
 type keyHint struct{ key, does string }
 
-// The keys each screen says at its foot.
+// The keys each screen says on the bar: the verbs, a word each, so
+// the bar fits a window of any width; ? shows them all, in full, and
+// the keys the bar leaves out.
 var (
-	projectHints  = []keyHint{{"enter", "goes to it"}, {"tab", "what waits"}, {"/", "search output"}, {"c", "talk to it"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"!", "run a command"}, {"n", "new conversation"}, {"s", "shell"}, {"esc", "projects"}, {"q", "leave"}}
-	projectsHints = []keyHint{{"type", "to find or a path"}, {"enter", "opens"}, {"x", "stops everything in it"}, {"tab", "what waits"}, {"ctrl-c", "leaves conn running"}}
+	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
+	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"ctrl-c", "leave"}, {"?", "keys"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"esc", "projects"}, {"q", "leave"}}
+	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
 	objectHints   = []keyHint{{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}}
@@ -1844,9 +1858,12 @@ func (m model) View() tea.View {
 func (m model) draw() ([]string, foot) {
 	var lines []string
 	var f foot
-	if m.screen == onProjects {
+	switch {
+	case m.helping:
+		lines, f = m.drawKeys()
+	case m.screen == onProjects:
 		lines, f = m.drawProjects()
-	} else {
+	default:
 		lines, f = m.drawProject()
 	}
 	if m.note != "" {
@@ -1895,6 +1912,23 @@ func (m model) feet(f foot) []string {
 // with it in the gray, and a row of air.
 func head(name, with string) []string {
 	return []string{"", at(title.Render(name) + "  " + gray.Render(with)), ""}
+}
+
+// drawKeys is the screen's keys in full, one to a line, over it.
+func (m model) drawKeys() ([]string, foot) {
+	name, keys := "conn", projectsKeys
+	if m.screen == onProject {
+		name, keys = listName(project{Name: m.cur.Name, Group: m.cur.Group}), projectKeys
+	}
+	lines := head(name, "keys")
+	w := 0
+	for _, k := range keys {
+		w = max(w, ansi.StringWidth(k.key))
+	}
+	for _, k := range keys {
+		lines = append(lines, at(ink.Render(pad(k.key, w))+"  "+gray.Render(k.does)))
+	}
+	return lines, foot{hints: backHints}
 }
 
 func (m model) drawProjects() ([]string, foot) {

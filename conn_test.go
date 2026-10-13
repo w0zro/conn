@@ -261,7 +261,7 @@ func TestWorktreeLine(t *testing.T) {
 			at = i
 		}
 	}
-	if at < 0 || at+1 >= len(got) || !strings.HasPrefix(got[at+1], "web") || strings.Contains(got[at+1], "fix-login") {
+	if at < 0 || at+1 >= len(got) || !strings.HasSuffix(got[at+1], "web") || strings.Contains(got[at+1], "fix-login") {
 		t.Errorf("drawn as %q, want web under a fix-login line", got)
 	}
 	// The worktree's row stands two columns in from the project's own.
@@ -1649,6 +1649,34 @@ func TestTalksTo(t *testing.T) {
 	if talksTo([]proc{{Name: "python", Peers: []string{"5432"}}}, db) {
 		t.Error("a process outside conn made the database the project's")
 	}
+}
+
+// Every row carries the mark of its role before its name, in the
+// name's own ink; the mark stands in the column after the margin, so
+// the spinner and the cursor's bar keep theirs.
+func TestRowsCarryTheMarkOfTheirRole(t *testing.T) {
+	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
+	for _, c := range []struct {
+		row  row
+		mark string
+	}{
+		{row{conv: &conversation{ID: "c", Title: "Fixing"}, pane: &pane{ID: "%1"}, stand: placeConversations}, markConversation},
+		{row{pane: &pane{ID: "%2", Name: "web"}, stand: placeStack}, markStack},
+		{row{pane: &pane{ID: "%3", Command: "zsh"}, stand: placeClients}, markClient},
+		{row{pane: &pane{ID: "%4", Name: "test", Exit: "0"}, stand: placeChecks, state: "done"}, markCheck},
+		{row{outside: &proc{Name: "postgres"}, stand: placeOutside, state: "outside conn"}, markOutside},
+		{row{conv: &conversation{ID: "e", Title: "Away"}, elsewhere: true, stand: placeElsewhere}, markConversation},
+	} {
+		line := []rune(plainText(m.drawRow(c.row, 0, false)))
+		if len(line) <= margin+1 || string(line[margin]) != c.mark || line[margin+1] != ' ' {
+			t.Errorf("%s row draws %q, want %q after the margin", c.mark, string(line), c.mark)
+		}
+	}
+}
+
+// plainText is a drawn line with its styles taken off.
+func plainText(s string) string {
+	return regexp.MustCompile("\x1b\\[[0-9;]*m").ReplaceAllString(s, "")
 }
 
 // A run that has ended says how it did and how long ago in the figure

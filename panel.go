@@ -137,6 +137,36 @@ const (
 	placeRest
 )
 
+// The mark a row carries for its role, after the margin and before its
+// name: what a row is, said once, in a cell, so the name is only the
+// name. A conversation is Mercury, the messenger and the first crewed
+// capsule: a mind at the other end. A client is the prompt it shows
+// you. The stack is a ring, the commonest row and the lightest mark;
+// a check is the same ring, lighter still, a run that comes and goes;
+// a listener outside conn is the ring unfilled, held by nobody.
+const (
+	markConversation = "☿"
+	markStack        = "○"
+	markClient       = "❯"
+	markCheck        = "◦"
+	markOutside      = "◌"
+)
+
+// markOf is the mark for where a row stands.
+func markOf(r row) string {
+	switch r.stand {
+	case placeStack:
+		return markStack
+	case placeClients:
+		return markClient
+	case placeChecks:
+		return markCheck
+	case placeOutside:
+		return markOutside
+	}
+	return markConversation
+}
+
 // A roster is what a project has written down it runs, by name: each
 // name's role, and its place in the order the names were first written
 // down. A client is written under the name of what it talks to, and
@@ -1953,7 +1983,8 @@ func (m model) drawProject() ([]string, foot) {
 }
 
 // drawRow is one row of a project: the mark, the name, and the figure.
-// The name is in the ink where it runs and the gray where it rests. The
+// The mark says the role; the name is in the ink where it runs and the
+// gray where it rests, and the mark in the same. The
 // figure at the right is the one thing worth knowing of the row without
 // going in: its ports, the context a conversation runs in, how and how
 // long ago a run ended, or what wants you.
@@ -1964,6 +1995,8 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	if depth > 0 {
 		left = append(left, piece{strings.Repeat("  ", depth), ink})
 	}
+	// The mark says the role, in the name's own ink.
+	left = append(left, piece{markOf(r) + " ", gray})
 	// Under its worktree's line, a row says only its name.
 	if r.branch == "" {
 		left = append(left, r.place()...)
@@ -2018,6 +2051,11 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	}
 	if len(r.ports) > 0 {
 		right.s = strings.TrimSpace(":" + strings.Join(r.ports, " :") + "  " + right.s)
+	}
+	for i := range left {
+		if left[i].s == markOf(r)+" " {
+			left[i].st = left[len(left)-1].st
+		}
 	}
 	turn := ""
 	switch {

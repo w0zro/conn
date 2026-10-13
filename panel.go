@@ -1814,19 +1814,12 @@ func (m model) feet(f foot) []string {
 
 // head is a screen's first rows: the title in the parchment, what goes
 // with it in the gray, and a row of air.
-// head is a screen's head: a blank, the name and what goes with it,
-// and a rule under them.
-func (m model) head(name, with string) []string {
-	return []string{"", at(title.Render(name) + "  " + gray.Render(with)), m.rule()}
-}
-
-// rule is a rule across the measure.
-func (m model) rule() string {
-	return at(ruleStyle.Render(strings.Repeat("─", m.measure())))
+func head(name, with string) []string {
+	return []string{"", at(title.Render(name) + "  " + gray.Render(with)), ""}
 }
 
 func (m model) drawProjects() ([]string, foot) {
-	lines := m.head("conn", "projects")
+	lines := head("conn", "projects")
 	lines = append(lines, at(gray.Render("find")+"  "+ink.Render(m.typed)+accent.Render(caret)), "")
 	shown := m.shownProjects()
 	room := max(m.height-len(lines)-1, 1)
@@ -1868,7 +1861,7 @@ func (m model) drawProjects() ([]string, foot) {
 func groupOf(r row) int { return r.stand }
 
 func (m model) drawProject() ([]string, foot) {
-	lines := m.head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
+	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
 	if m.question != "" {
 		return m.drawOffer(lines)
 	}
@@ -1902,7 +1895,7 @@ func (m model) drawProject() ([]string, foot) {
 				if i > 0 {
 					body = append(body, "")
 				}
-				body = append(body, at(gray.Render("projects")), m.rule())
+				body = append(body, m.label("projects"))
 			}
 			if i == m.cursor {
 				cursorAt = len(body)
@@ -1910,14 +1903,14 @@ func (m model) drawProject() ([]string, foot) {
 			body = append(body, m.projectLine(it.project, i == m.cursor))
 		default:
 			// A worktree's rows stand under a head of their own: the
-			// branch, in the parchment the project's head is in and
-			// without its weight, with a rule running off it. The
-			// project's head and the projects label have their rule
-			// under them instead, across the measure.
+			// branch alone, in the parchment the project's head is in
+			// and without its weight, a lesser head of the same kind.
+			// A label with a rule is a section of the panel, which a
+			// worktree is not.
 			r := m.rows[it.row]
 			switch {
 			case r.worktree() != "" && (it.row == 0 || m.rows[it.row-1].worktree() != r.worktree()):
-				body = append(body, "", m.label(r.worktree()))
+				body = append(body, "", at(subhead.Render(r.worktree())))
 			case it.row > 0 && groupOf(r) != groupOf(m.rows[it.row-1]):
 				body = append(body, "")
 			}
@@ -2388,10 +2381,9 @@ func (m model) lineUnder() (project, bool) {
 
 // label is a block's name: a small label in the gray, and a rule
 // running off it to the right edge.
-// label is a name with a rule running off it to the measure.
 func (m model) label(s string) string {
 	rule := strings.Repeat("─", max(m.measure()-ansi.StringWidth(s)-1, 0))
-	return at(subhead.Render(s) + " " + ruleStyle.Render(rule))
+	return at(gray.Render(s) + " " + ruleStyle.Render(rule))
 }
 
 // projectLine is another project's line: its name, and what it says of

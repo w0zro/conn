@@ -1252,7 +1252,7 @@ const (
 // The styles, in the ground the server is on once the panel knows it;
 // plain until then, and in the tests.
 var (
-	ink, title, gray, faint, accent, keyInk, chosen, chosenBar lipgloss.Style
+	ink, title, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle lipgloss.Style
 )
 
 // wear dresses the panel's styles in a ground. The pane's ground is
@@ -1268,6 +1268,7 @@ func wear(g theme.Ground) {
 	keyInk = fg(theme.Hex(g.Ink)).Bold(true)
 	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
 	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Accent)).Bold(true)
+	ruleStyle = fg(g.Border)
 }
 
 // A piece is text in a style.
@@ -1510,8 +1511,14 @@ func (m model) drawProject() ([]string, foot) {
 	for i, it := range items {
 		switch {
 		case it.row < 0:
-			if i > 0 && items[i-1].row >= 0 {
-				body = append(body, "")
+			// The other projects stand under a label of their own, with
+			// a rule running off it, so they read as projects and not as
+			// rows of this one.
+			if i == 0 || items[i-1].row >= 0 {
+				if i > 0 {
+					body = append(body, "")
+				}
+				body = append(body, m.label("projects"))
 			}
 			if i == m.cursor {
 				cursorAt = len(body)
@@ -1962,11 +1969,19 @@ func (m model) lineUnder() (project, bool) {
 	return project{}, false
 }
 
+// label is a block's name: a small label in the gray, and a rule
+// running off it to the right edge.
+func (m model) label(s string) string {
+	rule := strings.Repeat("─", max(m.measure()-ansi.StringWidth(s)-1, 0))
+	return at(gray.Render(s) + " " + ruleStyle.Render(rule))
+}
+
 // projectLine is another project's line: its name, with its folder's
 // before it where it is in one, and what it says of itself at the
-// right; in the accent where something waits, the ink otherwise.
+// right; in the parchment, as the head names a project, and in the
+// accent where something waits.
 func (m model) projectLine(p project, cursor bool) string {
-	name, style := p.Name, ink
+	name, style := p.Name, title
 	if p.Depth > 0 {
 		name = filepath.Base(filepath.Dir(p.Root)) + "/" + name
 	}

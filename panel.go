@@ -144,15 +144,22 @@ const (
 // you. The stack is a ring, the commonest row and the lightest mark;
 // a check is the same ring, lighter still, a run that comes and goes;
 // a listener outside conn is the ring unfilled, held by nobody.
+//
+// A check's mark is its verdict once it has one: the dot while it has
+// not ended, a check in the running green where it passed, a cross in
+// the accent where it failed.
 const (
 	markConversation = "☿"
 	markStack        = "○"
 	markClient       = "❯"
 	markCheck        = "◦"
+	markPass         = "✓"
+	markFail         = "✗"
 	markOutside      = "◌"
 )
 
-// markOf is the mark for where a row stands.
+// markOf is the mark for where a row stands, and what it says of
+// itself: a check's verdict, where it has one.
 func markOf(r row) string {
 	switch r.stand {
 	case placeStack:
@@ -160,7 +167,13 @@ func markOf(r row) string {
 	case placeClients:
 		return markClient
 	case placeChecks:
-		return markCheck
+		switch {
+		case r.pane == nil || r.pane.Exit == "":
+			return markCheck
+		case r.pane.Exit == "0":
+			return markPass
+		}
+		return markFail
 	case placeOutside:
 		return markOutside
 	}
@@ -2035,20 +2048,19 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		}
 		right = piece{stated(r.state), gray}
 		// A run that has ended says how long ago, which says it ended
-		// well; one that did not says so first. A check passes or
-		// fails, and its status is for whoever reads the output; a
-		// process of the stack that ended says its status, since a
-		// server ending at all is the news. One from before conn wrote
-		// the time down says only how it did.
+		// well; one that did not says so first. A check's mark is its
+		// verdict, so its figure is the age alone, and its status is
+		// for whoever reads the output; a process of the stack that
+		// ended says its status, since a server ending at all is the
+		// news. One from before conn wrote the time down says only how
+		// it did.
 		if r.pane.Name != "" && r.pane.Exit != "" {
 			how, when := ended(r.pane.Exit), ago(r.pane.Ended)
 			if r.stand == placeChecks {
-				how = "pass"
-				if r.pane.Exit != "0" {
-					how = "fail"
-				}
+				// The mark says pass or fail; the figure is the age.
+				how = ""
 			}
-			if (how == "done" || how == "pass") && when != "" {
+			if how == "done" && when != "" {
 				how = ""
 			}
 			right.s = strings.TrimSpace(how + " " + when)
@@ -2068,6 +2080,9 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	for i := range left {
 		if left[i].s == markOf(r)+" " {
 			left[i].st = left[len(left)-1].st
+			if left[i].s == markPass+" " {
+				left[i].st = turning
+			}
 		}
 	}
 	turn := ""

@@ -1663,7 +1663,9 @@ func TestRowsCarryTheMarkOfTheirRole(t *testing.T) {
 		{row{conv: &conversation{ID: "c", Title: "Fixing"}, pane: &pane{ID: "%1"}, stand: placeConversations}, markConversation},
 		{row{pane: &pane{ID: "%2", Name: "web"}, stand: placeStack}, markStack},
 		{row{pane: &pane{ID: "%3", Command: "zsh"}, stand: placeClients}, markClient},
-		{row{pane: &pane{ID: "%4", Name: "test", Exit: "0"}, stand: placeChecks, state: "done"}, markCheck},
+		{row{pane: &pane{ID: "%4", Name: "test"}, stand: placeChecks, state: "running"}, markCheck},
+		{row{pane: &pane{ID: "%4", Name: "test", Exit: "0"}, stand: placeChecks, state: "done"}, markPass},
+		{row{pane: &pane{ID: "%4", Name: "test", Exit: "1"}, stand: placeChecks, state: "failed 1"}, markFail},
 		{row{outside: &proc{Name: "postgres"}, stand: placeOutside, state: "outside conn"}, markOutside},
 		{row{conv: &conversation{ID: "e", Title: "Away"}, elsewhere: true, stand: placeElsewhere}, markConversation},
 	} {
@@ -1680,8 +1682,8 @@ func plainText(s string) string {
 }
 
 // A run that has ended says how long ago in the figure column, which
-// says it ended well; one that did not says so first: a check says
-// fail, a process of the stack says failed and its status. One from
+// says it ended well; a process of the stack that did not says failed
+// and its status first, and a check's mark says its verdict. One from
 // before conn wrote the time down says only how it did.
 func TestARestingRunSaysWhen(t *testing.T) {
 	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
@@ -1693,9 +1695,9 @@ func TestARestingRunSaysWhen(t *testing.T) {
 		want  string
 	}{
 		{placeChecks, "0", 4 * time.Minute, "done", "4m"},
-		{placeChecks, "2", 9 * time.Minute, "failed 2", "fail 9m"},
-		{placeChecks, "0", 0, "done", "pass"},
-		{placeChecks, "1", 0, "failed 1", "fail"},
+		{placeChecks, "2", 9 * time.Minute, "failed 2", "9m"},
+		{placeChecks, "0", 0, "done", markPass + " test"},
+		{placeChecks, "1", 0, "failed 1", markFail + " test"},
 		{placeStack, "0", 4 * time.Minute, "done", "4m"},
 		{placeStack, "2", 9 * time.Minute, "failed 2", "failed 2 9m"},
 		{placeStack, "0", 0, "done", "done"},

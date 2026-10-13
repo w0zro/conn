@@ -115,6 +115,7 @@ type row struct {
 	ports     []string // what it listens on
 	repo      string   // in a folder of repositories, the one it is in
 	branch    string   // in a worktree, the branch it has out
+	tree      string   // the checkout it runs in
 }
 
 // place is what a row says of where it runs, before its name: the
@@ -442,8 +443,9 @@ func placed(rows []row, cur project, k *known) {
 		if cur.Group && root != cur.Root {
 			rows[i].repo = filepath.Base(root)
 		}
-		if tree := k.treeOf(dir); root != "" && tree != root {
-			rows[i].branch = k.branchOf(tree)
+		rows[i].tree = k.treeOf(dir)
+		if root != "" && rows[i].tree != root {
+			rows[i].branch = k.branchOf(rows[i].tree)
 		}
 	}
 }
@@ -1763,7 +1765,8 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			name = "new conversation"
 		}
 		left = append(left, piece{name, ink})
-		if r.pane.Dir != m.cur.Root {
+		// Started below the checkout the row says, it says where.
+		if r.pane.Dir != or(r.tree, m.cur.Root) {
 			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
 		}
 		right = piece{or(r.state, "running"), gray}

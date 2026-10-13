@@ -134,6 +134,9 @@ func TestPlaced(t *testing.T) {
 			t.Errorf("row %d placed as %q in %q, want branch %q in no repository", i, rows[i].branch, rows[i].repo, want)
 		}
 	}
+	if rows[0].tree != repo || rows[1].tree != tree {
+		t.Errorf("checkouts %q and %q, want %q and %q", rows[0].tree, rows[1].tree, repo, tree)
+	}
 	git(t, tree, "checkout", "-q", "-b", "fix-login")
 	placed(rows, project{Name: "shop", Root: folder, Group: true}, k)
 	if r := rows[1]; r.repo != "api" || r.branch != "fix-login" {

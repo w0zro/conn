@@ -2034,11 +2034,15 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
 		}
 		right = piece{stated(r.state), gray}
-		// A run that has ended says how, and how long ago: a check
-		// that passed and one never run are not the same thing, and
-		// the age says how stale the outcome is.
+		// A run that has ended says how long ago, which says it is
+		// done; one that failed says so first. One from before conn
+		// wrote the time down says only how it did.
 		if r.pane.Name != "" && r.pane.Exit != "" {
-			right.s = strings.TrimSpace(ended(r.pane.Exit) + " " + ago(r.pane.Ended))
+			how, when := ended(r.pane.Exit), ago(r.pane.Ended)
+			if how == "done" && when != "" {
+				how = ""
+			}
+			right.s = strings.TrimSpace(how + " " + when)
 		}
 		// Wanting you is the accent, where the row stands: a
 		// conversation waiting, a run that failed.

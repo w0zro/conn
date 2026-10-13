@@ -1679,10 +1679,10 @@ func plainText(s string) string {
 	return regexp.MustCompile("\x1b\\[[0-9;]*m").ReplaceAllString(s, "")
 }
 
-// A run that has ended says how it did and how long ago in the figure
-// column, a passed check and one that failed alike; one from before
-// conn wrote the time down says only how.
-func TestARestingRunSaysHowAndWhen(t *testing.T) {
+// A run that has ended says how long ago in the figure column, which
+// says it is done; one that failed says so first; one from before conn
+// wrote the time down says only how it did.
+func TestARestingRunSaysWhen(t *testing.T) {
 	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
 	for _, c := range []struct {
 		exit  string
@@ -1690,7 +1690,7 @@ func TestARestingRunSaysHowAndWhen(t *testing.T) {
 		state string
 		want  string
 	}{
-		{"0", 4 * time.Minute, "done", "done 4m"},
+		{"0", 4 * time.Minute, "done", "4m"},
 		{"2", 9 * time.Minute, "failed 2", "failed 2 9m"},
 		{"0", 0, "done", "done"},
 	} {
@@ -1698,9 +1698,9 @@ func TestARestingRunSaysHowAndWhen(t *testing.T) {
 		if c.ago > 0 {
 			p.Ended = time.Now().Add(-c.ago)
 		}
-		line := m.drawRow(row{pane: &p, stand: placeChecks, state: c.state}, 0, false)
-		if !strings.Contains(line, c.want) || strings.Contains(line, c.want+" ") && c.ago == 0 {
-			t.Errorf("a run that ended %s %s ago draws %q, want %q", c.exit, c.ago, line, c.want)
+		line := strings.TrimSpace(m.drawRow(row{pane: &p, stand: placeChecks, state: c.state}, 0, false))
+		if !strings.HasSuffix(line, c.want) || (c.exit == "0" && c.ago > 0 && strings.Contains(line, "done")) {
+			t.Errorf("a run that ended %s %s ago draws %q, want it to end in %q", c.exit, c.ago, line, c.want)
 		}
 	}
 }

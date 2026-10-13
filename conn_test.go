@@ -1464,7 +1464,16 @@ func TestOpenIntoLastPane(t *testing.T) {
 	}
 	m.lastIn["/b"] = "%999"
 	next, _ = m.openInto(b)
-	if m = next.(model); m.follow != "" {
+	if m = next.(model); m.follow != "" || !m.attachFirst {
 		t.Error("b opened into a pane that is gone")
+	}
+	// With no pane to go back into, the first conversation takes the
+	// keys once the rows are read, before any other process.
+	next, cmd = m.Update(read{root: "/b", rows: []row{{pane: &pane{ID: "%7", Name: "web"}}, {conv: &conversation{ID: "c"}, pane: &pane{ID: id}}}})
+	if m = next.(model); m.asked != id || m.lastIn["/b"] != id || cmd == nil || m.attachFirst {
+		t.Errorf("b opened into %q, not the conversation", m.asked)
+	}
+	if r, ok := m.under(); !ok || r.pane.ID != id {
+		t.Error("the cursor is not on the conversation")
 	}
 }

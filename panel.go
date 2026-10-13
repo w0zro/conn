@@ -1745,7 +1745,7 @@ func (m model) drawProject() ([]string, foot) {
 			r := m.rows[it.row]
 			switch {
 			case r.worktree() != "" && (it.row == 0 || m.rows[it.row-1].worktree() != r.worktree()):
-				body = append(body, "", at(title.Render(r.worktree())+"  "+gray.Render(tilde(r.tree, m.home))))
+				body = append(body, "", m.row(m.worktreeHead(r), piece{}, false))
 			case it.row > 0 && groupOf(r) != groupOf(m.rows[it.row-1]):
 				body = append(body, "")
 			}
@@ -1762,6 +1762,18 @@ func (m model) drawProject() ([]string, foot) {
 		hints = objectHints
 	}
 	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: hints}
+}
+
+// worktreeHead is a worktree's head: its branch, and its checkout in
+// the room left, kept from the end, where the checkouts differ.
+func (m model) worktreeHead(r row) []piece {
+	name := r.worktree()
+	path := tilde(r.tree, m.home)
+	room := max(m.measure()-ansi.StringWidth(name)-2, 0)
+	if w := ansi.StringWidth(path); w > room {
+		path = ansi.TruncateLeft(path, w-room+1, "…")
+	}
+	return []piece{{name, title}, {"  " + path, gray}}
 }
 
 // drawRow is one row of a project: what it is on the left, in the ink

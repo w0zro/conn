@@ -943,6 +943,27 @@ func TestSpinner(t *testing.T) {
 	if line := m.drawRow(idle, 0, false); strings.ContainsAny(line, strings.Join(spinner, "")+steady) {
 		t.Errorf("an idle row has a mark: %q", line)
 	}
+	// Another project's line turns while something in it is at work,
+	// and keeps the tick going when nothing of the open project does.
+	busy := project{Name: "e", Root: "/q", Running: 1, Turning: 1}
+	still := project{Name: "f", Root: "/r", Running: 1}
+	if line := m.projectLine(busy, false); !strings.Contains(line, spinner[2]) {
+		t.Errorf("a project with something at work has no spinner turning: %q", line)
+	}
+	if line := m.projectLine(still, false); strings.ContainsAny(line, strings.Join(spinner, "")+steady) {
+		t.Errorf("a project with nothing at work has a mark: %q", line)
+	}
+	m.projects = []project{m.cur, still}
+	m.rows = []row{idle}
+	if m.turning() {
+		t.Error("the tick runs with nothing at work anywhere")
+	}
+	m.projects = []project{m.cur, busy}
+	if !m.turning() {
+		t.Error("the tick does not run for another project's line at work")
+	}
+	m.projects = nil
+	m.rows = []row{working}
 	// A process running persistently carries the steady cell, in the
 	// same column; one that has ended, nothing.
 	outside := row{outside: &proc{Name: "postgres", PID: 7}, stand: placeOutside, state: "outside conn"}
@@ -1293,7 +1314,7 @@ func TestGroup(t *testing.T) {
 	now := time.Now()
 	ps := []project{
 		{Name: "hsg", Root: "/p/hsg", Last: now.Add(-3 * time.Hour)},
-		{Name: "conn", Root: "/p/w/conn", Last: now.Add(-time.Hour), Running: 2},
+		{Name: "conn", Root: "/p/w/conn", Last: now.Add(-time.Hour), Running: 2, Turning: 1},
 		{Name: "essays", Root: "/p/w/essays", Last: now.Add(-5 * time.Hour), Waiting: 1},
 		{Name: "w", Root: "/p/w", Last: now.Add(-9 * time.Hour)},
 	}
@@ -1305,7 +1326,7 @@ func TestGroup(t *testing.T) {
 	if want := []string{"w/", "  essays", "  conn", "hsg"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("group = %v, want %v", names, want)
 	}
-	if f := got[0]; !f.Group || f.Running != 2 || f.Waiting != 1 || !f.Last.Equal(now.Add(-time.Hour)) {
+	if f := got[0]; !f.Group || f.Running != 2 || f.Waiting != 1 || f.Turning != 1 || !f.Last.Equal(now.Add(-time.Hour)) {
 		t.Errorf("folder = %+v", f)
 	}
 	if !got[0].belongs("/p/w/conn") || got[0].belongs("/p/hsg") || got[2].belongs("/p/w/essays") {
@@ -1895,17 +1916,17 @@ func TestVerbWaits(t *testing.T) {
 }
 
 // The panel is the open project's rows, then a line for each other
-// project with something running or waiting, a folder having none; the
+// project with something running, waiting or at work, a folder having none; the
 // cursor on a row or a line says which.
 func TestItems(t *testing.T) {
-	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}, {Root: "/f", Group: true, Running: 1}}}
+	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}, {Root: "/f", Group: true, Running: 1}, {Root: "/g", Turning: 1}}}
 	m.cur = m.projects[3]
 	m.rows = []row{{pane: &pane{ID: "%1"}}}
 	var got []string
 	for _, it := range m.items() {
 		got = append(got, m.itemKey(it))
 	}
-	if want := []string{"%1", "project /a", "project /c"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"%1", "project /a", "project /c", "project /g"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("items = %v", got)
 	}
 	m.cursor = 0

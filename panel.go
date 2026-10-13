@@ -184,6 +184,21 @@ type roster struct {
 	at   map[string]int
 }
 
+// isCheck says whether a name is written down as a check of a project:
+// the role it was last written under, as the roster takes it.
+func isCheck(starts []started, root, name string) bool {
+	if name == "" {
+		return false
+	}
+	check := false
+	for _, s := range starts {
+		if s.Root == root && s.Name == name && s.Role != roleClient {
+			check = s.Role == roleCheck
+		}
+	}
+	return check
+}
+
 func rosterOf(starts []started, in func(string) bool) roster {
 	ros := roster{role: map[string]role{}, at: map[string]int{}}
 	for _, s := range starts {
@@ -470,13 +485,14 @@ func stands(r row) bool {
 	return false
 }
 
-// turning says whether any row on the screen turns.
+// turning says whether anything on the screen turns: a row of the open
+// project, or another project's line with something at work in it.
 func (m model) turning() bool {
 	if m.screen != onProject {
 		return false
 	}
-	for _, r := range m.rows {
-		if turns(r) {
+	for _, it := range m.items() {
+		if it.row < 0 && it.project.Turning > 0 || it.row >= 0 && turns(m.rows[it.row]) {
 			return true
 		}
 	}
@@ -530,22 +546,30 @@ func (m model) read() tea.Cmd {
 		live := liveClaude()
 
 		seen := claudeSightings(all, k.cwdOf)
-		running, waiting := map[string]int{}, map[string]int{}
+		starts := readStarted(startedPath(srv.Socket))
+		running, waiting, turning := map[string]int{}, map[string]int{}, map[string]int{}
 		for _, p := range held {
 			seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
-			running[k.rootOf(p.Dir)]++
+			root := k.rootOf(p.Dir)
+			running[root]++
+			if p.Exit == "" && isCheck(starts, root, p.Name) {
+				turning[root]++
+			}
 		}
 		total := 0
 		for _, r := range live {
-			if r.state() == "waiting" {
+			switch r.state() {
+			case "waiting":
 				total++
 				waiting[k.rootOf(r.Cwd)]++
+			case "working":
+				turning[k.rootOf(r.Cwd)]++
 			}
 		}
 		sayWaiting(srv, total)
 		found := findProjects(seen, home, k.rootOf)
 		for i := range found {
-			found[i].Running, found[i].Waiting = running[found[i].Root], waiting[found[i].Root]
+			found[i].Running, found[i].Waiting, found[i].Turning = running[found[i].Root], waiting[found[i].Root], turning[found[i].Root]
 		}
 		r.projects = group(found, func(dir string) bool { return k.isFolder(dir, home) })
 		for _, p := range held {
@@ -585,7 +609,7 @@ func (m model) read() tea.Cmd {
 				convs = append(convs, c)
 			}
 			in := func(dir string) bool { return cur.belongs(k.rootOf(dir)) }
-			ros := rosterOf(readStarted(startedPath(srv.Socket)), cur.belongs)
+			ros := rosterOf(starts, cur.belongs)
 			// The panel is what runs; a conversation at rest is a row of
 			// rc's list instead.
 			r.root = cur.Root
@@ -2416,7 +2440,7 @@ func (m model) items() []item {
 		out = append(out, item{project: m.cur, row: j})
 	}
 	for _, p := range m.projects {
-		if p.Group || m.isOpen(p) || (m.cur.Group && within(p.Root, m.cur.Root)) || (p.Running == 0 && p.Waiting == 0) {
+		if p.Group || m.isOpen(p) || (m.cur.Group && within(p.Root, m.cur.Root)) || (p.Running == 0 && p.Waiting == 0 && p.Turning == 0) {
 			continue
 		}
 		out = append(out, item{project: p, row: -1})
@@ -2486,5 +2510,11 @@ func (m model) projectLine(p project, cursor bool) string {
 	if p.Waiting > 0 {
 		style = accent
 	}
-	return m.row([]piece{{name, style}}, piece{p.standing(), gray}, cursor)
+	// The spinner turns in the margin while something in the project
+	// is at work, as it does beside the row.
+	turn := ""
+	if p.Turning > 0 {
+		turn = spinner[m.frame%len(spinner)]
+	}
+	return m.rowTurning(turn, []piece{{name, style}}, piece{p.standing(), gray}, cursor)
 }

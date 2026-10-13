@@ -19,8 +19,10 @@ type project struct {
 	Root string
 	Last time.Time // when work last happened in it
 	// What runs in it in conn, and its conversations waiting on you,
-	// wherever they run.
-	Running, Waiting int
+	// wherever they run. Turning is what is at work on something that
+	// will come to rest: its conversations working, wherever they run,
+	// and its checks running.
+	Running, Waiting, Turning int
 	// Group is a folder holding two or more repositories: listed with
 	// them beneath it, and a project of its own that takes in all of
 	// theirs. Depth is a project's place under its folder in the list.
@@ -82,6 +84,7 @@ func group(ps []project, folder func(string) bool) []project {
 	add := func(f *project, p project) {
 		f.Running += p.Running
 		f.Waiting += p.Waiting
+		f.Turning += p.Turning
 		if p.Last.After(f.Last) {
 			f.Last = p.Last
 		}

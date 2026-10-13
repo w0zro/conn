@@ -291,15 +291,15 @@ func TestFindProjects(t *testing.T) {
 }
 
 func TestParsePanes(t *testing.T) {
-	out := "%1 @1 0 412 /dev/ttys004   abc-1   claude /Users/me/my project\n" +
-		"%2 @2 1 0 /dev/ttys005 1     zsh /Users/me\n" +
-		"%3 @3 0 77 /dev/ttys006    web 0 cat /p\n" +
-		"%4 @1 0 78 /dev/ttys007  1    conn /Users/me\n"
+	out := "%1 @1 0 412 /dev/ttys004   abc-1    claude /Users/me/my project\n" +
+		"%2 @2 1 0 /dev/ttys005 1      zsh /Users/me\n" +
+		"%3 @3 0 77 /dev/ttys006    web 0 1760000000 cat /p\n" +
+		"%4 @1 0 78 /dev/ttys007  1     conn /Users/me\n"
 	got := parsePanes(out)
 	want := []pane{
 		{ID: "%1", Window: "@1", PID: 412, TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project"},
 		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Panel: true, Command: "zsh", Dir: "/Users/me"},
-		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Exit: "0", Command: "cat", Dir: "/p"},
+		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Exit: "0", Ended: time.Unix(1760000000, 0), Command: "cat", Dir: "/p"},
 		{ID: "%4", Window: "@1", PID: 78, TTY: "ttys007", Hold: true, Command: "conn", Dir: "/Users/me"},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -575,7 +575,7 @@ func TestStartWaitEnd(t *testing.T) {
 			p = &ps[i]
 		}
 	}
-	if p == nil || p.Name != "check" || p.Exit != "3" {
+	if p == nil || p.Name != "check" || p.Exit != "3" || time.Since(p.Ended) > time.Minute {
 		t.Fatalf("pane = %+v", p)
 	}
 	if how, err := endProc(srv, "sleep 1000", proc{pane: p, Name: "check"}); err != nil || how != "kill-pane "+id {
@@ -1599,6 +1599,32 @@ func TestTalksTo(t *testing.T) {
 	// Only what conn holds is asked what it connects to.
 	if talksTo([]proc{{Name: "python", Peers: []string{"5432"}}}, db) {
 		t.Error("a process outside conn made the database the project's")
+	}
+}
+
+// A run that has ended says how it did and how long ago in the figure
+// column, a passed check and one that failed alike; one from before
+// conn wrote the time down says only how.
+func TestARestingRunSaysHowAndWhen(t *testing.T) {
+	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
+	for _, c := range []struct {
+		exit  string
+		ago   time.Duration
+		state string
+		want  string
+	}{
+		{"0", 4 * time.Minute, "done", "done 4m"},
+		{"2", 9 * time.Minute, "failed 2", "failed 2 9m"},
+		{"0", 0, "done", "done"},
+	} {
+		p := pane{ID: "%1", Name: "test", Exit: c.exit}
+		if c.ago > 0 {
+			p.Ended = time.Now().Add(-c.ago)
+		}
+		line := m.drawRow(row{pane: &p, stand: placeChecks, state: c.state}, 0, false)
+		if !strings.Contains(line, c.want) || strings.Contains(line, c.want+" ") && c.ago == 0 {
+			t.Errorf("a run that ended %s %s ago draws %q, want %q", c.exit, c.ago, line, c.want)
+		}
 	}
 }
 

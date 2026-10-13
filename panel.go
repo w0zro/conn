@@ -1945,9 +1945,11 @@ func (m model) drawProject() ([]string, foot) {
 	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: hints}
 }
 
-// drawRow is one row of a project: what it is on the left, in the ink
-// where it runs and the gray where it rests, and at the right its
-// state, or its ports, or how long ago it was.
+// drawRow is one row of a project: the mark, the name, and the figure.
+// The name is in the ink where it runs and the gray where it rests. The
+// figure at the right is the one thing worth knowing of the row without
+// going in: its ports, the context a conversation runs in, how and how
+// long ago a run ended, or what wants you.
 func (m model) drawRow(r row, depth int, cursor bool) string {
 	var left []piece
 	var right piece
@@ -1993,6 +1995,12 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
 		}
 		right = piece{stated(r.state), gray}
+		// A run that has ended says how, and how long ago: a check
+		// that passed and one never run are not the same thing, and
+		// the age says how stale the outcome is.
+		if r.pane.Name != "" && r.pane.Exit != "" {
+			right.s = strings.TrimSpace(ended(r.pane.Exit) + " " + ago(r.pane.Ended))
+		}
 		// Wanting you is the accent, where the row stands: a
 		// conversation waiting, a run that failed.
 		if r.state == "waiting" || strings.HasPrefix(r.state, "failed ") {
@@ -2016,9 +2024,10 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 }
 
 // stated is what a row's state says at the right. The ordinary states
-// say nothing: the margin says running and working, and idle and done
-// are the absence of anything to say. What is left is what wants you,
-// or is unusual: waiting, failed, outside conn.
+// say nothing: the margin says running and working, and idle is the
+// absence of anything to say; a run that ended says how it did and when
+// instead. What is left is what wants you, or is unusual: waiting,
+// failed, outside conn.
 func stated(state string) string {
 	switch state {
 	case "", "idle", "done", "running", "working":

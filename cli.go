@@ -576,7 +576,7 @@ func startNamed(srv *tmux.Server, name, command, dir string) (string, error) {
 func runLine(srv *tmux.Server, name, command string) string {
 	return "trap : INT\n(\n" + command + "\n)\n" +
 		"conn_status=$?\n" +
-		shell.Quote(srv.Tmux) + " -S " + shell.Quote(srv.Socket) + " set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$conn_status\"\n" +
+		shell.Quote(srv.Tmux) + " -S " + shell.Quote(srv.Socket) + " set-option -p -t \"$TMUX_PANE\" " + endedMark + " \"$(date +%s)\" \\; set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$conn_status\"\n" +
 		"printf '\\n[%s exited %s]\\n' " + shell.Quote(name) + " \"$conn_status\"\n" +
 		shell.HoldOpen
 }
@@ -584,7 +584,7 @@ func runLine(srv *tmux.Server, name, command string) string {
 // named is the commands that mark a pane as a named process: the name,
 // the command and the directory it was started with, and no end yet.
 func named(id, name, command, dir string) []tmux.Cmd {
-	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir), {"set-option", "-pu", "-t", id, exitMark}}
+	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir), {"set-option", "-pu", "-t", id, exitMark}, {"set-option", "-pu", "-t", id, endedMark}}
 }
 
 // restartNamed starts a named process again in its pane, as it was

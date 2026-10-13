@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	term "github.com/charmbracelet/x/term"
 	"github.com/w0zro/conn/internal/shell"
@@ -416,32 +417,34 @@ type pane struct {
 	ID      string
 	Window  string // the window's id
 	Dead    bool
-	PID     int    // what the pane runs, as started
-	TTY     string // without /dev/
-	Panel   bool   // conn's own
-	Hold    bool   // conn's blank, standing in the workspace
-	Session string // the conversation conn started in it
-	Name    string // the name conn u started it under
-	Exit    string // how what conn u started ended, once it has
-	Command string // what tmux says runs in it now
+	PID     int       // what the pane runs, as started
+	TTY     string    // without /dev/
+	Panel   bool      // conn's own
+	Hold    bool      // conn's blank, standing in the workspace
+	Session string    // the conversation conn started in it
+	Name    string    // the name conn u started it under
+	Exit    string    // how what conn u started ended, once it has
+	Ended   time.Time // when it ended, once it has
+	Command string    // what tmux says runs in it now
 	Dir     string
 }
 
 // The marks conn sets on the panes conn u starts: the name, the
-// command and the directory it was started with, and how it ended,
-// which the pane sets itself.
+// command and the directory it was started with, and how and when it
+// ended, which the pane sets itself.
 const (
-	nameMark = "@conn_name"
-	runMark  = "@conn_run"
-	dirMark  = "@conn_dir"
-	exitMark = "@conn_exit"
+	nameMark  = "@conn_name"
+	runMark   = "@conn_run"
+	dirMark   = "@conn_dir"
+	exitMark  = "@conn_exit"
+	endedMark = "@conn_ended"
 )
 
 // The fields are separated by a space: tmux turns a tab into an
 // underscore when it prints to a pipe in the C locale. Every field but
 // the last is one token — a name conn u takes has no space in it — and
 // the directory, which can hold a space, is last and taken whole.
-const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + exitMark + "} #{pane_current_command} #{pane_current_path}"
+const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + exitMark + "} #{" + endedMark + "} #{pane_current_command} #{pane_current_path}"
 
 // panes is every pane in the server.
 func panes(srv *tmux.Server) ([]pane, error) {
@@ -455,15 +458,19 @@ func panes(srv *tmux.Server) ([]pane, error) {
 func parsePanes(out string) []pane {
 	var ps []pane
 	for _, l := range strings.Split(out, "\n") {
-		f := strings.SplitN(l, " ", 12)
-		if len(f) < 12 {
+		f := strings.SplitN(l, " ", 13)
+		if len(f) < 13 {
 			continue
 		}
 		pid, _ := strconv.Atoi(f[3])
+		var ended time.Time
+		if at, err := strconv.ParseInt(f[10], 10, 64); err == nil && at > 0 {
+			ended = time.Unix(at, 0)
+		}
 		ps = append(ps, pane{
 			ID: f[0], Window: f[1], Dead: f[2] == "1", PID: pid,
 			TTY: strings.TrimPrefix(f[4], "/dev/"), Panel: f[5] == "1", Hold: f[6] == "1", Session: f[7],
-			Name: f[8], Exit: f[9], Command: f[10], Dir: f[11],
+			Name: f[8], Exit: f[9], Ended: ended, Command: f[11], Dir: f[12],
 		})
 	}
 	return ps

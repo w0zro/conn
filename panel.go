@@ -2000,7 +2000,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 // or is unusual: waiting, failed, outside conn.
 func stated(state string) string {
 	switch state {
-	case "", "idle", "done", "running":
+	case "", "idle", "done", "running", "working":
 		return ""
 	}
 	return state

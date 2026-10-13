@@ -89,6 +89,9 @@ type model struct {
 	rest []row
 	// A verb pressed and waiting for its object, blank for none.
 	verb string
+	// The pane the keys were last in, by project: opening a project
+	// again puts them back in it.
+	lastIn map[string]string
 	// rc's list of the conversations at rest: whether it stands, what
 	// is typed to find one, and the cursor in it.
 	listing bool
@@ -705,7 +708,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.goTo(r)
 		}
 		if p, ok := m.lineUnder(); ok && !m.isOpen(p) {
-			return m.open(p)
+			return m.openInto(p)
 		}
 	case "n":
 		id := newID()
@@ -867,6 +870,7 @@ func (m model) openOn(p pane) (tea.Model, tea.Cmd) {
 		m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
 		m.searching, m.question = false, ""
 	}
+	m = m.attached(m.cur.Root, p.ID)
 	m.follow, m.asked, m.followAt = p.ID, p.ID, time.Now()
 	return m, tea.Batch(m.showing(p.ID, true), m.read())
 }
@@ -883,6 +887,7 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.hitAt < len(m.found) {
 			h := m.found[m.hitAt]
+			m = m.attached(m.cur.Root, m.said[h.said].pane.ID)
 			return m, land(m.ws, m.srv, m.said[h.said].pane, h.k, m.query)
 		}
 		return m, nil
@@ -1114,8 +1119,46 @@ func (m model) start(dir, cmd, session string) (tea.Model, tea.Cmd) {
 		m.note = err.Error()
 		return m, nil
 	}
+	m = m.attached(m.cur.Root, id)
 	m.follow, m.asked, m.followAt = id, id, time.Now()
 	return m, tea.Batch(m.showing(id, true), m.read())
+}
+
+// attached notes the pane the keys have gone into, under its project.
+func (m model) attached(root, id string) model {
+	if m.lastIn == nil {
+		m.lastIn = map[string]string{}
+	}
+	m.lastIn[root] = id
+	return m
+}
+
+// openInto opens a project and puts the keys back in the pane they
+// were last in there, while it stands.
+func (m model) openInto(p project) (tea.Model, tea.Cmd) {
+	next, cmd := m.open(p)
+	m = next.(model)
+	id := m.lastIn[p.Root]
+	if id == "" || !m.stands(id) {
+		return m, cmd
+	}
+	m.follow, m.asked, m.followAt = id, id, time.Now()
+	return m, tea.Batch(m.showing(id, true), cmd)
+}
+
+// stands says whether a pane is one the keys can go into: a pane of a
+// process, not the panel's own and not a hold, and not ended.
+func (m model) stands(id string) bool {
+	if m.srv == nil {
+		return false
+	}
+	ps, _ := panes(m.srv)
+	for _, p := range ps {
+		if p.ID == id && !p.Hold && !p.Dead && !p.Panel {
+			return true
+		}
+	}
+	return false
 }
 
 // leave lets the terminal go; what runs in conn keeps on.
@@ -1127,7 +1170,7 @@ func (m model) leave() string {
 }
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
-	m.screen, m.cur, m.rows, m.cursor = onProject, p, nil, 0
+	m.screen, m.cur, m.rows, m.cursor, m.follow = onProject, p, nil, 0, ""
 	return m, m.read()
 }
 
@@ -1136,6 +1179,7 @@ func (m model) open(p project) (tea.Model, tea.Cmd) {
 func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 	switch {
 	case r.pane != nil:
+		m = m.attached(m.cur.Root, r.pane.ID)
 		m.asked = r.pane.ID
 		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:

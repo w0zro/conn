@@ -1364,3 +1364,36 @@ func TestItems(t *testing.T) {
 		t.Error("the cursor is not on /c's line")
 	}
 }
+
+// Opening a project again puts the keys back in the pane they were
+// last in there, while it stands; a project never gone into opens on
+// its rows.
+func TestOpenIntoLastPane(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	id, err := openWindow(srv, "a", t.TempDir(), "sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := project{Name: "a", Root: "/a"}, project{Name: "b", Root: "/b"}
+	m := model{srv: srv, own: panel, ws: ws, screen: onProject, cur: a, rows: []row{{pane: &pane{ID: id}}}}
+	next, _ := m.goTo(m.rows[0])
+	m = next.(model)
+	if m.lastIn["/a"] != id {
+		t.Fatalf("goTo did not note the pane: %v", m.lastIn)
+	}
+	next, _ = m.openInto(b)
+	if m = next.(model); m.cur.Root != "/b" || m.follow != "" {
+		t.Errorf("b opened into %q", m.follow)
+	}
+	next, cmd := m.openInto(a)
+	if m = next.(model); m.cur.Root != "/a" || m.follow != id || cmd == nil {
+		t.Errorf("a opened into %q", m.follow)
+	}
+	m.lastIn["/b"] = "%999"
+	next, _ = m.openInto(b)
+	if m = next.(model); m.follow != "" {
+		t.Error("b opened into a pane that is gone")
+	}
+}

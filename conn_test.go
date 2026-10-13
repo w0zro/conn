@@ -105,6 +105,70 @@ func TestRepoRoot(t *testing.T) {
 	}
 }
 
+// A row in a worktree says the branch it has out; a row in the
+// repository's own checkout says nothing; in a folder of repositories,
+// the repository comes first. A conversation at rest says the same.
+func TestPlaced(t *testing.T) {
+	base, _ := filepath.EvalSymlinks(t.TempDir())
+	folder := filepath.Join(base, "shop")
+	repo := filepath.Join(folder, "api")
+	if err := os.MkdirAll(filepath.Join(repo, "src"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git(t, repo, "init", "-q", "-b", "main")
+	git(t, repo, "commit", "-q", "--allow-empty", "-m", "start")
+	tree := filepath.Join(base, "elsewhere", "api-fix")
+	git(t, repo, "worktree", "add", "-q", tree)
+	// A directory under the system's scratch is no project; the test
+	// says which repository each is in, and git says the checkout.
+	k := newKnown()
+	k.root[filepath.Join(repo, "src")], k.root[tree], k.root[repo] = repo, repo, repo
+	rows := []row{
+		{pane: &pane{ID: "%1", Dir: filepath.Join(repo, "src")}},
+		{pane: &pane{ID: "%2", Dir: tree}},
+		{conv: &conversation{ID: "c", Dir: tree}},
+	}
+	placed(rows, project{Name: "api", Root: repo}, k)
+	for i, want := range []string{"", "api-fix", "api-fix"} {
+		if rows[i].branch != want || rows[i].repo != "" {
+			t.Errorf("row %d placed as %q in %q, want branch %q in no repository", i, rows[i].branch, rows[i].repo, want)
+		}
+	}
+	git(t, tree, "checkout", "-q", "-b", "fix-login")
+	placed(rows, project{Name: "shop", Root: folder, Group: true}, k)
+	if r := rows[1]; r.repo != "api" || r.branch != "fix-login" {
+		t.Errorf("in a folder, the worktree's row is placed as %q · %q, want api · fix-login", r.repo, r.branch)
+	}
+	if got := rows[1].place(); len(got) != 2 || got[0].s != "api · " || got[1].s != "fix-login · " {
+		t.Errorf("place = %+v", got)
+	}
+}
+
+// A verb starts in the checkout the cursor stands in: a repository's
+// stack runs there where the checkout is the repository's, and at the
+// repository otherwise; with the cursor on no row, at the project.
+func TestPlaceFor(t *testing.T) {
+	k := newKnown()
+	k.tree["/w/src"], k.root["/w"], k.root["/w/src"] = "/w", "/r", "/r"
+	m := model{screen: onProject, cur: project{Name: "r", Root: "/r"}, known: k, rows: []row{{pane: &pane{ID: "%1", Dir: "/w/src"}}}}
+	if got := m.at(); got != "/w" {
+		t.Errorf("at = %q, want /w", got)
+	}
+	if got := m.placeFor("/r"); got != "/w" {
+		t.Errorf("the repository's stack runs at %q, want its worktree /w", got)
+	}
+	if got := m.placeFor("/other"); got != "/other" {
+		t.Errorf("another repository's stack runs at %q, want /other", got)
+	}
+	if got := m.here(); got != "/w" {
+		t.Errorf("here = %q, want /w", got)
+	}
+	m.rows = nil
+	if got := m.here(); got != "/r" || m.at() != "" {
+		t.Errorf("on no row, here = %q, at = %q; want /r and nothing", got, m.at())
+	}
+}
+
 func TestTemporaryIsNoProject(t *testing.T) {
 	if got := rootOf(t.TempDir()); got != "" {
 		t.Errorf("rootOf a temporary directory = %q", got)

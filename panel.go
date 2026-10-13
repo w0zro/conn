@@ -114,6 +114,19 @@ type row struct {
 	state     string   // working, waiting or idle, where Claude Code says
 	ports     []string // what it listens on
 	repo      string   // in a folder of repositories, the one it is in
+	branch    string   // in a worktree, the branch it has out
+}
+
+// place is what a row says of where it runs, before its name: the
+// repository in a folder, the branch in a worktree.
+func (r row) place() []piece {
+	var out []piece
+	for _, p := range []string{r.repo, r.branch} {
+		if p != "" {
+			out = append(out, piece{p + " · ", gray})
+		}
+	}
+	return out
 }
 
 // dir is where a row's work is.
@@ -130,12 +143,15 @@ func (r row) dir() string {
 }
 
 // known is what has been read off files that do not change under it:
-// where each transcript was had, and the project each directory is in.
-// A title is kept while its transcript has not moved.
+// where each transcript was had, the project each directory is in, the
+// checkout it is in, and where a checkout keeps its HEAD. A title is
+// kept while its transcript has not moved.
 type known struct {
 	mu     sync.Mutex
 	cwd    map[string]string
 	root   map[string]string
+	tree   map[string]string
+	head   map[string]string
 	titles map[string]titled
 	folder map[string]bool
 }
@@ -146,7 +162,7 @@ type titled struct {
 }
 
 func newKnown() *known {
-	return &known{cwd: map[string]string{}, root: map[string]string{}, titles: map[string]titled{}, folder: map[string]bool{}}
+	return &known{cwd: map[string]string{}, root: map[string]string{}, tree: map[string]string{}, head: map[string]string{}, titles: map[string]titled{}, folder: map[string]bool{}}
 }
 
 func (k *known) cwdOf(c conversation) string {
@@ -187,6 +203,37 @@ func (k *known) rootOf(dir string) string {
 		k.mu.Unlock()
 	}
 	return r
+}
+
+// treeOf is the checkout a directory is in: a worktree's own top, the
+// repository's, or the directory where it is in none.
+func (k *known) treeOf(dir string) string {
+	k.mu.Lock()
+	t, ok := k.tree[dir]
+	k.mu.Unlock()
+	if !ok {
+		t = checkout(dir)
+		k.mu.Lock()
+		k.tree[dir] = t
+		k.mu.Unlock()
+	}
+	return t
+}
+
+// branchOf is the branch a checkout has out, read off its HEAD each
+// time, since a checkout changes branches under conn; or the
+// checkout's own name, detached.
+func (k *known) branchOf(tree string) string {
+	k.mu.Lock()
+	h, ok := k.head[tree]
+	k.mu.Unlock()
+	if !ok {
+		h = headPath(tree)
+		k.mu.Lock()
+		k.head[tree] = h
+		k.mu.Unlock()
+	}
+	return branchAt(h, tree)
 }
 
 func (k *known) titleOf(c conversation) string {
@@ -375,16 +422,29 @@ func (m model) read() tea.Cmd {
 					r.rows = append(r.rows, row)
 				}
 			}
-			// In a folder of repositories, a row says whose it is.
-			if cur.Group {
-				for i := range r.rows {
-					if root := k.rootOf(r.rows[i].dir()); root != cur.Root {
-						r.rows[i].repo = filepath.Base(root)
-					}
-				}
-			}
+			placed(r.rows, *cur, k)
+			placed(r.rest, *cur, k)
 		}
 		return r
+	}
+}
+
+// placed says on each row where it runs, where that is not the
+// project's own checkout: in a folder of repositories, the repository;
+// in a worktree, the branch it has out.
+func placed(rows []row, cur project, k *known) {
+	for i := range rows {
+		dir := rows[i].dir()
+		if dir == "" {
+			continue
+		}
+		root := k.rootOf(dir)
+		if cur.Group && root != cur.Root {
+			rows[i].repo = filepath.Base(root)
+		}
+		if tree := k.treeOf(dir); root != "" && tree != root {
+			rows[i].branch = k.branchOf(tree)
+		}
 	}
 }
 
@@ -726,13 +786,13 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n":
 		id := newID()
-		return m.start(m.cur.Root, newCommand(m.told(), id, ""), id)
+		return m.start(m.here(), newCommand(m.told(), id, ""), id)
 	case "a":
 		if r, ok := m.under(); ok {
 			return m.hand(r)
 		}
 	case "s":
-		return m.start(m.cur.Root, "", "")
+		return m.start(m.here(), "", "")
 	case "q", "ctrl+c":
 		m.note = m.leave()
 	case "x":
@@ -1045,10 +1105,37 @@ func (m model) restart(p proc) tea.Cmd {
 	}
 }
 
-// up starts a command typed at ! at the project's root, out of sight,
-// under the name of its program, as conn u does.
+// at is the checkout the cursor stands in: the row under it's, or
+// blank on no row.
+func (m model) at() string {
+	if r, ok := m.under(); ok {
+		if dir := r.dir(); dir != "" {
+			return m.known.treeOf(dir)
+		}
+	}
+	return ""
+}
+
+// here is where a verb starts something: the checkout the cursor
+// stands in, or the project's root.
+func (m model) here() string {
+	return or(m.at(), m.cur.Root)
+}
+
+// placeFor is where a repository's process runs: the checkout the
+// cursor stands in where that is a checkout of the repository, and
+// otherwise the repository itself.
+func (m model) placeFor(repo string) string {
+	if tree := m.at(); tree != "" && m.known.rootOf(tree) == repo {
+		return tree
+	}
+	return repo
+}
+
+// up starts a command typed at ! where the cursor stands, out of
+// sight, under the name of its program, as conn u does.
 func (m model) up(command string) tea.Cmd {
-	srv, root, rows := m.srv, m.cur.Root, m.rows
+	srv, root, rows := m.srv, m.here(), m.rows
 	return func() tea.Msg {
 		name := nameFor(command)
 		said, err := startIn(srv, rows, name, command, root)
@@ -1059,21 +1146,27 @@ func (m model) up(command string) tea.Cmd {
 	}
 }
 
-// startRoles starts each process of a role, off the loop, each at its
-// own root, or the project's where it has none, and writes each down
-// as what the role means there where asked to.
+// startRoles starts each process of a role, off the loop, each in its
+// repository's checkout where the cursor stands, or at its repository,
+// and writes each down under the repository as what the role means
+// there where asked to.
 func (m model) startRoles(list []stacked, as role, record bool) tea.Cmd {
-	srv, root, rows := m.srv, m.cur.Root, m.rows
+	srv, rows := m.srv, m.rows
+	type place struct{ repo, at string }
+	places := make([]place, len(list))
+	for i, s := range list {
+		repo := or(s.root, m.cur.Root)
+		places[i] = place{repo, m.placeFor(repo)}
+	}
 	return func() tea.Msg {
 		var said []string
-		for _, s := range list {
-			at := or(s.root, root)
-			r, err := startIn(srv, rows, s.name, s.command, at)
+		for i, s := range list {
+			r, err := startIn(srv, rows, s.name, s.command, places[i].at)
 			if err != nil {
 				return acted(s.name + ": " + err.Error())
 			}
 			if record {
-				_ = recordStart(startedPath(srv.Socket), started{Root: at, Name: s.name, Command: s.command, Role: as})
+				_ = recordStart(startedPath(srv.Socket), started{Root: places[i].repo, Name: s.name, Command: s.command, Role: as})
 			}
 			said = append(said, r)
 		}
@@ -1646,9 +1739,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 	if depth > 0 {
 		left = append(left, piece{strings.Repeat("  ", depth), ink})
 	}
-	if r.repo != "" {
-		left = append(left, piece{r.repo + " · ", gray})
-	}
+	left = append(left, r.place()...)
 	switch {
 	case r.conv != nil:
 		name := r.conv.Title
@@ -1969,11 +2060,7 @@ func (m model) drawList(lines []string) ([]string, foot) {
 	first := max(m.pickAt-room+1, 0)
 	for i := first; i < len(shown) && i < first+room; i++ {
 		r := shown[i]
-		var left []piece
-		if r.repo != "" {
-			left = append(left, piece{r.repo + " · ", gray})
-		}
-		left = append(left, piece{or(r.conv.Title, r.conv.ID), ink})
+		left := append(r.place(), piece{or(r.conv.Title, r.conv.ID), ink})
 		lines = append(lines, m.row(left, piece{ago(r.conv.When), gray}, i == m.pickAt))
 	}
 	if len(shown) == 0 {

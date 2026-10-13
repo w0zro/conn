@@ -875,7 +875,12 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.takeProjects(msg.projects)
 		if m.screen == onProject && msg.root == m.cur.Root {
+			// A project with nothing running is read all the same: nil
+			// rows would say the read has not come back.
 			m.rows = msg.rows
+			if m.rows == nil {
+				m.rows = []row{}
+			}
 		}
 		if m.screen == onProject {
 			m.cursor = keep(m.cursor, on, m.items(), m.itemKey)

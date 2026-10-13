@@ -1883,6 +1883,25 @@ func TestKeyBar(t *testing.T) {
 	}
 }
 
+// A project with nothing running is read all the same: the read says
+// so, and what to do, in place of reading.
+func TestReadEmpty(t *testing.T) {
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, width: 80, height: 30}
+	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "reading…") {
+		t.Errorf("before the read, the screen does not say reading: %q", lines)
+	}
+	next, _ := m.Update(read{root: "/p"})
+	m = next.(model)
+	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "nothing running, and no conversations here yet; n starts one") {
+		t.Errorf("after an empty read, the screen does not say so: %q", lines)
+	}
+	next, _ = m.Update(read{root: "/p", rest: []row{{conv: &conversation{ID: "a"}}}})
+	m = next.(model)
+	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "nothing running; one conversation at rest, rc picks one up") {
+		t.Errorf("after a read with a conversation at rest, the screen does not say so: %q", lines)
+	}
+}
+
 // r waits for its object: r again restarts the row, c lists the
 // conversations at rest with a find line, and any other key puts the
 // verb away and says what it waited for.

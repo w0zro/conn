@@ -1288,10 +1288,13 @@ func TestTalk(t *testing.T) {
 	if m.question != "" || m.follow == "" || cmd == nil {
 		t.Fatalf("c on db asked, or opened nothing: question %q, follow %q", m.question, m.follow)
 	}
-	ps, _ := panes(srv)
+	// The pane runs its shell for a moment before the client.
 	found := false
-	for _, p := range ps {
-		found = found || (p.ID == m.follow && p.Command == "sleep")
+	for deadline := time.Now().Add(2 * time.Second); !found && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		ps, _ := panes(srv)
+		for _, p := range ps {
+			found = found || (p.ID == m.follow && p.Command == "sleep")
+		}
 	}
 	if !found {
 		t.Errorf("no pane %s running the client", m.follow)

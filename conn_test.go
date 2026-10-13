@@ -1728,9 +1728,10 @@ func plainText(s string) string {
 }
 
 // A run that has ended says how long ago in the figure column, which
-// says it ended well; a process of the stack that did not says failed
-// and its status first, and a check's mark says its verdict. One from
-// before conn wrote the time down says only how it did.
+// says it ended well; a process of the stack that did not says its
+// status first, the accent saying it failed, and a check's mark says
+// its verdict. One from before conn wrote the time down says only how
+// it did.
 func TestARestingRunSaysWhen(t *testing.T) {
 	m := model{screen: onProject, cur: project{Root: "/p"}, width: 60}
 	for _, c := range []struct {
@@ -1745,8 +1746,9 @@ func TestARestingRunSaysWhen(t *testing.T) {
 		{placeChecks, "0", 0, "done", markPass + " test"},
 		{placeChecks, "1", 0, "failed 1", markFail + " test"},
 		{placeStack, "0", 4 * time.Minute, "done", "4m"},
-		{placeStack, "2", 9 * time.Minute, "failed 2", "failed 2 9m"},
+		{placeStack, "2", 9 * time.Minute, "failed 2", "2 9m"},
 		{placeStack, "0", 0, "done", "done"},
+		{placeStack, "2", 0, "failed 2", "2"},
 	} {
 		p := pane{ID: "%1", Name: "test", Exit: c.exit}
 		if c.ago > 0 {

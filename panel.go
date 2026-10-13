@@ -2065,19 +2065,15 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		}
 		right = piece{stated(r.state), gray}
 		// A run that has ended says how long ago, which says it ended
-		// well; one that did not says so first. A check's mark is its
-		// verdict, so its figure is the age alone, and its status is
-		// for whoever reads the output; a process of the stack that
-		// ended says its status, since a server ending at all is the
-		// news. One from before conn wrote the time down says only how
-		// it did.
+		// well; one that did not says its status first, in the accent.
+		// One from before conn wrote the time down says only how it
+		// did.
 		if r.pane.Name != "" && r.pane.Exit != "" {
-			how, when := ended(r.pane.Exit), ago(r.pane.Ended)
-			if r.stand == placeChecks {
-				// The mark says pass or fail; the figure is the age.
-				how = ""
-			}
-			if how == "done" && when != "" {
+			// The accent says a run failed; the figure keeps the
+			// status, which says how, and the age. A check's mark says
+			// its verdict, so its figure is the age alone.
+			how, when := strings.TrimPrefix(ended(r.pane.Exit), "failed "), ago(r.pane.Ended)
+			if r.stand == placeChecks || (how == "done" && when != "") {
 				how = ""
 			}
 			right.s = strings.TrimSpace(how + " " + when)
@@ -2088,8 +2084,8 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			left[at].st, right.st = accent, accent
 		}
 	case r.outside != nil:
+		// The mark says it is outside conn; the figure is its ports.
 		left = append(left, piece{r.outside.Name, ink})
-		right = piece{r.state, gray}
 	}
 	if len(r.ports) > 0 {
 		right.s = strings.TrimSpace(":" + strings.Join(r.ports, " :") + "  " + right.s)

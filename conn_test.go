@@ -242,6 +242,12 @@ func TestWorktreeLine(t *testing.T) {
 	if len(cols) != 2 || cols[1] != cols[0]+2 {
 		t.Errorf("web stands at columns %v, want the worktree's two in from the project's", cols)
 	}
+	// The worktree stands a row off what is above it.
+	for i, l := range lines {
+		if strings.TrimSpace(plain.ReplaceAllString(l, "")) == "fix-login" && (i == 0 || strings.TrimSpace(lines[i-1]) != "") {
+			t.Errorf("no blank line before the worktree's head: %q", lines[max(i-1, 0):i+1])
+		}
+	}
 }
 
 // A verb starts in the checkout the cursor stands in: a repository's

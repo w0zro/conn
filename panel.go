@@ -1024,9 +1024,9 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.endAll(shown[m.cursor])
 		}
 	case "up", "ctrl+p", "ctrl+k":
-		m.cursor = max(m.cursor-1, 0)
+		m.cursor = ring(m.cursor, -1, len(shown))
 	case "down", "ctrl+n", "ctrl+j":
-		m.cursor = min(m.cursor+1, max(len(shown)-1, 0))
+		m.cursor = ring(m.cursor, 1, len(shown))
 	case "ctrl+c":
 		m.note = m.leave()
 	case "?":
@@ -1074,9 +1074,13 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
 		return m, m.read()
 	case "up", "k", "ctrl+p":
-		m.cursor, m.follow = max(m.cursor-1, 0), ""
+		m.cursor, m.follow = ring(m.cursor, -1, len(m.items())), ""
 	case "down", "j", "ctrl+n":
-		m.cursor, m.follow = min(m.cursor+1, max(len(m.items())-1, 0)), ""
+		m.cursor, m.follow = ring(m.cursor, 1, len(m.items())), ""
+	case "g":
+		m.cursor, m.follow = 0, ""
+	case "G":
+		m.cursor, m.follow = max(len(m.items())-1, 0), ""
 	case "enter":
 		if r, ok := m.under(); ok {
 			return m.goTo(r)
@@ -1269,10 +1273,10 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "up", "ctrl+p", "ctrl+k":
-		m.hitAt = max(m.hitAt-1, 0)
+		m.hitAt = ring(m.hitAt, -1, len(m.found))
 		return m, nil
 	case "down", "ctrl+n", "ctrl+j":
-		m.hitAt = min(m.hitAt+1, max(len(m.found)-1, 0))
+		m.hitAt = ring(m.hitAt, 1, len(m.found))
 		return m, nil
 	case "backspace":
 		if r := []rune(m.query); len(r) > 0 {
@@ -1857,7 +1861,7 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
@@ -2433,6 +2437,16 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// ring is a cursor moved by one over a list of n: past the last it
+// is on the first, and before the first on the last, so a list is
+// gone around from either end.
+func ring(at, by, n int) int {
+	if n <= 0 {
+		return 0
+	}
+	return ((at+by)%n + n) % n
+}
+
 // counted is a word for n of a thing: the word alone for one, the
 // figure before it and an s after it for more.
 func counted(n int, word string) string {
@@ -2477,9 +2491,9 @@ func (m model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.goTo(shown[m.pickAt])
 		}
 	case "up", "ctrl+p", "ctrl+k":
-		m.pickAt = max(m.pickAt-1, 0)
+		m.pickAt = ring(m.pickAt, -1, len(shown))
 	case "down", "ctrl+n", "ctrl+j":
-		m.pickAt = min(m.pickAt+1, max(len(shown)-1, 0))
+		m.pickAt = ring(m.pickAt, 1, len(shown))
 	case "backspace":
 		if r := []rune(m.pick); len(r) > 0 {
 			m.pick, m.pickAt = string(r[:len(r)-1]), 0

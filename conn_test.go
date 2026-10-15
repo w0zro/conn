@@ -1265,7 +1265,7 @@ func TestHits(t *testing.T) {
 	}
 }
 
-func TestAround(t *testing.T) {
+func TestWrapped(t *testing.T) {
 	if got, at := around("short line", 6, 40); got != "short line" || at != 6 {
 		t.Errorf("around a short line = %q, %d", got, at)
 	}
@@ -2208,6 +2208,65 @@ func TestParseAgain(t *testing.T) {
 	p := againPrompt(t.TempDir(), roleCheck, failed[:1], map[string][]string{"": {"sh: pnpm: command not found", "[test exited 127]"}})
 	if !strings.Contains(p, "test: npm test\nexited ") || !strings.Contains(p, "command not found") || strings.Contains(p, "[test exited") {
 		t.Errorf("againPrompt = %q", p)
+	}
+}
+
+// Every list is a ring: j past the last row is on the first, k
+// before the first on the last, and the same on the projects, the
+// conversations at rest, and the search's matches, by the keys that
+// move there. g and G go to the top and the bottom.
+func TestRing(t *testing.T) {
+	for _, c := range []struct{ at, by, n, want int }{{0, -1, 3, 2}, {2, 1, 3, 0}, {1, 1, 3, 2}, {0, 1, 0, 0}, {0, -1, 1, 0}} {
+		if got := ring(c.at, c.by, c.n); got != c.want {
+			t.Errorf("ring(%d, %d, %d) = %d, want %d", c.at, c.by, c.n, got, c.want)
+		}
+	}
+	press := func(m model, k tea.Key) model {
+		next, _ := m.Update(tea.KeyPressMsg(k))
+		return next.(model)
+	}
+	j, k, g, G := tea.Key{Text: "j", Code: 'j'}, tea.Key{Text: "k", Code: 'k'}, tea.Key{Text: "g", Code: 'g'}, tea.Key{Text: "G", Code: 'G', Mod: tea.ModShift}
+	ctrlJ, ctrlK := tea.Key{Code: 'j', Mod: tea.ModCtrl}, tea.Key{Code: 'k', Mod: tea.ModCtrl}
+	// The project: two rows and another project's line, three items.
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, projects: []project{{Root: "/p"}, {Root: "/q", Running: 1}}}
+	m.rows = []row{{pane: &pane{ID: "%1"}}, {pane: &pane{ID: "%2"}}}
+	if m = press(m, k); m.cursor != 2 {
+		t.Errorf("k from the top is at %d, want the bottom", m.cursor)
+	}
+	if m = press(m, j); m.cursor != 0 {
+		t.Errorf("j from the bottom is at %d, want the top", m.cursor)
+	}
+	if m = press(m, G); m.cursor != 2 {
+		t.Errorf("G is at %d, want the bottom", m.cursor)
+	}
+	if m = press(m, g); m.cursor != 0 {
+		t.Errorf("g is at %d, want the top", m.cursor)
+	}
+	// The projects.
+	ps := model{screen: onProjects, projects: []project{{Root: "/a"}, {Root: "/b"}, {Root: "/c"}}}
+	if ps = press(ps, ctrlK); ps.cursor != 2 {
+		t.Errorf("ctrl-k from the top of the projects is at %d", ps.cursor)
+	}
+	if ps = press(ps, ctrlJ); ps.cursor != 0 {
+		t.Errorf("ctrl-j from the bottom of the projects is at %d", ps.cursor)
+	}
+	// The conversations at rest.
+	m.listing = true
+	m.rest = []row{{conv: &conversation{ID: "a"}}, {conv: &conversation{ID: "b"}}}
+	if m = press(m, ctrlK); m.pickAt != 1 {
+		t.Errorf("ctrl-k from the top of the list is at %d", m.pickAt)
+	}
+	if m = press(m, ctrlJ); m.pickAt != 0 {
+		t.Errorf("ctrl-j from the bottom of the list is at %d", m.pickAt)
+	}
+	m.listing = false
+	// The search's matches.
+	m.searching, m.found = true, []hit{{}, {}}
+	if m = press(m, ctrlK); m.hitAt != 1 {
+		t.Errorf("ctrl-k from the top of the matches is at %d", m.hitAt)
+	}
+	if m = press(m, ctrlJ); m.hitAt != 0 {
+		t.Errorf("ctrl-j from the bottom of the matches is at %d", m.hitAt)
 	}
 }
 

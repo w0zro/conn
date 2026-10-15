@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -92,7 +93,7 @@ func TestLoad(t *testing.T) {
 		t.Errorf("conn's own from an empty directory: %v", err)
 	}
 	var whole map[string]any
-	_ = json.Unmarshal(connSheet, &whole)
+	_ = json.Unmarshal(connSheet(), &whole)
 	b, _ := json.Marshal(map[string]any{"light": whole["light"]})
 	if err := os.WriteFile(filepath.Join(dir, "paper.json"), b, 0o644); err != nil {
 		t.Fatal(err)
@@ -100,7 +101,7 @@ func TestLoad(t *testing.T) {
 	if th, err := Load(dir, "paper"); err != nil || th.Name != "paper" || th.Dark != Light {
 		t.Errorf("paper: %+v, %v", th, err)
 	}
-	if _, err := Load(dir, "nope"); err == nil || !strings.Contains(err.Error(), "there are conn, paper") {
+	if _, err := Load(dir, "nope"); err == nil || !strings.Contains(err.Error(), "there are conn, datum, paper, skelly") {
 		t.Errorf("a missing theme: %v", err)
 	}
 	for _, name := range []string{"", "../paper", ".hidden"} {
@@ -121,7 +122,7 @@ func TestLoad(t *testing.T) {
 func TestParse(t *testing.T) {
 	sheet := func(edit func(g map[string]any)) []byte {
 		var whole map[string]map[string]any
-		if err := json.Unmarshal(connSheet, &whole); err != nil {
+		if err := json.Unmarshal(connSheet(), &whole); err != nil {
 			t.Fatal(err)
 		}
 		edit(whole["dark"])
@@ -150,6 +151,24 @@ func TestParse(t *testing.T) {
 	for _, b := range []string{`{}`, `{"dusk": {}}`, `[]`} {
 		if _, err := Parse("mine", []byte(b)); err == nil {
 			t.Errorf("%s was read as a theme", b)
+		}
+	}
+}
+
+// Every theme conn ships reads, its dark ground dark and its light
+// ground light.
+func TestShippedThemes(t *testing.T) {
+	names := Names(t.TempDir())
+	if !slices.Equal(names, []string{"conn", "datum", "skelly"}) {
+		t.Errorf("conn ships %v", names)
+	}
+	for _, n := range names {
+		th, err := Load(t.TempDir(), n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !th.Dark.Dark() || th.Light.Dark() {
+			t.Errorf("%s: dark ground dark %v, light ground dark %v", n, th.Dark.Dark(), th.Light.Dark())
 		}
 	}
 }

@@ -7,7 +7,6 @@
 package theme
 
 import (
-	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -123,16 +122,18 @@ func Hex(c color.RGBA) string {
 // a color of its own, pale enough to be an edge on paper. The faint is
 // scheme[8] on dark; light needed its own, since ANSI-8 there reads as
 // a tint but nearly vanishes as text.
-//
-//go:embed conn.json
-var connSheet []byte
-
-// Conn is conn's own theme, read from the sheet it ships with, and Dark
-// and Light are its two grounds.
 var (
-	Conn        = mustParse("conn", connSheet)
+	// Conn is conn's own theme, sheets/conn.json, and Dark and Light
+	// are its two grounds.
+	Conn        = mustParse("conn", connSheet())
 	Dark, Light = Conn.Dark, Conn.Light
 )
+
+// connSheet is the sheet conn's own theme is read from.
+func connSheet() []byte {
+	b, _ := shippedSheet("conn")
+	return b
+}
 
 // A role by the name a sheet gives it, and where the ground keeps it.
 type role struct {

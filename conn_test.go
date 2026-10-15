@@ -1840,7 +1840,7 @@ func TestChooseGround(t *testing.T) {
 	}
 
 	// A sheet of one ground, its accent its own, worn by name.
-	b, err := os.ReadFile("internal/theme/conn.json")
+	b, err := os.ReadFile("internal/theme/sheets/conn.json")
 	if err != nil {
 		t.Fatal(err)
 	}

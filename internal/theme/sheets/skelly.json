@@ -1,0 +1,62 @@
+{
+  "dark": {
+    "ground": "#101211",
+    "ink": "#E6E9E3",
+    "scheme": [
+      "#202221", "#FF9B7D", "#C7F699", "#D8BD51", "#98BFFF", "#C8ABFF", "#28D6DF", "#AEB1AD",
+      "#878A86", "#FFC0AE", "#ADE670", "#F2CF3B", "#B7D2FF", "#D7C6FF", "#00EDF7", "#E6E9E3"
+    ],
+    "accent": "#B9F27C",
+    "shimmer": "#C7F699",
+    "border": "#272927",
+    "surface": "#181A19",
+    "running": "#E6E9E3",
+    "gray": "#878A86",
+    "faint": "#626562",
+    "parchment": "#AEB1AD",
+    "block": "#B9F27C",
+    "onBlock": "#101211",
+    "chosen": "#11190A",
+    "chosenInk": "#C7F699",
+    "cursor": "#B9F27C",
+    "messageBg": "#202221",
+    "messageHoverBg": "#272927",
+    "toolBg": "#181A19",
+    "diffAddedBg": "#11190A",
+    "diffRemovedBg": "#1C110E",
+    "diffAddedDim": "#11160E",
+    "diffRemovedDim": "#161210",
+    "diffAddedWord": "#344B19",
+    "diffRemovedWord": "#53271B"
+  },
+  "light": {
+    "ground": "#EDEFEA",
+    "ink": "#151814",
+    "scheme": [
+      "#151814", "#9D2800", "#416B10", "#6F5C00", "#2A5AAB", "#6934C5", "#006B70", "#626560",
+      "#434642", "#802200", "#2F5300", "#564700", "#03409C", "#4F2C93", "#005256", "#7C7F7A"
+    ],
+    "accent": "#416B10",
+    "shimmer": "#2F5300",
+    "border": "#D2D4CF",
+    "surface": "#E3E5E0",
+    "running": "#151814",
+    "gray": "#626560",
+    "faint": "#7C7F7A",
+    "parchment": "#434642",
+    "block": "#9BE05A",
+    "onBlock": "#151814",
+    "chosen": "#E5F5D9",
+    "chosenInk": "#416B10",
+    "cursor": "#416B10",
+    "messageBg": "#DEE0DB",
+    "messageHoverBg": "#D2D4CF",
+    "toolBg": "#E3E5E0",
+    "diffAddedBg": "#E5F5D9",
+    "diffRemovedBg": "#FBEAE5",
+    "diffAddedDim": "#E9F2E2",
+    "diffRemovedDim": "#F4EDE8",
+    "diffAddedWord": "#B5DC98",
+    "diffRemovedWord": "#F7BEAE"
+  }
+}

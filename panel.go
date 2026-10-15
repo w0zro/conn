@@ -1722,8 +1722,8 @@ func wear(g theme.Ground) {
 	keyInk = fg(theme.Hex(g.Ink)).Bold(true)
 	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
 	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Accent)).Bold(true)
-	turning = fg(g.Running)
-	chosenTurning = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Running))
+	turning = fg(g.Turning)
+	chosenTurning = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Turning))
 	ruleStyle = fg(g.Border)
 }
 

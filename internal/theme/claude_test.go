@@ -71,9 +71,9 @@ func TestTheClaudeThemeIsDrawnFromConnsOwn(t *testing.T) {
 }
 
 // A verdict is slot-shaped, so it is written as the slot and follows
-// the pane's own sixteen. The accent is "you, here": the mark, the
-// dialog that stops and waits, the meter, and the > before what you
-// said; never a mode.
+// the pane's own sixteen. The accent is "you, here": the dialog that
+// stops and waits, the meter, and the > before what you said; never a
+// mode.
 func TestTheClaudeThemeSpendsItsColorsWhereItSays(t *testing.T) {
 	at := map[string]string{}
 	for _, grp := range ClaudeTheme(Dark) {
@@ -86,10 +86,15 @@ func TestTheClaudeThemeSpendsItsColorsWhereItSays(t *testing.T) {
 			t.Errorf("%s is %s, not a slot", k, at[k])
 		}
 	}
-	for _, k := range []string{"claude", "permission", "rate_limit_fill", "subtle"} {
+	for _, k := range []string{"permission", "rate_limit_fill", "subtle"} {
 		if at[k] != Dark.Accent {
 			t.Errorf("%s is %s, not the accent", k, at[k])
 		}
+	}
+	// The mark turns while Claude works, so it is drawn at work: the
+	// accent in conn's own, a hue of its own where a theme has one.
+	if at["claude"] != Dark.AtWork || at["claudeShimmer"] != Dark.AtWorkShimmer {
+		t.Errorf("the mark is %s and %s, not at work", at["claude"], at["claudeShimmer"])
 	}
 	for _, mode := range []string{"planMode", "autoAccept", "fastMode", "bashBorder", "promptBorder"} {
 		if at[mode] == Dark.Accent {

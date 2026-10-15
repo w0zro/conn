@@ -47,8 +47,8 @@ func ClaudeTheme(g Ground) [][]token {
 		ink           = Hex(g.Ink)
 	)
 	return [][]token{{
-		{"claude", accent},
-		{"claudeShimmer", g.Shimmer},
+		{"claude", g.AtWork},
+		{"claudeShimmer", g.AtWorkShimmer},
 	}, {
 		{"text", ink},
 		{"inverseText", Hex(g.Ground)},

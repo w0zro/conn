@@ -22,11 +22,18 @@ type Ground struct {
 
 	// The roles: what conn draws by meaning. Each is a hex of its own,
 	// whether or not a slot happens to hold the same one.
-	Accent    string // "you, here": the cursor, a block on the status line, what waits on you
-	Shimmer   string // the accent's brighter cousin
+	Accent  string // "you, here": the cursor, a block on the status line, what waits on you
+	Shimmer string // the accent's brighter cousin
+
+	// Claude Code's mark, which turns while Claude works, and what it
+	// shimmers to: the accent and its shimmer, unless a theme gives a
+	// mark at work a hue of its own.
+	AtWork, AtWorkShimmer string
+
 	Border    string // a pane's edge, a selection, the band behind the status line
 	Surface   string // one step off the ground, short of the border: the panel's own ground
 	Running   string // a process doing something
+	Turning   string // the spinner beside what is at work: the running ink, unless a theme has a hue for it
 	Gray      string // the second rank: a label, a comment
 	Faint     string // the quietest text: a leader, a hint
 	Parchment string // the second ink: a title, what conn says on the status line
@@ -146,8 +153,8 @@ type role struct {
 // is written from it.
 func (g *Ground) roles() []role {
 	return []role{
-		{"accent", &g.Accent}, {"shimmer", &g.Shimmer}, {"border", &g.Border}, {"surface", &g.Surface},
-		{"running", &g.Running}, {"gray", &g.Gray}, {"faint", &g.Faint}, {"parchment", &g.Parchment},
+		{"accent", &g.Accent}, {"shimmer", &g.Shimmer}, {"atWork", &g.AtWork}, {"atWorkShimmer", &g.AtWorkShimmer},
+		{"border", &g.Border}, {"surface", &g.Surface}, {"running", &g.Running}, {"turning", &g.Turning}, {"gray", &g.Gray}, {"faint", &g.Faint}, {"parchment", &g.Parchment},
 		{"block", &g.Block}, {"onBlock", &g.OnBlock}, {"chosen", &g.Chosen}, {"chosenInk", &g.ChosenInk}, {"cursor", &g.Cursor},
 		{"messageBg", &g.MessageBg}, {"messageHoverBg", &g.MessageHoverBg}, {"toolBg", &g.ToolBg},
 		{"diffAddedBg", &g.DiffAddedBg}, {"diffRemovedBg", &g.DiffRemovedBg}, {"diffAddedDim", &g.DiffAddedDim},

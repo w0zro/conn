@@ -7,8 +7,13 @@
 package theme
 
 import (
+	_ "embed"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"image/color"
+	"slices"
+	"strings"
 )
 
 // A Ground is the theme on one of its two grounds.
@@ -59,22 +64,28 @@ func IsDark(c color.Color) bool {
 
 // On is conn's theme on one ground: dark, or light.
 func On(dark bool) Ground {
-	if dark {
-		return Dark
-	}
-	return Light
+	return Conn.On(dark)
 }
 
-// RGB is a color as the table writes it, #RRGGBB. The table is read at
-// start and by the tests, so a hex that will not parse stops conn there
-// rather than drawing black.
+// RGB is a color as a sheet writes it, #RRGGBB. Every color has been
+// read once already, when its sheet was, so one that will not parse
+// here is a color that came from nowhere, and stops conn rather than
+// drawing black.
 func RGB(h string) color.RGBA {
-	var c color.RGBA
-	if _, err := fmt.Sscanf(h, "#%02X%02X%02X", &c.R, &c.G, &c.B); err != nil {
-		panic(fmt.Sprintf("not a color: %q", h))
+	c, err := parseHex(h)
+	if err != nil {
+		panic(err)
 	}
-	c.A = 255
 	return c
+}
+
+// parseHex reads #RRGGBB, in either case, and nothing else.
+func parseHex(h string) (color.RGBA, error) {
+	b, err := hex.DecodeString(strings.TrimPrefix(h, "#"))
+	if !strings.HasPrefix(h, "#") || err != nil || len(b) != 3 {
+		return color.RGBA{}, fmt.Errorf("%q is not a color written #RRGGBB", h)
+	}
+	return color.RGBA{R: b[0], G: b[1], B: b[2], A: 255}, nil
 }
 
 // Hex is a color as a terminal wants it written.
@@ -82,7 +93,7 @@ func Hex(c color.RGBA) string {
 	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
 }
 
-// conn's own. Dark is every terminal it ever knew; light is for the
+// conn's own sheet. Dark is every terminal it ever knew; light is for the
 // terminal that says its own ground is light when conn asks.
 //
 // Light is not dark with the lightness flipped. On paper, emphasis is
@@ -112,108 +123,179 @@ func Hex(c color.RGBA) string {
 // a color of its own, pale enough to be an edge on paper. The faint is
 // scheme[8] on dark; light needed its own, since ANSI-8 there reads as
 // a tint but nearly vanishes as text.
+//
+//go:embed conn.json
+var connSheet []byte
+
+// Conn is conn's own theme, read from the sheet it ships with, and Dark
+// and Light are its two grounds.
 var (
-	Dark = Ground{
-		Ground: color.RGBA{R: 21, G: 19, B: 15, A: 255},
-		Ink:    color.RGBA{R: 230, G: 223, B: 208, A: 255},
-		Scheme: [16]string{
-			"#2A2620", // black
-			"#FF7847", // red
-			"#93C98B", // green
-			"#E3A94F", // yellow
-			"#7FA7C9", // blue
-			"#C98BA8", // magenta
-			"#7FC7BD", // cyan
-			"#BFB39A", // white
-			"#5C564A", // bright black
-			"#E85D2F", // bright red
-			"#A8DBA0", // bright green
-			"#F2C06E", // bright yellow
-			"#9BBEDB", // bright blue
-			"#DBA6C0", // bright magenta
-			"#9AD9D0", // bright cyan
-			"#E6DFD0", // bright white
-		},
-		Accent:    "#E85D2F",
-		Shimmer:   "#FF7847",
-		Border:    "#2A2620",
-		Surface:   "#1D1A15",
-		Running:   "#93C98B",
-		Gray:      "#8B8272",
-		Faint:     "#5C564A",
-		Parchment: "#BFB39A",
-		Block:     "#E85D2F",
-		OnBlock:   "#15130F",
-		Chosen:    "#2A2620",
-		ChosenInk: "#E6DFD0",
-		Cursor:    "#E85D2F",
-
-		MessageBg:       "#2A2620",
-		MessageHoverBg:  "#33302A",
-		ToolBg:          "#1D1A15",
-		DiffAddedBg:     "#1E2A1C",
-		DiffRemovedBg:   "#331F17",
-		DiffAddedDim:    "#191F17",
-		DiffRemovedDim:  "#231A14",
-		DiffAddedWord:   "#2C4028",
-		DiffRemovedWord: "#4A2A1D",
-	}
-	Light = Ground{
-		Ground: color.RGBA{R: 0xEF, G: 0xE9, B: 0xDB, A: 255},
-		Ink:    color.RGBA{R: 0x1A, G: 0x16, B: 0x11, A: 255},
-		Scheme: [16]string{
-			"#2B2620", // black
-			"#A63214", // red
-			"#23703F", // green
-			"#8A5F00", // yellow
-			"#3E5F7A", // blue
-			"#7A4258", // magenta
-			"#0D6B70", // cyan
-			"#4A4335", // white
-			"#9A9080", // bright black
-			"#BD3A1D", // bright red
-			"#1C5A33", // bright green
-			"#75500A", // bright yellow
-			"#32506A", // bright blue
-			"#68384B", // bright magenta
-			"#0A585D", // bright cyan
-			"#1A1611", // bright white
-		},
-		Accent:    "#BD3A1D",
-		Shimmer:   "#A63214",
-		Border:    "#D8D0BD",
-		Surface:   "#E6DFCF",
-		Running:   "#23703F",
-		Gray:      "#6F6656",
-		Faint:     "#867C6A",
-		Parchment: "#4A4335",
-		Block:     "#BD3A1D",
-		OnBlock:   "#EFE9DB",
-		Chosen:    "#D8D0BD",
-		ChosenInk: "#1A1611",
-		Cursor:    "#BD3A1D",
-
-		MessageBg:       "#D8D0BD",
-		MessageHoverBg:  "#CFC6B0",
-		ToolBg:          "#E6DFCF",
-		DiffAddedBg:     "#CAD7BB",
-		DiffRemovedBg:   "#E8D3C4",
-		DiffAddedDim:    "#DFE1CD",
-		DiffRemovedDim:  "#EBDED0",
-		DiffAddedWord:   "#A4C187",
-		DiffRemovedWord: "#E0BDA4",
-	}
+	Conn        = mustParse("conn", connSheet)
+	Dark, Light = Conn.Dark, Conn.Light
 )
+
+// A role by the name a sheet gives it, and where the ground keeps it.
+type role struct {
+	name string
+	at   *string
+}
+
+// roles is every role of a ground, in the order a sheet lists them.
+// It is the one list of their names: a sheet is read by it, and Roles
+// is written from it.
+func (g *Ground) roles() []role {
+	return []role{
+		{"accent", &g.Accent}, {"shimmer", &g.Shimmer}, {"border", &g.Border}, {"surface", &g.Surface},
+		{"running", &g.Running}, {"gray", &g.Gray}, {"faint", &g.Faint}, {"parchment", &g.Parchment},
+		{"block", &g.Block}, {"onBlock", &g.OnBlock}, {"chosen", &g.Chosen}, {"chosenInk", &g.ChosenInk}, {"cursor", &g.Cursor},
+		{"messageBg", &g.MessageBg}, {"messageHoverBg", &g.MessageHoverBg}, {"toolBg", &g.ToolBg},
+		{"diffAddedBg", &g.DiffAddedBg}, {"diffRemovedBg", &g.DiffRemovedBg}, {"diffAddedDim", &g.DiffAddedDim},
+		{"diffRemovedDim", &g.DiffRemovedDim}, {"diffAddedWord", &g.DiffAddedWord}, {"diffRemovedWord", &g.DiffRemovedWord},
+	}
+}
 
 // Roles is every role of a ground by name, for whatever has to hold
 // each one to something: that it parses, that it reads on the ground.
 func (g Ground) Roles() map[string]string {
-	return map[string]string{
-		"accent": g.Accent, "shimmer": g.Shimmer, "border": g.Border, "surface": g.Surface,
-		"running": g.Running, "gray": g.Gray, "faint": g.Faint, "parchment": g.Parchment,
-		"block": g.Block, "onBlock": g.OnBlock, "chosen": g.Chosen, "chosenInk": g.ChosenInk, "cursor": g.Cursor,
-		"messageBg": g.MessageBg, "messageHoverBg": g.MessageHoverBg, "toolBg": g.ToolBg,
-		"diffAddedBg": g.DiffAddedBg, "diffRemovedBg": g.DiffRemovedBg, "diffAddedDim": g.DiffAddedDim,
-		"diffRemovedDim": g.DiffRemovedDim, "diffAddedWord": g.DiffAddedWord, "diffRemovedWord": g.DiffRemovedWord,
+	m := map[string]string{}
+	for _, r := range g.roles() {
+		m[r.name] = *r.at
 	}
+	return m
+}
+
+// A Theme is a name and a ground of each kind: what a terminal that is
+// dark gets, and what a light one does.
+type Theme struct {
+	Name        string
+	Dark, Light Ground
+}
+
+// On is the theme on one ground: dark, or light.
+func (t Theme) On(dark bool) Ground {
+	if dark {
+		return t.Dark
+	}
+	return t.Light
+}
+
+// Parse reads a theme sheet: a JSON object with a "dark" ground, a
+// "light" one, or both. A ground is its "ground" and "ink", the sixteen
+// of its "scheme", and every role by name, each a color written
+// #RRGGBB. A sheet with one ground wears it on either: conn dresses the
+// whole server, so a dark theme on a light terminal is still whole.
+// Anything missing, misspelt or not a color is said, by name.
+func Parse(name string, b []byte) (Theme, error) {
+	var sheet map[string]json.RawMessage
+	if err := json.Unmarshal(b, &sheet); err != nil {
+		return Theme{}, fmt.Errorf("theme %s: %w", name, err)
+	}
+	t := Theme{Name: name}
+	var dark, light bool
+	for k, v := range sheet {
+		var err error
+		switch k {
+		case "dark":
+			t.Dark, err = parseGround(v)
+			dark = true
+		case "light":
+			t.Light, err = parseGround(v)
+			light = true
+		default:
+			err = fmt.Errorf("%q is neither dark nor light", k)
+		}
+		if err != nil {
+			return Theme{}, fmt.Errorf("theme %s: %s: %w", name, k, err)
+		}
+	}
+	switch {
+	case !dark && !light:
+		return Theme{}, fmt.Errorf("theme %s has neither a dark ground nor a light one", name)
+	case !dark:
+		t.Dark = t.Light
+	case !light:
+		t.Light = t.Dark
+	}
+	return t, nil
+}
+
+// parseGround reads one ground of a sheet, and writes every color the
+// way Hex does, whichever case the sheet wrote it in.
+func parseGround(b []byte) (Ground, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(b, &fields); err != nil {
+		return Ground{}, err
+	}
+	var g Ground
+	hexOf := func(k string) (string, error) {
+		v, ok := fields[k]
+		if !ok {
+			return "", fmt.Errorf("no %s", k)
+		}
+		delete(fields, k)
+		var h string
+		if err := json.Unmarshal(v, &h); err != nil {
+			return "", fmt.Errorf("%s: %w", k, err)
+		}
+		c, err := parseHex(h)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", k, err)
+		}
+		return Hex(c), nil
+	}
+	var err error
+	if g.Ground, err = rgbOf(hexOf("ground")); err != nil {
+		return Ground{}, err
+	}
+	if g.Ink, err = rgbOf(hexOf("ink")); err != nil {
+		return Ground{}, err
+	}
+	var scheme []string
+	if v, ok := fields["scheme"]; !ok {
+		return Ground{}, fmt.Errorf("no scheme")
+	} else if err := json.Unmarshal(v, &scheme); err != nil {
+		return Ground{}, fmt.Errorf("scheme: %w", err)
+	}
+	delete(fields, "scheme")
+	if len(scheme) != len(g.Scheme) {
+		return Ground{}, fmt.Errorf("scheme has %d colors, not %d", len(scheme), len(g.Scheme))
+	}
+	for i, h := range scheme {
+		c, err := parseHex(h)
+		if err != nil {
+			return Ground{}, fmt.Errorf("scheme %d: %w", i, err)
+		}
+		g.Scheme[i] = Hex(c)
+	}
+	for _, r := range g.roles() {
+		if *r.at, err = hexOf(r.name); err != nil {
+			return Ground{}, err
+		}
+	}
+	if len(fields) > 0 {
+		var extra []string
+		for k := range fields {
+			extra = append(extra, k)
+		}
+		slices.Sort(extra)
+		return Ground{}, fmt.Errorf("%s is no role of conn's", strings.Join(extra, ", "))
+	}
+	return g, nil
+}
+
+// rgbOf is a color read by parseGround, as the ground keeps it.
+func rgbOf(h string, err error) (color.RGBA, error) {
+	if err != nil {
+		return color.RGBA{}, err
+	}
+	return parseHex(h)
+}
+
+// mustParse reads a sheet conn ships with, which the tests have read.
+func mustParse(name string, b []byte) Theme {
+	t, err := Parse(name, b)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }

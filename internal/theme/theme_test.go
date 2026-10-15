@@ -1,9 +1,11 @@
 package theme
 
 import (
+	"encoding/json"
 	"image/color"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -75,5 +77,43 @@ func TestParseFlags(t *testing.T) {
 	}
 	if _, _, err := ParseFlags([]string{"--dark", "--light"}); err == nil {
 		t.Error("--dark --light was not a contradiction")
+	}
+}
+
+// A sheet with one ground wears it on both, writes every color as Hex
+// does, and says by name what is missing, misspelt or not a color.
+func TestParse(t *testing.T) {
+	sheet := func(edit func(g map[string]any)) []byte {
+		var whole map[string]map[string]any
+		if err := json.Unmarshal(connSheet, &whole); err != nil {
+			t.Fatal(err)
+		}
+		edit(whole["dark"])
+		b, _ := json.Marshal(map[string]any{"dark": whole["dark"]})
+		return b
+	}
+	th, err := Parse("mine", sheet(func(g map[string]any) { g["accent"] = "#e85d2f" }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th.Name != "mine" || th.Light != th.Dark || th.Dark != Dark {
+		t.Errorf("one dark ground is not worn on both, as conn's: %+v", th)
+	}
+	for want, edit := range map[string]func(g map[string]any){
+		"no accent":            func(g map[string]any) { delete(g, "accent") },
+		"accnet is no role":    func(g map[string]any) { g["accnet"] = "#000000" },
+		`"orange" is not`:      func(g map[string]any) { g["faint"] = "orange" },
+		`"#FFF" is not`:        func(g map[string]any) { g["ink"] = "#FFF" },
+		"scheme has 15 colors": func(g map[string]any) { g["scheme"] = g["scheme"].([]any)[:15] },
+		"scheme 3":             func(g map[string]any) { g["scheme"].([]any)[3] = "yellow" },
+	} {
+		if _, err := Parse("mine", sheet(edit)); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("want an error saying %q, got %v", want, err)
+		}
+	}
+	for _, b := range []string{`{}`, `{"dusk": {}}`, `[]`} {
+		if _, err := Parse("mine", []byte(b)); err == nil {
+			t.Errorf("%s was read as a theme", b)
+		}
 	}
 }

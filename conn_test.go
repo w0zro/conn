@@ -1952,12 +1952,13 @@ func TestReadEmpty(t *testing.T) {
 	}
 	next, _ := m.Update(read{root: "/p"})
 	m = next.(model)
-	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "nothing running, and no conversations here yet; n starts one") {
+	lines, _ := m.draw()
+	if s := strings.Join(lines, "\n"); !strings.Contains(s, "nothing running") || !strings.Contains(s, "starts a conversation") || strings.Contains(s, "at rest") {
 		t.Errorf("after an empty read, the screen does not say so: %q", lines)
 	}
 	next, _ = m.Update(read{root: "/p", rest: []row{{conv: &conversation{ID: "a"}}}})
 	m = next.(model)
-	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "nothing running; one conversation at rest, rc picks one up") {
+	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "picks up a conversation, one at rest") {
 		t.Errorf("after a read with a conversation at rest, the screen does not say so: %q", lines)
 	}
 }

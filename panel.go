@@ -1987,10 +1987,20 @@ func (m model) drawProject() ([]string, foot) {
 	switch {
 	case m.rows == nil:
 		lines = append(lines, at(faint.Render("reading…")))
-	case len(m.rows) == 0 && len(m.rest) == 0:
-		lines = append(lines, at(faint.Render("nothing running, and no conversations here yet; n starts one")))
 	case len(m.rows) == 0:
-		lines = append(lines, at(faint.Render(fmt.Sprintf("nothing running; %s at rest, rc picks one up", counted(len(m.rest), "conversation")))))
+		// Nothing running says so, then what starts something, a key a
+		// row as the bar has them, and air before the other projects.
+		key := ink.Bold(true)
+		lines = append(lines, at(gray.Render("nothing running")), "",
+			at(key.Render("n ")+gray.Render("  starts a conversation")))
+		if n := len(m.rest); n > 0 {
+			many := "one"
+			if n > 1 {
+				many = strconv.Itoa(n)
+			}
+			lines = append(lines, at(key.Render("rc")+gray.Render("  picks up a conversation, "+many+" at rest")))
+		}
+		lines = append(lines, "")
 	}
 	var body []string
 	cursorAt := 0

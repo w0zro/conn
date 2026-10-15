@@ -2211,15 +2211,32 @@ func TestParseAgain(t *testing.T) {
 }
 
 // - goes up to the projects, as vim's - goes up to the directory; esc
-// and backspace no longer do.
+// and backspace no longer do. On the projects, esc goes back down into
+// the project - came up from, once what was typed to find is cleared;
+// and nowhere when conn opened on the projects.
 func TestDashGoesUpToTheProjects(t *testing.T) {
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}}
+	esc := tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape})
 	for _, k := range []tea.Key{{Code: tea.KeyEscape}, {Code: tea.KeyBackspace}} {
 		if next, _ := m.Update(tea.KeyPressMsg(k)); next.(model).screen != onProject {
 			t.Errorf("%s left the project", k)
 		}
 	}
-	if next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "-", Code: '-'})); next.(model).screen != onProjects {
-		t.Error("- did not go up to the projects")
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "-", Code: '-'}))
+	if m = next.(model); m.screen != onProjects {
+		t.Fatal("- did not go up to the projects")
+	}
+	m.typed = "co"
+	next, _ = m.Update(esc)
+	if m = next.(model); m.screen != onProjects || m.typed != "" {
+		t.Errorf("esc with a find typed did not clear it and stay: screen %v, typed %q", m.screen, m.typed)
+	}
+	next, _ = m.Update(esc)
+	if m = next.(model); m.screen != onProject || m.cur.Root != "/p" {
+		t.Errorf("esc did not go back down into the project: screen %v, cur %q", m.screen, m.cur.Root)
+	}
+	fresh := model{screen: onProjects}
+	if next, _ := fresh.Update(esc); next.(model).screen != onProjects {
+		t.Error("esc left the projects with no project to go back to")
 	}
 }

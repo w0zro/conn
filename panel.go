@@ -1023,7 +1023,14 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.note = m.leave()
 	case "?":
 		m.helping = true
-	case "esc", "ctrl+u":
+	case "esc":
+		// esc takes back what was typed to find; with nothing typed, it
+		// goes back down into the project - came up from.
+		if m.typed == "" && m.cur.Root != "" {
+			return m.openInto(m.cur)
+		}
+		m.typed, m.cursor = "", 0
+	case "ctrl+u":
 		m.typed, m.cursor = "", 0
 	case "backspace":
 		if r := []rune(m.typed); len(r) > 0 {
@@ -1833,9 +1840,9 @@ type keyHint struct{ key, does string }
 // the keys the bar leaves out.
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
-	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"ctrl-c", "leave"}, {"?", "keys"}}
+	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
 	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {"q", "leave"}}
-	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"ctrl-c", "leaves conn running"}}
+	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
 	objectHints   = []keyHint{{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}}

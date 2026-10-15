@@ -1723,7 +1723,7 @@ const (
 // The styles, in the ground the server is on once the panel knows it;
 // plain until then, and in the tests.
 var (
-	ink, title, subhead, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle, turning, chosenTurning lipgloss.Style
+	ink, title, subhead, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle, turning, passed, chosenTurning lipgloss.Style
 )
 
 // wear dresses the panel's styles in a ground. The pane's ground is
@@ -1741,6 +1741,7 @@ func wear(g theme.Ground) {
 	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
 	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Accent)).Bold(true)
 	turning = fg(g.Turning)
+	passed = fg(g.Running)
 	chosenTurning = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Turning))
 	ruleStyle = fg(g.Border)
 }
@@ -2179,7 +2180,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			}
 		}
 		if left[i].s == markPass+" " {
-			left[i].st = turning
+			left[i].st = passed
 		}
 	}
 	turn := ""

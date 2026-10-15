@@ -64,24 +64,53 @@ func themesDir(home string) string {
 	return filepath.Join(configDir(home), "themes")
 }
 
-// configuredTheme is the theme config.json names for a server coming
-// up, or blank where it names none or there is no file.
-func configuredTheme(home string) (string, error) {
+// readConfig is what config.json says, and nothing where there is no
+// file.
+func readConfig(home string) (config, error) {
+	var c config
 	path := filepath.Join(configDir(home), "config.json")
 	b, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
+		return c, nil
 	}
 	if err != nil {
-		return "", err
-	}
-	var c struct {
-		Theme string `json:"theme"`
+		return c, err
 	}
 	if err := json.Unmarshal(b, &c); err != nil {
-		return "", fmt.Errorf("%s: %w", path, err)
+		return c, fmt.Errorf("%s: %w", path, err)
 	}
-	return c.Theme, nil
+	if c.Ground != "" && c.Ground != "dark" && c.Ground != "light" {
+		return c, fmt.Errorf("%s: the ground is dark or light, not %q", path, c.Ground)
+	}
+	return c, nil
+}
+
+// A config is what config.json says about a server coming up: the
+// theme it wears, and the ground, dark or light, where the operator
+// wants the same one on every terminal rather than the terminal's own.
+type config struct {
+	Theme  string `json:"theme"`
+	Ground string `json:"ground"`
+}
+
+// freshMode is the mode a server comes up on: the theme a flag names,
+// or config.json, or conn's; and the ground a flag names, or
+// config.json, or the terminal's own, asked only then.
+func freshMode(home string, want theme.Want, detect func() bool) (theme.Mode, error) {
+	c, err := readConfig(home)
+	if err != nil {
+		return theme.Mode{}, err
+	}
+	m := theme.Mode{Theme: cmp.Or(want.Theme, c.Theme, theme.Conn.Name)}
+	switch {
+	case want.Dark != nil:
+		m.Dark = *want.Dark
+	case c.Ground != "":
+		m.Dark = c.Ground == "dark"
+	default:
+		m.Dark = detect()
+	}
+	return m, nil
 }
 
 // findServer is conn's server on this machine's tmux.
@@ -363,32 +392,30 @@ func reground(srv *tmux.Server, self, home string, want theme.Want) error {
 
 // askGround is the ground for a conn that attaches to nothing: what
 // the flags say, over what the server is on while it is up, or the
-// terminal's own in the theme config.json names.
+// mode a server would come up on.
 func askGround(srv *tmux.Server, home string, want theme.Want) (theme.Ground, error) {
 	m, ok := theme.ReadMode(srv.Socket)
-	if !ok || !srv.HasSession(sessionName) {
-		name, err := configuredTheme(home)
-		if err != nil {
+	if ok && srv.HasSession(sessionName) {
+		if want.Dark != nil {
+			m.Dark = *want.Dark
+		}
+		m.Theme = cmp.Or(want.Theme, m.Theme)
+	} else {
+		var err error
+		if m, err = freshMode(home, want, theme.DetectDark); err != nil {
 			return theme.Ground{}, err
 		}
-		m = theme.Mode{Dark: want.Dark == nil && theme.DetectDark(), Theme: cmp.Or(name, theme.Conn.Name)}
 	}
-	if want.Dark != nil {
-		m.Dark = *want.Dark
-	}
-	m.Theme = cmp.Or(want.Theme, m.Theme)
 	th, err := theme.Load(themesDir(home), m.Theme)
 	return th.On(m.Dark), err
 }
 
 // chooseGround is the ground the server is on, and whether a server
 // already up was just put on another. A server's mode is what it came
-// up on, held until it goes down: the ground asked of the terminal the
-// first time, unless a flag said, and the theme a flag or config.json
-// names, or conn's. A flag says it whenever it is given, so a server
-// already up is put on what it names where it stands; --theme reads
-// its sheet again even where the server wears it already, so a sheet
-// being worked on is seen.
+// up on, held until it goes down: freshMode's, the first time. A flag
+// says it whenever it is given, so a server already up is put on what
+// it names where it stands; --theme reads its sheet again even where
+// the server wears it already, so a sheet being worked on is seen.
 func chooseGround(home, socket string, up bool, want theme.Want, detect func() bool) (g theme.Ground, again bool, err error) {
 	m, ok := theme.ReadMode(socket)
 	fresh := !ok || !up
@@ -396,17 +423,8 @@ func chooseGround(home, socket string, up bool, want theme.Want, detect func() b
 		return ground(home, socket), false, nil
 	}
 	if fresh {
-		name := want.Theme
-		if name == "" {
-			if name, err = configuredTheme(home); err != nil {
-				return theme.Ground{}, false, err
-			}
-		}
-		m.Theme = cmp.Or(name, theme.Conn.Name)
-		if want.Dark != nil {
-			m.Dark = *want.Dark
-		} else {
-			m.Dark = detect()
+		if m, err = freshMode(home, want, detect); err != nil {
+			return theme.Ground{}, false, err
 		}
 	} else {
 		if want.Dark != nil && *want.Dark != m.Dark {

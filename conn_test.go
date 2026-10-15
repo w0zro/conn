@@ -1874,6 +1874,24 @@ func TestChooseGround(t *testing.T) {
 		t.Errorf("--theme conn over config.json's: %s", g.Accent)
 	}
 
+	// config.json names the ground a server rises on, and the terminal
+	// is not asked; a flag names another over it, and a ground that is
+	// neither is said.
+	theme.ForgetMode(socket)
+	write(t, filepath.Join(home, ".config", "conn", "config.json"), `{"ground": "dark"}`)
+	if g, _ := choose(false, theme.Want{}); !g.Dark() || asked != 1 {
+		t.Errorf("config.json's dark: dark %v, asked %d", g.Dark(), asked)
+	}
+	theme.ForgetMode(socket)
+	if g, _ := choose(false, theme.Want{Dark: &light}); g.Dark() {
+		t.Error("--light over config.json's dark was dark")
+	}
+	theme.ForgetMode(socket)
+	write(t, filepath.Join(home, ".config", "conn", "config.json"), `{"ground": "dusk"}`)
+	if _, _, err := chooseGround(home, socket, false, theme.Want{}, detect); err == nil || !strings.Contains(err.Error(), `not "dusk"`) {
+		t.Errorf("a ground of dusk: %v", err)
+	}
+
 	// A sheet gone while the server wears it is conn's own.
 	_ = theme.WriteMode(socket, theme.Mode{Theme: "gone"})
 	if g, _, err := chooseGround(home, socket, true, theme.Want{}, detect); err != nil || g != theme.Light {

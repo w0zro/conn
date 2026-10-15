@@ -1801,32 +1801,83 @@ func TestDressClaude(t *testing.T) {
 }
 
 // A server's ground is the terminal's the first time, unless a flag
-// said; held while it is up; and put on the other ground where it
-// stands when a flag says so, which is when conn's own pane is started
-// again.
+// said; its theme what a flag or config.json names, or conn's; both
+// held while it is up, and put on another where it stands when a flag
+// says so, which is when conn's own pane is started again.
 func TestChooseGround(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", "")
 	socket := filepath.Join(t.TempDir(), "s")
 	light, dark := false, true
 	asked := 0
 	detect := func() bool { asked++; return false }
-	if g, again := chooseGround(socket, false, nil, detect); g.Dark() || again || asked != 1 {
+	choose := func(up bool, want theme.Want) (theme.Ground, bool) {
+		t.Helper()
+		g, again, err := chooseGround(home, socket, up, want, detect)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return g, again
+	}
+	if g, again := choose(false, theme.Want{}); g != theme.Light || again || asked != 1 {
 		t.Errorf("a server rising on a light terminal: dark %v, again %v, asked %d", g.Dark(), again, asked)
 	}
-	if g, again := chooseGround(socket, true, nil, detect); g.Dark() || again || asked != 1 {
+	if g, again := choose(true, theme.Want{}); g.Dark() || again || asked != 1 {
 		t.Errorf("a server up keeps its ground: dark %v, again %v, asked %d", g.Dark(), again, asked)
 	}
-	if g, again := chooseGround(socket, true, &light, detect); g.Dark() || again {
+	if g, again := choose(true, theme.Want{Dark: &light}); g.Dark() || again {
 		t.Errorf("--light on a light server: dark %v, again %v", g.Dark(), again)
 	}
-	if g, again := chooseGround(socket, true, &dark, detect); !g.Dark() || !again {
+	if g, again := choose(true, theme.Want{Dark: &dark}); !g.Dark() || !again {
 		t.Errorf("--dark on a light server: dark %v, again %v", g.Dark(), again)
 	}
-	if d, ok := theme.ReadMode(socket); !ok || !d {
-		t.Error("the flag's ground was not written down")
+	if m, ok := theme.ReadMode(socket); !ok || m != (theme.Mode{Dark: true, Theme: "conn"}) {
+		t.Errorf("the flag's ground was not written down: %+v", m)
 	}
 	theme.ForgetMode(socket)
-	if g, again := chooseGround(socket, false, &light, detect); g.Dark() || again || asked != 1 {
+	if g, again := choose(false, theme.Want{Dark: &light}); g.Dark() || again || asked != 1 {
 		t.Errorf("--light on a server rising: dark %v, again %v, asked %d", g.Dark(), again, asked)
+	}
+
+	// A sheet of one ground, its accent its own, worn by name.
+	b, err := os.ReadFile("internal/theme/conn.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet := strings.Replace(string(b), `"accent": "#BD3A1D"`, `"accent": "#123456"`, 1)
+	write(t, filepath.Join(home, ".config", "conn", "themes", "paper.json"), sheet)
+	if g, again := choose(true, theme.Want{Theme: "paper"}); g.Accent != "#123456" || g.Dark() || !again {
+		t.Errorf("--theme paper on a server up: accent %s, again %v", g.Accent, again)
+	}
+	if g := ground(home, socket); g.Accent != "#123456" {
+		t.Errorf("the panel does not read the theme the server wears: %s", g.Accent)
+	}
+	if _, again := choose(true, theme.Want{Theme: "paper"}); !again {
+		t.Error("--theme on the theme worn does not read its sheet again")
+	}
+	if _, _, err := chooseGround(home, socket, true, theme.Want{Theme: "nope"}, detect); err == nil {
+		t.Error("--theme nope was worn")
+	}
+	if m, _ := theme.ReadMode(socket); m.Theme != "paper" {
+		t.Errorf("a theme that is not there was written down: %+v", m)
+	}
+
+	// config.json names the theme a server rises in; a flag names
+	// another over it.
+	theme.ForgetMode(socket)
+	write(t, filepath.Join(home, ".config", "conn", "config.json"), `{"theme": "paper"}`)
+	if g, _ := choose(false, theme.Want{Dark: &light}); g.Accent != "#123456" {
+		t.Errorf("config.json's theme was not worn: %s", g.Accent)
+	}
+	theme.ForgetMode(socket)
+	if g, _ := choose(false, theme.Want{Dark: &light, Theme: "conn"}); g != theme.Light {
+		t.Errorf("--theme conn over config.json's: %s", g.Accent)
+	}
+
+	// A sheet gone while the server wears it is conn's own.
+	_ = theme.WriteMode(socket, theme.Mode{Theme: "gone"})
+	if g, _, err := chooseGround(home, socket, true, theme.Want{}, detect); err != nil || g != theme.Light {
+		t.Errorf("a server on a sheet since gone: %v", err)
 	}
 }
 

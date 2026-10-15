@@ -1,10 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,6 +48,40 @@ func socketPath(home string) string {
 		state = filepath.Join(home, ".local", "state")
 	}
 	return filepath.Join(state, "conn", "tmux.sock")
+}
+
+// configDir is where conn's configuration is kept: conn in
+// XDG_CONFIG_HOME, or in ~/.config.
+func configDir(home string) string {
+	if d := os.Getenv("XDG_CONFIG_HOME"); d != "" {
+		return filepath.Join(d, "conn")
+	}
+	return filepath.Join(home, ".config", "conn")
+}
+
+// themesDir is where theme sheets are kept, a sheet a theme.
+func themesDir(home string) string {
+	return filepath.Join(configDir(home), "themes")
+}
+
+// configuredTheme is the theme config.json names for a server coming
+// up, or blank where it names none or there is no file.
+func configuredTheme(home string) (string, error) {
+	path := filepath.Join(configDir(home), "config.json")
+	b, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var c struct {
+		Theme string `json:"theme"`
+	}
+	if err := json.Unmarshal(b, &c); err != nil {
+		return "", fmt.Errorf("%s: %w", path, err)
+	}
+	return c.Theme, nil
 }
 
 // findServer is conn's server on this machine's tmux.
@@ -198,11 +236,19 @@ func look(g theme.Ground) string {
 	return b.String()
 }
 
-// ground is the ground the server is on: what it chose when it came
-// up, and dark where it has not chosen.
-func ground(socket string) theme.Ground {
-	dark, ok := theme.ReadMode(socket)
-	return theme.On(dark || !ok)
+// ground is the ground the server is on: the theme it chose when it
+// came up, on the ground it chose, and conn's dark where it has not
+// chosen. A sheet gone since is conn's own.
+func ground(home, socket string) theme.Ground {
+	m, ok := theme.ReadMode(socket)
+	if !ok {
+		return theme.Dark
+	}
+	th, err := theme.Load(themesDir(home), m.Theme)
+	if err != nil {
+		th = theme.Conn
+	}
+	return th.On(m.Dark)
 }
 
 // oscColors asks the terminal to take the ink of a ground and the
@@ -231,12 +277,15 @@ var errEarlier = fmt.Errorf("an earlier conn's server is up")
 // server already up gets the configuration again, and conn's window
 // again where it is gone or runs another build; the keys stay where
 // they were left in it, on the panel or in the process beside it.
-// want is the ground a flag asked for, or nil.
-func attach(srv *tmux.Server, self, home string, want *bool) (int, error) {
+// want is what the flags asked for.
+func attach(srv *tmux.Server, self, home string, want theme.Want) (int, error) {
 	if err := os.MkdirAll(filepath.Dir(srv.Socket), 0o700); err != nil {
 		return 0, err
 	}
-	g, again := chooseGround(srv.Socket, srv.HasSession(sessionName), want, theme.DetectDark)
+	g, again, err := chooseGround(home, srv.Socket, srv.HasSession(sessionName), want, theme.DetectDark)
+	if err != nil {
+		return 0, err
+	}
 	theme.RefreshClaudeTheme(home, g)
 	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
@@ -295,8 +344,11 @@ func bindBack(window, panel string) tmux.Cmd {
 // pane started again to read it. A pane of the server has no terminal
 // of its own to ask, only tmux, which would answer with the ground
 // conn set.
-func reground(srv *tmux.Server, self, home string, want *bool) error {
-	g, again := chooseGround(srv.Socket, true, want, func() bool { return true })
+func reground(srv *tmux.Server, self, home string, want theme.Want) error {
+	g, again, err := chooseGround(home, srv.Socket, true, want, func() bool { return true })
+	if err != nil {
+		return err
+	}
 	theme.RefreshClaudeTheme(home, g)
 	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
@@ -305,43 +357,71 @@ func reground(srv *tmux.Server, self, home string, want *bool) error {
 	if _, err := srv.Do(tmux.SourceFile(path)); err != nil {
 		return err
 	}
-	_, err := ensurePanel(srv, "", self, "exec "+shell.Quote(self)+" panel", again)
+	_, err = ensurePanel(srv, "", self, "exec "+shell.Quote(self)+" panel", again)
 	return err
 }
 
-// askGround is the ground for a conn that attaches to nothing: what a
-// flag says, what the server is on while it is up, or the terminal's
-// own.
-func askGround(srv *tmux.Server, want *bool) theme.Ground {
-	if want != nil {
-		return theme.On(*want)
+// askGround is the ground for a conn that attaches to nothing: what
+// the flags say, over what the server is on while it is up, or the
+// terminal's own in the theme config.json names.
+func askGround(srv *tmux.Server, home string, want theme.Want) (theme.Ground, error) {
+	m, ok := theme.ReadMode(srv.Socket)
+	if !ok || !srv.HasSession(sessionName) {
+		name, err := configuredTheme(home)
+		if err != nil {
+			return theme.Ground{}, err
+		}
+		m = theme.Mode{Dark: want.Dark == nil && theme.DetectDark(), Theme: cmp.Or(name, theme.Conn.Name)}
 	}
-	if dark, ok := theme.ReadMode(srv.Socket); ok && srv.HasSession(sessionName) {
-		return theme.On(dark)
+	if want.Dark != nil {
+		m.Dark = *want.Dark
 	}
-	return theme.On(theme.DetectDark())
+	m.Theme = cmp.Or(want.Theme, m.Theme)
+	th, err := theme.Load(themesDir(home), m.Theme)
+	return th.On(m.Dark), err
 }
 
 // chooseGround is the ground the server is on, and whether a server
-// already up was just put on the other one. A server's ground is what
-// it came up on, held until it goes down: asked of the terminal the
-// first time, unless a flag said. A flag says it whenever it is given,
-// so a server already up is put on the other ground where it stands.
-func chooseGround(socket string, up bool, want *bool, detect func() bool) (g theme.Ground, again bool) {
-	dark, ok := theme.ReadMode(socket)
-	switch {
-	case !ok || !up:
-		if want != nil {
-			dark = *want
-		} else {
-			dark = detect()
-		}
-		_ = theme.WriteMode(socket, dark)
-	case want != nil && *want != dark:
-		dark, again = *want, true
-		_ = theme.WriteMode(socket, dark)
+// already up was just put on another. A server's mode is what it came
+// up on, held until it goes down: the ground asked of the terminal the
+// first time, unless a flag said, and the theme a flag or config.json
+// names, or conn's. A flag says it whenever it is given, so a server
+// already up is put on what it names where it stands; --theme reads
+// its sheet again even where the server wears it already, so a sheet
+// being worked on is seen.
+func chooseGround(home, socket string, up bool, want theme.Want, detect func() bool) (g theme.Ground, again bool, err error) {
+	m, ok := theme.ReadMode(socket)
+	fresh := !ok || !up
+	if !fresh && !want.Any() {
+		return ground(home, socket), false, nil
 	}
-	return theme.On(dark), again
+	if fresh {
+		name := want.Theme
+		if name == "" {
+			if name, err = configuredTheme(home); err != nil {
+				return theme.Ground{}, false, err
+			}
+		}
+		m.Theme = cmp.Or(name, theme.Conn.Name)
+		if want.Dark != nil {
+			m.Dark = *want.Dark
+		} else {
+			m.Dark = detect()
+		}
+	} else {
+		if want.Dark != nil && *want.Dark != m.Dark {
+			m.Dark, again = *want.Dark, true
+		}
+		if want.Theme != "" {
+			m.Theme, again = want.Theme, true
+		}
+	}
+	th, err := theme.Load(themesDir(home), m.Theme)
+	if err != nil {
+		return theme.Ground{}, false, err
+	}
+	_ = theme.WriteMode(socket, m)
+	return th.On(m.Dark), again, nil
 }
 
 // ensurePanel answers conn's window: conn's pane started again where

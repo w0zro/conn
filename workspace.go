@@ -201,7 +201,7 @@ func (w workspace) size() (int, int) {
 func runHold() error {
 	if home, err := os.UserHomeDir(); err == nil {
 		if srv, err := findServer(home); err == nil {
-			wear(ground(srv.Socket))
+			wear(ground(home, srv.Socket))
 		}
 	}
 	_, err := tea.NewProgram(holdModel{}).Run()

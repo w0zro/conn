@@ -35,24 +35,24 @@ func TestGrounds(t *testing.T) {
 	}
 }
 
-// The ground a server came up on is read back as written, and a file
-// from a build that named the theme too reads the same.
+// The mode a server came up on is read back as written, and a file
+// from a build that named no theme wears conn's.
 func TestMode(t *testing.T) {
 	socket := filepath.Join(t.TempDir(), "s")
 	if _, ok := ReadMode(socket); ok {
 		t.Error("a mode was read before one was written")
 	}
-	if err := WriteMode(socket, false); err != nil {
+	if err := WriteMode(socket, Mode{Dark: false, Theme: "mine"}); err != nil {
 		t.Fatal(err)
 	}
-	if dark, ok := ReadMode(socket); !ok || dark {
-		t.Errorf("ReadMode = %v, %v", dark, ok)
+	if m, ok := ReadMode(socket); !ok || m != (Mode{Dark: false, Theme: "mine"}) {
+		t.Errorf("ReadMode = %+v, %v", m, ok)
 	}
 	if err := os.WriteFile(ModePath(socket), []byte("dark\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if dark, ok := ReadMode(socket); !ok || !dark {
-		t.Errorf("ReadMode of a one-word file = %v, %v", dark, ok)
+	if m, ok := ReadMode(socket); !ok || m != (Mode{Dark: true, Theme: "conn"}) {
+		t.Errorf("ReadMode of a one-word file = %+v, %v", m, ok)
 	}
 	ForgetMode(socket)
 	if _, ok := ReadMode(socket); ok {
@@ -60,23 +60,59 @@ func TestMode(t *testing.T) {
 	}
 }
 
-// --light and --dark are read off the front of the arguments and no
-// further, and both at once is a contradiction.
+// --light, --dark and --theme are read off the front of the arguments
+// and no further, and --dark --light is a contradiction.
 func TestParseFlags(t *testing.T) {
 	rest, want, err := ParseFlags([]string{"ls", "--light"})
-	if err != nil || want != nil || len(rest) != 2 {
+	if err != nil || want.Any() || len(rest) != 2 {
 		t.Errorf("a flag after the command is the command's: %v %v %v", rest, want, err)
 	}
-	rest, want, err = ParseFlags([]string{"--light", "--light", "u", "--dark"})
-	if err != nil || want == nil || *want || len(rest) != 2 || rest[0] != "u" {
-		t.Errorf("--light twice, then a command: %v %v %v", rest, want, err)
+	rest, want, err = ParseFlags([]string{"--light", "--theme", "mine", "--light", "u", "--dark"})
+	if err != nil || want.Dark == nil || *want.Dark || want.Theme != "mine" || len(rest) != 2 || rest[0] != "u" {
+		t.Errorf("--light, a theme, --light, then a command: %v %+v %v", rest, want, err)
 	}
-	rest, want, err = ParseFlags([]string{"--dark"})
-	if err != nil || want == nil || !*want || rest != nil {
-		t.Errorf("--dark alone: %v %v %v", rest, want, err)
+	rest, want, err = ParseFlags([]string{"--theme=mine"})
+	if err != nil || want.Dark != nil || want.Theme != "mine" || rest != nil {
+		t.Errorf("--theme=mine alone: %v %+v %v", rest, want, err)
+	}
+	if _, _, err := ParseFlags([]string{"--theme"}); err == nil {
+		t.Error("--theme with no name was taken")
 	}
 	if _, _, err := ParseFlags([]string{"--dark", "--light"}); err == nil {
 		t.Error("--dark --light was not a contradiction")
+	}
+}
+
+// A theme is a sheet in the directory by its name, and conn's own is
+// there unless a sheet stands in for it; a name that is not there says
+// what is.
+func TestLoad(t *testing.T) {
+	dir := t.TempDir()
+	if th, err := Load(dir, "conn"); err != nil || th.Dark != Dark {
+		t.Errorf("conn's own from an empty directory: %v", err)
+	}
+	var whole map[string]any
+	_ = json.Unmarshal(connSheet, &whole)
+	b, _ := json.Marshal(map[string]any{"light": whole["light"]})
+	if err := os.WriteFile(filepath.Join(dir, "paper.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if th, err := Load(dir, "paper"); err != nil || th.Name != "paper" || th.Dark != Light {
+		t.Errorf("paper: %+v, %v", th, err)
+	}
+	if _, err := Load(dir, "nope"); err == nil || !strings.Contains(err.Error(), "there are conn, paper") {
+		t.Errorf("a missing theme: %v", err)
+	}
+	for _, name := range []string{"", "../paper", ".hidden"} {
+		if _, err := Load(dir, name); err == nil {
+			t.Errorf("%q was loaded", name)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "conn.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if th, err := Load(dir, "conn"); err != nil || th.Dark != Light {
+		t.Errorf("a sheet named conn does not stand in for conn's: %v", err)
 	}
 }
 

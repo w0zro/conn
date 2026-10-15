@@ -81,7 +81,7 @@ func run(args []string) error {
 	// flag given there puts the server on the ground it names where it
 	// stands.
 	if insideConn(srv.Socket) {
-		if want != nil {
+		if want.Any() {
 			return reground(srv, self, home, want)
 		}
 		own, err := findPanel(srv, "")
@@ -123,7 +123,7 @@ func ask(q string) bool {
 // rather than asking for a color by name, which is the one thing in a
 // pane conn's server cannot dress: Claude Code. The ground is what a
 // flag says, what the server is on, or the terminal's own.
-func runTheme(w io.Writer, home string, want *bool, args []string) error {
+func runTheme(w io.Writer, home string, want theme.Want, args []string) error {
 	if len(args) != 1 || args[0] != "claude" {
 		return fmt.Errorf("conn theme claude writes conn's theme for Claude Code")
 	}
@@ -131,7 +131,11 @@ func runTheme(w io.Writer, home string, want *bool, args []string) error {
 	if err != nil {
 		return err
 	}
-	return dressClaude(w, home, ask, askGround(srv, want))
+	g, err := askGround(srv, home, want)
+	if err != nil {
+		return err
+	}
+	return dressClaude(w, home, ask, g)
 }
 
 // dressClaude writes the theme, and offers to put Claude Code on it

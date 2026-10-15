@@ -397,7 +397,7 @@ func runPanel() error {
 	if err != nil {
 		return err
 	}
-	g := ground(srv.Socket)
+	g := ground(home, srv.Socket)
 	wear(g)
 	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown(), g: g}
 	// The panel's window is conn's: the panel, and the workspace beside

@@ -70,6 +70,12 @@ type model struct {
 	question role
 	offer    []stacked
 	offerErr string
+	// The runs the keys started that are watched for failing at once,
+	// those that have while others are still watched, and those the
+	// question standing asks about again.
+	watching []watched
+	failed   []failure
+	again    []failure
 	// The panes holding a conversation waiting on you, and the one tab
 	// last went to, so the next tab goes on to another.
 	waiting     []pane
@@ -907,11 +913,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.follow = ""
 			}
 		}
+		// A run the keys started that failed at once is asked about.
+		var quick tea.Cmd
+		m, quick = m.watch(msg.at)
 		// The workspace is put right where it is not what the panel
 		// asked: gone, ended, or showing another pane.
 		if m.ws.srv != nil && (!msg.shownOK || msg.shown != m.wanted()) {
-			return m, m.showing(m.wanted(), false)
+			return m, tea.Batch(quick, m.showing(m.wanted(), false))
 		}
+		return m, quick
 	case changed:
 		if m.searching {
 			return m, tea.Batch(m.read(), readSaid(m.srv, m.cur.Root, m.rows))
@@ -925,6 +935,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case roleAnswer:
 		if m.question == msg.as && m.screen == onProject && msg.root == m.cur.Root {
+			if msg.kept {
+				m.note = names(m.again) + " failed at once; Claude says the command is right and the failure is the project's"
+				m.question, m.again = "", nil
+				return m, nil
+			}
 			m.offer, m.offerErr = msg.list, msg.err
 		}
 	case sized:
@@ -1266,10 +1281,10 @@ func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if as == roleClient {
 			return m.useClient(list[0], true)
 		}
-		m.note = "starting…"
-		return m, m.startRoles(list, as, true)
+		m.again = nil
+		return m.run(list, as, true)
 	case "esc", "q", "ctrl+c":
-		m.question, m.offer, m.offerErr = "", nil, ""
+		m.question, m.offer, m.offerErr, m.again = "", nil, "", nil
 	}
 	return m, nil
 }
@@ -1284,8 +1299,7 @@ func (m model) resolve(as role) (tea.Model, tea.Cmd) {
 	}
 	cur := m.cur
 	if list := established(starts, cur.belongs, as); len(list) > 0 {
-		m.note = "starting…"
-		return m, m.startRoles(list, as, false)
+		return m.run(list, as, false)
 	}
 	m.question, m.offer, m.offerErr = as, nil, ""
 	return m, askRole(m.cur, as)
@@ -2283,7 +2297,16 @@ func (m model) drawOffer(lines []string) ([]string, foot) {
 	case roleClient:
 		what, verb, ask = "talks to it in", "open it", "Talk to it with this?"
 	}
+	if len(m.again) > 0 {
+		ask = "Start these instead?"
+		if m.question == roleCheck {
+			ask = "Run these instead?"
+		}
+	}
 	switch {
+	case len(m.again) > 0 && m.offer == nil && m.offerErr == "":
+		lines = append(lines, at(gray.Render(names(m.again)+" failed at once; asking Claude again…")))
+		return lines, foot{hints: cancelHints}
 	case m.offerErr != "":
 		lines = append(lines, at(ink.Render("Claude would not say what "+what+" "+m.cur.Name+":")), at(gray.Render(m.offerErr)))
 		return lines, foot{hints: backHints}

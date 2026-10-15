@@ -3,6 +3,7 @@ package main
 import (
 	"charm.land/lipgloss/v2"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -1429,7 +1430,12 @@ func TestResolveRunsWhatWasRun(t *testing.T) {
 	if m.question != "" || cmd == nil {
 		t.Fatalf("t asked a question, or did nothing: question %q", m.question)
 	}
-	if said, ok := cmd().(acted); !ok || string(said) != "test is up" {
+	// The start comes first, then the read once the watch is over.
+	batch, _ := cmd().(tea.BatchMsg)
+	if len(batch) == 0 {
+		t.Fatal("t started nothing")
+	}
+	if said, ok := batch[0]().(acted); !ok || string(said) != "test is up" {
 		t.Errorf("t said %q", said)
 	}
 	ps, _ := panes(srv)
@@ -2072,5 +2078,65 @@ func TestOpenIntoLastPane(t *testing.T) {
 	next, _ = m.Update(read{root: "/b", rows: []row{{pane: &pane{ID: "%7", Name: "web"}}, {conv: &conversation{ID: "c"}, pane: &pane{ID: id}}}})
 	if m = next.(model); m.lastIn["/b"] != "%999" || m.cursor != 0 || m.follow != "" {
 		t.Errorf("b opened into %q, cursor %d", m.follow, m.cursor)
+	}
+}
+
+// A run the keys started that fails at once is asked about again, with
+// the question standing over the project; one that fails later, or
+// ends well, or is still going past the watch, is let go of.
+func TestFailedAtOnceIsAskedAgain(t *testing.T) {
+	start := time.Now()
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}}
+	m.watching = []watched{
+		{project: "/p", stacked: stacked{name: "test", command: "make test"}, as: roleCheck, at: start},
+		{project: "/p", stacked: stacked{name: "lint", command: "make lint"}, as: roleCheck, at: start},
+		{project: "/p", stacked: stacked{name: "build", command: "make build"}, as: roleCheck, at: start},
+	}
+	soon, late := start.Add(time.Second), start.Add(10*time.Second)
+	// The old test, ended before the start, is not the run.
+	rows := []row{
+		{pane: &pane{ID: "%0", Name: "test", Exit: "1", Ended: start.Add(-time.Minute)}},
+		{pane: &pane{ID: "%1", Name: "test", Exit: "127", Ended: soon}},
+		{pane: &pane{ID: "%2", Name: "lint"}},
+		{pane: &pane{ID: "%3", Name: "build"}},
+	}
+	next, _ := m.Update(read{at: soon, root: "/p", rows: rows})
+	m = next.(model)
+	if m.question != "" || len(m.watching) != 2 {
+		t.Fatalf("asked before the watch was over: question %q, watching %d", m.question, len(m.watching))
+	}
+	rows[2].pane = &pane{ID: "%2", Name: "lint", Exit: "1", Ended: late}
+	next, cmd := m.Update(read{at: late, root: "/p", rows: rows})
+	m = next.(model)
+	if m.question != roleCheck || cmd == nil || len(m.again) != 1 || m.again[0].name != "test" || m.again[0].pane != "%1" || len(m.watching) != 0 {
+		t.Fatalf("question %q, again %+v, watching %d", m.question, m.again, len(m.watching))
+	}
+	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "test failed at once; asking Claude again") {
+		t.Errorf("the screen does not say why it asks: %q", lines)
+	}
+	// Claude says the command is right: the question goes, and says so.
+	next, _ = m.Update(roleAnswer{root: "/p", as: roleCheck, kept: true})
+	m = next.(model)
+	if m.question != "" || m.again != nil || !strings.Contains(m.note, "the failure is the project's") {
+		t.Errorf("kept: question %q, note %q", m.question, m.note)
+	}
+}
+
+// The answer asked again gives a command for a name that failed, under
+// that name; KEEP, NONE, or the same command again, keeps it.
+func TestParseAgain(t *testing.T) {
+	failed := []failure{{stacked: stacked{name: "test", command: "npm test"}}, {stacked: stacked{name: "lint", command: "npm run lint"}}}
+	got, err := parseAgain("test: pnpm test\nweb: pnpm dev\nlint: npm run lint\n", failed)
+	if err != nil || len(got) != 1 || got[0].name != "test" || got[0].command != "pnpm test" {
+		t.Errorf("parseAgain = %+v, %v", got, err)
+	}
+	for _, out := range []string{"KEEP", "keep.", "NONE", "lint: npm run lint"} {
+		if _, err := parseAgain(out, failed); !errors.Is(err, errKept) {
+			t.Errorf("parseAgain(%q) = %v, want kept", out, err)
+		}
+	}
+	p := againPrompt(t.TempDir(), roleCheck, failed[:1], map[string][]string{"": {"sh: pnpm: command not found", "[test exited 127]"}})
+	if !strings.Contains(p, "test: npm test\nexited ") || !strings.Contains(p, "command not found") || strings.Contains(p, "[test exited") {
+		t.Errorf("againPrompt = %q", p)
 	}
 }

@@ -138,6 +138,9 @@ type roleAnswer struct {
 	as   role
 	list []stacked
 	err  string
+	// Asked again about runs that failed at once, Claude Code said
+	// every command was right.
+	kept bool
 }
 
 // askRole asks what a role means in a project, off the loop.

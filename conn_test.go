@@ -3,6 +3,7 @@ package main
 import (
 	"charm.land/lipgloss/v2"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -2238,5 +2239,96 @@ func TestDashGoesUpToTheProjects(t *testing.T) {
 	fresh := model{screen: onProjects}
 	if next, _ := fresh.Update(esc); next.(model).screen != onProjects {
 		t.Error("esc left the projects with no project to go back to")
+	}
+}
+
+// , shows the settings on either screen: a row a theme, a row a
+// ground, on beside what the server is on. enter puts the server on
+// the row's where it stands, the panel wears it, and config.json keeps
+// it beside what else it says; esc puts the settings away.
+func TestSettings(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", "")
+	write(t, filepath.Join(home, ".config", "conn", "config.json"), `{"roots": ["~/projects"]}`)
+	srv, _, panel := scratchServer(t)
+	if err := theme.WriteMode(srv.Socket, theme.Mode{Dark: true, Theme: "conn"}); err != nil {
+		t.Fatal(err)
+	}
+	press := func(m model, k string) (model, tea.Cmd) {
+		key := tea.Key{Text: k, Code: []rune(k)[0]}
+		switch k {
+		case "esc":
+			key = tea.Key{Code: tea.KeyEscape}
+		case "enter":
+			key = tea.Key{Code: tea.KeyEnter}
+		}
+		next, cmd := m.Update(tea.KeyPressMsg(key))
+		return next.(model), cmd
+	}
+	m := model{srv: srv, home: home, own: panel, g: theme.Dark, screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}, width: 80, height: 30}
+	if m, _ = press(m, ","); !m.settings {
+		t.Fatal(", did not show the settings")
+	}
+	lines, f := m.draw()
+	s := strings.Join(lines, "\n")
+	for _, want := range []string{"conn  settings", "theme", "datum", "skelly", "mode", "light"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("the settings do not say %q:\n%s", want, s)
+		}
+	}
+	if n := strings.Count(s, " on"); n != 2 {
+		t.Errorf("%d rows are on, not the theme and the ground:\n%s", n, s)
+	}
+	if !reflect.DeepEqual(f.hints, settingsHints) {
+		t.Errorf("the bar under the settings = %v", f.hints)
+	}
+
+	// skelly is the third theme.
+	m, _ = press(m, "j")
+	m, _ = press(m, "j")
+	m, cmd := press(m, "enter")
+	if cmd == nil {
+		t.Fatal("enter on skelly did nothing")
+	}
+	next, _ := m.Update(cmd())
+	m = next.(model)
+	skelly, _ := theme.Load(themesDir(home), "skelly")
+	if m.g != skelly.Dark || m.note != "" {
+		t.Errorf("the panel does not wear skelly: %s, %q", m.g.Accent, m.note)
+	}
+	if md, _ := theme.ReadMode(srv.Socket); md != (theme.Mode{Dark: true, Theme: "skelly"}) {
+		t.Errorf("the server's mode is %+v", md)
+	}
+	if c, _ := srv.Global("cursor-colour"); !strings.EqualFold(c, skelly.Dark.Cursor) {
+		t.Errorf("the server's cursor is %s, not skelly's %s", c, skelly.Dark.Cursor)
+	}
+	b, _ := os.ReadFile(filepath.Join(home, ".config", "conn", "config.json"))
+	var c map[string]any
+	if err := json.Unmarshal(b, &c); err != nil || c["theme"] != "skelly" || c["ground"] != "dark" || c["roots"] == nil {
+		t.Errorf("config.json after skelly: %s", b)
+	}
+
+	// light is the last row.
+	for range 4 {
+		m, _ = press(m, "j")
+	}
+	m, cmd = press(m, "enter")
+	next, _ = m.Update(cmd())
+	if m = next.(model); m.g != skelly.Light {
+		t.Errorf("light did not put the panel on skelly's light: %s", m.g.Accent)
+	}
+	if m, _ = press(m, "esc"); m.settings {
+		t.Error("esc did not put the settings away")
+	}
+
+	// On the projects screen , opens them too, unless it is typed into
+	// a find.
+	m.screen = onProjects
+	if m, _ = press(m, ","); !m.settings {
+		t.Error(", did not show the settings on the projects screen")
+	}
+	m.settings, m.typed = false, "a"
+	if m, _ = press(m, ","); m.settings || m.typed != "a," {
+		t.Errorf("a , typed into a find opened the settings: %q", m.typed)
 	}
 }

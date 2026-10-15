@@ -378,15 +378,23 @@ func reground(srv *tmux.Server, self, home string, want theme.Want) error {
 	if err != nil {
 		return err
 	}
+	if err := dressServer(srv, home, g); err != nil {
+		return err
+	}
+	_, err = ensurePanel(srv, "", self, "exec "+shell.Quote(self)+" panel", again)
+	return err
+}
+
+// dressServer puts a server already up on a ground: the configuration
+// written and sourced again, which dresses every pane where it stands
+// but conn's own, and Claude Code's theme rewritten.
+func dressServer(srv *tmux.Server, home string, g theme.Ground) error {
 	theme.RefreshClaudeTheme(home, g)
 	path := filepath.Join(filepath.Dir(srv.Socket), "tmux.conf")
 	if err := os.WriteFile(path, []byte(conf(g)), 0o600); err != nil {
 		return err
 	}
-	if _, err := srv.Do(tmux.SourceFile(path)); err != nil {
-		return err
-	}
-	_, err = ensurePanel(srv, "", self, "exec "+shell.Quote(self)+" panel", again)
+	_, err := srv.Do(tmux.SourceFile(path))
 	return err
 }
 

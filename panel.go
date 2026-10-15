@@ -108,6 +108,9 @@ type model struct {
 	listing bool
 	pick    string
 	pickAt  int
+	// ,'s settings: whether they stand, and the cursor in them.
+	settings bool
+	setAt    int
 }
 
 // A row on a project's screen: a conversation, a pane, or both — a
@@ -867,6 +870,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+	case rethemed:
+		return m.takeTheme(msg), nil
 	case read:
 		m.waiting = msg.waiting
 		// The first read, with a process standing in the workspace: the
@@ -961,6 +966,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.helping = false
 			return m, nil
 		}
+		if m.settings {
+			return m.settingsKey(msg)
+		}
 		if m.asking {
 			return m.lineKey(msg)
 		}
@@ -1023,6 +1031,12 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.note = m.leave()
 	case "?":
 		m.helping = true
+	case ",":
+		if m.typed == "" {
+			m.settings, m.setAt = true, 0
+			return m, nil
+		}
+		m.typed, m.cursor = m.typed+",", 0
 	case "esc":
 		// esc takes back what was typed to find; with nothing typed, it
 		// goes back down into the project - came up from.
@@ -1105,6 +1119,8 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "?":
 		m.helping = true
+	case ",":
+		m.settings, m.setAt = true, 0
 	}
 	return m, nil
 }
@@ -1841,10 +1857,11 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {"q", "leave"}}
-	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {"ctrl-c", "leaves conn running"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
+	settingsHints = []keyHint{{"↑ ↓", "move"}, {"enter", "set"}, {"esc", "back"}}
 	objectHints   = []keyHint{{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}}
 	listHints     = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
 	cancelHints   = []keyHint{{"esc", "cancel"}}
@@ -1883,6 +1900,8 @@ func (m model) draw() ([]string, foot) {
 	switch {
 	case m.helping:
 		lines, f = m.drawKeys()
+	case m.settings:
+		lines, f = m.drawSettings()
 	case m.screen == onProjects:
 		lines, f = m.drawProjects()
 	default:

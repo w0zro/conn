@@ -2191,3 +2191,17 @@ func TestParseAgain(t *testing.T) {
 		t.Errorf("againPrompt = %q", p)
 	}
 }
+
+// - goes up to the projects, as vim's - goes up to the directory; esc
+// and backspace no longer do.
+func TestDashGoesUpToTheProjects(t *testing.T) {
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}}
+	for _, k := range []tea.Key{{Code: tea.KeyEscape}, {Code: tea.KeyBackspace}} {
+		if next, _ := m.Update(tea.KeyPressMsg(k)); next.(model).screen != onProject {
+			t.Errorf("%s left the project", k)
+		}
+	}
+	if next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "-", Code: '-'})); next.(model).screen != onProjects {
+		t.Error("- did not go up to the projects")
+	}
+}

@@ -1048,7 +1048,8 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "tab":
 		return m.nextWaiting()
-	case "esc", "backspace":
+	case "-":
+		// Up to the projects, as vim's - goes up to the directory.
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
 		return m, m.read()
 	case "up", "k", "ctrl+p":
@@ -1833,7 +1834,7 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"esc", "projects"}, {"q", "leave"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}

@@ -2099,55 +2099,39 @@ func TestItems(t *testing.T) {
 	}
 }
 
-// Opening a project again puts the cursor on the row of the pane the
-// keys were last in there, while it stands, with the keys left on the
-// panel; a project never gone into, or whose pane is gone, opens on
-// its rows.
-func TestOpenIntoLastPane(t *testing.T) {
-	srv, win, panel := scratchServer(t)
-	ws := newWorkspace(srv, win, panel, "/x")
-	ws.hold = "sleep 1000"
-	id, err := openWindow(srv, "a", t.TempDir(), "sleep 1000", "")
-	if err != nil {
-		t.Fatal(err)
+// Opening a project, from the projects or from its line under another,
+// puts the cursor on its first row once the rows are read, not on the
+// line it was on before they came, and not on a pane gone into before.
+func TestOpenLandsOnFirstRow(t *testing.T) {
+	ps := []project{{Name: "a", Root: "/a", Running: 1}, {Name: "b", Root: "/b", Running: 1}}
+	rows := []row{{pane: &pane{ID: "%1", Name: "web"}}, {pane: &pane{ID: "%2"}}}
+	m := model{screen: onProjects, projects: ps, cursor: 1}
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if m = next.(model); m.screen != onProject || m.cur.Root != "/b" || m.cursor != 0 || m.follow != "" {
+		t.Fatalf("enter opened screen %v, project %q, cursor %d, following %q", m.screen, m.cur.Root, m.cursor, m.follow)
 	}
-	a, b := project{Name: "a", Root: "/a"}, project{Name: "b", Root: "/b"}
-	m := model{srv: srv, own: panel, ws: ws, screen: onProject, cur: a, rows: []row{{pane: &pane{ID: id}}}}
-	next, _ := m.goTo(m.rows[0])
-	m = next.(model)
-	if m.lastIn["/a"] != id {
-		t.Fatalf("goTo did not note the pane: %v", m.lastIn)
+	next, _ = m.Update(read{root: "/b", projects: ps, rows: rows})
+	if m = next.(model); m.cursor != 0 || m.itemKey(m.items()[0]) != rows[0].key() {
+		t.Errorf("after the read, the cursor is at %d on %s, want the first row", m.cursor, m.itemKey(m.items()[m.cursor]))
 	}
-	next, _ = m.openInto(b)
-	if m = next.(model); m.cur.Root != "/b" || m.follow != "" {
-		t.Errorf("b opened into %q", m.follow)
+	// From b's rows, enter on a's line opens a on its first row too.
+	m.cursor = len(m.items()) - 1
+	if key := m.itemKey(m.items()[m.cursor]); key != "project /a" {
+		t.Fatalf("the cursor is on %s, want a's line", key)
 	}
-	next, cmd := m.openInto(a)
-	if m = next.(model); m.cur.Root != "/a" || m.follow != id || cmd == nil {
-		t.Errorf("a opened on %q", m.follow)
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if m = next.(model); m.cur.Root != "/a" || m.cursor != 0 || m.follow != "" {
+		t.Errorf("a opened with cursor %d, following %q", m.cursor, m.follow)
 	}
-	// The batch holds the show and a read; only the show is run, and
-	// the keys stay on the panel.
-	if b, ok := cmd().(tea.BatchMsg); ok && len(b) > 0 {
-		b[0]()
+	next, _ = m.Update(read{root: "/a", projects: ps, rows: rows})
+	if m = next.(model); m.cursor != 0 || m.itemKey(m.items()[0]) != rows[0].key() {
+		t.Errorf("after a's read, the cursor is at %d, want the first row", m.cursor)
 	}
-	if p := inWorkspace(t, ws); p.ID != id {
-		t.Errorf("the workspace shows %s, want %s", p.ID, id)
-	}
-	if active, _ := srv.Display(panel, "#{pane_active}"); active != "1" {
-		t.Error("opening a project moved the keys off the panel")
-	}
-	m.lastIn["/b"] = "%999"
-	next, _ = m.openInto(b)
-	if m = next.(model); m.follow != "" {
-		t.Error("b opened on a pane that is gone")
-	}
-	// With no pane to go back to, the rows are read and nothing is
-	// gone into: the cursor stays on the first row, and the workspace
-	// shows it as it shows whatever the cursor is on.
-	next, _ = m.Update(read{root: "/b", rows: []row{{pane: &pane{ID: "%7", Name: "web"}}, {conv: &conversation{ID: "c"}, pane: &pane{ID: id}}}})
-	if m = next.(model); m.lastIn["/b"] != "%999" || m.cursor != 0 || m.follow != "" {
-		t.Errorf("b opened into %q, cursor %d", m.follow, m.cursor)
+	// A read while the rows stand keeps the cursor on its row.
+	m.cursor = 1
+	next, _ = m.Update(read{root: "/a", projects: ps, rows: []row{rows[1], rows[0]}})
+	if m = next.(model); m.itemKey(m.items()[m.cursor]) != "%2" {
+		t.Errorf("the cursor left its row for %s", m.itemKey(m.items()[m.cursor]))
 	}
 }
 

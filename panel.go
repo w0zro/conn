@@ -100,9 +100,6 @@ type model struct {
 	rest []row
 	// A verb pressed and waiting for its object, blank for none.
 	verb string
-	// The pane the keys were last in, by project: opening a project
-	// again puts them back in it.
-	lastIn map[string]string
 	// rc's list of the conversations at rest: whether it stands, what
 	// is typed to find one, and the cursor in it.
 	listing bool
@@ -882,8 +879,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// The cursor stays on its item, by key, as the projects and the
 		// rows are read again under it.
+		// A project just opened has no rows yet, and its cursor is on
+		// the first row to come: nothing is kept.
 		on := ""
-		if items := m.items(); m.screen == onProject && m.cursor < len(items) {
+		if items := m.items(); m.screen == onProject && m.rows != nil && m.cursor < len(items) {
 			on = m.itemKey(items[m.cursor])
 		}
 		m.takeProjects(msg.projects)
@@ -1041,7 +1040,7 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		// esc takes back what was typed to find; with nothing typed, it
 		// goes back down into the project - came up from.
 		if m.typed == "" && m.cur.Root != "" {
-			return m.openInto(m.cur)
+			return m.open(m.cur)
 		}
 		m.typed, m.cursor = "", 0
 	case "ctrl+u":
@@ -1086,7 +1085,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.goTo(r)
 		}
 		if p, ok := m.lineUnder(); ok && !m.isOpen(p) {
-			return m.openInto(p)
+			return m.open(p)
 		}
 	case "n":
 		return m.converse("")
@@ -1251,7 +1250,6 @@ func (m model) openOn(p pane) (tea.Model, tea.Cmd) {
 		m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
 		m.searching, m.question = false, ""
 	}
-	m = m.attached(m.cur.Root, p.ID)
 	m.follow, m.asked, m.followAt = p.ID, p.ID, time.Now()
 	return m, tea.Batch(m.showing(p.ID, true), m.read())
 }
@@ -1268,7 +1266,6 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.hitAt < len(m.found) {
 			h := m.found[m.hitAt]
-			m = m.attached(m.cur.Root, m.said[h.said].pane.ID)
 			return m, land(m.ws, m.srv, m.said[h.said].pane, h.k, m.query)
 		}
 		return m, nil
@@ -1532,33 +1529,8 @@ func (m model) start(dir, cmd, session string) (tea.Model, tea.Cmd) {
 		m.note = err.Error()
 		return m, nil
 	}
-	m = m.attached(m.cur.Root, id)
 	m.follow, m.asked, m.followAt = id, id, time.Now()
 	return m, tea.Batch(m.showing(id, true), m.read())
-}
-
-// attached notes the pane the keys have gone into, under its project.
-func (m model) attached(root, id string) model {
-	if m.lastIn == nil {
-		m.lastIn = map[string]string{}
-	}
-	m.lastIn[root] = id
-	return m
-}
-
-// openInto opens a project with the cursor on the row of the pane the
-// keys were last in there, while it stands, and the workspace showing
-// it; the keys stay on the panel. Switching projects attaches nothing:
-// enter does.
-func (m model) openInto(p project) (tea.Model, tea.Cmd) {
-	next, cmd := m.open(p)
-	m = next.(model)
-	id := m.lastIn[p.Root]
-	if id == "" || !m.stands(id) {
-		return m, cmd
-	}
-	m.follow, m.asked, m.followAt = id, id, time.Now()
-	return m, tea.Batch(m.showing(id, false), cmd)
 }
 
 // stands says whether a pane is one the keys can go into: a pane of a
@@ -1601,7 +1573,6 @@ func (m model) open(p project) (tea.Model, tea.Cmd) {
 func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 	switch {
 	case r.pane != nil:
-		m = m.attached(m.cur.Root, r.pane.ID)
 		m.asked = r.pane.ID
 		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:

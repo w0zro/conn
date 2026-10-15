@@ -792,7 +792,7 @@ func (m model) telling(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	_, f := m.draw()
-	bar := keyBar(f.hints, m.g)
+	bar := connBar(f.hints, m.g)
 	if bar == m.bar {
 		return m, cmd
 	}

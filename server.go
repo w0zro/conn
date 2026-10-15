@@ -91,9 +91,10 @@ set-environment -g CONN 1
 
 // statusLine is the two rows across the foot of the window. The upper
 // is the band, on the border: the wordmark, and at the right how many
-// conversations wait on you, in the accent. The lower is the key bar,
-// on the surface, the panel's own ground: the keys that work where
-// the cursor is while the keys are on the panel, the way back while
+// conversations wait on you, in the accent. The lower is the key bar:
+// the keys that work where the cursor is while the keys are on the
+// panel, lit in the accent's block, so being in conn shows from
+// anywhere on the screen; on the surface, the way back while
 // they are in a pane, and tmux's own keys while a pane is in copy
 // mode, which tmux knows first. The panel writes its keys into an
 // option when they change, on a keypress, never on a beat.
@@ -115,7 +116,7 @@ set -g window-status-separator ""
 	fmt.Fprintf(&b, "set -g status-right \"#{?#{%s},#[fg=%s bold]#{%s} waiting #[default],}\"\n", waitingMark, g.Accent, waitingMark)
 	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
 	onPanel := "#{==:#{pane_id},#{" + panelIDMark + "}}"
-	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{?pane_in_mode,%s,#{?%s,#{%s},%s}}\"\n", g.Surface, g.Surface, keyBar(copyHints, g), onPanel, barMark, keyBar(awayHints, g))
+	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{?pane_in_mode,%s,#{?%s,#[fill=%s bg=%s]#{%s},%s}}\"\n", g.Surface, g.Surface, keyBar(copyHints, g), onPanel, g.Block, g.Block, barMark, keyBar(awayHints, g))
 	return b.String()
 }
 
@@ -136,18 +137,31 @@ var (
 	awayHints = []keyHint{{"ctrl-space", "back to conn"}}
 )
 
-// keyBar is the keys as the bar writes them on a ground: each key in
-// the ink and bold, what it does in the gray after it, three cells
-// between one and the next, a cell in from the edge, on the surface.
+// keyBar is the keys as the bar writes them while they are in a pane:
+// each key in the ink and bold, what it does in the gray after it, on
+// the surface. connBar is the keys while they are on the panel, the bar
+// lit in the accent's block, so conn's keys are told from a pane's at
+// a glance: each key in the block's ink and bold, what it does in the
+// same ink.
 func keyBar(hints []keyHint, g theme.Ground) string {
+	return bar(hints, g.Surface, theme.Hex(g.Ink), g.Gray)
+}
+
+func connBar(hints []keyHint, g theme.Ground) string {
+	return bar(hints, g.Block, g.OnBlock, g.OnBlock)
+}
+
+// bar is the keys on a ground: three cells between one and the next,
+// a cell in from the edge.
+func bar(hints []keyHint, ground, key, does string) string {
 	var b strings.Builder
 	b.WriteString(" ")
 	for i, h := range hints {
 		if i > 0 {
 			b.WriteString("   ")
 		}
-		b.WriteString(tmux.Styled(tmux.Style{FG: theme.Hex(g.Ink), BG: g.Surface, Bold: true}, h.key+" "))
-		b.WriteString(tmux.Styled(tmux.Style{FG: g.Gray, BG: g.Surface}, h.does))
+		b.WriteString(tmux.Styled(tmux.Style{FG: key, BG: ground, Bold: true}, h.key+" "))
+		b.WriteString(tmux.Styled(tmux.Style{FG: does, BG: ground}, h.does))
 	}
 	return b.String()
 }

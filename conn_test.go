@@ -1895,8 +1895,12 @@ func TestKeyBar(t *testing.T) {
 	if !strings.Contains(bar, "x ") || !strings.Contains(bar, "stop") || !strings.Contains(bar, theme.Dark.Surface) {
 		t.Errorf("keyBar = %q", bar)
 	}
+	// On the panel the bar is lit in the accent's block, keys and all.
+	if lit := connBar([]keyHint{{"x", "stop"}}, theme.Dark); !strings.Contains(lit, "bg="+theme.Dark.Block) || strings.Contains(lit, theme.Dark.Surface) {
+		t.Errorf("connBar = %q", lit)
+	}
 	c := conf(theme.Dark)
-	for _, want := range []string{"set -g status 2\n", "status-format[1]", "#{" + barMark + "}", "#{" + panelIDMark + "}"} {
+	for _, want := range []string{"set -g status 2\n", "status-format[1]", "#[fill=" + theme.Dark.Block + " bg=" + theme.Dark.Block + "]#{" + barMark + "}", "#{" + panelIDMark + "}"} {
 		if !strings.Contains(c, want) {
 			t.Errorf("conf lacks %s", want)
 		}

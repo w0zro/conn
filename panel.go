@@ -1533,21 +1533,6 @@ func (m model) start(dir, cmd, session string) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(m.showing(id, true), m.read())
 }
 
-// stands says whether a pane is one the keys can go into: a pane of a
-// process, not the panel's own and not a hold, and not ended.
-func (m model) stands(id string) bool {
-	if m.srv == nil {
-		return false
-	}
-	ps, _ := panes(m.srv)
-	for _, p := range ps {
-		if p.ID == id && !p.Hold && !p.Dead && !p.Panel {
-			return true
-		}
-	}
-	return false
-}
-
 // converse starts a conversation where the cursor stands, with a first
 // prompt where there is one.
 func (m model) converse(prompt string) (tea.Model, tea.Cmd) {

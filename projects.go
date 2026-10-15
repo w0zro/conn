@@ -202,26 +202,75 @@ type sighting struct {
 	When time.Time
 }
 
-// findProjects is the projects the sightings name, newest work first.
+// A project is a checkout under home: something you have, not
+// somewhere work has happened. repoDepth is how far under home one is
+// looked for, enough for a folder of folders of them.
+const repoDepth = 4
+
+// repositories is every checkout under a directory, to a depth: a
+// directory with a .git in it, which is not looked into further. Hidden
+// directories and the ones that hold other people's code, or the
+// system's, are passed over. A .git in the directory itself is passed
+// over too, as home is where everything is and not a project.
+func repositories(home string, depth int) []string {
+	var out []string
+	var walk func(dir string, left int)
+	walk = func(dir string, left int) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		if dir != home {
+			for _, e := range entries {
+				if e.Name() == ".git" {
+					out = append(out, dir)
+					return
+				}
+			}
+		}
+		if left == 0 {
+			return
+		}
+		for _, e := range entries {
+			if e.IsDir() && !passedOver(e.Name()) {
+				walk(filepath.Join(dir, e.Name()), left-1)
+			}
+		}
+	}
+	walk(home, depth)
+	sort.Strings(out)
+	return out
+}
+
+// passedOver says whether a directory is not looked in for checkouts.
+func passedOver(name string) bool {
+	switch name {
+	case "Library", "node_modules", "vendor":
+		return true
+	}
+	return strings.HasPrefix(name, ".")
+}
+
+// findProjects is the projects: the checkouts, and whatever else conn
+// holds a pane in, each with its newest work from the sightings, newest
+// work first. A sighting somewhere that is no project says nothing.
 // home is never a project of its own: it is where everything is.
-func findProjects(seen []sighting, home string, root func(string) string) []project {
-	roots := map[string]string{} // directory → project, each asked once
+func findProjects(repos []string, seen []sighting, home string, root func(string) string) []project {
 	by := map[string]*project{}
+	for _, r := range repos {
+		if r == "" || r == home || r == "/" || by[r] != nil {
+			continue
+		}
+		by[r] = &project{Name: filepath.Base(r), Root: r}
+	}
+	roots := map[string]string{} // directory → project, each asked once
 	for _, s := range seen {
 		r, ok := roots[s.Dir]
 		if !ok {
 			r = root(s.Dir)
 			roots[s.Dir] = r
 		}
-		if r == "" || r == home || r == "/" {
-			continue
-		}
-		p := by[r]
-		if p == nil {
-			p = &project{Name: filepath.Base(r), Root: r}
-			by[r] = p
-		}
-		if s.When.After(p.Last) {
+		if p := by[r]; p != nil && s.When.After(p.Last) {
 			p.Last = s.When
 		}
 	}

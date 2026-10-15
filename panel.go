@@ -276,6 +276,34 @@ type known struct {
 	head   map[string]string
 	titles map[string]titled
 	folder map[string]bool
+	// The checkouts under home, and when they were last looked for.
+	repos   []string
+	scanned time.Time
+}
+
+// scanEvery is how long the checkouts found under home are kept
+// before they are looked for again: a clone shows up within it.
+const scanEvery = 30 * time.Second
+
+// repositories is the checkouts under home, looked for at most every
+// scanEvery. A worktree stands for its repository.
+func (k *known) repositories(home string) []string {
+	k.mu.Lock()
+	repos, fresh := k.repos, time.Since(k.scanned) < scanEvery
+	k.mu.Unlock()
+	if fresh {
+		return repos
+	}
+	repos = repositories(home, repoDepth)
+	for i, r := range repos {
+		if info, err := os.Stat(filepath.Join(r, ".git")); err == nil && !info.IsDir() {
+			repos[i] = k.rootOf(r)
+		}
+	}
+	k.mu.Lock()
+	k.repos, k.scanned = repos, time.Now()
+	k.mu.Unlock()
+	return repos
 }
 
 type titled struct {
@@ -575,7 +603,13 @@ func (m model) read() tea.Cmd {
 			}
 		}
 		sayWaiting(srv, total)
-		found := findProjects(seen, home, k.rootOf)
+		// What conn holds a pane in is a project while it does, a
+		// checkout or not.
+		repos := k.repositories(home)
+		for _, p := range held {
+			repos = append(repos, k.rootOf(p.Dir))
+		}
+		found := findProjects(repos, seen, home, k.rootOf)
 		for i := range found {
 			found[i].Running, found[i].Waiting, found[i].Turning = running[found[i].Root], waiting[found[i].Root], turning[found[i].Root]
 		}

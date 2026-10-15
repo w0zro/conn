@@ -297,12 +297,17 @@ func TestTemporaryIsNoProject(t *testing.T) {
 	}
 }
 
+// The projects are the checkouts given, newest work first by the
+// sightings, a checkout never worked in last; a sighting somewhere
+// that is no checkout says nothing, home is no project, and a root
+// given twice is one project.
 func TestFindProjects(t *testing.T) {
 	now := time.Now()
 	roots := map[string]string{
 		"/h/p/shop":     "/h/p/shop",
 		"/h/p/shop/api": "/h/p/shop",
 		"/h/p/notes":    "/h/p/notes",
+		"/h/p/old":      "/h/p/old",
 		"/h":            "/h",
 		"/h/gone":       "",
 	}
@@ -310,16 +315,39 @@ func TestFindProjects(t *testing.T) {
 		{"/h/p/notes", now.Add(-3 * time.Hour)},
 		{"/h/p/shop/api", now.Add(-time.Hour)},
 		{"/h/p/shop", now.Add(-5 * time.Hour)},
+		{"/h/p/old", now},
 		{"/h", now},
 		{"/h/gone", now},
 	}
-	got := findProjects(seen, "/h", func(d string) string { return roots[d] })
+	repos := []string{"/h/p/shop", "/h/p/notes", "/h/p/new", "/h", "", "/h/p/shop"}
+	got := findProjects(repos, seen, "/h", func(d string) string { return roots[d] })
 	want := []project{
 		{Name: "shop", Root: "/h/p/shop", Last: now.Add(-time.Hour)},
 		{Name: "notes", Root: "/h/p/notes", Last: now.Add(-3 * time.Hour)},
+		{Name: "new", Root: "/h/p/new"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("findProjects = %+v\nwant %+v", got, want)
+	}
+}
+
+// The checkouts under home are the directories with a .git in them,
+// to a depth, not looked into further; hidden directories, Library,
+// node_modules and vendor are passed over, and so is a .git in home.
+func TestRepositories(t *testing.T) {
+	home := t.TempDir()
+	for _, d := range []string{".git", "a/.git", "a/inner/.git", "b/c/.git", ".hidden/.git", "node_modules/x/.git", "Library/y/.git", "d/e/f/g/.git", "d/e/f/g/h/.git", "plain"} {
+		if err := os.MkdirAll(filepath.Join(home, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := repositories(home, 4)
+	want := []string{filepath.Join(home, "a"), filepath.Join(home, "b/c"), filepath.Join(home, "d/e/f/g")}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("repositories = %v\nwant %v", got, want)
+	}
+	if got := repositories(home, 1); !reflect.DeepEqual(got, want[:1]) {
+		t.Errorf("repositories to a depth of one = %v", got)
 	}
 }
 

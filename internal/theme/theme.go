@@ -43,8 +43,7 @@ type Ground struct {
 	Block, OnBlock string
 
 	// The row under the cursor, and what copy mode has selected, and
-	// the ink it is written in; and the cursor itself: the terminal's,
-	// and the bar beside the row the panel's is on.
+	// the ink it is written in; and the cursor itself.
 	Chosen, ChosenInk, Cursor string
 
 	// The grounds no slot has a name for, which Claude Code draws: the

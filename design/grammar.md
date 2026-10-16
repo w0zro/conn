@@ -45,6 +45,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 20. **What was kept is asked again when it fails at once.** What `u` and `t` start, as kept or as Claude just named it, is watched for two seconds; a run that ends in an error by then asks Claude again, given the command, its status and its last lines. A command that does not work here is offered in place of the old, under the same name, and enter's start writes it down; a command that is right and failed for the project's own reasons is said to be the project's, and nothing is offered. Built, 2026-10-14.
 
+21. **Stop by role.** `x` waits for its object, as `r` does: `xx` the row, or on another project's line everything in it; `xs` the stack and `xt` the checks, as they stand on the panel; `xp` everything in the open project. Built, 2026-10-15.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
 Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `c` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.

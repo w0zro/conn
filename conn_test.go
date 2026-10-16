@@ -2075,7 +2075,7 @@ func TestReadEmpty(t *testing.T) {
 	}
 }
 
-// r waits for its object: r again restarts the row, c lists the
+// A verb waits for its object. r again restarts the row, c lists the
 // conversations at rest with a find line, and any other key puts the
 // verb away and says what it waited for.
 func TestVerbWaits(t *testing.T) {
@@ -2094,6 +2094,15 @@ func TestVerbWaits(t *testing.T) {
 	}
 	if m = press(m, "x"); m.verb != "" || m.note == "" || m.listing {
 		t.Errorf("x after r: verb %q, note %q, listing %v", m.verb, m.note, m.listing)
+	}
+	if m = press(m, "x"); m.verb != "x" {
+		t.Fatalf("x did not wait: verb %q", m.verb)
+	}
+	if m = press(m, "q"); m.verb != "" || !strings.Contains(m.note, "s, the stack") {
+		t.Errorf("q after x: verb %q, note %q", m.verb, m.note)
+	}
+	if m = press(press(m, "x"), "t"); m.verb != "" || !strings.Contains(m.note, "the checks") {
+		t.Errorf("xt with no checks: verb %q, note %q", m.verb, m.note)
 	}
 	m = press(press(m, "r"), "c")
 	if !m.listing || m.verb != "" {

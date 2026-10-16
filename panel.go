@@ -1103,9 +1103,9 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.objectKey(k)
 	}
 	switch k.String() {
-	case "r":
+	case "r", "x":
 		// A verb waits for its object: the verb again is the row.
-		m.verb = "r"
+		m.verb = k.String()
 		return m, nil
 	case "tab":
 		return m.nextWaiting()
@@ -1138,16 +1138,6 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.start(m.here(), "", "")
 	case "q", "ctrl+c":
 		m.note = m.leave()
-	case "x":
-		if r, ok := m.under(); ok {
-			if p, ok := r.proc(); ok {
-				return m, m.end(p)
-			}
-			return m, nil
-		}
-		if p, ok := m.lineUnder(); ok {
-			return m, m.endAll(p)
-		}
 	case "!":
 		m.asking, m.line = true, ""
 	case "/":
@@ -1927,14 +1917,18 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"x", "stop"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
 	settingsHints = []keyHint{{"j k", "move"}, {"g G", "top, bottom"}, {"enter", "set"}, {"esc", "back"}}
-	objectHints   = []keyHint{{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}}
-	listHints     = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
-	cancelHints   = []keyHint{{"esc", "cancel"}}
+	// The objects each verb waits for.
+	objectHints = map[string][]keyHint{
+		"r": {{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}},
+		"x": {{"x", "the row"}, {"s", "the stack"}, {"t", "the checks"}, {"p", "the project"}, {"esc", "cancel"}},
+	}
+	listHints   = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
+	cancelHints = []keyHint{{"esc", "cancel"}}
 )
 
 // A foot is what stands under a screen: the keys, or a line of conn's
@@ -2157,7 +2151,7 @@ func (m model) drawProject() ([]string, foot) {
 	first := max(cursorAt-room+1, 0)
 	hints := projectHints
 	if m.verb != "" {
-		hints = objectHints
+		hints = objectHints[m.verb]
 	}
 	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: hints}
 }
@@ -2484,9 +2478,11 @@ func listName(p project) string {
 	return p.Name
 }
 
-// objectKey is the key after a verb: the object the verb takes. r
-// again restarts the row; c lists the conversations at rest to pick
-// one back up; anything else puts the verb away.
+// objectKey is the key after a verb: the object the verb takes. The
+// verb again is the row under the cursor, or for x the project whose
+// line it is; s is the stack and t the checks, as they stand on the
+// panel; p is the open project; c after r lists the conversations at
+// rest to pick one back up. Anything else puts the verb away.
 func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	verb := m.verb
 	m.verb = ""
@@ -2499,11 +2495,73 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "rc":
 		m.listing, m.pick, m.pickAt = true, "", 0
-	case "resc", "rctrl+c":
+	case "xx":
+		if r, ok := m.under(); ok {
+			if p, ok := r.proc(); ok {
+				return m, m.end(p)
+			}
+			return m, nil
+		}
+		if p, ok := m.lineUnder(); ok {
+			return m, m.endAll(p)
+		}
+	case "xs":
+		return m.endEach(m.inPlace(placeStack), "the stack")
+	case "xt":
+		return m.endEach(m.inPlace(placeChecks), "the checks")
+	case "xp":
+		return m, m.endAll(m.cur)
+	case verb + "esc", verb + "ctrl+c":
 	default:
-		m.note = verb + " waits for " + verb + ", the row, or c, a conversation at rest"
+		var said []string
+		for _, h := range objectHints[verb] {
+			if h.key != "esc" {
+				said = append(said, h.key+", "+h.does)
+			}
+		}
+		m.note = verb + " waits for " + strings.Join(said, "; ")
 	}
 	return m, nil
+}
+
+// inPlace is the open project's rows that stand in a place.
+func (m model) inPlace(place int) []row {
+	var out []row
+	for _, r := range m.rows {
+		if r.stand == place {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// endEach ends each row's process, off the loop and one after another,
+// and says how many it ended; with none, it says there is nothing.
+func (m model) endEach(rows []row, what string) (tea.Model, tea.Cmd) {
+	var ps []proc
+	for _, r := range rows {
+		if p, ok := r.proc(); ok {
+			ps = append(ps, p)
+		}
+	}
+	if len(ps) == 0 {
+		m.note = "Nothing of " + what + " stands here."
+		return m, nil
+	}
+	srv, hold := m.srv, m.ws.hold
+	return m, func() tea.Msg {
+		var failed []string
+		for _, p := range ps {
+			if _, err := endProc(srv, hold, p); err != nil {
+				failed = append(failed, err.Error())
+			}
+		}
+		said := fmt.Sprintf("%s: ended %d", what, len(ps)-len(failed))
+		if len(failed) > 0 {
+			said += "; " + strings.Join(failed, "; ")
+		}
+		return acted(said)
+	}
 }
 
 // ring is a cursor moved by one over a list of n: past the last it

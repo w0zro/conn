@@ -2939,3 +2939,230 @@ func TestFindAPort(t *testing.T) {
 		t.Errorf(":4000 does not say nothing holds it:\n%s", strings.Join(lines, "\n"))
 	}
 }
+
+// Typing in rc's list finds a conversation at rest by what was said in
+// it, not only by its title: each found that way shows, indented under
+// its title, the line that said the words, the words in bold as in /'s
+// search. The count says how many were found, the arrows move one
+// conversation at a time, and enter picks the one under the cursor back
+// up. The conversations are read off their transcripts, as conn reads
+// them.
+func TestPickUpByWhatWasSaid(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	shoot := func(name string, m model) {
+		if shots == "" {
+			return
+		}
+		g := theme.Dark
+		ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		screen := strings.ReplaceAll(m.View().Content, "\n", "\x1b[0m\r\n")
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(ground+screen+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	// claude, as conn starts it to pick a conversation back up, waits.
+	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
+	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "init", "-q")
+	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+
+	// Four conversations at rest, newest first: one says the words, one
+	// is titled with them, one says them in Claude's reply, and one has
+	// nothing to do with them.
+	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
+	user := func(s string) string {
+		b, _ := json.Marshal(s)
+		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":` + string(b) + `}}`
+	}
+	reply := func(s string) string {
+		b, _ := json.Marshal(s)
+		return `{"type":"assistant","cwd":` + strconv.Quote(web) + `,"message":{"role":"assistant","content":[{"type":"text","text":` + string(b) + `}]}}`
+	}
+	titled := func(s string) string { return `{"type":"ai-title","aiTitle":` + strconv.Quote(s) + `}` }
+	convs := []struct {
+		id, title string
+		lines     []string
+	}{
+		{"bbbbbbbb-0000-0000-0000-000000000002", "Tidy the session cookie", []string{
+			user("after I sign in, the auth redirect lands on a blank page"),
+			reply("The cookie is set on the wrong path."),
+		}},
+		{"aaaaaaaa-0000-0000-0000-000000000001", "Fix the auth redirect", []string{
+			user("it loops"),
+			reply("Looking."),
+		}},
+		{"dddddddd-0000-0000-0000-000000000004", "Grammar work", []string{
+			user("make the manual read like the panel"),
+			reply("Done."),
+		}},
+		{"cccccccc-0000-0000-0000-000000000003", "Move to the new router", []string{
+			user("port the pages over"),
+			reply("The old auth redirect in middleware.go has to go too."),
+		}},
+	}
+	now := time.Now()
+	for i, c := range convs {
+		path := write(t, filepath.Join(scratch, ".claude", "projects", encoded, c.id+".jsonl"),
+			strings.Join(append(c.lines, titled(c.title)), "\n")+"\n")
+		when := now.Add(-time.Duration(i+1) * time.Hour)
+		if err := os.Chtimes(path, when, when); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+
+	// The scratch is temporary, which is no project; here it is one.
+	k := newKnown()
+	k.root[web] = web
+	m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, width: 120, height: 36, known: k}
+	next, _ := m.Update(m.read()())
+	m = next.(model)
+	if len(m.rest) != 4 {
+		t.Fatalf("the read found %d conversations at rest, want 4", len(m.rest))
+	}
+
+	// settle runs what a key asks done, as the program would, and hands
+	// back what it answers; what takes longer than a moment is a tick.
+	var settle func(m model, cmd tea.Cmd, depth int) model
+	settle = func(m model, cmd tea.Cmd, depth int) model {
+		if cmd == nil || depth > 4 {
+			return m
+		}
+		got := make(chan tea.Msg, 1)
+		go func() { got <- cmd() }()
+		var msg tea.Msg
+		select {
+		case msg = <-got:
+		case <-time.After(2 * time.Second):
+			return m
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				m = settle(m, c, depth+1)
+			}
+			return m
+		}
+		if msg == nil {
+			return m
+		}
+		next, cmd := m.Update(msg)
+		return settle(next.(model), cmd, depth+1)
+	}
+	press := func(m model, key tea.Key) model {
+		next, cmd := m.Update(tea.KeyPressMsg(key))
+		return settle(next.(model), cmd, 0)
+	}
+	typing := func(m model, s string) model {
+		for _, r := range s {
+			m = press(m, tea.Key{Code: r, Text: string(r)})
+		}
+		return m
+	}
+	m = typing(m, "rc")
+	if !m.listing {
+		t.Fatal("rc did not list the conversations at rest")
+	}
+	m = typing(m, "auth redirect")
+	shoot("rc-found-120x36.ans", m)
+
+	drawn, _ := m.draw()
+	lines := make([]string, len(drawn))
+	for i := range drawn {
+		lines[i] = strings.TrimRight(plainText(drawn[i]), " ")
+	}
+	screen := strings.Join(lines, "\n")
+	saying := func(s string) int {
+		for i, l := range lines {
+			if strings.Contains(l, s) {
+				return i
+			}
+		}
+		return -1
+	}
+	if !strings.Contains(screen, "3 conversations") {
+		t.Errorf("the count does not say 3 conversations found:\n%s", screen)
+	}
+	if saying("Grammar work") >= 0 {
+		t.Errorf("a conversation that never said the words is found:\n%s", screen)
+	}
+	for _, c := range []struct{ title, said string }{
+		{"Tidy the session cookie", "the auth redirect lands on a blank page"},
+		{"Move to the new router", "The old auth redirect in middleware.go"},
+	} {
+		at := saying(c.title)
+		if at < 0 || at+1 >= len(lines) {
+			t.Errorf("%q, which said the words, is not found:\n%s", c.title, screen)
+			continue
+		}
+		under := lines[at+1]
+		if !strings.Contains(under, c.said) {
+			t.Errorf("under %q, %q is not the line that said the words:\n%s", c.title, under, screen)
+			continue
+		}
+		indent := func(s string) int { return len(s) - len(strings.TrimLeft(s, " ")) }
+		if indent(under) <= strings.Index(lines[at], c.title) {
+			t.Errorf("the line said, %q, is not indented under its title %q", under, lines[at])
+		}
+		// Each word is in bold where the line says it.
+		for _, w := range []string{"auth", "redirect"} {
+			raw := drawn[at+1]
+			i := strings.Index(raw, w)
+			sgr := regexp.MustCompile("\x1b\\[([0-9;]*)m").FindAllStringSubmatch(raw[:max(i, 0)], -1)
+			bold := len(sgr) > 0 && regexp.MustCompile(`(^|;)1(;|$)`).MatchString(sgr[len(sgr)-1][1])
+			if i < 0 || !bold {
+				t.Errorf("under %q, %q is not in bold: %q", c.title, w, raw)
+			}
+		}
+	}
+	if t.Failed() {
+		t.FailNow()
+	}
+
+	// From the first found, two downs pass over the line said and the
+	// conversation titled with the words, to the router conversation;
+	// enter picks that one back up.
+	m = press(m, tea.Key{Code: tea.KeyDown})
+	m = press(m, tea.Key{Code: tea.KeyDown})
+	shoot("rc-chosen-120x36.ans", m)
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = next.(model)
+	if m.listing || m.in == "" {
+		t.Fatalf("enter did not pick a conversation back up: listing %v, in %q, note %q", m.listing, m.in, m.note)
+	}
+	ps, _ := panes(srv)
+	resumed := ""
+	for _, p := range ps {
+		if p.ID == m.in {
+			resumed = p.Session
+		}
+	}
+	if want := convs[3].id; resumed != want {
+		t.Errorf("enter picked up %q, want the router conversation %q", resumed, want)
+	}
+}

@@ -12,7 +12,7 @@ import (
 // the ink, are what the brand's palette.mjs --terminal wrote, kept
 // under testdata/skelly, and so is the cursor at night. Refreshing
 // skelly is writing the file again. By day the cursor is phosphor's
-// fill, --acc, not the terminal's --acc-text; and the selection is
+// fill, --acc-line, not the terminal's --acc-text; and the selection is
 // neither ground's terminal one, whose tint of phosphor in phosphor
 // ink put three accents on the screen at once.
 func TestSkellyIsSkellysOwn(t *testing.T) {

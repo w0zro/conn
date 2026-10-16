@@ -48,11 +48,20 @@ func TestTheClaudeThemeIsATheme(t *testing.T) {
 	}
 }
 
-// Every color is one conn draws: a slot of the scheme, a role, a
-// reference to a slot, or one of the grounds no slot has a name for.
-// Nothing is a color from somewhere else.
+// Every color is one the theme worn draws: a slot of its scheme, a
+// role, a reference to a slot, or one of the grounds no slot has a name
+// for. Nothing is a color from somewhere else, in any theme conn ships,
+// on either ground.
 func TestTheClaudeThemeIsDrawnFromConnsOwn(t *testing.T) {
-	for _, g := range []Ground{Dark, Light} {
+	var grounds []Ground
+	for _, n := range Names(t.TempDir()) {
+		th, err := Load(t.TempDir(), n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		grounds = append(grounds, th.Dark, th.Light)
+	}
+	for _, g := range grounds {
 		known := map[string]bool{Hex(g.Ground): true, Hex(g.Ink): true}
 		for _, c := range g.Scheme {
 			known[c] = true
@@ -63,7 +72,7 @@ func TestTheClaudeThemeIsDrawnFromConnsOwn(t *testing.T) {
 		for _, grp := range ClaudeTheme(g) {
 			for _, tk := range grp {
 				if !strings.HasPrefix(tk.Color, "ansi:") && !known[tk.Color] {
-					t.Errorf("%s is %s, which is no color of conn's", tk.Name, tk.Color)
+					t.Errorf("%s on %s is %s, which is no color of the theme", tk.Name, Hex(g.Ground), tk.Color)
 				}
 			}
 		}
@@ -81,7 +90,7 @@ func TestTheClaudeThemeSpendsItsColorsWhereItSays(t *testing.T) {
 			at[tk.Name] = tk.Color
 		}
 	}
-	for _, k := range []string{"success", "error", "warning", "merged"} {
+	for _, k := range []string{"success", "error", "warning", "merged", "professionalBlue"} {
 		if !strings.HasPrefix(at[k], "ansi:") {
 			t.Errorf("%s is %s, not a slot", k, at[k])
 		}

@@ -67,6 +67,9 @@ func ClaudeTheme(g Ground) [][]token {
 		{"error", "ansi:red"},
 		{"warning", "ansi:yellow"},
 		{"merged", "ansi:magenta"},
+		// The one color Claude Code's dark-ansi base spells out rather
+		// than naming a slot; light-ansi names this one.
+		{"professionalBlue", "ansi:blueBright"},
 	}, {
 		// The accent is "you, here": the one dialog that stops and waits
 		// for you. A mode is quiet unless it changes what Claude may do.

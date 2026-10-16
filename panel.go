@@ -1814,7 +1814,7 @@ func wear(g theme.Ground) {
 	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(bar)).Bold(true)
 	turning = fg(g.Turning)
 	passed = fg(g.Running)
-	chosenTurning = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Turning))
+	chosenTurning = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenTurning))
 	ruleStyle = fg(g.Border)
 }
 

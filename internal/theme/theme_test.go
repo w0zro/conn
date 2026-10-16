@@ -192,6 +192,10 @@ func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 					t.Errorf("%s: %s on the %s %s is %.1f:1", n, f.ink, f.name, f.on, c)
 				}
 			}
+			// A spinner is a mark, not text: 3:1 is enough to see it turn.
+			if c := contrast(g.Chosen, g.ChosenTurning); c < 3 {
+				t.Errorf("%s: the spinner %s on the chosen row %s is %.1f:1", n, g.ChosenTurning, g.Chosen, c)
+			}
 		}
 	}
 }

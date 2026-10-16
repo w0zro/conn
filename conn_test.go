@@ -2826,3 +2826,116 @@ func TestClick(t *testing.T) {
 		t.Error("a click on the projects screen's head opened something")
 	}
 }
+
+// Typing :port on the projects screen asks conn what holds it: the
+// project holding it, its holder said where the counts were, and enter
+// opens the project on that process; a port held outside every project
+// says so, and which process it is and where; a port nobody holds says
+// that. What holds what comes with the read, as the machine's processes.
+func TestFindAPort(t *testing.T) {
+	shots := os.Getenv("SHOTS")
+	if shots != "" {
+		wear(theme.Dark)
+		t.Cleanup(undress)
+	}
+	shoot := func(name string, m model) {
+		if shots == "" {
+			return
+		}
+		g := theme.Dark
+		ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		screen := strings.ReplaceAll(m.View().Content, "\n", "\x1b[0m\r\n")
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(ground+screen+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+	k := newKnown()
+	k.root["/home/web"], k.root["/home/api"], k.root["/home/scratch"] = "/home/web", "/home/api", ""
+	ps := []project{
+		{Name: "api", Root: "/home/api", Running: 1},
+		{Name: "web", Root: "/home/web", Running: 2, Waiting: 1},
+		{Name: "notes", Root: "/home/notes"},
+	}
+	dev := &pane{ID: "%3", Name: "dev", Dir: "/home/web", PID: 4100, Command: "node"}
+	db := &pane{ID: "%5", Name: "db", Dir: "/home/api", PID: 4200, Command: "postgres"}
+	procs := []proc{
+		{pane: dev, Name: "dev", PID: 4100, State: "running", Ports: []string{"3000"}, Command: "node", Dir: "/home/web"},
+		{pane: db, Name: "db", PID: 4200, State: "running", Ports: []string{"5432"}, Command: "postgres", Dir: "/home/api"},
+		{Name: "python3", PID: 5150, State: "outside conn", Ports: []string{"8000"}, Command: "python3 -m http.server 8000", Dir: "/home/scratch"},
+	}
+	fresh := func() model {
+		m := model{screen: onProjects, home: "/home", width: 120, height: 36, known: k}
+		next, _ := m.Update(read{projects: ps, procs: procs})
+		return next.(model)
+	}
+	typing := func(m model, s string) model {
+		for _, r := range s {
+			next, _ := m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
+			m = next.(model)
+		}
+		return m
+	}
+	screen := func(m model) []string {
+		lines, _ := m.draw()
+		for i := range lines {
+			lines[i] = strings.TrimRight(plainText(lines[i]), " ")
+		}
+		return lines
+	}
+	saying := func(lines []string, s string) int {
+		for i, l := range lines {
+			if strings.Contains(l, s) {
+				return i
+			}
+		}
+		return -1
+	}
+
+	// :3000 narrows the list to web, its holder where its counts were.
+	m := typing(fresh(), ":3000")
+	shoot("port-held-120x36.ans", m)
+	lines := screen(m)
+	at := saying(lines, "dev :3000")
+	if at < 0 || !strings.Contains(lines[at], "web") {
+		t.Fatalf(":3000 does not show web held by dev :3000:\n%s", strings.Join(lines, "\n"))
+	}
+	if saying(lines, "api") >= 0 || saying(lines, "notes") >= 0 || strings.Contains(lines[at], "running") || strings.Contains(lines[at], "waiting") {
+		t.Errorf(":3000 shows more than web holding it:\n%s", strings.Join(lines, "\n"))
+	}
+
+	// enter opens web with the cursor on dev, and dev in the workspace.
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if m = next.(model); m.screen != onProject || m.cur.Root != "/home/web" {
+		t.Fatalf("enter opened screen %v on %q, want web", m.screen, m.cur.Root)
+	}
+	rows := []row{
+		{conv: &conversation{ID: "c1", Dir: "/home/web", Title: "fix the login form"}, pane: &pane{ID: "%2", Session: "c1", Dir: "/home/web"}, state: "waiting", stand: placeConversations},
+		{pane: dev, state: "running", ports: []string{"3000"}, stand: placeStack},
+		{pane: &pane{ID: "%4", Name: "worker", Dir: "/home/web"}, state: "running", stand: placeStack},
+	}
+	next, _ = m.Update(read{root: "/home/web", projects: ps, procs: procs, rows: rows})
+	m = next.(model)
+	shoot("port-opened-120x36.ans", m)
+	if r, ok := m.under(); !ok || r.pane == nil || r.pane.ID != "%3" || m.wanted() != "%3" {
+		t.Errorf("web opened with the cursor on %s and %q in the workspace, want dev's %%3", m.itemKey(m.items()[m.cursor]), m.wanted())
+	}
+
+	// :8000 is held outside every project: says so, and under it which
+	// process and where it runs.
+	m = typing(fresh(), ":8000")
+	shoot("port-outside-120x36.ans", m)
+	lines = screen(m)
+	if at = saying(lines, "python3 holds :8000, outside any project"); at < 0 || at+1 >= len(lines) {
+		t.Fatalf(":8000 does not say python3 holds it outside any project:\n%s", strings.Join(lines, "\n"))
+	}
+	if under := lines[at+1]; !(strings.Contains(under, "5150") || strings.Contains(under, "http.server")) || !strings.Contains(under, "~/scratch") {
+		t.Errorf("under the outside holder, %q does not say which process it is and where it runs", under)
+	}
+
+	// :4000 is held by nothing.
+	m = typing(fresh(), ":4000")
+	shoot("port-free-120x36.ans", m)
+	if lines = screen(m); saying(lines, "nothing holds :4000") < 0 {
+		t.Errorf(":4000 does not say nothing holds it:\n%s", strings.Join(lines, "\n"))
+	}
+}

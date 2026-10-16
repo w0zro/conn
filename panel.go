@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -95,6 +96,7 @@ type model struct {
 	// The projects screen.
 	typed    string
 	projects []project
+	procs    []proc
 	loaded   bool
 
 	// A project: what runs in it, and its conversations at rest, which
@@ -465,6 +467,7 @@ func runPanel() error {
 type read struct {
 	at       time.Time // when the panes were listed
 	projects []project
+	procs    []proc // what listens on the machine, for the projects screen's port find
 	root     string
 	rows     []row
 	rest     []row  // the project's conversations at rest
@@ -628,6 +631,8 @@ func (m model) read() tea.Cmd {
 			}
 		}
 
+		procs := machine(ps, live, listening(), parents(), connections())
+		r.procs = procs
 		if cur != nil {
 			// What listens, and where: a port under one of conn's panes is
 			// that pane's; a server outside conn whose directory is in the
@@ -635,7 +640,6 @@ func (m model) read() tea.Cmd {
 			// its own.
 			ports := map[string][]string{}
 			var mine, outside []proc
-			procs := machine(ps, live, listening(), parents(), connections())
 			for _, p := range procs {
 				if p.pane != nil {
 					ports[p.pane.ID] = p.Ports
@@ -910,6 +914,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.takeTheme(msg), nil
 	case read:
 		m.waiting = msg.waiting
+		m.procs = msg.procs
 		// The first read, with a process standing in the workspace: the
 		// panel has been started again over it, and opens on it.
 		if !m.loaded && msg.shown != "" && msg.shownOK && m.known.rootOf(msg.shownDir) != "" {
@@ -1061,6 +1066,17 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.nextWaiting()
 	case "enter":
 		if m.cursor < len(shown) {
+			// A port found opens its project with the cursor on the holder.
+			if port, ok := m.typedPort(); ok {
+				for _, h := range m.holders(port) {
+					if h.pane != nil && shown[m.cursor].belongs(m.known.rootOf(h.Dir)) {
+						next, cmd := m.open(shown[m.cursor])
+						nm := next.(model)
+						nm.follow, nm.asked, nm.followAt = h.pane.ID, h.pane.ID, time.Now()
+						return nm, cmd
+					}
+				}
+			}
 			return m.open(shown[m.cursor])
 		}
 		if p, ok := m.typedPath(); ok {
@@ -1841,6 +1857,9 @@ func (m model) handing(r row) (handing, bool) {
 // shownProjects is the projects the typed words find: each word in the
 // name or the path.
 func (m model) shownProjects() []project {
+	if port, ok := m.typedPort(); ok {
+		return m.holding(port)
+	}
 	words := strings.Fields(strings.ToLower(m.typed))
 	if len(words) == 0 {
 		return m.projects
@@ -1882,6 +1901,79 @@ func (m model) shownProjects() []project {
 		}
 	}
 	return out
+}
+
+// typedPort is the port typed to find what holds it: a colon and
+// digits.
+func (m model) typedPort() (string, bool) {
+	t := strings.TrimSpace(m.typed)
+	port, ok := strings.CutPrefix(t, ":")
+	if !ok || port == "" {
+		return "", false
+	}
+	for _, r := range port {
+		if r < '0' || r > '9' {
+			return "", false
+		}
+	}
+	return port, true
+}
+
+// holders is what listens on a port.
+func (m model) holders(port string) []proc {
+	var out []proc
+	for _, p := range m.procs {
+		if slices.Contains(p.Ports, port) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// holding is the projects something holds a port in, each with the
+// folder of repositories it is in, as the finder lays them out.
+func (m model) holding(port string) []project {
+	held := map[string]bool{}
+	for _, h := range m.holders(port) {
+		if root := m.known.rootOf(h.Dir); root != "" {
+			held[root] = true
+		}
+	}
+	var out []project
+	var folder *project
+	folderIn := false
+	for _, p := range m.projects {
+		switch {
+		case p.Group:
+			f := p
+			folder, folderIn = &f, false
+		case p.Depth > 0 && folder != nil:
+			if held[p.Root] {
+				if !folderIn {
+					out, folderIn = append(out, *folder), true
+				}
+				out = append(out, p)
+			}
+		default:
+			folder = nil
+			if held[p.Root] {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// holderSays is what holds a port in a project, as the line says it:
+// each holder's name and the port.
+func (m model) holderSays(p project, port string) string {
+	var names []string
+	for _, h := range m.holders(port) {
+		if p.belongs(m.known.rootOf(h.Dir)) {
+			names = append(names, h.Name+" :"+port)
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // typedPath is the project at a typed path, where what is typed is a
@@ -2205,7 +2297,15 @@ func (m model) drawProjects() ([]string, foot) {
 			name = ink
 		}
 		left := []piece{{pad(listName(p), nameW), name}, {"  " + tilde(p.Root, m.home), gray}}
-		lines = append(lines, m.row(left, piece{p.standing(), gray}, i == m.cursor))
+		right := p.standing()
+		if port, ok := m.typedPort(); ok {
+			right = m.holderSays(p, port)
+		}
+		lines = append(lines, m.row(left, piece{right, gray}, i == m.cursor))
+	}
+	if port, ok := m.typedPort(); ok && m.loaded {
+		lines = append(lines, m.drawOutside(port, len(shown) > 0)...)
+		return lines, foot{hints: projectsHints}
 	}
 	switch {
 	case !m.loaded:
@@ -2220,6 +2320,28 @@ func (m model) drawProjects() ([]string, foot) {
 		lines = append(lines, at(faint.Render("no projects yet; type a path to one")))
 	}
 	return lines, foot{hints: projectsHints}
+}
+
+// drawOutside is what holds a port outside every project, one plain
+// line and under it the process and where it runs; and where nothing
+// holds it at all, that.
+func (m model) drawOutside(port string, inProject bool) []string {
+	var out []string
+	for _, h := range m.holders(port) {
+		if m.known.rootOf(h.Dir) != "" {
+			continue
+		}
+		out = append(out, at(ink.Render(h.Name+" holds :"+port+", outside any project")))
+		what := strings.TrimSpace(strconv.Itoa(h.PID) + " " + h.Command)
+		if h.Dir != "" {
+			what += "  " + tilde(h.Dir, m.home)
+		}
+		out = append(out, at(gray.Render(what)))
+	}
+	if len(out) == 0 && !inProject {
+		out = append(out, at(faint.Render("nothing holds :"+port)))
+	}
+	return out
 }
 
 // projectsWindow is the window the projects screen shows of its

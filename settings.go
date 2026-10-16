@@ -52,7 +52,8 @@ func (s setting) on(md theme.Mode) bool {
 	return (s.name == "dark") == md.Dark
 }
 
-// settingsKey is a key while the settings stand: the arrows move,
+// settingsKey is a key while the settings stand: the arrows move, and
+// j and k, around at the ends, g and G to the top and the bottom,
 // enter puts the server on the row's, and esc or , again puts them
 // away.
 func (m model) settingsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -61,9 +62,13 @@ func (m model) settingsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "esc", ",", "q", "ctrl+c":
 		m.settings = false
 	case "up", "k", "ctrl+p":
-		m.setAt = max(m.setAt-1, 0)
+		m.setAt = ring(m.setAt, -1, len(rows))
 	case "down", "j", "ctrl+n":
-		m.setAt = min(m.setAt+1, len(rows)-1)
+		m.setAt = ring(m.setAt, 1, len(rows))
+	case "g":
+		m.setAt = 0
+	case "G":
+		m.setAt = max(len(rows)-1, 0)
 	case "enter", "space":
 		if m.setAt >= len(rows) || m.srv == nil {
 			return m, nil

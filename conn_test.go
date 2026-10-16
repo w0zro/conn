@@ -2348,6 +2348,24 @@ func TestRing(t *testing.T) {
 		t.Errorf("ctrl-j from the bottom of the list is at %d", m.pickAt)
 	}
 	m.listing = false
+	// The settings.
+	st := model{settings: true, srv: nil}
+	n := len(st.settingRows())
+	if n < 2 {
+		t.Fatalf("the settings have %d rows", n)
+	}
+	if st = press(st, k); st.setAt != n-1 {
+		t.Errorf("k from the top of the settings is at %d, want %d", st.setAt, n-1)
+	}
+	if st = press(st, j); st.setAt != 0 {
+		t.Errorf("j from the bottom of the settings is at %d", st.setAt)
+	}
+	if st = press(st, G); st.setAt != n-1 {
+		t.Errorf("G in the settings is at %d, want %d", st.setAt, n-1)
+	}
+	if st = press(st, g); st.setAt != 0 {
+		t.Errorf("g in the settings is at %d", st.setAt)
+	}
 	// The search's matches.
 	m.searching, m.found = true, []hit{{}, {}}
 	if m = press(m, ctrlK); m.hitAt != 1 {
@@ -2456,9 +2474,7 @@ func TestSettings(t *testing.T) {
 	}
 
 	// light is the last row.
-	for range 4 {
-		m, _ = press(m, "j")
-	}
+	m, _ = press(m, "G")
 	m, cmd = press(m, "enter")
 	next, _ = m.Update(cmd())
 	if m = next.(model); m.g != skelly.Light {

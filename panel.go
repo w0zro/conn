@@ -1922,7 +1922,7 @@ var (
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
-	settingsHints = []keyHint{{"↑ ↓", "move"}, {"enter", "set"}, {"esc", "back"}}
+	settingsHints = []keyHint{{"j k", "move"}, {"g G", "top, bottom"}, {"enter", "set"}, {"esc", "back"}}
 	objectHints   = []keyHint{{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}}
 	listHints     = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
 	cancelHints   = []keyHint{{"esc", "cancel"}}

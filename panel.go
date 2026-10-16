@@ -1603,33 +1603,32 @@ func (m model) into(id string) model {
 	return m
 }
 
-// stands says whether a pane is one the keys can go into: a pane of a
-// process, not the panel's own and not a hold, and not ended.
-func (m model) stands(id string) bool {
+// standing is a pane the keys can go into, by id: a pane of a
+// process, not the panel's own and not a hold, and not ended; and
+// whether there is one.
+func (m model) standing(id string) (pane, bool) {
 	if id == "" || id == m.own || m.srv == nil {
-		return false
+		return pane{}, false
 	}
 	ps, _ := panes(m.srv)
 	for _, p := range ps {
 		if p.ID == id && !p.Hold && !p.Dead && !p.Panel {
-			return true
+			return p, true
 		}
 	}
-	return false
+	return pane{}, false
 }
 
 // toOther puts the keys in the process worked in before the one they
-// were last in, and takes that one as the other, so twice over is
-// where it started.
+// were last in, with its project on the panel where that is another,
+// and takes that one as the other, so twice over is where it started.
 func (m model) toOther() (tea.Model, tea.Cmd) {
-	if !m.stands(m.other) {
+	p, ok := m.standing(m.other)
+	if !ok {
 		m.note = "No other process to go to yet."
 		return m, nil
 	}
-	id := m.other
-	m = m.into(id)
-	m.follow, m.asked, m.followAt = id, id, time.Now()
-	return m, tea.Batch(m.showing(id, true), m.read())
+	return m.openOn(p)
 }
 
 // converse starts a conversation where the cursor stands, with a first

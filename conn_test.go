@@ -2191,7 +2191,7 @@ func TestCtrlSpaceToggles(t *testing.T) {
 		}
 	}
 	key := tea.KeyPressMsg(tea.Key{Code: '@', Mod: tea.ModCtrl})
-	m := model{srv: srv, own: panel, ws: ws, screen: onProject, cur: project{Name: "p", Root: "/p"}, rows: []row{{pane: &pane{ID: a}}, {pane: &pane{ID: b}}}}
+	m := model{srv: srv, own: panel, ws: ws, known: newKnown(), screen: onProject, cur: project{Name: "p", Root: "/p"}, rows: []row{{pane: &pane{ID: a}}, {pane: &pane{ID: b}}}}
 	next, _ := m.Update(key)
 	if m = next.(model); m.note == "" {
 		t.Error("with no other process, ctrl-space said nothing")
@@ -2229,12 +2229,38 @@ func TestCtrlSpaceToggles(t *testing.T) {
 	if m = next.(model); m.in != b || m.other != a {
 		t.Errorf("twice over: in %q other %q", m.in, m.other)
 	}
-	// The other gone, there is nowhere to go.
-	if _, err := srv.Do(tmux.Cmd{"kill-pane", "-t", a}); err != nil {
+	// Across projects: b's directory is in another project, and going
+	// to b put that project on the panel, as tab does; the other, a,
+	// is in the first, and going back puts the first on the panel again.
+	ps, _ := panes(srv)
+	for _, p := range ps {
+		switch p.ID {
+		case a:
+			m.known.root[p.Dir] = "/p"
+		case b:
+			m.known.root[p.Dir] = "/q"
+			next, _ = m.openOn(p)
+			m = next.(model)
+		}
+	}
+	if m.cur.Root != "/q" || m.in != b || m.other != a {
+		t.Fatalf("going to b: on %q, in %q other %q", m.cur.Root, m.in, m.other)
+	}
+	if _, err := srv.Do(tmux.SetGlobal(fromMark, b)); err != nil {
 		t.Fatal(err)
 	}
 	next, _ = m.Update(key)
-	if m = next.(model); m.in != b || m.note == "" {
+	m = next.(model)
+	next, _ = m.Update(key)
+	if m = next.(model); m.cur.Root != "/p" || m.in != a || m.other != b || m.follow != a {
+		t.Errorf("across projects: on %q, in %q other %q following %q", m.cur.Root, m.in, m.other, m.follow)
+	}
+	// The other gone, there is nowhere to go.
+	if _, err := srv.Do(tmux.Cmd{"kill-pane", "-t", b}); err != nil {
+		t.Fatal(err)
+	}
+	next, _ = m.Update(key)
+	if m = next.(model); m.in != a || m.note == "" {
 		t.Errorf("with the other gone: in %q, note %q", m.in, m.note)
 	}
 }

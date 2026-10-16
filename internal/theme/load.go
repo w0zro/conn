@@ -29,9 +29,9 @@ import (
 // the row under the cursor are --acc-bg, its pale tint, the bar with
 // ink on it and the row with --acc-text, marked in black light, and
 // the spinner is --uv-text. At night phosphor and black light change
-// places: the key bar is --uv, the bar beside the row under the
-// cursor --uv-text, the row is --uv-bg, black light's tint, with bone
-// on it, and the spinner glows in --acc. The cursor and the > Claude Code
+// places: the key bar and the row under the cursor are --uv-bg, black
+// light's tint, with bone on them, the bar beside the row is --uv-text,
+// and the spinner glows in --acc. The cursor and the > Claude Code
 // writes before what you said are --uv-text on either ground.
 // Its sixteen, ground and ink are what the brand's palette.mjs
 // --terminal writes, and the rest are the brand's rules on its five

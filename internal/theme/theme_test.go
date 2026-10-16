@@ -173,23 +173,29 @@ func TestShippedThemes(t *testing.T) {
 	}
 }
 
-// Every theme conn ships spends its accent alike: the cursor is the
-// accent, the block is the accent or, where a theme's daylight accent
-// is a fill too pale to read as text, that fill with the ink knocked
-// into it; and the row under the cursor is on the border in the ink,
-// so nothing chosen reads as what needs you.
+// Every theme conn ships spends its accent alike, as one color at a
+// time. Most spend the accent itself: the cursor and the block are the
+// accent, and the row under the cursor is on the border in the ink, so
+// nothing chosen reads as what needs you. A theme whose daylight accent
+// is a fill too pale to read as text spends that fill wherever the
+// accent is a shape, with the ink on it: the block, the cursor and the
+// row under it.
 func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 	for _, n := range Names(t.TempDir()) {
 		th, _ := Load(t.TempDir(), n)
 		for _, g := range []Ground{th.Dark, th.Light} {
-			if g.Cursor != g.Accent {
-				t.Errorf("%s: accent %s, cursor %s", n, g.Accent, g.Cursor)
-			}
-			if g.Block != g.Accent && (g.Dark() || g.OnBlock != Hex(g.Ink)) {
-				t.Errorf("%s: the block is %s with %s on it, neither the accent nor a daylight fill in ink", n, g.Block, g.OnBlock)
-			}
-			if g.Chosen != g.Border || g.ChosenInk != Hex(g.Ink) {
-				t.Errorf("%s: the chosen row is %s on %s, not the ink on the border", n, g.ChosenInk, g.Chosen)
+			ink := Hex(g.Ink)
+			switch {
+			case g.Block == g.Accent:
+				if g.Cursor != g.Accent || g.Chosen != g.Border || g.ChosenInk != ink {
+					t.Errorf("%s: accent %s, cursor %s, the chosen row %s on %s", n, g.Accent, g.Cursor, g.ChosenInk, g.Chosen)
+				}
+			case g.Dark():
+				t.Errorf("%s: a dark ground's block %s is not its accent %s", n, g.Block, g.Accent)
+			default:
+				if g.Cursor != g.Block || g.Chosen != g.Block || g.ChosenInk != ink || g.OnBlock != ink {
+					t.Errorf("%s: the fill %s is not the cursor %s and the chosen row %s, each in ink", n, g.Block, g.Cursor, g.Chosen)
+				}
 			}
 		}
 	}

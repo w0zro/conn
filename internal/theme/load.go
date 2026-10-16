@@ -29,8 +29,8 @@ import (
 // --acc-text, deep enough to read, and --acc-bg is its fill: the
 // block, with ink on it, and the row under the cursor, with
 // --acc-text on it beside a bar of --acc-text. The cursor, and the >
-// Claude Code writes before what you said, are black light's tint,
-// --uv-bg. Its sixteen, ground, ink
+// Claude Code writes before what you said, are black light as text,
+// --uv-text, the spinner's color. Its sixteen, ground, ink
 // and night cursor are what the brand's palette.mjs --terminal writes,
 // and the rest are the brand's rules on its five colors. The tests hold both to copies of
 // their sources under testdata; refreshing one is copying those again.

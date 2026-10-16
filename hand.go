@@ -18,43 +18,74 @@ const (
 	handBytes = 16 << 10
 )
 
-// handPrompt is what the agent is told: the process by the name it
-// answers to, what it runs and where, how it is doing, its last lines,
-// and what to do about it.
-func handPrompt(name, command, dir, state string, lines []string) string {
+// A handing is a process as it is handed: the name it answers to,
+// what it runs and where, how it is doing, and what it last wrote.
+type handing struct {
+	name, command, dir, state string
+	lines                     []string
+}
+
+// handPrompt is what the agent is told of one process: what it is, and
+// what to do about it.
+func handPrompt(h handing) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "In this project, %s", name)
-	if command != "" && command != name {
-		fmt.Fprintf(&b, " runs %s", command)
+	h.describe(&b, handBytes)
+	if strings.HasPrefix(h.state, "failed ") {
+		b.WriteString("\nWork out what is wrong and fix it.")
+	} else {
+		b.WriteString("\nLook into it.")
 	}
-	if dir != "" {
-		fmt.Fprintf(&b, " at %s", dir)
+	h.tools(&b)
+	return b.String()
+}
+
+// handAllPrompt is what the agent is told of several runs that failed:
+// each, in the share of the size that falls to it, and to fix them.
+func handAllPrompt(hs []handing) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d runs in this project failed.\n\n", len(hs))
+	for _, h := range hs {
+		h.describe(&b, handBytes/len(hs))
+		h.tools(&b)
+		b.WriteString("\n\n")
+	}
+	b.WriteString("Work out what is wrong with each and fix it.")
+	return b.String()
+}
+
+// describe writes what a process is, how it is doing, and its last
+// lines within a size.
+func (h handing) describe(b *strings.Builder, size int) {
+	fmt.Fprintf(b, "In this project, %s", h.name)
+	if h.command != "" && h.command != h.name {
+		fmt.Fprintf(b, " runs %s", h.command)
+	}
+	if h.dir != "" {
+		fmt.Fprintf(b, " at %s", h.dir)
 	}
 	switch {
-	case over(state):
-		fmt.Fprintf(&b, ", and it %s", state)
-	case state != "":
-		fmt.Fprintf(&b, ", and it is %s", state)
+	case over(h.state):
+		fmt.Fprintf(b, ", and it %s", h.state)
+	case h.state != "":
+		fmt.Fprintf(b, ", and it is %s", h.state)
 	}
 	b.WriteString(".")
-	if lines = lastLines(lines, handLines, handBytes); len(lines) > 0 {
+	if lines := lastLines(h.lines, handLines, size); len(lines) > 0 {
 		b.WriteString(" What it last wrote:\n\n")
 		for _, l := range lines {
 			b.WriteString(l)
 			b.WriteString("\n")
 		}
 	}
-	if strings.HasPrefix(state, "failed ") {
-		b.WriteString("\nWork out what is wrong and fix it.")
-	} else {
-		b.WriteString("\nLook into it.")
-	}
-	fmt.Fprintf(&b, " conn l %s reads what it has said", name)
-	if command != "" && over(state) {
-		fmt.Fprintf(&b, ", and conn u %s -w -- %s runs it again", name, command)
+}
+
+// tools writes the conn lines that read the process and run it again.
+func (h handing) tools(b *strings.Builder) {
+	fmt.Fprintf(b, " conn l %s reads what it has said", h.name)
+	if h.command != "" && over(h.state) {
+		fmt.Fprintf(b, ", and conn u %s -w -- %s runs it again", h.name, h.command)
 	}
 	b.WriteString(".")
-	return b.String()
 }
 
 // lastLines is the last n lines, within a size, trailing blanks and the

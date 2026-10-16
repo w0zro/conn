@@ -1497,10 +1497,11 @@ func TestArrangeFailedStays(t *testing.T) {
 }
 
 // A failed check is handed with what it runs, how it ended, its last
-// lines less conn's own closing line, and what runs it again.
+// lines less conn's own closing line, and what runs it again; several
+// that failed go to one agent together.
 func TestHandPrompt(t *testing.T) {
 	lines := []string{"--- FAIL: TestX", "FAIL", "", "[test exited 1]", ""}
-	got := handPrompt("test", "go test ./...", "~/p", "failed 1", lines)
+	got := handPrompt(handing{"test", "go test ./...", "~/p", "failed 1", lines})
 	for _, want := range []string{"In this project, test runs go test ./... at ~/p, and it failed 1.", "--- FAIL: TestX\nFAIL\n", "Work out what is wrong and fix it.", "conn l test reads", "conn u test -w -- go test ./... runs it again."} {
 		if !strings.Contains(got, want) {
 			t.Errorf("prompt lacks %q:\n%s", want, got)
@@ -1509,9 +1510,15 @@ func TestHandPrompt(t *testing.T) {
 	if strings.Contains(got, "[test exited") {
 		t.Errorf("prompt keeps conn's closing line:\n%s", got)
 	}
-	running := handPrompt("web", "npm run dev", "~/p", "running", nil)
+	running := handPrompt(handing{"web", "npm run dev", "~/p", "running", nil})
 	if !strings.Contains(running, "and it is running.") || !strings.Contains(running, "Look into it.") || strings.Contains(running, "runs it again") {
 		t.Errorf("prompt for a running process:\n%s", running)
+	}
+	all := handAllPrompt([]handing{{"test", "go test ./...", "~/p", "failed 1", lines}, {"lint", "make lint", "~/p", "failed 2", []string{"lint: bad"}}})
+	for _, want := range []string{"2 runs in this project failed.", "test runs go test ./...", "conn u lint -w -- make lint runs it again.", "lint: bad", "with each and fix it."} {
+		if !strings.Contains(all, want) {
+			t.Errorf("prompt for two lacks %q:\n%s", want, all)
+		}
 	}
 	many := make([]string, 200)
 	for i := range many {
@@ -2103,6 +2110,9 @@ func TestVerbWaits(t *testing.T) {
 	}
 	if m = press(press(m, "x"), "t"); m.verb != "" || !strings.Contains(m.note, "the checks") {
 		t.Errorf("xt with no checks: verb %q, note %q", m.verb, m.note)
+	}
+	if m = press(press(m, "a"), "f"); m.verb != "" || m.note != "Nothing failed here." {
+		t.Errorf("af with nothing failed: verb %q, note %q", m.verb, m.note)
 	}
 	if m = press(press(m, "r"), "f"); m.verb != "" || !strings.Contains(m.note, "what failed") {
 		t.Errorf("rf with nothing failed: verb %q, note %q", m.verb, m.note)

@@ -1103,7 +1103,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.objectKey(k)
 	}
 	switch k.String() {
-	case "r", "x":
+	case "r", "x", "a":
 		// A verb waits for its object: the verb again is the row.
 		m.verb = k.String()
 		return m, nil
@@ -1130,10 +1130,6 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n":
 		return m.converse("")
-	case "a":
-		if r, ok := m.under(); ok {
-			return m.hand(r)
-		}
 	case "s":
 		return m.start(m.here(), "", "")
 	case "q", "ctrl+c":
@@ -1673,27 +1669,59 @@ func (m model) told() string {
 // hand starts a conversation in the project given a row's process:
 // what it is, how it is doing, and what it last wrote.
 func (m model) hand(r row) (tea.Model, tea.Cmd) {
-	var name, command, dir, state string
-	var lines []string
-	switch {
-	case r.conv != nil || (r.pane != nil && r.pane.Session != ""):
+	if r.conv != nil || (r.pane != nil && r.pane.Session != "") {
 		m.note = "That is a conversation already; enter goes to it."
 		return m, nil
-	case r.pane != nil:
-		name, dir, state = paneName(*r.pane), r.pane.Dir, or(r.state, "running")
-		if r.pane.Name != "" {
-			command, _ = m.srv.Display(r.pane.ID, "#{"+runMark+"}")
-		}
-		lines, _ = said(m.srv, r.pane.ID)
-	case r.outside != nil:
-		name, command, dir, state = r.outside.Name, r.outside.Command, r.outside.Dir, "running outside conn, pid "+strconv.Itoa(r.outside.PID)
-		if len(r.ports) > 0 {
-			state += ", on :" + strings.Join(r.ports, " :")
-		}
-	default:
+	}
+	h, ok := m.handing(r)
+	if !ok {
 		return m, nil
 	}
-	return m.converse(handPrompt(name, command, tilde(dir, m.home), state, lines))
+	return m.converse(handPrompt(h))
+}
+
+// handAll starts one conversation in the project given every run that
+// failed.
+func (m model) handAll(rows []row) (tea.Model, tea.Cmd) {
+	var hs []handing
+	for _, r := range rows {
+		if h, ok := m.handing(r); ok {
+			hs = append(hs, h)
+		}
+	}
+	switch len(hs) {
+	case 0:
+		m.note = "Nothing failed here."
+		return m, nil
+	case 1:
+		return m.converse(handPrompt(hs[0]))
+	}
+	return m.converse(handAllPrompt(hs))
+}
+
+// handing is a row's process as it is handed to an agent; a
+// conversation is none.
+func (m model) handing(r row) (handing, bool) {
+	var h handing
+	switch {
+	case r.conv != nil || (r.pane != nil && r.pane.Session != ""):
+		return h, false
+	case r.pane != nil:
+		h.name, h.dir, h.state = paneName(*r.pane), r.pane.Dir, or(r.state, "running")
+		if r.pane.Name != "" {
+			h.command, _ = m.srv.Display(r.pane.ID, "#{"+runMark+"}")
+		}
+		h.lines, _ = said(m.srv, r.pane.ID)
+	case r.outside != nil:
+		h.name, h.command, h.dir, h.state = r.outside.Name, r.outside.Command, r.outside.Dir, "running outside conn, pid "+strconv.Itoa(r.outside.PID)
+		if len(r.ports) > 0 {
+			h.state += ", on :" + strings.Join(r.ports, " :")
+		}
+	default:
+		return h, false
+	}
+	h.dir = tilde(h.dir, m.home)
+	return h, true
 }
 
 // shownProjects is the projects the typed words find: each word in the
@@ -1917,7 +1945,7 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"aa", "hand to an agent"}, {"af", "hand what failed to one"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
@@ -1925,6 +1953,7 @@ var (
 	// The objects each verb waits for.
 	objectHints = map[string][]keyHint{
 		"r": {{"r", "the row"}, {"s", "the stack"}, {"t", "the checks"}, {"f", "what failed"}, {"c", "a conversation at rest"}, {"esc", "cancel"}},
+		"a": {{"a", "the row"}, {"f", "what failed"}, {"esc", "cancel"}},
 		"x": {{"x", "the row"}, {"s", "the stack"}, {"t", "the checks"}, {"p", "the project"}, {"esc", "cancel"}},
 	}
 	listHints   = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
@@ -2517,6 +2546,12 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if p, ok := m.lineUnder(); ok {
 			return m, m.endAll(p)
 		}
+	case "aa":
+		if r, ok := m.under(); ok {
+			return m.hand(r)
+		}
+	case "af":
+		return m.handAll(m.failedRows())
 	case "xs":
 		return m.endEach(m.inPlace(placeStack), "the stack")
 	case "xt":

@@ -49,6 +49,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 22. **Restart by role.** `r` takes the same objects: `rs` the stack and `rt` the checks as they stand, or run as `u` and `t` run them where none stand; `rf` what failed. `rr` and `rc` as before. Built, 2026-10-15.
 
+23. **Hand what failed.** `a` waits too: `aa` hands the row, as `a` did; `af` hands every run that failed to one conversation, each with its last lines, in a share of the size. Built, 2026-10-15.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
 Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `c` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.

@@ -96,6 +96,9 @@ func TestTheClaudeThemeSpendsItsColorsWhereItSays(t *testing.T) {
 	if at["claude"] != Dark.AtWork || at["claudeShimmer"] != Dark.AtWorkShimmer {
 		t.Errorf("the mark is %s and %s, not at work", at["claude"], at["claudeShimmer"])
 	}
+	if at["selectionBg"] != Dark.Chosen {
+		t.Errorf("a selection is %s, not the chosen row's %s", at["selectionBg"], Dark.Chosen)
+	}
 	for _, mode := range []string{"planMode", "autoAccept", "fastMode", "bashBorder", "promptBorder"} {
 		if at[mode] == Dark.Accent {
 			t.Errorf("%s takes the accent", mode)

@@ -87,7 +87,9 @@ func ClaudeTheme(g Ground) [][]token {
 	}, {
 		{"userMessageBackground", g.MessageBg},
 		{"userMessageBackgroundHover", g.MessageHoverBg},
-		{"selectionBg", g.Border},
+		// A selection is the row under the cursor's ground, as the panel
+		// and copy mode lay it.
+		{"selectionBg", g.Chosen},
 		{"bashMessageBackgroundColor", g.ToolBg},
 		{"memoryBackgroundColor", g.ToolBg},
 	}, {

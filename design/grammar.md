@@ -53,9 +53,15 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 24. **Start is a verb.** `s` waits for its object: `ss` brings up the stack and `st` runs the checks, as `u` and `t` did; `sc` starts a conversation, as `n` did. A shell is `!` with nothing typed. `n`, `u` and `t` are free; `u` is for undo. Built, 2026-10-15.
 
+25. **Dress the server.** `,` on either screen opens the settings: the themes conn has and the two grounds, `enter` dressing the server where it stands and keeping the choice in config.json. A theme is a JSON sheet by role, three shipped and any in ~/.config/conn/themes; `conn theme claude` writes the one for Claude Code. Built, 2026-10-14.
+
+26. **Back in.** `esc` on the panel goes back into the process the keys were last in, its project on the panel. Built, 2026-10-15.
+
+27. **Heard from any window.** The number of conversations waiting is in the terminal's title, and the bell rings as one more starts waiting, so a tab in the background still says. Built, 2026-10-16.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `c` `!` `q`, and the verbs `s` `x` `r` `a` with their objects; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far. On the projects: typing, `↑` `↓` (`ctrl-n` `ctrl-p` `ctrl-j` `ctrl-k`), `enter`, `esc`, `tab`, `x`, `,`, `?`, `ctrl-c`. In a project: `j` `k` `g` `G`, `enter`, `tab`, `esc`, `-`, `/`, `c`, `!`, `,`, `?`, `q`, and the verbs `s` `x` `r` `a` with their objects (`ss` `st` `sc`, `xx` `xs` `xt` `xp`, `rr` `rs` `rt` `rf` `rc`, `aa` `af`). `ctrl-space` from anywhere, and twice over the other process.
 
 ## The idea
 
@@ -197,7 +203,7 @@ As of 2026-10-11:
 - **Places** (2026-10-12): a project's rows stand by role, in order: conversations, the stack, what talks to it (shells, clients), the checks, what the project talks to outside conn, conversations in terminals conn does not hold; air between places, no labels. In a place, what is written down stands as first written, so a check run again keeps its row and the cursor; the rest in start order. Wanting you is the accent where the row stands, waiting and failed alike; nothing moves for its state. A worktree repeats the places under its head.
 - **Worktrees** (2026-10-12): a worktree's rows stand together under a head of their own, the branch it has out alone, in the parchment the project's head is in without its weight, after the project's own rows; in a folder the head names the repository and the branch. A label with a rule is a section of the panel, which a worktree is not. A verb starts where the cursor stands: `n`, `s` and `!` in the checkout of the row under it, and `u` and `t` run a repository's stack in that checkout where it is the repository's, at the repository otherwise. The stack is written down under the repository, never the worktree. The CLI already ran in the caller's checkout.
 
-Not yet: linking two projects while they talk, the CLI starting the server, removing `.conn` and the known-programs table once the resolution has held up in use.
+Not yet: linking two projects while they talk, the CLI starting the server. `.conn` and the known-programs table went with the cut.
 
 ## Later
 

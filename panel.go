@@ -608,7 +608,12 @@ func (m model) read() tea.Cmd {
 				turning[root]++
 			}
 		}
-		total := 0
+		total, broke := 0, 0
+		for _, p := range held {
+			if p.Name != "" && p.Exit != "" && p.Exit != "0" {
+				broke++
+			}
+		}
 		for _, r := range live {
 			switch r.state() {
 			case "waiting":
@@ -618,7 +623,7 @@ func (m model) read() tea.Cmd {
 				turning[k.rootOf(r.Cwd)]++
 			}
 		}
-		sayWaiting(srv, total)
+		sayCounts(srv, total, broke)
 		// What conn holds a pane in is a project while it does, a
 		// checkout or not.
 		repos := k.repositories(home)
@@ -2652,32 +2657,50 @@ func (p project) standing() string {
 	return strings.Join(said, " · ")
 }
 
-// sayWaiting puts the number of conversations waiting on you on the
-// status line, which shows it from every window, and takes it off at
-// none. It is in the terminal's tab title too, and rings the bell as
-// one more conversation starts waiting.
-func sayWaiting(srv *tmux.Server, n int) {
-	want := ""
-	if n > 0 {
-		want = strconv.Itoa(n)
+// sayWaiting puts the number of conversations waiting on you, and of
+// runs that failed, on the status line, which shows them from every
+// window, and takes each off at none. They are in the terminal's tab
+// title too, and the bell rings as one more starts waiting or fails.
+func sayWaiting(srv *tmux.Server, n int) { sayCounts(srv, n, 0) }
+
+// sayCounts is sayWaiting with the runs that failed beside it.
+func sayCounts(srv *tmux.Server, n, failed int) {
+	count := func(n int) string {
+		if n > 0 {
+			return strconv.Itoa(n)
+		}
+		return ""
 	}
-	was, _ := srv.Global(waitingMark)
-	if was == want {
+	wasWaiting, _ := srv.Global(waitingMark)
+	wasFailed, _ := srv.Global(failedMark)
+	var cmds []tmux.Cmd
+	rose := false
+	for _, c := range []struct {
+		mark, was string
+		n         int
+	}{{waitingMark, wasWaiting, n}, {failedMark, wasFailed, failed}} {
+		want := count(c.n)
+		if want == c.was {
+			continue
+		}
+		before, _ := strconv.Atoi(c.was)
+		rose = rose || c.n > before
+		if want == "" {
+			cmds = append(cmds, tmux.UnsetGlobal(c.mark))
+		} else {
+			cmds = append(cmds, tmux.SetGlobal(c.mark, want))
+		}
+	}
+	if len(cmds) == 0 {
 		return
 	}
-	before, _ := strconv.Atoi(was)
-	set := tmux.UnsetGlobal(waitingMark)
-	if want != "" {
-		set = tmux.SetGlobal(waitingMark, want)
-	}
-	cmds := []tmux.Cmd{set}
 	for _, c := range terminals(srv) {
 		cmds = append(cmds, tmux.Cmd{"refresh-client", "-S", "-t", c})
 	}
 	_, _ = srv.Do(cmds...)
-	// One bell for each question: as the count rises, never as it falls
-	// or holds.
-	if n > before {
+	// One bell for each question or failure: as a count rises, never as
+	// it falls or holds.
+	if rose {
 		for _, c := range terminals(srv) {
 			if f, err := os.OpenFile(c, os.O_WRONLY, 0); err == nil {
 				_, _ = f.WriteString("\a")

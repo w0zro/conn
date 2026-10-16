@@ -54,10 +54,11 @@ func ClaudeTheme(g Ground) [][]token {
 		{"inverseText", Hex(g.Ground)},
 		{"inactive", g.Gray},
 		// subtle is the only color Claude Code draws the > before a
-		// message of yours in, so it takes the accent, and with it the
-		// rest it marks: a queued message, a rejection, the usage
-		// figures, a task's state.
-		{"subtle", accent},
+		// message of yours in, so it takes the cursor's color, the other
+		// mark of where you write, and with it the rest it marks: a
+		// queued message, a rejection, the usage figures, a task's
+		// state. The cursor is the accent but where a theme says not.
+		{"subtle", g.Cursor},
 		{"suggestion", g.Gray},
 		{"remember", cyan},
 	}, {

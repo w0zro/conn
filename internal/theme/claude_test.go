@@ -86,7 +86,10 @@ func TestTheClaudeThemeSpendsItsColorsWhereItSays(t *testing.T) {
 			t.Errorf("%s is %s, not a slot", k, at[k])
 		}
 	}
-	for _, k := range []string{"permission", "rate_limit_fill", "subtle"} {
+	if at["subtle"] != Dark.Cursor {
+		t.Errorf("the > before what you said is %s, not the cursor's %s", at["subtle"], Dark.Cursor)
+	}
+	for _, k := range []string{"permission", "rate_limit_fill"} {
 		if at[k] != Dark.Accent {
 			t.Errorf("%s is %s, not the accent", k, at[k])
 		}

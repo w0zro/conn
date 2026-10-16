@@ -1714,10 +1714,10 @@ func TestRowsCarryTheMarkOfTheirRole(t *testing.T) {
 	}
 }
 
-// A verdict is drawn in the theme's own roles: a pass in the running
-// green, a fail in the accent with its name, and both keep their ink
-// under the cursor, on the chosen ground. The accent goes to the name
-// where the row says where it was started as well. The ground is one
+// A verdict is drawn in the theme's own colors: a pass in the running
+// green, a fail in the terminal's red with its name, and both keep
+// their ink under the cursor, on the chosen ground. The red goes to
+// the name where the row says where it was started as well. The ground is one
 // whose spinner has a hue of its own, so a pass is seen to be drawn
 // running and not turning.
 func TestAVerdictWearsTheGround(t *testing.T) {
@@ -1738,10 +1738,10 @@ func TestAVerdictWearsTheGround(t *testing.T) {
 		want   string
 	}{
 		{pass, false, sgr(g.Running) + "m" + markPass},
-		{fail, false, sgr(g.Accent) + "m" + markFail},
-		{fail, false, sgr(g.Accent) + "mbuild"},
+		{fail, false, sgr(g.Scheme[1]) + "m" + markFail},
+		{fail, false, sgr(g.Scheme[1]) + "mbuild"},
 		{pass, true, sgr(g.Running) + ";48;2"},
-		{fail, true, sgr(g.Accent) + ";48;2"},
+		{fail, true, sgr(g.Scheme[1]) + ";48;2"},
 	} {
 		if line := m.drawRow(c.row, 0, c.cursor); !strings.Contains(line, c.want) {
 			t.Errorf("cursor %v: %q\nlacks %q", c.cursor, line, c.want)
@@ -1757,7 +1757,7 @@ func TestAVerdictWearsTheGround(t *testing.T) {
 // them.
 func undress() {
 	var plain lipgloss.Style
-	ink, title, subhead, gray, faint, accent, keyInk = plain, plain, plain, plain, plain, plain, plain
+	ink, title, subhead, gray, faint, accent, failing, keyInk = plain, plain, plain, plain, plain, plain, plain, plain
 	chosen, chosenBar, ruleStyle, turning, passed, chosenTurning = plain, plain, plain, plain, plain, plain
 }
 

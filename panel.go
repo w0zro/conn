@@ -1788,7 +1788,7 @@ const (
 // The styles, in the ground the server is on once the panel knows it;
 // plain until then, and in the tests.
 var (
-	ink, title, subhead, gray, faint, accent, keyInk, chosen, chosenBar, ruleStyle, turning, passed, chosenTurning lipgloss.Style
+	ink, title, subhead, gray, faint, accent, failing, keyInk, chosen, chosenBar, ruleStyle, turning, passed, chosenTurning lipgloss.Style
 )
 
 // wear dresses the panel's styles in a ground. The pane's ground is
@@ -1802,6 +1802,9 @@ func wear(g theme.Ground) {
 	gray = fg(g.Gray)
 	faint = fg(g.Faint)
 	accent = fg(g.Accent).Bold(true)
+	// A failure is a verdict, and a verdict is slot-shaped: the
+	// terminal's red, as Claude Code's error is.
+	failing = fg(g.Scheme[1]).Bold(true)
 	keyInk = fg(theme.Hex(g.Ink)).Bold(true)
 	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
 	// The bar beside the chosen row is the accent on the border; on a
@@ -2213,11 +2216,11 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		}
 		right = piece{stated(r.state), gray}
 		// A run that has ended says how long ago, which says it ended
-		// well; one that did not says its status first, in the accent.
+		// well; one that did not says its status first, in red.
 		// One from before conn wrote the time down says only how it
 		// did.
 		if r.pane.Name != "" && r.pane.Exit != "" {
-			// The accent says a run failed; the figure keeps the
+			// The red says a run failed; the figure keeps the
 			// status, which says how, and the age. A check's mark says
 			// its verdict, so its figure is the age alone.
 			how, when := strings.TrimPrefix(ended(r.pane.Exit), "failed "), ago(r.pane.Ended)
@@ -2226,10 +2229,13 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 			}
 			right.s = strings.TrimSpace(how + " " + when)
 		}
-		// Wanting you is the accent, where the row stands: a
-		// conversation waiting, a run that failed.
-		if r.state == "waiting" || strings.HasPrefix(r.state, "failed ") {
+		// Wanting you is the accent, where the row stands, and a run
+		// that failed is the terminal's red.
+		switch {
+		case r.state == "waiting":
 			left[at].st, right.st = accent, accent
+		case strings.HasPrefix(r.state, "failed "):
+			left[at].st, right.st = failing, failing
 		}
 	case r.outside != nil:
 		// The mark says it is outside conn; the figure is its ports.

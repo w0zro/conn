@@ -11,8 +11,8 @@ import (
 // skelly's sixteen are its brand's own: every slot, and the ground and
 // the ink, are what the brand's palette.mjs --terminal wrote, kept
 // under testdata/skelly, and so is the cursor at night. Refreshing
-// skelly is writing the file again. By day the cursor is phosphor's
-// fill, --acc-line, not the terminal's --acc-text; and the selection is
+// skelly is writing the file again. By day the cursor is
+// --acc-line, not the terminal's --acc-text; and the selection is
 // neither ground's terminal one, whose tint of phosphor in phosphor
 // ink put three accents on the screen at once.
 func TestSkellyIsSkellysOwn(t *testing.T) {

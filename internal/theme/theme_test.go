@@ -178,20 +178,19 @@ func TestShippedThemes(t *testing.T) {
 // under the cursor is on the border in the ink, so nothing chosen reads
 // as what needs you. A theme whose daylight accent is too deep to fill
 // with has a fill of its own beside it, and spends the two together:
-// the block and the cursor are the fill, the block with the ink on it,
-// and the row under the cursor is the fill with the accent on it.
+// the block is the fill with the ink on it, and the row under the
+// cursor is the fill with the accent on it. The cursor is its own
+// there: a fill pale enough to carry the accent's words is too pale to
+// find a cursor by.
 func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 	for _, n := range Names(t.TempDir()) {
 		th, _ := Load(t.TempDir(), n)
 		for _, g := range []Ground{th.Dark, th.Light} {
 			ink := Hex(g.Ink)
-			if g.Cursor != g.Block {
-				t.Errorf("%s: the cursor %s is not the block %s", n, g.Cursor, g.Block)
-			}
 			switch {
 			case g.Block == g.Accent:
-				if g.Chosen != g.Border || g.ChosenInk != ink {
-					t.Errorf("%s: the chosen row is %s on %s, not the ink on the border", n, g.ChosenInk, g.Chosen)
+				if g.Cursor != g.Accent || g.Chosen != g.Border || g.ChosenInk != ink {
+					t.Errorf("%s: the cursor %s, the chosen row %s on %s; not the accent, and the ink on the border", n, g.Cursor, g.ChosenInk, g.Chosen)
 				}
 			case g.Dark():
 				t.Errorf("%s: a dark ground's block %s is not its accent %s", n, g.Block, g.Accent)

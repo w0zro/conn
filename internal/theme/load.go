@@ -30,7 +30,8 @@ import (
 // ink on it and the row with --acc-text; at night it glows, so both are
 // --acc itself with --acc-on, the page, on it. The cursor, the bar
 // beside the row under it, and the > Claude Code writes before what
-// you said are black light as text, --uv-text, the spinner's color.
+// you said are black light as text, --uv-text; the spinner is --uv
+// itself at night, a step darker, and --uv-text by day.
 // Its sixteen, ground and ink are what the brand's palette.mjs
 // --terminal writes, and the rest are the brand's rules on its five
 // colors. The tests hold both to copies of their sources under

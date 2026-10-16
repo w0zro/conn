@@ -2104,6 +2104,9 @@ func TestVerbWaits(t *testing.T) {
 	if m = press(press(m, "x"), "t"); m.verb != "" || !strings.Contains(m.note, "the checks") {
 		t.Errorf("xt with no checks: verb %q, note %q", m.verb, m.note)
 	}
+	if m = press(press(m, "r"), "f"); m.verb != "" || !strings.Contains(m.note, "what failed") {
+		t.Errorf("rf with nothing failed: verb %q, note %q", m.verb, m.note)
+	}
 	m = press(press(m, "r"), "c")
 	if !m.listing || m.verb != "" {
 		t.Fatalf("rc did not list: listing %v, verb %q", m.listing, m.verb)

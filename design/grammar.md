@@ -47,6 +47,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 21. **Stop by role.** `x` waits for its object, as `r` does: `xx` the row, or on another project's line everything in it; `xs` the stack and `xt` the checks, as they stand on the panel; `xp` everything in the open project. Built, 2026-10-15.
 
+22. **Restart by role.** `r` takes the same objects: `rs` the stack and `rt` the checks as they stand, or run as `u` and `t` run them where none stand; `rf` what failed. `rr` and `rc` as before. Built, 2026-10-15.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
 Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `c` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.

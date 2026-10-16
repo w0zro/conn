@@ -1917,14 +1917,14 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"a", "hand to an agent"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
 	settingsHints = []keyHint{{"j k", "move"}, {"g G", "top, bottom"}, {"enter", "set"}, {"esc", "back"}}
 	// The objects each verb waits for.
 	objectHints = map[string][]keyHint{
-		"r": {{"r", "the row"}, {"c", "a conversation at rest"}, {"esc", "cancel"}},
+		"r": {{"r", "the row"}, {"s", "the stack"}, {"t", "the checks"}, {"f", "what failed"}, {"c", "a conversation at rest"}, {"esc", "cancel"}},
 		"x": {{"x", "the row"}, {"s", "the stack"}, {"t", "the checks"}, {"p", "the project"}, {"esc", "cancel"}},
 	}
 	listHints   = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
@@ -2481,7 +2481,7 @@ func listName(p project) string {
 // objectKey is the key after a verb: the object the verb takes. The
 // verb again is the row under the cursor, or for x the project whose
 // line it is; s is the stack and t the checks, as they stand on the
-// panel; p is the open project; c after r lists the conversations at
+// panel; f is what failed; p is the open project; c after r lists the conversations at
 // rest to pick one back up. Anything else puts the verb away.
 func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	verb := m.verb
@@ -2495,6 +2495,18 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "rc":
 		m.listing, m.pick, m.pickAt = true, "", 0
+	case "rs", "rt":
+		// With none standing, the role is run as u and t run it.
+		place, as, what := placeStack, roleStack, "the stack"
+		if k.String() == "t" {
+			place, as, what = placeChecks, roleCheck, "the checks"
+		}
+		if rows := m.inPlace(place); len(rows) > 0 {
+			return m.restartEach(rows, what)
+		}
+		return m.resolve(as)
+	case "rf":
+		return m.restartEach(m.failedRows(), "what failed")
 	case "xx":
 		if r, ok := m.under(); ok {
 			if p, ok := r.proc(); ok {
@@ -2535,9 +2547,28 @@ func (m model) inPlace(place int) []row {
 	return out
 }
 
-// endEach ends each row's process, off the loop and one after another,
-// and says how many it ended; with none, it says there is nothing.
+// endEach ends each row's process; see each.
 func (m model) endEach(rows []row, what string) (tea.Model, tea.Cmd) {
+	srv, hold := m.srv, m.ws.hold
+	return m.each(rows, what, "ended", func(p proc) error {
+		_, err := endProc(srv, hold, p)
+		return err
+	})
+}
+
+// restartEach starts each row's process again; see each.
+func (m model) restartEach(rows []row, what string) (tea.Model, tea.Cmd) {
+	srv, conn := m.srv, m.conn
+	return m.each(rows, what, "restarted", func(p proc) error {
+		_, err := restartProc(srv, conn, p)
+		return err
+	})
+}
+
+// each does a verb to each row's process, off the loop and one after
+// another, and says how many it did; with none, it says there is
+// nothing.
+func (m model) each(rows []row, what, did string, act func(proc) error) (tea.Model, tea.Cmd) {
 	var ps []proc
 	for _, r := range rows {
 		if p, ok := r.proc(); ok {
@@ -2548,20 +2579,30 @@ func (m model) endEach(rows []row, what string) (tea.Model, tea.Cmd) {
 		m.note = "Nothing of " + what + " stands here."
 		return m, nil
 	}
-	srv, hold := m.srv, m.ws.hold
 	return m, func() tea.Msg {
 		var failed []string
 		for _, p := range ps {
-			if _, err := endProc(srv, hold, p); err != nil {
+			if err := act(p); err != nil {
 				failed = append(failed, err.Error())
 			}
 		}
-		said := fmt.Sprintf("%s: ended %d", what, len(ps)-len(failed))
+		said := fmt.Sprintf("%s: %s %d", what, did, len(ps)-len(failed))
 		if len(failed) > 0 {
 			said += "; " + strings.Join(failed, "; ")
 		}
 		return acted(said)
 	}
+}
+
+// failedRows is the open project's rows whose run failed.
+func (m model) failedRows() []row {
+	var out []row
+	for _, r := range m.rows {
+		if strings.HasPrefix(r.state, "failed ") {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // ring is a cursor moved by one over a list of n: past the last it

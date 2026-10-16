@@ -363,10 +363,24 @@ func attach(srv *tmux.Server, self, home string, want theme.Want) (int, error) {
 }
 
 // bindBack binds the one key conn takes from every window: the keys
-// back to the panel, in conn's window.
+// back to the panel, in conn's window. From a pane, the pane the keys
+// leave is written down, as tmux fills it in, the keys go to the
+// panel, and the key is sent on to the panel, which notes where they
+// came from. On the panel already, the key is sent on alone, and the
+// panel answers it with the other process: so from inside a process,
+// twice over is the process worked in before it.
 func bindBack(window, panel string) tmux.Cmd {
-	return tmux.Cmd{"bind", "-n", backKey, "select-window", "-t", window, `\;`, "select-pane", "-t", panel}
+	onPanel := "#{==:#{pane_id}," + panel + "}"
+	arrive := "send-keys -t " + panel + " " + backKey
+	fromPane := "set-option -gF " + fromMark + " '#{pane_id}' ; select-window -t " + window + " ; select-pane -t " + panel + " ; " + arrive
+	return tmux.Cmd{"bind", "-n", backKey, "if-shell", "-F", onPanel, arrive, fromPane}
 }
+
+// fromMark is the pane the keys were in when ctrl-space brought them
+// to the panel, written as the key fires, since by the time the panel
+// hears the key it is the pane with the keys and nothing on its side
+// can tell where they came from. Read once and cleared.
+const fromMark = "@conn_from"
 
 // reground puts the server on the ground a flag names, from a pane of
 // its own: the configuration is written and sourced again, and conn's

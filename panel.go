@@ -100,6 +100,9 @@ type model struct {
 	rest []row
 	// A verb pressed and waiting for its object, blank for none.
 	verb string
+	// The pane the keys were last in, and the one before it:
+	// ctrl-space on the panel goes to the other.
+	in, other string
 	// rc's list of the conversations at rest: whether it stands, what
 	// is typed to find one, and the cursor in it.
 	listing bool
@@ -286,7 +289,10 @@ type known struct {
 const scanEvery = 30 * time.Second
 
 // repositories is the checkouts under home, looked for at most every
-// scanEvery. A worktree stands for its repository.
+// scanEvery, each as the root git names it, so a checkout found by
+// walking is the same project as the panes in it: a worktree stands
+// for its repository, and a path through a symbolic link for the real
+// one. The roots are asked once each.
 func (k *known) repositories(home string) []string {
 	k.mu.Lock()
 	repos, fresh := k.repos, time.Since(k.scanned) < scanEvery
@@ -296,9 +302,7 @@ func (k *known) repositories(home string) []string {
 	}
 	repos = repositories(home, repoDepth)
 	for i, r := range repos {
-		if info, err := os.Stat(filepath.Join(r, ".git")); err == nil && !info.IsDir() {
-			repos[i] = k.rootOf(r)
-		}
+		repos[i] = k.rootOf(r)
 	}
 	k.mu.Lock()
 	k.repos, k.scanned = repos, time.Now()
@@ -995,6 +999,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, spinTick()
 	case tea.KeyPressMsg:
 		m.note = ""
+		if s := msg.String(); s == "ctrl+space" || s == "ctrl+@" {
+			return m.arrived()
+		}
 		if m.helping {
 			m.helping = false
 			return m, nil
@@ -1284,6 +1291,7 @@ func (m model) openOn(p pane) (tea.Model, tea.Cmd) {
 		m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
 		m.searching, m.question = false, ""
 	}
+	m = m.into(p.ID)
 	m.follow, m.asked, m.followAt = p.ID, p.ID, time.Now()
 	return m, tea.Batch(m.showing(p.ID, true), m.read())
 }
@@ -1300,6 +1308,7 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.hitAt < len(m.found) {
 			h := m.found[m.hitAt]
+			m = m.into(m.said[h.said].pane.ID)
 			return m, land(m.ws, m.srv, m.said[h.said].pane, h.k, m.query)
 		}
 		return m, nil
@@ -1563,6 +1572,62 @@ func (m model) start(dir, cmd, session string) (tea.Model, tea.Cmd) {
 		m.note = err.Error()
 		return m, nil
 	}
+	m = m.into(id)
+	m.follow, m.asked, m.followAt = id, id, time.Now()
+	return m, tea.Batch(m.showing(id, true), m.read())
+}
+
+// arrived is ctrl-space heard on the panel. From a pane, the pane is
+// written down by the key as it fires and read here once: the keys
+// were in it. Pressed on the panel, where the keys already were, it
+// is the other process: the one worked in before the last. So from
+// inside a process, twice over is the other process.
+func (m model) arrived() (tea.Model, tea.Cmd) {
+	if m.srv == nil {
+		return m, nil
+	}
+	from, _ := m.srv.Global(fromMark)
+	if from == "" {
+		return m.toOther()
+	}
+	_, _ = m.srv.Do(tmux.UnsetGlobal(fromMark))
+	return m.into(from), nil
+}
+
+// into notes that the keys have gone into a pane: it is the one they
+// are in, and the one they were in is the other.
+func (m model) into(id string) model {
+	if id != "" && id != m.in {
+		m.other, m.in = m.in, id
+	}
+	return m
+}
+
+// stands says whether a pane is one the keys can go into: a pane of a
+// process, not the panel's own and not a hold, and not ended.
+func (m model) stands(id string) bool {
+	if id == "" || id == m.own || m.srv == nil {
+		return false
+	}
+	ps, _ := panes(m.srv)
+	for _, p := range ps {
+		if p.ID == id && !p.Hold && !p.Dead && !p.Panel {
+			return true
+		}
+	}
+	return false
+}
+
+// toOther puts the keys in the process worked in before the one they
+// were last in, and takes that one as the other, so twice over is
+// where it started.
+func (m model) toOther() (tea.Model, tea.Cmd) {
+	if !m.stands(m.other) {
+		m.note = "No other process to go to yet."
+		return m, nil
+	}
+	id := m.other
+	m = m.into(id)
 	m.follow, m.asked, m.followAt = id, id, time.Now()
 	return m, tea.Batch(m.showing(id, true), m.read())
 }
@@ -1592,6 +1657,7 @@ func (m model) open(p project) (tea.Model, tea.Cmd) {
 func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 	switch {
 	case r.pane != nil:
+		m = m.into(r.pane.ID)
 		m.asked = r.pane.ID
 		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:

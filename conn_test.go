@@ -2167,6 +2167,78 @@ func TestOpenLandsOnFirstRow(t *testing.T) {
 	}
 }
 
+// ctrl-space from a pane writes the pane down and brings the keys to
+// the panel, which notes it; ctrl-space on the panel goes to the other
+// process, the one worked in before the last, and swaps the two, so
+// twice over from inside a process is the other process. With no
+// other process yet, it says so.
+func TestCtrlSpaceToggles(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	a, err := openWindow(srv, "a", t.TempDir(), "sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := openWindow(srv, "b", t.TempDir(), "sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bind := bindBack(win, panel)
+	for _, want := range []string{"if-shell", fromMark, "send-keys -t " + panel + " " + backKey} {
+		if !strings.Contains(strings.Join(bind, " "), want) {
+			t.Errorf("the binding lacks %s: %v", want, bind)
+		}
+	}
+	key := tea.KeyPressMsg(tea.Key{Code: '@', Mod: tea.ModCtrl})
+	m := model{srv: srv, own: panel, ws: ws, screen: onProject, cur: project{Name: "p", Root: "/p"}, rows: []row{{pane: &pane{ID: a}}, {pane: &pane{ID: b}}}}
+	next, _ := m.Update(key)
+	if m = next.(model); m.note == "" {
+		t.Error("with no other process, ctrl-space said nothing")
+	}
+	next, _ = m.goTo(m.rows[0])
+	m = next.(model)
+	next, _ = m.goTo(m.rows[1])
+	if m = next.(model); m.in != b || m.other != a {
+		t.Fatalf("after going into a then b, in %q other %q", m.in, m.other)
+	}
+	// ctrl-space from b: the key wrote b down; the panel hears it.
+	if _, err := srv.Do(tmux.SetGlobal(fromMark, b)); err != nil {
+		t.Fatal(err)
+	}
+	next, _ = m.Update(key)
+	if m = next.(model); m.in != b || m.other != a || m.follow != "" {
+		t.Errorf("arriving from b: in %q other %q, following %q", m.in, m.other, m.follow)
+	}
+	if from, _ := srv.Global(fromMark); from != "" {
+		t.Errorf("the pane written down was not cleared: %q", from)
+	}
+	// ctrl-space on the panel: to a, and b is now the other.
+	next, cmd := m.Update(key)
+	if m = next.(model); m.in != a || m.other != b || m.follow != a || cmd == nil {
+		t.Fatalf("to the other: in %q other %q following %q", m.in, m.other, m.follow)
+	}
+	if batch, ok := cmd().(tea.BatchMsg); ok && len(batch) > 0 {
+		batch[0]()
+	}
+	if p := inWorkspace(t, ws); p.ID != a {
+		t.Errorf("the workspace shows %s, want %s", p.ID, a)
+	}
+	// Again: back to b.
+	next, _ = m.Update(key)
+	if m = next.(model); m.in != b || m.other != a {
+		t.Errorf("twice over: in %q other %q", m.in, m.other)
+	}
+	// The other gone, there is nowhere to go.
+	if _, err := srv.Do(tmux.Cmd{"kill-pane", "-t", a}); err != nil {
+		t.Fatal(err)
+	}
+	next, _ = m.Update(key)
+	if m = next.(model); m.in != b || m.note == "" {
+		t.Errorf("with the other gone: in %q, note %q", m.in, m.note)
+	}
+}
+
 // A run the keys started that fails at once is asked about again, with
 // the question standing over the project; one that fails later, or
 // ends well, or is still going past the watch, is let go of.

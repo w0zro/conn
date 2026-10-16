@@ -1,8 +1,9 @@
 /* conn.w0zro.com: the gathering. A field of panes, more than anyone can
-   watch, gathers on one scroll into conn's panel, a row a process under
-   the project it works; beside the panel one line is typed, and the
-   install under it. Set in conn's own face and inks: the conn theme's
-   dark ground by role, from internal/theme/themes.go. */
+   watch, gathers on one scroll into conn's panel: the project you are in
+   on top, a row a process, and a line for every other project under it;
+   beside the panel one line is typed, and the install under it. Set in
+   conn's own face and inks: the conn theme's dark ground by role, from
+   internal/theme/sheets/conn.json. */
 
 :root {
   --ground: #15130F;
@@ -13,7 +14,9 @@
   --gray: #8B8272;
   --faint: #5C564A;
   --accent: #E85D2F;
+  --shimmer: #FF7847;
   --running: #93C98B;
+  --chosen: #2A2620;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --row: 20px;            /* a row of the panel; site.js sets it for the screen */
 }
@@ -57,14 +60,15 @@ pre { margin: 0; font: inherit; white-space: pre; }
 
 /* A pane: a terminal, a process in it, nothing around it but its edge.
    It becomes a row of the panel: the body folds away, the head is the
-   row. */
+   row, laid as the panel lays one: the cursor's bar, the margin where
+   the spinner turns, the mark, the name, and the figure at the right. */
 .win {
   position: absolute; left: 0; top: 0;
   box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
   overflow: hidden;
-  will-change: transform, width, height;
+  will-change: transform, width, height, opacity;
 }
 .win .head {
   position: absolute; left: 0; right: 0; top: 0;
@@ -73,19 +77,16 @@ pre { margin: 0; font: inherit; white-space: pre; }
   padding-right: 10px;
   white-space: nowrap;
 }
-.win .head .cur { width: 10px; flex: none; color: var(--accent); }
-.win .head .spin { width: 10px; flex: none; color: var(--running); }
-.win .head .mark { width: 24px; flex: none; color: var(--faint); padding-left: 2px; }
-.win .head .digit { width: 16px; flex: none; color: var(--ink); }
+.win .head .cur { width: 10px; flex: none; color: var(--accent); font-weight: 700; visibility: hidden; }
+.win.row .head .cur { visibility: visible; }
+.win .head .spin { width: 14px; flex: none; color: var(--running); }
+.win .head .mark { width: 16px; flex: none; color: var(--ink); }
 .win .head .name { flex: 1; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
-.win .head .word { flex: none; color: var(--gray); margin-left: 12px; opacity: 0; }
-.win .head .word.stamp { background: var(--accent); color: var(--ground); font-weight: 700; padding: 0 6px; }
-.win .head .word.blink { animation: blink 1s steps(1) infinite; }
-.win.waiting .head .mark { color: var(--accent); font-weight: 700; }
-.win.waiting .head .name { font-weight: 700; }
-.win.working .head .mark, .win.serving .head .mark { color: var(--running); }
-.win.fault .head .mark, .win.stopped .head .mark { color: var(--accent); }
-.win.down .head .name { color: var(--faint); text-decoration: line-through; }
+.win .head .fig { flex: none; color: var(--gray); margin-left: 12px; opacity: 0; }
+.win.waiting .head .mark, .win.waiting .head .name, .win.waiting .head .fig { color: var(--accent); font-weight: 700; }
+.win.failed .head .mark, .win.failed .head .name, .win.failed .head .fig { color: var(--shimmer); font-weight: 700; }
+.win.passed .head .mark { color: var(--running); }
+.win.idle.conversation .head .name { color: var(--ink); }
 .win .body {
   position: absolute; left: 10px; right: 10px; top: var(--row);
   font-size: 11px; line-height: 16px;
@@ -97,22 +98,30 @@ pre { margin: 0; font: inherit; white-space: pre; }
 .win .body .r { color: var(--running); }
 .win .body .f { color: var(--faint); }
 .win .body .k { color: var(--ink); }
+.win .body .p { color: var(--parchment); }
 .win .body .cursor { display: inline-block; width: 7px; height: 13px; background: var(--accent); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
 .win.row { border-color: transparent; background: transparent; }
+.win.row.cursor { background: var(--chosen); }
 
-/* The panel they gather into: its ground, and an eyebrow a project. */
+/* The panel they gather into: its ground, the open project's head, the
+   projects label with its rule, and a line a project under it. */
 .panelbg { position: absolute; left: 0; top: 0; background: var(--surface); opacity: 0; will-change: transform, opacity; }
-.eyebrow {
+.phead, .plabel, .pline {
   position: absolute; left: 0; top: 0;
   height: var(--row); line-height: var(--row);
   display: flex; align-items: center; white-space: nowrap;
+  padding-left: 24px; padding-right: 10px;
   opacity: 0;
 }
-.eyebrow .pname { color: var(--parchment); font-weight: 700; padding-left: 24px; margin-right: 8px; }
-.eyebrow .rule { flex: 1; border-top: 1px solid var(--faint); opacity: 0.6; }
-.eyebrow .tail { margin-left: 8px; color: var(--gray); opacity: 0; }
-.eyebrow .tail.stamp { background: var(--accent); color: var(--ground); font-weight: 700; padding: 0 6px; }
-.eyebrow .tail.blink { animation: blink 1s steps(1) infinite; }
+.phead .pname { color: var(--shimmer); font-weight: 700; margin-right: 16px; }
+.phead .ppath { color: var(--gray); }
+.plabel .pname { color: var(--gray); margin-right: 8px; }
+.plabel .rule { flex: 1; border-top: 1px solid var(--border); }
+.pline { padding-left: 10px; }
+.pline .spin { width: 14px; flex: none; color: var(--running); }
+.pline .pname { flex: 1; color: var(--parchment); font-weight: 700; }
+.pline .fig { flex: none; color: var(--gray); margin-left: 12px; opacity: 0; }
+.pline.waiting .pname { color: var(--accent); }
 
 /* The line, and the install under it, beside the panel. */
 .claim { position: fixed; z-index: 3; left: 0; top: 0; width: 520px; opacity: 0; pointer-events: none; }
@@ -151,5 +160,5 @@ pre { margin: 0; font: inherit; white-space: pre; }
   .cmd code { white-space: normal; word-break: break-all; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .win .head .word.blink, .eyebrow .tail.blink, .win .body .cursor, .claim .cursor { animation: none; }
+  .win .body .cursor, .claim .cursor { animation: none; }
 }

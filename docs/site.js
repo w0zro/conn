@@ -1,12 +1,13 @@
-// conn.w0zro.com: the gathering. A field of panes - agents, servers,
-// shells, editors, tests, more than anyone can watch, two of them
+// conn.w0zro.com: the gathering. A field of panes - conversations,
+// servers, shells, checks, more than anyone can watch, one of them
 // asking a question that nothing says - files itself into conn's panel
-// on one scroll: a row a process, under the project it works, with a
-// word a project where something waits. Beside the panel, once the
-// words are in, one line is typed: Take the conn. Then the install.
-// Every piece is laid out for the scroll's position, so scrolling back
-// is the same picture; left alone, the page gathers on its own. The
-// panel is drawn with conn's own marks, inks and words.
+// on one scroll: the project you are in on top, a row a process, and
+// under it a line for every other project with something running.
+// Beside the panel, once the words are in, one line is typed: Take the
+// conn. Then the install. Every piece is laid out for the scroll's
+// position, so scrolling back is the same picture; left alone, the
+// page gathers on its own. The panel is drawn with conn's own marks,
+// inks and words.
 (() => {
   'use strict';
 
@@ -17,79 +18,90 @@
 
   // ---- the processes --------------------------------------------------
 
-  const MARK = { contact: '☿', shell: '❯', editor: '▯', service: '◉', run: '○' };
+  // A row's mark is its role: a conversation, the stack, what talks to
+  // it, a check and its verdict, a listener outside conn.
+  const MARK = { conversation: '❝', stack: '○', client: '❯', check: '◦', pass: '✓', fail: '✗', outside: '◌' };
 
-  // Four projects and what works them. Each is a window in the field
-  // and a row in the panel. A body is what the process has written,
-  // a few lines; a waiting contact carries its question.
+  // The open project and what works it, then three more. Each process
+  // is a pane in the field; the open project's become its rows, the
+  // others' gather into their project's line. A body is what the
+  // process has written, a few lines; a waiting conversation carries
+  // its question. The figure is what the row says at its right.
   const PROJECTS = [
-    { name: 'conn', rows: [
-      { kind: 'contact', digit: '0', name: 'claude', status: 'waiting', word: '9 MIN', body: ['<span class="g">></span> bring the code to the manual', '<span class="r">●</span> Read band.go, keys.go, bay.go', '<span class="a">●</span> Rename bay to workspace in the code too?', '  <span class="a">❯</span> 1. Yes', '    2. No'] },
-      { kind: 'shell', name: 'zsh', status: 'idle', body: ['<span class="a">$</span> git status -sb', '<span class="g">## main...origin/main [ahead 3]</span>', '<span class="a">$</span> <span class="cursor"></span>'] },
-      { kind: 'run', name: 'go test ./...', status: 'fault', word: 'EXIT 1', body: ['<span class="g">ok  internal/draw  0.214s</span>', '<span class="a">--- FAIL: TestBand (0.00s)</span>', '    band_test.go:41: want "CONN · LOG 1"', '<span class="a">FAIL</span>'] },
-      { kind: 'editor', name: 'vim', status: 'stopped', word: 'STOPPED', body: ['<span class="k"># conn</span>', '- the panel is by project', '- bay → workspace', '<span class="f">~</span>', '<span class="g">"notes.md" 5L</span>'] },
+    { name: 'conn', path: '~/projects/w0zro/conn', rows: [
+      { role: 'conversation', name: 'bring the code to the manual', status: 'working', fig: '262k', body: ['<span class="g">></span> bring the code to the manual', '<span class="r">●</span> Read panel.go, cli.go, server.go', '<span class="r">⣾</span> <span class="g">Editing… (esc to interrupt)</span>'] },
+      { role: 'conversation', name: 'a grammar over processes', status: 'waiting', fig: '118k  waiting', cursor: true, body: ['<span class="g">></span> make s a verb that waits for its object', '<span class="r">●</span> Read panel.go, conn_test.go', '<span class="a">●</span> Free n, u and t once sc, ss and st are in?', '  <span class="a">❯</span> 1. Yes', '    2. No'] },
+      { role: 'stack', name: 'demo', status: 'serving', fig: ':8123', body: ['<span class="g">Serving HTTP on :: port 8123</span>', '<span class="g">::1 - -</span> "GET / HTTP/1.1" 200 -', '<span class="g">::1 - -</span> "GET /manual/ HTTP/1.1" 200 -'] },
+      { role: 'client', name: 'zsh', status: 'idle', body: ['<span class="a">$</span> git status -sb', '<span class="g">## main...origin/main [ahead 3]</span>', '<span class="a">$</span> <span class="cursor"></span>'] },
+      { role: 'check', name: 'test', status: 'passed', fig: '4m', body: ['<span class="g">ok  github.com/w0zro/conn  2.814s</span>', '<span class="g">ok  internal/theme  0.112s</span>', '<span class="g">ok  internal/tmux  0.391s</span>', '<span class="f">[test exited 0]</span>'] },
+      { role: 'check', name: 'lint', status: 'failed', fig: '2m', body: ['<span class="a">panel.go:2206:4:</span> unused: nameFor', '<span class="g">2 issues:</span>', '<span class="g">* unused: 2</span>', '<span class="f">[lint exited 1]</span>'] },
+      { role: 'outside', name: 'postgres', status: 'serving', fig: ':5432', body: ['<span class="g">LOG:</span>  database system is ready', '<span class="g">LOG:</span>  checkpoint starting: time', '<span class="g">LOG:</span>  connection authorized: user=conn'] },
     ] },
-    { name: 'web', rows: [
-      { kind: 'contact', digit: '1', name: 'claude', status: 'working', body: ['<span class="g">></span> make the cart total update live', '<span class="r">●</span> Read Cart.tsx, useCart.ts', '<span class="r">⣾</span> <span class="g">Editing… (esc to interrupt)</span>'] },
-      { kind: 'shell', name: 'zsh', status: 'idle', body: ['<span class="a">$</span> npm run dev', '<span class="g">> web@0.4.1 dev</span>', '<span class="a">$</span> <span class="cursor"></span>'] },
-      { kind: 'service', name: 'postgres', status: 'serving', word: ':5432', body: ['<span class="g">LOG:</span>  database system is ready', '<span class="g">LOG:</span>  checkpoint starting: time', '<span class="g">LOG:</span>  connection authorized: user=web'] },
-      { kind: 'run', name: 'node vite', status: 'serving', word: ':5173', body: ['<span class="r">VITE v6.0.3</span>  <span class="g">ready in 212 ms</span>', '', '  ➜  Local:   <span class="r">http://localhost:5173/</span>', '  ➜  <span class="g">press h + enter to show help</span>'] },
-      { kind: 'service', name: 'redis', status: 'serving', word: ':6379', body: ['<span class="g">1:M</span> Ready to accept connections tcp', '<span class="g">1:M</span> DB saved on disk'] },
-      { kind: 'run', name: 'worker', status: 'down', word: 'DOWN', body: ['<span class="f">make run</span>', '<span class="f">not running</span>'] },
+    { name: 'web', standing: '1 waiting · 3 running', waiting: true, rows: [
+      { role: 'conversation', name: 'make the cart total update live', status: 'waiting', body: ['<span class="g">></span> make the cart total update live', '<span class="r">●</span> Read Cart.tsx, useCart.ts', '<span class="a">●</span> Allow Bash: conn u test -w -- npm test?', '  <span class="a">❯</span> Yes', '    No'] },
+      { role: 'stack', name: 'vite', status: 'serving', body: ['<span class="r">VITE v6.0.3</span>  <span class="g">ready in 212 ms</span>', '', '  ➜  Local:   <span class="r">http://localhost:5173/</span>', '  ➜  <span class="g">press h + enter to show help</span>'] },
+      { role: 'client', name: 'zsh', status: 'idle', body: ['<span class="a">$</span> conn ls', '<span class="g">~/projects/web</span>', 'vite  41822  running  5173  npm run dev', '<span class="a">$</span> <span class="cursor"></span>'] },
     ] },
-    { name: 'api', rows: [
-      { kind: 'contact', digit: '2', name: 'claude', status: 'waiting', word: '23 MIN', body: ['<span class="g">></span> add the rate limit to /v1/search', '<span class="r">●</span> Read limiter.go, search.go', '<span class="a">●</span> Allow Bash: go test ./...?', '  <span class="a">❯</span> Yes', '    No'] },
-      { kind: 'shell', name: 'zsh', status: 'idle', body: ['<span class="a">$</span> docker compose up', '<span class="a">$</span> <span class="cursor"></span>'] },
-      { kind: 'run', name: 'docker compose', status: 'working', body: ['<span class="g">api-1  |</span> listening on :8080', '<span class="g">db-1   |</span> ready to accept connections', '<span class="g">api-1  |</span> GET /v1/search 200 12ms'] },
-      { kind: 'run', name: 'go run ./cmd/api', status: 'serving', word: ':8080', body: ['<span class="g">2026/10/10 14:02:11</span> listening on :8080', '<span class="g">2026/10/10 14:02:40</span> GET /healthz 200'] },
-      { kind: 'run', name: 'pytest', status: 'working', body: ['tests/test_search.py <span class="r">........</span>', 'tests/test_limit.py <span class="r">...</span><span class="g">.</span>', '<span class="r">⣾</span> <span class="g">11 passed · running</span>'] },
+    { name: 'api', standing: '3 running', turning: true, rows: [
+      { role: 'conversation', name: 'add the rate limit to /v1/search', status: 'working', body: ['<span class="g">></span> add the rate limit to /v1/search', '<span class="r">●</span> Read limiter.go, search.go', '<span class="r">⣾</span> <span class="g">Running conn u test -w -- go test ./…</span>'] },
+      { role: 'stack', name: 'api', status: 'serving', body: ['<span class="g">2026/10/16 14:02:11</span> listening on :8080', '<span class="g">2026/10/16 14:02:40</span> GET /healthz 200'] },
+      { role: 'check', name: 'test', status: 'running', body: ['<span class="g">ok  api/limiter  0.214s</span>', '<span class="g">ok  api/search   1.102s</span>', '<span class="r">⣾</span> <span class="g">api/store</span>'] },
     ] },
-    { name: 'notes', rows: [
-      { kind: 'contact', digit: '3', name: 'claude', status: 'idle', body: ['<span class="g">></span> outline the october post', '<span class="r">●</span> Wrote outline to 2026-10-post.md', '<span class="p">❯</span> <span class="cursor"></span>'] },
-      { kind: 'editor', name: 'vim', status: 'stopped', word: 'STOPPED', body: ['<span class="k"># October</span>', 'The shift from files to processes.', '<span class="f">~</span>', '<span class="g">"2026-10-post.md" 2L</span>'] },
-      { kind: 'run', name: 'hugo server', status: 'serving', word: ':1313', body: ['<span class="g">Web Server is available at</span> <span class="r">http://localhost:1313/</span>', '<span class="g">Press Ctrl+C to stop</span>'] },
-      { kind: 'shell', name: 'zsh', status: 'idle', body: ['<span class="a">$</span> <span class="cursor"></span>'] },
+    { name: 'notes', standing: '2 running', rows: [
+      { role: 'conversation', name: 'outline the october post', status: 'idle', body: ['<span class="g">></span> outline the october post', '<span class="r">●</span> Wrote outline to 2026-10-post.md', '<span class="p">❯</span> <span class="cursor"></span>'] },
+      { role: 'stack', name: 'hugo', status: 'serving', body: ['<span class="g">Web Server is available at</span> <span class="r">http://localhost:1313/</span>', '<span class="g">Press Ctrl+C to stop</span>'] },
     ] },
   ];
 
   // ---- the pieces -----------------------------------------------------
 
   let W = innerWidth, H = innerHeight, ROW = 20, phone = false, PANEL_W = 370;
-  const wins = [], eyebrows = [];
+  const wins = [], pieces = [];
   let seed = 7;
   const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
 
+  // The panel's rows, top to bottom: air, the open project's head, air,
+  // its rows, air, the projects label, a line a project, air.
+  const open = PROJECTS[0];
+  const ROWS_AT = 3;
+  const LABEL_AT = ROWS_AT + open.rows.length + 1;
+  const LINES_AT = LABEL_AT + 1;
+  const PANEL_ROWS = LINES_AT + PROJECTS.length - 1 + 1;
+
+  function markOf(r) {
+    if (r.role === 'check') return r.status === 'passed' ? MARK.pass : r.status === 'failed' ? MARK.fail : MARK.check;
+    return MARK[r.role];
+  }
+  function spinOf(r) {
+    if (r.status === 'working' || (r.role === 'check' && r.status === 'running')) return '⣾';
+    if (r.status === 'serving') return '⣿';
+    return '';
+  }
+
   function build() {
     field.innerHTML = '';
-    wins.length = 0; eyebrows.length = 0;
+    wins.length = 0; pieces.length = 0;
     seed = 7;
-    PROJECTS.forEach((p, pi) => {
+    const piece = (cls, html, at) => {
       const e = document.createElement('div');
-      e.className = 'eyebrow';
-      const stamp = verdict(p);
-      e.innerHTML = `<span class="pname">${p.name}</span><span class="rule"></span>${stamp ? `<span class="tail ${stamp.cls}">${stamp.word}</span>` : ''}`;
+      e.className = cls;
+      e.innerHTML = html;
       field.appendChild(e);
-      eyebrows.push({ el: e, p, pi });
+      pieces.push({ el: e, at });
+    };
+    piece('phead', `<span class="pname">${esc(open.name)}</span><span class="ppath">${esc(open.path)}</span>`, 1);
+    piece('plabel', `<span class="pname">projects</span><span class="rule"></span>`, LABEL_AT);
+    PROJECTS.forEach((p, pi) => {
+      if (pi > 0) piece(`pline${p.waiting ? ' waiting' : ''}`, `<span class="spin">${p.turning ? '⣾' : ''}</span><span class="pname">${esc(p.name)}</span><span class="fig">${esc(p.standing)}</span>`, LINES_AT + pi - 1);
       p.rows.forEach((r, ri) => {
         const w = document.createElement('div');
-        w.className = `win ${r.status}`;
-        const wordCls = r.status === 'waiting' ? 'word stamp blink' : (r.status === 'fault' || r.status === 'stopped') ? 'word stamp' : 'word';
-        w.innerHTML = `<div class="drift"><div class="head"><span class="cur"></span><span class="spin">${r.status === 'working' ? '⣾' : ''}</span><span class="mark">${MARK[r.kind]}</span>${r.kind === 'contact' ? `<span class="digit">${r.digit}</span>` : '<span class="digit"></span>'}<span class="name">${esc(r.name)}</span>${r.word ? `<span class="${wordCls}">${r.word}</span>` : ''}</div><pre class="body">${r.body.join('\n')}</pre></div>`;
+        w.className = `win ${r.status} ${r.role}${r.cursor ? ' cursor' : ''}`;
+        w.innerHTML = `<div class="drift"><div class="head"><span class="cur">${r.cursor ? '▌' : ''}</span><span class="spin">${spinOf(r)}</span><span class="mark">${markOf(r)}</span><span class="name">${esc(r.name)}</span>${r.fig ? `<span class="fig">${esc(r.fig)}</span>` : ''}</div><pre class="body">${r.body.join('\n')}</pre></div>`;
         field.appendChild(w);
         const lines = r.body.length;
         wins.push({ el: w, r, p, pi, ri, lines, seed: rnd(), seed2: rnd(), seed3: rnd(), stagger: rnd() });
       });
     });
-  }
-
-  // A block's verdict: what wants you, at the end of its rule.
-  function verdict(p) {
-    const waiting = p.rows.filter(r => r.status === 'waiting').length;
-    if (waiting > 0) return { word: waiting > 1 ? `${waiting} WAITING` : 'WAITING', cls: 'stamp blink' };
-    const faults = p.rows.filter(r => r.status === 'fault' || r.status === 'stopped');
-    if (faults.length === 1) return { word: faults[0].word, cls: 'stamp' };
-    if (faults.length > 1) return { word: `${faults.length} FAULTS`, cls: 'stamp' };
-    return null;
   }
 
   // ---- the layout ----------------------------------------------------
@@ -115,9 +127,9 @@
     const longest = Math.max(...w.r.body.map(l => l.replace(/<[^>]+>/g, '').length), w.r.name.length + 6);
     const ww = Math.min(phone ? 230 : 330, Math.max(phone ? 160 : 190, longest * 6.6 + 24));
     const hh = ROW + 10 + Math.min(w.lines, 5) * 16;
-    // Rows as even as they can be: twenty-one panes in rows of six and five.
+    // Rows as even as they can be: fifteen panes in rows of five.
     const n = phone ? Math.min(wins.length, 10) : wins.length;
-    const rowsN = Math.ceil(n / (phone ? 2 : 6)), base = Math.floor(n / rowsN), extra = n % rowsN;
+    const rowsN = Math.ceil(n / (phone ? 2 : 5)), base = Math.floor(n / rowsN), extra = n % rowsN;
     const i = wins.indexOf(w);
     let cy = 0, at = i;
     while (at >= base + (cy < extra ? 1 : 0)) { at -= base + (cy < extra ? 1 : 0); cy++; }
@@ -131,7 +143,7 @@
 
   // The panel: left of the middle, the line beside it; on a phone, at
   // the top, the line under it.
-  const panelH = () => PROJECTS.reduce((n, p) => n + p.rows.length + 2, 0) * ROW;
+  const panelH = () => PANEL_ROWS * ROW;
   function panelAt() {
     const ph = panelH();
     if (phone) return { x: (W - PANEL_W) / 2, y: Math.max(56, Math.min(80, (H - ph - 200) / 2)), h: ph };
@@ -139,18 +151,15 @@
     const x = Math.max(24, (W - total) / 2);
     return { x, y: Math.max(56, (H - ph) / 2), h: ph, lineX: x + PANEL_W + gap };
   }
+  // A pane's slot: the open project's row, or its project's line.
   function slot(w) {
     const p = panelAt();
-    let yy = 0;
-    for (let pi = 0; pi < w.pi; pi++) yy += (PROJECTS[pi].rows.length + 2) * ROW;
-    yy += (2 + w.ri) * ROW;
-    return { x: p.x, y: p.y + yy, w: PANEL_W, h: ROW };
+    const row = w.pi === 0 ? ROWS_AT + w.ri : LINES_AT + w.pi - 1;
+    return { x: p.x, y: p.y + row * ROW, w: PANEL_W, h: ROW };
   }
-  function eyebrowSlot(e) {
+  function pieceSlot(e) {
     const p = panelAt();
-    let yy = 0;
-    for (let pi = 0; pi < e.pi; pi++) yy += (PROJECTS[pi].rows.length + 2) * ROW;
-    return { x: p.x, y: p.y + yy + ROW };
+    return { x: p.x, y: p.y + e.at * ROW };
   }
 
   // ---- laying out for a position --------------------------------------
@@ -176,16 +185,21 @@
       w.el.style.height = hh.toFixed(1) + 'px';
       w.el.classList.toggle('row', t > 0.85);
       w.el.querySelector('.body').style.opacity = String(1 - ease(clamp01(t * 1.6)));
-      const word = w.el.querySelector('.word'); if (word) word.style.opacity = String(ease(clamp01((pr - 0.84) / 0.14)));
+      const fig = w.el.querySelector('.fig'); if (fig) fig.style.opacity = String(ease(clamp01((pr - 0.84) / 0.14)));
       w.el.style.zIndex = w.r.status === 'waiting' ? 35 : 10 + Math.floor(w.seed * 20);
-      if (phone && i >= 10) w.el.style.opacity = String(ease(clamp01(t * 2)));
+      // Another project's panes gather into its line, and are gone by
+      // the time the line is there: the line says what runs in it.
+      let o = 1;
+      if (w.pi > 0) o = 1 - ease(clamp01((t - 0.7) / 0.3));
+      if (phone && i >= 10) o = Math.min(o, ease(clamp01(t * 2)));
+      w.el.style.opacity = String(o);
     });
-    eyebrows.forEach(e => {
-      const d = eyebrowSlot(e);
+    pieces.forEach(e => {
+      const d = pieceSlot(e);
       e.el.style.width = PANEL_W + 'px';
       e.el.style.transform = `translate(${d.x.toFixed(1)}px, ${d.y.toFixed(1)}px)`;
       e.el.style.opacity = String(ease(clamp01((pr - 0.55) / 0.3)));
-      const tail = e.el.querySelector('.tail'); if (tail) tail.style.opacity = String(ease(clamp01((pr - 0.84) / 0.14)));
+      const fig = e.el.querySelector('.fig'); if (fig) fig.style.opacity = String(ease(clamp01((pr - 0.84) / 0.14)));
     });
     // The line, beside the panel, typed once the words are in.
     const arrived = pr >= 0.96;
@@ -241,11 +255,11 @@
   }
   if (!still) setTimeout(gatherAlone, 2400);
 
-  // The spinner turns in every row at work.
+  // The spinner turns in the margin of every row at work.
   if (!reduced) {
     const FRAMES = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'];
     let f = 0;
-    setInterval(() => { f = (f + 1) % FRAMES.length; for (const s of document.querySelectorAll('.spin')) if (s.textContent) s.textContent = FRAMES[f]; }, 110);
+    setInterval(() => { f = (f + 1) % FRAMES.length; for (const s of document.querySelectorAll('.spin')) if (s.textContent && s.textContent !== '⣿') s.textContent = FRAMES[f]; }, 110);
   }
   for (const b of document.querySelectorAll('.copy')) {
     b.addEventListener('click', async () => {

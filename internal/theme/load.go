@@ -30,7 +30,7 @@ import (
 // ink on it and the row with --acc-text, marked in black light; at
 // night the key bar glows, --acc with --acc-on, the page, on it, and
 // the two colors of the row under the cursor change places: it is
-// --uv-line, black light gone dark, with bone on it, marked in --acc.
+// --uv-bg, black light's tint, with bone on it, marked in --acc.
 // The cursor and the > Claude Code writes before what you said are
 // black light as text, --uv-text; the spinner is --uv itself at
 // night, a step darker, and --uv-text by day.

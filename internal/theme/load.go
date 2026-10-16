@@ -28,13 +28,13 @@ import (
 // glow-in-the-dark star's: by day it does not glow, so the key bar and
 // the row under the cursor are --acc-bg, its pale tint, the bar with
 // ink on it and the row with --acc-text; at night it glows, so both are
-// --acc itself with --acc-on, the page, on it, and the spinner turning
-// on that row is --uv-line, black light gone dark, which reads on it.
-// The cursor, and the > Claude Code writes before what you said, are
-// black light as text, --uv-text, the spinner's color. Its sixteen, ground and ink are what the brand's
-// palette.mjs --terminal writes, and the rest are the brand's rules on
-// its five colors. The tests hold both to copies of their sources
-// under testdata; refreshing one is copying those again.
+// --acc itself with --acc-on, the page, on it. The cursor, the bar
+// beside the row under it, and the > Claude Code writes before what
+// you said are black light as text, --uv-text, the spinner's color.
+// Its sixteen, ground and ink are what the brand's palette.mjs
+// --terminal writes, and the rest are the brand's rules on its five
+// colors. The tests hold both to copies of their sources under
+// testdata; refreshing one is copying those again.
 
 //go:embed sheets/*.json
 var shipped embed.FS

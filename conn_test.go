@@ -1766,7 +1766,7 @@ func TestAVerdictWearsTheGround(t *testing.T) {
 // them.
 func undress() {
 	var plain lipgloss.Style
-	ink, title, subhead, gray, faint, accent, failing, keyInk = plain, plain, plain, plain, plain, plain, plain, plain
+	ink, title, projectTitle, subhead, gray, faint, accent, failing, keyInk = plain, plain, plain, plain, plain, plain, plain, plain, plain
 	chosen, chosenBar, ruleStyle, turning, passed, chosenTurning = plain, plain, plain, plain, plain, plain
 }
 
@@ -2629,5 +2629,24 @@ func TestSettings(t *testing.T) {
 	m.settings, m.typed = false, "a"
 	if m, _ = press(m, ","); m.settings || m.typed != "a," {
 		t.Errorf("a , typed into a find opened the settings: %q", m.typed)
+	}
+}
+
+// The open project's name is drawn in the accent's brighter cousin;
+// every other screen's title keeps the parchment.
+func TestTheProjectNameIsTheShimmer(t *testing.T) {
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	sgr := func(hex string) string {
+		c := theme.RGB(hex)
+		return fmt.Sprintf("38;2;%d;%d;%dm", c.R, c.G, c.B)
+	}
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}, width: 60, height: 20}
+	if lines, _ := m.draw(); !strings.Contains(lines[1], sgr(theme.Dark.Shimmer)+"d") {
+		t.Errorf("the project's name is not in the shimmer: %q", lines[1])
+	}
+	m.screen = onProjects
+	if lines, _ := m.draw(); !strings.Contains(lines[1], sgr(theme.Dark.Parchment)+"conn") {
+		t.Errorf("the projects screen's title left the parchment: %q", lines[1])
 	}
 }

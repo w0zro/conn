@@ -1886,7 +1886,7 @@ const (
 // The styles, in the ground the server is on once the panel knows it;
 // plain until then, and in the tests.
 var (
-	ink, title, subhead, gray, faint, accent, failing, keyInk, chosen, chosenBar, ruleStyle, turning, passed, chosenTurning lipgloss.Style
+	ink, title, projectTitle, subhead, gray, faint, accent, failing, keyInk, chosen, chosenBar, ruleStyle, turning, passed, chosenTurning lipgloss.Style
 )
 
 // wear dresses the panel's styles in a ground. The pane's ground is
@@ -1896,6 +1896,9 @@ func wear(g theme.Ground) {
 	fg := func(h string) lipgloss.Style { return lipgloss.NewStyle().Foreground(lipgloss.Color(h)) }
 	ink = fg(theme.Hex(g.Ink))
 	title = fg(g.Parchment).Bold(true)
+	// The open project's name is the accent's brighter cousin: the one
+	// place the panel names where you are.
+	projectTitle = fg(g.Shimmer).Bold(true)
 	subhead = fg(g.Parchment)
 	gray = fg(g.Gray)
 	faint = fg(g.Faint)
@@ -2119,7 +2122,12 @@ func (m model) feet(f foot) []string {
 // head is a screen's first rows: the title in the parchment, what goes
 // with it in the gray, and a row of air.
 func head(name, with string) []string {
-	return []string{"", at(title.Render(name) + "  " + gray.Render(with)), ""}
+	return headIn(title, name, with)
+}
+
+// headIn is head with the title in a style of its own.
+func headIn(st lipgloss.Style, name, with string) []string {
+	return []string{"", at(st.Render(name) + "  " + gray.Render(with)), ""}
 }
 
 // drawKeys is the screen's keys in full, one to a line, over it.
@@ -2178,7 +2186,7 @@ func (m model) drawProjects() ([]string, foot) {
 }
 
 func (m model) drawProject() ([]string, foot) {
-	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
+	lines := headIn(projectTitle, listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
 	if m.question != "" {
 		return m.drawOffer(lines)
 	}

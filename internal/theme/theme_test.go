@@ -3,6 +3,7 @@ package theme
 import (
 	"encoding/json"
 	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -176,22 +177,42 @@ func TestShippedThemes(t *testing.T) {
 // Every theme conn ships spends its accent alike. Most spend it as
 // one color: the cursor and the block are the accent, and the row
 // under the cursor is on the border in the ink, so nothing chosen reads
-// as what needs you. A theme whose accent is not a fill has a fill of
-// its own beside it, and spends the two together: the block is a fill
-// with the ink on it, and the row under the cursor is a fill with the
-// accent on it. Its cursor is a color of its own choosing.
+// as what needs you. A theme whose accent is not a fill has fills of
+// its own for the block and the row under the cursor, and a cursor of
+// its own choosing. Either way, what is written on a fill reads on it.
 func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 	for _, n := range Names(t.TempDir()) {
 		th, _ := Load(t.TempDir(), n)
 		for _, g := range []Ground{th.Dark, th.Light} {
-			ink := Hex(g.Ink)
-			if g.Block == g.Accent {
-				if g.Cursor != g.Accent || g.Chosen != g.Border || g.ChosenInk != ink {
-					t.Errorf("%s: the cursor %s, the chosen row %s on %s; not the accent, and the ink on the border", n, g.Cursor, g.ChosenInk, g.Chosen)
+			if g.Block == g.Accent && (g.Cursor != g.Accent || g.Chosen != g.Border || g.ChosenInk != Hex(g.Ink)) {
+				t.Errorf("%s: the cursor %s, the chosen row %s on %s; not the accent, and the ink on the border", n, g.Cursor, g.ChosenInk, g.Chosen)
+			}
+			for _, f := range []struct{ name, on, ink string }{{"block", g.Block, g.OnBlock}, {"chosen row", g.Chosen, g.ChosenInk}} {
+				if c := contrast(f.on, f.ink); c < 4.5 {
+					t.Errorf("%s: %s on the %s %s is %.1f:1", n, f.ink, f.name, f.on, c)
 				}
-			} else if g.OnBlock != ink || g.Chosen == g.Border || g.ChosenInk != g.Accent {
-				t.Errorf("%s: the block has %s on it and the chosen row %s on %s, not the ink and the accent on a fill", n, g.OnBlock, g.ChosenInk, g.Chosen)
 			}
 		}
 	}
+}
+
+// contrast is the ratio WCAG holds text to: the lighter color's
+// relative luminance over the darker's, each with the flare added.
+func contrast(a, b string) float64 {
+	lum := func(h string) float64 {
+		c := RGB(h)
+		var l float64
+		for i, v := range []uint8{c.R, c.G, c.B} {
+			s := float64(v) / 255
+			if s <= 0.03928 {
+				s /= 12.92
+			} else {
+				s = math.Pow((s+0.055)/1.055, 2.4)
+			}
+			l += []float64{0.2126, 0.7152, 0.0722}[i] * s
+		}
+		return l
+	}
+	la, lb := lum(a), lum(b)
+	return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 }

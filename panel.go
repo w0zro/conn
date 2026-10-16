@@ -1804,7 +1804,14 @@ func wear(g theme.Ground) {
 	accent = fg(g.Accent).Bold(true)
 	keyInk = fg(theme.Hex(g.Ink)).Bold(true)
 	chosen = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.ChosenInk))
-	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Accent)).Bold(true)
+	// The bar beside the chosen row is the accent on the border; on a
+	// row laid on a fill of its own it is the row's ink, one mark with
+	// the fill.
+	bar := g.Accent
+	if g.Chosen != g.Border {
+		bar = g.ChosenInk
+	}
+	chosenBar = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(bar)).Bold(true)
 	turning = fg(g.Turning)
 	passed = fg(g.Running)
 	chosenTurning = lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)).Foreground(lipgloss.Color(g.Turning))

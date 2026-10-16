@@ -10,11 +10,8 @@ import (
 
 // skelly's sixteen are its brand's own: every slot, and the ground and
 // the ink, are what the brand's palette.mjs --terminal wrote, kept
-// under testdata/skelly, and so is the cursor at night. Refreshing
-// skelly is writing the file again. By day the cursor is --uv-text,
-// not the terminal's --acc-text; and the selection is
-// neither ground's terminal one, whose tint of phosphor in phosphor
-// ink put three accents on the screen at once.
+// under testdata/skelly. Refreshing skelly is writing the file again.
+// The cursor is black light, --uv-text, not the terminal's phosphor.
 func TestSkellyIsSkellysOwn(t *testing.T) {
 	skelly, err := Load(t.TempDir(), "skelly")
 	if err != nil {
@@ -42,14 +39,10 @@ func TestSkellyIsSkellysOwn(t *testing.T) {
 				t.Errorf("%s slot %d is %s; the brand's %s is %s", on.name, i, g.Scheme[i], k, want[k])
 			}
 		}
-		checks := []struct{ role, have, from string }{
+		for _, c := range []struct{ role, have, from string }{
 			{"ground", Hex(g.Ground), "background"},
 			{"ink", Hex(g.Ink), "foreground"},
-		}
-		if on.name == "dark" {
-			checks = append(checks, struct{ role, have, from string }{"cursor", g.Cursor, "cursor"})
-		}
-		for _, c := range checks {
+		} {
 			if want[c.from] == "" {
 				t.Errorf("%s: the brand's terminal has no %s", on.name, c.from)
 			} else if !strings.EqualFold(c.have, want[c.from]) {

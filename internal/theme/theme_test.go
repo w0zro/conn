@@ -184,13 +184,17 @@ func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 	for _, n := range Names(t.TempDir()) {
 		th, _ := Load(t.TempDir(), n)
 		for _, g := range []Ground{th.Dark, th.Light} {
-			if g.Block == g.Accent && (g.Cursor != g.Accent || g.Chosen != g.Border || g.ChosenInk != Hex(g.Ink)) {
+			if g.Block == g.Accent && (g.Cursor != g.Accent || g.Chosen != g.Border || g.ChosenInk != Hex(g.Ink) || g.ChosenMark != g.Accent) {
 				t.Errorf("%s: the cursor %s, the chosen row %s on %s; not the accent, and the ink on the border", n, g.Cursor, g.ChosenInk, g.Chosen)
 			}
 			for _, f := range []struct{ name, on, ink string }{{"block", g.Block, g.OnBlock}, {"chosen row", g.Chosen, g.ChosenInk}} {
 				if c := contrast(f.on, f.ink); c < 4.5 {
 					t.Errorf("%s: %s on the %s %s is %.1f:1", n, f.ink, f.name, f.on, c)
 				}
+			}
+			// The bar is a mark, not text: 3:1 is enough to find it by.
+			if c := contrast(g.Chosen, g.ChosenMark); c < 3 {
+				t.Errorf("%s: the bar %s beside the chosen row %s is %.1f:1", n, g.ChosenMark, g.Chosen, c)
 			}
 		}
 	}

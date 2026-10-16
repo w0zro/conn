@@ -43,8 +43,9 @@ type Ground struct {
 	Block, OnBlock string
 
 	// The row under the cursor, and what copy mode has selected, and
-	// the ink it is written in; and the cursor itself.
-	Chosen, ChosenInk, Cursor string
+	// the ink it is written in; the bar beside that row, the accent
+	// unless a theme marks it otherwise; and the cursor itself.
+	Chosen, ChosenInk, ChosenMark, Cursor string
 
 	// The grounds no slot has a name for, which Claude Code draws: the
 	// band behind what you said, at rest and under the pointer; the bar
@@ -155,7 +156,7 @@ func (g *Ground) roles() []role {
 	return []role{
 		{"accent", &g.Accent}, {"shimmer", &g.Shimmer}, {"atWork", &g.AtWork}, {"atWorkShimmer", &g.AtWorkShimmer},
 		{"border", &g.Border}, {"surface", &g.Surface}, {"running", &g.Running}, {"turning", &g.Turning}, {"gray", &g.Gray}, {"faint", &g.Faint}, {"parchment", &g.Parchment},
-		{"block", &g.Block}, {"onBlock", &g.OnBlock}, {"chosen", &g.Chosen}, {"chosenInk", &g.ChosenInk}, {"cursor", &g.Cursor},
+		{"block", &g.Block}, {"onBlock", &g.OnBlock}, {"chosen", &g.Chosen}, {"chosenInk", &g.ChosenInk}, {"chosenMark", &g.ChosenMark}, {"cursor", &g.Cursor},
 		{"messageBg", &g.MessageBg}, {"messageHoverBg", &g.MessageHoverBg}, {"toolBg", &g.ToolBg},
 		{"diffAddedBg", &g.DiffAddedBg}, {"diffRemovedBg", &g.DiffRemovedBg}, {"diffAddedDim", &g.DiffAddedDim},
 		{"diffRemovedDim", &g.DiffRemovedDim}, {"diffAddedWord", &g.DiffAddedWord}, {"diffRemovedWord", &g.DiffRemovedWord},

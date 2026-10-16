@@ -49,6 +49,9 @@ func ClaudeTheme(g Ground) [][]token {
 	return [][]token{{
 		{"claude", g.AtWork},
 		{"claudeShimmer", g.AtWorkShimmer},
+		// The mark at rest, which the base draws in the pane's bright
+		// red: the same hue it turns at work.
+		{"clawd_body", g.AtWork},
 	}, {
 		{"text", ink},
 		{"inverseText", Hex(g.Ground)},

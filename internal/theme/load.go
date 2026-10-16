@@ -27,9 +27,8 @@ import (
 // accent: --acc at night, spent as conn's and datum's accent is. By
 // day phosphor is too pale to read as text, so the accent is
 // --acc-text, deep enough to read, and --acc-bg is its fill: the
-// block, with ink on it, and the row under the cursor, with --acc-text
-// on it beside a bar of --acc-text. The cursor is --acc-line, the one
-// phosphor between, pale but still to be found on the ground. Its sixteen, ground, ink
+// block, with ink on it, the cursor, and the row under the cursor,
+// with --acc-text on it beside a bar of --acc-text. Its sixteen, ground, ink
 // and night cursor are what the brand's palette.mjs --terminal writes,
 // and the rest are the brand's rules on its five colors. The tests hold both to copies of
 // their sources under testdata; refreshing one is copying those again.

@@ -178,10 +178,8 @@ func TestShippedThemes(t *testing.T) {
 // under the cursor is on the border in the ink, so nothing chosen reads
 // as what needs you. A theme whose daylight accent is too deep to fill
 // with has a fill of its own beside it, and spends the two together:
-// the block is the fill with the ink on it, and the row under the
-// cursor is the fill with the accent on it. The cursor is its own
-// there: a fill pale enough to carry the accent's words is too pale to
-// find a cursor by.
+// the block and the cursor are the fill, the block with the ink on
+// it, and the row under the cursor is the fill with the accent on it.
 func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 	for _, n := range Names(t.TempDir()) {
 		th, _ := Load(t.TempDir(), n)
@@ -195,7 +193,7 @@ func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 			case g.Dark():
 				t.Errorf("%s: a dark ground's block %s is not its accent %s", n, g.Block, g.Accent)
 			default:
-				if g.OnBlock != ink || g.Chosen != g.Block || g.ChosenInk != g.Accent {
+				if g.Cursor != g.Block || g.OnBlock != ink || g.Chosen != g.Block || g.ChosenInk != g.Accent {
 					t.Errorf("%s: the fill %s has %s on it as a block and %s as the chosen row, not the ink and the accent", n, g.Block, g.OnBlock, g.ChosenInk)
 				}
 			}

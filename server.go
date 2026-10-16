@@ -181,6 +181,7 @@ set -g window-status-separator ""
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", g.Border, g.Gray)
 	fmt.Fprintf(&b, "set -g status-left \"#[fg=%s bold] conn #[default]\"\n", theme.Hex(g.Ink))
 	fmt.Fprintf(&b, "set -g status-right \"#{?#{%s},#[fg=%s bold]#{%s} waiting #[default],}\"\n", waitingMark, g.Accent, waitingMark)
+	fmt.Fprintf(&b, "set -g set-titles on\nset -g set-titles-string \"conn#{?#{%s}, · #{%s} waiting,}\"\n", waitingMark, waitingMark)
 	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
 	onPanel := "#{==:#{pane_id},#{" + panelIDMark + "}}"
 	fmt.Fprintf(&b, "set -g status-format[1] \"#[fill=%s bg=%s]#{?pane_in_mode,%s,#{?%s,#[fill=%s bg=%s]#{%s},%s}}\"\n", g.Surface, g.Surface, keyBar(copyHints, g), onPanel, g.Block, g.Block, barMark, keyBar(awayHints, g))

@@ -2433,15 +2433,18 @@ func (p project) standing() string {
 
 // sayWaiting puts the number of conversations waiting on you on the
 // status line, which shows it from every window, and takes it off at
-// none.
+// none. It is in the terminal's tab title too, and rings the bell as
+// one more conversation starts waiting.
 func sayWaiting(srv *tmux.Server, n int) {
 	want := ""
 	if n > 0 {
 		want = strconv.Itoa(n)
 	}
-	if was, _ := srv.Global(waitingMark); was == want {
+	was, _ := srv.Global(waitingMark)
+	if was == want {
 		return
 	}
+	before, _ := strconv.Atoi(was)
 	set := tmux.UnsetGlobal(waitingMark)
 	if want != "" {
 		set = tmux.SetGlobal(waitingMark, want)
@@ -2451,6 +2454,16 @@ func sayWaiting(srv *tmux.Server, n int) {
 		cmds = append(cmds, tmux.Cmd{"refresh-client", "-S", "-t", c})
 	}
 	_, _ = srv.Do(cmds...)
+	// One bell for each question: as the count rises, never as it falls
+	// or holds.
+	if n > before {
+		for _, c := range terminals(srv) {
+			if f, err := os.OpenFile(c, os.O_WRONLY, 0); err == nil {
+				_, _ = f.WriteString("\a")
+				_ = f.Close()
+			}
+		}
+	}
 }
 
 // key is what a row is, through a sort: its conversation, or its pane.

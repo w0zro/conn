@@ -14,8 +14,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -818,6 +820,117 @@ func TestParseTerminals(t *testing.T) {
 	if got := parseTerminals(out); !reflect.DeepEqual(got, []string{"/dev/ttys004", "/dev/ttys001"}) {
 		t.Errorf("parseTerminals = %v", got)
 	}
+}
+
+// With conn's tab behind another, the terminal says what waits: the
+// tab's title is "conn · n waiting", the count the status line has, and
+// "conn" once nothing does; and the bell rings once as a conversation
+// starts waiting, not again while it still waits, nor as one is
+// answered.
+func TestWaitingReachesTheTab(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	script, err := exec.LookPath("script")
+	if err != nil {
+		t.Skip("no script to give a client a terminal")
+	}
+	dir, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	path := write(t, filepath.Join(dir, "tmux.conf"), conf(theme.Dark))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(dir, "s")}
+	defer func() { _ = srv.Down() }()
+	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "80", "-y", "24", "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	// A terminal's client, on a terminal that takes a title, its output
+	// what the terminal would be sent.
+	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
+	} else {
+		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
+	}
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
+	in, keep, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = keep.Close() }()
+	cmd.Stdin = in
+	var out safeBuffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }()
+	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("no client attached: %q", out.String())
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	// An operating system command ends in a BEL too, which is no bell:
+	// a title is the one numbered 0 or 2.
+	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
+	title := func() string {
+		got := ""
+		for _, m := range osc.FindAllStringSubmatch(out.String(), -1) {
+			if m[1] == "0" || m[1] == "2" {
+				got = m[2]
+			}
+		}
+		return got
+	}
+	bells := func() int {
+		return strings.Count(osc.ReplaceAllString(out.String(), ""), "\a")
+	}
+	say := func(n int, wantTitle string, wantBells int) {
+		t.Helper()
+		sayWaiting(srv, n)
+		deadline := time.Now().Add(2 * time.Second)
+		for (title() != wantTitle || bells() < wantBells) && time.Now().Before(deadline) {
+			time.Sleep(50 * time.Millisecond)
+		}
+		// A bell too many would come at once.
+		time.Sleep(300 * time.Millisecond)
+		if got := title(); got != wantTitle {
+			t.Errorf("with %d waiting the tab's title is %q, want %q", n, got, wantTitle)
+		}
+		if got := bells(); got != wantBells {
+			t.Errorf("with %d waiting the bell has rung %d times, want %d", n, got, wantBells)
+		}
+	}
+	say(1, "conn · 1 waiting", 1)
+	say(1, "conn · 1 waiting", 1)
+	say(2, "conn · 2 waiting", 2)
+	say(1, "conn · 1 waiting", 2)
+	say(0, "conn", 2)
+	say(1, "conn · 1 waiting", 3)
+}
+
+// safeBuffer is a buffer written by one goroutine and read by another.
+type safeBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *safeBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *safeBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
 }
 
 // Claude Code's instance files and transcripts are watched, a

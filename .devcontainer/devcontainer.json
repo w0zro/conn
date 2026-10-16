@@ -1,0 +1,10 @@
+{
+  "name": "conn",
+  "image": "golang:1.26",
+  "remoteEnv": {
+    "CGO_ENABLED": "1"
+  },
+  "onCreateCommand": "apt-get update -q && apt-get install -y -q tmux git && curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b /usr/local/bin v2.13.2",
+  "updateContentCommand": "go mod download",
+  "postCreateCommand": "go version && tmux -V && golangci-lint version"
+}

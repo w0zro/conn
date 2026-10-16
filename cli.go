@@ -582,15 +582,23 @@ func runLine(srv *tmux.Server, name, command string) string {
 }
 
 // named is the commands that mark a pane as a named process: the name,
-// the command and the directory it was started with, and no end yet.
+// the command and the directory it was started with. A new pane has no
+// end yet, and a command that ends at once writes its own: the marks
+// are set after it starts, so none may clear one.
 func named(id, name, command, dir string) []tmux.Cmd {
-	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir), {"set-option", "-pu", "-t", id, exitMark}, {"set-option", "-pu", "-t", id, endedMark}}
+	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir)}
+}
+
+// unended is the commands that clear a pane's end, before it runs again.
+func unended(id string) []tmux.Cmd {
+	return []tmux.Cmd{{"set-option", "-pu", "-t", id, exitMark}, {"set-option", "-pu", "-t", id, endedMark}}
 }
 
 // restartNamed starts a named process again in its pane, as it was
 // started: the pane keeps its place, in the workspace or out of sight.
 func restartNamed(srv *tmux.Server, id, name, command, dir string) (string, error) {
-	cmds := append([]tmux.Cmd{{"respawn-pane", "-k", "-c", dir, "-t", id, runLine(srv, name, command)}}, named(id, name, command, dir)...)
+	cmds := append(unended(id), tmux.Cmd{"respawn-pane", "-k", "-c", dir, "-t", id, runLine(srv, name, command)})
+	cmds = append(cmds, named(id, name, command, dir)...)
 	_, err := srv.Do(cmds...)
 	return id, err
 }

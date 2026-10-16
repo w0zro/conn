@@ -83,6 +83,8 @@ type model struct {
 	// last went to, so the next tab goes on to another.
 	waiting     []pane
 	lastWaiting string
+	// What each of them is called, by pane, for the projects screen.
+	waitTitle map[string]string
 	// /'s search: whether it stands, what is typed, the panes' lines as
 	// read when it opened, and the lines that say what is typed. The
 	// pane the line under the cursor is shown in, in copy mode on the
@@ -475,8 +477,9 @@ type read struct {
 	procs    []proc // what listens on the machine, for the projects screen's port find
 	root     string
 	rows     []row
-	rest     []row  // the project's conversations at rest
-	waiting  []pane // the panes conn holds a conversation waiting on you in
+	rest     []row             // the project's conversations at rest
+	waiting  []pane            // the panes conn holds a conversation waiting on you in
+	titles   map[string]string // what each of them is called, by pane
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
 	// ended there stands dead. The directory is where it runs, which
@@ -636,8 +639,16 @@ func (m model) read() tea.Cmd {
 		}
 		r.projects = group(found, func(dir string) bool { return k.isFolder(dir, home) })
 		for _, p := range held {
-			if state, _ := paneState(p, live); state == "waiting" {
+			if state, session := paneState(p, live); state == "waiting" {
 				r.waiting = append(r.waiting, p)
+				for _, c := range all {
+					if c.ID == session {
+						if r.titles == nil {
+							r.titles = map[string]string{}
+						}
+						r.titles[p.ID] = k.titleOf(c)
+					}
+				}
 			}
 		}
 
@@ -923,7 +934,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case rethemed:
 		return m.takeTheme(msg), nil
 	case read:
-		m.waiting = msg.waiting
+		m.waiting, m.waitTitle = msg.waiting, msg.titles
 		m.procs = msg.procs
 		// The first read, with a process standing in the workspace: the
 		// panel has been started again over it, and opens on it.
@@ -1284,14 +1295,43 @@ func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 		m.note = "Nothing is waiting on you."
 		return m, nil
 	}
+	next := m.nextPane()
+	m.lastWaiting = next.ID
+	return m.openOn(next)
+}
+
+// nextPane is the waiting pane tab goes to next: the one after the last
+// it went to, round to the first. There must be one waiting.
+func (m model) nextPane() pane {
 	next := m.waiting[0]
 	for i, p := range m.waiting {
 		if p.ID == m.lastWaiting {
 			next = m.waiting[(i+1)%len(m.waiting)]
 		}
 	}
-	m.lastWaiting = next.ID
-	return m.openOn(next)
+	return next
+}
+
+// waitingIn is the waiting panes that are in a project, each with the
+// title of its conversation; the titled ones only, as a line without
+// one says nothing.
+func (m model) waitingIn(p project) []pane {
+	var out []pane
+	for _, w := range m.waiting {
+		if m.waitTitle[w.ID] != "" && p.belongs(m.known.rootOf(w.Dir)) {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+// projectHeight is the lines a project takes on the projects screen: its
+// own, and one for each conversation waiting in it.
+func (m model) projectHeight(p project) int {
+	if _, ok := m.typedPort(); ok {
+		return 1
+	}
+	return 1 + len(m.waitingIn(p))
 }
 
 // openOn shows a pane in the workspace, the keys in it, with its
@@ -2297,8 +2337,10 @@ func (m model) drawProjects() ([]string, foot) {
 		nameW = max(nameW, ansi.StringWidth(listName(p)))
 	}
 	nameW = min(nameW, 24)
-	for i := first; i < len(shown) && i < first+room; i++ {
+	used := 0
+	for i := first; i < len(shown) && used < room; i++ {
 		p := shown[i]
+		used += m.projectHeight(p)
 		name := gray
 		switch {
 		case p.Waiting > 0:
@@ -2312,6 +2354,21 @@ func (m model) drawProjects() ([]string, foot) {
 			right = m.holderSays(p, port)
 		}
 		lines = append(lines, m.row(left, piece{right, gray}, i == m.cursor))
+		if _, ok := m.typedPort(); ok {
+			continue
+		}
+		// Under it, who waits and what it is on, and the one tab goes to.
+		var next string
+		if len(m.waiting) > 0 {
+			next = m.nextPane().ID
+		}
+		for _, w := range m.waitingIn(p) {
+			tab := piece{"", faint}
+			if w.ID == next {
+				tab.s = "tab"
+			}
+			lines = append(lines, m.row([]piece{{"  " + markConversation + " " + m.waitTitle[w.ID], gray}}, tab, false))
+		}
 	}
 	if port, ok := m.typedPort(); ok && m.loaded {
 		lines = append(lines, m.drawOutside(port, len(shown) > 0)...)
@@ -2359,7 +2416,17 @@ func (m model) drawOutside(port string, inProject bool) []string {
 // how many, the cursor's in view.
 func (m model) projectsWindow(head int) (first, room int) {
 	room = max(m.height-head-1, 1)
-	return max(m.cursor-room+1, 0), room
+	shown := m.shownProjects()
+	if m.cursor >= len(shown) {
+		return 0, room
+	}
+	// The cursor's project is in view, and as many above it as fit.
+	first, used := m.cursor, m.projectHeight(shown[m.cursor])
+	for first > 0 && used+m.projectHeight(shown[first-1]) <= room {
+		first--
+		used += m.projectHeight(shown[first])
+	}
+	return first, room
 }
 
 // projectOn is the project whose line a click landed on, by the line's
@@ -2367,11 +2434,16 @@ func (m model) projectsWindow(head int) (first, room int) {
 func (m model) projectOn(y int) (int, bool) {
 	head := len(head("", "")) + 2 // the find line, and a row of air
 	first, room := m.projectsWindow(head)
-	i := y - head + first
-	if y < head || i >= first+room || i >= len(m.shownProjects()) {
-		return 0, false
+	shown := m.shownProjects()
+	at := head
+	for i := first; i < len(shown) && at < head+room; i++ {
+		h := m.projectHeight(shown[i])
+		if y >= at && y < at+h {
+			return i, true
+		}
+		at += h
 	}
-	return i, true
+	return 0, false
 }
 
 func (m model) drawProject() ([]string, foot) {

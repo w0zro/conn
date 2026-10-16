@@ -2203,7 +2203,7 @@ func (m model) drawProject() ([]string, foot) {
 		// row as the bar has them, and air before the other projects.
 		key := ink.Bold(true)
 		lines = append(lines, at(gray.Render("nothing running")), "",
-			at(key.Render("n ")+gray.Render("  starts a conversation")))
+			at(key.Render("sc")+gray.Render("  starts a conversation")))
 		if n := len(m.rest); n > 0 {
 			many := "one"
 			if n > 1 {

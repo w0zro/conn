@@ -1,6 +1,6 @@
-.\" conn(1) is written by hand and built into conn: ? shows it in
-.\" the workspace, and man conn reads the copy the install put beside
-.\" the binary. The release stamps the .TH line with its version.
+.\" conn(1) is written by hand. The release archive carries it beside
+.\" the binary, and install.sh puts it where man finds it. The release
+.\" stamps the .TH line with its version.
 .TH CONN 1 "2026-10-16" "conn 0.24.0" "User Commands"
 .
 .SH NAME
@@ -15,15 +15,15 @@ conn \- a console for the processes working your projects
 .B conn ls
 .br
 .B conn l
+.I address
 .RB [ \-n
 .IR lines ]
-.I address
 .br
 .B conn u
-.RB [ \-w ]
 .I name
-.RB [ \-\-
-.IR command ...]
+.RB [ \-w ]
+.B \-\-
+.IR command ...
 .br
 .B conn x
 .I address
@@ -31,209 +31,149 @@ conn \- a console for the processes working your projects
 .B conn r
 .I address
 .br
-.B conn down
-.br
-.B conn theme
-.RB { claude | vim }
-.br
-.B conn \-\-help
-.br
-.B conn \-\-version
+.B conn theme claude
 .
 .SH DESCRIPTION
 .B conn
-shows every process working a project on this machine, filed by what it
-needs from you, and puts the one you choose in front of you.
-A process is a shell, an editor, a coding agent, a dev server, a
-container, a Homebrew service, or anything else with a terminal whose
-working directory is inside one of your projects.
+shows the processes working a project on this machine, puts the one you
+choose in front of you, and works them by a few keys that agents reach
+by the same names from a shell.
+It reads what the machine already records: the git checkouts under your
+home, the panes of its own tmux server, the process table and the
+sockets through
+.BR ps (1)
+and
+.BR lsof (8),
+and the files Claude Code keeps of its sessions.
+It is told nothing: no roots, no declarations.
+What a project runs it learns from what is run in it through
+.BR conn ,
+and asks Claude Code only where nobody has run anything yet.
 .PP
-.B conn
-reads what the machine already records: the process table, tmux,
-docker, brew, and the files Claude Code keeps of its own sessions.
-It asks you to write something only where the machine keeps no record
-of it, and then the least that says it: where your checkouts are, in
-.IR config.json ,
-and what should be running in a project, in its
-.IR .conn .
-What a program is, which client talks to it, and what its stack says
-when something has gone wrong,
-.B conn
-knows by name.
-.PP
-On a machine with
-.BR tmux (1),
-the first
+The first
 .B conn
 brings up a tmux server of its own, on its own socket, with one window.
 .B conn
 is the
 .I panel
-on the left of that window, 44 columns wide.
+on the left of that window, 50 columns wide.
 The rest of the window is the
-.IR workspace .
-Work runs in windows of the server out of sight;
+.IR workspace ,
+which shows the process under the cursor;
 .B enter
-on a row puts that process in the workspace and the keys in it.
+puts the keys in it.
+Every process
+.B conn
+starts runs in a window of the server out of sight, and is swapped into
+the workspace to be shown.
 A later
 .B conn
 attaches to the server that is up.
 A
 .B conn
-of another build restarts the panel and
-.BR conn 's
-own pages on itself first, and leaves every other process running:
-an update is had by running the new
+of another build starts the panel again on itself and leaves every other
+process running: an update is had by running the new
 .BR conn .
 .B q
-detaches;
-the server and every process keep running.
-.B conn down
-takes the server down with everything in it.
+detaches; the server and every process keep running.
+Nothing takes the server down but
+.B x
+on each project, or tmux's own
+.B kill\-server
+on
+.BR conn 's
+socket.
 .PP
 One key,
-.B ctrl\-space
-by default, brings the keys back to the panel from inside any process.
+.BR ctrl\-space ,
+brings the keys back to the panel from inside any process.
 It is the only key
 .B conn
-takes from tmux.
-tmux's prefix is unset in
-.BR conn 's
-server; its other bindings do not apply.
+binds; tmux's prefix,
+.BR ctrl\-b ,
+is left as tmux has it.
 .PP
-Without tmux,
+Without
+.BR tmux (1)
+on the PATH,
 .B conn
-shows the console and the processes view and can open or reach nothing.
-Run with its output piped,
-.B conn
-prints the console once and exits.
-.PP
-.BR "conn readout" ,
-.B conn hold
+says so and does nothing.
+.B conn panel
 and
-.B conn manual
+.B conn hold
 are run by
 .B conn
 in panes of its server.
 They are not for typing.
 .
-.SH THE VIEWS
-.SS The console
-The first screen.
-The build and the station at the top, then what the machine and this
-session are, then the start-up checks one by one, then the verdict.
-Any key skips to the verdict; a key at the verdict continues to the
-processes view.
-.B gc
-brings the console back over the whole window.
-See
-.B THE CONSOLE
-below.
-.SS The processes view
-The panel's own view.
-Every process is a row, under the block of the project it works in.
-A block is drawn with the project's name, a rule, and at the end of the
-rule what the project wants of you, where it wants anything.
-The rows are folded: what is only what its parent is doing is left off.
-The cursor is on one row.
-.B z
-shows the whole process tree instead, unfolded, with a column for the
-terminal and one for the age of the row's state; the band reads
-.BR TREE .
-The table is read again every two seconds.
-.SS The page
-While the keys are on the panel, the workspace holds the page: what
+.SH THE SCREENS
+.SS The projects
+The first screen, and
+.B \-
+from a project.
+Every project under your home, a row a project: its name, its path, and
+at the right what waits and what runs in it,
+.BR "1 waiting \(pc 2 running" ,
+or how long ago work last happened there.
+A project where a conversation waits is first, in the accent; the rest
+newest work first.
+A folder of repositories is a row of its own,
+.IR name /,
+with its repositories under it, and opens as a project of all of
+theirs.
+A line to type into narrows the rows: each word typed, in the name or
+the path.
+A path typed,
+.I ~/x
+or anything with a slash in it, names a directory, and
+.B enter
+opens it as a project whether or not it was found: the repository it is
+in where it is in one, the directory itself otherwise.
+.SS A project
+The project's name at the head, its path after it, and its rows: what
+runs in it, by role, in order: conversations, the stack, what talks to
+it, the checks, what it talks to outside
+.BR conn ,
+and conversations running in terminals
 .B conn
-knows of the row under the cursor.
-It follows the cursor.
-Nothing is pressed for it.
-Any key in the page returns the keys to the panel.
+does not hold.
 See
-.B THE PAGE
+.B WHAT A ROW SAYS
 below.
-.SS The projects list
-.B gp
-opens the list of every project under the roots, with the processes
-.B conn
-holds a pane for under each, and a line to type into that narrows the
-rows.
-.SS The sessions view
-.B A
-opens the suspended Claude Code sessions at the cursor's project, with a
-line to type into that narrows them.
-.B gr
-opens the same view over every project, headed
-.BR RECENT :
-what was being done anywhere, where
-.B A
-is what was being done here.
-.SS The log
-.B gl
-opens the log: the panel over time.
-A line for each change worth one between one reading and the next,
-newest first, under the day it happened on: the time, the project,
-what the panel called the row, and the row's word as the panel said
-it, WAITING or EXIT 1 or DOWN, and GONE for a row that left.
-A line is a row come to want something of you or to say something is
-over: a wait begun, a fault, a listener gone, a declared process down
-or up again, a contact's turn over, and a row gone that was not a
-shell or an editor.
-A row appearing is your own doing and is not a line, nor is a shell
-between commands, a server between requests or a contact's turn
-begun.
-A pane saying its stack's word for something gone wrong is a line too,
-the word as the stack says it, with the line it said under it:
-.B PANIC
+Under the rows, under a label
+.B projects
+with a rule, a line for every other project with something running,
+waiting or at work in it; the cursor runs over rows and lines alike,
 and
-.B FATAL
-and go test's
-.BR FAIL ,
-a Python
-.BR TRACEBACK ,
-an uncaught
-.B ERROR
-from node, and
-.B EADDRINUSE
-from any server; one line a pane a reading, and nothing a pane had
-said before
-.B conn
-was listening.
-The words are
-.BR conn 's
-knowledge of the stacks, not a setting; a stack
-.B conn
-does not know says nothing.
-Under a line, what it adds: how long the state that ended had stood
-\(em a turn took 6 min, a wait waited 9 min, a run ran 3h 02m, a
-process was down 2 min \(em or what a wait is on, in the contact's own
-words.
-The lines written since the view was last opened are in the ink and
-counted at the head; the band says the count after the wordmark,
-.BR "CONN · LOG 3" ,
-until the view is opened.
 .B enter
-goes to the line's process where it is still on the panel;
-.B esc
-goes back.
-The log is a file; see
-.B FILES
-below.
-.SS The output view
+on a line opens that project.
+A project with nothing running says so, and the keys that start
+something.
+.PP
+Rows that run in a worktree of the project stand together under a head
+of their own, the branch the worktree has out, a step in; in a folder,
+each row says its repository before its name.
+.SS The keys
+\fB?\fR lays the screen's keys over it, a key a line, in full.
+The bar across the foot of the window has only the commonest, a word
+each.
+Any key puts them away.
+.SS The search
 .B /
-opens what the cursor's project has written, searched: a line to type
-into, and under it the lines of every pane
-.B conn
-holds for the project that say what the line says, under the row each
-pane is, newest first.
-Case is ignored while the text is in the lower case, as tmux and vim
-take a search.
-Before anything is typed, the panes and how many lines each has said.
-The workspace follows the cursor, as the page does: the match's pane
-is put there in tmux's copy mode, the line in the middle with its
-context either side, every saying of the text marked and the one under
-the cursor in the accent, and the keys stay on the panel.
+in a project: a line to type into, and under it every line the
+project's panes still hold that says what is typed, newest first, under
+the name of the row each pane is, the text in bold; at the right how
+many lines.
+Case is ignored while nothing typed is a capital, as tmux and vim take
+a search.
+The lines are as they were when
+.B /
+was pressed.
+The workspace shows the line under the cursor in its pane, in tmux's
+copy mode on the match with every saying lit, the keys staying on the
+panel;
 .B enter
-puts the keys in; from there
+puts the keys there, where
 .B n
 and
 .B N
@@ -241,1050 +181,659 @@ go on to the next saying and
 .B q
 leaves, as in any pane.
 .B esc
-goes back, and the page takes the workspace again.
-The view keeps its text while it stays over one project, so
-.B ctrl\-space /
-from a pane just landed in is the list where it was left.
-From the log,
-.B /
-searches the output of the line's project.
-A row
-.B conn
-only reports has no pane, and nothing of its output is here.
+puts the search away.
+A row with no pane, a listener outside
+.BR conn ,
+has nothing here.
+.SS A question
+.BR ss ,
+.B st
+and
+.B c
+on a process nobody has run or talked to here ask Claude Code, and the
+screen is the question while it stands: asking, then what Claude Code
+answered, a name and a command a line, under
+.BR "Start these in \fIproject\fB?" ,
+.B "Run these checks in \fIproject\fB?"
+or
+.BR "Talk to it with this?" .
+.B enter
+takes the answer and writes it down as what the role means here;
+.B esc
+lets it go.
+What Claude Code would not say is said in its place.
+See
+.B WHAT A PROJECT RUNS
+below.
+.SS The conversations at rest
+.B rc
+in a project: a line to type into, and under it the project's
+conversations that no running Claude Code is carrying, newest first,
+the fifty most recent, each by its title and how long ago it moved.
+.B enter
+picks the one under the cursor back up in a window of its own, at the
+directory it was had in;
+.B esc
+puts the list away.
+.SS The line
+\fB!\fR in a project: a command typed on the foot of the panel,
+.BR "run in \fIproject\fB: " .
+.B enter
+runs it where the cursor stands, out of sight, under the name of its
+program, as
+.B conn u
+does, and nothing is written down of it; with nothing typed,
+.B enter
+opens a shell there and puts the keys in it.
 .SS The settings
-\fB,\fR opens
+.B ,
+on either screen: the themes
+.B conn
+has under one label and the two grounds under another, with
+.B on
+beside what the server is on.
+.B enter
+puts the server on the row's where it stands, and keeps it for the
+next server.
+See
+.B THEMES
+below.
+.SS The hold
+Where the cursor is on nothing with a pane, the workspace holds
 .BR conn 's
-own configuration in the workspace, with the keys in it; the band reads
-.BR SETTINGS .
-The panel beside it stays the panel, reading the machine, and holds no
-row under the cursor while they stand.
-.B esc
-closes them and puts the keys back where they were.
-.PP
-The rows are the roots the file names, each with what it turned out to
-be on this machine, and a row that adds another.
-.B enter
-on a root types it over,
-.B x
-takes it out, and each is written to the file as it is made \(em only
-the key it changes, the rest of the file carried through.
-.B conn
-walks what was written at once, on the next reading, rather than on the
-next start: the panel reads the file every time it reads the process
-table, and re-roots itself where it has changed.
-Where
-.B CONN_ROOTS
-stands in front of the file the view says so, and the rows stay the
-file's own.
-A file that will not parse is shown and not written over.
-.PP
-Under the roots are the themes
-.B conn
-has, the one being worn marked
-.BR "IN USE" ,
-and the one the file names
-.B "IN THE FILE"
-where a
-.B \-\-theme
-on the way in put
-.B conn
-in another.
-.B enter
-wears one: the file is written, the server's mode with it, and the
-server is dressed where it stands \(em the sixteen of every pane, the
-panel's own ground, and the theme files for Claude Code and nvim where
-those are already there.
-.PP
-Under the themes are the two grounds and
-.BR "ASK THE TERMINAL" ,
-which is what
-.B conn
-does with no ground in the file.
-.B enter
-on a ground wears it, the same road a theme takes, and writes
-.B ground
-to the file, so the next start comes up on it whatever the terminal
-says.
-.B enter
-on
-.B ASK THE TERMINAL
-takes the key out again and changes nothing where the server stands:
-OSC 11 is a question for a server rising, and a
-.B conn
-in a pane of its own server would be asking tmux, which answers with
-the ground
-.B conn
-itself set.
-A file naming a theme
-.B conn
-does not have, or a ground that is neither, is said under the heading
-it belongs to.
-.SS The roots view
-Where a root is typed, with the directories on this machine that answer
-what has been typed so far as its rows.
-It is shown on the panel, instead of the processes view, when
-.B conn
-has been told no roots: it asks for one directory, writes it, and goes
-to work.
-The settings put the same line up in their own pane, for a root being
-added or typed over, which
-.B esc
-leaves as it was.
-.SS The manual
-\fB?\fR opens this page in the workspace and puts the keys in it; the band
-reads
-.BR HELP .
-The panel beside it holds the keys themselves: every key the panel
-answers to, by what it acts on, which is this section on the screen.
+blank,
+.BR "nothing selected" .
+A key in it puts the keys back on the panel.
 .
 .SH KEYS
 What a key does depends on where the keys are.
-The key bar across the foot of the window shows the keys that work
-where the cursor is and nothing else.
+The key bar across the foot of the window says the keys that work where
+the cursor is, a word each; \fB?\fR says them in full.
 .SS In a process
-.TP 20
+.TP 22
 .B ctrl\-space
 To the panel.
-The row of the process you left goes under the cursor, so the next key
-is about it.
-.B CONN_KEY
-names another key; see
-.BR ENVIRONMENT .
-.TP
-.B ctrl\-space tab
-To the process that has waited longest for you.
-.TP
-.B ctrl\-space 0\-9
-To a contact by number; see
-.B 0\-9
-below.
-.TP
-.B ctrl\-space gr
-The recent view; see
-.B gr
-below.
-.TP
-.B ctrl\-space gl
-The log; see
-.B gl
-below.
-.TP
-.B ctrl\-space /
-The output view, over the project of the pane you left; see
-.B /
-below.
+The process's project goes on the panel and its row under the cursor,
+so the next key is about it.
 .TP
 .B ctrl\-space ctrl\-space
 To the process you were in before this one.
 Pressed again, back.
 .TP
-.B ctrl\-space ?
-The manual.
-.SS On the panel, in the processes view
-.TP 20
-.BR j ", " k ", " down ", " up
+.B ctrl\-space tab
+To the conversation that has waited longest for you.
+.TP
+.B ctrl\-space esc
+Back in.
+.PP
+Everything else is the process's own, and tmux's: the wheel scrolls,
+a drag copies, and
+.B ctrl\-b
+is tmux's prefix.
+.SS On the projects screen
+.TP 22
+.I a character
+Types, and the rows narrow to what the line says.
+.TP
+.BR up ", " down ", " ctrl\-p ", " ctrl\-n ", " ctrl\-k ", " ctrl\-j
 Move the cursor a row.
 The rows are a ring: past the last is the first.
 .TP
-.BR gg ", " G
-The first row, the last row.
-.TP
 .B enter
-Go in.
-On a row with a pane: put the pane in the workspace and the keys in it.
-On a container: its output, and on the next
-.B enter
-the pane holding it.
-On a Homebrew service that is up: its log; down: start it.
-On a declared process that is down: bring it up and go in.
-A row
-.B conn
-only reports, with no pane of its own, takes no
-.BR enter ,
-and the bar does not offer it.
-.TP
-.B esc
-Back into the last process the workspace held, wherever the cursor is.
+Open the project under the cursor; with none shown and a path typed,
+the directory the path names.
 .TP
 .B tab
-To the process that has waited longest for you.
-Again: the next one, longest first, round.
-.TP
-.B 0\-9
-To a contact by number.
-The first ten contacts down the panel carry a digit beside their mark,
-.B 0
-the first; the digit is the key.
-A digit no row carries does nothing.
-.TP
-.B /
-The output view: what the row's project has written, searched.
-.TP
-.B .
-Do the last verb and its object again, where the cursor is now.
-.TP
-.B A
-The sessions view for the row's project.
-.TP
-.B z
-The whole tree, or the panel's blocks again.
-.PP
-The other letters are verbs, and a verb waits for its object, as an
-operator waits in
-.BR vim (1).
-The bar says what the verb waits for.
-Any key that is not an object lets the verb go.
-.TP
-.B rr
-The verb twice: the row under the cursor, as
-.B dd
-is the line.
-Every verb is pressed so.
-.TP
-.BR rj ", " rk
-The row below, the row above; the cursor goes to it.
-.TP
-.B rG
-The last row.
-.TP
-.B rp
-The row's project: what the verb does to the project as a whole.
-.PP
-The verbs, on a row and on its project:
-.TP
-.B u
-Bring up.
-.B uu
-brings up the row's declared process or Homebrew service; the keys stay
-on the panel.
-.B up
-brings up everything the project declares and does not have running.
-A project with no
-.I .conn
-is asked about: Claude Code, as for
-.BR cc ,
-is told its top-level files and the opening of its manifests
-\(em
-.IR Procfile ,
-.IR package.json ,
-a compose file,
-.IR Makefile ,
-.IR justfile ,
-.I README.md
-\(em and answers the processes that keep running, one a line as
-.IR name : " command" ;
-they are offered on one question, and
-.B y
-starts each in a pane of its own at the project, under its name, as
-.B conn u
-does.
-Nothing is kept: the next
-.B up
-asks again.
+To the conversation that has waited longest for you, wherever it runs
+in
+.BR conn .
 .TP
 .B x
-End.
-.B xx
-ends the row's process;
-.B xp
-ends the project's work: its runs, services and containers, each once,
-a row under one already taken going with it.
-Contacts, shells and editors are left.
-Either asks first; see
-.BR "With a question armed" .
+With nothing typed: stop everything in the project under the cursor.
+Every process
+.B conn
+holds in it, conversations included, which keep their transcripts, and
+every server in it outside
+.BR conn ;
+not a server the project only connects to.
 .TP
-.B r
-Restart, with no question asked.
-A container by
-.BR "docker restart" ,
-a Homebrew service by
-.BR "brew services restart" ,
-and a pane
+.B esc
+Clear what was typed; with nothing typed, back down into the project
+you came up from.
+.TP
+.B ctrl\-u
+Clear what was typed.
+.TP
+.B ,
+With nothing typed: the settings.
+.TP
+.B ?
+The keys.
+.TP
+.B ctrl\-c
+Detach.
+Everything in
 .B conn
-opened for a declaration or for
-.B conn u
-anew, as it was started.
-A process
+keeps running.
+.SS In a project
+.TP 22
+.BR j ", " k ", " down ", " up ", " ctrl\-n ", " ctrl\-p
+Move the cursor a row.
+The rows and the other projects' lines are one ring.
+.TP
+.BR g ", " G
+The first row, the last.
+.TP
+.B enter
+On a row with a pane: put the pane in the workspace and the keys in it.
+On a conversation in a terminal
 .B conn
-did not start, it cannot start again, and says so under the rows.
-.B rp
-restarts each row of the project that can be.
+does not hold: say so.
+On another project's line: open that project.
+.TP
+.B tab
+To the conversation that has waited longest for you.
+Again: the next one, round.
+.TP
+.B esc
+Back into the process the keys were last in, its project on the
+panel.
+.TP
+.B ctrl\-space
+To the process you were in before that one.
+.TP
+.B \-
+Up to the projects.
 .TP
 .B c
-Talk to it.
-.B cc
-on a server
-.B conn
-knows is a session with it by its own client:
-.B psql
-on a postgres, the bar naming the client.
-On a row with no known client whose lowest port speaks the web, the
-port in the browser, at
-.IR localhost: port :
-.I https
-where a TLS handshake comes back,
-.I http
-where a request is answered with an HTTP status line.
-On any other running process,
-.B conn
-asks Claude Code, as
-.BR "claude \-p" ,
-with no tools, what opens a client session with it, telling it the
-process and the files at the top of its project; the answer is
-offered on the key bar as a question, the command and the process,
-which
-.B y
-opens in a pane at the project and goes into, and any other key lets
-go.
-Nothing is kept: every
-.B cc
-asks again.
-The bar offers
-.B cc
-on runs and services that are running; a shell, a contact and an editor
-are talked to in their own panes.
-The browser is the system's own:
-.BR open (1)
-on macOS,
-.BR xdg\-open (1)
-on Linux.
+Talk to the row's process; see
+.B c
+below.
 .TP
-.B l
-What it said.
-.B ll
-puts the row's pane in the workspace until the next key, the keys
-staying on the panel, and the page coming back after;
-on a container, its log, and on a Homebrew service, its log, each in a
-pane opened to follow it.
-.B lp
-is the output view over the project, as
+.B !
+The line: a command to run here, or a shell.
+.TP
 .B /
-is.
-.TP
-.B i
-Its page: the readout, in the workspace, following the cursor.
-.TP
-.B s
-A shell there.
-.B ss
-is a shell at the row's directory, or inside it on a container;
-.B sp
-a shell at the project.
-.TP
-.B a
-A contact.
-.B aa
-opens Claude Code at the project handed the row: what it is, how it
-stands, and the last 60 lines it said, as its first prompt.
-.B ap
-is a new contact at the project, told it runs inside
-.BR conn .
-.PP
-The station's views are behind
-.BR g ,
-as
-.B vim
-keeps its own:
-.TP
-.B gp
-The projects list.
-.TP
-.B gr
-The recent view: every project's suspended sessions, newest first.
-.TP
-.B gl
-The log: every change the panel saw, newest first.
-.B l
-or
-.B gl
-there, back.
-.TP
-.B gc
-The console.
+The search.
 .TP
 .B ,
 The settings.
 .TP
 .B ?
-The manual.
+The keys.
 .TP
 .BR q ", " ctrl\-c
 Detach.
-Outside the server: quit.
-.TP
-.B left click
-Put the cursor on the row under the pointer and go in, as
-.B enter
-does.
-A row with nothing to go into only takes the cursor.
-The wheel and a drag are tmux's: the wheel scrolls a pane, a drag
-copies.
-.SS On a line typed into
-The projects list, the sessions view, the output view and the roots
-view each have a line to type into.
-A character types; the rows narrow to what the line says, and the
-cursor goes to the first of them.
-The line is edited as
-.BR readline (3)
-edits one in emacs mode:
-.BR ctrl\-a ", " ctrl\-e ", " ctrl\-b ", " ctrl\-f ", " alt\-b ", " alt\-f ", " ctrl\-w ", " alt\-d ", " ctrl\-k ", " ctrl\-u ", " ctrl\-d .
-The panel's letters are characters here, and its verbs move to
-.BR alt .
-.TP 20
-.BR up ", " down ", " ctrl\-p ", " ctrl\-n
-Move the cursor among the rows.
-The rows are a ring: past the last is the first.
-.TP
-.B enter
-Projects: on a project, open a shell there and return to the processes
-view; on a process, go in.
-Sessions: resume the session in a new pane and return to the processes
-view.
-Output: into the match's pane, in copy mode, the cursor on the match.
-Roots: take what was typed if it names a directory, else the directory
-under the cursor, and write it to the file \(em over the root the
-settings sent, or beside the ones already there.
-From the settings, back to them; on the first start, go to work.
-.TP
-.B esc
-Roots, from the settings: back, with nothing written.
-.TP
-.B tab
-Roots only: fill the line with the directory under the cursor and a
-slash.
-.TP
-.B alt\-s
-Projects, sessions: a shell at the row's project.
-.TP
-.B alt\-a
-Projects, sessions: a new contact at the row's project.
-.TP
-.B alt\-A
-Projects, sessions: the sessions view for the row's project.
-.TP
-.B alt\-r
-Projects, sessions: the recent view.
-.TP
-.B alt\-l
-Projects, sessions: the log.
-.TP
-.BR alt\-u ", " alt\-U
-Projects, sessions: bring up the row's project's declared processes.
-.TP
-.B esc
-Back to the processes view.
-If the list was opened with the key after
-.BR ctrl\-space ,
-back into the pane
-.B ctrl\-space
-was pressed in.
-.TP
-.B ctrl\-c
-Detach.
-Outside the server: quit.
-.B q
-is a character here.
-.SS In the log
-.TP 20
-.BR j ", " k ", " down ", " up
-Move the cursor among the lines.
-.TP
-.BR gg ", " G
-The newest line, the oldest.
-.TP
-.B enter
-Go into the line's process, where it is still on the panel.
-.TP
-.B /
-The output view over the line's project.
-.TP
-.BR esc ", " l
-Back to the processes view, or into the pane
-.B ctrl\-space
-was pressed in.
-.TP
-.BR q ", " ctrl\-c
-Detach.
-Outside the server: quit.
-.SS With a question armed
-.B xx
-and
-.B xp
-do not end anything.
-It arms a question on the key bar, the command about to be run: the
-band reads
-.BR CONFIRM .
-.TP 20
-.B y
-Run it.
-.TP
-.B any other key
-Do not.
 .PP
-The questions, by row:
-.TP 20
-a process
-.BI "kill \-TERM " "pid \(pc program" ?
-A bare shell is sent
-.B KILL
-instead: shells ignore
-.BR TERM .
-On a shell whose rows are folded away, the question is about what the
-shell runs, and the shell stays at its prompt.
-.TP
-a contact
-As a process.
-The contact is signalled, not what it runs; its child processes keep
-going.
-.TP
-a container
-.BI "docker stop " "id \(pc service" ?
-.TP
-a Homebrew service
-.BI "brew services stop " "formula \(pc name" ?
-.TP
-a declared process, up
-.BI "tmux send\-keys \-t " "pane " "C\-c \(pc " name ?
-Its pane is taken down once the end is recorded.
-.TP
-a declared process, ended
-.BI "kill\-pane " "pane \(pc name" ?
-.TP
-a stack
-.BI "start " "name" ": " "command" "; ... \(pc " project ?
-From
-.BR up ;
-see
-.BR u .
-.TP
-an answer
-.IB command " \(pc " process ?
-From
-.BR cc :
-what Claude Code answered; see
-.BR c .
-.TP
-a project
-.BI "end " "n " "of its processes \(pc " project ?
-What each of its rows would be asked, all of it on
-.BR y .
-.PP
-A row that reads
-.B DOWN
-takes no
-.BR xx .
-.SS In the settings
-.TP 20
-.BR j ", " k ", " gg ", " G
-Move the cursor a row.
-The rows are a ring: past the last is the first.
-.TP
-.B enter
-On a root: type it over.
-On the row that adds one: type another.
-On a theme or a ground: wear it.
-On
-.BR "ASK THE TERMINAL" :
-leave the ground to the terminal from the next start.
+The other letters are verbs, and a verb waits for its object, as an
+operator waits in
+.BR vim (1):
+the bar says what it waits for, and
+.B esc
+or any key that is not an object lets it go, the foot saying what it
+waited for.
+The verb again is the row under the cursor, as
+.B dd
+is the line.
+.TP 22
+.B s
+Start.
+.B ss
+brings up the stack and
+.B st
+runs the checks, as each was last run here by whoever ran it, and asks
+Claude Code where nobody has yet; see
+.BR "WHAT A PROJECT RUNS" .
+.B sc
+starts a conversation.
 .TP
 .B x
-Take the root under the cursor out of the file.
+Stop, with no question asked.
+.B xx
+stops the row's process: what
+.B conn
+started under a name is sent
+.B ctrl\-c
+and its pane closed once it has ended, or after five seconds anyway;
+any other pane is closed, a conversation's included, which keeps its
+transcript; a server outside
+.B conn
+is sent
+.BR SIGTERM .
+.B xx
+on another project's line stops everything in it, as
+.B x
+on the projects screen does.
+.B xs
+stops the stack and
+.B xt
+the checks, as they stand on the panel;
+.B xp
+everything in the open project.
 .TP
+.B r
+Restart.
+.B rr
+starts the row's process again as it was started: a named process is
+sent
+.B ctrl\-c
+and run again in its pane; a conversation is picked back up in its
+pane; any other pane runs again what it was opened with; a server
+outside
+.B conn
+was started nobody knows how, and is not.
+.B rs
+restarts the stack and
+.B rt
+the checks as they stand, or runs them as
+.B ss
+and
+.B st
+do where none stand;
+.B rf
+restarts every run that failed.
+.B rc
+lists the conversations at rest.
+.TP
+.B a
+Hand to an agent.
+.B aa
+starts a conversation in the project whose first prompt is the row's
+process: its name, what it runs and where, how it is doing, and the
+last lines it wrote, and what to do about it.
+.B af
+hands every run that failed to one conversation, each with its last
+lines in a share of the size.
+A conversation is an agent already and is not handed.
+.TP
+.B c
+Talk to it.
+A conversation or a shell is gone into.
+A process with a client kept under its name here opens it; see
+.BR "WHAT A PROJECT RUNS" .
+Otherwise the lowest of its ports that answers HTTP opens in the
+browser, at
+.IR localhost: port ,
+and is kept as its client.
+Otherwise Claude Code is asked what opens a session with it, and the
+one line it answers is offered;
+.B enter
+opens it and keeps it, a URL in the browser or a command in a window of
+its own at the project with the keys in it.
+The browser is the system's own:
+.BR open (1)
+on macOS,
+.BR xdg\-open (1)
+on Linux.
+.PP
+A verb starts things where the cursor stands: in the checkout of the
+row under it, a worktree's or the project's, and a folder's repository
+in that checkout where it is the repository's, at the repository
+otherwise.
+.SS On the line
+.TP 22
+.I a character
+Types.
+.TP
+.B enter
+Run the line; with nothing typed, open a shell.
+.TP
+.B ctrl\-u
+Clear the line.
+.TP
+.BR esc ", " ctrl\-c
+Put the line away.
+.SS In the search
+.TP 22
+.I a character
+Types, and the lines narrow to what is typed.
+.TP
+.BR up ", " down ", " ctrl\-p ", " ctrl\-n ", " ctrl\-k ", " ctrl\-j
+Move among the lines found; the workspace follows.
+.TP
+.B enter
+Into the line's pane, in copy mode on the match, the keys there.
+.TP
+.B ctrl\-u
+Clear what is typed.
+.TP
+.BR esc ", " ctrl\-c
+Put the search away.
+.SS In the conversations at rest
+.TP 22
+.I a character
+Types, and the conversations narrow to those whose title says every
+word.
+.TP
+.BR up ", " down ", " ctrl\-p ", " ctrl\-n ", " ctrl\-k ", " ctrl\-j
+Move the cursor.
+.TP
+.B enter
+Pick the conversation back up, in a window of its own, the keys in it.
+.TP
+.BR esc ", " ctrl\-c
+Put the list away.
+.SS With a question standing
+.TP 22
+.B enter
+Take the answer: start each process named, or open the client, and
+write it down.
+.TP
+.BR esc ", " q ", " ctrl\-c
+Let it go.
+While Claude Code is still asked,
 .B esc
-On a root being typed: back to the rows, nothing written.
-On the rows: close the settings.
-The keys go back where they were before
-.BR , .
-.TP
-.B ctrl\-space
-Close them, to the panel.
-.SS In the manual
-.TP 20
-.BR j ", " k ", " down ", " up ", " ctrl\-n ", " ctrl\-p
-A line.
-.TP
-.BR space ", " ctrl\-f ", " b ", " ctrl\-b
-A page.
+stops waiting; nothing started is undone.
+.SS In the settings
+.TP 22
+.BR j ", " k ", " up ", " down ", " ctrl\-n ", " ctrl\-p
+Move the cursor a row, around at the ends.
 .TP
 .BR g ", " G
-The top, the end.
+The first row, the last.
 .TP
-.BR esc ", " q
-Leave.
-The keys go back where they were before
-.BR ? .
+.BR enter ", " space
+Put the server on the row's theme or ground.
 .TP
-.B ctrl\-space
-Leave, to the panel.
-.SS On the console
-.TP 20
+.B esc
+Close the settings; so do \fB,\fR again, \fBq\fR and \fBctrl\-c\fR.
+.SS In the keys
+.TP 22
 .B any key
-Skip to the verdict; at the verdict, continue.
-.TP
-.BR q ", " ctrl\-c
-Detach, or quit.
+Puts them away, and does nothing else.
 .
 .SH WHAT A ROW SAYS
-.SS Kinds
-A row's kind is the program's name.
-In the panel it is the mark at the head of the row; in the tree view on
-.B z
-a column of its own.
-.TP 12
-.B "☿ CONTACT"
-claude, codex, gemini, copilot, amp, opencode, aider.
-A coding agent: a process that can stop and wait on you.
-The mark is a star, for the mind at the other end.
-See
-.BR CONTACTS .
-.TP
-.B "❯ SHELL"
-zsh, bash, fish, sh, dash, nu, tcsh, ksh.
-The mark is the prompt it shows you.
-.TP
-.B "▯ EDITOR"
-vim, nvim, vi, hx, helix, emacs, nano, micro, kak.
-.TP
-.B "◉ SERVICE"
-A docker container, a Homebrew service, or a compose service a project
-declares.
-The mark is a lamp: a service is watched, not typed at.
-.TP
-.B "○ RUN"
-Anything else — a build, a test, a dev server, a script.
-The commonest row, and the lightest mark.
-.PP
-A shell whose rows are folded away stands for what it runs, and wears
-that kind: a shell running
-.I vim notes.md
-is an editor, one running
-.I go test ./...
-is a run.
-A shell at its prompt runs nothing and is a shell.
-.PP
-The mark says the kind and nothing else.
-The color on it says how the row stands, which the spinner, the stamp,
-the strike-through and the port say again.
-.SS Groups
-In the panel a project's rows stand by kind, each kind in a rank of its
-own, so every mark makes an unbroken run down the block:
-contacts, shells, editors, services, runs.
-What can answer you, then what you are in, then what is running.
-Within a rank the rows are in the order they started in.
-A row stays in its rank for as long as it lives, so what is new goes on
-the end of its rank and nothing above it moves.
-.PP
-A compose stack's services stand above the run that brought them up,
-and a service is not under the stack that holds it: the thing to reach
-is the service.
-.PP
-The panel draws no indent.
-Ordering by kind and keeping the tree are not both possible: a contact
-almost always runs under the shell of its pane.
-What runs what is on
-.BR z ,
-which draws the tree whole, and on the page beside the panel, which
-says a row's
-.B Under
-and its
-.BR Runs .
-.SS Blocks
-In the panel a row is in the block of the project it works in.
-Every block is at the margin, in the order of its project's path, and
-named by the project's own directory; where two on the panel share that
-name, as much of the path above it as tells them apart.
-A project that holds other projects is not a block of its own here: it
-is a heading in the tree, on
-.BR z .
-A project has a block while something in it is running.
-What its
-.I .conn
-declares and is not running stands under it,
-.BR DOWN .
-A project nothing is up in is not listed: its rows would be a reading of
-the file and not of the machine.
-A
-.I .conn
-that would not read is a fault, and its project stands on that note
-alone.
-.PP
-At the end of a block's rule is what the project wants of you, the
-first of these it holds:
-.TP 18
-.B WAITING
-A row is waiting.
-The stamp blinks, and counts the rows where more than one waits.
-.TP
-.BI n " FAULTS"
-A row is a fault: its own word where one row is, the count where more
-are.
-Stamped, holding still.
-.PP
-A project with neither says nothing, and its rule runs to the edge.
-A declared process that is down wants nothing of you: its row says
-.B DOWN
-and the rule does not.
-.SS Marks on a row
-.TP 18
-.B WAITING
-The mark is the accent, the command is bold, and the row is stamped at
-its right with how long it has waited.
-.TP
-.B WORKING
-A spinner turns in the margin, before the mark.
-.TP
-serving
-Alive, not a contact, and listening on a TCP port: the mark is the
-running color and the ports stand at the row's right.
-.TP
-not running
-.BR DOWN ,
-.BR ENDED ,
-.BR "EXIT " n .
-The command is struck through and the row says the word at its right.
-.TP
-a fault
-Stamped with its word at the right, holding still.
-.TP
-heavy
-A contact whose latest turn carried more than 500K tokens of context:
-stamped at its right with the figure,
-.BR 184K ,
-and blinking.
-Under that the figure stands at its right in the gray.
-A wait or a fault takes its place while it lasts.
-The figure is
-.BR conn 's,
-not a setting.
-.PP
-A row that is up with nothing to report says its ports at its right,
-or nothing where it has none; a contact says the context it carries.
-.SS Status
-The status is the last word of a row in the tree view, and in the panel
-what the row says at its right and what its block says of it.
-The first that applies:
-.TP 12
-.B STOPPED
-The kernel says the process is stopped: suspended with
-.B ctrl\-z
-or by a signal.
-A fault.
-.TP
-.B ENDED
-The kernel says the process is a zombie, or a declared process or a
-container ended with status 0.
-.TP
-.BI "EXIT " n
-A declared process, container or Homebrew service ended with status
-.IR n .
-A fault.
-.TP
-.B WAITING
-A contact says it is waiting on you.
-Read from Claude Code's own record of the session, never guessed.
-.TP
-.B CLOSED
-The row was listening on a port and has had none for two readings
-running, with the process still there: a server nobody can reach.
-A fault.
-Contacts and rows
-.B conn
-only reports are not watched this way, and a port bound again takes
-the word off.
-.TP
-.B WORKING
-The process spent at least a twentieth of one core's time since the
-last reading two seconds ago; or a contact says it is busy.
-The first reading calls nothing working.
-.TP
-.B IDLE
-A contact says it is idle, or a shell with nothing under it.
-.TP
-.B ACTIVE
-Anything else that is running.
-.TP
-.B DOWN
-Declared and not running.
-.PP
-A container's status is docker's:
-.BR STARTING ,
-.BR UNHEALTHY ,
-.BR RESTARTING ,
-.B STOPPED
-for a paused container,
-.BR ACTIVE ,
-.BR ENDED ,
-.BR "EXIT " n .
-A Homebrew service's is brew's:
-.BR ACTIVE ,
-.BR ERROR ,
-.BR "EXIT " n ,
-.BR DOWN .
-.PP
-A fault is drawn as a chip and holds still.
-.B WAITING
-blinks, and in the panel says the age of the wait in place of the word.
-A contact past 500K tokens of context says the figure in place of its
-status, stamped and blinking, until it waits or faults.
-.B ACTIVE
-and
-.B IDLE
-are said in the tree view only: in the panel a row up with nothing to
-report says nothing.
-The tree view dates each row by when
-.B conn
-last saw its status change, in one unit:
-.BR 3D ,
-.BR 2H ,
-.BR 7M ,
-.BR 41S .
-.SS The command column
-What a working contact is doing, when Claude Code has said: the tool
-and its object, as
-.IR "read tui.go" ,
-.IR "edit main.go" ,
-a shell command as typed,
-.IR "grep pattern" ,
-.IR "agent description" .
-Otherwise, for a contact, the title of its session.
-Otherwise what a folded shell runs.
-Otherwise the command as typed.
-A contact's command line is shown without the note
-.B conn
-handed it or the session it resumed.
-.SS Folding
-The panel folds the tree.
-A row survives if it is the head of its pane, a contact, a service, a
-listener, a fault,
-.BR WAITING ,
-or
-.BR DOWN .
-Every other row folds into the nearest surviving ancestor.
-A shell that folded rows away shows what it runs.
-One listener under a head folds into the head, and the head carries its
-ports.
-.B z
-shows every row.
-.SS Ports
-TCP listeners only, lowest first.
-UDP and unix sockets are on the page.
-.B cc
-opens the lowest in the browser.
-A row whose ports all go while its process lives says
-.BR CLOSED .
-.PP
-In the panel the ports end at the panel's right edge, so that the rows
-that serve are read down that edge rather than found along each row.
-The right of a row is one column: a row waiting, at fault or over says
-its word there instead, since where a row would have taken you is not
-the thing to know about a row that is asking for you or has stopped.
-In the tree the ports follow the command, the tree having columns of
-its own.
-.SS Project names
-In the tree a project is named with its root stripped:
-.I ~/projects/w0zro/conn
-under the root
-.I ~/projects
-is
-.IR w0zro/conn .
-Work in a directory outside every root is under
-.B ~
-and the path.
-A directory that groups two or more projects is a heading over them in
-the tree; the panel has no heading for it.
 .SS Marks
-The cursor's row is on raised ground.
-The row whose pane is in the workspace carries a bar in the margin.
-A row
+A row's mark is its role, in a cell after the margin, so the name is
+only the name.
+.TP 6
+.B ❝
+A conversation: someone speaking at the other end.
+.TP
+.B ○
+The stack: a process started under a name through
 .B conn
-only reports, with no pane of its own, is dimmed.
-.SS Notes under the rows
-.TP 4
-\(bu
-.B NO PROCESSES
+that keeps running.
 .TP
-\(bu
-.BI "THE PROCESS TABLE COULD NOT BE READ: " why
+.B ❯
+What talks to the stack: a shell, or a client
+.B c
+opened.
+The prompt a shell shows you.
 .TP
-\(bu
-.B DOCKER NOT ANSWERING \(pc AS LAST SEEN
+.B ◦
+A check: a process started under a name through
+.B conn
+that runs to completion.
+The small ring while it runs;
+.B ✓
+in the running green once it passed;
+.B ✗
+in red once it failed.
 .TP
-\(bu
-.BI ".CONN: LINE " "n" ": " why
-.TP
-\(bu
-What the server would not do, in its words, until the next key:
-.IB "the shell could not be opened: " why
-and the like.
-.TP
-\(bu
-.BI "... " n " ABOVE \(pc " n " BELOW"
-when the rows do not fit.
+.B ◌
+A listener outside
+.BR conn ,
+the ring unfilled, held by nobody.
+.PP
+The mark takes the name's ink; a verdict keeps its own under the
+cursor.
+.SS Places
+A project's rows stand by role, in order: conversations, the stack,
+what talks to it, the checks, what it talks to outside
+.BR conn ,
+and conversations running in terminals
+.B conn
+does not hold.
+A row stands in its place whatever its state: wanting you is a color,
+not a move.
+In a place, what the project has written down stands in the order the
+names were first written, and the rest in the order it was started.
+A named process is one row across its runs: run again, it keeps its
+row and the cursor.
+.SS The margin
+Three columns before the mark.
+The row under the cursor carries a bar in the first.
+In the second a spinner turns beside a row at work on something that
+will come to rest, a conversation working or a check running, and a
+full cell stands beside a process running persistently, the stack's
+and a listener outside
+.BR conn .
+.SS The name
+A conversation's is its title: the last rename or title Claude Code
+wrote into its transcript, else the last prompt, else its id; one just
+started with nothing said yet is
+.BR "new conversation" .
+A named process is the name it was started under; a shell or a client
+is what tmux says runs in it; a listener outside
+.B conn
+is its program's name.
+A process started below the checkout the row stands in says its
+directory after the name.
+.SS The figure at the right
+The one thing worth knowing of the row without going in.
+A conversation running says the context its last turn ran in,
+.BR 262k ,
+and
+.B waiting
+in the accent where it waits on you; one in another terminal says so.
+A process running says its ports,
+.BR ":8123 :8124" .
+A run that ended says how long ago; one of the stack that failed says
+its status first,
+.BR "failed 1" ,
+in red; a check's mark says its verdict, so its figure is the age
+alone.
+A row up with nothing to report says nothing.
+.SS Inks
+What runs is in the ink, what waits on you in the accent, a run that
+failed in the terminal's red, a conversation at rest in the gray.
+The row under the cursor is on the chosen ground from edge to edge.
+.SS The other projects' lines
+Under the label
+.BR projects ,
+a line a project with something running, waiting or at work in it: its
+name, in the accent where a conversation waits, the spinner in the
+margin where something is at work, and at the right what waits and
+what runs.
+A folder of repositories has no line of its own, nor has a repository
+of the open folder.
+.SS The foot
+Under the rows, a line of
+.BR conn 's
+own until the next key: what the last key did or could not do, in its
+words, as
+.BR "web is up" ,
+.BR "web ended: send\-keys C\-c" ,
+.B "the stack: ended 2"
+or
+.BR "Nothing is waiting on you." ;
+a verb let go says what it waited for.
 .
-.SH PROJECTS AND ROOTS
-A root is a directory
+.SH PROJECTS
+A project is a git repository, known by git's common directory, so a
+worktree's work is its repository's wherever the worktree is, and a
+bare repository's worktrees are the repository's.
+A directory in no repository is a project of its own while
 .B conn
-looks for projects under.
-The roots are
-.B CONN_ROOTS
-if set, else
-.B roots
-in the configuration file.
-There is no default.
-Told no roots,
+holds a pane in it.
+Home is never a project, nor is a directory the system clears,
+.I /tmp
+and its kin.
+.PP
+The projects are the checkouts under your home, four directories deep,
+looked for again every thirty seconds, passing over hidden directories,
+.IR Library ,
+.I node_modules
+and
+.IR vendor ;
+and whatever else
 .B conn
-asks for one on the roots view before showing any processes, and writes
-the answer to the configuration file.
-The settings view is where they are edited afterwards.
+holds a pane in.
+When work last happened in one is read from Claude Code's transcripts,
+each by the directory it was had in, and from
+.BR conn 's
+panes.
 .PP
-A project is a git repository under a root, or a directory under a root
-that directly holds one.
-A process belongs to the nearest project at or above its working
-directory.
-A worktree is a checkout of its repository and not a project of its own:
-what works in it belongs to the repository, wherever the worktree is.
-A submodule is a project of its own.
-A process listening on a port of this machine that has no row of its
-own \(em a database brew keeps under launchd, a server started anywhere
-\(em is a row of every project whose runs hold a connection to it, at
-the foot of the project's block, and the page says how many projects
-share it.
-Only a run's connections count: a contact and an editor talk to tools
-of their own.
-A port a row listens on or a container publishes is that row's.
-A process with no terminal is listed under a project only while
-terminal work is happening in that project.
+A directory not directly in your home that directly holds two or more
+checkouts is a folder of repositories: listed with them beneath it,
+and a project of all of theirs, in which each row says its repository.
+Work done in the folder itself is the folder's.
 .PP
-The projects list walks the roots when opened.
-It does not enter a repository, a directory whose name begins with a
-dot,
-.IR node_modules ,
-.IR vendor ,
-.IR target ,
-.IR .build ,
-.IR Pods ,
-.IR .venv ,
-.IR venv ,
-or a directory holding a
-.IR CACHEDIR.TAG .
-A directory holding two or more repositories is a group with a count of
-.BR "N REPOS" .
-The header counts
-.B N FOUND
-or
-.BR "N OF M"
-under a filter.
-A process row is labelled as the panel labels it: a contact at rest by
-its session's title, a declaration by its name.
-The filter matches a project by name, and a process by anything the
-panel says of it: kind, label, command, ports and status.
-The list also reads the process table while it is up, so a process row
-in it is current.
-.PP
-Words the list can show:
-.BR SCANNING ,
-.BI "NOTHING ANSWERS TO " filter ,
-.BI "NO REPOSITORIES UNDER " roots ,
-.BR "CONN HAS NO ROOTS" ,
-.BI "THE ROOTS COULD NOT BE WALKED: " why ,
-.BI "THE CONFIG COULD NOT BE READ: " why .
+A project's rows are the conversations had in it, the panes of
+.BR conn 's
+server whose directory is in it, and the listeners outside
+.B conn
+whose directory is in it or that those panes hold a connection to on
+this machine: a database brew keeps under launchd is a row of every
+project whose dev server talks to it.
 .
-.SH DECLARING PROCESSES
-A project may keep a file named
-.I .conn
-at its top, listing the processes that work it.
-One process a line:
-.PP
-.nf
-.RS
-.IB name " [" dir "]: " command
-.RE
-.fi
-.PP
-.I name
-is one word of letters, digits, dot, underscore and hyphen.
-.I dir
-is a directory under the project, where the process runs; the project
-itself if left out.
-.I command
-is a shell line, handed to
-.B sh
-as written.
-Blank lines and lines beginning with
-.B #
-are ignored.
-.PP
-.nf
-.RS
-# what works this project
-web:            npm run dev
-api  services:  go run ./cmd/api
-db:             docker compose up postgres
-cache:          brew services start redis
-.RE
-.fi
-.PP
-A declared process that is not running is a row of the project's block,
-worded
-.BR DOWN ,
-at the foot of the rows of what is running.
-A project with nothing running in it shows nothing of its file, and is
-not a block at all.
-.PP
-.BR enter ,
-.B uu
-or
-.B up
-brings a declaration up in a pane of the server, marked as the
-declaration; the row carries the declared name.
-When it ends, the pane holds its output, and the row reads
-.B ENDED
-or
-.BI "EXIT " n .
-A process started by hand with the declared command in the declared
-directory is the declaration, and is not brought up a second time.
-.PP
-A command that runs
-.B docker compose up
-gives one
-.B SERVICE
-row per service compose would bring up, down until it runs.
-A command that runs
-.B brew services start
-or
-.B run
-gives one
-.B SERVICE
-row for the formula; see
-.BR SERVICES .
-.PP
-Errors in the file are a note under the project's rows, naming the
-line:
-.BR "want name [dir]: command" ,
-.IB word " is not a name" ,
-.IB dir " is not under the project" ,
-.IB dir " is not a directory" ,
-.IB name " runs nothing" ,
-.IB name " is declared twice" .
-.
-.SH CONTACTS
-A contact is a coding agent: a process that works on its own and stops
-to ask you something.
+.SH WHAT A PROJECT RUNS
 .B conn
-recognises the programs listed under
-.BR Kinds ,
-but reads the state of one only:
-Claude Code.
-Every other contact reads as any process does.
+is not told what a project runs.
+It writes down every process started under a name through it, by an
+agent at the command line or from the keys, with its role: a
+.IR check ,
+which
+.B conn u \-w
+waited on and which runs to completion and passes or fails, or the
+.IR stack ,
+what keeps running while the project is worked on.
+The file is one line a start, beside the socket; the last line for a
+name in a project is what the name means there, and a name run since as
+the other role has changed its meaning.
 .PP
-.B ap
-starts Claude Code at the cursor's project, and
+.B ss
+brings up the stack and
+.B st
+runs the checks, each name as it was last run here and in the order the
+names were first run, in the checkout the cursor stands in.
+A name that is running already is left, and said; one whose pane holds
+its last run is started again in its place.
+.PP
+Where nobody has run a role here, Claude Code is asked, in print mode
+with no tools, as
+.BR "claude \-p" ,
+and given ninety seconds: the project's path, the names at its top, and
+the first eighty lines of each of
+.IR Procfile ,
+.IR Procfile.dev ,
+.IR package.json ,
+.IR compose.yaml ,
+.IR compose.yml ,
+.IR docker\-compose.yml ,
+.IR Makefile ,
+.IR justfile ,
+.IR Cargo.toml ,
+.IR go.mod ,
+.IR pyproject.toml ,
+.I Gemfile
+and
+.IR README.md ,
+and asked for the long-running processes a developer starts, or the
+checks a developer runs before calling work done, one a line as
+.IR name : " command" .
+The answer is offered on the screen;
+.B enter
+starts each in a window of its own under its name and writes it down as
+the role here; the next
+.B ss
+runs what was written, and asks nothing.
+.PP
+What
+.B ss
+and
+.B st
+start is watched for two seconds.
+A run that ends in an error by then, as written down or as Claude Code
+just named it, is more often a command that does not work here than a
+project that is broken: Claude Code is asked again, given each such run,
+its status and its last lines.
+A command that works is offered in place of the old, under the same
+name,
+.BR "Start these instead?" ,
+and
+.B enter
+writes it down; a command that is right and failed for the project's
+own reasons, a test that fails, is said to be the project's, and nothing
+is offered.
+.PP
+.B c
+on a process that is neither a conversation nor a shell keeps what talks
+to it under the process's name, as a
+.IR client ,
+without taking the name from it: the URL the browser opened, or the one
+line Claude Code answered, asked the same way and told the process by
+its name, its command and its ports.
+.PP
+Every conversation
+.B conn
+starts or picks back up is told what the project's checks and stack are
+here, as
+.B conn u
+lines; see
+.BR CONVERSATIONS .
+.
+.SH CONVERSATIONS
+A conversation is a session of Claude Code, the one agent
+.B conn
+reads the state of.
+Claude Code records each running instance in a file under its
+configuration directory;
+.B conn
+reads it, trusts it only if the process is alive and began when the
+file says, and takes its word:
+.B busy
+and
+.B shell
+are working,
+.B waiting
+is waiting on you,
+.B idle
+is at rest between turns.
+A running conversation is matched to a pane of
+.BR conn 's
+server by the mark
+.B conn
+set when it started it, or by the terminal it runs on; one running in a
+terminal
+.B conn
+does not hold is a row all the same, saying so, which
+.B enter
+cannot go into.
+A transcript no running instance is carrying is a conversation at rest,
+in
+.BR rc 's
+list.
+.PP
+.B sc
+starts Claude Code in a window of its own at the checkout the cursor
+stands in, under a session id
+.B conn
+chose, so the row is a conversation before the transcript exists.
 .B aa
-starts it handed the row under the cursor.
+and
+.B af
+start one the same way with a first prompt.
+.B rc
+and
+.B rr
+pick one back up with
+.BR "claude \-\-resume" ,
+at the directory it was had in, or the project's root where that is
+gone.
+.PP
+Every conversation
 .B conn
-appends a note to its system prompt saying that it runs inside
-.B conn
-and how to work the project's processes through it:
+starts or picks back up has a note appended to its system prompt: that
+it runs inside
+.BR conn ,
+and how to work the project's processes through it rather than in the
+background or through
+.BR ps ,
+.B lsof
+and
+.BR tmux :
 .BR "conn ls" ,
 .BR "conn u" ,
 with
@@ -1293,407 +842,139 @@ for a check,
 .BR "conn l" ,
 .B "conn r"
 and
-.BR "conn x" ,
-rather than starting them in the background or finding them with
-.BR ps ,
-.B lsof
-and
-.BR tmux .
+.BR "conn x" ;
+that what it starts this way is a pane the operator can go into and
+read, and is kept as what the project runs; and the project's checks and
+stack as last run here, as
+.B conn u
+lines.
 Where the
 .B conn
-the path finds is not the build that started the contact \(em an older
-install, or none, as with
-.B go run
-\(em the note names the build by its whole path.
+the PATH finds is not the build that started it, the note names the
+build by its whole path.
 The note is not shown on the row.
 .PP
-Claude Code records each running instance in a file under its
-configuration directory.
-.B conn
-reads it, trusts it only if it was written by the process on the row,
-and takes its word:
-.B busy
-and
-.B shell
-are
-.BR WORKING ,
-.B waiting
-is
-.BR WAITING ,
-.B idle
-is
-.BR IDLE .
-For a
-.B WAITING
-row the page reads the question itself from the session transcript.
-.PP
-A contact's row is labelled with its session's title, which Claude
-Code writes into the transcript from the first prompt and replaces on
-.BR /rename .
-While the contact is working, the row says what it is doing instead.
-.PP
+A conversation's title is read from the tail of its transcript, and the
+context it carries from the last turn's usage.
 .B tab
-goes to the contact that has waited longest.
-.B xx
-on a contact signals the contact and not what it runs.
-.PP
-A suspended session is a Claude Code transcript at a project that no
-running contact is carrying.
-.B A
-lists them, newest first, each with its branch, its last prompt and its
-age.
-The line typed into matches the prompt, the title, the branch and the
-directory.
-.B enter
-resumes the session with
-.B claude \-\-resume
-in a new pane, at the session's own directory.
-With none:
-.BR "NOTHING SUSPENDED HERE" .
-.PP
-.B gr
-lists them across every project, newest first: the hundred most recent
-transcripts on the machine that no running contact is carrying,
-wherever they were had.
-A row there is named by its project, the one that holds the directory
-the session was had in, and says the session's title, a rename before
-the title Claude Code gave it, where
-.B A
-says its last prompt.
-.B enter
-resumes it at its own directory, whatever project the cursor was on.
-With none:
-.BR "NOTHING SUSPENDED" .
-.
-.SH SERVICES
-.SS Docker
-A container started by compose is a
-.B SERVICE
-row under the project of its compose working directory, under the
-.B docker compose up
-that runs it where there is one.
-A container without a compose working directory is not listed.
-A container that has stopped is listed while a sibling runs or a
-compose runs in its directory.
-The row carries the ports the container publishes.
-.B conn
-watches
-.B docker events
-and lists containers as they change; it does not poll.
-When docker does not answer, the rows are as last seen and the view
-says so.
-.PP
-.B enter
-opens the container's output; the next
-.B enter
-goes back to the pane holding it.
-.B ss
-opens a shell inside the container.
-.B cc
-opens the server's client inside it, where the image is one
-.B conn
-knows.
-.B xx
-asks to
-.B docker stop
-it, and
-.B rr
-restarts it.
-.SS Homebrew
-A project claims a Homebrew service by declaring it; see
-.BR "DECLARING PROCESSES" .
-While any project does,
-.B conn
-asks
-.B brew services
-every fifteen seconds, with analytics off.
-The row carries the service's pid and ports from the process table.
-A formula two projects declare is one row, with
-.B *
-for its project.
-.PP
-.B enter
-on a service that is up tails its log; down, starts it.
-.B uu
-starts it.
-.B xx
-asks to
-.B brew services stop
-it, and
-.B rr
-restarts it.
-.
-.SH THE PAGE
-The page is what
-.B conn
-knows of the row under the cursor, in the workspace, following the
-cursor.
-It is up while the keys are on the panel in the processes view, the
-projects list or the sessions view, and stands aside for whatever else
-is put in the workspace: a process gone into, the manual, the
-settings.
-.SS A process
-Groups, each with the fields it has:
-.TP 10
-.B WAITING
-On, For, Asks or Said.
-.TP
-.B WHAT
-Kind, Command, Status and for how long, State
-.RI ( Running ,
-.IR Sleeping ,
-.IR Stopped ,
-whether it has the terminal), Up, CPU.
-.TP
-.B WHERE
-Project, CWD, TTY, Pane and whether it can be reached.
-.TP
-.B SOCKETS
-Listens, Connected, Unix.
-A port says how many clients are connected to it.
-Connections the process made are counted by where they go, one line a
-place.
-.TP
-.B CONTACT
-With, Model, Context, Session, Name, Version, Running, Branch, Last ask.
-.TP
-.B PROJECT
-Branch and how many files changed, Commit, Committed, Tracking and how
-far ahead or behind.
-.TP
-.B TREE
-Parent, Runs.
-.SS A contact
-A handoff sheet.
-.B CONTACT
-with the session's designation, the project and branch, the version
-and the context carried.
-.B WAITING FOR YOU
-with the question, how long it has waited, and the tool it was asked
-with.
-.B PROCEDURE
-with the keys that answer it.
-.B CAUTION
-with what
-.B xx
-does and does not end.
-.B HOW THE WORK HAS GONE
-as a bar of time worked against time at rest, waiting or idle, and the
-last prompt you gave it. The work counts to the moment it stopped, and
-not a second past it: a contact doing nothing stands still on the page,
-and only the rest beside it grows.
-.B SPECIFICATIONS
-with the rest.
-.SS A service, a project, a session
-A container's page adds Service, Image, Health, Since, Compose, Ports.
-A Homebrew service's adds Formula and Log.
-A project's page is its git state and what runs in it.
-A session's page is its branch, its last prompt and the command that
-resumes it.
-.
-.SH THE CONSOLE
-.SS Header
-The wordmark, the version, with
-.B (devel)
-for a build not exactly a release; the station as
-.IR USER@HOST ;
-the clock in UTC; the build's commit, date, and
-.B MODIFIED
-if the tree was dirty.
-.SS MACHINE
-SYSTEM, KERNEL, MODEL, CPU, MEMORY, SWAP, VOLUME, UPTIME, PROCESSES,
-SIP.
-.SS SESSION
-USER, SHELL, TTY, TERMINAL, SESSION, LOCALE, TIME ZONE, CWD, PROCESS,
-ENV, RUNTIME, BINARY.
-.SS START-UP CHECKS
-Each check is a line ending in its status.
-.B NOMINAL
-is quiet; anything else is a chip and blinks.
-.TP 10
-.B SCREEN
-Columns by rows, the terminal, and whether it is truecolor.
-.B SMALL
-under 80 columns or the rows the console needs.
-.B UNCHECKED
-with no terminal.
-.TP
-.B STATE
-The state directory.
-.BR "NOT A DIR" ,
-.BR "READ ONLY" ,
-.BR "NO PATH" .
-.TP
-.B CONFIG
-The configuration file, with
-.B CONN_ROOTS IN FORCE
-when the environment stands in front of it.
-.B NO FILE
-if absent,
-.B NOT READ
-if it will not parse,
-.B NO ROOTS
-if it names none,
-.B NO THEME
-if it names a theme
-.B conn
-does not have,
-.B NO GROUND
-if it names a ground that is neither dark nor light.
-.TP
-.B ROOT
-One per root.
-.B MISSING
-if the directory is not there, which is not a fault;
-.B NOT A DIR
-if it is not a directory.
-.TP
-.B DISK
-Free space on the volume.
-.B LOW
-under a tenth of the volume, floored at 5 GB and capped at 50 GB.
-.TP
-.B MEMORY
-The kernel's pressure verdict on macOS:
-.B WARNING
-or
-.BR CRITICAL .
-Elsewhere
-.B LOW
-under ten percent available.
-.TP
-.B LOAD
-The three load averages and the core count.
-.B HIGH
-when the one-minute load exceeds the cores.
-.TP
-.B NET
-Interfaces up and the address.
-.B DOWN
-with none up, or none with a default route.
-.TP
-.B POWER
-Battery or mains.
-.B LOW
-discharging under ten percent.
-.TP
-.B CLOCK
-.B BEHIND
-if the clock is before the build's date.
-.TP
-.BR TMUX ", " LSOF
-Where each was found.
-.B MISSING
-otherwise.
-There is no
-.B LSOF
-check on Linux.
-.SS Verdict
-.B ALL SYSTEMS NOMINAL
-or
-.BI "N SYSTEMS NOT NOMINAL" .
-.SS Too small
-Under 80 columns or too few rows, the console shows the screen size,
-.BR SMALL ,
-and the size it needs.
+goes to the conversation that has waited longest, the next one each
+press, round.
+The number waiting, over every project, is on the status line and in
+the terminal's title, and the terminal's bell rings as one more starts
+waiting.
 .
 .SH THE STATUS LINE
 Two rows across the foot of the window, drawn by tmux from what
 .B conn
 tells it.
 .SS The band
-At the left, the wordmark, or the state the keys are in:
-.B TREE
-in the tree view,
-.B HELP
-in the manual,
-.B CONFIRM
-with a question armed,
-.B COPY
-in tmux's copy mode.
-After the wordmark, in the gray, how many lines the log has had since
-it was last opened, as
-.BR "CONN · LOG 3" ;
-nothing while it has had none.
-At the right, the time of day, local, and how long
-.B conn
-has been up, as
-.BR "14:32 · T+ 02h 13m" .
+At the left, the wordmark.
+At the right, in the accent, how many conversations wait on you,
+.BR "2 waiting" ,
+and nothing while none does.
+The terminal's title says the same:
+.BR conn ,
+or
+.BR "conn \(pc 2 waiting" .
 .SS The key bar
-The keys that work where the cursor is, each with a word.
+While the keys are on the panel, the keys that work where the cursor is,
+a word each, on the accent's block, so being in
+.B conn
+shows from anywhere on the screen.
+While they are in a pane,
+.BR "ctrl\-space back to conn" .
 While a pane is in copy mode, copy mode's own keys:
-.BR n ", " N ", " / ", " ? ", " v ", " y ", " q .
-At the right, the host and the version.
+.BR "n N" ,
+.BR "/ ?" ,
+.BR "v y" ,
+.BR q .
 .
 .SH COMMANDS
+The command line is
+.B conn
+for whoever has no panel: an agent, a script, a person at a shell.
+It works the processes of the project the working directory is in, and
+knows a process the way an agent does: by the name it was started
+under, by the port an error named, or by the pid
+.B conn ls
+gave.
 .TP 18
 .B conn
-The console, then the processes view.
+The projects screen, then a project.
 In the server: attach.
 On a server running another build of
 .BR conn ,
-the panel and
+the panel is started again on this one and the processes in the server
+are left running.
+Typed in a pane of the server, it puts the keys on
 .BR conn 's
-own pages are restarted on this one first, and the processes in the
-server are left running;
-the panel comes back on the processes view, and the status line says
-.B RESTARTED
-until the next key on the panel.
-Typed in a pane of the server, it does the same and stays in that pane.
+window; with a flag, it puts the server on the ground or theme the flag
+names where it stands.
+On a server an earlier
+.B conn
+arranged, it asks whether to end it and everything in it.
 .TP
 .B conn ls
-The processes of the project the working directory is in, read once,
-as the panel reads them.
-A block per project, under its path; a folder of repositories lists
-each of them.
-A row a line: the pid, or
-.B \-
-for a row with none; the status; the kind; the name the row is
-addressed by, which is the name it is declared under or its program's;
-the ports it listens on, or
-.BR \- ;
-and the command, indented under what runs it.
-A row's status is read once, so a process is not
-.B WORKING
-by its processor time, only by its own word, as a contact's is.
-A project nothing runs in is its path alone.
-Starts nothing, and answers with no server up.
-The shells that run it with no terminal, as an agent's command runs,
-are not rows.
-.TP
-.BI "conn l " address
-What a process said: the lines its pane holds, where it runs in
+The processes of the project the working directory is in, read once.
+The first line is the project's path; then a line a process: the name
+it answers to, its pid, what it is doing, the ports it listens on or
+.BR \- ,
+the command, and in parentheses its directory where that is not the
+project's.
+The processes are
 .BR conn 's
-server, or what docker kept of a container.
-The last 100 lines;
+panes in the project, and the listeners outside
+.B conn
+whose directory is in the project or that those panes connect to.
+What a process is doing is
+.BR running ,
+.BR working ,
+.BR waiting ,
+.B idle
+for a conversation,
+.B done
+or
+.BI "failed " n
+for a run that ended, and
+.B "outside conn"
+for a listener.
+With no server up, the listeners alone.
+.TP
+.BI "conn l " address " [\-n " lines ]
+What a process said: the lines its pane holds, history and screen,
+wrapped lines joined.
+The last 100;
 .B \-n
 says how many, and
 .B "\-n 0"
-all the pane holds.
-The flag stands before the address or after it.
+all of them.
+A listener outside
+.B conn
+has no pane, and
+.B conn l
+says so.
 .IP
 An address is a name, as
 .B conn ls
 gives it,
 .BI : port
 for the process listening on a port, or a pid.
-A name is looked for in the worktree the working directory is in, where
-it is one, then in the project, then in the folder of repositories that
-holds it, and no further:
-an agent's word reaches its own work first.
-A port or a pid names one process on the machine, and is looked for in
-every project.
-A name that answers for two processes is an error that lists their pids.
+A port or a pid names one process on the machine, in any project.
+A name is looked for in the project; where two answer to it, the one in
+the caller's own checkout, and then the one still running, is meant;
+two still is an error that gives their pids.
 .TP
-.BI "conn u " "name " "\-\- " command
-Start a command in a pane of
+.BI "conn u " name " [\-w] \-\- " command ...
+Start a command in a window of
 .BR conn 's
-server, at the working directory, under a name: a row on the panel,
-named as a declaration is, which
+server at the working directory, under a name: a row on the panel,
+which
 .B conn l
 reads and
 .B conn x
 ends by the name.
+The name is one word of letters, digits, dot, underscore and hyphen,
+and not a number.
 One word after
 .B \-\-
 is a line for
@@ -1702,100 +983,79 @@ as written, pipes and all; several are a command and its arguments,
 each quoted where
 .B sh
 would read it otherwise.
-Without a command, the name is a line of the project's
-.IR .conn ,
-brought up as the panel brings it up.
 A name that is up already is an error; one whose pane holds its last
 run is started again in place of it.
+The start is written down as what the project runs: a check with
+.BR \-w ,
+the stack without; see
+.BR "WHAT A PROJECT RUNS" .
+Prints the pane it is up in.
 .IP
 .B \-w
-waits for the command to end, writes what it said, and exits with its
-status: a check run this way is on the panel while it runs, and its
-end is the caller's answer.
+waits for the command to end, prints what it said, and exits with its
+status: a check run this way is on the panel while it runs, and its end
+is the caller's answer.
 Ended from outside before it recorded a status, it is an error.
 .IP
-Needs the server up;
-.B conn
-brings it up.
+Needs the server up.
 .TP
 .BI "conn x " address
-End a process, as
+Stop a process, as
 .B xx
-on the panel does, with no question asked:
-a container by
-.BR "docker stop" ,
-a Homebrew service by
-.BR "brew services stop" ,
-a pane
+does: what
 .B conn u
-or a
-.I .conn
-opened by ctrl-c, the pane closed once it has ended, or at once where it
-ended already, and any other process by
+started is sent
+.B ctrl\-c
+and its pane closed once it has ended, or after five seconds anyway;
+any other pane is closed, a conversation's included; a listener outside
+.B conn
+is sent
 .BR SIGTERM .
-A shell is not ended: what it runs is.
 Prints what was done.
 .IP
 .B conn x
 and
 .B conn r
-reach only the project the working directory is in, and the folder of
-repositories that holds it: a port or a pid of another project is an
-error.
+reach only the project the working directory is in: a port or a pid of
+another project's process is an error.
 .TP
 .BI "conn r " address
-End a process and start it again:
-a container by
-.BR "docker restart" ,
-a Homebrew service by
-.BR "brew services restart" ,
-and a pane
+Start a process again, as
+.B rr
+does: what
 .B conn u
-or a
-.I .conn
-opened anew, as it was started.
-A process
+started is sent
+.B ctrl\-c
+and run again in its pane, as it was started; a conversation is picked
+back up in its pane; any other pane runs again what it was opened
+with.
+A listener outside
 .B conn
-did not start, it cannot start again, and says so.
-.TP
-.B conn down
-Take the server down with every process in it.
-Prints one line per window ended, and one for the server.
+was started nobody knows how, and is an error.
+Prints the pane.
 .TP
 .B conn theme claude
 Write
 .BR conn 's
 theme for Claude Code to Claude Code's themes directory as
 .BR custom:conn ,
-on the ground the server is on.
+on the ground the server is on, or the ground a fresh server would come
+up on.
 If Claude Code is on one of its own themes,
 .B conn
-offers to switch it.
-If it is on a custom theme,
+offers to switch it; if it is on a custom theme,
 .B conn
 says so and leaves it.
-.TP
-.B conn theme vim
-Write
-.BR conn 's
-colorscheme for nvim to its colors directory as
-.BR conn ,
-on the ground the server is on.
-nvim takes it with
-.BR "colorscheme conn" .
-.B CONN
-is set in the server's environment, so a config can reach for it under
-.B conn
-and keep its own elsewhere.
-.TP
-.B conn \-\-help
-The synopsis.
-.TP
-.B conn \-\-version
-The version and the build.
+Once written, the file is rewritten whenever a server comes up or is
+put on another ground.
 .PP
-Once written, both theme files are rewritten whenever a server comes up
-on a different ground.
+Anything else after
+.B conn
+is an error that names the commands.
+There is no
+.B \-\-help
+and no
+.BR \-\-version .
 .
 .SH OPTIONS
 Given before a command.
@@ -1807,40 +1067,28 @@ The ground is light.
 The ground is dark.
 .TP
 .BI \-\-theme " name"
-The theme:
-.BR conn ,
-.BR datum ,
-or
-.BR skelly .
+The theme; also
+.BI \-\-theme= name .
 .PP
-For a server coming up, these decide the ground and the theme.
-For a server already up, they change it: every pane of
-.BR conn 's
-own is redrawn.
-Otherwise the ground is fixed for the server's life.
+For a server coming up, these decide the ground and the theme, over
+what the configuration file says.
+For a server already up, they change it where it stands: every pane is
+dressed again, and
+.B \-\-theme
+reads its sheet again even where the server wears it, so a sheet being
+worked on is seen.
 Without a flag, a fresh server takes
+.B theme
+and
 .B ground
-from the configuration file, and with none there asks the terminal its
-background with OSC 11, calling it dark when its luminance is under a
-half or when the terminal does not answer within 200 ms.
+from the configuration file, and with no ground there asks the terminal
+its background with OSC 11, calling it dark unless it answers light.
 .B \-\-light
 with
 .B \-\-dark
-is refused, as are two
-.BR \-\-theme s.
+is a contradiction.
 .
 .SH ENVIRONMENT
-.TP
-.B CONN_ROOTS
-The roots, separated as
-.B PATH
-is.
-Stands in front of the configuration file.
-.TP
-.B CONN_KEY
-The panel key, in tmux's spelling:
-.B C\-Space
-by default.
 .TP
 .B CONN_SOCKET
 The server's socket.
@@ -1861,13 +1109,20 @@ Where Claude Code keeps its files.
 Default
 .IR ~/.claude .
 .TP
-.B COLORTERM
-.B truecolor
-or
-.B 24bit
-makes
+.B PATH
 .B conn
-draw in truecolor.
+runs
+.BR tmux ,
+.BR git ,
+.BR ps ,
+.BR lsof ,
+.B claude
+and the browser's opener from it.
+Without
+.BR lsof ,
+no row says its ports, and no listener outside
+.B conn
+is a row.
 .PP
 In the server,
 .B conn
@@ -1881,33 +1136,29 @@ and
 .TP
 .I ~/.config/conn/config.json
 The configuration.
-Three keys, each of which may be left out:
+Two keys, each of which may be left out:
 .PP
 .nf
 .RS
 {
-  "roots": ["~/projects", "~/work"],
   "theme": "conn",
   "ground": "dark"
 }
 .RE
 .fi
 .IP
-A leading
-.B ~
-in a root is your home.
-.B conn
-reads this file and writes
-.BR roots ,
-.B theme
-and
-.BR ground ,
-from the settings view, keeping every other key.
+Read for a server coming up; written by the settings, every other key
+kept.
 No
 .B ground
 is the terminal's own, asked when a server rises.
-A file that will not parse is a fault on the console and is never
-written over.
+A ground that is neither dark nor light is an error.
+.TP
+.I ~/.config/conn/themes/
+Theme sheets,
+.IR NAME .json
+each; see
+.BR THEMES .
 .TP
 .I ~/.local/state/conn/
 The state directory:
@@ -1916,28 +1167,25 @@ the server's socket;
 .I tmux.conf
 what
 .B conn
-tells tmux;
+tells tmux, written on each start;
 .I mode
-the ground and theme the server came up in;
-.I tmux.sock.cursor
-the row under the cursor, for the page;
-.I log
-the log, a line a change, its fields parted by tabs: the time, the
-project's path, what the panel called the row, its pid, its word, and
-where there is one a sixth, what the line adds;
-the older half is let go once the file passes a megabyte; it is kept
-beside the socket, so a server on a socket of its own keeps its own;
-.I conn.1
-this page, written for
-.BR man .
+the ground and theme the server came up on, one line,
+.BR "dark conn" ,
+forgotten when the server goes down;
+.I started.jsonl
+what was started under a name through
+.BR conn ,
+a line a start, with the project's root, the name, the command, the
+role and when; it is kept beside the socket, so a server on a socket of
+its own keeps its own.
 .TP
 .I ~/.claude/sessions/
-Claude Code's record of each running instance, read for a contact's
-status.
+Claude Code's record of each running instance, read for a
+conversation's state.
 .TP
 .I ~/.claude/projects/
-Claude Code's transcripts, read for a waiting contact's question and for
-suspended sessions.
+Claude Code's transcripts, read for where work has happened, a
+conversation's title and context, and the conversations at rest.
 .TP
 .I ~/.claude/themes/conn.json
 Written by
@@ -1949,36 +1197,74 @@ Read by
 for the theme in use; its
 .B theme
 key rewritten only with your consent.
-.TP
-.I ~/.config/nvim/colors/conn.vim
-Written by
-.BR "conn theme vim" .
-.TP
-.I .conn
-At a project's top: its declared processes.
 .
 .SH THEMES
 .B conn
-has three themes,
+ships three themes,
 .BR conn ,
-.BR datum ,
+.B datum
 and
 .BR skelly ,
-each with a dark and a light ground.
+each with a dark and a light ground, and wears any sheet in its themes
+directory by the sheet's name; a sheet there under a shipped name stands
+in for it.
 The theme is
 .B theme
 in the configuration file,
 .BR \-\-theme ,
-or the settings view, where picking one dresses the server where it
-stands.
-The ground is
+or the settings; the ground is
 .B ground
-in the configuration file,
+in the file,
 .BR \-\-light / \-\-dark ,
-or the settings view; with none of those it is asked of the terminal
-when a server rises.
-Every color is drawn by its role, and the sixteen ANSI colors of every
-pane in the server are set to the theme's.
+or the settings; with none of those it is asked of the terminal when a
+server rises.
+Picking either in the settings dresses the server where it stands.
+.PP
+A sheet is a JSON object with a
+.B dark
+ground, a
+.B light
+one, or both; with one, it is worn on either.
+A ground is its
+.BR ground ,
+its
+.BR ink ,
+the sixteen of its
+.B scheme
+that a program asks for by name, and every role by name, each a color
+written
+.BR #RRGGBB :
+.BR accent ,
+.BR shimmer ,
+.BR atWork ,
+.BR atWorkShimmer ,
+.BR border ,
+.BR surface ,
+.BR running ,
+.BR turning ,
+.BR gray ,
+.BR faint ,
+.BR parchment ,
+.BR block ,
+.BR onBlock ,
+.BR chosen ,
+.BR chosenInk ,
+.BR chosenMark ,
+.BR cursor ,
+.BR messageBg ,
+.BR messageHoverBg ,
+.BR toolBg ,
+.BR diffAddedBg ,
+.BR diffRemovedBg ,
+.BR diffAddedDim ,
+.BR diffRemovedDim ,
+.BR diffAddedWord ,
+.BR diffRemovedWord .
+Anything missing, misspelt or not a color is said, by name.
+Every color
+.B conn
+draws is by its role, and the sixteen ANSI colors of every pane in the
+server are set to the theme's.
 .
 .SH TMUX
 .B conn
@@ -1989,19 +1275,16 @@ In
 server:
 .TP 4
 \(bu
-The prefix is none.
-One key is bound, the panel key, in the root table.
+The prefix is tmux's own,
+.BR ctrl\-b .
+One key is bound in the root table, the panel key.
 .TP
 \(bu
-The mouse is on: the wheel scrolls a pane, a drag copies, a click on a
-row of the panel goes into it.
-The border cannot be dragged; the panel keeps its width.
+The mouse is on: the wheel scrolls a pane, a drag copies, a click puts
+the keys in a pane.
 .TP
 \(bu
-Copy mode uses vi keys.
-The band reads
-.B COPY
-while a pane is in it.
+Copy mode uses vi keys, and the system clipboard takes what is copied.
 .TP
 \(bu
 Each pane keeps 10000 lines of history.
@@ -2010,165 +1293,161 @@ Each pane keeps 10000 lines of history.
 The status line is
 .BR conn 's,
 two rows at the foot.
-Windows have no tabs.
+Windows have no tabs; the panel lists what runs.
+.TP
+\(bu
+A window is named for its project, or for the name a process was
+started under.
+.TP
+\(bu
+The terminal's title is set, and says how many conversations wait.
 .PP
 A tmux command typed by hand reaches the server with
 .BI "tmux \-S " socket ;
 the socket is under
-.B FILES
-and in the note
-.B conn
-hands each contact.
+.BR FILES .
+.B kill\-server
+there takes it down with everything in it.
 .
 .SH DIAGNOSTICS
 .TP
-.BI "conn: no such command: " name
-Followed by the synopsis.
-Exit 2.
+.B conn: conn knows ls, l, u, x, r and theme; with nothing after it, it opens on your projects
+Exit 1.
+.TP
+.B conn: conn runs in tmux, and there is no tmux on the PATH
+Exit 1.
 .TP
 .B conn: \-\-dark and \-\-light are a contradiction
-Exit 2.
-.TP
-.BI "conn: \-\-theme " a " and \-\-theme " b " are a contradiction"
-Exit 2.
-.TP
-.BI "conn: conn has no theme " name "; it has conn, datum and skelly"
-Exit 2.
-.TP
-.BI "conn: the tmux server could not be brought up: " why
-.B conn
-goes on without a server.
-.TP
-.B conn: tmux is not on PATH; there is no server to take down
 Exit 1.
 .TP
-.B conn: the server is on this build now; the processes in it were left running
+.B conn: \-\-theme names a theme
+Exit 1.
+.TP
+.BI "conn: there is no theme " name "; there are " names ", in " dir
+Exit 1.
+.TP
+.BI "conn: " path ": the ground is dark or light, not " word
+Exit 1.
+.TP
+.B An earlier conn's server is up. End it, and everything running in it? [y/N]
+Asked on the terminal.
+Anything but yes leaves it, with
+.BR "conn: left the earlier conn running" .
+.TP
+.B conn: conn's own window is gone; leave with ctrl\-b d and run conn again
 Typed in a pane of the server.
-Exit 0.
-.TP
-.B conn: the server is on this build already
-Typed in a pane of the server.
-Exit 0.
-.TP
-.BI "conn: no server up on " socket
-From
-.BR "conn down" .
-Exit 0.
-.TP
-.BI "conn ls: " dir " is in no project under the roots in config.json"
 Exit 1.
 .TP
-.BI "conn ls: the process table could not be read: " why
-Exit 1.
-.TP
-.BI "conn l: no process here answers to " address "; conn ls lists them"
-Exit 1.
-.TP
-.BI "conn l: " address " names " n " processes: " pids "; say which by pid"
-Exit 1.
-.TP
-.BI "conn l: " name " has no terminal; what it writes goes where whatever started it sent it"
-A process adopted into a project, with no terminal of its own.
-Exit 1.
-.TP
-.BI "conn l: " name " runs in a terminal conn does not hold, and what it said is that terminal's"
-Exit 1.
-.TP
-.B "conn l: usage: conn l [\-n lines] name|:port|pid"
+.B usage: conn ls
+.TQ
+.B usage: conn l NAME|:PORT|PID [\-n N]
+.TQ
+.B usage: conn u NAME [\-w] \-\- COMMAND...
+.TQ
+.B usage: conn x NAME|:PORT|PID
+.TQ
+.B usage: conn r NAME|:PORT|PID
 Exit 2.
+.TP
+.BI "conn l: no process " name " in " project "; conn ls lists them"
+And the same of
+.BR x
+and
+.BR r ;
+a port or a pid,
+.BR "that conn knows" .
+Exit 1.
+.TP
+.BI "conn l: " name " names " n " processes, pids " pids "; name one by its pid"
+Exit 1.
+.TP
+.BI "conn l: " name " runs outside conn, so what it said went wherever whatever started it sent it"
+Exit 1.
+.TP
+.B conn u: conn's server is not up; run conn first
+Exit 1.
 .TP
 .BI "conn u: " name " is up, pid " pid "; conn r " name " starts it again"
 Exit 1.
 .TP
-.B "conn u: no server up; conn brings one up"
-Exit 1.
-.TP
-.B "conn u: it was ended before it said how it ended"
+.B conn u: its pane was closed before it said how it ended
 From
 .BR \-w .
 Exit 1.
 .TP
-.BI "conn x: " address " is " project "'s, not this project's; conn x reaches only the work it is run in"
+.BI "conn x: " address " runs in " there ", not in " here "; conn x reaches only the project it is run in"
 And the same of
 .BR "conn r" .
 Exit 1.
 .TP
-.BI "conn x: " name " did not end within 30s of ctrl\-c; its pane " pane " is left standing"
+.BI "conn r: " name " was started outside conn, and conn does not know how; x ends it, and u starts a command in conn"
 Exit 1.
 .TP
-.BI "conn x: " name " is a shell; conn x ends what a shell runs, not the shell"
+.BI "conn r: " name " does not say what it was started with"
 Exit 1.
 .TP
-.BI "conn r: conn did not start " name ", so it cannot start it again; conn x ends it, and conn u " name " \-\- command starts it in conn"
-Exit 1.
-.TP
-.BI "conn theme: say which program: conn theme claude, conn theme vim"
-Exit 1.
-.TP
-.BI "conn theme: conn has no theme for " name
-Followed by the two it has.
+.B conn: conn theme claude writes conn's theme for Claude Code
+From
+.B conn theme
+with anything else.
 Exit 1.
 .
 .SH EXIT STATUS
 0 on success; 1 when a command failed; 2 on a usage error.
+.B conn u \-w
+exits with the status of what it ran.
 .
 .SH CAVEATS
 .TP 4
 \(bu
-.B xx
-on a bare shell sends
-.BR KILL .
-.TP
-\(bu
-.B xx
-on a contact signals the contact, not the processes under it.
-.TP
-\(bu
-The ports column shows TCP listeners only.
-.TP
-\(bu
-A process with no terminal is listed only under a project where
-terminal work is happening.
-.TP
-\(bu
-A container appears only if compose labelled it with a working
-directory.
-.TP
-\(bu
-Homebrew is asked only while some project declares a service, and every
-fifteen seconds.
-.TP
-\(bu
 Only Claude Code's state is read.
-Other contacts read as any process.
+Another agent in a pane is a process like any other.
 .TP
 \(bu
-The ground is fixed for the server's life.
-.BR \-\-light ,
-.B \-\-dark
-and the settings view change it on a running server;
-.B conn down
-asks the terminal again, unless the file names a ground.
+A conversation running in a terminal
+.B conn
+does not hold is a row, and cannot be gone into.
+.TP
+\(bu
+The ports are TCP listeners, from
+.BR lsof .
+.TP
+\(bu
+A listener outside
+.B conn
+is a row only while its directory is in the project or a pane of the
+project connects to it.
+.TP
+\(bu
+Asking Claude Code takes seconds, needs
+.B claude
+on the PATH, and is answered by a small model with no tools.
+.TP
+\(bu
+What
+.B !
+runs is not written down; what
+.B conn u
+runs is.
+.TP
+\(bu
+.B conn
+reads the machine when something changes, not on a clock: Claude Code's
+files, and what tmux says of its panes; the ports are read again one,
+three and ten seconds after a pane changes, since a server listens a
+while after it starts.
+.TP
+\(bu
+The ground is fixed for the server's life unless a flag or the settings
+change it.
 .TP
 \(bu
 .B q
 detaches.
-The server and every process keep running until
-.BR "conn down" .
-.TP
-\(bu
-On Linux there is no
-.B LSOF
-check, and clock ticks are assumed to be 100 a second.
-On macOS a process of another user has no arguments.
-.TP
-\(bu
-The tree is read every two seconds.
-A process that lives shorter is never seen.
+The server and every process keep running.
 .
 .SH SEE ALSO
 .BR tmux (1),
 .BR lsof (8),
-.BR docker (1),
-.BR brew (1),
-.BR readline (3)
+.BR ps (1),
+.BR git (1)

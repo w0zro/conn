@@ -1445,7 +1445,7 @@ func TestRunUWritesItDown(t *testing.T) {
 	}
 }
 
-// t runs the checks as they were last run here, with no question; u,
+// st runs the checks as they were last run here, with no question; ss,
 // with no stack run here yet, asks.
 func TestResolveRunsWhatWasRun(t *testing.T) {
 	srv, _, _ := scratchServer(t)
@@ -1454,7 +1454,8 @@ func TestResolveRunsWhatWasRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := model{srv: srv, screen: onProject, cur: project{Name: "d", Root: dir}, rows: []row{}}
-	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Text: "t", Code: 't'}))
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "s", Code: 's'}))
+	next, cmd := next.(model).Update(tea.KeyPressMsg(tea.Key{Text: "t", Code: 't'}))
 	m = next.(model)
 	if m.question != "" || cmd == nil {
 		t.Fatalf("t asked a question, or did nothing: question %q", m.question)
@@ -1475,9 +1476,10 @@ func TestResolveRunsWhatWasRun(t *testing.T) {
 	if !found {
 		t.Error("no pane named test")
 	}
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "u", Code: 'u'}))
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "s", Code: 's'}))
+	next, _ = next.(model).Update(tea.KeyPressMsg(tea.Key{Text: "s", Code: 's'}))
 	if next.(model).question != roleStack {
-		t.Error("u did not ask what the stack is")
+		t.Error("ss did not ask what the stack is")
 	}
 }
 

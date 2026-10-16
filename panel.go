@@ -1103,7 +1103,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.objectKey(k)
 	}
 	switch k.String() {
-	case "r", "x", "a":
+	case "r", "x", "a", "s":
 		// A verb waits for its object: the verb again is the row.
 		m.verb = k.String()
 		return m, nil
@@ -1128,10 +1128,6 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if p, ok := m.lineUnder(); ok && !m.isOpen(p) {
 			return m.open(p)
 		}
-	case "n":
-		return m.converse("")
-	case "s":
-		return m.start(m.here(), "", "")
 	case "q", "ctrl+c":
 		m.note = m.leave()
 	case "!":
@@ -1139,10 +1135,6 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		m.searching, m.query, m.said, m.found, m.hitAt = true, "", nil, nil, 0
 		return m, readSaid(m.srv, m.cur.Root, m.rows)
-	case "u":
-		return m.resolve(roleStack)
-	case "t":
-		return m.resolve(roleCheck)
 	case "c":
 		if r, ok := m.under(); ok {
 			return m.talk(r)
@@ -1155,7 +1147,8 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// lineKey is a key while u's line is being typed.
+// lineKey is a key while !'s line is being typed: enter runs it, and
+// with nothing typed opens a shell.
 func (m model) lineKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "esc", "ctrl+c":
@@ -1163,7 +1156,8 @@ func (m model) lineKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.asking = false
 		if strings.TrimSpace(m.line) == "" {
-			return m, nil
+			// Nothing typed is a shell.
+			return m.start(m.here(), "", "")
 		}
 		return m, m.up(strings.TrimSpace(m.line))
 	case "backspace":
@@ -1936,9 +1930,9 @@ type keyHint struct{ key, does string }
 // the bar fits a window of any width; ? shows them all, in full, and
 // the keys the bar leaves out.
 var (
-	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"n", "new"}, {"s", "shell"}, {"!", "run"}, {"u", "start"}, {"t", "check"}, {"a", "agent"}, {"x", "stop"}, {"r", "restart"}, {"c", "talk"}, {"?", "keys"}}
+	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"s", "start"}, {"x", "stop"}, {"r", "restart"}, {"a", "agent"}, {"c", "talk"}, {"!", "run"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"n", "new conversation"}, {"s", "shell"}, {"!", "run a command"}, {"u", "start the project"}, {"t", "run the checks"}, {"aa", "hand to an agent"}, {"af", "hand what failed to one"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"ss", "start the stack"}, {"st", "run the checks"}, {"sc", "new conversation"}, {"!", "run a command, or a shell"}, {"aa", "hand to an agent"}, {"af", "hand what failed to one"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}
@@ -1947,6 +1941,7 @@ var (
 	objectHints = map[string][]keyHint{
 		"r": {{"r", "the row"}, {"s", "the stack"}, {"t", "the checks"}, {"f", "what failed"}, {"c", "a conversation at rest"}, {"esc", "cancel"}},
 		"a": {{"a", "the row"}, {"f", "what failed"}, {"esc", "cancel"}},
+		"s": {{"s", "the stack"}, {"t", "the checks"}, {"c", "a conversation"}, {"esc", "cancel"}},
 		"x": {{"x", "the row"}, {"s", "the stack"}, {"t", "the checks"}, {"p", "the project"}, {"esc", "cancel"}},
 	}
 	listHints   = []keyHint{{"type", "to find"}, {"↑ ↓", "move"}, {"enter", "picks it back up"}, {"esc", "back"}}
@@ -2545,6 +2540,12 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "af":
 		return m.handAll(m.failedRows())
+	case "ss":
+		return m.resolve(roleStack)
+	case "st":
+		return m.resolve(roleCheck)
+	case "sc":
+		return m.converse("")
 	case "xs":
 		return m.endEach(m.inPlace(placeStack), "the stack")
 	case "xt":

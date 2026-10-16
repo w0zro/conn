@@ -51,9 +51,11 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 23. **Hand what failed.** `a` waits too: `aa` hands the row, as `a` did; `af` hands every run that failed to one conversation, each with its last lines, in a share of the size. Built, 2026-10-15.
 
+24. **Start is a verb.** `s` waits for its object: `ss` brings up the stack and `st` runs the checks, as `u` and `t` did; `sc` starts a conversation, as `n` did. A shell is `!` with nothing typed. `n`, `u` and `t` are free; `u` is for undo. Built, 2026-10-15.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `c` `x` `r` `u` `t` `a` `!` `n` `s` `q`; `ctrl-c` and `ctrl-space` from anywhere.
+Keys so far: typing, `↑` `↓` (`ctrl-n` `ctrl-p`), `enter`, `esc`, `tab`, `x` on a project; in a project `j` `k` `/` `c` `!` `q`, and the verbs `s` `x` `r` `a` with their objects; `ctrl-c` and `ctrl-space` from anywhere.
 
 ## The idea
 

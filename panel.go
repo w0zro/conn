@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,6 +116,9 @@ type model struct {
 	listing bool
 	pick    string
 	pickAt  int
+	// What each conversation at rest said, by id, read when the list
+	// stands: the lines of text the person and Claude wrote.
+	spoken map[string][]string
 	// ,'s settings: whether they stand, and the cursor in them.
 	settings bool
 	setAt    int
@@ -2830,6 +2835,10 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case "rc":
 		m.listing, m.pick, m.pickAt = true, "", 0
+		m.spoken = make(map[string][]string, len(m.rest))
+		for _, r := range m.rest {
+			m.spoken[r.conv.ID] = spokenIn(r.conv.path)
+		}
 	case "rs", "rt":
 		// With none standing, the role is run as u and t run it.
 		place, as, what := placeStack, roleStack, "the stack"
@@ -2972,7 +2981,7 @@ func counted(n int, word string) string {
 }
 
 // shownRest is the conversations at rest the typed words find: each
-// word in the title.
+// word in the title, or all of them in one line said in it.
 func (m model) shownRest() []row {
 	words := strings.Fields(strings.ToLower(m.pick))
 	if len(words) == 0 {
@@ -2980,14 +2989,138 @@ func (m model) shownRest() []row {
 	}
 	var out []row
 	for _, r := range m.rest {
-		hay := strings.ToLower(or(r.conv.Title, r.conv.ID))
+		if titleHas(r, words) || m.saying(r, words) != "" {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// titleHas says whether every word is in a conversation's title.
+func titleHas(r row, words []string) bool {
+	hay := strings.ToLower(or(r.conv.Title, r.conv.ID))
+	for _, w := range words {
+		if !strings.Contains(hay, w) {
+			return false
+		}
+	}
+	return true
+}
+
+// saying is the first line said in a conversation that has every word
+// in it, or "" where its title is found by them, or no line is.
+func (m model) saying(r row, words []string) string {
+	if titleHas(r, words) {
+		return ""
+	}
+	for _, l := range m.spoken[r.conv.ID] {
+		hay := strings.ToLower(l)
 		found := true
 		for _, w := range words {
 			found = found && strings.Contains(hay, w)
 		}
 		if found {
-			out = append(out, r)
+			return l
 		}
+	}
+	return ""
+}
+
+// spokenIn is the lines of text a transcript holds, what the person
+// and Claude wrote, in order. A line of the file can be megabytes — a
+// pasted image — and one that long is passed over.
+func spokenIn(path string) []string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	var out []string
+	r := bufio.NewReaderSize(f, 64*1024)
+	for {
+		raw, err := r.ReadSlice('\n')
+		for err == bufio.ErrBufferFull {
+			// Too long to read: skip to its end.
+			raw = nil
+			_, err = r.ReadSlice('\n')
+		}
+		if raw != nil {
+			var rec struct {
+				Type    string `json:"type"`
+				Message struct {
+					Content json.RawMessage `json:"content"`
+				} `json:"message"`
+			}
+			if json.Unmarshal(raw, &rec) == nil && (rec.Type == "user" || rec.Type == "assistant") {
+				out = append(out, textLines(rec.Message.Content)...)
+			}
+		}
+		if err != nil {
+			return out
+		}
+	}
+}
+
+// textLines is the lines of the text in a message's content: a string,
+// or the text blocks among a list of blocks.
+func textLines(content json.RawMessage) []string {
+	var text string
+	if json.Unmarshal(content, &text) != nil {
+		var blocks []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if json.Unmarshal(content, &blocks) != nil {
+			return nil
+		}
+		var all []string
+		for _, b := range blocks {
+			if b.Type == "text" {
+				all = append(all, b.Text)
+			}
+		}
+		text = strings.Join(all, "\n")
+	}
+	var out []string
+	for _, l := range strings.Split(text, "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// lit is a line as pieces, each of the words in bold where it says it.
+func lit(line string, words []string) []piece {
+	low := strings.ToLower(line)
+	if len(low) != len(line) {
+		return []piece{{line, gray}}
+	}
+	bold := make([]bool, len(line))
+	for _, w := range words {
+		for from := 0; ; {
+			i := strings.Index(low[from:], w)
+			if i < 0 {
+				break
+			}
+			for j := from + i; j < from+i+len(w); j++ {
+				bold[j] = true
+			}
+			from += i + len(w)
+		}
+	}
+	var out []piece
+	for i := 0; i < len(line); {
+		j := i
+		for j < len(line) && bold[j] == bold[i] {
+			j++
+		}
+		st := gray
+		if bold[i] {
+			st = gray.Bold(true)
+		}
+		out = append(out, piece{line[i:j], st})
+		i = j
 	}
 	return out
 }
@@ -3030,12 +3163,39 @@ func (m model) drawList(lines []string) ([]string, foot) {
 	shown := m.shownRest()
 	count := counted(len(shown), "conversation") + " at rest"
 	lines = append(lines, m.row([]piece{{"find", gray}, {"  " + m.pick, ink}, {caret, accent}}, piece{count, gray}, false), "")
+	words := strings.Fields(strings.ToLower(m.pick))
 	room := max(m.height-len(lines)-1, 1)
-	first := max(m.pickAt-room+1, 0)
-	for i := first; i < len(shown) && i < first+room; i++ {
+	said := make([]string, len(shown))
+	for i, r := range shown {
+		said[i] = m.saying(r, words)
+	}
+	// The window starts at the first conversation from which the cursor's
+	// is still in view, a line said taking a line.
+	first, used := m.pickAt, 1
+	if m.pickAt < len(said) && said[m.pickAt] != "" {
+		used++
+	}
+	for first > 0 {
+		need := 1
+		if said[first-1] != "" {
+			need++
+		}
+		if used+need > room {
+			break
+		}
+		first, used = first-1, used+need
+	}
+	taken := 0
+	for i := first; i < len(shown) && taken < room; i++ {
 		r := shown[i]
 		left := append(r.place(), piece{or(r.conv.Title, r.conv.ID), ink})
 		lines = append(lines, m.row(left, piece{ago(r.conv.When), gray}, i == m.pickAt))
+		taken++
+		if said[i] != "" && taken < room {
+			text, _ := around(said[i], strings.Index(strings.ToLower(said[i]), words[0]), max(m.measure()-4, 8))
+			lines = append(lines, m.row(append([]piece{{"    ", gray}}, lit(text, words)...), piece{}, false))
+			taken++
+		}
 	}
 	if len(shown) == 0 {
 		lines = append(lines, at(faint.Render("nothing here")))

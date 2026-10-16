@@ -2767,3 +2767,62 @@ func TestTheTitleIsTheShimmer(t *testing.T) {
 		}
 	}
 }
+
+// A click on the panel is the cursor to what it landed on, and in: a
+// row's pane in the workspace, another project's line opened, and a
+// project on the projects screen opened. A click on the head, a label
+// or the air is nothing.
+func TestClick(t *testing.T) {
+	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	lineOf := func(m model, word string) int {
+		inner, _ := m.inner()
+		lines, _ := inner.draw()
+		for i, l := range lines {
+			if strings.Contains(plain.ReplaceAllString(l, ""), word) {
+				return i
+			}
+		}
+		t.Fatalf("no line says %q", word)
+		return -1
+	}
+	click := func(m model, y int) model {
+		next, _ := m.Update(tea.MouseClickMsg{Y: y, Button: tea.MouseLeft})
+		return next.(model)
+	}
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, home: "/home", width: 60, height: 30,
+		rows: []row{
+			{pane: &pane{ID: "%1", Name: "web", Dir: "/p"}, tree: "/p"},
+			{pane: &pane{ID: "%2", Name: "test", Dir: "/p"}, tree: "/p"},
+		},
+		projects: []project{{Name: "other", Root: "/q", Running: 1}},
+	}
+	if got := click(m, lineOf(m, "test")); got.cursor != 1 || got.in != "%2" {
+		t.Errorf("a click on a row: cursor %d in %q, want 1 in %q", got.cursor, got.in, "%2")
+	}
+	if got := click(m, lineOf(m, "projects")); got.cursor != 0 || got.in != "" {
+		t.Errorf("a click on the label: cursor %d in %q", got.cursor, got.in)
+	}
+	if got := click(m, 1); got.cursor != 0 || got.in != "" {
+		t.Errorf("a click on the head: cursor %d in %q", got.cursor, got.in)
+	}
+	if got := click(m, lineOf(m, "other")); got.screen != onProject || got.cur.Root != "/q" {
+		t.Errorf("a click on another project's line: on %q", got.cur.Root)
+	}
+	// A right click is not a click.
+	if next, _ := m.Update(tea.MouseClickMsg{Y: lineOf(m, "test"), Button: tea.MouseRight}); next.(model).in != "" {
+		t.Error("a right click went in")
+	}
+	// A verb left waiting is dropped by the click.
+	m.verb = "x"
+	if got := click(m, lineOf(m, "test")); got.verb != "" || got.in != "%2" {
+		t.Errorf("a click with a verb waiting: verb %q in %q", got.verb, got.in)
+	}
+	ps := model{screen: onProjects, loaded: true, home: "/home", width: 60, height: 30,
+		projects: []project{{Name: "a", Root: "/a"}, {Name: "b", Root: "/b"}}}
+	if got := click(ps, lineOf(ps, "b")); got.screen != onProject || got.cur.Root != "/b" {
+		t.Errorf("a click on the projects screen: screen %v on %q", got.screen, got.cur.Root)
+	}
+	if got := click(ps, 1); got.screen != onProjects {
+		t.Error("a click on the projects screen's head opened something")
+	}
+}

@@ -1000,6 +1000,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.frame = int(time.Now().UnixMilli()/spinEvery.Milliseconds()) % len(spinner)
 		return m, spinTick()
+	case tea.MouseClickMsg:
+		if msg.Button == tea.MouseLeft {
+			m.note = ""
+			return m.click(msg.Y)
+		}
 	case tea.KeyPressMsg:
 		m.note = ""
 		if s := msg.String(); s == "ctrl+space" || s == "ctrl+@" {
@@ -1132,12 +1137,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		m.cursor, m.follow = max(len(m.items())-1, 0), ""
 	case "enter":
-		if r, ok := m.under(); ok {
-			return m.goTo(r)
-		}
-		if p, ok := m.lineUnder(); ok && !m.isOpen(p) {
-			return m.open(p)
-		}
+		return m.goIn()
 	case "q", "ctrl+c":
 		m.note = m.leave()
 	case "!":
@@ -1717,6 +1717,40 @@ func (m model) open(p project) (tea.Model, tea.Cmd) {
 	return m, m.read()
 }
 
+// goIn goes into what the cursor is on: a row, or another project.
+func (m model) goIn() (tea.Model, tea.Cmd) {
+	if r, ok := m.under(); ok {
+		return m.goTo(r)
+	}
+	if p, ok := m.lineUnder(); ok && !m.isOpen(p) {
+		return m.open(p)
+	}
+	return m, nil
+}
+
+// click is a left click on the panel: the cursor goes to the row or the
+// project's line under it, and in, as enter does. A click anywhere else
+// is nothing. The screen is measured as drawn, in the rows the foot
+// leaves it.
+func (m model) click(y int) (tea.Model, tea.Cmd) {
+	if m.helping || m.settings || m.asking || m.question != "" || m.listing || m.searching {
+		return m, nil
+	}
+	inner, _ := m.inner()
+	if m.screen == onProjects {
+		if i, ok := inner.projectOn(y); ok {
+			m.cursor = i
+			return m.open(m.shownProjects()[i])
+		}
+		return m, nil
+	}
+	if i, ok := inner.itemOn(y); ok {
+		m.cursor, m.follow, m.verb = i, "", ""
+		return m.goIn()
+	}
+	return m, nil
+}
+
 // goTo puts a row's pane in the workspace with the keys in it, picking
 // its conversation back up in a window of its own where it is at rest.
 func (m model) goTo(r row) (tea.Model, tea.Cmd) {
@@ -2047,10 +2081,7 @@ type foot struct {
 func (m model) View() tea.View {
 	// The foot is wrapped to the panel's width, and the screen drawn
 	// again in the rows the foot leaves it.
-	_, f := m.draw()
-	feet := m.feet(f)
-	inner := m
-	inner.height = max(m.height-len(feet)+1, 3)
+	inner, feet := m.inner()
 	lines, _ := inner.draw()
 	h := max(m.height, len(lines)+len(feet))
 	rows := h - len(feet)
@@ -2060,7 +2091,19 @@ func (m model) View() tea.View {
 	lines = append(lines[:rows], feet...)
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
+	// The mouse reaches the panel: tmux hands a click on a pane to the
+	// program in it once the program asks for the mouse.
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
+}
+
+// inner is the panel in the rows the foot leaves it, and the foot.
+func (m model) inner() (model, []string) {
+	_, f := m.draw()
+	feet := m.feet(f)
+	inner := m
+	inner.height = max(m.height-len(feet)+1, 3)
+	return inner, feet
 }
 
 // draw is the screen's lines and its foot.
@@ -2146,8 +2189,7 @@ func (m model) drawProjects() ([]string, foot) {
 	lines := head("conn", "projects")
 	lines = append(lines, at(gray.Render("find")+"  "+ink.Render(m.typed)+accent.Render(caret)), "")
 	shown := m.shownProjects()
-	room := max(m.height-len(lines)-1, 1)
-	first := max(m.cursor-room+1, 0)
+	first, room := m.projectsWindow(len(lines))
 	nameW := 0
 	for _, p := range shown {
 		nameW = max(nameW, ansi.StringWidth(listName(p)))
@@ -2178,6 +2220,26 @@ func (m model) drawProjects() ([]string, foot) {
 		lines = append(lines, at(faint.Render("no projects yet; type a path to one")))
 	}
 	return lines, foot{hints: projectsHints}
+}
+
+// projectsWindow is the window the projects screen shows of its
+// projects under a head of so many lines: the first project shown, and
+// how many, the cursor's in view.
+func (m model) projectsWindow(head int) (first, room int) {
+	room = max(m.height-head-1, 1)
+	return max(m.cursor-room+1, 0), room
+}
+
+// projectOn is the project whose line a click landed on, by the line's
+// row on the screen.
+func (m model) projectOn(y int) (int, bool) {
+	head := len(head("", "")) + 2 // the find line, and a row of air
+	first, room := m.projectsWindow(head)
+	i := y - head + first
+	if y < head || i >= first+room || i >= len(m.shownProjects()) {
+		return 0, false
+	}
+	return i, true
 }
 
 func (m model) drawProject() ([]string, foot) {
@@ -2213,7 +2275,30 @@ func (m model) drawProject() ([]string, foot) {
 		}
 		lines = append(lines, "")
 	}
-	var body []string
+	l := m.lay(len(lines))
+	hints := projectHints
+	if m.verb != "" {
+		hints = objectHints[m.verb]
+	}
+	return append(lines, l.body[l.first:min(l.first+l.room, len(l.body))]...), foot{hints: hints}
+}
+
+// A laid is the open project's body as drawn under a head: its lines,
+// the item each line is, or -1 for a label or air, and the window of
+// it in view, the cursor's line inside.
+type laid struct {
+	body  []string
+	owner []int
+	first int
+	room  int
+}
+
+// lay lays the open project's items out under a head of so many lines.
+func (m model) lay(head int) laid {
+	var l laid
+	add := func(line string, owner int) {
+		l.body, l.owner = append(l.body, line), append(l.owner, owner)
+	}
 	cursorAt := 0
 	items := m.items()
 	for i, it := range items {
@@ -2224,14 +2309,14 @@ func (m model) drawProject() ([]string, foot) {
 			// rows of this one.
 			if i == 0 || items[i-1].row >= 0 {
 				if i > 0 {
-					body = append(body, "")
+					add("", -1)
 				}
-				body = append(body, m.label("projects"))
+				add(m.label("projects"), -1)
 			}
 			if i == m.cursor {
-				cursorAt = len(body)
+				cursorAt = len(l.body)
 			}
-			body = append(body, m.projectLine(it.project, i == m.cursor))
+			add(m.projectLine(it.project, i == m.cursor), i)
 		default:
 			// A worktree's rows stand in under a head of their own: the
 			// branch alone, in the parchment the project's head is in
@@ -2244,22 +2329,31 @@ func (m model) drawProject() ([]string, foot) {
 				depth = 1
 				// A worktree stands a row off what is above it.
 				if it.row == 0 || m.rows[it.row-1].worktree() != r.worktree() {
-					body = append(body, "", at(subhead.Render(r.worktree())))
+					add("", -1)
+					add(at(subhead.Render(r.worktree())), -1)
 				}
 			}
 			if i == m.cursor {
-				cursorAt = len(body)
+				cursorAt = len(l.body)
 			}
-			body = append(body, m.drawRow(r, depth, i == m.cursor))
+			add(m.drawRow(r, depth, i == m.cursor), i)
 		}
 	}
-	room := max(m.height-len(lines)-1, 1)
-	first := max(cursorAt-room+1, 0)
-	hints := projectHints
-	if m.verb != "" {
-		hints = objectHints[m.verb]
+	l.room = max(m.height-head-1, 1)
+	l.first = max(cursorAt-l.room+1, 0)
+	return l
+}
+
+// itemOn is the item a click landed on, by its row on the screen of
+// the open project, where it landed on one.
+func (m model) itemOn(y int) (int, bool) {
+	head := len(head("", ""))
+	l := m.lay(head)
+	i := y - head + l.first
+	if y < head || i >= l.first+l.room || i >= len(l.body) || l.owner[i] < 0 {
+		return 0, false
 	}
-	return append(lines, body[first:min(first+room, len(body))]...), foot{hints: hints}
+	return l.owner[i], true
 }
 
 // drawRow is one row of a project: the mark, the name, and the figure.

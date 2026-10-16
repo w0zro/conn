@@ -1,56 +1,71 @@
 # conn
 
-A console for the processes working your projects. conn puts every
-process on one machine under the project it works, says what each
-project wants of you, and puts the one you choose in front of you.
+A console for the processes working your projects. conn puts the
+project you are in on one panel, a row a process, the one you choose
+in the workspace beside it, and under them a line for every other
+project with something running, so what is waiting on you is never
+out of sight.
 
 ```
-   conn ────────────────────────  WAITING
-▸  ☿  claude                        9 MIN
-   ❯  zsh
- ⣾ ○  go test ./...
+   conn  ~/projects/w0zro/conn
 
-   web ─────────────────────────  STOPPED
-   ❯  zsh
-   ▯  vim                         STOPPED
-   ◉  postgres                      :5432
-   ○  node vite                     :5173
-   ○  worker                         DOWN
+ ⣾ ❝ bring the code to the manual          262k
+▌  ❝ a grammar over processes      118k  waiting
+ ⣿ ○ demo                                 :8123
+   ❯ zsh
+   ✓ test                                    4m
+   ✗ lint                                    2m
+   ◌ postgres                             :5432
+
+   projects ──────────────────────────────────
+   web                        1 waiting · 2 running
+   notes                                 1 running
 ```
 
 ```
 curl -fsSL https://conn.w0zro.com/install.sh | sh
 ```
 
-macOS and Linux. Needs `tmux`, and `lsof` on macOS.
+macOS and Linux. Needs `tmux` and `git`; `lsof` for the ports and
+the servers outside conn; `claude` for conversations.
 
 conn brings up a tmux server of its own. conn is the panel on the
-left; the workspace is the rest of the window. Every shell, editor,
-coding agent, dev server, container and Homebrew service working a
-project under your roots is a row on the panel. `enter` puts a row's
-process in the workspace and the keys in it. `ctrl-space` brings the
-keys back to the panel from inside any process. `tab` goes to the
-agent that has waited longest for you. `esc` goes back into the
-process you were in. `q` detaches, and everything keeps running.
+left; the workspace is the rest of the window, and shows the process
+under the cursor. `conn` opens on your projects: every git checkout
+under your home, the newest work first, read from where Claude Code
+has worked and where conn's own panes are. Typing finds one, or names
+a directory by path; `enter` opens it. A project's panel is what runs
+in it: conversations with Claude Code, the stack, shells, the checks,
+and the servers outside conn the project talks to, each marked for
+what it is. `enter` puts the row's process in the workspace and the
+keys in it. `ctrl-space` brings the keys back from inside any process;
+pressed on the panel, it goes to the other process. `tab` goes to the
+conversation that has waited longest. `esc` goes back into the process
+you were in. `-` goes up to the projects. `q` detaches, and everything
+keeps running.
 
-The other letters are verbs, and a verb waits for its object, as in
-vim: the verb again is the row, `p` its project. `uu` brings up, `xx`
-ends, `rr` restarts, `cc` talks to it, `ll` shows what it said. Agents
-reach the same verbs from a shell: `conn ls`, `conn l web`,
-`conn u test -w -- go test ./...`, `conn r :3000`.
+The verbs are `s` start, `x` stop, `r` restart and `a` hand to an
+agent, and each waits for its object, as an operator does in vim: the
+verb again is the row (`xx`, `rr`, `aa`), `s` the stack, `t` the
+checks, `f` what failed, `p` the project, `c` a conversation. `ss`
+brings the stack up and `st` runs the checks as they were last run
+here; where nobody has run them yet, Claude Code is asked what they
+are and the answer is offered on one key. `sc` starts a conversation
+and `rc` picks one back up. `c` talks to a row's process: a
+conversation or a shell is gone into, a web server opens in the
+browser, anything else is asked of Claude Code once and the answer
+kept. `!` runs a command, or opens a shell with nothing typed. `/`
+searches what the project's processes have written. `?` lists the
+keys.
 
-A project's `.conn` file declares what works it, one process a line,
-so conn can say what is not running and bring it up. Claude Code
-sessions are contacts: conn reads their state, shows the question a
-waiting one asked, and lists the sessions left suspended, at a project
-with `A` or across every project with `gr`. `gl` opens the log: what
-changed while you were in a pane, a wait, a fault, a turn over, a pane
-that said panic or FAIL, newest first, and the band counts the lines
-since you last looked. `/` searches what a
-project's processes have written, the workspace following the match.
+Agents reach the same verbs from a shell, and are told so when conn
+starts them: `conn ls`, `conn l web`, `conn u test -w -- go test ./...`,
+`conn x :3000`, `conn r api`. What is started under a name through
+conn is written down as what the project runs: what waited is a check,
+the rest the stack, and the keys run them again as they were run.
 
-`man conn`, or `?` inside conn, is the reference. The operating
-manual is at [conn.w0zro.com/manual](https://conn.w0zro.com/manual/).
+`man conn` is the reference. The operating manual is at
+[conn.w0zro.com/manual](https://conn.w0zro.com/manual/).
 
 ---
 
@@ -59,48 +74,53 @@ itself.
 
 ## SECTION 1. GENERAL
 
-**1-1.** conn is a station for one operator directing many processes
-on one machine: a panel that lists the processes working each project,
-and a workspace holding the one process the operator is in, on a tmux
-server conn starts and holds. It is one Go binary with no cgo, for
-macOS and Linux. The vocabulary is fixed: process, contact, session,
-project, panel, workspace, status line, page. The code still says
-bay for the workspace and readout for the page.
+**1-1.** conn is a console for one operator directing many processes
+on one machine: a panel that lists the processes working the open
+project, and a workspace holding the one process the operator is in,
+on a tmux server conn starts and holds. It is one Go binary with no
+cgo, for macOS and Linux. The words are the code's: project, process,
+conversation, row, place (conversations, the stack, clients, checks,
+outside conn, elsewhere), role (stack, check, client), panel,
+workspace, hold.
 
-**1-2.** The whole program is one package at the root. A file is named
-for the thing it is about, and its head comment says what that thing
-is and why it is done the way it is; read the head before the code. The
-machine is read by a file per platform, `process_darwin.go` and
-`process_linux.go`, and a function only one platform calls is unused on
-the other. `tools/revisions` writes the manual's record of revisions
-from the tags. `docs/` is what conn.w0zro.com serves: the front page, the
-manual under `docs/manual/`, and `install.sh`.
+**1-2.** The program is one package at the root, with three under
+`internal/`: `shell` quotes a word for a shell line, `theme` is the
+sheets conn ships and the theme it writes for Claude Code, `tmux` is
+how conn talks to its server. A file is named for the thing it is
+about, and its head comment says what that thing is and why it is
+done the way it is; read the head before the code. The machine is read
+through `lsof`, `ps` and `git` on both platforms. `tools/revisions`
+writes the manual's record of revisions from the tags. `docs/` is what
+conn.w0zro.com serves: the front page, the manual under
+`docs/manual/`, and `install.sh`. `.devcontainer/` brings up Go with
+tmux and golangci-lint for a Codespace.
 
-**1-3.** There are two texts. `man/conn.1` is the reference, written by
-hand in roff, built into the binary, and shown by `?`; it is held to the
-binary by a test: its synopsis names every command and flag conn
-answers to and nothing else, and its keys section names the panel key
-as it is bound. A key or a command added without its row fails the
-build. `docs/manual/index.html` is the operating manual: how conn is worked,
-on the site's pages, pointing at the man page for every key and word.
-It is held to nothing by a test, and is read again when a section it
-describes changes.
+**1-3.** There are two texts. `man/conn.1` is the reference, written
+by hand in roff and shipped in the release archive beside the binary,
+where `install.sh` puts it for `man`. Nothing holds it to the binary;
+a key or a command added is a row added by hand. `?` inside conn lists
+the keys of the screen it is pressed on, and a test holds every key on
+the bar to that list. `docs/manual/index.html` is the operating
+manual: how conn is worked, on the site's pages. It is held to nothing
+by a test, and is read again when a section it describes changes.
 
 ## SECTION 2. BUILDING AND TESTING
 
-**2-1.** `make build` produces `./conn` the way a release does: trimmed,
-stripped, stamped with what `git describe` says. `make test` runs
-`go vet` and the tests under the race detector. `make lint` checks
-formatting and runs golangci-lint for this platform and for Linux.
-The format check, vet, tests and lint run on every push, the tests on
-macOS and Linux both.
+**2-1.** `make build` produces `./conn` the way a release does:
+trimmed and stripped. The version `git describe` says is passed to the
+linker, and nothing in the binary reads it since the tree was cut
+back; there is no `conn --version`. `make test` runs `go vet` and the
+tests under the race detector. `make lint` checks formatting and runs
+golangci-lint for this platform and for Linux. The format check, vet,
+tests and lint run on every push and pull request, the tests on macOS
+and Linux both.
 
 **2-2.** The tests need a real tmux on the path. They bring up servers
 of their own on scratch sockets and take them down; none touches the
 operator's station. Without tmux, or under `-short`, those tests skip
-and the run means less than it says. Screens are held to files under
-`testdata/`, one per view and size; a change to what a view says is a
-change to its file, made on purpose.
+and the run means less than it says. The sheets conn ships are held to
+copies of their sources under `internal/theme/testdata`; refreshing a
+theme is copying those again.
 
 **2-3.** A commit says what changed and why, in prose: a sentence for
 its subject, in sentence case, and paragraphs under it that explain the
@@ -109,8 +129,8 @@ step is its own commit.
 
 ## SECTION 3. RELEASING
 
-**3-1.** A release is an annotated tag, `v0.11.0`, whose message is the
-row the manual will record it by: `git tag -a v0.11.0 -m "What the
+**3-1.** A release is an annotated tag, `v0.24.0`, whose message is the
+row the manual will record it by: `git tag -a v0.24.0 -m "What the
 release did"`. Pushing it runs the tests and hands the build to
 goreleaser, which produces `conn_<version>_<os>_<arch>.tar.gz` holding
 the binary and the man page, stamped with the release, beside a

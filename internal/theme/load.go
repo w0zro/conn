@@ -27,13 +27,12 @@ import (
 // accent, --acc-text, phosphor as text, and its fills are a
 // glow-in-the-dark star's: by day it does not glow, so the key bar and
 // the row under the cursor are --acc-bg, its pale tint, the bar with
-// ink on it and the row with --acc-text, marked in black light; at
-// night the key bar glows, --acc with --acc-on, the page, on it, and
-// the two colors of the row under the cursor change places: it is
-// --uv-bg, black light's tint, with bone on it, marked in --acc.
-// The cursor and the > Claude Code writes before what you said are
-// black light as text, --uv-text; the spinner is --uv itself at
-// night, a step darker, and --uv-text by day.
+// ink on it and the row with --acc-text, marked in black light, and
+// the spinner is --uv-text. At night phosphor and black light change
+// places: the key bar and the bar beside the row under the cursor are
+// --uv-text, the row is --uv-bg, black light's tint, with bone on it,
+// and the spinner glows in --acc. The cursor and the > Claude Code
+// writes before what you said are --uv-text on either ground.
 // Its sixteen, ground and ink are what the brand's palette.mjs
 // --terminal writes, and the rest are the brand's rules on its five
 // colors. The tests hold both to copies of their sources under

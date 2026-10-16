@@ -915,6 +915,302 @@ func TestWaitingReachesTheTab(t *testing.T) {
 	say(1, "conn · 1 waiting", 3)
 }
 
+// With conn's tab behind another and a conversation waiting, a run that
+// fails anywhere reaches the tab as the waiting do: the title says
+// "conn · 1 waiting · 1 failed", the status line says "1 failed" in the
+// red of the failed row, and the bell rings once. Restarting it (rf), or
+// dismissing it (xx), lowers the count without a bell, and at none the
+// title is "conn · 1 waiting" again. What is read is the machine, as
+// the panel reads it: tmux's panes, and Claude Code's instance files.
+func TestAFailedRunReachesTheTab(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	script, err := exec.LookPath("script")
+	if err != nil {
+		t.Skip("no script to give a client a terminal")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "init", "-q")
+	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
+	} else {
+		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
+	}
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
+	in, keepOpen, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = keepOpen.Close() })
+	cmd.Stdin = in
+	var out safeBuffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("no client attached: %q", out.String())
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
+	title := func() string {
+		got := ""
+		for _, m := range osc.FindAllStringSubmatch(out.String(), -1) {
+			if m[1] == "0" || m[1] == "2" {
+				got = m[2]
+			}
+		}
+		return got
+	}
+	bells := func() int {
+		return strings.Count(osc.ReplaceAllString(out.String(), ""), "\a")
+	}
+
+	// A conversation already waiting, in web.
+	waiter := exec.Command("sleep", "1000")
+	if err := waiter.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = waiter.Process.Kill(); _ = waiter.Wait() })
+	write(t, filepath.Join(scratch, ".claude", "sessions", strconv.Itoa(waiter.Process.Pid)+".json"),
+		`{"sessionId":"s1","status":"waiting","cwd":"`+web+`"}`)
+
+	// The panel, open on web, as the panel reads the machine. The
+	// scratch is temporary, which is no project; here it is one.
+	k := newKnown()
+	k.root[web] = web
+	m := model{srv: srv, home: scratch, conn: "conn", known: k, g: g, loaded: true,
+		screen: onProject, cur: project{Name: "web", Root: web}, width: panelWidth, height: 34}
+	feed := func(msg tea.Msg) {
+		if msg == nil {
+			return
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					next, _ := m.Update(c())
+					m = next.(model)
+				}
+			}
+			return
+		}
+		next, _ := m.Update(msg)
+		m = next.(model)
+	}
+	press := func(keys string) {
+		for _, r := range keys {
+			next, c := m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
+			m = next.(model)
+			if c != nil {
+				feed(c())
+			}
+		}
+	}
+
+	var said strings.Builder
+	shot := 0
+	frame := func(name string) {
+		if shots == "" {
+			return
+		}
+		shot++
+		fmt.Fprintf(&said, "%s: title %q, bells %d, status line %q\n", name, title(), bells(), regexp.MustCompile(`#\[[^\]]*\]`).ReplaceAllString(statusRight(t, srv), ""))
+		if shot > 6 {
+			return
+		}
+		ground := fmt.Sprintf("\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		// The panel at its width, the workspace beside it, and under
+		// them the status line, which tmux draws.
+		var screen strings.Builder
+		for _, l := range strings.Split(m.View().Content, "\n") {
+			screen.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(ground+screen.String()+drawnStatus(t, srv)), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	step := func(what, wantTitle string, wantBells int) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			feed(m.read()())
+			if title() == wantTitle && bells() >= wantBells || time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		// A bell too many would come at once.
+		time.Sleep(300 * time.Millisecond)
+		feed(m.read()())
+		time.Sleep(300 * time.Millisecond)
+		if got := title(); got != wantTitle {
+			t.Errorf("%s, the tab's title is %q, want %q", what, got, wantTitle)
+		}
+		if got := bells(); got != wantBells {
+			t.Errorf("%s, the bell has rung %d times, want %d", what, got, wantBells)
+		}
+	}
+	failedSaid := func(what string, n int) {
+		t.Helper()
+		status := statusRight(t, srv)
+		word := fmt.Sprintf("%d failed", n)
+		at := strings.Index(status, word)
+		if n == 0 {
+			if strings.Contains(status, "failed") {
+				t.Errorf("%s, the status line still says what failed: %q", what, status)
+			}
+			return
+		}
+		if at < 0 {
+			t.Errorf("%s, the status line does not say %q: %q", what, word, status)
+			return
+		}
+		style := status[:at]
+		if i := strings.LastIndex(style, "#["); i >= 0 {
+			style = style[i:]
+		}
+		if !strings.Contains(strings.ToLower(style), strings.ToLower(g.Scheme[1])) {
+			t.Errorf("%s, %q on the status line is not in the failed row's red %s: %q", what, word, g.Scheme[1], status)
+		}
+	}
+
+	step("with a conversation waiting", "conn · 1 waiting", 1)
+	failedSaid("with nothing failed", 0)
+	frame("waiting-120x36.ans")
+
+	// A check fails in web; started again, it runs.
+	ran := filepath.Join(scratch, "ran")
+	if _, err := startNamed(srv, "test", "if [ -e "+ran+" ]; then exec sleep 1000; fi; touch "+ran+"; exit 1", web); err != nil {
+		t.Fatal(err)
+	}
+	step("with a check failed", "conn · 1 waiting · 1 failed", 2)
+	failedSaid("with a check failed", 1)
+	frame("failed-120x36.ans")
+	step("with the check still failed", "conn · 1 waiting · 1 failed", 2)
+	if len(m.failedRows()) != 1 {
+		t.Fatalf("web's failed rows = %d, want the check", len(m.failedRows()))
+	}
+
+	// rf restarts it: the count falls, with no bell.
+	press("rf")
+	step("with the check restarted", "conn · 1 waiting", 2)
+	failedSaid("with the check restarted", 0)
+	frame("restarted-120x36.ans")
+
+	// Another run fails, and rings again; xx on its row dismisses it.
+	if _, err := startNamed(srv, "lint", "exit 2", web); err != nil {
+		t.Fatal(err)
+	}
+	step("with the lint failed", "conn · 1 waiting · 1 failed", 3)
+	failedSaid("with the lint failed", 1)
+	frame("failed-again-120x36.ans")
+	m.cursor = -1
+	for i, it := range m.items() {
+		if it.row >= 0 && strings.HasPrefix(m.rows[it.row].state, "failed ") {
+			m.cursor = i
+		}
+	}
+	if m.cursor < 0 {
+		t.Fatal("the failed lint has no row in web")
+	}
+	press("xx")
+	step("with the lint dismissed", "conn · 1 waiting", 3)
+	failedSaid("with the lint dismissed", 0)
+	frame("dismissed-120x36.ans")
+
+	if shots != "" {
+		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+// statusRight is the right of conn's status line, as tmux expands it
+// for the session: its words, with the styles they are drawn in.
+func statusRight(t *testing.T, srv *tmux.Server) string {
+	t.Helper()
+	got, err := srv.Run("display", "-p", "-t", sessionName, "#{T:status-right}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimRight(got, "\n")
+}
+
+// drawnStatus draws conn's status line, 120 wide, as tmux would: what
+// its left and right say in their #[fg=…,bold] styles, on the status
+// line's own colours, and the key bar's row under it.
+func drawnStatus(t *testing.T, srv *tmux.Server) string {
+	t.Helper()
+	g := theme.Dark
+	left, err := srv.Run("display", "-p", "-t", sessionName, "#{T:status-left}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, right := strings.TrimRight(left, "\n"), statusRight(t, srv)
+	style := regexp.MustCompile(`#\[([^\]]*)\]`)
+	rgb := func(hex string) string {
+		r, _ := strconv.ParseUint(hex[1:3], 16, 8)
+		gr, _ := strconv.ParseUint(hex[3:5], 16, 8)
+		bl, _ := strconv.ParseUint(hex[5:7], 16, 8)
+		return fmt.Sprintf("%d;%d;%d", r, gr, bl)
+	}
+	plain := "\x1b[0m\x1b[48;2;" + rgb(g.Border) + "m\x1b[38;2;" + rgb(g.Gray) + "m"
+	draw := func(s string) string {
+		var b strings.Builder
+		last := 0
+		for _, at := range style.FindAllStringSubmatchIndex(s, -1) {
+			b.WriteString(s[last:at[0]])
+			for _, attr := range strings.FieldsFunc(s[at[2]:at[3]], func(r rune) bool { return r == ',' || r == ' ' }) {
+				switch {
+				case attr == "default":
+					b.WriteString(plain)
+				case attr == "bold":
+					b.WriteString("\x1b[1m")
+				case strings.HasPrefix(attr, "fg=#") && len(attr) == 10:
+					b.WriteString("\x1b[38;2;" + rgb(attr[3:]) + "m")
+				}
+			}
+			last = at[1]
+		}
+		return b.String() + s[last:]
+	}
+	gap := 120 - utf8.RuneCountInString(style.ReplaceAllString(left, "")) - utf8.RuneCountInString(style.ReplaceAllString(right, ""))
+	return plain + draw(left) + plain + strings.Repeat(" ", max(gap, 0)) + draw(right) + plain +
+		"\x1b[0m\r\n\x1b[48;2;" + rgb(g.Surface) + "m" + strings.Repeat(" ", 120) + "\x1b[0m"
+}
+
 // safeBuffer is a buffer written by one goroutine and read by another.
 type safeBuffer struct {
 	mu sync.Mutex

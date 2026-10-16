@@ -2194,8 +2194,9 @@ func TestOpenLandsOnFirstRow(t *testing.T) {
 // ctrl-space from a pane writes the pane down and brings the keys to
 // the panel, which notes it; ctrl-space on the panel goes to the other
 // process, the one worked in before the last, and swaps the two, so
-// twice over from inside a process is the other process. With no
-// other process yet, it says so.
+// twice over from inside a process is the other process, and esc goes
+// back into the one the keys were last in. Either puts the process's
+// project on the panel. With no other process yet, it says so.
 func TestCtrlSpaceToggles(t *testing.T) {
 	srv, win, panel := scratchServer(t)
 	ws := newWorkspace(srv, win, panel, "/x")
@@ -2231,7 +2232,7 @@ func TestCtrlSpaceToggles(t *testing.T) {
 		t.Fatal(err)
 	}
 	next, _ = m.Update(key)
-	if m = next.(model); m.in != b || m.other != a || m.follow != "" {
+	if m = next.(model); m.in != b || m.other != a || m.follow != b {
 		t.Errorf("arriving from b: in %q other %q, following %q", m.in, m.other, m.follow)
 	}
 	if from, _ := srv.Global(fromMark); from != "" {
@@ -2278,6 +2279,13 @@ func TestCtrlSpaceToggles(t *testing.T) {
 	next, _ = m.Update(key)
 	if m = next.(model); m.cur.Root != "/p" || m.in != a || m.other != b || m.follow != a {
 		t.Errorf("across projects: on %q, in %q other %q following %q", m.cur.Root, m.in, m.other, m.follow)
+	}
+	// esc on the panel with another project on it is back into a, the
+	// process the keys were last in, its project on the panel again.
+	m.cur, m.rows, m.follow = project{Name: "q", Root: "/q"}, nil, ""
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	if m = next.(model); m.cur.Root != "/p" || m.in != a || m.follow != a {
+		t.Errorf("esc: on %q, in %q following %q", m.cur.Root, m.in, m.follow)
 	}
 	// The other gone, there is nowhere to go.
 	if _, err := srv.Do(tmux.Cmd{"kill-pane", "-t", b}); err != nil {

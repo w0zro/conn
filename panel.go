@@ -1109,6 +1109,13 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "tab":
 		return m.nextWaiting()
+	case "esc":
+		// Back into the process the keys were last in, its project on
+		// the panel.
+		if p, ok := m.standing(m.in); ok {
+			return m.openOn(p)
+		}
+		m.note = "No process to go back to yet."
 	case "-":
 		// Up to the projects, as vim's - goes up to the directory.
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
@@ -1261,6 +1268,13 @@ func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 // openOn shows a pane in the workspace, the keys in it, with its
 // project on the panel and the cursor on its row.
 func (m model) openOn(p pane) (tea.Model, tea.Cmd) {
+	m = m.onProjectOf(p).into(p.ID)
+	m.follow, m.asked, m.followAt = p.ID, p.ID, time.Now()
+	return m, tea.Batch(m.showing(p.ID, true), m.read())
+}
+
+// onProjectOf puts a pane's project on the panel where another is.
+func (m model) onProjectOf(p pane) model {
 	if root := m.known.rootOf(p.Dir); root != "" && (m.screen != onProject || root != m.cur.Root) {
 		cur := project{Name: filepath.Base(root), Root: root}
 		for _, q := range m.projects {
@@ -1271,9 +1285,7 @@ func (m model) openOn(p pane) (tea.Model, tea.Cmd) {
 		m.screen, m.cur, m.rows, m.cursor = onProject, cur, nil, 0
 		m.searching, m.question = false, ""
 	}
-	m = m.into(p.ID)
-	m.follow, m.asked, m.followAt = p.ID, p.ID, time.Now()
-	return m, tea.Batch(m.showing(p.ID, true), m.read())
+	return m
 }
 
 // searchKey is a key while /'s search stands: what is typed searches,
@@ -1561,7 +1573,8 @@ func (m model) start(dir, cmd, session string) (tea.Model, tea.Cmd) {
 // written down by the key as it fires and read here once: the keys
 // were in it. Pressed on the panel, where the keys already were, it
 // is the other process: the one worked in before the last. So from
-// inside a process, twice over is the other process.
+// inside a process, twice over is the other process. Arriving from a
+// pane puts its project on the panel, the cursor on its row.
 func (m model) arrived() (tea.Model, tea.Cmd) {
 	if m.srv == nil {
 		return m, nil
@@ -1571,7 +1584,15 @@ func (m model) arrived() (tea.Model, tea.Cmd) {
 		return m.toOther()
 	}
 	_, _ = m.srv.Do(tmux.UnsetGlobal(fromMark))
-	return m.into(from), nil
+	m = m.into(from)
+	p, ok := m.standing(from)
+	if !ok {
+		return m, nil
+	}
+	// Its project is the one on the panel, the cursor on its row.
+	m = m.onProjectOf(p)
+	m.follow, m.followAt = p.ID, time.Now()
+	return m, m.read()
 }
 
 // into notes that the keys have gone into a pane: it is the one they
@@ -1932,7 +1953,7 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"s", "start"}, {"x", "stop"}, {"r", "restart"}, {"a", "agent"}, {"c", "talk"}, {"!", "run"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"ss", "start the stack"}, {"st", "run the checks"}, {"sc", "new conversation"}, {"!", "run a command, or a shell"}, {"aa", "hand to an agent"}, {"af", "hand what failed to one"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"ss", "start the stack"}, {"st", "run the checks"}, {"sc", "new conversation"}, {"!", "run a command, or a shell"}, {"aa", "hand to an agent"}, {"af", "hand what failed to one"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"esc", "back into the process you were in"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	backHints     = []keyHint{{"esc", "back"}}

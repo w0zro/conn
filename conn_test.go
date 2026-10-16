@@ -2434,6 +2434,84 @@ func TestRing(t *testing.T) {
 	}
 }
 
+// Moving through /'s lines shows each in its pane once the cursor has
+// rested: the pane in the workspace, in copy mode on the line with the
+// search in hand, the keys still on the panel. The pane shown before
+// is let go of, and esc lets go of the last.
+func TestSearchShowsTheLine(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	if _, err := srv.Run("set-option", "-g", "mode-keys", "vi"); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	a, err := openWindow(srv, "a", t.TempDir(), "seq 1 300; sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := openWindow(srv, "b", t.TempDir(), "seq 1 300; sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	var said []written
+	for _, id := range []string{a, b} {
+		lines, _, err := srv.Scrollback(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		said = append(said, written{pane: pane{ID: id}, name: id, lines: lines})
+	}
+	m := model{srv: srv, own: panel, ws: ws, known: newKnown(), screen: onProject, cur: project{Name: "p", Root: "/p"}, searching: true, query: "150", said: said}
+	m.found = hits(m.query, m.said)
+	where := func(id string) string {
+		out, _ := srv.Run("display-message", "-p", "-t", id, "#{pane_in_mode}|#{copy_cursor_line}|#{search_present}")
+		return strings.TrimSpace(out)
+	}
+	move := func() {
+		t.Helper()
+		next, cmd := m.searchKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+		m = next.(model)
+		if cmd == nil {
+			t.Fatal("moving asked for nothing")
+		}
+		next, cmd = m.update(peek{m.peeks})
+		m = next.(model)
+		if msg := cmd(); msg != nil {
+			t.Fatalf("showing the line: %v", msg)
+		}
+	}
+	move()
+	if got := inWorkspace(t, ws).ID; got != b || m.landed != b {
+		t.Errorf("the second line is shown in %q, landed %q, want %q", got, m.landed, b)
+	}
+	if got := where(b); got != "1|150|1" {
+		t.Errorf("b shows %q, want copy mode on 150 with the search in hand", got)
+	}
+	move()
+	if got := inWorkspace(t, ws).ID; got != a {
+		t.Errorf("around at the end, the workspace shows %q, want %q", got, a)
+	}
+	if got := where(a); got != "1|150|1" {
+		t.Errorf("a shows %q", got)
+	}
+	if got := where(b); !strings.HasPrefix(got, "0|") {
+		t.Errorf("b was not let go of: %q", got)
+	}
+	// A peek a later move has overtaken shows nothing.
+	if _, cmd := m.update(peek{m.peeks - 1}); cmd != nil {
+		t.Error("a stale peek asked for something")
+	}
+	next, cmd := m.searchKey(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	if m = next.(model); m.searching || m.landed != "" || cmd == nil {
+		t.Fatalf("esc: searching %v, landed %q", m.searching, m.landed)
+	}
+	cmd()
+	if got := where(a); !strings.HasPrefix(got, "0|") {
+		t.Errorf("esc did not let go of a: %q", got)
+	}
+}
+
 // - goes up to the projects, as vim's - goes up to the directory; esc
 // and backspace no longer do. On the projects, esc goes back down into
 // the project - came up from, once what was typed to find is cleared;

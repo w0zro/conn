@@ -9,11 +9,12 @@ import (
 )
 
 // / searches what a project's processes have said: every line the panes
-// conn holds in it still keep, newest first, under the name of the row
-// each pane is. enter goes to the pane in tmux's own copy mode, on the
-// match, the search in hand, so n and N go on from there as in any
-// pane. A capital in what is typed makes the search mind case, as tmux
-// does.
+// conn holds in it still keep, as they were when / was pressed, newest
+// first, under the name of the row each pane is. The line under the
+// cursor is shown in its pane in the workspace, in tmux's own copy mode
+// on the match, every saying lit. enter takes the keys there, the
+// search in hand, so n and N go on from there as in any pane. A capital
+// in what is typed makes the search mind case, as tmux does.
 
 // A written is one pane's lines, as read for the search: the row it is,
 // by name, and its lines as copy mode counts them, unjoined.

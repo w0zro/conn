@@ -81,12 +81,16 @@ type model struct {
 	waiting     []pane
 	lastWaiting string
 	// /'s search: whether it stands, what is typed, the panes' lines as
-	// last read, and the lines that say what is typed.
+	// read when it opened, and the lines that say what is typed. The
+	// pane the line under the cursor is shown in, in copy mode on the
+	// line, and a count of the moves so that only the last is shown.
 	searching bool
 	query     string
 	said      []written
 	found     []hit
 	hitAt     int
+	landed    string
+	peeks     int
 
 	// The projects screen.
 	typed    string
@@ -875,10 +879,7 @@ func (m model) wanted() string {
 	case m.listing:
 		return ""
 	case m.searching:
-		if m.hitAt < len(m.found) {
-			return m.said[m.found[m.hitAt].said].pane.ID
-		}
-		return ""
+		return m.landed
 	}
 	if r, ok := m.under(); ok && r.pane != nil {
 		return r.pane.ID
@@ -965,15 +966,17 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, quick
 	case changed:
-		if m.searching {
-			return m, tea.Batch(m.read(), readSaid(m.srv, m.cur.Root, m.rows))
-		}
 		return m, m.read()
 	case saidRead:
 		if m.searching && msg.root == m.cur.Root {
 			m.said = msg.panes
 			m.found = hits(m.query, m.said)
 			m.hitAt = min(m.hitAt, max(len(m.found)-1, 0))
+			return m.peeking()
+		}
+	case peek:
+		if msg.n == m.peeks && m.searching {
+			return m.peek()
 		}
 	case roleAnswer:
 		if m.question == msg.as && m.screen == onProject && msg.root == m.cur.Root {
@@ -1296,20 +1299,23 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "esc", "ctrl+c":
 		m.searching, m.said, m.found = false, nil, nil
-		return m, nil
+		return m.unland("")
 	case "enter":
 		if m.hitAt < len(m.found) {
 			h := m.found[m.hitAt]
-			m = m.into(m.said[h.said].pane.ID)
-			return m, land(m.ws, m.srv, m.said[h.said].pane, h.k, m.query)
+			p := m.said[h.said].pane
+			m, let := m.unland(p.ID)
+			m = m.into(p.ID)
+			m.landed, m.asked = p.ID, p.ID
+			return m, tea.Batch(let, land(m.ws, m.srv, p, h.k, m.query))
 		}
 		return m, nil
 	case "up", "ctrl+p", "ctrl+k":
 		m.hitAt = ring(m.hitAt, -1, len(m.found))
-		return m, nil
+		return m.peeking()
 	case "down", "ctrl+n", "ctrl+j":
 		m.hitAt = ring(m.hitAt, 1, len(m.found))
-		return m, nil
+		return m.peeking()
 	case "backspace":
 		if r := []rune(m.query); len(r) > 0 {
 			m.query = string(r[:len(r)-1])
@@ -1324,7 +1330,66 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.query += t
 	}
 	m.found, m.hitAt = hits(m.query, m.said), 0
-	return m, nil
+	return m.peeking()
+}
+
+// A peek is the line under the search's cursor, shown once the cursor
+// has rested on it: n is which move it was.
+type peek struct{ n int }
+
+// peeking waits for the cursor to rest before the line under it is
+// shown, so the arrows held down move through the lines and do not
+// show each in turn.
+func (m model) peeking() (tea.Model, tea.Cmd) {
+	m.peeks++
+	n := m.peeks
+	return m, tea.Tick(previewWait, func(time.Time) tea.Msg { return peek{n} })
+}
+
+// peek shows the line under the search's cursor in its pane, in the
+// workspace, in copy mode on the line with every saying of what is
+// typed lit: the keys stay on the panel. The pane shown before is let
+// go of; with no line found, a hold stands in the workspace.
+func (m model) peek() (tea.Model, tea.Cmd) {
+	if m.srv == nil || m.ws.srv == nil {
+		return m, nil
+	}
+	if m.hitAt >= len(m.found) {
+		return m.unland("")
+	}
+	h := m.found[m.hitAt]
+	p := m.said[h.said].pane
+	was := m.landed
+	m.landed, m.asked = p.ID, p.ID
+	ws, srv, k, text := m.ws, m.srv, h.k, m.query
+	return m, func() tea.Msg {
+		if was != "" && was != p.ID {
+			srv.Unmode(was)
+		}
+		if err := ws.show(p.ID, false); err != nil {
+			return acted(err.Error())
+		}
+		if err := srv.Land(p.ID, k, text); err != nil {
+			return acted(err.Error())
+		}
+		return nil
+	}
+}
+
+// unland takes the pane the search last showed out of copy mode, where
+// it is not the pane next shown: left in it, it would stand frozen on
+// that screen for whoever next goes in.
+func (m model) unland(next string) (model, tea.Cmd) {
+	was := m.landed
+	m.landed = ""
+	if was == "" || was == next || m.srv == nil {
+		return m, nil
+	}
+	srv := m.srv
+	return m, func() tea.Msg {
+		srv.Unmode(was)
+		return nil
+	}
 }
 
 // offerKey is a key while u's or t's question stands: enter starts

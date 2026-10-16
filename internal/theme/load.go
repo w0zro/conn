@@ -24,15 +24,14 @@ import (
 // does have stands in. skelly is skelly's brand, the palette it calls
 // Glow: neon is the reds; black light the magentas and a mark at work;
 // a thing running has no hue and is drawn in ink. Phosphor is the
-// accent, as a glow-in-the-dark star: at night lit, brighter and more
-// saturated than the brand's own; by day the chalk a star is in
-// daylight, which is a fill and too pale to read as text or a thin
-// mark, so wherever the accent is a shape it is chalk with ink on it:
-// the block, the cursor, and the row under it with its bar; only the
-// accent's text is phosphor deep enough to read. At night the row under
-// the cursor is on the border in ink, as conn's and datum's is. Its sixteen, ground and ink
-// are what the brand's palette.mjs --terminal writes, and the rest are
-// the brand's rules on its five colors. The tests hold both to copies of
+// accent, the brand's --acc. By day it is a fill too pale to read as
+// text or a thin mark, so wherever the accent is a shape it is that
+// fill with ink on it: the block, the cursor, and the row under it with
+// its bar; only the accent's text is --acc-text, deep enough to read.
+// At night the row under the cursor is on the border in ink, as conn's
+// and datum's is. Its sixteen, ground, ink and night cursor are what
+// the brand's palette.mjs --terminal writes, and the rest are the
+// brand's rules on its five colors. The tests hold both to copies of
 // their sources under testdata; refreshing one is copying those again.
 
 //go:embed sheets/*.json

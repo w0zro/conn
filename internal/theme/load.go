@@ -25,9 +25,10 @@ import (
 // Glow: neon is the reds; black light the magentas and a mark at work;
 // a thing running has no hue and is drawn in ink. Phosphor is the
 // accent, as the brand spends it on a page: --acc-text, phosphor as
-// text, with --acc-bg, its tint, for a fill. The block is the tint with
-// ink on it, and the row under the cursor is the tint with --acc-text
-// on it beside a bar of --acc-text. The cursor, and the > Claude Code
+// text, with --acc-bg, its tint, for a fill. The row under the cursor
+// is the tint with --acc-text on it beside a bar of --acc-text; the
+// block is the tint with ink on it by day, and at night --acc-line,
+// phosphor a step up from its tint, so the key bar is seen lit. The cursor, and the > Claude Code
 // writes before what you said, are black light as text, --uv-text, the
 // spinner's color. Its sixteen, ground and ink are what the brand's
 // palette.mjs --terminal writes, and the rest are the brand's rules on

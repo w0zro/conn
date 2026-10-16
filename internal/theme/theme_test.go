@@ -173,15 +173,20 @@ func TestShippedThemes(t *testing.T) {
 	}
 }
 
-// Every theme conn ships spends its accent alike, as one color: the
-// cursor and the block are the accent, and the row under the cursor is
-// on the border in the ink, so nothing chosen reads as what needs you.
+// Every theme conn ships spends its accent alike: the cursor is the
+// accent, the block is the accent or, where a theme's daylight accent
+// is a fill too pale to read as text, that fill with the ink knocked
+// into it; and the row under the cursor is on the border in the ink,
+// so nothing chosen reads as what needs you.
 func TestShippedThemesSpendTheAccentAlike(t *testing.T) {
 	for _, n := range Names(t.TempDir()) {
 		th, _ := Load(t.TempDir(), n)
 		for _, g := range []Ground{th.Dark, th.Light} {
-			if g.Cursor != g.Accent || g.Block != g.Accent {
-				t.Errorf("%s: accent %s, cursor %s, block %s", n, g.Accent, g.Cursor, g.Block)
+			if g.Cursor != g.Accent {
+				t.Errorf("%s: accent %s, cursor %s", n, g.Accent, g.Cursor)
+			}
+			if g.Block != g.Accent && (g.Dark() || g.OnBlock != Hex(g.Ink)) {
+				t.Errorf("%s: the block is %s with %s on it, neither the accent nor a daylight fill in ink", n, g.Block, g.OnBlock)
 			}
 			if g.Chosen != g.Border || g.ChosenInk != Hex(g.Ink) {
 				t.Errorf("%s: the chosen row is %s on %s, not the ink on the border", n, g.ChosenInk, g.Chosen)

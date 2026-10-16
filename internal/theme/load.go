@@ -22,13 +22,16 @@ import (
 // port's, the washes, the bands and the quietest text its Claude Code
 // port's, and where datum has no name for a role the nearest thing it
 // does have stands in. skelly is skelly's brand, the palette it calls
-// Glow: phosphor is what needs you, so it is the accent; neon is the
-// reds; black light the magentas; a thing running has no hue and is
-// drawn in ink. Its sixteen, ground, ink and cursor are what the
-// brand's palette.mjs --terminal writes, and the rest are the brand's
-// rules on its five colors, but for the accent, which is spent as
-// conn's and datum's is: once, on the cursor and the block, with the
-// row under the cursor on the border in ink. The tests hold both to copies of
+// Glow: neon is the reds; black light the magentas and a mark at work;
+// a thing running has no hue and is drawn in ink. Phosphor is the
+// accent, as a glow-in-the-dark star: at night lit, brighter and more
+// saturated than the brand's own; by day the chalk a star is in
+// daylight, which is a fill and too pale to read as text, so a block
+// is chalk with ink on it and the accent's text, bar and cursor are
+// phosphor deep enough to read. The row under the cursor is on the
+// border in ink, as conn's and datum's is. Its sixteen, ground and ink
+// are what the brand's palette.mjs --terminal writes, and the rest are
+// the brand's rules on its five colors. The tests hold both to copies of
 // their sources under testdata; refreshing one is copying those again.
 
 //go:embed sheets/*.json

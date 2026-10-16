@@ -8,11 +8,12 @@ import (
 	"testing"
 )
 
-// skelly's sixteen are its brand's own: every slot, and the ground, the
-// ink and the cursor, are what the brand's palette.mjs --terminal
-// wrote, kept under testdata/skelly. Refreshing skelly is writing the
-// file again. The selection is not the brand's: a tint of phosphor
-// with phosphor ink on it put three accents on the screen at once.
+// skelly's sixteen are its brand's own: every slot, and the ground and
+// the ink, are what the brand's palette.mjs --terminal wrote, kept
+// under testdata/skelly. Refreshing skelly is writing the file again.
+// The accent is not the brand's: phosphor as a glow-in-the-dark star,
+// lit at night and chalk by day; nor is the selection, whose tint of
+// phosphor in phosphor ink put three accents on the screen at once.
 func TestSkellyIsSkellysOwn(t *testing.T) {
 	skelly, err := Load(t.TempDir(), "skelly")
 	if err != nil {
@@ -43,7 +44,6 @@ func TestSkellyIsSkellysOwn(t *testing.T) {
 		for _, c := range []struct{ role, have, from string }{
 			{"ground", Hex(g.Ground), "background"},
 			{"ink", Hex(g.Ink), "foreground"},
-			{"cursor", g.Cursor, "cursor"},
 		} {
 			if want[c.from] == "" {
 				t.Errorf("%s: the brand's terminal has no %s", on.name, c.from)

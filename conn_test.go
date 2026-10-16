@@ -2632,21 +2632,25 @@ func TestSettings(t *testing.T) {
 	}
 }
 
-// The open project's name is drawn in the accent's brighter cousin;
-// every other screen's title keeps the parchment.
-func TestTheProjectNameIsTheShimmer(t *testing.T) {
+// Every screen's title is drawn in the accent's brighter cousin: a
+// project's name, and conn on the projects screen and the settings.
+func TestTheTitleIsTheShimmer(t *testing.T) {
 	wear(theme.Dark)
 	t.Cleanup(undress)
-	sgr := func(hex string) string {
-		c := theme.RGB(hex)
-		return fmt.Sprintf("38;2;%d;%d;%dm", c.R, c.G, c.B)
-	}
+	c := theme.RGB(theme.Dark.Shimmer)
+	shimmer := fmt.Sprintf("38;2;%d;%d;%dm", c.R, c.G, c.B)
 	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}, width: 60, height: 20}
-	if lines, _ := m.draw(); !strings.Contains(lines[1], sgr(theme.Dark.Shimmer)+"d") {
-		t.Errorf("the project's name is not in the shimmer: %q", lines[1])
-	}
-	m.screen = onProjects
-	if lines, _ := m.draw(); !strings.Contains(lines[1], sgr(theme.Dark.Parchment)+"conn") {
-		t.Errorf("the projects screen's title left the parchment: %q", lines[1])
+	for _, s := range []struct {
+		name  string
+		m     model
+		title string
+	}{
+		{"a project", m, "d"},
+		{"the projects", model{screen: onProjects, width: 60, height: 20}, "conn"},
+		{"the settings", model{screen: onProject, settings: true, g: theme.Dark, width: 60, height: 20}, "conn"},
+	} {
+		if lines, _ := s.m.draw(); !strings.Contains(lines[1], shimmer+s.title) {
+			t.Errorf("%s: the title is not in the shimmer: %q", s.name, lines[1])
+		}
 	}
 }

@@ -3331,6 +3331,8 @@ func TestPickUpByWhatWasSaid(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	// git and tmux say where things are with /tmp's symlink resolved.
+	scratch, _ = filepath.EvalSymlinks(scratch)
 	t.Setenv("HOME", scratch)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
 	// claude, as conn starts it to pick a conversation back up, waits.
@@ -3549,6 +3551,8 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	// git and tmux say where things are with /tmp's symlink resolved.
+	scratch, _ = filepath.EvalSymlinks(scratch)
 	t.Setenv("HOME", scratch)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
 	repo := func(name string) string {

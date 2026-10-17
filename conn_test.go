@@ -3287,7 +3287,9 @@ func TestFindAPort(t *testing.T) {
 	if at = saying(lines, "python3 holds :8000, outside any project"); at < 0 || at+1 >= len(lines) {
 		t.Fatalf(":8000 does not say python3 holds it outside any project:\n%s", strings.Join(lines, "\n"))
 	}
-	if under := lines[at+1]; !(strings.Contains(under, "5150") || strings.Contains(under, "http.server")) || !strings.Contains(under, "~/scratch") {
+	under := lines[at+1]
+	named := strings.Contains(under, "5150") || strings.Contains(under, "http.server")
+	if !named || !strings.Contains(under, "~/scratch") {
 		t.Errorf("under the outside holder, %q does not say which process it is and where it runs", under)
 	}
 

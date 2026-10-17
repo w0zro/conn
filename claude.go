@@ -36,7 +36,8 @@ type conversation struct {
 	Dir     string
 	When    time.Time
 	Title   string
-	Context int // the tokens its last turn ran in
+	Context int    // the tokens its last turn ran in
+	Asks    string // what it is stopped on, where a tool wants a yes or a question waits
 	path    string
 }
 
@@ -103,7 +104,8 @@ type record struct {
 	LastPrompt  string `json:"lastPrompt"`
 	IsSidechain bool   `json:"isSidechain"`
 	Message     struct {
-		Usage usage `json:"usage"`
+		Usage   usage           `json:"usage"`
+		Content json.RawMessage `json:"content"`
 	} `json:"message"`
 }
 
@@ -171,7 +173,15 @@ func tailTitle(path string) string {
 // which the last assistant turn's usage says. Zero where no turn has
 // been had.
 func tailRead(path string) (title string, context int) {
+	title, context, _ = tailReadAsk(path)
+	return title, context
+}
+
+// tailReadAsk is tailRead and, with it, what the transcript's last
+// tool call is asking for, where nothing has answered it yet.
+func tailReadAsk(path string) (title string, context int, ask string) {
 	lines := tailLines(path, titleTail)
+	ask = pendingAsk(lines, headCwd(path))
 	prompt := ""
 	for i := len(lines) - 1; i >= 0; i-- {
 		var r record
@@ -201,7 +211,85 @@ func tailRead(path string) (title string, context int) {
 			break
 		}
 	}
-	return or(title, prompt), context
+	return or(title, prompt), context, ask
+}
+
+// block is a piece of a turn's content: a tool call, or the result of
+// one.
+type block struct {
+	Type      string          `json:"type"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Input     json.RawMessage `json:"input"`
+	ToolUseID string          `json:"tool_use_id"`
+}
+
+// pendingAsk is what the last tool call in a transcript's lines asks,
+// if no result has come back for it: "wants to run: rm -rf dist", "wants
+// to edit: app/router.ts", or a question's first line. Paths are said
+// from dir. Blank where nothing is pending.
+func pendingAsk(lines [][]byte, dir string) string {
+	var open *block
+	for _, l := range lines {
+		var r record
+		if json.Unmarshal(l, &r) != nil || r.IsSidechain {
+			continue
+		}
+		var blocks []block
+		if json.Unmarshal(r.Message.Content, &blocks) != nil {
+			continue
+		}
+		for i, b := range blocks {
+			switch {
+			case b.Type == "tool_use" && r.Type == "assistant":
+				open = &blocks[i]
+			case b.Type == "tool_result" && open != nil && b.ToolUseID == open.ID:
+				open = nil
+			}
+		}
+	}
+	if open == nil {
+		return ""
+	}
+	var in struct {
+		Command   string `json:"command"`
+		FilePath  string `json:"file_path"`
+		Path      string `json:"notebook_path"`
+		Questions []struct {
+			Question string `json:"question"`
+		} `json:"questions"`
+	}
+	_ = json.Unmarshal(open.Input, &in)
+	switch open.Name {
+	case "Bash":
+		return "wants to run: " + firstLine(in.Command)
+	case "Edit", "MultiEdit", "Write", "NotebookEdit":
+		return "wants to edit: " + from(dir, or(in.FilePath, in.Path))
+	case "AskUserQuestion":
+		if len(in.Questions) > 0 {
+			return firstLine(in.Questions[0].Question)
+		}
+	}
+	return "wants to use: " + open.Name
+}
+
+// firstLine is the first line of s that says anything, its spaces
+// squeezed.
+func firstLine(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if l = flatten(l); l != "" {
+			return l
+		}
+	}
+	return ""
+}
+
+// from is a path said from dir, where it is under it.
+func from(dir, path string) string {
+	if rel, err := filepath.Rel(dir, path); err == nil && filepath.IsAbs(path) && !strings.HasPrefix(rel, "..") {
+		return rel
+	}
+	return path
 }
 
 // tokens says a count of tokens the short way: the thousands, as 262k,

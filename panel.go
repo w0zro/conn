@@ -85,6 +85,7 @@ type model struct {
 	lastWaiting string
 	// What each of them is called, by pane, for the projects screen.
 	waitTitle map[string]string
+	waitAsk   map[string]string
 	// /'s search: whether it stands, what is typed, the panes' lines as
 	// read when it opened, and the lines that say what is typed. The
 	// pane the line under the cursor is shown in, in copy mode on the
@@ -327,6 +328,7 @@ type titled struct {
 	when    time.Time
 	title   string
 	context int
+	asks    string
 }
 
 func newKnown() *known {
@@ -413,6 +415,11 @@ func (k *known) contextOf(c conversation) int {
 	return k.tailOf(c).context
 }
 
+// asksOf is what a conversation's transcript says it is stopped on.
+func (k *known) asksOf(c conversation) string {
+	return k.tailOf(c).asks
+}
+
 // tailOf is what the transcript's tail says, read once while the
 // transcript has not moved.
 func (k *known) tailOf(c conversation) titled {
@@ -420,8 +427,8 @@ func (k *known) tailOf(c conversation) titled {
 	t, ok := k.titles[c.path]
 	k.mu.Unlock()
 	if !ok || !t.when.Equal(c.When) {
-		title, context := tailRead(c.path)
-		t = titled{when: c.When, title: title, context: context}
+		title, context, asks := tailReadAsk(c.path)
+		t = titled{when: c.When, title: title, context: context, asks: asks}
 		k.mu.Lock()
 		k.titles[c.path] = t
 		k.mu.Unlock()
@@ -480,6 +487,7 @@ type read struct {
 	rest     []row             // the project's conversations at rest
 	waiting  []pane            // the panes conn holds a conversation waiting on you in
 	titles   map[string]string // what each of them is called, by pane
+	asks     map[string]string // what each of them is stopped on, by pane
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
 	// ended there stands dead. The directory is where it runs, which
@@ -647,6 +655,10 @@ func (m model) read() tea.Cmd {
 							r.titles = map[string]string{}
 						}
 						r.titles[p.ID] = k.titleOf(c)
+						if r.asks == nil {
+							r.asks = map[string]string{}
+						}
+						r.asks[p.ID] = k.asksOf(c)
 					}
 				}
 			}
@@ -691,6 +703,9 @@ func (m model) read() tea.Cmd {
 			for _, row := range arrange(convs, held, live, ports, outside, in, k.titleOf, ros) {
 				if row.conv != nil {
 					row.conv.Context = k.contextOf(*row.conv)
+					if row.state == "waiting" {
+						row.conv.Asks = k.asksOf(*row.conv)
+					}
 				}
 				if row.conv != nil && row.pane == nil && !row.elsewhere {
 					r.rest = append(r.rest, row)
@@ -934,7 +949,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case rethemed:
 		return m.takeTheme(msg), nil
 	case read:
-		m.waiting, m.waitTitle = msg.waiting, msg.titles
+		m.waiting, m.waitTitle, m.waitAsk = msg.waiting, msg.titles, msg.asks
 		m.procs = msg.procs
 		// The first read, with a process standing in the workspace: the
 		// panel has been started again over it, and opens on it.
@@ -1331,7 +1346,14 @@ func (m model) projectHeight(p project) int {
 	if _, ok := m.typedPort(); ok {
 		return 1
 	}
-	return 1 + len(m.waitingIn(p))
+	n := 1
+	for _, w := range m.waitingIn(p) {
+		n++
+		if m.waitAsk[w.ID] != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // openOn shows a pane in the workspace, the keys in it, with its
@@ -2147,6 +2169,12 @@ func (m model) row(left []piece, right piece, cursor bool) string {
 // a row turns, the steady cell where it stands; and is row where turn
 // is blank.
 func (m model) rowTurning(turn string, left []piece, right piece, cursor bool) string {
+	return m.rowBarred(cursorBar, turn, left, right, cursor)
+}
+
+// rowBarred is rowTurning with the cursor's bar as given: a line under
+// a row is on the cursor's ground, and carries no bar of its own.
+func (m model) rowBarred(bar, turn string, left []piece, right piece, cursor bool) string {
 	measure := m.measure()
 	rw := ansi.StringWidth(right.s)
 	if rw > measure {
@@ -2195,7 +2223,7 @@ func (m model) rowTurning(turn string, left []piece, right piece, cursor bool) s
 		if turn != "" {
 			lead = chosenTurning.Render(turn)
 		}
-		return chosenBar.Render(cursorBar) + lead + b.String() + chosen.Render(plain)
+		return chosenBar.Render(bar) + lead + b.String() + chosen.Render(plain)
 	}
 	var b strings.Builder
 	if turn != "" {
@@ -2390,7 +2418,11 @@ func (m model) drawProjects() ([]string, foot) {
 			if w.ID == next {
 				tab.s = "tab"
 			}
-			lines = append(lines, m.row([]piece{{"  " + markConversation + " " + m.waitTitle[w.ID], gray}}, tab, false))
+			lead := "  " + markConversation + " "
+			lines = append(lines, m.row([]piece{{lead + m.waitTitle[w.ID], gray}}, tab, false))
+			if ask := m.waitAsk[w.ID]; ask != "" {
+				lines = append(lines, m.row([]piece{{strings.Repeat(" ", ansi.StringWidth(lead)) + ask, gray}}, piece{}, false))
+			}
 		}
 	}
 	if port, ok := m.typedPort(); ok && m.loaded {
@@ -2564,6 +2596,9 @@ func (m model) lay(head int) laid {
 				cursorAt = len(l.body)
 			}
 			add(m.drawRow(r, depth, i == m.cursor), i)
+			if r.conv != nil && r.state == "waiting" && r.conv.Asks != "" {
+				add(m.drawAsk(r, depth, i == m.cursor), i)
+			}
 		}
 	}
 	l.room = max(m.height-head-1, 1)
@@ -2691,6 +2726,19 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		turn = steady
 	}
 	return m.rowTurning(turn, left, right, cursor)
+}
+
+// drawAsk is the line under a waiting conversation's row, in the gray,
+// starting under its name: what it is stopped on.
+func (m model) drawAsk(r row, depth int, cursor bool) string {
+	lead := strings.Repeat("  ", depth) + markOf(r) + " "
+	if r.branch == "" {
+		for _, p := range r.place() {
+			lead += p.s
+		}
+	}
+	pad := strings.Repeat(" ", ansi.StringWidth(lead))
+	return m.rowBarred(" ", "", []piece{{pad + r.conv.Asks, gray}}, piece{}, cursor)
 }
 
 // stated is what a row's state says at the right. The ordinary states

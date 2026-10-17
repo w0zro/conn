@@ -1763,18 +1763,30 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 	return m.openOn(p)
 }
 
-// converse starts a conversation where the cursor stands, with a first
-// prompt where there is one.
-func (m model) converse(prompt string) (tea.Model, tea.Cmd) {
-	id, file := newID(), ""
-	if prompt != "" {
-		file = promptPath(m.srv.Socket, id)
-		if err := os.WriteFile(file, []byte(prompt), 0o600); err != nil {
-			m.note = err.Error()
-			return m, nil
-		}
+// converse starts a conversation where the cursor stands and goes into
+// it, as there is something to type.
+func (m model) converse() (tea.Model, tea.Cmd) {
+	id := newID()
+	return m.start(m.here(), newCommand(m.told(), id, ""), id)
+}
+
+// brief starts a conversation in the project with its first prompt
+// written, and leaves it to it: the agent has its brief, so nothing is
+// to be typed, and the keys stay on the panel where they were. Its row
+// comes with the next read, and it shows as waiting when it needs you.
+func (m model) brief(prompt, what string) (tea.Model, tea.Cmd) {
+	id := newID()
+	file := promptPath(m.srv.Socket, id)
+	if err := os.WriteFile(file, []byte(prompt), 0o600); err != nil {
+		m.note = err.Error()
+		return m, nil
 	}
-	return m.start(m.here(), newCommand(m.told(), id, file), id)
+	if _, err := openWindow(m.srv, windowName(m.cur.Name), m.here(), newCommand(m.told(), id, file), id); err != nil {
+		m.note = err.Error()
+		return m, nil
+	}
+	m.note = what + " handed to an agent."
+	return m, m.read()
 }
 
 // leave lets the terminal go; what runs in conn keeps on.
@@ -1864,7 +1876,7 @@ func (m model) hand(r row) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	return m.converse(handPrompt(h))
+	return m.brief(handPrompt(h), h.name)
 }
 
 // handAll starts one conversation in the project given every run that
@@ -1881,9 +1893,13 @@ func (m model) handAll(rows []row) (tea.Model, tea.Cmd) {
 		m.note = "Nothing failed here."
 		return m, nil
 	case 1:
-		return m.converse(handPrompt(hs[0]))
+		return m.brief(handPrompt(hs[0]), hs[0].name)
 	}
-	return m.converse(handAllPrompt(hs))
+	names := make([]string, len(hs))
+	for i, h := range hs {
+		names[i] = h.name
+	}
+	return m.brief(handAllPrompt(hs), strings.Join(names, ", "))
 }
 
 // handing is a row's process as it is handed to an agent; a
@@ -2975,7 +2991,7 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "st":
 		return m.resolve(roleCheck)
 	case "sc":
-		return m.converse("")
+		return m.converse()
 	case "xs":
 		return m.endEach(m.inPlace(placeStack), "the stack")
 	case "xt":

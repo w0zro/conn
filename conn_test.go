@@ -2003,6 +2003,110 @@ func TestHandPrompt(t *testing.T) {
 	}
 }
 
+// Handing a process to an agent starts the conversation and leaves it
+// to it: the agent has its brief, so nothing is to be typed, and the
+// keys stay on the panel where they were, the cursor on the row handed.
+// The agent's row comes with the next read, the line says who was
+// handed, and the brief waits for the agent in a file that it reads
+// and lets go.
+func TestHandingLeavesTheAgentToIt(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	// git and tmux say where things are with /tmp's symlink resolved.
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	// claude, as conn starts it with the brief, waits.
+	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
+	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	// A process of the project's, running, to hand.
+	held, err := openWindow(srv, "web", web, "sleep 1000", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The scratch is temporary, which is no project; here it is one.
+	k := newKnown()
+	k.root[web] = web
+	m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, width: 120, height: 36, known: k}
+	read := func(m model) model {
+		next, _ := m.Update(m.read()())
+		return next.(model)
+	}
+	m = read(m)
+	if len(m.rows) != 1 || m.rows[0].pane == nil || m.rows[0].pane.ID != held {
+		t.Fatalf("the read found %d rows, want the held process", len(m.rows))
+	}
+	press := func(m model, s string) (model, tea.Cmd) {
+		var cmd tea.Cmd
+		for _, r := range s {
+			var next tea.Model
+			next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
+			m = next.(model)
+		}
+		return m, cmd
+	}
+	m, cmd := press(m, "aa")
+	if m.in != "" || m.follow != "" {
+		t.Errorf("after aa the keys are in %q, following %q; want them left on the panel", m.in, m.follow)
+	}
+	if m.cursor != 0 {
+		t.Errorf("after aa the cursor is on %d, want the row handed", m.cursor)
+	}
+	if !strings.HasSuffix(m.note, " handed to an agent.") {
+		t.Errorf("after aa the line says %q", m.note)
+	}
+	if cmd == nil {
+		t.Fatal("aa asked for no read")
+	}
+	next, _ := m.Update(cmd())
+	m = next.(model)
+	var agent *pane
+	for _, r := range m.rows {
+		if r.pane != nil && r.pane.Session != "" {
+			agent = r.pane
+		}
+	}
+	if agent == nil {
+		t.Fatalf("no row for the agent among %d", len(m.rows))
+	}
+	// The agent reads its brief and lets the file go.
+	file := promptPath(srv.Socket, agent.Session)
+	gone := false
+	for i := 0; i < 50 && !gone; i++ {
+		if _, err := os.Stat(file); err != nil {
+			gone = true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !gone {
+		t.Errorf("the brief still waits at %s", file)
+	}
+	if m.in != "" {
+		t.Errorf("after the read the keys are in %q; want them left on the panel", m.in)
+	}
+}
+
 // A conversation is told the project's checks and stack as last run.
 func TestAgentNote(t *testing.T) {
 	note := agentNote("conn", []stacked{{name: "web", command: "npm run dev"}}, []stacked{{name: "test", command: "go test ./..."}})

@@ -3816,3 +3816,279 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 		t.Errorf("answered, the projects screen still says it waits:\n%s", strings.Join(lines, "\n"))
 	}
 }
+
+// Under a conversation waiting on you, a gray line starting under its
+// name says what it asks: "wants to run: " and the command, "wants to
+// edit: " and the file from the project's root, or the first line of
+// its question, cut with "…" two columns before the panel's edge. So
+// on the project's panel, and under its project on the projects
+// screen. Under the cursor the line is on the cursor's ground. As the
+// ask changes, the line does; answered and back at work, the line goes
+// and the rows below move up. What it asks is the tool its transcript
+// last called with no result yet; the rest is the machine, as the
+// panel reads it: tmux's panes and Claude Code's instance files.
+func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "init", "-q")
+	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+
+	// The conversation's transcript: its title, and a turn had.
+	const title = "Tidy the build"
+	s1 := "aaaaaaaa-0000-0000-0000-000000000001"
+	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
+	transcript := write(t, filepath.Join(scratch, ".claude", "projects", encoded, s1+".jsonl"),
+		`{"type":"user","cwd":`+strconv.Quote(web)+`,"message":{"role":"user","content":"clean up the build"}}`+"\n"+
+			`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n"+
+			`{"type":"assistant","cwd":`+strconv.Quote(web)+`,"message":{"role":"assistant","content":[{"type":"text","text":"Looking at the build."}]}}`+"\n")
+	say := func(lines ...string) {
+		t.Helper()
+		f, err := os.OpenFile(transcript, os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = f.Close() }()
+		for _, l := range lines {
+			if _, err := f.WriteString(l + "\n"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	tool := func(id, name, input string) string {
+		return `{"type":"assistant","cwd":` + strconv.Quote(web) + `,"message":{"role":"assistant","content":[{"type":"tool_use","id":"` + id + `","name":"` + name + `","input":` + input + `}]}}`
+	}
+	result := func(id string) string {
+		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"` + id + `","content":"ok"}]}}`
+	}
+
+	t.Setenv("LC_ALL", "C.UTF-8")
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	// The conversation runs in a pane conn holds in web, and below it
+	// in the panel a dev server runs, a row for the line to push down.
+	id, err := openWindow(srv, "web", web, "sleep 1000", s1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web); err != nil {
+		t.Fatal(err)
+	}
+	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
+	status := func(s string) {
+		write(t, instance, `{"sessionId":"`+s1+`","status":"`+s+`","cwd":"`+web+`"}`)
+	}
+
+	k := newKnown()
+	k.root[web] = web
+	// The panel open on web, the cursor on the conversation; and the
+	// projects screen, as each reads the machine now.
+	panel := func() model {
+		m := model{srv: srv, home: scratch, conn: "conn", known: k, g: g, loaded: true,
+			screen: onProject, cur: project{Name: "web", Root: web}, width: panelWidth, height: 34}
+		next, _ := m.Update(m.read()())
+		m = next.(model)
+		for i, it := range m.items() {
+			if it.row >= 0 && m.rows[it.row].conv != nil && m.rows[it.row].conv.ID == s1 {
+				m.cursor = i
+			}
+		}
+		return m
+	}
+	projects := func() model {
+		m := model{srv: srv, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, width: 120, height: 36}
+		next, _ := m.Update(m.read()())
+		return next.(model)
+	}
+	screen := func(m model) (raw, lines []string) {
+		raw, _ = m.draw()
+		lines = make([]string, len(raw))
+		for i := range raw {
+			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
+		}
+		return raw, lines
+	}
+	saying := func(lines []string, s string) int {
+		for i, l := range lines {
+			if strings.Contains(l, s) {
+				return i
+			}
+		}
+		return -1
+	}
+	prefix := func(st lipgloss.Style) string { return strings.SplitN(st.Render("x"), "x", 2)[0] }
+	ground := prefix(lipgloss.NewStyle().Background(lipgloss.Color(g.Chosen)))
+	ground = ground[strings.LastIndex(ground, "48;"):]
+
+	var said strings.Builder
+	shot := 0
+	frame := func(name string, m model) {
+		if shots == "" {
+			return
+		}
+		got, _ := srv.Run("display", "-p", "-t", sessionName, "#{T:set-titles-string} #{window_bell_flag}")
+		fmt.Fprintf(&said, "%s: %s\n", name, strings.TrimSpace(got))
+		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
+			t.Error(err)
+		}
+		if shot++; shot > 6 {
+			return
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		for _, l := range strings.Split(m.View().Content, "\n") {
+			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		if m.screen == onProject {
+			b.WriteString(drawnStatus(t, srv))
+		}
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
+
+	// asks checks the panel and the projects screen both say, under the
+	// conversation, the line want, and returns the panel's lines.
+	asks := func(what, want string) []string {
+		t.Helper()
+		m := panel()
+		raw, lines := screen(m)
+		all := strings.Join(lines, "\n")
+		at := saying(lines, title)
+		if at < 0 {
+			t.Fatalf("%s, the panel has no row for the conversation:\n%s", what, all)
+		}
+		if at+1 >= len(lines) || !strings.HasPrefix(strings.TrimLeft(lines[at+1], " "), want) {
+			t.Fatalf("%s, under the conversation's row the panel does not say %q:\n%s", what, want, all)
+		}
+		under := lines[at+1]
+		if got, name := indent(under), strings.Index(lines[at], title); got != ansi.StringWidth(lines[at][:name]) {
+			t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, under, got, lines[at])
+		}
+		if w := ansi.StringWidth(under); w > panelWidth-2 {
+			t.Errorf("%s, the line %q runs %d columns, past two before the panel's edge at %d", what, under, w, panelWidth)
+		}
+		if !strings.Contains(raw[at+1], ground) {
+			t.Errorf("%s, the line under the cursor's row is not on the cursor's ground %s: %q", what, g.Chosen, raw[at+1])
+		}
+		// Off the cursor, the line is gray.
+		m.cursor = 0
+		if m.items()[0].row >= 0 && m.rows[m.items()[0].row].conv != nil {
+			m.cursor = len(m.items()) - 1
+		}
+		raw, lines = screen(m)
+		if at := saying(lines, want); at < 0 || !strings.Contains(raw[at], prefix(gray)) {
+			t.Errorf("%s, off the cursor the line saying %q is not gray: %q", what, want, raw[max(at, 0)])
+		}
+
+		// On the projects screen, under the conversation's line.
+		_, plines := screen(projects())
+		pall := strings.Join(plines, "\n")
+		at = saying(plines, "❝ "+title)
+		if at < 0 {
+			t.Fatalf("%s, the projects screen names no conversation waiting in web:\n%s", what, pall)
+		}
+		if at+1 >= len(plines) || !strings.HasPrefix(strings.TrimLeft(plines[at+1], " "), want) {
+			t.Errorf("%s, under the waiting conversation the projects screen does not say %q:\n%s", what, want, pall)
+		} else if got, name := indent(plines[at+1]), strings.Index(plines[at], title); got != ansi.StringWidth(plines[at][:name]) {
+			t.Errorf("%s, on the projects screen the line %q starts at column %d, not under the name in %q", what, plines[at+1], got, plines[at])
+		}
+		return lines
+	}
+	quiet := func(what string, m model, lines []string) {
+		t.Helper()
+		for _, w := range []string{"wants to", "Which", "rm -rf"} {
+			if saying(lines, w) >= 0 {
+				t.Errorf("%s, the %v screen still says %q:\n%s", what, m.screen, w, strings.Join(lines, "\n"))
+			}
+		}
+	}
+
+	// At rest, nothing is asked.
+	status("idle")
+	m := panel()
+	frame("idle-120x36.ans", m)
+	_, lines := screen(m)
+	quiet("at rest", m, lines)
+	restDev := saying(lines, "dev")
+
+	// Stopped on a command, it wants to run it.
+	say(tool("toolu_1", "Bash", `{"command":"rm -rf dist","description":"Remove the old build"}`))
+	status("waiting")
+	waiting := asks("stopped on a command", "wants to run: rm -rf dist")
+	frame("waiting-120x36.ans", panel())
+	frame("waiting-projects-120x36.ans", projects())
+	if at := saying(waiting, title); saying(waiting, "dev") < at {
+		t.Fatalf("the dev server's row is above the conversation's, nothing to push down:\n%s", strings.Join(waiting, "\n"))
+	}
+	waitDev := saying(waiting, "dev")
+
+	// Run, and stopped on an edit: the line says the file, from web.
+	say(result("toolu_1"), tool("toolu_2", "Edit", `{"file_path":`+strconv.Quote(filepath.Join(web, "app", "router.ts"))+`,"old_string":"a","new_string":"b"}`))
+	lines = asks("stopped on an edit", "wants to edit: app/router.ts")
+	if saying(lines, "rm -rf") >= 0 {
+		t.Errorf("stopped on an edit, the panel still says the command:\n%s", strings.Join(lines, "\n"))
+	}
+	frame("edit-120x36.ans", panel())
+
+	// Asked a question, the line is its first line, cut short on the
+	// panel with "…" two columns before the edge.
+	const question = "Which of the two login flows should the rate limit apply to first?"
+	say(result("toolu_2"), tool("toolu_3", "AskUserQuestion", `{"questions":[{"header":"Rate limit","question":`+strconv.Quote(question+"\nThe old one is still used by the mobile app.")+`,"multiSelect":false,"options":[{"label":"Both","description":"Both flows"},{"label":"New","description":"The new flow only"}]}]}`))
+	lines = asks("asked a question", "Which of the two")
+	at := saying(lines, "Which of the two")
+	if !strings.HasSuffix(lines[at], "…") || ansi.StringWidth(lines[at]) != panelWidth-2 {
+		t.Errorf("the question's line on the panel %q (%d columns) is not cut with … two columns before the edge at %d", lines[at], ansi.StringWidth(lines[at]), panelWidth)
+	}
+	if !strings.HasPrefix(question, strings.TrimSuffix(strings.TrimLeft(lines[at], " "), "…")) {
+		t.Errorf("the question's line on the panel %q is not the start of %q", lines[at], question)
+	}
+	if saying(lines, "mobile app") >= 0 {
+		t.Errorf("the panel says more of the question than its first line:\n%s", strings.Join(lines, "\n"))
+	}
+	if _, plines := screen(projects()); saying(plines, question) < 0 {
+		t.Errorf("the projects screen, with the room, does not say the question's first line whole:\n%s", strings.Join(plines, "\n"))
+	}
+	frame("question-120x36.ans", panel())
+
+	// Answered, back at work: the line goes, and the rows below move up.
+	say(result("toolu_3"))
+	status("busy")
+	m = panel()
+	_, lines = screen(m)
+	quiet("answered", m, lines)
+	if got := saying(lines, "dev"); got != waitDev-1 || got != restDev {
+		t.Errorf("answered, the dev server's row is at line %d, want %d, back up where it was at rest:\n%s", got, waitDev-1, strings.Join(lines, "\n"))
+	}
+	pm := projects()
+	_, plines := screen(pm)
+	quiet("answered", pm, plines)
+	frame("answered-120x36.ans", m)
+}

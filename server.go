@@ -563,18 +563,20 @@ type pane struct {
 	Exit    string    // how what conn u started ended, once it has
 	Ended   time.Time // when it ended, once it has
 	Command string    // what tmux says runs in it now
-	Dir     string
+	Dir     string    // where it stands: the project it was started for, else Path
+	Path    string    // where what runs in it is now
 }
 
 // The marks conn sets on the panes conn u starts: the name, the
-// command and the directory it was started with, and how and when it
-// ended, which the pane sets itself.
+// command and the directory it was started with, the project it was
+// started for, and how and when it ended, which the pane sets itself.
 const (
-	nameMark  = "@conn_name"
-	runMark   = "@conn_run"
-	dirMark   = "@conn_dir"
-	exitMark  = "@conn_exit"
-	endedMark = "@conn_ended"
+	nameMark    = "@conn_name"
+	runMark     = "@conn_run"
+	dirMark     = "@conn_dir"
+	projectMark = "@conn_project"
+	exitMark    = "@conn_exit"
+	endedMark   = "@conn_ended"
 )
 
 // The fields are separated by a space: tmux turns a tab into an
@@ -583,13 +585,42 @@ const (
 // the directory, which can hold a space, is last and taken whole.
 const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + exitMark + "} #{" + endedMark + "} #{pane_current_command} #{pane_current_path}"
 
-// panes is every pane in the server.
+// The project a pane was started for is a path with spaces of its
+// own, as the directory is, and two such fields cannot share a line
+// read by its spaces: it is read in a line of its own.
+const projectFormat = "#{pane_id} #{" + projectMark + "}"
+
+// panes is every pane in the server, each where it stands.
 func panes(srv *tmux.Server) ([]pane, error) {
 	out, err := srv.Run("list-panes", "-s", "-t", sessionName, "-F", paneFormat)
 	if err != nil {
 		return nil, err
 	}
-	return parsePanes(out), nil
+	projects, err := srv.Run("list-panes", "-s", "-t", sessionName, "-F", projectFormat)
+	if err != nil {
+		return nil, err
+	}
+	return inProjects(parsePanes(out), parseProjects(projects)), nil
+}
+
+// parseProjects is the project each pane was started for, by its id.
+func parseProjects(out string) map[string]string {
+	m := map[string]string{}
+	for _, l := range strings.Split(out, "\n") {
+		if id, project, ok := strings.Cut(l, " "); ok && project != "" {
+			m[id] = project
+		}
+	}
+	return m
+}
+
+// inProjects puts each pane where it stands: in the project it was
+// started for, else where what runs in it is.
+func inProjects(ps []pane, projects map[string]string) []pane {
+	for i := range ps {
+		ps[i].Dir = or(projects[ps[i].ID], ps[i].Path)
+	}
+	return ps
 }
 
 func parsePanes(out string) []pane {
@@ -607,7 +638,7 @@ func parsePanes(out string) []pane {
 		ps = append(ps, pane{
 			ID: f[0], Window: f[1], Dead: f[2] == "1", PID: pid,
 			TTY: strings.TrimPrefix(f[4], "/dev/"), Panel: f[5] == "1", Hold: f[6] == "1", Session: f[7],
-			Name: f[8], Exit: f[9], Ended: ended, Command: f[11], Dir: f[12],
+			Name: f[8], Exit: f[9], Ended: ended, Command: f[11], Dir: f[12], Path: f[12],
 		})
 	}
 	return ps

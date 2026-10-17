@@ -53,7 +53,10 @@ type here struct {
 	procs            []proc
 }
 
-// readHere reads the machine from a directory.
+// readHere reads the machine from a directory. Run from a pane of
+// conn's, it is read from where the pane stands: the project is the
+// pane's wherever the shell has gone, so a check an agent runs in
+// another checkout is the agent's project's.
 func readHere(home, dir string) (here, error) {
 	dir = realDir(dir)
 	h := here{home: home, root: repoRoot(dir), tree: checkout(dir)}
@@ -67,6 +70,14 @@ func readHere(home, dir string) (here, error) {
 		h.up = true
 		if ps, err = panes(srv); err != nil {
 			return h, err
+		}
+	}
+	if own := os.Getenv("TMUX_PANE"); own != "" && insideConn(srv.Socket) {
+		for _, p := range ps {
+			if p.ID == own && !p.Panel && !p.Hold && p.Dir != "" {
+				at := realDir(p.Dir)
+				h.root, h.tree = repoRoot(at), checkout(at)
+			}
 		}
 	}
 	h.procs = machine(ps, liveClaude(), listening(), parents(), connections())
@@ -381,9 +392,14 @@ func runLs(w io.Writer, home, dir string, args []string) int {
 		if p.pane != nil && p.pane.Name != "" {
 			command, _ = h.srv.Display(p.pane.ID, "#{"+runMark+"}")
 		}
+		// Run below the root, or in another checkout, it says where.
+		where := p.Dir
+		if p.pane != nil {
+			where = p.pane.Path
+		}
 		at := ""
-		if p.Dir != h.root {
-			at = "  (" + tilde(p.Dir, home) + ")"
+		if where != h.root {
+			at = "  (" + tilde(where, home) + ")"
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%s%s\n", p.Name, p.PID, p.State, or(strings.Join(p.Ports, ","), "-"), flatten(command), at)
 	}
@@ -498,7 +514,7 @@ func runU(w io.Writer, home, dir string, args []string) int {
 		}
 		replace = p.pane.ID
 	}
-	id, err := startNamed(h.srv, name, shellLine(command), realDir(dir))
+	id, err := startNamed(h.srv, name, shellLine(command), realDir(dir), h.root)
 	if err != nil {
 		return cliFail("u", err)
 	}
@@ -556,9 +572,10 @@ func shellLine(words []string) string {
 var plainWord = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
 
 // startNamed starts a command under a name in a window of its own, out
-// of sight, and marks it. When the command ends the pane says how,
-// sets the mark that says it, and stays, so what it said can be read.
-func startNamed(srv *tmux.Server, name, command, dir string) (string, error) {
+// of sight, in a directory, for a project, and marks it. When the
+// command ends the pane says how, sets the mark that says it, and
+// stays, so what it said can be read.
+func startNamed(srv *tmux.Server, name, command, dir, project string) (string, error) {
 	// The command runs in a subshell, so an exit in it ends the command
 	// and not the line that records how it ended; and ctrl-c is caught,
 	// not ignored, by that line, so it reaches the command, which takes
@@ -568,7 +585,7 @@ func startNamed(srv *tmux.Server, name, command, dir string) (string, error) {
 		return "", err
 	}
 	id := strings.TrimSpace(out)
-	_, err = srv.Do(named(id, name, command, dir)...)
+	_, err = srv.Do(named(id, name, command, dir, project)...)
 	return id, err
 }
 
@@ -582,11 +599,12 @@ func runLine(srv *tmux.Server, name, command string) string {
 }
 
 // named is the commands that mark a pane as a named process: the name,
-// the command and the directory it was started with. A new pane has no
-// end yet, and a command that ends at once writes its own: the marks
-// are set after it starts, so none may clear one.
-func named(id, name, command, dir string) []tmux.Cmd {
-	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir)}
+// the command and the directory it was started with, and the project
+// it was started for. A new pane has no end yet, and a command that
+// ends at once writes its own: the marks are set after it starts, so
+// none may clear one.
+func named(id, name, command, dir, project string) []tmux.Cmd {
+	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir), tmux.SetPane(id, projectMark, project)}
 }
 
 // unended is the commands that clear a pane's end, before it runs again.
@@ -596,9 +614,9 @@ func unended(id string) []tmux.Cmd {
 
 // restartNamed starts a named process again in its pane, as it was
 // started: the pane keeps its place, in the workspace or out of sight.
-func restartNamed(srv *tmux.Server, id, name, command, dir string) (string, error) {
+func restartNamed(srv *tmux.Server, id, name, command, dir, project string) (string, error) {
 	cmds := append(unended(id), tmux.Cmd{"respawn-pane", "-k", "-c", dir, "-t", id, runLine(srv, name, command)})
-	cmds = append(cmds, named(id, name, command, dir)...)
+	cmds = append(cmds, named(id, name, command, dir, project)...)
 	_, err := srv.Do(cmds...)
 	return id, err
 }
@@ -767,10 +785,10 @@ func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
 				return "", err
 			}
 			if gone {
-				return startNamed(srv, p.pane.Name, command, or(at, p.Dir))
+				return startNamed(srv, p.pane.Name, command, or(at, p.pane.Path), p.Dir)
 			}
 		}
-		return restartNamed(srv, p.pane.ID, p.pane.Name, command, or(at, p.Dir))
+		return restartNamed(srv, p.pane.ID, p.pane.Name, command, or(at, p.pane.Path), p.Dir)
 	case p.Session != "":
 		note := told(conn, srv.Socket, project{Root: repoRoot(p.Dir)}.belongs)
 		_, err := srv.Do(tmux.Respawn(p.pane.ID, resumeCommand(note, p.Session)), tmux.SetPane(p.pane.ID, sessionMark, p.Session))

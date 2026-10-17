@@ -368,13 +368,18 @@ func TestParsePanes(t *testing.T) {
 		"%4 @1 0 78 /dev/ttys007  1     conn /Users/me\n"
 	got := parsePanes(out)
 	want := []pane{
-		{ID: "%1", Window: "@1", PID: 412, TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project"},
-		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Panel: true, Command: "zsh", Dir: "/Users/me"},
-		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Exit: "0", Ended: time.Unix(1760000000, 0), Command: "cat", Dir: "/p"},
-		{ID: "%4", Window: "@1", PID: 78, TTY: "ttys007", Hold: true, Command: "conn", Dir: "/Users/me"},
+		{ID: "%1", Window: "@1", PID: 412, TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project", Path: "/Users/me/my project"},
+		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Panel: true, Command: "zsh", Dir: "/Users/me", Path: "/Users/me"},
+		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Exit: "0", Ended: time.Unix(1760000000, 0), Command: "cat", Dir: "/p", Path: "/p"},
+		{ID: "%4", Window: "@1", PID: 78, TTY: "ttys007", Hold: true, Command: "conn", Dir: "/Users/me", Path: "/Users/me"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parsePanes = %+v\nwant %+v", got, want)
+	}
+	// A pane started for a project stands in it, wherever it runs.
+	got = inProjects(got, parseProjects("%1 \n%2 \n%3 /Users/me/my project\n%4 \n"))
+	if got[2].Dir != "/Users/me/my project" || got[2].Path != "/p" || got[0].Dir != "/Users/me/my project" {
+		t.Errorf("inProjects = %+v", got)
 	}
 }
 
@@ -627,7 +632,7 @@ func TestStartWaitEnd(t *testing.T) {
 	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
 		t.Fatal(err)
 	}
-	id, err := startNamed(srv, "check", "echo one; echo two; exit 3", dir)
+	id, err := startNamed(srv, "check", "echo one; echo two; exit 3", dir, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -653,7 +658,7 @@ func TestStartWaitEnd(t *testing.T) {
 		t.Errorf("end = %q, %v", how, err)
 	}
 	// A server conn u started and that is still running is sent ctrl-c.
-	id, _ = startNamed(srv, "server", "sleep 1000", dir)
+	id, _ = startNamed(srv, "server", "sleep 1000", dir, dir)
 	time.Sleep(300 * time.Millisecond)
 	ps, _ = panes(srv)
 	for i := range ps {
@@ -1120,7 +1125,7 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 
 	// A check fails in web; started again, it runs.
 	ran := filepath.Join(scratch, "ran")
-	if _, err := startNamed(srv, "test", "if [ -e "+ran+" ]; then exec sleep 1000; fi; touch "+ran+"; exit 1", web); err != nil {
+	if _, err := startNamed(srv, "test", "if [ -e "+ran+" ]; then exec sleep 1000; fi; touch "+ran+"; exit 1", web, web); err != nil {
 		t.Fatal(err)
 	}
 	step("with a check failed", "conn · 1 waiting · 1 failed", 2)
@@ -1138,7 +1143,7 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 	frame("restarted-120x36.ans")
 
 	// Another run fails, and rings again; xx on its row dismisses it.
-	if _, err := startNamed(srv, "lint", "exit 2", web); err != nil {
+	if _, err := startNamed(srv, "lint", "exit 2", web, web); err != nil {
 		t.Fatal(err)
 	}
 	step("with the lint failed", "conn · 1 waiting · 1 failed", 3)
@@ -1577,7 +1582,7 @@ func TestEndInPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	id, err := startNamed(srv, "web", "sleep 1000", dir)
+	id, err := startNamed(srv, "web", "sleep 1000", dir, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1601,7 +1606,7 @@ func TestEndInPlace(t *testing.T) {
 	if w, _ := srv.Display(panel, "#{pane_width}"); w != strconv.Itoa(panelWidth) {
 		t.Errorf("the panel is %s wide, want %d", w, panelWidth)
 	}
-	aside, _ := startNamed(srv, "worker", "sleep 1000", dir)
+	aside, _ := startNamed(srv, "worker", "sleep 1000", dir, dir)
 	time.Sleep(300 * time.Millisecond)
 	ps, _ = panes(srv)
 	for i := range ps {
@@ -1862,6 +1867,56 @@ func TestRunUWritesItDown(t *testing.T) {
 	}
 }
 
+// conn u from a pane of conn's starts the command where the shell is,
+// for the pane's project: an agent that goes into another checkout to
+// run a check there is still working its own.
+func TestRunUFromAPaneIsThePanesProject(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	t.Setenv("CONN_SOCKET", srv.Socket)
+	own, other := filepath.Join(filepath.Dir(srv.Socket), "own"), filepath.Join(filepath.Dir(srv.Socket), "other")
+	for _, d := range []string{own, other} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := srv.Run("new-window", "-d", "-t", sessionName+":", "-c", own, "-P", "-F", "#{pane_id}", "sleep 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMUX", srv.Socket+",1,0")
+	t.Setenv("TMUX_PANE", strings.TrimSpace(out))
+	var said strings.Builder
+	if code := runU(&said, t.TempDir(), other, []string{"site", "-w", "--", "pwd"}); code != 0 {
+		t.Fatalf("conn u site -w = %d: %s", code, said.String())
+	}
+	if !strings.Contains(said.String(), realDir(other)) {
+		t.Errorf("site ran in %q, not the shell's directory %s", said.String(), other)
+	}
+	got := readStarted(startedPath(srv.Socket))
+	if len(got) != 1 || got[0].Root != realDir(own) {
+		t.Errorf("written down as %+v, not the pane's project %s", got, own)
+	}
+	ps, err := panes(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var site pane
+	for _, p := range ps {
+		if p.Name == "site" {
+			site = p
+		}
+	}
+	if site.Dir != realDir(own) || site.Path != realDir(other) {
+		t.Errorf("site stands in %q and runs in %q; want %s and %s", site.Dir, site.Path, own, other)
+	}
+	// Named from the pane, the check is its project's to read and end;
+	// conn ls there lists it, and says where it ran.
+	said.Reset()
+	if code := runLs(&said, t.TempDir(), other, nil); code != 0 || !strings.Contains(said.String(), "site") || !strings.Contains(said.String(), realDir(other)) {
+		t.Errorf("conn ls from the pane = %d:\n%s", code, said.String())
+	}
+}
+
 // st runs the checks as they were last run here, with no question; ss,
 // with no stack run here yet, asks.
 func TestResolveRunsWhatWasRun(t *testing.T) {
@@ -1968,7 +2023,7 @@ func TestEndAll(t *testing.T) {
 	dir := filepath.Dir(srv.Socket)
 	other := t.TempDir()
 	for _, p := range [][2]string{{"web", dir}, {"worker", dir}, {"theirs", other}} {
-		if _, err := startNamed(srv, p[0], "sleep 1000", p[1]); err != nil {
+		if _, err := startNamed(srv, p[0], "sleep 1000", p[1], realDir(p[1])); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -2156,8 +2211,8 @@ func TestAVerdictWearsTheGround(t *testing.T) {
 		return fmt.Sprintf("38;2;%d;%d;%d", c.R, c.G, c.B)
 	}
 	m := model{screen: onProject, cur: project{Root: "/p"}, home: "/home", width: 60}
-	pass := row{pane: &pane{ID: "%4", Name: "test", Dir: "/p", Exit: "0"}, stand: placeChecks, state: "done"}
-	fail := row{pane: &pane{ID: "%5", Name: "build", Dir: "/p/sub", Exit: "1"}, stand: placeChecks, state: "failed 1"}
+	pass := row{pane: &pane{ID: "%4", Name: "test", Dir: "/p", Path: "/p", Exit: "0"}, stand: placeChecks, state: "done"}
+	fail := row{pane: &pane{ID: "%5", Name: "build", Dir: "/p/sub", Path: "/p/sub", Exit: "1"}, stand: placeChecks, state: "failed 1"}
 	for _, c := range []struct {
 		row    row
 		cursor bool

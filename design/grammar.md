@@ -59,6 +59,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 27. **Heard from any window.** The number of conversations waiting is in the terminal's title, and the bell rings as one more starts waiting, so a tab in the background still says. Built, 2026-10-16.
 
+28. **Whose it is.** A process started through `conn u` from a pane of conn's is that pane's project's, wherever the shell has gone: an agent that goes into another checkout to run its project's site tests there does not make a second project. The row says where it ran, and `conn ls`, `x` and `r` from the pane reach the pane's project. Built, 2026-10-16.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
 Keys so far. On the projects: typing, `↑` `↓` (`ctrl-n` `ctrl-p` `ctrl-j` `ctrl-k`), `enter`, `esc`, `tab`, `x`, `,`, `?`, `ctrl-c`. In a project: `j` `k` `g` `G`, `enter`, `tab`, `esc`, `-`, `/`, `c`, `!`, `,`, `?`, `q`, and the verbs `s` `x` `r` `a` with their objects (`ss` `st` `sc`, `xx` `xs` `xt` `xp`, `rr` `rs` `rt` `rf` `rc`, `aa` `af`). `ctrl-space` from anywhere, and twice over the other process.
@@ -99,7 +101,7 @@ Counted 2026-10-10 from zsh history and Claude Code transcripts, by command shap
 ## Nouns
 
 - **Processes**: what runs in a project — tmux panes, containers, Homebrew services, listeners on a port, contacts — and what ran: a process conn held that ended stays a row, with its output.
-- **The project**: what the processes work on; see **Projects**. The one in question comes from the working directory, for keys and CLI alike, or from the projects view.
+- **The project**: what the processes work on; see **Projects**. The one in question comes from the working directory, for keys and CLI alike, or from the projects view; the CLI run from a pane of conn's takes the pane's, wherever the shell has gone.
 
 What a project can run is not a list conn keeps. It is resolved when a verb asks for it, from the project's own files — compose, `Makefile`, `package.json`, a Procfile, a README — the way any verb is resolved.
 
@@ -111,7 +113,7 @@ A project is read from what the machine records, nothing written for conn.
 
 - **A repository, not a checkout.** A project is a git repository, known by git's common directory. Its worktrees are checkouts of it, wherever they are on disk: `web` running in three worktrees is one project with three lines of work.
 - **The folder they share.** A folder holding two or more repositories is the project they make together: `~/projects/shop/{frontend,api,infra}` is `shop`. How checkouts are laid out is the declaration, as it is today. It holds in the morning, before anything runs; a worktree joins through its repository.
-- **Connections, while they run.** A process belongs to the project its working directory is in. One outside any repository — a Homebrew service, a container, a listener — belongs to the projects whose processes connect to it, so a postgres shared by two repositories is in both. Two projects whose processes talk — `frontend`'s dev server proxying to `api` on :4000 — are linked while the connection stands.
+- **Connections, while they run.** A process belongs to the project its working directory is in, or, started through conn from a project's pane, to that project wherever it runs. One outside any repository — a Homebrew service, a container, a listener — belongs to the projects whose processes connect to it, so a postgres shared by two repositories is in both. Two projects whose processes talk — `frontend`'s dev server proxying to `api` on :4000 — are linked while the connection stands.
 - **Submodules** make a parent repository the project of its children. A monorepo is one repository and needs nothing.
 
 Repositories that belong together but are kept apart are linked only while they run. To link them for good, the checkouts go in one folder: the layout is how it is said, not a file. Someone who keeps them apart on purpose cannot group them for good; declarations under **Later** would.

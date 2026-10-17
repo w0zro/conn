@@ -1657,7 +1657,7 @@ func startIn(srv *tmux.Server, rows []row, name, command, root string) (string, 
 		}
 		replace = r.pane.ID
 	}
-	if _, err := startNamed(srv, name, command, root); err != nil {
+	if _, err := startNamed(srv, name, command, root, root); err != nil {
 		return "", err
 	}
 	if replace != "" {
@@ -1894,7 +1894,7 @@ func (m model) handing(r row) (handing, bool) {
 	case r.conv != nil || (r.pane != nil && r.pane.Session != ""):
 		return h, false
 	case r.pane != nil:
-		h.name, h.dir, h.state = paneName(*r.pane), r.pane.Dir, or(r.state, "running")
+		h.name, h.dir, h.state = paneName(*r.pane), r.pane.Path, or(r.state, "running")
 		if r.pane.Name != "" {
 			h.command, _ = m.srv.Display(r.pane.ID, "#{"+runMark+"}")
 		}
@@ -2615,9 +2615,10 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		}
 		at := len(left)
 		left = append(left, piece{name, ink})
-		// Started below the checkout the row says, it says where.
-		if r.pane.Dir != or(r.tree, m.cur.Root) {
-			left = append(left, piece{"  " + tilde(r.pane.Dir, m.home), gray})
+		// Run below the checkout the row says, or in another, it says
+		// where.
+		if r.pane.Path != or(r.tree, m.cur.Root) {
+			left = append(left, piece{"  " + tilde(r.pane.Path, m.home), gray})
 		}
 		right = piece{stated(r.state), gray}
 		// A run that has ended says how long ago, which says it ended

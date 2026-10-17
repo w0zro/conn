@@ -1766,8 +1766,15 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 // converse starts a conversation where the cursor stands, with a first
 // prompt where there is one.
 func (m model) converse(prompt string) (tea.Model, tea.Cmd) {
-	id := newID()
-	return m.start(m.here(), newCommand(m.told(), id, prompt), id)
+	id, file := newID(), ""
+	if prompt != "" {
+		file = promptPath(m.srv.Socket, id)
+		if err := os.WriteFile(file, []byte(prompt), 0o600); err != nil {
+			m.note = err.Error()
+			return m, nil
+		}
+	}
+	return m.start(m.here(), newCommand(m.told(), id, file), id)
 }
 
 // leave lets the terminal go; what runs in conn keeps on.

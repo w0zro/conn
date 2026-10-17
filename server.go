@@ -642,13 +642,22 @@ func resumeCommand(note, id string) string {
 
 // newCommand starts a conversation in Claude Code under an id conn
 // chose, so its pane is marked with it before its transcript exists,
-// and with a first prompt where there is one.
-func newCommand(note, id, prompt string) string {
+// and with a first prompt where there is one, read from a file by the
+// pane's shell and let go once read: tmux carries a command to its
+// server in one message of 16KB, and a failure handed with its last
+// lines is longer than that. Claude keeps the prompt from there on.
+func newCommand(note, id, promptFile string) string {
 	cmd := "exec claude --append-system-prompt " + shell.Quote(note) + " --session-id " + shell.Quote(id)
-	if prompt != "" {
-		cmd += " " + shell.Quote(prompt)
+	if promptFile != "" {
+		cmd = "conn_prompt=$(cat " + shell.Quote(promptFile) + ")\nrm -f " + shell.Quote(promptFile) + "\n" + cmd + " \"$conn_prompt\""
 	}
 	return cmd
+}
+
+// promptPath is where a conversation's first prompt waits for it:
+// beside the socket, under the conversation's id.
+func promptPath(socket, id string) string {
+	return filepath.Join(filepath.Dir(socket), "prompt."+id)
 }
 
 // told is what a conversation started in a project is told: the CLI,

@@ -126,13 +126,21 @@ func TestTailContext(t *testing.T) {
 }
 
 // A conversation starts under the id conn chose, with a first prompt
-// where there is one.
+// where there is one, read from its file in the pane and the file let
+// go, so that the command tmux carries stays short however long the
+// prompt is.
 func TestNewCommand(t *testing.T) {
-	if got := newCommand("note", "id", "fix it"); !strings.Contains(got, "--session-id 'id'") || !strings.HasSuffix(got, " 'fix it'") {
-		t.Errorf("newCommand = %q", got)
+	got := newCommand("note", "id", "/s/prompt.id")
+	for _, want := range []string{"conn_prompt=$(cat '/s/prompt.id')\n", "rm -f '/s/prompt.id'\n", "--session-id 'id' \"$conn_prompt\""} {
+		if !strings.Contains(got, want) {
+			t.Errorf("newCommand lacks %q:\n%s", want, got)
+		}
 	}
-	if got := newCommand("note", "id", ""); strings.HasSuffix(got, " ''") {
+	if got := newCommand("note", "id", ""); strings.Contains(got, "conn_prompt") || strings.HasSuffix(got, " ''") {
 		t.Errorf("with no prompt, newCommand = %q", got)
+	}
+	if got := promptPath("/s/tmux.sock", "id"); got != "/s/prompt.id" {
+		t.Errorf("promptPath = %q", got)
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 // already, and has nothing to be handed.
 
 // handLines is how many of a process's last lines go with it, and
-// handBytes how much in all: a first prompt goes on a shell line.
+// handBytes how much in all: a first prompt is a brief, not a log.
 const (
 	handLines = 80
 	handBytes = 16 << 10

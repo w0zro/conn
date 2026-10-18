@@ -666,29 +666,50 @@ func openWindow(srv *tmux.Server, name, dir, cmd, session string) (string, error
 }
 
 // resumeCommand picks a conversation back up in Claude Code, told what
-// conn tells the agents it starts.
-func resumeCommand(note, id string) string {
-	return "exec claude --append-system-prompt " + shell.Quote(note) + " --resume " + shell.Quote(id)
+// conn tells the agents it starts, from its file.
+func resumeCommand(noteFile, id string) string {
+	return readInto("conn_note", noteFile) + "exec claude --append-system-prompt \"$conn_note\" --resume " + shell.Quote(id)
 }
 
 // newCommand starts a conversation in Claude Code under an id conn
 // chose, so its pane is marked with it before its transcript exists,
-// and with a first prompt where there is one, read from a file by the
-// pane's shell and let go once read: tmux carries a command to its
-// server in one message of 16KB, and a failure handed with its last
-// lines is longer than that. Claude keeps the prompt from there on.
-func newCommand(note, id, promptFile string) string {
-	cmd := "exec claude --append-system-prompt " + shell.Quote(note) + " --session-id " + shell.Quote(id)
+// told what conn tells the agents it starts, and with a first prompt
+// where there is one. Both reach it from files, read by the pane's
+// shell and let go once read: tmux carries a command to its server in
+// one message of 16KB, and a project with many names written down is
+// told more than that, as a failure handed with its last lines is.
+// Claude keeps them from there on.
+func newCommand(noteFile, id, promptFile string) string {
+	cmd := readInto("conn_note", noteFile) + "exec claude --append-system-prompt \"$conn_note\" --session-id " + shell.Quote(id)
 	if promptFile != "" {
-		cmd = "conn_prompt=$(cat " + shell.Quote(promptFile) + ")\nrm -f " + shell.Quote(promptFile) + "\n" + cmd + " \"$conn_prompt\""
+		cmd = readInto("conn_prompt", promptFile) + cmd + " \"$conn_prompt\""
 	}
 	return cmd
+}
+
+// readInto is the shell lines that read a file into a variable and let
+// the file go.
+func readInto(variable, file string) string {
+	return variable + "=$(cat " + shell.Quote(file) + ")\nrm -f " + shell.Quote(file) + "\n"
 }
 
 // promptPath is where a conversation's first prompt waits for it:
 // beside the socket, under the conversation's id.
 func promptPath(socket, id string) string {
 	return filepath.Join(filepath.Dir(socket), "prompt."+id)
+}
+
+// notePath is where what a conversation is told waits for it: beside
+// the socket, under the conversation's id.
+func notePath(socket, id string) string {
+	return filepath.Join(filepath.Dir(socket), "note."+id)
+}
+
+// writeNote leaves what a conversation is told where its pane's shell
+// reads it, and answers the file.
+func writeNote(socket, id, note string) (string, error) {
+	file := notePath(socket, id)
+	return file, os.WriteFile(file, []byte(note), 0o600)
 }
 
 // told is what a conversation started in a project is told: the CLI,

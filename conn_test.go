@@ -125,22 +125,106 @@ func TestTailContext(t *testing.T) {
 	}
 }
 
-// A conversation starts under the id conn chose, with a first prompt
-// where there is one, read from its file in the pane and the file let
-// go, so that the command tmux carries stays short however long the
-// prompt is.
+// A conversation starts under the id conn chose, told what conn tells
+// its agents, with a first prompt where there is one, each read from
+// its file in the pane and the file let go, so that the command tmux
+// carries stays short however long the note and the prompt are.
 func TestNewCommand(t *testing.T) {
-	got := newCommand("note", "id", "/s/prompt.id")
-	for _, want := range []string{"conn_prompt=$(cat '/s/prompt.id')\n", "rm -f '/s/prompt.id'\n", "--session-id 'id' \"$conn_prompt\""} {
+	got := newCommand("/s/note.id", "id", "/s/prompt.id")
+	for _, want := range []string{"conn_note=$(cat '/s/note.id')\n", "rm -f '/s/note.id'\n", "conn_prompt=$(cat '/s/prompt.id')\n", "rm -f '/s/prompt.id'\n", "--append-system-prompt \"$conn_note\" --session-id 'id' \"$conn_prompt\""} {
 		if !strings.Contains(got, want) {
 			t.Errorf("newCommand lacks %q:\n%s", want, got)
 		}
 	}
-	if got := newCommand("note", "id", ""); strings.Contains(got, "conn_prompt") || strings.HasSuffix(got, " ''") {
+	if got := newCommand("/s/note.id", "id", ""); strings.Contains(got, "conn_prompt") || strings.HasSuffix(got, " ''") {
 		t.Errorf("with no prompt, newCommand = %q", got)
+	}
+	if got := resumeCommand("/s/note.id", "id"); !strings.Contains(got, "conn_note=$(cat '/s/note.id')\n") || !strings.HasSuffix(got, "--append-system-prompt \"$conn_note\" --resume 'id'") {
+		t.Errorf("resumeCommand = %q", got)
 	}
 	if got := promptPath("/s/tmux.sock", "id"); got != "/s/prompt.id" {
 		t.Errorf("promptPath = %q", got)
+	}
+	if got := notePath("/s/tmux.sock", "id"); got != "/s/note.id" {
+		t.Errorf("notePath = %q", got)
+	}
+}
+
+// A project with many names written down tells a conversation more
+// than tmux carries in one command, and the conversation still starts:
+// sc opens it, and the note is read in the pane and let go.
+func TestConverseInAProjectToldAtLength(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	write(t, filepath.Join(scratch, "bin", "claude"), "#!/bin/sh\nexec sleep 1000\n")
+	if err := os.Chmod(filepath.Join(scratch, "bin", "claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Join(scratch, "bin")+":"+os.Getenv("PATH"))
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+	// Written down in the project: a hundred names, each run with a
+	// command of some length, as a project worked by agents comes to have.
+	long := strings.Repeat("--flag=value ", 20)
+	for i := 0; i < 100; i++ {
+		if err := recordStart(startedPath(srv.Socket), started{Root: web, Name: fmt.Sprintf("suite-%d", i), Command: "go test " + long + "./...", Role: roleCheck, When: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if note := told("conn", srv.Socket, project{Root: web}.belongs); len(note) < 16*1024 {
+		t.Fatalf("the note is %d bytes; the test wants one tmux cannot carry", len(note))
+	}
+
+	k := newKnown()
+	k.root[web] = web
+	m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, width: 120, height: 36, known: k}
+	next, _ := m.Update(m.read()())
+	m = next.(model)
+	for _, r := range "sc" {
+		next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
+		m = next.(model)
+	}
+	if m.in == "" {
+		t.Fatalf("sc started no conversation: %q", m.note)
+	}
+	ps, _ := panes(srv)
+	var agent *pane
+	for i := range ps {
+		if ps[i].ID == m.in {
+			agent = &ps[i]
+		}
+	}
+	if agent == nil || agent.Session == "" {
+		t.Fatalf("the keys are in %s, which is no conversation", m.in)
+	}
+	// The pane reads the note and lets the file go.
+	file := notePath(srv.Socket, agent.Session)
+	gone := false
+	for i := 0; i < 50 && !gone; i++ {
+		if _, err := os.Stat(file); err != nil {
+			gone = true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !gone {
+		t.Errorf("the note still waits at %s", file)
 	}
 }
 

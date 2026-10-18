@@ -1828,7 +1828,12 @@ func (m model) toOther() (tea.Model, tea.Cmd) {
 // it, as there is something to type.
 func (m model) converse() (tea.Model, tea.Cmd) {
 	id := newID()
-	return m.start(m.here(), newCommand(m.told(), id, ""), id)
+	note, err := m.tells(id)
+	if err != nil {
+		m.note = err.Error()
+		return m, nil
+	}
+	return m.start(m.here(), newCommand(note, id, ""), id)
 }
 
 // brief starts a conversation in the project with its first prompt
@@ -1842,7 +1847,12 @@ func (m model) brief(prompt, what string) (tea.Model, tea.Cmd) {
 		m.note = err.Error()
 		return m, nil
 	}
-	if _, err := openWindow(m.srv, windowName(m.cur.Name), m.here(), newCommand(m.told(), id, file), id); err != nil {
+	note, err := m.tells(id)
+	if err != nil {
+		m.note = err.Error()
+		return m, nil
+	}
+	if _, err := openWindow(m.srv, windowName(m.cur.Name), m.here(), newCommand(note, id, file), id); err != nil {
 		m.note = err.Error()
 		return m, nil
 	}
@@ -1913,18 +1923,24 @@ func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 			dir = m.cur.Root
 		}
-		return m.start(dir, resumeCommand(m.told(), r.conv.ID), r.conv.ID)
+		note, err := m.tells(r.conv.ID)
+		if err != nil {
+			m.note = err.Error()
+			return m, nil
+		}
+		return m.start(dir, resumeCommand(note, r.conv.ID), r.conv.ID)
 	}
 	return m, nil
 }
 
-// told is what a conversation started in the project is told.
-func (m model) told() string {
+// tells leaves what a conversation started in the project is told
+// where its pane's shell reads it, and answers the file.
+func (m model) tells(id string) (string, error) {
 	socket := ""
 	if m.srv != nil {
 		socket = m.srv.Socket
 	}
-	return told(m.conn, socket, m.cur.belongs)
+	return writeNote(socket, id, told(m.conn, socket, m.cur.belongs))
 }
 
 // hand starts a conversation in the project given a row's process:

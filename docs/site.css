@@ -57,28 +57,47 @@ b { font-weight: 700; }
 .nav .links a:hover { color: var(--ink); }
 .nav .links .accent { color: var(--accent); }
 
-/* The hero: the panel and the grammar, side by side. */
+/* The hero is conn's window: the panel pane at the left, the grammar
+   where the workspace is, and under both the two lines of tmux's
+   status: the band, and the key bar. */
 .hero {
   min-height: 100vh; min-height: 100dvh;
   box-sizing: border-box;
   display: grid; grid-template-columns: var(--panel-w) minmax(0, 560px);
-  gap: 72px; justify-content: center; align-items: center;
+  grid-template-rows: auto var(--row) var(--row);
+  column-gap: 72px; row-gap: 0; justify-content: center; align-content: center;
   padding: 88px 24px 48px;
 }
+.hero .grammar { align-self: center; padding-bottom: var(--row); }
+.band, .bar {
+  grid-column: 1 / -1;
+  height: var(--row); line-height: var(--row);
+  white-space: nowrap; overflow: hidden;
+}
+.band { background: var(--border); color: var(--gray); display: flex; justify-content: space-between; padding: 0 10px; }
+.band .who { color: var(--ink); font-weight: 700; }
+.band .count { color: var(--accent); font-weight: 700; }
+.bar { background: var(--block); color: var(--on-block); padding: 0 10px; }
+.bar b { font-weight: 700; }
+.bar i { font-style: normal; margin-right: 3ch; }
+.bar i:last-child { margin-right: 0; }
 
 /* The panel: the open project's head, a row a process, the projects
-   label with its rule and a line a project, and the bar at the foot.
-   A row is laid as conn lays one: the cursor's bar, the margin where
-   the spinner turns, the mark, the name, the figure at the right. */
+   label with its rule and a line a project, and at its foot a saying
+   of conn's own, under a row of air. A row is laid as conn lays one:
+   the cursor's bar, the margin where the spinner turns, the mark, the
+   name, the figure at the right. */
 .panel {
   position: relative; isolation: isolate;
   width: var(--panel-w); box-sizing: border-box;
   padding: var(--row) 0 0;
+  display: flex; flex-direction: column;
 }
+.panel .say { margin-top: auto; padding: var(--row) 10px 0 24px; min-height: calc(2 * var(--row)); line-height: var(--row); color: var(--ink); white-space: normal; }
 .panelbg { position: absolute; inset: 0; background: var(--surface); z-index: -1; }
 /* While the panes gather, the panel and the grammar are there only as
    site.js brings each piece in. */
-.panel.gathering .panelbg, .panel.gathering .phead, .panel.gathering .plabel, .panel.gathering .foot,
+.panel.gathering .panelbg, .panel.gathering .phead, .panel.gathering .plabel, .hero.gathering .band, .hero.gathering .bar,
 .panel.gathering .row, .panel.gathering .pline, .grammar.gathering { opacity: 0; }
 .phead, .row, .plabel, .pline {
   height: var(--row); line-height: var(--row);
@@ -111,16 +130,6 @@ b { font-weight: 700; }
 .pline .pname { flex: 1; color: var(--parchment); font-weight: 700; }
 .pline .fig { flex: none; color: var(--gray); margin-left: 12px; }
 .pline.waiting .pname { color: var(--accent); }
-.foot {
-  margin-top: var(--row);
-  min-height: var(--row); line-height: var(--row);
-  background: var(--block); color: var(--on-block);
-  padding: 0 10px;
-  display: flex; flex-wrap: wrap; column-gap: 3ch;
-}
-.foot b { font-weight: 700; }
-.foot i { font-style: normal; white-space: nowrap; }
-.foot.say { background: var(--surface); color: var(--parchment); padding-left: 24px; }
 
 /* The field: the panes that gather into the panel, over everything,
    once. A pane is a terminal with a process in it, nothing around it
@@ -216,6 +225,12 @@ main { max-width: 1002px; margin: 0 auto; padding: 0 24px; }
 .legend li span:nth-child(2) { flex: 1; color: var(--parchment); overflow: hidden; text-overflow: ellipsis; }
 .legend .fig { flex: none; color: var(--gray); margin-left: 12px; white-space: pre; }
 
+.offer { background: var(--surface); padding: var(--row) 0 0; min-height: calc(10 * var(--row)); display: flex; flex-direction: column; }
+.offer .obody { flex: 1; }
+.offer .obody .l { height: var(--row); line-height: var(--row); padding: 0 10px 0 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--gray); }
+.offer .obody .l.ask { color: var(--parchment); font-weight: 700; }
+.offer .obody .l.offered b { color: var(--ink); display: inline-block; min-width: 6ch; }
+.offer .bar { margin-top: var(--row); }
 .shell { background: var(--surface); border: 1px solid var(--border); padding: 10px 12px; min-height: 112px; }
 .shell .body { font-size: 12px; line-height: 18px; color: var(--parchment); white-space: pre-wrap; }
 .shell .cursor { width: 7px; height: 13px; vertical-align: -2px; }
@@ -235,7 +250,10 @@ main { max-width: 1002px; margin: 0 auto; padding: 0 24px; }
 .end { max-width: 1002px; margin: 0 auto; padding: 32px 24px 48px; display: flex; justify-content: space-between; color: var(--faint); border-top: 1px solid var(--border); }
 
 @media (max-width: 920px) {
-  .hero { grid-template-columns: minmax(0, var(--panel-w)); gap: 40px; padding-top: 80px; }
+  .hero { grid-template-columns: minmax(0, var(--panel-w)); grid-template-rows: auto auto var(--row) auto; column-gap: 0; padding-top: 80px; }
+  .hero .grammar { margin-top: 40px; }
+  .bar { height: auto; white-space: normal; display: flex; flex-wrap: wrap; column-gap: 3ch; }
+  .bar i { margin-right: 0; white-space: nowrap; }
   .grammar { max-width: var(--panel-w); }
   .cols { grid-template-columns: minmax(0, 1fr); }
   .cli li { grid-template-columns: 1fr; gap: 0; margin-bottom: 12px; }

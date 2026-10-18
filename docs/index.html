@@ -37,8 +37,10 @@
      opens. site.js fills it and takes it away. -->
 <div id="field" class="field" aria-hidden="true"></div>
 
-<!-- The hero: the panel, alive, and beside it the grammar. The keys
-     pressed on this page work the panel as they work conn. -->
+<!-- The hero is conn's window: the panel at the left, alive, the
+     grammar where the workspace would be, and at the foot the band
+     and the key bar across both, as tmux draws them. The keys pressed
+     on this page work the panel as they work conn. -->
 <header class="hero">
   <div class="panel gathering" id="panel" aria-label="the panel">
     <div class="panelbg" id="panelbg"></div>
@@ -46,7 +48,7 @@
     <div class="rows" id="rows"></div>
     <div class="plabel"><span>projects</span><span class="rule"></span></div>
     <div class="lines" id="lines"></div>
-    <div class="foot" id="foot"></div>
+    <div class="say" id="say"></div>
   </div>
 
   <div class="grammar gathering" id="grammar">
@@ -75,6 +77,8 @@
     <p class="press">A verb waits for its object, as in vim. The keys work here.</p>
     <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
   </div>
+  <div class="band" id="band"><span class="who">conn</span><span class="count" id="count"></span></div>
+  <div class="bar" id="bar"></div>
 </header>
 
 <main>
@@ -128,13 +132,30 @@
 </section>
 
 <section class="part">
+  <p class="kicker">INTENT</p>
+  <div class="cols">
+    <ul class="facts">
+      <li>A key is an intent. conn builds no feature for it: it runs what was written down here, and asks Claude Code only where nobody has done it yet.</li>
+      <li><b>st</b> with no check run here asks what the checks are, offers the answer on one key, and writes down what <b>enter</b> runs. <b>ss</b> and the stack, the same.</li>
+      <li><b>c</b> on a row with no known client asks once how to talk to it, and keeps the line under the row's name: <b>psql</b> into postgres, the browser on a web server.</li>
+      <li>A kept command that fails at once is asked about again, with its status and last lines. One wrong for this machine is offered in its place; one that is right and failed for the project's own reasons is left alone.</li>
+      <li><b>aa</b> hands a row to a new conversation with its last lines; <b>af</b> hands every run that failed to one. Whatever the verbs do not cover goes to an agent, with the process as its brief.</li>
+    </ul>
+    <div class="offer" id="offer" aria-label="st pressed where no check has been run">
+      <div class="phead"><span class="pname">conn</span><span class="ppath">~/projects/w0zro/conn</span></div>
+      <div class="obody" id="obody"></div>
+      <div class="bar" id="obar"></div>
+    </div>
+  </div>
+</section>
+
+<section class="part">
   <p class="kicker">WAITING</p>
   <div class="cols">
     <ul class="facts">
       <li>A conversation that stops to ask is in the accent.</li>
       <li><b>tab</b> goes to the one that has waited longest. From inside any pane, <b>ctrl-space</b> then <b>tab</b>.</li>
-      <li>The terminal's title says how many wait. The bell rings as one more does.</li>
-      <li><b>aa</b> hands a row to a new conversation with its last lines; <b>af</b> hands every run that failed to one.</li>
+      <li>The band at the foot counts the conversations waiting across every project. The terminal's title says it too, and the bell rings as one more does.</li>
     </ul>
     <div class="title" aria-label="the terminal's title">
       <span class="dot"></span><span class="dot"></span><span class="dot"></span>

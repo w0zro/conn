@@ -78,7 +78,9 @@
   let rows = OPEN.rows.map(r => ({ ...r, id: Math.random() }));
   let cursor = Math.max(0, rows.findIndex(r => r.cursor));
   let verb = '', note = '', listing = false, listAt = 0;
-  const rowsEl = $('rows'), linesEl = $('lines'), footEl = $('foot'), panelEl = $('panel');
+  const rowsEl = $('rows'), linesEl = $('lines'), sayEl = $('say'), barEl = $('bar'), bandEl = $('band'), countEl = $('count'), panelEl = $('panel'), heroEl = document.querySelector('.hero');
+
+  const barHTML = hints => hints.map(([k, d]) => `<i><b>${esc(k)}</b> ${esc(d)}</i>`).join('');
 
   function markOf(r) {
     if (r.role === 'check') return r.status === 'passed' ? MARK.pass : r.status === 'failed' ? MARK.fail : MARK.check;
@@ -118,9 +120,13 @@
       rowsEl.innerHTML = html;
     }
     linesEl.innerHTML = OTHERS.map(p => `<div class="pline${p.waiting ? ' waiting' : ''}"><span class="spin">${p.turning ? '⣾' : ''}</span><span class="pname">${esc(p.name)}</span><span class="fig">${esc(p.standing)}</span></div>`).join('');
-    const hints = listing ? HINTS.list : verb ? HINTS[verb] : HINTS.project;
-    footEl.className = 'foot' + (note ? ' say' : '');
-    footEl.innerHTML = note ? esc(note) : hints.map(([k, d]) => `<i><b>${esc(k)}</b> ${esc(d)}</i>`).join('');
+    // The bar says the keys that work here, as tmux's line does; a
+    // saying of conn's own stands at the panel's foot; the band counts
+    // the conversations waiting across every project.
+    barEl.innerHTML = barHTML(listing ? HINTS.list : verb ? HINTS[verb] : HINTS.project);
+    sayEl.textContent = note;
+    const waiting = rows.filter(r => r.status === 'waiting').length + OTHERS.reduce((n, p) => n + p.rows.filter(r => r.status === 'waiting').length, 0);
+    countEl.textContent = waiting ? `${waiting} waiting` : '';
     for (const th of document.querySelectorAll('.verbs th[data-verb]')) th.classList.toggle('pending', th.dataset.verb === verb);
     for (const td of document.querySelectorAll('.verbs td[data-key]')) td.classList.toggle('pending', !!verb && td.dataset.key[0] === verb);
   }
@@ -257,7 +263,7 @@
   // their project's line. The grammar comes in last, and the line is
   // typed.
   const field = $('field'), panelbg = $('panelbg'), grammarEl = $('grammar');
-  const chromeEls = [panelbg, panelEl.querySelector('.phead'), panelEl.querySelector('.plabel'), footEl];
+  const chromeEls = [panelbg, panelEl.querySelector('.phead'), panelEl.querySelector('.plabel'), bandEl, barEl];
   const lerp = (a, b, t) => a + (b - a) * t;
   const ease = t => t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t);
   const clamp01 = t => Math.max(0, Math.min(1, t));
@@ -342,7 +348,7 @@
   function landed() {
     field.remove();
     for (const e of [...chromeEls, grammarEl, ...rowsEl.children, ...linesEl.children]) e.style.opacity = '';
-    panelEl.classList.remove('gathering'); grammarEl.classList.remove('gathering');
+    panelEl.classList.remove('gathering'); grammarEl.classList.remove('gathering'); heroEl.classList.remove('gathering');
     type(0);
   }
   function gather() {
@@ -382,6 +388,37 @@
     $('agentcmd').textContent = CMD; $('agentcur').classList.add('off'); $('agentout').textContent = OUT.join('\n');
   }
 
+  // ---- the offer --------------------------------------------------------
+
+  // Scrolled into view, st is pressed where no check has been run:
+  // conn asks Claude Code what the checks are, offers the answer on
+  // one key, and enter runs them and writes them down.
+  const obody = $('obody'), obar = $('obar');
+  const OFFER = [['test', 'go test -count=1 ./...'], ['lint', 'make lint']];
+  function offer() {
+    obody.innerHTML = '<div class="l">Nobody has done it here yet; asking Claude what checks conn…</div>';
+    obar.innerHTML = barHTML([['esc', 'cancel']]);
+    wait(1800, () => {
+      obody.innerHTML = '<div class="l ask">Run these checks in conn?</div><div class="l"></div>' + OFFER.map(([n, c]) => `<div class="l offered"><b>${n}</b>  ${esc(c)}</div>`).join('');
+      obar.innerHTML = barHTML([['enter', 'run them'], ['esc', 'cancel']]);
+    });
+    wait(4200, () => {
+      const checks = OFFER.map(([n]) => ({ role: 'check', name: n, status: 'running', id: Math.random() }));
+      const draw = () => { obody.innerHTML = checks.map(r => rowHTML(r, false)).join(''); };
+      draw();
+      obar.innerHTML = barHTML(HINTS.project);
+      wait(1500, () => { checks[0].status = 'passed'; checks[0].age = 'now'; draw(); });
+      wait(2100, () => { checks[1].status = 'failed'; checks[1].age = 'now'; draw(); });
+    });
+  }
+  if ('IntersectionObserver' in window && !held) {
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); offer(); } }, { threshold: 0.6 });
+    io.observe($('offer'));
+  } else {
+    obody.innerHTML = '<div class="l ask">Run these checks in conn?</div><div class="l"></div>' + OFFER.map(([n, c]) => `<div class="l offered"><b>${n}</b>  ${esc(c)}</div>`).join('');
+    obar.innerHTML = barHTML([['enter', 'run them'], ['esc', 'cancel']]);
+  }
+
   // ---- the rest -------------------------------------------------------
 
   // The spinner turns in the margin of every row at work.
@@ -400,7 +437,7 @@
   // ---- opening --------------------------------------------------------
 
   render();
-  panelEl.classList.add('gathering'); grammarEl.classList.add('gathering');
+  panelEl.classList.add('gathering'); grammarEl.classList.add('gathering'); heroEl.classList.add('gathering');
   // The face, or a moment and a half for it: a font that never settles
   // does not hold the page.
   const ready = Promise.race([document.fonts && document.fonts.ready || Promise.resolve(), new Promise(r => setTimeout(r, 1500))]);
@@ -408,7 +445,7 @@
     if (held && Number(held[1]) >= 1 || reduced) {
       // The page as it stands once gathered.
       field.remove();
-      panelEl.classList.remove('gathering'); grammarEl.classList.remove('gathering');
+      panelEl.classList.remove('gathering'); grammarEl.classList.remove('gathering'); heroEl.classList.remove('gathering');
       typedEl.textContent = LINE; cursorEl.classList.add('off');
       for (const k of (look.get('k') || '').split(',').filter(Boolean)) act(k);
       return;

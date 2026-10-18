@@ -23,6 +23,9 @@ type project struct {
 	// will come to rest: its conversations working, wherever they run,
 	// and its checks running.
 	Running, Waiting, Turning int
+	// Finished is its conversations whose turn ended since they were
+	// looked at.
+	Finished int
 	// Group is a folder holding two or more repositories: listed with
 	// them beneath it, and a project of its own that takes in all of
 	// theirs. Depth is a project's place under its folder in the list.
@@ -85,6 +88,7 @@ func group(ps []project, folder func(string) bool) []project {
 		f.Running += p.Running
 		f.Waiting += p.Waiting
 		f.Turning += p.Turning
+		f.Finished += p.Finished
 		if p.Last.After(f.Last) {
 			f.Last = p.Last
 		}

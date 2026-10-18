@@ -631,6 +631,9 @@ A conversation running says the context its last turn ran in,
 and
 .B waiting
 in the accent where it waits on you; one in another terminal says so.
+One whose turn ended since you looked says
+.B finished
+in the plain ink.
 A process running says its ports,
 .BR ":8123 :8124" .
 A run that ended says how long ago; one of the stack that failed says
@@ -877,6 +880,14 @@ press, round.
 The number waiting, over every project, is on the status line and in
 the terminal's title, and the terminal's bell rings as one more starts
 waiting.
+A conversation whose turn ends rings it too, and the title counts it,
+.BR "conn \(md 1 finished" ;
+its project's line says
+.BR "1 finished" ,
+and
+.B tab
+goes to it after those waiting on a question.
+Going into it, or its work starting again, takes that away.
 .
 .SH THE STATUS LINE
 Two rows across the foot of the window, drawn by tmux from what

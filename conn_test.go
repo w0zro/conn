@@ -4320,3 +4320,383 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 	quiet("answered", pm, plines)
 	frame("answered-120x36.ans", m)
 }
+
+// With conn's tab behind another, a conversation at work that finishes
+// its turn says so until it is looked at: the bell rings once, the
+// tab's title reads "conn · 1 finished", its project's line on the
+// projects screen says "1 finished" with a gray line under it naming
+// the conversation, and its row says "finished" in plain ink with no
+// spinner. tab reaches it after a conversation waiting on a question.
+// The agent at work again, or the conversation gone into, quietly
+// takes all of it away. What is read is the machine, as the panel
+// reads it: tmux's panes, and Claude Code's instance files.
+func TestAFinishedConversationSaysSo(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	script, err := exec.LookPath("script")
+	if err != nil {
+		t.Skip("no script to give a client a terminal")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	repo := func(name string) string {
+		dir := filepath.Join(scratch, name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		git(t, dir, "init", "-q")
+		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
+		return dir
+	}
+	web, api := repo("web"), repo("api")
+	transcript := func(dir, id, title string) {
+		encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(dir, "-")
+		write(t, filepath.Join(scratch, ".claude", "projects", encoded, id+".jsonl"),
+			`{"type":"user","cwd":`+strconv.Quote(dir)+`,"message":{"role":"user","content":"hello"}}`+"\n"+
+				`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
+	}
+	const finishes, asks = "Rate-limit the login endpoint", "Index the orders table"
+	s1, s2 := "aaaaaaaa-0000-0000-0000-000000000001", "bbbbbbbb-0000-0000-0000-000000000002"
+	transcript(web, s1, finishes)
+	transcript(api, s2, asks)
+
+	// The title says "·", which tmux writes only to a UTF-8 terminal.
+	t.Setenv("LC_ALL", "C.UTF-8")
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// conn's window: the panel, and beside it the workspace tab shows
+	// a conversation in.
+	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
+	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, own, "/x")
+	ws.hold = "sleep 1000"
+
+	// A terminal's client, on a terminal that takes a title, its output
+	// what the terminal would be sent.
+	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
+	} else {
+		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
+	}
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
+	in, keepOpen, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = keepOpen.Close() })
+	cmd.Stdin = in
+	var tty safeBuffer
+	cmd.Stdout, cmd.Stderr = &tty, &tty
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("no client attached: %q", tty.String())
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
+	title := func() string {
+		got := ""
+		for _, m := range osc.FindAllStringSubmatch(tty.String(), -1) {
+			if m[1] == "0" || m[1] == "2" {
+				got = m[2]
+			}
+		}
+		return got
+	}
+	bells := func() int {
+		return strings.Count(osc.ReplaceAllString(tty.String(), ""), "\a")
+	}
+
+	// A conversation in each, in a pane conn holds: a sleep, its
+	// instance file saying what Claude Code would. In web a dev server
+	// runs too, a row for the cursor to rest on.
+	conversation := func(name, dir, session string) (string, func(string)) {
+		id, err := openWindow(srv, name, dir, "sleep 1000", session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
+		return id, func(s string) {
+			write(t, instance, `{"sessionId":"`+session+`","status":"`+s+`","cwd":"`+dir+`"}`)
+		}
+	}
+	webPane, webStatus := conversation("web", web, s1)
+	apiPane, apiStatus := conversation("api", api, s2)
+	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web); err != nil {
+		t.Fatal(err)
+	}
+
+	// The projects screen, as the panel reads the machine. The scratch
+	// is temporary, which is no project; here both are.
+	k := newKnown()
+	k.root[web], k.root[api] = web, api
+	m := model{srv: srv, ws: ws, own: own, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
+	var update func(m model, msg tea.Msg) model
+	update = func(m model, msg tea.Msg) model {
+		if msg == nil {
+			return m
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					m = update(m, c())
+				}
+			}
+			return m
+		}
+		next, _ := m.Update(msg)
+		return next.(model)
+	}
+	press := func(k tea.Key) {
+		next, c := m.Update(tea.KeyPressMsg(k))
+		m = next.(model)
+		if c != nil {
+			m = update(m, c())
+		}
+	}
+	// What the projects screen and web's panel draw, read now beside
+	// what m has seen.
+	projectsNow := func() model {
+		p := m
+		p.screen, p.cursor, p.width, p.height = onProjects, 0, 120, 36
+		return update(p, p.read()())
+	}
+	panelNow := func() model {
+		p := m
+		if p.screen != onProject || p.cur.Root != web {
+			p.screen, p.cur, p.rows, p.cursor = onProject, project{Name: "web", Root: web}, nil, 0
+		}
+		p = update(p, p.read()())
+		// The cursor off the conversation's row, on the dev server's.
+		for i, it := range p.items() {
+			if it.row >= 0 && p.rows[it.row].conv == nil {
+				p.cursor = i
+			}
+		}
+		return p
+	}
+	screen := func(m model) (raw, lines []string) {
+		raw, _ = m.draw()
+		lines = make([]string, len(raw))
+		for i := range raw {
+			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
+		}
+		return raw, lines
+	}
+	saying := func(lines []string, s string) int {
+		for i, l := range lines {
+			if strings.Contains(l, s) {
+				return i
+			}
+		}
+		return -1
+	}
+	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
+	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	lastSGR := func(s string) string {
+		all := sgr.FindAllString(s, -1)
+		if len(all) == 0 {
+			return ""
+		}
+		return all[len(all)-1]
+	}
+
+	var said strings.Builder
+	shot := 0
+	frame := func(name string, v model) {
+		if shots == "" {
+			return
+		}
+		fmt.Fprintf(&said, "%s: title %q, bells %d\n", name, title(), bells())
+		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
+			t.Error(err)
+		}
+		if shot++; shot > 6 {
+			return
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		for _, l := range strings.Split(v.View().Content, "\n") {
+			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		if v.screen == onProject {
+			b.WriteString(drawnStatus(t, srv))
+		}
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	// step reads the machine until the tab says what is wanted, then
+	// once more, and checks the title and the bells rung so far.
+	step := func(what string, wantTitle func(string) bool, wantSaid string, wantBells int) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			m = update(m, m.read()())
+			if wantTitle(title()) && bells() >= wantBells || time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		// A bell too many would come at once.
+		time.Sleep(300 * time.Millisecond)
+		m = update(m, m.read()())
+		time.Sleep(300 * time.Millisecond)
+		if got := title(); !wantTitle(got) {
+			t.Errorf("%s, the tab's title is %q, want %s", what, got, wantSaid)
+		}
+		if got := bells(); got != wantBells {
+			t.Errorf("%s, the bell has rung %d times, want %d", what, got, wantBells)
+		}
+	}
+	is := func(want string) func(string) bool { return func(s string) bool { return s == want } }
+
+	// finishedSaid checks the projects screen and web's panel say web's
+	// conversation finished, or, with no, that neither says it.
+	finishedSaid := func(what string, yes bool) {
+		t.Helper()
+		praw, plines := screen(projectsNow())
+		pall := strings.Join(plines, "\n")
+		at := -1
+		for i, l := range plines {
+			if strings.Contains(l, "web") && strings.Contains(l, tilde(web, scratch)) {
+				at = i
+			}
+		}
+		if at < 0 {
+			t.Fatalf("%s, the projects screen has no line for web:\n%s", what, pall)
+		}
+		raw, lines := screen(panelNow())
+		all := strings.Join(lines, "\n")
+		row := saying(lines, finishes)
+		if row < 0 {
+			t.Fatalf("%s, web's panel has no row for the conversation:\n%s", what, all)
+		}
+		if !yes {
+			if strings.Contains(plines[at], "finished") {
+				t.Errorf("%s, web's line on the projects screen still says it finished: %q", what, plines[at])
+			}
+			if at+1 < len(plines) && strings.Contains(plines[at+1], finishes) {
+				t.Errorf("%s, under web's line the projects screen still names the conversation: %q", what, plines[at+1])
+			}
+			if strings.Contains(lines[row], "finished") {
+				t.Errorf("%s, the conversation's row still says it finished: %q", what, lines[row])
+			}
+			return
+		}
+		if !strings.Contains(plines[at], "1 finished") {
+			t.Errorf("%s, web's line on the projects screen does not say 1 finished: %q\n%s", what, plines[at], pall)
+		}
+		if strings.Contains(plines[at], "waiting") {
+			t.Errorf("%s, web's line on the projects screen says it waits: %q", what, plines[at])
+		}
+		if at+1 >= len(plines) || !strings.Contains(plines[at+1], finishes) {
+			t.Errorf("%s, under web's line no line names the conversation that finished, %q:\n%s", what, finishes, pall)
+		} else {
+			if indent(plines[at+1]) <= indent(plines[at]) {
+				t.Errorf("%s, the line %q naming the conversation is not indented under web's %q", what, plines[at+1], plines[at])
+			}
+			name := strings.Index(praw[at+1], finishes)
+			if got := lastSGR(praw[at+1][:max(name, 0)]); got == "" || got != lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0]) {
+				t.Errorf("%s, the line naming the conversation is not in the gray: %q", what, praw[at+1])
+			}
+		}
+		if !strings.HasSuffix(lines[row], "finished") {
+			t.Errorf("%s, the conversation's row does not say finished at its right: %q\n%s", what, lines[row], all)
+		}
+		if strings.Contains(lines[row], "waiting") {
+			t.Errorf("%s, the conversation's row says it waits: %q", what, lines[row])
+		}
+		for _, f := range append(append([]string{}, spinner...), steady) {
+			if strings.Contains(lines[row], f) {
+				t.Errorf("%s, the conversation's row turns, %q: %q", what, f, lines[row])
+			}
+		}
+		if word := strings.LastIndex(raw[row], "finished"); word >= 0 {
+			if got, want := lastSGR(raw[row][:word]), lastSGR(strings.SplitN(ink.Render("x"), "x", 2)[0]); got != want {
+				t.Errorf("%s, finished on the conversation's row is drawn in %q, want the plain ink %q: %q", what, got, want, raw[row])
+			}
+		}
+	}
+
+	// At work, the tab says nothing, and nothing finished.
+	webStatus("busy")
+	step("with the conversation at work", is("conn"), `"conn"`, 0)
+	finishedSaid("with the conversation at work", false)
+	frame("working-120x36.ans", projectsNow())
+
+	// Its turn over, it finished: one bell, and said everywhere.
+	webStatus("idle")
+	step("with the conversation finished", is("conn · 1 finished"), `"conn · 1 finished"`, 1)
+	finishedSaid("with the conversation finished", true)
+	frame("finished-120x36.ans", projectsNow())
+	frame("finished-panel-120x36.ans", panelNow())
+	// Not looked at, it stays said, and rings no more.
+	step("with the conversation still finished", is("conn · 1 finished"), `"conn · 1 finished"`, 1)
+	finishedSaid("with the conversation still finished", true)
+	if t.Failed() {
+		t.FailNow()
+	}
+
+	// At work again, it is quietly taken away.
+	webStatus("busy")
+	step("with the conversation at work again", is("conn"), `"conn"`, 1)
+	finishedSaid("with the conversation at work again", false)
+
+	// api's conversation stops on a question; then web's finishes again.
+	apiStatus("waiting")
+	step("with api's conversation waiting", is("conn · 1 waiting"), `"conn · 1 waiting"`, 2)
+	webStatus("idle")
+	both := func(s string) bool {
+		return strings.HasPrefix(s, "conn · ") && strings.Contains(s, "1 waiting") && strings.Contains(s, "1 finished")
+	}
+	step("with one waiting and one finished", both, `"conn · 1 waiting" and "1 finished"`, 3)
+	finishedSaid("with one waiting and one finished", true)
+	frame("waiting-and-finished-120x36.ans", projectsNow())
+
+	// tab goes first to the question, then to the one that finished.
+	press(tea.Key{Code: tea.KeyTab})
+	if m.in != apiPane || inWorkspace(t, ws).ID != apiPane {
+		t.Fatalf("the first tab went into %q, showing %q, want api's waiting conversation %s", m.in, inWorkspace(t, ws).ID, apiPane)
+	}
+	press(tea.Key{Code: tea.KeyTab})
+	if m.in != webPane || inWorkspace(t, ws).ID != webPane {
+		t.Fatalf("the second tab went into %q, showing %q, want web's finished conversation %s", m.in, inWorkspace(t, ws).ID, webPane)
+	}
+
+	// Gone into, it is quietly taken away; the question still waits.
+	step("having gone into the finished conversation", is("conn · 1 waiting"), `"conn · 1 waiting"`, 3)
+	finishedSaid("having gone into the finished conversation", false)
+	frame("looked-at-120x36.ans", panelNow())
+}

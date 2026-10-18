@@ -3483,9 +3483,6 @@ func (m model) label(s string) string {
 // the project and is not said.
 func (m model) projectLine(p project, cursor bool) string {
 	name, style := p.Name, title
-	if p.Group {
-		name += "/"
-	}
 	if p.Waiting > 0 {
 		style = accent
 	}

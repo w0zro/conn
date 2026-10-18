@@ -40,7 +40,8 @@
 <!-- The hero: the panel, alive, and beside it the grammar. The keys
      pressed on this page work the panel as they work conn. -->
 <header class="hero">
-  <div class="panel" id="panel" aria-label="the panel">
+  <div class="panel gathering" id="panel" aria-label="the panel">
+    <div class="panelbg" id="panelbg"></div>
     <div class="phead"><span class="pname">conn</span><span class="ppath">~/projects/w0zro/conn</span></div>
     <div class="rows" id="rows"></div>
     <div class="plabel"><span>projects</span><span class="rule"></span></div>
@@ -48,7 +49,7 @@
     <div class="foot" id="foot"></div>
   </div>
 
-  <div class="grammar">
+  <div class="grammar gathering" id="grammar">
     <p class="line"><span id="typed"></span><span class="cursor" id="cursor"></span></p>
     <table class="verbs" id="verbs" aria-label="the verbs and their objects">
       <thead>

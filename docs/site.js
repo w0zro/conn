@@ -248,7 +248,16 @@
 
   // ---- the gathering --------------------------------------------------
 
-  const field = $('field');
+  // The field drifts for the first third, then each pane goes to its
+  // slot in a moment of its own, the last landing as the timeline
+  // ends. The panel's frame - its ground, head, label and foot - comes
+  // in under the panes while they are still arriving; a row shows the
+  // moment its pane is on it, under the pane, and the pane goes, so
+  // nothing is seen to change hands. Another project's panes fade into
+  // their project's line. The grammar comes in last, and the line is
+  // typed.
+  const field = $('field'), panelbg = $('panelbg'), grammarEl = $('grammar');
+  const chromeEls = [panelbg, panelEl.querySelector('.phead'), panelEl.querySelector('.plabel'), footEl];
   const lerp = (a, b, t) => a + (b - a) * t;
   const ease = t => t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t);
   const clamp01 = t => Math.max(0, Math.min(1, t));
@@ -286,21 +295,27 @@
   }
   // A pane's slot on the panel: the open project's row, or its
   // project's line, where it stands on the screen now.
-  function slot(w) {
+  function slotEl(w) {
     const r = w.pi === 0 ? rows[w.ri] : null;
-    const el = w.pi === 0 ? (r && rowsEl.querySelector(`[data-id="${r.id}"]`)) : linesEl.children[w.pi - 1];
+    return w.pi === 0 ? (r && rowsEl.querySelector(`[data-id="${r.id}"]`)) : linesEl.children[w.pi - 1];
+  }
+  function slot(el) {
     const b = (el || panelEl).getBoundingClientRect();
     return { x: b.left, y: b.top, w: b.width, h: b.height };
   }
 
-  // One frame of the gathering, at a progress: drifting apart before
-  // half, each pane going to its slot in its own moment after.
+  const DRIFT = 0.3, SPREAD = 0.3, FLIGHT = 1 - DRIFT - SPREAD; // the last pane lands at 1
   function frame(pr) {
     const now = performance.now() / 1000;
     const phone = innerWidth < 720;
+    const chrome = ease((pr - DRIFT) / 0.3);
+    for (const e of chromeEls) e.style.opacity = String(chrome);
+    for (const e of linesEl.children) e.style.opacity = '0';
+    grammarEl.style.opacity = String(ease((pr - 0.8) / 0.2));
     wins.forEach((w, i) => {
-      const t = ease(clamp01((pr - 0.5 - w.stagger * 0.3) / 0.35));
-      const s = scattered(w), d = slot(w);
+      const t = ease(clamp01((pr - DRIFT - w.stagger * SPREAD) / FLIGHT));
+      const el = slotEl(w);
+      const s = scattered(w), d = slot(el);
       const x = lerp(s.x, d.x, t), y = lerp(s.y, d.y, t), ww = lerp(s.w, d.w, t), hh = lerp(s.h, d.h, t);
       const dr = 1 - t;
       const dx = Math.sin(now * 0.37 + w.seed * 9) * 6 * dr, dy = Math.cos(now * 0.29 + w.seed2 * 7) * 5 * dr;
@@ -311,19 +326,27 @@
       w.el.querySelector('.body').style.opacity = String(1 - ease(clamp01(t * 1.6)));
       w.el.style.zIndex = w.r.status === 'waiting' ? 35 : 10 + Math.floor(w.seed * 20);
       let o = 1;
-      if (w.pi > 0) o = 1 - ease(clamp01((t - 0.7) / 0.3));
+      if (w.pi === 0) {
+        // The row comes up under the pane as it settles, and the pane
+        // goes once it is there.
+        if (el) el.style.opacity = t >= 0.96 ? '1' : '0';
+        if (t >= 1) o = 0;
+      } else {
+        o = 1 - ease(clamp01((t - 0.7) / 0.3));
+        if (el) el.style.opacity = String(Math.max(Number(el.style.opacity), ease((t - 0.6) / 0.4)));
+      }
       if (phone && i >= 10) o = Math.min(o, ease(clamp01(t * 2)));
       w.el.style.opacity = String(o);
     });
   }
   function landed() {
     field.remove();
-    panelEl.classList.add('on');
-    $('verbs').closest('.grammar').classList.add('on');
+    for (const e of [...chromeEls, grammarEl, ...rowsEl.children, ...linesEl.children]) e.style.opacity = '';
+    panelEl.classList.remove('gathering'); grammarEl.classList.remove('gathering');
     type(0);
   }
   function gather() {
-    const from = performance.now(), dur = 3400;
+    const from = performance.now(), dur = 4600;
     const step = now => {
       const pr = clamp01((now - from) / dur);
       frame(pr);
@@ -377,6 +400,7 @@
   // ---- opening --------------------------------------------------------
 
   render();
+  panelEl.classList.add('gathering'); grammarEl.classList.add('gathering');
   // The face, or a moment and a half for it: a font that never settles
   // does not hold the page.
   const ready = Promise.race([document.fonts && document.fonts.ready || Promise.resolve(), new Promise(r => setTimeout(r, 1500))]);
@@ -384,17 +408,13 @@
     if (held && Number(held[1]) >= 1 || reduced) {
       // The page as it stands once gathered.
       field.remove();
-      panelEl.classList.add('hold');
-      $('verbs').closest('.grammar').classList.add('hold');
+      panelEl.classList.remove('gathering'); grammarEl.classList.remove('gathering');
       typedEl.textContent = LINE; cursorEl.classList.add('off');
       for (const k of (look.get('k') || '').split(',').filter(Boolean)) act(k);
       return;
     }
     buildField();
-    if (held) { frame(Number(held[1])); return; } // the field, held
-    let raf = 0;
-    const drift = () => { frame(0); raf = requestAnimationFrame(drift); };
-    drift();
-    wait(900, () => { cancelAnimationFrame(raf); gather(); });
+    if (held) { frame(Number(held[1])); return; } // a moment of the gathering, held
+    gather();
   });
 })();

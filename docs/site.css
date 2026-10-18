@@ -71,13 +71,15 @@ b { font-weight: 700; }
    A row is laid as conn lays one: the cursor's bar, the margin where
    the spinner turns, the mark, the name, the figure at the right. */
 .panel {
+  position: relative; isolation: isolate;
   width: var(--panel-w); box-sizing: border-box;
-  background: var(--surface);
   padding: var(--row) 0 0;
-  opacity: 0; transition: opacity .4s;
 }
-.panel.on { opacity: 1; }
-.panel.hold { opacity: 1; transition: none; }
+.panelbg { position: absolute; inset: 0; background: var(--surface); z-index: -1; }
+/* While the panes gather, the panel and the grammar are there only as
+   site.js brings each piece in. */
+.panel.gathering .panelbg, .panel.gathering .phead, .panel.gathering .plabel, .panel.gathering .foot,
+.panel.gathering .row, .panel.gathering .pline, .grammar.gathering { opacity: 0; }
 .phead, .row, .plabel, .pline {
   height: var(--row); line-height: var(--row);
   display: flex; align-items: center; white-space: nowrap;
@@ -100,7 +102,7 @@ b { font-weight: 700; }
 .row.passed .mark { color: var(--running); }
 .row.rest .name { color: var(--gray); }
 .row.rest .fig { color: var(--faint); }
-.row, .pline { transition: opacity .25s, height .25s; }
+.row { transition: opacity .3s; }
 .plabel { padding-left: 24px; margin-top: var(--row); color: var(--gray); }
 .plabel span:first-child { margin-right: 8px; }
 .plabel .rule { flex: 1; border-top: 1px solid var(--border); }
@@ -131,6 +133,7 @@ b { font-weight: 700; }
   border: 1px solid var(--border);
   overflow: hidden;
   will-change: transform, width, height, opacity;
+  transition: background-color .4s, border-color .4s;
 }
 .win .head {
   position: absolute; left: 0; right: 0; top: 0;
@@ -158,9 +161,6 @@ b { font-weight: 700; }
 
 /* The grammar: the line, the verbs against their objects, the keys
    that act at once, and the install. */
-.grammar { opacity: 0; transition: opacity .5s; }
-.grammar.on { opacity: 1; }
-.grammar.hold { opacity: 1; transition: none; }
 .grammar .line {
   margin: 0 0 28px;
   font-size: clamp(30px, 3.4vw, 44px); line-height: 1.1; font-weight: 700; letter-spacing: -0.03em;

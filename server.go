@@ -775,20 +775,21 @@ func agentNote(conn string, stack, checks []stacked) string {
 		"through conn rather than starting them in the background or finding them with " +
 		"ps, lsof and tmux:\n\n" +
 		"  conn ls                          this project's processes, and the names they answer to\n" +
+		"  conn u -w -- COMMAND             run something and wait: tests, a build, a one-off; its output, and its exit status as conn's\n" +
 		"  conn u NAME -- COMMAND           start a dev server, a watcher, anything long-lived, in a pane of its own\n" +
-		"  conn u NAME -w -- COMMAND        run a check and wait: its output, and its exit status as conn's\n" +
-		"  conn u -w -- COMMAND             run something once, under no name: a few test files, a one-off\n" +
+		"  conn u NAME -w -- COMMAND        declare a check the project keeps, and run it: the suite, the build, the lint\n" +
 		"  conn l NAME|:PORT|PID [-n N]     what a process said\n" +
 		"  conn r NAME|:PORT|PID            restart one conn started\n" +
 		"  conn x NAME|:PORT|PID            end one\n\n" + called +
 		"A process started this way holds a terminal of its own: conn lists it, the operator " +
 		"can go into it, and its output is the pane's. Something you background instead holds " +
 		"no terminal and has no pane, and can only be read through whatever file its output was sent to. " +
-		"conn also keeps what you started under a name as what this project runs: what waited (-w) as its checks, " +
-		"the rest as its stack, each under its name, and the operator's keys run them again as you ran them. " +
-		"A name is for what the project runs again, and is one row across its runs: run a check again under " +
-		"the name it had, up or not, and it is started again in its pane. Run anything else with no name: " +
-		"it is a row while its pane lives, and the project does not keep it." + here
+		"A name is a declaration: what you start under one, conn writes down as what this project runs, " +
+		"what waited (-w) as its checks and the rest as its stack, and the operator's keys run them again as you ran them. " +
+		"A project has a few checks, the suite, the build, the lint, each named once and run again under " +
+		"the name it has, up or not, in the pane it had. Everything else runs under no name: a few test files, " +
+		"a one-off, a command you are trying. It is a row while its pane lives, and the project does not keep it. " +
+		"Never make up a name for a run, or number one." + here
 }
 
 // connCommand is how an agent runs this build: conn, where the PATH

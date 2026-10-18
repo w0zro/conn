@@ -2295,7 +2295,7 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 // A conversation is told the project's checks and stack as last run.
 func TestAgentNote(t *testing.T) {
 	note := agentNote("conn", []stacked{{name: "web", command: "npm run dev"}}, []stacked{{name: "test", command: "go test ./..."}})
-	for _, want := range []string{"In this project, as last run through conn:\n  conn u test -w -- go test ./...\n  conn u web -- npm run dev", "conn u -w -- COMMAND", "A name is for what the project runs again, and is one row across its runs", "Run anything else with no name"} {
+	for _, want := range []string{"In this project, as last run through conn:\n  conn u test -w -- go test ./...\n  conn u web -- npm run dev", "conn u -w -- COMMAND", "A name is a declaration", "Everything else runs under no name", "Never make up a name for a run"} {
 		if !strings.Contains(note, want) {
 			t.Errorf("note lacks %q:\n%s", want, note)
 		}

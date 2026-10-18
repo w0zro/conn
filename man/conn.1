@@ -998,8 +998,12 @@ as written, pipes and all; several are a command and its arguments,
 each quoted where
 .B sh
 would read it otherwise.
-A name that is up already is an error; one whose pane holds its last
-run is started again in place of it.
+A name is one row across its runs: one that is up already is sent
+.B ctrl\-c
+and started again in its pane with the command given now, as
+.B conn r
+does; one whose pane holds its last run is started again in place of
+it.
 The start is written down as what the project runs: a check with
 .BR \-w ,
 the stack without; see
@@ -1391,9 +1395,6 @@ Exit 1.
 Exit 1.
 .TP
 .B conn u: conn's server is not up; run conn first
-Exit 1.
-.TP
-.BI "conn u: " name " is up, pid " pid "; conn r " name " starts it again"
 Exit 1.
 .TP
 .B conn u: its pane was closed before it said how it ended

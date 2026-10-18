@@ -734,7 +734,9 @@ func agentNote(conn string, stack, checks []stacked) string {
 		"can go into it, and its output is the pane's. Something you background instead holds " +
 		"no terminal and has no pane, and can only be read through whatever file its output was sent to. " +
 		"conn also keeps what you started as what this project runs: what waited (-w) as its checks, " +
-		"the rest as its stack, each under its name, and the operator's keys run them again as you ran them." + here
+		"the rest as its stack, each under its name, and the operator's keys run them again as you ran them. " +
+		"A name is one row across its runs: run a check again under the name it had, up or not, " +
+		"and it is started again in its pane; a new name is a new row on the operator's panel." + here
 }
 
 // connCommand is how an agent runs this build: conn, where the PATH

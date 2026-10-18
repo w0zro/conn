@@ -1867,6 +1867,48 @@ func TestRunUWritesItDown(t *testing.T) {
 	}
 }
 
+// conn u on a name that is up starts it again in its pane with the
+// command given now: a name is one row across its runs, and an agent
+// that runs a check again does not need a new name for it.
+func TestRunUOnANameUpStartsItAgain(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	t.Setenv("CONN_SOCKET", srv.Socket)
+	dir := filepath.Dir(srv.Socket)
+	var out strings.Builder
+	if code := runU(&out, t.TempDir(), dir, []string{"web", "--", "sleep 1000"}); code != 0 {
+		t.Fatalf("conn u web = %d: %s", code, out.String())
+	}
+	before, _ := findByName(t, srv, "web")
+	out.Reset()
+	if code := runU(&out, t.TempDir(), dir, []string{"web", "-w", "--", "echo again"}); code != 0 {
+		t.Fatalf("conn u web again = %d: %s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "again") {
+		t.Errorf("the second run said %q; want its own output", out.String())
+	}
+	after, n := findByName(t, srv, "web")
+	if n != 1 || after.ID != before.ID || after.Exit != "0" {
+		t.Errorf("after the second run web is %d panes, %s exit %q; want the one pane %s, done", n, after.ID, after.Exit, before.ID)
+	}
+}
+
+// findByName is the pane a name answers to, and how many do.
+func findByName(t *testing.T, srv *tmux.Server, name string) (pane, int) {
+	t.Helper()
+	ps, err := panes(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found pane
+	n := 0
+	for _, p := range ps {
+		if p.Name == name {
+			found, n = p, n+1
+		}
+	}
+	return found, n
+}
+
 // conn u from a pane of conn's starts the command where the shell is,
 // for the pane's project: an agent that goes into another checkout to
 // run a check there is still working its own.
@@ -2110,7 +2152,7 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 // A conversation is told the project's checks and stack as last run.
 func TestAgentNote(t *testing.T) {
 	note := agentNote("conn", []stacked{{name: "web", command: "npm run dev"}}, []stacked{{name: "test", command: "go test ./..."}})
-	for _, want := range []string{"In this project, as last run through conn:\n  conn u test -w -- go test ./...\n  conn u web -- npm run dev"} {
+	for _, want := range []string{"In this project, as last run through conn:\n  conn u test -w -- go test ./...\n  conn u web -- npm run dev", "A name is one row across its runs"} {
 		if !strings.Contains(note, want) {
 			t.Errorf("note lacks %q:\n%s", want, note)
 		}

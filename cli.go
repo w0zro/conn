@@ -507,19 +507,34 @@ func runU(w io.Writer, home, dir string, args []string) int {
 	if !h.up {
 		return cliFail("u", errors.New("conn's server is not up; run conn first"))
 	}
-	replace := ""
-	if p, err := h.find(name); err == nil && p.pane != nil {
-		if !over(p.State) {
-			return cliFail("u", fmt.Errorf("%s is up, pid %d; conn r %s starts it again", name, p.PID, name))
+	// A name is one row across its runs. One that is up is sent ctrl-c
+	// and started again in its pane, as conn r does, with what it is
+	// given now; one whose pane holds its last run is started in place
+	// of it.
+	var id string
+	p, found := h.find(name)
+	switch {
+	case found == nil && p.pane != nil && !over(p.State):
+		_, gone, err := interrupt(h.srv, p.pane.ID)
+		if err != nil {
+			return cliFail("u", err)
 		}
-		replace = p.pane.ID
-	}
-	id, err := startNamed(h.srv, name, shellLine(command), realDir(dir), h.root)
-	if err != nil {
-		return cliFail("u", err)
-	}
-	if replace != "" {
-		_, _ = h.srv.Do(tmux.Kill(replace))
+		if gone {
+			id, err = startNamed(h.srv, name, shellLine(command), realDir(dir), h.root)
+		} else {
+			id, err = restartNamed(h.srv, p.pane.ID, name, shellLine(command), realDir(dir), h.root)
+		}
+		if err != nil {
+			return cliFail("u", err)
+		}
+	default:
+		id, err = startNamed(h.srv, name, shellLine(command), realDir(dir), h.root)
+		if err != nil {
+			return cliFail("u", err)
+		}
+		if found == nil && p.pane != nil {
+			_, _ = h.srv.Do(tmux.Kill(p.pane.ID))
+		}
 	}
 	// What waited is a check; what does not is the stack. The start
 	// stands whether or not it could be written down.

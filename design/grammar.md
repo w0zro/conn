@@ -13,7 +13,7 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 4. **Know who needs you.** A conversation reads working, waiting or idle, from what Claude Code writes for each instance. Waiting comes first, in orange, in a project and on the projects screen, where a row says `1 waiting · 2 running`; the status line says how many wait from every window. Built.
 
-5. **Agents work the processes through conn.** `conn ls`, `conn l NAME|:PORT|PID`, `conn u NAME [-w] -- COMMAND`, `conn x` and `conn r`, over conn's panes and the servers listening in the project. The agents conn starts are told them. Built.
+5. **Agents work the processes through conn.** `conn ls`, `conn l NAME|:PORT|PID`, `conn u [NAME] [-w] -- COMMAND`, `conn x` and `conn r`, over conn's panes and the servers listening in the project. The agents conn starts are told them. Built.
 
 6. **Work the processes from the panel.** In a project, on the row under the cursor, `x` stops it and `r` restarts what conn started; `u` asks for a command and runs it at the project's root. One key a verb (2026-10-11): with no other object yet, doubling says nothing more. Built.
 
@@ -60,6 +60,8 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 27. **Heard from any window.** The number of conversations waiting is in the terminal's title, and the bell rings as one more starts waiting, so a tab in the background still says. Built, 2026-10-16.
 
 28. **Whose it is.** A process started through `conn u` from a pane of conn's is that pane's project's, wherever the shell has gone: an agent that goes into another checkout to run its project's site tests there does not make a second project. The row says where it ran, and `conn ls`, `x` and `r` from the pane reach the pane's project. Built, 2026-10-16.
+
+29. **A name is a declaration.** `conn u NAME -w` says the project runs this again, and it is written down and told to the next agent; `conn u -w -- COMMAND` with no name runs something once, a row under its command while its pane lives, answering to its pid, written down nowhere. Agents figure out a project's checks once and name them; what they run to see something, a few test files, a one-off, takes no name, so the roster stays the project's few checks and `st` starts those. Before this, one project had 113 names written down as checks, every one of them a run an agent named, and `st` started them all. Built, 2026-10-18.
 
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
@@ -197,7 +199,7 @@ An action is one of: a command in a pane conn holds, an existing pane brought to
 
 As of 2026-10-11:
 
-- **The CLI**: `conn ls`, `conn l ADDRESS`, `conn u [-w] NAME -- COMMAND`, `conn x ADDRESS`, `conn r ADDRESS`. Addresses: a name (worktree, then project, then the folder of repositories), `:port`, a pid. `x` and `r` reach only the caller's project.
+- **The CLI**: `conn ls`, `conn l ADDRESS`, `conn u [NAME] [-w] -- COMMAND`, `conn x ADDRESS`, `conn r ADDRESS`. Addresses: a name (worktree, then project, then the folder of repositories), `:port`, a pid. `x` and `r` reach only the caller's project.
 - **The panel's keys are the grammar**: verbs `u x r c l i s a` wait for an object — the verb again for the row, `p` the project, `j k G` a row by a motion — and `.` repeats. `enter` and `/` act at once. The station's views are behind `g`: `gp gr gl gc`.
 - **Resolution, with nothing kept**: `cc` on a process with no known client opens a port that speaks the web, and otherwise asks `claude -p` and offers the answer as a question; `up` on a project with no `.conn` asks for its stack and offers it on one question.
 - **Contacts are told the CLI**, naming the build by its whole path where the PATH's `conn` is another.

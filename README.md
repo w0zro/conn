@@ -62,7 +62,9 @@ Agents reach the same verbs from a shell, and are told so when conn
 starts them: `conn ls`, `conn l web`, `conn u test -w -- go test ./...`,
 `conn x :3000`, `conn r api`. What is started under a name through
 conn is written down as what the project runs: what waited is a check,
-the rest the stack, and the keys run them again as they were run.
+the rest the stack, and the keys run them again as they were run. A
+run under no name, `conn u -w -- node --test a.test.mjs`, is a row
+while its pane lives and is not kept.
 
 `man conn` is the reference. The operating manual is at
 [conn.w0zro.com/manual](https://conn.w0zro.com/manual/).

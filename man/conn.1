@@ -990,16 +990,18 @@ A name is looked for in the project; where two answer to it, the one in
 the caller's own checkout, and then the one still running, is meant;
 two still is an error that gives their pids.
 .TP
-.BI "conn u " name " [\-w] \-\- " command ...
+.BI "conn u " "" [ name "] [\-w] \-\- " command ...
 Start a command in a window of
 .BR conn 's
-server at the working directory, under a name: a row on the panel,
-which
+server at the working directory: a row on the panel.
+Under a name, which
 .B conn l
 reads and
 .B conn x
-ends by the name.
-The name is one word of letters, digits, dot, underscore and hyphen,
+ends by, the start is what the project runs again; under none, it is
+a run of its own, a row under its command while its pane lives,
+answering to its pid, and written down nowhere.
+A name is one word of letters, digits, dot, underscore and hyphen,
 and not a number.
 One word after
 .B \-\-
@@ -1015,7 +1017,8 @@ and started again in its pane with the command given now, as
 .B conn r
 does; one whose pane holds its last run is started again in place of
 it.
-The start is written down as what the project runs: a check with
+A start under a name is written down as what the project runs: a
+check with
 .BR \-w ,
 the stack without; see
 .BR "WHAT A PROJECT RUNS" .
@@ -1464,9 +1467,9 @@ on the PATH, and is answered by a small model with no tools.
 \(bu
 What
 .B !
-runs is not written down; what
+runs is not written down, and nor is what
 .B conn u
-runs is.
+runs under no name; what it runs under a name is.
 .TP
 \(bu
 .B conn

@@ -303,7 +303,7 @@
       <div class="section" id="runs">
         <p class="kicker">SECTION 4</p>
         <h2>What a project runs</h2>
-        <p class="para"><span class="n">4-1.</span> conn is told nothing of what a project runs: no file names its stack or its checks. It writes down every process started under a name through conn, by an agent at the command line or from the keys, with its role: what <b>conn u -w</b> waited on is a check, which runs to completion and passes or fails; the rest is the stack, what keeps running while the project is worked on. The last start under a name is what the name means here. Agents run almost every command a project sees, so what they ran is what the project runs.</p>
+        <p class="para"><span class="n">4-1.</span> conn is told nothing of what a project runs: no file names its stack or its checks. It writes down every process started under a name through conn, by an agent at the command line or from the keys, with its role: what <b>conn u -w</b> waited on is a check, which runs to completion and passes or fails; the rest is the stack, what keeps running while the project is worked on. The last start under a name is what the name means here. A start under no name, <b>conn u -w -- COMMAND</b>, is a run of its own: a row under its command while its pane lives, answering to its pid, and written down nowhere. Agents figure out a project's checks once and name them, and run what they want to see, a few test files, a one-off, under no name, so what is written down stays the project's few checks.</p>
       </div>
     </div>
     <div class="foot">
@@ -330,6 +330,7 @@
         <div class="figure">
           <pre>conn u web -- npm run dev
 conn u test -w -- go test ./...
+conn u -w -- go test -run TestOne .
 conn l web
 conn r web
 conn x :5173</pre>

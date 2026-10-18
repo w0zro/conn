@@ -5,17 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#15130F">
-<title>conn — a console for the processes working your projects</title>
-<meta name="description" content="conn puts the project you are in on one panel, a row a process, says which conversation is waiting on you, and puts the one you choose in front of you. macOS and Linux, on tmux.">
+<title>conn — a grammar over the processes working your projects</title>
+<meta name="description" content="conn puts the project you are in on one panel, a row a process, and gives you verbs over them: start, stop, restart, hand to an agent, each waiting for its object as in vim. Agents reach the same verbs from a shell. macOS and Linux, on tmux.">
 <meta property="og:title" content="conn">
-<meta property="og:description" content="A console for the processes working your projects. The project you are in, a row a process; which conversation is waiting on you; the one you choose, in front of you. macOS and Linux, on tmux.">
+<meta property="og:description" content="A grammar over the processes working your projects. A row a process; verbs that wait for their object, as in vim; the same verbs for agents at the command line. macOS and Linux, on tmux.">
 <meta property="og:url" content="https://conn.w0zro.com">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="conn">
 <meta property="og:image" content="https://conn.w0zro.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="conn: the processes working each project, and which one is waiting.">
+<meta property="og:image:alt" content="conn: the panel, a row a process, and the verbs over them.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -33,31 +33,128 @@
   <span class="links"><a href="/manual/">MANUAL</a><a class="accent" href="https://github.com/w0zro/conn">GITHUB &#8599;</a></span>
 </nav>
 
-<!-- The stage: the panes, the panel they gather into, and beside it
-     the one line and the install. site.js lays every piece out for the
-     scroll's position. -->
-<div id="stage" class="stage" aria-hidden="true">
-  <div id="panelbg" class="panelbg"></div>
-  <div id="field" class="field"></div>
-</div>
+<!-- The field: the panes that gather into the panel once, as the page
+     opens. site.js fills it and takes it away. -->
+<div id="field" class="field" aria-hidden="true"></div>
 
-<div id="claim" class="claim">
-  <p class="line"><span id="typed"></span><span class="cursor"></span></p>
+<!-- The hero: the panel, alive, and beside it the grammar. The keys
+     pressed on this page work the panel as they work conn. -->
+<header class="hero">
+  <div class="panel" id="panel" aria-label="the panel">
+    <div class="phead"><span class="pname">conn</span><span class="ppath">~/projects/w0zro/conn</span></div>
+    <div class="rows" id="rows"></div>
+    <div class="plabel"><span>projects</span><span class="rule"></span></div>
+    <div class="lines" id="lines"></div>
+    <div class="foot" id="foot"></div>
+  </div>
+
+  <div class="grammar">
+    <p class="line"><span id="typed"></span><span class="cursor" id="cursor"></span></p>
+    <table class="verbs" id="verbs" aria-label="the verbs and their objects">
+      <thead>
+        <tr><th></th><th data-verb="s"><b>s</b><span>start</span></th><th data-verb="x"><b>x</b><span>stop</span></th><th data-verb="r"><b>r</b><span>restart</span></th><th data-verb="a"><b>a</b><span>agent</span></th></tr>
+      </thead>
+      <tbody>
+        <tr><th><b>·</b><span>the row</span></th><td></td><td data-key="xx">xx</td><td data-key="rr">rr</td><td data-key="aa">aa</td></tr>
+        <tr><th><b>s</b><span>the stack</span></th><td data-key="ss">ss</td><td data-key="xs">xs</td><td data-key="rs">rs</td><td></td></tr>
+        <tr><th><b>t</b><span>the checks</span></th><td data-key="st">st</td><td data-key="xt">xt</td><td data-key="rt">rt</td><td></td></tr>
+        <tr><th><b>f</b><span>what failed</span></th><td></td><td></td><td data-key="rf">rf</td><td data-key="af">af</td></tr>
+        <tr><th><b>c</b><span>a conversation</span></th><td data-key="sc">sc</td><td></td><td data-key="rc">rc</td><td></td></tr>
+        <tr><th><b>p</b><span>the project</span></th><td></td><td data-key="xp">xp</td><td></td><td></td></tr>
+      </tbody>
+    </table>
+    <ul class="atonce">
+      <li><b data-key="tab">tab</b><span>who is waiting on you</span></li>
+      <li><b>enter</b><span>go into it</span></li>
+      <li><b>c</b><span>talk to it</span></li>
+      <li><b>/</b><span>search what it said</span></li>
+      <li><b>!</b><span>run a command, or a shell</span></li>
+      <li><b data-key="j">j k</b><span>move</span></li>
+    </ul>
+    <p class="press">A verb waits for its object, as in vim. The keys work here.</p>
+    <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
+  </div>
+</header>
+
+<main>
+
+<section class="part">
+  <p class="kicker">THE PANEL</p>
+  <div class="cols">
+    <ul class="facts">
+      <li>The project you are in, a row a process.</li>
+      <li>Rows stand by role; a row that wants you is in the accent, where it stands.</li>
+      <li>Under them, a line for every other project with something running.</li>
+      <li>The process under the cursor fills the rest of the window. <b>enter</b> puts the keys in it; <b>ctrl-space</b> brings them back.</li>
+      <li><b>q</b> leaves. Everything keeps running.</li>
+    </ul>
+    <ul class="legend">
+      <li><span class="mark">❝</span><span>a conversation with Claude Code</span><span class="fig">118k  waiting</span></li>
+      <li><span class="mark">○</span><span>the stack: what keeps running</span><span class="fig">:8123</span></li>
+      <li><span class="mark">❯</span><span>a shell, or a client</span><span class="fig"></span></li>
+      <li><span class="mark pass">✓</span><span>a check that passed</span><span class="fig">4m</span></li>
+      <li><span class="mark fail">✗</span><span>a check that failed</span><span class="fig">2m</span></li>
+      <li><span class="mark">◌</span><span>a server outside conn</span><span class="fig">:5432</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="part">
+  <p class="kicker">AGENTS</p>
+  <div class="cols">
+    <ul class="facts">
+      <li>Agents reach the same verbs from a shell, and are told so when conn starts them.</li>
+      <li>What an agent starts under a name is a row on the panel, with a pane you can go into and read.</li>
+      <li>What it waited on is a check. The rest is the stack.</li>
+      <li><b>st</b> runs the checks as they were last run here. <b>ss</b> brings the stack up. Nothing is declared.</li>
+      <li>Every conversation conn starts is told what the project runs.</li>
+    </ul>
+    <div class="shell" id="shell" aria-label="an agent's pane">
+      <pre class="body"><span class="g">></span> bring the code to the manual
+<span class="r">●</span> Read panel.go, cli.go, server.go
+<span class="r">●</span> Bash  <span class="k" id="agentcmd"></span><span class="cursor" id="agentcur"></span>
+<span class="g" id="agentout"></span></pre>
+    </div>
+  </div>
+  <ul class="cli">
+    <li><b>conn ls</b><span>what runs in the project</span></li>
+    <li><b>conn l NAME|:PORT|PID</b><span>what a process said</span></li>
+    <li><b>conn u NAME -- COMMAND</b><span>start it in a pane of its own</span></li>
+    <li><b>conn u NAME -w -- COMMAND</b><span>run it and wait: its output, its exit status as conn's</span></li>
+    <li><b>conn r NAME|:PORT|PID</b><span>restart it</span></li>
+    <li><b>conn x NAME|:PORT|PID</b><span>stop it</span></li>
+  </ul>
+</section>
+
+<section class="part">
+  <p class="kicker">WAITING</p>
+  <div class="cols">
+    <ul class="facts">
+      <li>A conversation that stops to ask is in the accent.</li>
+      <li><b>tab</b> goes to the one that has waited longest. From inside any pane, <b>ctrl-space</b> then <b>tab</b>.</li>
+      <li>The terminal's title says how many wait. The bell rings as one more does.</li>
+      <li><b>aa</b> hands a row to a new conversation with its last lines; <b>af</b> hands every run that failed to one.</li>
+    </ul>
+    <div class="title" aria-label="the terminal's title">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="name">conn · 2 waiting</span>
+    </div>
+  </div>
+</section>
+
+<section class="part install">
+  <p class="kicker">INSTALL</p>
   <div class="cmd" role="group" aria-label="install command"><span class="prompt">$</span><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code><button class="copy" type="button" data-copy="curl -fsSL https://conn.w0zro.com/install.sh | sh">[copy]</button></div>
-  <p class="needs">A console for the processes working your projects. macOS and Linux, on tmux.</p>
-</div>
+  <ul class="facts">
+    <li>macOS and Linux. Needs <b>tmux</b> and <b>git</b>; <b>lsof</b> for the ports; <b>claude</b> for conversations.</li>
+    <li>One Go binary. It brings up a tmux server of its own and leaves yours alone.</li>
+    <li><b>man conn</b> is the reference. <a href="/manual/">The operating manual</a> says how it is worked. <a href="https://github.com/w0zro/conn">The source</a> is on GitHub.</li>
+  </ul>
+</section>
 
-<!-- The scroll: one screen, from the field to the panel. -->
-<div class="scroll" id="scroll"><section></section><section></section></div>
+</main>
 
-<noscript>
-<div class="noscript">
-<h1>conn</h1>
-<p>A console for the processes working your projects. The project you are in, a row a process; which conversation is waiting on you; the one you choose, in front of you. macOS and Linux, on tmux.</p>
-<p><code>curl -fsSL https://conn.w0zro.com/install.sh | sh</code></p>
-<p><a href="/manual/">The operating manual</a> · <a href="https://github.com/w0zro/conn">GitHub</a></p>
-</div>
-</noscript>
+<footer class="end"><span>conn</span><span>w0zro</span></footer>
 
 <script src="site.js"></script>
 </body>

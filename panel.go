@@ -3395,12 +3395,33 @@ func (m model) items() []item {
 		out = append(out, item{project: m.cur, row: j})
 	}
 	for _, p := range m.projects {
-		if p.Group || m.isOpen(p) || (m.cur.Group && within(p.Root, m.cur.Root)) || (p.Running == 0 && p.Waiting == 0 && p.Turning == 0) {
+		if m.isOpen(p) || (m.cur.Group && within(p.Root, m.cur.Root)) {
+			continue
+		}
+		// A folder's line is for the work in the folder itself: what
+		// runs in its repositories is theirs, and they have lines.
+		if p.Group {
+			p = m.inItself(p)
+		}
+		if p.Running == 0 && p.Waiting == 0 && p.Turning == 0 {
 			continue
 		}
 		out = append(out, item{project: p, row: -1})
 	}
 	return out
+}
+
+// inItself is a folder with the work in the folder itself alone: its
+// counts take in its repositories', and theirs are taken back out.
+func (m model) inItself(f project) project {
+	for _, q := range m.projects {
+		if q.Depth > 0 && filepath.Dir(q.Root) == f.Root {
+			f.Running -= q.Running
+			f.Waiting -= q.Waiting
+			f.Turning -= q.Turning
+		}
+	}
+	return f
 }
 
 // isOpen says whether a project is the open one.
@@ -3462,6 +3483,9 @@ func (m model) label(s string) string {
 // the project and is not said.
 func (m model) projectLine(p project, cursor bool) string {
 	name, style := p.Name, title
+	if p.Group {
+		name += "/"
+	}
 	if p.Waiting > 0 {
 		style = accent
 	}

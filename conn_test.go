@@ -2708,18 +2708,23 @@ func TestVerbWaits(t *testing.T) {
 }
 
 // The panel is the open project's rows, then a line for each other
-// project with something running, waiting or at work, a folder having none; the
-// cursor on a row or a line says which.
+// project with something running, waiting or at work; the cursor on a
+// row or a line says which. A folder's counts take in its
+// repositories', which have lines of their own, so a folder has a line
+// only for work in the folder itself, and the line counts that alone.
 func TestItems(t *testing.T) {
-	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}, {Root: "/f", Group: true, Running: 1}, {Root: "/g", Turning: 1}}}
+	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}, {Root: "/f", Group: true, Running: 1}, {Root: "/f/x", Depth: 1, Running: 1}, {Root: "/g", Turning: 1}, {Root: "/h", Group: true, Running: 2, Turning: 1}, {Root: "/h/y", Depth: 1, Running: 1}}}
 	m.cur = m.projects[3]
 	m.rows = []row{{pane: &pane{ID: "%1"}}}
 	var got []string
 	for _, it := range m.items() {
 		got = append(got, m.itemKey(it))
 	}
-	if want := []string{"%1", "project /a", "project /c", "project /g"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"%1", "project /a", "project /c", "project /f/x", "project /g", "project /h", "project /h/y"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("items = %v", got)
+	}
+	if h := m.items()[5].project; h.Running != 1 || h.Turning != 1 {
+		t.Errorf("the folder's line counts %d running, %d at work, want 1 and 1: the work in itself", h.Running, h.Turning)
 	}
 	m.cursor = 0
 	if r, ok := m.under(); !ok || r.pane.ID != "%1" {

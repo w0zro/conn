@@ -167,7 +167,7 @@ func paneName(p pane) string {
 	if p.Name != "" {
 		return p.Name
 	}
-	return p.Command
+	return or(p.Run, p.Command)
 }
 
 // paneState is what a pane is doing — how what conn u started ended,
@@ -175,7 +175,7 @@ func paneName(p pane) string {
 // conversation it is, where it is one: by conn's mark, or by the
 // terminal Claude Code says it runs on.
 func paneState(p pane, live map[string]claudeRun) (state, session string) {
-	if p.Name != "" && p.Exit != "" {
+	if p.started() && p.Exit != "" {
 		return ended(p.Exit), ""
 	}
 	if r, ok := live[p.Session]; ok && r.state() != "" {
@@ -388,9 +388,10 @@ func runLs(w io.Writer, home, dir string, args []string) int {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, tilde(h.root, home))
 	for _, p := range h.mine() {
-		command := p.Command
-		if p.pane != nil && p.pane.Name != "" {
-			command, _ = h.srv.Display(p.pane.ID, "#{"+runMark+"}")
+		command, name := p.Command, p.Name
+		if p.pane != nil && p.pane.started() {
+			// A run under no name answers to its pid alone.
+			command, name = p.pane.Run, or(p.pane.Name, "-")
 		}
 		// Run below the root, or in another checkout, it says where.
 		where := p.Dir
@@ -401,7 +402,7 @@ func runLs(w io.Writer, home, dir string, args []string) int {
 		if where != h.root {
 			at = "  (" + tilde(where, home) + ")"
 		}
-		_, _ = fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%s%s\n", p.Name, p.PID, p.State, or(strings.Join(p.Ports, ","), "-"), flatten(command), at)
+		_, _ = fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%s%s\n", name, p.PID, p.State, or(strings.Join(p.Ports, ","), "-"), flatten(command), at)
 	}
 	if err := tw.Flush(); err != nil {
 		return cliFail("ls", err)
@@ -475,11 +476,14 @@ func said(srv *tmux.Server, id string) ([]string, error) {
 // a number, so it never reads as a port or a pid.
 var nameWord = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-// runU starts a command under a name, in a window of conn's own at the
-// working directory. -w waits for it to end, writes what it said, and
-// exits with its status.
+// runU starts a command in a window of conn's own at the working
+// directory, under a name where one is given. -w waits for it to end,
+// writes what it said, and exits with its status. A name is for what
+// the project runs again, and the start is written down under it; a
+// start with none is a run of its own, a row while its pane lives and
+// written down nowhere.
 func runU(w io.Writer, home, dir string, args []string) int {
-	const use = "conn u NAME [-w] -- COMMAND..."
+	const use = "conn u [NAME] [-w] -- COMMAND..."
 	var command []string
 	for i, a := range args {
 		if a == "--" {
@@ -496,10 +500,18 @@ func runU(w io.Writer, home, dir string, args []string) int {
 		}
 		words = append(words, a)
 	}
-	if len(words) != 1 || len(command) == 0 || !nameWord.MatchString(words[0]) || isPID(words[0]) {
+	if len(words) > 1 || len(command) == 0 || len(words) == 1 && (!nameWord.MatchString(words[0]) || isPID(words[0])) {
 		return cliUsage(use)
 	}
-	name := words[0]
+	name := ""
+	if len(words) == 1 {
+		name = words[0]
+	}
+	// What waited is a check; what does not is the stack.
+	as := roleStack
+	if wait {
+		as = roleCheck
+	}
 	h, err := readHere(home, dir)
 	if err != nil {
 		return cliFail("u", err)
@@ -512,23 +524,32 @@ func runU(w io.Writer, home, dir string, args []string) int {
 	// given now; one whose pane holds its last run is started in place
 	// of it.
 	var id string
-	p, found := h.find(name)
+	var p proc
+	var found error
+	if name != "" {
+		p, found = h.find(name)
+	}
 	switch {
+	case name == "":
+		id, err = startNamed(h.srv, "", shellLine(command), realDir(dir), h.root, as)
+		if err != nil {
+			return cliFail("u", err)
+		}
 	case found == nil && p.pane != nil && !over(p.State):
 		_, gone, err := interrupt(h.srv, p.pane.ID)
 		if err != nil {
 			return cliFail("u", err)
 		}
 		if gone {
-			id, err = startNamed(h.srv, name, shellLine(command), realDir(dir), h.root)
+			id, err = startNamed(h.srv, name, shellLine(command), realDir(dir), h.root, as)
 		} else {
-			id, err = restartNamed(h.srv, p.pane.ID, name, shellLine(command), realDir(dir), h.root)
+			id, err = restartNamed(h.srv, p.pane.ID, name, shellLine(command), realDir(dir), h.root, as)
 		}
 		if err != nil {
 			return cliFail("u", err)
 		}
 	default:
-		id, err = startNamed(h.srv, name, shellLine(command), realDir(dir), h.root)
+		id, err = startNamed(h.srv, name, shellLine(command), realDir(dir), h.root, as)
 		if err != nil {
 			return cliFail("u", err)
 		}
@@ -536,15 +557,17 @@ func runU(w io.Writer, home, dir string, args []string) int {
 			_, _ = h.srv.Do(tmux.Kill(p.pane.ID))
 		}
 	}
-	// What waited is a check; what does not is the stack. The start
-	// stands whether or not it could be written down.
-	as := roleStack
-	if wait {
-		as = roleCheck
+	// A start under a name is written down as what the project runs,
+	// and stands whether or not it could be. One under none is not.
+	if name != "" {
+		_ = recordStart(startedPath(h.srv.Socket), started{Root: h.root, Name: name, Command: shellLine(command), Role: as})
 	}
-	_ = recordStart(startedPath(h.srv.Socket), started{Root: h.root, Name: name, Command: shellLine(command), Role: as})
 	if !wait {
-		_, _ = fmt.Fprintf(w, "%s is up in pane %s; conn l %s reads it\n", name, id, name)
+		addr := name
+		if addr == "" {
+			addr, _ = h.srv.Display(id, "#{pane_pid}")
+		}
+		_, _ = fmt.Fprintf(w, "%s is up in pane %s; conn l %s reads it\n", or(name, shellLine(command)), id, addr)
 		return 0
 	}
 	exit, err := waitExit(h.srv, id)
@@ -554,7 +577,7 @@ func runU(w io.Writer, home, dir string, args []string) int {
 	lines, _ := said(h.srv, id)
 	// The line the pane writes when what it ran ends is conn's, not
 	// the command's.
-	if len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], "["+name+" exited") {
+	if len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], exitLine(name)) {
 		lines = lines[:len(lines)-1]
 	}
 	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
@@ -586,40 +609,54 @@ func shellLine(words []string) string {
 
 var plainWord = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
 
-// startNamed starts a command under a name in a window of its own, out
-// of sight, in a directory, for a project, and marks it. When the
-// command ends the pane says how, sets the mark that says it, and
-// stays, so what it said can be read.
-func startNamed(srv *tmux.Server, name, command, dir, project string) (string, error) {
+// startNamed starts a command in a window of its own, out of sight, in
+// a directory, for a project, as a role, under a name where it has
+// one, and marks it. When the command ends the pane says how, sets the
+// mark that says it, and stays, so what it said can be read.
+func startNamed(srv *tmux.Server, name, command, dir, project string, as role) (string, error) {
 	// The command runs in a subshell, so an exit in it ends the command
 	// and not the line that records how it ended; and ctrl-c is caught,
 	// not ignored, by that line, so it reaches the command, which takes
 	// it as it would anywhere, and leaves the line to record it.
-	out, err := srv.Run("new-window", "-d", "-t", sessionName+":", "-n", name, "-c", dir, "-P", "-F", "#{pane_id}", runLine(srv, name, command))
+	args := []string{"new-window", "-d", "-t", sessionName + ":"}
+	if name != "" {
+		args = append(args, "-n", name)
+	}
+	args = append(args, "-c", dir, "-P", "-F", "#{pane_id}", runLine(srv, name, command))
+	out, err := srv.Run(args...)
 	if err != nil {
 		return "", err
 	}
 	id := strings.TrimSpace(out)
-	_, err = srv.Do(named(id, name, command, dir, project)...)
+	_, err = srv.Do(named(id, name, command, dir, project, as)...)
 	return id, err
 }
 
-// runLine is the line a named process runs under.
+// runLine is the line a process conn u starts runs under.
 func runLine(srv *tmux.Server, name, command string) string {
 	return "trap : INT\n(\n" + command + "\n)\n" +
 		"conn_status=$?\n" +
 		shell.Quote(srv.Tmux) + " -S " + shell.Quote(srv.Socket) + " set-option -p -t \"$TMUX_PANE\" " + endedMark + " \"$(date +%s)\" \\; set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$conn_status\"\n" +
-		"printf '\\n[%s exited %s]\\n' " + shell.Quote(name) + " \"$conn_status\"\n" +
+		"printf '\\n%s %s]\\n' " + shell.Quote(exitLine(name)) + " \"$conn_status\"\n" +
 		shell.HoldOpen
 }
 
-// named is the commands that mark a pane as a named process: the name,
-// the command and the directory it was started with, and the project
-// it was started for. A new pane has no end yet, and a command that
-// ends at once writes its own: the marks are set after it starts, so
-// none may clear one.
-func named(id, name, command, dir, project string) []tmux.Cmd {
-	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir), tmux.SetPane(id, projectMark, project)}
+// exitLine is how the line a pane writes when what it ran ends begins:
+// the name and exited, or exited alone under no name.
+func exitLine(name string) string {
+	if name == "" {
+		return "[exited"
+	}
+	return "[" + name + " exited"
+}
+
+// named is the commands that mark a pane as a process conn u started:
+// the name, if any, the command and the directory it was started with,
+// the role it was started as, and the project it was started for. A
+// new pane has no end yet, and a command that ends at once writes its
+// own: the marks are set after it starts, so none may clear one.
+func named(id, name, command, dir, project string, as role) []tmux.Cmd {
+	return []tmux.Cmd{tmux.SetPane(id, nameMark, name), tmux.SetPane(id, runMark, command), tmux.SetPane(id, dirMark, dir), tmux.SetPane(id, projectMark, project), tmux.SetPane(id, roleMark, string(as))}
 }
 
 // unended is the commands that clear a pane's end, before it runs again.
@@ -629,9 +666,9 @@ func unended(id string) []tmux.Cmd {
 
 // restartNamed starts a named process again in its pane, as it was
 // started: the pane keeps its place, in the workspace or out of sight.
-func restartNamed(srv *tmux.Server, id, name, command, dir, project string) (string, error) {
+func restartNamed(srv *tmux.Server, id, name, command, dir, project string, as role) (string, error) {
 	cmds := append(unended(id), tmux.Cmd{"respawn-pane", "-k", "-c", dir, "-t", id, runLine(srv, name, command)})
-	cmds = append(cmds, named(id, name, command, dir, project)...)
+	cmds = append(cmds, named(id, name, command, dir, project, as)...)
 	_, err := srv.Do(cmds...)
 	return id, err
 }
@@ -724,7 +761,7 @@ func endProc(srv *tmux.Server, hold string, p proc) (string, error) {
 			return "", fmt.Errorf("%s: %v", p.Name, err)
 		}
 		return "kill -TERM " + strconv.Itoa(p.PID), nil
-	case p.pane.Name == "" || p.pane.Exit != "":
+	case !p.pane.started() || p.pane.Exit != "":
 		return closePane(srv, hold, p.pane.ID)
 	}
 	ended, gone, err := interrupt(srv, p.pane.ID)
@@ -787,12 +824,9 @@ func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
 	switch {
 	case p.pane == nil:
 		return "", fmt.Errorf("%s was started outside conn, and conn does not know how; x ends it, and u starts a command in conn", p.Name)
-	case p.pane.Name != "":
-		command, _ := srv.Display(p.pane.ID, "#{"+runMark+"}")
+	case p.pane.started():
+		command := p.pane.Run
 		at, _ := srv.Display(p.pane.ID, "#{"+dirMark+"}")
-		if command == "" {
-			return "", fmt.Errorf("%s does not say what it was started with", p.Name)
-		}
 		if p.pane.Exit == "" {
 			// Not ended in time, it is killed by the start.
 			_, gone, err := interrupt(srv, p.pane.ID)
@@ -800,10 +834,10 @@ func restartProc(srv *tmux.Server, conn string, p proc) (string, error) {
 				return "", err
 			}
 			if gone {
-				return startNamed(srv, p.pane.Name, command, or(at, p.pane.Path), p.Dir)
+				return startNamed(srv, p.pane.Name, command, or(at, p.pane.Path), p.Dir, p.pane.Role)
 			}
 		}
-		return restartNamed(srv, p.pane.ID, p.pane.Name, command, or(at, p.pane.Path), p.Dir)
+		return restartNamed(srv, p.pane.ID, p.pane.Name, command, or(at, p.pane.Path), p.Dir, p.pane.Role)
 	case p.Session != "":
 		note, err := writeNote(srv.Socket, p.Session, told(conn, srv.Socket, project{Root: repoRoot(p.Dir)}.belongs))
 		if err != nil {

@@ -18,11 +18,14 @@ const (
 	handBytes = 16 << 10
 )
 
-// A handing is a process as it is handed: the name it answers to,
-// what it runs and where, how it is doing, and what it last wrote.
+// A handing is a process as it is handed: what it is called, what conn
+// l and conn x take for it, whether that is a name of its own, what it
+// runs and where, how it is doing, and what it last wrote.
 type handing struct {
-	name, command, dir, state string
-	lines                     []string
+	name, addr          string
+	named               bool
+	command, dir, state string
+	lines               []string
 }
 
 // handPrompt is what the agent is told of one process: what it is, and
@@ -81,9 +84,13 @@ func (h handing) describe(b *strings.Builder, size int) {
 
 // tools writes the conn lines that read the process and run it again.
 func (h handing) tools(b *strings.Builder) {
-	fmt.Fprintf(b, " conn l %s reads what it has said", h.name)
-	if h.command != "" && over(h.state) {
+	fmt.Fprintf(b, " conn l %s reads what it has said", or(h.addr, h.name))
+	switch {
+	case h.command == "" || !over(h.state):
+	case h.named:
 		fmt.Fprintf(b, ", and conn u %s -w -- %s runs it again", h.name, h.command)
+	default:
+		fmt.Fprintf(b, ", and conn u -w -- %s runs it again", h.command)
 	}
 	b.WriteString(".")
 }

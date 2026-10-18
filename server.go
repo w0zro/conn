@@ -561,7 +561,9 @@ type pane struct {
 	Panel   bool      // conn's own
 	Hold    bool      // conn's blank, standing in the workspace
 	Session string    // the conversation conn started in it
-	Name    string    // the name conn u started it under
+	Name    string    // the name conn u started it under, if any
+	Run     string    // what conn u started in it, as it was given
+	Role    role      // what it was started as: a check, or the stack
 	Exit    string    // how what conn u started ended, once it has
 	Ended   time.Time // when it ended, once it has
 	Command string    // what tmux says runs in it now
@@ -569,12 +571,20 @@ type pane struct {
 	Path    string    // where what runs in it is now
 }
 
-// The marks conn sets on the panes conn u starts: the name, the
-// command and the directory it was started with, the project it was
-// started for, and how and when it ended, which the pane sets itself.
+// started says whether conn u started what a pane runs: it has a name,
+// or a command of its own under none.
+func (p pane) started() bool {
+	return p.Name != "" || p.Run != ""
+}
+
+// The marks conn sets on the panes conn u starts: the name, if it was
+// given one, the command and the directory it was started with, the
+// role it was started as, the project it was started for, and how and
+// when it ended, which the pane sets itself.
 const (
 	nameMark    = "@conn_name"
 	runMark     = "@conn_run"
+	roleMark    = "@conn_role"
 	dirMark     = "@conn_dir"
 	projectMark = "@conn_project"
 	exitMark    = "@conn_exit"
@@ -585,12 +595,16 @@ const (
 // underscore when it prints to a pipe in the C locale. Every field but
 // the last is one token — a name conn u takes has no space in it — and
 // the directory, which can hold a space, is last and taken whole.
-const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + exitMark + "} #{" + endedMark + "} #{pane_current_command} #{pane_current_path}"
+const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + roleMark + "} #{" + exitMark + "} #{" + endedMark + "} #{pane_current_command} #{pane_current_path}"
 
 // The project a pane was started for is a path with spaces of its
-// own, as the directory is, and two such fields cannot share a line
-// read by its spaces: it is read in a line of its own.
-const projectFormat = "#{pane_id} #{" + projectMark + "}"
+// own, as the directory is, and the command it was started with has
+// spaces of its own: neither can share a line read by its spaces with
+// the directory, and each is read in a line of its own.
+const (
+	projectFormat = "#{pane_id} #{" + projectMark + "}"
+	runFormat     = "#{pane_id} #{" + runMark + "}"
+)
 
 // panes is every pane in the server, each where it stands.
 func panes(srv *tmux.Server) ([]pane, error) {
@@ -602,11 +616,16 @@ func panes(srv *tmux.Server) ([]pane, error) {
 	if err != nil {
 		return nil, err
 	}
-	return inProjects(parsePanes(out), parseProjects(projects)), nil
+	runs, err := srv.Run("list-panes", "-s", "-t", sessionName, "-F", runFormat)
+	if err != nil {
+		return nil, err
+	}
+	return withRuns(inProjects(parsePanes(out), byPane(projects)), byPane(runs)), nil
 }
 
-// parseProjects is the project each pane was started for, by its id.
-func parseProjects(out string) map[string]string {
+// byPane is a mark read a line a pane, by the pane's id, for the
+// panes that have it.
+func byPane(out string) map[string]string {
 	m := map[string]string{}
 	for _, l := range strings.Split(out, "\n") {
 		if id, project, ok := strings.Cut(l, " "); ok && project != "" {
@@ -625,22 +644,30 @@ func inProjects(ps []pane, projects map[string]string) []pane {
 	return ps
 }
 
+// withRuns gives each pane the command conn u started in it.
+func withRuns(ps []pane, runs map[string]string) []pane {
+	for i := range ps {
+		ps[i].Run = runs[ps[i].ID]
+	}
+	return ps
+}
+
 func parsePanes(out string) []pane {
 	var ps []pane
 	for _, l := range strings.Split(out, "\n") {
-		f := strings.SplitN(l, " ", 13)
-		if len(f) < 13 {
+		f := strings.SplitN(l, " ", 14)
+		if len(f) < 14 {
 			continue
 		}
 		pid, _ := strconv.Atoi(f[3])
 		var ended time.Time
-		if at, err := strconv.ParseInt(f[10], 10, 64); err == nil && at > 0 {
+		if at, err := strconv.ParseInt(f[11], 10, 64); err == nil && at > 0 {
 			ended = time.Unix(at, 0)
 		}
 		ps = append(ps, pane{
 			ID: f[0], Window: f[1], Dead: f[2] == "1", PID: pid,
 			TTY: strings.TrimPrefix(f[4], "/dev/"), Panel: f[5] == "1", Hold: f[6] == "1", Session: f[7],
-			Name: f[8], Exit: f[9], Ended: ended, Command: f[11], Dir: f[12], Path: f[12],
+			Name: f[8], Role: role(f[9]), Exit: f[10], Ended: ended, Command: f[12], Dir: f[13], Path: f[13],
 		})
 	}
 	return ps
@@ -750,16 +777,18 @@ func agentNote(conn string, stack, checks []stacked) string {
 		"  conn ls                          this project's processes, and the names they answer to\n" +
 		"  conn u NAME -- COMMAND           start a dev server, a watcher, anything long-lived, in a pane of its own\n" +
 		"  conn u NAME -w -- COMMAND        run a check and wait: its output, and its exit status as conn's\n" +
+		"  conn u -w -- COMMAND             run something once, under no name: a few test files, a one-off\n" +
 		"  conn l NAME|:PORT|PID [-n N]     what a process said\n" +
 		"  conn r NAME|:PORT|PID            restart one conn started\n" +
 		"  conn x NAME|:PORT|PID            end one\n\n" + called +
 		"A process started this way holds a terminal of its own: conn lists it, the operator " +
 		"can go into it, and its output is the pane's. Something you background instead holds " +
 		"no terminal and has no pane, and can only be read through whatever file its output was sent to. " +
-		"conn also keeps what you started as what this project runs: what waited (-w) as its checks, " +
+		"conn also keeps what you started under a name as what this project runs: what waited (-w) as its checks, " +
 		"the rest as its stack, each under its name, and the operator's keys run them again as you ran them. " +
-		"A name is one row across its runs: run a check again under the name it had, up or not, " +
-		"and it is started again in its pane; a new name is a new row on the operator's panel." + here
+		"A name is for what the project runs again, and is one row across its runs: run a check again under " +
+		"the name it had, up or not, and it is started again in its pane. Run anything else with no name: " +
+		"it is a row while its pane lives, and the project does not keep it." + here
 }
 
 // connCommand is how an agent runs this build: conn, where the PATH

@@ -446,22 +446,22 @@ func TestRepositories(t *testing.T) {
 }
 
 func TestParsePanes(t *testing.T) {
-	out := "%1 @1 0 412 /dev/ttys004   abc-1    claude /Users/me/my project\n" +
-		"%2 @2 1 0 /dev/ttys005 1      zsh /Users/me\n" +
-		"%3 @3 0 77 /dev/ttys006    web 0 1760000000 cat /p\n" +
-		"%4 @1 0 78 /dev/ttys007  1     conn /Users/me\n"
+	out := "%1 @1 0 412 /dev/ttys004   abc-1     claude /Users/me/my project\n" +
+		"%2 @2 1 0 /dev/ttys005 1       zsh /Users/me\n" +
+		"%3 @3 0 77 /dev/ttys006    web check 0 1760000000 cat /p\n" +
+		"%4 @1 0 78 /dev/ttys007  1      conn /Users/me\n"
 	got := parsePanes(out)
 	want := []pane{
 		{ID: "%1", Window: "@1", PID: 412, TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project", Path: "/Users/me/my project"},
 		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Panel: true, Command: "zsh", Dir: "/Users/me", Path: "/Users/me"},
-		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Exit: "0", Ended: time.Unix(1760000000, 0), Command: "cat", Dir: "/p", Path: "/p"},
+		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Role: roleCheck, Exit: "0", Ended: time.Unix(1760000000, 0), Command: "cat", Dir: "/p", Path: "/p"},
 		{ID: "%4", Window: "@1", PID: 78, TTY: "ttys007", Hold: true, Command: "conn", Dir: "/Users/me", Path: "/Users/me"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parsePanes = %+v\nwant %+v", got, want)
 	}
 	// A pane started for a project stands in it, wherever it runs.
-	got = inProjects(got, parseProjects("%1 \n%2 \n%3 /Users/me/my project\n%4 \n"))
+	got = inProjects(got, byPane("%1 \n%2 \n%3 /Users/me/my project\n%4 \n"))
 	if got[2].Dir != "/Users/me/my project" || got[2].Path != "/p" || got[0].Dir != "/Users/me/my project" {
 		t.Errorf("inProjects = %+v", got)
 	}
@@ -716,7 +716,7 @@ func TestStartWaitEnd(t *testing.T) {
 	if _, err := srv.Run("-f", "/dev/null", "new-session", "-d", "-s", sessionName, "sleep 1000"); err != nil {
 		t.Fatal(err)
 	}
-	id, err := startNamed(srv, "check", "echo one; echo two; exit 3", dir, dir)
+	id, err := startNamed(srv, "check", "echo one; echo two; exit 3", dir, dir, roleCheck)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -742,7 +742,7 @@ func TestStartWaitEnd(t *testing.T) {
 		t.Errorf("end = %q, %v", how, err)
 	}
 	// A server conn u started and that is still running is sent ctrl-c.
-	id, _ = startNamed(srv, "server", "sleep 1000", dir, dir)
+	id, _ = startNamed(srv, "server", "sleep 1000", dir, dir, roleStack)
 	time.Sleep(300 * time.Millisecond)
 	ps, _ = panes(srv)
 	for i := range ps {
@@ -1209,7 +1209,7 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 
 	// A check fails in web; started again, it runs.
 	ran := filepath.Join(scratch, "ran")
-	if _, err := startNamed(srv, "test", "if [ -e "+ran+" ]; then exec sleep 1000; fi; touch "+ran+"; exit 1", web, web); err != nil {
+	if _, err := startNamed(srv, "test", "if [ -e "+ran+" ]; then exec sleep 1000; fi; touch "+ran+"; exit 1", web, web, roleCheck); err != nil {
 		t.Fatal(err)
 	}
 	step("with a check failed", "conn · 1 waiting · 1 failed", 2)
@@ -1227,7 +1227,7 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 	frame("restarted-120x36.ans")
 
 	// Another run fails, and rings again; xx on its row dismisses it.
-	if _, err := startNamed(srv, "lint", "exit 2", web, web); err != nil {
+	if _, err := startNamed(srv, "lint", "exit 2", web, web, roleCheck); err != nil {
 		t.Fatal(err)
 	}
 	step("with the lint failed", "conn · 1 waiting · 1 failed", 3)
@@ -1666,7 +1666,7 @@ func TestEndInPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	id, err := startNamed(srv, "web", "sleep 1000", dir, dir)
+	id, err := startNamed(srv, "web", "sleep 1000", dir, dir, roleStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1690,7 +1690,7 @@ func TestEndInPlace(t *testing.T) {
 	if w, _ := srv.Display(panel, "#{pane_width}"); w != strconv.Itoa(panelWidth) {
 		t.Errorf("the panel is %s wide, want %d", w, panelWidth)
 	}
-	aside, _ := startNamed(srv, "worker", "sleep 1000", dir, dir)
+	aside, _ := startNamed(srv, "worker", "sleep 1000", dir, dir, roleStack)
 	time.Sleep(300 * time.Millisecond)
 	ps, _ = panes(srv)
 	for i := range ps {
@@ -1951,6 +1951,65 @@ func TestRunUWritesItDown(t *testing.T) {
 	}
 }
 
+// conn u with no name runs something once: a row under its command
+// while its pane lives, a check where it waited, and written down
+// nowhere, so what an agent runs to see something does not pile up as
+// what the project runs.
+func TestRunUUnderNoNameIsNotWrittenDown(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	t.Setenv("CONN_SOCKET", srv.Socket)
+	dir := filepath.Dir(srv.Socket)
+	var out strings.Builder
+	if code := runU(&out, t.TempDir(), dir, []string{"-w", "--", "echo once; exit 3"}); code != 3 || !strings.Contains(out.String(), "once") || strings.Contains(out.String(), "exited") {
+		t.Fatalf("conn u -w = %d: %q", code, out.String())
+	}
+	if got := readStarted(startedPath(srv.Socket)); len(got) != 0 {
+		t.Errorf("written down: %+v", got)
+	}
+	ps, err := panes(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var run *pane
+	for i := range ps {
+		if ps[i].Run != "" {
+			run = &ps[i]
+		}
+	}
+	if run == nil || run.Name != "" || run.Run != "echo once; exit 3" || run.Role != roleCheck || run.Exit != "3" {
+		t.Fatalf("pane = %+v", run)
+	}
+	in := func(string) bool { return true }
+	r := row{pane: run, state: "failed 3"}
+	if paneName(*run) != "echo once; exit 3" || placeOf(r, rosterOf(nil, in)) != placeChecks {
+		t.Errorf("row = %q in place %d", paneName(*run), placeOf(r, rosterOf(nil, in)))
+	}
+	if state, _ := paneState(*run, nil); state != "failed 3" {
+		t.Errorf("state = %q", state)
+	}
+	// Handed to an agent, it answers to its pid and runs again under
+	// no name.
+	m := model{srv: srv}
+	h, ok := m.handing(r)
+	if !ok || h.named || h.addr != strconv.Itoa(run.PID) {
+		t.Fatalf("handing = %+v", h)
+	}
+	prompt := handPrompt(h)
+	for _, want := range []string{"conn l " + strconv.Itoa(run.PID) + " reads", "conn u -w -- echo once; exit 3 runs it again"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt lacks %q:\n%s", want, prompt)
+		}
+	}
+	// Up and not waited on, it is the stack's, under its command.
+	out.Reset()
+	if code := runU(&out, t.TempDir(), dir, []string{"--", "sleep 1000"}); code != 0 || !strings.HasPrefix(out.String(), "sleep 1000 is up in pane %") || !strings.Contains(out.String(), "; conn l ") || strings.Contains(out.String(), "conn l sleep") {
+		t.Fatalf("conn u = %d: %q", code, out.String())
+	}
+	if got := readStarted(startedPath(srv.Socket)); len(got) != 0 {
+		t.Errorf("written down: %+v", got)
+	}
+}
+
 // conn u on a name that is up starts it again in its pane with the
 // command given now: a name is one row across its runs, and an agent
 // that runs a check again does not need a new name for it.
@@ -2101,7 +2160,7 @@ func TestArrangeFailedStays(t *testing.T) {
 // that failed go to one agent together.
 func TestHandPrompt(t *testing.T) {
 	lines := []string{"--- FAIL: TestX", "FAIL", "", "[test exited 1]", ""}
-	got := handPrompt(handing{"test", "go test ./...", "~/p", "failed 1", lines})
+	got := handPrompt(handing{name: "test", addr: "test", named: true, command: "go test ./...", dir: "~/p", state: "failed 1", lines: lines})
 	for _, want := range []string{"In this project, test runs go test ./... at ~/p, and it failed 1.", "--- FAIL: TestX\nFAIL\n", "Work out what is wrong and fix it.", "conn l test reads", "conn u test -w -- go test ./... runs it again."} {
 		if !strings.Contains(got, want) {
 			t.Errorf("prompt lacks %q:\n%s", want, got)
@@ -2110,11 +2169,11 @@ func TestHandPrompt(t *testing.T) {
 	if strings.Contains(got, "[test exited") {
 		t.Errorf("prompt keeps conn's closing line:\n%s", got)
 	}
-	running := handPrompt(handing{"web", "npm run dev", "~/p", "running", nil})
+	running := handPrompt(handing{name: "web", addr: "web", named: true, command: "npm run dev", dir: "~/p", state: "running"})
 	if !strings.Contains(running, "and it is running.") || !strings.Contains(running, "Look into it.") || strings.Contains(running, "runs it again") {
 		t.Errorf("prompt for a running process:\n%s", running)
 	}
-	all := handAllPrompt([]handing{{"test", "go test ./...", "~/p", "failed 1", lines}, {"lint", "make lint", "~/p", "failed 2", []string{"lint: bad"}}})
+	all := handAllPrompt([]handing{{name: "test", addr: "test", named: true, command: "go test ./...", dir: "~/p", state: "failed 1", lines: lines}, {name: "lint", addr: "lint", named: true, command: "make lint", dir: "~/p", state: "failed 2", lines: []string{"lint: bad"}}})
 	for _, want := range []string{"2 runs in this project failed.", "test runs go test ./...", "conn u lint -w -- make lint runs it again.", "lint: bad", "with each and fix it."} {
 		if !strings.Contains(all, want) {
 			t.Errorf("prompt for two lacks %q:\n%s", want, all)
@@ -2236,7 +2295,7 @@ func TestHandingLeavesTheAgentToIt(t *testing.T) {
 // A conversation is told the project's checks and stack as last run.
 func TestAgentNote(t *testing.T) {
 	note := agentNote("conn", []stacked{{name: "web", command: "npm run dev"}}, []stacked{{name: "test", command: "go test ./..."}})
-	for _, want := range []string{"In this project, as last run through conn:\n  conn u test -w -- go test ./...\n  conn u web -- npm run dev", "A name is one row across its runs"} {
+	for _, want := range []string{"In this project, as last run through conn:\n  conn u test -w -- go test ./...\n  conn u web -- npm run dev", "conn u -w -- COMMAND", "A name is for what the project runs again, and is one row across its runs", "Run anything else with no name"} {
 		if !strings.Contains(note, want) {
 			t.Errorf("note lacks %q:\n%s", want, note)
 		}
@@ -2253,7 +2312,7 @@ func TestEndAll(t *testing.T) {
 	dir := filepath.Dir(srv.Socket)
 	other := t.TempDir()
 	for _, p := range [][2]string{{"web", dir}, {"worker", dir}, {"theirs", other}} {
-		if _, err := startNamed(srv, p[0], "sleep 1000", p[1], realDir(p[1])); err != nil {
+		if _, err := startNamed(srv, p[0], "sleep 1000", p[1], realDir(p[1]), roleStack); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -4125,7 +4184,7 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web); err != nil {
+	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web, roleStack); err != nil {
 		t.Fatal(err)
 	}
 	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
@@ -4452,7 +4511,7 @@ func TestAFinishedConversationSaysSo(t *testing.T) {
 	}
 	webPane, webStatus := conversation("web", web, s1)
 	apiPane, apiStatus := conversation("api", api, s2)
-	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web); err != nil {
+	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web, roleStack); err != nil {
 		t.Fatal(err)
 	}
 

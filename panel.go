@@ -260,10 +260,12 @@ func placeOf(r row, ros roster) int {
 		return placeElsewhere
 	case r.conv != nil || r.pane == nil || r.pane.Session != "":
 		return placeConversations
-	case r.pane.Name == "":
+	case !r.pane.started():
 		// A shell, or a client opened by c: it talks to the stack.
 		return placeClients
-	case ros.role[r.pane.Name] == roleCheck:
+	case r.pane.Name == "" && r.pane.Role == roleCheck, r.pane.Name != "" && ros.role[r.pane.Name] == roleCheck:
+		// A run under a name is what the name was last written down
+		// as; one under none is what it was started as.
 		return placeChecks
 	}
 	return placeStack
@@ -594,7 +596,7 @@ func stands(r row) bool {
 	switch {
 	case r.outside != nil:
 		return true
-	case r.stand == placeStack && r.pane != nil && r.conv == nil && r.pane.Name != "":
+	case r.stand == placeStack && r.pane != nil && r.conv == nil && r.pane.started():
 		return r.pane.Exit == ""
 	}
 	return false
@@ -669,7 +671,7 @@ func (m model) read() tea.Cmd {
 			seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
 			root := k.rootOf(p.Dir)
 			running[root]++
-			if p.Exit == "" && isCheck(starts, root, p.Name) {
+			if p.Exit == "" && (p.Name == "" && p.Role == roleCheck || isCheck(starts, root, p.Name)) {
 				turning[root]++
 			}
 			if _, ok := finished[p.ID]; ok {
@@ -678,7 +680,7 @@ func (m model) read() tea.Cmd {
 		}
 		total, broke := 0, 0
 		for _, p := range held {
-			if p.Name != "" && p.Exit != "" && p.Exit != "0" {
+			if p.started() && p.Exit != "" && p.Exit != "0" {
 				broke++
 			}
 		}
@@ -883,7 +885,7 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 	for j := range ps {
 		if !used[ps[j].ID] && in(ps[j].Dir) {
 			state := live[ps[j].Session].state()
-			if ps[j].Name != "" && ps[j].Exit != "" {
+			if ps[j].started() && ps[j].Exit != "" {
 				state = ended(ps[j].Exit)
 			}
 			running = append(running, row{pane: &ps[j], state: state})
@@ -1382,7 +1384,7 @@ func rowName(r row) string {
 // Code is asked what talks to it.
 func (m model) talk(r row) (tea.Model, tea.Cmd) {
 	switch {
-	case r.conv != nil || (r.pane != nil && (r.pane.Session != "" || r.pane.Name == "")):
+	case r.conv != nil || (r.pane != nil && (r.pane.Session != "" || !r.pane.started())):
 		return m.goTo(r)
 	case r.pane == nil && r.outside == nil:
 		return m, nil
@@ -1402,8 +1404,8 @@ func (m model) talk(r row) (tea.Model, tea.Cmd) {
 	}
 	command, dir := "", r.dir()
 	switch {
-	case r.pane != nil && r.pane.Name != "":
-		command, _ = m.srv.Display(r.pane.ID, "#{"+runMark+"}")
+	case r.pane != nil:
+		command = r.pane.Run
 	case r.outside != nil:
 		command = r.outside.Command
 	}
@@ -1747,7 +1749,7 @@ func (m model) up(command string) tea.Cmd {
 	srv, root, rows := m.srv, m.here(), m.rows
 	return func() tea.Msg {
 		name := nameFor(command)
-		said, err := startIn(srv, rows, name, command, root)
+		said, err := startIn(srv, rows, name, command, root, roleStack)
 		if err != nil {
 			return acted(err.Error())
 		}
@@ -1770,7 +1772,7 @@ func (m model) startRoles(list []stacked, as role, record bool) tea.Cmd {
 	return func() tea.Msg {
 		var said []string
 		for i, s := range list {
-			r, err := startIn(srv, rows, s.name, s.command, places[i].at)
+			r, err := startIn(srv, rows, s.name, s.command, places[i].at, as)
 			if err != nil {
 				return acted(s.name + ": " + err.Error())
 			}
@@ -1786,7 +1788,7 @@ func (m model) startRoles(list []stacked, as role, record bool) tea.Cmd {
 // startIn starts a command under a name at a project's root. One by
 // that name that has ended is replaced; one still running is left, and
 // said.
-func startIn(srv *tmux.Server, rows []row, name, command, root string) (string, error) {
+func startIn(srv *tmux.Server, rows []row, name, command, root string, as role) (string, error) {
 	replace := ""
 	for _, r := range rows {
 		if r.pane == nil || r.pane.Name != name {
@@ -1797,7 +1799,7 @@ func startIn(srv *tmux.Server, rows []row, name, command, root string) (string, 
 		}
 		replace = r.pane.ID
 	}
-	if _, err := startNamed(srv, name, command, root, root); err != nil {
+	if _, err := startNamed(srv, name, command, root, root, as); err != nil {
 		return "", err
 	}
 	if replace != "" {
@@ -2067,13 +2069,12 @@ func (m model) handing(r row) (handing, bool) {
 	case r.conv != nil || (r.pane != nil && r.pane.Session != ""):
 		return h, false
 	case r.pane != nil:
-		h.name, h.dir, h.state = paneName(*r.pane), r.pane.Path, or(r.state, "running")
-		if r.pane.Name != "" {
-			h.command, _ = m.srv.Display(r.pane.ID, "#{"+runMark+"}")
-		}
+		h.name, h.command, h.dir, h.state = paneName(*r.pane), r.pane.Run, r.pane.Path, or(r.state, "running")
+		// A run under no name answers to its pid.
+		h.addr, h.named = or(r.pane.Name, strconv.Itoa(r.pane.PID)), r.pane.Name != ""
 		h.lines, _ = said(m.srv, r.pane.ID)
 	case r.outside != nil:
-		h.name, h.command, h.dir, h.state = r.outside.Name, r.outside.Command, r.outside.Dir, "running outside conn, pid "+strconv.Itoa(r.outside.PID)
+		h.name, h.addr, h.named, h.command, h.dir, h.state = r.outside.Name, r.outside.Name, true, r.outside.Command, r.outside.Dir, "running outside conn, pid "+strconv.Itoa(r.outside.PID)
 		if len(r.ports) > 0 {
 			h.state += ", on :" + strings.Join(r.ports, " :")
 		}
@@ -2815,7 +2816,7 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		// well; one that did not says its status first, in red.
 		// One from before conn wrote the time down says only how it
 		// did.
-		if r.pane.Name != "" && r.pane.Exit != "" {
+		if r.pane.started() && r.pane.Exit != "" {
 			// The red says a run failed; the figure keeps the
 			// status, which says how, and the age. A check's mark says
 			// its verdict, so its figure is the age alone.

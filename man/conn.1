@@ -249,6 +249,26 @@ A key in it puts the keys back on the panel.
 What a key does depends on where the keys are.
 The key bar across the foot of the window says the keys that work where
 the cursor is, a word each; \fB?\fR says them in full.
+.PP
+A line typed into \(em the find on the projects screen, the line, the
+search, the find in the conversations at rest \(em edits as readline
+does:
+.BR left ", " right ", " ctrl\-b ", " ctrl\-f
+move by a character,
+.BR alt\-b ", " alt\-f
+by a word,
+.BR ctrl\-a ", " ctrl\-e
+to the ends;
+.BR backspace ", " ctrl\-d
+take a character,
+.BR ctrl\-w ", " alt\-d
+a word,
+.B ctrl\-u
+the line before the cursor, and
+.B ctrl\-k
+the line after it where no list stands under the line.
+A paste types.
+The line is cleared when it is left, however it is left.
 .SS In a process
 .TP 22
 .B ctrl\-space
@@ -300,9 +320,6 @@ not a server the project only connects to.
 .B esc
 Clear what was typed; with nothing typed, back down into the project
 you came up from.
-.TP
-.B ctrl\-u
-Clear what was typed.
 .TP
 .B ,
 With nothing typed: the settings.
@@ -481,9 +498,6 @@ Types.
 .B enter
 Run the line; with nothing typed, open a shell.
 .TP
-.B ctrl\-u
-Clear the line.
-.TP
 .BR esc ", " ctrl\-c
 Put the line away.
 .SS In the search
@@ -496,9 +510,6 @@ Move among the lines found; the workspace follows.
 .TP
 .B enter
 Into the line's pane, in copy mode on the match, the keys there.
-.TP
-.B ctrl\-u
-Clear what is typed.
 .TP
 .BR esc ", " ctrl\-c
 Put the search away.

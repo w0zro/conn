@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -62,11 +63,15 @@ type model struct {
 	screen        screen
 	cursor        int
 	note          string // what the last key could not do, or did
-	// !'s line: the command being typed, while it is.
+	// !'s line: whether it is being typed.
 	asking bool
 	// ?: the screen's keys, over it, until a key puts them away.
 	helping bool
-	line    string
+	// The box: the one line being typed, whichever it is - the projects'
+	// find, !'s line, /'s search or rc's find. One stands at a time,
+	// cleared when opened and when left. The text input is the model of
+	// the line and edits it as readline does; conn draws it.
+	box textinput.Model
 	// u's, t's or c's question: the role asked about, blank for none,
 	// and what Claude Code answered, or why it did not. While it stands
 	// it is the project's screen.
@@ -86,12 +91,11 @@ type model struct {
 	// What each of them is called, by pane, for the projects screen.
 	waitTitle map[string]string
 	waitAsk   map[string]string
-	// /'s search: whether it stands, what is typed, the panes' lines as
-	// read when it opened, and the lines that say what is typed. The
-	// pane the line under the cursor is shown in, in copy mode on the
-	// line, and a count of the moves so that only the last is shown.
+	// /'s search: whether it stands, the panes' lines as read when it
+	// opened, and the lines that say what is typed. The pane the line
+	// under the cursor is shown in, in copy mode on the line, and a
+	// count of the moves so that only the last is shown.
 	searching bool
-	query     string
 	said      []written
 	found     []hit
 	hitAt     int
@@ -99,7 +103,6 @@ type model struct {
 	peeks     int
 
 	// The projects screen.
-	typed    string
 	projects []project
 	procs    []proc
 	loaded   bool
@@ -114,10 +117,9 @@ type model struct {
 	// The pane the keys were last in, and the one before it:
 	// ctrl-space on the panel goes to the other.
 	in, other string
-	// rc's list of the conversations at rest: whether it stands, what
-	// is typed to find one, and the cursor in it.
+	// rc's list of the conversations at rest: whether it stands, and the
+	// cursor in it.
 	listing bool
-	pick    string
 	pickAt  int
 	// What each conversation at rest said, by id, read when the list
 	// stands: the lines of text the person and Claude wrote.
@@ -1011,7 +1013,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case saidRead:
 		if m.searching && msg.root == m.cur.Root {
 			m.said = msg.panes
-			m.found = hits(m.query, m.said)
+			m.found = hits(m.box.Value(), m.said)
 			m.hitAt = min(m.hitAt, max(len(m.found)-1, 0))
 			return m.peeking()
 		}
@@ -1045,6 +1047,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Button == tea.MouseLeft {
 			m.note = ""
 			return m.click(msg.Y)
+		}
+	case tea.PasteMsg:
+		if m.boxStands() {
+			return m.typeInto(msg)
 		}
 	case tea.KeyPressMsg:
 		m.note = ""
@@ -1120,9 +1126,10 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "x":
-		if m.cursor < len(shown) && m.typed == "" {
+		if m.cursor < len(shown) && m.box.Value() == "" {
 			return m, m.endAll(shown[m.cursor])
 		}
+		return m.typeInto(k)
 	case "up", "ctrl+p", "ctrl+k":
 		m.cursor = ring(m.cursor, -1, len(shown))
 	case "down", "ctrl+n", "ctrl+j":
@@ -1132,28 +1139,21 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "?":
 		m.helping = true
 	case ",":
-		if m.typed == "" {
+		if m.box.Value() == "" {
 			m.settings, m.setAt = true, 0
 			return m, nil
 		}
-		m.typed, m.cursor = m.typed+",", 0
+		return m.typeInto(k)
 	case "esc":
 		// esc takes back what was typed to find; with nothing typed, it
 		// goes back down into the project - came up from.
-		if m.typed == "" && m.cur.Root != "" {
+		if m.box.Value() == "" && m.cur.Root != "" {
 			return m.open(m.cur)
 		}
-		m.typed, m.cursor = "", 0
-	case "ctrl+u":
-		m.typed, m.cursor = "", 0
-	case "backspace":
-		if r := []rune(m.typed); len(r) > 0 {
-			m.typed, m.cursor = string(r[:len(r)-1]), 0
-		}
+		m.box.Reset()
+		m.cursor = 0
 	default:
-		if t := k.Key().Text; t != "" {
-			m.typed, m.cursor = m.typed+t, 0
-		}
+		return m.typeInto(k)
 	}
 	return m, nil
 }
@@ -1179,6 +1179,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "-":
 		// Up to the projects, as vim's - goes up to the directory.
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
+		m.box.Reset()
 		return m, m.read()
 	case "up", "k", "ctrl+p":
 		m.cursor, m.follow = ring(m.cursor, -1, len(m.items())), ""
@@ -1193,9 +1194,11 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		m.note = m.leave()
 	case "!":
-		m.asking, m.line = true, ""
+		m.asking = true
+		m.box.Reset()
 	case "/":
-		m.searching, m.query, m.said, m.found, m.hitAt = true, "", nil, nil, 0
+		m.searching, m.said, m.found, m.hitAt = true, nil, nil, 0
+		m.box.Reset()
 		return m, readSaid(m.srv, m.cur.Root, m.rows)
 	case "c":
 		if r, ok := m.under(); ok {
@@ -1214,24 +1217,72 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m model) lineKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "esc", "ctrl+c":
-		m.asking, m.line = false, ""
-	case "enter":
 		m.asking = false
-		if strings.TrimSpace(m.line) == "" {
+		m.box.Reset()
+	case "enter":
+		line := strings.TrimSpace(m.box.Value())
+		m.asking = false
+		m.box.Reset()
+		if line == "" {
 			// Nothing typed is a shell.
 			return m.start(m.here(), "", "")
 		}
-		return m, m.up(strings.TrimSpace(m.line))
-	case "backspace":
-		if r := []rune(m.line); len(r) > 0 {
-			m.line = string(r[:len(r)-1])
-		}
-	case "ctrl+u":
-		m.line = ""
+		return m, m.up(line)
 	default:
-		m.line += k.Key().Text
+		return m.typeInto(k)
 	}
 	return m, nil
+}
+
+// boxStands says whether a line is being typed, for a paste to go into.
+func (m model) boxStands() bool {
+	return !m.helping && !m.settings && m.question == "" && (m.asking || m.listing || m.searching || m.screen == onProjects)
+}
+
+// typeInto gives a key, or a paste, to the box, which edits as
+// readline does. The box is made at its first key, focused and with no
+// cursor of its own, holding what was put in it before. When what it
+// says has changed, what it finds starts over: the cursor at the top,
+// the search run again.
+func (m model) typeInto(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if !m.box.Focused() {
+		b := textinput.New()
+		b.Prompt = ""
+		b.SetVirtualCursor(false)
+		b.Focus()
+		b.SetValue(m.box.Value())
+		b.SetCursor(m.box.Position())
+		m.box = b
+	}
+	was := m.box.Value()
+	m.box, _ = m.box.Update(msg)
+	if m.box.Value() == was {
+		return m, nil
+	}
+	switch {
+	case m.searching:
+		m.found, m.hitAt = hits(m.box.Value(), m.said), 0
+		return m.peeking()
+	case m.listing:
+		m.pickAt = 0
+	case m.screen == onProjects:
+		m.cursor = 0
+	}
+	return m, nil
+}
+
+// boxText is what the box holds, split where its cursor stands.
+func (m model) boxText() (before, after string) {
+	r := []rune(m.box.Value())
+	at := min(m.box.Position(), len(r))
+	return string(r[:at]), string(r[at:])
+}
+
+// boxPieces is the box as drawn: what is typed in the ink, and the
+// caret in the accent where the cursor stands.
+func (m model) boxPieces() []piece {
+	before, after := m.boxText()
+	return []piece{{before, ink}, {caret, accent}, {after, ink}}
 }
 
 // rowName is the name a row's process answers to, which a client is
@@ -1387,6 +1438,7 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "esc", "ctrl+c":
 		m.searching, m.said, m.found = false, nil, nil
+		m.box.Reset()
 		return m.unland("")
 	case "enter":
 		if m.hitAt < len(m.found) {
@@ -1395,7 +1447,7 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m, let := m.unland(p.ID)
 			m = m.into(p.ID)
 			m.landed, m.asked = p.ID, p.ID
-			return m, tea.Batch(let, land(m.ws, m.srv, p, h.k, m.query))
+			return m, tea.Batch(let, land(m.ws, m.srv, p, h.k, m.box.Value()))
 		}
 		return m, nil
 	case "up", "ctrl+p", "ctrl+k":
@@ -1404,21 +1456,8 @@ func (m model) searchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "down", "ctrl+n", "ctrl+j":
 		m.hitAt = ring(m.hitAt, 1, len(m.found))
 		return m.peeking()
-	case "backspace":
-		if r := []rune(m.query); len(r) > 0 {
-			m.query = string(r[:len(r)-1])
-		}
-	case "ctrl+u":
-		m.query = ""
-	default:
-		t := k.Key().Text
-		if t == "" {
-			return m, nil
-		}
-		m.query += t
 	}
-	m.found, m.hitAt = hits(m.query, m.said), 0
-	return m.peeking()
+	return m.typeInto(k)
 }
 
 // A peek is the line under the search's cursor, shown once the cursor
@@ -1449,7 +1488,7 @@ func (m model) peek() (tea.Model, tea.Cmd) {
 	p := m.said[h.said].pane
 	was := m.landed
 	m.landed, m.asked = p.ID, p.ID
-	ws, srv, k, text := m.ws, m.srv, h.k, m.query
+	ws, srv, k, text := m.ws, m.srv, h.k, m.box.Value()
 	return m, func() tea.Msg {
 		if was != "" && was != p.ID {
 			srv.Unmode(was)
@@ -1821,6 +1860,7 @@ func (m model) leave() string {
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
 	m.screen, m.cur, m.rows, m.cursor, m.follow = onProject, p, nil, 0, ""
+	m.box.Reset()
 	return m, m.read()
 }
 
@@ -1955,7 +1995,7 @@ func (m model) shownProjects() []project {
 	if port, ok := m.typedPort(); ok {
 		return m.holding(port)
 	}
-	words := strings.Fields(strings.ToLower(m.typed))
+	words := strings.Fields(strings.ToLower(m.box.Value()))
 	if len(words) == 0 {
 		return m.projects
 	}
@@ -2001,7 +2041,7 @@ func (m model) shownProjects() []project {
 // typedPort is the port typed to find what holds it: a colon and
 // digits.
 func (m model) typedPort() (string, bool) {
-	t := strings.TrimSpace(m.typed)
+	t := strings.TrimSpace(m.box.Value())
 	port, ok := strings.CutPrefix(t, ":")
 	if !ok || port == "" {
 		return "", false
@@ -2074,7 +2114,7 @@ func (m model) holderSays(p project, port string) string {
 // typedPath is the project at a typed path, where what is typed is a
 // path to a directory.
 func (m model) typedPath() (project, bool) {
-	t := strings.TrimSpace(m.typed)
+	t := strings.TrimSpace(m.box.Value())
 	if !strings.HasPrefix(t, "~") && !strings.Contains(t, "/") {
 		return project{}, false
 	}
@@ -2317,7 +2357,8 @@ func (m model) draw() ([]string, foot) {
 		f.say = m.note
 	}
 	if m.asking {
-		f.say = "run in " + m.cur.Name + ": " + m.line + caret
+		before, after := m.boxText()
+		f.say = "run in " + m.cur.Name + ": " + before + caret + after
 	}
 	return lines, f
 }
@@ -2380,7 +2421,8 @@ func (m model) drawKeys() ([]string, foot) {
 
 func (m model) drawProjects() ([]string, foot) {
 	lines := head("conn", "projects")
-	lines = append(lines, at(gray.Render("find")+"  "+ink.Render(m.typed)+accent.Render(caret)), "")
+	before, after := m.boxText()
+	lines = append(lines, at(gray.Render("find")+"  "+ink.Render(before)+accent.Render(caret)+ink.Render(after)), "")
 	shown := m.shownProjects()
 	first, room := m.projectsWindow(len(lines))
 	nameW := 0
@@ -2432,7 +2474,7 @@ func (m model) drawProjects() ([]string, foot) {
 	switch {
 	case !m.loaded:
 		lines = append(lines, at(faint.Render("reading where work has happened…")))
-	case len(shown) == 0 && m.typed != "":
+	case len(shown) == 0 && m.box.Value() != "":
 		if p, ok := m.typedPath(); ok {
 			lines = append(lines, at(ink.Render("enter opens "+tilde(p.Root, m.home))))
 		} else {
@@ -2934,12 +2976,12 @@ func (m model) drawSearch(lines []string) ([]string, foot) {
 	switch {
 	case m.said == nil:
 		count = "reading…"
-	case m.query != "" && len(m.found) == 1:
+	case m.box.Value() != "" && len(m.found) == 1:
 		count = "1 line"
-	case m.query != "":
+	case m.box.Value() != "":
 		count = fmt.Sprintf("%d lines", len(m.found))
 	}
-	lines = append(lines, m.row([]piece{{"/ ", gray}, {m.query, ink}, {caret, accent}}, piece{count, gray}, false), "")
+	lines = append(lines, m.row(append([]piece{{"/ ", gray}}, m.boxPieces()...), piece{count, gray}, false), "")
 	nameW := 0
 	for _, h := range m.found {
 		nameW = max(nameW, ansi.StringWidth(m.said[h.said].name))
@@ -2952,7 +2994,7 @@ func (m model) drawSearch(lines []string) ([]string, foot) {
 		name := pad(m.said[h.said].name, nameW) + "  "
 		text, a := around(h.line, h.at, max(m.measure()-ansi.StringWidth(name), 8))
 		a = min(a, len(text))
-		end := min(a+len(m.query), len(text))
+		end := min(a+len(m.box.Value()), len(text))
 		left := []piece{{name, gray}, {text[:a], ink}, {text[a:end], keyInk}, {text[end:], ink}}
 		lines = append(lines, m.row(left, piece{}, i == m.hitAt))
 	}
@@ -3001,7 +3043,8 @@ func (m model) objectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "rc":
-		m.listing, m.pick, m.pickAt = true, "", 0
+		m.listing, m.pickAt = true, 0
+		m.box.Reset()
 		m.spoken = make(map[string][]string, len(m.rest))
 		for _, r := range m.rest {
 			m.spoken[r.conv.ID] = spokenIn(r.conv.path)
@@ -3150,7 +3193,7 @@ func counted(n int, word string) string {
 // shownRest is the conversations at rest the typed words find: each
 // word in the title, or all of them in one line said in it.
 func (m model) shownRest() []row {
-	words := strings.Fields(strings.ToLower(m.pick))
+	words := strings.Fields(strings.ToLower(m.box.Value()))
 	if len(words) == 0 {
 		return m.rest
 	}
@@ -3300,25 +3343,19 @@ func (m model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "esc", "ctrl+c":
 		m.listing = false
+		m.box.Reset()
 	case "enter":
 		if m.pickAt < len(shown) {
 			m.listing = false
+			m.box.Reset()
 			return m.goTo(shown[m.pickAt])
 		}
 	case "up", "ctrl+p", "ctrl+k":
 		m.pickAt = ring(m.pickAt, -1, len(shown))
 	case "down", "ctrl+n", "ctrl+j":
 		m.pickAt = ring(m.pickAt, 1, len(shown))
-	case "backspace":
-		if r := []rune(m.pick); len(r) > 0 {
-			m.pick, m.pickAt = string(r[:len(r)-1]), 0
-		}
-	case "ctrl+u":
-		m.pick, m.pickAt = "", 0
 	default:
-		if t := k.Key().Text; t != "" {
-			m.pick, m.pickAt = m.pick+t, 0
-		}
+		return m.typeInto(k)
 	}
 	return m, nil
 }
@@ -3329,8 +3366,8 @@ func (m model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m model) drawList(lines []string) ([]string, foot) {
 	shown := m.shownRest()
 	count := counted(len(shown), "conversation") + " at rest"
-	lines = append(lines, m.row([]piece{{"find", gray}, {"  " + m.pick, ink}, {caret, accent}}, piece{count, gray}, false), "")
-	words := strings.Fields(strings.ToLower(m.pick))
+	lines = append(lines, m.row(append([]piece{{"find", gray}, {"  ", ink}}, m.boxPieces()...), piece{count, gray}, false), "")
+	words := strings.Fields(strings.ToLower(m.box.Value()))
 	room := max(m.height-len(lines)-1, 1)
 	said := make([]string, len(shown))
 	for i, r := range shown {

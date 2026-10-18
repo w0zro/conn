@@ -458,11 +458,11 @@ func TestShownProjects(t *testing.T) {
 		{Name: "shop", Root: "/h/p/shop"},
 		{Name: "notes", Root: "/h/w/notes"},
 	}}
-	m.typed = "SHO"
+	m.box.SetValue("SHO")
 	if got := m.shownProjects(); len(got) != 1 || got[0].Name != "shop" {
 		t.Errorf("shop: %+v", got)
 	}
-	m.typed = "w note"
+	m.box.SetValue("w note")
 	if got := m.shownProjects(); len(got) != 1 || got[0].Name != "notes" {
 		t.Errorf("w note: %+v", got)
 	}
@@ -476,18 +476,18 @@ func TestTypedPath(t *testing.T) {
 	}
 	m := model{home: home, known: newKnown()}
 	for _, typed := range []string{"~/src/new", dir, "src/new"} {
-		m.typed = typed
+		m.box.SetValue(typed)
 		p, ok := m.typedPath()
 		// The scratch directory is temporary, so it stands as itself.
 		if !ok || p.Root != dir || p.Name != "new" {
 			t.Errorf("typedPath(%q) = %+v, %v", typed, p, ok)
 		}
 	}
-	m.typed = "shop"
+	m.box.SetValue("shop")
 	if _, ok := m.typedPath(); ok {
 		t.Error("a word was taken for a path")
 	}
-	m.typed = "~/src/none"
+	m.box.SetValue("~/src/none")
 	if _, ok := m.typedPath(); ok {
 		t.Error("a missing directory was opened")
 	}
@@ -1802,11 +1802,11 @@ func TestShownProjectsKeepFolders(t *testing.T) {
 		}
 		return out
 	}
-	m.typed = "essays"
+	m.box.SetValue("essays")
 	if got := names(); !reflect.DeepEqual(got, []string{"w", "essays"}) {
 		t.Errorf("essays: %v", got)
 	}
-	m.typed = "/p/w "
+	m.box.SetValue("/p/w ")
 	if got := names(); !reflect.DeepEqual(got, []string{"w", "conn", "essays"}) {
 		t.Errorf("/p/w: %v", got)
 	}
@@ -3043,8 +3043,9 @@ func TestSearchShowsTheLine(t *testing.T) {
 		}
 		said = append(said, written{pane: pane{ID: id}, name: id, lines: lines})
 	}
-	m := model{srv: srv, own: panel, ws: ws, known: newKnown(), screen: onProject, cur: project{Name: "p", Root: "/p"}, searching: true, query: "150", said: said}
-	m.found = hits(m.query, m.said)
+	m := model{srv: srv, own: panel, ws: ws, known: newKnown(), screen: onProject, cur: project{Name: "p", Root: "/p"}, searching: true, said: said}
+	m.box.SetValue("150")
+	m.found = hits(m.box.Value(), m.said)
 	where := func(id string) string {
 		out, _ := srv.Run("display-message", "-p", "-t", id, "#{pane_in_mode}|#{copy_cursor_line}|#{search_present}")
 		return strings.TrimSpace(out)
@@ -3109,10 +3110,10 @@ func TestDashGoesUpToTheProjects(t *testing.T) {
 	if m = next.(model); m.screen != onProjects {
 		t.Fatal("- did not go up to the projects")
 	}
-	m.typed = "co"
+	m.box.SetValue("co")
 	next, _ = m.Update(esc)
-	if m = next.(model); m.screen != onProjects || m.typed != "" {
-		t.Errorf("esc with a find typed did not clear it and stay: screen %v, typed %q", m.screen, m.typed)
+	if m = next.(model); m.screen != onProjects || m.box.Value() != "" {
+		t.Errorf("esc with a find typed did not clear it and stay: screen %v, typed %q", m.screen, m.box.Value())
 	}
 	next, _ = m.Update(esc)
 	if m = next.(model); m.screen != onProject || m.cur.Root != "/p" {
@@ -3128,6 +3129,101 @@ func TestDashGoesUpToTheProjects(t *testing.T) {
 // ground, on beside what the server is on. enter puts the server on
 // the row's where it stands, the panel wears it, and config.json keeps
 // it beside what else it says; esc puts the settings away.
+// Every line typed into - the projects' find, !'s line, /'s search and
+// rc's find - is edited as readline edits it: the cursor moves within
+// it, a word is taken back, the rest cut; the caret is drawn where the
+// cursor stands; and the line is cleared when it is left, however it is
+// left.
+func TestTheLinesEditAsReadlineAndClearWhenLeft(t *testing.T) {
+	keys := func(m model, ks ...tea.Key) model {
+		for _, k := range ks {
+			next, _ := m.Update(tea.KeyPressMsg(k))
+			m = next.(model)
+		}
+		return m
+	}
+	text := func(s string) []tea.Key {
+		var ks []tea.Key
+		for _, r := range s {
+			ks = append(ks, tea.Key{Code: r, Text: string(r)})
+		}
+		return ks
+	}
+	ctrl := func(r rune) tea.Key { return tea.Key{Code: r, Mod: tea.ModCtrl} }
+	alt := func(r rune) tea.Key { return tea.Key{Code: r, Mod: tea.ModAlt} }
+	left, esc, enter := tea.Key{Code: tea.KeyLeft}, tea.Key{Code: tea.KeyEscape}, tea.Key{Code: tea.KeyEnter}
+	// edits types into whichever line stands and checks each readline key.
+	edits := func(m model, line string) model {
+		t.Helper()
+		m = keys(m, text("shp")...)
+		m = keys(m, left)
+		m = keys(m, text("o")...)
+		if m.box.Value() != "shop" || m.box.Position() != 3 {
+			t.Errorf("%s: left then a letter gave %q at %d", line, m.box.Value(), m.box.Position())
+		}
+		if m = keys(m, ctrl('a')); m.box.Position() != 0 {
+			t.Errorf("%s: ctrl-a did not go to the start: at %d", line, m.box.Position())
+		}
+		if m = keys(m, ctrl('e')); m.box.Position() != 4 {
+			t.Errorf("%s: ctrl-e did not go to the end: at %d", line, m.box.Position())
+		}
+		if m = keys(m, ctrl('w')); m.box.Value() != "" {
+			t.Errorf("%s: ctrl-w left %q", line, m.box.Value())
+		}
+		m = keys(m, text("the shop")...)
+		if m = keys(m, alt('b')); m.box.Position() != 4 {
+			t.Errorf("%s: alt-b did not go back a word: at %d", line, m.box.Position())
+		}
+		m = keys(m, left, left, left)
+		if before, after := m.boxText(); before != "t" || after != "he shop" {
+			t.Errorf("%s: the caret is drawn between %q and %q", line, before, after)
+		}
+		return m
+	}
+	// The projects' find, cleared by opening a project.
+	m := model{screen: onProjects, projects: []project{{Name: "shop", Root: "/p"}}, loaded: true}
+	m = edits(m, "find")
+	if m = keys(m, ctrl('e'), ctrl('w')); m.box.Value() != "the " {
+		t.Errorf("find: ctrl-w took back %q", m.box.Value())
+	}
+	m = keys(m, ctrl('u'))
+	m = keys(m, text("sho")...)
+	if m = keys(m, enter); m.screen != onProject || m.box.Value() != "" {
+		t.Errorf("opening a project left the find at %q on screen %v", m.box.Value(), m.screen)
+	}
+	// !'s line, cleared by esc and by enter.
+	m = keys(m, text("!")...)
+	m = edits(m, "!")
+	if m = keys(m, ctrl('a'), alt('f'), ctrl('k')); m.box.Value() != "the" {
+		t.Errorf("!: alt-f then ctrl-k left %q", m.box.Value())
+	}
+	if m = keys(m, esc); m.asking || m.box.Value() != "" {
+		t.Errorf("esc left !'s line at %q", m.box.Value())
+	}
+	m = keys(m, text("!echo hi")...)
+	if m = keys(m, enter); m.asking || m.box.Value() != "" {
+		t.Errorf("enter left !'s line at %q", m.box.Value())
+	}
+	// /'s search, cleared by esc. The lines searched are read off the
+	// loop, so the search is stood up by hand.
+	m.searching = true
+	m = edits(m, "/")
+	if m = keys(m, esc); m.searching || m.box.Value() != "" {
+		t.Errorf("esc left the search at %q", m.box.Value())
+	}
+	// rc's find, cleared by esc.
+	m.listing = true
+	m = edits(m, "rc")
+	if m = keys(m, esc); m.listing || m.box.Value() != "" {
+		t.Errorf("esc left rc's find at %q", m.box.Value())
+	}
+	// Back on the projects, the find is clear.
+	m = keys(m, text("-")...)
+	if m.screen != onProjects || m.box.Value() != "" {
+		t.Errorf("- left the find at %q", m.box.Value())
+	}
+}
+
 func TestSettings(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", "")
@@ -3207,9 +3303,10 @@ func TestSettings(t *testing.T) {
 	if m, _ = press(m, ","); !m.settings {
 		t.Error(", did not show the settings on the projects screen")
 	}
-	m.settings, m.typed = false, "a"
-	if m, _ = press(m, ","); m.settings || m.typed != "a," {
-		t.Errorf("a , typed into a find opened the settings: %q", m.typed)
+	m.settings = false
+	m.box.SetValue("a")
+	if m, _ = press(m, ","); m.settings || m.box.Value() != "a," {
+		t.Errorf("a , typed into a find opened the settings: %q", m.box.Value())
 	}
 }
 

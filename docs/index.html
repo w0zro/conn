@@ -135,11 +135,11 @@
   <p class="kicker">INTENT</p>
   <div class="cols">
     <ul class="facts">
-      <li>A key is an intent. conn builds no feature for it: it runs what was written down here, and asks Claude Code only where nobody has done it yet.</li>
-      <li><b>st</b> with no check run here asks what the checks are, offers the answer on one key, and writes down what <b>enter</b> runs. <b>ss</b> and the stack, the same.</li>
-      <li><b>c</b> on a row with no known client asks once how to talk to it, and keeps the line under the row's name: <b>psql</b> into postgres, the browser on a web server.</li>
-      <li>A kept command that fails at once is asked about again, with its status and last lines. One wrong for this machine is offered in its place; one that is right and failed for the project's own reasons is left alone.</li>
-      <li><b>aa</b> hands a row to a new conversation with its last lines; <b>af</b> hands every run that failed to one. Whatever the verbs do not cover goes to an agent, with the process as its brief.</li>
+      <li>conn is told nothing about what a project runs. A key names an intent. How it is carried out here is found once and kept.</li>
+      <li>Where the intent has been carried out through conn before, by you or by an agent, the key runs the same command again. Where it has not, conn asks Claude Code, shows the answer, and <b>enter</b> runs it and keeps it.</li>
+      <li><b>st</b> asks what the checks are, and <b>ss</b> what the stack is. <b>c</b> talks to a process: a web server opens in the browser; for anything else conn asks once, <b>psql</b> for postgres, and keeps the answer under the row's name.</li>
+      <li>A kept command that fails as soon as it starts goes back to Claude Code with what it printed. A command wrong for this machine is offered corrected. One that is right, and failed on the project's own account, is left as it is.</li>
+      <li><b>aa</b> opens a conversation about the row, with its last lines as the brief. <b>af</b> does the same for everything that failed. Anything the verbs do not cover is handed to an agent this way.</li>
     </ul>
     <div class="offer" id="offer" aria-label="st pressed where no check has been run">
       <div class="phead"><span class="pname">conn</span><span class="ppath">~/projects/w0zro/conn</span></div>

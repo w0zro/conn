@@ -1951,6 +1951,30 @@ func TestRunUWritesItDown(t *testing.T) {
 	}
 }
 
+// conn down takes the server down, and with it everything running
+// there; with no server up, it is an error.
+func TestRunDown(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	t.Setenv("CONN_SOCKET", srv.Socket)
+	dir := filepath.Dir(srv.Socket)
+	var out strings.Builder
+	if code := runU(&out, t.TempDir(), dir, []string{"web", "--", "sleep 1000"}); code != 0 {
+		t.Fatalf("conn u web = %d: %s", code, out.String())
+	}
+	if code := runDown(&out, t.TempDir(), dir, nil); code != 0 {
+		t.Fatalf("conn down = %d", code)
+	}
+	if _, err := srv.Run("list-panes", "-a"); err == nil {
+		t.Error("the server is still up")
+	}
+	if code := runDown(&out, t.TempDir(), dir, nil); code != 1 {
+		t.Errorf("conn down with no server = %d, want 1", code)
+	}
+	if code := runDown(&out, t.TempDir(), dir, []string{"now"}); code != 2 {
+		t.Errorf("conn down now = %d, want 2", code)
+	}
+}
+
 // conn u with no name runs something once: a row under its command
 // while its pane lives, a check where it waited, and written down
 // nowhere, so what an agent runs to see something does not pile up as

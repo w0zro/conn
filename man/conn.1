@@ -31,6 +31,8 @@ conn \- a console for the processes working your projects
 .B conn r
 .I address
 .br
+.B conn down
+.br
 .B conn theme claude
 .
 .SH DESCRIPTION
@@ -78,11 +80,8 @@ process running: an update is had by running the new
 detaches; the server and every process keep running.
 Nothing takes the server down but
 .B x
-on each project, or tmux's own
-.B kill\-server
-on
-.BR conn 's
-socket.
+on each project, or
+.BR "conn down" .
 .PP
 One key,
 .BR ctrl\-space ,
@@ -1062,6 +1061,16 @@ reach only the caller's project, the pane's from a pane of
 .BR conn 's,
 else the working directory's: a port or a pid of another project's
 process is an error.
+.TP
+.B conn down
+Take the server down, and everything running in it with it: tmux's
+.B kill\-server
+on
+.BR conn 's
+socket.
+Run from a pane of
+.BR conn 's,
+the caller goes with it.
 .TP
 .BI "conn r " address
 Start a process again, as

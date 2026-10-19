@@ -61,7 +61,8 @@ keys.
 
 Agents reach the same verbs from a shell, and are told so when conn
 starts them: `conn ls`, `conn l web`, `conn u test -w -- go test ./...`,
-`conn x :3000`, `conn r api`. What is started under a name through
+`conn x :3000`, `conn r api`; `conn down` takes the server and everything
+in it down. What is started under a name through
 conn is written down as what the project runs: what waited is a check,
 the rest the stack, and the keys run them again as they were run. A
 run under no name, `conn u -w -- node --test a.test.mjs`, is a row

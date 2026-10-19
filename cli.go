@@ -745,6 +745,23 @@ func runX(w io.Writer, home, dir string, args []string) int {
 	return 0
 }
 
+// runDown takes the server down, and everything running in it with
+// it: tmux's kill-server on conn's socket. Run from a pane of conn's,
+// the caller goes with it.
+func runDown(w io.Writer, home, dir string, args []string) int {
+	if len(args) != 0 {
+		return cliUsage("conn down")
+	}
+	srv, err := findServer(home)
+	if err != nil {
+		return cliFail("down", err)
+	}
+	if err := endServer(srv); err != nil {
+		return cliFail("down", err)
+	}
+	return 0
+}
+
 // closeWait is how long ctrl-c is given to end what a pane runs.
 const closeWait = 5 * time.Second
 

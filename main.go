@@ -27,11 +27,12 @@ func main() {
 
 // commands are the verbs for whoever has no panel, by name.
 var commands = map[string]func(w io.Writer, home, dir string, args []string) int{
-	"ls": runLs,
-	"l":  runL,
-	"u":  runU,
-	"x":  runX,
-	"r":  runR,
+	"ls":   runLs,
+	"l":    runL,
+	"u":    runU,
+	"x":    runX,
+	"r":    runR,
+	"down": runDown,
 }
 
 func run(args []string) error {
@@ -63,7 +64,7 @@ func run(args []string) error {
 			}
 			os.Exit(cmd(os.Stdout, home, dir, args[1:]))
 		}
-		return fmt.Errorf("conn knows ls, l, u, x, r and theme; with nothing after it, it opens on your projects")
+		return fmt.Errorf("conn knows ls, l, u, x, r, down and theme; with nothing after it, it opens on your projects")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

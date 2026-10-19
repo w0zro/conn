@@ -2117,12 +2117,22 @@ func TestResolveRunsWhatWasRun(t *testing.T) {
 	if m.question != "" || cmd == nil {
 		t.Fatalf("t asked a question, or did nothing: question %q", m.question)
 	}
-	// The start comes first, then the read once the watch is over.
-	batch, _ := cmd().(tea.BatchMsg)
-	if len(batch) == 0 {
-		t.Fatal("t started nothing")
+	// The start is among the commands, with the read once the watch is
+	// over and the spinner's tick.
+	var said string
+	var find func(tea.Cmd)
+	find = func(c tea.Cmd) {
+		switch msg := c().(type) {
+		case tea.BatchMsg:
+			for _, c := range msg {
+				find(c)
+			}
+		case startedRoles:
+			said = msg.said
+		}
 	}
-	if said, ok := batch[0]().(acted); !ok || string(said) != "test is up" {
+	find(cmd)
+	if said != "test is up" {
 		t.Errorf("t said %q", said)
 	}
 	ps, _ := panes(srv)
@@ -4758,4 +4768,35 @@ func TestAFinishedConversationSaysSo(t *testing.T) {
 	step("having gone into the finished conversation", is("conn · 1 waiting"), `"conn · 1 waiting"`, 3)
 	finishedSaid("having gone into the finished conversation", false)
 	frame("looked-at-120x36.ans", panelNow())
+}
+
+// The stack brought up, or the checks run, is seen: the head turns
+// while the starts are made, and the first pane started takes the
+// cursor, so the workspace shows it.
+func TestStartsAreSeen(t *testing.T) {
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{{pane: &pane{ID: "%1", Name: "old"}}}}
+	m, cmd := m.run([]stacked{{name: "web", command: "npm run dev"}, {name: "api", command: "npm run api"}}, roleStack, false)
+	if cmd == nil || m.starting != 1 || !m.turning() {
+		t.Fatalf("after run: starting %d, turning %v", m.starting, m.turning())
+	}
+	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), " starting") {
+		t.Errorf("the head does not say it is starting: %q", lines[:3])
+	}
+	next, cmd := m.Update(startedRoles{said: "web is up; api is up", first: "%4"})
+	m = next.(model)
+	if cmd == nil || m.starting != 0 || m.turning() || m.note != "web is up; api is up" || m.follow != "%4" || m.wanted() != "%4" {
+		t.Fatalf("after the starts: starting %d, note %q, follow %q, wanted %q", m.starting, m.note, m.follow, m.wanted())
+	}
+	rows := []row{{pane: &pane{ID: "%1", Name: "old"}}, {pane: &pane{ID: "%4", Name: "web"}}, {pane: &pane{ID: "%5", Name: "api"}}}
+	next, _ = m.Update(read{at: time.Now(), root: "/p", rows: rows})
+	m = next.(model)
+	if r, ok := m.under(); !ok || r.pane == nil || r.pane.ID != "%4" || m.follow != "" {
+		t.Errorf("the first pane started is not under the cursor: %+v, follow %q", r.pane, m.follow)
+	}
+	// A start that found everything running already shows nothing new.
+	m, _ = m.run([]stacked{{name: "web", command: "npm run dev"}}, roleStack, false)
+	next, _ = m.Update(startedRoles{said: "web is running already"})
+	if m = next.(model); m.starting != 0 || m.follow != "" || m.note != "web is running already" {
+		t.Errorf("nothing new: starting %d, follow %q, note %q", m.starting, m.follow, m.note)
+	}
 }

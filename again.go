@@ -47,13 +47,16 @@ type failure struct {
 
 // run starts what a role means and watches it, and reads the panes
 // again once the watch is over, so a run still going is let go of even
-// where nothing else changes.
+// where nothing else changes. The head turns while the starts are
+// made, and the first pane started takes the cursor and stands in the
+// workspace, so the stack is seen coming up.
 func (m model) run(list []stacked, as role, record bool) (model, tea.Cmd) {
 	now := time.Now()
 	for _, s := range list {
 		m.watching = append(m.watching, watched{project: m.cur.Root, stacked: s, as: as, at: now})
 	}
-	m.note = "starting…"
+	m.starting++
+	m.note = ""
 	return m, tea.Batch(m.startRoles(list, as, record), tea.Tick(quickWait+time.Second, func(time.Time) tea.Msg { return changed{} }))
 }
 

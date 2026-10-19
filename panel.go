@@ -84,6 +84,8 @@ type model struct {
 	watching []watched
 	failed   []failure
 	again    []failure
+	// How many starts the keys asked for are still being made.
+	starting int
 	// The panes holding a conversation waiting on you, and the one tab
 	// last went to, so the next tab goes on to another.
 	waiting     []pane
@@ -608,6 +610,9 @@ func (m model) turning() bool {
 	if m.screen != onProject {
 		return false
 	}
+	if m.starting > 0 {
+		return true
+	}
 	for _, it := range m.items() {
 		if it.row < 0 && it.project.Turning > 0 || it.row >= 0 && turns(m.rows[it.row]) {
 			return true
@@ -1117,6 +1122,13 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case acted:
 		m.note = string(msg)
+	case startedRoles:
+		m.starting = max(m.starting-1, 0)
+		m.note = msg.said
+		if msg.first != "" {
+			m.follow, m.asked, m.followAt = msg.first, msg.first, time.Now()
+		}
+		return m, m.read()
 	case spun:
 		if !m.turning() {
 			m.spinning = false
@@ -1749,7 +1761,7 @@ func (m model) up(command string) tea.Cmd {
 	srv, root, rows := m.srv, m.here(), m.rows
 	return func() tea.Msg {
 		name := nameFor(command)
-		said, err := startIn(srv, rows, name, command, root, roleStack)
+		said, _, err := startIn(srv, rows, name, command, root, roleStack)
 		if err != nil {
 			return acted(err.Error())
 		}
@@ -1771,41 +1783,52 @@ func (m model) startRoles(list []stacked, as role, record bool) tea.Cmd {
 	}
 	return func() tea.Msg {
 		var said []string
+		first := ""
 		for i, s := range list {
-			r, err := startIn(srv, rows, s.name, s.command, places[i].at, as)
+			r, id, err := startIn(srv, rows, s.name, s.command, places[i].at, as)
 			if err != nil {
-				return acted(s.name + ": " + err.Error())
+				return startedRoles{said: s.name + ": " + err.Error(), first: first}
 			}
 			if record {
 				_ = recordStart(startedPath(srv.Socket), started{Root: places[i].repo, Name: s.name, Command: s.command, Role: as})
 			}
+			if first == "" {
+				first = id
+			}
 			said = append(said, r)
 		}
-		return acted(strings.Join(said, "; "))
+		return startedRoles{said: strings.Join(said, "; "), first: first}
 	}
 }
 
-// startIn starts a command under a name at a project's root. One by
-// that name that has ended is replaced; one still running is left, and
-// said.
-func startIn(srv *tmux.Server, rows []row, name, command, root string, as role) (string, error) {
+// startedRoles is the starts of a role made: what was said of each,
+// and the first pane started, blank where none was.
+type startedRoles struct {
+	said, first string
+}
+
+// startIn starts a command under a name at a project's root, and
+// answers the pane it starts in. One by that name that has ended is
+// replaced; one still running is left, and said, with no pane.
+func startIn(srv *tmux.Server, rows []row, name, command, root string, as role) (said, id string, err error) {
 	replace := ""
 	for _, r := range rows {
 		if r.pane == nil || r.pane.Name != name {
 			continue
 		}
 		if r.pane.Exit == "" {
-			return name + " is running already", nil
+			return name + " is running already", "", nil
 		}
 		replace = r.pane.ID
 	}
-	if _, err := startNamed(srv, name, command, root, root, as); err != nil {
-		return "", err
+	id, err = startNamed(srv, name, command, root, root, as)
+	if err != nil {
+		return "", "", err
 	}
 	if replace != "" {
 		_, _ = srv.Do(tmux.Kill(replace))
 	}
-	return name + " is up", nil
+	return name + " is up", id, nil
 }
 
 // nameFor is the name a command typed at ! runs under: its program's,
@@ -2640,7 +2663,11 @@ func (m model) projectOn(y int) (int, bool) {
 }
 
 func (m model) drawProject() ([]string, foot) {
-	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
+	with := tilde(m.cur.Root, m.home)
+	if m.starting > 0 {
+		with = spinner[m.frame%len(spinner)] + " starting"
+	}
+	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), with)
 	if m.question != "" {
 		return m.drawOffer(lines)
 	}

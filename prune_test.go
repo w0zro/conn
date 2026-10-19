@@ -126,7 +126,7 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 
 			// Pressed, the keys list what is written down and start nothing.
 			m := open()
-			plain, raw := listed(m)
+			plain, _ := listed(m)
 			screen := strings.Join(plain, "\n")
 			ask := -1
 			for i, l := range plain {
@@ -174,7 +174,7 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 			// x on the second line takes it off, and says so in gray.
 			m, _ = press(t, m, "j")
 			m, _ = press(t, m, "x")
-			plain, raw = listed(m)
+			plain, raw := listed(m)
 			screen = strings.Join(plain, "\n")
 			ns, cs := remaining(doomed)
 			if now := rows(plain, ns, cs); len(now) != 2 || now[1] != now[0]+1 {
@@ -236,7 +236,7 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 			}
 
 			// enter runs what is left, and only that.
-			m, cmd := press(t, m, "enter")
+			_, cmd := press(t, m, "enter")
 			if cmd == nil {
 				t.Fatal("enter ran nothing")
 			}

@@ -2102,7 +2102,7 @@ func TestRunUFromAPaneIsThePanesProject(t *testing.T) {
 	}
 }
 
-// st runs the checks as they were last run here, with no question; ss,
+// st lists the checks as they were last run here, and enter runs them; ss,
 // with no stack run here yet, asks.
 func TestResolveRunsWhatWasRun(t *testing.T) {
 	srv, _, _ := scratchServer(t)
@@ -2114,8 +2114,13 @@ func TestResolveRunsWhatWasRun(t *testing.T) {
 	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "s", Code: 's'}))
 	next, cmd := next.(model).Update(tea.KeyPressMsg(tea.Key{Text: "t", Code: 't'}))
 	m = next.(model)
+	if m.question != roleCheck || !m.written || len(m.offer) != 1 || cmd != nil {
+		t.Fatalf("t did not list what was written down: question %q", m.question)
+	}
+	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = next.(model)
 	if m.question != "" || cmd == nil {
-		t.Fatalf("t asked a question, or did nothing: question %q", m.question)
+		t.Fatalf("enter did nothing: question %q", m.question)
 	}
 	// The start is among the commands, with the read once the watch is
 	// over and the spinner's tick.

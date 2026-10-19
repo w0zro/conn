@@ -29,6 +29,9 @@ const (
 	// A client is not a process but what talks to one: it is kept under
 	// the process's name without taking the name from it.
 	roleClient role = "client"
+	// A taken-off is written under a name in place of its role: the
+	// name means nothing in the project until it is run again.
+	roleOff role = "off"
 )
 
 // A started is one start written down: the project, the name it was

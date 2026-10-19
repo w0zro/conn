@@ -78,6 +78,11 @@ type model struct {
 	question role
 	offer    []stacked
 	offerErr string
+	// Where what is written down is listed before the keys run it: the
+	// line the cursor is on, and what was last taken off.
+	written bool
+	offerAt int
+	dropped string
 	// The runs the keys started that are watched for failing at once,
 	// those that have while others are still watched, and those the
 	// question standing asks about again.
@@ -232,7 +237,7 @@ func isCheck(starts []started, root, name string) bool {
 	}
 	check := false
 	for _, s := range starts {
-		if s.Root == root && s.Name == name && s.Role != roleClient {
+		if s.Root == root && s.Name == name && s.Role != roleClient && s.Role != roleOff {
 			check = s.Role == roleCheck
 		}
 	}
@@ -242,7 +247,7 @@ func isCheck(starts []started, root, name string) bool {
 func rosterOf(starts []started, in func(string) bool) roster {
 	ros := roster{role: map[string]role{}, at: map[string]int{}}
 	for _, s := range starts {
-		if !in(s.Root) || s.Role == roleClient {
+		if !in(s.Root) || s.Role == roleClient || s.Role == roleOff {
 			continue
 		}
 		if _, seen := ros.at[s.Name]; !seen {
@@ -1618,18 +1623,35 @@ func (m model) unland(next string) (model, tea.Cmd) {
 func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "enter":
-		if m.offer == nil {
+		if m.offer == nil || m.written && len(m.offer) == 0 {
 			return m, nil
 		}
 		list, as := m.offer, m.question
-		m.question, m.offer = "", nil
+		m.question, m.offer, m.written = "", nil, false
 		if as == roleClient {
 			return m.useClient(list[0], true)
 		}
 		m.again = nil
 		return m.run(list, as, true)
 	case "esc", "q", "ctrl+c":
-		m.question, m.offer, m.offerErr, m.again = "", nil, "", nil
+		m.question, m.offer, m.offerErr, m.again, m.written = "", nil, "", nil, false
+	case "j", "down":
+		if m.written && len(m.offer) > 0 {
+			m.offerAt = min(m.offerAt+1, len(m.offer)-1)
+		}
+	case "k", "up":
+		m.offerAt = max(m.offerAt-1, 0)
+	case "x":
+		if m.written && m.offerAt < len(m.offer) && m.srv != nil {
+			s := m.offer[m.offerAt]
+			if err := recordStart(startedPath(m.srv.Socket), started{Root: or(s.root, m.cur.Root), Name: s.name, Command: s.command, Role: roleOff}); err != nil {
+				m.note = err.Error()
+				return m, nil
+			}
+			m.offer = append(append([]stacked{}, m.offer[:m.offerAt]...), m.offer[m.offerAt+1:]...)
+			m.offerAt = min(m.offerAt, max(len(m.offer)-1, 0))
+			m.dropped = s.name
+		}
 	}
 	return m, nil
 }
@@ -1644,7 +1666,9 @@ func (m model) resolve(as role) (tea.Model, tea.Cmd) {
 	}
 	cur := m.cur
 	if list := established(starts, cur.belongs, as); len(list) > 0 {
-		return m.run(list, as, false)
+		m.question, m.offer, m.offerErr, m.again = as, list, "", nil
+		m.written, m.offerAt, m.dropped = true, 0, ""
+		return m, nil
 	}
 	m.question, m.offer, m.offerErr = as, nil, ""
 	return m, askRole(m.cur, as)
@@ -3082,6 +3106,8 @@ func (m model) drawOffer(lines []string) ([]string, foot) {
 	case m.offerErr != "":
 		lines = append(lines, at(ink.Render("Claude would not say what "+what+" "+m.cur.Name+":")), at(gray.Render(m.offerErr)))
 		return lines, foot{hints: backHints}
+	case m.written:
+		return m.drawWritten(lines, ask, verb)
 	case m.offer == nil:
 		lines = append(lines, at(gray.Render("Nobody has done it here yet; asking Claude what "+what+" "+m.cur.Name+"…")))
 		return lines, foot{hints: cancelHints}
@@ -3660,4 +3686,41 @@ func (m model) projectLine(p project, cursor bool) string {
 		turn = spinner[m.frame%len(spinner)]
 	}
 	return m.rowTurning(turn, []piece{{name, style}}, piece{p.standing(), gray}, cursor)
+}
+
+// drawWritten is the question over what a project has written down,
+// before the keys run it: each name and its command on a line, the
+// count at the right, and a gray note of what was taken off.
+func (m model) drawWritten(lines []string, ask, verb string) ([]string, foot) {
+	count := ""
+	if len(m.offer) > 0 {
+		count = strconv.Itoa(len(m.offer))
+	}
+	lines = append(lines, m.row([]piece{{ask, title}}, piece{count, gray}, false), "")
+	w := 0
+	for _, s := range m.offer {
+		w = max(w, len(s.name))
+	}
+	for i, s := range m.offer {
+		lines = append(lines, m.row([]piece{{pad(s.name, w), keyInk}, {"  " + s.command, gray}}, piece{}, i == m.offerAt))
+	}
+	keys := "st"
+	if m.question == roleStack {
+		keys = "ss"
+	}
+	if len(m.offer) > 0 {
+		lines = append(lines, "", at(keyInk.Render("x")+gray.Render(" takes it off for good   ")+keyInk.Render("enter")+gray.Render(" "+verb+"   ")+keyInk.Render("esc")+gray.Render(" runs nothing")))
+	}
+	if m.dropped != "" {
+		lines = append(lines, "", at(gray.Render(m.dropped+" is off for good: "+keys+" won't run it and new agents aren't told it")))
+	}
+	if len(m.offer) == 0 {
+		what, again := "checks", "what they are"
+		if m.question == roleStack {
+			what, again = "stack parts", "what to start"
+		}
+		lines = append(lines, "", at(ink.Render("No "+what+" written down in "+m.cur.Name+". "+keys+" asks Claude "+again+".")), "", at(keyInk.Render("esc")+gray.Render(" closes")))
+		return lines, foot{hints: cancelHints}
+	}
+	return lines, foot{hints: []keyHint{{"j k", "move"}, {"x", "take off for good"}, {"enter", verb}, {"esc", "run nothing"}}}
 }

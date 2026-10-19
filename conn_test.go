@@ -4419,16 +4419,17 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 	frame("answered-120x36.ans", m)
 }
 
-// With conn's tab behind another, a conversation at work that finishes
-// its turn says so until it is looked at: the bell rings once, the
-// tab's title reads "conn · 1 finished", its project's line on the
-// projects screen says "1 finished" with a gray line under it naming
-// the conversation, and its row says "finished" in plain ink with no
-// spinner. tab reaches it after a conversation waiting on a question.
-// The agent at work again, or the conversation gone into, quietly
-// takes all of it away. What is read is the machine, as the panel
-// reads it: tmux's panes, and Claude Code's instance files.
-func TestAFinishedConversationSaysSo(t *testing.T) {
+// With conn's tab behind another, a conversation at work whose turn
+// ends has handed its work back, and waits on you as one stopped on a
+// question does, until it is looked at: the bell rings once, the tab's
+// title reads "conn · 1 waiting", its project's line on the projects
+// screen says "1 waiting" with a gray line under it naming the
+// conversation, and its row says "waiting" in the accent with no
+// spinner. tab reaches it in its turn among those waiting. The agent
+// at work again, or the conversation gone into, quietly takes all of
+// it away. What is read is the machine, as the panel reads it: tmux's
+// panes, and Claude Code's instance files.
+func TestATurnHandedBackWaits(t *testing.T) {
 	bin, err := exec.LookPath("tmux")
 	if err != nil {
 		t.Skip("no tmux")
@@ -4680,9 +4681,9 @@ func TestAFinishedConversationSaysSo(t *testing.T) {
 	}
 	is := func(want string) func(string) bool { return func(s string) bool { return s == want } }
 
-	// finishedSaid checks the projects screen and web's panel say web's
-	// conversation finished, or, with no, that neither says it.
-	finishedSaid := func(what string, yes bool) {
+	// waitingSaid checks the projects screen and web's panel say web's
+	// conversation waits, or, with no, that neither says it.
+	waitingSaid := func(what string, yes bool) {
 		t.Helper()
 		praw, plines := screen(projectsNow())
 		pall := strings.Join(plines, "\n")
@@ -4702,25 +4703,25 @@ func TestAFinishedConversationSaysSo(t *testing.T) {
 			t.Fatalf("%s, web's panel has no row for the conversation:\n%s", what, all)
 		}
 		if !yes {
-			if strings.Contains(plines[at], "finished") {
-				t.Errorf("%s, web's line on the projects screen still says it finished: %q", what, plines[at])
+			if strings.Contains(plines[at], "waiting") {
+				t.Errorf("%s, web's line on the projects screen still says it waits: %q", what, plines[at])
 			}
 			if at+1 < len(plines) && strings.Contains(plines[at+1], finishes) {
 				t.Errorf("%s, under web's line the projects screen still names the conversation: %q", what, plines[at+1])
 			}
-			if strings.Contains(lines[row], "finished") {
-				t.Errorf("%s, the conversation's row still says it finished: %q", what, lines[row])
+			if strings.Contains(lines[row], "waiting") {
+				t.Errorf("%s, the conversation's row still says it waits: %q", what, lines[row])
 			}
 			return
 		}
-		if !strings.Contains(plines[at], "1 finished") {
-			t.Errorf("%s, web's line on the projects screen does not say 1 finished: %q\n%s", what, plines[at], pall)
+		if !strings.Contains(plines[at], "1 waiting") {
+			t.Errorf("%s, web's line on the projects screen does not say 1 waiting: %q\n%s", what, plines[at], pall)
 		}
-		if strings.Contains(plines[at], "waiting") {
-			t.Errorf("%s, web's line on the projects screen says it waits: %q", what, plines[at])
+		if strings.Contains(plines[at], "finished") {
+			t.Errorf("%s, web's line on the projects screen says finished, a word conn no longer has: %q", what, plines[at])
 		}
 		if at+1 >= len(plines) || !strings.Contains(plines[at+1], finishes) {
-			t.Errorf("%s, under web's line no line names the conversation that finished, %q:\n%s", what, finishes, pall)
+			t.Errorf("%s, under web's line no line names the conversation that waits, %q:\n%s", what, finishes, pall)
 		} else {
 			if indent(plines[at+1]) <= indent(plines[at]) {
 				t.Errorf("%s, the line %q naming the conversation is not indented under web's %q", what, plines[at+1], plines[at])
@@ -4730,39 +4731,36 @@ func TestAFinishedConversationSaysSo(t *testing.T) {
 				t.Errorf("%s, the line naming the conversation is not in the gray: %q", what, praw[at+1])
 			}
 		}
-		if !strings.HasSuffix(lines[row], "finished") {
-			t.Errorf("%s, the conversation's row does not say finished at its right: %q\n%s", what, lines[row], all)
-		}
-		if strings.Contains(lines[row], "waiting") {
-			t.Errorf("%s, the conversation's row says it waits: %q", what, lines[row])
+		if !strings.HasSuffix(lines[row], "waiting") {
+			t.Errorf("%s, the conversation's row does not say waiting at its right: %q\n%s", what, lines[row], all)
 		}
 		for _, f := range append(append([]string{}, spinner...), steady) {
 			if strings.Contains(lines[row], f) {
 				t.Errorf("%s, the conversation's row turns, %q: %q", what, f, lines[row])
 			}
 		}
-		if word := strings.LastIndex(raw[row], "finished"); word >= 0 {
-			if got, want := lastSGR(raw[row][:word]), lastSGR(strings.SplitN(ink.Render("x"), "x", 2)[0]); got != want {
-				t.Errorf("%s, finished on the conversation's row is drawn in %q, want the plain ink %q: %q", what, got, want, raw[row])
+		if word := strings.LastIndex(raw[row], "waiting"); word >= 0 {
+			if got, want := lastSGR(raw[row][:word]), lastSGR(strings.SplitN(accent.Render("x"), "x", 2)[0]); got != want {
+				t.Errorf("%s, waiting on the conversation's row is drawn in %q, want the accent %q: %q", what, got, want, raw[row])
 			}
 		}
 	}
 
-	// At work, the tab says nothing, and nothing finished.
+	// At work, the tab says nothing, and nothing waits.
 	webStatus("busy")
 	step("with the conversation at work", is("conn"), `"conn"`, 0)
-	finishedSaid("with the conversation at work", false)
+	waitingSaid("with the conversation at work", false)
 	frame("working-120x36.ans", projectsNow())
 
-	// Its turn over, it finished: one bell, and said everywhere.
+	// Its turn over, it waits: one bell, and said everywhere.
 	webStatus("idle")
-	step("with the conversation finished", is("conn · 1 finished"), `"conn · 1 finished"`, 1)
-	finishedSaid("with the conversation finished", true)
-	frame("finished-120x36.ans", projectsNow())
-	frame("finished-panel-120x36.ans", panelNow())
+	step("with the turn handed back", is("conn · 1 waiting"), `"conn · 1 waiting"`, 1)
+	waitingSaid("with the turn handed back", true)
+	frame("handed-back-120x36.ans", projectsNow())
+	frame("handed-back-panel-120x36.ans", panelNow())
 	// Not looked at, it stays said, and rings no more.
-	step("with the conversation still finished", is("conn · 1 finished"), `"conn · 1 finished"`, 1)
-	finishedSaid("with the conversation still finished", true)
+	step("with the turn still handed back", is("conn · 1 waiting"), `"conn · 1 waiting"`, 1)
+	waitingSaid("with the turn still handed back", true)
 	if t.Failed() {
 		t.FailNow()
 	}
@@ -4770,32 +4768,31 @@ func TestAFinishedConversationSaysSo(t *testing.T) {
 	// At work again, it is quietly taken away.
 	webStatus("busy")
 	step("with the conversation at work again", is("conn"), `"conn"`, 1)
-	finishedSaid("with the conversation at work again", false)
+	waitingSaid("with the conversation at work again", false)
 
-	// api's conversation stops on a question; then web's finishes again.
+	// api's conversation stops on a question; then web's turn ends
+	// again: two waiting, one kind.
 	apiStatus("waiting")
 	step("with api's conversation waiting", is("conn · 1 waiting"), `"conn · 1 waiting"`, 2)
 	webStatus("idle")
-	both := func(s string) bool {
-		return strings.HasPrefix(s, "conn · ") && strings.Contains(s, "1 waiting") && strings.Contains(s, "1 finished")
-	}
-	step("with one waiting and one finished", both, `"conn · 1 waiting" and "1 finished"`, 3)
-	finishedSaid("with one waiting and one finished", true)
-	frame("waiting-and-finished-120x36.ans", projectsNow())
+	step("with a question and a turn handed back", is("conn · 2 waiting"), `"conn · 2 waiting"`, 3)
+	waitingSaid("with a question and a turn handed back", true)
+	frame("two-waiting-120x36.ans", projectsNow())
 
-	// tab goes first to the question, then to the one that finished.
-	press(tea.Key{Code: tea.KeyTab})
-	if m.in != apiPane || inWorkspace(t, ws).ID != apiPane {
-		t.Fatalf("the first tab went into %q, showing %q, want api's waiting conversation %s", m.in, inWorkspace(t, ws).ID, apiPane)
-	}
+	// tab goes round those waiting in the order their panes stand:
+	// web's, then api's.
 	press(tea.Key{Code: tea.KeyTab})
 	if m.in != webPane || inWorkspace(t, ws).ID != webPane {
-		t.Fatalf("the second tab went into %q, showing %q, want web's finished conversation %s", m.in, inWorkspace(t, ws).ID, webPane)
+		t.Fatalf("the first tab went into %q, showing %q, want web's conversation %s", m.in, inWorkspace(t, ws).ID, webPane)
+	}
+	press(tea.Key{Code: tea.KeyTab})
+	if m.in != apiPane || inWorkspace(t, ws).ID != apiPane {
+		t.Fatalf("the second tab went into %q, showing %q, want api's conversation %s", m.in, inWorkspace(t, ws).ID, apiPane)
 	}
 
-	// Gone into, it is quietly taken away; the question still waits.
-	step("having gone into the finished conversation", is("conn · 1 waiting"), `"conn · 1 waiting"`, 3)
-	finishedSaid("having gone into the finished conversation", false)
+	// Gone into, web's is quietly taken away; the question still waits.
+	step("having gone into the conversation handed back", is("conn · 1 waiting"), `"conn · 1 waiting"`, 3)
+	waitingSaid("having gone into the conversation handed back", false)
 	frame("looked-at-120x36.ans", panelNow())
 }
 

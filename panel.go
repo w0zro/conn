@@ -98,8 +98,6 @@ type model struct {
 	// What each of them is called, by pane, for the projects screen.
 	waitTitle map[string]string
 	waitAsk   map[string]string
-	// Which of them finished, by pane, rather than wait on a question.
-	waitDone map[string]bool
 	// /'s search: whether it stands, the panes' lines as read when it
 	// opened, and the lines that say what is typed. The pane the line
 	// under the cursor is shown in, in copy mode on the line, and a
@@ -151,7 +149,6 @@ type row struct {
 	branch    string   // in a worktree, the branch it has out
 	tree      string   // the checkout it runs in
 	stand     int      // where it stands on the screen, by its role
-	finished  bool     // its turn ended since it was looked at
 }
 
 // paneID is the pane a row stands in, blank for none.
@@ -316,10 +313,10 @@ type known struct {
 	titles map[string]titled
 	folder map[string]bool
 	// What each pane's conversation was last read doing, by pane, and
-	// those that finished a turn since they were looked at, with the
+	// those that handed a turn back since they were looked at, with the
 	// conversation each is.
-	was      map[string]string
-	finished map[string]string
+	was  map[string]string
+	back map[string]string
 	// The checkouts under home, and when they were last looked for.
 	repos   []string
 	scanned time.Time
@@ -351,12 +348,13 @@ func (k *known) repositories(home string) []string {
 	return repos
 }
 
-// finish reads the panes' conversations once more and says which have
-// finished: a turn that was over at this read and was at work at the
-// last. It stays said until the conversation is at work again or the
-// keys are in its pane, which is the active, where the one looking at
-// it has no need to be told.
-func (k *known) finish(held []pane, live map[string]claudeRun, active string) map[string]string {
+// handedBack reads the panes' conversations once more and says which
+// have handed their work back: a turn that was over at this read and
+// was at work at the last. Claude Code calls it idle; to the one it
+// worked for it is waiting, as a question is. It stays said until the
+// conversation is at work again or the keys are in its pane, which is
+// the active, where the one looking at it has no need to be told.
+func (k *known) handedBack(held []pane, live map[string]claudeRun, active string) map[string]string {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	here := map[string]bool{}
@@ -365,20 +363,20 @@ func (k *known) finish(held []pane, live map[string]claudeRun, active string) ma
 		state, session := paneState(p, live)
 		switch {
 		case state == "idle" && k.was[p.ID] == "working" && p.ID != active:
-			k.finished[p.ID] = session
+			k.back[p.ID] = session
 		case state != "idle" || p.ID == active:
-			delete(k.finished, p.ID)
+			delete(k.back, p.ID)
 		}
 		k.was[p.ID] = state
 	}
 	for id := range k.was {
 		if !here[id] {
 			delete(k.was, id)
-			delete(k.finished, id)
+			delete(k.back, id)
 		}
 	}
-	out := make(map[string]string, len(k.finished))
-	for id, session := range k.finished {
+	out := make(map[string]string, len(k.back))
+	for id, session := range k.back {
 		out[id] = session
 	}
 	return out
@@ -392,7 +390,7 @@ type titled struct {
 }
 
 func newKnown() *known {
-	return &known{cwd: map[string]string{}, root: map[string]string{}, tree: map[string]string{}, head: map[string]string{}, titles: map[string]titled{}, folder: map[string]bool{}, was: map[string]string{}, finished: map[string]string{}}
+	return &known{cwd: map[string]string{}, root: map[string]string{}, tree: map[string]string{}, head: map[string]string{}, titles: map[string]titled{}, folder: map[string]bool{}, was: map[string]string{}, back: map[string]string{}}
 }
 
 func (k *known) cwdOf(c conversation) string {
@@ -545,10 +543,9 @@ type read struct {
 	root     string
 	rows     []row
 	rest     []row             // the project's conversations at rest
-	waiting  []pane            // the panes conn holds a conversation waiting on you in, then those that finished
-	finished map[string]bool   // those of them that finished, by pane
+	waiting  []pane            // the panes conn holds a conversation waiting on you in
 	titles   map[string]string // what each of them is called, by pane
-	asks     map[string]string // what each of them is stopped on, by pane
+	asks     map[string]string // what each of them is stopped on, by pane; blank for a turn handed back
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
 	// ended there stands dead. The directory is where it runs, which
@@ -675,8 +672,9 @@ func (m model) read() tea.Cmd {
 		seen := claudeSightings(all, k.cwdOf)
 		starts := readStarted(startedPath(srv.Socket))
 		active, _ := srv.Display(window, "#{pane_id}")
-		finished := k.finish(held, live, active)
-		running, waiting, turning, done := map[string]int{}, map[string]int{}, map[string]int{}, map[string]int{}
+		back := k.handedBack(held, live, active)
+		running, waiting, turning := map[string]int{}, map[string]int{}, map[string]int{}
+		total, broke := 0, 0
 		for _, p := range held {
 			seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
 			root := k.rootOf(p.Dir)
@@ -684,11 +682,12 @@ func (m model) read() tea.Cmd {
 			if p.Exit == "" && (p.Name == "" && p.Role == roleCheck || isCheck(starts, root, p.Name)) {
 				turning[root]++
 			}
-			if _, ok := finished[p.ID]; ok {
-				done[root]++
+			// A turn handed back waits on you as a question does.
+			if _, ok := back[p.ID]; ok {
+				waiting[root]++
+				total++
 			}
 		}
-		total, broke := 0, 0
 		for _, p := range held {
 			if p.started() && p.Exit != "" && p.Exit != "0" {
 				broke++
@@ -703,7 +702,7 @@ func (m model) read() tea.Cmd {
 				turning[k.rootOf(r.Cwd)]++
 			}
 		}
-		sayCounts(srv, total, broke, len(finished))
+		sayCounts(srv, total, broke)
 		// What conn holds a pane in is a project while it does, a
 		// checkout or not.
 		repos := k.repositories(home)
@@ -712,44 +711,30 @@ func (m model) read() tea.Cmd {
 		}
 		found := findProjects(repos, seen, home, k.rootOf)
 		for i := range found {
-			found[i].Running, found[i].Waiting, found[i].Turning, found[i].Finished = running[found[i].Root], waiting[found[i].Root], turning[found[i].Root], done[found[i].Root]
+			found[i].Running, found[i].Waiting, found[i].Turning = running[found[i].Root], waiting[found[i].Root], turning[found[i].Root]
 		}
 		r.projects = group(found, func(dir string) bool { return k.isFolder(dir, home) })
-		// Each that waits on a question, then each that finished, which
-		// is where tab goes after the questions.
-		for _, pass := range []string{"waiting", "finished"} {
-			for _, p := range held {
-				state, session := paneState(p, live)
-				if pass == "finished" {
-					if done, ok := finished[p.ID]; !ok {
-						continue
-					} else {
-						state, session = pass, done
+		// Each conversation waiting on you, on a question or with a
+		// turn handed back, in the order its pane stands: where tab goes.
+		for _, p := range held {
+			state, session := paneState(p, live)
+			if s, ok := back[p.ID]; ok {
+				state, session = "waiting", s
+			}
+			if state != "waiting" {
+				continue
+			}
+			r.waiting = append(r.waiting, p)
+			for _, c := range all {
+				if c.ID == session {
+					if r.titles == nil {
+						r.titles = map[string]string{}
 					}
-				}
-				if state != pass {
-					continue
-				}
-				r.waiting = append(r.waiting, p)
-				if pass == "finished" {
-					if r.finished == nil {
-						r.finished = map[string]bool{}
+					r.titles[p.ID] = k.titleOf(c)
+					if r.asks == nil {
+						r.asks = map[string]string{}
 					}
-					r.finished[p.ID] = true
-				}
-				for _, c := range all {
-					if c.ID == session {
-						if r.titles == nil {
-							r.titles = map[string]string{}
-						}
-						r.titles[p.ID] = k.titleOf(c)
-						if pass == "waiting" {
-							if r.asks == nil {
-								r.asks = map[string]string{}
-							}
-							r.asks[p.ID] = k.asksOf(c)
-						}
-					}
+					r.asks[p.ID] = k.asksOf(c)
 				}
 			}
 		}
@@ -791,8 +776,8 @@ func (m model) read() tea.Cmd {
 			// rc's list instead.
 			r.root = cur.Root
 			for _, row := range arrange(convs, held, live, ports, outside, in, k.titleOf, ros) {
-				if _, ok := finished[row.paneID()]; ok && row.state == "idle" {
-					row.finished = true
+				if _, ok := back[row.paneID()]; ok && row.state == "idle" {
+					row.state = "waiting"
 				}
 				if row.conv != nil {
 					row.conv.Context = k.contextOf(*row.conv)
@@ -1042,7 +1027,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case rethemed:
 		return m.takeTheme(msg), nil
 	case read:
-		m.waiting, m.waitTitle, m.waitAsk, m.waitDone = msg.waiting, msg.titles, msg.asks, msg.finished
+		m.waiting, m.waitTitle, m.waitAsk = msg.waiting, msg.titles, msg.asks
 		m.procs = msg.procs
 		// The first read, with a process standing in the workspace: the
 		// panel has been started again over it, and opens on it.
@@ -2835,8 +2820,6 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		switch {
 		case r.state == "waiting":
 			left, right = append(left, piece{name, accent}), piece{"waiting", accent}
-		case r.finished:
-			left, right = append(left, piece{name, ink}), piece{"finished", ink}
 		case r.pane != nil:
 			left, right = append(left, piece{name, ink}), piece{stated(r.state), gray}
 		case r.elsewhere:
@@ -2983,9 +2966,6 @@ func (p project) standing() string {
 	if p.Waiting > 0 {
 		said = append(said, fmt.Sprintf("%d waiting", p.Waiting))
 	}
-	if p.Finished > 0 {
-		said = append(said, fmt.Sprintf("%d finished", p.Finished))
-	}
 	if p.Running > 0 {
 		said = append(said, fmt.Sprintf("%d running", p.Running))
 	}
@@ -2999,10 +2979,10 @@ func (p project) standing() string {
 // runs that failed, on the status line, which shows them from every
 // window, and takes each off at none. They are in the terminal's tab
 // title too, and the bell rings as one more starts waiting or fails.
-func sayWaiting(srv *tmux.Server, n int) { sayCounts(srv, n, 0, 0) }
+func sayWaiting(srv *tmux.Server, n int) { sayCounts(srv, n, 0) }
 
 // sayCounts is sayWaiting with the runs that failed beside it.
-func sayCounts(srv *tmux.Server, n, failed, finished int) {
+func sayCounts(srv *tmux.Server, n, failed int) {
 	count := func(n int) string {
 		if n > 0 {
 			return strconv.Itoa(n)
@@ -3011,13 +2991,12 @@ func sayCounts(srv *tmux.Server, n, failed, finished int) {
 	}
 	wasWaiting, _ := srv.Global(waitingMark)
 	wasFailed, _ := srv.Global(failedMark)
-	wasFinished, _ := srv.Global(finishedMark)
 	var cmds []tmux.Cmd
 	rose := false
 	for _, c := range []struct {
 		mark, was string
 		n         int
-	}{{waitingMark, wasWaiting, n}, {failedMark, wasFailed, failed}, {finishedMark, wasFinished, finished}} {
+	}{{waitingMark, wasWaiting, n}, {failedMark, wasFailed, failed}} {
 		want := count(c.n)
 		if want == c.was {
 			continue
@@ -3037,8 +3016,8 @@ func sayCounts(srv *tmux.Server, n, failed, finished int) {
 		cmds = append(cmds, tmux.Cmd{"refresh-client", "-S", "-t", c})
 	}
 	_, _ = srv.Do(cmds...)
-	// One bell for each question, failure or conversation finished: as a count rises, never as
-	// it falls or holds.
+	// One bell for each conversation that comes to wait on you, and
+	// each failure: as a count rises, never as it falls or holds.
 	if rose {
 		for _, c := range terminals(srv) {
 			if f, err := os.OpenFile(c, os.O_WRONLY, 0); err == nil {
@@ -3595,7 +3574,7 @@ func (m model) items() []item {
 		if p.Group {
 			p = m.inItself(p)
 		}
-		if p.Running == 0 && p.Waiting == 0 && p.Turning == 0 && p.Finished == 0 {
+		if p.Running == 0 && p.Waiting == 0 && p.Turning == 0 {
 			continue
 		}
 		out = append(out, item{project: p, row: -1})
@@ -3611,7 +3590,6 @@ func (m model) inItself(f project) project {
 			f.Running -= q.Running
 			f.Waiting -= q.Waiting
 			f.Turning -= q.Turning
-			f.Finished -= q.Finished
 		}
 	}
 	return f

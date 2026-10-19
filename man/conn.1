@@ -629,10 +629,8 @@ A conversation running says the context its last turn ran in,
 .BR 262k ,
 and
 .B waiting
-in the accent where it waits on you; one in another terminal says so.
-One whose turn ended since you looked says
-.B finished
-in the plain ink.
+in the accent where it waits on you, stopped on a question or its turn
+ended since you looked; one in another terminal says so.
 A process running says its ports,
 .BR ":8123 :8124" .
 A run that ended says how long ago; one of the stack that failed says
@@ -875,20 +873,19 @@ The note is not shown on the row.
 .PP
 A conversation's title is read from the tail of its transcript, and the
 context it carries from the last turn's usage.
+A conversation waits on you stopped on a question, or with its turn
+ended while the keys were elsewhere: Claude Code calls the second
+.BR idle ,
+and
+.B conn
+counts it waiting until you go into it or its work starts again.
 .B tab
 goes to the conversation that has waited longest, the next one each
 press, round.
 The number waiting, over every project, is on the status line and in
-the terminal's title, and the terminal's bell rings as one more starts
-waiting.
-A conversation whose turn ends rings it too, and the title counts it,
-.BR "conn \(md 1 finished" ;
-its project's line says
-.BR "1 finished" ,
-and
-.B tab
-goes to it after those waiting on a question.
-Going into it, or its work starting again, takes that away.
+the terminal's title,
+.BR "conn \(md 2 waiting" ,
+and the terminal's bell rings as one more starts waiting.
 .
 .SH THE STATUS LINE
 Two rows across the foot of the window, drawn by tmux from what

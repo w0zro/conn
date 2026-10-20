@@ -114,6 +114,9 @@ func (m model) takeTheme(r rethemed) model {
 // under another, and on beside what the server is on.
 func (m model) drawSettings() ([]string, foot) {
 	lines := head("conn", "settings")
+	// What a choice does, said once: the server is dressed where it
+	// stands, and the next one comes up the same.
+	lines = append(lines, at(gray.Render("enter dresses the server where it stands")), at(gray.Render("and keeps it in "+tilde(filepath.Join(configDir(m.home), "config.json"), m.home))), "")
 	md := m.mode()
 	last := ""
 	for i, s := range m.settingRows() {

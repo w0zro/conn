@@ -4826,3 +4826,269 @@ func TestStartsAreSeen(t *testing.T) {
 		t.Errorf("nothing new: starting %d, follow %q, note %q", m.starting, m.follow, m.note)
 	}
 }
+
+// With conn's tab behind another, a conversation at work whose turn
+// ends is one more waiting on you, and is also said apart: the status
+// line at the bottom right reads "1 finished", in bold in the plain
+// ink, between the waiting and the failed counts. It is taken away,
+// with no bell, when the conversation is gone into or the agent is at
+// work again. What is read is the machine, as the panel reads it:
+// tmux's panes, and Claude Code's instance files.
+func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	script, err := exec.LookPath("script")
+	if err != nil {
+		t.Skip("no script to give a client a terminal")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	t.Setenv("LC_ALL", "C.UTF-8")
+	repo := func(name string) string {
+		dir := filepath.Join(scratch, name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		git(t, dir, "init", "-q")
+		git(t, dir, "commit", "-q", "--allow-empty", "-m", "first")
+		return dir
+	}
+	web, api := repo("web"), repo("api")
+	s1, s2 := "aaaaaaaa-0000-0000-0000-000000000001", "bbbbbbbb-0000-0000-0000-000000000002"
+
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
+	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, own, "/x")
+	ws.hold = "sleep 1000"
+
+	// A terminal's client, its output what the terminal would be sent,
+	// for the bell.
+	attach := bin + " -S " + srv.Socket + " attach -t " + sessionName
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		cmd = exec.Command(script, "-q", "/dev/null", "/bin/sh", "-c", attach)
+	} else {
+		cmd = exec.Command(script, "-qfec", attach, "/dev/null")
+	}
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "TMUX=")
+	in, keepOpen, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = keepOpen.Close() })
+	cmd.Stdin = in
+	var tty safeBuffer
+	cmd.Stdout, cmd.Stderr = &tty, &tty
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	for deadline := time.Now().Add(3 * time.Second); len(terminals(srv)) == 0; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("no client attached: %q", tty.String())
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	osc := regexp.MustCompile("\x1b\\]([0-9]*)(?:;([^\x07\x1b]*))?(?:\x07|\x1b\\\\)")
+	title := func() string {
+		got := ""
+		for _, m := range osc.FindAllStringSubmatch(tty.String(), -1) {
+			if m[1] == "0" || m[1] == "2" {
+				got = m[2]
+			}
+		}
+		return got
+	}
+	bells := func() int {
+		return strings.Count(osc.ReplaceAllString(tty.String(), ""), "\a")
+	}
+
+	// A conversation in each, in a pane conn holds: a sleep, its
+	// instance file saying what Claude Code would.
+	conversation := func(name, dir, session string) (string, func(string)) {
+		id, err := openWindow(srv, name, dir, "sleep 1000", session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pid, err := srv.Run("display", "-p", "-t", id, "#{pane_pid}")
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
+		return id, func(s string) {
+			write(t, instance, `{"sessionId":"`+session+`","status":"`+s+`","cwd":"`+dir+`"}`)
+		}
+	}
+	webPane, webStatus := conversation("web", web, s1)
+	_, apiStatus := conversation("api", api, s2)
+
+	k := newKnown()
+	k.root[web], k.root[api] = web, api
+	m := model{srv: srv, ws: ws, own: own, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
+	var update func(m model, msg tea.Msg) model
+	update = func(m model, msg tea.Msg) model {
+		if msg == nil {
+			return m
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					m = update(m, c())
+				}
+			}
+			return m
+		}
+		next, _ := m.Update(msg)
+		return next.(model)
+	}
+	press := func(k tea.Key) {
+		next, c := m.Update(tea.KeyPressMsg(k))
+		m = next.(model)
+		if c != nil {
+			m = update(m, c())
+		}
+	}
+
+	plain := regexp.MustCompile(`#\[[^\]]*\]`)
+	var said strings.Builder
+	shot := 0
+	frame := func(name string) {
+		if shots == "" {
+			return
+		}
+		fmt.Fprintf(&said, "%s: title %q, bells %d, status line %q\n", name, title(), bells(), plain.ReplaceAllString(statusRight(t, srv), ""))
+		if err := os.WriteFile(filepath.Join(shots, "tab-title-and-bell.txt"), []byte(said.String()), 0o644); err != nil {
+			t.Error(err)
+		}
+		if shot++; shot > 6 {
+			return
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		for _, l := range strings.Split(m.View().Content, "\n") {
+			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		b.WriteString(drawnStatus(t, srv))
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(b.String()+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	// step reads the machine until the status line says what is wanted
+	// (or time is up), then once more, and checks what it says and the
+	// bells rung so far.
+	step := func(what string, wantWaiting, wantFinished, wantFailed, wantBells int) {
+		t.Helper()
+		want := func() string {
+			var w []string
+			for _, c := range []struct {
+				n    int
+				word string
+			}{{wantWaiting, "waiting"}, {wantFinished, "finished"}, {wantFailed, "failed"}} {
+				if c.n > 0 {
+					w = append(w, fmt.Sprintf("%d %s", c.n, c.word))
+				}
+			}
+			return strings.Join(w, " ")
+		}()
+		said := func() string {
+			return strings.Join(strings.Fields(plain.ReplaceAllString(statusRight(t, srv), "")), " ")
+		}
+		deadline := time.Now().Add(3 * time.Second)
+		for {
+			m = update(m, m.read()())
+			if said() == want && bells() >= wantBells || time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		// A bell too many would come at once.
+		time.Sleep(300 * time.Millisecond)
+		m = update(m, m.read()())
+		time.Sleep(300 * time.Millisecond)
+		if got := said(); got != want {
+			t.Errorf("%s, the status line says %q, want %q", what, got, want)
+		}
+		if got := bells(); got != wantBells {
+			t.Errorf("%s, the bell has rung %d times, want %d", what, got, wantBells)
+		}
+		if wantFinished == 0 {
+			return
+		}
+		// "finished" is bold, in the plain ink, and no other colour.
+		status := statusRight(t, srv)
+		at := strings.Index(status, fmt.Sprintf("%d finished", wantFinished))
+		if at < 0 {
+			return
+		}
+		style := status[:at]
+		if i := strings.LastIndex(style, "#["); i >= 0 {
+			style = style[i:]
+		}
+		style = strings.ToLower(style)
+		if !strings.Contains(style, strings.ToLower(theme.Hex(g.Ink))) || !strings.Contains(style, "bold") {
+			t.Errorf("%s, %d finished on the status line is not bold in the plain ink %s: %q", what, wantFinished, theme.Hex(g.Ink), status)
+		}
+	}
+
+	// One question waits; the other conversation is at work.
+	webStatus("busy")
+	apiStatus("waiting")
+	step("with a question waiting and a conversation at work", 1, 0, 0, 1)
+	frame("waiting-120x36.ans")
+
+	// Its turn over, web's conversation is waiting too, and finished.
+	webStatus("idle")
+	step("with web's turn handed back", 2, 1, 0, 2)
+	frame("finished-120x36.ans")
+
+	// A run fails: finished stays between waiting and failed.
+	if _, err := startNamed(srv, "test", "exit 1", web, web, roleCheck); err != nil {
+		t.Fatal(err)
+	}
+	step("with a check failed", 2, 1, 1, 3)
+	frame("finished-failed-120x36.ans")
+	if status := plain.ReplaceAllString(statusRight(t, srv), ""); !(strings.Index(status, "waiting") < strings.Index(status, "finished") && strings.Index(status, "finished") < strings.Index(status, "failed")) {
+		t.Errorf("the status line does not put finished between waiting and failed: %q", status)
+	}
+	if t.Failed() {
+		t.FailNow()
+	}
+
+	// The agent at work again clears it, with no bell.
+	webStatus("busy")
+	step("with web's conversation at work again", 1, 0, 1, 3)
+	frame("working-again-120x36.ans")
+
+	// Finished once more; gone into, it clears, with no bell.
+	webStatus("idle")
+	step("with web's turn handed back again", 2, 1, 1, 4)
+	press(tea.Key{Code: tea.KeyTab})
+	if m.in != webPane || inWorkspace(t, ws).ID != webPane {
+		t.Fatalf("tab went into %q, showing %q, want web's conversation %s", m.in, inWorkspace(t, ws).ID, webPane)
+	}
+	step("having gone into web's conversation", 1, 0, 1, 4)
+	frame("answered-120x36.ans")
+}

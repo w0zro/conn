@@ -1,0 +1,370 @@
+package console
+
+import (
+	"flag"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"unicode/utf8"
+
+	"github.com/w0zro/conn/internal/station"
+
+	"github.com/w0zro/conn/internal/theme"
+)
+
+var update = flag.Bool("update", false, "write the golden consoles under testdata")
+
+func texts(rows []Row) string {
+	var b []string
+	for _, r := range rows {
+		b = append(b, r.Text)
+	}
+	return strings.Join(b, "\n")
+}
+
+// golden holds a rendering to the file of record under testdata. Run
+// the tests with -update to write what the console renders now, and
+// read the diff before committing it: the file is the design.
+func golden(t *testing.T, name, got string) {
+	t.Helper()
+	path := filepath.Join("testdata", name)
+	got += "\n"
+	if *update {
+		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%v (run with -update to write it)", err)
+	}
+	if string(want) != got {
+		t.Errorf("%s differs from the golden file; run with -update if the change is meant:\n%s", name, got)
+	}
+}
+
+// The console at 120 by 40, all nominal, is the file of record.
+func TestConsoleMatchesTheGolden(t *testing.T) {
+	golden(t, "console-120x40.txt", texts(Screen(Compose(testStation, testConfig, testNow), 120, 40, Plain)))
+}
+
+// The console with faults, and the one off a terminal, are files of
+// record too.
+func TestFaultedConsolesMatchTheGolden(t *testing.T) {
+	st := testStation
+	st.Volume.Free = 6_800_000_000
+	st.Machine.Power = station.Power{Source: "battery", Percent: 7, State: "discharging", Remaining: "0:31"}
+	golden(t, "console-faults-100x36.txt", texts(Screen(Compose(st, testConfig, testNow), 100, 36, Plain)))
+	golden(t, "console-piped.txt", texts(Screen(Compose(st, testConfig, testNow), 0, 0, Plain)))
+	golden(t, "console-small-60x24.txt", texts(Screen(Compose(st, testConfig, testNow), 60, 24, Plain)))
+	golden(t, "console-small-100x12.txt", texts(Screen(Compose(st, testConfig, testNow), 100, 12, Plain)))
+}
+
+// Off a terminal the page keeps every value whole. There is no screen
+// to cut it to and nobody watching who could widen one: what comes out
+// of the pipe is filed or pasted into a report, and a reading elided
+// to fit a width nobody chose is a reading lost.
+func TestThePipedConsoleElidesNothing(t *testing.T) {
+	st := testStation
+	st.Login.Exe = "/Users/w0zro/Library/Caches/go-build/3c/3c7f8105cf5abd1baa5f58b9cf8c907eed6bf5ff84596c80c85d92931375d3fa-d/conn"
+	st.Machine.Kernel = "Darwin 25.6.0 and then some words to push it past eighty columns"
+	text := texts(Screen(Compose(st, testConfig, testNow), 0, 0, Plain))
+	if strings.Contains(text, "…") {
+		t.Errorf("the piped console elided something:\n%s", text)
+	}
+	// A path keeps its own case; every other value is set in capitals.
+	for _, want := range []string{"~" + st.Login.Exe[len("/Users/w0zro"):], "16 KB PAGES"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the piped console lost %q:\n%s", want, text)
+		}
+	}
+	// A terminal is a width somebody chose, and the page is cut to it.
+	if narrow := texts(Screen(Compose(st, testConfig, testNow), 80, 40, Plain)); !strings.Contains(narrow, "…") {
+		t.Error("an eighty column terminal elided nothing")
+	}
+}
+
+// The layout holds where the eye checks it: the session column at half
+// the measure, every status flush with its right edge, a path in its own
+// case, no row past the width.
+func TestConsoleLaysOut(t *testing.T) {
+	r := Compose(testStation, testConfig, testNow)
+	rows := Screen(r, 120, 40, Plain)
+	measure, rightCol, _ := columns(120)
+	text := texts(rows)
+	for _, s := range []string{
+		"CONN 0.7.0 (devel)", "STATION  W0ZRO@STATION", "09-SEP-2026  02:58:41 Z", "4af550d · 09-SEP-2026 · MODIFIED",
+		"SYSTEM .... MACOS 26.6.2 (25G83)", "CWD ....... ~/projects/w0zro/conn", "SHELL ..... ZSH 5.9",
+		"SCREEN .... 120×40 · XTERM-256COLOR · TRUECOLOR", "STATE ..... ~/.local/state/conn",
+		"ALL SYSTEMS NOMINAL",
+	} {
+		if !strings.Contains(text, s) {
+			t.Errorf("console lacks %q:\n%s", s, text)
+		}
+	}
+	if strings.Contains(text, "\x1b") || strings.Contains(text, "NOT NOMINAL") {
+		t.Errorf("console carries an escape or a fault:\n%s", text)
+	}
+	if len(rows) != 40 || strings.TrimSpace(rows[39].Text) != "" {
+		t.Errorf("%d rows; the last is %q", len(rows), rows[len(rows)-1].Text)
+	}
+	for _, row := range rows {
+		// NOMINAL stands a cell in from the column's edge, centered in
+		// the field the widest status fills; see the axis check below.
+		if strings.HasSuffix(row.Text, nominal) && strings.Contains(row.Text, "...") && utf8.RuneCountInString(row.Text) != Margin+measure-1 {
+			t.Errorf("status is not a cell in from column %d: %q", Margin+measure, row.Text)
+		}
+		if i := strings.Index(row.Text, "USER ..."); i >= 0 && utf8.RuneCountInString(row.Text[:i]) != Margin+rightCol {
+			t.Errorf("session column is not at %d: %q", Margin+rightCol, row.Text)
+		}
+		if w := utf8.RuneCountInString(row.Text); w > 120 {
+			t.Errorf("row is %d columns: %q", w, row.Text)
+		}
+	}
+	if rowsNeeded(r) != len(body(r, 120, check{}, Plain)) {
+		t.Errorf("rowsNeeded %d is not the body", rowsNeeded(r))
+	}
+}
+
+// A fault lights the chip, flush right, and the count in the verdict.
+func TestFaultsLightTheConsole(t *testing.T) {
+	st := testStation
+	st.Volume.Free = 6_800_000_000
+	rows := Screen(Compose(st, testConfig, testNow), 120, 40, Plain)
+	text := texts(rows)
+	if !strings.Contains(text, "6.8 GB FREE") || !strings.Contains(text, " LOW") || !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
+		t.Errorf("fault not lit:\n%s", text)
+	}
+	// The status words stand centered on one another: LOW over the MIN
+	// of the NOMINAL above it, UNCHECKED across the whole field. The
+	// middle of each word is the same column.
+	middle := func(row, word string) int {
+		i := strings.LastIndex(row, word)
+		if i < 0 {
+			return -1
+		}
+		return utf8.RuneCountInString(row[:i])*2 + utf8.RuneCountInString(word) - 1
+	}
+	axis := -1
+	for _, row := range rows {
+		for _, word := range []string{"NOMINAL", "LOW", "UNCHECKED"} {
+			// A check's row, which has leaders; the verdict ends in the
+			// word too and is centered on the page instead.
+			if !strings.HasSuffix(strings.TrimSpace(row.Text), word) || !strings.Contains(row.Text, "...") {
+				continue
+			}
+			if m := middle(row.Text, word); axis < 0 {
+				axis = m
+			} else if m != axis {
+				t.Errorf("%s is centered on column %d/2 where the rest are on %d/2: %q", word, m, axis, row.Text)
+			}
+		}
+	}
+	if axis < 0 {
+		t.Error("no status word was found to check the axis against")
+	}
+	st.Machine.Power.Percent, st.Machine.Power.State = 5, "discharging"
+	if text := texts(Screen(Compose(st, testConfig, testNow), 120, 40, Plain)); !strings.Contains(text, "2 SYSTEMS NOT NOMINAL") {
+		t.Errorf("two faults not counted:\n%s", text)
+	}
+}
+
+// A terminal the console will not fit gets the small console: nothing
+// clipped, the size it needs in view. Off a terminal there is no screen
+// to check.
+func TestSmallAndPipedConsoles(t *testing.T) {
+	r := Compose(testStation, testConfig, testNow)
+	need := rowsNeeded(r)
+	for _, c := range []struct{ w, h, need int }{
+		{60, 24, need}, {100, 12, need}, {100, need - 1, need}, {79, 50, need}, {20, 5, need},
+	} {
+		rows := Screen(r, c.w, c.h, Plain)
+		text := texts(rows)
+		if !strings.Contains(text, " SMALL") || !strings.Contains(text, "NEEDS 80×"+strconv.Itoa(c.need)) {
+			t.Errorf("%dx%d is not called small:\n%s", c.w, c.h, text)
+		}
+		if len(rows) != c.h {
+			t.Errorf("%dx%d renders %d rows", c.w, c.h, len(rows))
+		}
+		for _, row := range rows {
+			if w := utf8.RuneCountInString(row.Text); w > c.w {
+				t.Errorf("%dx%d has a row %d wide: %q", c.w, c.h, w, row.Text)
+			}
+		}
+	}
+	if rows := Screen(r, 100, need, Plain); strings.Contains(texts(rows), "SMALL") || len(rows) != need {
+		t.Errorf("a terminal of exactly the rows needed is small, or %d rows", len(rows))
+	}
+	piped := texts(Screen(r, 0, 0, Plain))
+	if !strings.Contains(piped, "SCREEN .... NO TERMINAL") || !strings.Contains(piped, " UNCHECKED") {
+		t.Errorf("off a terminal:\n%s", piped)
+	}
+}
+
+// In color, every row is painted edge to edge on the ground and ends with
+// the terminal's own colors back; the words are the plain console's.
+func TestColoredConsolePaintsEveryRow(t *testing.T) {
+	p := Colored(theme.Conn.Dark)
+	r := Compose(testStation, testConfig, testNow)
+	rows := Screen(r, 120, 40, p)
+	for i, row := range rows {
+		if !strings.HasPrefix(row.Text, p.Normal) || !strings.HasSuffix(row.Text, p.End) {
+			t.Errorf("row %d is not painted from the ground to the end: %q", i, row.Text)
+		}
+		if w := utf8.RuneCountInString(stripEscapes(row.Text)); w != 120 {
+			t.Errorf("row %d paints %d columns: %q", i, w, stripEscapes(row.Text))
+		}
+	}
+	plainText := texts(Screen(r, 120, 40, Plain))
+	for i, row := range rows {
+		if want := strings.Split(plainText, "\n")[i]; strings.TrimRight(stripEscapes(row.Text), " ") != want {
+			t.Errorf("row %d reads %q in color and %q plain", i, strings.TrimRight(stripEscapes(row.Text), " "), want)
+		}
+	}
+	for i, row := range Screen(r, 60, 24, p) {
+		if w := utf8.RuneCountInString(stripEscapes(row.Text)); w != 60 {
+			t.Errorf("small row %d paints %d columns", i, w)
+		}
+	}
+}
+
+// A check that is not nominal is annunciated, whichever way it is not:
+// a fault conn found, and a reading conn could not take, are one chip
+// and one word. There used to be two grades — LOW an annunciator, and
+// UNCHECKED two rows above it said quietly in a color — and a console
+// with two grades of wrong makes the reader work out which grade a row
+// is before they can read it.
+func TestEverythingNotNominalTakesTheChip(t *testing.T) {
+	p := Colored(theme.Conn.Dark)
+	st := testStation
+	st.Machine.CPUs = 0          // LOAD has no core count to check against
+	st.Volume = station.Volume{} // DISK went unanswered
+	text := texts(Screen(Compose(st, testConfig, testNow), 120, 40, p))
+	for _, want := range []string{" UNCHECKED ", " UNKNOWN "} {
+		if !strings.Contains(text, p.Chip+want) {
+			t.Errorf("%q is not annunciated:\n%s", strings.TrimSpace(want), stripEscapes(text))
+		}
+	}
+	if !strings.Contains(text, p.Gray+"NOMINAL") {
+		t.Errorf("NOMINAL is not painted gray:\n%s", stripEscapes(text))
+	}
+	// Nominal is the only word that does not take one.
+	if strings.Contains(text, p.Chip+" NOMINAL ") {
+		t.Errorf("a nominal check was annunciated:\n%s", stripEscapes(text))
+	}
+}
+
+// The count at the foot is every check that is not nominal, so the
+// number and the chips on the rows are the same alarm counted once.
+func TestTheCountIsEveryCheckNotNominal(t *testing.T) {
+	var all tally
+	for _, k := range []check{{status: nominal}, {status: nominal}} {
+		all.count(k)
+	}
+	if all.off != 0 || all.nominal != 2 {
+		t.Errorf("all nominal tallied %+v", all)
+	}
+	for _, k := range []check{{status: unchecked}, {status: unknown}, {status: "LOW", fault: true}} {
+		all.count(k)
+	}
+	if all.off != 3 {
+		t.Errorf("a fault, an unchecked and an unknown came to %d, not 3", all.off)
+	}
+	// Read off a console rather than a tally by hand: the machine
+	// answers everything but its core count, so LOAD alone is unchecked
+	// — and it is counted with the disk that is low.
+	st := testStation
+	st.Machine.CPUs = 0
+	text := stripEscapes(texts(Screen(Compose(st, testConfig, testNow), 120, 40, Plain)))
+	if strings.Contains(text, AllNominal) {
+		t.Errorf("the console called an unchecked system nominal:\n%s", text)
+	}
+	if !strings.Contains(text, "1 SYSTEM NOT NOMINAL") {
+		t.Errorf("the console does not count what it did not read:\n%s", text)
+	}
+}
+
+// stripEscapes drops the color sequences, leaving the cells.
+func stripEscapes(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == 0x1b {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// The console's alarms are annunciators: the verdict's chip and every
+// fault's own chip blink together, so what is wrong and how many are
+// the one alarm. On the dark half those cells are the ground and
+// nothing else moves; what is nominal never blinks, and neither does
+// the word that all is well.
+func TestTheAlarmsBlink(t *testing.T) {
+	st := testStation
+	st.Volume.Free = 6_800_000_000
+	r := Compose(st, testConfig, testNow)
+	if !r.Lit {
+		t.Error("a reading is dark before anyone asks it to blink")
+	}
+	lit := Screen(r, 120, 40, Plain)
+	r.Lit = false
+	dark := Screen(r, 120, 40, Plain)
+	for _, s := range []string{"1 SYSTEM NOT NOMINAL", " LOW"} {
+		if !strings.Contains(texts(lit), s) {
+			t.Errorf("%q is not up on the lit half:\n%s", s, texts(lit))
+		}
+		if strings.Contains(texts(dark), s) {
+			t.Errorf("%q is still up on the dark half:\n%s", s, texts(dark))
+		}
+	}
+	// The fault's own line keeps saying which system, and what it read;
+	// only the chip goes.
+	if !strings.Contains(texts(dark), "6.8 GB FREE") {
+		t.Errorf("the fault's measurement went dark with its chip:\n%s", texts(dark))
+	}
+	// A check that is nominal does not blink.
+	if !strings.Contains(texts(dark), "NOMINAL") {
+		t.Errorf("what is nominal blinked:\n%s", texts(dark))
+	}
+	// Two rows differ, the fault's and the verdict's, and no other.
+	if len(lit) != len(dark) {
+		t.Fatalf("%d rows lit, %d dark", len(lit), len(dark))
+	}
+	moved := 0
+	for i := range lit {
+		if lit[i].Text != dark[i].Text {
+			moved++
+		}
+	}
+	if moved != 2 {
+		t.Errorf("%d rows differ between lit and dark; the fault's and the verdict's should", moved)
+	}
+	// Two faults blink three rows: each chip, and the count.
+	st.Machine.Power.Percent, st.Machine.Power.State = 5, "discharging"
+	two := Compose(st, testConfig, testNow)
+	two.Lit = false
+	twoDark := Screen(two, 120, 40, Plain)
+	twoLit := Screen(Compose(st, testConfig, testNow), 120, 40, Plain)
+	moved = 0
+	for i := range twoLit {
+		if twoLit[i].Text != twoDark[i].Text {
+			moved++
+		}
+	}
+	if moved != 3 {
+		t.Errorf("with two faults %d rows blink, not 3", moved)
+	}
+	// All being well is a word, not an annunciator.
+	well := Compose(testStation, testConfig, testNow)
+	well.Lit = false
+	if !strings.Contains(texts(Screen(well, 120, 40, Plain)), "ALL SYSTEMS NOMINAL") {
+		t.Error("the word that all is well blinked")
+	}
+}

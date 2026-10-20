@@ -1,0 +1,117 @@
+package station
+
+import (
+	"regexp"
+	"runtime/debug"
+	"strings"
+	"time"
+
+	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
+)
+
+// A Build is where this binary came from: the release it is on or past,
+// whether it is exactly that release, and the commit it was built from.
+// The version row says the release; the build row says the commit.
+type Build struct {
+	Tag      string    // the release: 0.7.0; blank when no tag is known
+	Exact    bool      // built at the tag, unmodified
+	Commit   string    // the commit, short
+	Time     time.Time // when the commit was made
+	Modified bool      // the tree had changes past the commit
+}
+
+// ReadBuild is the build, from the stamp and the module system together.
+// The stamp is what the release build wrote on the binary, which is
+// what git describe says; a build that came another way has none, and
+// answers from the module system, which records the commit and, past
+// Go 1.24, a version derived from the tag.
+func ReadBuild(stamp string) Build {
+	var b Build
+	info, ok := debug.ReadBuildInfo()
+	if ok {
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				b.Commit = shortCommit(s.Value)
+			case "vcs.time":
+				b.Time, _ = time.Parse(time.RFC3339, s.Value)
+			case "vcs.modified":
+				b.Modified = s.Value == "true"
+			}
+		}
+	}
+	d, described := parseDescribe(stamp)
+	if !described && ok {
+		d = parseModuleVersion(info.Main.Version)
+	}
+	b.Tag = d.tag
+	b.Modified = b.Modified || d.dirty
+	b.Exact = d.tag != "" && d.ahead == 0 && !b.Modified
+	if b.Commit == "" {
+		b.Commit = d.commit
+	}
+	return b
+}
+
+// A described version: the tag, how many commits past it, the commit,
+// and whether the tree was dirty.
+type described struct {
+	tag    string
+	ahead  int
+	commit string
+	dirty  bool
+}
+
+var (
+	// v0.7.0, v0.7.0-59-g0c69871, v0.7.0-dirty, v0.7.0-59-g0c69871-dirty
+	describeTagged = regexp.MustCompile(`^v?(\d+\.\d+\.\d+)(?:-(\d+)-g([0-9a-f]+))?(-dirty)?$`)
+	// 0c69871, 0c69871-dirty: git describe --always with no tag to reach
+	describeBare = regexp.MustCompile(`^([0-9a-f]{7,40})(-dirty)?$`)
+)
+
+// parseDescribe reads what git describe --tags --always --dirty says.
+func parseDescribe(s string) (described, bool) {
+	if m := describeTagged.FindStringSubmatch(s); m != nil {
+		d := described{tag: m[1], commit: shortCommit(m[3]), dirty: m[4] != ""}
+		for _, c := range m[2] {
+			d.ahead = d.ahead*10 + int(c-'0')
+		}
+		return d, true
+	}
+	if m := describeBare.FindStringSubmatch(s); m != nil {
+		return described{ahead: 1, commit: shortCommit(m[1]), dirty: m[2] != ""}, true
+	}
+	return described{}, false
+}
+
+// parseModuleVersion reads the module system's version for the main
+// module: a tag, v0.7.0; a pseudo-version past one, whose base is the
+// tag below it, v0.7.1-0.20260909025524-0c6987146b46, with +dirty when
+// the tree had changes; or (devel), which says nothing.
+func parseModuleVersion(v string) described {
+	var d described
+	if v == "" || v == "(devel)" {
+		return described{ahead: 1}
+	}
+	d.dirty = semver.Build(v) == "+dirty"
+	v = strings.TrimSuffix(v, "+dirty")
+	if module.IsPseudoVersion(v) {
+		d.ahead = 1
+		d.commit, _ = module.PseudoVersionRev(v)
+		d.commit = shortCommit(d.commit)
+		base, _ := module.PseudoVersionBase(v)
+		d.tag = strings.TrimPrefix(base, "v")
+		return d
+	}
+	d.tag = strings.TrimPrefix(v, "v")
+	return d
+}
+
+// shortCommit is the first seven characters of a commit.
+func shortCommit(c string) string {
+	if len(c) > 7 {
+		return c[:7]
+	}
+	return c
+}

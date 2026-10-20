@@ -344,7 +344,9 @@ func attach(srv *tmux.Server, self, home string, want theme.Want) (int, error) {
 		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && h > 1 {
 			args = append(args, "-x", strconv.Itoa(w), "-y", strconv.Itoa(h-1))
 		}
-		if _, err := srv.Run(append(args, panel)...); err != nil {
+		// The panel that brings the server up comes up on the boot
+		// console; one started again over a server that is up does not.
+		if _, err := srv.Run(append(args, panel+" boot")...); err != nil {
 			return 0, err
 		}
 		// The pane just made runs this build; said now, it is not

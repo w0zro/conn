@@ -134,6 +134,9 @@ type model struct {
 	// ,'s settings: whether they stand, and the cursor in them.
 	settings bool
 	setAt    int
+	// The boot console, while the panel is on it; nil once it is put
+	// away, or where the panel came up over a server already up.
+	boot *booting
 }
 
 // A row on a project's screen: a conversation, a pane, or both — a
@@ -494,7 +497,7 @@ func (k *known) tailOf(c conversation) titled {
 	return t
 }
 
-func runPanel() error {
+func runPanel(args []string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -510,18 +513,20 @@ func runPanel() error {
 	g := ground(home, srv.Socket)
 	wear(g)
 	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown(), g: g}
+	// A panel that brought the server up comes up on the boot console,
+	// the whole window wide; the workspace is made once it is put away.
+	if len(args) > 0 && args[0] == "boot" {
+		m.boot = newBooting(home, version)
+	}
 	// The panel's window is conn's: the panel, and the workspace beside
 	// it. ctrl-space comes back here, wherever here is now.
 	if own := os.Getenv("TMUX_PANE"); own != "" {
 		if win, err := srv.Display(own, "#{window_id}"); err == nil && win != "" {
 			m.own, m.ws = own, newWorkspace(srv, win, own, self)
-			// The panel stands on the surface, a step off the ground the
-			// workspace is on, so the two halves of the window read as two.
-			_ = srv.Paint(own, g.Surface)
 			_, _ = srv.Do(bindBack(win, own), tmux.SetGlobal(panelIDMark, own))
-			swaps.Lock()
-			_, _ = m.ws.ensure()
-			swaps.Unlock()
+			if m.boot == nil {
+				m.openWorkspace()
+			}
 		}
 	}
 	p := tea.NewProgram(m)
@@ -629,7 +634,24 @@ func (m model) turning() bool {
 type sized struct{}
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.read(), tea.Tick(time.Second, func(time.Time) tea.Msg { return sized{} }))
+	cmds := []tea.Cmd{m.read(), tea.Tick(time.Second, func(time.Time) tea.Msg { return sized{} })}
+	if m.boot != nil {
+		cmds = append(cmds, m.boot.start()...)
+	}
+	return tea.Batch(cmds...)
+}
+
+// openWorkspace puts the panel beside the work: on the surface, a step
+// off the ground the workspace is on, so the two halves of the window
+// read as two, with the workspace made beside it.
+func (m model) openWorkspace() {
+	if m.own == "" {
+		return
+	}
+	_ = m.srv.Paint(m.own, m.g.Surface)
+	swaps.Lock()
+	_, _ = m.ws.ensure()
+	swaps.Unlock()
 }
 
 // conversationsShown is how many conversations at rest a project lists,
@@ -973,7 +995,7 @@ func (m model) telling(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 // reconcile asks the workspace for what the panel now wants shown,
 // once the wish has rested.
 func (m model) reconcile(cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	if m.ws.srv == nil {
+	if m.ws.srv == nil || m.boot != nil {
 		return m, cmd
 	}
 	if want := m.wanted(); want != m.asked {
@@ -1079,8 +1101,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var quick tea.Cmd
 		m, quick = m.watch(msg.at)
 		// The workspace is put right where it is not what the panel
-		// asked: gone, ended, or showing another pane.
-		if m.ws.srv != nil && (!msg.shownOK || msg.shown != m.wanted()) {
+		// asked: gone, ended, or showing another pane. Under the console
+		// there is no workspace yet.
+		if m.ws.srv != nil && m.boot == nil && (!msg.shownOK || msg.shown != m.wanted()) {
 			return m, tea.Batch(quick, m.showing(m.wanted(), false))
 		}
 		return m, quick
@@ -1135,8 +1158,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.boxStands() {
 			return m.typeInto(msg)
 		}
+	case stationRead, stageDue, blink:
+		if m.boot != nil {
+			return m.bootMsg(msg)
+		}
 	case tea.KeyPressMsg:
 		m.note = ""
+		if m.boot != nil {
+			return m.consoleKey(msg.String())
+		}
 		if s := msg.String(); s == "ctrl+space" || s == "ctrl+@" {
 			return m.arrived()
 		}
@@ -2472,6 +2502,8 @@ func (m model) draw() ([]string, foot) {
 	var lines []string
 	var f foot
 	switch {
+	case m.boot != nil:
+		lines, f = m.drawConsole()
 	case m.helping:
 		lines, f = m.drawKeys()
 	case m.settings:

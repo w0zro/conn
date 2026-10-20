@@ -18,6 +18,11 @@ import (
 	"github.com/w0zro/conn/internal/tmux"
 )
 
+// version is what the release build stamps on the binary: what git
+// describe says. A build that came another way has none, and the boot
+// console reads the module system instead.
+var version string
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "conn:", err)
@@ -43,7 +48,7 @@ func run(args []string) error {
 	if len(args) > 0 {
 		switch args[0] {
 		case "panel":
-			return runPanel()
+			return runPanel(args[1:])
 		case "hold":
 			return runHold()
 		case "theme":

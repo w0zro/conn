@@ -56,7 +56,7 @@ func TestNoServerSaysSo(t *testing.T) {
 	scratch := t.TempDir()
 	t.Setenv("CONN_SOCKET", filepath.Join(scratch, "s"))
 	var out strings.Builder
-	if code := runLs(&out, scratch, scratch, nil); code != 0 || !strings.Contains(out.String(), "nothing running; conn's server is not up") {
+	if code := runLs(&out, scratch, scratch, nil); code != 0 || !strings.Contains(out.String(), "nothing running; conn's server is not up") || !strings.Contains(out.String(), "(no repository; everything under it)") {
 		t.Errorf("conn ls = %d:\n%s", code, out.String())
 	}
 	h, err := readHere(scratch, scratch)

@@ -48,6 +48,7 @@ type proc struct {
 // is in, the checkout, and the processes.
 type here struct {
 	home, root, tree string
+	repo             bool // the root is a repository, not a directory standing as one
 	srv              *tmux.Server
 	up               bool
 	procs            []proc
@@ -59,7 +60,8 @@ type here struct {
 // another checkout is the agent's project's.
 func readHere(home, dir string) (here, error) {
 	dir = realDir(dir)
-	h := here{home: home, root: repoRoot(dir), tree: checkout(dir)}
+	h := here{home: home, tree: checkout(dir)}
+	h.root, h.repo = repository(dir)
 	srv, err := findServer(home)
 	if err != nil {
 		return h, err
@@ -76,7 +78,8 @@ func readHere(home, dir string) (here, error) {
 		for _, p := range ps {
 			if p.ID == own && !p.Panel && !p.Hold && p.Dir != "" {
 				at := realDir(p.Dir)
-				h.root, h.tree = repoRoot(at), checkout(at)
+				h.tree = checkout(at)
+				h.root, h.repo = repository(at)
 			}
 		}
 	}
@@ -391,7 +394,14 @@ func runLs(w io.Writer, home, dir string, args []string) int {
 		return cliFail("ls", err)
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, tilde(h.root, home))
+	// Outside any repository the directory stands as the project, and
+	// everything under it is listed; the header says so, rather than
+	// naming the directory as if it were one.
+	if h.repo {
+		_, _ = fmt.Fprintln(tw, tilde(h.root, home))
+	} else {
+		_, _ = fmt.Fprintf(tw, "%s  (no repository; everything under it)\n", tilde(h.root, home))
+	}
 	mine := h.mine()
 	// Nothing under the path says nothing, and whether that is because
 	// nothing runs or because there is no server for it to run in.

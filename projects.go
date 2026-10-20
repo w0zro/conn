@@ -153,16 +153,23 @@ func rootOf(dir string) string {
 
 // repoRoot is the repository a directory is in, or the directory.
 func repoRoot(dir string) string {
+	root, _ := repository(dir)
+	return root
+}
+
+// repository is the repository a directory is in, and whether it is in
+// one: a directory in none stands as itself.
+func repository(dir string) (string, bool) {
 	out, err := exec.Command("git", "-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir").Output()
 	if err != nil {
-		return dir
+		return dir, false
 	}
 	common := strings.TrimSpace(string(out))
 	if filepath.Base(common) == ".git" {
-		return filepath.Dir(common)
+		return filepath.Dir(common), true
 	}
 	// A bare repository's worktrees: the repository is the project.
-	return common
+	return common, true
 }
 
 // headPath is where a checkout keeps its HEAD: a worktree's is in the

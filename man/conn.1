@@ -950,7 +950,11 @@ arranged, it asks whether to end it and everything in it.
 .TP
 .B conn ls
 The processes of the project the working directory is in, read once.
-The first line is the project's path; then a line a process: the name
+The first line is the project's path, or, outside any repository, the
+directory and
+.BR "(no repository; everything under it)" ,
+since a directory in none stands as the project and everything under it
+is listed; then a line a process: the name
 it answers to, its pid, what it is doing, the ports it listens on or
 .BR \- ,
 the command, and in parentheses its directory where that is not the

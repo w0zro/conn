@@ -41,17 +41,17 @@
     { role: 'outside', name: 'postgres', status: 'serving', port: ':5432', hand: 'postgres on :5432', body: ['<span class="g">LOG:</span>  database system is ready', '<span class="g">LOG:</span>  checkpoint starting: time', '<span class="g">LOG:</span>  connection authorized: user=conn'] },
   ] };
   const OTHERS = [
-    { name: 'web', standing: '1 waiting · 3 running', waiting: true, rows: [
+    { name: 'web', standing: '1 waits · 3 runs', waiting: true, rows: [
       { role: 'conversation', name: 'make the cart total update live', status: 'waiting', body: ['<span class="g">></span> make the cart total update live', '<span class="r">●</span> Read Cart.tsx, useCart.ts', '<span class="a">●</span> Allow Bash: conn u test -w -- npm test?', '  <span class="a">❯</span> Yes', '    No'] },
       { role: 'stack', name: 'vite', status: 'serving', body: ['<span class="r">VITE v6.0.3</span>  <span class="g">ready in 212 ms</span>', '', '  ➜  Local:   <span class="r">http://localhost:5173/</span>', '  ➜  <span class="g">press h + enter to show help</span>'] },
       { role: 'client', name: 'zsh', status: 'idle', body: ['<span class="a">$</span> conn ls', '<span class="g">~/projects/web</span>', 'vite  41822  running  5173  npm run dev', '<span class="a">$</span> <span class="cursor"></span>'] },
     ] },
-    { name: 'api', standing: '3 running', turning: true, rows: [
+    { name: 'api', standing: '3 runs', turning: true, rows: [
       { role: 'conversation', name: 'add the rate limit to /v1/search', status: 'working', body: ['<span class="g">></span> add the rate limit to /v1/search', '<span class="r">●</span> Read limiter.go, search.go', '<span class="r">⣾</span> <span class="g">Running conn u test -w -- go test ./…</span>'] },
       { role: 'stack', name: 'api', status: 'serving', body: ['<span class="g">2026/10/16 14:02:11</span> listening on :8080', '<span class="g">2026/10/16 14:02:40</span> GET /healthz 200'] },
       { role: 'check', name: 'test', status: 'running', body: ['<span class="g">ok  api/limiter  0.214s</span>', '<span class="g">ok  api/search   1.102s</span>', '<span class="r">⣾</span> <span class="g">api/store</span>'] },
     ] },
-    { name: 'notes', standing: '2 running', rows: [
+    { name: 'notes', standing: '2 runs', rows: [
       { role: 'conversation', name: 'outline the october post', status: 'idle', body: ['<span class="g">></span> outline the october post', '<span class="r">●</span> Wrote outline to 2026-10-post.md', '<span class="p">❯</span> <span class="cursor"></span>'] },
       { role: 'stack', name: 'hugo', status: 'serving', body: ['<span class="g">Web Server is available at</span> <span class="r">http://localhost:1313/</span>', '<span class="g">Press Ctrl+C to stop</span>'] },
     ] },
@@ -95,7 +95,7 @@
   // it waits, a server's port, a check's age.
   function figOf(r) {
     switch (r.role) {
-      case 'conversation': return r.status === 'waiting' ? `${r.ctx}  waiting` : r.status === 'working' ? r.ctx : '';
+      case 'conversation': return r.status === 'waiting' || r.status === 'working' ? r.ctx : '';
       case 'stack': case 'outside': return r.status === 'serving' ? r.port : '';
       case 'check': return r.status === 'running' ? '' : r.age;
       default: return '';
@@ -126,7 +126,7 @@
     barEl.innerHTML = barHTML(listing ? HINTS.list : verb ? HINTS[verb] : HINTS.project);
     sayEl.textContent = note;
     const waiting = rows.filter(r => r.status === 'waiting').length + OTHERS.reduce((n, p) => n + p.rows.filter(r => r.status === 'waiting').length, 0);
-    countEl.textContent = waiting ? `${waiting} waiting` : '';
+    countEl.textContent = waiting ? `${waiting} waits` : '';
     for (const th of document.querySelectorAll('.verbs th[data-verb]')) th.classList.toggle('pending', th.dataset.verb === verb);
     for (const td of document.querySelectorAll('.verbs td[data-key]')) td.classList.toggle('pending', !!verb && td.dataset.key[0] === verb);
   }

@@ -122,7 +122,7 @@ The first screen, and
 from a project.
 Every project under your home, a row a project: its name, its path, and
 at the right what waits, what runs and what failed in it,
-.BR "1 waiting \(pc 2 running" ,
+.BR "1 waits \(pc 2 runs" ,
 or how long ago work last happened there.
 A project where a conversation waits is first, in the accent; the rest
 newest work first.
@@ -651,15 +651,13 @@ directory after the name.
 The one thing worth knowing of the row without going in.
 A conversation running says the context its last turn ran in,
 .BR 262k ,
-and
-.B waiting
-in the accent where it waits on you, stopped on a question or its turn
-ended since you looked; one in another terminal says so.
+and is in the accent where it waits on you, stopped on a question or
+its turn ended since you looked; one in another terminal stands last.
 A process running says its ports,
 .BR ":8123 :8124" .
 A run that ended says how long ago; one of the stack that failed says
 its status first,
-.BR "failed 1" ,
+.BR 1 ,
 in red; a check's mark says its verdict, so its figure is the age
 alone.
 A row up with nothing to report says nothing.
@@ -686,7 +684,7 @@ words, as
 .BR "web ended: send\-keys C\-c" ,
 .B "the stack: 2 ended"
 or
-.BR "nothing is waiting on you" ;
+.BR "nothing waits" ;
 a verb let go says what it waited for.
 .
 .SH PROJECTS
@@ -908,7 +906,7 @@ goes to the conversation that has waited longest, the next one each
 press, round.
 The number waiting, over every project, is on the status line and in
 the terminal's title,
-.BR "conn \(md 2 waiting" ,
+.BR "conn \(md 2 waits" ,
 and the terminal's bell rings as one more starts waiting.
 .
 .SH THE STATUS LINE
@@ -918,12 +916,12 @@ tells it.
 .SS The band
 At the left, the wordmark.
 At the right, in the accent, how many conversations wait on you,
-.BR "2 waiting" ,
+.BR "2 waits" ,
 and nothing while none does.
 The terminal's title says the same:
 .BR conn ,
 or
-.BR "conn \(pc 2 waiting" .
+.BR "conn \(pc 2 waits" .
 .SS The key bar
 While the keys are on the panel, the keys that work where the cursor is,
 a word each, on the accent's block, so being in

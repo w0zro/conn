@@ -209,12 +209,12 @@
         <p class="kicker">SECTION 2</p>
         <h2>First session</h2>
         <p class="para"><span class="n">2-1.</span> Type <b>conn</b>. The console comes up first, the whole window: the station, the machine and the session, and the start-up checks, each NOMINAL or the word for what is wrong, under a verdict. Any key goes on. The projects come up: every git checkout under your home, with its path and, at the right, what waits, what runs and what failed in it, or how long ago work last happened there. A project where a conversation is waiting on you is first; the rest newest work first. A folder holding several checkouts is listed with them under it, and opens as a project of all of theirs. Typing narrows the list to the words typed. A path typed opens the directory it names, found or not; one that is not a directory is said on the foot.</p>
-        <p class="para"><span class="n">2-2.</span> <b>enter</b> opens the project under the cursor. Its name is at the head and its rows under it: what runs in it, by role, each marked for what it is, and saying one thing at the right where there is one to say. A conversation says the context it carries and <b>waiting</b> where it waits on you. A server says its ports. A run that ended says how long ago, and <b>failed</b> with its status, in red, where it did. Under the rows, under a label, a line for each other project with something running in it.</p>
+        <p class="para"><span class="n">2-2.</span> <b>enter</b> opens the project under the cursor. Its name is at the head and its rows under it: what runs in it, by role, each marked for what it is, and saying one thing at the right where there is one to say. A conversation says the context it carries and is in the accent where it waits on you. A server says its ports. A run that ended says how long ago, and its status, in red, where it failed. Under the rows, under a label, a line for each other project with something running in it.</p>
         <div class="figure">
           <pre>   conn  ~/projects/w0zro/conn
 
  ⣾ ❝ bring the code to the manual          262k
-▌  ❝ a grammar over processes      118k  waiting
+▌  ❝ a grammar over processes               118k
  ⣿ ○ demo                                 :8123
    ❯ zsh
    ✓ test                                    4m
@@ -222,8 +222,8 @@
    ◌ postgres                             :5432
 
    projects ──────────────────────────────────
-   web                        1 waiting · 2 running
-   notes                                 1 running</pre>
+   web                            1 waits · 2 runs
+   notes                                    1 runs</pre>
         </div>
         <p class="caption">The mark at the head of a row is its role: ❝ a conversation, ○ the stack, ❯ a shell or a client, ◦ a check, which becomes ✓ or ✗ once it has ended, ◌ a server outside conn. In the margin, a spinner turns beside what is at work, a full cell stands beside what runs persistently, and a bar marks the cursor's row. Two conversations, one waiting; a dev server; a shell; two checks, one failed; and a database the project talks to.</p>
       </div>
@@ -273,7 +273,7 @@
       <div class="section" id="panel">
         <p class="kicker">SECTION 3</p>
         <h2>Working the panel</h2>
-        <p class="para"><span class="n">3-1.</span> A conversation is Claude Code, started by conn with <b>sc</b> or found running in the project. conn reads the record Claude Code keeps of each instance and takes its word: at work, waiting on you, or idle between turns. A turn that ends while you are elsewhere is waiting on you too, until you go in or it works again. A waiting row is in the accent, and the band at the foot counts the conversations waiting across every project; the terminal's title says the count too, and the bell rings as one more starts waiting. <b>enter</b> goes in to answer; <b>tab</b> leaves it for the next one waiting. A conversation running in a terminal conn does not hold is a row all the same, and says so.</p>
+        <p class="para"><span class="n">3-1.</span> A conversation is Claude Code, started by conn with <b>sc</b> or found running in the project. conn reads the record Claude Code keeps of each instance and takes its word: at work, waiting on you, or idle between turns. A turn that ends while you are elsewhere is waiting on you too, until you go in or it works again. A waiting row is in the accent, and the band at the foot counts the conversations waiting across every project; the terminal's title says the count too, and the bell rings as one more starts waiting. <b>enter</b> goes in to answer; <b>tab</b> leaves it for the next one waiting. A conversation running in a terminal conn does not hold is a row all the same, standing last.</p>
         <p class="para"><span class="n">3-2.</span> A conversation's row is named by its title, which Claude Code writes from the first prompt and replaces on a rename, and says the context its last turn ran in. <b>rc</b> lists the project's conversations at rest, newest first; typing narrows them, and <b>enter</b> picks one back up in a window of its own, where it was had.</p>
         <p class="para"><span class="n">3-3.</span> Every conversation conn starts or picks back up is told that it runs inside conn, and to work the project's processes through conn rather than in the background: <b>conn ls</b>, <b>conn u</b>, <b>conn l</b>, <b>conn r</b>, <b>conn x</b>. What an agent starts this way is a row on the panel with a pane you can go into and read, and is kept as what the project runs. See Section 4.</p>
         <p class="para"><span class="n">3-4.</span> <b>xx</b> stops the row's process, with no question asked. What conn started under a name is sent ctrl-c and its pane closed once it has ended; any other pane is closed, a conversation's included, which keeps its transcript; a server outside conn is sent the gentler signal. <b>rr</b> starts it again as it was started: a named process in its own pane, a conversation picked back up. <b>xs</b>, <b>xt</b>, <b>rs</b> and <b>rt</b> do the same to the stack and the checks as they stand; <b>rf</b> restarts every run that failed.</p>

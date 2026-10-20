@@ -10,7 +10,7 @@ out of sight.
    conn  ~/projects/w0zro/conn
 
  ⣾ ❝ bring the code to the manual          262k
-▌  ❝ a grammar over processes      118k  waiting
+▌  ❝ a grammar over processes               118k
  ⣿ ○ demo                                 :8123
    ❯ zsh
    ✓ test                                    4m
@@ -18,8 +18,8 @@ out of sight.
    ◌ postgres                             :5432
 
    projects ──────────────────────────────────
-   web                        1 waiting · 2 running
-   notes                                 1 running
+   web                            1 waits · 2 runs
+   notes                                    1 runs
 ```
 
 ```

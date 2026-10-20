@@ -1487,7 +1487,7 @@ func (m model) useClient(c stacked, record bool) (tea.Model, tea.Cmd) {
 // can show.
 func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 	if len(m.waiting) == 0 {
-		m.note = "nothing is waiting on you"
+		m.note = "nothing waits"
 		return m, nil
 	}
 	next := m.nextPane()
@@ -1898,7 +1898,7 @@ func startIn(srv *tmux.Server, rows []row, name, command, root string, as role) 
 			continue
 		}
 		if r.pane.Exit == "" {
-			return name + " is running already", "", nil
+			return name + " runs already", "", nil
 		}
 		replace = r.pane.ID
 	}
@@ -2082,7 +2082,7 @@ func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 		m.asked = r.pane.ID
 		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:
-		m.note = "that conversation is running in a terminal conn does not hold"
+		m.note = "it runs in a terminal conn does not hold"
 	case r.conv != nil:
 		dir := r.conv.Dir
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
@@ -2133,7 +2133,7 @@ func (m model) handAll(rows []row) (tea.Model, tea.Cmd) {
 	}
 	switch len(hs) {
 	case 0:
-		m.note = "nothing failed here"
+		m.note = "nothing failed"
 		return m, nil
 	case 1:
 		return m.brief(handPrompt(hs[0]), hs[0].name)
@@ -2807,7 +2807,7 @@ func (m model) drawProject() ([]string, foot) {
 		// Nothing running says so, then what starts something, a key a
 		// row as the bar has them, and air before the other projects.
 		key := ink.Bold(true)
-		lines = append(lines, at(gray.Render("nothing running")), "",
+		lines = append(lines, at(gray.Render("nothing runs")), "",
 			at(key.Render("sc")+gray.Render("  starts a conversation")))
 		if n := len(m.rest); n > 0 {
 			many := "one"
@@ -2929,16 +2929,18 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		}
 		switch {
 		case r.state == "waiting":
-			left, right = append(left, piece{name, accent}), piece{"waiting", accent}
+			// The accent says it waits; the figure does not say it again.
+			left, right = append(left, piece{name, accent}), piece{"", accent}
 		case r.pane != nil:
 			left, right = append(left, piece{name, ink}), piece{stated(r.state), gray}
 		case r.elsewhere:
-			left, right = append(left, piece{name, ink}), piece{strings.TrimSpace(stated(r.state) + " in another terminal"), gray}
+			// Its place, the last, says it is in another terminal.
+			left, right = append(left, piece{name, ink}), piece{"", gray}
 		default:
 			left, right = append(left, piece{name, gray}), piece{ago(r.conv.When), faint}
 		}
 		// A conversation running says the context its last turn ran
-		// in, before its state.
+		// in.
 		if r.conv.Context > 0 && (r.pane != nil || r.elsewhere) {
 			right.s = strings.TrimSpace(tokens(r.conv.Context) + "  " + right.s)
 		}
@@ -2955,7 +2957,8 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 		if r.pane.Path != or(r.tree, m.cur.Root) {
 			left = append(left, piece{"  " + tilde(r.pane.Path, m.home), gray})
 		}
-		right = piece{stated(r.state), gray}
+		// The red says a run failed; the figure is the status alone.
+		right = piece{strings.TrimPrefix(stated(r.state), "failed "), gray}
 		// A run that has ended says how long ago, which says it ended
 		// well; one that did not says its status first, in red.
 		// One from before conn wrote the time down says only how it
@@ -3076,10 +3079,10 @@ func or(s, otherwise string) string {
 func (p project) standing() string {
 	var said []string
 	if p.Waiting > 0 {
-		said = append(said, fmt.Sprintf("%d waiting", p.Waiting))
+		said = append(said, fmt.Sprintf("%d waits", p.Waiting))
 	}
 	if p.Running > 0 {
-		said = append(said, fmt.Sprintf("%d running", p.Running))
+		said = append(said, fmt.Sprintf("%d runs", p.Running))
 	}
 	if p.Failed > 0 {
 		said = append(said, fmt.Sprintf("%d failed", p.Failed))

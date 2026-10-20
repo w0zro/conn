@@ -2026,7 +2026,7 @@ func TestRunUUnderNoNameIsNotWrittenDown(t *testing.T) {
 	}
 	// Up and not waited on, it is the stack's, under its command.
 	out.Reset()
-	if code := runU(&out, t.TempDir(), dir, []string{"--", "sleep 1000"}); code != 0 || !strings.HasPrefix(out.String(), "sleep 1000 is up in pane %") || !strings.Contains(out.String(), "; conn l ") || strings.Contains(out.String(), "conn l sleep") {
+	if code := runU(&out, t.TempDir(), dir, []string{"--", "sleep 1000"}); code != 0 || !strings.HasPrefix(out.String(), "sleep 1000 is up, pid ") || !strings.Contains(out.String(), "; conn l ") || strings.Contains(out.String(), "conn l sleep") || strings.Contains(out.String(), "pane") {
 		t.Fatalf("conn u = %d: %q", code, out.String())
 	}
 	if got := readStarted(startedPath(srv.Socket)); len(got) != 0 {

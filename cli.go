@@ -461,6 +461,11 @@ func runL(w io.Writer, home, dir string, args []string) int {
 	if err != nil {
 		return cliFail("l", err)
 	}
+	// The line the pane writes when what conn u ran ends is conn's, not
+	// the process's; conn ls says how it ended.
+	if p.pane.started() {
+		lines = sansEnd(lines, p.pane.Name)
+	}
 	if n > 0 && len(lines) > n {
 		lines = lines[len(lines)-n:]
 	}
@@ -576,12 +581,15 @@ func runU(w io.Writer, home, dir string, args []string) int {
 	if name != "" {
 		_ = recordStart(startedPath(h.srv.Socket), started{Root: h.root, Name: name, Command: shellLine(command), Role: as})
 	}
+	// What is up is said by the address conn knows it by: its name, or
+	// its pid where it has none. The pane is tmux's.
 	if !wait {
-		addr := name
-		if addr == "" {
-			addr, _ = h.srv.Display(id, "#{pane_pid}")
+		if name != "" {
+			_, _ = fmt.Fprintf(w, "%s is up; conn l %s reads it\n", name, name)
+			return 0
 		}
-		_, _ = fmt.Fprintf(w, "%s is up in pane %s; conn l %s reads it\n", or(name, shellLine(command)), id, addr)
+		pid, _ := h.srv.Display(id, "#{pane_pid}")
+		_, _ = fmt.Fprintf(w, "%s is up, pid %s; conn l %s reads it\n", shellLine(command), pid, pid)
 		return 0
 	}
 	exit, err := waitExit(h.srv, id)
@@ -589,19 +597,24 @@ func runU(w io.Writer, home, dir string, args []string) int {
 		return cliFail("u", err)
 	}
 	lines, _ := said(h.srv, id)
-	// The line the pane writes when what it ran ends is conn's, not
-	// the command's.
+	for _, l := range sansEnd(lines, name) {
+		_, _ = fmt.Fprintln(w, l)
+	}
+	code, _ := strconv.Atoi(exit)
+	return code
+}
+
+// sansEnd is what a pane conn u started said, less the line the pane
+// writes when what it ran ends, which is conn's and not the command's,
+// and the blank rows before it.
+func sansEnd(lines []string, name string) []string {
 	if len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], exitLine(name)) {
 		lines = lines[:len(lines)-1]
 	}
 	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
 		lines = lines[:len(lines)-1]
 	}
-	for _, l := range lines {
-		_, _ = fmt.Fprintln(w, l)
-	}
-	code, _ := strconv.Atoi(exit)
-	return code
+	return lines
 }
 
 // shellLine is what follows -- as a line for the shell: one word is a
@@ -840,11 +853,10 @@ func runR(w io.Writer, home, dir string, args []string) int {
 	if err != nil {
 		return cliFail("r", err)
 	}
-	id, err := restartProc(h.srv, connCommand(self), p)
-	if err != nil {
+	if _, err := restartProc(h.srv, connCommand(self), p); err != nil {
 		return cliFail("r", err)
 	}
-	_, _ = fmt.Fprintf(w, "%s restarted in pane %s\n", p.Name, id)
+	_, _ = fmt.Fprintf(w, "%s restarted\n", p.Name)
 	return 0
 }
 

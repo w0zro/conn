@@ -981,6 +981,13 @@ the listeners alone standing where there are any.
 .BI "conn l " address " [\-n " lines ]
 What a process said: the lines its pane holds, history and screen,
 wrapped lines joined.
+The line the pane writes when what
+.B conn u
+ran ends is
+.BR conn 's
+and is left out;
+.B conn ls
+says how it ended.
 The last 100;
 .B \-n
 says how many, and
@@ -1034,7 +1041,9 @@ check with
 .BR \-w ,
 the stack without; see
 .BR "WHAT A PROJECT RUNS" .
-Prints the pane it is up in.
+Says it is up, and how
+.B conn l
+reads it: by its name, or by its pid where it has none.
 .IP
 Run from a pane of
 .BR conn 's,
@@ -1097,7 +1106,7 @@ with.
 A listener outside
 .B conn
 was started nobody knows how, and is an error.
-Prints the pane.
+Says it is restarted.
 .TP
 .B conn theme claude
 Write

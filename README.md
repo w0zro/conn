@@ -29,7 +29,8 @@ curl -fsSL https://conn.w0zro.com/install.sh | sh
 macOS and Linux. Needs `tmux` and `git`; `lsof` for the ports and
 the servers outside conn; `claude` for conversations.
 
-conn brings up a tmux server of its own. conn is the panel on the
+conn brings up a tmux server of its own, on a console of the machine
+and the start-up checks; any key goes on. conn is the panel on the
 left; the workspace is the rest of the window, and shows the process
 under the cursor. `conn` opens on your projects: every git checkout
 under your home, the newest work first, read from where Claude Code

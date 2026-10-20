@@ -63,9 +63,11 @@ Draft, 2026-10-10. Written fresh, not from today's keys. A direction being worke
 
 29. **A name is a declaration.** `conn u NAME -w` says the project runs this again, and it is written down and told to the next agent; `conn u -w -- COMMAND` with no name runs something once, a row under its command while its pane lives, answering to its pid, written down nowhere. Agents figure out a project's checks once and name them; what they run to see something, a few test files, a one-off, takes no name, so the roster stays the project's few checks and `st` starts those. Before this, one project had 113 names written down as checks, every one of them a run an agent named, and `st` started them all. Built, 2026-10-18.
 
+30. **The console.** A server coming up comes up on the boot console, the whole window: the wordmark, the station, the machine and the session, and the start-up checks, each NOMINAL or the word for what is wrong, under a verdict, on a stage at a time; any key goes on, and a `conn` attaching to a server already up sees none. Brought back from f5c773a, where the cut left it, with the roots gone and claude among the programs looked for. Built, 2026-10-19.
+
 Since 2026-10-11 conn reads the machine when it changes: file events on Claude Code's files, and a tmux control-mode client subscribed to every pane. Ports have no event; they are read again 1, 3 and 10 seconds after a tmux change.
 
-Keys so far. On the projects: typing, `↑` `↓` (`ctrl-n` `ctrl-p` `ctrl-j` `ctrl-k`), `enter`, `esc`, `tab`, `x`, `,`, `?`, `ctrl-c`. In a project: `j` `k` `g` `G`, `enter`, `tab`, `esc`, `-`, `/`, `c`, `!`, `,`, `?`, `q`, and the verbs `s` `x` `r` `a` with their objects (`ss` `st` `sc`, `xx` `xs` `xt` `xp`, `rr` `rs` `rt` `rf` `rc`, `aa` `af`). `ctrl-space` from anywhere, and twice over the other process.
+Keys so far. On the console: any key. On the projects: typing, `↑` `↓` (`ctrl-n` `ctrl-p` `ctrl-j` `ctrl-k`), `enter`, `esc`, `tab`, `x`, `,`, `?`, `ctrl-c`. In a project: `j` `k` `g` `G`, `enter`, `tab`, `esc`, `-`, `/`, `c`, `!`, `,`, `?`, `q`, and the verbs `s` `x` `r` `a` with their objects (`ss` `st` `sc`, `xx` `xs` `xt` `xp`, `rr` `rs` `rt` `rf` `rc`, `aa` `af`). `ctrl-space` from anywhere, and twice over the other process.
 
 ## The idea
 

@@ -1800,16 +1800,17 @@ func (m model) placeFor(repo string) string {
 }
 
 // up starts a command typed at ! where the cursor stands, out of
-// sight, under the name of its program, as conn u does.
+// sight, as a run of its own: under no name, a row under its command
+// while its pane lives, written down nowhere, as conn u -w under no
+// name starts one. What is typed by hand is a one-off; what the
+// project runs again is started under a name, through conn u.
 func (m model) up(command string) tea.Cmd {
-	srv, root, rows := m.srv, m.here(), m.rows
+	srv, root := m.srv, m.here()
 	return func() tea.Msg {
-		name := nameFor(command)
-		said, _, err := startIn(srv, rows, name, command, root, roleStack)
-		if err != nil {
+		if _, err := startNamed(srv, "", command, root, root, roleCheck); err != nil {
 			return acted(err.Error())
 		}
-		return acted(said)
+		return acted(command + " is up")
 	}
 }
 
@@ -1873,26 +1874,6 @@ func startIn(srv *tmux.Server, rows []row, name, command, root string, as role) 
 		_, _ = srv.Do(tmux.Kill(replace))
 	}
 	return name + " is up", id, nil
-}
-
-// nameFor is the name a command typed at ! runs under: its program's,
-// past any VAR=value before it.
-func nameFor(command string) string {
-	for _, w := range strings.Fields(command) {
-		if strings.Contains(w, "=") {
-			continue
-		}
-		name := strings.Map(func(r rune) rune {
-			if r == '.' || r == '_' || r == '-' || ('0' <= r && r <= '9') || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z') {
-				return r
-			}
-			return '-'
-		}, filepath.Base(w))
-		if name != "" && !isPID(name) {
-			return name
-		}
-	}
-	return "run"
 }
 
 // start runs a command in the project, or a shell where there is none,

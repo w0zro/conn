@@ -798,20 +798,6 @@ func TestStartWaitEnd(t *testing.T) {
 	}
 }
 
-func TestNameFor(t *testing.T) {
-	for command, want := range map[string]string{
-		"npm run dev":                 "npm",
-		"PORT=4000 ./bin/server -v":   "server",
-		"python3 -m http.server 80":   "python3",
-		"/usr/local/bin/redis-server": "redis-server",
-		"FOO=1":                       "run",
-	} {
-		if got := nameFor(command); got != want {
-			t.Errorf("nameFor(%q) = %q, want %q", command, got, want)
-		}
-	}
-}
-
 // A conversation at rest has no process for x or r; a pane does.
 func TestRowProc(t *testing.T) {
 	if _, ok := (row{conv: &conversation{ID: "a"}}).proc(); ok {

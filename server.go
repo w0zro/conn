@@ -568,6 +568,7 @@ type pane struct {
 	Role    role      // what it was started as: a check, or the stack
 	Exit    string    // how what conn u started ended, once it has
 	Ended   time.Time // when it ended, once it has
+	First   string    // on a question's pane, the first pane it started
 	Command string    // what tmux says runs in it now
 	Dir     string    // where it stands: the project it was started for, else Path
 	Path    string    // where what runs in it is now
@@ -597,7 +598,7 @@ const (
 // underscore when it prints to a pipe in the C locale. Every field but
 // the last is one token — a name conn u takes has no space in it — and
 // the directory, which can hold a space, is last and taken whole.
-const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + roleMark + "} #{" + exitMark + "} #{" + endedMark + "} #{pane_current_command} #{pane_current_path}"
+const paneFormat = "#{pane_id} #{window_id} #{pane_dead} #{pane_pid} #{pane_tty} #{" + panelMark + "} #{" + holdMark + "} #{" + sessionMark + "} #{" + nameMark + "} #{" + roleMark + "} #{" + exitMark + "} #{" + endedMark + "} #{" + firstMark + "} #{pane_current_command} #{pane_current_path}"
 
 // The project a pane was started for is a path with spaces of its
 // own, as the directory is, and the command it was started with has
@@ -657,8 +658,8 @@ func withRuns(ps []pane, runs map[string]string) []pane {
 func parsePanes(out string) []pane {
 	var ps []pane
 	for _, l := range strings.Split(out, "\n") {
-		f := strings.SplitN(l, " ", 14)
-		if len(f) < 14 {
+		f := strings.SplitN(l, " ", 15)
+		if len(f) < 15 {
 			continue
 		}
 		pid, _ := strconv.Atoi(f[3])
@@ -669,7 +670,7 @@ func parsePanes(out string) []pane {
 		ps = append(ps, pane{
 			ID: f[0], Window: f[1], Dead: f[2] == "1", PID: pid,
 			TTY: strings.TrimPrefix(f[4], "/dev/"), Panel: f[5] == "1", Hold: f[6] == "1", Session: f[7],
-			Name: f[8], Role: role(f[9]), Exit: f[10], Ended: ended, Command: f[12], Dir: f[13], Path: f[13],
+			Name: f[8], Role: role(f[9]), Exit: f[10], Ended: ended, First: f[12], Command: f[13], Dir: f[14], Path: f[14],
 		})
 	}
 	return ps

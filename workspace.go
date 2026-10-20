@@ -54,7 +54,7 @@ func holdCommand(self string) string {
 // place: what it was marked as goes with it.
 func holdIn(id, hold string) []tmux.Cmd {
 	cmds := []tmux.Cmd{tmux.Respawn(id, hold), tmux.SetPane(id, holdMark, "1")}
-	for _, mark := range []string{sessionMark, nameMark, runMark, dirMark, exitMark} {
+	for _, mark := range []string{sessionMark, nameMark, runMark, dirMark, exitMark, firstMark} {
 		cmds = append(cmds, tmux.Cmd{"set-option", "-pu", "-t", id, mark})
 	}
 	return cmds

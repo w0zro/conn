@@ -14,7 +14,8 @@ import (
 // What a role means in a project is used while it works. What the keys
 // start for one — the stack brought up, the checks run, as conn kept
 // them or as Claude Code just named them — is watched for a moment
-// after it starts. A run that ends in an error within quickWait has a
+// after it starts, by the question standing in the workspace (see
+// offer.go). A run that ends in an error within quickWait has a
 // command that does not work here, a script that is gone or a tool not
 // on the PATH, more often than a project that is broken; Claude Code is
 // asked again, given what failed and what it said, and the answer is
@@ -28,8 +29,8 @@ import (
 const quickWait = 2 * time.Second
 
 // A watched is a run the keys started for a role, while it is watched:
-// the project on the screen when it started, the name and the command
-// it runs under, and when.
+// the project it was started for, the name and the command it runs
+// under, and when.
 type watched struct {
 	project string
 	stacked
@@ -43,88 +44,6 @@ type failure struct {
 	stacked
 	pane, exit string
 	as         role
-}
-
-// run starts what a role means and watches it, and reads the panes
-// again once the watch is over, so a run still going is let go of even
-// where nothing else changes. The head turns while the starts are
-// made, and the first pane started takes the cursor and stands in the
-// workspace, so the stack is seen coming up.
-func (m model) run(list []stacked, as role, record bool) (model, tea.Cmd) {
-	now := time.Now()
-	for _, s := range list {
-		m.watching = append(m.watching, watched{project: m.cur.Root, stacked: s, as: as, at: now})
-	}
-	m.starting++
-	m.note = ""
-	return m, tea.Batch(m.startRoles(list, as, record), tea.Tick(quickWait+time.Second, func(time.Time) tea.Msg { return changed{} }))
-}
-
-// watch reads what the watched runs have done by a read: each that
-// failed at once is a failure, each that ended well or is still going
-// past quickWait is let go of, the rest are still watched. Once nothing
-// of the project on the screen is watched, its failures are asked about.
-func (m model) watch(at time.Time) (model, tea.Cmd) {
-	if m.screen != onProject || len(m.watching) == 0 {
-		return m, nil
-	}
-	var still []watched
-	var failed []failure
-	for _, w := range m.watching {
-		if w.project != m.cur.Root {
-			still = append(still, w)
-			continue
-		}
-		p, ok := m.runOf(w)
-		switch {
-		case ok && p.Exit != "" && p.Exit != "0" && p.Ended.Sub(w.at) <= quickWait:
-			failed = append(failed, failure{stacked: w.stacked, pane: p.ID, exit: p.Exit, as: w.as})
-		case ok && p.Exit != "":
-		case at.Sub(w.at) > quickWait:
-		default:
-			still = append(still, w)
-		}
-	}
-	m.watching = still
-	m.failed = append(m.failed, failed...)
-	for _, w := range still {
-		if w.project == m.cur.Root {
-			return m, nil
-		}
-	}
-	if len(m.failed) == 0 || m.question != "" {
-		return m, nil
-	}
-	// One role is asked about at a time; the other's wait for the next
-	// read after the question.
-	as := m.failed[0].as
-	failed, rest := []failure{}, []failure{}
-	for _, f := range m.failed {
-		if f.as == as {
-			failed = append(failed, f)
-		} else {
-			rest = append(rest, f)
-		}
-	}
-	m.failed = rest
-	m.question, m.offer, m.offerErr, m.again = as, nil, "", failed
-	return m, askAgain(m.srv, m.cur, as, failed)
-}
-
-// runOf is the pane a watched run stands in: the one under its name
-// that ended no sooner than it started, where it has ended, or the
-// one still running. A pane by the name that ended before is the run
-// it replaced, which goes once the new one is up.
-func (m model) runOf(w watched) (pane, bool) {
-	for _, r := range m.rows {
-		if r.pane == nil || r.pane.Name != w.name {
-			continue
-		}
-		if r.pane.Exit == "" || !r.pane.Ended.Before(w.at.Truncate(time.Second)) {
-			return *r.pane, true
-		}
-	}
-	return pane{}, false
 }
 
 // againPrompt is what Claude Code is asked when runs fail at once: the

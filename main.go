@@ -111,6 +111,8 @@ func run(w io.Writer, args []string) error {
 			return runPanel(args[1:])
 		case "hold":
 			return runHold()
+		case "offer":
+			return runOffer(args[1:])
 		case "theme":
 			home, err := os.UserHomeDir()
 			if err != nil {

@@ -73,26 +73,17 @@ type model struct {
 	// cleared when opened and when left. The text input is the model of
 	// the line and edits it as readline does; conn draws it.
 	box textinput.Model
-	// u's, t's or c's question: the role asked about, blank for none,
-	// and what Claude Code answered, or why it did not. While it stands
-	// it is the project's screen.
+	// c's question: the role asked about, blank for none, and what
+	// Claude Code answered, or why it did not. While it stands it is
+	// the project's screen.
 	question role
 	offer    []stacked
 	offerErr string
-	// Where what is written down is listed before the keys run it: the
-	// line the cursor is on, and the line x last took off, which u
-	// puts back.
-	written bool
-	offerAt int
-	pruned  *pruned
-	// The runs the keys started that are watched for failing at once,
-	// those that have while others are still watched, and those the
-	// question standing asks about again.
-	watching []watched
-	failed   []failure
-	again    []failure
-	// How many starts the keys asked for are still being made.
-	starting int
+	// The pane ss's or st's question stands in, in the workspace,
+	// while it does (see offer.go).
+	offering string
+	// This build, which runs the question.
+	self string
 	// The panes holding a conversation waiting on you, and the one tab
 	// last went to, so the next tab goes on to another.
 	waiting     []pane
@@ -514,7 +505,7 @@ func runPanel(args []string) error {
 	}
 	g := ground(home, srv.Socket)
 	wear(g)
-	m := model{srv: srv, home: home, conn: connCommand(self), known: newKnown(), g: g}
+	m := model{srv: srv, home: home, conn: connCommand(self), self: self, known: newKnown(), g: g}
 	// A panel that brought the server up comes up on the boot console,
 	// the whole window wide; the workspace is made once it is put away.
 	if len(args) > 0 && args[0] == "boot" {
@@ -566,6 +557,10 @@ type read struct {
 	shown    string
 	shownDir string
 	shownOK  bool
+	// Whether the question's pane still stands, and the first pane it
+	// started, once it has.
+	offerUp bool
+	first   string
 }
 
 // acted is what a key that runs off the loop did, or could not do.
@@ -625,9 +620,6 @@ func (m model) turning() bool {
 	if m.screen != onProject {
 		return false
 	}
-	if m.starting > 0 {
-		return true
-	}
 	for _, it := range m.items() {
 		if it.row < 0 && it.project.Turning > 0 || it.row >= 0 && turns(m.rows[it.row]) {
 			return true
@@ -671,7 +663,7 @@ const conversationsShown = 50
 // you, wherever they run; and, in a project, its rows. The status line
 // is told the number waiting in all.
 func (m model) read() tea.Cmd {
-	srv, home, own, k, window := m.srv, m.home, m.own, m.known, m.ws.window
+	srv, home, own, k, window, offering := m.srv, m.home, m.own, m.known, m.ws.window, m.offering
 	var cur *project
 	if m.screen == onProject {
 		c := m.cur
@@ -689,6 +681,9 @@ func (m model) read() tea.Cmd {
 				if !p.Hold {
 					r.shown, r.shownDir = p.ID, p.Dir
 				}
+			}
+			if offering != "" && p.ID == offering {
+				r.offerUp, r.first = !p.Dead, p.First
 			}
 			if p.Hold {
 				continue
@@ -1088,6 +1083,19 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == onProject {
 			m.cursor = keep(m.cursor, on, m.items(), m.itemKey)
 		}
+		// The question's pane ended or gone, the question is over: the
+		// first pane it started takes the cursor, as a pane just opened
+		// does, and with none the workspace follows the cursor again.
+		if m.offering != "" && !msg.offerUp {
+			was := m.offering
+			m.offering = ""
+			switch {
+			case msg.first != "":
+				m.follow, m.followAt = msg.first, msg.at
+			case m.follow == was:
+				m.follow = ""
+			}
+		}
 		if m.screen == onProject && msg.root == m.cur.Root {
 			picked := ""
 			if shown := m.shownRest(); m.pickAt < len(shown) {
@@ -1097,27 +1105,25 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.pickAt = keep(m.pickAt, picked, m.shownRest(), row.key)
 			// A pane just opened takes the cursor once its row is read,
 			// and is let go of where a read asked for after it was opened
-			// has no row for it: it ended before it was read.
+			// has no row for it: it ended before it was read. The
+			// question's pane is no row, and is followed while it stands.
 			found := false
 			for i, r := range m.rows {
 				if m.follow != "" && r.pane != nil && r.pane.ID == m.follow {
 					m.cursor, m.follow, found = m.itemAt(i), "", true
 				}
 			}
-			if m.follow != "" && !found && msg.at.After(m.followAt) {
+			if m.follow != "" && !found && msg.at.After(m.followAt) && m.follow != m.offering {
 				m.follow = ""
 			}
 		}
-		// A run the keys started that failed at once is asked about.
-		var quick tea.Cmd
-		m, quick = m.watch(msg.at)
 		// The workspace is put right where it is not what the panel
 		// asked: gone, ended, or showing another pane. Under the console
 		// there is no workspace yet.
 		if m.ws.srv != nil && m.boot == nil && (!msg.shownOK || msg.shown != m.wanted()) {
-			return m, tea.Batch(quick, m.showing(m.wanted(), false))
+			return m, m.showing(m.wanted(), false)
 		}
-		return m, quick
+		return m, nil
 	case changed:
 		return m, m.read()
 	case saidRead:
@@ -1133,11 +1139,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case roleAnswer:
 		if m.question == msg.as && m.screen == onProject && msg.root == m.cur.Root {
-			if msg.kept {
-				m.note = names(m.again) + " failed at once; Claude says the command is right and the failure is the project's"
-				m.question, m.again = "", nil
-				return m, nil
-			}
 			m.offer, m.offerErr = msg.list, msg.err
 		}
 	case sized:
@@ -1146,13 +1147,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case acted:
 		m.note = string(msg)
-	case startedRoles:
-		m.starting = max(m.starting-1, 0)
-		m.note = msg.said
-		if msg.first != "" {
-			m.follow, m.asked, m.followAt = msg.first, msg.first, time.Now()
-		}
-		return m, m.read()
 	case spun:
 		if !m.turning() {
 			m.spinning = false
@@ -1648,86 +1642,40 @@ func (m model) unland(next string) (model, tea.Cmd) {
 	}
 }
 
-// offerKey is a key while u's or t's question stands: enter starts
-// what Claude Code named, and writes it down as what the role means
-// here; esc puts the question away; nothing else does anything.
+// offerKey is a key while c's question stands: enter opens what Claude
+// Code named, and keeps it; esc puts the question away; nothing else
+// does anything.
 func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "enter":
-		if m.offer == nil || m.written && len(m.offer) == 0 {
+		if m.offer == nil {
 			return m, nil
 		}
-		list, as := m.offer, m.question
-		m.question, m.offer, m.written = "", nil, false
-		if as == roleClient {
-			return m.useClient(list[0], true)
-		}
-		m.again = nil
-		return m.run(list, as, true)
+		list := m.offer
+		m.question, m.offer = "", nil
+		return m.useClient(list[0], true)
 	case "esc", "q", "ctrl+c":
-		m.question, m.offer, m.offerErr, m.again, m.written, m.pruned = "", nil, "", nil, false, nil
-	case "j", "down":
-		if m.written && len(m.offer) > 0 {
-			m.offerAt = min(m.offerAt+1, len(m.offer)-1)
-		}
-	case "k", "up":
-		m.offerAt = max(m.offerAt-1, 0)
-	case "x":
-		if m.written && m.offerAt < len(m.offer) && m.srv != nil {
-			s := m.offer[m.offerAt]
-			if err := recordStart(startedPath(m.srv.Socket), started{Root: or(s.root, m.cur.Root), Name: s.name, Command: s.command, Role: roleOff}); err != nil {
-				m.note = err.Error()
-				return m, nil
-			}
-			m.pruned = &pruned{s, m.offerAt}
-			m.offer = append(append([]stacked{}, m.offer[:m.offerAt]...), m.offer[m.offerAt+1:]...)
-			m.offerAt = min(m.offerAt, max(len(m.offer)-1, 0))
-			keys := "st"
-			if m.question == roleStack {
-				keys = "ss"
-			}
-			m.note = s.name + " is off for good: " + keys + " won't run it and new agents aren't told it; u puts it back"
-		}
-	case "u":
-		// Undo: the line x last took off is written down again as what
-		// it was, and stands where it stood.
-		if p := m.pruned; m.written && p != nil && m.srv != nil {
-			if err := recordStart(startedPath(m.srv.Socket), started{Root: or(p.s.root, m.cur.Root), Name: p.s.name, Command: p.s.command, Role: m.question}); err != nil {
-				m.note = err.Error()
-				return m, nil
-			}
-			at := min(p.at, len(m.offer))
-			m.offer = append(append(append([]stacked{}, m.offer[:at]...), p.s), m.offer[at:]...)
-			m.offerAt, m.pruned = at, nil
-			m.note = p.s.name + " is back"
-		}
+		m.question, m.offer, m.offerErr = "", nil, ""
 	}
 	return m, nil
 }
 
-// A pruned line is what x took off the list of what is written down,
-// and where it stood, for u to put back.
-type pruned struct {
-	s  stacked
-	at int
-}
-
 // resolve runs what a role means in the project — the stack brought
 // up, the checks run — as it was last run here by whoever ran it, and
-// asks Claude Code where nobody has yet.
+// asks Claude Code where nobody has yet: the question stands in the
+// workspace, in a pane of conn's own with the keys in it, and is
+// followed there while it stands (see offer.go).
 func (m model) resolve(as role) (tea.Model, tea.Cmd) {
-	var starts []started
-	if m.srv != nil {
-		starts = readStarted(startedPath(m.srv.Socket))
-	}
-	cur := m.cur
-	if list := established(starts, cur.belongs, as); len(list) > 0 {
-		m.question, m.offer, m.offerErr, m.again = as, list, "", nil
-		m.written, m.offerAt, m.pruned = true, 0, nil
+	if m.srv == nil {
 		return m, nil
 	}
-	m.question, m.offer, m.offerErr = as, nil, ""
-	return m, askRole(m.cur, as)
+	id, err := openOffer(m.srv, m.self, as, m.cur, m.here())
+	if err != nil {
+		m.note = err.Error()
+		return m, nil
+	}
+	m.offering, m.follow, m.followAt = id, id, time.Now()
+	return m, m.showing(id, true)
 }
 
 // proc is a row as the verbs take it: a pane, and what it is doing.
@@ -1848,68 +1796,6 @@ func (m model) up(command string) tea.Cmd {
 		}
 		return acted(command + " is up")
 	}
-}
-
-// startRoles starts each process of a role, off the loop, each in its
-// repository's checkout where the cursor stands, or at its repository,
-// and writes each down under the repository as what the role means
-// there where asked to.
-func (m model) startRoles(list []stacked, as role, record bool) tea.Cmd {
-	srv, rows := m.srv, m.rows
-	type place struct{ repo, at string }
-	places := make([]place, len(list))
-	for i, s := range list {
-		repo := or(s.root, m.cur.Root)
-		places[i] = place{repo, m.placeFor(repo)}
-	}
-	return func() tea.Msg {
-		var said []string
-		first := ""
-		for i, s := range list {
-			r, id, err := startIn(srv, rows, s.name, s.command, places[i].at, as)
-			if err != nil {
-				return startedRoles{said: s.name + ": " + err.Error(), first: first}
-			}
-			if record {
-				_ = recordStart(startedPath(srv.Socket), started{Root: places[i].repo, Name: s.name, Command: s.command, Role: as})
-			}
-			if first == "" {
-				first = id
-			}
-			said = append(said, r)
-		}
-		return startedRoles{said: strings.Join(said, "; "), first: first}
-	}
-}
-
-// startedRoles is the starts of a role made: what was said of each,
-// and the first pane started, blank where none was.
-type startedRoles struct {
-	said, first string
-}
-
-// startIn starts a command under a name at a project's root, and
-// answers the pane it starts in. One by that name that has ended is
-// replaced; one still running is left, and said, with no pane.
-func startIn(srv *tmux.Server, rows []row, name, command, root string, as role) (said, id string, err error) {
-	replace := ""
-	for _, r := range rows {
-		if r.pane == nil || r.pane.Name != name {
-			continue
-		}
-		if r.pane.Exit == "" {
-			return name + " runs already", "", nil
-		}
-		replace = r.pane.ID
-	}
-	id, err = startNamed(srv, name, command, root, root, as)
-	if err != nil {
-		return "", "", err
-	}
-	if replace != "" {
-		_, _ = srv.Do(tmux.Kill(replace))
-	}
-	return name + " is up", id, nil
 }
 
 // start runs a command in the project, or a shell where there is none,
@@ -2782,11 +2668,7 @@ func (m model) projectOn(y int) (int, bool) {
 }
 
 func (m model) drawProject() ([]string, foot) {
-	with := tilde(m.cur.Root, m.home)
-	if m.starting > 0 {
-		with = spinner[m.frame%len(spinner)] + " starting"
-	}
-	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), with)
+	lines := head(listName(project{Name: m.cur.Name, Group: m.cur.Group}), tilde(m.cur.Root, m.home))
 	if m.question != "" {
 		return m.drawOffer(lines)
 	}
@@ -3182,37 +3064,18 @@ func keep[T any](cursor int, on string, items []T, key func(T) string) int {
 	return min(cursor, max(len(items)-1, 0))
 }
 
-// drawOffer is the project's screen while u's, t's or c's question
-// stands: the question, then Claude Code's answer and the two keys
-// that take it.
+// drawOffer is the project's screen while c's question stands: the
+// question, then Claude Code's answer and the two keys that take it.
 func (m model) drawOffer(lines []string) ([]string, foot) {
-	what, verb, ask := "runs", "start them", "Start these in "+m.cur.Name+"?"
-	switch m.question {
-	case roleCheck:
-		what, verb, ask = "checks", "run them", "Run these checks in "+m.cur.Name+"?"
-	case roleClient:
-		what, verb, ask = "talks to it in", "open it", "Talk to it with this?"
-	}
-	if len(m.again) > 0 {
-		ask = "Start these instead?"
-		if m.question == roleCheck {
-			ask = "Run these instead?"
-		}
-	}
 	switch {
-	case len(m.again) > 0 && m.offer == nil && m.offerErr == "":
-		lines = append(lines, at(gray.Render(names(m.again)+" failed at once; asking Claude again…")))
-		return lines, foot{hints: cancelHints}
 	case m.offerErr != "":
-		lines = append(lines, at(ink.Render("Claude would not say what "+what+" "+m.cur.Name+":")), at(gray.Render(m.offerErr)))
+		lines = append(lines, at(ink.Render("Claude would not say what talks to it in "+m.cur.Name+":")), at(gray.Render(m.offerErr)))
 		return lines, foot{hints: backHints}
-	case m.written:
-		return m.drawWritten(lines, ask, verb)
 	case m.offer == nil:
-		lines = append(lines, at(gray.Render("Nobody has done it here yet; asking Claude what "+what+" "+m.cur.Name+"…")))
+		lines = append(lines, at(gray.Render("Nobody has done it here yet; asking Claude what talks to it in "+m.cur.Name+"…")))
 		return lines, foot{hints: cancelHints}
 	}
-	lines = append(lines, at(title.Render(ask)), "")
+	lines = append(lines, at(title.Render("Talk to it with this?")), "")
 	w := 0
 	for _, s := range m.offer {
 		w = max(w, len(s.name))
@@ -3220,7 +3083,7 @@ func (m model) drawOffer(lines []string) ([]string, foot) {
 	for _, s := range m.offer {
 		lines = append(lines, m.row([]piece{{pad(s.name, w), keyInk}, {"  " + s.command, gray}}, piece{}, false))
 	}
-	return lines, foot{hints: []keyHint{{"enter", verb}, {"esc", "cancel"}}}
+	return lines, foot{hints: []keyHint{{"enter", "open it"}, {"esc", "cancel"}}}
 }
 
 // drawSearch is the project's screen while /'s search stands: the line
@@ -3793,42 +3656,4 @@ func (m model) projectLine(p project, cursor bool) string {
 		turn = spinner[m.frame%len(spinner)]
 	}
 	return m.rowTurning(turn, []piece{{name, style}}, piece{p.standing(), gray}, cursor)
-}
-
-// drawWritten is the question over what a project has written down,
-// before the keys run it: each name and its command on a line, the
-// count at the right, and a gray note of what was taken off.
-func (m model) drawWritten(lines []string, ask, verb string) ([]string, foot) {
-	count := ""
-	if len(m.offer) > 0 {
-		count = strconv.Itoa(len(m.offer))
-	}
-	lines = append(lines, m.row([]piece{{ask, title}}, piece{count, gray}, false), "")
-	w := 0
-	for _, s := range m.offer {
-		w = max(w, len(s.name))
-	}
-	for i, s := range m.offer {
-		lines = append(lines, m.row([]piece{{pad(s.name, w), keyInk}, {"  " + s.command, gray}}, piece{}, i == m.offerAt))
-	}
-	keys := "st"
-	if m.question == roleStack {
-		keys = "ss"
-	}
-	if len(m.offer) > 0 {
-		lines = append(lines, "", at(keyInk.Render("x")+gray.Render(" takes it off for good   ")+keyInk.Render("enter")+gray.Render(" "+verb+"   ")+keyInk.Render("esc")+gray.Render(" runs nothing")))
-	}
-	if len(m.offer) == 0 {
-		what, again := "checks", "what they are"
-		if m.question == roleStack {
-			what, again = "stack parts", "what to start"
-		}
-		lines = append(lines, "", at(ink.Render("No "+what+" written down in "+m.cur.Name+". "+keys+" asks Claude "+again+".")), "", at(keyInk.Render("esc")+gray.Render(" closes")))
-		return lines, foot{hints: cancelHints}
-	}
-	hints := []keyHint{{"j k", "move"}, {"x", "take off for good"}}
-	if m.pruned != nil {
-		hints = append(hints, keyHint{"u", "put it back"})
-	}
-	return lines, foot{hints: append(hints, keyHint{"enter", verb}, keyHint{"esc", "run nothing"})}
 }

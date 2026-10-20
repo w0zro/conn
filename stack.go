@@ -17,9 +17,10 @@ import (
 // Where nobody has yet run a project's stack or its checks through
 // conn, Claude Code is asked what they are, from the project's
 // top-level files and the opening of the manifests that say how it
-// runs. The answer is shown, and enter starts each process in a window
-// of its own under its name, as conn u starts one, and writes it down
-// as what the role means here (see roles.go).
+// runs. The answer is shown by the question standing in the workspace
+// (see offer.go), and enter starts each process in a window of its
+// own under its name, as conn u starts one, and writes it down as
+// what the role means here (see roles.go).
 
 // rolePrompt is what Claude Code is asked: the project by its files,
 // the opening of each manifest that says how it runs, and the role.

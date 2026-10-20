@@ -50,9 +50,10 @@ agent, and each waits for its object, as an operator does in vim: the
 verb again is the row (`xx`, `rr`, `aa`), `s` the stack, `t` the
 checks, `f` what failed, `p` the project, `c` a conversation. `ss`
 brings the stack up and `st` runs the checks as they were last run
-here, listing them first: `x` takes a line off for good, `enter`
-runs what is left, `esc` runs nothing; where nobody has run them yet, Claude Code is asked what they
-are and the answer is offered on one key. `sc` starts a conversation
+here, listing them first in the workspace: `x` takes a line off for
+good, `enter` runs what is left, `esc` runs nothing; where nobody has
+run them yet, Claude Code is asked what they are and the answer is
+offered on one key. `sc` starts a conversation
 and `rc` picks one back up. `c` talks to a row's process: a
 conversation or a shell is gone into, a web server opens in the
 browser, anything else is asked of Claude Code once and the answer

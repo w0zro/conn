@@ -446,16 +446,16 @@ func TestRepositories(t *testing.T) {
 }
 
 func TestParsePanes(t *testing.T) {
-	out := "%1 @1 0 412 /dev/ttys004   abc-1     claude /Users/me/my project\n" +
-		"%2 @2 1 0 /dev/ttys005 1       zsh /Users/me\n" +
-		"%3 @3 0 77 /dev/ttys006    web check 0 1760000000 cat /p\n" +
-		"%4 @1 0 78 /dev/ttys007  1      conn /Users/me\n"
+	out := "%1 @1 0 412 /dev/ttys004   abc-1      claude /Users/me/my project\n" +
+		"%2 @2 1 0 /dev/ttys005 1        zsh /Users/me\n" +
+		"%3 @3 0 77 /dev/ttys006    web check 0 1760000000  cat /p\n" +
+		"%4 @1 0 78 /dev/ttys007  1      %3 conn /Users/me\n"
 	got := parsePanes(out)
 	want := []pane{
 		{ID: "%1", Window: "@1", PID: 412, TTY: "ttys004", Session: "abc-1", Command: "claude", Dir: "/Users/me/my project", Path: "/Users/me/my project"},
 		{ID: "%2", Window: "@2", Dead: true, TTY: "ttys005", Panel: true, Command: "zsh", Dir: "/Users/me", Path: "/Users/me"},
 		{ID: "%3", Window: "@3", PID: 77, TTY: "ttys006", Name: "web", Role: roleCheck, Exit: "0", Ended: time.Unix(1760000000, 0), Command: "cat", Dir: "/p", Path: "/p"},
-		{ID: "%4", Window: "@1", PID: 78, TTY: "ttys007", Hold: true, Command: "conn", Dir: "/Users/me", Path: "/Users/me"},
+		{ID: "%4", Window: "@1", PID: 78, TTY: "ttys007", Hold: true, First: "%3", Command: "conn", Dir: "/Users/me", Path: "/Users/me"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parsePanes = %+v\nwant %+v", got, want)
@@ -1551,36 +1551,6 @@ func TestParseStack(t *testing.T) {
 	}
 }
 
-// While u's question stands, only enter and esc do anything, and an
-// answer that comes after esc is not shown.
-func TestStackKeys(t *testing.T) {
-	press := func(m model, k string) model {
-		key := tea.Key{Text: k, Code: []rune(k)[0]}
-		if k == "esc" {
-			key = tea.Key{Code: tea.KeyEscape}
-		}
-		next, _ := m.Update(tea.KeyPressMsg(key))
-		return next.(model)
-	}
-	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{{pane: &pane{ID: "%1"}}, {pane: &pane{ID: "%2"}}}}
-	m.question = roleStack
-	next, _ := m.Update(roleAnswer{root: "/p", as: roleStack, list: []stacked{{name: "web", command: "npm run dev"}}})
-	m = next.(model)
-	if m.offer == nil {
-		t.Fatal("the answer was not offered")
-	}
-	if m = press(m, "j"); m.cursor != 0 || m.question == "" {
-		t.Errorf("j moved the cursor or put the question away: cursor %d, question %q", m.cursor, m.question)
-	}
-	if m = press(m, "esc"); m.question != "" || m.offer != nil {
-		t.Error("esc did not put the question away")
-	}
-	next, _ = m.Update(roleAnswer{root: "/p", as: roleStack, list: []stacked{{name: "web", command: "npm run dev"}}})
-	if next.(model).offer != nil {
-		t.Error("an answer after esc was offered")
-	}
-}
-
 // scratchServer is a tmux server of its own for a test, with conn's
 // session and a first window standing for conn's: a pane for the panel.
 func scratchServer(t *testing.T) (*tmux.Server, string, string) {
@@ -2151,59 +2121,6 @@ func TestRunUFromAPaneIsThePanesProject(t *testing.T) {
 	said.Reset()
 	if code := runLs(&said, t.TempDir(), other, nil); code != 0 || !strings.Contains(said.String(), "site") || !strings.Contains(said.String(), realDir(other)) {
 		t.Errorf("conn ls from the pane = %d:\n%s", code, said.String())
-	}
-}
-
-// st lists the checks as they were last run here, and enter runs them; ss,
-// with no stack run here yet, asks.
-func TestResolveRunsWhatWasRun(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	dir := filepath.Dir(srv.Socket)
-	if err := recordStart(startedPath(srv.Socket), started{Root: dir, Name: "test", Command: "echo ok", Role: roleCheck}); err != nil {
-		t.Fatal(err)
-	}
-	m := model{srv: srv, screen: onProject, cur: project{Name: "d", Root: dir}, rows: []row{}}
-	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Text: "s", Code: 's'}))
-	next, cmd := next.(model).Update(tea.KeyPressMsg(tea.Key{Text: "t", Code: 't'}))
-	m = next.(model)
-	if m.question != roleCheck || !m.written || len(m.offer) != 1 || cmd != nil {
-		t.Fatalf("t did not list what was written down: question %q", m.question)
-	}
-	next, cmd = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	m = next.(model)
-	if m.question != "" || cmd == nil {
-		t.Fatalf("enter did nothing: question %q", m.question)
-	}
-	// The start is among the commands, with the read once the watch is
-	// over and the spinner's tick.
-	var said string
-	var find func(tea.Cmd)
-	find = func(c tea.Cmd) {
-		switch msg := c().(type) {
-		case tea.BatchMsg:
-			for _, c := range msg {
-				find(c)
-			}
-		case startedRoles:
-			said = msg.said
-		}
-	}
-	find(cmd)
-	if said != "test is up" {
-		t.Errorf("t said %q", said)
-	}
-	ps, _ := panes(srv)
-	found := false
-	for _, p := range ps {
-		found = found || p.Name == "test"
-	}
-	if !found {
-		t.Error("no pane named test")
-	}
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "s", Code: 's'}))
-	next, _ = next.(model).Update(tea.KeyPressMsg(tea.Key{Text: "s", Code: 's'}))
-	if next.(model).question != roleStack {
-		t.Error("ss did not ask what the stack is")
 	}
 }
 
@@ -3129,47 +3046,6 @@ func TestCtrlSpaceToggles(t *testing.T) {
 	next, _ = m.Update(key)
 	if m = next.(model); m.in != a || m.note == "" {
 		t.Errorf("with the other gone: in %q, note %q", m.in, m.note)
-	}
-}
-
-// A run the keys started that fails at once is asked about again, with
-// the question standing over the project; one that fails later, or
-// ends well, or is still going past the watch, is let go of.
-func TestFailedAtOnceIsAskedAgain(t *testing.T) {
-	start := time.Now()
-	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{}}
-	m.watching = []watched{
-		{project: "/p", stacked: stacked{name: "test", command: "make test"}, as: roleCheck, at: start},
-		{project: "/p", stacked: stacked{name: "lint", command: "make lint"}, as: roleCheck, at: start},
-		{project: "/p", stacked: stacked{name: "build", command: "make build"}, as: roleCheck, at: start},
-	}
-	soon, late := start.Add(time.Second), start.Add(10*time.Second)
-	// The old test, ended before the start, is not the run.
-	rows := []row{
-		{pane: &pane{ID: "%0", Name: "test", Exit: "1", Ended: start.Add(-time.Minute)}},
-		{pane: &pane{ID: "%1", Name: "test", Exit: "127", Ended: soon}},
-		{pane: &pane{ID: "%2", Name: "lint"}},
-		{pane: &pane{ID: "%3", Name: "build"}},
-	}
-	next, _ := m.Update(read{at: soon, root: "/p", rows: rows})
-	m = next.(model)
-	if m.question != "" || len(m.watching) != 2 {
-		t.Fatalf("asked before the watch was over: question %q, watching %d", m.question, len(m.watching))
-	}
-	rows[2].pane = &pane{ID: "%2", Name: "lint", Exit: "1", Ended: late}
-	next, cmd := m.Update(read{at: late, root: "/p", rows: rows})
-	m = next.(model)
-	if m.question != roleCheck || cmd == nil || len(m.again) != 1 || m.again[0].name != "test" || m.again[0].pane != "%1" || len(m.watching) != 0 {
-		t.Fatalf("question %q, again %+v, watching %d", m.question, m.again, len(m.watching))
-	}
-	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), "test failed at once; asking Claude again") {
-		t.Errorf("the screen does not say why it asks: %q", lines)
-	}
-	// Claude says the command is right: the question goes, and says so.
-	next, _ = m.Update(roleAnswer{root: "/p", as: roleCheck, kept: true})
-	m = next.(model)
-	if m.question != "" || m.again != nil || !strings.Contains(m.note, "the failure is the project's") {
-		t.Errorf("kept: question %q, note %q", m.question, m.note)
 	}
 }
 
@@ -4828,37 +4704,6 @@ func TestATurnHandedBackWaits(t *testing.T) {
 	step("having gone into the conversation handed back", is("conn · 1 waits"), `"conn · 1 waits"`, 3)
 	waitingSaid("having gone into the conversation handed back", false)
 	frame("looked-at-120x36.ans", panelNow())
-}
-
-// The stack brought up, or the checks run, is seen: the head turns
-// while the starts are made, and the first pane started takes the
-// cursor, so the workspace shows it.
-func TestStartsAreSeen(t *testing.T) {
-	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, rows: []row{{pane: &pane{ID: "%1", Name: "old"}}}}
-	m, cmd := m.run([]stacked{{name: "web", command: "npm run dev"}, {name: "api", command: "npm run api"}}, roleStack, false)
-	if cmd == nil || m.starting != 1 || !m.turning() {
-		t.Fatalf("after run: starting %d, turning %v", m.starting, m.turning())
-	}
-	if lines, _ := m.draw(); !strings.Contains(strings.Join(lines, "\n"), " starting") {
-		t.Errorf("the head does not say it is starting: %q", lines[:3])
-	}
-	next, cmd := m.Update(startedRoles{said: "web is up; api is up", first: "%4"})
-	m = next.(model)
-	if cmd == nil || m.starting != 0 || m.turning() || m.note != "web is up; api is up" || m.follow != "%4" || m.wanted() != "%4" {
-		t.Fatalf("after the starts: starting %d, note %q, follow %q, wanted %q", m.starting, m.note, m.follow, m.wanted())
-	}
-	rows := []row{{pane: &pane{ID: "%1", Name: "old"}}, {pane: &pane{ID: "%4", Name: "web"}}, {pane: &pane{ID: "%5", Name: "api"}}}
-	next, _ = m.Update(read{at: time.Now(), root: "/p", rows: rows})
-	m = next.(model)
-	if r, ok := m.under(); !ok || r.pane == nil || r.pane.ID != "%4" || m.follow != "" {
-		t.Errorf("the first pane started is not under the cursor: %+v, follow %q", r.pane, m.follow)
-	}
-	// A start that found everything running already shows nothing new.
-	m, _ = m.run([]stacked{{name: "web", command: "npm run dev"}}, roleStack, false)
-	next, _ = m.Update(startedRoles{said: "web is running already"})
-	if m = next.(model); m.starting != 0 || m.follow != "" || m.note != "web is running already" {
-		t.Errorf("nothing new: starting %d, follow %q, note %q", m.starting, m.follow, m.note)
-	}
 }
 
 // With conn's tab behind another, a conversation at work whose turn

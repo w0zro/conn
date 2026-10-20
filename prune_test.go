@@ -13,13 +13,14 @@ import (
 	"github.com/w0zro/conn/internal/theme"
 )
 
-// st and ss show what a project has written down before they run it:
-// each check or stack part on a line of its own with its command, a
-// count at the right of the question, the cursor on the first. x takes
-// the line off for good — from the list, from what the keys run and
-// from what new agents are told — and says which in gray; enter runs
-// what is left, esc runs nothing, and a list with every line gone says
-// so. A project with nothing written down still asks Claude Code.
+// st and ss show what a project has written down before they run it,
+// in the question standing in the workspace: each check or stack part
+// on a line of its own with its command, a count at the right of the
+// question, the cursor on the first. x takes the line off for good —
+// from the list, from what the keys run and from what new agents are
+// told — and says which in the ink; enter runs what is left, esc runs
+// nothing, and a list with every line gone says so. A project with
+// nothing written down still asks Claude Code.
 func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 	g := theme.Dark
 	wear(g)
@@ -61,23 +62,22 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 			doomed := c.names[1]
 
 			// listed is the screen's lines as plain text, and the raw ones.
-			listed := func(m model) ([]string, []string) {
-				raw := strings.Split(m.View().Content, "\n")
+			listed := func(o offerModel) ([]string, []string) {
+				raw := strings.Split(o.View().Content, "\n")
 				plain := make([]string, len(raw))
 				for i, l := range raw {
 					plain[i] = strings.TrimRight(plainText(l), " ")
 				}
 				return plain, raw
 			}
-			open := func() model {
+			open := func() offerModel {
 				t.Helper()
-				m := model{srv: srv, conn: "conn", screen: onProject, cur: project{Name: "web", Root: dir}, rows: []row{}, width: 120, height: 36}
-				m, _ = press(t, m, "s")
-				m, _ = press(t, m, c.key)
-				if plain, _ := listed(m); !strings.Contains(strings.Join(plain, "\n"), c.ask) {
+				o := newOffer(srv, c.as, project{Name: "web", Root: dir}, dir, "")
+				o.width, o.height = 120, 36
+				if plain, _ := listed(o); !strings.Contains(strings.Join(plain, "\n"), c.ask) {
 					t.Fatalf("%s ran what was written down without showing it first:\n%s", keys, strings.Join(plain, "\n"))
 				}
-				return m
+				return o
 			}
 			ps := func() []string {
 				t.Helper()
@@ -91,13 +91,13 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 				}
 				return out
 			}
-			frame := func(name string, m model) {
+			frame := func(name string, o offerModel) {
 				if shots == "" || c.as != roleCheck {
 					return
 				}
 				var b strings.Builder
 				fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
-				for _, l := range strings.Split(m.View().Content, "\n") {
+				for _, l := range strings.Split(o.View().Content, "\n") {
 					b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
 				}
 				if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
@@ -125,9 +125,10 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 				return
 			}
 
-			// Pressed, the keys list what is written down and start nothing.
-			m := open()
-			plain, _ := listed(m)
+			// Opened, the question lists what is written down and starts
+			// nothing.
+			o := open()
+			plain, _ := listed(o)
 			screen := strings.Join(plain, "\n")
 			ask := -1
 			for i, l := range plain {
@@ -155,28 +156,28 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 				t.Errorf("the cursor is not on the first line only:\n%s", screen)
 			}
 			if !strings.Contains(screen, "enter") || !strings.Contains(screen, "esc") {
-				t.Errorf("the bar names no enter and esc:\n%s", screen)
+				t.Errorf("the keys name no enter and esc:\n%s", screen)
 			}
 			if got := ps(); contains(got, c.names...) {
 				t.Errorf("%s started %v before enter", keys, got)
 			}
-			frame("list-120x36.ans", m)
+			frame("list-120x36.ans", o)
 
 			// j and k move the cursor.
-			m, _ = press(t, m, "j")
-			if plain, _ = listed(m); !strings.HasPrefix(plain[at[1]], cursorBar) || strings.HasPrefix(plain[at[0]], cursorBar) {
+			o, _ = pressOffer(t, o, "j")
+			if plain, _ = listed(o); !strings.HasPrefix(plain[at[1]], cursorBar) || strings.HasPrefix(plain[at[0]], cursorBar) {
 				t.Errorf("j did not move the cursor to the second line:\n%s", strings.Join(plain, "\n"))
 			}
-			m, _ = press(t, m, "k")
-			if plain, _ = listed(m); !strings.HasPrefix(plain[at[0]], cursorBar) {
+			o, _ = pressOffer(t, o, "k")
+			if plain, _ = listed(o); !strings.HasPrefix(plain[at[0]], cursorBar) {
 				t.Errorf("k did not move the cursor back to the first line:\n%s", strings.Join(plain, "\n"))
 			}
 
-			// x on the second line takes it off, and says so on the foot,
-			// in the ink, as a note of conn's own.
-			m, _ = press(t, m, "j")
-			m, _ = press(t, m, "x")
-			plain, raw := listed(m)
+			// x on the second line takes it off, and says so under the
+			// list, in the ink, as a note of conn's own.
+			o, _ = pressOffer(t, o, "j")
+			o, _ = pressOffer(t, o, "x")
+			plain, raw := listed(o)
 			screen = strings.Join(plain, "\n")
 			ns, cs := remaining(doomed)
 			if now := rows(plain, ns, cs); len(now) != 2 || now[1] != now[0]+1 {
@@ -201,7 +202,7 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 					t.Errorf("the question %q does not count the two that are left", l)
 				}
 			}
-			frame("pruned-120x36.ans", m)
+			frame("pruned-120x36.ans", o)
 
 			// It is gone for good: from what the keys run, and from what
 			// new agents are told; another project's of that name is not.
@@ -221,29 +222,28 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 
 			// u puts it back, where it stood and as what it was, and x
 			// takes it off again.
-			m, _ = press(t, m, "u")
-			if plain, _ = listed(m); len(rows(plain, c.names, c.commands)) != 3 || !strings.Contains(strings.Join(plain, "\n"), c.commands[1]) {
+			o, _ = pressOffer(t, o, "u")
+			if plain, _ = listed(o); len(rows(plain, c.names, c.commands)) != 3 || !strings.Contains(strings.Join(plain, "\n"), c.commands[1]) {
 				t.Errorf("u did not put %s back:\n%s", doomed, strings.Join(plain, "\n"))
 			}
 			if note := told("conn", srv.Socket, here); !strings.Contains(note, c.told(doomed)+c.commands[1]) {
 				t.Errorf("new agents are not told %s again after u:\n%s", doomed, note)
 			}
-			m, _ = press(t, m, "x")
-			if plain, _ = listed(m); len(rows(plain, ns, cs)) != 2 {
+			o, _ = pressOffer(t, o, "x")
+			if plain, _ = listed(o); len(rows(plain, ns, cs)) != 2 {
 				t.Fatalf("x after u did not take %s off again:\n%s", doomed, strings.Join(plain, "\n"))
 			}
 
-			// esc runs nothing, and the part is still off the list when
-			// the keys are pressed again.
-			m, _ = press(t, m, "esc")
-			if plain, _ = listed(m); strings.Contains(strings.Join(plain, "\n"), c.ask) {
-				t.Error("esc left the list standing")
+			// esc runs nothing and leaves, and the part is still off the
+			// list when the question is opened again.
+			if _, cmd := pressOffer(t, o, "esc"); cmd == nil {
+				t.Error("esc did not leave")
 			}
 			if contains(ps(), c.names...) {
 				t.Errorf("esc started %v", ps())
 			}
-			m = open()
-			plain, _ = listed(m)
+			o = open()
+			plain, _ = listed(o)
 			if now := rows(plain, ns, cs); len(now) != 2 {
 				t.Fatalf("%s again does not list the two that are left:\n%s", keys, strings.Join(plain, "\n"))
 			}
@@ -252,7 +252,7 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 			}
 
 			// enter runs what is left, and only that.
-			_, cmd := press(t, m, "enter")
+			o, cmd := pressOffer(t, o, "enter")
 			if cmd == nil {
 				t.Fatal("enter ran nothing")
 			}
@@ -278,13 +278,18 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 			if !contains(got, c.names[0], c.names[2]) || contains(got, doomed) {
 				t.Errorf("after enter the panes are %v; want %s and %s and not %s", got, c.names[0], c.names[2], doomed)
 			}
+			// While the starts are watched, the question says so, with
+			// each by its name.
+			if plain, _ = listed(o); !strings.Contains(strings.Join(plain, "\n"), "Starting in web") || !strings.Contains(strings.Join(plain, "\n"), c.names[0]) || !strings.Contains(strings.Join(plain, "\n"), c.names[2]) || strings.Contains(strings.Join(plain, "\n"), doomed) {
+				t.Errorf("after enter the question does not show the starts:\n%s", strings.Join(plain, "\n"))
+			}
 
 			// Every line taken off leaves a list that says so, and enter
 			// there runs nothing.
-			m = open()
-			m, _ = press(t, m, "x")
-			m, _ = press(t, m, "x")
-			plain, _ = listed(m)
+			o = open()
+			o, _ = pressOffer(t, o, "x")
+			o, _ = pressOffer(t, o, "x")
+			plain, _ = listed(o)
 			screen = strings.Join(plain, "\n")
 			if c.as == roleCheck {
 				if want := "No checks written down in web. st asks Claude what they are."; !strings.Contains(screen, want) {
@@ -298,44 +303,40 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 					t.Errorf("a count stands over an empty list: %q", l)
 				}
 			}
-			frame("empty-120x36.ans", m)
+			frame("empty-120x36.ans", o)
+			if _, cmd := pressOffer(t, o, "enter"); cmd != nil {
+				t.Error("enter over an empty list ran something")
+			}
 			for i, n := range c.names {
 				if got := told("conn", srv.Socket, here); strings.Contains(got, c.told(n)+c.commands[i]) {
 					t.Errorf("after every x new agents are still told %s:\n%s", n, got)
 				}
 			}
-			// With nothing written down, the keys ask Claude Code as before.
-			m, _ = press(t, m, "esc")
-			m, _ = press(t, m, "s")
-			m, cmd = press(t, m, c.key)
-			if cmd == nil {
+			// With nothing written down, the question asks Claude Code as
+			// before.
+			o = newOffer(srv, c.as, project{Name: "web", Root: dir}, dir, "")
+			if !o.asking || o.Init() == nil {
 				t.Errorf("%s with nothing written down did not ask Claude Code", keys)
 			}
-			if plain, _ = listed(m); !strings.Contains(strings.Join(plain, "\n"), "asking Claude") {
+			if plain, _ = listed(o); !strings.Contains(strings.Join(plain, "\n"), "asking Claude") {
 				t.Errorf("%s with nothing written down does not say it is asking:\n%s", keys, strings.Join(plain, "\n"))
 			}
 		})
 	}
 }
 
-// A project with nothing written down at all asks Claude Code, as
-// before, and lists nothing.
-func TestStAndSsWithNothingWrittenDownAskClaude(t *testing.T) {
-	srv, _, _ := scratchServer(t)
-	dir := filepath.Dir(srv.Socket)
-	for _, c := range []struct {
-		key string
-	}{{"t"}, {"s"}} {
-		m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: dir}, rows: []row{}, width: 120, height: 36}
-		m, _ = press(t, m, "s")
-		m, cmd := press(t, m, c.key)
-		if cmd == nil {
-			t.Errorf("s%s did not ask Claude Code", c.key)
-		}
-		if screen := plainText(m.View().Content); !strings.Contains(screen, "asking Claude what") {
-			t.Errorf("s%s does not say it is asking:\n%s", c.key, screen)
-		}
+// pressOffer is a key pressed on the question.
+func pressOffer(t *testing.T, o offerModel, k string) (offerModel, tea.Cmd) {
+	t.Helper()
+	key := tea.Key{Text: k, Code: []rune(k)[0]}
+	switch k {
+	case "esc":
+		key = tea.Key{Code: tea.KeyEscape}
+	case "enter":
+		key = tea.Key{Code: tea.KeyEnter}
 	}
+	next, cmd := o.Update(tea.KeyPressMsg(key))
+	return next.(offerModel), cmd
 }
 
 // press is a key pressed on the panel.

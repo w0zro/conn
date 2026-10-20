@@ -655,11 +655,10 @@ func startNamed(srv *tmux.Server, name, command, dir, project string, as role) (
 	// and not the line that records how it ended; and ctrl-c is caught,
 	// not ignored, by that line, so it reaches the command, which takes
 	// it as it would anywhere, and leaves the line to record it.
-	args := []string{"new-window", "-d", "-t", sessionName + ":"}
-	if name != "" {
-		args = append(args, "-n", name)
-	}
-	args = append(args, "-c", dir, "-P", "-F", "#{pane_id}", runLine(srv, name, command))
+	// The window is named for its row, the name or the command, so
+	// tmux does not name it for whatever runs in it at the moment,
+	// which by the end is the cat that holds it open.
+	args := []string{"new-window", "-d", "-t", sessionName + ":", "-n", windowName(or(name, command)), "-c", dir, "-P", "-F", "#{pane_id}", runLine(srv, name, command)}
 	out, err := srv.Run(args...)
 	if err != nil {
 		return "", err

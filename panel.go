@@ -17,6 +17,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	term "github.com/charmbracelet/x/term"
 	"github.com/w0zro/conn/internal/theme"
@@ -79,9 +80,11 @@ type model struct {
 	offer    []stacked
 	offerErr string
 	// Where what is written down is listed before the keys run it: the
-	// line the cursor is on.
+	// line the cursor is on, and the line x last took off, which u
+	// puts back.
 	written bool
 	offerAt int
+	pruned  *pruned
 	// The runs the keys started that are watched for failing at once,
 	// those that have while others are still watched, and those the
 	// question standing asks about again.
@@ -528,7 +531,13 @@ func runPanel(args []string) error {
 			}
 		}
 	}
-	p := tea.NewProgram(m)
+	// The panel writes truecolor whatever the terminal answers: it
+	// draws into conn's own server, which is told its terminals have
+	// RGB and translates for one that has not, as it does for the
+	// status line it draws itself. Left to ask, the panel fell to the
+	// 256 colors under a terminal that answered no RGB, and the two
+	// halves of the window no longer matched.
+	p := tea.NewProgram(m, tea.WithColorProfile(colorprofile.TrueColor))
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	go watch(ctx, p.Send, srv)
@@ -1295,7 +1304,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if p, ok := m.standing(m.in); ok {
 			return m.openOn(p)
 		}
-		m.note = "no process to go back to yet"
+		m.note = "no process to go back to yet; enter goes into the row"
 	case "-":
 		// Up to the projects, as vim's - goes up to the directory.
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
@@ -1656,7 +1665,7 @@ func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.again = nil
 		return m.run(list, as, true)
 	case "esc", "q", "ctrl+c":
-		m.question, m.offer, m.offerErr, m.again, m.written = "", nil, "", nil, false
+		m.question, m.offer, m.offerErr, m.again, m.written, m.pruned = "", nil, "", nil, false, nil
 	case "j", "down":
 		if m.written && len(m.offer) > 0 {
 			m.offerAt = min(m.offerAt+1, len(m.offer)-1)
@@ -1670,16 +1679,37 @@ func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.note = err.Error()
 				return m, nil
 			}
+			m.pruned = &pruned{s, m.offerAt}
 			m.offer = append(append([]stacked{}, m.offer[:m.offerAt]...), m.offer[m.offerAt+1:]...)
 			m.offerAt = min(m.offerAt, max(len(m.offer)-1, 0))
 			keys := "st"
 			if m.question == roleStack {
 				keys = "ss"
 			}
-			m.note = s.name + " is off for good: " + keys + " won't run it and new agents aren't told it"
+			m.note = s.name + " is off for good: " + keys + " won't run it and new agents aren't told it; u puts it back"
+		}
+	case "u":
+		// Undo: the line x last took off is written down again as what
+		// it was, and stands where it stood.
+		if p := m.pruned; m.written && p != nil && m.srv != nil {
+			if err := recordStart(startedPath(m.srv.Socket), started{Root: or(p.s.root, m.cur.Root), Name: p.s.name, Command: p.s.command, Role: m.question}); err != nil {
+				m.note = err.Error()
+				return m, nil
+			}
+			at := min(p.at, len(m.offer))
+			m.offer = append(append(append([]stacked{}, m.offer[:at]...), p.s), m.offer[at:]...)
+			m.offerAt, m.pruned = at, nil
+			m.note = p.s.name + " is back"
 		}
 	}
 	return m, nil
+}
+
+// A pruned line is what x took off the list of what is written down,
+// and where it stood, for u to put back.
+type pruned struct {
+	s  stacked
+	at int
 }
 
 // resolve runs what a role means in the project — the stack brought
@@ -1693,7 +1723,7 @@ func (m model) resolve(as role) (tea.Model, tea.Cmd) {
 	cur := m.cur
 	if list := established(starts, cur.belongs, as); len(list) > 0 {
 		m.question, m.offer, m.offerErr, m.again = as, list, "", nil
-		m.written, m.offerAt = true, 0
+		m.written, m.offerAt, m.pruned = true, 0, nil
 		return m, nil
 	}
 	m.question, m.offer, m.offerErr = as, nil, ""
@@ -3793,5 +3823,9 @@ func (m model) drawWritten(lines []string, ask, verb string) ([]string, foot) {
 		lines = append(lines, "", at(ink.Render("No "+what+" written down in "+m.cur.Name+". "+keys+" asks Claude "+again+".")), "", at(keyInk.Render("esc")+gray.Render(" closes")))
 		return lines, foot{hints: cancelHints}
 	}
-	return lines, foot{hints: []keyHint{{"j k", "move"}, {"x", "take off for good"}, {"enter", verb}, {"esc", "run nothing"}}}
+	hints := []keyHint{{"j k", "move"}, {"x", "take off for good"}}
+	if m.pruned != nil {
+		hints = append(hints, keyHint{"u", "put it back"})
+	}
+	return lines, foot{hints: append(hints, keyHint{"enter", verb}, keyHint{"esc", "run nothing"})}
 }

@@ -219,6 +219,20 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 				t.Errorf("another project's %s went with it:\n%s", doomed, got)
 			}
 
+			// u puts it back, where it stood and as what it was, and x
+			// takes it off again.
+			m, _ = press(t, m, "u")
+			if plain, _ = listed(m); len(rows(plain, c.names, c.commands)) != 3 || !strings.Contains(strings.Join(plain, "\n"), c.commands[1]) {
+				t.Errorf("u did not put %s back:\n%s", doomed, strings.Join(plain, "\n"))
+			}
+			if note := told("conn", srv.Socket, here); !strings.Contains(note, c.told(doomed)+c.commands[1]) {
+				t.Errorf("new agents are not told %s again after u:\n%s", doomed, note)
+			}
+			m, _ = press(t, m, "x")
+			if plain, _ = listed(m); len(rows(plain, ns, cs)) != 2 {
+				t.Fatalf("x after u did not take %s off again:\n%s", doomed, strings.Join(plain, "\n"))
+			}
+
 			// esc runs nothing, and the part is still off the list when
 			// the keys are pressed again.
 			m, _ = press(t, m, "esc")

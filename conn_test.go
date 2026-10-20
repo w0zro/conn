@@ -5075,7 +5075,7 @@ func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
 	}
 	step("with a check failed", 2, 1, 1, 3)
 	frame("finished-failed-120x36.ans")
-	if status := plain.ReplaceAllString(statusRight(t, srv), ""); !(strings.Index(status, "waiting") < strings.Index(status, "finished") && strings.Index(status, "finished") < strings.Index(status, "failed")) {
+	if status := plain.ReplaceAllString(statusRight(t, srv), ""); strings.Index(status, "waiting") >= strings.Index(status, "finished") || strings.Index(status, "finished") >= strings.Index(status, "failed") {
 		t.Errorf("the status line does not put finished between waiting and failed: %q", status)
 	}
 	if t.Failed() {

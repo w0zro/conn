@@ -181,7 +181,7 @@ func tailRead(path string) (title string, context int) {
 // tool call is asking for, where nothing has answered it yet.
 func tailReadAsk(path string) (title string, context int, ask string) {
 	lines := tailLines(path, titleTail)
-	ask = pendingAsk(lines, headCwd(path))
+	ask = or(pendingAsk(lines, headCwd(path)), lastSaid(lines))
 	prompt := ""
 	for i := len(lines) - 1; i >= 0; i-- {
 		var r record
@@ -271,6 +271,53 @@ func pendingAsk(lines [][]byte, dir string) string {
 		}
 	}
 	return "wants to use: " + open.Name
+}
+
+// textBlock is a piece of an assistant turn's content that says
+// something in words.
+type textBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// lastSaid is the last line of the last message in a transcript's
+// lines, where nothing has been written after it that is not Claude
+// Code's own bookkeeping: how a turn handed back ended. Blank where a
+// prompt, a tool call or a result came after.
+func lastSaid(lines [][]byte) string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		var r record
+		if json.Unmarshal(lines[i], &r) != nil || r.IsSidechain {
+			continue
+		}
+		if r.Type != "assistant" && r.Type != "user" {
+			continue
+		}
+		if r.Type == "user" {
+			return ""
+		}
+		var blocks []textBlock
+		if json.Unmarshal(r.Message.Content, &blocks) != nil {
+			return ""
+		}
+		said := ""
+		for _, b := range blocks {
+			switch b.Type {
+			case "tool_use":
+				return ""
+			case "text":
+				said = b.Text
+			}
+		}
+		ls := strings.Split(said, "\n")
+		for j := len(ls) - 1; j >= 0; j-- {
+			if l := flatten(ls[j]); l != "" {
+				return l
+			}
+		}
+		return ""
+	}
+	return ""
 }
 
 // firstLine is the first line of s that says anything, its spaces

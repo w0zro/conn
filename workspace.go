@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -158,11 +160,13 @@ func (w workspace) show(target string, focus bool) error {
 			return err
 		}
 		hold := strings.TrimSpace(out)
-		cmds = append(cmds, tmux.SetPane(hold, holdMark, "1"), tmux.Swap(hold, bay.ID), w.keepShape(bay.ID))
+		cmds = append(cmds, tmux.SetPane(hold, holdMark, "1"), tmux.Swap(hold, bay.ID), w.keepShape(bay.ID), windowFor(bay))
 	case target != bay.ID:
 		cmds = append(cmds, tmux.Swap(target, bay.ID), w.keepShape(bay.ID))
 		if bay.Hold {
 			cmds = append(cmds, tmux.Kill(bay.ID))
+		} else {
+			cmds = append(cmds, windowFor(bay))
 		}
 	}
 	if focus && target != "" {
@@ -173,6 +177,16 @@ func (w workspace) show(target string, focus bool) error {
 	}
 	_, err = w.srv.Do(cmds...)
 	return err
+}
+
+// windowFor names the window a pane has gone back out to for the pane: a
+// swap moves panes between windows and leaves the names where they
+// were, so without this a window is named for whatever pane it had
+// first. The name is the row's: the name the pane was started under,
+// else the command it was given, else the directory it stands in,
+// which is how the window was named when it was opened.
+func windowFor(p pane) tmux.Cmd {
+	return tmux.Cmd{"rename-window", "-t", p.ID, windowName(or(p.Name, or(p.Run, filepath.Base(p.Dir))))}
 }
 
 // keepShape sizes the window a pane has been swapped back out to as the
@@ -204,7 +218,7 @@ func runHold() error {
 			wear(ground(home, srv.Socket))
 		}
 	}
-	_, err := tea.NewProgram(holdModel{}).Run()
+	_, err := tea.NewProgram(holdModel{}, tea.WithColorProfile(colorprofile.TrueColor)).Run()
 	return err
 }
 

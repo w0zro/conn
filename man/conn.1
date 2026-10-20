@@ -231,8 +231,10 @@ puts the list away.
 .BR "run in \fIproject\fB: " .
 .B enter
 runs it where the cursor stands, out of sight, as a run of its own:
-under no name, a row under its command while its pane lives, as
-.B conn u \-w
+under no name, a row under its command until
+.B xx
+takes it off, as
+.B conn u
 under no name runs one, and nothing is written down of it; with nothing
 typed,
 .B enter
@@ -1034,7 +1036,10 @@ Under a name, which
 reads and
 .B conn x
 ends by, the start is what the project runs again; under none, it is
-a run of its own, a row under its command while its pane lives,
+a run of its own, a row under its command while its pane lives, which
+with
+.B \-w
+is until what it said is printed to the caller,
 answering to its pid, and written down nowhere.
 A name is one word of letters, digits, dot, underscore and hyphen,
 and not a number.

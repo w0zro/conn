@@ -474,7 +474,7 @@ func runL(w io.Writer, home, dir string, args []string) int {
 	// The line the pane writes when what conn u ran ends is conn's, not
 	// the process's; conn ls says how it ended.
 	if p.pane.started() {
-		lines = sansEnd(lines, p.pane.Name)
+		lines = sansEnd(lines, p.pane.Name, p.pane.Run)
 	}
 	if n > 0 && len(lines) > n {
 		lines = lines[len(lines)-n:]
@@ -607,17 +607,28 @@ func runU(w io.Writer, home, dir string, args []string) int {
 		return cliFail("u", err)
 	}
 	lines, _ := said(h.srv, id)
-	for _, l := range sansEnd(lines, name) {
+	for _, l := range sansEnd(lines, name, shellLine(command)) {
 		_, _ = fmt.Fprintln(w, l)
+	}
+	// A run under no name was waited on to be read, and the caller has
+	// what it said: its pane closes with it, so one-offs do not pile up
+	// as rows. A name keeps its pane, which is its row across runs.
+	if name == "" {
+		if self, err := os.Executable(); err == nil {
+			_, _ = closePane(h.srv, holdCommand(self), id)
+		}
 	}
 	code, _ := strconv.Atoi(exit)
 	return code
 }
 
-// sansEnd is what a pane conn u started said, less the line the pane
-// writes when what it ran ends, which is conn's and not the command's,
-// and the blank rows before it.
-func sansEnd(lines []string, name string) []string {
+// sansEnd is what a pane conn u started said, less conn's own lines:
+// the one at the top saying what it runs, and the one written when it
+// ends, with the blank rows before it.
+func sansEnd(lines []string, name, command string) []string {
+	if len(lines) > 0 && lines[0] == headLine(command) {
+		lines = lines[1:]
+	}
 	if len(lines) > 0 && strings.HasPrefix(lines[len(lines)-1], exitLine(name)) {
 		lines = lines[:len(lines)-1]
 	}
@@ -668,13 +679,31 @@ func startNamed(srv *tmux.Server, name, command, dir, project string, as role) (
 	return id, err
 }
 
-// runLine is the line a process conn u starts runs under.
+// runLine is the line a process conn u starts runs under. The pane says
+// what it runs at the top, $ and the command, and how it ended at the
+// foot, both dimmed: they are conn's lines and not the command's, set
+// apart from its output, and a command that says nothing still shows
+// what it is while it runs.
 func runLine(srv *tmux.Server, name, command string) string {
-	return "trap : INT\n(\n" + command + "\n)\n" +
+	return "printf '" + dim + "%s" + undim + "\\n' " + shell.Quote(headLine(command)) + "\n" +
+		"trap : INT\n(\n" + command + "\n)\n" +
 		"conn_status=$?\n" +
 		shell.Quote(srv.Tmux) + " -S " + shell.Quote(srv.Socket) + " set-option -p -t \"$TMUX_PANE\" " + endedMark + " \"$(date +%s)\" \\; set-option -p -t \"$TMUX_PANE\" " + exitMark + " \"$conn_status\"\n" +
-		"printf '\\n%s %s]\\n' " + shell.Quote(exitLine(name)) + " \"$conn_status\"\n" +
+		"printf '\\n" + dim + "%s %s]" + undim + "\\n' " + shell.Quote(exitLine(name)) + " \"$conn_status\"\n" +
 		shell.HoldOpen
+}
+
+// The terminal's own dimming, as printf writes it, for the lines conn
+// puts in a pane around what a command says.
+const (
+	dim   = "\\033[2m"
+	undim = "\\033[0m"
+)
+
+// headLine is the line a pane says what it runs with: the command after
+// a shell's prompt.
+func headLine(command string) string {
+	return "$ " + command
 }
 
 // exitLine is how the line a pane writes when what it ran ends begins:

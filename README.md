@@ -67,7 +67,7 @@ in it down. What is started under a name through
 conn is written down as what the project runs: what waited is a check,
 the rest the stack, and the keys run them again as they were run. A
 run under no name, `conn u -w -- node --test a.test.mjs`, is a row
-while its pane lives and is not kept.
+while it runs and is not kept.
 
 `man conn` is the reference. The operating manual is at
 [conn.w0zro.com/manual](https://conn.w0zro.com/manual/).

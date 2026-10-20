@@ -742,8 +742,11 @@ func TestStartWaitEnd(t *testing.T) {
 		t.Fatalf("waitExit = %q, %v", exit, err)
 	}
 	lines, err := said(srv, id)
-	if err != nil || len(lines) < 3 || lines[0] != "one" || lines[1] != "two" || lines[len(lines)-1] != "[check exited 3]" {
+	if err != nil || len(lines) < 4 || lines[0] != "$ echo one; echo two; exit 3" || lines[1] != "one" || lines[2] != "two" || lines[len(lines)-1] != "[check exited 3]" {
 		t.Errorf("said = %q, %v", lines, err)
+	}
+	if own := sansEnd(lines, "check", "echo one; echo two; exit 3"); len(own) != 2 || own[0] != "one" || own[1] != "two" {
+		t.Errorf("less conn's own lines = %q", own)
 	}
 	ps, _ := panes(srv)
 	var p *pane
@@ -1622,7 +1625,7 @@ func TestWorkspace(t *testing.T) {
 	if p := inWorkspace(t, func() workspace { _, _ = ws.ensure(); return ws }()); !p.Hold {
 		t.Fatalf("the workspace was made without a hold: %+v", p)
 	}
-	id, err := openWindow(srv, "web", "/tmp", "sleep 1000", "")
+	id, err := startNamed(srv, "web", "sleep 1000", "/tmp", "/tmp", roleStack)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1643,6 +1646,11 @@ func TestWorkspace(t *testing.T) {
 		if p.ID == id && (p.Window == win || p.Dead) {
 			t.Errorf("the pane did not go back to a window of its own, running: %+v", p)
 		}
+	}
+	// The window it went back to is named for it, as a swap leaves the
+	// names where they were.
+	if name, _ := srv.Display(id, "#{window_name}"); name != "web" {
+		t.Errorf("the window web went back to is named %q", name)
 	}
 	// A pane that ends in the workspace.
 	short, _ := openWindow(srv, "short", "/tmp", "sleep 0.3", "")
@@ -1987,19 +1995,36 @@ func TestRunUUnderNoNameIsNotWrittenDown(t *testing.T) {
 	t.Setenv("CONN_SOCKET", srv.Socket)
 	dir := filepath.Dir(srv.Socket)
 	var out strings.Builder
-	if code := runU(&out, t.TempDir(), dir, []string{"-w", "--", "echo once; exit 3"}); code != 3 || !strings.Contains(out.String(), "once") || strings.Contains(out.String(), "exited") {
+	if code := runU(&out, t.TempDir(), dir, []string{"-w", "--", "echo once; exit 3"}); code != 3 || out.String() != "once\n" {
 		t.Fatalf("conn u -w = %d: %q", code, out.String())
 	}
 	if got := readStarted(startedPath(srv.Socket)); len(got) != 0 {
 		t.Errorf("written down: %+v", got)
 	}
+	// Waited on and read, its pane is closed with it: the caller has
+	// what it said, and a one-off does not stand as a row.
 	ps, err := panes(srv)
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, p := range ps {
+		if p.Run != "" {
+			t.Errorf("the pane of a waited run under no name stands after it was read: %+v", p)
+		}
+	}
+	// One not waited on, as ! starts one, stands as a row under its
+	// command once it has ended.
+	id, err := startNamed(srv, "", "echo once; exit 3", dir, dir, roleCheck)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := waitExit(srv, id); err != nil {
+		t.Fatal(err)
+	}
+	ps, _ = panes(srv)
 	var run *pane
 	for i := range ps {
-		if ps[i].Run != "" {
+		if ps[i].ID == id {
 			run = &ps[i]
 		}
 	}

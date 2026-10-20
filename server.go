@@ -790,7 +790,7 @@ func agentNote(conn string, stack, checks []stacked) string {
 		"what waited (-w) as its checks and the rest as its stack, and the operator's keys run them again as you ran them. " +
 		"A project has a few checks, the suite, the build, the lint, each named once and run again under " +
 		"the name it has, up or not, in the pane it had. Everything else runs under no name: a few test files, " +
-		"a one-off, a command you are trying. It is a row while its pane lives, and the project does not keep it. " +
+		"a one-off, a command you are trying. It is a row while it runs, gone once -w has printed what it said, and the project does not keep it. " +
 		"Never make up a name for a run, or number one." + here
 }
 

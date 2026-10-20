@@ -702,7 +702,7 @@ func (m model) read() tea.Cmd {
 				turning[k.rootOf(r.Cwd)]++
 			}
 		}
-		sayCounts(srv, total, broke)
+		sayCounts(srv, total, len(back), broke)
 		// What conn holds a pane in is a project while it does, a
 		// checkout or not.
 		repos := k.repositories(home)
@@ -2979,10 +2979,12 @@ func (p project) standing() string {
 // runs that failed, on the status line, which shows them from every
 // window, and takes each off at none. They are in the terminal's tab
 // title too, and the bell rings as one more starts waiting or fails.
-func sayWaiting(srv *tmux.Server, n int) { sayCounts(srv, n, 0) }
+func sayWaiting(srv *tmux.Server, n int) { sayCounts(srv, n, 0, 0) }
 
-// sayCounts is sayWaiting with the runs that failed beside it.
-func sayCounts(srv *tmux.Server, n, failed int) {
+// sayCounts is sayWaiting with the turns finished, and the runs that
+// failed, beside it. A finished turn is waiting too, and rings no bell
+// of its own.
+func sayCounts(srv *tmux.Server, n, finished, failed int) {
 	count := func(n int) string {
 		if n > 0 {
 			return strconv.Itoa(n)
@@ -2990,19 +2992,20 @@ func sayCounts(srv *tmux.Server, n, failed int) {
 		return ""
 	}
 	wasWaiting, _ := srv.Global(waitingMark)
+	wasFinished, _ := srv.Global(finishedMark)
 	wasFailed, _ := srv.Global(failedMark)
 	var cmds []tmux.Cmd
 	rose := false
 	for _, c := range []struct {
 		mark, was string
 		n         int
-	}{{waitingMark, wasWaiting, n}, {failedMark, wasFailed, failed}} {
+	}{{waitingMark, wasWaiting, n}, {finishedMark, wasFinished, finished}, {failedMark, wasFailed, failed}} {
 		want := count(c.n)
 		if want == c.was {
 			continue
 		}
 		before, _ := strconv.Atoi(c.was)
-		rose = rose || c.n > before
+		rose = rose || c.n > before && c.mark != finishedMark
 		if want == "" {
 			cmds = append(cmds, tmux.UnsetGlobal(c.mark))
 		} else {

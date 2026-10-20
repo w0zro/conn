@@ -35,6 +35,8 @@ const (
 	sessionMark = "@conn_session"
 	// The number of conversations waiting on you, for the status line.
 	waitingMark = "@conn_waiting"
+	// The number of conversations that finished their turn, beside it.
+	finishedMark = "@conn_finished"
 	// The number of runs that failed, beside it.
 	failedMark = "@conn_failed"
 )
@@ -182,7 +184,7 @@ set -g window-status-separator ""
 `)
 	fmt.Fprintf(&b, "set -g status-style \"bg=%s,fg=%s\"\n", g.Border, g.Gray)
 	fmt.Fprintf(&b, "set -g status-left \"#[fg=%s bold] conn #[default]\"\n", theme.Hex(g.Ink))
-	fmt.Fprintf(&b, "set -g status-right \"#{?#{%s},#[fg=%s bold]#{%s} waiting #[default],}#{?#{%s},#[fg=%s bold]#{%s} failed #[default],}\"\n", waitingMark, g.Accent, waitingMark, failedMark, g.Scheme[1], failedMark)
+	fmt.Fprintf(&b, "set -g status-right \"#{?#{%s},#[fg=%s bold]#{%s} waiting #[default],}#{?#{%s},#[fg=%s bold]#{%s} finished #[default],}#{?#{%s},#[fg=%s bold]#{%s} failed #[default],}\"\n", waitingMark, g.Accent, waitingMark, finishedMark, theme.Hex(g.Ink), finishedMark, failedMark, g.Scheme[1], failedMark)
 	fmt.Fprintf(&b, "set -g set-titles on\nset -g set-titles-string \"conn#{?#{%s}, · #{%s} waiting,}#{?#{%s}, · #{%s} failed,}\"\n", waitingMark, waitingMark, failedMark, failedMark)
 	b.WriteString("set -g status-format[0] \"#[align=left]#{T:status-left}#[align=right]#{T:status-right}\"\n")
 	onPanel := "#{==:#{pane_id},#{" + panelIDMark + "}}"

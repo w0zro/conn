@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -41,5 +43,27 @@ func TestVersionLine(t *testing.T) {
 	}
 	if got := versionLine("v0.25.0-3-g4cdb20d-dirty"); !strings.HasPrefix(got, "conn 0.25.0 (devel)") || !strings.Contains(got, "4cdb20d") || !strings.HasSuffix(got, "modified") {
 		t.Errorf("a build past the release: %q", got)
+	}
+}
+
+// With no server up, conn ls says so under the project's path, and a
+// name that is not found is not found for that reason, rather than
+// because no such process runs.
+func TestNoServerSaysSo(t *testing.T) {
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("no tmux")
+	}
+	scratch := t.TempDir()
+	t.Setenv("CONN_SOCKET", filepath.Join(scratch, "s"))
+	var out strings.Builder
+	if code := runLs(&out, scratch, scratch, nil); code != 0 || !strings.Contains(out.String(), "nothing running; conn's server is not up") {
+		t.Errorf("conn ls = %d:\n%s", code, out.String())
+	}
+	h, err := readHere(scratch, scratch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.find("web"); err == nil || !strings.Contains(err.Error(), "conn's server is not up") {
+		t.Errorf("find with no server: %v", err)
 	}
 }

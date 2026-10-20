@@ -340,6 +340,11 @@ func (h here) find(addr string) (proc, error) {
 		if strings.HasPrefix(addr, ":") || isPID(addr) {
 			where = "that conn knows"
 		}
+		// With no server up there are no panes to find one in, which
+		// is the likelier reason.
+		if !h.up {
+			return proc{}, fmt.Errorf("no process %s %s, and conn's server is not up", addr, where)
+		}
 		return proc{}, fmt.Errorf("no process %s %s; conn ls lists them", addr, where)
 	case 1:
 		return hits[0], nil
@@ -387,7 +392,16 @@ func runLs(w io.Writer, home, dir string, args []string) int {
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, tilde(h.root, home))
-	for _, p := range h.mine() {
+	mine := h.mine()
+	// Nothing under the path says nothing, and whether that is because
+	// nothing runs or because there is no server for it to run in.
+	switch {
+	case len(mine) == 0 && !h.up:
+		_, _ = fmt.Fprintln(tw, "nothing running; conn's server is not up")
+	case len(mine) == 0:
+		_, _ = fmt.Fprintln(tw, "nothing running")
+	}
+	for _, p := range mine {
 		command, name := p.Command, p.Name
 		if p.pane != nil && p.pane.started() {
 			// A run under no name answers to its pid alone.
@@ -755,6 +769,9 @@ func runDown(w io.Writer, home, dir string, args []string) int {
 	srv, err := findServer(home)
 	if err != nil {
 		return cliFail("down", err)
+	}
+	if !srv.Up() {
+		return cliFail("down", errors.New("conn is not up"))
 	}
 	if err := endServer(srv); err != nil {
 		return cliFail("down", err)

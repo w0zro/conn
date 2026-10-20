@@ -972,7 +972,11 @@ or
 for a run that ended, and
 .B "outside conn"
 for a listener.
-With no server up, the listeners alone.
+With nothing to list, the second line says
+.BR "nothing running" ,
+and with no server up,
+.BR "nothing running; conn's server is not up" ,
+the listeners alone standing where there are any.
 .TP
 .BI "conn l " address " [\-n " lines ]
 What a process said: the lines its pane holds, history and screen,
@@ -1078,6 +1082,7 @@ socket.
 Run from a pane of
 .BR conn 's,
 the caller goes with it.
+With no server up, an error.
 .TP
 .BI "conn r " address
 Start a process again, as
@@ -1434,6 +1439,16 @@ and
 .BR r ;
 a port or a pid,
 .BR "that conn knows" .
+Exit 1.
+.TP
+.BI "conn l: no process " name " in " project ", and conn's server is not up"
+And the same of
+.BR x
+and
+.BR r .
+Exit 1.
+.TP
+.B conn down: conn is not up
 Exit 1.
 .TP
 .BI "conn l: " name " names " n " processes, pids " pids "; name one by its pid"

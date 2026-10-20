@@ -1237,6 +1237,11 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if p, ok := m.typedPath(); ok {
 			return m.open(p)
 		}
+		// A path typed that names no directory is said, since the hint
+		// says a path opens.
+		if dir, ok := m.typedDir(); ok {
+			m.note = tilde(dir, m.home) + " is not a directory"
+		}
 		return m, nil
 	case "x":
 		if m.cursor < len(shown) && m.box.Value() == "" {
@@ -2272,11 +2277,10 @@ func (m model) holderSays(p project, port string) string {
 // typedPath is the project at a typed path, where what is typed is a
 // path to a directory.
 func (m model) typedPath() (project, bool) {
-	t := strings.TrimSpace(m.box.Value())
-	if !strings.HasPrefix(t, "~") && !strings.Contains(t, "/") {
+	dir, ok := m.typedDir()
+	if !ok {
 		return project{}, false
 	}
-	dir := expand(t, m.home)
 	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
 		return project{}, false
 	}
@@ -2285,6 +2289,17 @@ func (m model) typedPath() (project, bool) {
 		root = dir
 	}
 	return project{Name: filepath.Base(root), Root: root, Group: m.known.isFolder(root, m.home)}, true
+}
+
+// typedDir is the directory the line names, where what is typed reads
+// as a path: ~ or anything with a slash in it, expanded; whether it is
+// there is another question.
+func (m model) typedDir() (string, bool) {
+	t := strings.TrimSpace(m.box.Value())
+	if !strings.HasPrefix(t, "~") && !strings.Contains(t, "/") {
+		return "", false
+	}
+	return expand(t, m.home), true
 }
 
 // Drawing. The panel is drawn in the theme's roles on the surface its

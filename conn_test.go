@@ -575,6 +575,17 @@ func TestTypedPath(t *testing.T) {
 	if _, ok := m.typedPath(); ok {
 		t.Error("a missing directory was opened")
 	}
+	// Enter on it says so, rather than nothing.
+	m.screen = onProjects
+	next, _ := m.projectsKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if note := next.(model).note; note != "~/src/none is not a directory" {
+		t.Errorf("enter on a path that is not there says %q", note)
+	}
+	m.box.SetValue("shop")
+	next, _ = m.projectsKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if note := next.(model).note; note != "" {
+		t.Errorf("enter on a word says %q", note)
+	}
 }
 
 // conn's window is found by its mark, made where there is none, and

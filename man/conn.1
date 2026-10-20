@@ -138,6 +138,8 @@ or anything with a slash in it, names a directory, and
 .B enter
 opens it as a project whether or not it was found: the repository it is
 in where it is in one, the directory itself otherwise.
+One that is not a directory is said on the foot,
+.IR "path " "is not a directory" .
 .SS A project
 The project's name at the head, its path after it, and its rows: what
 runs in it, by role, in order: conversations, the stack, what talks to
@@ -310,7 +312,8 @@ The rows are a ring: past the last is the first.
 .TP
 .B enter
 Open the project under the cursor; with none shown and a path typed,
-the directory the path names.
+the directory the path names, or a word on the foot where it names
+none.
 .TP
 .B tab
 To the conversation that has waited longest for you, wherever it runs

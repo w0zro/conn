@@ -2448,6 +2448,7 @@ var (
 	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"ss", "start the stack"}, {"st", "run the checks"}, {"sc", "new conversation"}, {"!", "run a command, or a shell"}, {"aa", "hand to an agent"}, {"af", "hand what failed to one"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"esc", "back into the process you were in"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
+	askHints      = []keyHint{{"type", "a command"}, {"enter", "runs it, or a shell"}, {"esc", "cancel"}}
 	backHints     = []keyHint{{"esc", "back"}}
 	settingsHints = []keyHint{{"j k", "move"}, {"g G", "top, bottom"}, {"enter", "set"}, {"esc", "back"}}
 	// The objects each verb waits for.
@@ -2518,6 +2519,7 @@ func (m model) draw() ([]string, foot) {
 	if m.asking {
 		before, after := m.boxText()
 		f.say = "run in " + m.cur.Name + ": " + before + caret + after
+		f.hints = askHints
 	}
 	return lines, f
 }

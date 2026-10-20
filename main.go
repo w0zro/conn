@@ -14,6 +14,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/w0zro/conn/internal/station"
 	"github.com/w0zro/conn/internal/theme"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -24,10 +25,63 @@ import (
 var version string
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	err := run(os.Stdout, os.Args[1:])
+	var wrong usageError
+	switch {
+	case errors.As(err, &wrong):
+		// A line conn could not read: what was wrong, and the use.
+		fmt.Fprintf(os.Stderr, "conn: %s\n%s", wrong.wrong, uses)
+		os.Exit(2)
+	case err != nil:
 		fmt.Fprintln(os.Stderr, "conn:", err)
 		os.Exit(1)
 	}
+}
+
+// uses is what conn answers to help, and under a line it could not
+// read: every verb, a line each, with what it does.
+const uses = `usage: conn [--light|--dark] [--theme NAME]   open on your projects; inside conn, back to the panel
+       conn ls                              the processes of the project, a line each
+       conn l NAME|:PORT|PID [-n N]         what one said, its last N lines
+       conn u [NAME] [-w] -- COMMAND...     start a command here; -w waits, and exits as it did
+       conn x NAME|:PORT|PID                end it
+       conn r NAME|:PORT|PID                start it again
+       conn down                            take the server down, and everything in it
+       conn theme claude                    write conn's theme for Claude Code
+       conn --version                       the build this is
+`
+
+// A usageError is a line conn could not read, and what was wrong with
+// it; main says so and shows the use.
+type usageError struct{ wrong string }
+
+func (e usageError) Error() string { return e.wrong }
+
+// versionLine is the build this is: the release, and where it is not
+// exactly one, the commit it was built from, its date, and modified
+// where the tree had changes past it.
+func versionLine(stamp string) string {
+	b := station.ReadBuild(stamp)
+	line := "conn"
+	if b.Tag != "" {
+		line += " " + b.Tag
+	}
+	if b.Exact {
+		return line
+	}
+	if b.Tag != "" {
+		line += " (devel)"
+	}
+	if b.Commit != "" {
+		line += " · " + b.Commit
+	}
+	if !b.Time.IsZero() {
+		line += " · " + b.Time.UTC().Format("2006-01-02")
+	}
+	if b.Modified {
+		line += " · modified"
+	}
+	return line
 }
 
 // commands are the verbs for whoever has no panel, by name.
@@ -40,13 +94,19 @@ var commands = map[string]func(w io.Writer, home, dir string, args []string) int
 	"down": runDown,
 }
 
-func run(args []string) error {
+func run(w io.Writer, args []string) error {
 	args, want, err := theme.ParseFlags(args)
 	if err != nil {
-		return err
+		return usageError{err.Error()}
 	}
 	if len(args) > 0 {
 		switch args[0] {
+		case "--version", "-V":
+			_, err := fmt.Fprintln(w, versionLine(version))
+			return err
+		case "help", "-h", "--help":
+			_, err := fmt.Fprint(w, uses)
+			return err
 		case "panel":
 			return runPanel(args[1:])
 		case "hold":
@@ -56,7 +116,7 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			return runTheme(os.Stdout, home, want, args[1:])
+			return runTheme(w, home, want, args[1:])
 		}
 		if cmd, ok := commands[args[0]]; ok {
 			home, err := os.UserHomeDir()
@@ -67,9 +127,9 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			os.Exit(cmd(os.Stdout, home, dir, args[1:]))
+			os.Exit(cmd(w, home, dir, args[1:]))
 		}
-		return fmt.Errorf("conn knows ls, l, u, x, r, down and theme; with nothing after it, it opens on your projects")
+		return usageError{"no verb " + args[0]}
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -131,7 +191,7 @@ func ask(q string) bool {
 // flag says, what the server is on, or the terminal's own.
 func runTheme(w io.Writer, home string, want theme.Want, args []string) error {
 	if len(args) != 1 || args[0] != "claude" {
-		return fmt.Errorf("conn theme claude writes conn's theme for Claude Code")
+		return usageError{"conn theme takes claude, and nothing else"}
 	}
 	srv, err := findServer(home)
 	if err != nil {

@@ -33,6 +33,10 @@ conn \- a console for the processes working your projects
 .br
 .B conn down
 .br
+.B conn \-\-version
+.br
+.B conn help
+.br
 .B conn theme claude
 .
 .SH DESCRIPTION
@@ -1143,6 +1147,15 @@ its background with OSC 11, calling it dark unless it answers light.
 with
 .B \-\-dark
 is a contradiction.
+.TP
+.B \-\-version
+The build this is: the release, and where it is not exactly one, the
+commit it was built from, its date, and
+.B modified
+where the tree had changes past it.
+.TP
+.BR help ", " \-h ", " \-\-help
+The uses: every command, a line each, with what it does.
 .
 .SH ENVIRONMENT
 .TP
@@ -1369,17 +1382,24 @@ there takes it down with everything in it.
 .
 .SH DIAGNOSTICS
 .TP
-.B conn: conn knows ls, l, u, x, r and theme; with nothing after it, it opens on your projects
-Exit 1.
+.BI "conn: no verb " word
+A word
+.B conn
+has no command for; the uses follow, as
+.B conn help
+prints them.
+Exit 2.
 .TP
 .B conn: conn runs in tmux, and there is no tmux on the PATH
 Exit 1.
 .TP
 .B conn: \-\-dark and \-\-light are a contradiction
-Exit 1.
+The uses follow.
+Exit 2.
 .TP
 .B conn: \-\-theme names a theme
-Exit 1.
+The uses follow.
+Exit 2.
 .TP
 .BI "conn: there is no theme " name "; there are " names ", in " dir
 Exit 1.
@@ -1441,14 +1461,15 @@ Exit 1.
 .BI "conn r: " name " does not say what it was started with"
 Exit 1.
 .TP
-.B conn: conn theme claude writes conn's theme for Claude Code
-From
-.B conn theme
-with anything else.
-Exit 1.
+.B conn: conn theme takes claude, and nothing else
+The uses follow.
+Exit 2.
 .
 .SH EXIT STATUS
-0 on success; 1 when a command failed; 2 on a usage error.
+0 on success; 1 when a command failed; 2 on a line
+.B conn
+could not read: a verb or a flag it has not, or a command's line wrong,
+with the use under it.
 .B conn u \-w
 exits with the status of what it ran.
 .

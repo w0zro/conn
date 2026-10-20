@@ -240,5 +240,5 @@ func (h holdModel) View() tea.View {
 	return v
 }
 
-// holdWord is what a hold says: nothing is selected.
-const holdWord = "nothing selected"
+// holdWord is what a hold says: what the workspace is for.
+const holdWord = "the row under the cursor shows here"

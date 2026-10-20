@@ -2365,7 +2365,7 @@ func TestEndAll(t *testing.T) {
 	k.root[realDir(dir)], k.root[realDir(other)] = realDir(dir), realDir(other)
 	m := model{srv: srv, known: k}
 	got := m.endAll(project{Name: "d", Root: realDir(dir)})().(acted)
-	if string(got) != "d: ended 2" {
+	if string(got) != "d: 2 ended" {
 		t.Errorf("endAll said %q", got)
 	}
 	ps, _ := panes(srv)
@@ -2800,7 +2800,9 @@ func TestKeyBar(t *testing.T) {
 		}
 	}
 	// Every key the bar leaves out is said in full behind ?.
-	for _, c := range []struct{ bar, full []keyHint }{{projectHints, projectKeys}, {projectsHints, projectsKeys}} {
+	// In a project the verbs are behind ? as a table of their own.
+	full := append(append([]keyHint{}, projectKeys...), verbKeys...)
+	for _, c := range []struct{ bar, full []keyHint }{{projectHints, full}, {projectsHints, projectsKeys}} {
 		for _, h := range c.bar {
 			found := h.key == "?"
 			for _, k := range c.full {
@@ -2843,7 +2845,7 @@ func TestKeys(t *testing.T) {
 		t.Fatal("? did not show the keys")
 	}
 	lines, f := m.draw()
-	if s := strings.Join(lines, "\n"); !strings.Contains(s, "run the checks") || !strings.Contains(s, "conversations at rest") || !strings.Contains(s, "d  keys") {
+	if s := strings.Join(lines, "\n"); !strings.Contains(s, "the checks") || !strings.Contains(s, "a conversation") || !strings.Contains(s, "st") || !strings.Contains(s, "conn  keys") {
 		t.Errorf("the keys are not drawn in full: %q", s)
 	}
 	if !reflect.DeepEqual(f.hints, backHints) {
@@ -2916,7 +2918,7 @@ func TestVerbWaits(t *testing.T) {
 	if m = press(press(m, "x"), "t"); m.verb != "" || !strings.Contains(m.note, "the checks") {
 		t.Errorf("xt with no checks: verb %q, note %q", m.verb, m.note)
 	}
-	if m = press(press(m, "a"), "f"); m.verb != "" || m.note != "Nothing failed here." {
+	if m = press(press(m, "a"), "f"); m.verb != "" || m.note != "nothing failed here" {
 		t.Errorf("af with nothing failed: verb %q, note %q", m.verb, m.note)
 	}
 	if m = press(press(m, "r"), "f"); m.verb != "" || !strings.Contains(m.note, "what failed") {
@@ -4757,12 +4759,12 @@ func TestATurnHandedBackWaits(t *testing.T) {
 
 	// Its turn over, it waits: one bell, and said everywhere.
 	webStatus("idle")
-	step("with the turn handed back", is("conn · 1 waiting"), `"conn · 1 waiting"`, 1)
+	step("with the turn handed back", is("conn · 1 waiting · 1 finished"), `"conn · 1 waiting · 1 finished"`, 1)
 	waitingSaid("with the turn handed back", true)
 	frame("handed-back-120x36.ans", projectsNow())
 	frame("handed-back-panel-120x36.ans", panelNow())
 	// Not looked at, it stays said, and rings no more.
-	step("with the turn still handed back", is("conn · 1 waiting"), `"conn · 1 waiting"`, 1)
+	step("with the turn still handed back", is("conn · 1 waiting · 1 finished"), `"conn · 1 waiting · 1 finished"`, 1)
 	waitingSaid("with the turn still handed back", true)
 	if t.Failed() {
 		t.FailNow()
@@ -4778,7 +4780,7 @@ func TestATurnHandedBackWaits(t *testing.T) {
 	apiStatus("waiting")
 	step("with api's conversation waiting", is("conn · 1 waiting"), `"conn · 1 waiting"`, 2)
 	webStatus("idle")
-	step("with a question and a turn handed back", is("conn · 2 waiting"), `"conn · 2 waiting"`, 3)
+	step("with a question and a turn handed back", is("conn · 2 waiting · 1 finished"), `"conn · 2 waiting · 1 finished"`, 3)
 	waitingSaid("with a question and a turn handed back", true)
 	frame("two-waiting-120x36.ans", projectsNow())
 

@@ -26,6 +26,7 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 	t.Cleanup(undress)
 	shots := os.Getenv("SHOTS")
 	grayInk := strings.SplitN(gray.Render("x"), "x", 2)[0]
+	plainInk := strings.SplitN(ink.Render("x"), "x", 2)[0]
 	rowOf := func(name, command string) *regexp.Regexp {
 		return regexp.MustCompile(`(^|\s)` + regexp.QuoteMeta(name) + `\s+` + regexp.QuoteMeta(command) + `\s*$`)
 	}
@@ -171,7 +172,8 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 				t.Errorf("k did not move the cursor back to the first line:\n%s", strings.Join(plain, "\n"))
 			}
 
-			// x on the second line takes it off, and says so in gray.
+			// x on the second line takes it off, and says so on the foot,
+			// in the ink, as a note of conn's own.
 			m, _ = press(t, m, "j")
 			m, _ = press(t, m, "x")
 			plain, raw := listed(m)
@@ -191,8 +193,8 @@ func TestStAndSsListWhatIsWrittenDownAndPruneIt(t *testing.T) {
 			}
 			if note < 0 {
 				t.Errorf("nothing names %s as taken off:\n%s", doomed, screen)
-			} else if !strings.Contains(raw[note], grayInk) {
-				t.Errorf("the note %q is not gray (%q): %q", plain[note], grayInk, raw[note])
+			} else if !strings.Contains(raw[note], plainInk) || strings.Contains(raw[note], grayInk) {
+				t.Errorf("the note %q is not in the ink (%q): %q", plain[note], plainInk, raw[note])
 			}
 			for _, l := range plain {
 				if strings.Contains(l, c.ask) && !counted(l, 2) {

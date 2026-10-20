@@ -79,10 +79,9 @@ type model struct {
 	offer    []stacked
 	offerErr string
 	// Where what is written down is listed before the keys run it: the
-	// line the cursor is on, and what was last taken off.
+	// line the cursor is on.
 	written bool
 	offerAt int
-	dropped string
 	// The runs the keys started that are watched for failing at once,
 	// those that have while others are still watched, and those the
 	// question standing asks about again.
@@ -1296,7 +1295,7 @@ func (m model) projectKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if p, ok := m.standing(m.in); ok {
 			return m.openOn(p)
 		}
-		m.note = "No process to go back to yet."
+		m.note = "no process to go back to yet"
 	case "-":
 		// Up to the projects, as vim's - goes up to the directory.
 		m.screen, m.rows, m.cursor = onProjects, nil, 0
@@ -1479,7 +1478,7 @@ func (m model) useClient(c stacked, record bool) (tea.Model, tea.Cmd) {
 // can show.
 func (m model) nextWaiting() (tea.Model, tea.Cmd) {
 	if len(m.waiting) == 0 {
-		m.note = "Nothing is waiting on you."
+		m.note = "nothing is waiting on you"
 		return m, nil
 	}
 	next := m.nextPane()
@@ -1673,7 +1672,11 @@ func (m model) offerKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			m.offer = append(append([]stacked{}, m.offer[:m.offerAt]...), m.offer[m.offerAt+1:]...)
 			m.offerAt = min(m.offerAt, max(len(m.offer)-1, 0))
-			m.dropped = s.name
+			keys := "st"
+			if m.question == roleStack {
+				keys = "ss"
+			}
+			m.note = s.name + " is off for good: " + keys + " won't run it and new agents aren't told it"
 		}
 	}
 	return m, nil
@@ -1690,7 +1693,7 @@ func (m model) resolve(as role) (tea.Model, tea.Cmd) {
 	cur := m.cur
 	if list := established(starts, cur.belongs, as); len(list) > 0 {
 		m.question, m.offer, m.offerErr, m.again = as, list, "", nil
-		m.written, m.offerAt, m.dropped = true, 0, ""
+		m.written, m.offerAt = true, 0
 		return m, nil
 	}
 	m.question, m.offer, m.offerErr = as, nil, ""
@@ -1950,7 +1953,7 @@ func (m model) standing(id string) (pane, bool) {
 func (m model) toOther() (tea.Model, tea.Cmd) {
 	p, ok := m.standing(m.other)
 	if !ok {
-		m.note = "No other process to go to yet."
+		m.note = "no other process to go to yet"
 		return m, nil
 	}
 	return m.openOn(p)
@@ -2049,7 +2052,7 @@ func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 		m.asked = r.pane.ID
 		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:
-		m.note = "That conversation is running in a terminal conn does not hold."
+		m.note = "that conversation is running in a terminal conn does not hold"
 	case r.conv != nil:
 		dir := r.conv.Dir
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
@@ -2079,7 +2082,7 @@ func (m model) tells(id string) (string, error) {
 // what it is, how it is doing, and what it last wrote.
 func (m model) hand(r row) (tea.Model, tea.Cmd) {
 	if r.conv != nil || (r.pane != nil && r.pane.Session != "") {
-		m.note = "That is a conversation already; enter goes to it."
+		m.note = "that is a conversation already; enter goes to it"
 		return m, nil
 	}
 	h, ok := m.handing(r)
@@ -2100,7 +2103,7 @@ func (m model) handAll(rows []row) (tea.Model, tea.Cmd) {
 	}
 	switch len(hs) {
 	case 0:
-		m.note = "Nothing failed here."
+		m.note = "nothing failed here"
 		return m, nil
 	case 1:
 		return m.brief(handPrompt(hs[0]), hs[0].name)
@@ -2445,7 +2448,23 @@ type keyHint struct{ key, does string }
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"s", "start"}, {"x", "stop"}, {"r", "restart"}, {"a", "agent"}, {"c", "talk"}, {"!", "run"}, {"?", "keys"}}
 	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
-	projectKeys   = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"ss", "start the stack"}, {"st", "run the checks"}, {"sc", "new conversation"}, {"!", "run a command, or a shell"}, {"aa", "hand to an agent"}, {"af", "hand what failed to one"}, {"xx", "stop"}, {"xs", "stop the stack"}, {"xt", "stop the checks"}, {"xp", "stop everything"}, {"rr", "restart"}, {"rs", "restart the stack"}, {"rt", "run the checks again"}, {"rf", "restart what failed"}, {"rc", "conversations at rest"}, {"c", "talk to it"}, {"esc", "back into the process you were in"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	// A project's keys past the verbs, which the keys screen draws as a
+	// table against their objects.
+	projectKeys = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"!", "run a command, or a shell"}, {"c", "talk to it"}, {"esc", "back into the process you were in"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
+	// The verbs, and the objects each takes, as the keys screen tables
+	// them: a chord a cell, blank where the verb takes no such object.
+	verbKeys   = []keyHint{{"s", "start"}, {"x", "stop"}, {"r", "restart"}, {"a", "agent"}}
+	objectKeys = []struct {
+		object string
+		chords [4]string
+	}{
+		{"the row", [4]string{"", "xx", "rr", "aa"}},
+		{"the stack", [4]string{"ss", "xs", "rs", ""}},
+		{"the checks", [4]string{"st", "xt", "rt", ""}},
+		{"what failed", [4]string{"", "", "rf", "af"}},
+		{"a conversation", [4]string{"sc", "", "rc", ""}},
+		{"the project", [4]string{"", "xp", "", ""}},
+	}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	askHints      = []keyHint{{"type", "a command"}, {"enter", "runs it, or a shell"}, {"esc", "cancel"}}
@@ -2563,21 +2582,49 @@ func head(name, with string) []string {
 	return []string{"", at(projectTitle.Render(name) + "  " + gray.Render(with)), ""}
 }
 
-// drawKeys is the screen's keys in full, one to a line, over it.
+// drawKeys is the screen's keys in full, over it. In a project the
+// verbs stand against their objects as a table, the chord in each
+// cell, as the grammar is: a verb and an object make a key. The keys
+// that are not verbs follow, one to a line; on the projects screen
+// every key is one of those.
 func (m model) drawKeys() ([]string, foot) {
-	name, keys := "conn", projectsKeys
-	if m.screen == onProject {
-		name, keys = listName(project{Name: m.cur.Name, Group: m.cur.Group}), projectKeys
+	lines := head("conn", "keys")
+	if m.screen != onProject {
+		return append(lines, keyLines(projectsKeys)...), foot{hints: backHints}
 	}
-	lines := head(name, "keys")
+	const labelW, cellW = 15, 5
+	legend, header := "", strings.Repeat(" ", labelW)
+	for i, v := range verbKeys {
+		if i > 0 {
+			legend += "   "
+		}
+		legend += keyInk.Render(v.key) + gray.Render(" "+v.does)
+		header += keyInk.Render(pad(v.key, cellW))
+	}
+	lines = append(lines, at(legend), "", at(header))
+	for _, o := range objectKeys {
+		l := gray.Render(pad(o.object, labelW))
+		for _, c := range o.chords {
+			l += keyInk.Render(pad(c, cellW))
+		}
+		lines = append(lines, at(l))
+	}
+	lines = append(lines, at(gray.Render("sc is a new conversation; rc one at rest")), "")
+	return append(lines, keyLines(projectKeys)...), foot{hints: backHints}
+}
+
+// keyLines is keys one to a line, the key in the ink and what it does
+// in the gray after it, lined up on the widest key.
+func keyLines(keys []keyHint) []string {
 	w := 0
 	for _, k := range keys {
 		w = max(w, ansi.StringWidth(k.key))
 	}
+	lines := make([]string, 0, len(keys))
 	for _, k := range keys {
 		lines = append(lines, at(ink.Render(pad(k.key, w))+"  "+gray.Render(k.does)))
 	}
-	return lines, foot{hints: backHints}
+	return lines
 }
 
 func (m model) drawProjects() ([]string, foot) {
@@ -3170,7 +3217,7 @@ func (m model) drawSearch(lines []string) ([]string, foot) {
 		text, a := around(h.line, h.at, max(m.measure()-ansi.StringWidth(name), 8))
 		a = min(a, len(text))
 		end := min(a+len(m.box.Value()), len(text))
-		left := []piece{{name, gray}, {text[:a], ink}, {text[a:end], keyInk}, {text[end:], ink}}
+		left := []piece{{name, gray}, {text[:a], ink}, {text[a:end], accent}, {text[end:], ink}}
 		lines = append(lines, m.row(left, piece{}, i == m.hitAt))
 	}
 	return lines, foot{hints: searchHints}
@@ -3317,7 +3364,7 @@ func (m model) each(rows []row, what, did string, act func(proc) error) (tea.Mod
 		}
 	}
 	if len(ps) == 0 {
-		m.note = "Nothing of " + what + " stands here."
+		m.note = "nothing of " + what + " stands here"
 		return m, nil
 	}
 	return m, func() tea.Msg {
@@ -3541,6 +3588,9 @@ func (m model) listKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m model) drawList(lines []string) ([]string, foot) {
 	shown := m.shownRest()
 	count := counted(len(shown), "conversation") + " at rest"
+	if len(shown) == 0 {
+		count = ""
+	}
 	lines = append(lines, m.row(append([]piece{{"find", gray}, {"  ", ink}}, m.boxPieces()...), piece{count, gray}, false), "")
 	words := strings.Fields(strings.ToLower(m.box.Value()))
 	room := max(m.height-len(lines)-1, 1)
@@ -3576,8 +3626,13 @@ func (m model) drawList(lines []string) ([]string, foot) {
 			taken++
 		}
 	}
-	if len(shown) == 0 {
-		lines = append(lines, at(faint.Render("nothing here")))
+	// Nothing to list is said once: nothing at rest, or nothing that
+	// the words typed find.
+	switch {
+	case len(shown) == 0 && m.box.Value() != "":
+		lines = append(lines, at(faint.Render("no conversation at rest says that")))
+	case len(shown) == 0:
+		lines = append(lines, at(faint.Render("no conversations at rest here")))
 	}
 	return lines, foot{hints: listHints}
 }
@@ -3729,9 +3784,6 @@ func (m model) drawWritten(lines []string, ask, verb string) ([]string, foot) {
 	}
 	if len(m.offer) > 0 {
 		lines = append(lines, "", at(keyInk.Render("x")+gray.Render(" takes it off for good   ")+keyInk.Render("enter")+gray.Render(" "+verb+"   ")+keyInk.Render("esc")+gray.Render(" runs nothing")))
-	}
-	if m.dropped != "" {
-		lines = append(lines, "", at(gray.Render(m.dropped+" is off for good: "+keys+" won't run it and new agents aren't told it")))
 	}
 	if len(m.offer) == 0 {
 		what, again := "checks", "what they are"

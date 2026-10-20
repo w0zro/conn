@@ -253,8 +253,8 @@ below.
 .SS The hold
 Where the cursor is on nothing with a pane, the workspace holds
 .BR conn 's
-blank,
-.BR "nothing selected" .
+blank, saying what it is for:
+.BR "the row under the cursor shows here" .
 A key in it puts the keys back on the panel.
 .
 .SH KEYS
@@ -338,7 +338,7 @@ you came up from.
 With nothing typed: the settings.
 .TP
 .B ?
-The keys.
+The keys, a line each.
 .TP
 .B ctrl\-c
 Detach.
@@ -390,7 +390,8 @@ The search.
 The settings.
 .TP
 .B ?
-The keys.
+The keys: the verbs against their objects as a table, a chord a cell,
+and the rest a line each.
 .TP
 .BR q ", " ctrl\-c
 Detach.
@@ -411,8 +412,15 @@ Start.
 .B ss
 brings up the stack and
 .B st
-runs the checks, as each was last run here by whoever ran it, and asks
-Claude Code where nobody has yet; see
+runs the checks, as each was last run here by whoever ran it: what is
+written down is listed first, and
+.B enter
+runs it,
+.B x
+on a line takes it off for good, and
+.B esc
+runs nothing; where nobody has run anything yet, Claude Code is asked.
+See
 .BR "WHAT A PROJECT RUNS" .
 .B sc
 starts a conversation.
@@ -676,7 +684,7 @@ words, as
 .BR "web ended: send\-keys C\-c" ,
 .B "the stack: 2 ended"
 or
-.BR "Nothing is waiting on you." ;
+.BR "nothing is waiting on you" ;
 a verb let go says what it waited for.
 .
 .SH PROJECTS

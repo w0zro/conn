@@ -5126,3 +5126,307 @@ func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
 	step("having gone into web's conversation", 1, 0, 1, 4)
 	frame("answered-120x36.ans")
 }
+
+// Under a conversation that has handed its turn back, a gray line
+// starting under its name says how its last message ended: the last
+// line of that message, such as "Should I also update the docs?" or
+// "All tests pass; pushed to story/9.", cut with "…" two columns
+// before the panel's edge. So under its project on the projects
+// screen and under its row in the open project. Stopped on a command
+// instead, the line still says "wants to run: …"; and it goes when the
+// conversation is gone into or the agent is at work again. What is read
+// is the machine, as the panel reads it: tmux's panes, Claude Code's
+// instance files and the conversation's transcript.
+func TestAFinishedTurnSaysHowItEnded(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	t.Setenv("LC_ALL", "C.UTF-8")
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "init", "-q")
+	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+
+	const title = "Move the flag into config"
+	s1 := "aaaaaaaa-0000-0000-0000-000000000001"
+	encoded := regexp.MustCompile("[^A-Za-z0-9]").ReplaceAllString(web, "-")
+	transcript := write(t, filepath.Join(scratch, ".claude", "projects", encoded, s1+".jsonl"),
+		`{"type":"user","cwd":`+strconv.Quote(web)+`,"message":{"role":"user","content":"move the flag into config"}}`+"\n"+
+			`{"type":"ai-title","aiTitle":`+strconv.Quote(title)+`}`+"\n")
+	say := func(lines ...string) {
+		t.Helper()
+		f, err := os.OpenFile(transcript, os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = f.Close() }()
+		for _, l := range lines {
+			if _, err := f.WriteString(l + "\n"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	text := func(s string) string {
+		return `{"type":"assistant","cwd":` + strconv.Quote(web) + `,"message":{"role":"assistant","content":[{"type":"text","text":` + strconv.Quote(s) + `}]}}`
+	}
+	prompt := func(s string) string {
+		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":` + strconv.Quote(s) + `}}`
+	}
+	tool := func(id, name, input string) string {
+		return `{"type":"assistant","cwd":` + strconv.Quote(web) + `,"message":{"role":"assistant","content":[{"type":"tool_use","id":"` + id + `","name":"` + name + `","input":` + input + `}]}}`
+	}
+	result := func(id string) string {
+		return `{"type":"user","cwd":` + strconv.Quote(web) + `,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"` + id + `","content":"ok"}]}}`
+	}
+
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	out, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "-P", "-F", "#{window_id} #{pane_id}", "sleep 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	win, own, _ := strings.Cut(strings.TrimSpace(out), " ")
+	if _, err := srv.Do(tmux.SetPane(own, panelMark, "1")); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, own, "/x")
+	ws.hold = "sleep 1000"
+
+	// The conversation runs in a pane conn holds in web, its instance
+	// file saying what Claude Code would; a dev server runs beside it,
+	// a row for the cursor to rest on.
+	webPane, err := openWindow(srv, "web", web, "sleep 1000", s1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := srv.Run("display", "-p", "-t", webPane, "#{pane_pid}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance := filepath.Join(scratch, ".claude", "sessions", strings.TrimSpace(pid)+".json")
+	status := func(s string) {
+		write(t, instance, `{"sessionId":"`+s1+`","status":"`+s+`","cwd":"`+web+`"}`)
+	}
+	if _, err := startNamed(srv, "dev", "exec sleep 1000", web, web, roleStack); err != nil {
+		t.Fatal(err)
+	}
+
+	k := newKnown()
+	k.root[web] = web
+	m := model{srv: srv, ws: ws, own: own, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
+	var update func(m model, msg tea.Msg) model
+	update = func(m model, msg tea.Msg) model {
+		if msg == nil {
+			return m
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					m = update(m, c())
+				}
+			}
+			return m
+		}
+		next, _ := m.Update(msg)
+		return next.(model)
+	}
+	press := func(k tea.Key) {
+		next, c := m.Update(tea.KeyPressMsg(k))
+		m = next.(model)
+		if c != nil {
+			m = update(m, c())
+		}
+	}
+	// What the projects screen, at the width given, and web's panel
+	// draw, read now beside what m has seen.
+	projectsNow := func(width int) model {
+		p := m
+		p.screen, p.cursor, p.width, p.height = onProjects, 0, width, 36
+		return update(p, p.read()())
+	}
+	panelNow := func() model {
+		p := m
+		if p.screen != onProject || p.cur.Root != web {
+			p.screen, p.cur, p.rows, p.cursor = onProject, project{Name: "web", Root: web}, nil, 0
+		}
+		p.width, p.height = panelWidth, 34
+		p = update(p, p.read()())
+		// The cursor off the conversation's row, on the dev server's.
+		for i, it := range p.items() {
+			if it.row >= 0 && p.rows[it.row].conv == nil {
+				p.cursor = i
+			}
+		}
+		return p
+	}
+	screen := func(m model) (raw, lines []string) {
+		raw, _ = m.draw()
+		lines = make([]string, len(raw))
+		for i := range raw {
+			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
+		}
+		return raw, lines
+	}
+	saying := func(lines []string, s string) int {
+		for i, l := range lines {
+			if strings.Contains(l, s) {
+				return i
+			}
+		}
+		return -1
+	}
+	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
+	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	lastSGR := func(s string) string {
+		all := sgr.FindAllString(s, -1)
+		if len(all) == 0 {
+			return ""
+		}
+		return all[len(all)-1]
+	}
+	grayInk := lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0])
+
+	shot := 0
+	frame := func(name string, v model) {
+		if shots == "" {
+			return
+		}
+		if shot++; shot > 6 {
+			return
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		for _, l := range strings.Split(v.View().Content, "\n") {
+			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		if v.screen == onProject {
+			b.WriteString(drawnStatus(t, srv))
+		}
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	// under checks that, under the conversation's name on v's screen,
+	// a gray line starting under the name says want, whole or, with cut,
+	// as much of it as fits with "…" two columns before the edge at
+	// width; or, with want blank, that no line is under it.
+	screenName := map[int]string{int(onProjects): "projects screen", int(onProject): "panel"}
+	under := func(what string, v model, want string, cut bool, width int) {
+		t.Helper()
+		raw, lines := screen(v)
+		all := strings.Join(lines, "\n")
+		if want == "" {
+			for _, said := range []string{"Should I also", "All tests pass", "wants to"} {
+				if saying(lines, said) >= 0 {
+					t.Errorf("%s, the %s still says %q:\n%s", what, screenName[int(v.screen)], said, all)
+				}
+			}
+			return
+		}
+		at := saying(lines, title)
+		if at < 0 {
+			t.Fatalf("%s, the %s has no line for the conversation:\n%s", what, screenName[int(v.screen)], all)
+		}
+		next := ""
+		if at+1 < len(lines) {
+			next = lines[at+1]
+		}
+		got := strings.TrimLeft(next, " ")
+		if cut {
+			if !strings.HasSuffix(got, "…") || ansi.StringWidth(next) != width-2 || !strings.HasPrefix(want, strings.TrimSuffix(got, "…")) {
+				t.Errorf("%s, the %s's line %q (%d columns) is not the start of %q cut with … at %d columns:\n%s", what, screenName[int(v.screen)], next, ansi.StringWidth(next), want, width-2, all)
+				return
+			}
+		} else if got != want {
+			t.Errorf("%s, under the conversation's name the %s says %q, want %q:\n%s", what, screenName[int(v.screen)], got, want, all)
+			return
+		}
+		if name := strings.Index(lines[at], title); indent(next) != ansi.StringWidth(lines[at][:name]) {
+			t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, next, indent(next), lines[at])
+		}
+		if i := strings.Index(raw[at+1], got[:1]); i < 0 || lastSGR(raw[at+1][:i]) != grayInk {
+			t.Errorf("%s, the line %q is not in the gray: %q", what, next, raw[at+1])
+		}
+	}
+
+	// At work, nothing is said under it.
+	status("busy")
+	m = update(m, m.read()())
+	under("at work", projectsNow(120), "", false, 120)
+
+	// The turn over, its last message's last line is said, on both.
+	const question = "Should I also update the docs?"
+	say(text("I moved the flag into config and the tests pass.\n\n" + question))
+	status("idle")
+	m = update(m, m.read()())
+	under("with the turn handed back on a question", projectsNow(120), question, false, 120)
+	under("with the turn handed back on a question", panelNow(), question, false, panelWidth)
+	if _, lines := screen(projectsNow(120)); saying(lines, "I moved the flag") >= 0 {
+		t.Errorf("the projects screen says more than the message's last line:\n%s", strings.Join(lines, "\n"))
+	}
+	frame("handed-back-120x36.ans", projectsNow(120))
+	frame("handed-back-panel-120x36.ans", panelNow())
+
+	// At work again, the line goes.
+	say(prompt("yes, please"))
+	status("busy")
+	m = update(m, m.read()())
+	under("at work again", projectsNow(120), "", false, 120)
+	under("at work again", panelNow(), "", false, panelWidth)
+
+	// Handed back on a statement, and one too long for the panel: cut
+	// with "…" two columns before the edge.
+	const long = "All tests pass; pushed to story/9. The branch is ready for review whenever you are."
+	say(text("Done.\n" + long))
+	status("idle")
+	m = update(m, m.read()())
+	under("with a long last line, in the room", projectsNow(120), long, false, 120)
+	under("with a long last line", projectsNow(panelWidth), long, true, panelWidth)
+	under("with a long last line", panelNow(), long, true, panelWidth)
+	frame("long-120x36.ans", panelNow())
+
+	// Stopped on a command, it still says what it wants to run, and
+	// not how a message ended.
+	say(prompt("then go on"))
+	status("busy")
+	m = update(m, m.read()())
+	say(text("Cleaning up."), tool("toolu_1", "Bash", `{"command":"rm -rf dist"}`))
+	status("waiting")
+	m = update(m, m.read()())
+	under("stopped on a command", projectsNow(120), "wants to run: rm -rf dist", false, 120)
+	under("stopped on a command", panelNow(), "wants to run: rm -rf dist", false, panelWidth)
+
+	// Handed back once more, then gone into: the line goes.
+	say(result("toolu_1"), text("All tests pass; pushed to story/9."))
+	status("busy")
+	m = update(m, m.read()())
+	status("idle")
+	m = update(m, m.read()())
+	under("with the turn handed back again", projectsNow(120), "All tests pass; pushed to story/9.", false, 120)
+	press(tea.Key{Code: tea.KeyTab})
+	if m.in != webPane {
+		t.Fatalf("tab went into %q, want the conversation %s", m.in, webPane)
+	}
+	m = update(m, m.read()())
+	under("gone into", projectsNow(120), "", false, 120)
+	under("gone into", panelNow(), "", false, panelWidth)
+	frame("looked-at-120x36.ans", projectsNow(120))
+}

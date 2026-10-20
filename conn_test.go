@@ -643,6 +643,12 @@ func TestState(t *testing.T) {
 }
 
 func TestStanding(t *testing.T) {
+	if got := (project{Running: 2, Failed: 1}).standing(); got != "2 running · 1 failed" {
+		t.Errorf("standing = %q", got)
+	}
+	if got := (project{Last: time.Now().Add(-40 * time.Second)}).standing(); got != "40s" {
+		t.Errorf("standing a moment later = %q", got)
+	}
 	if got := (project{Running: 2, Waiting: 1}).standing(); got != "1 waiting · 2 running" {
 		t.Errorf("standing = %q", got)
 	}

@@ -695,12 +695,20 @@ func (m model) read() tea.Cmd {
 		starts := readStarted(startedPath(srv.Socket))
 		active, _ := srv.Display(window, "#{pane_id}")
 		back := k.handedBack(held, live, active)
-		running, waiting, turning := map[string]int{}, map[string]int{}, map[string]int{}
+		running, waiting, turning, failed := map[string]int{}, map[string]int{}, map[string]int{}, map[string]int{}
 		total, broke := 0, 0
 		for _, p := range held {
 			seen = append(seen, sighting{Dir: p.Dir, When: time.Now()})
 			root := k.rootOf(p.Dir)
-			running[root]++
+			// A run that ended is not running; one that ended in an
+			// error is counted as failed.
+			switch {
+			case p.started() && p.Exit != "" && p.Exit != "0":
+				failed[root]++
+				broke++
+			case p.Exit == "":
+				running[root]++
+			}
 			if p.Exit == "" && (p.Name == "" && p.Role == roleCheck || isCheck(starts, root, p.Name)) {
 				turning[root]++
 			}
@@ -708,11 +716,6 @@ func (m model) read() tea.Cmd {
 			if _, ok := back[p.ID]; ok {
 				waiting[root]++
 				total++
-			}
-		}
-		for _, p := range held {
-			if p.started() && p.Exit != "" && p.Exit != "0" {
-				broke++
 			}
 		}
 		for _, r := range live {
@@ -733,7 +736,7 @@ func (m model) read() tea.Cmd {
 		}
 		found := findProjects(repos, seen, home, k.rootOf)
 		for i := range found {
-			found[i].Running, found[i].Waiting, found[i].Turning = running[found[i].Root], waiting[found[i].Root], turning[found[i].Root]
+			found[i].Running, found[i].Waiting, found[i].Turning, found[i].Failed = running[found[i].Root], waiting[found[i].Root], turning[found[i].Root], failed[found[i].Root]
 		}
 		r.projects = group(found, func(dir string) bool { return k.isFolder(dir, home) })
 		// Each conversation waiting on you, on a question or with a
@@ -1753,7 +1756,7 @@ func (m model) endAll(p project) tea.Cmd {
 			}
 			n++
 		}
-		said := fmt.Sprintf("%s: ended %d", p.Name, n)
+		said := fmt.Sprintf("%s: %d ended", p.Name, n)
 		if len(failed) > 0 {
 			said += "; " + strings.Join(failed, "; ")
 		}
@@ -2967,8 +2970,10 @@ func ago(t time.Time) string {
 	switch {
 	case t.IsZero():
 		return ""
-	case d < time.Minute:
+	case d < 10*time.Second:
 		return "now"
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d/time.Second))
 	case d < time.Hour:
 		return fmt.Sprintf("%dm", int(d/time.Minute))
 	case d < 24*time.Hour:
@@ -2996,6 +3001,9 @@ func (p project) standing() string {
 	}
 	if p.Running > 0 {
 		said = append(said, fmt.Sprintf("%d running", p.Running))
+	}
+	if p.Failed > 0 {
+		said = append(said, fmt.Sprintf("%d failed", p.Failed))
 	}
 	if len(said) == 0 {
 		return ago(p.Last)

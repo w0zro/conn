@@ -21,8 +21,9 @@ type project struct {
 	// What runs in it in conn, and its conversations waiting on you,
 	// wherever they run. Turning is what is at work on something that
 	// will come to rest: its conversations working, wherever they run,
-	// and its checks running.
-	Running, Waiting, Turning int
+	// and its checks running. Failed is the runs that ended in an
+	// error; a run that ended is not running.
+	Running, Waiting, Turning, Failed int
 	// Group is a folder holding two or more repositories: listed with
 	// them beneath it, and a project of its own that takes in all of
 	// theirs. Depth is a project's place under its folder in the list.
@@ -85,6 +86,7 @@ func group(ps []project, folder func(string) bool) []project {
 		f.Running += p.Running
 		f.Waiting += p.Waiting
 		f.Turning += p.Turning
+		f.Failed += p.Failed
 		if p.Last.After(f.Last) {
 			f.Last = p.Last
 		}

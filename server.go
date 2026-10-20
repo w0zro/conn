@@ -816,13 +816,16 @@ func newID() string {
 
 // leave lets the terminal go that conn was last used from, and keeps
 // everything in conn running. It is named: tmux's current client can
-// be conn's own control-mode client, which watches the server.
+// be conn's own control-mode client, which watches the server. The
+// client is replaced by true rather than let go: a client let go says
+// [detached (from session conn)] on the terminal as it ends, which is
+// tmux's word, and the one replaced says nothing and ends as well.
 func leave(srv *tmux.Server) error {
 	cs := terminals(srv)
 	if len(cs) == 0 {
 		return srv.Detach()
 	}
-	_, err := srv.Do(tmux.Cmd{"detach-client", "-t", cs[0]})
+	_, err := srv.Do(tmux.Cmd{"detach-client", "-t", cs[0], "-E", "true"})
 	return err
 }
 

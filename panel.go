@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"charm.land/bubbles/v2/textinput"
@@ -66,6 +67,9 @@ type model struct {
 	note          string // what the last key could not do, or did
 	// !'s line: whether it is being typed.
 	asking bool
+	// A conversation from another terminal enter has asked about: y
+	// brings it in, ending it where it runs.
+	bringing *row
 	// ?: the screen's keys, over it, until a key puts them away.
 	helping bool
 	// The box: the one line being typed, whichever it is - the projects'
@@ -143,6 +147,7 @@ type row struct {
 	pane      *pane
 	outside   *proc    // a server in the project that conn does not hold
 	elsewhere bool     // running in a terminal conn does not hold
+	pid       int      // the process of one running elsewhere
 	state     string   // working, waiting or idle, where Claude Code says
 	ports     []string // what it listens on
 	repo      string   // in a folder of repositories, the one it is in
@@ -907,7 +912,7 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 			running = append(running, row{conv: &c, pane: at, state: run.state()})
 		case isLive:
 			c.Title = title(c)
-			elsewhere = append(elsewhere, row{conv: &c, elsewhere: true, state: run.state()})
+			elsewhere = append(elsewhere, row{conv: &c, elsewhere: true, pid: run.PID, state: run.state()})
 		case len(rest) < conversationsShown:
 			c.Title = title(c)
 			rest = append(rest, row{conv: &c})
@@ -1183,6 +1188,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.boot != nil {
 			return m.bootMsg(msg)
 		}
+	case broughtMsg:
+		return m.brought(msg)
 	case tea.KeyPressMsg:
 		m.note = ""
 		if m.boot != nil {
@@ -1197,6 +1204,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.settings {
 			return m.settingsKey(msg)
+		}
+		if m.bringing != nil {
+			return m.bringKey(msg)
 		}
 		if m.asking {
 			return m.lineKey(msg)
@@ -1970,7 +1980,7 @@ func (m model) goIn() (tea.Model, tea.Cmd) {
 // leaves it, a note in the foot included, and the note is let go of
 // after.
 func (m model) click(y int) (tea.Model, tea.Cmd) {
-	if m.helping || m.settings || m.asking || m.question != "" || m.listing || m.searching {
+	if m.helping || m.settings || m.asking || m.bringing != nil || m.question != "" || m.listing || m.searching {
 		m.note = ""
 		return m, nil
 	}
@@ -2006,7 +2016,12 @@ func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 		m.asked = r.pane.ID
 		return m, m.showing(r.pane.ID, true)
 	case r.elsewhere:
-		m.note = "it runs in a terminal conn does not hold"
+		if r.state == "working" {
+			m.note = "working; it can come in when its turn ends"
+			return m, nil
+		}
+		m.bringing = &r
+		return m, nil
 	case r.conv != nil:
 		dir := r.conv.Dir
 		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
@@ -2020,6 +2035,56 @@ func (m model) goTo(r row) (tea.Model, tea.Cmd) {
 		return m.start(dir, resumeCommand(note, r.conv.ID), r.conv.ID)
 	}
 	return m, nil
+}
+
+// broughtMsg is a conversation from another terminal, ended there.
+type broughtMsg struct {
+	row row
+	err error
+}
+
+// bringKey is a key while the foot asks whether to bring in a
+// conversation from another terminal: y ends it there, esc leaves it,
+// and nothing else is a word.
+func (m model) bringKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	r := *m.bringing
+	switch k.String() {
+	case "y":
+		m.bringing, m.note = nil, "ending it in its terminal…"
+		return m, func() tea.Msg { return broughtMsg{row: r, err: endProcess(r.pid)} }
+	case "esc", "n", "q":
+		m.bringing, m.note = nil, ""
+	}
+	return m, nil
+}
+
+// endProcess asks a process to end and waits for it to be gone.
+func endProcess(pid int) error {
+	if pid <= 0 {
+		return fmt.Errorf("it has no process to end")
+	}
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
+		return err
+	}
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		if syscall.Kill(pid, 0) != nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("it did not end in its terminal")
+}
+
+// brought picks a conversation back up in conn's window once it has
+// ended in the other terminal.
+func (m model) brought(msg broughtMsg) (tea.Model, tea.Cmd) {
+	m.note = ""
+	if msg.err != nil {
+		m.note = msg.err.Error()
+		return m, nil
+	}
+	r := msg.row
+	r.elsewhere = false
+	return m.goTo(r)
 }
 
 // tells leaves what a conversation started in the project is told
@@ -2421,6 +2486,7 @@ var (
 	}
 	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
+	bringHints    = []keyHint{{"y", "bring it in"}, {"esc", "leave it"}}
 	askHints      = []keyHint{{"type", "a command"}, {"enter", "runs it, or a shell"}, {"esc", "cancel"}}
 	backHints     = []keyHint{{"esc", "back"}}
 	settingsHints = []keyHint{{"j k", "move"}, {"g G", "top, bottom"}, {"enter", "set"}, {"esc", "back"}}
@@ -2488,6 +2554,10 @@ func (m model) draw() ([]string, foot) {
 	}
 	if m.note != "" {
 		f.say = m.note
+	}
+	if m.bringing != nil {
+		f.say = "bring it in? it ends in its terminal"
+		f.hints = bringHints
 	}
 	if m.asking {
 		before, after := m.boxText()

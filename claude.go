@@ -379,6 +379,7 @@ func flatten(s string) string { return strings.Join(strings.Fields(s), " ") }
 // A claudeRun is a Claude Code instance running now: the terminal it
 // runs on, where it was started, and what it says it is doing.
 type claudeRun struct {
+	PID    int
 	TTY    string
 	Cwd    string
 	Status string
@@ -459,7 +460,7 @@ func liveClaude() map[string]claudeRun {
 		if !ok || !beganAt(in.ProcStart, ps.started) {
 			continue
 		}
-		live[in.SessionID] = claudeRun{TTY: ps.tty, Cwd: in.Cwd, Status: in.Status}
+		live[in.SessionID] = claudeRun{PID: pid, TTY: ps.tty, Cwd: in.Cwd, Status: in.Status}
 	}
 	return live
 }

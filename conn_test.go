@@ -3595,10 +3595,11 @@ func TestTheTitleIsTheShimmer(t *testing.T) {
 	}
 }
 
-// A click on the panel is the cursor to what it landed on, and in: a
-// row's pane in the workspace, another project's line opened, and a
-// project on the projects screen opened. A click on the head, a label
-// or the air is nothing.
+// A click on the panel is the cursor to the row it landed on, and in:
+// its pane in the workspace; on another project's line it opens the
+// project, the mark moving to it, and the cursor stays where it is;
+// on the projects screen it opens the project. A click on the head, a
+// label or the air is nothing.
 func TestClick(t *testing.T) {
 	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
 	lineOf := func(m model, word string) int {
@@ -3632,9 +3633,30 @@ func TestClick(t *testing.T) {
 	if got := click(m, 1); got.cursor != 0 || got.in != "" {
 		t.Errorf("a click on the head: cursor %d in %q", got.cursor, got.in)
 	}
-	if got := click(m, lineOf(m, "other")); got.screen != onProject || got.opening == nil || got.opening.Root != "/q" {
-		t.Errorf("a click on another project's line: opening %v", got.opening)
+	m.cursor = 1
+	if got := click(m, lineOf(m, "other")); got.screen != onProject || got.opening == nil || got.opening.Root != "/q" || got.cursor != 1 {
+		t.Errorf("a click on another project's line: opening %v, cursor %d, want the cursor left at 1", got.opening, got.cursor)
 	}
+	// On the open project's own line, in the strip under the label,
+	// nothing.
+	m.projects = append(m.projects, project{Name: "d", Root: "/p", Running: 1})
+	own := -1
+	if inner, _ := m.inner(); true {
+		lines, _ := inner.draw()
+		for i := lineOf(m, "projects"); i < len(lines); i++ {
+			if strings.Contains(plain.ReplaceAllString(lines[i], ""), " d ") {
+				own = i
+				break
+			}
+		}
+	}
+	if own < 0 {
+		t.Fatal("the open project has no line in the strip")
+	}
+	if got := click(m, own); got.cursor != 1 || got.opening != nil {
+		t.Errorf("a click on the open project's line: cursor %d, opening %v", got.cursor, got.opening)
+	}
+	m.cursor = 0
 	// A note in the foot lifts the strip; the click is measured as
 	// drawn, and the note is let go of.
 	noted := m

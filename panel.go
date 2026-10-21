@@ -1963,9 +1963,10 @@ func (m model) goIn() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// click is a left click on the panel: the cursor goes to the row or the
-// project's line under it, and in, as enter does. A click anywhere else
-// is nothing. The screen is measured as drawn, in the rows the foot
+// click is a left click on the panel: the cursor goes to the row under
+// it, and in, as enter does; a project's line under it is opened, the
+// mark moving to it, and the cursor stays where it is. A click
+// anywhere else is nothing. The screen is measured as drawn, in the rows the foot
 // leaves it, a note in the foot included, and the note is let go of
 // after.
 func (m model) click(y int) (tea.Model, tea.Cmd) {
@@ -1983,7 +1984,14 @@ func (m model) click(y int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if i, ok := inner.itemOn(y); ok {
-		m.cursor, m.follow, m.verb = i, "", ""
+		m.verb = ""
+		if it := m.items()[i]; it.row < 0 {
+			if m.isOpen(it.project) {
+				return m, nil
+			}
+			return m.open(it.project)
+		}
+		m.cursor, m.follow = i, ""
 		return m.goIn()
 	}
 	return m, nil

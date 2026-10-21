@@ -110,7 +110,7 @@ func established(starts []started, in func(root string) bool, as role) []stacked
 	var out []stacked
 	for _, key := range order {
 		if r := last[key]; r.Role == as {
-			out = append(out, stacked{name: r.Name, command: r.Command, root: r.Root})
+			out = append(out, stacked{name: r.Name, command: r.Command, root: r.Root, kept: true})
 		}
 	}
 	return out

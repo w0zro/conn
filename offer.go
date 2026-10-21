@@ -2,12 +2,15 @@ package main
 
 import (
 	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/w0zro/conn/internal/shell"
 	"github.com/w0zro/conn/internal/tmux"
 )
@@ -16,10 +19,13 @@ import (
 // settled in the workspace, not on the panel. The panel starts conn's
 // own program for it, conn offer, in a pane of its own, and shows it
 // in the workspace with the keys in it, as it shows a row's pane. The
-// program lists what is written down, or asks Claude Code where
+// program lists what is written down, and asks Claude Code where
 // nothing is; enter starts each line under its name, as conn u starts
 // one, writes it down as what the role means here, and watches the
-// starts for a moment (see again.go). Done, it puts the keys back on
+// starts for a moment (see again.go). A folder of repositories is a
+// project whose stack and checks are its repositories': what each has
+// written down is listed under it, and each with nothing is asked
+// about in a question of its own, the answers one list. Done, it puts the keys back on
 // the panel and ends, and the panel, reading its pane ended, puts the
 // cursor on the first pane it started. Its pane is marked as a hold:
 // no row, and the workspace moving on takes it with it.
@@ -86,10 +92,13 @@ type offerModel struct {
 	at      int
 	pruned  *pruned
 	// Asking Claude Code what the role means, or, with again set,
-	// about the runs that failed at once.
-	asking bool
-	again  []failure
-	err    string
+	// about the runs that failed at once: the repositories asked and
+	// not yet answered, and what each that gave no line said instead.
+	asking  bool
+	pending map[string]bool
+	unsaid  map[string]string
+	again   []failure
+	err     string
 	// The starts enter made, and what each is doing by the last read;
 	// and the first pane started, blank for none.
 	runs  []watched
@@ -102,20 +111,56 @@ type offerModel struct {
 }
 
 // newOffer is the question for a role in a project: what is written
-// down, listed, or nothing, to ask about.
+// down, listed, and each repository with nothing written down to ask
+// about.
 func newOffer(srv *tmux.Server, as role, p project, dir, own string) offerModel {
 	o := offerModel{srv: srv, as: as, p: p, dir: dir, own: own, width: 80, height: 24}
-	if list := established(readStarted(startedPath(srv.Socket)), p.belongs, as); len(list) > 0 {
-		o.list, o.written = list, true
-	} else {
-		o.asking = true
+	o.list = established(readStarted(startedPath(srv.Socket)), p.belongs, as)
+	o.written = len(o.list) > 0
+	o.pending = map[string]bool{}
+	for _, root := range o.repos() {
+		has := false
+		for _, s := range o.list {
+			has = has || s.root == root
+		}
+		if !has {
+			o.pending[root] = true
+		}
 	}
+	o.asking = len(o.pending) > 0
 	return o
+}
+
+// repos is the project's repositories: for a folder, the checkouts in
+// it; otherwise the project itself.
+func (o offerModel) repos() []string {
+	if o.p.Group {
+		return repositories(o.p.Root, 1)
+	}
+	return []string{o.p.Root}
+}
+
+// repoName is a repository as the question names it: by its folder.
+func repoName(root string) string {
+	return filepath.Base(root)
+}
+
+// asks is the question put to Claude Code for each repository pending,
+// each off the loop.
+func (o offerModel) asks(ask func(p project) tea.Cmd) tea.Cmd {
+	var cmds []tea.Cmd
+	for _, root := range o.repos() {
+		if o.pending[root] {
+			cmds = append(cmds, ask(project{Root: root, Name: repoName(root)}))
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 func (o offerModel) Init() tea.Cmd {
 	if o.asking {
-		return askRole(o.p, o.as)
+		as := o.as
+		return o.asks(func(p project) tea.Cmd { return askRole(p, as) })
 	}
 	return nil
 }
@@ -128,18 +173,39 @@ func (o offerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		o.width, o.height = msg.Width, msg.Height
 	case roleAnswer:
-		if !o.asking || msg.as != o.as {
+		// One repository's answer: its lines go on the list under it;
+		// what it said instead is kept to show. The last answer in
+		// settles the question: nothing listed at all is Claude's last
+		// word, or why it would not say.
+		if !o.asking || msg.as != o.as || !o.pending[msg.root] {
+			return o, nil
+		}
+		delete(o.pending, msg.root)
+		switch {
+		case msg.kept:
+		case msg.err != "":
+			if o.unsaid == nil {
+				o.unsaid = map[string]string{}
+			}
+			o.unsaid[msg.root] = msg.err
+		default:
+			for _, s := range msg.list {
+				s.root = msg.root
+				o.list = append(o.list, s)
+			}
+		}
+		if len(o.pending) > 0 {
 			return o, nil
 		}
 		o.asking = false
+		o.order()
 		switch {
-		case msg.kept:
+		case len(o.list) > 0:
+		case len(o.again) > 0 && len(o.unsaid) == 0:
 			o.over = names(o.again) + " failed at once; Claude says the command is right and the failure is the project's"
 			o.again = nil
-		case msg.err != "":
-			o.err = msg.err
 		default:
-			o.list, o.written, o.at, o.pruned = msg.list, false, 0, nil
+			o.err = strings.Join(o.unsaidLines(), "; ")
 		}
 	case startedRoles:
 		o.note = msg.said
@@ -183,24 +249,32 @@ func (o offerModel) key(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		o.at = max(o.at-1, 0)
 	case "x":
+		// A line written down is taken off for good; one Claude Code
+		// just named is only off the list.
 		if o.written && o.at < len(o.list) {
 			s := o.list[o.at]
-			if err := recordStart(startedPath(o.srv.Socket), started{Root: or(s.root, o.p.Root), Name: s.name, Command: s.command, Role: roleOff}); err != nil {
-				o.note = err.Error()
-				return o, nil
+			if s.kept {
+				if err := recordStart(startedPath(o.srv.Socket), started{Root: or(s.root, o.p.Root), Name: s.name, Command: s.command, Role: roleOff}); err != nil {
+					o.note = err.Error()
+					return o, nil
+				}
+				o.note = s.name + " is off for good: " + o.keys() + " won't run it and new agents aren't told it; u puts it back"
+			} else {
+				o.note = s.name + " is off the list; u puts it back"
 			}
 			o.pruned = &pruned{s, o.at}
 			o.list = append(append([]stacked{}, o.list[:o.at]...), o.list[o.at+1:]...)
 			o.at = min(o.at, max(len(o.list)-1, 0))
-			o.note = s.name + " is off for good: " + o.keys() + " won't run it and new agents aren't told it; u puts it back"
 		}
 	case "u":
 		// Undo: the line x last took off is written down again as what
-		// it was, and stands where it stood.
+		// it was, where it was written down, and stands where it stood.
 		if p := o.pruned; o.written && p != nil {
-			if err := recordStart(startedPath(o.srv.Socket), started{Root: or(p.s.root, o.p.Root), Name: p.s.name, Command: p.s.command, Role: o.as}); err != nil {
-				o.note = err.Error()
-				return o, nil
+			if p.s.kept {
+				if err := recordStart(startedPath(o.srv.Socket), started{Root: or(p.s.root, o.p.Root), Name: p.s.name, Command: p.s.command, Role: o.as}); err != nil {
+					o.note = err.Error()
+					return o, nil
+				}
 			}
 			at := min(p.at, len(o.list))
 			o.list = append(append(append([]stacked{}, o.list[:at]...), p.s), o.list[at:]...)
@@ -250,7 +324,7 @@ func (o offerModel) start() (tea.Model, tea.Cmd) {
 		o.runs = append(o.runs, watched{project: p.Root, stacked: s, as: as, at: now})
 		o.state[s.name] = "starting"
 	}
-	o.again = nil
+	o.again, o.unsaid = nil, nil
 	return o, func() tea.Msg {
 		ps, _ := panes(srv)
 		var said []string
@@ -351,8 +425,22 @@ func (o offerModel) watched(ps []pane, at time.Time) (tea.Model, tea.Cmd) {
 	if len(o.again) == 0 {
 		return o.leave()
 	}
-	o.asking = true
-	return o, askAgain(o.srv, o.p, o.as, o.again)
+	// Each repository with a failure is asked about its own, and the
+	// answers are one list, offered instead.
+	o.list, o.written, o.at, o.pruned, o.unsaid = nil, false, 0, nil, nil
+	o.asking, o.pending = true, map[string]bool{}
+	byRoot := map[string][]failure{}
+	for _, f := range o.again {
+		root := or(f.root, o.p.Root)
+		o.pending[root] = true
+		byRoot[root] = append(byRoot[root], f)
+	}
+	srv, as := o.srv, o.as
+	var cmds []tea.Cmd
+	for root, failed := range byRoot {
+		cmds = append(cmds, askAgain(srv, project{Root: root, Name: repoName(root)}, as, failed))
+	}
+	return o, tea.Batch(cmds...)
 }
 
 // holds says whether a pane of a process stands in the project: by
@@ -380,12 +468,19 @@ func runOf(ps []pane, p project, w watched) (pane, bool) {
 // View is the question in the pane: the project's head, what stands
 // under it, and the keys on the last row.
 func (o offerModel) View() tea.View {
-	lines, keys := o.draw()
+	before, rows, after, keys := o.parts()
 	feet := []string{""}
 	if o.note != "" {
 		feet = model{width: o.width + 2}.feet(foot{say: o.note})
 	}
 	feet = append(feet, at(keyLine(keys)))
+	// A list longer than the pane is shown in a window around the
+	// cursor's line.
+	if room := o.height - len(feet) - len(before) - len(after); room > 0 && len(rows) > room {
+		start := min(max(o.at-room/2, 0), len(rows)-room)
+		rows = rows[start : start+room]
+	}
+	lines := append(append(before, rows...), after...)
 	h := max(o.height, len(lines)+len(feet))
 	for len(lines) < h-len(feet) {
 		lines = append(lines, "")
@@ -408,6 +503,13 @@ func keyLine(keys []keyHint) string {
 
 // draw is the question's lines and its keys.
 func (o offerModel) draw() ([]string, []keyHint) {
+	before, rows, after, keys := o.parts()
+	return append(append(before, rows...), after...), keys
+}
+
+// parts is the question's screen in three: what stands before the
+// list, the list's rows, and what stands after it; and its keys.
+func (o offerModel) parts() (before, rows, after []string, keys []keyHint) {
 	what, verb, ask, again := "runs", "start them", "Start these in "+o.p.Name+"?", "what to start"
 	if o.as == roleCheck {
 		what, verb, ask, again = "checks", "run them", "Run these checks in "+o.p.Name+"?", "what they are"
@@ -416,28 +518,30 @@ func (o offerModel) draw() ([]string, []keyHint) {
 	if o.as == roleCheck {
 		with = "the checks"
 	}
+	m := model{width: o.width + 2}
+	say := func(s string) string { return m.row([]piece{{s, gray}}, piece{}, false) }
 	lines := head(o.p.Name, with)
 	switch {
 	case o.over != "":
 		lines = append(lines, at(ink.Render(o.over)))
-		return lines, []keyHint{{"esc", "close"}}
+		return lines, nil, nil, []keyHint{{"esc", "close"}}
 	case o.err != "":
-		lines = append(lines, at(ink.Render("Claude would not say what "+what+" "+o.p.Name+":")), at(gray.Render(o.err)))
-		return lines, []keyHint{{"esc", "close"}}
+		lines = append(lines, at(ink.Render("Claude would not say what "+what+" "+o.p.Name+":")), say(o.err))
+		return lines, nil, nil, []keyHint{{"esc", "close"}}
 	case o.asking && len(o.again) > 0:
-		lines = append(lines, at(gray.Render(names(o.again)+" failed at once; asking Claude again…")))
-		return lines, []keyHint{{"esc", "leave it"}}
-	case o.asking:
-		lines = append(lines, at(gray.Render("Nobody has done it here yet; asking Claude what "+what+" "+o.p.Name+"…")))
-		return lines, []keyHint{{"esc", "cancel"}}
+		lines = append(lines, say(names(o.again)+" failed at once; asking Claude again…"))
+		return lines, nil, nil, []keyHint{{"esc", "leave it"}}
+	case o.asking && len(o.list) == 0:
+		lines = append(lines, say("Nobody has done it here yet; asking Claude what "+what+" "+o.asked()+"…"))
+		return lines, nil, nil, []keyHint{{"esc", "cancel"}}
 	case len(o.runs) > 0 || o.state != nil && len(o.again) == 0:
 		// The starts, each with what it is doing, while they are
 		// watched.
 		lines = append(lines, at(title.Render("Starting in "+o.p.Name)), "")
-		return append(lines, o.rows(false, func(s stacked) string { return o.state[s.name] })...), []keyHint{{"esc", "leave them"}}
+		return lines, o.rows(false, func(s stacked) string { return o.state[s.name] }), nil, []keyHint{{"esc", "leave them"}}
 	case o.written && len(o.list) == 0:
 		lines = append(lines, at(ink.Render("No "+what+" written down in "+o.p.Name+". "+o.keys()+" asks Claude "+again+".")))
-		return lines, []keyHint{{"esc", "close"}}
+		return lines, nil, nil, []keyHint{{"esc", "close"}}
 	}
 	if len(o.again) > 0 {
 		ask = "Start these instead?"
@@ -445,30 +549,104 @@ func (o offerModel) draw() ([]string, []keyHint) {
 			ask = "Run these instead?"
 		}
 	}
-	m := model{width: o.width + 2}
 	count := ""
 	if o.written {
 		count = strconv.Itoa(len(o.list))
 	}
 	lines = append(lines, m.row([]piece{{ask, title}}, piece{count, gray}, false), "")
-	lines = append(lines, o.rows(o.written, func(stacked) string { return "" })...)
-	keys := []keyHint{{"enter", verb}, {"esc", "run nothing"}}
+	rows = o.rows(o.written, func(stacked) string { return "" })
+	// A folder's repositories that are still asked, and those that
+	// named nothing, under the list.
+	if o.asking {
+		after = append(after, "", say("asking Claude what "+what+" "+o.asked()+"…"))
+	}
+	for _, u := range o.unsaidLines() {
+		after = append(after, say(u))
+	}
+	keys = []keyHint{{"enter", verb}, {"esc", "run nothing"}}
+	if o.asking {
+		keys = keys[1:]
+	}
 	if o.written {
 		keys = append([]keyHint{{"j k", "move"}, {"x", "take off for good"}}, keys...)
 		if o.pruned != nil {
 			keys = append(keys, keyHint{"u", "put it back"})
 		}
 	}
-	return lines, keys
+	return lines, rows, after, keys
+}
+
+// order stands the lines Claude Code named by repository, as the
+// folder lists them, after what is written down: the answers come in
+// as they come.
+func (o *offerModel) order() {
+	at := map[string]int{}
+	for i, root := range o.repos() {
+		at[root] = i
+	}
+	sort.SliceStable(o.list, func(i, j int) bool {
+		a, b := o.list[i], o.list[j]
+		if a.kept != b.kept {
+			return a.kept
+		}
+		return !a.kept && at[a.root] < at[b.root]
+	})
+}
+
+// unsaidLines is what the repositories that gave no line said, a
+// line each in the folder's order, those that named nothing in one.
+func (o offerModel) unsaidLines() []string {
+	var none, lines []string
+	for _, root := range o.repos() {
+		e, ok := o.unsaid[root]
+		switch {
+		case !ok:
+		case strings.HasSuffix(e, "named nothing"):
+			none = append(none, repoName(root))
+		case o.p.Group:
+			lines = append(lines, repoName(root)+": "+e)
+		default:
+			lines = append(lines, e)
+		}
+	}
+	switch {
+	case len(none) > 0 && o.p.Group:
+		lines = append([]string{"nothing named in " + strings.Join(none, ", ")}, lines...)
+	case len(none) > 0:
+		lines = append([]string{"the answer named nothing"}, lines...)
+	}
+	return lines
+}
+
+// asked is what is being asked about, as a sentence says it: the
+// project, or a folder's repositories still to answer.
+func (o offerModel) asked() string {
+	if !o.p.Group {
+		return o.p.Name
+	}
+	var ns []string
+	for _, root := range o.repos() {
+		if o.pending[root] {
+			ns = append(ns, repoName(root))
+		}
+	}
+	return "in " + strings.Join(ns, ", ")
 }
 
 // rows is the list, a name and its command a row, the cursor on one
 // where the list has a cursor, and a word at the right for each.
 func (o offerModel) rows(cursor bool, right func(stacked) string) []string {
 	m := model{width: o.width + 2}
+	// In a folder, each line is named by its repository too.
+	label := func(s stacked) string {
+		if o.p.Group && s.root != "" {
+			return repoName(s.root) + " · " + s.name
+		}
+		return s.name
+	}
 	w := 0
 	for _, s := range o.list {
-		w = max(w, len(s.name))
+		w = max(w, ansi.StringWidth(label(s)))
 	}
 	var out []string
 	for i, s := range o.list {
@@ -476,7 +654,7 @@ func (o offerModel) rows(cursor bool, right func(stacked) string) []string {
 		if r := right(s); strings.HasPrefix(r, "failed") {
 			st = failing
 		}
-		out = append(out, m.row([]piece{{pad(s.name, w), keyInk}, {"  " + s.command, gray}}, piece{right(s), st}, cursor && i == o.at))
+		out = append(out, m.row([]piece{{pad(label(s), w), keyInk}, {"  " + s.command, gray}}, piece{right(s), st}, cursor && i == o.at))
 	}
 	return out
 }

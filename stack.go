@@ -58,10 +58,12 @@ func topFiles(dir string) []string {
 }
 
 // A stacked is one process to start under a name: as Claude Code named
-// it, or as it was last run here, and in which project's root.
+// it, or as it was last run here, in which case it is kept; and in
+// which repository's root.
 type stacked struct {
 	name, command string
 	root          string // blank for the project on the screen
+	kept          bool
 }
 
 // stackName is the name of a line of the answer. A name can have a

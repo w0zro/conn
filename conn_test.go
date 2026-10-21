@@ -1904,11 +1904,11 @@ func TestStarted(t *testing.T) {
 	}(), "not json", `{"root":"/p","name":"","command":"x"}`), "\n")+"\n")
 	in := func(root string) bool { return root == "/p" }
 	stack := established(readStarted(path), in, roleStack)
-	if want := []stacked{{name: "web", command: "npm run dev -- --host", root: "/p"}, {name: "watch", command: "npm run watch", root: "/p"}}; !reflect.DeepEqual(stack, want) {
+	if want := []stacked{{name: "web", command: "npm run dev -- --host", root: "/p", kept: true}, {name: "watch", command: "npm run watch", root: "/p", kept: true}}; !reflect.DeepEqual(stack, want) {
 		t.Errorf("stack = %+v", stack)
 	}
 	checks := established(readStarted(path), in, roleCheck)
-	if want := []stacked{{name: "test", command: "npm test", root: "/p"}, {name: "lint", command: "npm run lint", root: "/p"}}; !reflect.DeepEqual(checks, want) {
+	if want := []stacked{{name: "test", command: "npm test", root: "/p", kept: true}, {name: "lint", command: "npm run lint", root: "/p", kept: true}}; !reflect.DeepEqual(checks, want) {
 		t.Errorf("checks = %+v", checks)
 	}
 }

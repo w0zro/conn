@@ -497,8 +497,18 @@ func ensurePanel(srv *tmux.Server, home, self, panel string, again bool) (string
 			return "", err
 		}
 	}
-	_, err = srv.Do(tmux.SetPane(own.pane, panelMark, "1"), tmux.SetGlobal(buildMark, build))
+	_, err = srv.Do(tmux.SetPane(own.pane, panelMark, "1"), tmux.SetGlobal(buildMark, build), keepWidth(own.window, own.pane))
 	return own.window, err
+}
+
+// keepWidth holds the panel at its width when the window is resized: a
+// terminal moved to another screen, or made bigger, gives the window new
+// columns, and tmux shares them out among its panes by the share each
+// had, so the panel would grow with the workspace. A zoomed window is
+// left as it is, since a resize would unzoom it.
+func keepWidth(window, panel string) tmux.Cmd {
+	resize := strings.Join(tmux.ResizeWidth(panel, panelWidth), " ")
+	return tmux.SetWindowHook(window, "window-resized", "if -F '#{window_zoomed_flag}' '' '"+resize+"'")
 }
 
 // buildMark is the build conn's pane runs, by fingerprint.

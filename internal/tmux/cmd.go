@@ -52,6 +52,12 @@ func SetWindow(target, name, value string) Cmd {
 	return Cmd{"set-option", "-w", "-t", target, name, value}
 }
 
+// SetWindowHook runs a command on a window's hook, in place of what the
+// hook ran before.
+func SetWindowHook(target, hook, command string) Cmd {
+	return Cmd{"set-hook", "-w", "-t", target, hook, command}
+}
+
 // Swap puts one pane where another stands and the other where it stood,
 // leaving the keys where they are.
 func Swap(source, target string) Cmd { return Cmd{"swap-pane", "-d", "-s", source, "-t", target} }

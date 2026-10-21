@@ -2878,11 +2878,12 @@ func TestVerbWaits(t *testing.T) {
 	}
 }
 
-// The panel is the open project's rows, then a line for each other
-// project with something running, waiting or at work; the cursor on a
-// row or a line says which. A folder's counts take in its
-// repositories', which have lines of their own, so a folder has a line
-// only for work in the folder itself, and the line counts that alone.
+// The panel is the open project's rows, then a line for each project
+// with something running, waiting or at work, the open one among them
+// whatever it has, by name and not by state; the cursor on a row or a
+// line says which. A folder's counts take in its repositories', which
+// have lines of their own, so a folder has a line only for work in
+// the folder itself, and the line counts that alone.
 func TestItems(t *testing.T) {
 	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}, {Root: "/f", Group: true, Running: 1}, {Root: "/f/x", Depth: 1, Running: 1}, {Root: "/g", Turning: 1}, {Root: "/h", Group: true, Running: 2, Turning: 1}, {Root: "/h/y", Depth: 1, Running: 1}}}
 	m.cur = m.projects[3]
@@ -2891,10 +2892,10 @@ func TestItems(t *testing.T) {
 	for _, it := range m.items() {
 		got = append(got, m.itemKey(it))
 	}
-	if want := []string{"%1", "project /a", "project /c", "project /f/x", "project /g", "project /h", "project /h/y"}; !reflect.DeepEqual(got, want) {
+	if want := []string{"%1", "project /a", "project /c", "project /d", "project /f/x", "project /g", "project /h", "project /h/y"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("items = %v", got)
 	}
-	if h := m.items()[5].project; h.Running != 1 || h.Turning != 1 {
+	if h := m.items()[6].project; h.Running != 1 || h.Turning != 1 {
 		t.Errorf("the folder's line counts %d running, %d at work, want 1 and 1: the work in itself", h.Running, h.Turning)
 	}
 	m.cursor = 0
@@ -2905,11 +2906,122 @@ func TestItems(t *testing.T) {
 	if p, ok := m.lineUnder(); !ok || p.Root != "/c" {
 		t.Error("the cursor is not on /c's line")
 	}
+	// The lines stand by name, whichever waits or ran last.
+	m.projects = []project{{Name: "web", Root: "/w", Running: 1}, {Name: "Api", Root: "/p", Waiting: 1}, {Name: "db", Root: "/d", Running: 1}}
+	m.cur = m.projects[2]
+	got = got[:0]
+	for _, it := range m.items() {
+		got = append(got, it.project.Name)
+	}
+	if want := []string{"db", "Api", "db", "web"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("the lines stand as %v, want by name", got)
+	}
+	// Enter on the open project's own line goes up to the first row.
+	m.cursor = 2
+	next, _ := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if m = next.(model); m.cursor != 0 || m.cur.Root != "/d" {
+		t.Errorf("enter on the open project's line: cursor %d on %q", m.cursor, m.cur.Root)
+	}
+}
+
+// plainLines is a screen as drawn, without its colors.
+func plainLines(plain *regexp.Regexp, m model) []string {
+	lines, _ := m.draw()
+	for i := range lines {
+		lines[i] = plain.ReplaceAllString(lines[i], "")
+	}
+	return lines
+}
+
+// The projects are a strip at the bottom of the panel: its lines stand
+// on the same rows of the screen whatever project is open and however
+// many rows it has, the open one marked in the margin. Where the strip
+// would leave no room for a row, the two flow as one list.
+func TestStripStandsStill(t *testing.T) {
+	plain := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	ps := []project{{Name: "a", Root: "/a", Running: 3}, {Name: "b", Root: "/b", Running: 1}, {Name: "c", Root: "/c", Running: 1}}
+	screen := func(cur project, rows int) []string {
+		m := model{screen: onProject, cur: cur, projects: ps, home: "/home", width: 50, height: 20}
+		for i := 0; i < rows; i++ {
+			m.rows = append(m.rows, row{pane: &pane{ID: "%" + strconv.Itoa(i), Name: "p" + strconv.Itoa(i), Dir: cur.Root}, tree: cur.Root})
+		}
+		inner, _ := m.inner()
+		lines, _ := inner.draw()
+		for i := range lines {
+			lines[i] = plain.ReplaceAllString(lines[i], "")
+		}
+		return lines
+	}
+	// The strip's lines, under the head that names the open project.
+	lineOf := func(lines []string, word string) int {
+		for i, l := range lines[2:] {
+			if strings.Contains(l, word) {
+				return i + 2
+			}
+		}
+		t.Fatalf("no line says %q in\n%s", word, strings.Join(lines, "\n"))
+		return -1
+	}
+	onA, onB := screen(ps[0], 3), screen(ps[1], 1)
+	for _, word := range []string{"projects", " a ", " b ", " c "} {
+		if lineOf(onA, word) != lineOf(onB, word) {
+			t.Errorf("%q stands on line %d with a open and %d with b open", strings.TrimSpace(word), lineOf(onA, word), lineOf(onB, word))
+		}
+	}
+	if len(onA) != 19 || !strings.HasPrefix(strings.TrimSpace(onA[18]), "c") {
+		t.Errorf("the strip is not at the bottom: %d lines, the last %q", len(onA), onA[len(onA)-1])
+	}
+	if l := onA[lineOf(onA, " a ")]; !strings.HasPrefix(l, " "+openMark) {
+		t.Errorf("the open project's line is not marked: %q", l)
+	}
+	// The label stands in the names' column in a rule from edge to
+	// edge, with a row of air under it.
+	if l := onA[lineOf(onA, "projects")]; !strings.HasPrefix(l, "── projects ─") || !strings.HasSuffix(l, "─") || utf8.RuneCountInString(l) != 50 {
+		t.Errorf("the label is %q, want a rule the panel's width", l)
+	}
+	if onA[lineOf(onA, "projects")+1] != "" {
+		t.Errorf("no air under the label: %q", onA[lineOf(onA, "projects")+1])
+	}
+	// A project opened from the projects screen has no rows yet: no
+	// line carries the cursor while they are read.
+	reading := model{screen: onProject, cur: ps[0], projects: ps, home: "/home", width: 50, height: 20}
+	inner, _ := reading.inner()
+	for _, l := range plainLines(plain, inner) {
+		if strings.HasPrefix(l, "▌") {
+			t.Errorf("the cursor stands on a line while the rows are read: %q", l)
+		}
+	}
+	if l := onB[lineOf(onB, " a ")]; strings.Contains(l, openMark) {
+		t.Errorf("a's line is marked with b open: %q", l)
+	}
+	// The figure is the count alone.
+	if l := onA[lineOf(onA, " a ")]; !strings.HasSuffix(strings.TrimRight(l, " "), " 3") || strings.Contains(l, "runs") {
+		t.Errorf("the figure is not the count alone: %q", l)
+	}
+	// A click on the strip lands on the line whatever the open project
+	// has on top.
+	m := model{screen: onProject, cur: ps[1], projects: ps, home: "/home", width: 50, height: 20}
+	if i, ok := m.itemOn(lineOf(onB, " c ")); !ok || m.items()[i].project.Root != "/c" {
+		t.Errorf("a click on c's line lands on item %d, %v", i, ok)
+	}
+	// Too short a screen for a row above the strip: one list, windowed
+	// around the cursor.
+	m.height = 7
+	m.rows = []row{{pane: &pane{ID: "%1", Name: "web", Dir: "/b"}, tree: "/b"}}
+	m.cursor = len(m.items()) - 1
+	inner, _ = m.inner()
+	lines, _ := inner.draw()
+	if last := plain.ReplaceAllString(lines[len(lines)-1], ""); !strings.Contains(last, " c ") {
+		t.Errorf("the window does not end on the cursor's line: %q", last)
+	}
 }
 
 // Opening a project, from the projects or from its line under another,
 // puts the cursor on its first row once the rows are read, not on the
 // line it was on before they came, and not on a pane gone into before.
+// From another project's rows, the screen stays on them until the rows
+// of the one opened land, the mark on its line meanwhile, and the two
+// change places in one draw.
 func TestOpenLandsOnFirstRow(t *testing.T) {
 	ps := []project{{Name: "a", Root: "/a", Running: 1}, {Name: "b", Root: "/b", Running: 1}}
 	rows := []row{{pane: &pane{ID: "%1", Name: "web"}}, {pane: &pane{ID: "%2"}}}
@@ -2922,24 +3034,43 @@ func TestOpenLandsOnFirstRow(t *testing.T) {
 	if m = next.(model); m.cursor != 0 || m.itemKey(m.items()[0]) != rows[0].key() {
 		t.Errorf("after the read, the cursor is at %d on %s, want the first row", m.cursor, m.itemKey(m.items()[m.cursor]))
 	}
-	// From b's rows, enter on a's line opens a on its first row too.
-	m.cursor = len(m.items()) - 1
+	// From b's rows, enter on a's line opens a on its first row too; a's
+	// line stands before b's own in the strip.
+	m.cursor = len(m.items()) - 2
 	if key := m.itemKey(m.items()[m.cursor]); key != "project /a" {
 		t.Fatalf("the cursor is on %s, want a's line", key)
 	}
-	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
-	if m = next.(model); m.cur.Root != "/a" || m.cursor != 0 || m.follow != "" {
-		t.Errorf("a opened with cursor %d, following %q", m.cursor, m.follow)
+	next, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if m = next.(model); m.cur.Root != "/b" || m.rows == nil || m.opening == nil || m.opening.Root != "/a" || cmd == nil {
+		t.Errorf("enter on a's line: on %q with rows %v, opening %v", m.cur.Root, m.rows != nil, m.opening)
+	}
+	if !m.marked(ps[0]) || m.marked(ps[1]) {
+		t.Error("the mark is not on a's line while its rows are read")
+	}
+	// b's rows read again meanwhile keep the cursor on a's line.
+	next, _ = m.Update(read{root: "/b", projects: ps, rows: rows})
+	if m = next.(model); m.cur.Root != "/b" || m.opening == nil || m.itemKey(m.items()[m.cursor]) != "project /a" {
+		t.Errorf("b's read while a opens: on %q, opening %v, cursor on %s", m.cur.Root, m.opening, m.itemKey(m.items()[m.cursor]))
 	}
 	next, _ = m.Update(read{root: "/a", projects: ps, rows: rows})
-	if m = next.(model); m.cursor != 0 || m.itemKey(m.items()[0]) != rows[0].key() {
-		t.Errorf("after a's read, the cursor is at %d, want the first row", m.cursor)
+	if m = next.(model); m.cur.Root != "/a" || m.opening != nil || m.cursor != 0 || m.follow != "" || m.itemKey(m.items()[0]) != rows[0].key() {
+		t.Errorf("after a's read, on %q with the cursor at %d following %q, want a's first row", m.cur.Root, m.cursor, m.follow)
 	}
 	// A read while the rows stand keeps the cursor on its row.
 	m.cursor = 1
 	next, _ = m.Update(read{root: "/a", projects: ps, rows: []row{rows[1], rows[0]}})
 	if m = next.(model); m.itemKey(m.items()[m.cursor]) != "%2" {
 		t.Errorf("the cursor left its row for %s", m.itemKey(m.items()[m.cursor]))
+	}
+	// Up to the projects while a's rows are read, a is let go of.
+	m.cursor = len(m.items()) - 1
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyPressMsg(tea.Key{Text: "-", Code: '-'}))
+	m = next.(model)
+	next, _ = m.Update(read{root: "/b", projects: ps, rows: rows})
+	if m = next.(model); m.screen != onProjects || m.opening != nil || m.cur.Root != "/a" {
+		t.Errorf("b's read on the projects screen: screen %v, opening %v, on %q", m.screen, m.opening, m.cur.Root)
 	}
 }
 
@@ -3084,16 +3215,17 @@ func TestRing(t *testing.T) {
 	}
 	j, k, g, G := tea.Key{Text: "j", Code: 'j'}, tea.Key{Text: "k", Code: 'k'}, tea.Key{Text: "g", Code: 'g'}, tea.Key{Text: "G", Code: 'G', Mod: tea.ModShift}
 	ctrlJ, ctrlK := tea.Key{Code: 'j', Mod: tea.ModCtrl}, tea.Key{Code: 'k', Mod: tea.ModCtrl}
-	// The project: two rows and another project's line, three items.
-	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, projects: []project{{Root: "/p"}, {Root: "/q", Running: 1}}}
+	// The project: two rows, its own line and another project's, four
+	// items.
+	m := model{screen: onProject, cur: project{Name: "d", Root: "/p"}, projects: []project{{Name: "d", Root: "/p"}, {Name: "q", Root: "/q", Running: 1}}}
 	m.rows = []row{{pane: &pane{ID: "%1"}}, {pane: &pane{ID: "%2"}}}
-	if m = press(m, k); m.cursor != 2 {
+	if m = press(m, k); m.cursor != 3 {
 		t.Errorf("k from the top is at %d, want the bottom", m.cursor)
 	}
 	if m = press(m, j); m.cursor != 0 {
 		t.Errorf("j from the bottom is at %d, want the top", m.cursor)
 	}
-	if m = press(m, G); m.cursor != 2 {
+	if m = press(m, G); m.cursor != 3 {
 		t.Errorf("G is at %d, want the bottom", m.cursor)
 	}
 	if m = press(m, g); m.cursor != 0 {
@@ -3500,8 +3632,18 @@ func TestClick(t *testing.T) {
 	if got := click(m, 1); got.cursor != 0 || got.in != "" {
 		t.Errorf("a click on the head: cursor %d in %q", got.cursor, got.in)
 	}
-	if got := click(m, lineOf(m, "other")); got.screen != onProject || got.cur.Root != "/q" {
-		t.Errorf("a click on another project's line: on %q", got.cur.Root)
+	if got := click(m, lineOf(m, "other")); got.screen != onProject || got.opening == nil || got.opening.Root != "/q" {
+		t.Errorf("a click on another project's line: opening %v", got.opening)
+	}
+	// A note in the foot lifts the strip; the click is measured as
+	// drawn, and the note is let go of.
+	noted := m
+	noted.note = "nothing waits"
+	if lineOf(noted, "other") >= lineOf(m, "other") {
+		t.Fatal("the note does not lift the strip")
+	}
+	if got := click(noted, lineOf(noted, "other")); got.opening == nil || got.opening.Root != "/q" || got.note != "" {
+		t.Errorf("a click with a note up: opening %v, note %q", got.opening, got.note)
 	}
 	// A right click is not a click.
 	if next, _ := m.Update(tea.MouseClickMsg{Y: lineOf(m, "test"), Button: tea.MouseRight}); next.(model).in != "" {

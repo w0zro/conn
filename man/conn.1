@@ -151,11 +151,11 @@ does not hold.
 See
 .B WHAT A ROW SAYS
 below.
-Under the rows, under a label
+At the foot of the panel, under a label
 .B projects
-with a rule, a line for every other project with something running,
-waiting or at work in it; the cursor runs over rows and lines alike,
-and
+with a rule, a line for every project with something running,
+waiting or at work in it, the open one among them, marked in the
+margin; the cursor runs over rows and lines alike, and
 .B enter
 on a line opens that project.
 A project with nothing running says so, and the keys that start
@@ -665,13 +665,19 @@ A row up with nothing to report says nothing.
 What runs is in the ink, what waits on you in the accent, a run that
 failed in the terminal's red, a conversation at rest in the gray.
 The row under the cursor is on the chosen ground from edge to edge.
-.SS The other projects' lines
-Under the label
+.SS The projects' lines
+At the foot of the panel, under the label
 .BR projects ,
-a line a project with something running, waiting or at work in it: its
-name, in the accent where a conversation waits, the spinner in the
-margin where something is at work, and at the right what waits and
-what runs.
+a line a project with something running, waiting or at work in it,
+and the open project's whatever it has, by name: its name, in the
+accent where a conversation waits, the spinner in the margin where
+something is at work, the open project's mark there on its own line,
+and at the right how many run, in the red where a run failed.
+The lines stand on the same rows of the screen whatever project is
+open; a project opened from a line takes the screen as its rows are
+read, and
+.B enter
+on the open project's own line goes up to its first row.
 A folder of repositories has a line, as any project, only for work in
 the folder itself, counting that alone, its repositories having lines
 of their own; a repository of the open folder has none.

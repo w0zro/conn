@@ -112,6 +112,10 @@ type model struct {
 	cur  project
 	rows []row
 	rest []row
+	// The project a line in the strip opened, while its rows are read:
+	// the screen stays on the open project until they land, and the
+	// two change places in one draw, so nothing flashes.
+	opening *project
 	// A verb pressed and waiting for its object, blank for none.
 	verb string
 	// The pane the keys were last in, and the one before it:
@@ -665,7 +669,11 @@ const conversationsShown = 50
 func (m model) read() tea.Cmd {
 	srv, home, own, k, window, offering := m.srv, m.home, m.own, m.known, m.ws.window, m.offering
 	var cur *project
-	if m.screen == onProject {
+	switch {
+	case m.opening != nil:
+		c := *m.opening
+		cur = &c
+	case m.screen == onProject:
 		c := m.cur
 		cur = &c
 	}
@@ -1072,6 +1080,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			on = m.itemKey(items[m.cursor])
 		}
 		m.takeProjects(msg.projects)
+		// The project a line opened takes the screen as its rows land,
+		// the cursor on its first row; off the project's screen it is
+		// let go of.
+		if m.opening != nil && msg.root == m.opening.Root {
+			if m.screen == onProject {
+				m.cur, m.cursor, m.follow, on = *m.opening, 0, "", ""
+			}
+			m.opening = nil
+		}
 		if m.screen == onProject && msg.root == m.cur.Root {
 			// A project with nothing running is read all the same: nil
 			// rows would say the read has not come back.
@@ -1156,7 +1173,6 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, spinTick()
 	case tea.MouseClickMsg:
 		if msg.Button == tea.MouseLeft {
-			m.note = ""
 			return m.click(msg.Y)
 		}
 	case tea.PasteMsg:
@@ -1920,17 +1936,28 @@ func (m model) leave() string {
 }
 
 func (m model) open(p project) (tea.Model, tea.Cmd) {
-	m.screen, m.cur, m.rows, m.cursor, m.follow = onProject, p, nil, 0, ""
 	m.box.Reset()
+	// From a project's screen the rows of the one opened are read
+	// under it, and take its place when they land.
+	if m.screen == onProject && m.rows != nil && !m.isOpen(p) {
+		m.opening = &p
+		return m, m.read()
+	}
+	m.screen, m.cur, m.rows, m.cursor, m.follow, m.opening = onProject, p, nil, 0, "", nil
 	return m, m.read()
 }
 
-// goIn goes into what the cursor is on: a row, or another project.
+// goIn goes into what the cursor is on: a row, or another project. On
+// the open project's own line it goes up to the first row.
 func (m model) goIn() (tea.Model, tea.Cmd) {
 	if r, ok := m.under(); ok {
 		return m.goTo(r)
 	}
-	if p, ok := m.lineUnder(); ok && !m.isOpen(p) {
+	if p, ok := m.lineUnder(); ok {
+		if m.isOpen(p) {
+			m.cursor, m.follow = 0, ""
+			return m, nil
+		}
 		return m.open(p)
 	}
 	return m, nil
@@ -1939,12 +1966,15 @@ func (m model) goIn() (tea.Model, tea.Cmd) {
 // click is a left click on the panel: the cursor goes to the row or the
 // project's line under it, and in, as enter does. A click anywhere else
 // is nothing. The screen is measured as drawn, in the rows the foot
-// leaves it.
+// leaves it, a note in the foot included, and the note is let go of
+// after.
 func (m model) click(y int) (tea.Model, tea.Cmd) {
 	if m.helping || m.settings || m.asking || m.question != "" || m.listing || m.searching {
+		m.note = ""
 		return m, nil
 	}
 	inner, _ := m.inner()
+	m.note = ""
 	if m.screen == onProjects {
 		if i, ok := inner.projectOn(y); ok {
 			m.cursor = i
@@ -2705,70 +2735,99 @@ func (m model) drawProject() ([]string, foot) {
 	if m.verb != "" {
 		hints = objectHints[m.verb]
 	}
-	return append(lines, l.body[l.first:min(l.first+l.room, len(l.body))]...), foot{hints: hints}
+	return append(lines, l.body...), foot{hints: hints}
 }
 
-// A laid is the open project's body as drawn under a head: its lines,
-// the item each line is, or -1 for a label or air, and the window of
-// it in view, the cursor's line inside.
+// A laid is a part of the open project's screen as drawn: its lines,
+// and the item each line is, or -1 for a label or air.
 type laid struct {
 	body  []string
 	owner []int
-	first int
-	room  int
 }
 
-// lay lays the open project's items out under a head of so many lines.
+func (l *laid) add(line string, owner int) {
+	l.body, l.owner = append(l.body, line), append(l.owner, owner)
+}
+
+func (l *laid) take(from laid, first, end int) {
+	l.body, l.owner = append(l.body, from.body[first:end]...), append(l.owner, from.owner[first:end]...)
+}
+
+// lay lays the open project's screen out under a head of so many lines,
+// in the room the screen has: the rows from the top, in a window that
+// keeps the cursor's row in view, and the projects as a strip at the
+// bottom, under a label and a row of air. A project just opened has no
+// rows yet, and its cursor is on the first row to come: no line
+// carries it. The strip stands on the same lines whatever project is open
+// and however many rows it has, so going between projects moves
+// nothing but the rows. Where the strip would leave no room for a row,
+// the two flow as one list in a window around the cursor.
 func (m model) lay(head int) laid {
-	var l laid
-	add := func(line string, owner int) {
-		l.body, l.owner = append(l.body, line), append(l.owner, owner)
-	}
-	cursorAt := 0
-	items := m.items()
-	for i, it := range items {
-		switch {
-		case it.row < 0:
-			// The other projects stand under a label of their own, with
-			// a rule running off it, so they read as projects and not as
+	var rows, strip laid
+	rowsCursor, stripCursor := -1, -1
+	for i, it := range m.items() {
+		if it.row < 0 {
+			// The projects stand under a label of their own, with a
+			// rule running off it, so they read as projects and not as
 			// rows of this one.
-			if i == 0 || items[i-1].row >= 0 {
-				if i > 0 {
-					add("", -1)
-				}
-				add(m.label("projects"), -1)
+			if len(strip.body) == 0 {
+				strip.add(m.label("projects"), -1)
+				strip.add("", -1)
 			}
 			if i == m.cursor {
-				cursorAt = len(l.body)
+				stripCursor = len(strip.body)
 			}
-			add(m.projectLine(it.project, i == m.cursor), i)
-		default:
-			// A worktree's rows stand in under a head of their own: the
-			// branch alone, in the parchment the project's head is in
-			// and without its weight, a lesser head of the same kind.
-			// A label with a rule is a section of the panel, which a
-			// worktree is not.
-			r := m.rows[it.row]
-			depth := 0
-			if r.worktree() != "" {
-				depth = 1
-				// A worktree stands a row off what is above it.
-				if it.row == 0 || m.rows[it.row-1].worktree() != r.worktree() {
-					add("", -1)
-					add(at(subhead.Render(r.worktree())), -1)
-				}
-			}
-			if i == m.cursor {
-				cursorAt = len(l.body)
-			}
-			add(m.drawRow(r, depth, i == m.cursor), i)
-			if r.conv != nil && r.state == "waiting" && r.conv.Asks != "" {
-				add(m.drawAsk(r, depth, i == m.cursor), i)
+			strip.add(m.projectLine(it.project, i == m.cursor && m.rows != nil), i)
+			continue
+		}
+		// A worktree's rows stand in under a head of their own: the
+		// branch alone, in the parchment the project's head is in
+		// and without its weight, a lesser head of the same kind.
+		// A label with a rule is a section of the panel, which a
+		// worktree is not.
+		r := m.rows[it.row]
+		depth := 0
+		if r.worktree() != "" {
+			depth = 1
+			// A worktree stands a row off what is above it.
+			if it.row == 0 || m.rows[it.row-1].worktree() != r.worktree() {
+				rows.add("", -1)
+				rows.add(at(subhead.Render(r.worktree())), -1)
 			}
 		}
+		if i == m.cursor {
+			rowsCursor = len(rows.body)
+		}
+		rows.add(m.drawRow(r, depth, i == m.cursor), i)
+		if r.conv != nil && r.state == "waiting" && r.conv.Asks != "" {
+			rows.add(m.drawAsk(r, depth, i == m.cursor), i)
+		}
 	}
-	l.room = max(m.height-head-1, 1)
-	l.first = max(cursorAt-l.room+1, 0)
+	room := max(m.height-head-1, 1)
+	var l laid
+	if len(strip.body) == 0 || len(strip.body)+2 > room {
+		// One list: the rows, a row of air, the strip.
+		all, cursorAt := rows, max(rowsCursor, 0)
+		if len(strip.body) > 0 {
+			all.add("", -1)
+			if stripCursor >= 0 {
+				cursorAt = len(all.body) + stripCursor
+			}
+			all.take(strip, 0, len(strip.body))
+		}
+		first := max(cursorAt-room+1, 0)
+		l.take(all, first, min(first+room, len(all.body)))
+		return l
+	}
+	// The strip takes its lines from the bottom, under a row of air;
+	// the rows have the rest, their window around the cursor's row.
+	have := room - len(strip.body) - 1
+	first := max(max(rowsCursor, 0)-have+1, 0)
+	l.take(rows, first, min(first+have, len(rows.body)))
+	for len(l.body) < room-len(strip.body) {
+		l.add("", -1)
+	}
+	l.take(strip, 0, len(strip.body))
 	return l
 }
 
@@ -2777,8 +2836,8 @@ func (m model) lay(head int) laid {
 func (m model) itemOn(y int) (int, bool) {
 	head := len(head("", ""))
 	l := m.lay(head)
-	i := y - head + l.first
-	if y < head || i >= l.first+l.room || i >= len(l.body) || l.owner[i] < 0 {
+	i := y - head
+	if y < head || i >= len(l.body) || l.owner[i] < 0 {
 		return 0, false
 	}
 	return l.owner[i], true
@@ -3548,17 +3607,21 @@ type item struct {
 }
 
 // items is the panel's lines in order: the open project's rows, and
-// under them a line for each other project with something running or
-// waiting in it, in the finder's order. A folder of repositories has
-// no line of its own, what runs in it being its repositories', and a
-// repository of the open folder none either, its rows being on top.
+// under them a line for each project with something running or
+// waiting in it, the open one among them, by name. The lines keep
+// their order whatever happens in the projects, as the rows keep
+// their places: the state is said in the accent and the margin, and
+// nothing moves. A folder of repositories has no line of its own,
+// what runs in it being its repositories', and a repository of the
+// open folder none either, its rows being on top.
 func (m model) items() []item {
 	var out []item
 	for j := range m.rows {
 		out = append(out, item{project: m.cur, row: j})
 	}
+	var lines []project
 	for _, p := range m.projects {
-		if m.isOpen(p) || (m.cur.Group && within(p.Root, m.cur.Root)) {
+		if !m.isOpen(p) && m.cur.Group && within(p.Root, m.cur.Root) {
 			continue
 		}
 		// A folder's line is for the work in the folder itself: what
@@ -3566,9 +3629,19 @@ func (m model) items() []item {
 		if p.Group {
 			p = m.inItself(p)
 		}
-		if p.Running == 0 && p.Waiting == 0 && p.Turning == 0 {
+		if p.Running == 0 && p.Waiting == 0 && p.Turning == 0 && !m.isOpen(p) {
 			continue
 		}
+		lines = append(lines, p)
+	}
+	sort.SliceStable(lines, func(i, j int) bool {
+		a, b := strings.ToLower(lines[i].Name), strings.ToLower(lines[j].Name)
+		if a != b {
+			return a < b
+		}
+		return lines[i].Root < lines[j].Root
+	})
+	for _, p := range lines {
 		out = append(out, item{project: p, row: -1})
 	}
 	return out
@@ -3633,27 +3706,57 @@ func (m model) lineUnder() (project, bool) {
 	return project{}, false
 }
 
-// label is a block's name: a small label in the gray, and a rule
-// running off it to the right edge.
+// label is a block's name: a small label in the gray, standing in the
+// names' column, in a rule running from the panel's left edge to its
+// right.
 func (m model) label(s string) string {
-	rule := strings.Repeat("─", max(m.measure()-ansi.StringWidth(s)-1, 0))
-	return at(gray.Render(s) + " " + ruleStyle.Render(rule))
+	lead := strings.Repeat("─", margin-1)
+	rule := strings.Repeat("─", max(m.width-margin-ansi.StringWidth(s)-1, 0))
+	return ruleStyle.Render(lead) + " " + gray.Render(s) + " " + ruleStyle.Render(rule)
 }
 
 // projectLine is another project's line: its name, and what it says of
 // itself at the right; in the parchment, as the head names a project,
 // and in the accent where something waits. The folder it is in is not
-// the project and is not said.
+// the project and is not said. The open project's line carries a mark
+// in the margin, where the others' spinner turns: its rows are above,
+// with the spinner beside the one at work. The figure is how many
+// processes run, a number alone, in the red where a run failed: the
+// accent says what waits, the spinner what works, and the figure does
+// not say them again.
 func (m model) projectLine(p project, cursor bool) string {
 	name, style := p.Name, title
 	if p.Waiting > 0 {
 		style = accent
 	}
+	figure := piece{"", gray}
+	if p.Running > 0 {
+		figure.s = strconv.Itoa(p.Running)
+	}
+	if p.Failed > 0 {
+		figure.st = failing
+	}
 	// The spinner turns in the margin while something in the project
 	// is at work, as it does beside the row.
 	turn := ""
-	if p.Turning > 0 {
+	switch {
+	case m.marked(p):
+		turn = openMark
+	case p.Turning > 0:
 		turn = spinner[m.frame%len(spinner)]
 	}
-	return m.rowTurning(turn, []piece{{name, style}}, piece{p.standing(), gray}, cursor)
+	return m.rowTurning(turn, []piece{{name, style}}, figure, cursor)
+}
+
+// openMark stands in the margin of the open project's line in the
+// strip.
+const openMark = "▸"
+
+// marked says whether a project's line carries the mark: the one a
+// line opened, while its rows are read, and the open one otherwise.
+func (m model) marked(p project) bool {
+	if m.opening != nil {
+		return p.Root == m.opening.Root && p.Group == m.opening.Group
+	}
+	return m.isOpen(p)
 }

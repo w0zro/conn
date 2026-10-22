@@ -328,7 +328,7 @@ func TestTheStationCanBeRead(t *testing.T) {
 }
 
 // The console says where conn's configuration is and how it read. A
-// machine with no file is not a fault; a file that will not read is,
+// machine with no file is not a fault, and says DEFAULTS; a file that will not read is,
 // and so is one naming a theme conn has no sheet for.
 func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 	path := "/Users/w0zro/.config/conn/config.json"
@@ -348,8 +348,12 @@ func TestTheConsoleSaysHowTheConfigRead(t *testing.T) {
 		if k.status != c.status || k.fault != c.fault {
 			t.Errorf("%s: reads %q (fault %v), not %q (fault %v)", c.what, k.status, k.fault, c.status, c.fault)
 		}
-		if c.cfg.Path != "" && k.value != "~/.config/conn/config.json" {
-			t.Errorf("%s: the line names %q", c.what, k.value)
+		want := "~/.config/conn/config.json"
+		if !c.cfg.Present {
+			want += " · DEFAULTS"
+		}
+		if c.cfg.Path != "" && k.value != want {
+			t.Errorf("%s: the line names %q, want %q", c.what, k.value, want)
 		}
 	}
 }

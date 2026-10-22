@@ -296,7 +296,8 @@ type Config struct {
 // configCheck is conn's own configuration file: where it is, and
 // whether it read. A machine with no file is the ordinary case and no
 // fault — every default stands — but the line still names the path, so
-// the reader knows where to put one. A file that is there and will not
+// the reader knows where to put one, and says DEFAULTS after it, so the
+// path is not taken for a file that is there. A file that is there and will not
 // read is a fault: somebody wrote it meaning it to be read. So is one
 // naming a theme conn does not have: conn comes up in its own, and the
 // file was written meaning otherwise.
@@ -309,6 +310,9 @@ func configCheck(c Config, home string) check {
 		return k
 	}
 	switch {
+	case !c.Present:
+		// Nominal, and said: the path alone read as a file that is there.
+		k.value += " · DEFAULTS"
 	case c.Err != nil:
 		k.status, k.fault = notRead, true
 	case c.NoTheme != "":

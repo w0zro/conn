@@ -17,9 +17,11 @@ out of sight.
    ✗ lint                                    2m
    ◌ postgres                             :5432
 
-   projects ──────────────────────────────────
-   web                            1 waiting · 2 running
-   notes                                    1 running
+── projects ───────────────────────────────────
+
+ ▸ conn                                       4
+   web                                        2
+   notes                                      1
 ```
 
 ```
@@ -89,10 +91,11 @@ conversation, row, place (conversations, the stack, clients, checks,
 outside conn, elsewhere), role (stack, check, client), panel,
 workspace, hold.
 
-**1-2.** The program is one package at the root, with three under
-`internal/`: `shell` quotes a word for a shell line, `theme` is the
-sheets conn ships and the theme it writes for Claude Code, `tmux` is
-how conn talks to its server. A file is named for the thing it is
+**1-2.** The program is one package at the root, with five under
+`internal/`: `console` draws the boot console, `station` reads the
+machine it reports, `shell` quotes a word for a shell line, `theme` is
+the sheets conn ships and the theme it writes for Claude Code, `tmux`
+is how conn talks to its server. A file is named for the thing it is
 about, and its head comment says what that thing is and why it is
 done the way it is; read the head before the code. The machine is read
 through `lsof`, `ps` and `git` on both platforms. `tools/revisions`
@@ -114,8 +117,7 @@ by a test, and is read again when a section it describes changes.
 
 **2-1.** `make build` produces `./conn` the way a release does:
 trimmed and stripped. The version `git describe` says is passed to the
-linker, and nothing in the binary reads it since the tree was cut
-back; there is no `conn --version`. `make test` runs `go vet` and the
+linker, and `conn --version` says it. `make test` runs `go vet` and the
 tests under the race detector. `make lint` checks formatting and runs
 golangci-lint for this platform and for Linux. The format check, vet,
 tests and lint run on every push and pull request, the tests on macOS

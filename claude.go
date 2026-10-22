@@ -311,13 +311,30 @@ func lastSaid(lines [][]byte) string {
 		}
 		ls := strings.Split(said, "\n")
 		for j := len(ls) - 1; j >= 0; j-- {
-			if l := flatten(ls[j]); l != "" {
+			if l := unmarked(flatten(ls[j])); l != "" {
 				return l
 			}
 		}
 		return ""
 	}
 	return ""
+}
+
+// The markdown a message is written in, which a line of the panel
+// shows as it is: what heads a line (a heading, a quote, a list's
+// mark), a link's target, and the marks around emphasis and code.
+var (
+	lineHead = regexp.MustCompile(`^(#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)+`)
+	linkTo   = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+	emphasis = regexp.MustCompile("\\*\\*|__|`")
+)
+
+// unmarked is a line of markdown as words: "- **done** see [the
+// docs](x)" is "done see the docs".
+func unmarked(l string) string {
+	l = lineHead.ReplaceAllString(l, "")
+	l = linkTo.ReplaceAllString(l, "$1")
+	return strings.TrimSpace(emphasis.ReplaceAllString(l, ""))
 }
 
 // firstLine is the first line of s that says anything, its spaces

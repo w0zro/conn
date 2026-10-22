@@ -5511,3 +5511,19 @@ func TestARunAtBangTakesTheCursor(t *testing.T) {
 		t.Errorf("after a run at !, following %q with the note %q", m.follow, m.note)
 	}
 }
+
+// The line a finished turn says is words, not the markdown the message
+// was written in.
+func TestUnmarked(t *testing.T) {
+	for in, want := range map[string]string{
+		`- **"skelly only warns"** is still in the docs`: `"skelly only warns" is still in the docs`,
+		"## Done":                            "Done",
+		"> 2. see [the manual](https://x/y)": "see the manual",
+		"run `make test` again":              "run make test again",
+		"3 * 4 is 12":                        "3 * 4 is 12",
+	} {
+		if got := unmarked(in); got != want {
+			t.Errorf("unmarked(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

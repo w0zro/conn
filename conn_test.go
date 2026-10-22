@@ -5439,3 +5439,18 @@ func TestAFinishedTurnSaysHowItEnded(t *testing.T) {
 	under("gone into", panelNow(), "", false, panelWidth)
 	frame("looked-at-120x36.ans", projectsNow(120))
 }
+
+// A Claude Code that will not answer says why in its own words: not
+// logged in, it prints so on its output and exits 1.
+func TestARefusalSaysClaudesWords(t *testing.T) {
+	status := errors.New("exit status 1")
+	for _, c := range []struct{ out, stderr, want string }{
+		{"Not logged in · Please run /login\n", "", "Not logged in · Please run /login"},
+		{"partial\n", "Error: model not found\n\n", "Error: model not found"},
+		{"", "", "exit status 1"},
+	} {
+		if got := refusal(c.out, c.stderr, status).Error(); got != c.want {
+			t.Errorf("refusal(%q, %q) = %q, want %q", c.out, c.stderr, got, c.want)
+		}
+	}
+}

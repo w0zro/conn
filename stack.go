@@ -124,14 +124,34 @@ func askClaude(prompt string) (string, error) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, "-p", "--model", "haiku", "--tools", "", "--strict-mcp-config", "--no-session-persistence", prompt)
 	cmd.Dir = os.TempDir()
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if ctx.Err() != nil {
 		return "", errors.New("no answer in " + askWait.String())
 	}
 	if err != nil {
-		return "", err
+		return "", refusal(string(out), stderr.String(), err)
 	}
 	return string(out), nil
+}
+
+// refusal is why Claude Code did not answer, in its own words where it
+// printed any: it says "Not logged in · Please run /login" on its
+// output and exits 1, and the status alone says nothing of that.
+func refusal(out, stderr string, err error) error {
+	for _, s := range []string{stderr, out} {
+		if l := lastLine(s); l != "" {
+			return errors.New(l)
+		}
+	}
+	return err
+}
+
+// lastLine is the last line of s with anything on it.
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }
 
 // roleAnswer is what a role means in a project, as Claude Code

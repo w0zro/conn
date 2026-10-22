@@ -103,8 +103,10 @@ var listenAfter = []time.Duration{time.Second, 3 * time.Second, 10 * time.Second
 
 // paneWatch is the format tmux is asked to say the changes of, for
 // every pane: what runs in it, where, whether it has ended, and the
-// marks conn's verbs set.
-const paneWatch = "#{pane_current_command} #{pane_current_path} #{pane_dead} #{" + exitMark + "} #{" + sessionMark + "}"
+// marks conn's verbs set. When a run ended is among them: a check run
+// again that fails as it did before changes nothing else that stays
+// long enough to be told.
+const paneWatch = "#{pane_current_command} #{pane_current_path} #{pane_dead} #{" + exitMark + "} #{" + endedMark + "} #{" + sessionMark + "}"
 
 // watchTmux keeps a control-mode client on conn's session, which tmux
 // tells of windows opened and closed and of every change to paneWatch.

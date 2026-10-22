@@ -642,8 +642,15 @@ func (m model) turning() bool {
 // told.
 type sized struct{}
 
+// ticked is the clock: the screen is drawn again each second, since a
+// row's age and a project's say how long ago, and nothing else changes
+// on a panel at rest.
+type ticked struct{}
+
+func tick() tea.Cmd { return tea.Tick(time.Second, func(time.Time) tea.Msg { return ticked{} }) }
+
 func (m model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.read(), tea.Tick(time.Second, func(time.Time) tea.Msg { return sized{} })}
+	cmds := []tea.Cmd{m.read(), tick(), tea.Tick(time.Second, func(time.Time) tea.Msg { return sized{} })}
 	if m.boot != nil {
 		cmds = append(cmds, m.boot.start()...)
 	}
@@ -1175,6 +1182,8 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if w, h, err := term.GetSize(os.Stdout.Fd()); err == nil && (w != m.width || h != m.height) {
 			m.width, m.height = w, h
 		}
+	case ticked:
+		return m, tick()
 	case acted:
 		m.note = string(msg)
 	case upped:

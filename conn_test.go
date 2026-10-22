@@ -5527,3 +5527,10 @@ func TestUnmarked(t *testing.T) {
 		}
 	}
 }
+
+// The clock keeps ticking, so ages are drawn again on a panel at rest.
+func TestTheClockTicks(t *testing.T) {
+	if _, cmd := (model{}).Update(ticked{}); cmd == nil {
+		t.Error("a tick asked for no next tick")
+	}
+}

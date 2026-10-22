@@ -2796,8 +2796,12 @@ func (m model) drawProject() ([]string, foot) {
 	case len(m.rows) == 0:
 		// Nothing running says so, then what starts something, a key a
 		// row as the bar has them, and air before the other projects.
+		// ss and st are said in any project: where nothing is written
+		// down they ask Claude Code what to run.
 		key := ink.Bold(true)
 		lines = append(lines, at(gray.Render("nothing runs")), "",
+			at(key.Render("ss")+gray.Render("  starts the stack")),
+			at(key.Render("st")+gray.Render("  runs the checks")),
 			at(key.Render("sc")+gray.Render("  starts a conversation")))
 		if n := len(m.rest); n > 0 {
 			many := "one"

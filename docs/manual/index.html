@@ -221,11 +221,13 @@
    ✗ lint                                    2m
    ◌ postgres                             :5432
 
-   projects ──────────────────────────────────
-   web                            1 waiting · 2 running
-   notes                                    1 running</pre>
+── projects ───────────────────────────────────
+
+ ▸ conn                                       4
+   web                                        2
+   notes                                      1</pre>
         </div>
-        <p class="caption">The mark at the head of a row is its role: ❝ a conversation, ○ the stack, ❯ a shell or a client, ◦ a check, which becomes ✓ or ✗ once it has ended, ◌ a server outside conn. In the margin, a spinner turns beside what is at work, a full cell stands beside what runs persistently, and a bar marks the cursor's row. Two conversations, one waiting; a dev server; a shell; two checks, one failed; and a database the project talks to.</p>
+        <p class="caption">The mark at the head of a row is its role: ❝ a conversation, ○ the stack, ❯ a shell or a client, ◦ a check, which becomes ✓ or ✗ once it has ended, ◌ a server outside conn. In the margin, a spinner turns beside what is at work, a full cell stands beside what runs persistently, and a bar marks the cursor's row. Two conversations, one waiting; a dev server; a shell; two checks, one failed; and a database the project talks to. Under the rule, the projects with something running, the open one marked, each with how many processes run in it.</p>
       </div>
     </div>
     <div class="foot">

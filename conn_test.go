@@ -643,13 +643,13 @@ func TestState(t *testing.T) {
 }
 
 func TestStanding(t *testing.T) {
-	if got := (project{Running: 2, Failed: 1}).standing(); got != "2 runs · 1 failed" {
+	if got := (project{Running: 2, Failed: 1}).standing(); got != "2 running · 1 failed" {
 		t.Errorf("standing = %q", got)
 	}
 	if got := (project{Last: time.Now().Add(-40 * time.Second)}).standing(); got != "40s" {
 		t.Errorf("standing a moment later = %q", got)
 	}
-	if got := (project{Running: 2, Waiting: 1}).standing(); got != "1 waits · 2 runs" {
+	if got := (project{Running: 2, Waiting: 1}).standing(); got != "1 waiting · 2 running" {
 		t.Errorf("standing = %q", got)
 	}
 	if got := (project{Last: time.Now().Add(-3 * time.Hour)}).standing(); got != "3h" {
@@ -926,7 +926,7 @@ func TestParseTerminals(t *testing.T) {
 }
 
 // With conn's tab behind another, the terminal says what waits: the
-// tab's title is "conn · n waits", the count the status line has, and
+// tab's title is "conn · n waiting", the count the status line has, and
 // "conn" once nothing does; and the bell rings once as a conversation
 // starts waiting, not again while it still waits, nor as one is
 // answered.
@@ -1010,20 +1010,20 @@ func TestWaitingReachesTheTab(t *testing.T) {
 			t.Errorf("with %d waiting the bell has rung %d times, want %d", n, got, wantBells)
 		}
 	}
-	say(1, "conn · 1 waits", 1)
-	say(1, "conn · 1 waits", 1)
-	say(2, "conn · 2 waits", 2)
-	say(1, "conn · 1 waits", 2)
+	say(1, "conn · 1 waiting", 1)
+	say(1, "conn · 1 waiting", 1)
+	say(2, "conn · 2 waiting", 2)
+	say(1, "conn · 1 waiting", 2)
 	say(0, "conn", 2)
-	say(1, "conn · 1 waits", 3)
+	say(1, "conn · 1 waiting", 3)
 }
 
 // With conn's tab behind another and a conversation waiting, a run that
 // fails anywhere reaches the tab as the waiting do: the title says
-// "conn · 1 waits · 1 failed", the status line says "1 failed" in the
+// "conn · 1 waiting · 1 failed", the status line says "1 failed" in the
 // red of the failed row, and the bell rings once. Restarting it (rf), or
 // dismissing it (xx), lowers the count without a bell, and at none the
-// title is "conn · 1 waits" again. What is read is the machine, as
+// title is "conn · 1 waiting" again. What is read is the machine, as
 // the panel reads it: tmux's panes, and Claude Code's instance files.
 func TestAFailedRunReachesTheTab(t *testing.T) {
 	bin, err := exec.LookPath("tmux")
@@ -1209,7 +1209,7 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 		}
 	}
 
-	step("with a conversation waiting", "conn · 1 waits", 1)
+	step("with a conversation waiting", "conn · 1 waiting", 1)
 	failedSaid("with nothing failed", 0)
 	frame("waiting-120x36.ans")
 
@@ -1218,17 +1218,17 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 	if _, err := startNamed(srv, "test", "if [ -e "+ran+" ]; then exec sleep 1000; fi; touch "+ran+"; exit 1", web, web, roleCheck); err != nil {
 		t.Fatal(err)
 	}
-	step("with a check failed", "conn · 1 waits · 1 failed", 2)
+	step("with a check failed", "conn · 1 waiting · 1 failed", 2)
 	failedSaid("with a check failed", 1)
 	frame("failed-120x36.ans")
-	step("with the check still failed", "conn · 1 waits · 1 failed", 2)
+	step("with the check still failed", "conn · 1 waiting · 1 failed", 2)
 	if len(m.failedRows()) != 1 {
 		t.Fatalf("web's failed rows = %d, want the check", len(m.failedRows()))
 	}
 
 	// rf restarts it: the count falls, with no bell.
 	press("rf")
-	step("with the check restarted", "conn · 1 waits", 2)
+	step("with the check restarted", "conn · 1 waiting", 2)
 	failedSaid("with the check restarted", 0)
 	frame("restarted-120x36.ans")
 
@@ -1236,7 +1236,7 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 	if _, err := startNamed(srv, "lint", "exit 2", web, web, roleCheck); err != nil {
 		t.Fatal(err)
 	}
-	step("with the lint failed", "conn · 1 waits · 1 failed", 3)
+	step("with the lint failed", "conn · 1 waiting · 1 failed", 3)
 	failedSaid("with the lint failed", 1)
 	frame("failed-again-120x36.ans")
 	m.cursor = -1
@@ -1249,7 +1249,7 @@ func TestAFailedRunReachesTheTab(t *testing.T) {
 		t.Fatal("the failed lint has no row in web")
 	}
 	press("xx")
-	step("with the lint dismissed", "conn · 1 waits", 3)
+	step("with the lint dismissed", "conn · 1 waiting", 3)
 	failedSaid("with the lint dismissed", 0)
 	frame("dismissed-120x36.ans")
 
@@ -4165,9 +4165,9 @@ func TestTheProjectsScreenNamesWhoWaits(t *testing.T) {
 	frame("waiting-120x36.ans", m)
 	raw, lines := screen(m)
 	all := strings.Join(lines, "\n")
-	at := saying(lines, "1 waits")
+	at := saying(lines, "1 waiting")
 	if at < 0 || !strings.Contains(lines[at], "web") {
-		t.Fatalf("web's line does not say 1 waits:\n%s", all)
+		t.Fatalf("web's line does not say 1 waiting:\n%s", all)
 	}
 	if at+1 >= len(lines) || !strings.Contains(lines[at+1], "❝ "+waits) {
 		t.Fatalf("under web's line, no line names the waiting conversation, ❝ %s:\n%s", waits, all)
@@ -4492,7 +4492,7 @@ func TestAWaitingConversationSaysWhatItAsks(t *testing.T) {
 // With conn's tab behind another, a conversation at work whose turn
 // ends has handed its work back, and waits on you as one stopped on a
 // question does, until it is looked at: the bell rings once, the tab's
-// title reads "conn · 1 waits", its project's line on the projects
+// title reads "conn · 1 waiting", its project's line on the projects
 // screen says "1 waiting" with a gray line under it naming the
 // conversation, and its row says "waiting" in the accent with no
 // spinner. tab reaches it in its turn among those waiting. The agent
@@ -4784,8 +4784,8 @@ func TestATurnHandedBackWaits(t *testing.T) {
 			}
 			return
 		}
-		if !strings.Contains(plines[at], "1 waits") {
-			t.Errorf("%s, web's line on the projects screen does not say 1 waits: %q\n%s", what, plines[at], pall)
+		if !strings.Contains(plines[at], "1 waiting") {
+			t.Errorf("%s, web's line on the projects screen does not say 1 waiting: %q\n%s", what, plines[at], pall)
 		}
 		if strings.Contains(plines[at], "finished") {
 			t.Errorf("%s, web's line on the projects screen says finished, a word conn no longer has: %q", what, plines[at])
@@ -4828,12 +4828,12 @@ func TestATurnHandedBackWaits(t *testing.T) {
 
 	// Its turn over, it waits: one bell, and said everywhere.
 	webStatus("idle")
-	step("with the turn handed back", is("conn · 1 waits · 1 finished"), `"conn · 1 waits · 1 finished"`, 1)
+	step("with the turn handed back", is("conn · 1 waiting · 1 finished"), `"conn · 1 waiting · 1 finished"`, 1)
 	waitingSaid("with the turn handed back", true)
 	frame("handed-back-120x36.ans", projectsNow())
 	frame("handed-back-panel-120x36.ans", panelNow())
 	// Not looked at, it stays said, and rings no more.
-	step("with the turn still handed back", is("conn · 1 waits · 1 finished"), `"conn · 1 waits · 1 finished"`, 1)
+	step("with the turn still handed back", is("conn · 1 waiting · 1 finished"), `"conn · 1 waiting · 1 finished"`, 1)
 	waitingSaid("with the turn still handed back", true)
 	if t.Failed() {
 		t.FailNow()
@@ -4847,9 +4847,9 @@ func TestATurnHandedBackWaits(t *testing.T) {
 	// api's conversation stops on a question; then web's turn ends
 	// again: two waiting, one kind.
 	apiStatus("waiting")
-	step("with api's conversation waiting", is("conn · 1 waits"), `"conn · 1 waits"`, 2)
+	step("with api's conversation waiting", is("conn · 1 waiting"), `"conn · 1 waiting"`, 2)
 	webStatus("idle")
-	step("with a question and a turn handed back", is("conn · 2 waits · 1 finished"), `"conn · 2 waits · 1 finished"`, 3)
+	step("with a question and a turn handed back", is("conn · 2 waiting · 1 finished"), `"conn · 2 waiting · 1 finished"`, 3)
 	waitingSaid("with a question and a turn handed back", true)
 	frame("two-waiting-120x36.ans", projectsNow())
 
@@ -4865,7 +4865,7 @@ func TestATurnHandedBackWaits(t *testing.T) {
 	}
 
 	// Gone into, web's is quietly taken away; the question still waits.
-	step("having gone into the conversation handed back", is("conn · 1 waits"), `"conn · 1 waits"`, 3)
+	step("having gone into the conversation handed back", is("conn · 1 waiting"), `"conn · 1 waiting"`, 3)
 	waitingSaid("having gone into the conversation handed back", false)
 	frame("looked-at-120x36.ans", panelNow())
 }
@@ -5049,7 +5049,7 @@ func TestAFinishedTurnReachesTheStatusLine(t *testing.T) {
 			for _, c := range []struct {
 				n    int
 				word string
-			}{{wantWaiting, "waits"}, {wantFinished, "finished"}, {wantFailed, "failed"}} {
+			}{{wantWaiting, "waiting"}, {wantFinished, "finished"}, {wantFailed, "failed"}} {
 				if c.n > 0 {
 					w = append(w, fmt.Sprintf("%d %s", c.n, c.word))
 				}

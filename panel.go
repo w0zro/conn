@@ -3098,10 +3098,10 @@ func or(s, otherwise string) string {
 func (p project) standing() string {
 	var said []string
 	if p.Waiting > 0 {
-		said = append(said, fmt.Sprintf("%d waits", p.Waiting))
+		said = append(said, fmt.Sprintf("%d waiting", p.Waiting))
 	}
 	if p.Running > 0 {
-		said = append(said, fmt.Sprintf("%d runs", p.Running))
+		said = append(said, fmt.Sprintf("%d running", p.Running))
 	}
 	if p.Failed > 0 {
 		said = append(said, fmt.Sprintf("%d failed", p.Failed))

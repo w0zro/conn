@@ -18,8 +18,8 @@ out of sight.
    ◌ postgres                             :5432
 
    projects ──────────────────────────────────
-   web                            1 waits · 2 runs
-   notes                                    1 runs
+   web                            1 waiting · 2 running
+   notes                                    1 running
 ```
 
 ```

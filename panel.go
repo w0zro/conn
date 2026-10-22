@@ -688,6 +688,7 @@ func (m model) read() tea.Cmd {
 		ps, _ := panes(srv)
 		var held []pane
 		r := read{at: at}
+		offerSeen := false
 		for _, p := range ps {
 			if p.Window == window && p.ID != own {
 				r.shownOK = !p.Dead
@@ -696,13 +697,20 @@ func (m model) read() tea.Cmd {
 				}
 			}
 			if offering != "" && p.ID == offering {
-				r.offerUp, r.first = !p.Dead, p.First
+				r.offerUp, r.first, offerSeen = !p.Dead, p.First, true
 			}
 			if p.Hold {
 				continue
 			}
 			if p.ID != own && !p.Dead {
 				held = append(held, p)
+			}
+		}
+		// The question's pane gone already, the server says the first
+		// pane it started.
+		if offering != "" && !offerSeen {
+			if v, _ := srv.Global(offeredMark); strings.HasPrefix(v, offering+" ") {
+				r.first = strings.TrimPrefix(v, offering+" ")
 			}
 		}
 		live := liveClaude()
@@ -1103,7 +1111,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if m.screen == onProject {
-			m.cursor = keep(m.cursor, on, m.items(), m.itemKey)
+			m.cursor = m.keepRow(m.cursor, on)
 		}
 		// The question's pane ended or gone, the question is over: the
 		// first pane it started takes the cursor, as a pane just opened
@@ -1169,6 +1177,10 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case acted:
 		m.note = string(msg)
+	case upped:
+		m.note = msg.note
+		m.follow, m.followAt = msg.id, time.Now()
+		return m, m.read()
 	case spun:
 		if !m.turning() {
 			m.spinning = false
@@ -1818,12 +1830,17 @@ func (m model) placeFor(repo string) string {
 func (m model) up(command string) tea.Cmd {
 	srv, root := m.srv, m.here()
 	return func() tea.Msg {
-		if _, err := startNamed(srv, "", command, root, root, roleCheck); err != nil {
+		id, err := startNamed(srv, "", command, root, root, roleCheck)
+		if err != nil {
 			return acted(err.Error())
 		}
-		return acted(command + " is up")
+		return upped{id: id, note: command + " is up"}
 	}
 }
+
+// upped is a run started at !: its pane, which takes the cursor once
+// its row is read so the workspace shows what it says, and the note.
+type upped struct{ id, note string }
 
 // start runs a command in the project, or a shell where there is none,
 // in a window of its own, marked with the conversation it is where it
@@ -3204,6 +3221,27 @@ func keep[T any](cursor int, on string, items []T, key func(T) string) int {
 		}
 	}
 	return min(cursor, max(len(items)-1, 0))
+}
+
+// keepRow is where the cursor stands after a read: on the item it was
+// on, and where that was a row now gone, on the nearest row left, or
+// the open project's own line where none is: never on another
+// project's line, where enter would open that project.
+func (m model) keepRow(cursor int, on string) int {
+	items := m.items()
+	at := keep(cursor, on, items, m.itemKey)
+	if on == "" || strings.HasPrefix(on, "project ") || at < len(items) && m.itemKey(items[at]) == on {
+		return at
+	}
+	if len(m.rows) > 0 {
+		return m.itemAt(min(cursor, len(m.rows)-1))
+	}
+	for i, it := range items {
+		if it.row < 0 && m.isOpen(it.project) {
+			return i
+		}
+	}
+	return at
 }
 
 // drawOffer is the project's screen while c's question stands: the

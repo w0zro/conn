@@ -34,6 +34,13 @@ import (
 // the panel to land on.
 const firstMark = "@conn_first"
 
+// offeredMark is the same on the server, as the offer's pane and the
+// first, since the pane can be gone by the time the panel reads it: the
+// workspace moving on takes a hold with it. It is a name of its own
+// because a pane's format reads the server's options where the pane
+// has none.
+const offeredMark = "@conn_offered"
+
 // offerCommand is how a build runs an offer for a role in a project.
 func offerCommand(self string, as role, p project) string {
 	return "exec " + shell.Quote(self) + " offer " + string(as) + " " + shell.Quote(p.Root) + " " + shell.Quote(p.Name)
@@ -343,7 +350,7 @@ func (o offerModel) start() (tea.Model, tea.Cmd) {
 			if first == "" && id != "" {
 				first = id
 				if own != "" {
-					_, _ = srv.Do(tmux.SetPane(own, firstMark, id))
+					_, _ = srv.Do(tmux.SetPane(own, firstMark, id), tmux.SetGlobal(offeredMark, own+" "+id))
 				}
 			}
 			said = append(said, r)

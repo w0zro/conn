@@ -5481,3 +5481,33 @@ func TestXFindsOnTheProjects(t *testing.T) {
 		t.Error("ctrl-x on a project's line asked for nothing")
 	}
 }
+
+// A row gone leaves the cursor in the open project: on the nearest row
+// left, or on the project's own line where none is, never on another
+// project's line, where enter would open that one.
+func TestARowGoneKeepsTheCursorInTheProject(t *testing.T) {
+	m := model{screen: onProject, projects: []project{{Name: "api", Root: "/a", Running: 1}, {Name: "web", Root: "/w"}}}
+	m.cur = m.projects[1]
+	m.rows = []row{{pane: &pane{ID: "%1"}}, {pane: &pane{ID: "%2"}}}
+	m.cursor = 1
+	on := m.itemKey(m.items()[m.cursor])
+	m.rows = m.rows[:1]
+	if got := m.keepRow(m.cursor, on); got != 0 {
+		t.Errorf("with the last row gone the cursor is on item %d, want the row left", got)
+	}
+	m.rows = []row{}
+	got := m.keepRow(0, on)
+	if it := m.items()[got]; it.row >= 0 || it.project.Root != "/w" {
+		t.Errorf("with every row gone the cursor is on %q, want web's own line", m.itemKey(it))
+	}
+}
+
+// A run started at ! takes the cursor once its row is read, so the
+// workspace shows what it says.
+func TestARunAtBangTakesTheCursor(t *testing.T) {
+	m := model{screen: onProject, cur: project{Root: "/p"}}
+	next, _ := m.Update(upped{id: "%9", note: "make is up"})
+	if m = next.(model); m.follow != "%9" || m.note != "make is up" {
+		t.Errorf("after a run at !, following %q with the note %q", m.follow, m.note)
+	}
+}

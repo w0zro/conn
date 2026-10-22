@@ -74,6 +74,12 @@ The rest of the window is the
 which shows the process under the cursor;
 .B enter
 puts the keys in it.
+In a window narrower than 110 columns the two take turns: the one with
+the keys fills the window, as tmux zooms a pane, and
+.B enter
+and
+.B ctrl\-space
+change places between them.
 Every process
 .B conn
 starts runs in a window of the server out of sight, and is swapped into

@@ -126,7 +126,13 @@ func (w workspace) ensure() (pane, error) {
 			return pane{}, err
 		}
 		id := strings.TrimSpace(out)
-		if _, err := w.srv.Do(tmux.SetPane(id, holdMark, "1"), tmux.SetWindow(w.window, "remain-on-exit", "on"), tmux.ResizeWidth(w.panel, panelWidth)); err != nil {
+		cmds := []tmux.Cmd{tmux.SetPane(id, holdMark, "1"), tmux.SetWindow(w.window, "remain-on-exit", "on"), tmux.ResizeWidth(w.panel, panelWidth)}
+		if width, _ := w.size(); width < narrowBelow {
+			// Narrow, the panel and the workspace take turns: the split
+			// leaves the window unzoomed, and it is zoomed on the panel.
+			cmds = append(cmds, tmux.Cmd{"resize-pane", "-Z", "-t", w.panel})
+		}
+		if _, err := w.srv.Do(cmds...); err != nil {
 			return pane{}, err
 		}
 		return pane{ID: id, Hold: true, Window: w.window}, nil
@@ -160,9 +166,12 @@ func (w workspace) show(target string, focus bool) error {
 			return err
 		}
 		hold := strings.TrimSpace(out)
-		cmds = append(cmds, tmux.SetPane(hold, holdMark, "1"), tmux.Swap(hold, bay.ID), w.keepShape(bay.ID), windowFor(bay))
+		cmds = append(cmds, tmux.SetPane(hold, holdMark, "1"), tmux.Swap(hold, bay.ID))
+		cmds = append(cmds, w.keepShape(bay.ID)...)
+		cmds = append(cmds, windowFor(bay))
 	case target != bay.ID:
-		cmds = append(cmds, tmux.Swap(target, bay.ID), w.keepShape(bay.ID))
+		cmds = append(cmds, tmux.Swap(target, bay.ID))
+		cmds = append(cmds, w.keepShape(bay.ID)...)
 		if bay.Hold {
 			cmds = append(cmds, tmux.Kill(bay.ID))
 		} else {
@@ -191,13 +200,18 @@ func windowFor(p pane) tmux.Cmd {
 
 // keepShape sizes the window a pane has been swapped back out to as the
 // workspace is, so what runs in it is not reflowed to another width.
-func (w workspace) keepShape(id string) tmux.Cmd {
+// Narrow, the workspace in its turn is the whole window, the size tmux
+// gives a window out of sight already; and sizing one then would unzoom
+// conn's, as tmux sizes the session's windows again after it.
+func (w workspace) keepShape(id string) []tmux.Cmd {
 	width, height := w.size()
-	return tmux.ResizeWindow(id, width, height)
+	if width < narrowBelow {
+		return nil
+	}
+	return []tmux.Cmd{tmux.ResizeWindow(id, max(width-panelWidth-1, 10), height)}
 }
 
-// size is the workspace's size: the window less the panel and the
-// border between them.
+// size is the window's size.
 func (w workspace) size() (int, int) {
 	out, err := w.srv.Display(w.window, "#{window_width} #{window_height}")
 	if err != nil {
@@ -207,7 +221,7 @@ func (w workspace) size() (int, int) {
 	if _, err := fmt.Sscan(out, &width, &height); err != nil {
 		return 80, 24
 	}
-	return max(width-panelWidth-1, 10), height
+	return width, height
 }
 
 // runHold is a hold: blank, and a key in it puts the keys back on the

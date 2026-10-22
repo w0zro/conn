@@ -5593,3 +5593,70 @@ func TestAOneOffThatListensIsAServer(t *testing.T) {
 		t.Error("a one-off listening turns, or does not stand steady")
 	}
 }
+
+// The bar fits a narrow window: the hints that do not fit go from the
+// end, and ? stays, since it is how the rest are found.
+func TestTheBarFitsANarrowWindow(t *testing.T) {
+	keys := func(hs []keyHint) string {
+		var out []string
+		for _, h := range hs {
+			out = append(out, h.key)
+		}
+		return strings.Join(out, " ")
+	}
+	if got := keys(fitHints(projectHints, 80)); got != "enter / s x r a c ?" {
+		t.Errorf("at 80 the bar says %q", got)
+	}
+	if got := keys(fitHints(projectHints, 200)); got != keys(projectHints) {
+		t.Errorf("at 200 the bar says %q", got)
+	}
+	if got := keys(fitHints(projectHints, 20)); got != "enter ?" {
+		t.Errorf("at 20 the bar says %q", got)
+	}
+}
+
+// In a window too narrow for the panel and the workspace side by side,
+// they take turns: the window stays zoomed on the pane with the keys,
+// through a process shown beside the cursor and the keys going in and
+// coming back; wide again, the panel is at its width beside the
+// workspace.
+func TestANarrowWindowTakesTurns(t *testing.T) {
+	srv, win, panel := scratchServer(t)
+	if _, err := srv.Do(fitWindow(win, panel)...); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.Run("resize-window", "-t", win, "-x", "80", "-y", "24"); err != nil {
+		t.Fatal(err)
+	}
+	ws := newWorkspace(srv, win, panel, "/x")
+	ws.hold = "sleep 1000"
+	zoomedOn := func(what, want string) {
+		t.Helper()
+		time.Sleep(200 * time.Millisecond)
+		got, _ := srv.Display(win, "#{window_zoomed_flag} #{pane_id}")
+		if got != "1 "+want {
+			t.Errorf("%s: the window reads %q, want zoomed on %s", what, got, want)
+		}
+	}
+	a, _ := startNamed(srv, "a", "sleep 1000", "/tmp", "/tmp", roleStack)
+	b, _ := startNamed(srv, "b", "sleep 1000", "/tmp", "/tmp", roleStack)
+	if err := ws.show(a, false); err != nil {
+		t.Fatal(err)
+	}
+	zoomedOn("a process beside the cursor", panel)
+	_ = ws.show(b, false)
+	zoomedOn("another beside it", panel)
+	_ = ws.show(b, true)
+	zoomedOn("the keys in it", b)
+	if _, err := srv.Do(tmux.SelectPane(panel)); err != nil {
+		t.Fatal(err)
+	}
+	zoomedOn("the keys back", panel)
+	if _, err := srv.Run("resize-window", "-t", win, "-x", "160", "-y", "40"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if got, _ := srv.Display(panel, "#{window_zoomed_flag} #{pane_width}"); got != "0 "+strconv.Itoa(panelWidth) {
+		t.Errorf("wide again, the window reads %q, want unzoomed with the panel at %d", got, panelWidth)
+	}
+}

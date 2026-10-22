@@ -379,7 +379,7 @@ func attach(srv *tmux.Server, self, home string, want theme.Want) (int, error) {
 func bindBack(window, panel string) tmux.Cmd {
 	onPanel := "#{==:#{pane_id}," + panel + "}"
 	arrive := "send-keys -t " + panel + " " + backKey
-	fromPane := "set-option -gF " + fromMark + " '#{pane_id}' ; select-window -t " + window + " ; select-pane -t " + panel + " ; " + arrive
+	fromPane := "set-option -gF " + fromMark + " '#{pane_id}' ; select-window -t " + window + " ; select-pane -Z -t " + panel + " ; " + arrive
 	return tmux.Cmd{"bind", "-n", backKey, "if-shell", "-F", onPanel, arrive, fromPane}
 }
 
@@ -497,18 +497,33 @@ func ensurePanel(srv *tmux.Server, home, self, panel string, again bool) (string
 			return "", err
 		}
 	}
-	_, err = srv.Do(tmux.SetPane(own.pane, panelMark, "1"), tmux.SetGlobal(buildMark, build), keepWidth(own.window, own.pane))
+	_, err = srv.Do(append([]tmux.Cmd{tmux.SetPane(own.pane, panelMark, "1"), tmux.SetGlobal(buildMark, build)}, fitWindow(own.window, own.pane)...)...)
 	return own.window, err
 }
 
-// keepWidth holds the panel at its width when the window is resized: a
-// terminal moved to another screen, or made bigger, gives the window new
-// columns, and tmux shares them out among its panes by the share each
-// had, so the panel would grow with the workspace. A zoomed window is
-// left as it is, since a resize would unzoom it.
-func keepWidth(window, panel string) tmux.Cmd {
+// narrowBelow is the window's width under which the panel and the
+// workspace take turns: at 80 columns the workspace beside a panel of
+// 50 has 29, too few to work in.
+const narrowBelow = panelWidth + 60
+
+// narrow is a format that says whether a window is narrow, compared as
+// numbers: #{<:} compares strings, and "80" is after "110".
+var narrow = "#{e|<|:#{window_width}," + strconv.Itoa(narrowBelow) + "}"
+
+// fitWindow is the hook that fits conn's window to its width when it
+// is resized. Wide, the panel keeps its width: a terminal moved to
+// another screen, or made bigger, gives the window new columns, and tmux
+// shares them out among its panes by the share each had, so the panel
+// would grow with the workspace. Narrow, the panel and the workspace
+// take turns: the window is zoomed on the pane with the keys, and
+// everything conn does there keeps it zoomed, select-pane -Z moving the
+// zoom to the pane the keys go to. Crossing the width is the one thing
+// that zooms or unzooms it.
+func fitWindow(window, panel string) []tmux.Cmd {
 	resize := strings.Join(tmux.ResizeWidth(panel, panelWidth), " ")
-	return tmux.SetWindowHook(window, "window-resized", "if -F '#{window_zoomed_flag}' '' '"+resize+"'")
+	toggle := "if -F '#{!=:" + narrow + ",#{window_zoomed_flag}}' 'resize-pane -Z -t " + window + "'"
+	keep := "if -F '#{||:" + narrow + ",#{window_zoomed_flag}}' '' '" + resize + "'"
+	return []tmux.Cmd{tmux.SetWindowHook(window, "window-resized", toggle+" ; "+keep)}
 }
 
 // buildMark is the build conn's pane runs, by fingerprint.

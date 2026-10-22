@@ -59,14 +59,14 @@ func SetWindowHook(target, hook, command string) Cmd {
 }
 
 // Swap puts one pane where another stands and the other where it stood,
-// leaving the keys where they are.
-func Swap(source, target string) Cmd { return Cmd{"swap-pane", "-d", "-s", source, "-t", target} }
+// leaving the keys where they are, and a zoomed window zoomed.
+func Swap(source, target string) Cmd { return Cmd{"swap-pane", "-d", "-Z", "-s", source, "-t", target} }
 
 // Kill takes a pane down.
 func Kill(pane string) Cmd { return Cmd{"kill-pane", "-t", pane} }
 
-// SelectPane puts the keys in a pane.
-func SelectPane(pane string) Cmd { return Cmd{"select-pane", "-t", pane} }
+// SelectPane puts the keys in a pane, and a zoomed window zoomed on it.
+func SelectPane(pane string) Cmd { return Cmd{"select-pane", "-Z", "-t", pane} }
 
 // ResizeWindow sizes the window a pane is in.
 func ResizeWindow(target string, width, height int) Cmd {

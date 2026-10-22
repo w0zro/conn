@@ -1027,7 +1027,14 @@ func (m model) telling(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	_, f := m.draw()
-	bar := connBar(f.hints, m.g)
+	// The bar is as wide as the window. Beside the workspace the window
+	// is wide enough; narrow, the panel has the whole window in its turn,
+	// and the bar is fit to it.
+	hints := f.hints
+	if m.width > panelWidth {
+		hints = fitHints(hints, m.width)
+	}
+	bar := connBar(hints, m.g)
 	if bar == m.bar {
 		return m, cmd
 	}
@@ -1037,6 +1044,30 @@ func (m model) telling(cmd tea.Cmd) (tea.Model, tea.Cmd) {
 		_, _ = srv.Do(tmux.SetGlobal(barMark, bar), tmux.RefreshStatus())
 		return nil
 	})
+}
+
+// fitHints is as many of the hints as the bar has room for in width
+// columns, the commonest first as they come, with ? kept last where it
+// is among them: it is how the rest are found.
+func fitHints(hints []keyHint, width int) []keyHint {
+	wide := func(hs []keyHint) int {
+		n := 1
+		for i, h := range hs {
+			if i > 0 {
+				n += 3
+			}
+			n += ansi.StringWidth(h.key) + 1 + ansi.StringWidth(h.does)
+		}
+		return n
+	}
+	var help []keyHint
+	if len(hints) > 0 && hints[len(hints)-1].key == "?" {
+		hints, help = hints[:len(hints)-1], hints[len(hints)-1:]
+	}
+	for len(hints) > 0 && wide(append(slices.Clone(hints), help...)) > width {
+		hints = hints[:len(hints)-1]
+	}
+	return append(slices.Clone(hints), help...)
 }
 
 // reconcile asks the workspace for what the panel now wants shown,

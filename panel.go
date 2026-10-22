@@ -95,6 +95,10 @@ type model struct {
 	// What each of them is called, by pane, for the projects screen.
 	waitTitle map[string]string
 	waitAsk   map[string]string
+	// The runs that failed, and why, by pane, for the projects screen
+	// and under the rows.
+	broken []pane
+	why    map[string]string
 	// /'s search: whether it stands, the panes' lines as read when it
 	// opened, and the lines that say what is typed. The pane the line
 	// under the cursor is shown in, in copy mode on the line, and a
@@ -564,6 +568,8 @@ type read struct {
 	waiting  []pane            // the panes conn holds a conversation waiting on you in
 	titles   map[string]string // what each of them is called, by pane
 	asks     map[string]string // what each of them is stopped on, by pane; blank for a turn handed back
+	broken   []pane            // the panes whose run failed, and why by pane
+	why      map[string]string
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
 	// ended there stands dead. The directory is where it runs, which
@@ -750,6 +756,15 @@ func (m model) read() tea.Cmd {
 			case p.started() && p.Exit != "" && p.Exit != "0":
 				failed[root]++
 				broke++
+				if lines, err := said(srv, p.ID); err == nil {
+					if why := reasonOf(sansEnd(lines, p.Name, p.Run)); why != "" {
+						if r.why == nil {
+							r.why = map[string]string{}
+						}
+						r.why[p.ID] = why
+						r.broken = append(r.broken, p)
+					}
+				}
 			case p.Exit == "":
 				running[root]++
 			}
@@ -1128,6 +1143,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.takeTheme(msg), nil
 	case read:
 		m.waiting, m.waitTitle, m.waitAsk = msg.waiting, msg.titles, msg.asks
+		m.broken, m.why = msg.broken, msg.why
 		m.procs = msg.procs
 		// The first read, with a process standing in the workspace: the
 		// panel has been started again over it, and opens on it.
@@ -1619,7 +1635,19 @@ func (m model) projectHeight(p project) int {
 			n++
 		}
 	}
-	return n
+	return n + len(m.brokenIn(p))
+}
+
+// brokenIn is the failed runs, with a reason to say, that are in a
+// project.
+func (m model) brokenIn(p project) []pane {
+	var out []pane
+	for _, b := range m.broken {
+		if m.why[b.ID] != "" && p.belongs(m.known.rootOf(b.Dir)) {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // openOn shows a pane in the workspace, the keys in it, with its
@@ -2769,6 +2797,10 @@ func (m model) drawProjects() ([]string, foot) {
 				lines = append(lines, m.row([]piece{{strings.Repeat(" ", ansi.StringWidth(lead)) + ask, gray}}, piece{}, false))
 			}
 		}
+		// And what failed, by name, with why.
+		for _, b := range m.brokenIn(p) {
+			lines = append(lines, m.row([]piece{{"  " + paneName(b), failing}, {"  " + m.why[b.ID], gray}}, piece{}, false))
+		}
 	}
 	if port, ok := m.typedPort(); ok && m.loaded {
 		lines = append(lines, m.drawOutside(port, len(shown) > 0)...)
@@ -2955,6 +2987,9 @@ func (m model) lay(head int) laid {
 		if r.conv != nil && r.state == "waiting" && r.conv.Asks != "" {
 			rows.add(m.drawAsk(r, depth, i == m.cursor), i)
 		}
+		if r.pane != nil && strings.HasPrefix(r.state, "failed ") && m.why[r.pane.ID] != "" {
+			rows.add(m.drawUnder(r, depth, m.why[r.pane.ID], false), i)
+		}
 	}
 	room := max(m.height-head-1, 1)
 	var l laid
@@ -3112,6 +3147,12 @@ func (m model) drawRow(r row, depth int, cursor bool) string {
 // drawAsk is the line under a waiting conversation's row, in the gray,
 // starting under its name: what it is stopped on.
 func (m model) drawAsk(r row, depth int, cursor bool) string {
+	return m.drawUnder(r, depth, r.conv.Asks, cursor)
+}
+
+// drawUnder is a line of text in the gray under a row, starting under
+// its name: what a conversation is stopped on, or why a run failed.
+func (m model) drawUnder(r row, depth int, text string, cursor bool) string {
 	lead := strings.Repeat("  ", depth) + markOf(r) + " "
 	if r.branch == "" {
 		for _, p := range r.place() {
@@ -3119,7 +3160,7 @@ func (m model) drawAsk(r row, depth int, cursor bool) string {
 		}
 	}
 	pad := strings.Repeat(" ", ansi.StringWidth(lead))
-	return m.rowBarred(" ", "", []piece{{pad + r.conv.Asks, gray}}, piece{}, cursor)
+	return m.rowBarred(" ", "", []piece{{pad + text, gray}}, piece{}, cursor)
 }
 
 // stated is what a row's state says at the right. The ordinary states

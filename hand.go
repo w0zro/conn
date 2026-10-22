@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -113,3 +114,21 @@ func lastLines(lines []string, n, size int) []string {
 	}
 	return lines
 }
+
+// reasonOf is the last thing a run said that is not only a verdict, as
+// go test ends with FAIL and a shell with its status: why it failed.
+func reasonOf(lines []string) string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		s := strings.TrimSpace(lines[i])
+		switch {
+		case s == "", strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]"):
+		case verdict.MatchString(s):
+		default:
+			return s
+		}
+	}
+	return ""
+}
+
+// verdict is a line that says only that a run failed, or how it ended.
+var verdict = regexp.MustCompile(`^(--- )?FAIL\b.*$|^(exit status \d+|exited.*|make: \*\*\*.*)$`)

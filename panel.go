@@ -272,13 +272,18 @@ func placeOf(r row, ros roster) int {
 	case !r.pane.started():
 		// A shell, or a client opened by c: it talks to the stack.
 		return placeClients
-	case r.pane.Name == "" && r.pane.Role == roleCheck, r.pane.Name != "" && ros.role[r.pane.Name] == roleCheck:
+	case oneOff(*r.pane) && len(r.ports) == 0, r.pane.Name != "" && ros.role[r.pane.Name] == roleCheck:
 		// A run under a name is what the name was last written down
-		// as; one under none is what it was started as.
+		// as; one under none is what it was started as, a check, unless
+		// it listens: a server typed at ! is a server.
 		return placeChecks
 	}
 	return placeStack
 }
+
+// oneOff says whether a pane is a run under no name, as ! and conn u
+// under no name start one: started as a check.
+func oneOff(p pane) bool { return p.Name == "" && p.Role == roleCheck }
 
 // place is what a row says of where it runs, before its name: the
 // repository in a folder, the branch in a worktree.
@@ -726,6 +731,14 @@ func (m model) read() tea.Cmd {
 		starts := readStarted(startedPath(srv.Socket))
 		active, _ := srv.Display(window, "#{pane_id}")
 		back := k.handedBack(held, live, active)
+		procs := machine(ps, live, listening(), parents(), connections())
+		r.procs = procs
+		listens := map[string]bool{}
+		for _, p := range procs {
+			if p.pane != nil && len(p.Ports) > 0 {
+				listens[p.pane.ID] = true
+			}
+		}
 		running, waiting, turning, failed := map[string]int{}, map[string]int{}, map[string]int{}, map[string]int{}
 		total, broke := 0, 0
 		for _, p := range held {
@@ -740,7 +753,7 @@ func (m model) read() tea.Cmd {
 			case p.Exit == "":
 				running[root]++
 			}
-			if p.Exit == "" && (p.Name == "" && p.Role == roleCheck || isCheck(starts, root, p.Name)) {
+			if p.Exit == "" && (oneOff(p) && !listens[p.ID] || isCheck(starts, root, p.Name)) {
 				turning[root]++
 			}
 			// A turn handed back waits on you as a question does.
@@ -795,8 +808,6 @@ func (m model) read() tea.Cmd {
 			}
 		}
 
-		procs := machine(ps, live, listening(), parents(), connections())
-		r.procs = procs
 		if cur != nil {
 			// What listens, and where: a port under one of conn's panes is
 			// that pane's; a server outside conn whose directory is in the

@@ -5575,3 +5575,21 @@ func TestLsStandsAsThePanel(t *testing.T) {
 		t.Errorf("after conn r test, conn ls lists %v, want %v", got, want)
 	}
 }
+
+// A run under no name is a check, as it was started, unless it
+// listens: a server typed at ! stands with the stack, at rest.
+func TestAOneOffThatListensIsAServer(t *testing.T) {
+	run := pane{ID: "%1", Role: roleCheck, Run: "python3 -m http.server 8131"}
+	r := row{pane: &run}
+	if got := placeOf(r, roster{}); got != placeChecks {
+		t.Errorf("a one-off not listening stands in place %d, want the checks", got)
+	}
+	r.ports = []string{"8131"}
+	if got := placeOf(r, roster{}); got != placeStack {
+		t.Errorf("a one-off listening stands in place %d, want the stack", got)
+	}
+	r.stand = placeStack
+	if turns(r) || !stands(r) {
+		t.Error("a one-off listening turns, or does not stand steady")
+	}
+}

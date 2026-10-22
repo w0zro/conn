@@ -686,6 +686,16 @@ func TestMachine(t *testing.T) {
 	}
 }
 
+// A backend postgres forks holds the server's socket for a moment; it
+// is the server's row, not one of its own.
+func TestMachineForkedListener(t *testing.T) {
+	listeners := map[int][]string{50: {"5432", "5432"}, 51: {"5432"}, 52: {"5432"}}
+	got := machine(nil, nil, listeners, map[int]int{51: 50, 52: 50}, nil)
+	if len(got) != 1 || got[0].PID != 50 || !reflect.DeepEqual(got[0].Ports, []string{"5432"}) {
+		t.Errorf("machine = %+v", got)
+	}
+}
+
 func TestShellLine(t *testing.T) {
 	if got := shellLine([]string{"npm test | tail -5"}); got != "npm test | tail -5" {
 		t.Errorf("one word: %q", got)

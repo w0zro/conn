@@ -132,6 +132,9 @@ func machine(ps []pane, live map[string]claudeRun, listeners map[int][]string, p
 			out[i].Ports = append(out[i].Ports, listeners[pid]...)
 			continue
 		}
+		if heldAbove(pid, listeners, parent) {
+			continue
+		}
 		outside = append(outside, pid)
 	}
 	if len(outside) > 0 {
@@ -162,6 +165,20 @@ func under(pid int, panes map[int]int, parent map[int]int) (int, bool) {
 		pid = parent[pid]
 	}
 	return 0, false
+}
+
+// heldAbove says a process listens on a socket a process above it
+// holds: a child forked with its parent's socket, as postgres forks a
+// backend for each connection, is its parent's row.
+func heldAbove(pid int, listeners map[int][]string, parent map[int]int) bool {
+	pid = parent[pid]
+	for seen := 0; pid > 1 && seen < 64; seen++ {
+		if _, ok := listeners[pid]; ok {
+			return true
+		}
+		pid = parent[pid]
+	}
+	return false
 }
 
 // paneName is what a pane answers to: the name conn u gave it, or what

@@ -953,31 +953,7 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 	for i := range running {
 		running[i].stand = placeOf(running[i], ros)
 	}
-	// In a place, what was written down stands as it was first written,
-	// before what was not; the rest in the order it was started, a
-	// pane's id being tmux's count of the panes it has made.
-	written := func(r row) (int, bool) {
-		if r.pane == nil || r.pane.Name == "" {
-			return 0, false
-		}
-		at, ok := ros.at[r.pane.Name]
-		return at, ok
-	}
-	sort.SliceStable(running, func(i, j int) bool {
-		a, b := running[i], running[j]
-		if a.stand != b.stand {
-			return a.stand < b.stand
-		}
-		ai, aok := written(a)
-		bi, bok := written(b)
-		switch {
-		case aok != bok:
-			return aok
-		case aok && ai != bi:
-			return ai < bi
-		}
-		return paneNumber(a) < paneNumber(b)
-	})
+	sort.SliceStable(running, func(i, j int) bool { return before(running[i], running[j], ros) })
 	for i := range elsewhere {
 		elsewhere[i].stand = placeElsewhere
 	}
@@ -985,6 +961,32 @@ func arrange(convs []conversation, ps []pane, live map[string]claudeRun, ports m
 		rest[i].stand = placeRest
 	}
 	return append(append(running, elsewhere...), rest...)
+}
+
+// before says whether a placed row stands before another: by place,
+// and in a place, what was written down as it was first written,
+// before what was not; the rest in the order it was started, a pane's
+// id being tmux's count of the panes it has made.
+func before(a, b row, ros roster) bool {
+	if a.stand != b.stand {
+		return a.stand < b.stand
+	}
+	written := func(r row) (int, bool) {
+		if r.pane == nil || r.pane.Name == "" {
+			return 0, false
+		}
+		at, ok := ros.at[r.pane.Name]
+		return at, ok
+	}
+	ai, aok := written(a)
+	bi, bok := written(b)
+	switch {
+	case aok != bok:
+		return aok
+	case aok && ai != bi:
+		return ai < bi
+	}
+	return paneNumber(a) < paneNumber(b)
 }
 
 // preview is the time to show what the cursor is on, once it has

@@ -286,6 +286,37 @@ func (h here) mine() []proc {
 	return out
 }
 
+// ordered is processes in the order the panel stands them: by place,
+// and in a place, what the project has written down first, in the
+// order it was written, whatever was restarted since.
+func (h here) ordered(ps []proc) []proc {
+	if h.srv == nil {
+		return ps
+	}
+	ros := rosterOf(readStarted(startedPath(h.srv.Socket)), func(root string) bool { return root == h.root || within(root, h.root) })
+	type at struct {
+		p proc
+		r row
+	}
+	out := make([]at, len(ps))
+	for i, p := range ps {
+		r := row{pane: p.pane}
+		switch {
+		case p.Session != "":
+			r.conv = &conversation{ID: p.Session}
+		case p.pane == nil:
+			r.outside = &ps[i]
+		}
+		r.stand = placeOf(r, ros)
+		out[i] = at{p, r}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return before(out[i].r, out[j].r, ros) })
+	for i := range out {
+		ps[i] = out[i].p
+	}
+	return ps
+}
+
 // find is the process an address names: a :port or a pid anywhere
 // conn knows, a name in the project, the caller's checkout first. No
 // process, or more than one, is an error that says which.
@@ -402,7 +433,7 @@ func runLs(w io.Writer, home, dir string, args []string) int {
 	} else {
 		_, _ = fmt.Fprintf(tw, "%s  (no repository; everything under it)\n", tilde(h.root, home))
 	}
-	mine := h.mine()
+	mine := h.ordered(h.mine())
 	// Nothing under the path says nothing, and whether that is because
 	// nothing runs or because there is no server for it to run in.
 	switch {

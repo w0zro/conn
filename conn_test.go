@@ -5534,3 +5534,44 @@ func TestTheClockTicks(t *testing.T) {
 		t.Error("a tick asked for no next tick")
 	}
 }
+
+// conn ls lists a project's processes in the order the panel stands
+// them, the stack before the checks and what was written down in the
+// order it was, and a run started again keeps its line.
+func TestLsStandsAsThePanel(t *testing.T) {
+	srv, _, _ := scratchServer(t)
+	t.Setenv("CONN_SOCKET", srv.Socket)
+	t.Setenv("TMUX", "")
+	t.Setenv("TMUX_PANE", "")
+	dir := filepath.Join(filepath.Dir(srv.Socket), "p")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var said strings.Builder
+	for _, args := range [][]string{{"test", "-w", "--", "true"}, {"lint", "-w", "--", "true"}, {"site", "--", "sleep", "1000"}} {
+		if code := runU(&said, t.TempDir(), dir, args); code != 0 {
+			t.Fatalf("conn u %v = %d: %s", args, code, said.String())
+		}
+	}
+	names := func() []string {
+		said.Reset()
+		if code := runLs(&said, t.TempDir(), dir, nil); code != 0 {
+			t.Fatalf("conn ls = %d: %s", code, said.String())
+		}
+		var out []string
+		for _, l := range strings.Split(strings.TrimSpace(said.String()), "\n")[1:] {
+			out = append(out, strings.Fields(l)[0])
+		}
+		return out
+	}
+	want := []string{"site", "test", "lint"}
+	if got := names(); !reflect.DeepEqual(got, want) {
+		t.Errorf("conn ls lists %v, want %v", got, want)
+	}
+	if code := runR(&said, t.TempDir(), dir, []string{"test"}); code != 0 {
+		t.Fatalf("conn r test = %d: %s", code, said.String())
+	}
+	if got := names(); !reflect.DeepEqual(got, want) {
+		t.Errorf("after conn r test, conn ls lists %v, want %v", got, want)
+	}
+}

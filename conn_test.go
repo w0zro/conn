@@ -2883,7 +2883,8 @@ func TestVerbWaits(t *testing.T) {
 // whatever it has, by name and not by state; the cursor on a row or a
 // line says which. A folder's counts take in its repositories', which
 // have lines of their own, so a folder has a line only for work in
-// the folder itself, and the line counts that alone.
+// the folder itself, and the line counts that alone; open, its line
+// counts them all.
 func TestItems(t *testing.T) {
 	m := model{screen: onProject, projects: []project{{Root: "/a", Running: 1}, {Root: "/b"}, {Root: "/c", Waiting: 1}, {Root: "/d"}, {Root: "/f", Group: true, Running: 1}, {Root: "/f/x", Depth: 1, Running: 1}, {Root: "/g", Turning: 1}, {Root: "/h", Group: true, Running: 2, Turning: 1}, {Root: "/h/y", Depth: 1, Running: 1}}}
 	m.cur = m.projects[3]
@@ -2897,6 +2898,15 @@ func TestItems(t *testing.T) {
 	}
 	if h := m.items()[6].project; h.Running != 1 || h.Turning != 1 {
 		t.Errorf("the folder's line counts %d running, %d at work, want 1 and 1: the work in itself", h.Running, h.Turning)
+	}
+	// Open, the folder's repositories have no lines, and its line
+	// counts them all.
+	open := m
+	open.cur = m.projects[7]
+	for _, it := range open.items() {
+		if it.row < 0 && it.project.Root == "/h" && it.project.Running != 2 {
+			t.Errorf("the open folder's line counts %d running, want 2: its repositories' too", it.project.Running)
+		}
 	}
 	m.cursor = 0
 	if r, ok := m.under(); !ok || r.pane.ID != "%1" {

@@ -3708,8 +3708,9 @@ func (m model) items() []item {
 			continue
 		}
 		// A folder's line is for the work in the folder itself: what
-		// runs in its repositories is theirs, and they have lines.
-		if p.Group {
+		// runs in its repositories is theirs, and they have lines. Open,
+		// its repositories have none, and its line counts them all.
+		if p.Group && !m.isOpen(p) {
 			p = m.inItself(p)
 		}
 		if p.Running == 0 && p.Waiting == 0 && p.Turning == 0 && !m.isOpen(p) {
@@ -3738,6 +3739,7 @@ func (m model) inItself(f project) project {
 			f.Running -= q.Running
 			f.Waiting -= q.Waiting
 			f.Turning -= q.Turning
+			f.Failed -= q.Failed
 		}
 	}
 	return f

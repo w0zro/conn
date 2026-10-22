@@ -5716,7 +5716,7 @@ func TestAFailedRunSaysWhy(t *testing.T) {
 	// does well: the check ends well, the server stays up.
 	const (
 		checkWhy  = "login_test.go:42: expected 200, got 500"
-		serverWhy = "listen tcp :3000: bind: address already in use"
+		serverWhy = "listen tcp :3000: address already in use"
 	)
 	ran := filepath.Join(scratch, "ran")
 	again := "if [ -e " + ran + " ]; then echo 'ok  web 0.01s'; exit 0; fi; touch " + ran + "; "

@@ -232,7 +232,7 @@ func TestAConversationFromAnotherTerminalComesIn(t *testing.T) {
 	if got := foot(m); !strings.Contains(got, working) {
 		t.Errorf("enter on a conversation still at work in another terminal, the foot says %q, want %q", got, working)
 	}
-	m = typed(m, 'y')
+	_ = typed(m, 'y') // what it does is read off the machine below
 	time.Sleep(500 * time.Millisecond)
 	if !stillThere() {
 		t.Errorf("a conversation still at work in another terminal was ended")

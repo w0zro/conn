@@ -5670,3 +5670,250 @@ func TestANarrowWindowTakesTurns(t *testing.T) {
 		t.Errorf("wide again, the window reads %q, want unzoomed with the panel at %d", got, panelWidth)
 	}
 }
+
+// When a check or a server fails, a gray line under its red row in the
+// open project, and under its name beneath its project on the projects
+// screen, says why: the last thing it printed that is not only a
+// verdict, "FAIL" or "exit status 1", and not the line conn's own pane
+// writes at its end. A run that ends well shows no line, and running
+// it again clears it. What it printed is what its pane holds, as the
+// panel reads it from tmux.
+func TestAFailedRunSaysWhy(t *testing.T) {
+	bin, err := exec.LookPath("tmux")
+	if err != nil {
+		t.Skip("no tmux")
+	}
+	shots := os.Getenv("SHOTS")
+	wear(theme.Dark)
+	t.Cleanup(undress)
+	g := theme.Dark
+
+	scratch, err := os.MkdirTemp("/tmp", "cs-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(scratch) })
+	scratch, _ = filepath.EvalSymlinks(scratch)
+	t.Setenv("HOME", scratch)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(scratch, ".claude"))
+	t.Setenv("LC_ALL", "C.UTF-8")
+	web := filepath.Join(scratch, "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, web, "init", "-q")
+	git(t, web, "commit", "-q", "--allow-empty", "-m", "first")
+
+	path := write(t, filepath.Join(scratch, "tmux.conf"), conf(g))
+	srv := &tmux.Server{Tmux: bin, Socket: filepath.Join(scratch, "s")}
+	t.Cleanup(func() { _ = srv.Down() })
+	if _, err := srv.Run("-f", path, "new-session", "-d", "-s", sessionName, "-x", "120", "-y", "36", "-c", scratch, "sleep 1000"); err != nil {
+		t.Fatal(err)
+	}
+
+	// A check fails with its reason and then its verdict, as go test
+	// writes them, and a server with its reason alone; each, run again,
+	// does well: the check ends well, the server stays up.
+	const (
+		checkWhy  = "login_test.go:42: expected 200, got 500"
+		serverWhy = "listen tcp :3000: bind: address already in use"
+	)
+	ran := filepath.Join(scratch, "ran")
+	again := "if [ -e " + ran + " ]; then echo 'ok  web 0.01s'; exit 0; fi; touch " + ran + "; "
+	checkID, err := startNamed(srv, "test", again+"echo '"+checkWhy+"'; echo FAIL; echo 'exit status 1'; exit 1", web, web, roleCheck)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ranServer := filepath.Join(scratch, "ranserver")
+	serverID, err := startNamed(srv, "dev", "if [ -e "+ranServer+" ]; then exec sleep 1000; fi; touch "+ranServer+"; echo '"+serverWhy+"'; exit 2", web, web, roleStack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{checkID, serverID} {
+		if exit, err := waitExit(srv, id); err != nil || exit == "0" {
+			t.Fatalf("%s ended %q, %v, want it failed", id, exit, err)
+		}
+	}
+
+	// The scratch is temporary, which is no project; here it is one.
+	k := newKnown()
+	k.root[web] = web
+	var update func(m model, msg tea.Msg) model
+	update = func(m model, msg tea.Msg) model {
+		if msg == nil {
+			return m
+		}
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					m = update(m, c())
+				}
+			}
+			return m
+		}
+		next, _ := m.Update(msg)
+		return next.(model)
+	}
+	projectsNow := func() model {
+		m := model{srv: srv, screen: onProjects, home: scratch, conn: "conn", known: k, g: g, width: 120, height: 36}
+		return update(m, m.read()())
+	}
+	panelNow := func() model {
+		m := model{srv: srv, screen: onProject, cur: project{Name: "web", Root: web}, home: scratch, conn: "conn", known: k, g: g, loaded: true, width: panelWidth, height: 34}
+		return update(m, m.read()())
+	}
+	screen := func(m model) (raw, lines []string) {
+		raw, _ = m.draw()
+		lines = make([]string, len(raw))
+		for i := range raw {
+			lines[i] = strings.TrimRight(plainText(raw[i]), " ")
+		}
+		return raw, lines
+	}
+	indent := func(s string) int { return ansi.StringWidth(s) - ansi.StringWidth(strings.TrimLeft(s, " ")) }
+	sgr := regexp.MustCompile("\x1b\\[[0-9;]*m")
+	lastSGR := func(s string) string {
+		all := sgr.FindAllString(s, -1)
+		if len(all) == 0 {
+			return ""
+		}
+		return all[len(all)-1]
+	}
+	grayInk := lastSGR(strings.SplitN(gray.Render("x"), "x", 2)[0])
+	// rowOf is the line that says a row's name after its mark.
+	rowOf := func(lines []string, name string) int {
+		re := regexp.MustCompile(`^[▌ ]*\S ` + regexp.QuoteMeta(name) + `(\s|$)`)
+		for i, l := range lines {
+			if re.MatchString(l) {
+				return i
+			}
+		}
+		return -1
+	}
+	shot := 0
+	frame := func(name string, v model) {
+		if shots == "" {
+			return
+		}
+		if shot++; shot > 6 {
+			return
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "\x1b]10;%s\x1b\\\x1b]11;%s\x1b\\\x1b[2J\x1b[H", theme.Hex(g.Ink), g.Surface)
+		for _, l := range strings.Split(v.View().Content, "\n") {
+			b.WriteString(l + "\x1b[0m" + strings.Repeat(" ", max(120-ansi.StringWidth(l), 0)) + "\r\n")
+		}
+		if v.screen == onProject {
+			b.WriteString(drawnStatus(t, srv))
+		}
+		if err := os.WriteFile(filepath.Join(shots, name), []byte(strings.TrimSuffix(b.String(), "\r\n")+"\x1b[0m"), 0o644); err != nil {
+			t.Error(err)
+		}
+	}
+
+	// noVerdict: neither screen says a verdict as the reason.
+	noVerdict := func(what string, lines []string) {
+		t.Helper()
+		for _, l := range lines {
+			if s := strings.TrimSpace(l); s == "FAIL" || strings.Contains(s, "exit status 1") || strings.Contains(s, "exited") {
+				t.Errorf("%s, a line says %q, which is no reason:\n%s", what, l, strings.Join(lines, "\n"))
+				return
+			}
+		}
+	}
+	// panelSays checks that, under the row of name on the open
+	// project's panel, a gray line starting under the name says want;
+	// or, with want blank, that nothing under it does.
+	panelSays := func(what string, name, want string) {
+		t.Helper()
+		raw, lines := screen(panelNow())
+		all := strings.Join(lines, "\n")
+		at := rowOf(lines, name)
+		if at < 0 {
+			t.Fatalf("%s, the panel has no row for %s:\n%s", what, name, all)
+		}
+		next := ""
+		if at+1 < len(lines) {
+			next = lines[at+1]
+		}
+		if want == "" {
+			if strings.Contains(all, checkWhy) || strings.Contains(all, serverWhy) || strings.Contains(all, "ok  web") {
+				t.Errorf("%s, the panel still says why:\n%s", what, all)
+			}
+			return
+		}
+		if strings.TrimSpace(next) != want {
+			t.Errorf("%s, under %s's row the panel says %q, want %q:\n%s", what, name, strings.TrimSpace(next), want, all)
+			return
+		}
+		if col := strings.Index(lines[at], name); indent(next) != ansi.StringWidth(lines[at][:col]) {
+			t.Errorf("%s, the line %q starts at column %d, not under the name in %q", what, next, indent(next), lines[at])
+		}
+		if i := strings.Index(raw[at+1], want[:1]); i < 0 || lastSGR(raw[at+1][:i]) != grayInk {
+			t.Errorf("%s, the line %q is not in the gray: %q", what, next, raw[at+1])
+		}
+		noVerdict(what, lines)
+	}
+	// projectsSay checks that, under web's line on the projects screen,
+	// a line names the run and says want after its name, in the gray;
+	// or, with want blank, that nothing there does.
+	projectsSay := func(what string, name, want string) {
+		t.Helper()
+		raw, lines := screen(projectsNow())
+		all := strings.Join(lines, "\n")
+		top := -1
+		for i, l := range lines {
+			if strings.Contains(l, "web") && strings.Contains(l, "failed") {
+				top = i
+			}
+		}
+		if want == "" {
+			if strings.Contains(all, checkWhy) || strings.Contains(all, serverWhy) || strings.Contains(all, "ok  web") {
+				t.Errorf("%s, the projects screen still says why:\n%s", what, all)
+			}
+			return
+		}
+		if top < 0 {
+			t.Fatalf("%s, web's line does not say what failed:\n%s", what, all)
+		}
+		for i := top + 1; i < len(lines); i++ {
+			l := lines[i]
+			n, w := strings.Index(l, name), strings.Index(l, want)
+			if n < 0 || w < 0 {
+				continue
+			}
+			if n > w || indent(l) <= indent(lines[top]) {
+				t.Errorf("%s, the line %q does not name %s first, indented under web's %q", what, l, name, lines[top])
+			}
+			if at := strings.Index(raw[i], want[:1]); at < 0 || lastSGR(raw[i][:at]) != grayInk {
+				t.Errorf("%s, %q is not in the gray: %q", what, want, raw[i])
+			}
+			noVerdict(what, lines)
+			return
+		}
+		t.Errorf("%s, no line under web names %s and says %q:\n%s", what, name, want, all)
+	}
+
+	// Failed, each says why under its own row, and under its project.
+	panelSays("with both failed", "test", checkWhy)
+	panelSays("with both failed", "dev", serverWhy)
+	projectsSay("with both failed", "test", checkWhy)
+	projectsSay("with both failed", "dev", serverWhy)
+	frame("panel.ans", panelNow())
+	frame("projects.ans", projectsNow())
+
+	// Run again, the check ends well and the server stays up: no line.
+	m := panelNow()
+	for _, r := range "rf" {
+		next, c := m.Update(tea.KeyPressMsg(tea.Key{Code: r, Text: string(r)}))
+		m = next.(model)
+		if c != nil {
+			m = update(m, c())
+		}
+	}
+	if exit, err := waitExit(srv, checkID); err != nil || exit != "0" {
+		t.Fatalf("the check run again ended %q, %v, want 0", exit, err)
+	}
+	panelSays("with both run again", "test", "")
+	projectsSay("with both run again", "test", "")
+}

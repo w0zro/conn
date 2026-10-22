@@ -1274,11 +1274,12 @@ func (m model) projectsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.note = tilde(dir, m.home) + " is not a directory"
 		}
 		return m, nil
-	case "x":
-		if m.cursor < len(shown) && m.box.Value() == "" {
+	case "ctrl+x":
+		// A control key, so that every letter types: x would stop the
+		// project under the cursor as the first letter of a find.
+		if m.cursor < len(shown) {
 			return m, m.endAll(shown[m.cursor])
 		}
-		return m.typeInto(k)
 	case "up", "ctrl+p", "ctrl+k":
 		m.cursor = ring(m.cursor, -1, len(shown))
 	case "down", "ctrl+n", "ctrl+j":
@@ -2466,7 +2467,7 @@ type keyHint struct{ key, does string }
 // the keys the bar leaves out.
 var (
 	projectHints  = []keyHint{{"enter", "go"}, {"/", "search"}, {"s", "start"}, {"x", "stop"}, {"r", "restart"}, {"a", "agent"}, {"c", "talk"}, {"!", "run"}, {"?", "keys"}}
-	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
+	projectsHints = []keyHint{{"type", "find"}, {"enter", "open"}, {"ctrl-x", "stop"}, {"esc", "back"}, {"ctrl-c", "leave"}, {"?", "keys"}}
 	// A project's keys past the verbs, which the keys screen draws as a
 	// table against their objects.
 	projectKeys = []keyHint{{"enter", "goes to it"}, {"j k", "move, around at the ends"}, {"g G", "top, bottom"}, {"tab", "what waits"}, {"/", "search output"}, {"!", "run a command, or a shell"}, {"c", "talk to it"}, {"esc", "back into the process you were in"}, {"-", "projects"}, {",", "settings"}, {"q", "leave"}}
@@ -2484,7 +2485,7 @@ var (
 		{"a conversation", [4]string{"sc", "", "rc", ""}},
 		{"the project", [4]string{"", "xp", "", ""}},
 	}
-	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
+	projectsKeys  = []keyHint{{"type", "to find, or a path to open"}, {"enter", "opens"}, {"tab", "what waits"}, {"ctrl-x", "stops everything in it"}, {"esc", "back to the project, or clears the find"}, {",", "settings"}, {"ctrl-c", "leaves conn running"}}
 	searchHints   = []keyHint{{"type", "to search"}, {"↑ ↓", "move"}, {"enter", "goes to it"}, {"esc", "back"}}
 	bringHints    = []keyHint{{"y", "bring it in"}, {"esc", "leave it"}}
 	askHints      = []keyHint{{"type", "a command"}, {"enter", "runs it, or a shell"}, {"esc", "cancel"}}

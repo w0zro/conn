@@ -89,8 +89,8 @@ process running: an update is had by running the new
 .B q
 detaches; the server and every process keep running.
 Nothing takes the server down but
-.B x
-on each project, or
+.B xp
+in each project, or
 .BR "conn down" .
 .PP
 One key,
@@ -329,8 +329,8 @@ To the conversation that has waited longest for you, wherever it runs
 in
 .BR conn .
 .TP
-.B x
-With nothing typed: stop everything in the project under the cursor.
+.B ctrl-x
+Stop everything in the project under the cursor.
 Every process
 .B conn
 holds in it, conversations included, which keep their transcripts, and
@@ -448,7 +448,7 @@ is sent
 .BR SIGTERM .
 .B xx
 on another project's line stops everything in it, as
-.B x
+.B ctrl-x
 on the projects screen does.
 .B xs
 stops the stack and

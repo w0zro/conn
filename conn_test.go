@@ -5454,3 +5454,20 @@ func TestARefusalSaysClaudesWords(t *testing.T) {
 		}
 	}
 }
+
+// Every letter types on the projects screen: x as the first letter of
+// a find finds, and ctrl-x is what stops everything in a project.
+func TestXFindsOnTheProjects(t *testing.T) {
+	m := model{screen: onProjects, projects: []project{{Name: "web", Root: "/p"}, {Name: "xterm", Root: "/x"}}, loaded: true}
+	m, _ = press(t, m, "x")
+	if m.box.Value() != "x" {
+		t.Fatalf("x on the projects typed %q", m.box.Value())
+	}
+	if shown := m.shownProjects(); len(shown) != 1 || shown[0].Name != "xterm" {
+		t.Errorf("x found %v", shown)
+	}
+	m.box.Reset()
+	if _, cmd := m.Update(tea.KeyPressMsg(tea.Key{Code: 'x', Mod: tea.ModCtrl})); cmd == nil {
+		t.Error("ctrl-x on a project's line asked for nothing")
+	}
+}

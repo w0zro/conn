@@ -153,7 +153,13 @@ set -g escape-time 10
 set -g focus-events on
 set -g set-clipboard on
 set -g default-terminal tmux-256color
-set -as terminal-features ",*:RGB"
+# Extended keys carry the modifier on keys like shift+enter, from the
+# terminal and on to a pane that asks for them, as Claude Code does.
+# The features are reset first, so a source into a server already up
+# does not append them again.
+set -s extended-keys on
+set -su terminal-features
+set -as terminal-features ",*:RGB:extkeys"
 set-environment -g COLORTERM truecolor
 set-environment -g CLAUDE_CODE_TMUX_TRUECOLOR 1
 set-environment -g CONN 1

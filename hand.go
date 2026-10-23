@@ -23,6 +23,7 @@ const (
 // l and conn x take for it, whether that is a name of its own, what it
 // runs and where, how it is doing, and what it last wrote.
 type handing struct {
+	id                  string // its pane
 	name, addr          string
 	named               bool
 	command, dir, state string

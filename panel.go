@@ -99,6 +99,10 @@ type model struct {
 	// and under the rows.
 	broken []pane
 	why    map[string]string
+	// The failed runs handed to an agent, by pane: who has them, and the
+	// title of that conversation as last read.
+	handed map[string]handedTo
+	with   map[string]string
 	// /'s search: whether it stands, the panes' lines as read when it
 	// opened, and the lines that say what is typed. The pane the line
 	// under the cursor is shown in, in copy mode on the line, and a
@@ -570,6 +574,7 @@ type read struct {
 	asks     map[string]string // what each of them is stopped on, by pane; blank for a turn handed back
 	broken   []pane            // the panes whose run failed, and why by pane
 	why      map[string]string
+	with     map[string]string // the failed runs an agent has, by pane, and what its conversation is called
 	// What the workspace shows, blank for a hold, and whether it stands:
 	// a pane closed there leaves the panel alone in the window, and one
 	// ended there stands dead. The directory is where it runs, which
@@ -691,6 +696,7 @@ const conversationsShown = 50
 // is told the number waiting in all.
 func (m model) read() tea.Cmd {
 	srv, home, own, k, window, offering := m.srv, m.home, m.own, m.known, m.ws.window, m.offering
+	handed := m.handed
 	var cur *project
 	switch {
 	case m.opening != nil:
@@ -756,6 +762,19 @@ func (m model) read() tea.Cmd {
 			case p.started() && p.Exit != "" && p.Exit != "0":
 				failed[root]++
 				broke++
+				if h, ok := handed[p.ID]; ok {
+					if r.with == nil {
+						r.with = map[string]string{}
+					}
+					r.with[p.ID] = "a conversation"
+					for _, c := range all {
+						if c.ID == h.session {
+							if t := k.titleOf(c); t != "" {
+								r.with[p.ID] = t
+							}
+						}
+					}
+				}
 				if lines, err := said(srv, p.ID); err == nil {
 					if why := reasonOf(sansEnd(lines, p.Name, p.Run)); why != "" {
 						if r.why == nil {
@@ -1143,7 +1162,20 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.takeTheme(msg), nil
 	case read:
 		m.waiting, m.waitTitle, m.waitAsk = msg.waiting, msg.titles, msg.asks
-		m.broken, m.why = msg.broken, msg.why
+		m.broken, m.why, m.with = msg.broken, msg.why, msg.with
+		// A run no longer failed has been given back, unless it was
+		// handed after this was read.
+		for id, h := range m.handed {
+			if _, ok := msg.with[id]; !ok && h.at.Before(msg.at) {
+				next := map[string]handedTo{}
+				for k, v := range m.handed {
+					if k != id {
+						next[k] = v
+					}
+				}
+				m.handed = next
+			}
+		}
 		m.procs = msg.procs
 		// The first read, with a process standing in the workspace: the
 		// panel has been started again over it, and opens on it.
@@ -2016,7 +2048,7 @@ func (m model) converse() (tea.Model, tea.Cmd) {
 // written, and leaves it to it: the agent has its brief, so nothing is
 // to be typed, and the keys stay on the panel where they were. Its row
 // comes with the next read, and it shows as waiting when it needs you.
-func (m model) brief(prompt, what string) (tea.Model, tea.Cmd) {
+func (m model) brief(prompt, what string, panes ...string) (tea.Model, tea.Cmd) {
 	id := newID()
 	file := promptPath(m.srv.Socket, id)
 	if err := os.WriteFile(file, []byte(prompt), 0o600); err != nil {
@@ -2031,6 +2063,16 @@ func (m model) brief(prompt, what string) (tea.Model, tea.Cmd) {
 	if _, err := openWindow(m.srv, windowName(m.cur.Name), m.here(), newCommand(note, id, file), id); err != nil {
 		m.note = err.Error()
 		return m, nil
+	}
+	if len(panes) > 0 {
+		next := map[string]handedTo{}
+		for k, v := range m.handed {
+			next[k] = v
+		}
+		for _, p := range panes {
+			next[p] = handedTo{session: id, at: time.Now()}
+		}
+		m.handed = next
 	}
 	m.note = what + " handed to an agent."
 	return m, m.read()
@@ -2207,30 +2249,78 @@ func (m model) hand(r row) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	return m.brief(handPrompt(h), h.name)
+	if m.isHanded(h.id) {
+		return m.already([]handing{h})
+	}
+	return m.brief(handPrompt(h), h.name, h.id)
 }
 
 // handAll starts one conversation in the project given every run that
 // failed.
 func (m model) handAll(rows []row) (tea.Model, tea.Cmd) {
-	var hs []handing
+	var hs, had []handing
 	for _, r := range rows {
 		if h, ok := m.handing(r); ok {
-			hs = append(hs, h)
+			if m.isHanded(h.id) {
+				had = append(had, h)
+			} else {
+				hs = append(hs, h)
+			}
 		}
 	}
 	switch len(hs) {
 	case 0:
+		if len(had) > 0 {
+			return m.already(had)
+		}
 		m.note = "nothing failed"
 		return m, nil
 	case 1:
-		return m.brief(handPrompt(hs[0]), hs[0].name)
+		return m.brief(handPrompt(hs[0]), hs[0].name, hs[0].id)
 	}
-	names := make([]string, len(hs))
+	names, ids := make([]string, len(hs)), make([]string, len(hs))
 	for i, h := range hs {
-		names[i] = h.name
+		names[i], ids[i] = h.name, h.id
 	}
-	return m.brief(handAllPrompt(hs), strings.Join(names, ", "))
+	return m.brief(handAllPrompt(hs), strings.Join(names, ", "), ids...)
+}
+
+// handedTo is the conversation a failed run was handed to, and when.
+type handedTo struct {
+	session string
+	at      time.Time
+}
+
+// isHanded is whether a failed run, by pane, is with an agent.
+func (m model) isHanded(id string) bool {
+	_, ok := m.handed[id]
+	return id != "" && ok
+}
+
+// noteOf is what a failed run says of who has it: ❝ and the title of
+// the conversation; blank where none has it.
+func (m model) noteOf(id string) string {
+	if t := m.with[id]; t != "" {
+		return markConversation + " " + t
+	}
+	return ""
+}
+
+// already says who has the runs that were handed again, and starts
+// nothing.
+func (m model) already(hs []handing) (tea.Model, tea.Cmd) {
+	var who []string
+	for _, h := range hs {
+		n := m.noteOf(h.id)
+		if n == "" {
+			n = markConversation + " a conversation"
+		}
+		if !slices.Contains(who, n) {
+			who = append(who, n)
+		}
+	}
+	m.note = "already with " + strings.Join(who, ", ")
+	return m, nil
 }
 
 // handing is a row's process as it is handed to an agent; a
@@ -2241,6 +2331,7 @@ func (m model) handing(r row) (handing, bool) {
 	case r.conv != nil || (r.pane != nil && r.pane.Session != ""):
 		return h, false
 	case r.pane != nil:
+		h.id = r.pane.ID
 		h.name, h.command, h.dir, h.state = paneName(*r.pane), r.pane.Run, r.pane.Path, or(r.state, "running")
 		// A run under no name answers to its pid.
 		h.addr, h.named = or(r.pane.Name, strconv.Itoa(r.pane.PID)), r.pane.Name != ""
@@ -2799,7 +2890,11 @@ func (m model) drawProjects() ([]string, foot) {
 		}
 		// And what failed, by name, with why.
 		for _, b := range m.brokenIn(p) {
-			lines = append(lines, m.row([]piece{{"  " + paneName(b), failing}, {"  " + m.why[b.ID], gray}}, piece{}, false))
+			said := m.why[b.ID]
+			if n := m.noteOf(b.ID); n != "" {
+				said = n
+			}
+			lines = append(lines, m.row([]piece{{"  " + paneName(b), failing}, {"  " + said, gray}}, piece{}, false))
 		}
 	}
 	if port, ok := m.typedPort(); ok && m.loaded {
@@ -2988,7 +3083,11 @@ func (m model) lay(head int) laid {
 			rows.add(m.drawAsk(r, depth, i == m.cursor), i)
 		}
 		if r.pane != nil && strings.HasPrefix(r.state, "failed ") && m.why[r.pane.ID] != "" {
-			rows.add(m.drawUnder(r, depth, m.why[r.pane.ID], false), i)
+			said := m.why[r.pane.ID]
+			if n := m.noteOf(r.pane.ID); n != "" {
+				said = n
+			}
+			rows.add(m.drawUnder(r, depth, said, false), i)
 		}
 	}
 	room := max(m.height-head-1, 1)
